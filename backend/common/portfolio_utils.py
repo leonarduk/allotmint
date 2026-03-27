@@ -641,43 +641,55 @@ def aggregate_by_ticker(
             row["gain_gbp"] += _safe_num(h.get("gain_gbp"))
 
             snap = _PRICE_SNAPSHOT.get(full_tkr) or _PRICE_SNAPSHOT.get(base_sym)
-            price = snap.get("last_price") if isinstance(snap, dict) else None
-            if price is not None and price == price:  # allow zero, reject None/NaN
-                price_value = _safe_num(price, default=float("nan"))
-                if price_value == price_value:  # still not NaN after coercion
-                    raw_snapshot_currency = snap.get("price_currency") if isinstance(snap, dict) else None
-                    if raw_snapshot_currency:
-                        native_currency = _normalize_currency_code(raw_snapshot_currency)
-                    else:
-                        logger.debug(
-                            "snap for %s missing price_currency; falling back to row currency %s",
-                            full_tkr,
-                            row.get("currency"),
+            # Normalise the ticker before comparison to guard against casing or
+            # whitespace variations (e.g. "cash.gbp", " CASH.GBP ").
+            if full_tkr.strip().upper() == "CASH.GBP":
+                # Cash is always £1/unit; never derive price from the snapshot.
+                row["last_price_gbp"] = 1.0
+                row["last_price_currency"] = "GBP"
+                row["market_value_gbp"] = round(row["units"], 2)
+                # Use is-not-None so that a zero cost basis (legitimately £0)
+                # still triggers a gain recalculation instead of being skipped.
+                if row.get("cost_gbp") is not None:
+                    row["gain_gbp"] = round(row["market_value_gbp"] - row["cost_gbp"], 2)
+            else:
+                price = snap.get("last_price") if isinstance(snap, dict) else None
+                if price is not None and price == price:  # allow zero, reject None/NaN
+                    price_value = _safe_num(price, default=float("nan"))
+                    if price_value == price_value:  # still not NaN after coercion
+                        raw_snapshot_currency = snap.get("price_currency") if isinstance(snap, dict) else None
+                        if raw_snapshot_currency:
+                            native_currency = _normalize_currency_code(raw_snapshot_currency)
+                        else:
+                            logger.debug(
+                                "snap for %s missing price_currency; falling back to row currency %s",
+                                full_tkr,
+                                row.get("currency"),
+                            )
+                            native_currency = _normalize_currency_code(row.get("currency"))
+
+                        native_price = price_value
+                        if native_currency == "GBX":
+                            native_price *= 0.01
+                            native_currency = "GBP"
+
+                        gbp_price = native_price * _fx_to_base(native_currency, "GBP", fx_cache)
+
+                        if native_price == 0:
+                            logger.debug("Using zero snapshot price for %s", full_tkr)
+
+                        row["last_price_gbp"] = gbp_price
+                        row["last_price_date"] = snap.get("last_price_date")
+                        row["last_price_time"] = snap.get("last_price_time")
+                        row["is_stale"] = snap.get("is_stale")
+                        row["market_value_gbp"] = round(row["units"] * gbp_price, 2)
+                        row["gain_gbp"] = (
+                            round(row["market_value_gbp"] - row["cost_gbp"], 2)
+                            if row["cost_gbp"]
+                            else row["gain_gbp"]
                         )
-                        native_currency = _normalize_currency_code(row.get("currency"))
-
-                    native_price = price_value
-                    if native_currency == "GBX":
-                        native_price *= 0.01
-                        native_currency = "GBP"
-
-                    gbp_price = native_price * _fx_to_base(native_currency, "GBP", fx_cache)
-
-                    if native_price == 0:
-                        logger.debug("Using zero snapshot price for %s", full_tkr)
-
-                    row["last_price_gbp"] = gbp_price
-                    row["last_price_date"] = snap.get("last_price_date")
-                    row["last_price_time"] = snap.get("last_price_time")
-                    row["is_stale"] = snap.get("is_stale")
-                    row["market_value_gbp"] = round(row["units"] * gbp_price, 2)
-                    row["gain_gbp"] = (
-                        round(row["market_value_gbp"] - row["cost_gbp"], 2)
-                        if row["cost_gbp"]
-                        else row["gain_gbp"]
-                    )
-                    row["_snapshot_native_price"] = native_price
-                    row["_snapshot_native_currency"] = native_currency
+                        row["_snapshot_native_price"] = native_price
+                        row["_snapshot_native_currency"] = native_currency
 
             if row.get("change_7d_pct") is None:
                 change_7d = snap.get("change_7d_pct") if isinstance(snap, dict) else None

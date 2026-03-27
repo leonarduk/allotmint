@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   Suspense,
@@ -67,6 +68,7 @@ import {
   normaliseGroupSlug,
 } from "./utils/groups";
 import { deriveModeFromPathname } from "./pageManifest";
+import { MAX_INSTRUMENT_CATALOGUE_ROWS } from "./constants/renderLimits";
 const PerformanceDashboard = lazyWithDelay(
   () => import("./components/PerformanceDashboard"),
 );
@@ -228,6 +230,7 @@ export default function App({ onLogout }: AppProps) {
   const [groups, setGroups] = useState<GroupSummary[]>([]);
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
   const [portfolioAsOf, setPortfolioAsOf] = useState<string | null>(null);
+  // Full catalogue stored in state — never truncated here.
   const [instruments, setInstruments] = useState<InstrumentSummary[]>([]);
 
   const [loading, setLoading] = useState(false);
@@ -301,7 +304,9 @@ export default function App({ onLogout }: AppProps) {
     }
     setMode(newMode);
     if (newMode === "owner" || newMode === "performance") {
-      setSelectedOwner(segs[1] ?? "");
+      if (segs[1]) {
+        setSelectedOwner(segs[1]);
+      }
     } else if (newMode === "instrument") {
       setSelectedGroup(segs[1] ?? "");
     } else if (newMode === "group") {
@@ -317,6 +322,8 @@ export default function App({ onLogout }: AppProps) {
 
   useEffect(() => {
     if (!ownersReq.data) return;
+    setOwners(sanitizeOwners(ownersReq.data));
+  }, [ownersReq.data]);
 
     const sanitizedOwners = sanitizeOwners(ownersReq.data);
 
@@ -324,9 +331,10 @@ export default function App({ onLogout }: AppProps) {
       sameOwnerList(currentOwners, sanitizedOwners) ? currentOwners : sanitizedOwners,
     );
 
+  useEffect(() => {
     if (!selectedOwner) return;
 
-    const match = sanitizedOwners.find(
+    const match = owners.find(
       (o) => o.owner.toLowerCase() === selectedOwner.toLowerCase(),
     );
 
@@ -344,7 +352,7 @@ export default function App({ onLogout }: AppProps) {
     if (!routeSpecifiesOwner) {
       setSelectedOwner("");
     }
-  }, [ownersReq.data, selectedOwner, setSelectedOwner, location.pathname]);
+  }, [owners, selectedOwner, setSelectedOwner, location.pathname]);
 
   useEffect(() => {
     if (groupsReq.data) {
@@ -373,6 +381,27 @@ export default function App({ onLogout }: AppProps) {
     const nextPath = getOwnerRootRedirectPath(location.pathname, selectedOwner, owners);
     if (nextPath) {
       navigate(nextPath, { replace: true });
+    const segs = location.pathname.split("/").filter(Boolean);
+    const atPortfolioRoot = segs[0] === "portfolio" && segs.length === 1;
+    const atPerformanceRoot = segs[0] === "performance" && segs.length === 1;
+    const ownerRoot = atPortfolioRoot
+      ? "portfolio"
+      : atPerformanceRoot
+        ? "performance"
+        : null;
+
+    // Only redirect when we are at an owner-root route AND at least one owner has loaded.
+    // Do not fall back to selectedOwner — that could redirect to an unverified owner
+    // when the owners list is empty (e.g. stale state during async load).
+    if (ownerRoot && owners.length > 0) {
+      const firstOwner = owners[0].owner;
+      const targetPath = `/${ownerRoot}/${firstOwner}`;
+      if (selectedOwner !== firstOwner) {
+        setSelectedOwner(firstOwner);
+      }
+      if (location.pathname !== targetPath) {
+        navigate(targetPath, { replace: true });
+      }
     }
     if (mode === "instrument" && !selectedGroup && groups.length) {
       const slug = groups[0].slug;
@@ -448,6 +477,7 @@ export default function App({ onLogout }: AppProps) {
     if (mode === "instrument" && selectedGroup) {
       setLoading(true);
       setErr(null);
+      // Store the full catalogue in state; render-time cap is applied below.
       const fetchPromise =
         selectedGroup === "all"
           ? listInstrumentMetadata().then((catalogue) =>
@@ -460,6 +490,12 @@ export default function App({ onLogout }: AppProps) {
         .finally(() => setLoading(false));
     }
   }, [mode, selectedGroup]);
+
+  // Render-only cap: never mutate the full instruments state.
+  const visibleInstruments = useMemo(
+    () => instruments.slice(0, MAX_INSTRUMENT_CATALOGUE_ROWS),
+    [instruments],
+  );
 
   const renderMainContent = () => {
     if (backendUnavailable) {
@@ -557,7 +593,22 @@ export default function App({ onLogout }: AppProps) {
         {mode === "instrument" && groups.length > 0 && (
           <>
             {err && <p style={{ color: "red" }}>{err}</p>}
-            {loading ? <p>{t("app.loading")}</p> : <InstrumentTable rows={instruments} />}
+            {loading ? (
+              <p>{t("app.loading")}</p>
+            ) : (
+              <>
+                <InstrumentTable rows={visibleInstruments} />
+                {instruments.length > MAX_INSTRUMENT_CATALOGUE_ROWS && (
+                  <p className="mt-2 text-xs text-slate-500">
+                    {t("app.instrumentCatalogueTruncated", {
+                      shown: MAX_INSTRUMENT_CATALOGUE_ROWS.toLocaleString(),
+                      total: instruments.length.toLocaleString(),
+                      defaultValue: `Showing first ${MAX_INSTRUMENT_CATALOGUE_ROWS.toLocaleString()} of ${instruments.length.toLocaleString()} instruments.`,
+                    })}
+                  </p>
+                )}
+              </>
+            )}
           </>
         )}
 

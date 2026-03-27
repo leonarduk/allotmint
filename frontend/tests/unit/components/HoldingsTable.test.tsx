@@ -264,9 +264,10 @@ describe("HoldingsTable", () => {
         );
     });
 
-      it("shows price source when available", async () => {
+      it("does not show price metadata source in the price column", async () => {
           render(<HoldingsTable holdings={holdings}/>);
-          expect(await screen.findByText(/Source: Feed/)).toBeInTheDocument();
+          await screen.findByText("AAA");
+          expect(screen.queryByText(/Source: Feed/)).toBeNull();
       });
 
       it("applies sell-eligible quick filter", async () => {

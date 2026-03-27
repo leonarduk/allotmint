@@ -57,6 +57,10 @@ export function formatTransactionAmount(
     return money(transaction.price_gbp * transaction.units, baseCurrency);
   }
 
+  if (transaction.price_gbp != null && transaction.shares != null) {
+    return money(transaction.price_gbp * transaction.shares, baseCurrency);
+  }
+
   return "";
 }
 

@@ -16,4 +16,4 @@ def test_fetch_indexes_includes_ftse(monkeypatch):
     out = market._fetch_indexes()
     for name, sym in market.INDEX_SYMBOLS.items():
         assert out[name]["value"] == prices[sym]
-        assert out[name]["change"] is None
+        assert out[name]["change"] == 0.0

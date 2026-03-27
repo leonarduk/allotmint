@@ -52,5 +52,17 @@ describe("transactionTable helpers", () => {
         "GBP",
       ),
     ).toBe("£37.50");
+
+    expect(
+      formatTransactionAmount(
+        {
+          owner: "alex",
+          account: "isa",
+          price_gbp: 8,
+          shares: 2.5,
+        },
+        "GBP",
+      ),
+    ).toBe("£20.00");
   });
 });

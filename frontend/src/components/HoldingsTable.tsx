@@ -540,11 +540,6 @@ export function HoldingsTable({
                       {formatDateISO(new Date(h.last_price_date))}
                     </span>
                   )}
-                  {h.latest_source && (
-                    <span className="ml-1 text-gray">
-                      {t("holdingsTable.source")} {h.latest_source}
-                    </span>
-                  )}
                 </td>
                 {!relativeViewEnabled && visibleColumns.cost && (
                   <td
@@ -695,4 +690,3 @@ export function HoldingsTable({
     </>
   );
 }
-

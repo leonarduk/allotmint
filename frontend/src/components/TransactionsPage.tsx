@@ -105,43 +105,14 @@ export function TransactionsPage({ owners }: Props) {
     return Array.from(options);
   }, [owner, owners]);
 
-  const newAccountOptions = useMemo(() => {
-    if (!formValues.owner) {
-      return [];
-    }
-    return owners.find((entry) => entry.owner === formValues.owner)?.accounts ?? [];
-  }, [formValues.owner, owners]);
-
   useEffect(() => {
-    if (!formValues.owner && owners.length === 1) {
-      setFormValues((current) => ({ ...current, owner: owners[0].owner }));
-      return;
-    }
-    if (formValues.owner && !owners.some((entry) => entry.owner === formValues.owner)) {
-      setFormValues((current) => ({ ...current, owner: "" }));
-    }
-  }, [owners, formValues.owner]);
-
-  useEffect(() => {
-    if (!formValues.owner) {
-      setFormValues((current) =>
-        current.account ? { ...current, account: "" } : current,
-      );
-      return;
-    }
-    if (newAccountOptions.length === 0) {
-      setFormValues((current) =>
-        current.account ? { ...current, account: "" } : current,
-      );
-      return;
-    }
-    if (!newAccountOptions.includes(formValues.account)) {
-      const nextAccount = newAccountOptions[0] ?? "";
-      setFormValues((current) =>
-        current.account === nextAccount ? current : { ...current, account: nextAccount },
-      );
-    }
-  }, [formValues.owner, formValues.account, newAccountOptions]);
+    setFormValues((current) => {
+      if (current.owner === owner && current.account === account) {
+        return current;
+      }
+      return { ...current, owner, account };
+    });
+  }, [owner, account]);
 
   const handleOwnerChange = useCallback<ChangeEventHandler<HTMLSelectElement>>(
     (event) => setOwner(event.target.value),
@@ -172,11 +143,12 @@ export function TransactionsPage({ owners }: Props) {
     if (!transaction.id) {
       return;
     }
+    setFilterOwnerAndAccount(transaction.owner, transaction.account ?? "");
     setEditingId(transaction.id);
     setFormValues(createTransactionFormValues(transaction));
     setFormError(null);
     setFormSuccess(null);
-  }, []);
+  }, [setFilterOwnerAndAccount]);
 
   const handleCancelEdit = useCallback(() => {
     setEditingId(null);
@@ -214,6 +186,10 @@ export function TransactionsPage({ owners }: Props) {
   );
 
   const validatePayload = useCallback(() => {
+    if (!formValues.owner || !formValues.account) {
+      setFormError("Select an owner and account in the filters before saving.");
+      return null;
+    }
     const result = buildTransactionPayload(formValues);
     if (result.error) {
       setFormError(result.error);
@@ -372,9 +348,8 @@ export function TransactionsPage({ owners }: Props) {
 
       <TransactionEditorForm
         values={formValues}
-        owners={owners}
-        ownerLookup={ownerLookup}
-        accountOptions={newAccountOptions}
+        activeOwner={owner}
+        activeAccount={account}
         editingId={editingId}
         hasSelection={hasSelection}
         selectedCount={selectedCount}

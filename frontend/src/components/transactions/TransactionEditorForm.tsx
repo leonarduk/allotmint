@@ -1,14 +1,10 @@
 import type { ChangeEventHandler, FormEventHandler } from "react";
-import type { OwnerSummary } from "@/types";
-import { Selector } from "@/components/Selector";
-import { getOwnerDisplayName } from "@/utils/owners";
 import type { TransactionFormValues } from "./transactionForm";
 
 interface TransactionEditorFormProps {
   values: TransactionFormValues;
-  owners: OwnerSummary[];
-  ownerLookup: Map<string, string>;
-  accountOptions: string[];
+  activeOwner: string;
+  activeAccount: string;
   editingId: string | null;
   hasSelection: boolean;
   selectedCount: number;
@@ -23,9 +19,8 @@ interface TransactionEditorFormProps {
 
 export function TransactionEditorForm({
   values,
-  owners,
-  ownerLookup,
-  accountOptions,
+  activeOwner,
+  activeAccount,
   editingId,
   hasSelection,
   selectedCount,
@@ -35,6 +30,8 @@ export function TransactionEditorForm({
   onCancelEdit,
   onApplyToSelected,
 }: TransactionEditorFormProps) {
+  const ownerAndAccountSelected = Boolean(activeOwner && activeAccount);
+
   return (
     <form
       onSubmit={onSubmit}
@@ -46,27 +43,16 @@ export function TransactionEditorForm({
         marginBottom: "1rem",
       }}
     >
-      <Selector
-        label="Owner"
-        value={values.owner}
-        onChange={onFieldChange("owner")}
-        options={[
-          { value: "", label: "Select" },
-          ...owners.map((entry) => ({
-            value: entry.owner,
-            label: getOwnerDisplayName(ownerLookup, entry.owner, entry.owner),
-          })),
-        ]}
-      />
-      <Selector
-        label="Account"
-        value={values.account}
-        onChange={onFieldChange("account")}
-        options={[
-          { value: "", label: values.owner ? "Select" : "Select owner first" },
-          ...accountOptions.map((option) => ({ value: option, label: option })),
-        ]}
-      />
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.2rem" }}>
+        <strong>Applies to</strong>
+        {ownerAndAccountSelected ? (
+          <span>
+            {activeOwner} / {activeAccount}
+          </span>
+        ) : (
+          <span style={{ opacity: 0.8 }}>Select an owner and account in filters above.</span>
+        )}
+      </div>
       <label style={{ display: "flex", flexDirection: "column" }}>
         Date
         <input type="date" value={values.date} onChange={onFieldChange("date")} required />
@@ -126,7 +112,11 @@ export function TransactionEditorForm({
           placeholder="Optional"
         />
       </label>
-      <button type="submit" disabled={submitting} style={{ height: "2.3rem" }}>
+      <button
+        type="submit"
+        disabled={submitting || !ownerAndAccountSelected}
+        style={{ height: "2.3rem" }}
+      >
         {submitting
           ? editingId
             ? "Updating..."

@@ -47,6 +47,10 @@ jobs:
           pip install awscli
           aws s3 sync s3://$DATA_BUCKET/ data/
 
+      - name: Type-check backend
+        run: |
+          mypy backend --config-file mypy.ini
+
       - name: Run provider parity tests
         env:
           ALLOTMINT_SKIP_SNAPSHOT_WARM: 'true'

@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import * as api from "@/api";
-import MarketOverview from "@/pages/MarketOverview";
+import MarketOverview, { IndexTooltip } from "@/pages/MarketOverview";
 
 vi.mock("@/api");
 vi.mock("react-i18next", () => ({
@@ -48,6 +48,8 @@ describe("MarketOverview", () => {
     expect(ftse.length).toBeGreaterThan(0);
     expect(screen.getAllByText("FTSE 250")).toHaveLength(2);
     expect(screen.getByText("No headlines available")).toBeInTheDocument();
+    expect(mockBar).toHaveBeenCalled();
+    expect(mockBar.mock.calls[0][0].dataKey).toBe("value");
   });
 
   it("renders headlines when provided", async () => {
@@ -58,5 +60,18 @@ describe("MarketOverview", () => {
     });
     render(<MarketOverview />);
     expect(await screen.findByText("Some News")).toBeInTheDocument();
+  });
+
+  it("renders index tooltip values from value and change", () => {
+    render(
+      <IndexTooltip
+        active
+        label="S&P 500"
+        payload={[{ payload: { value: 6123.45, change: -0.22 } }]}
+      />
+    );
+
+    expect(screen.getByText("Level: 6,123.45")).toBeInTheDocument();
+    expect(screen.getByText("Change: -0.22%")).toBeInTheDocument();
   });
 });

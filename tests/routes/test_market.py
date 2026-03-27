@@ -2,6 +2,7 @@
 
 from types import SimpleNamespace
 
+import pandas as pd
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -42,7 +43,7 @@ def test_fetch_indexes_with_mocked_yfinance(monkeypatch):
             continue
         expected[name] = {
             "value": float(idx * 100),
-            "change": float(idx / 10) if idx % 2 else None,
+            "change": float(idx / 10) if idx % 2 else 0.0,
         }
 
     assert result == expected
@@ -82,8 +83,8 @@ def test_fetch_sectors_with_mocked_requests(monkeypatch):
         "status_called": True,
     }
     assert sectors == [
-        {"sector": "Technology", "change": 1.23},
-        {"sector": "Energy", "change": -0.5},
+        {"sector": "Technology", "change": 1.23, "source": "lse"},
+        {"sector": "Energy", "change": -0.5, "source": "lse"},
     ]
 
 
@@ -94,9 +95,7 @@ def test_fetch_uk_sectors_with_mocked_requests(monkeypatch):
         "https://example.test/sectors",
         raising=False,
     )
-    monkeypatch.setattr(
-        market.cfg, "selenium_user_agent", "Agent/1.0", raising=False
-    )
+    monkeypatch.setattr(market.cfg, "selenium_user_agent", "Agent/1.0", raising=False)
     captured = {}
     payload = [
         {"name": "Technology", "percentChange": "1.0%"},
@@ -130,10 +129,112 @@ def test_fetch_uk_sectors_with_mocked_requests(monkeypatch):
         "status_called": True,
     }
     assert sectors == [
-        {"sector": "Technology", "change": 1.0},
-        {"sector": "Industrials", "change": -0.3},
-        {"sector": "Financials", "change": 0.75},
+        {"sector": "Technology", "change": 1.0, "source": "lse"},
+        {"sector": "Industrials", "change": -0.3, "source": "lse"},
+        {"sector": "Financials", "change": 0.75, "source": "lse"},
     ]
+
+
+def test_fetch_sectors_falls_back_to_us_sector_etfs(monkeypatch):
+    class DummyResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"Information": "No sector data available"}
+
+    monkeypatch.setattr(market.requests, "get", lambda *_, **__: DummyResponse())
+    monkeypatch.setattr(
+        market,
+        "_fetch_us_sector_etf_changes",
+        lambda: [{"sector": "Technology", "change": 0.42, "source": "us_etf"}],
+    )
+
+    sectors = market._fetch_sectors()
+
+    assert sectors == [{"sector": "Technology", "change": 0.42, "source": "us_etf"}]
+
+
+def test_fetch_sectors_does_not_fall_back_when_lse_valid(monkeypatch):
+    class DummyResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"Rank A: Real-Time Performance": {"Technology": "0.25%"}}
+
+    monkeypatch.setattr(market.requests, "get", lambda *_, **__: DummyResponse())
+
+    def fail_fallback():
+        pytest.fail("Fallback should not be called when LSE data is valid")
+
+    monkeypatch.setattr(market, "_fetch_us_sector_etf_changes", fail_fallback)
+    sectors = market._fetch_sectors()
+    assert sectors == [{"sector": "Technology", "change": 0.25, "source": "lse"}]
+
+
+def test_fetch_us_sector_etf_changes_from_download(monkeypatch):
+    columns = pd.MultiIndex.from_product(
+        [["Close"], ["XLB", "XLE", "XLF"]], names=["Price", "Ticker"]
+    )
+    frame = pd.DataFrame(
+        [[100.0, 50.0, 10.0], [110.0, 55.0, 11.0]],
+        columns=columns,
+        index=pd.date_range("2025-01-01", periods=2),
+    )
+
+    monkeypatch.setattr(market.yf, "download", lambda *_, **__: frame)
+    monkeypatch.setattr(
+        market,
+        "US_SECTOR_ETFS",
+        {"Materials": "XLB", "Energy": "XLE", "Financials": "XLF"},
+    )
+
+    sectors = market._fetch_us_sector_etf_changes()
+
+    assert sectors == [
+        {"sector": "Materials", "change": 10.0, "source": "us_etf"},
+        {"sector": "Energy", "change": 10.0, "source": "us_etf"},
+        {"sector": "Financials", "change": 10.0, "source": "us_etf"},
+    ]
+
+
+def test_fetch_us_sector_etf_changes_partial_missing(monkeypatch):
+    columns = pd.MultiIndex.from_product(
+        [["Close"], ["XLB", "XLE", "XLF"]], names=["Price", "Ticker"]
+    )
+    frame = pd.DataFrame(
+        [[100.0, None, 10.0], [110.0, None, None]],
+        columns=columns,
+        index=pd.date_range("2025-01-01", periods=2),
+    )
+
+    monkeypatch.setattr(market.yf, "download", lambda *_, **__: frame)
+    monkeypatch.setattr(
+        market,
+        "US_SECTOR_ETFS",
+        {"Materials": "XLB", "Energy": "XLE", "Financials": "XLF"},
+    )
+
+    sectors = market._fetch_us_sector_etf_changes()
+
+    assert sectors == [{"sector": "Materials", "change": 10.0, "source": "us_etf"}]
+
+
+def test_fetch_us_sector_etf_changes_all_missing(monkeypatch):
+    columns = pd.MultiIndex.from_product([["Close"], ["XLB"]], names=["Price", "Ticker"])
+    frame = pd.DataFrame(
+        [[None], [None]],
+        columns=columns,
+        index=pd.date_range("2025-01-01", periods=2),
+    )
+
+    monkeypatch.setattr(market.yf, "download", lambda *_, **__: frame)
+    monkeypatch.setattr(market, "US_SECTOR_ETFS", {"Materials": "XLB"})
+
+    sectors = market._fetch_us_sector_etf_changes()
+
+    assert sectors == []
 
 
 def test_fetch_headlines_with_mocked_news(monkeypatch):

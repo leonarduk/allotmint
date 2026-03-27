@@ -273,11 +273,12 @@ export interface NewsItem {
 export interface SectorPerformance {
   sector: string;
   change: number;
+  source: 'lse' | 'us_etf';
 }
 
 export interface IndexPerformance {
   value: number;
-  change?: number | null;
+  change: number;
 }
 
 export interface MarketOverview {

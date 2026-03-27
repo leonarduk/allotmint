@@ -341,18 +341,16 @@ export default function App({ onLogout }: AppProps) {
     const segs = location.pathname.split("/").filter(Boolean);
     const atPortfolioRoot = segs[0] === "portfolio" && segs.length === 1;
     const atPerformanceRoot = segs[0] === "performance" && segs.length === 1;
+    const ownerRoot = atPortfolioRoot
+      ? "portfolio"
+      : atPerformanceRoot
+        ? "performance"
+        : null;
 
-    const shouldSelectDefaultOwner =
-      !selectedOwner &&
-      owners.length > 0 &&
-      ((mode === "owner" && atPortfolioRoot) ||
-        (mode === "performance" && atPerformanceRoot));
-
-    if (shouldSelectDefaultOwner) {
+    if (ownerRoot && !selectedOwner && owners.length > 0) {
       // Intentionally auto-select the first available owner on owner-root routes
       // so route, selected owner, and loaded data stay consistent.
       const owner = owners[0].owner;
-      const ownerRoot = mode === "performance" ? "performance" : "portfolio";
       setSelectedOwner(owner);
       navigate(`/${ownerRoot}/${owner}`, { replace: true });
     }

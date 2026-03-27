@@ -4,10 +4,12 @@ from pathlib import Path
 from aws_cdk import (
     Stack,
 )
-from aws_cdk import aws_apigateway as apigw
+from aws_cdk import aws_apigatewayv2 as apigwv2
+from aws_cdk import aws_apigatewayv2_integrations as apigwv2_integrations
 from aws_cdk import aws_events as events
 from aws_cdk import aws_events_targets as targets
 from aws_cdk import aws_lambda as _lambda
+from aws_cdk import aws_iam as iam
 from constructs import Construct
 
 
@@ -62,6 +64,9 @@ class BackendLambdaStack(Stack):
             "DISABLE_AUTH": "false",
             "DATA_BUCKET": bucket_name,
             "DATA_BRANCH": data_branch,
+            # APP_REGION is used instead of AWS_REGION because AWS_REGION is a reserved
+            # Lambda runtime variable and cannot be set as a custom environment variable.
+            "APP_REGION": self.region,
             "CORS_ORIGINS": ",".join(cors_origins),
         }
         if data_repo:
@@ -75,7 +80,30 @@ class BackendLambdaStack(Stack):
         )
         backend_fn.add_environment("APP_ENV", env)
 
-        apigw.LambdaRestApi(self, "BackendApi", handler=backend_fn)
+        # Guard: bucket_name is validated non-empty above, but guard defensively here
+        # to ensure no IAM policy is generated against an empty ARN pattern.
+        if bucket_name:
+            backend_fn.add_to_role_policy(
+                iam.PolicyStatement(
+                    actions=["s3:GetObject", "s3:PutObject"],
+                    resources=[f"arn:aws:s3:::{bucket_name}/*"],
+                )
+            )
+
+        backend_api = apigwv2.HttpApi(self, "BackendApi")
+        backend_integration = apigwv2_integrations.HttpLambdaIntegration(
+            "BackendLambdaIntegration", backend_fn
+        )
+        backend_api.add_routes(
+            path="/",
+            methods=[apigwv2.HttpMethod.ANY],
+            integration=backend_integration,
+        )
+        backend_api.add_routes(
+            path="/{proxy+}",
+            methods=[apigwv2.HttpMethod.ANY],
+            integration=backend_integration,
+        )
 
         # Scheduled function to refresh prices daily
         refresh_code = _lambda.DockerImageCode.from_image_asset(

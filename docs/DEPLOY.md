@@ -101,6 +101,17 @@ cd ..
 
 ## Deploy with AWS CDK
 
+Before deploying, confirm the deployment environment prerequisites:
+
+- AWS account credentials with IAM permissions for CloudFormation, Lambda, API
+  Gateway, S3, CloudFront, and IAM role updates.
+- CDK bootstrap completed in the target account/region:
+  `cdk bootstrap aws://<account>/<region>`.
+- AWS CLI configured (`aws configure`, named profile, or environment
+  variables).
+- Python 3.11+ and Node.js 18+ available in the CI/CD and local deployment
+  environments.
+
 Run the helper script from the repository root to bootstrap the environment.
 When deploying the backend, provide the S3 bucket for account data either via
 the `-DataBucket` parameter or by setting `DATA_BUCKET`:
@@ -140,4 +151,3 @@ If static files are updated without redeploying the stack, invalidate the distri
 ```bash
 aws cloudfront create-invalidation --distribution-id <DIST_ID> --paths "/*"
 ```
-

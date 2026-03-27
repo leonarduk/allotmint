@@ -27,6 +27,18 @@ const COLORS = [
   "#ffc0cb",
 ];
 
+const toFiniteNumber = (value: unknown): number => {
+  const numeric = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(numeric) ? numeric : 0;
+};
+
+const isInvalidNumericInput = (value: unknown): boolean => {
+  const numeric = typeof value === "number" ? value : Number(value);
+  return !Number.isFinite(numeric);
+};
+
+const isDevEnvironment = (): boolean => import.meta.env.MODE !== "production";
+
 export type AllocationChartsProps = {
   /** Portfolio group slug (defaults to "all"). */
   slug?: string;
@@ -98,7 +110,29 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
 
     for (const acct of activeAccounts) {
       for (const h of acct.holdings) {
-        const mv = h.market_value_gbp ?? 0;
+        // API payloads may still include invalid numeric values at runtime even though TS types declare number.
+        const originalMarketValue = h.market_value_gbp as unknown;
+        const mv = toFiniteNumber(originalMarketValue);
+        const originalInvalid = isInvalidNumericInput(originalMarketValue);
+        const dropReason = originalInvalid
+          ? "invalid-numeric-input"
+          : mv <= 0
+            ? "non-positive-market-value"
+            : null;
+        // Visualization safeguard only: exclude invalid numeric input and non-positive values.
+        // Zero creates no drawable slice and negatives typically represent short/invalid values; this does not fix upstream data quality.
+        if (dropReason) {
+          if (isDevEnvironment()) {
+            console.warn("Dropped invalid holding value", {
+              ticker: h.ticker,
+              originalValue: originalMarketValue,
+              coercedValue: mv,
+              originalInvalid,
+              dropReason,
+            });
+          }
+          continue;
+        }
         const typeName = translateInstrumentType(t, h.instrument_type);
         byType[typeName] = (byType[typeName] || 0) + mv;
         const sector = h.sector || t("common.other");

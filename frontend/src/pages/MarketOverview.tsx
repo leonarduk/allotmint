@@ -13,14 +13,15 @@ import {
   Cell,
 } from 'recharts';
 
-const IndexTooltip = ({ active, payload, label }: any) => {
+export const IndexTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     const { value, change } = payload[0].payload;
+    const safeChange = typeof change === 'number' ? change : 0;
     return (
       <div className="rounded border bg-white p-2 text-sm shadow text-gray-900">
         <p className="font-semibold">{label}</p>
         <p>Level: {value.toLocaleString()}</p>
-        <p>Change: {change.toFixed(2)}%</p>
+        <p>Change: {safeChange.toFixed(2)}%</p>
       </div>
     );
   }

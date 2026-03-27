@@ -641,15 +641,17 @@ def aggregate_by_ticker(
             row["gain_gbp"] += _safe_num(h.get("gain_gbp"))
 
             snap = _PRICE_SNAPSHOT.get(full_tkr) or _PRICE_SNAPSHOT.get(base_sym)
-            if full_tkr == "CASH.GBP":
+            # Normalise the ticker before comparison to guard against casing or
+            # whitespace variations (e.g. "cash.gbp", " CASH.GBP ").
+            if full_tkr.strip().upper() == "CASH.GBP":
+                # Cash is always £1/unit; never derive price from the snapshot.
                 row["last_price_gbp"] = 1.0
                 row["last_price_currency"] = "GBP"
                 row["market_value_gbp"] = round(row["units"], 2)
-                row["gain_gbp"] = (
-                    round(row["market_value_gbp"] - row["cost_gbp"], 2)
-                    if row["cost_gbp"]
-                    else row["gain_gbp"]
-                )
+                # Use is-not-None so that a zero cost basis (legitimately £0)
+                # still triggers a gain recalculation instead of being skipped.
+                if row.get("cost_gbp") is not None:
+                    row["gain_gbp"] = round(row["market_value_gbp"] - row["cost_gbp"], 2)
             else:
                 price = snap.get("last_price") if isinstance(snap, dict) else None
                 if price is not None and price == price:  # allow zero, reject None/NaN

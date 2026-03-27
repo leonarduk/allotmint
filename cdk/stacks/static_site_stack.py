@@ -5,9 +5,9 @@ from aws_cdk import (
     Duration,
     RemovalPolicy,
     Stack,
-    aws_s3 as s3,
     aws_cloudfront as cloudfront,
     aws_cloudfront_origins as origins,
+    aws_s3 as s3,
     aws_s3_deployment as s3_deployment,
 )
 from constructs import Construct
@@ -16,7 +16,14 @@ from constructs import Construct
 class StaticSiteStack(Stack):
     """CDK stack that provisions S3 + CloudFront for the frontend."""
 
-    def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
+    def __init__(
+        self,
+        scope: Construct,
+        construct_id: str,
+        *,
+        api_base_url: str,
+        **kwargs,
+    ) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
         site_bucket = s3.Bucket(
@@ -28,10 +35,6 @@ class StaticSiteStack(Stack):
             auto_delete_objects=True,
             removal_policy=RemovalPolicy.DESTROY,
         )
-
-        # Allow CloudFront to read the bucket without making it public
-        oai = cloudfront.OriginAccessIdentity(self, "StaticSiteOAI")
-        site_bucket.grant_read(oai)
 
         security_headers = cloudfront.ResponseHeadersPolicy(
             self,
@@ -58,16 +61,17 @@ class StaticSiteStack(Stack):
         )
 
         if hasattr(origins, "S3BucketOrigin") and hasattr(
+            origins.S3BucketOrigin, "with_origin_access_control"
+        ):
+            s3_origin = origins.S3BucketOrigin.with_origin_access_control(site_bucket)
+        elif hasattr(origins, "S3BucketOrigin") and hasattr(
             origins.S3BucketOrigin, "with_origin_access_identity"
         ):
-            s3_origin = origins.S3BucketOrigin.with_origin_access_identity(
-                site_bucket, origin_access_identity=oai
-            )
+            # Fallback for older CDK versions where OAC is unavailable.
+            s3_origin = origins.S3BucketOrigin.with_origin_access_identity(site_bucket)
         else:
-            # Fallback for older CDK versions where S3BucketOrigin is not available.
-            s3_origin = origins.S3Origin(
-                site_bucket, origin_access_identity=oai
-            )
+            # Legacy fallback for CDK versions where S3BucketOrigin is not available.
+            s3_origin = origins.S3Origin(site_bucket)
 
         asset_cache_policy = cloudfront.CachePolicy(
             self,
@@ -99,9 +103,7 @@ class StaticSiteStack(Stack):
             "ViewerRequestFn",
             code=cloudfront.FunctionCode.from_file(
                 file_path=str(
-                    Path(__file__).resolve().parents[1]
-                    / "functions"
-                    / "viewer-request.js"
+                    Path(__file__).resolve().parents[1] / "functions" / "viewer-request.js"
                 )
             ),
         )
@@ -133,6 +135,20 @@ class StaticSiteStack(Stack):
                     compress=True,
                 )
             },
+            error_responses=[
+                cloudfront.ErrorResponse(
+                    http_status=403,
+                    response_http_status=200,
+                    response_page_path="/index.html",
+                    ttl=Duration.minutes(1),
+                ),
+                cloudfront.ErrorResponse(
+                    http_status=404,
+                    response_http_status=200,
+                    response_page_path="/index.html",
+                    ttl=Duration.minutes(1),
+                ),
+            ],
             price_class=cloudfront.PriceClass.PRICE_CLASS_100,
         )
 
@@ -169,10 +185,8 @@ class StaticSiteStack(Stack):
         config_deploy = s3_deployment.BucketDeployment(
             self,
             "DeployRuntimeConfig",
-            sources=[s3_deployment.Source.asset(str(frontend_dir))],
+            sources=[s3_deployment.Source.json_data("config.json", {"apiBaseUrl": api_base_url})],
             destination_bucket=site_bucket,
-            exclude=["*"],
-            include=["config.json"],
             cache_control=[
                 s3_deployment.CacheControl.no_cache(),
                 s3_deployment.CacheControl.no_store(),

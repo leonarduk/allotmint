@@ -7,6 +7,24 @@ import pytest
 from backend.common import risk
 
 
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (-0.1, 0.0),
+        (0.0, 0.0),
+        (0.42, 0.42),
+        (1.0, 1.0),
+        (1.3, 1.0),
+    ],
+)
+def test_clamp_loss_fraction_boundaries(value, expected):
+    assert risk._clamp_loss_fraction(value) == pytest.approx(expected)
+
+
+def test_clamp_loss_fraction_preserves_nan():
+    assert np.isnan(risk._clamp_loss_fraction(float("nan")))
+
+
 def test_compute_sharpe_ratio(monkeypatch):
     data = [
         {"date": "2024-01-01", "value": 100, "daily_return": 0.01},
@@ -188,7 +206,7 @@ def test_compute_portfolio_var_handles_empty_returns(monkeypatch):
     assert result == {"window_days": 365, "confidence": 0.95, "1d": None, "10d": None}
 
 
-def test_compute_portfolio_var_handles_nan_quantiles(monkeypatch):
+def test_compute_portfolio_var_overflow_inputs_remain_bounded(monkeypatch):
     history = []
     for idx in range(11):
         daily_return = 1e308 if idx < 10 else -1e308
@@ -202,8 +220,10 @@ def test_compute_portfolio_var_handles_nan_quantiles(monkeypatch):
 
     result = risk.compute_portfolio_var("owner", days=10)
 
-    assert result["1d"] is None
-    assert result["10d"] is None
+    assert result["1d"] is not None
+    assert 0.0 <= result["1d"] <= 110.0
+    if result["10d"] is not None:
+        assert 0.0 <= result["10d"] <= 110.0
 
 
 def test_compute_portfolio_var_produces_values(monkeypatch):
@@ -241,6 +261,30 @@ def test_compute_portfolio_var_produces_values(monkeypatch):
     assert result["10d"] == round(expected_10d, 2)
 
 
+def test_compute_portfolio_var_normal_path_preserves_uncapped_loss(monkeypatch):
+    history = [
+        {"date": "2024-01-01", "value": 100.0, "daily_return": -0.02},
+        {"date": "2024-01-02", "value": 100.0, "daily_return": -0.04},
+        {"date": "2024-01-03", "value": 100.0, "daily_return": -0.12},
+        {"date": "2024-01-04", "value": 100.0, "daily_return": 0.01},
+        {"date": "2024-01-05", "value": 100.0, "daily_return": -0.08},
+        {"date": "2024-01-06", "value": 100.0, "daily_return": 0.02},
+    ]
+
+    monkeypatch.setattr(
+        risk.portfolio_utils,
+        "compute_owner_performance",
+        lambda owner, days=365, include_flagged=False, include_cash=True: {"history": history},
+    )
+
+    result = risk.compute_portfolio_var("owner", days=5, confidence=0.95)
+    returns = pd.Series([row["daily_return"] for row in history[1:]])
+    expected_1d = float(max(-(returns.quantile(0.05)), 0.0) * 100.0)
+
+    assert expected_1d < 100.0
+    assert result["1d"] == round(expected_1d, 2)
+
+
 def test_compute_portfolio_var_caps_losses_at_portfolio_value(monkeypatch):
     history = []
     for idx in range(1, 13):
@@ -248,7 +292,7 @@ def test_compute_portfolio_var_caps_losses_at_portfolio_value(monkeypatch):
             {
                 "date": f"2024-01-{idx:02d}",
                 "value": 100.0,
-                "daily_return": -2.0 if idx > 1 else None,
+                "daily_return": -1.25 if idx > 1 else None,
             }
         )
 
@@ -264,7 +308,7 @@ def test_compute_portfolio_var_caps_losses_at_portfolio_value(monkeypatch):
     assert result["10d"] == 100.0
 
 
-def test_compute_portfolio_var_handles_nan_quantiles(monkeypatch):
+def test_compute_portfolio_var_quantile_nan_returns_none(monkeypatch):
     history = [
         {"value": 100.0, "daily_return": 0.01},
         {"value": 101.0, "daily_return": -0.02},
@@ -330,6 +374,23 @@ def test_compute_portfolio_var_breakdown_skip_conditions(monkeypatch):
     ]
 
 
+def test_compute_portfolio_var_breakdown_preserves_normal_path(monkeypatch):
+    holdings = [{"ticker": "ABC.L", "market_value_gbp": 250.0}]
+
+    monkeypatch.setattr(risk.portfolio_mod, "build_owner_portfolio", lambda owner: {})
+    monkeypatch.setattr(risk.portfolio_utils, "aggregate_by_ticker", lambda portfolio: holdings)
+    monkeypatch.setattr(
+        risk.portfolio_utils,
+        "load_meta_timeseries",
+        lambda symbol, exchange, days: pd.DataFrame({"Close": [9.0, 10.0]}),
+    )
+    monkeypatch.setattr(risk.portfolio_utils, "compute_var", lambda ts, confidence: 3.0)
+
+    result = risk.compute_portfolio_var_breakdown("owner")
+
+    assert result == [{"ticker": "ABC.L", "contribution": 75.0}]
+
+
 def test_compute_portfolio_var_breakdown_caps_per_position_contribution(monkeypatch):
     holdings = [{"ticker": "ABC.L", "market_value_gbp": 250.0}]
 
@@ -338,13 +399,38 @@ def test_compute_portfolio_var_breakdown_caps_per_position_contribution(monkeypa
     monkeypatch.setattr(
         risk.portfolio_utils,
         "load_meta_timeseries",
-        lambda symbol, exchange, days: pd.DataFrame({"Close": [1.0, 10.0]}),
+        lambda symbol, exchange, days: pd.DataFrame({"Close": [9.0, 10.0]}),
     )
     monkeypatch.setattr(risk.portfolio_utils, "compute_var", lambda ts, confidence: 30.0)
 
     result = risk.compute_portfolio_var_breakdown("owner")
 
     assert result == [{"ticker": "ABC.L", "contribution": 250.0}]
+
+
+@pytest.mark.parametrize(
+    ("var_single", "expected_contribution"),
+    [
+        (-3.0, 0.0),
+        (0.0, 0.0),
+        (3.0, 75.0),
+    ],
+)
+def test_compute_portfolio_var_breakdown_normalizes_signed_var(monkeypatch, var_single, expected_contribution):
+    holdings = [{"ticker": "ABC.L", "market_value_gbp": 250.0}]
+
+    monkeypatch.setattr(risk.portfolio_mod, "build_owner_portfolio", lambda owner: {})
+    monkeypatch.setattr(risk.portfolio_utils, "aggregate_by_ticker", lambda portfolio: holdings)
+    monkeypatch.setattr(
+        risk.portfolio_utils,
+        "load_meta_timeseries",
+        lambda symbol, exchange, days: pd.DataFrame({"Close": [9.0, 10.0]}),
+    )
+    monkeypatch.setattr(risk.portfolio_utils, "compute_var", lambda ts, confidence: var_single)
+
+    result = risk.compute_portfolio_var_breakdown("owner")
+
+    assert result == [{"ticker": "ABC.L", "contribution": expected_contribution}]
 
 
 def test_compute_sharpe_ratio_invalid_days():

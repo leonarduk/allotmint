@@ -17,7 +17,12 @@ from backend.config import config
 
 
 def _clamp_loss_fraction(loss_fraction: float) -> float:
-    """Clamp VaR loss fractions to the mathematically valid range [0, 1]."""
+    """Clamp VaR loss fractions to the financially valid range ``[0, 1]``.
+
+    A long portfolio (or long position) cannot lose less than 0% or more than
+    100% of its current marked value.  This helper enforces that invariant on
+    loss fractions before converting them back into monetary VaR contributions.
+    """
 
     if pd.isna(loss_fraction):
         return float("nan")
@@ -169,8 +174,11 @@ def compute_portfolio_var_breakdown(
         last_price = float(closes.iloc[-1])
         if last_price == 0:
             continue
-        # Var as a fraction of price
-        var_pct = _clamp_loss_fraction(var_single / last_price)
+        # ``compute_var`` returns a signed 1-day P/L at the selected quantile.
+        # For long-only loss contribution we normalise to a non-negative loss
+        # magnitude before converting to a fraction of current position price.
+        var_single_loss = max(float(var_single), 0.0)
+        var_pct = _clamp_loss_fraction(var_single_loss / last_price)
 
         value = row.get("market_value_gbp") or 0.0
         if not value and row.get("currency") == "GBP":

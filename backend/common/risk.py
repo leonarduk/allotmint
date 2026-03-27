@@ -16,6 +16,14 @@ from backend.common import portfolio as portfolio_mod
 from backend.config import config
 
 
+def _clamp_loss_fraction(loss_fraction: float) -> float:
+    """Clamp VaR loss fractions to the mathematically valid range [0, 1]."""
+
+    if pd.isna(loss_fraction):
+        return float("nan")
+    return min(max(float(loss_fraction), 0.0), 1.0)
+
+
 def compute_portfolio_var(
     owner: str, days: int = 365, confidence: float = 0.95, include_cash: bool = True
 ) -> Dict:
@@ -89,7 +97,7 @@ def compute_portfolio_var(
     if pd.isna(quantile_1d):
         var_1d = None
     else:
-        var_1d_loss_pct = max(-(quantile_1d), 0.0)
+        var_1d_loss_pct = _clamp_loss_fraction(-(quantile_1d))
         var_1d = float(var_1d_loss_pct * current_value)
 
     ten_day_returns = returns.add(1).rolling(10).apply(np.prod) - 1
@@ -101,7 +109,7 @@ def compute_portfolio_var(
         if pd.isna(quantile_10d):
             var_10d = None
         else:
-            var_10d_loss_pct = max(-(quantile_10d), 0.0)
+            var_10d_loss_pct = _clamp_loss_fraction(-(quantile_10d))
             var_10d = float(var_10d_loss_pct * current_value)
 
     return {
@@ -162,7 +170,7 @@ def compute_portfolio_var_breakdown(
         if last_price == 0:
             continue
         # Var as a fraction of price
-        var_pct = var_single / last_price
+        var_pct = _clamp_loss_fraction(var_single / last_price)
 
         value = row.get("market_value_gbp") or 0.0
         if not value and row.get("currency") == "GBP":

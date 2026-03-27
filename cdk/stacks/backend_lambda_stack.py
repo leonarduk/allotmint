@@ -64,7 +64,9 @@ class BackendLambdaStack(Stack):
             "DISABLE_AUTH": "false",
             "DATA_BUCKET": bucket_name,
             "DATA_BRANCH": data_branch,
-            "AWS_REGION": self.region,
+            # APP_REGION is used instead of AWS_REGION because AWS_REGION is a reserved
+            # Lambda runtime variable and cannot be set as a custom environment variable.
+            "APP_REGION": self.region,
             "CORS_ORIGINS": ",".join(cors_origins),
         }
         if data_repo:
@@ -78,12 +80,15 @@ class BackendLambdaStack(Stack):
         )
         backend_fn.add_environment("APP_ENV", env)
 
-        backend_fn.add_to_role_policy(
-            iam.PolicyStatement(
-                actions=["s3:GetObject", "s3:PutObject"],
-                resources=[f"arn:aws:s3:::{bucket_name}/*"],
+        # Guard: bucket_name is validated non-empty above, but guard defensively here
+        # to ensure no IAM policy is generated against an empty ARN pattern.
+        if bucket_name:
+            backend_fn.add_to_role_policy(
+                iam.PolicyStatement(
+                    actions=["s3:GetObject", "s3:PutObject"],
+                    resources=[f"arn:aws:s3:::{bucket_name}/*"],
+                )
             )
-        )
 
         backend_api = apigwv2.HttpApi(self, "BackendApi")
         backend_integration = apigwv2_integrations.HttpLambdaIntegration(

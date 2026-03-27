@@ -19,8 +19,6 @@ describe("transactionForm helpers", () => {
         date: "2024-02-01T10:00:00Z",
       }),
     ).toEqual({
-      owner: "alex",
-      account: "isa",
       ticker: "VUSA",
       price: "5.25",
       units: "2",
@@ -46,8 +44,6 @@ describe("transactionForm helpers", () => {
   it("builds a valid transaction payload", () => {
     expect(
       buildTransactionPayload({
-        owner: "alex",
-        account: "isa",
         date: "2024-02-01",
         ticker: " vusa ",
         price: "12.50",
@@ -55,7 +51,7 @@ describe("transactionForm helpers", () => {
         fees: "1.25",
         comments: " add more ",
         reason: " rebalance ",
-      }),
+      }, "alex", "isa"),
     ).toEqual({
       error: null,
       payload: {
@@ -75,8 +71,6 @@ describe("transactionForm helpers", () => {
   it("returns a validation error for invalid fees", () => {
     expect(
       buildTransactionPayload({
-        owner: "alex",
-        account: "isa",
         date: "2024-02-01",
         ticker: "VUSA",
         price: "12.50",
@@ -84,7 +78,7 @@ describe("transactionForm helpers", () => {
         fees: "abc",
         comments: "",
         reason: "rebalance",
-      }),
+      }, "alex", "isa"),
     ).toEqual({
       payload: null,
       error: "Enter a valid fee or leave it blank.",
@@ -96,8 +90,6 @@ describe("transactionForm helpers", () => {
     // correctly rejects it.
     expect(
       buildTransactionPayload({
-        owner: "alex",
-        account: "isa",
         date: "2024-02-01",
         ticker: "VUSA",
         price: "12.50",
@@ -105,7 +97,7 @@ describe("transactionForm helpers", () => {
         fees: "1.5abc",
         comments: "",
         reason: "rebalance",
-      }),
+      }, "alex", "isa"),
     ).toEqual({
       payload: null,
       error: "Enter a valid fee or leave it blank.",
@@ -115,8 +107,6 @@ describe("transactionForm helpers", () => {
   it("returns a validation error for negative fees", () => {
     expect(
       buildTransactionPayload({
-        owner: "alex",
-        account: "isa",
         date: "2024-02-01",
         ticker: "VUSA",
         price: "12.50",
@@ -124,7 +114,7 @@ describe("transactionForm helpers", () => {
         fees: "-1",
         comments: "",
         reason: "rebalance",
-      }),
+      }, "alex", "isa"),
     ).toEqual({
       payload: null,
       error: "Fees cannot be negative.",

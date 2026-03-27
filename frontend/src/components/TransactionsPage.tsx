@@ -46,11 +46,7 @@ export function TransactionsPage({ owners }: Props) {
   const ownerLookup = useMemo(() => createOwnerDisplayLookup(owners), [owners]);
 
   const resetForm = useCallback(() => {
-    setFormValues((current) => ({
-      ...EMPTY_TRANSACTION_FORM_VALUES,
-      owner: current.owner,
-      account: current.account,
-    }));
+    setFormValues({ ...EMPTY_TRANSACTION_FORM_VALUES });
   }, []);
 
   const fetchTransactions = useCallback(
@@ -104,15 +100,6 @@ export function TransactionsPage({ owners }: Props) {
     owners.forEach((entry) => entry.accounts.forEach((value) => options.add(value)));
     return Array.from(options);
   }, [owner, owners]);
-
-  useEffect(() => {
-    setFormValues((current) => {
-      if (current.owner === owner && current.account === account) {
-        return current;
-      }
-      return { ...current, owner, account };
-    });
-  }, [owner, account]);
 
   const handleOwnerChange = useCallback<ChangeEventHandler<HTMLSelectElement>>(
     (event) => setOwner(event.target.value),
@@ -186,17 +173,17 @@ export function TransactionsPage({ owners }: Props) {
   );
 
   const validatePayload = useCallback(() => {
-    if (!formValues.owner || !formValues.account) {
+    if (!owner || !account) {
       setFormError("Select an owner and account in the filters before saving.");
       return null;
     }
-    const result = buildTransactionPayload(formValues);
+    const result = buildTransactionPayload(formValues, owner, account);
     if (result.error) {
       setFormError(result.error);
       return null;
     }
     return result.payload;
-  }, [formValues]);
+  }, [account, formValues, owner]);
 
   const handleBulkDelete = useCallback(async () => {
     if (!hasSelection) {

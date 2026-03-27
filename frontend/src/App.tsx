@@ -339,16 +339,27 @@ export default function App({ onLogout }: AppProps) {
   useEffect(() => {
     const segs = location.pathname.split("/").filter(Boolean);
     const atPortfolioRoot = segs[0] === "portfolio" && segs.length === 1;
+    const atPerformanceRoot = segs[0] === "performance" && segs.length === 1;
 
     if (
       mode === "owner" &&
       !selectedOwner &&
-      owners.length === 1 &&
+      owners.length > 0 &&
       atPortfolioRoot
     ) {
       const owner = owners[0].owner;
       setSelectedOwner(owner);
       navigate(`/portfolio/${owner}`, { replace: true });
+    }
+    if (
+      mode === "performance" &&
+      !selectedOwner &&
+      owners.length > 0 &&
+      atPerformanceRoot
+    ) {
+      const owner = owners[0].owner;
+      setSelectedOwner(owner);
+      navigate(`/performance/${owner}`, { replace: true });
     }
     if (mode === "instrument" && !selectedGroup && groups.length) {
       const slug = groups[0].slug;

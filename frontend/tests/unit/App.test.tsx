@@ -567,6 +567,110 @@ describe("App", () => {
     expect(locationUpdates.some((path) => path.startsWith("/performance"))).toBe(false);
   });
 
+  it("redirects /portfolio to the first owner when owners are available", async () => {
+    window.history.pushState({}, "", "/portfolio");
+
+    const mockGetOwners = vi.fn().mockResolvedValue([
+      { owner: "alice", accounts: [] },
+      { owner: "bob", accounts: [] },
+    ]);
+    const mockGetPortfolio = vi.fn().mockResolvedValue({
+      owner: "alice",
+      as_of: "2024-01-01T00:00:00.000Z",
+      trades_this_month: 0,
+      trades_remaining: 0,
+      total_value_estimate_gbp: 0,
+      accounts: [],
+    });
+
+    vi.doMock("@/api", async () => {
+      const actual = await vi.importActual<typeof import("@/api")>("@/api");
+      return {
+        ...actual,
+        getOwners: mockGetOwners,
+        getGroups: vi.fn().mockResolvedValue([]),
+        getPortfolio: mockGetPortfolio,
+        getGroupInstruments: vi.fn().mockResolvedValue([]),
+        getAlerts: vi.fn().mockResolvedValue([]),
+        getNudges: vi.fn().mockResolvedValue([]),
+        getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+        getCompliance: vi
+          .fn()
+          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+        getTradingSignals: vi.fn().mockResolvedValue([]),
+        getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+      };
+    });
+
+    const { default: App } = await import("@/App");
+
+    render(
+      <MemoryRouter initialEntries={["/portfolio"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("portfolio-owner-selector")).toHaveTextContent(/alice/i),
+    );
+    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("alice"));
+  });
+
+  it("redirects /performance to the first owner when owners are available", async () => {
+    window.history.pushState({}, "", "/performance");
+
+    const mockGetOwners = vi.fn().mockResolvedValue([
+      { owner: "alice", accounts: [] },
+      { owner: "bob", accounts: [] },
+    ]);
+    const mockPerformanceDashboard = vi.fn(
+      ({ owner }: { owner: string }) => <div data-testid="performance-dashboard">{owner}</div>,
+    );
+
+    vi.doMock("@/components/PerformanceDashboard", () => ({
+      __esModule: true,
+      default: mockPerformanceDashboard,
+    }));
+
+    vi.doMock("@/api", async () => {
+      const actual = await vi.importActual<typeof import("@/api")>("@/api");
+      return {
+        ...actual,
+        getOwners: mockGetOwners,
+        getGroups: vi.fn().mockResolvedValue([]),
+        getPortfolio: vi.fn().mockResolvedValue({
+          owner: "alice",
+          as_of: "2024-01-01T00:00:00.000Z",
+          trades_this_month: 0,
+          trades_remaining: 0,
+          total_value_estimate_gbp: 0,
+          accounts: [],
+        }),
+        getGroupInstruments: vi.fn().mockResolvedValue([]),
+        getAlerts: vi.fn().mockResolvedValue([]),
+        getNudges: vi.fn().mockResolvedValue([]),
+        getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+        getCompliance: vi
+          .fn()
+          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+        getTradingSignals: vi.fn().mockResolvedValue([]),
+        getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+      };
+    });
+
+    const { default: App } = await import("@/App");
+
+    render(
+      <MemoryRouter initialEntries={["/performance"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("performance-dashboard")).toHaveTextContent("alice"),
+    );
+  });
+
   it("reuses cached portfolio data when returning from research", async () => {
     window.history.pushState({}, "", "/portfolio/alice");
     globalThis.AbortSignal = window.AbortSignal;

@@ -185,7 +185,7 @@ export function Watchlist() {
                 { k: "change", l: "Chg" },
                 { k: "changePct", l: "Chg %" },
                 { k: "volume", l: "Vol" },
-                { k: "marketTime", l: "Time" },
+                { k: "marketTime", l: "Time", minWidth: 88 },
               ].map((c) => (
                 <th
                   key={c.k}
@@ -196,6 +196,7 @@ export function Watchlist() {
                     borderBottom: "1px solid #ccc",
                     padding: "4px 6px",
                     whiteSpace: "nowrap",
+                    minWidth: "minWidth" in c ? c.minWidth : undefined,
                   }}
                 >
                   {c.l}
@@ -261,7 +262,7 @@ export function Watchlist() {
                   <td style={{ textAlign: "right", padding: "4px 6px" }}>
                     {formatVol(r.volume)}
                   </td>
-                  <td style={{ padding: "4px 6px" }}>{formatTime(r.marketTime)}</td>
+                  <td style={{ minWidth: 88, padding: "4px 6px" }}>{formatTime(r.marketTime)}</td>
                 </tr>
               );
             })}

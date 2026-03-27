@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   Suspense,
@@ -67,6 +68,7 @@ import {
   normaliseGroupSlug,
 } from "./utils/groups";
 import { deriveModeFromPathname } from "./pageManifest";
+import { MAX_INSTRUMENT_CATALOGUE_ROWS } from "./constants/renderLimits";
 const PerformanceDashboard = lazyWithDelay(
   () => import("./components/PerformanceDashboard"),
 );
@@ -204,6 +206,7 @@ export default function App({ onLogout }: AppProps) {
   const [groups, setGroups] = useState<GroupSummary[]>([]);
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
   const [portfolioAsOf, setPortfolioAsOf] = useState<string | null>(null);
+  // Full catalogue stored in state — never truncated here.
   const [instruments, setInstruments] = useState<InstrumentSummary[]>([]);
 
   const [loading, setLoading] = useState(false);
@@ -435,6 +438,7 @@ export default function App({ onLogout }: AppProps) {
     if (mode === "instrument" && selectedGroup) {
       setLoading(true);
       setErr(null);
+      // Store the full catalogue in state; render-time cap is applied below.
       const fetchPromise =
         selectedGroup === "all"
           ? listInstrumentMetadata().then((catalogue) =>
@@ -447,6 +451,12 @@ export default function App({ onLogout }: AppProps) {
         .finally(() => setLoading(false));
     }
   }, [mode, selectedGroup]);
+
+  // Render-only cap: never mutate the full instruments state.
+  const visibleInstruments = useMemo(
+    () => instruments.slice(0, MAX_INSTRUMENT_CATALOGUE_ROWS),
+    [instruments],
+  );
 
   const renderMainContent = () => {
     if (backendUnavailable) {
@@ -544,7 +554,22 @@ export default function App({ onLogout }: AppProps) {
         {mode === "instrument" && groups.length > 0 && (
           <>
             {err && <p style={{ color: "red" }}>{err}</p>}
-            {loading ? <p>{t("app.loading")}</p> : <InstrumentTable rows={instruments} />}
+            {loading ? (
+              <p>{t("app.loading")}</p>
+            ) : (
+              <>
+                <InstrumentTable rows={visibleInstruments} />
+                {instruments.length > MAX_INSTRUMENT_CATALOGUE_ROWS && (
+                  <p className="mt-2 text-xs text-slate-500">
+                    {t("app.instrumentCatalogueTruncated", {
+                      shown: MAX_INSTRUMENT_CATALOGUE_ROWS.toLocaleString(),
+                      total: instruments.length.toLocaleString(),
+                      defaultValue: `Showing first ${MAX_INSTRUMENT_CATALOGUE_ROWS.toLocaleString()} of ${instruments.length.toLocaleString()} instruments.`,
+                    })}
+                  </p>
+                )}
+              </>
+            )}
           </>
         )}
 

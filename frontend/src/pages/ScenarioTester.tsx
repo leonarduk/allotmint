@@ -20,6 +20,7 @@ import {
 } from "../utils/owners";
 import errorToast from "../utils/errorToast";
 import { loadJSON, saveJSON } from "../utils/storage";
+import { MAX_SCENARIO_HOLDING_ROWS } from "../constants/renderLimits";
 
 const HORIZONS = ["1d", "1w", "1m", "3m", "1y"];
 
@@ -279,6 +280,11 @@ export default function ScenarioTester() {
       return mv != null ? sum + mv : sum;
     }, 0);
   }, [activeHoldings]);
+
+  const visibleCombinedHoldings = useMemo(
+    () => combinedHoldings.slice(0, MAX_SCENARIO_HOLDING_ROWS),
+    [combinedHoldings],
+  );
 
   function toggleHoldingRemoval(key: string) {
     setRemovedKeys((prev) => {
@@ -564,7 +570,7 @@ export default function ScenarioTester() {
                 </tr>
               </thead>
               <tbody>
-                {combinedHoldings.map((row) => {
+                {visibleCombinedHoldings.map((row) => {
                   if (row.source === "custom") {
                     return (
                       <tr key={row.key} className="border-t">
@@ -694,6 +700,12 @@ export default function ScenarioTester() {
                 </tr>
               </tfoot>
             </table>
+            {combinedHoldings.length > MAX_SCENARIO_HOLDING_ROWS && (
+              <p className="mt-2 text-xs text-slate-500">
+                Showing first {MAX_SCENARIO_HOLDING_ROWS.toLocaleString()}{" "}
+                holdings of {combinedHoldings.length.toLocaleString()}.
+              </p>
+            )}
           </div>
         )}
       </section>
@@ -814,4 +826,3 @@ export default function ScenarioTester() {
     </div>
   );
 }
-

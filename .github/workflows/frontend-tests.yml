@@ -32,6 +32,10 @@ jobs:
         working-directory: frontend
         run: pnpm install --no-frozen-lockfile
 
+      - name: TypeScript type-check
+        working-directory: frontend
+        run: pnpm tsc --noEmit
+
       - name: Run tests with coverage
         working-directory: frontend
         run: pnpm test -- --run --coverage

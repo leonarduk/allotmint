@@ -27,6 +27,11 @@ const COLORS = [
   "#ffc0cb",
 ];
 
+const toFiniteNumber = (value: unknown): number => {
+  const numeric = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(numeric) ? numeric : 0;
+};
+
 export type AllocationChartsProps = {
   /** Portfolio group slug (defaults to "all"). */
   slug?: string;
@@ -54,11 +59,6 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
   const allToggleRef = useRef<HTMLInputElement>(null);
   const supportsResizeObserver =
     typeof window !== "undefined" && typeof window.ResizeObserver === "function";
-
-  const asFiniteNumber = (value: unknown): number => {
-    const numeric = typeof value === "number" ? value : Number(value);
-    return Number.isFinite(numeric) ? numeric : 0;
-  };
 
   // helper to derive a stable key for each account
   const accountKey = (acct: Account, idx: number) =>
@@ -103,8 +103,17 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
 
     for (const acct of activeAccounts) {
       for (const h of acct.holdings) {
-        const mv = asFiniteNumber(h.market_value_gbp);
-        if (mv <= 0) continue;
+        const mv = toFiniteNumber(h.market_value_gbp);
+        // Exclude invalid/zero values and short positions from pie-chart slices.
+        if (mv <= 0) {
+          if (typeof process !== "undefined" && process.env.NODE_ENV !== "production" && mv < 0) {
+            console.warn("Dropped negative holding value", {
+              ticker: h.ticker,
+              mv,
+            });
+          }
+          continue;
+        }
         const typeName = translateInstrumentType(t, h.instrument_type);
         byType[typeName] = (byType[typeName] || 0) + mv;
         const sector = h.sector || t("common.other");

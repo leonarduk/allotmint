@@ -32,6 +32,16 @@ const toFiniteNumber = (value: unknown): number => {
   return Number.isFinite(numeric) ? numeric : 0;
 };
 
+const isInvalidNumericInput = (value: unknown): boolean => {
+  const numeric = typeof value === "number" ? value : Number(value);
+  return !Number.isFinite(numeric);
+};
+
+export const isDevEnvironment = (): boolean => import.meta.env.DEV;
+export const allocationChartRuntime = {
+  isDev: isDevEnvironment(),
+};
+
 export type AllocationChartsProps = {
   /** Portfolio group slug (defaults to "all"). */
   slug?: string;
@@ -103,13 +113,18 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
 
     for (const acct of activeAccounts) {
       for (const h of acct.holdings) {
-        const mv = toFiniteNumber(h.market_value_gbp);
-        // Exclude invalid/zero values and short positions from pie-chart slices.
+        // API payloads may still include invalid numeric values at runtime even though TS types declare number.
+        const originalMarketValue = h.market_value_gbp as unknown;
+        const mv = toFiniteNumber(originalMarketValue);
+        const originalInvalid = isInvalidNumericInput(originalMarketValue);
+        // Visualization safeguard only: exclude zero values (no drawable slice) and negatives (short positions/invalid data).
         if (mv <= 0) {
-          if (typeof process !== "undefined" && process.env.NODE_ENV !== "production" && mv < 0) {
-            console.warn("Dropped negative holding value", {
+          if (allocationChartRuntime.isDev) {
+            console.warn("Dropped invalid holding value", {
               ticker: h.ticker,
-              mv,
+              originalValue: originalMarketValue,
+              coercedValue: mv,
+              originalInvalid,
             });
           }
           continue;

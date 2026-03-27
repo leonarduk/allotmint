@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import AllocationCharts from "@/pages/AllocationCharts";
+import { allocationChartRuntime } from "@/pages/AllocationCharts";
 import * as api from "@/api";
 import type { GroupPortfolio, Holding } from "@/types";
 
@@ -70,15 +71,13 @@ const buildPortfolio = (holdings: Holding[]): GroupPortfolio => ({
 });
 
 describe("AllocationCharts page", () => {
-  let originalNodeEnv: string | undefined;
-
   beforeEach(() => {
-    originalNodeEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = "production";
+    vi.unstubAllEnvs();
+    allocationChartRuntime.isDev = true;
   });
 
   afterEach(() => {
-    process.env.NODE_ENV = originalNodeEnv;
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
   });
 
@@ -104,30 +103,42 @@ describe("AllocationCharts page", () => {
     expect(screen.queryByText(/Loading/)).not.toBeInTheDocument();
   });
 
-  it("includes valid holdings in chart output while excluding invalid values", async () => {
-    process.env.NODE_ENV = "development";
+  it("keeps valid values across type/sector/region while excluding invalid entries", async () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     mockGetGroupPortfolio.mockResolvedValueOnce(
       buildPortfolio([
-        { ...baseHolding, ticker: "NEG", market_value_gbp: -20, sector: "Utilities" },
+        { ...baseHolding, ticker: "NEG", market_value_gbp: -20, sector: "Utilities", region: "EU" },
         { ...baseHolding, ticker: "BAD", market_value_gbp: Number.NaN as unknown as number, sector: "Finance" },
-        { ...baseHolding, ticker: "OK", market_value_gbp: 100, sector: "Tech" },
+        { ...baseHolding, ticker: "OK", market_value_gbp: 100, sector: "Tech", region: "UK" },
       ]),
     );
 
     render(<AllocationCharts />);
 
     expect(await screen.findByText(/Instrument Types/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /industries|sector/i }));
+    // asset/type dimension
+    let slices = screen.getByTestId("pie-slices");
+    expect(within(slices).getByText("Equity: 100")).toBeInTheDocument();
 
-    const slices = screen.getByTestId("pie-slices");
+    // sector dimension
+    fireEvent.click(screen.getByRole("button", { name: /industries|sector/i }));
+    slices = screen.getByTestId("pie-slices");
     expect(within(slices).getByText("Tech: 100")).toBeInTheDocument();
     expect(within(slices).queryByText(/Utilities/)).not.toBeInTheDocument();
     expect(within(slices).queryByText(/Finance/)).not.toBeInTheDocument();
-    expect(warnSpy).toHaveBeenCalledWith("Dropped negative holding value", {
+
+    // region dimension
+    fireEvent.click(screen.getByRole("button", { name: /regions|region/i }));
+    slices = screen.getByTestId("pie-slices");
+    expect(within(slices).getByText("UK: 100")).toBeInTheDocument();
+    expect(within(slices).queryByText(/^EU:/)).not.toBeInTheDocument();
+
+    expect(warnSpy).toHaveBeenCalledWith("Dropped invalid holding value", {
       ticker: "NEG",
-      mv: -20,
+      originalValue: -20,
+      coercedValue: -20,
+      originalInvalid: false,
     });
   });
 
@@ -169,6 +180,74 @@ describe("AllocationCharts page", () => {
     expect(within(slices).queryByText(/Materials/)).not.toBeInTheDocument();
   });
 
+  it("warns in dev for dropped NaN values and reports original value", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    mockGetGroupPortfolio.mockResolvedValueOnce(
+      buildPortfolio([
+        { ...baseHolding, ticker: "NAN", market_value_gbp: Number.NaN as unknown as number, sector: "Finance" },
+        { ...baseHolding, ticker: "VALID", market_value_gbp: 10, sector: "Tech" },
+      ]),
+    );
+
+    render(<AllocationCharts />);
+    await screen.findByText(/Instrument Types/);
+
+    expect(warnSpy).toHaveBeenCalledWith("Dropped invalid holding value", {
+      ticker: "NAN",
+      originalValue: Number.NaN,
+      coercedValue: 0,
+      originalInvalid: true,
+    });
+  });
+
+  it("warns in dev for dropped Infinity values", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    mockGetGroupPortfolio.mockResolvedValueOnce(
+      buildPortfolio([
+        { ...baseHolding, ticker: "INF", market_value_gbp: Number.POSITIVE_INFINITY, sector: "Energy" },
+        { ...baseHolding, ticker: "VALID", market_value_gbp: 10, sector: "Tech" },
+      ]),
+    );
+
+    render(<AllocationCharts />);
+    await screen.findByText(/Instrument Types/);
+
+    expect(warnSpy).toHaveBeenCalledWith("Dropped invalid holding value", {
+      ticker: "INF",
+      originalValue: Number.POSITIVE_INFINITY,
+      coercedValue: 0,
+      originalInvalid: true,
+    });
+  });
+
+  it("warns in dev for dropped non-numeric values", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    mockGetGroupPortfolio.mockResolvedValueOnce(
+      buildPortfolio([
+        {
+          ...baseHolding,
+          ticker: "STR",
+          // Runtime API payloads can still return non-numeric data despite frontend type declarations.
+          market_value_gbp: "N/A" as unknown as number,
+          sector: "Unknown",
+        },
+      ]),
+    );
+
+    render(<AllocationCharts />);
+    await screen.findByText(/Instrument Types/);
+
+    expect(warnSpy).toHaveBeenCalledWith("Dropped invalid holding value", {
+      ticker: "STR",
+      originalValue: "N/A",
+      coercedValue: 0,
+      originalInvalid: true,
+    });
+  });
+
   it("renders an empty chart state when all holdings are invalid", async () => {
     mockGetGroupPortfolio.mockResolvedValueOnce(
       buildPortfolio([
@@ -204,13 +283,16 @@ describe("AllocationCharts page", () => {
     expect(within(slices).getByText("Health: 50")).toBeInTheDocument();
   });
 
-  it("does not warn in production for dropped negative values", async () => {
-    process.env.NODE_ENV = "production";
+  it("suppresses all dropped-value warnings in production", async () => {
+    allocationChartRuntime.isDev = false;
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     mockGetGroupPortfolio.mockResolvedValueOnce(
       buildPortfolio([
         { ...baseHolding, ticker: "NEG", market_value_gbp: -1, sector: "Utilities" },
+        { ...baseHolding, ticker: "NAN", market_value_gbp: Number.NaN as unknown as number, sector: "Utilities" },
+        { ...baseHolding, ticker: "INF", market_value_gbp: Number.POSITIVE_INFINITY, sector: "Utilities" },
+        { ...baseHolding, ticker: "STR", market_value_gbp: "N/A" as unknown as number, sector: "Utilities" },
       ]),
     );
 

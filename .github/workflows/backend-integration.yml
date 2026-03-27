@@ -49,7 +49,9 @@ jobs:
 
       - name: Type-check backend
         run: |
-          mypy backend --config-file mypy.ini
+          test -f mypy.ini
+          python -m mypy --version
+          python -m mypy backend --config-file mypy.ini --show-error-codes --pretty
 
       - name: Run provider parity tests
         env:

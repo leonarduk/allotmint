@@ -174,6 +174,30 @@ function metadataToInstrumentSummary(metadata: InstrumentMetadata): InstrumentSu
   };
 }
 
+function sameOwnerList(left: OwnerSummary[], right: OwnerSummary[]): boolean {
+  if (left.length !== right.length) return false;
+  return left.every((entry, index) => entry.owner === right[index]?.owner);
+}
+
+function sameGroupList(left: GroupSummary[], right: GroupSummary[]): boolean {
+  if (left.length !== right.length) return false;
+  return left.every((entry, index) => entry.slug === right[index]?.slug);
+}
+
+export function getOwnerRootRedirectPath(
+  pathname: string,
+  selectedOwner: string,
+  owners: OwnerSummary[],
+): string | null {
+  if (selectedOwner || owners.length === 0) return null;
+  const segs = pathname.split("/").filter(Boolean);
+  const atPortfolioRoot = segs[0] === "portfolio" && segs.length === 1;
+  const atPerformanceRoot = segs[0] === "performance" && segs.length === 1;
+  if (!atPortfolioRoot && !atPerformanceRoot) return null;
+  const owner = owners[0].owner;
+  return atPerformanceRoot ? `/performance/${owner}` : `/portfolio/${owner}`;
+}
+
 export default function App({ onLogout }: AppProps) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -296,7 +320,9 @@ export default function App({ onLogout }: AppProps) {
 
     const sanitizedOwners = sanitizeOwners(ownersReq.data);
 
-    setOwners(sanitizedOwners);
+    setOwners((currentOwners) =>
+      sameOwnerList(currentOwners, sanitizedOwners) ? currentOwners : sanitizedOwners,
+    );
 
     if (!selectedOwner) return;
 
@@ -312,7 +338,8 @@ export default function App({ onLogout }: AppProps) {
     }
 
     const segs = location.pathname.split("/").filter(Boolean);
-    const routeSpecifiesOwner = segs[0] === "portfolio" && Boolean(segs[1]);
+    const routeSpecifiesOwner =
+      (segs[0] === "portfolio" || segs[0] === "performance") && Boolean(segs[1]);
 
     if (!routeSpecifiesOwner) {
       setSelectedOwner("");
@@ -320,7 +347,13 @@ export default function App({ onLogout }: AppProps) {
   }, [ownersReq.data, selectedOwner, setSelectedOwner, location.pathname]);
 
   useEffect(() => {
-    if (groupsReq.data) setGroups(groupsReq.data);
+    if (groupsReq.data) {
+      setGroups((currentGroups) =>
+        sameGroupList(currentGroups, groupsReq.data ?? [])
+          ? currentGroups
+          : (groupsReq.data ?? []),
+      );
+    }
   }, [groupsReq.data]);
 
   useEffect(() => {
@@ -337,18 +370,9 @@ export default function App({ onLogout }: AppProps) {
 
   // redirect to defaults if no selection provided
   useEffect(() => {
-    const segs = location.pathname.split("/").filter(Boolean);
-    const atPortfolioRoot = segs[0] === "portfolio" && segs.length === 1;
-
-    if (
-      mode === "owner" &&
-      !selectedOwner &&
-      owners.length === 1 &&
-      atPortfolioRoot
-    ) {
-      const owner = owners[0].owner;
-      setSelectedOwner(owner);
-      navigate(`/portfolio/${owner}`, { replace: true });
+    const nextPath = getOwnerRootRedirectPath(location.pathname, selectedOwner, owners);
+    if (nextPath) {
+      navigate(nextPath, { replace: true });
     }
     if (mode === "instrument" && !selectedGroup && groups.length) {
       const slug = groups[0].slug;

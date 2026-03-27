@@ -348,24 +348,113 @@ def test_aggregate_by_ticker_uses_zero_snapshot_price(monkeypatch):
     assert row["gain_gbp"] == pytest.approx(-10.0)
 
 
-def test_aggregate_by_ticker_cash_gbp_is_never_derived_from_snapshot(monkeypatch):
-    portfolio = {
+def _cash_gbp_portfolio(units, cost_gbp, gain_gbp=0.0):
+    return {
         "accounts": [
             {
                 "holdings": [
                     {
                         "ticker": "CASH.GBP",
-                        "units": 158_371.31,
-                        "market_value_gbp": 158_371.31,
-                        "gain_gbp": 0.0,
-                        "cost_gbp": 146_509.54,
+                        "units": units,
+                        "market_value_gbp": units,
+                        "gain_gbp": gain_gbp,
+                        "cost_gbp": cost_gbp,
                     }
                 ]
             }
         ]
     }
 
+
+def _setup_cash_gbp_monkeypatches(monkeypatch, snapshot_price=0.01):
     monkeypatch.setattr(ia, "_resolve_full_ticker", lambda ticker, latest: ("CASH", "GBP"))
+    monkeypatch.setattr(ia, "price_change_pct", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        portfolio_utils,
+        "_PRICE_SNAPSHOT",
+        {
+            "CASH.GBP": {
+                "last_price": snapshot_price,
+                "price_currency": "GBP",
+                "last_price_date": "2026-03-27",
+                "is_stale": False,
+            }
+        },
+        raising=False,
+    )
+    monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda ticker: {"currency": "GBP"})
+    monkeypatch.setattr(portfolio_utils, "get_security_meta", lambda ticker: {})
+
+
+def test_aggregate_by_ticker_cash_gbp_is_never_derived_from_snapshot(monkeypatch):
+    _setup_cash_gbp_monkeypatches(monkeypatch)
+    rows = portfolio_utils.aggregate_by_ticker(
+        _cash_gbp_portfolio(units=158_371.31, cost_gbp=146_509.54),
+        base_currency="GBP",
+    )
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["ticker"] == "CASH.GBP"
+    assert row["last_price_gbp"] == pytest.approx(1.0)
+    assert row["market_value_gbp"] == pytest.approx(158_371.31)
+    assert row["gain_gbp"] == pytest.approx(11_861.77)
+
+
+def test_aggregate_by_ticker_cash_gbp_zero_cost_basis(monkeypatch):
+    """cost_gbp = 0.0 is a legitimate zero-cost-basis and must trigger gain recalc."""
+    _setup_cash_gbp_monkeypatches(monkeypatch)
+    rows = portfolio_utils.aggregate_by_ticker(
+        _cash_gbp_portfolio(units=10_000.0, cost_gbp=0.0, gain_gbp=999.99),
+        base_currency="GBP",
+    )
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["last_price_gbp"] == pytest.approx(1.0)
+    assert row["market_value_gbp"] == pytest.approx(10_000.0)
+    # With cost=0.0 and market_value=10_000.0, gain must be recalculated to 10_000.0,
+    # NOT left as the stale 999.99 from the holding.
+    assert row["gain_gbp"] == pytest.approx(10_000.0)
+
+
+def test_aggregate_by_ticker_cash_gbp_none_cost_basis(monkeypatch):
+    """cost_gbp = None: gain cannot be recalculated so original gain is preserved."""
+    _setup_cash_gbp_monkeypatches(monkeypatch)
+    portfolio = {
+        "accounts": [
+            {
+                "holdings": [
+                    {
+                        "ticker": "CASH.GBP",
+                        "units": 5_000.0,
+                        "market_value_gbp": 5_000.0,
+                        "gain_gbp": 42.0,
+                        # no cost_gbp key at all → row["cost_gbp"] accumulates to 0.0
+                    }
+                ]
+            }
+        ]
+    }
+    rows = portfolio_utils.aggregate_by_ticker(portfolio, base_currency="GBP")
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["last_price_gbp"] == pytest.approx(1.0)
+    assert row["market_value_gbp"] == pytest.approx(5_000.0)
+    # cost_gbp defaults to 0.0 (via _safe_num), so gain IS recalculated: 5000 - 0 = 5000
+    assert row["gain_gbp"] == pytest.approx(5_000.0)
+
+
+@pytest.mark.parametrize("ticker_variant", ["cash.gbp", " CASH.GBP ", "Cash.Gbp"])
+def test_aggregate_by_ticker_cash_gbp_ticker_normalisation(monkeypatch, ticker_variant):
+    """Case/whitespace variations of CASH.GBP must all hit the cash-pinning branch."""
+    monkeypatch.setattr(
+        ia,
+        "_resolve_full_ticker",
+        # Simulate resolver returning the original variant uppercased
+        lambda ticker, latest: (ticker.strip().upper().split(".")[0], ticker.strip().upper().split(".")[1]),
+    )
     monkeypatch.setattr(ia, "price_change_pct", lambda *args, **kwargs: None)
     monkeypatch.setattr(
         portfolio_utils,
@@ -383,14 +472,29 @@ def test_aggregate_by_ticker_cash_gbp_is_never_derived_from_snapshot(monkeypatch
     monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda ticker: {"currency": "GBP"})
     monkeypatch.setattr(portfolio_utils, "get_security_meta", lambda ticker: {})
 
+    portfolio = {
+        "accounts": [
+            {
+                "holdings": [
+                    {
+                        "ticker": ticker_variant,
+                        "units": 1_000.0,
+                        "market_value_gbp": 1_000.0,
+                        "gain_gbp": 0.0,
+                        "cost_gbp": 900.0,
+                    }
+                ]
+            }
+        ]
+    }
     rows = portfolio_utils.aggregate_by_ticker(portfolio, base_currency="GBP")
 
     assert len(rows) == 1
     row = rows[0]
-    assert row["ticker"] == "CASH.GBP"
+    # Must be pinned to £1/unit regardless of ticker casing
     assert row["last_price_gbp"] == pytest.approx(1.0)
-    assert row["market_value_gbp"] == pytest.approx(158_371.31)
-    assert row["gain_gbp"] == pytest.approx(11_861.77)
+    assert row["market_value_gbp"] == pytest.approx(1_000.0)
+    assert row["gain_gbp"] == pytest.approx(100.0)
 
 
 def test_aggregate_by_ticker_uses_default_meta_and_handles_price_errors(monkeypatch):

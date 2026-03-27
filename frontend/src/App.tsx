@@ -348,13 +348,14 @@ export default function App({ onLogout }: AppProps) {
         ? "performance"
         : null;
 
-    const fallbackOwner = owners[0]?.owner ?? selectedOwner;
-    if (ownerRoot && fallbackOwner) {
-      // Intentionally auto-select the first available owner on owner-root routes
-      // so route, selected owner, and loaded data stay consistent.
-      const targetPath = `/${ownerRoot}/${fallbackOwner}`;
-      if (selectedOwner !== fallbackOwner) {
-        setSelectedOwner(fallbackOwner);
+    // Only redirect when we are at an owner-root route AND at least one owner has loaded.
+    // Do not fall back to selectedOwner — that could redirect to an unverified owner
+    // when the owners list is empty (e.g. stale state during async load).
+    if (ownerRoot && owners.length > 0) {
+      const firstOwner = owners[0].owner;
+      const targetPath = `/${ownerRoot}/${firstOwner}`;
+      if (selectedOwner !== firstOwner) {
+        setSelectedOwner(firstOwner);
       }
       if (location.pathname !== targetPath) {
         navigate(targetPath, { replace: true });

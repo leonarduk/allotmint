@@ -13,6 +13,7 @@ import { useSortableTable } from "../hooks/useSortableTable";
 import tableStyles from "../styles/table.module.css";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { loadJSON, saveJSON } from "../utils/storage";
+import { MAX_TRADING_SIGNAL_ROWS } from "../constants/renderLimits";
 
 const PERIODS = { "1d": 1, "1w": 7, "1m": 30, "3m": 90, "1y": 365 } as const;
 type PeriodKey = keyof typeof PERIODS;
@@ -160,6 +161,7 @@ export function TopMoversPage() {
     ? virtualRows
     : sorted.map((_, index) => ({ index, start: index * 40, end: (index + 1) * 40 }));
   const colSpan = watchlist === "Portfolio" ? 6 : 4;
+  const visibleSignals = data?.signals.slice(0, MAX_TRADING_SIGNAL_ROWS) ?? [];
 
   if (loading) return <p>{t("common.loading")}</p>;
   if (error != null) {
@@ -351,34 +353,42 @@ export function TopMoversPage() {
       ) : data.signals.length === 0 ? (
         <p>{t("trading.noSignals")}</p>
       ) : (
-        <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "1rem" }}>
-          <thead>
-            <tr>
-              <th style={{ textAlign: "left", padding: "4px" }}>{t("common.ticker")}</th>
-              <th style={{ textAlign: "left", padding: "4px" }}>{t("common.action")}</th>
-              <th style={{ textAlign: "left", padding: "4px" }}>{t("common.reason")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.signals.map((s) => (
-              <tr key={s.ticker}>
-                <td style={{ padding: "4px" }}>
-                  <a
-                    href="#"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      navigate(`/research/${s.ticker}`);
-                    }}
-                  >
-                    {s.ticker}
-                  </a>
-                </td>
-                <td style={{ padding: "4px" }}>{s.action}</td>
-                <td style={{ padding: "4px" }}>{s.reason}</td>
+        <>
+          <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "1rem" }}>
+            <thead>
+              <tr>
+                <th style={{ textAlign: "left", padding: "4px" }}>{t("common.ticker")}</th>
+                <th style={{ textAlign: "left", padding: "4px" }}>{t("common.action")}</th>
+                <th style={{ textAlign: "left", padding: "4px" }}>{t("common.reason")}</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {visibleSignals.map((s) => (
+                <tr key={s.ticker}>
+                  <td style={{ padding: "4px" }}>
+                    <a
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        navigate(`/research/${s.ticker}`);
+                      }}
+                    >
+                      {s.ticker}
+                    </a>
+                  </td>
+                  <td style={{ padding: "4px" }}>{s.action}</td>
+                  <td style={{ padding: "4px" }}>{s.reason}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {data.signals.length > MAX_TRADING_SIGNAL_ROWS && (
+            <p style={{ marginTop: "0.5rem", fontSize: "0.875rem", color: "#64748b" }}>
+              Showing first {MAX_TRADING_SIGNAL_ROWS.toLocaleString()} signals of{" "}
+              {data.signals.length.toLocaleString()}.
+            </p>
+          )}
+        </>
       )}
 
       {selected && (

@@ -4,6 +4,7 @@ import { getTradingSignals } from '../api';
 import type { TradingSignal } from '../types';
 import { InstrumentDetail } from '../components/InstrumentDetail';
 import tableStyles from '../styles/table.module.css';
+import { MAX_TRADING_SIGNAL_ROWS } from '../constants/renderLimits';
 
 export default function Trading() {
   const { t } = useTranslation();
@@ -24,6 +25,7 @@ export default function Trading() {
   if (!signals.length) {
     return <p>{t('trading.noSignals')}</p>;
   }
+  const visibleSignals = signals.slice(0, MAX_TRADING_SIGNAL_ROWS);
 
   const formatAction = (action: string) => {
     if (!action) {
@@ -79,7 +81,7 @@ export default function Trading() {
           </tr>
         </thead>
         <tbody>
-          {signals.map((s) => (
+          {visibleSignals.map((s) => (
             <tr key={s.ticker}>
               <td className={tableStyles.cell}>
                 <button
@@ -98,6 +100,12 @@ export default function Trading() {
           ))}
         </tbody>
       </table>
+      {signals.length > MAX_TRADING_SIGNAL_ROWS && (
+        <p>
+          Showing first {MAX_TRADING_SIGNAL_ROWS.toLocaleString()} signals of{' '}
+          {signals.length.toLocaleString()}.
+        </p>
+      )}
       {selected && (
         <InstrumentDetail
           ticker={selected.ticker}

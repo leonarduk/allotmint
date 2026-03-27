@@ -67,6 +67,7 @@ import {
   normaliseGroupSlug,
 } from "./utils/groups";
 import { deriveModeFromPathname } from "./pageManifest";
+import { MAX_INSTRUMENT_CATALOGUE_ROWS } from "./constants/renderLimits";
 const PerformanceDashboard = lazyWithDelay(
   () => import("./components/PerformanceDashboard"),
 );
@@ -427,7 +428,9 @@ export default function App({ onLogout }: AppProps) {
       const fetchPromise =
         selectedGroup === "all"
           ? listInstrumentMetadata().then((catalogue) =>
-              catalogue.map((entry) => metadataToInstrumentSummary(entry)),
+              catalogue
+                .slice(0, MAX_INSTRUMENT_CATALOGUE_ROWS)
+                .map((entry) => metadataToInstrumentSummary(entry)),
             )
           : getGroupInstruments(selectedGroup);
       fetchPromise

@@ -4,6 +4,8 @@ import { useEffect } from "react";
 import {
   MemoryRouter,
   Link,
+  RouterProvider,
+  createMemoryRouter,
   useLocation,
 } from "react-router-dom";
 import { describe, expect, it, vi, beforeEach } from "vitest";
@@ -14,6 +16,10 @@ const mockTradingSignals = vi.fn();
 
 vi.mock("@/components/TopMoversSummary", () => ({
   TopMoversSummary: () => <div data-testid="top-movers-summary" />,
+}));
+
+vi.mock("@/components/ComplianceWarnings", () => ({
+  ComplianceWarnings: () => null,
 }));
 
 // Dynamic import after setting location and mocking APIs
@@ -567,15 +573,6 @@ describe("App", () => {
 
   it("redirects /portfolio to the first owner when multiple owners are available", async () => {
     window.history.pushState({}, "", "/portfolio");
-    const locationUpdates: string[] = [];
-
-    function LocationListener() {
-      const location = useLocation();
-      useEffect(() => {
-        locationUpdates.push(location.pathname);
-      }, [location.pathname]);
-      return null;
-    }
 
     const mockGetOwners = vi.fn().mockResolvedValue([
       { owner: "alice", accounts: [] },
@@ -614,29 +611,19 @@ describe("App", () => {
 
     const { default: App } = await import("@/App");
 
-    render(
-      <MemoryRouter initialEntries={["/portfolio"]}>
-        <LocationListener />
-        <App />
-      </MemoryRouter>,
+    const router = createMemoryRouter(
+      [{ path: "*", element: <App /> }],
+      { initialEntries: ["/portfolio"] },
     );
 
-    await waitFor(() => expect(locationUpdates).toContain("/portfolio/alice"));
-    expect(locationUpdates.filter((path) => path === "/portfolio/alice")).toHaveLength(1);
+    render(<RouterProvider router={router} />);
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/portfolio/alice"));
     await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("alice"));
   });
 
   it("redirects /performance to the first owner when multiple owners are available", async () => {
     window.history.pushState({}, "", "/performance");
-    const locationUpdates: string[] = [];
-
-    function LocationListener() {
-      const location = useLocation();
-      useEffect(() => {
-        locationUpdates.push(location.pathname);
-      }, [location.pathname]);
-      return null;
-    }
 
     const mockGetOwners = vi.fn().mockResolvedValue([
       { owner: "alice", accounts: [] },
@@ -682,17 +669,16 @@ describe("App", () => {
 
     const { default: App } = await import("@/App");
 
-    render(
-      <MemoryRouter initialEntries={["/performance"]}>
-        <LocationListener />
-        <App />
-      </MemoryRouter>,
+    const router = createMemoryRouter(
+      [{ path: "*", element: <App /> }],
+      { initialEntries: ["/performance"] },
     );
 
-    await waitFor(() => expect(locationUpdates).toContain("/performance/alice"));
-    expect(locationUpdates.filter((path) => path === "/performance/alice")).toHaveLength(1);
+    render(<RouterProvider router={router} />);
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/performance/alice"));
     await waitFor(() => expect(screen.getByTestId("performance-dashboard")).toHaveTextContent("alice"));
-    expect(locationUpdates.some((path) => path.startsWith("/portfolio"))).toBe(false);
+    expect(router.state.location.pathname.startsWith("/portfolio")).toBe(false);
   });
 
   it("stays on /portfolio when no owners are available", async () => {

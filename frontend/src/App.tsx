@@ -277,7 +277,9 @@ export default function App({ onLogout }: AppProps) {
     }
     setMode(newMode);
     if (newMode === "owner" || newMode === "performance") {
-      setSelectedOwner(segs[1] ?? "");
+      if (segs[1]) {
+        setSelectedOwner(segs[1]);
+      }
     } else if (newMode === "instrument") {
       setSelectedGroup(segs[1] ?? "");
     } else if (newMode === "group") {
@@ -293,14 +295,13 @@ export default function App({ onLogout }: AppProps) {
 
   useEffect(() => {
     if (!ownersReq.data) return;
+    setOwners(sanitizeOwners(ownersReq.data));
+  }, [ownersReq.data]);
 
-    const sanitizedOwners = sanitizeOwners(ownersReq.data);
-
-    setOwners(sanitizedOwners);
-
+  useEffect(() => {
     if (!selectedOwner) return;
 
-    const match = sanitizedOwners.find(
+    const match = owners.find(
       (o) => o.owner.toLowerCase() === selectedOwner.toLowerCase(),
     );
 
@@ -318,7 +319,7 @@ export default function App({ onLogout }: AppProps) {
     if (!routeSpecifiesOwner) {
       setSelectedOwner("");
     }
-  }, [ownersReq.data, selectedOwner, setSelectedOwner, location.pathname]);
+  }, [owners, selectedOwner, setSelectedOwner, location.pathname]);
 
   useEffect(() => {
     if (groupsReq.data) setGroups(groupsReq.data);
@@ -347,12 +348,17 @@ export default function App({ onLogout }: AppProps) {
         ? "performance"
         : null;
 
-    if (ownerRoot && !selectedOwner && owners.length > 0) {
+    const fallbackOwner = owners[0]?.owner ?? selectedOwner;
+    if (ownerRoot && fallbackOwner) {
       // Intentionally auto-select the first available owner on owner-root routes
       // so route, selected owner, and loaded data stay consistent.
-      const owner = owners[0].owner;
-      setSelectedOwner(owner);
-      navigate(`/${ownerRoot}/${owner}`, { replace: true });
+      const targetPath = `/${ownerRoot}/${fallbackOwner}`;
+      if (selectedOwner !== fallbackOwner) {
+        setSelectedOwner(fallbackOwner);
+      }
+      if (location.pathname !== targetPath) {
+        navigate(targetPath, { replace: true });
+      }
     }
     if (mode === "instrument" && !selectedGroup && groups.length) {
       const slug = groups[0].slug;

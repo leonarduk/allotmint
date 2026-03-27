@@ -18,13 +18,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Check SPA contract version sync
-        run: python scripts/check_contract_version_sync.py
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+
+      - name: Check SPA contract version sync
+        working-directory: .
+        run: python scripts/check_contract_version_sync.py
 
       - name: Install dependencies
         run: |

@@ -142,8 +142,8 @@ def test_fetch_uk_sectors_flat_dict(monkeypatch):
     assert calls
     assert calls[0][1]["timeout"] == 10
     assert result == [
-        {"sector": "Energy", "change": 1.2},
-        {"sector": "Industrials", "change": -0.5},
+        {"sector": "Energy", "change": 1.2, "source": "lse"},
+        {"sector": "Industrials", "change": -0.5, "source": "lse"},
     ]
 
 
@@ -164,9 +164,9 @@ def test_fetch_uk_sectors_nested_values(monkeypatch):
     result = market_module._fetch_uk_sectors()
 
     assert result == [
-        {"sector": "Energy", "change": 2.3},
-        {"sector": "Financials", "change": -1.1},
-        {"sector": "Utilities", "change": 0.5},
+        {"sector": "Energy", "change": 2.3, "source": "lse"},
+        {"sector": "Financials", "change": -1.1, "source": "lse"},
+        {"sector": "Utilities", "change": 0.5, "source": "lse"},
     ]
 
 
@@ -185,4 +185,4 @@ def test_fetch_uk_sectors_skips_invalid_entries(monkeypatch):
 
     result = market_module._fetch_uk_sectors()
 
-    assert result == [{"sector": "Healthcare", "change": 3.5}]
+    assert result == [{"sector": "Healthcare", "change": 3.5, "source": "lse"}]

@@ -312,7 +312,8 @@ export default function App({ onLogout }: AppProps) {
     }
 
     const segs = location.pathname.split("/").filter(Boolean);
-    const routeSpecifiesOwner = segs[0] === "portfolio" && Boolean(segs[1]);
+    const routeSpecifiesOwner =
+      (segs[0] === "portfolio" || segs[0] === "performance") && Boolean(segs[1]);
 
     if (!routeSpecifiesOwner) {
       setSelectedOwner("");
@@ -341,25 +342,19 @@ export default function App({ onLogout }: AppProps) {
     const atPortfolioRoot = segs[0] === "portfolio" && segs.length === 1;
     const atPerformanceRoot = segs[0] === "performance" && segs.length === 1;
 
-    if (
-      mode === "owner" &&
+    const shouldSelectDefaultOwner =
       !selectedOwner &&
       owners.length > 0 &&
-      atPortfolioRoot
-    ) {
+      ((mode === "owner" && atPortfolioRoot) ||
+        (mode === "performance" && atPerformanceRoot));
+
+    if (shouldSelectDefaultOwner) {
+      // Intentionally auto-select the first available owner on owner-root routes
+      // so route, selected owner, and loaded data stay consistent.
       const owner = owners[0].owner;
+      const ownerRoot = mode === "performance" ? "performance" : "portfolio";
       setSelectedOwner(owner);
-      navigate(`/portfolio/${owner}`, { replace: true });
-    }
-    if (
-      mode === "performance" &&
-      !selectedOwner &&
-      owners.length > 0 &&
-      atPerformanceRoot
-    ) {
-      const owner = owners[0].owner;
-      setSelectedOwner(owner);
-      navigate(`/performance/${owner}`, { replace: true });
+      navigate(`/${ownerRoot}/${owner}`, { replace: true });
     }
     if (mode === "instrument" && !selectedGroup && groups.length) {
       const slug = groups[0].slug;

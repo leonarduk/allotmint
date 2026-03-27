@@ -5,8 +5,6 @@ import {
   MemoryRouter,
   Link,
   useLocation,
-  createMemoryRouter,
-  RouterProvider,
 } from "react-router-dom";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import i18n from "@/i18n";
@@ -567,8 +565,17 @@ describe("App", () => {
     expect(locationUpdates.some((path) => path.startsWith("/performance"))).toBe(false);
   });
 
-  it("redirects /portfolio to the first owner when owners are available", async () => {
+  it("redirects /portfolio to the first owner when multiple owners are available", async () => {
     window.history.pushState({}, "", "/portfolio");
+    const locationUpdates: string[] = [];
+
+    function LocationListener() {
+      const location = useLocation();
+      useEffect(() => {
+        locationUpdates.push(location.pathname);
+      }, [location.pathname]);
+      return null;
+    }
 
     const mockGetOwners = vi.fn().mockResolvedValue([
       { owner: "alice", accounts: [] },
@@ -597,6 +604,9 @@ describe("App", () => {
         getCompliance: vi
           .fn()
           .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+        complianceForOwner: vi
+          .fn()
+          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
         getTradingSignals: vi.fn().mockResolvedValue([]),
         getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
       };
@@ -606,18 +616,26 @@ describe("App", () => {
 
     render(
       <MemoryRouter initialEntries={["/portfolio"]}>
+        <LocationListener />
         <App />
       </MemoryRouter>,
     );
 
-    await waitFor(() =>
-      expect(screen.getByTestId("portfolio-owner-selector")).toHaveTextContent(/alice/i),
-    );
+    await waitFor(() => expect(locationUpdates).toContain("/portfolio/alice"));
     await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("alice"));
   });
 
-  it("redirects /performance to the first owner when owners are available", async () => {
+  it("redirects /performance to the first owner when multiple owners are available", async () => {
     window.history.pushState({}, "", "/performance");
+    const locationUpdates: string[] = [];
+
+    function LocationListener() {
+      const location = useLocation();
+      useEffect(() => {
+        locationUpdates.push(location.pathname);
+      }, [location.pathname]);
+      return null;
+    }
 
     const mockGetOwners = vi.fn().mockResolvedValue([
       { owner: "alice", accounts: [] },
@@ -653,6 +671,9 @@ describe("App", () => {
         getCompliance: vi
           .fn()
           .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+        complianceForOwner: vi
+          .fn()
+          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
         getTradingSignals: vi.fn().mockResolvedValue([]),
         getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
       };
@@ -662,13 +683,188 @@ describe("App", () => {
 
     render(
       <MemoryRouter initialEntries={["/performance"]}>
+        <LocationListener />
         <App />
       </MemoryRouter>,
     );
 
-    await waitFor(() =>
-      expect(screen.getByTestId("performance-dashboard")).toHaveTextContent("alice"),
+    await waitFor(() => expect(locationUpdates).toContain("/performance/alice"));
+    await waitFor(() => expect(screen.getByTestId("performance-dashboard")).toHaveTextContent("alice"));
+  });
+
+  it("stays on /portfolio when no owners are available", async () => {
+    window.history.pushState({}, "", "/portfolio");
+    const locationUpdates: string[] = [];
+
+    function LocationListener() {
+      const location = useLocation();
+      useEffect(() => {
+        locationUpdates.push(location.pathname);
+      }, [location.pathname]);
+      return null;
+    }
+
+    const mockGetPortfolio = vi.fn();
+
+    vi.doMock("@/api", async () => {
+      const actual = await vi.importActual<typeof import("@/api")>("@/api");
+      return {
+        ...actual,
+        getOwners: vi.fn().mockResolvedValue([]),
+        getGroups: vi.fn().mockResolvedValue([]),
+        getPortfolio: mockGetPortfolio,
+        getGroupInstruments: vi.fn().mockResolvedValue([]),
+        getAlerts: vi.fn().mockResolvedValue([]),
+        getNudges: vi.fn().mockResolvedValue([]),
+        getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+        getCompliance: vi
+          .fn()
+          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+        complianceForOwner: vi
+          .fn()
+          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+        getTradingSignals: vi.fn().mockResolvedValue([]),
+        getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+      };
+    });
+
+    const { default: App } = await import("@/App");
+
+    render(
+      <MemoryRouter initialEntries={["/portfolio"]}>
+        <LocationListener />
+        <App />
+      </MemoryRouter>,
     );
+
+    await waitFor(() => expect(locationUpdates[0]).toBe("/portfolio"));
+    expect(locationUpdates).not.toContain("/portfolio/alice");
+    expect(mockGetPortfolio).not.toHaveBeenCalled();
+  });
+
+  it("stays on /performance when no owners are available", async () => {
+    window.history.pushState({}, "", "/performance");
+    const locationUpdates: string[] = [];
+
+    function LocationListener() {
+      const location = useLocation();
+      useEffect(() => {
+        locationUpdates.push(location.pathname);
+      }, [location.pathname]);
+      return null;
+    }
+
+    vi.doMock("@/components/PerformanceDashboard", () => ({
+      __esModule: true,
+      default: () => <div data-testid="performance-dashboard" />,
+    }));
+
+    vi.doMock("@/api", async () => {
+      const actual = await vi.importActual<typeof import("@/api")>("@/api");
+      return {
+        ...actual,
+        getOwners: vi.fn().mockResolvedValue([]),
+        getGroups: vi.fn().mockResolvedValue([]),
+        getPortfolio: vi.fn(),
+        getGroupInstruments: vi.fn().mockResolvedValue([]),
+        getAlerts: vi.fn().mockResolvedValue([]),
+        getNudges: vi.fn().mockResolvedValue([]),
+        getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+        getCompliance: vi
+          .fn()
+          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+        complianceForOwner: vi
+          .fn()
+          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+        getTradingSignals: vi.fn().mockResolvedValue([]),
+        getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+      };
+    });
+
+    const { default: App } = await import("@/App");
+
+    render(
+      <MemoryRouter initialEntries={["/performance"]}>
+        <LocationListener />
+        <App />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(locationUpdates[0]).toBe("/performance"));
+    expect(locationUpdates).not.toContain("/performance/alice");
+    expect(screen.getByTestId("performance-dashboard")).toBeInTheDocument();
+  });
+
+  it("redirects once owners load asynchronously on owner-root routes", async () => {
+    window.history.pushState({}, "", "/portfolio");
+    const locationUpdates: string[] = [];
+
+    function LocationListener() {
+      const location = useLocation();
+      useEffect(() => {
+        locationUpdates.push(location.pathname);
+      }, [location.pathname]);
+      return null;
+    }
+
+    let resolveOwners: ((owners: Array<{ owner: string; accounts: never[] }>) => void) | null =
+      null;
+    const mockGetOwners = vi.fn().mockImplementation(
+      () =>
+        new Promise<Array<{ owner: string; accounts: never[] }>>((resolve) => {
+          resolveOwners = resolve;
+        }),
+    );
+    const mockGetPortfolio = vi.fn().mockResolvedValue({
+      owner: "alice",
+      as_of: "2024-01-01T00:00:00.000Z",
+      trades_this_month: 0,
+      trades_remaining: 0,
+      total_value_estimate_gbp: 0,
+      accounts: [],
+    });
+
+    vi.doMock("@/api", async () => {
+      const actual = await vi.importActual<typeof import("@/api")>("@/api");
+      return {
+        ...actual,
+        getOwners: mockGetOwners,
+        getGroups: vi.fn().mockResolvedValue([]),
+        getPortfolio: mockGetPortfolio,
+        getGroupInstruments: vi.fn().mockResolvedValue([]),
+        getAlerts: vi.fn().mockResolvedValue([]),
+        getNudges: vi.fn().mockResolvedValue([]),
+        getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+        getCompliance: vi
+          .fn()
+          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+        complianceForOwner: vi
+          .fn()
+          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+        getTradingSignals: vi.fn().mockResolvedValue([]),
+        getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+      };
+    });
+
+    const { default: App } = await import("@/App");
+
+    render(
+      <MemoryRouter initialEntries={["/portfolio"]}>
+        <LocationListener />
+        <App />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(locationUpdates.at(-1)).toBe("/portfolio"));
+    expect(mockGetPortfolio).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveOwners?.([{ owner: "alice", accounts: [] }]);
+    });
+
+    await waitFor(() => expect(locationUpdates).toContain("/portfolio/alice"));
+    expect(locationUpdates.filter((path) => path === "/portfolio/alice")).toHaveLength(1);
+    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("alice"));
   });
 
   it("reuses cached portfolio data when returning from research", async () => {
@@ -1116,3 +1312,22 @@ describe("App", () => {
     expect(avatar).toHaveAttribute("src", "http://example.com/pic.jpg");
   });
 });
+    vi.doMock("@/components/ComplianceWarnings", () => ({
+      ComplianceWarnings: () => null,
+    }));
+
+    vi.doMock("@/components/ComplianceWarnings", () => ({
+      ComplianceWarnings: () => null,
+    }));
+
+    vi.doMock("@/components/ComplianceWarnings", () => ({
+      ComplianceWarnings: () => null,
+    }));
+
+    vi.doMock("@/components/ComplianceWarnings", () => ({
+      ComplianceWarnings: () => null,
+    }));
+
+    vi.doMock("@/components/ComplianceWarnings", () => ({
+      ComplianceWarnings: () => null,
+    }));

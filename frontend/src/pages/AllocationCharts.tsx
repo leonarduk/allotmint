@@ -37,10 +37,7 @@ const isInvalidNumericInput = (value: unknown): boolean => {
   return !Number.isFinite(numeric);
 };
 
-export const isDevEnvironment = (): boolean => import.meta.env.DEV;
-export const allocationChartRuntime = {
-  isDev: isDevEnvironment(),
-};
+const isDevEnvironment = (): boolean => import.meta.env.MODE !== "production";
 
 export type AllocationChartsProps = {
   /** Portfolio group slug (defaults to "all"). */
@@ -117,14 +114,21 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
         const originalMarketValue = h.market_value_gbp as unknown;
         const mv = toFiniteNumber(originalMarketValue);
         const originalInvalid = isInvalidNumericInput(originalMarketValue);
-        // Visualization safeguard only: exclude zero values (no drawable slice) and negatives (short positions/invalid data).
-        if (mv <= 0) {
-          if (allocationChartRuntime.isDev) {
+        const dropReason = originalInvalid
+          ? "invalid-numeric-input"
+          : mv <= 0
+            ? "non-positive-market-value"
+            : null;
+        // Visualization safeguard only: exclude invalid numeric input and non-positive values.
+        // Zero creates no drawable slice and negatives typically represent short/invalid values; this does not fix upstream data quality.
+        if (dropReason) {
+          if (isDevEnvironment()) {
             console.warn("Dropped invalid holding value", {
               ticker: h.ticker,
               originalValue: originalMarketValue,
               coercedValue: mv,
               originalInvalid,
+              dropReason,
             });
           }
           continue;

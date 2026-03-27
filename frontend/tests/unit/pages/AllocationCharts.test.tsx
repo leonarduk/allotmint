@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import AllocationCharts from "@/pages/AllocationCharts";
-import { allocationChartRuntime } from "@/pages/AllocationCharts";
 import * as api from "@/api";
 import type { GroupPortfolio, Holding } from "@/types";
 
@@ -73,7 +72,7 @@ const buildPortfolio = (holdings: Holding[]): GroupPortfolio => ({
 describe("AllocationCharts page", () => {
   beforeEach(() => {
     vi.unstubAllEnvs();
-    allocationChartRuntime.isDev = true;
+    vi.stubEnv("MODE", "development");
   });
 
   afterEach(() => {
@@ -139,6 +138,7 @@ describe("AllocationCharts page", () => {
       originalValue: -20,
       coercedValue: -20,
       originalInvalid: false,
+      dropReason: "non-positive-market-value",
     });
   });
 
@@ -198,6 +198,7 @@ describe("AllocationCharts page", () => {
       originalValue: Number.NaN,
       coercedValue: 0,
       originalInvalid: true,
+      dropReason: "invalid-numeric-input",
     });
   });
 
@@ -219,6 +220,7 @@ describe("AllocationCharts page", () => {
       originalValue: Number.POSITIVE_INFINITY,
       coercedValue: 0,
       originalInvalid: true,
+      dropReason: "invalid-numeric-input",
     });
   });
 
@@ -245,6 +247,65 @@ describe("AllocationCharts page", () => {
       originalValue: "N/A",
       coercedValue: 0,
       originalInvalid: true,
+      dropReason: "invalid-numeric-input",
+    });
+  });
+
+  it("adds blocking coverage for null market values", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    mockGetGroupPortfolio.mockResolvedValueOnce(
+      buildPortfolio([
+        {
+          ...baseHolding,
+          ticker: "NULL",
+          market_value_gbp: null as unknown as number,
+          sector: "Finance",
+        },
+        { ...baseHolding, ticker: "VALID", market_value_gbp: 10, sector: "Tech" },
+      ]),
+    );
+
+    render(<AllocationCharts />);
+    await screen.findByText(/Instrument Types/);
+
+    const slices = screen.getByTestId("pie-slices");
+    expect(within(slices).getByText("Equity: 10")).toBeInTheDocument();
+    expect(warnSpy).toHaveBeenCalledWith("Dropped invalid holding value", {
+      ticker: "NULL",
+      originalValue: null,
+      coercedValue: 0,
+      originalInvalid: false,
+      dropReason: "non-positive-market-value",
+    });
+  });
+
+  it("adds blocking coverage for undefined market values", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    mockGetGroupPortfolio.mockResolvedValueOnce(
+      buildPortfolio([
+        {
+          ...baseHolding,
+          ticker: "UNDEF",
+          market_value_gbp: undefined as unknown as number,
+          sector: "Finance",
+        },
+        { ...baseHolding, ticker: "VALID", market_value_gbp: 12, sector: "Tech" },
+      ]),
+    );
+
+    render(<AllocationCharts />);
+    await screen.findByText(/Instrument Types/);
+
+    const slices = screen.getByTestId("pie-slices");
+    expect(within(slices).getByText("Equity: 12")).toBeInTheDocument();
+    expect(warnSpy).toHaveBeenCalledWith("Dropped invalid holding value", {
+      ticker: "UNDEF",
+      originalValue: undefined,
+      coercedValue: 0,
+      originalInvalid: true,
+      dropReason: "invalid-numeric-input",
     });
   });
 
@@ -284,7 +345,7 @@ describe("AllocationCharts page", () => {
   });
 
   it("suppresses all dropped-value warnings in production", async () => {
-    allocationChartRuntime.isDev = false;
+    vi.stubEnv("MODE", "production");
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     mockGetGroupPortfolio.mockResolvedValueOnce(

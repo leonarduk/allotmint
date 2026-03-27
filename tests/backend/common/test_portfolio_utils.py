@@ -348,6 +348,51 @@ def test_aggregate_by_ticker_uses_zero_snapshot_price(monkeypatch):
     assert row["gain_gbp"] == pytest.approx(-10.0)
 
 
+def test_aggregate_by_ticker_cash_gbp_is_never_derived_from_snapshot(monkeypatch):
+    portfolio = {
+        "accounts": [
+            {
+                "holdings": [
+                    {
+                        "ticker": "CASH.GBP",
+                        "units": 158_371.31,
+                        "market_value_gbp": 158_371.31,
+                        "gain_gbp": 0.0,
+                        "cost_gbp": 146_509.54,
+                    }
+                ]
+            }
+        ]
+    }
+
+    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda ticker, latest: ("CASH", "GBP"))
+    monkeypatch.setattr(ia, "price_change_pct", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        portfolio_utils,
+        "_PRICE_SNAPSHOT",
+        {
+            "CASH.GBP": {
+                "last_price": 0.01,
+                "price_currency": "GBP",
+                "last_price_date": "2026-03-27",
+                "is_stale": False,
+            }
+        },
+        raising=False,
+    )
+    monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda ticker: {"currency": "GBP"})
+    monkeypatch.setattr(portfolio_utils, "get_security_meta", lambda ticker: {})
+
+    rows = portfolio_utils.aggregate_by_ticker(portfolio, base_currency="GBP")
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["ticker"] == "CASH.GBP"
+    assert row["last_price_gbp"] == pytest.approx(1.0)
+    assert row["market_value_gbp"] == pytest.approx(158_371.31)
+    assert row["gain_gbp"] == pytest.approx(11_861.77)
+
+
 def test_aggregate_by_ticker_uses_default_meta_and_handles_price_errors(monkeypatch):
     portfolio = {
         "accounts": [

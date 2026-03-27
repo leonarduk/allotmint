@@ -55,6 +55,11 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
   const supportsResizeObserver =
     typeof window !== "undefined" && typeof window.ResizeObserver === "function";
 
+  const asFiniteNumber = (value: unknown): number => {
+    const numeric = typeof value === "number" ? value : Number(value);
+    return Number.isFinite(numeric) ? numeric : 0;
+  };
+
   // helper to derive a stable key for each account
   const accountKey = (acct: Account, idx: number) =>
     `${acct.owner?.trim() || "unknown"}-${acct.account_type}-${idx}`;
@@ -98,7 +103,8 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
 
     for (const acct of activeAccounts) {
       for (const h of acct.holdings) {
-        const mv = h.market_value_gbp ?? 0;
+        const mv = asFiniteNumber(h.market_value_gbp);
+        if (mv <= 0) continue;
         const typeName = translateInstrumentType(t, h.instrument_type);
         byType[typeName] = (byType[typeName] || 0) + mv;
         const sector = h.sector || t("common.other");

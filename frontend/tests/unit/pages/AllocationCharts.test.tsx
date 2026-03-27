@@ -61,4 +61,40 @@ describe("AllocationCharts page", () => {
     expect(await screen.findByText("boom")).toBeInTheDocument();
     expect(screen.queryByText(/Loading/)).not.toBeInTheDocument();
   });
+
+  it("ignores non-positive values without crashing", async () => {
+    mockGetGroupPortfolio.mockResolvedValueOnce({
+      ...samplePortfolio,
+      accounts: [
+        {
+          ...samplePortfolio.accounts[0],
+          holdings: [
+            {
+              ...samplePortfolio.accounts[0].holdings[0],
+              ticker: "NEG",
+              market_value_gbp: -20,
+              sector: "Utilities",
+            },
+            {
+              ...samplePortfolio.accounts[0].holdings[0],
+              ticker: "BAD",
+              market_value_gbp: Number.NaN as unknown as number,
+              sector: "Finance",
+            },
+            {
+              ...samplePortfolio.accounts[0].holdings[0],
+              ticker: "OK",
+              market_value_gbp: 100,
+              sector: "Tech",
+            },
+          ],
+        },
+      ],
+    });
+
+    render(<AllocationCharts />);
+
+    expect(await screen.findByText(/Instrument Types/)).toBeInTheDocument();
+    expect(screen.queryByText(/boom/i)).not.toBeInTheDocument();
+  });
 });

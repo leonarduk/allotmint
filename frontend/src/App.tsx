@@ -277,7 +277,9 @@ export default function App({ onLogout }: AppProps) {
     }
     setMode(newMode);
     if (newMode === "owner" || newMode === "performance") {
-      setSelectedOwner(segs[1] ?? "");
+      if (segs[1]) {
+        setSelectedOwner(segs[1]);
+      }
     } else if (newMode === "instrument") {
       setSelectedGroup(segs[1] ?? "");
     } else if (newMode === "group") {
@@ -293,14 +295,13 @@ export default function App({ onLogout }: AppProps) {
 
   useEffect(() => {
     if (!ownersReq.data) return;
+    setOwners(sanitizeOwners(ownersReq.data));
+  }, [ownersReq.data]);
 
-    const sanitizedOwners = sanitizeOwners(ownersReq.data);
-
-    setOwners(sanitizedOwners);
-
+  useEffect(() => {
     if (!selectedOwner) return;
 
-    const match = sanitizedOwners.find(
+    const match = owners.find(
       (o) => o.owner.toLowerCase() === selectedOwner.toLowerCase(),
     );
 
@@ -312,12 +313,13 @@ export default function App({ onLogout }: AppProps) {
     }
 
     const segs = location.pathname.split("/").filter(Boolean);
-    const routeSpecifiesOwner = segs[0] === "portfolio" && Boolean(segs[1]);
+    const routeSpecifiesOwner =
+      (segs[0] === "portfolio" || segs[0] === "performance") && Boolean(segs[1]);
 
     if (!routeSpecifiesOwner) {
       setSelectedOwner("");
     }
-  }, [ownersReq.data, selectedOwner, setSelectedOwner, location.pathname]);
+  }, [owners, selectedOwner, setSelectedOwner, location.pathname]);
 
   useEffect(() => {
     if (groupsReq.data) setGroups(groupsReq.data);
@@ -339,16 +341,25 @@ export default function App({ onLogout }: AppProps) {
   useEffect(() => {
     const segs = location.pathname.split("/").filter(Boolean);
     const atPortfolioRoot = segs[0] === "portfolio" && segs.length === 1;
+    const atPerformanceRoot = segs[0] === "performance" && segs.length === 1;
+    const ownerRoot = atPortfolioRoot
+      ? "portfolio"
+      : atPerformanceRoot
+        ? "performance"
+        : null;
 
-    if (
-      mode === "owner" &&
-      !selectedOwner &&
-      owners.length === 1 &&
-      atPortfolioRoot
-    ) {
-      const owner = owners[0].owner;
-      setSelectedOwner(owner);
-      navigate(`/portfolio/${owner}`, { replace: true });
+    // Only redirect when we are at an owner-root route AND at least one owner has loaded.
+    // Do not fall back to selectedOwner — that could redirect to an unverified owner
+    // when the owners list is empty (e.g. stale state during async load).
+    if (ownerRoot && owners.length > 0) {
+      const firstOwner = owners[0].owner;
+      const targetPath = `/${ownerRoot}/${firstOwner}`;
+      if (selectedOwner !== firstOwner) {
+        setSelectedOwner(firstOwner);
+      }
+      if (location.pathname !== targetPath) {
+        navigate(targetPath, { replace: true });
+      }
     }
     if (mode === "instrument" && !selectedGroup && groups.length) {
       const slug = groups[0].slug;

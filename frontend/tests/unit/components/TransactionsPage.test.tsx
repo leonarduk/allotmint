@@ -1,5 +1,3 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { TransactionsPage } from "@/components/TransactionsPage";
@@ -9,7 +7,6 @@ const { getTransactionsMock, createTransactionMock } = vi.hoisted(() => ({
     Promise.resolve([
       {
         id: "tx-1",
-        id: "alex:isa:0",
         owner: "alex",
         account: "isa",
         ticker: "PFE",
@@ -76,6 +73,8 @@ describe("TransactionsPage", () => {
     expect(
       screen.getByText(/owner and account filters are locked until you save or cancel/i),
     ).toBeInTheDocument();
+  });
+
   it("syncs filter owner/account when editing and reflects it in the editor context", async () => {
     render(
       <TransactionsPage

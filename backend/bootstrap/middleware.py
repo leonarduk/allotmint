@@ -55,7 +55,7 @@ def register_middleware(app: FastAPI, cfg: Config) -> None:
         storage_uri=storage_uri,
     )
     app.state.limiter = limiter
-    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
 
     default_cors = ["http://localhost:3000", "http://localhost:5173"]
     cors_origins = _validate_cors_origins(

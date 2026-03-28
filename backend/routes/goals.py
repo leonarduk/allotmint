@@ -25,13 +25,13 @@ class GoalResponse(GoalPayload):
 
 def _list_goals(owner: str) -> List[GoalPayload]:
     goals = load_goals(owner)
-    return [GoalPayload(**g.to_dict()) for g in goals]
+    return [GoalPayload.model_validate(g.to_dict()) for g in goals]
 
 
 def _create_goal(owner: str, payload: GoalPayload) -> GoalPayload:
     goal = Goal(payload.name, payload.target_amount, payload.target_date)
     add_goal(owner, goal)
-    return GoalPayload(**goal.to_dict())
+    return GoalPayload.model_validate(goal.to_dict())
 
 
 def _get_goal(owner: str, name: str, current_amount: float) -> GoalResponse:
@@ -41,7 +41,7 @@ def _get_goal(owner: str, name: str, current_amount: float) -> GoalResponse:
             progress = g.progress(current_amount)
             actual = {"goal": current_amount, "cash": max(g.target_amount - current_amount, 0.0)}
             trades = suggest_trades(actual, {"goal": 1.0})
-            return GoalResponse(**g.to_dict(), progress=progress, trades=trades)
+            return GoalResponse.model_validate({**g.to_dict(), "progress": progress, "trades": trades})
     raise HTTPException(status_code=404, detail="Goal not found")
 
 
@@ -88,27 +88,27 @@ if config.disable_auth:
 else:
 
     @router.get("/")
-    async def list_goals(current_user: str = Depends(get_current_user)) -> List[GoalPayload]:
+    async def list_goals(current_user: str = Depends(get_current_user)) -> List[GoalPayload]:  # type: ignore[misc]
         return _list_goals(current_user)
 
     @router.post("/")
-    async def create_goal(
+    async def create_goal(  # type: ignore[misc]
         payload: GoalPayload, current_user: str = Depends(get_current_user)
     ) -> GoalPayload:
         return _create_goal(current_user, payload)
 
     @router.get("/{name}")
-    async def get_goal(
+    async def get_goal(  # type: ignore[misc]
         name: str, current_amount: float, current_user: str = Depends(get_current_user)
     ) -> GoalResponse:
         return _get_goal(current_user, name, current_amount)
 
     @router.put("/{name}")
-    async def update_goal(
+    async def update_goal(  # type: ignore[misc]
         name: str, payload: GoalPayload, current_user: str = Depends(get_current_user)
     ) -> GoalPayload:
         return _update_goal(current_user, name, payload)
 
     @router.delete("/{name}")
-    async def remove_goal(name: str, current_user: str = Depends(get_current_user)) -> dict:
+    async def remove_goal(name: str, current_user: str = Depends(get_current_user)) -> dict:  # type: ignore[misc]
         return _remove_goal(current_user, name)

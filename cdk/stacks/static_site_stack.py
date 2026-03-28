@@ -60,18 +60,27 @@ class StaticSiteStack(Stack):
             ),
         )
 
+        # Origin selection: prefer OAC (CDK >= 2.116), fall back to OAI,
+        # then to legacy S3Origin — each path grants CloudFront bucket read.
         if hasattr(origins, "S3BucketOrigin") and hasattr(
             origins.S3BucketOrigin, "with_origin_access_control"
         ):
+            # Preferred path: OAC auto-manages the bucket policy grant.
             s3_origin = origins.S3BucketOrigin.with_origin_access_control(site_bucket)
         elif hasattr(origins, "S3BucketOrigin") and hasattr(
             origins.S3BucketOrigin, "with_origin_access_identity"
         ):
-            # Fallback for older CDK versions where OAC is unavailable.
-            s3_origin = origins.S3BucketOrigin.with_origin_access_identity(site_bucket)
+            # OAI fallback for CDK versions that have S3BucketOrigin but not OAC.
+            oai = cloudfront.OriginAccessIdentity(self, "StaticSiteOAI")
+            site_bucket.grant_read(oai)
+            s3_origin = origins.S3BucketOrigin.with_origin_access_identity(
+                site_bucket, origin_access_identity=oai
+            )
         else:
-            # Legacy fallback for CDK versions where S3BucketOrigin is not available.
-            s3_origin = origins.S3Origin(site_bucket)
+            # Legacy fallback for CDK versions where S3BucketOrigin is unavailable.
+            oai = cloudfront.OriginAccessIdentity(self, "StaticSiteOAI")
+            site_bucket.grant_read(oai)
+            s3_origin = origins.S3Origin(site_bucket, origin_access_identity=oai)
 
         asset_cache_policy = cloudfront.CachePolicy(
             self,

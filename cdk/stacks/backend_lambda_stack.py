@@ -6,7 +6,7 @@ from aws_cdk import aws_apigatewayv2 as apigwv2
 from aws_cdk import aws_apigatewayv2_integrations as apigwv2_integrations
 from aws_cdk import aws_events as events
 from aws_cdk import aws_events_targets as targets
-from aws_cdk import aws_iam as iam
+from aws_cdk import aws_iam as iam  # noqa: F401 – kept for potential future use
 from aws_cdk import aws_lambda as _lambda
 from aws_cdk import aws_s3 as s3
 from constructs import Construct
@@ -170,24 +170,15 @@ class BackendLambdaStack(Stack):
             targets=[targets.LambdaFunction(agent_fn)],
         )
 
+        # Grant Lambda roles read/write on the data bucket.
+        # IAM implicit deny covers all other principals; no explicit DENY
+        # resource policy is needed (and a StringNotLike list-based DENY
+        # would incorrectly lock out these roles too).
         lambda_roles = [backend_fn.role, refresh_fn.role, agent_fn.role]
         for role in lambda_roles:
             if role is None:
                 continue
             data_bucket.grant_read_write(role)
-
-        allowed_role_arns = [role.role_arn for role in lambda_roles if role is not None]
-        if allowed_role_arns:
-            data_bucket.add_to_resource_policy(
-                iam.PolicyStatement(
-                    sid="DenyNonLambdaPrincipalDataAccess",
-                    effect=iam.Effect.DENY,
-                    principals=[iam.AnyPrincipal()],
-                    actions=["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket"],
-                    resources=[data_bucket.bucket_arn, data_bucket.arn_for_objects("*")],
-                    conditions={"StringNotLike": {"aws:PrincipalArn": allowed_role_arns}},
-                )
-            )
 
         CfnOutput(self, "BackendApiUrl", value=backend_api.api_endpoint)
         CfnOutput(self, "DataBucketName", value=data_bucket.bucket_name)

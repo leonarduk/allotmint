@@ -18,6 +18,7 @@ interface TransactionsFiltersProps {
   onAccountChange: ChangeEventHandler<HTMLSelectElement>;
   onStartChange: ChangeEventHandler<HTMLInputElement>;
   onEndChange: ChangeEventHandler<HTMLInputElement>;
+  ownerAccountLocked?: boolean;
 }
 
 export function TransactionsFilters({
@@ -35,6 +36,7 @@ export function TransactionsFilters({
   onAccountChange,
   onStartChange,
   onEndChange,
+  ownerAccountLocked = false,
 }: TransactionsFiltersProps) {
   return (
     <div style={{ marginBottom: "1rem" }}>
@@ -49,6 +51,7 @@ export function TransactionsFilters({
             label: getOwnerDisplayName(ownerLookup, entry.owner, entry.owner),
           })),
         ]}
+        disabled={ownerAccountLocked}
       />
       <Selector
         label="Account"
@@ -58,6 +61,7 @@ export function TransactionsFilters({
           { value: "", label: "All" },
           ...accountOptions.map((option) => ({ value: option, label: option })),
         ]}
+        disabled={ownerAccountLocked}
       />
       <label style={{ marginLeft: "0.5rem" }}>
         {startLabel}: <input type="date" value={start} onChange={onStartChange} />

@@ -344,6 +344,7 @@ export function TransactionsPage({ owners }: Props) {
         onAccountChange={handleAccountChange}
         onStartChange={(event) => setStart(event.target.value)}
         onEndChange={(event) => setEnd(event.target.value)}
+        ownerAccountLocked={Boolean(editingId)}
       />
 
       <TransactionEditorForm
@@ -361,7 +362,9 @@ export function TransactionsPage({ owners }: Props) {
       />
 
       {editingId && (
-        <p style={{ color: "#ffd24d" }}>Editing existing transaction. Save or cancel to finish.</p>
+        <p style={{ color: "#ffd24d" }}>
+          Editing existing transaction. Owner and account filters are locked until you save or cancel.
+        </p>
       )}
 
       {formError && <p style={{ color: "red" }}>{formError}</p>}

@@ -12,9 +12,10 @@ type Props = {
   value: string;
   onChange: ChangeEventHandler<HTMLSelectElement>;
   style?: CSSProperties;
+  disabled?: boolean;
 };
 
-function SelectorComponent({ label, options, value, onChange, style }: Props) {
+function SelectorComponent({ label, options, value, onChange, style, disabled }: Props) {
   return (
     <label
       style={{
@@ -29,6 +30,7 @@ function SelectorComponent({ label, options, value, onChange, style }: Props) {
         value={value}
         onChange={onChange}
         style={{ marginLeft: "0.5rem" }}
+        disabled={disabled}
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>

@@ -40,6 +40,9 @@ npm run smoke:test:all
 
 **Never commit directly to `main`.** This applies to all changes including documentation, config, and trivial fixes.
 
+This rule exists to preserve CI gating, review history, and the ability to revert cleanly.
+A direct push to `main` bypasses all of these and cannot be undone without rewriting history.
+
 Always:
 1. Create a branch (`git checkout -b <branch-name>` or via API)
 2. Push changes to the branch

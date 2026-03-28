@@ -86,11 +86,9 @@ if config.disable_auth:
         return _remove_goal(DEMO_OWNER, name)
 
 else:
-    # type: ignore[misc] on the auth-enabled route handlers below:
-    # mypy flags redefinition of names already defined in the if-branch above
-    # (list_goals, create_goal, etc.) as [misc] errors. This is a known mypy
-    # limitation with conditional function definitions at module scope; both
-    # branches are mutually exclusive at runtime via config.disable_auth.
+    # The handlers below redefine names from the if-branch (list_goals, create_goal, etc.).
+    # mypy raises [misc] for conditional function redefinitions at module scope — a known
+    # limitation. Both branches are mutually exclusive at runtime via config.disable_auth.
 
     @router.get("/")
     async def list_goals(current_user: str = Depends(get_current_user)) -> List[GoalPayload]:  # type: ignore[misc]

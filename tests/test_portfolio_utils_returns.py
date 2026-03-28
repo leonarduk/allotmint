@@ -345,3 +345,37 @@ def test_compute_owner_performance_filters_single_day_zero(monkeypatch):
             "next_value": 1020.0,
         }
     ]
+
+
+def test_compute_owner_performance_drops_partial_close_nans(monkeypatch):
+    portfolio = {
+        "accounts": [{"holdings": [{"ticker": "NAN.L", "units": 2}, {"ticker": "CASH.GBP", "units": 1}]}]
+    }
+    monkeypatch.setattr(
+        pu.portfolio_mod,
+        "build_owner_portfolio",
+        lambda owner, *, pricing_date=None, **_: portfolio,
+    )
+    monkeypatch.setattr(pu, "_PRICE_SNAPSHOT", {}, raising=False)
+    monkeypatch.setattr(
+        instrument_api,
+        "_resolve_full_ticker",
+        lambda ticker, snapshot: tuple(ticker.split(".", 1)) if "." in ticker else (ticker, None),
+    )
+
+    dates = pd.date_range("2024-01-01", periods=3, freq="D")
+    frames = {
+        ("NAN", "L"): pd.DataFrame({"Date": dates, "Close": [10.0, float("nan"), 11.0]}),
+        ("CASH", "GBP"): pd.DataFrame({"Date": dates, "Close": [0.01, 99.0, 1.0]}),
+    }
+
+    monkeypatch.setattr(
+        pu,
+        "load_meta_timeseries",
+        lambda ticker, exchange, days: frames[(ticker, exchange)].copy(),
+    )
+
+    result = pu.compute_owner_performance("owner", days=10, include_cash=True)
+
+    assert [row["date"] for row in result["history"]] == ["2024-01-01", "2024-01-03"]
+    assert [row["value"] for row in result["history"]] == [21.0, 23.0]

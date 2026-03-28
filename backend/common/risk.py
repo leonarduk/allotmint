@@ -135,7 +135,10 @@ def compute_portfolio_var_breakdown(
     computes the 1-day VaR for each instrument's price series.  The resulting
     per-unit VaR is scaled by the current position value to obtain the
     contribution in GBP.  Instruments for which no prices are available are
-    skipped.  The returned list is sorted with the largest contributions first.
+    skipped. ``CASH.GBP`` is always included (when ``include_cash=True``) with
+    a synthetic close of ``1.0`` and a zero contribution if VaR is undefined
+    for the flat cash series. The returned list is sorted with the largest
+    contributions first.
 
     Parameters are identical to :func:`compute_portfolio_var`.
     """
@@ -172,6 +175,9 @@ def compute_portfolio_var_breakdown(
             ts = ts.copy()
             ts["Close"] = 1.0
         var_single = portfolio_utils.compute_var(ts, confidence=confidence)
+        is_cash = ticker.strip().upper() == "CASH.GBP"
+        if var_single is None and is_cash:
+            var_single = 0.0
         if var_single is None:
             continue
 

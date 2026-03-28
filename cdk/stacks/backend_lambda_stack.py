@@ -8,13 +8,50 @@ from aws_cdk import aws_apigatewayv2 as apigwv2
 from aws_cdk import aws_apigatewayv2_integrations as apigwv2_integrations
 from aws_cdk import aws_events as events
 from aws_cdk import aws_events_targets as targets
-from aws_cdk import aws_lambda as _lambda
 from aws_cdk import aws_iam as iam
+from aws_cdk import aws_lambda as _lambda
 from constructs import Construct
 
 
 class BackendLambdaStack(Stack):
     """CDK stack that builds and deploys the backend Lambda."""
+
+    @staticmethod
+    def _grant_bucket_access(
+        fn: _lambda.DockerImageFunction,
+        *,
+        bucket_name: str,
+        allow_read: bool,
+        allow_put: bool,
+        allow_list: bool,
+    ) -> None:
+        """Grant the minimum required S3 actions for a Lambda function.
+
+        ``allow_list`` controls ``s3:ListBucket`` on the bucket ARN while
+        ``allow_read``/``allow_put`` scope object-level actions to ``/*``.
+        """
+
+        object_actions: list[str] = []
+        if allow_read:
+            object_actions.append("s3:GetObject")
+        if allow_put:
+            object_actions.append("s3:PutObject")
+
+        if object_actions:
+            fn.add_to_role_policy(
+                iam.PolicyStatement(
+                    actions=object_actions,
+                    resources=[f"arn:aws:s3:::{bucket_name}/*"],
+                )
+            )
+
+        if allow_list:
+            fn.add_to_role_policy(
+                iam.PolicyStatement(
+                    actions=["s3:ListBucket"],
+                    resources=[f"arn:aws:s3:::{bucket_name}"],
+                )
+            )
 
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
@@ -80,15 +117,13 @@ class BackendLambdaStack(Stack):
         )
         backend_fn.add_environment("APP_ENV", env)
 
-        # Guard: bucket_name is validated non-empty above, but guard defensively here
-        # to ensure no IAM policy is generated against an empty ARN pattern.
-        if bucket_name:
-            backend_fn.add_to_role_policy(
-                iam.PolicyStatement(
-                    actions=["s3:GetObject", "s3:PutObject"],
-                    resources=[f"arn:aws:s3:::{bucket_name}/*"],
-                )
-            )
+        self._grant_bucket_access(
+            backend_fn,
+            bucket_name=bucket_name,
+            allow_read=True,
+            allow_put=True,
+            allow_list=True,
+        )
 
         backend_api = apigwv2.HttpApi(self, "BackendApi")
         backend_integration = apigwv2_integrations.HttpLambdaIntegration(
@@ -127,6 +162,14 @@ class BackendLambdaStack(Stack):
             environment=refresh_env,
         )
 
+        self._grant_bucket_access(
+            refresh_fn,
+            bucket_name=bucket_name,
+            allow_read=True,
+            allow_put=False,
+            allow_list=True,
+        )
+
         events.Rule(
             self,
             "DailyPriceRefresh",
@@ -154,6 +197,14 @@ class BackendLambdaStack(Stack):
             "TradingAgentLambda",
             code=agent_code,
             environment=agent_env,
+        )
+
+        self._grant_bucket_access(
+            agent_fn,
+            bucket_name=bucket_name,
+            allow_read=True,
+            allow_put=False,
+            allow_list=True,
         )
 
         events.Rule(

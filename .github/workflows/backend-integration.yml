@@ -16,10 +16,10 @@ jobs:
       DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.3.1
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v5.6.0
         with:
           python-version: '3.12'
 
@@ -40,7 +40,7 @@ jobs:
       - name: Configure AWS credentials (optional)
         id: aws-auth
         if: ${{ env.AWS_ROLE_TO_ASSUME != '' }}
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v4.3.1
         with:
           role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ env.AWS_REGION }}
@@ -72,7 +72,7 @@ jobs:
           pytest tests/test_backend_api.py::test_health tests/test_accounts_api.py --cov=backend --cov-append --cov-report=xml --cov-report=term --cov-fail-under=80 -q
 
       - name: Upload backend coverage reports to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v5.5.4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           slug: leonarduk/allotmint

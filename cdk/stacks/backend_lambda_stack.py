@@ -4,10 +4,14 @@ from pathlib import Path
 from aws_cdk import CfnOutput, Duration, Stack
 from aws_cdk import aws_apigatewayv2 as apigwv2
 from aws_cdk import aws_apigatewayv2_integrations as apigwv2_integrations
+from aws_cdk import aws_budgets as budgets
+from aws_cdk import aws_cloudwatch as cloudwatch
 from aws_cdk import aws_events as events
 from aws_cdk import aws_events_targets as targets
 from aws_cdk import aws_lambda as _lambda
+from aws_cdk import aws_logs as logs
 from aws_cdk import aws_s3 as s3
+from aws_cdk import aws_secretsmanager as secretsmanager
 from constructs import Construct
 
 
@@ -21,9 +25,23 @@ class BackendLambdaStack(Stack):
 
         data_repo = os.getenv("DATA_REPO")
         data_branch = os.getenv("DATA_BRANCH", "main")
+        budget_limit_usd = float(
+            self.node.try_get_context("monthly_budget_limit_usd")
+            or os.getenv("MONTHLY_BUDGET_LIMIT_USD", "5")
+        )
         noncurrent_expiry_days = int(
             self.node.try_get_context("data_bucket_noncurrent_expiry_days")
             or os.getenv("DATA_BUCKET_NONCURRENT_EXPIRY_DAYS", "30")
+        )
+        budget_alert_email = self.node.try_get_context("budget_alert_email") or os.getenv(
+            "BUDGET_ALERT_EMAIL"
+        )
+        secret_name = self.node.try_get_context("app_secret_name") or os.getenv(
+            "APP_SECRET_NAME", "allotmint/app"
+        )
+
+        app_secret = secretsmanager.Secret.from_secret_name_v2(
+            self, "AppConfigSecret", secret_name
         )
 
         data_bucket = s3.Bucket(
@@ -92,8 +110,10 @@ class BackendLambdaStack(Stack):
             "BackendLambda",
             code=image_code,
             environment=backend_env,
+            log_retention=logs.RetentionDays.ONE_WEEK,
         )
         backend_fn.add_environment("APP_ENV", env)
+        app_secret.grant_read(backend_fn)
 
         backend_api = apigwv2.HttpApi(self, "BackendApi")
         self.backend_api_url = backend_api.api_endpoint
@@ -131,7 +151,9 @@ class BackendLambdaStack(Stack):
             "PriceRefreshLambda",
             code=refresh_code,
             environment=refresh_env,
+            log_retention=logs.RetentionDays.ONE_WEEK,
         )
+        app_secret.grant_read(refresh_fn)
 
         events.Rule(
             self,
@@ -160,7 +182,9 @@ class BackendLambdaStack(Stack):
             "TradingAgentLambda",
             code=agent_code,
             environment=agent_env,
+            log_retention=logs.RetentionDays.ONE_WEEK,
         )
+        app_secret.grant_read(agent_fn)
 
         events.Rule(
             self,
@@ -179,5 +203,46 @@ class BackendLambdaStack(Stack):
                 continue
             data_bucket.grant_read_write(role)
 
+        backend_error_alarm = cloudwatch.Alarm(
+            self,
+            "BackendLambdaErrorAlarm",
+            metric=backend_fn.metric_errors(period=Duration.minutes(5)),
+            threshold=1,
+            evaluation_periods=1,
+            treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
+        )
+
+        budget_notification = None
+        if budget_alert_email:
+            budget_notification = budgets.CfnBudget.NotificationWithSubscribersProperty(
+                notification=budgets.CfnBudget.NotificationProperty(
+                    notification_type="ACTUAL",
+                    comparison_operator="GREATER_THAN",
+                    threshold=80,
+                    threshold_type="PERCENTAGE",
+                ),
+                subscribers=[
+                    budgets.CfnBudget.SubscriberProperty(
+                        subscription_type="EMAIL", address=budget_alert_email
+                    )
+                ],
+            )
+
+        budgets.CfnBudget(
+            self,
+            "MonthlyCostBudget",
+            budget=budgets.CfnBudget.BudgetDataProperty(
+                budget_type="COST",
+                budget_limit=budgets.CfnBudget.SpendProperty(
+                    amount=budget_limit_usd,
+                    unit="USD",
+                ),
+                time_unit="MONTHLY",
+                budget_name=f"{self.stack_name}-monthly-budget",
+            ),
+            notifications_with_subscribers=[budget_notification] if budget_notification else None,
+        )
+
         CfnOutput(self, "BackendApiUrl", value=backend_api.api_endpoint)
         CfnOutput(self, "DataBucketName", value=data_bucket.bucket_name)
+        CfnOutput(self, "BackendLambdaErrorAlarmName", value=backend_error_alarm.alarm_name)

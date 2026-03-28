@@ -115,7 +115,7 @@ jobs:
         env:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
           CDK_OUTDIR: ../../.cdk.out
-        run: cdk deploy --require-approval never
+        run: cdk deploy --all --require-approval never
         working-directory: cdk
 
       - name: Run Lighthouse CI
@@ -156,4 +156,3 @@ jobs:
 
       - name: Run frontend smoke tests
         run: npm --prefix frontend run smoke:frontend
-

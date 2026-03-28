@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   buildBulkDeletionOrder,
   formatTransactionAmount,
@@ -64,5 +64,48 @@ describe("transactionTable helpers", () => {
         "GBP",
       ),
     ).toBe("£20.00");
+  });
+
+  it("uses units precedence and warns when units and shares both exist", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(
+      formatTransactionAmount(
+        {
+          owner: "alex",
+          account: "isa",
+          price_gbp: 10,
+          units: 3,
+          shares: 9,
+        },
+        "GBP",
+      ),
+    ).toBe("£30.00");
+    expect(warnSpy).toHaveBeenCalledOnce();
+    warnSpy.mockRestore();
+  });
+
+  it("returns blank when price is missing or non-numeric", () => {
+    expect(
+      formatTransactionAmount(
+        {
+          owner: "alex",
+          account: "isa",
+          units: 3,
+        },
+        "GBP",
+      ),
+    ).toBe("");
+
+    expect(
+      formatTransactionAmount(
+        {
+          owner: "alex",
+          account: "isa",
+          price_gbp: Number.NaN,
+          units: 3,
+        },
+        "GBP",
+      ),
+    ).toBe("");
   });
 });

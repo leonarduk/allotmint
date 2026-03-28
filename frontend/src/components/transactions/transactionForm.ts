@@ -1,8 +1,6 @@
 import type { Transaction } from "@/types";
 
 export type TransactionFormValues = {
-  owner: string;
-  account: string;
   date: string;
   ticker: string;
   price: string;
@@ -13,8 +11,6 @@ export type TransactionFormValues = {
 };
 
 export const EMPTY_TRANSACTION_FORM_VALUES: TransactionFormValues = {
-  owner: "",
-  account: "",
   date: "",
   ticker: "",
   price: "",
@@ -63,8 +59,6 @@ export function createTransactionFormValues(
   const legacyReason = (transaction as { reason_to_buy?: string | null }).reason_to_buy;
 
   return {
-    owner: transaction.owner,
-    account: transaction.account,
     date: transaction.date ? transaction.date.slice(0, 10) : "",
     ticker: tickerValue,
     price:
@@ -94,6 +88,8 @@ export type BuildTransactionPayloadResult =
 
 export function buildTransactionPayload(
   values: TransactionFormValues,
+  owner: string,
+  account: string,
 ): BuildTransactionPayloadResult {
   const price = Number.parseFloat(values.price);
   const units = Number.parseFloat(values.units);
@@ -105,7 +101,7 @@ export function buildTransactionPayload(
   const reason = values.reason.trim();
   const comments = values.comments.trim();
 
-  if (!values.owner || !values.account || !values.date || !ticker || !reason) {
+  if (!owner || !account || !values.date || !ticker || !reason) {
     return {
       payload: null,
       error: "Please complete all required fields.",
@@ -130,8 +126,8 @@ export function buildTransactionPayload(
 
   return {
     payload: {
-      owner: values.owner,
-      account: values.account,
+      owner,
+      account,
       date: values.date,
       ticker,
       price_gbp: price,

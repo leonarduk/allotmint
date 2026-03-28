@@ -47,18 +47,43 @@ export function formatTransactionAmount(
   transaction: Transaction,
   baseCurrency: string,
 ): string {
+  const price =
+    typeof transaction.price_gbp === "number" && Number.isFinite(transaction.price_gbp)
+      ? transaction.price_gbp
+      : null;
+  const units =
+    typeof transaction.units === "number" && Number.isFinite(transaction.units)
+      ? transaction.units
+      : null;
+  const shares =
+    typeof transaction.shares === "number" && Number.isFinite(transaction.shares)
+      ? transaction.shares
+      : null;
+
   if (transaction.amount_minor != null) {
     // Use || rather than ?? so that an empty string currency also falls back
     // to baseCurrency (the backend should never send "", but guard defensively).
     return money(transaction.amount_minor / 100, transaction.currency || baseCurrency);
   }
 
-  if (transaction.price_gbp != null && transaction.units != null) {
-    return money(transaction.price_gbp * transaction.units, baseCurrency);
+  if (price == null) {
+    return "";
   }
 
-  if (transaction.price_gbp != null && transaction.shares != null) {
-    return money(transaction.price_gbp * transaction.shares, baseCurrency);
+  if (units != null && shares != null) {
+    console.warn(
+      "Transaction contains both units and shares; using units for amount display.",
+      transaction,
+    );
+    return money(price * units, baseCurrency);
+  }
+
+  if (units != null) {
+    return money(price * units, baseCurrency);
+  }
+
+  if (shares != null) {
+    return money(price * shares, baseCurrency);
   }
 
   return "";

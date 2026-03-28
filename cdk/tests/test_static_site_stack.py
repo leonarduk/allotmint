@@ -87,6 +87,23 @@ def test_runtime_config_deployment_exists(template):
     assert len(resources) > 0, "Expected at least one Custom::CDKBucketDeployment resource"
 
 
+def test_three_separate_bucket_deployments(template):
+    """There must be three separate BucketDeployment resources:
+    one for assets, one for HTML, one for config.json.
+
+    This confirms config.json is deployed as a distinct resource with its
+    own cache-control settings, not bundled with the asset or HTML deployments.
+    Source.json_data content is baked into a CDK asset zip and cannot be
+    directly inspected from the CloudFormation template — the existence of
+    a third separate deployment is the best proxy assertion available.
+    """
+    resources = template.find_resources("Custom::CDKBucketDeployment")
+    assert len(resources) >= 3, (
+        f"Expected at least 3 BucketDeployment resources (assets, html, config.json); "
+        f"found {len(resources)}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # CloudFront distribution outputs
 # ---------------------------------------------------------------------------

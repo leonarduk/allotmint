@@ -133,6 +133,34 @@ def test_lambda_roles_granted_read_write(template):
     )
 
 
+def test_all_lambda_functions_have_data_bucket_env_var(template):
+    """Every Lambda function must receive DATA_BUCKET pointing at the CDK-managed bucket.
+
+    This guards against the build-arg bucket (seed_data_bucket) leaking into
+    the runtime environment instead of the CDK-provisioned data_bucket.
+    The CDK token for the bucket name resolves to a { Ref: ... } in the
+    synthesised template, so we assert the key is present and its value is
+    not a plain string (i.e., it is a token/Ref, not a baked-in bucket name).
+    """
+    lambda_functions = template.find_resources("AWS::Lambda::Function")
+    for logical_id, resource in lambda_functions.items():
+        env_vars = (
+            resource.get("Properties", {})
+            .get("Environment", {})
+            .get("Variables", {})
+        )
+        assert "DATA_BUCKET" in env_vars, (
+            f"Lambda function {logical_id} is missing DATA_BUCKET environment variable"
+        )
+        # The value must be a CDK token (a dict with 'Ref' or 'Fn::...' key),
+        # not a hardcoded string — ensuring it resolves to the managed bucket.
+        bucket_val = env_vars["DATA_BUCKET"]
+        assert not isinstance(bucket_val, str) or bucket_val == "", (
+            f"Lambda {logical_id} DATA_BUCKET is a hardcoded string '{bucket_val}'; "
+            "expected a CloudFormation token (Ref) to the CDK-managed bucket"
+        )
+
+
 # ---------------------------------------------------------------------------
 # CfnOutputs
 # ---------------------------------------------------------------------------

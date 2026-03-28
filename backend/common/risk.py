@@ -164,8 +164,15 @@ def compute_portfolio_var_breakdown(
 
         sym, exch = (ticker.rsplit(".", 1) + ["L"])[:2]
         ts = portfolio_utils.load_meta_timeseries(sym, exch, days)
+        if ts is None or ts.empty:
+            continue
+        scale = portfolio_utils.get_scaling_override(sym, exch, requested_scaling=None)
+        ts = portfolio_utils.apply_scaling(ts, scale)
+        if ticker.strip().upper() == "CASH.GBP":
+            ts = ts.copy()
+            ts["Close"] = 1.0
         var_single = portfolio_utils.compute_var(ts, confidence=confidence)
-        if var_single is None or ts is None or ts.empty:
+        if var_single is None:
             continue
 
         closes = pd.to_numeric(ts["Close"], errors="coerce").dropna()

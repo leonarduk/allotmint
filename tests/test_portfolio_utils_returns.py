@@ -269,7 +269,7 @@ def test_compute_owner_performance_respects_flagged_and_cash(monkeypatch):
     frames = {
         ("FLAG", "L"): pd.DataFrame({"Date": dates, "Close": [5.0, 6.0]}),
         ("NORM", "L"): pd.DataFrame({"Date": dates, "Close": [10.0, 11.0]}),
-        ("CASH", "GBP"): pd.DataFrame({"Date": dates, "Close": [2.0, 2.0]}),
+        ("CASH", "GBP"): pd.DataFrame({"Date": dates, "Close": [0.01, 0.01]}),
     }
 
     def fake_load_meta_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame:
@@ -287,7 +287,7 @@ def test_compute_owner_performance_respects_flagged_and_cash(monkeypatch):
 
     assert [row["value"] for row in excluded["history"]] == [10.0, 11.0]
     assert [row["value"] for row in included_flagged["history"]] == [15.0, 17.0]
-    assert [row["value"] for row in included_cash["history"]] == [12.0, 13.0]
+    assert [row["value"] for row in included_cash["history"]] == [11.0, 12.0]
 
     for payload in (excluded, included_flagged, included_cash):
         assert "reporting_date" in payload
@@ -345,4 +345,3 @@ def test_compute_owner_performance_filters_single_day_zero(monkeypatch):
             "next_value": 1020.0,
         }
     ]
-

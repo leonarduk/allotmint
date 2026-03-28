@@ -330,6 +330,51 @@ def test_compute_portfolio_var_quantile_nan_returns_none(monkeypatch):
     assert result["10d"] is None
 
 
+def test_compute_portfolio_var_ignores_cash_timeseries_penny_bug(monkeypatch):
+    """Regression for #2565: CASH.GBP should always be valued at £1 per unit."""
+
+    portfolio = {
+        "accounts": [
+            {
+                "holdings": [
+                    {"ticker": "EQU.L", "units": 10_000},
+                    {"ticker": "CASH.GBP", "units": 81_000},
+                ]
+            }
+        ]
+    }
+
+    monkeypatch.setattr(
+        risk.portfolio_utils.portfolio_mod,
+        "build_owner_portfolio",
+        lambda owner, *, pricing_date=None, **_: portfolio,
+    )
+    monkeypatch.setattr(risk.portfolio_utils, "_PRICE_SNAPSHOT", {}, raising=False)
+    dates = pd.bdate_range("2024-01-02", periods=40)
+    equity_returns = np.tile(np.array([0.002, -0.001, 0.0015, -0.0005]), 10)
+    equity_close = 30.0 * np.cumprod(1 + equity_returns[: len(dates)])
+    # Deliberate bad feed: a single day where cash is fetched at £1 instead of £0.01.
+    cash_close = np.full(len(dates), 0.01)
+    cash_close[20] = 1.0
+
+    frames = {
+        ("EQU", "L"): pd.DataFrame({"Date": dates, "Close": equity_close}),
+        ("CASH", "GBP"): pd.DataFrame({"Date": dates, "Close": cash_close}),
+    }
+
+    monkeypatch.setattr(
+        risk.portfolio_utils,
+        "load_meta_timeseries",
+        lambda ticker, exchange, days: frames[(ticker, exchange)].copy(),
+    )
+
+    result = risk.compute_portfolio_var("owner", days=30, confidence=0.95, include_cash=True)
+
+    assert result["1d"] is not None
+    assert result["1d"] <= 381_000.0
+    assert result["1d"] < 381_000.0 * 0.2
+
+
 def test_compute_portfolio_var_breakdown_skip_conditions(monkeypatch):
     holdings = [
         {"ticker": None},

@@ -80,9 +80,11 @@ def test_404_redirects_to_index_html(template):
 # ---------------------------------------------------------------------------
 
 def test_runtime_config_deployment_exists(template):
-    """A BucketDeployment resource must be present (config.json injection)."""
-    # BucketDeployment is backed by a Custom::CDKBucketDeployment resource.
-    template.resource_count_is("Custom::CDKBucketDeployment", assertions.Match.not_(0))
+    """At least one BucketDeployment resource must be present (config.json injection)."""
+    # BucketDeployment is backed by Custom::CDKBucketDeployment.
+    # resource_count_is expects an int; use find_resources for a '>0' assertion.
+    resources = template.find_resources("Custom::CDKBucketDeployment")
+    assert len(resources) > 0, "Expected at least one Custom::CDKBucketDeployment resource"
 
 
 # ---------------------------------------------------------------------------

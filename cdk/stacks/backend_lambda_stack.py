@@ -1,15 +1,15 @@
 import os
 from pathlib import Path
 
-from aws_cdk import (
-    Stack,
-)
+from aws_cdk import CfnOutput, Duration, Stack
 from aws_cdk import aws_apigatewayv2 as apigwv2
 from aws_cdk import aws_apigatewayv2_integrations as apigwv2_integrations
 from aws_cdk import aws_events as events
 from aws_cdk import aws_events_targets as targets
 from aws_cdk import aws_iam as iam
 from aws_cdk import aws_lambda as _lambda
+from aws_cdk import aws_lambda as _lambda
+from aws_cdk import aws_s3 as s3
 from constructs import Construct
 
 
@@ -57,18 +57,37 @@ class BackendLambdaStack(Stack):
         super().__init__(scope, construct_id, **kwargs)
 
         project_root = Path(__file__).resolve().parents[2]
-        backend_path = project_root / "backend"
 
-        # Build a Docker image for the Lambda runtime to avoid large zip/layer sizes
         data_repo = os.getenv("DATA_REPO")
         data_branch = os.getenv("DATA_BRANCH", "main")
-        bucket_name = self.node.try_get_context("data_bucket") or os.getenv("DATA_BUCKET")
-        if not bucket_name:
-            raise ValueError(
-                "DATA_BUCKET must be provided via context or DATA_BUCKET environment variable",
-            )
+        noncurrent_expiry_days = int(
+            self.node.try_get_context("data_bucket_noncurrent_expiry_days")
+            or os.getenv("DATA_BUCKET_NONCURRENT_EXPIRY_DAYS", "30")
+        )
+
+        data_bucket = s3.Bucket(
+            self,
+            "PortfolioDataBucket",
+            block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
+            encryption=s3.BucketEncryption.S3_MANAGED,
+            enforce_ssl=True,
+            versioned=True,
+            lifecycle_rules=[
+                s3.LifecycleRule(
+                    noncurrent_version_expiration=Duration.days(noncurrent_expiry_days)
+                )
+            ],
+        )
+
+        bucket_name = data_bucket.bucket_name
+
+        seed_data_bucket = (
+            self.node.try_get_context("seed_data_bucket")
+            or os.getenv("SEED_DATA_BUCKET")
+            or os.getenv("DATA_BUCKET")
+        )
         build_args: dict[str, str] = {
-            "DATA_BUCKET": bucket_name,
+            "DATA_BUCKET": seed_data_bucket or "",
             "DATA_BRANCH": data_branch,
         }
         if data_repo:
@@ -82,9 +101,7 @@ class BackendLambdaStack(Stack):
         frontend_origin = self.node.try_get_context("frontend_origin") or os.getenv(
             "FRONTEND_ORIGIN"
         )
-        extra_cors_origins = self.node.try_get_context("cors_origins") or os.getenv(
-            "CORS_ORIGINS"
-        )
+        extra_cors_origins = self.node.try_get_context("cors_origins") or os.getenv("CORS_ORIGINS")
 
         cors_origins = ["http://localhost:3000", "http://localhost:5173"]
         if frontend_origin:
@@ -126,6 +143,7 @@ class BackendLambdaStack(Stack):
         )
 
         backend_api = apigwv2.HttpApi(self, "BackendApi")
+        self.backend_api_url = backend_api.api_endpoint
         backend_integration = apigwv2_integrations.HttpLambdaIntegration(
             "BackendLambdaIntegration", backend_fn
         )
@@ -213,3 +231,16 @@ class BackendLambdaStack(Stack):
             schedule=events.Schedule.cron(minute="0", hour="1"),
             targets=[targets.LambdaFunction(agent_fn)],
         )
+
+        # Grant Lambda roles read/write on the data bucket.
+        # IAM implicit deny covers all other principals; no explicit DENY
+        # resource policy is needed (and a StringNotLike list-based DENY
+        # would incorrectly lock out these roles too).
+        lambda_roles = [backend_fn.role, refresh_fn.role, agent_fn.role]
+        for role in lambda_roles:
+            if role is None:
+                continue
+            data_bucket.grant_read_write(role)
+
+        CfnOutput(self, "BackendApiUrl", value=backend_api.api_endpoint)
+        CfnOutput(self, "DataBucketName", value=data_bucket.bucket_name)

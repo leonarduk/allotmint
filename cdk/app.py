@@ -9,8 +9,8 @@ app = cdk.App()
 
 # Always include the backend stack so it can be deployed without
 # providing a context flag or environment variable.
-BackendLambdaStack(app, "BackendLambdaStack")
+backend_stack = BackendLambdaStack(app, "BackendLambdaStack")
 
-StaticSiteStack(app, "StaticSiteStack")
+StaticSiteStack(app, "StaticSiteStack", api_base_url=backend_stack.backend_api_url)
 
 app.synth()

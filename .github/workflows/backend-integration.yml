@@ -16,7 +16,7 @@ jobs:
       DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4.3.1
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Set up Python
         uses: actions/setup-python@v5.6.0
@@ -40,7 +40,7 @@ jobs:
       - name: Configure AWS credentials (optional)
         id: aws-auth
         if: ${{ env.AWS_ROLE_TO_ASSUME != '' }}
-        uses: aws-actions/configure-aws-credentials@v4.3.1
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
         with:
           role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ env.AWS_REGION }}

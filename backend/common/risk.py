@@ -16,6 +16,19 @@ from backend.common import portfolio as portfolio_mod
 from backend.config import config
 
 
+def _clamp_loss_fraction(loss_fraction: float) -> float:
+    """Clamp VaR loss fractions to the financially valid range ``[0, 1]``.
+
+    A long portfolio (or long position) cannot lose less than 0% or more than
+    100% of its current marked value.  This helper enforces that invariant on
+    loss fractions before converting them back into monetary VaR contributions.
+    """
+
+    if pd.isna(loss_fraction):
+        return float("nan")
+    return min(max(float(loss_fraction), 0.0), 1.0)
+
+
 def compute_portfolio_var(
     owner: str, days: int = 365, confidence: float = 0.95, include_cash: bool = True
 ) -> Dict:
@@ -89,7 +102,7 @@ def compute_portfolio_var(
     if pd.isna(quantile_1d):
         var_1d = None
     else:
-        var_1d_loss_pct = max(-(quantile_1d), 0.0)
+        var_1d_loss_pct = _clamp_loss_fraction(-(quantile_1d))
         var_1d = float(var_1d_loss_pct * current_value)
 
     ten_day_returns = returns.add(1).rolling(10).apply(np.prod) - 1
@@ -101,7 +114,7 @@ def compute_portfolio_var(
         if pd.isna(quantile_10d):
             var_10d = None
         else:
-            var_10d_loss_pct = max(-(quantile_10d), 0.0)
+            var_10d_loss_pct = _clamp_loss_fraction(-(quantile_10d))
             var_10d = float(var_10d_loss_pct * current_value)
 
     return {
@@ -161,8 +174,11 @@ def compute_portfolio_var_breakdown(
         last_price = float(closes.iloc[-1])
         if last_price == 0:
             continue
-        # Var as a fraction of price
-        var_pct = var_single / last_price
+        # ``compute_var`` returns a signed 1-day P/L at the selected quantile.
+        # For long-only loss contribution we normalise to a non-negative loss
+        # magnitude before converting to a fraction of current position price.
+        var_single_loss = max(float(var_single), 0.0)
+        var_pct = _clamp_loss_fraction(var_single_loss / last_price)
 
         value = row.get("market_value_gbp") or 0.0
         if not value and row.get("currency") == "GBP":

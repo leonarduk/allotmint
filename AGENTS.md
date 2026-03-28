@@ -64,7 +64,21 @@ This repository has a Python/FastAPI backend, a React/Vite frontend, AWS CDK inf
 - Many local workflows depend on `data/` fixtures and auth/demo identity fallbacks. Avoid changing default data or auth behavior casually because it can break smoke flows in non-obvious ways.
 - There are PowerShell and bash variants of several scripts. Preserve both when changing cross-platform workflows.
 
-## 5. How to work safely in this codebase
+## 5. Branch and PR policy
+
+**Never commit directly to `main`.** This applies without exception to all changes: code, documentation, config, and trivial fixes.
+
+Required workflow for every change:
+1. Create a branch from `main`
+2. Push all changes to that branch
+3. Open a PR targeting `main`
+4. Wait for review before merging
+
+Branch naming convention: `fix/issue-NNNN-short-description`, `feat/issue-NNNN-short-description`, or `docs/short-description`.
+
+This rule exists to preserve CI gating, review history, and the ability to revert cleanly.
+
+## 6. How to work safely in this codebase
 
 ### When modifying backend code
 - Keep business logic in domain-oriented modules under `backend/`; avoid pushing logic directly into route handlers when a helper/service module is more appropriate.
@@ -83,7 +97,7 @@ This repository has a Python/FastAPI backend, a React/Vite frontend, AWS CDK inf
 - Prefer correcting stale instructions instead of adding another conflicting source of truth.
 - If you update commands, verify them against the actual package scripts/entrypoints in this repo.
 
-## 6. AI-agent handoff checklist
+## 7. AI-agent handoff checklist
 
 Before making changes:
 1. Read this file.
@@ -97,7 +111,7 @@ Before finishing:
 3. Update nearby docs when behavior or workflow meaningfully changes.
 4. Summarize any environment limitations clearly.
 
-## 7. Commit and PR expectations
+## 8. Commit and PR expectations
 
 - Use focused, imperative commit messages, e.g. `Refresh AI contributor guidance`.
 - In PR descriptions, include:
@@ -108,7 +122,7 @@ Before finishing:
 - If you changed UI behavior, attach screenshots.
 - If you changed operational workflows, mention the exact commands used for validation.
 
-## 8. Additional AI-facing files in this repo
+## 9. Additional AI-facing files in this repo
 
 To support tool-specific agents, keep these files aligned when the repo guidance changes:
 - `AGENTS.md` — primary source of truth for agent workflow.

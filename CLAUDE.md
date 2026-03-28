@@ -36,6 +36,18 @@ npm run smoke:test:all
 - Be cautious around `data/`, auth toggles, and smoke-test identities; these often affect local demos and automated flows.
 - Preserve cross-platform workflow parity when touching scripts because the repo uses both bash and PowerShell helpers.
 
+## Branch and PR policy
+
+**Never commit directly to `main`.** This applies to all changes including documentation, config, and trivial fixes.
+
+Always:
+1. Create a branch (`git checkout -b <branch-name>` or via API)
+2. Push changes to the branch
+3. Open a PR targeting `main`
+4. Wait for review/merge
+
+Branch naming convention: `fix/issue-NNNN-short-description` or `feat/issue-NNNN-short-description` or `docs/short-description`.
+
 ## Preferred workflow
 
 1. Inspect `git status` and avoid disturbing user changes.

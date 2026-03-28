@@ -89,11 +89,17 @@ def test_data_bucket_lifecycle_rule(template):
 
 
 # ---------------------------------------------------------------------------
-# IAM: Lambda roles get read/write on the data bucket; no DENY policy present
+# IAM: Lambda roles get read/write on the data bucket; broken DENY absent
 # ---------------------------------------------------------------------------
 
-def test_no_deny_resource_policy_on_data_bucket(template):
-    """The broken StringNotLike DENY policy must not appear in the template."""
+def test_no_broken_deny_resource_policy_on_data_bucket(template):
+    """The StringNotLike list-based DENY policy must not appear in the template.
+
+    NOTE: enforce_ssl=True on the Bucket construct legitimately generates a
+    DENY statement to block non-SSL requests — that is expected and correct.
+    This test only asserts that the hand-rolled DenyNonLambdaPrincipalDataAccess
+    statement (which used incorrect StringNotLike list semantics) is absent.
+    """
     bucket_policies = template.find_resources("AWS::S3::BucketPolicy")
     for logical_id, resource in bucket_policies.items():
         statements = (
@@ -102,8 +108,11 @@ def test_no_deny_resource_policy_on_data_bucket(template):
             .get("Statement", [])
         )
         for stmt in statements:
-            assert stmt.get("Effect") != "Deny", (
-                f"Unexpected DENY statement in bucket policy {logical_id}: {json.dumps(stmt)}"
+            assert stmt.get("Sid") != "DenyNonLambdaPrincipalDataAccess", (
+                f"Broken DENY policy 'DenyNonLambdaPrincipalDataAccess' found in "
+                f"bucket policy {logical_id} — this statement uses incorrect "
+                f"StringNotLike list semantics that lock out Lambda roles: "
+                f"{json.dumps(stmt)}"
             )
 
 

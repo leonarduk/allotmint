@@ -558,14 +558,13 @@ def test_section_builders_include_portfolio_sources():
 def test_portfolio_section_builders_use_monkeypatched_dependencies(monkeypatch):
     mock_portfolio = {
         "total_value_estimate_gbp": 1234.56,
-        "holdings": [{"ticker": "AAA"}, {"ticker": "BBB"}],
-        "accounts": [{"id": "acc-1"}],
+        "accounts": [{"id": "acc-1", "holdings": [{"ticker": "AAA"}, {"ticker": "BBB"}]}],
     }
-    mock_sectors = [{"sector": "Technology", "value": 700.0, "weight": 0.56}]
-    mock_regions = [{"region": "North America", "value": 800.0, "weight": 0.65}]
+    mock_sectors = [{"sector": "Technology", "market_value_gbp": 700.0}]
+    mock_regions = [{"region": "North America", "market_value_gbp": 800.0}]
     mock_tickers = [
-        {"ticker": "AAA", "value": 500.0, "weight": 0.4},
-        {"ticker": "BBB", "value": 300.0, "weight": 0.2},
+        {"ticker": "AAA", "market_value_gbp": 500.0},
+        {"ticker": "BBB", "market_value_gbp": 300.0},
     ]
 
     monkeypatch.setattr(reports, "build_owner_portfolio", lambda owner: mock_portfolio)
@@ -575,7 +574,7 @@ def test_portfolio_section_builders_use_monkeypatched_dependencies(monkeypatch):
     monkeypatch.setattr(
         reports.risk,
         "compute_portfolio_var",
-        lambda owner, confidence=0.95: 0.12 if confidence == 0.95 else 0.2,
+        lambda owner, confidence=0.95: {"1d": 0.12} if confidence == 0.95 else {"1d": 0.2},
     )
     monkeypatch.setattr(reports.risk, "compute_sharpe_ratio", lambda owner: 1.75)
 
@@ -598,12 +597,189 @@ def test_portfolio_section_builders_use_monkeypatched_dependencies(monkeypatch):
     )
 
     assert overview == [{"total_value_gbp": 1234.56, "holdings_count": 2, "accounts_count": 1}]
-    assert sectors == mock_sectors
-    assert regions == mock_regions
-    assert concentration[0]["ticker"] == "AAA"
-    assert concentration[0]["hhi"] == pytest.approx(0.2)
+    assert sectors == [{"sector": "Technology", "value": 700.0, "weight": 1.0}]
+    assert regions == [{"region": "North America", "value": 800.0, "weight": 1.0}]
+    assert concentration == [
+        {"ticker": "AAA", "value": 500.0, "weight": 0.625, "hhi": pytest.approx(0.53125)},
+        {"ticker": "BBB", "value": 300.0, "weight": 0.375, "hhi": pytest.approx(0.53125)},
+    ]
     assert [row["metric"] for row in var_rows] == ["VaR (95%)", "VaR (99%)", "Sharpe ratio"]
     assert [row["value"] for row in var_rows] == [0.12, 0.2, 1.75]
+    assert [row["units"] for row in var_rows] == ["GBP", "GBP", "ratio"]
+
+
+def test_portfolio_section_builders_return_declared_schema_keys(monkeypatch):
+    monkeypatch.setattr(
+        reports,
+        "_portfolio_snapshot",
+        lambda owner: {"accounts": [{"holdings": [{"ticker": "AAA"}]}]},
+    )
+    monkeypatch.setattr(
+        reports.portfolio_utils,
+        "aggregate_by_sector",
+        lambda pf: [{"sector": "Technology", "market_value_gbp": 10.0}],
+    )
+    monkeypatch.setattr(
+        reports.portfolio_utils,
+        "aggregate_by_region",
+        lambda pf: [{"region": "North America", "market_value_gbp": 10.0}],
+    )
+    monkeypatch.setattr(
+        reports.portfolio_utils,
+        "aggregate_by_ticker",
+        lambda pf: [{"ticker": "AAA", "market_value_gbp": 10.0}],
+    )
+    context = reports.ReportContext(owner="alice", start=None, end=None)
+
+    sectors = reports._build_portfolio_sectors_section(context, reports.AUDIT_REPORT_TEMPLATE.sections[1])
+    regions = reports._build_portfolio_regions_section(context, reports.AUDIT_REPORT_TEMPLATE.sections[2])
+    concentration = reports._build_portfolio_concentration_section(
+        context, reports.AUDIT_REPORT_TEMPLATE.sections[3]
+    )
+
+    assert set(sectors[0]) == {"sector", "value", "weight"}
+    assert set(regions[0]) == {"region", "value", "weight"}
+    assert set(concentration[0]) == {"ticker", "value", "weight", "hhi"}
+
+
+def test_portfolio_var_builder_extracts_numeric_from_payload(monkeypatch):
+    monkeypatch.setattr(
+        reports.risk,
+        "compute_portfolio_var",
+        lambda owner, confidence=0.95: {
+            "window_days": 365,
+            "confidence": confidence,
+            "1d": 12.3456 if confidence == 0.95 else 23.4567,
+            "10d": 40.0 if confidence == 0.95 else 50.0,
+        },
+    )
+    monkeypatch.setattr(reports.risk, "compute_sharpe_ratio", lambda owner: 1.2)
+    context = reports.ReportContext(owner="alice", start=None, end=None)
+
+    var_rows = reports._build_portfolio_var_section(context, reports.AUDIT_REPORT_TEMPLATE.sections[4])
+
+    assert var_rows == [
+        {"metric": "VaR (95%)", "value": 12.3456, "units": "GBP"},
+        {"metric": "VaR (99%)", "value": 23.4567, "units": "GBP"},
+        {"metric": "Sharpe ratio", "value": 1.2, "units": "ratio"},
+    ]
+
+
+def test_portfolio_overview_counts_nested_holdings(monkeypatch):
+    monkeypatch.setattr(
+        reports,
+        "_portfolio_snapshot",
+        lambda owner: {
+            "total_value_estimate_gbp": 900.0,
+            "accounts": [
+                {"id": "a1", "holdings": [{"ticker": "AAA"}, {"ticker": "BBB"}]},
+                {"id": "a2", "holdings": [{"ticker": "CCC"}]},
+            ],
+        },
+    )
+    context = reports.ReportContext(owner="alice", start=None, end=None)
+
+    overview = reports._build_portfolio_overview_section(context, reports.AUDIT_REPORT_TEMPLATE.sections[0])
+
+    assert overview == [{"total_value_gbp": 900.0, "holdings_count": 3, "accounts_count": 2}]
+
+
+@pytest.mark.parametrize(
+    "builder,section",
+    [
+        (reports._build_portfolio_overview_section, 0),
+        (reports._build_portfolio_sectors_section, 1),
+        (reports._build_portfolio_regions_section, 2),
+        (reports._build_portfolio_concentration_section, 3),
+    ],
+)
+def test_portfolio_builders_handle_missing_snapshot(monkeypatch, builder, section):
+    monkeypatch.setattr(reports, "_portfolio_snapshot", lambda owner: None)
+    monkeypatch.setattr(reports.portfolio_utils, "aggregate_by_sector", lambda pf: [])
+    monkeypatch.setattr(reports.portfolio_utils, "aggregate_by_region", lambda pf: [])
+    monkeypatch.setattr(reports.portfolio_utils, "aggregate_by_ticker", lambda pf: [])
+    context = reports.ReportContext(owner="alice", start=None, end=None)
+
+    rows = builder(context, reports.AUDIT_REPORT_TEMPLATE.sections[section])
+
+    if section == 0:
+        assert rows == [{"total_value_gbp": None, "holdings_count": 0, "accounts_count": 0}]
+    else:
+        assert rows == []
+
+
+def test_build_report_document_audit_template_dispatches_real_builders(monkeypatch):
+    summary = reports.ReportData(
+        owner="alice",
+        start=None,
+        end=None,
+        realized_gains_gbp=0.0,
+        income_gbp=0.0,
+        cumulative_return=None,
+        max_drawdown=None,
+        history=[],
+    )
+    context = SimpleNamespace(
+        owner="alice",
+        summary=lambda: summary,
+        transactions=lambda: [],
+        allocation=lambda: [],
+    )
+    monkeypatch.setattr(reports, "ReportContext", lambda owner, start=None, end=None: context)
+    monkeypatch.setattr(
+        reports,
+        "_portfolio_snapshot",
+        lambda owner: {
+            "total_value_estimate_gbp": 200.0,
+            "accounts": [{"holdings": [{"ticker": "AAA"}, {"ticker": "BBB"}]}],
+        },
+    )
+    monkeypatch.setattr(
+        reports.portfolio_utils,
+        "aggregate_by_sector",
+        lambda pf: [{"sector": "Technology", "market_value_gbp": 120.0}],
+    )
+    monkeypatch.setattr(
+        reports.portfolio_utils,
+        "aggregate_by_region",
+        lambda pf: [{"region": "North America", "market_value_gbp": 120.0}],
+    )
+    monkeypatch.setattr(
+        reports.portfolio_utils,
+        "aggregate_by_ticker",
+        lambda pf: [
+            {"ticker": "AAA", "market_value_gbp": 120.0},
+            {"ticker": "BBB", "market_value_gbp": 80.0},
+        ],
+    )
+    monkeypatch.setattr(
+        reports.risk,
+        "compute_portfolio_var",
+        lambda owner, confidence=0.95: {"1d": 10.0 if confidence == 0.95 else 20.0},
+    )
+    monkeypatch.setattr(reports.risk, "compute_sharpe_ratio", lambda owner: 1.11)
+
+    document = reports.build_report_document("audit-report", "alice")
+
+    rows_by_source = {
+        section.schema.source: list(section.rows)
+        for section in document.sections
+    }
+    assert rows_by_source["portfolio.overview"] == [
+        {"total_value_gbp": 200.0, "holdings_count": 2, "accounts_count": 1}
+    ]
+    assert rows_by_source["portfolio.sectors"] == [
+        {"sector": "Technology", "value": 120.0, "weight": 1.0}
+    ]
+    assert rows_by_source["portfolio.regions"] == [
+        {"region": "North America", "value": 120.0, "weight": 1.0}
+    ]
+    assert rows_by_source["portfolio.concentration"][0]["ticker"] == "AAA"
+    assert rows_by_source["portfolio.var"] == [
+        {"metric": "VaR (95%)", "value": 10.0, "units": "GBP"},
+        {"metric": "VaR (99%)", "value": 20.0, "units": "GBP"},
+        {"metric": "Sharpe ratio", "value": 1.11, "units": "ratio"},
+    ]
 
 
 def test_get_template_audit_report_has_expected_order_and_legacy_builtins():

@@ -695,6 +695,65 @@ def _portfolio_snapshot(owner: str) -> Dict[str, Any]:
     return build_owner_portfolio(owner)
 
 
+def _safe_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _extract_holdings_count(portfolio: Dict[str, Any]) -> int:
+    accounts = portfolio.get("accounts")
+    if not isinstance(accounts, list):
+        return 0
+    count = 0
+    for account in accounts:
+        if not isinstance(account, dict):
+            continue
+        holdings = account.get("holdings")
+        if isinstance(holdings, list):
+            count += len(holdings)
+    return count
+
+
+def _normalise_value_weight_rows(
+    rows: Sequence[Dict[str, Any]],
+    *,
+    label_key: str,
+    value_key: str = "market_value_gbp",
+) -> List[Dict[str, Any]]:
+    normalised: List[Dict[str, Any]] = []
+    total_value = sum(_safe_float(row.get(value_key)) or 0.0 for row in rows)
+    for row in rows:
+        label = row.get(label_key)
+        value = _safe_float(row.get("value"))
+        if value is None:
+            value = _safe_float(row.get(value_key))
+        weight = _safe_float(row.get("weight"))
+        if weight is None and total_value > 0 and value is not None:
+            weight = value / total_value
+        normalised.append(
+            {
+                label_key: label,
+                "value": _round_if_number(value, 2),
+                "weight": _round_if_number(weight, 6),
+            }
+        )
+    return normalised
+
+
+def _extract_var_value(payload: Any) -> float | None:
+    if isinstance(payload, dict):
+        for key in ("1d", "var_1d", "value", "var"):
+            value = _safe_float(payload.get(key))
+            if value is not None:
+                return value
+        return None
+    return _safe_float(payload)
+
+
 def _build_portfolio_overview_section(
     context: ReportContext, section: ReportSectionSchema
 ) -> Sequence[Dict[str, Any]]:
@@ -702,7 +761,7 @@ def _build_portfolio_overview_section(
     return [
         {
             "total_value_gbp": _round_if_number(portfolio.get("total_value_estimate_gbp"), 2),
-            "holdings_count": len(portfolio.get("holdings", [])),
+            "holdings_count": _extract_holdings_count(portfolio),
             "accounts_count": len(portfolio.get("accounts", [])),
         }
     ]
@@ -711,30 +770,26 @@ def _build_portfolio_overview_section(
 def _build_portfolio_sectors_section(
     context: ReportContext, section: ReportSectionSchema
 ) -> Sequence[Dict[str, Any]]:
-    portfolio = _portfolio_snapshot(context.owner)
+    portfolio = _portfolio_snapshot(context.owner) or {}
     rows = portfolio_utils.aggregate_by_sector(portfolio) or []
-    return [dict(row) for row in rows]
+    return _normalise_value_weight_rows(rows, label_key="sector")
 
 
 def _build_portfolio_regions_section(
     context: ReportContext, section: ReportSectionSchema
 ) -> Sequence[Dict[str, Any]]:
-    portfolio = _portfolio_snapshot(context.owner)
+    portfolio = _portfolio_snapshot(context.owner) or {}
     rows = portfolio_utils.aggregate_by_region(portfolio) or []
-    return [dict(row) for row in rows]
+    return _normalise_value_weight_rows(rows, label_key="region")
 
 
 def _build_portfolio_concentration_section(
     context: ReportContext, section: ReportSectionSchema
 ) -> Sequence[Dict[str, Any]]:
-    portfolio = _portfolio_snapshot(context.owner)
+    portfolio = _portfolio_snapshot(context.owner) or {}
     rows = portfolio_utils.aggregate_by_ticker(portfolio) or []
-    top_rows = [dict(row) for row in rows[:10]]
-    weights = [
-        float(row.get("weight"))
-        for row in top_rows
-        if row.get("weight") is not None
-    ]
+    top_rows = _normalise_value_weight_rows(rows[:10], label_key="ticker")
+    weights = [row["weight"] for row in top_rows if row.get("weight") is not None]
     hhi = round(sum(weight * weight for weight in weights), 6) if weights else None
     for row in top_rows:
         row["hhi"] = hhi
@@ -744,12 +799,14 @@ def _build_portfolio_concentration_section(
 def _build_portfolio_var_section(
     context: ReportContext, section: ReportSectionSchema
 ) -> Sequence[Dict[str, Any]]:
-    var_95 = risk.compute_portfolio_var(context.owner, confidence=0.95)
-    var_99 = risk.compute_portfolio_var(context.owner, confidence=0.99)
+    var_95_payload = risk.compute_portfolio_var(context.owner, confidence=0.95)
+    var_99_payload = risk.compute_portfolio_var(context.owner, confidence=0.99)
+    var_95 = _extract_var_value(var_95_payload)
+    var_99 = _extract_var_value(var_99_payload)
     sharpe = risk.compute_sharpe_ratio(context.owner)
     return [
-        {"metric": "VaR (95%)", "value": _round_if_number(var_95, 6), "units": "ratio"},
-        {"metric": "VaR (99%)", "value": _round_if_number(var_99, 6), "units": "ratio"},
+        {"metric": "VaR (95%)", "value": _round_if_number(var_95, 6), "units": "GBP"},
+        {"metric": "VaR (99%)", "value": _round_if_number(var_99, 6), "units": "GBP"},
         {"metric": "Sharpe ratio", "value": _round_if_number(sharpe, 6), "units": "ratio"},
     ]
 

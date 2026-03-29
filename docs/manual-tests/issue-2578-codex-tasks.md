@@ -2,9 +2,13 @@
 
 Source issue: [Issue #2578](https://github.com/allotmint/allotmint/issues/2578)
 
-This checklist translates Issue #2578 into an execution-safe implementation and validation workflow for the report pipeline sections `portfolio.overview`, `portfolio.sectors`, `portfolio.regions`, `portfolio.concentration`, and `portfolio.var`.
+This checklist translates Issue #2578 into an implementation and validation workflow for the report pipeline sections `portfolio.overview`, `portfolio.sectors`, `portfolio.regions`, `portfolio.concentration`, and `portfolio.var`.
+
+This is a planning artifact only. It does **not** satisfy or close Issue #2578 by itself; closure requires backend/report code and tests landing in a follow-up implementation PR.
 
 Scope intent: implement or correct report-pipeline behavior for those sections only, preserve deterministic fixture-backed outputs, and avoid expanding into unrelated reporting features. Exclusions (including section 5 key findings and ETF overlap/scenario outputs) must be explicitly recorded as intentional when treated as out of scope.
+
+Use the same demo fixture owner/data baseline referenced by Issue #2578 for all JSON/PDF validation so results remain comparable across contributors.
 
 ## Task 0 — Scope lock and dependency gate
 
@@ -12,6 +16,7 @@ Scope intent: implement or correct report-pipeline behavior for those sections o
 - [ ] If #2572 is not merged and locally verified, STOP execution.
 - [ ] Confirm scope is limited to report sections 1–4 only (exclude section 5 key findings).
 - [ ] Record whether ETF overlap/scenario outputs are intentionally out of scope for #2578.
+- [ ] Add the hard-gate status to the implementation PR body as a required checklist item so reviewers can block merge if it is not met.
 
 **Definition of done**
 - Scope and dependency status are documented in the issue/PR notes, including explicit pass/fail status for the hard gate.
@@ -76,7 +81,7 @@ Scope intent: implement or correct report-pipeline behavior for those sections o
 - [ ] Verify report endpoints enforce expected access control (unauthorized requests are rejected).
 
 **Frontend contract**
-- [ ] Verify section order and section presence match expected output (manual verification or snapshot evidence is acceptable).
+- [ ] Verify section order and section presence match expected output in the frontend using a reproducible check (snapshot, automated test, or scripted smoke evidence attached to the PR).
 
 **PDF performance sanity**
 - [ ] Generate PDF using fixture data and confirm completion within a reasonable bound (no timeout and no obvious regression).
@@ -92,7 +97,8 @@ Scope intent: implement or correct report-pipeline behavior for those sections o
   - `pytest tests/test_reports.py tests/test_reports_route.py tests/test_reports_pdf.py`
 - [ ] Run additional related suites if touched:
   - `pytest tests/test_reports_additional.py tests/test_reports_validation.py`
-- [ ] Run lint gate with zero warnings using the same lint command as CI.
+- [ ] Run CI-aligned lint gate with zero warnings:
+  - `make lint`
 
 **Definition of done**
 - Commands pass and results are captured in PR notes.

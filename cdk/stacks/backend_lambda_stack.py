@@ -8,7 +8,6 @@ from aws_cdk import aws_events as events
 from aws_cdk import aws_events_targets as targets
 from aws_cdk import aws_iam as iam
 from aws_cdk import aws_lambda as _lambda
-from aws_cdk import aws_lambda as _lambda
 from aws_cdk import aws_s3 as s3
 from constructs import Construct
 
@@ -134,6 +133,8 @@ class BackendLambdaStack(Stack):
         )
         backend_fn.add_environment("APP_ENV", env)
 
+        # BackendLambda: read + put + list
+        # Audited: serves API requests that read and write portfolio/price data to S3.
         self._grant_bucket_access(
             backend_fn,
             bucket_name=bucket_name,
@@ -180,6 +181,9 @@ class BackendLambdaStack(Stack):
             environment=refresh_env,
         )
 
+        # PriceRefreshLambda: read + list only (no put)
+        # Audited: refresh_prices() writes prices_json to local filesystem path (config.prices_json
+        # resolves under data_root on disk), not to S3. S3 access is read-only for price history.
         self._grant_bucket_access(
             refresh_fn,
             bucket_name=bucket_name,
@@ -217,6 +221,9 @@ class BackendLambdaStack(Stack):
             environment=agent_env,
         )
 
+        # TradingAgentLambda: read + list only (no put)
+        # Audited: backend/agent/trading_agent.py calls load_prices_for_tickers() (S3 read)
+        # and _log_trade() which writes to TRADE_LOG_PATH (local filesystem). No S3 writes.
         self._grant_bucket_access(
             agent_fn,
             bucket_name=bucket_name,
@@ -231,16 +238,6 @@ class BackendLambdaStack(Stack):
             schedule=events.Schedule.cron(minute="0", hour="1"),
             targets=[targets.LambdaFunction(agent_fn)],
         )
-
-        # Grant Lambda roles read/write on the data bucket.
-        # IAM implicit deny covers all other principals; no explicit DENY
-        # resource policy is needed (and a StringNotLike list-based DENY
-        # would incorrectly lock out these roles too).
-        lambda_roles = [backend_fn.role, refresh_fn.role, agent_fn.role]
-        for role in lambda_roles:
-            if role is None:
-                continue
-            data_bucket.grant_read_write(role)
 
         CfnOutput(self, "BackendApiUrl", value=backend_api.api_endpoint)
         CfnOutput(self, "DataBucketName", value=data_bucket.bucket_name)

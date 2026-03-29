@@ -1853,17 +1853,24 @@ def report_to_pdf(document: ReportDocument) -> bytes:
         words = text.split()
         if not words:
             return y
+        min_words_before_wrap = 3
         line = words[0]
+        line_word_count = 1
         for word in words[1:]:
             candidate = f"{line} {word}"
-            if c.stringWidth(candidate, "Helvetica", 11) <= max_width:
+            if (
+                c.stringWidth(candidate, "Helvetica", 11) <= max_width
+                or line_word_count < min_words_before_wrap
+            ):
                 line = candidate
+                line_word_count += 1
             else:
                 if y < min_y and on_page_break is not None:
                     y = on_page_break()
                 c.drawString(x, y, line)
                 y -= line_height
                 line = word
+                line_word_count = 1
         if y < min_y and on_page_break is not None:
             y = on_page_break()
         c.drawString(x, y, line)

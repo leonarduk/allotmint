@@ -36,7 +36,10 @@ except ModuleNotFoundError:  # pragma: no cover - exercised in tests when missin
     risk_mod = None
 
 from backend.common import portfolio_utils
-from backend.common import risk
+try:
+    from backend.common import risk
+except ModuleNotFoundError:  # pragma: no cover - exercised in tests when missing
+    risk = None
 try:
     from backend.common.portfolio import build_owner_portfolio
 except ModuleNotFoundError:  # pragma: no cover - exercised in tests when missing
@@ -1088,8 +1091,9 @@ def _build_portfolio_concentration_section(
         rows = portfolio_utils.aggregate_by_ticker(portfolio) or []
         normalised_rows = _normalise_value_weight_rows(rows, label_key="ticker")
         top_rows = normalised_rows[:10]
-        # Keep audit HHI portfolio-relative so it matches the legacy concentration summary.
-        weights = [row["weight"] for row in top_rows if row.get("weight") is not None]
+        # Keep audit HHI portfolio-relative across the full holding set so it
+        # matches the legacy concentration summary even when only top rows render.
+        weights = [row["weight"] for row in normalised_rows if row.get("weight") is not None]
         hhi = round(sum(weight * weight for weight in weights), 6) if weights else None
         for row in top_rows:
             row["hhi"] = hhi
@@ -1152,6 +1156,8 @@ def _build_portfolio_var_section(
     context: ReportContext, section: ReportSectionSchema
 ) -> Sequence[Dict[str, Any]]:
     if _is_audit_var_section(section):
+        if risk is None:
+            return []
         rows: List[Dict[str, Any]] = []
         for confidence, metric in ((0.95, "VaR (95%)"), (0.99, "VaR (99%)")):
             try:

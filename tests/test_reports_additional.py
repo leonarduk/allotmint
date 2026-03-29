@@ -807,6 +807,31 @@ def test_portfolio_section_builders_return_declared_schema_keys(monkeypatch):
     assert set(concentration[0]) == {"ticker", "value", "weight", "hhi"}
 
 
+def test_audit_concentration_hhi_uses_full_holding_set(monkeypatch):
+    tickers = [
+        {"ticker": f"T{i:02d}", "market_value_gbp": float(120 - i)}
+        for i in range(12)
+    ]
+    monkeypatch.setattr(
+        reports,
+        "_portfolio_snapshot",
+        lambda owner: {"accounts": [{"holdings": [{"ticker": row["ticker"]} for row in tickers]}]},
+    )
+    monkeypatch.setattr(reports.portfolio_utils, "aggregate_by_ticker", lambda pf: tickers)
+    context = reports.ReportContext(owner="alice", start=None, end=None)
+
+    concentration = reports._build_portfolio_concentration_section(
+        context, reports.AUDIT_REPORT_TEMPLATE.sections[3]
+    )
+
+    expected_hhi = sum(
+        (row["market_value_gbp"] / sum(item["market_value_gbp"] for item in tickers)) ** 2
+        for row in tickers
+    )
+    assert len(concentration) == 10
+    assert all(row["hhi"] == pytest.approx(expected_hhi) for row in concentration)
+
+
 def test_normalise_value_weight_rows_prefers_value_consistently():
     rows = reports._normalise_value_weight_rows(
         [

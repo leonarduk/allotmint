@@ -665,7 +665,12 @@ def test_get_template_returns_user_definition(tmp_path, monkeypatch):
 
     assert template is not None
     assert template.template_id == "custom"
-    original_get_store.cache_clear()
+
+
+def test_get_template_returns_builtin_audit_report():
+    template = reports.get_template("audit-report")
+    assert template is not None
+    assert template.template_id == "audit-report"
 
 
 def test_get_template_returns_none_for_missing(monkeypatch):

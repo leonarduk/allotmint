@@ -1460,6 +1460,12 @@ def build_report_document(
             section_rows: Sequence[Dict[str, Any]] = ()
         else:
             section_rows = list(builder(context, schema))
+        if (
+            template.template_id == AUDIT_REPORT_TEMPLATE.template_id
+            and schema.source == PORTFOLIO_VAR_SECTION.source
+            and not section_rows
+        ):
+            continue
         sections.append(ReportSectionData(schema=schema, rows=section_rows))
 
     params: Dict[str, Any] = {}

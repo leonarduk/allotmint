@@ -1159,6 +1159,14 @@ def test_audit_risk_section_includes_var_and_sharpe(monkeypatch):
     assert {row["confidence"] for row in rows if row["metric"] == "VaR"} == {0.95, 0.99}
 
 
+def test_build_report_document_omits_empty_var_section_for_audit_report(monkeypatch):
+    monkeypatch.setattr(reports, "risk", None)
+
+    document = reports.build_report_document("audit-report", "alice")
+
+    assert all(section.schema.source != "portfolio.var" for section in document.sections)
+
+
 def test_build_report_document_fails_for_builtin_missing_builder(monkeypatch):
     template = reports.ReportTemplate(
         template_id="builtin-broken",

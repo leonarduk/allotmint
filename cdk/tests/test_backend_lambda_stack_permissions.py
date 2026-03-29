@@ -59,7 +59,7 @@ def _s3_actions_for_role(template: dict, role_logical_id: str) -> set[str]:
         if role_logical_id not in role_refs:
             continue
 
-        policy_doc = resource.get("Properties", {}).get(PolicyDocument", {})
+        policy_doc = resource.get("Properties", {}).get("PolicyDocument", {})
         for statement in policy_doc.get("Statement", []):
             action = statement.get("Action", [])
             if isinstance(action, str):
@@ -72,11 +72,11 @@ def _s3_actions_for_role(template: dict, role_logical_id: str) -> set[str]:
 
 
 def _resources_for_s3_action(template: dict, role_logical_id: str, target_action: str) -> list[str]:
-    """Return all resource ARNs (as strings) from statements that grant target_action to role_logical_id.
+    """Return all resource ARNs from statements that grant target_action to role_logical_id.
 
     CDK may produce the resource as a plain string or as a CloudFormation intrinsic
     (e.g. {"Fn::Join": [...]}). Plain strings are returned as-is; intrinsics are
-    returned as their JSON repr so callers can assert their structure if needed.
+    returned as their str() repr so callers can assert their structure if needed.
     """
     found: list[str] = []
     resources = template["Resources"]
@@ -110,7 +110,7 @@ def _resources_for_s3_action(template: dict, role_logical_id: str, target_action
 
 # Maximum allowed S3 action sets per Lambda role (upper bounds for least-privilege enforcement).
 # Audit evidence:
-#   BackendLambda   — full API; reads, writes, and lists portfolio/price data.
+#   BackendLambda      — full API; reads, writes, and lists portfolio/price data.
 #   PriceRefreshLambda — calls _rolling_cache() → _save_parquet() which writes parquet to S3
 #                        by known key (backend/timeseries/cache.py). No bucket enumeration.
 #   TradingAgentLambda — calls load_prices_for_tickers() → load_meta_timeseries_range() which
@@ -166,7 +166,7 @@ def test_s3_permissions_are_scoped_per_lambda() -> None:
     )
 
     # s3:ListBucket must be scoped to the bucket ARN (no trailing /*), not the object ARN.
-    # Granting ListBucket on /* is both functionally wrong and overly broad.
+    # Granting ListBucket on /* is both functionally wrong (IAM ignores it) and overly broad.
     list_bucket_resources = _resources_for_s3_action(template, backend_role, "s3:ListBucket")
     assert list_bucket_resources, "BackendLambda has s3:ListBucket but no associated resource ARN"
     for arn in list_bucket_resources:

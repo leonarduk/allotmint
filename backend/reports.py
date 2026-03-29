@@ -511,6 +511,7 @@ class ReportContext:
     _performance: Dict[str, Any] | None = None
     _transactions: List[Dict[str, Any]] | None = None
     _allocation: List[Dict[str, Any]] | None = None
+    _portfolio: Dict[str, Any] | None = None
 
     def summary(self) -> ReportData:
         if self._summary is None:
@@ -563,6 +564,11 @@ class ReportContext:
             normalised.sort(key=lambda item: (item.get("value") or 0.0), reverse=True)
             self._allocation = normalised
         return list(self._allocation)
+
+    def portfolio(self) -> Dict[str, Any]:
+        if self._portfolio is None:
+            self._portfolio = _portfolio_snapshot(self.owner) or {}
+        return dict(self._portfolio)
 
 
 def _round_if_number(value: Any, digits: int) -> Optional[float]:
@@ -724,14 +730,20 @@ def _normalise_value_weight_rows(
     label_key: str,
     value_key: str = "market_value_gbp",
 ) -> List[Dict[str, Any]]:
-    normalised: List[Dict[str, Any]] = []
-    total_value = sum(_safe_float(row.get(value_key)) or 0.0 for row in rows)
+    prepared_rows: List[tuple[Any, float | None, float | None]] = []
+    total_value = 0.0
     for row in rows:
         label = row.get(label_key)
         value = _safe_float(row.get("value"))
         if value is None:
             value = _safe_float(row.get(value_key))
         weight = _safe_float(row.get("weight"))
+        prepared_rows.append((label, value, weight))
+        if value is not None:
+            total_value += value
+
+    normalised: List[Dict[str, Any]] = []
+    for label, value, weight in prepared_rows:
         if weight is None and total_value > 0 and value is not None:
             weight = value / total_value
         normalised.append(
@@ -757,7 +769,7 @@ def _extract_var_value(payload: Any) -> float | None:
 def _build_portfolio_overview_section(
     context: ReportContext, section: ReportSectionSchema
 ) -> Sequence[Dict[str, Any]]:
-    portfolio = _portfolio_snapshot(context.owner) or {}
+    portfolio = context.portfolio()
     return [
         {
             "total_value_gbp": _round_if_number(portfolio.get("total_value_estimate_gbp"), 2),
@@ -770,7 +782,7 @@ def _build_portfolio_overview_section(
 def _build_portfolio_sectors_section(
     context: ReportContext, section: ReportSectionSchema
 ) -> Sequence[Dict[str, Any]]:
-    portfolio = _portfolio_snapshot(context.owner) or {}
+    portfolio = context.portfolio()
     rows = portfolio_utils.aggregate_by_sector(portfolio) or []
     return _normalise_value_weight_rows(rows, label_key="sector")
 
@@ -778,7 +790,7 @@ def _build_portfolio_sectors_section(
 def _build_portfolio_regions_section(
     context: ReportContext, section: ReportSectionSchema
 ) -> Sequence[Dict[str, Any]]:
-    portfolio = _portfolio_snapshot(context.owner) or {}
+    portfolio = context.portfolio()
     rows = portfolio_utils.aggregate_by_region(portfolio) or []
     return _normalise_value_weight_rows(rows, label_key="region")
 
@@ -786,9 +798,10 @@ def _build_portfolio_regions_section(
 def _build_portfolio_concentration_section(
     context: ReportContext, section: ReportSectionSchema
 ) -> Sequence[Dict[str, Any]]:
-    portfolio = _portfolio_snapshot(context.owner) or {}
+    portfolio = context.portfolio()
     rows = portfolio_utils.aggregate_by_ticker(portfolio) or []
-    top_rows = _normalise_value_weight_rows(rows[:10], label_key="ticker")
+    normalised_rows = _normalise_value_weight_rows(rows, label_key="ticker")
+    top_rows = normalised_rows[:10]
     weights = [row["weight"] for row in top_rows if row.get("weight") is not None]
     hhi = round(sum(weight * weight for weight in weights), 6) if weights else None
     for row in top_rows:

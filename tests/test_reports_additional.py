@@ -608,6 +608,47 @@ def test_portfolio_section_builders_use_monkeypatched_dependencies(monkeypatch):
     assert [row["units"] for row in var_rows] == ["GBP", "GBP", "ratio"]
 
 
+def test_portfolio_section_builders_reuse_cached_snapshot(monkeypatch):
+    snapshot_calls = 0
+    mock_portfolio = {
+        "total_value_estimate_gbp": 1234.56,
+        "accounts": [{"id": "acc-1", "holdings": [{"ticker": "AAA"}, {"ticker": "BBB"}]}],
+    }
+
+    def fake_snapshot(owner):
+        nonlocal snapshot_calls
+        snapshot_calls += 1
+        return mock_portfolio
+
+    monkeypatch.setattr(reports, "_portfolio_snapshot", fake_snapshot)
+    monkeypatch.setattr(
+        reports.portfolio_utils,
+        "aggregate_by_sector",
+        lambda pf: [{"sector": "Technology", "market_value_gbp": 700.0}],
+    )
+    monkeypatch.setattr(
+        reports.portfolio_utils,
+        "aggregate_by_region",
+        lambda pf: [{"region": "North America", "market_value_gbp": 800.0}],
+    )
+    monkeypatch.setattr(
+        reports.portfolio_utils,
+        "aggregate_by_ticker",
+        lambda pf: [{"ticker": "AAA", "market_value_gbp": 500.0}],
+    )
+    monkeypatch.setattr(
+        reports.risk,
+        "compute_portfolio_var",
+        lambda owner, confidence=0.95: {"1d": 0.12},
+    )
+    monkeypatch.setattr(reports.risk, "compute_sharpe_ratio", lambda owner: 1.75)
+
+    document = reports.build_report_document("audit-report", "alice")
+
+    assert len(document.sections) == 5
+    assert snapshot_calls == 1
+
+
 def test_portfolio_section_builders_return_declared_schema_keys(monkeypatch):
     monkeypatch.setattr(
         reports,
@@ -640,6 +681,21 @@ def test_portfolio_section_builders_return_declared_schema_keys(monkeypatch):
     assert set(sectors[0]) == {"sector", "value", "weight"}
     assert set(regions[0]) == {"region", "value", "weight"}
     assert set(concentration[0]) == {"ticker", "value", "weight", "hhi"}
+
+
+def test_normalise_value_weight_rows_prefers_value_consistently():
+    rows = reports._normalise_value_weight_rows(
+        [
+            {"sector": "Technology", "value": 70.0, "market_value_gbp": 700.0},
+            {"sector": "Healthcare", "value": 30.0, "market_value_gbp": 300.0},
+        ],
+        label_key="sector",
+    )
+
+    assert rows == [
+        {"sector": "Technology", "value": 70.0, "weight": 0.7},
+        {"sector": "Healthcare", "value": 30.0, "weight": 0.3},
+    ]
 
 
 def test_portfolio_var_builder_extracts_numeric_from_payload(monkeypatch):
@@ -724,16 +780,12 @@ def test_build_report_document_audit_template_dispatches_real_builders(monkeypat
         summary=lambda: summary,
         transactions=lambda: [],
         allocation=lambda: [],
-    )
-    monkeypatch.setattr(reports, "ReportContext", lambda owner, start=None, end=None: context)
-    monkeypatch.setattr(
-        reports,
-        "_portfolio_snapshot",
-        lambda owner: {
+        portfolio=lambda: {
             "total_value_estimate_gbp": 200.0,
             "accounts": [{"holdings": [{"ticker": "AAA"}, {"ticker": "BBB"}]}],
         },
     )
+    monkeypatch.setattr(reports, "ReportContext", lambda owner, start=None, end=None: context)
     monkeypatch.setattr(
         reports.portfolio_utils,
         "aggregate_by_sector",

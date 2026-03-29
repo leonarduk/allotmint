@@ -331,7 +331,7 @@ def test_compute_portfolio_var_quantile_nan_returns_none(monkeypatch):
 
 
 def test_compute_portfolio_var_ignores_cash_timeseries_penny_bug(monkeypatch):
-    """Regression for #2565: VaR is invariant to broken CASH.GBP close feeds."""
+    """Executable regression for #2565; contract check for #2572: VaR ignores broken CASH.GBP close feeds."""
 
     portfolio = {
         "accounts": [
@@ -453,6 +453,7 @@ def test_compute_portfolio_var_breakdown_includes_cash_even_when_var_is_none(mon
 
 
 def test_compute_portfolio_var_breakdown_scaling_matches_prescaled_input(monkeypatch):
+    """Executable regression contract check for #2572: VaR breakdown scaling matches prescaled input."""
     holdings = [{"ticker": "GBX.L", "market_value_gbp": 1000.0}]
     monkeypatch.setattr(risk.portfolio_mod, "build_owner_portfolio", lambda owner: {})
     monkeypatch.setattr(risk.portfolio_utils, "aggregate_by_ticker", lambda portfolio: holdings)

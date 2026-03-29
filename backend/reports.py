@@ -1055,16 +1055,16 @@ def report_to_pdf(document: ReportDocument) -> bytes:
 
     def _format_gbp(value: Any) -> str:
         if value is None:
-            return "—"
+            return "\u2014"
         try:
             numeric = float(value)
         except (TypeError, ValueError):
             return str(value)
-        return f"£{numeric:,.2f}"
+        return f"\xa3{numeric:,.2f}"
 
     def _format_percent(value: Any) -> str:
         if value is None:
-            return "—"
+            return "\u2014"
         try:
             numeric = float(value)
         except (TypeError, ValueError):
@@ -1075,15 +1075,17 @@ def report_to_pdf(document: ReportDocument) -> bytes:
         key = column.key.lower()
         label = column.label.lower()
         if row_value is None:
-            return "—"
+            return "\u2014"
         if any(token in key for token in ("_gbp", "amount", "price", "value")) or "gbp" in label:
             return _format_gbp(row_value)
+        # Explicit parentheses to clarify precedence: `and` binds tighter than `or`.
+        # The `units` column is intentionally excluded — it holds numeric quantities
+        # (e.g. share count), not percentage values.
         if (
             "return" in key
             or "drawdown" in key
             or "pct" in key
             or "percent" in key
-            or "units" in key and str(row_value).strip() == "%"
         ):
             return _format_percent(row_value)
         if column.type == "number":
@@ -1169,9 +1171,10 @@ def report_to_pdf(document: ReportDocument) -> bytes:
             ]
             for row in section.rows
         ]
-        table_data = [headers, *body_rows] if body_rows else [headers, ["No rows"]]
-        if not body_rows:
-            table_data[1] = ["No rows"] + [""] * (len(headers) - 1)
+        if body_rows:
+            table_data = [headers, *body_rows]
+        else:
+            table_data = [headers, ["No rows"] + [""] * (len(headers) - 1)]
         table_width = width - 80
         col_width = table_width / max(len(headers), 1)
         table = Table(table_data, colWidths=[col_width] * len(headers), repeatRows=1)
@@ -1194,10 +1197,14 @@ def report_to_pdf(document: ReportDocument) -> bytes:
                 table_style.add("ALIGN", (idx, 1), (idx, -1), "RIGHT")
         table.setStyle(table_style)
 
-        table.wrapOn(c, width, height)
-        _, table_height = table.wrap(table_width, y - 60)
+        # Use a single wrapOn call for layout — it returns (width, height) and is
+        # the canonical ReportLab API for laying out a Table on a specific canvas.
+        # Calling wrap() afterwards is redundant and may produce inconsistent results.
+        _, table_height = table.wrapOn(c, table_width, y - 60)
         if y - table_height < 50:
             _new_page()
+            if watermark:
+                _draw_watermark(watermark)
             c.setFont("Helvetica-Bold", 12)
             c.drawString(40, height - 60, document.template.name)
             c.setFont("Helvetica", 9)
@@ -1219,8 +1226,9 @@ def report_to_pdf(document: ReportDocument) -> bytes:
     y_cursor = height - 100
     for section in document.sections:
         if y_cursor < 120:
-            if watermark:
-                _draw_watermark(watermark)
+            # Call _new_page() first (commits the current page), then draw the
+            # watermark on the new page. The previous code drew the watermark
+            # before _new_page() which caused a double watermark on the old page.
             _new_page()
             if watermark:
                 _draw_watermark(watermark)

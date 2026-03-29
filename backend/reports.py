@@ -758,7 +758,7 @@ def _normalise_transaction(
     }
 
 
-def _parse_key_findings_text(content: str) -> List[Dict[str, str]]:
+def _parse_key_findings_text(content: str, *, source_name: str = "key findings") -> List[Dict[str, str]]:
     findings: List[Dict[str, str]] = []
     for line in content.splitlines():
         value = line.strip()
@@ -773,7 +773,12 @@ def _parse_key_findings_text(content: str) -> List[Dict[str, str]]:
         if not value:
             continue
         if len(value) < 20 or len(value) > 240 or not any(ch.isdigit() for ch in value):
-            raise ValueError(f"Invalid key finding: {value}")
+            logger.warning(
+                "Skipping invalid key finding from %s: %s",
+                source_name,
+                value,
+            )
+            continue
         findings.append({"finding": value})
     return findings
 
@@ -789,7 +794,7 @@ def _build_key_findings_section(
     for path in candidates:
         if path.exists():
             content = path.read_text(encoding="utf-8")
-            return _parse_key_findings_text(content)
+            return _parse_key_findings_text(content, source_name=path.name)
     return []
 
 

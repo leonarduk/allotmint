@@ -59,7 +59,7 @@ def _s3_actions_for_role(template: dict, role_logical_id: str) -> set[str]:
         if role_logical_id not in role_refs:
             continue
 
-        policy_doc = resource.get("Properties", {}).get("PolicyDocument", {})
+        policy_doc = resource.get("Properties", {}).get(PolicyDocument", {})
         for statement in policy_doc.get("Statement", []):
             action = statement.get("Action", [])
             if isinstance(action, str):
@@ -69,6 +69,43 @@ def _s3_actions_for_role(template: dict, role_logical_id: str) -> set[str]:
                     actions.add(a)
 
     return actions
+
+
+def _resources_for_s3_action(template: dict, role_logical_id: str, target_action: str) -> list[str]:
+    """Return all resource ARNs (as strings) from statements that grant target_action to role_logical_id.
+
+    CDK may produce the resource as a plain string or as a CloudFormation intrinsic
+    (e.g. {"Fn::Join": [...]}). Plain strings are returned as-is; intrinsics are
+    returned as their JSON repr so callers can assert their structure if needed.
+    """
+    found: list[str] = []
+    resources = template["Resources"]
+    for resource in resources.values():
+        if resource.get("Type") != "AWS::IAM::Policy":
+            continue
+        roles = resource.get("Properties", {}).get("Roles", [])
+        role_refs = {
+            r["Ref"]
+            for r in roles
+            if isinstance(r, dict) and isinstance(r.get("Ref"), str)
+        }
+        if role_logical_id not in role_refs:
+            continue
+
+        policy_doc = resource.get("Properties", {}).get("PolicyDocument", {})
+        for statement in policy_doc.get("Statement", []):
+            actions = statement.get("Action", [])
+            if isinstance(actions, str):
+                actions = [actions]
+            if target_action not in actions:
+                continue
+            stmt_resources = statement.get("Resource", [])
+            if isinstance(stmt_resources, str):
+                stmt_resources = [stmt_resources]
+            for r in stmt_resources:
+                found.append(r if isinstance(r, str) else str(r))
+
+    return found
 
 
 # Maximum allowed S3 action sets per Lambda role (upper bounds for least-privilege enforcement).
@@ -127,6 +164,16 @@ def test_s3_permissions_are_scoped_per_lambda() -> None:
     assert "s3:PutObject" not in trading_actions, (
         "TradingAgentLambda should not have s3:PutObject — read-only S3 access"
     )
+
+    # s3:ListBucket must be scoped to the bucket ARN (no trailing /*), not the object ARN.
+    # Granting ListBucket on /* is both functionally wrong and overly broad.
+    list_bucket_resources = _resources_for_s3_action(template, backend_role, "s3:ListBucket")
+    assert list_bucket_resources, "BackendLambda has s3:ListBucket but no associated resource ARN"
+    for arn in list_bucket_resources:
+        assert not arn.endswith("/*"), (
+            f"BackendLambda s3:ListBucket is scoped to an object ARN ({arn}); "
+            "it must be scoped to the bucket ARN only (no trailing /*)"
+        )
 
 
 def test_lambda_roles_do_not_have_s3_delete_permissions() -> None:

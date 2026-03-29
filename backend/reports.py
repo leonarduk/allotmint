@@ -20,9 +20,6 @@ except ModuleNotFoundError:  # pragma: no cover - exercised in tests when missin
     letter = None
     canvas = None
 
-from backend.common import portfolio_utils
-from backend.config import config
-
 try:
     from backend.common import portfolio as portfolio_mod
 except ModuleNotFoundError:  # pragma: no cover - exercised in tests when missing
@@ -33,7 +30,11 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - exercised in tests when missing
     risk_mod = None
 
+from backend.common import portfolio_utils
+from backend.config import config
+
 logger = logging.getLogger(__name__)
+
 
 _TEMPLATE_ID_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$")
 _SECTION_ID_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$")
@@ -300,6 +301,50 @@ PORTFOLIO_VAR_SECTION = ReportSectionSchema(
         ReportColumnSchema("horizon_days", "Horizon (days)", type="number"),
         ReportColumnSchema("value", "Value", type="number"),
         ReportColumnSchema("units", "Units"),
+    ),
+)
+
+
+AUDIT_REPORT_TEMPLATE = ReportTemplate(
+    template_id="audit-report",
+    name="Audit report",
+    description="Portfolio audit-focused overview with exposure and risk diagnostics",
+    sections=(
+        ReportSectionSchema(
+            id="portfolio-overview",
+            title="Portfolio overview",
+            source="portfolio.overview",
+            description=PORTFOLIO_OVERVIEW_SECTION.description,
+            columns=PORTFOLIO_OVERVIEW_SECTION.columns,
+        ),
+        ReportSectionSchema(
+            id="true-exposure-sector",
+            title="True exposure (sector)",
+            source="portfolio.sectors",
+            description=PORTFOLIO_SECTORS_SECTION.description,
+            columns=PORTFOLIO_SECTORS_SECTION.columns,
+        ),
+        ReportSectionSchema(
+            id="true-exposure-region",
+            title="True exposure (region)",
+            source="portfolio.regions",
+            description=PORTFOLIO_REGIONS_SECTION.description,
+            columns=PORTFOLIO_REGIONS_SECTION.columns,
+        ),
+        ReportSectionSchema(
+            id="concentration-risk",
+            title="Concentration risk",
+            source="portfolio.concentration",
+            description=PORTFOLIO_CONCENTRATION_SECTION.description,
+            columns=PORTFOLIO_CONCENTRATION_SECTION.columns,
+        ),
+        ReportSectionSchema(
+            id="risk-assessment",
+            title="Risk assessment (VaR/Sharpe)",
+            source="portfolio.var",
+            description=PORTFOLIO_VAR_SECTION.description,
+            columns=PORTFOLIO_VAR_SECTION.columns,
+        ),
     ),
 )
 
@@ -626,8 +671,6 @@ class ReportContext:
     def owner_portfolio(self) -> Dict[str, Any] | None:
         if self._owner_portfolio_loaded:
             return self._owner_portfolio
-        # Mark as loaded before attempting I/O so a failure (or missing optional
-        # module) is cached for the remainder of this report build context.
         self._owner_portfolio_loaded = True
         if portfolio_mod is None:
             logger.warning("portfolio module unavailable; portfolio sections will be empty")
@@ -860,7 +903,6 @@ def _build_portfolio_overview_section(
             if not isinstance(holding, dict):
                 continue
             asset_class = str(holding.get("asset_class") or "Unknown").strip() or "Unknown"
-            # Sum raw values; round only when emitting to avoid accumulated rounding error.
             raw_value = float(holding.get("market_value_gbp") or 0.0)
             asset_class_totals[asset_class] = asset_class_totals.get(asset_class, 0.0) + raw_value
 
@@ -923,11 +965,6 @@ def _build_portfolio_sectors_section(
         rows = portfolio_utils.aggregate_by_sector(portfolio)
     except (FileNotFoundError, ValueError):
         return []
-    # weight_pct is recomputed locally from market values so it is consistent
-    # across sector rows regardless of the denominator used by aggregate_by_sector
-    # internally.  contribution_pct is passed through from the aggregation function
-    # and may use a different base (e.g. cost basis or benchmark weight); the two
-    # fields are intentionally distinct.
     total_value = sum(float(row.get("market_value_gbp") or 0.0) for row in rows)
     out: List[Dict[str, Any]] = []
     for row in rows:
@@ -958,7 +995,6 @@ def _build_portfolio_regions_section(
         rows = portfolio_utils.aggregate_by_region(portfolio)
     except (FileNotFoundError, ValueError):
         return []
-    # See comment in _build_portfolio_sectors_section re weight_pct vs contribution_pct.
     total_value = sum(float(row.get("market_value_gbp") or 0.0) for row in rows)
     out: List[Dict[str, Any]] = []
     for row in rows:
@@ -1004,14 +1040,8 @@ def _build_portfolio_concentration_section(
         )
     weighted_rows.sort(key=lambda item: item["weight"], reverse=True)
 
-    # HHI is a portfolio-level scalar (sum of squared weights across ALL holdings).
-    # top_n_weight_pct is the sum of the top-N holdings' weights (N = min(10, total)).
-    # Both are reported in a single dedicated summary row rather than duplicated on
-    # every holding row, which would be semantically misleading.
-    # n_holdings in the summary row is the TOTAL number of holdings in the portfolio,
-    # not the capped top-N count.
     hhi = sum(item["weight"] * item["weight"] for item in weighted_rows)
-    n_total = len(weighted_rows)  # total holdings in portfolio
+    n_total = len(weighted_rows)
     top_rows = weighted_rows[:10]
     top_n_weight_pct = sum(item["weight"] for item in top_rows) * 100.0
 
@@ -1078,7 +1108,6 @@ def _build_portfolio_var_section(
         sharpe_ratio = risk_mod.compute_sharpe_ratio(context.owner)
     except (FileNotFoundError, ValueError):
         sharpe_ratio = None
-    # Only append the Sharpe row when we have a value; an all-None row is noise.
     if sharpe_ratio is not None:
         rows.append(
             {
@@ -1311,6 +1340,10 @@ def build_report_document(
     for schema in template.sections:
         builder = SECTION_BUILDERS.get(schema.source)
         if builder is None:
+            if template.builtin:
+                raise ValueError(
+                    f"Built-in template '{template.template_id}' references unsupported source '{schema.source}'"
+                )
             logger.warning("No builder registered for section source %s", schema.source)
             section_rows: Sequence[Dict[str, Any]] = ()
         else:

@@ -235,7 +235,7 @@ def test_portfolio_section_builders(monkeypatch):
             reports.PORTFOLIO_VAR_SECTION,
         ),
     )
-    monkeypatch.setattr(reports, "get_template", lambda template_id: template)
+    monkeypatch.setattr(reports, "get_template", lambda template_id, store=None: template)
 
     document = reports.build_report_document("portfolio-insights", "alice")
     sources = {section.schema.source: section.rows for section in document.sections}

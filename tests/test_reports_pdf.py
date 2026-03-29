@@ -90,6 +90,7 @@ def test_report_to_pdf_key_findings_section_renders_text():
     assert pdf.startswith(b"%PDF")
     assert b"Key Findings" in pdf
     assert b"Portfolio concentration is 42% in US tech versus 18% benchmark" in pdf
+    assert b"(Finding)" not in pdf
 
 
 def test_report_to_pdf_succeeds_without_key_findings_section():

@@ -748,6 +748,7 @@ def _normalise_transaction(
 
 
 def _parse_key_findings_text(content: str, *, source_name: str = "key findings") -> List[Dict[str, str]]:
+    max_length = 500
     findings: List[Dict[str, str]] = []
     for line in content.splitlines():
         value = line.strip()
@@ -759,12 +760,17 @@ def _parse_key_findings_text(content: str, *, source_name: str = "key findings")
             numbered = re.match(r"^([1-9][0-9]?)\.\s+(.*)$", value)
             if numbered:
                 value = numbered.group(2).strip()
+        if value in {"-", "*", "\u2022"}:
+            continue
+        if re.match(r"^([1-9][0-9]?)\.$", value):
+            continue
         if not value:
             continue
-        if len(value) < 20 or len(value) > 240:
-            logger.warning(
-                "Skipping invalid key finding from %s: %s",
+        if len(value) > max_length:
+            logger.error(
+                "Skipping invalid key finding from %s because it exceeds %s characters: %s",
                 source_name,
+                max_length,
                 value,
             )
             continue
@@ -1692,14 +1698,21 @@ def report_to_pdf(document: ReportDocument) -> bytes:
             return str(value)
         return f"\xa3{numeric:,.2f}"
 
-    def _format_percent(value: Any) -> str:
+    # Percentage rendering convention:
+    # - Keys ending in *_pct / containing "percent" are stored as percent points
+    #   (0-100), so they are rendered directly (e.g. 45.32 -> 45.32%).
+    # - Ratio-style fields (e.g. returns/drawdowns and audit "weight") are
+    #   stored as fractions (0-1), so they are multiplied by 100 for display.
+    def _format_percent(value: Any, *, value_is_ratio: bool) -> str:
         if value is None:
             return "\u2014"
         try:
             numeric = float(value)
         except (TypeError, ValueError):
             return str(value)
-        return f"{numeric * 100:.2f}%"
+        if value_is_ratio:
+            numeric *= 100.0
+        return f"{numeric:.2f}%"
 
     def _format_cell_value(column: ReportColumnSchema, row_value: Any) -> str:
         key = column.key.lower()
@@ -1708,13 +1721,12 @@ def report_to_pdf(document: ReportDocument) -> bytes:
             return "\u2014"
         if any(token in key for token in ("_gbp", "amount", "price", "value")) or "gbp" in label:
             return _format_gbp(row_value)
-        if (
-            "return" in key
-            or "drawdown" in key
-            or "pct" in key
-            or "percent" in key
-        ):
-            return _format_percent(row_value)
+        if "pct" in key or "percent" in key:
+            return _format_percent(row_value, value_is_ratio=False)
+        # Keep this block after the *_pct / percent check above so names like
+        # "return_pct" remain percent-point values (not ratio-scaled).
+        if "return" in key or "drawdown" in key or "weight" in key:
+            return _format_percent(row_value, value_is_ratio=True)
         if column.type == "number":
             try:
                 return f"{float(row_value):,.4f}"
@@ -1797,17 +1809,24 @@ def report_to_pdf(document: ReportDocument) -> bytes:
         words = text.split()
         if not words:
             return y
+        min_words_before_wrap = 3
         line = words[0]
+        line_word_count = 1
         for word in words[1:]:
             candidate = f"{line} {word}"
-            if c.stringWidth(candidate, "Helvetica", 11) <= max_width:
+            if (
+                c.stringWidth(candidate, "Helvetica", 11) <= max_width
+                or line_word_count < min_words_before_wrap
+            ):
                 line = candidate
+                line_word_count += 1
             else:
                 if y < min_y and on_page_break is not None:
                     y = on_page_break()
                 c.drawString(x, y, line)
                 y -= line_height
                 line = word
+                line_word_count = 1
         if y < min_y and on_page_break is not None:
             y = on_page_break()
         c.drawString(x, y, line)
@@ -1875,6 +1894,8 @@ def report_to_pdf(document: ReportDocument) -> bytes:
     def _draw_section_table(section: ReportSectionData, start_y: float) -> float:
         y = start_y
         y = _draw_section_header(section, y)
+        if section.schema.source == _KEY_FINDINGS_SOURCE:
+            return y
         if Table is None:
             c.setFont("Helvetica", 9)
             for row in section.rows:

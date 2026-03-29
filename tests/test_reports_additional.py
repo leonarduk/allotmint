@@ -572,10 +572,24 @@ def test_report_to_pdf_formats_values_and_optional_watermark(monkeypatch):
         columns=(
             reports.ReportColumnSchema("amount_gbp", "Amount (GBP)", type="number"),
             reports.ReportColumnSchema("daily_return", "Daily return", type="number"),
+            reports.ReportColumnSchema("drawdown", "Drawdown", type="number"),
+            reports.ReportColumnSchema("portfolio_weight", "Portfolio Weight", type="number"),
+            reports.ReportColumnSchema("return_pct", "Return (%)", type="number"),
+            reports.ReportColumnSchema("weight_pct", "Weight (%)", type="number"),
         ),
     )
     section = reports.ReportSectionData(
-        schema=schema, rows=({"amount_gbp": 1234.5, "daily_return": 0.125},)
+        schema=schema,
+        rows=(
+            {
+                "amount_gbp": 1234.5,
+                "daily_return": 0.125,
+                "drawdown": -0.05,
+                "portfolio_weight": 0.4532,
+                "return_pct": 45.32,
+                "weight_pct": 45.32,
+            },
+        ),
     )
     document = reports.ReportDocument(
         template=reports.ReportTemplate(
@@ -597,6 +611,10 @@ def test_report_to_pdf_formats_values_and_optional_watermark(monkeypatch):
     drawn_values = [args[2] for name, args, _ in calls if name == "drawString" and len(args) >= 3]
     assert any("£1,234.50" in value for value in drawn_values)
     assert any("12.50%" in value for value in drawn_values)
+    assert any("-5.00%" in value for value in drawn_values)
+    assert any("45.32%" in value for value in drawn_values)
+    assert not any("0.4532" in value for value in drawn_values)
+    assert not any("4,532.00%" in value for value in drawn_values)
     assert any(
         name == "drawCentredString" and args[-1] == "SAMPLE"
         for name, args, _ in calls

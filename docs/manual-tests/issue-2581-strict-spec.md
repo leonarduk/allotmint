@@ -63,24 +63,24 @@ If environment changes mid-run: **INVALID RUN**.
 
 Issue cannot close with any open P1/P2.
 
-## 7) Negative tests (run before all other steps)
+## Step 0) Negative tests (run before all other steps)
 
-### 7.1 Empty portfolio
+### 0.1 Empty portfolio
 - Expect graceful response
 - No crash
 
-### 7.2 Single holding
+### 0.2 Single holding
 - All endpoints still valid
 
-### 7.3 Missing `key_findings.md`
+### 0.3 Missing `key_findings.md`
 - PDF still renders (section omitted)
 
-### 7.4 Malformed `key_findings.md`
+### 0.4 Malformed `key_findings.md`
 - No crash
 
 Any failure: **P1**.
 
-## 1) Local stack startup
+## Step 1) Local stack startup
 
 Command:
 
@@ -98,13 +98,13 @@ Required artifacts:
 - `startup_log.txt`
 
 Pass criteria (all required):
-- Backend responds in `< 2s`
+- Backend responds in `< 2s` **and** returns HTTP 200
 - Frontend renders without visible error
 - No crash logs in startup log
 
 Else: FAIL and block all further steps.
 
-## 2) Portfolio validation (strict)
+## Step 2) Portfolio validation (strict)
 
 Command:
 
@@ -117,14 +117,14 @@ Required external input:
 
 Rules:
 1. Holdings integrity (hard fail/P1)
-2. GBX scaling check (hard fail/P1)
+2. GBX scaling check (hard fail/P1): prices for instruments traded in GBX (pence sterling) must be divided by 100 before display in GBP. Any holding whose raw `price` field exceeds 10,000 and is displayed without the `/100` normalisation is a P1 fail. Verify the top 5 holdings by value against the broker snapshot; flag any price discrepancy > 1% that is consistent with a missing GBX-to-GBP conversion.
 3. Total value delta thresholds:
    - `<= 1%` PASS
    - `> 1% and <= 2%` P2 warning
    - `> 2%` P1 fail
 4. Top 10 holdings each within 1% of broker (else P1)
 
-## 3) Sector/Region validation
+## Step 3) Sector/Region validation
 
 Commands:
 
@@ -139,12 +139,12 @@ Rules:
    - no negative weights
    - sum(weights) = `100% ±1%`
 2. ETF plausibility:
-   - e.g. VWRL US weight in 50–70%
+   - e.g. VWRL US weight in 50–70% (note: this range reflects approximate US weight as of 2025; verify against current fund factsheet before treating as a hard gate)
    - global ETF has at least 3 regions
 3. Overlap visibility:
    - if VWRL and VUSA both present, US overlap should not be naively double-counted
 
-## 4) VaR validation
+## Step 4) VaR validation
 
 Command:
 
@@ -154,7 +154,7 @@ curl -sS "$API_BASE/var/$OWNER" -o "$RUN_DIR/var.json"
 
 Rules:
 1. Structural hard fail: no NaN/null; value > 0 (P1)
-2. Weak range check: `0.1% <= VaR <= 5%` (outside => P2)
+2. Weak range check: `0.1% <= VaR <= 5%` of portfolio value (outside => P2). Confirm whether the returned value is an absolute £ amount or a percentage before applying this gate; record the interpretation in the evidence artifact.
 3. Directional mandatory checks:
    - Cash-heavy scenario => VaR decreases materially
    - Equity-heavy scenario => VaR increases materially
@@ -165,7 +165,7 @@ Rules:
    - data points count
    - missing values => P2
 
-## 5) PDF audit report validation
+## Step 5) PDF audit report validation
 
 Command:
 
@@ -175,8 +175,13 @@ curl -sS "$API_BASE/reports/$OWNER/audit-report?format=pdf" -o "$RUN_DIR/audit_r
 
 Rules:
 1. Structural hard fail:
-   - PDF opens
-   - exactly 5 sections present
+   - PDF opens without error
+   - Exactly 5 sections present. The required sections are:
+     1. Portfolio Summary (total value, date, owner)
+     2. Holdings Breakdown (top holdings table)
+     3. Sector Allocation
+     4. Risk Analysis (VaR and Sharpe)
+     5. Key Findings (from `key_findings.md`; omitted only if file is absent per Step 0.3)
 2. Data reconciliation hard fail:
    - total value
    - VaR
@@ -192,13 +197,20 @@ Rules:
    - no clipping
    - no overlap
 
-## 6) Demo report product gate
+## Step 6) Demo report product gate
 
-Setup:
+Setup — write key findings to a file before generating the report:
 
 ```bash
 mkdir -p data/accounts/demo-owner
-$EDITOR data/accounts/demo-owner/key_findings.md
+cat > data/accounts/demo-owner/key_findings.md << 'EOF'
+## Key Findings
+
+- Portfolio is well-diversified across 4 regions and 8 sectors.
+- Largest single-stock concentration risk: top holding represents X% of total value.
+- VaR at 95% confidence over 1-day horizon: £Y.
+- Recommended action: review bond allocation given current rate environment.
+EOF
 ```
 
 Generate:
@@ -215,7 +227,7 @@ Checks:
    - Would you send this for £39?
    - YES = pass; NO requires reason
 
-## 8) Strict closure criteria
+## Step 7) Strict closure criteria
 
 Issue can close only if all are true:
 - All steps executed with full evidence

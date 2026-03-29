@@ -89,11 +89,22 @@ print("OK")
 PY
 }
 
+# Fetch a URL, save the body to $out, record HTTP status.
+# On transport failure (curl non-zero exit) the function records a P1 failure
+# and continues — it does NOT abort the whole runner so that summary.json
+# is always produced.
 curl_json() {
   local url="$1"
   local out="$2"
   local status
-  status=$(curl -sS -o "$out" -w "%{http_code}" "$url")
+  # Run curl in a subshell so its exit code does not propagate through set -e.
+  if ! status=$(curl -sS -o "$out" -w "%{http_code}" "$url" 2>"$out.stderr"); then
+    local curl_err
+    curl_err=$(cat "$out.stderr" 2>/dev/null || echo "unknown curl error")
+    record_failure "P1" "http" "curl transport error for $url: $curl_err"
+    echo "000" >"$out.status"
+    return
+  fi
   echo "$status" >"$out.status"
   if [[ "$status" != "200" ]]; then
     record_failure "P1" "http" "Non-200 response from $url: $status"
@@ -102,12 +113,28 @@ curl_json() {
 
 check_health_latency() {
   local out="$RUN_DIR/backend_health.json"
-  local latency
-  latency=$(curl -sS -o "$out" -w "%{time_total}" "$API_BASE/health" || echo "999")
-  echo "$latency" >"$RUN_DIR/backend_health.latency"
+  local status latency combined
+  # Capture both status and latency; guard against transport errors.
+  if ! combined=$(curl -sS -o "$out" -w "%{http_code} %{time_total}" "$API_BASE/health" 2>"$RUN_DIR/backend_health.stderr"); then
+    record_failure "P1" "step1" "Backend /health unreachable: $(cat "$RUN_DIR/backend_health.stderr" 2>/dev/null)"
+    echo "000 999" >"$RUN_DIR/backend_health.timing"
+    return 1
+  fi
+  echo "$combined" >"$RUN_DIR/backend_health.timing"
+  # combined is "<http_status> <time_total>" e.g. "200 0.123456"
+  status=$(echo "$combined" | awk '{print $1}')
+  latency=$(echo "$combined" | awk '{print $2}')
+  if [[ "$status" != "200" ]]; then
+    record_failure "P1" "step1" "Backend /health returned HTTP $status"
+    return 1
+  fi
   python3 - "$latency" <<'PY'
 import sys
-lat = float(sys.argv[1])
+try:
+    lat = float(sys.argv[1])
+except ValueError:
+    print(f"Could not parse latency: {sys.argv[1]}", file=sys.stderr)
+    sys.exit(1)
 if lat >= 2.0:
     sys.exit(1)
 PY
@@ -229,28 +256,30 @@ main() {
   # Step 3
   curl_json "$API_BASE/portfolio/$OWNER/sectors" "$RUN_DIR/sectors.json"
   curl_json "$API_BASE/portfolio-group/$GROUP_SLUG/regions" "$RUN_DIR/regions.json"
-  if ! check_no_null_or_negative_weights "$RUN_DIR/sectors.json" "sectors"; then
+  if [[ -f "$RUN_DIR/sectors.json" ]] && ! check_no_null_or_negative_weights "$RUN_DIR/sectors.json" "sectors" 2>>"$RUN_DIR/sectors.check.log"; then
     record_failure "P1" "step3" "Sector structure check failed"
   fi
-  if ! check_no_null_or_negative_weights "$RUN_DIR/regions.json" "regions"; then
+  if [[ -f "$RUN_DIR/regions.json" ]] && ! check_no_null_or_negative_weights "$RUN_DIR/regions.json" "regions" 2>>"$RUN_DIR/regions.check.log"; then
     record_failure "P1" "step3" "Region structure check failed"
   fi
 
   # Step 4
   curl_json "$API_BASE/var/$OWNER" "$RUN_DIR/var.json"
-  if ! check_var_structure "$RUN_DIR/var.json"; then
+  if [[ -f "$RUN_DIR/var.json" ]] && ! check_var_structure "$RUN_DIR/var.json" 2>>"$RUN_DIR/var.check.log"; then
     record_failure "P1" "step4" "VaR structural check failed"
   fi
 
   # Step 5
-  code=$(curl -sS -o "$RUN_DIR/audit_report.pdf" -w "%{http_code}" "$API_BASE/reports/$OWNER/audit-report?format=pdf")
+  local code
+  code=$(curl -sS -o "$RUN_DIR/audit_report.pdf" -w "%{http_code}" "$API_BASE/reports/$OWNER/audit-report?format=pdf" 2>"$RUN_DIR/audit_report.stderr" || echo "000")
   echo "$code" >"$RUN_DIR/audit_report.pdf.status"
   if [[ "$code" != "200" ]]; then
     record_failure "P1" "step5" "Audit PDF generation failed with status $code"
   fi
 
   # Step 6
-  demo_code=$(curl -sS -o "$RUN_DIR/demo_report.pdf" -w "%{http_code}" "$API_BASE/reports/demo-owner/audit-report?format=pdf&watermark=SAMPLE")
+  local demo_code
+  demo_code=$(curl -sS -o "$RUN_DIR/demo_report.pdf" -w "%{http_code}" "$API_BASE/reports/demo-owner/audit-report?format=pdf&watermark=SAMPLE" 2>"$RUN_DIR/demo_report.stderr" || echo "000")
   echo "$demo_code" >"$RUN_DIR/demo_report.pdf.status"
   if [[ "$demo_code" != "200" ]]; then
     record_failure "P1" "step6" "Demo PDF generation failed with status $demo_code"

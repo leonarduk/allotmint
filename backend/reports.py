@@ -20,6 +20,8 @@ except ModuleNotFoundError:  # pragma: no cover - exercised in tests when missin
     letter = None
     canvas = None
 
+from backend.common import portfolio as portfolio_mod
+from backend.common import risk
 from backend.common import portfolio_utils
 from backend.config import config
 
@@ -165,26 +167,51 @@ AUDIT_REPORT_TEMPLATE = ReportTemplate(
             id="portfolio-overview",
             title="Portfolio overview",
             source="portfolio.overview",
+            columns=(
+                ReportColumnSchema("metric", "Metric"),
+                ReportColumnSchema("value", "Value"),
+                ReportColumnSchema("units", "Units"),
+            ),
         ),
         ReportSectionSchema(
             id="true-exposure-sector",
             title="True exposure (sector)",
             source="portfolio.sectors",
+            columns=(
+                ReportColumnSchema("bucket", "Sector"),
+                ReportColumnSchema("value_gbp", "Value (GBP)", type="number"),
+                ReportColumnSchema("weight_pct", "Weight (%)", type="number"),
+            ),
         ),
         ReportSectionSchema(
             id="true-exposure-region",
             title="True exposure (region)",
             source="portfolio.regions",
+            columns=(
+                ReportColumnSchema("bucket", "Region"),
+                ReportColumnSchema("value_gbp", "Value (GBP)", type="number"),
+                ReportColumnSchema("weight_pct", "Weight (%)", type="number"),
+            ),
         ),
         ReportSectionSchema(
             id="concentration-risk",
             title="Concentration risk",
             source="portfolio.concentration",
+            columns=(
+                ReportColumnSchema("ticker", "Ticker"),
+                ReportColumnSchema("value_gbp", "Value (GBP)", type="number"),
+                ReportColumnSchema("weight_pct", "Weight (%)", type="number"),
+            ),
         ),
         ReportSectionSchema(
             id="risk-assessment",
             title="Risk assessment (VaR/Sharpe)",
-            source="portfolio.var",
+            source="portfolio.risk",
+            columns=(
+                ReportColumnSchema("metric", "Metric"),
+                ReportColumnSchema("value", "Value", type="number"),
+                ReportColumnSchema("units", "Units"),
+            ),
         ),
     ),
 )
@@ -664,11 +691,103 @@ def _build_allocation_section(
     return context.allocation()
 
 
+def _build_portfolio_overview_section(
+    context: ReportContext, section: ReportSectionSchema
+) -> Sequence[Dict[str, Any]]:
+    summary = context.summary()
+    allocation = context.allocation()
+    total_value = sum(float(row.get("value") or 0.0) for row in allocation)
+    reporting_date = context.performance().get("reporting_date")
+    return [
+        {"metric": "Owner", "value": summary.owner, "units": ""},
+        {"metric": "Reporting date", "value": reporting_date, "units": ""},
+        {"metric": "Holdings", "value": len(allocation), "units": "count"},
+        {"metric": "Portfolio value", "value": round(total_value, 2), "units": "GBP"},
+        {
+            "metric": "Cumulative return",
+            "value": _round_if_number(summary.cumulative_return, 4),
+            "units": "ratio",
+        },
+        {
+            "metric": "Max drawdown",
+            "value": _round_if_number(summary.max_drawdown, 4),
+            "units": "ratio",
+        },
+    ]
+
+
+def _build_bucket_exposure_rows(rows: Sequence[Dict[str, Any]], key: str) -> Sequence[Dict[str, Any]]:
+    total_value = sum(float(row.get("market_value_gbp") or 0.0) for row in rows)
+    normalised: List[Dict[str, Any]] = []
+    for row in sorted(rows, key=lambda item: item.get("market_value_gbp") or 0.0, reverse=True):
+        value = float(row.get("market_value_gbp") or 0.0)
+        weight = (value / total_value * 100.0) if total_value else 0.0
+        normalised.append(
+            {
+                "bucket": row.get(key) or "Unknown",
+                "value_gbp": round(value, 2),
+                "weight_pct": round(weight, 2),
+            }
+        )
+    return normalised
+
+
+def _build_portfolio_sector_section(
+    context: ReportContext, section: ReportSectionSchema
+) -> Sequence[Dict[str, Any]]:
+    portfolio = portfolio_mod.build_owner_portfolio(context.owner)
+    grouped = portfolio_utils.aggregate_by_sector(portfolio)
+    return _build_bucket_exposure_rows(grouped, "sector")
+
+
+def _build_portfolio_region_section(
+    context: ReportContext, section: ReportSectionSchema
+) -> Sequence[Dict[str, Any]]:
+    portfolio = portfolio_mod.build_owner_portfolio(context.owner)
+    grouped = portfolio_utils.aggregate_by_region(portfolio)
+    return _build_bucket_exposure_rows(grouped, "region")
+
+
+def _build_portfolio_concentration_section(
+    context: ReportContext, section: ReportSectionSchema
+) -> Sequence[Dict[str, Any]]:
+    rows = context.allocation()
+    total_value = sum(float(row.get("value") or 0.0) for row in rows)
+    return [
+        {
+            "ticker": row.get("ticker"),
+            "value_gbp": _round_if_number(row.get("value"), 2),
+            "weight_pct": round((float(row.get("value") or 0.0) / total_value) * 100.0, 2)
+            if total_value
+            else 0.0,
+        }
+        for row in rows
+    ]
+
+
+def _build_portfolio_risk_section(
+    context: ReportContext, section: ReportSectionSchema
+) -> Sequence[Dict[str, Any]]:
+    var_data = risk.compute_portfolio_var(context.owner)
+    return [
+        {"metric": "VaR confidence", "value": var_data.get("confidence"), "units": "ratio"},
+        {"metric": "VaR window (days)", "value": var_data.get("window_days"), "units": "days"},
+        {"metric": "VaR 1d", "value": var_data.get("1d"), "units": "GBP"},
+        {"metric": "VaR 10d", "value": var_data.get("10d"), "units": "GBP"},
+        {"metric": "Sharpe ratio", "value": risk.compute_sharpe_ratio(context.owner), "units": "ratio"},
+    ]
+
+
 SECTION_BUILDERS: Dict[str, SectionBuilder] = {
     "performance.metrics": _build_metrics_section,
     "performance.history": _build_history_section,
     "transactions": _build_transactions_section,
     "allocation": _build_allocation_section,
+    "portfolio.overview": _build_portfolio_overview_section,
+    "portfolio.sectors": _build_portfolio_sector_section,
+    "portfolio.regions": _build_portfolio_region_section,
+    "portfolio.concentration": _build_portfolio_concentration_section,
+    "portfolio.risk": _build_portfolio_risk_section,
 }
 
 
@@ -881,8 +1000,12 @@ def build_report_document(
     for schema in template.sections:
         builder = SECTION_BUILDERS.get(schema.source)
         if builder is None:
+            if template.builtin:
+                raise ValueError(
+                    f"Built-in template '{template.template_id}' references unsupported source '{schema.source}'"
+                )
             logger.warning("No builder registered for section source %s", schema.source)
-            rows: Sequence[Dict[str, Any]] = []
+            rows = []
         else:
             rows = builder(context, schema)
         sections.append(ReportSectionData(schema=schema, rows=tuple(rows)))

@@ -786,88 +786,244 @@ def _build_allocation_section(
 def _build_portfolio_overview_section(
     context: ReportContext, section: ReportSectionSchema
 ) -> Sequence[Dict[str, Any]]:
-    summary = context.summary()
-    allocation = context.allocation()
-    total_value = sum(float(row.get("value") or 0.0) for row in allocation)
-    reporting_date = context.performance().get("reporting_date")
-    return [
-        {"metric": "Owner", "value": summary.owner, "units": ""},
-        {"metric": "Reporting date", "value": reporting_date, "units": ""},
-        {"metric": "Holdings", "value": len(allocation), "units": "count"},
-        {"metric": "Portfolio value", "value": round(total_value, 2), "units": "GBP"},
-        {
-            "metric": "Cumulative return",
-            "value": _round_if_number(summary.cumulative_return, 4),
-            "units": "ratio",
-        },
-        {
-            "metric": "Max drawdown",
-            "value": _round_if_number(summary.max_drawdown, 4),
-            "units": "ratio",
-        },
-    ]
+    portfolio = context.owner_portfolio()
+    if not portfolio:
+        return []
 
+    rows: List[Dict[str, Any]] = []
+    accounts_raw = portfolio.get("accounts", [])
+    account_list = accounts_raw if isinstance(accounts_raw, list) else []
+    account_count = len(account_list)
+    holdings_count = 0
+    asset_class_totals: Dict[str, float] = {}
 
-def _build_bucket_exposure_rows(rows: Sequence[Dict[str, Any]], key: str) -> Sequence[Dict[str, Any]]:
-    total_value = sum(float(row.get("market_value_gbp") or 0.0) for row in rows)
-    normalised: List[Dict[str, Any]] = []
-    for row in sorted(rows, key=lambda item: item.get("market_value_gbp") or 0.0, reverse=True):
-        value = float(row.get("market_value_gbp") or 0.0)
-        weight = (value / total_value * 100.0) if total_value else 0.0
-        normalised.append(
+    for account in account_list:
+        if not isinstance(account, dict):
+            continue
+        holdings = account.get("holdings", [])
+        if not isinstance(holdings, list):
+            continue
+        holdings_count += len(holdings)
+        for holding in holdings:
+            if not isinstance(holding, dict):
+                continue
+            asset_class = str(holding.get("asset_class") or "Unknown").strip() or "Unknown"
+            raw_value = float(holding.get("market_value_gbp") or 0.0)
+            asset_class_totals[asset_class] = asset_class_totals.get(asset_class, 0.0) + raw_value
+
+    rows.extend(
+        [
             {
-                "bucket": row.get(key) or "Unknown",
-                "value_gbp": round(value, 2),
-                "weight_pct": round(weight, 2),
+                "category": "summary",
+                "label": "Total portfolio value",
+                "value": _round_if_number(portfolio.get("total_value_estimate_gbp"), 2),
+                "units": "GBP",
+            },
+            {
+                "category": "summary",
+                "label": "Holdings count",
+                "value": holdings_count,
+                "units": "count",
+            },
+            {
+                "category": "summary",
+                "label": "Account count",
+                "value": account_count,
+                "units": "count",
+            },
+        ]
+    )
+
+    for account in account_list:
+        if not isinstance(account, dict):
+            continue
+        account_type = str(account.get("account_type") or "Unknown")
+        rows.append(
+            {
+                "category": "account",
+                "label": account_type,
+                "value": _round_if_number(account.get("value_estimate_gbp"), 2),
+                "units": "GBP",
             }
         )
-    return normalised
+
+    for asset_class, value in sorted(asset_class_totals.items(), key=lambda item: item[1], reverse=True):
+        rows.append(
+            {
+                "category": "asset_class",
+                "label": asset_class,
+                "value": _round_if_number(value, 2),
+                "units": "GBP",
+            }
+        )
+
+    return rows
 
 
-def _build_portfolio_sector_section(
+def _build_portfolio_sectors_section(
     context: ReportContext, section: ReportSectionSchema
 ) -> Sequence[Dict[str, Any]]:
-    portfolio = portfolio_mod.build_owner_portfolio(context.owner)
-    grouped = portfolio_utils.aggregate_by_sector(portfolio)
-    return _build_bucket_exposure_rows(grouped, "sector")
+    portfolio = context.owner_portfolio()
+    if not portfolio:
+        return []
+    try:
+        rows = portfolio_utils.aggregate_by_sector(portfolio)
+    except (FileNotFoundError, ValueError):
+        return []
+    total_value = sum(float(row.get("market_value_gbp") or 0.0) for row in rows)
+    out: List[Dict[str, Any]] = []
+    for row in rows:
+        market_value = _round_if_number(row.get("market_value_gbp"), 2) or 0.0
+        weight_pct = (market_value / total_value * 100.0) if total_value else None
+        out.append(
+            {
+                "sector": row.get("sector") or "Unknown",
+                "market_value_gbp": market_value,
+                "gain_gbp": _round_if_number(row.get("gain_gbp"), 2),
+                "cost_gbp": _round_if_number(row.get("cost_gbp"), 2),
+                "gain_pct": _round_if_number(row.get("gain_pct"), 4),
+                "contribution_pct": _round_if_number(row.get("contribution_pct"), 4),
+                "weight_pct": _round_if_number(weight_pct, 4),
+            }
+        )
+    out.sort(key=lambda item: (item.get("market_value_gbp") or 0.0), reverse=True)
+    return out
 
 
-def _build_portfolio_region_section(
+def _build_portfolio_regions_section(
     context: ReportContext, section: ReportSectionSchema
 ) -> Sequence[Dict[str, Any]]:
-    portfolio = portfolio_mod.build_owner_portfolio(context.owner)
-    grouped = portfolio_utils.aggregate_by_region(portfolio)
-    return _build_bucket_exposure_rows(grouped, "region")
+    portfolio = context.owner_portfolio()
+    if not portfolio:
+        return []
+    try:
+        rows = portfolio_utils.aggregate_by_region(portfolio)
+    except (FileNotFoundError, ValueError):
+        return []
+    total_value = sum(float(row.get("market_value_gbp") or 0.0) for row in rows)
+    out: List[Dict[str, Any]] = []
+    for row in rows:
+        market_value = _round_if_number(row.get("market_value_gbp"), 2) or 0.0
+        weight_pct = (market_value / total_value * 100.0) if total_value else None
+        out.append(
+            {
+                "region": row.get("region") or "Unknown",
+                "market_value_gbp": market_value,
+                "gain_gbp": _round_if_number(row.get("gain_gbp"), 2),
+                "cost_gbp": _round_if_number(row.get("cost_gbp"), 2),
+                "gain_pct": _round_if_number(row.get("gain_pct"), 4),
+                "contribution_pct": _round_if_number(row.get("contribution_pct"), 4),
+                "weight_pct": _round_if_number(weight_pct, 4),
+            }
+        )
+    out.sort(key=lambda item: (item.get("market_value_gbp") or 0.0), reverse=True)
+    return out
 
 
 def _build_portfolio_concentration_section(
     context: ReportContext, section: ReportSectionSchema
 ) -> Sequence[Dict[str, Any]]:
-    rows = context.allocation()
-    total_value = sum(float(row.get("value") or 0.0) for row in rows)
-    return [
+    portfolio = context.owner_portfolio()
+    if not portfolio:
+        return []
+    try:
+        rows = portfolio_utils.aggregate_by_ticker(portfolio)
+    except (FileNotFoundError, ValueError):
+        return []
+
+    total_value = sum(float(row.get("market_value_gbp") or 0.0) for row in rows)
+    weighted_rows: List[Dict[str, Any]] = []
+    for row in rows:
+        market_value = float(row.get("market_value_gbp") or 0.0)
+        weight = (market_value / total_value) if total_value else 0.0
+        weighted_rows.append(
+            {
+                "ticker": row.get("ticker"),
+                "market_value_gbp": _round_if_number(market_value, 2),
+                "weight": weight,
+            }
+        )
+    weighted_rows.sort(key=lambda item: item["weight"], reverse=True)
+
+    hhi = sum(item["weight"] * item["weight"] for item in weighted_rows)
+    n_total = len(weighted_rows)
+    top_rows = weighted_rows[:10]
+    top_n_weight_pct = sum(item["weight"] for item in top_rows) * 100.0
+
+    holding_rows: List[Dict[str, Any]] = [
         {
-            "ticker": row.get("ticker"),
-            "value_gbp": _round_if_number(row.get("value"), 2),
-            "weight_pct": round((float(row.get("value") or 0.0) / total_value) * 100.0, 2)
-            if total_value
-            else 0.0,
+            "row_type": "holding",
+            "rank": index + 1,
+            "ticker": entry.get("ticker"),
+            "market_value_gbp": entry.get("market_value_gbp"),
+            "weight_pct": _round_if_number((entry.get("weight") or 0.0) * 100.0, 4),
+            "hhi": None,
+            "top_n_weight_pct": None,
+            "n_holdings": None,
         }
-        for row in rows
+        for index, entry in enumerate(top_rows)
     ]
+    summary_row: Dict[str, Any] = {
+        "row_type": "summary",
+        "rank": None,
+        "ticker": None,
+        "market_value_gbp": None,
+        "weight_pct": None,
+        "hhi": _round_if_number(hhi, 6),
+        "top_n_weight_pct": _round_if_number(top_n_weight_pct, 4),
+        "n_holdings": n_total,
+    }
+    return holding_rows + [summary_row]
 
 
-def _build_portfolio_risk_section(
+def _build_portfolio_var_section(
     context: ReportContext, section: ReportSectionSchema
 ) -> Sequence[Dict[str, Any]]:
-    var_data = risk.compute_portfolio_var(context.owner)
-    return [
-        {"metric": "VaR confidence", "value": var_data.get("confidence"), "units": "ratio"},
-        {"metric": "VaR window (days)", "value": var_data.get("window_days"), "units": "days"},
-        {"metric": "VaR 1d", "value": var_data.get("1d"), "units": "GBP"},
-        {"metric": "VaR 10d", "value": var_data.get("10d"), "units": "GBP"},
-        {"metric": "Sharpe ratio", "value": risk.compute_sharpe_ratio(context.owner), "units": "ratio"},
-    ]
+    if risk_mod is None:
+        return []
+    if not context.owner_portfolio():
+        return []
+    rows: List[Dict[str, Any]] = []
+    for confidence in (0.95, 0.99):
+        try:
+            var_data = risk_mod.compute_portfolio_var(context.owner, confidence=confidence)
+        except (FileNotFoundError, ValueError):
+            continue
+        rows.append(
+            {
+                "metric": "VaR",
+                "confidence": _round_if_number(var_data.get("confidence"), 2),
+                "horizon_days": 1,
+                "value": _round_if_number(var_data.get("1d"), 2),
+                "units": "GBP",
+            }
+        )
+        rows.append(
+            {
+                "metric": "VaR",
+                "confidence": _round_if_number(var_data.get("confidence"), 2),
+                "horizon_days": 10,
+                "value": _round_if_number(var_data.get("10d"), 2),
+                "units": "GBP",
+            }
+        )
+    if not rows:
+        return []
+    try:
+        sharpe_ratio = risk_mod.compute_sharpe_ratio(context.owner)
+    except (FileNotFoundError, ValueError):
+        sharpe_ratio = None
+    if sharpe_ratio is not None:
+        rows.append(
+            {
+                "metric": "Sharpe ratio",
+                "confidence": None,
+                "horizon_days": None,
+                "value": _round_if_number(sharpe_ratio, 4),
+                "units": "ratio",
+            }
+        )
+    return rows
 
 
 SECTION_BUILDERS: Dict[str, SectionBuilder] = {
@@ -876,10 +1032,10 @@ SECTION_BUILDERS: Dict[str, SectionBuilder] = {
     "transactions": _build_transactions_section,
     "allocation": _build_allocation_section,
     "portfolio.overview": _build_portfolio_overview_section,
-    "portfolio.sectors": _build_portfolio_sector_section,
-    "portfolio.regions": _build_portfolio_region_section,
+    "portfolio.sectors": _build_portfolio_sectors_section,
+    "portfolio.regions": _build_portfolio_regions_section,
     "portfolio.concentration": _build_portfolio_concentration_section,
-    "portfolio.risk": _build_portfolio_risk_section,
+    "portfolio.var": _build_portfolio_var_section,
 }
 
 

@@ -24,7 +24,7 @@ class BackendLambdaStack(Stack):
     def _grant_bucket_access(
         fn: _lambda.DockerImageFunction,
         *,
-        bucket_name: str,
+        bucket: s3.IBucket,
         allow_read: bool,
         allow_put: bool,
         allow_list: bool,
@@ -52,7 +52,7 @@ class BackendLambdaStack(Stack):
             fn.add_to_role_policy(
                 iam.PolicyStatement(
                     actions=object_actions,
-                    resources=[f"arn:aws:s3:::{bucket_name}/*"],
+                    resources=[bucket.arn_for_objects("*")],
                 )
             )
 
@@ -77,7 +77,7 @@ class BackendLambdaStack(Stack):
             fn.add_to_role_policy(
                 iam.PolicyStatement(
                     actions=["s3:ListBucket"],
-                    resources=[f"arn:aws:s3:::{bucket_name}"],
+                    resources=[bucket.bucket_arn],
                     conditions={"StringLike": {"s3:prefix": prefix_conditions}},
                 )
             )
@@ -192,7 +192,7 @@ class BackendLambdaStack(Stack):
         # - transactions/    (report transaction exports)
         self._grant_bucket_access(
             backend_fn,
-            bucket_name=bucket_name,
+            bucket=data_bucket,
             allow_read=True,
             allow_put=True,
             allow_list=True,
@@ -247,7 +247,7 @@ class BackendLambdaStack(Stack):
         # See backend/timeseries/cache.py:_rolling_cache() and _save_parquet().
         self._grant_bucket_access(
             refresh_fn,
-            bucket_name=bucket_name,
+            bucket=data_bucket,
             allow_read=True,
             allow_put=True,
             allow_list=False,
@@ -292,7 +292,7 @@ class BackendLambdaStack(Stack):
         # No bucket enumeration: all S3 access is by deterministic key.
         self._grant_bucket_access(
             agent_fn,
-            bucket_name=bucket_name,
+            bucket=data_bucket,
             allow_read=True,
             allow_put=False,
             allow_list=False,
@@ -305,6 +305,10 @@ class BackendLambdaStack(Stack):
             schedule=events.Schedule.cron(minute="0", hour="1"),
             targets=[targets.LambdaFunction(agent_fn)],
         )
+
+        # IAM implicit deny covers all other principals; no explicit DENY
+        # resource policy is needed (and a StringNotLike list-based DENY
+        # would incorrectly lock out these roles too).
 
         backend_error_alarm = cloudwatch.Alarm(
             self,

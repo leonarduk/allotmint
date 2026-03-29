@@ -89,7 +89,7 @@ def test_data_bucket_lifecycle_rule(template):
 
 
 # ---------------------------------------------------------------------------
-# IAM: Lambda roles get read/write on the data bucket; broken DENY absent
+# IAM: least-privilege Lambda S3 access and broken DENY absence
 # ---------------------------------------------------------------------------
 
 def test_no_broken_deny_resource_policy_on_data_bucket(template):
@@ -116,10 +116,13 @@ def test_no_broken_deny_resource_policy_on_data_bucket(template):
             )
 
 
-def test_lambda_roles_granted_read_write(template):
-    """At least one IAM policy grants S3 read/write actions to a Lambda role."""
-    # grant_read_write generates managed/inline policies; we check that
-    # s3:GetObject and s3:PutObject appear somewhere in the IAM policies.
+def test_lambda_roles_granted_expected_s3_actions_without_wildcards(template):
+    """Stack grants expected S3 actions and avoids wildcard or destructive S3 permissions.
+
+    s3:DeleteObject is explicitly checked for absence: the PR #2574 regression
+    was caused by grant_read_write emitting DeleteObject as a side-effect of
+    the broader grant. This test prevents that from recurring.
+    """
     policies = template.find_resources("AWS::IAM::Policy")
     all_actions: list[str] = []
     for resource in policies.values():
@@ -134,11 +137,21 @@ def test_lambda_roles_granted_read_write(template):
                 actions = [actions]
             all_actions.extend(actions)
 
-    assert any("s3:GetObject" in a or a == "s3:*" for a in all_actions), (
+    assert any(a == "s3:GetObject" for a in all_actions), (
         "Expected s3:GetObject grant for Lambda roles"
     )
-    assert any("s3:PutObject" in a or a == "s3:*" for a in all_actions), (
+    assert any(a == "s3:PutObject" for a in all_actions), (
         "Expected s3:PutObject grant for Lambda roles"
+    )
+    assert any(a == "s3:ListBucket" for a in all_actions), (
+        "Expected s3:ListBucket grant for Lambda roles that list known prefixes"
+    )
+    assert not any(a == "s3:*" for a in all_actions), (
+        "Did not expect wildcard S3 permissions in Lambda IAM policies"
+    )
+    assert not any(a == "s3:DeleteObject" for a in all_actions), (
+        "Did not expect s3:DeleteObject in Lambda IAM policies — "
+        "grant_read_write emits this as a side-effect; use explicit action grants instead"
     )
 
 

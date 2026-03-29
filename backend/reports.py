@@ -1722,7 +1722,15 @@ def report_to_pdf(document: ReportDocument) -> bytes:
     buf = io.BytesIO()
     # Disable PDF stream compression so smoke tests can assert key rendered
     # strings directly from raw bytes.
-    c = canvas.Canvas(buf, pagesize=letter, pageCompression=0)
+    try:
+        c = canvas.Canvas(buf, pagesize=letter, pageCompression=0)
+    except TypeError as exc:
+        # Some tests monkeypatch canvas.Canvas with lightweight fakes that do
+        # not accept reportlab-only kwargs. Fall back to the default signature
+        # while preserving TypeError for unrelated constructor issues.
+        if "pageCompression" not in str(exc):
+            raise
+        c = canvas.Canvas(buf, pagesize=letter)
     # Keep page content uncompressed so byte-level PDF assertions remain stable
     # in tests that verify rendered section text is present in the output.
     if hasattr(c, "setPageCompression"):

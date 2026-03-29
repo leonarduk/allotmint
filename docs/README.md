@@ -60,7 +60,7 @@ finished frozen product.
 | Storage  | S3 JSON / CSV (no RDBMS)                     |
 | IaC      | AWS CDK (Py)                                 |
 
-The backend, CI/CD workflows, and tests all target Python 3.12.
+The repository supports Python 3.11+ with CI/CD workflows pinned to Python 3.12.
 
 For advisory AI pull-request reviews, the repository includes `.github/workflows/gpt-pr-review.yml`
 and `.github/workflows/claude-pr-review.yml`. Configure both `OPENAI_API_KEY` and

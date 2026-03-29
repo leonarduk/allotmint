@@ -7,7 +7,8 @@
   to `.env` for local or AWS environments. Provide secrets via environment variables.
 
 ## Common Troubleshooting Steps
-- Verify that Python (3.12) and Node.js versions meet project requirements.
+- Verify that Python (3.11+) and Node.js versions meet project requirements
+  (CI/CD uses Python 3.12).
 - Clear cached data under `data/cache/` if stale responses cause issues.
 - Run `pytest` and `npm test` to check for failing tests before debugging.
   Sample account JSON files in `data/accounts/` allow these tests to run

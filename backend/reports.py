@@ -533,6 +533,8 @@ class ReportContext:
     _performance: Dict[str, Any] | None = None
     _transactions: List[Dict[str, Any]] | None = None
     _allocation: List[Dict[str, Any]] | None = None
+    _owner_portfolio: Dict[str, Any] | None = None
+    _owner_portfolio_loaded: bool = False
 
     def summary(self) -> ReportData:
         if self._summary is None:
@@ -557,6 +559,22 @@ class ReportContext:
             filtered.sort(key=lambda row: (row.get("date") or "", row.get("type") or ""))
             self._transactions = filtered
         return list(self._transactions)
+
+
+    def owner_portfolio(self) -> Dict[str, Any] | None:
+        if self._owner_portfolio_loaded:
+            return self._owner_portfolio
+        self._owner_portfolio_loaded = True
+        if portfolio_mod is None:
+            return None
+        try:
+            self._owner_portfolio = portfolio_mod.build_owner_portfolio(
+                self.owner,
+                pricing_date=self.end,
+            )
+        except (FileNotFoundError, ValueError):
+            self._owner_portfolio = None
+        return self._owner_portfolio
 
     def allocation(self) -> List[Dict[str, Any]]:
         if self._allocation is None:
@@ -716,11 +734,8 @@ def _build_allocation_section(
 def _build_portfolio_overview_section(
     context: ReportContext, section: ReportSectionSchema
 ) -> Sequence[Dict[str, Any]]:
-    if portfolio_mod is None:
-        return []
-    try:
-        portfolio = portfolio_mod.build_owner_portfolio(context.owner)
-    except (FileNotFoundError, ValueError):
+    portfolio = context.owner_portfolio()
+    if not portfolio:
         return []
 
     rows: List[Dict[str, Any]] = []
@@ -791,10 +806,10 @@ def _build_portfolio_overview_section(
 def _build_portfolio_sectors_section(
     context: ReportContext, section: ReportSectionSchema
 ) -> Sequence[Dict[str, Any]]:
-    if portfolio_mod is None:
+    portfolio = context.owner_portfolio()
+    if not portfolio:
         return []
     try:
-        portfolio = portfolio_mod.build_owner_portfolio(context.owner)
         rows = portfolio_utils.aggregate_by_sector(portfolio)
     except (FileNotFoundError, ValueError):
         return []
@@ -821,10 +836,10 @@ def _build_portfolio_sectors_section(
 def _build_portfolio_regions_section(
     context: ReportContext, section: ReportSectionSchema
 ) -> Sequence[Dict[str, Any]]:
-    if portfolio_mod is None:
+    portfolio = context.owner_portfolio()
+    if not portfolio:
         return []
     try:
-        portfolio = portfolio_mod.build_owner_portfolio(context.owner)
         rows = portfolio_utils.aggregate_by_region(portfolio)
     except (FileNotFoundError, ValueError):
         return []
@@ -851,10 +866,10 @@ def _build_portfolio_regions_section(
 def _build_portfolio_concentration_section(
     context: ReportContext, section: ReportSectionSchema
 ) -> Sequence[Dict[str, Any]]:
-    if portfolio_mod is None:
+    portfolio = context.owner_portfolio()
+    if not portfolio:
         return []
     try:
-        portfolio = portfolio_mod.build_owner_portfolio(context.owner)
         rows = portfolio_utils.aggregate_by_ticker(portfolio)
     except (FileNotFoundError, ValueError):
         return []
@@ -917,6 +932,8 @@ def _build_portfolio_var_section(
                 "units": "GBP",
             }
         )
+    if not rows:
+        return []
     try:
         sharpe_ratio = risk_mod.compute_sharpe_ratio(context.owner)
     except (FileNotFoundError, ValueError):

@@ -191,7 +191,18 @@ def test_portfolio_section_builders(monkeypatch):
             },
         ],
     }
-    monkeypatch.setattr(reports.portfolio_mod, "build_owner_portfolio", lambda owner: portfolio_payload)
+    build_calls = {"count": 0, "pricing_dates": []}
+
+    def _build_owner_portfolio(owner, pricing_date=None):
+        build_calls["count"] += 1
+        build_calls["pricing_dates"].append(pricing_date)
+        return portfolio_payload
+
+    monkeypatch.setattr(
+        reports,
+        "portfolio_mod",
+        SimpleNamespace(build_owner_portfolio=_build_owner_portfolio),
+    )
     monkeypatch.setattr(
         reports.portfolio_utils,
         "aggregate_by_sector",
@@ -217,11 +228,17 @@ def test_portfolio_section_builders(monkeypatch):
         ],
     )
     monkeypatch.setattr(
-        reports.risk_mod,
-        "compute_portfolio_var",
-        lambda owner, confidence: {"confidence": confidence, "1d": 12.345, "10d": 34.567},
+        reports,
+        "risk_mod",
+        SimpleNamespace(
+            compute_portfolio_var=lambda owner, confidence: {
+                "confidence": confidence,
+                "1d": 12.345,
+                "10d": 34.567,
+            },
+            compute_sharpe_ratio=lambda owner: 1.23456,
+        ),
     )
-    monkeypatch.setattr(reports.risk_mod, "compute_sharpe_ratio", lambda owner: 1.23456)
 
     template = reports.ReportTemplate(
         template_id="portfolio-insights",
@@ -237,7 +254,8 @@ def test_portfolio_section_builders(monkeypatch):
     )
     monkeypatch.setattr(reports, "get_template", lambda template_id: template)
 
-    document = reports.build_report_document("portfolio-insights", "alice")
+    end = date(2024, 1, 31)
+    document = reports.build_report_document("portfolio-insights", "alice", end=end)
     sources = {section.schema.source: section.rows for section in document.sections}
 
     overview_rows = sources["portfolio.overview"]
@@ -255,10 +273,129 @@ def test_portfolio_section_builders(monkeypatch):
     concentration_rows = sources["portfolio.concentration"]
     assert concentration_rows[0]["ticker"] == "AAA.L"
     assert concentration_rows[0]["hhi"] == 0.52
+    assert concentration_rows[0]["top_10_weight_pct"] == 100.0
 
     var_rows = sources["portfolio.var"]
     assert any(row["metric"] == "VaR" and row["confidence"] == 0.95 and row["horizon_days"] == 1 for row in var_rows)
     assert any(row["metric"] == "Sharpe ratio" and row["value"] == 1.2346 for row in var_rows)
+    assert build_calls["count"] == 1
+    assert build_calls["pricing_dates"] == [end]
+
+
+def test_portfolio_sections_return_empty_when_optional_modules_missing(monkeypatch):
+    monkeypatch.setattr(reports, "portfolio_mod", None)
+    monkeypatch.setattr(reports, "risk_mod", None)
+
+    context = reports.ReportContext(owner="alice", start=None, end=None)
+
+    assert reports._build_portfolio_overview_section(context, reports.PORTFOLIO_OVERVIEW_SECTION) == []
+    assert reports._build_portfolio_sectors_section(context, reports.PORTFOLIO_SECTORS_SECTION) == []
+    assert reports._build_portfolio_regions_section(context, reports.PORTFOLIO_REGIONS_SECTION) == []
+    assert reports._build_portfolio_concentration_section(context, reports.PORTFOLIO_CONCENTRATION_SECTION) == []
+    assert reports._build_portfolio_var_section(context, reports.PORTFOLIO_VAR_SECTION) == []
+
+
+@pytest.mark.parametrize("exception_type", [FileNotFoundError, ValueError])
+def test_portfolio_sections_tolerate_build_owner_portfolio_exceptions(monkeypatch, exception_type):
+    monkeypatch.setattr(
+        reports,
+        "portfolio_mod",
+        SimpleNamespace(
+            build_owner_portfolio=lambda owner, pricing_date=None: (_ for _ in ()).throw(exception_type("boom"))
+        ),
+    )
+    context = reports.ReportContext(owner="alice", start=None, end=None)
+
+    assert reports._build_portfolio_overview_section(context, reports.PORTFOLIO_OVERVIEW_SECTION) == []
+    assert reports._build_portfolio_sectors_section(context, reports.PORTFOLIO_SECTORS_SECTION) == []
+    assert reports._build_portfolio_regions_section(context, reports.PORTFOLIO_REGIONS_SECTION) == []
+    assert reports._build_portfolio_concentration_section(context, reports.PORTFOLIO_CONCENTRATION_SECTION) == []
+
+
+@pytest.mark.parametrize("exception_type", [FileNotFoundError, ValueError])
+def test_portfolio_derived_sections_tolerate_aggregation_exceptions(monkeypatch, exception_type):
+    monkeypatch.setattr(
+        reports,
+        "portfolio_mod",
+        SimpleNamespace(build_owner_portfolio=lambda owner, pricing_date=None: {"accounts": []}),
+    )
+    monkeypatch.setattr(
+        reports.portfolio_utils,
+        "aggregate_by_sector",
+        lambda portfolio: (_ for _ in ()).throw(exception_type("boom")),
+    )
+    monkeypatch.setattr(
+        reports.portfolio_utils,
+        "aggregate_by_region",
+        lambda portfolio: (_ for _ in ()).throw(exception_type("boom")),
+    )
+    monkeypatch.setattr(
+        reports.portfolio_utils,
+        "aggregate_by_ticker",
+        lambda portfolio: (_ for _ in ()).throw(exception_type("boom")),
+    )
+    context = reports.ReportContext(owner="alice", start=None, end=None)
+
+    assert reports._build_portfolio_sectors_section(context, reports.PORTFOLIO_SECTORS_SECTION) == []
+    assert reports._build_portfolio_regions_section(context, reports.PORTFOLIO_REGIONS_SECTION) == []
+    assert reports._build_portfolio_concentration_section(context, reports.PORTFOLIO_CONCENTRATION_SECTION) == []
+
+
+def test_portfolio_concentration_top_10_and_hhi_semantics(monkeypatch):
+    rows = [{"ticker": f"T{idx}", "market_value_gbp": float(120 - idx)} for idx in range(12)]
+    monkeypatch.setattr(
+        reports,
+        "portfolio_mod",
+        SimpleNamespace(build_owner_portfolio=lambda owner, pricing_date=None: {"accounts": []}),
+    )
+    monkeypatch.setattr(reports.portfolio_utils, "aggregate_by_ticker", lambda portfolio: rows)
+    context = reports.ReportContext(owner="alice", start=None, end=None)
+
+    result = reports._build_portfolio_concentration_section(context, reports.PORTFOLIO_CONCENTRATION_SECTION)
+
+    assert len(result) == 10
+    assert result[0]["rank"] == 1
+    assert result[-1]["rank"] == 10
+
+    total_value = sum(row["market_value_gbp"] for row in rows)
+    expected_top_10_weight_pct = round(
+        sum(row["market_value_gbp"] for row in rows[:10]) / total_value * 100.0, 4
+    )
+    expected_hhi = round(sum((row["market_value_gbp"] / total_value) ** 2 for row in rows), 6)
+
+    assert result[0]["top_10_weight_pct"] == expected_top_10_weight_pct
+    assert result[0]["hhi"] == expected_hhi
+    assert result[-1]["top_10_weight_pct"] == expected_top_10_weight_pct
+    assert result[-1]["hhi"] == expected_hhi
+
+
+def test_portfolio_var_returns_empty_when_var_rows_unavailable(monkeypatch):
+    monkeypatch.setattr(
+        reports,
+        "risk_mod",
+        SimpleNamespace(
+            compute_portfolio_var=lambda owner, confidence: (_ for _ in ()).throw(ValueError("no var rows")),
+            compute_sharpe_ratio=lambda owner: 2.0,
+        ),
+    )
+    context = reports.ReportContext(owner="alice", start=None, end=None)
+
+    assert reports._build_portfolio_var_section(context, reports.PORTFOLIO_VAR_SECTION) == []
+
+
+@pytest.mark.parametrize("exception_type", [FileNotFoundError, ValueError])
+def test_portfolio_var_tolerates_risk_exceptions(monkeypatch, exception_type):
+    monkeypatch.setattr(
+        reports,
+        "risk_mod",
+        SimpleNamespace(
+            compute_portfolio_var=lambda owner, confidence: (_ for _ in ()).throw(exception_type("no var")),
+            compute_sharpe_ratio=lambda owner: (_ for _ in ()).throw(exception_type("no sharpe")),
+        ),
+    )
+    context = reports.ReportContext(owner="alice", start=None, end=None)
+
+    assert reports._build_portfolio_var_section(context, reports.PORTFOLIO_VAR_SECTION) == []
 
 
 def test_list_template_metadata_merges_user_templates(tmp_path):

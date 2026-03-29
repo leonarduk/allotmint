@@ -20,8 +20,16 @@ except ModuleNotFoundError:  # pragma: no cover - exercised in tests when missin
     letter = None
     canvas = None
 
-from backend.common import portfolio as portfolio_mod
-from backend.common import risk
+try:
+    from backend.common import portfolio as portfolio_mod
+except ModuleNotFoundError:  # pragma: no cover - exercised in tests when missing
+    portfolio_mod = None
+
+try:
+    from backend.common import risk as risk_mod
+except ModuleNotFoundError:  # pragma: no cover - exercised in tests when missing
+    risk_mod = None
+
 from backend.common import portfolio_utils
 from backend.config import config
 
@@ -157,6 +165,85 @@ ALLOCATION_BREAKDOWN_TEMPLATE = ReportTemplate(
     ),
 )
 
+PORTFOLIO_OVERVIEW_SECTION = ReportSectionSchema(
+    id="portfolio-overview",
+    title="Portfolio overview",
+    source="portfolio.overview",
+    description="Owner-level summary, account breakdown, and asset class allocation",
+    columns=(
+        ReportColumnSchema("category", "Category"),
+        ReportColumnSchema("label", "Label"),
+        ReportColumnSchema("value", "Value", type="number"),
+        ReportColumnSchema("units", "Units"),
+    ),
+)
+
+PORTFOLIO_SECTORS_SECTION = ReportSectionSchema(
+    id="portfolio-sectors",
+    title="Portfolio by sector",
+    source="portfolio.sectors",
+    description="Holdings aggregated by sector with valuation and contribution metrics",
+    columns=(
+        ReportColumnSchema("sector", "Sector"),
+        ReportColumnSchema("market_value_gbp", "Market value (GBP)", type="number"),
+        ReportColumnSchema("gain_gbp", "Gain (GBP)", type="number"),
+        ReportColumnSchema("cost_gbp", "Cost (GBP)", type="number"),
+        ReportColumnSchema("gain_pct", "Gain (%)", type="number"),
+        ReportColumnSchema("contribution_pct", "Contribution (%)", type="number"),
+        ReportColumnSchema("weight_pct", "Weight (%)", type="number"),
+    ),
+)
+
+PORTFOLIO_REGIONS_SECTION = ReportSectionSchema(
+    id="portfolio-regions",
+    title="Portfolio by region",
+    source="portfolio.regions",
+    description="Holdings aggregated by region with valuation and contribution metrics",
+    columns=(
+        ReportColumnSchema("region", "Region"),
+        ReportColumnSchema("market_value_gbp", "Market value (GBP)", type="number"),
+        ReportColumnSchema("gain_gbp", "Gain (GBP)", type="number"),
+        ReportColumnSchema("cost_gbp", "Cost (GBP)", type="number"),
+        ReportColumnSchema("gain_pct", "Gain (%)", type="number"),
+        ReportColumnSchema("contribution_pct", "Contribution (%)", type="number"),
+        ReportColumnSchema("weight_pct", "Weight (%)", type="number"),
+    ),
+)
+
+PORTFOLIO_CONCENTRATION_SECTION = ReportSectionSchema(
+    id="portfolio-concentration",
+    title="Portfolio concentration",
+    source="portfolio.concentration",
+    description=(
+        "Top holdings by weight (up to 10) followed by a portfolio-level summary row "
+        "containing HHI and top-N weight percentage"
+    ),
+    columns=(
+        ReportColumnSchema("row_type", "Row type"),
+        ReportColumnSchema("rank", "Rank", type="number"),
+        ReportColumnSchema("ticker", "Ticker"),
+        ReportColumnSchema("market_value_gbp", "Market value (GBP)", type="number"),
+        ReportColumnSchema("weight_pct", "Weight (%)", type="number"),
+        ReportColumnSchema("hhi", "HHI", type="number"),
+        ReportColumnSchema("top_n_weight_pct", "Top-N weight (%)", type="number"),
+        ReportColumnSchema("n_holdings", "N holdings", type="number"),
+    ),
+)
+
+PORTFOLIO_VAR_SECTION = ReportSectionSchema(
+    id="portfolio-var",
+    title="Portfolio VaR",
+    source="portfolio.var",
+    description="Portfolio Value-at-Risk and Sharpe ratio summary",
+    columns=(
+        ReportColumnSchema("metric", "Metric"),
+        ReportColumnSchema("confidence", "Confidence", type="number"),
+        ReportColumnSchema("horizon_days", "Horizon (days)", type="number"),
+        ReportColumnSchema("value", "Value", type="number"),
+        ReportColumnSchema("units", "Units"),
+    ),
+)
+
 
 AUDIT_REPORT_TEMPLATE = ReportTemplate(
     template_id="audit-report",
@@ -167,51 +254,36 @@ AUDIT_REPORT_TEMPLATE = ReportTemplate(
             id="portfolio-overview",
             title="Portfolio overview",
             source="portfolio.overview",
-            columns=(
-                ReportColumnSchema("metric", "Metric"),
-                ReportColumnSchema("value", "Value"),
-                ReportColumnSchema("units", "Units"),
-            ),
+            description=PORTFOLIO_OVERVIEW_SECTION.description,
+            columns=PORTFOLIO_OVERVIEW_SECTION.columns,
         ),
         ReportSectionSchema(
             id="true-exposure-sector",
             title="True exposure (sector)",
             source="portfolio.sectors",
-            columns=(
-                ReportColumnSchema("bucket", "Sector"),
-                ReportColumnSchema("value_gbp", "Value (GBP)", type="number"),
-                ReportColumnSchema("weight_pct", "Weight (%)", type="number"),
-            ),
+            description=PORTFOLIO_SECTORS_SECTION.description,
+            columns=PORTFOLIO_SECTORS_SECTION.columns,
         ),
         ReportSectionSchema(
             id="true-exposure-region",
             title="True exposure (region)",
             source="portfolio.regions",
-            columns=(
-                ReportColumnSchema("bucket", "Region"),
-                ReportColumnSchema("value_gbp", "Value (GBP)", type="number"),
-                ReportColumnSchema("weight_pct", "Weight (%)", type="number"),
-            ),
+            description=PORTFOLIO_REGIONS_SECTION.description,
+            columns=PORTFOLIO_REGIONS_SECTION.columns,
         ),
         ReportSectionSchema(
             id="concentration-risk",
             title="Concentration risk",
             source="portfolio.concentration",
-            columns=(
-                ReportColumnSchema("ticker", "Ticker"),
-                ReportColumnSchema("value_gbp", "Value (GBP)", type="number"),
-                ReportColumnSchema("weight_pct", "Weight (%)", type="number"),
-            ),
+            description=PORTFOLIO_CONCENTRATION_SECTION.description,
+            columns=PORTFOLIO_CONCENTRATION_SECTION.columns,
         ),
         ReportSectionSchema(
             id="risk-assessment",
             title="Risk assessment (VaR/Sharpe)",
-            source="portfolio.risk",
-            columns=(
-                ReportColumnSchema("metric", "Metric"),
-                ReportColumnSchema("value", "Value", type="number"),
-                ReportColumnSchema("units", "Units"),
-            ),
+            source="portfolio.var",
+            description=PORTFOLIO_VAR_SECTION.description,
+            columns=PORTFOLIO_VAR_SECTION.columns,
         ),
     ),
 )
@@ -511,6 +583,8 @@ class ReportContext:
     _performance: Dict[str, Any] | None = None
     _transactions: List[Dict[str, Any]] | None = None
     _allocation: List[Dict[str, Any]] | None = None
+    _owner_portfolio: Dict[str, Any] | None = None
+    _owner_portfolio_loaded: bool = False
 
     def summary(self) -> ReportData:
         if self._summary is None:
@@ -535,6 +609,24 @@ class ReportContext:
             filtered.sort(key=lambda row: (row.get("date") or "", row.get("type") or ""))
             self._transactions = filtered
         return list(self._transactions)
+
+    def owner_portfolio(self) -> Dict[str, Any] | None:
+        if self._owner_portfolio_loaded:
+            return self._owner_portfolio
+        self._owner_portfolio_loaded = True
+        if portfolio_mod is None:
+            logger.warning("portfolio module unavailable; portfolio sections will be empty")
+            self._owner_portfolio = None
+            return None
+        try:
+            self._owner_portfolio = portfolio_mod.build_owner_portfolio(
+                self.owner,
+                pricing_date=self.end,
+            )
+        except (FileNotFoundError, ValueError) as exc:
+            logger.warning("failed to build owner portfolio for %s: %s", self.owner, exc)
+            self._owner_portfolio = None
+        return self._owner_portfolio
 
     def allocation(self) -> List[Dict[str, Any]]:
         if self._allocation is None:

@@ -34,6 +34,10 @@ logger = logging.getLogger(__name__)
 _TEMPLATE_ID_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$")
 _SECTION_ID_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$")
 
+# Parameters keys that are consumed internally by report_to_pdf and must not be
+# rendered in the visible parameters block on the title page.
+_PDF_INTERNAL_PARAM_KEYS: frozenset[str] = frozenset({"watermark"})
+
 
 @dataclass(slots=True)
 class ReportColumnSchema:
@@ -624,7 +628,7 @@ def _build_history_section(
 
 def _build_transactions_section(
     context: ReportContext, section: ReportSectionSchema
-) -> Sequence[Dict[str, Any]]:
+) -> Sequence[Dict[str, Any]]:\
     return context.transactions()
 
 
@@ -1078,9 +1082,6 @@ def report_to_pdf(document: ReportDocument) -> bytes:
             return "\u2014"
         if any(token in key for token in ("_gbp", "amount", "price", "value")) or "gbp" in label:
             return _format_gbp(row_value)
-        # Explicit parentheses to clarify precedence: `and` binds tighter than `or`.
-        # The `units` column is intentionally excluded — it holds numeric quantities
-        # (e.g. share count), not percentage values.
         if (
             "return" in key
             or "drawdown" in key
@@ -1129,10 +1130,17 @@ def report_to_pdf(document: ReportDocument) -> bytes:
         c.drawString(40, height - 190, f"Generated: {generated_at}")
         c.setFont("Helvetica-Bold", 10)
         c.drawString(40, height - 220, "CONFIDENTIAL")
-        if document.parameters:
+        # Render user-visible parameters, excluding internal PDF rendering keys
+        # such as "watermark" which would otherwise leak into the visible report.
+        visible_params = {
+            k: v
+            for k, v in document.parameters.items()
+            if k not in _PDF_INTERNAL_PARAM_KEYS
+        }
+        if visible_params:
             y = height - 245
             c.setFont("Helvetica", 10)
-            for key, value in sorted(document.parameters.items()):
+            for key, value in sorted(visible_params.items()):
                 c.drawString(40, y, f"{key}: {value}")
                 y -= 14
 
@@ -1197,11 +1205,11 @@ def report_to_pdf(document: ReportDocument) -> bytes:
                 table_style.add("ALIGN", (idx, 1), (idx, -1), "RIGHT")
         table.setStyle(table_style)
 
-        # Use a single wrapOn call for layout — it returns (width, height) and is
-        # the canonical ReportLab API for laying out a Table on a specific canvas.
-        # Calling wrap() afterwards is redundant and may produce inconsistent results.
+        # Initial layout check: does the table fit on the current page?
         _, table_height = table.wrapOn(c, table_width, y - 60)
         if y - table_height < 50:
+            # Table doesn't fit — start a new page and re-wrap against the full
+            # available height so layout is computed correctly for the new page.
             _new_page()
             if watermark:
                 _draw_watermark(watermark)
@@ -1210,6 +1218,7 @@ def report_to_pdf(document: ReportDocument) -> bytes:
             c.setFont("Helvetica", 9)
             c.drawString(40, height - 76, f"Owner: {document.owner}")
             y = _draw_section_header(section, height - 100)
+            _, table_height = table.wrapOn(c, table_width, y - 60)
         table.drawOn(c, 40, y - table_height)
         return y - table_height - 14
 
@@ -1226,9 +1235,8 @@ def report_to_pdf(document: ReportDocument) -> bytes:
     y_cursor = height - 100
     for section in document.sections:
         if y_cursor < 120:
-            # Call _new_page() first (commits the current page), then draw the
-            # watermark on the new page. The previous code drew the watermark
-            # before _new_page() which caused a double watermark on the old page.
+            # _new_page() commits the current page before starting a new one;
+            # the watermark is drawn on the new page only.
             _new_page()
             if watermark:
                 _draw_watermark(watermark)

@@ -759,6 +759,7 @@ def _normalise_transaction(
 
 
 def _parse_key_findings_text(content: str, *, source_name: str = "key findings") -> List[Dict[str, str]]:
+    max_length = 500
     findings: List[Dict[str, str]] = []
     for line in content.splitlines():
         value = line.strip()
@@ -772,10 +773,11 @@ def _parse_key_findings_text(content: str, *, source_name: str = "key findings")
                 value = numbered.group(2).strip()
         if not value:
             continue
-        if len(value) < 20 or len(value) > 240:
-            logger.warning(
-                "Skipping invalid key finding from %s: %s",
+        if len(value) > max_length:
+            logger.error(
+                "Skipping invalid key finding from %s because it exceeds %s characters: %s",
                 source_name,
+                max_length,
                 value,
             )
             continue

@@ -21,8 +21,10 @@ This workflow explains how to produce a customer report with manually written Ke
 4. **Write findings manually**
    - Findings are **NOT auto-generated**.
    - Write short, specific, numeric findings (one finding per line or bullet).
-   - Recommended format: 20-240 characters, include at least one number, and prefer `- `, `* `, or `1. ` style bullets.
-   - Findings that do not meet the recommended format are skipped with a warning during report generation rather than failing the whole report.
+   - Accepted length constraint: each finding must be no more than 500 characters.
+   - There is no minimum length requirement beyond non-empty text.
+   - Prefer `- `, `* `, or `1. ` style bullets for readability.
+   - Findings longer than 500 characters are skipped and logged as an error during report generation rather than failing the whole report.
 
 5. **Generate report**
    - Generate the `audit-report` document/PDF using the existing report route or report generation workflow.

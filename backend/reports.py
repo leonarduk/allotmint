@@ -567,9 +567,12 @@ class ReportContext:
     def owner_portfolio(self) -> Dict[str, Any] | None:
         if self._owner_portfolio_loaded:
             return self._owner_portfolio
+        # Mark as loaded before attempting I/O so a failure (or missing optional
+        # module) is cached for the remainder of this report build context.
+        self._owner_portfolio_loaded = True
         if portfolio_mod is None:
             logger.warning("portfolio module unavailable; portfolio sections will be empty")
-            self._owner_portfolio_loaded = True
+            self._owner_portfolio = None
             return None
         try:
             self._owner_portfolio = portfolio_mod.build_owner_portfolio(
@@ -579,7 +582,6 @@ class ReportContext:
         except (FileNotFoundError, ValueError) as exc:
             logger.warning("failed to build owner portfolio for %s: %s", self.owner, exc)
             self._owner_portfolio = None
-        self._owner_portfolio_loaded = True
         return self._owner_portfolio
 
     def allocation(self) -> List[Dict[str, Any]]:

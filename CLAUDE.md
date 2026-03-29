@@ -54,7 +54,7 @@ Branch naming convention: `fix/issue-NNNN-short-description` or `feat/issue-NNNN
 
 ## Preferred workflow
 
-0. For any change touching existing files, fetch and read the current file content in full before writing; do not rely on diff snippets or memory of earlier reads.
+0. For any change touching existing files, read the current file content in full from disk before writing; do not rely on diff snippets or memory of earlier reads.
 1. Inspect `git status` and avoid disturbing user changes.
 2. Read the exact script/package targets you plan to mention or change.
 3. Make the smallest coherent change.
@@ -90,7 +90,7 @@ C-specific rules (no dynamic allocation, pointer restrictions, preprocessor limi
 
 ### CDK / Infrastructure
 - Read the full current file content before editing any CDK stack file; never work from a diff alone.
-- CDK high-level grants (`grant_read_write`, `grant_read`, etc.) are broader than their names suggest; verify the full action set before choosing one.
+- CDK high-level grants (`grant_read_write`, `grant_read`, etc.) are broader than their names suggest; verify the full action set in AWS CDK docs and/or synthesized templates before choosing one.
 - For IAM/security permission changes, audit the actual handler code by tracing the full call chain and cite specific `file:function` references in comments and PR descriptions as evidence.
-- Prefer `bucket.bucket_arn` and `bucket.arn_for_objects("*")` over manually constructed `arn:aws:s3:::` strings to stay partition-agnostic.
+- Prefer `bucket.bucket_arn` (bucket-level actions like `s3:ListBucket`) and `bucket.arn_for_objects("*")` (object-level actions like `s3:GetObject`/`s3:PutObject`) over manually constructed `arn:aws:s3:::` strings to stay partition-agnostic; many policies need both.
 - CDK tests synthesize CloudFormation templates; verify the synthesized output contains what you expect instead of assuming code and template always align.

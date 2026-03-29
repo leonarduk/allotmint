@@ -135,6 +135,7 @@ class BackendLambdaStack(Stack):
 
         # BackendLambda: read + put + list
         # Audited: serves API requests that read and write portfolio/price data to S3.
+        # s3:ListBucket required: backend serves listing endpoints (e.g. portfolio enumeration).
         self._grant_bucket_access(
             backend_fn,
             bucket_name=bucket_name,
@@ -181,15 +182,18 @@ class BackendLambdaStack(Stack):
             environment=refresh_env,
         )
 
-        # PriceRefreshLambda: read + list only (no put)
-        # Audited: refresh_prices() writes prices_json to local filesystem path (config.prices_json
-        # resolves under data_root on disk), not to S3. S3 access is read-only for price history.
+        # PriceRefreshLambda: read + put, no list
+        # Audited: refresh_prices() calls get_price_snapshot() → load_meta_timeseries_range()
+        # → _rolling_cache() → _save_parquet(), which writes parquet files to S3 by known key
+        # (e.g. s3://bucket/meta/TICKER_EXCHANGE.parquet). All S3 access is by known key —
+        # no bucket enumeration. config.prices_json writes to local filesystem, not S3.
+        # See backend/timeseries/cache.py:_rolling_cache() and _save_parquet().
         self._grant_bucket_access(
             refresh_fn,
             bucket_name=bucket_name,
             allow_read=True,
-            allow_put=False,
-            allow_list=True,
+            allow_put=True,
+            allow_list=False,
         )
 
         events.Rule(
@@ -221,15 +225,17 @@ class BackendLambdaStack(Stack):
             environment=agent_env,
         )
 
-        # TradingAgentLambda: read + list only (no put)
-        # Audited: backend/agent/trading_agent.py calls load_prices_for_tickers() (S3 read)
-        # and _log_trade() which writes to TRADE_LOG_PATH (local filesystem). No S3 writes.
+        # TradingAgentLambda: read only, no put, no list
+        # Audited: backend/agent/trading_agent.py:run() calls load_prices_for_tickers()
+        # → load_meta_timeseries_range() which reads parquet files from S3 by known key.
+        # No S3 writes: _log_trade() writes to TRADE_LOG_PATH (local filesystem / CloudWatch).
+        # No bucket enumeration: all S3 access is by deterministic key.
         self._grant_bucket_access(
             agent_fn,
             bucket_name=bucket_name,
             allow_read=True,
             allow_put=False,
-            allow_list=True,
+            allow_list=False,
         )
 
         events.Rule(

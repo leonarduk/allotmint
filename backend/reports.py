@@ -214,14 +214,19 @@ PORTFOLIO_CONCENTRATION_SECTION = ReportSectionSchema(
     id="portfolio-concentration",
     title="Portfolio concentration",
     source="portfolio.concentration",
-    description="Top holdings by weight with concentration indicators",
+    description=(
+        "Top holdings by weight (up to 10) followed by a portfolio-level summary row "
+        "containing HHI and top-N weight percentage"
+    ),
     columns=(
+        ReportColumnSchema("row_type", "Row type"),
         ReportColumnSchema("rank", "Rank", type="number"),
         ReportColumnSchema("ticker", "Ticker"),
         ReportColumnSchema("market_value_gbp", "Market value (GBP)", type="number"),
         ReportColumnSchema("weight_pct", "Weight (%)", type="number"),
         ReportColumnSchema("hhi", "HHI", type="number"),
-        ReportColumnSchema("top_10_weight_pct", "Top 10 weight (%)", type="number"),
+        ReportColumnSchema("top_n_weight_pct", "Top-N weight (%)", type="number"),
+        ReportColumnSchema("n_holdings", "N holdings", type="number"),
     ),
 )
 
@@ -604,6 +609,23 @@ class ReportContext:
             self._allocation = normalised
         return list(self._allocation)
 
+    def owner_portfolio(self) -> Dict[str, Any] | None:
+        """Return the owner portfolio, fetching and caching it on first call.
+
+        Returns None if portfolio_mod is unavailable or the fetch fails, so
+        callers must guard against None rather than catching exceptions.
+        """
+        if self._owner_portfolio is None:
+            if portfolio_mod is None:
+                logger.warning("portfolio module unavailable; portfolio sections will be empty")
+                return None
+            try:
+                self._owner_portfolio = portfolio_mod.build_owner_portfolio(self.owner)
+            except (FileNotFoundError, ValueError) as exc:
+                logger.warning("failed to build owner portfolio for %s: %s", self.owner, exc)
+                return None
+        return self._owner_portfolio
+
 
 def _round_if_number(value: Any, digits: int) -> Optional[float]:
     try:
@@ -887,20 +909,40 @@ def _build_portfolio_concentration_section(
             }
         )
     weighted_rows.sort(key=lambda item: item["weight"], reverse=True)
-    top_rows = weighted_rows[:10]
+
+    # HHI is a portfolio-level scalar (sum of squared weights across ALL holdings).
+    # top_n_weight_pct is the sum of the top-N holdings' weights (N = min(10, total)).
+    # Both are reported in a single dedicated summary row rather than duplicated on
+    # every holding row, which would be semantically misleading.
     hhi = sum(item["weight"] * item["weight"] for item in weighted_rows)
-    top_10_weight_pct = sum(item["weight"] for item in top_rows) * 100.0
-    return [
+    top_rows = weighted_rows[:10]
+    n = len(top_rows)
+    top_n_weight_pct = sum(item["weight"] for item in top_rows) * 100.0
+
+    holding_rows: List[Dict[str, Any]] = [
         {
+            "row_type": "holding",
             "rank": index + 1,
             "ticker": row.get("ticker"),
             "market_value_gbp": row.get("market_value_gbp"),
             "weight_pct": _round_if_number((row.get("weight") or 0.0) * 100.0, 4),
-            "hhi": _round_if_number(hhi, 6),
-            "top_10_weight_pct": _round_if_number(top_10_weight_pct, 4),
+            "hhi": None,
+            "top_n_weight_pct": None,
+            "n_holdings": None,
         }
         for index, row in enumerate(top_rows)
     ]
+    summary_row: Dict[str, Any] = {
+        "row_type": "summary",
+        "rank": None,
+        "ticker": None,
+        "market_value_gbp": None,
+        "weight_pct": None,
+        "hhi": _round_if_number(hhi, 6),
+        "top_n_weight_pct": _round_if_number(top_n_weight_pct, 4),
+        "n_holdings": n,
+    }
+    return holding_rows + [summary_row]
 
 
 def _build_portfolio_var_section(
@@ -938,15 +980,17 @@ def _build_portfolio_var_section(
         sharpe_ratio = risk_mod.compute_sharpe_ratio(context.owner)
     except (FileNotFoundError, ValueError):
         sharpe_ratio = None
-    rows.append(
-        {
-            "metric": "Sharpe ratio",
-            "confidence": None,
-            "horizon_days": None,
-            "value": _round_if_number(sharpe_ratio, 4),
-            "units": "ratio",
-        }
-    )
+    # Only append the Sharpe row when we have a value; an all-None row is noise.
+    if sharpe_ratio is not None:
+        rows.append(
+            {
+                "metric": "Sharpe ratio",
+                "confidence": None,
+                "horizon_days": None,
+                "value": _round_if_number(sharpe_ratio, 4),
+                "units": "ratio",
+            }
+        )
     return rows
 
 

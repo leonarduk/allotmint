@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from pathlib import Path
 import sys
+from pathlib import Path
 
 from aws_cdk import App
+from aws_cdk import aws_lambda as _lambda
 from aws_cdk.assertions import Template
 
 CDK_DIR = Path(__file__).resolve().parents[1]
@@ -11,6 +12,9 @@ if str(CDK_DIR) not in sys.path:
     sys.path.insert(0, str(CDK_DIR))
 
 from stacks.backend_lambda_stack import BackendLambdaStack
+
+
+BACKEND_LIST_PREFIXES = ("accounts", "queries", "timeseries/meta", "transactions")
 
 
 def _stack_template() -> dict:
@@ -108,6 +112,38 @@ def _resources_for_s3_action(template: dict, role_logical_id: str, target_action
     return found
 
 
+def _conditions_for_s3_action(
+    template: dict, role_logical_id: str, target_action: str
+) -> list[dict]:
+    """Return IAM Condition objects for statements granting target_action."""
+    found: list[dict] = []
+    resources = template["Resources"]
+    for resource in resources.values():
+        if resource.get("Type") != "AWS::IAM::Policy":
+            continue
+        roles = resource.get("Properties", {}).get("Roles", [])
+        role_refs = {
+            r["Ref"]
+            for r in roles
+            if isinstance(r, dict) and isinstance(r.get("Ref"), str)
+        }
+        if role_logical_id not in role_refs:
+            continue
+
+        policy_doc = resource.get("Properties", {}).get("PolicyDocument", {})
+        for statement in policy_doc.get("Statement", []):
+            actions = statement.get("Action", [])
+            if isinstance(actions, str):
+                actions = [actions]
+            if target_action not in actions:
+                continue
+            condition = statement.get("Condition")
+            if isinstance(condition, dict):
+                found.append(condition)
+
+    return found
+
+
 # Maximum allowed S3 action sets per Lambda role (upper bounds for least-privilege enforcement).
 # Audit evidence:
 #   BackendLambda      — full API; reads, writes, and lists portfolio/price data.
@@ -174,6 +210,91 @@ def test_s3_permissions_are_scoped_per_lambda() -> None:
             f"BackendLambda s3:ListBucket is scoped to an object ARN ({arn}); "
             "it must be scoped to the bucket ARN only (no trailing /*)"
         )
+
+    list_bucket_conditions = _conditions_for_s3_action(template, backend_role, "s3:ListBucket")
+    assert list_bucket_conditions, (
+        "BackendLambda has s3:ListBucket but no associated IAM Condition"
+    )
+    expected_prefix_entries: list[str] = []
+    for prefix in BACKEND_LIST_PREFIXES:
+        expected_prefix_entries.extend([prefix, f"{prefix}/*"])
+    expected_prefix = {"StringLike": {"s3:prefix": expected_prefix_entries}}
+    assert expected_prefix in list_bucket_conditions, (
+        "BackendLambda s3:ListBucket must be conditioned to all audited backend list prefixes"
+    )
+
+
+def test_non_listing_lambdas_do_not_have_listbucket_statement() -> None:
+    template = _stack_template()
+
+    refresh_role = _role_logical_id_for_lambda(template, "PriceRefreshLambda")
+    trading_role = _role_logical_id_for_lambda(template, "TradingAgentLambda")
+
+    assert not _conditions_for_s3_action(template, refresh_role, "s3:ListBucket"), (
+        "PriceRefreshLambda should not have a ListBucket statement"
+    )
+    assert not _conditions_for_s3_action(template, trading_role, "s3:ListBucket"), (
+        "TradingAgentLambda should not have a ListBucket statement"
+    )
+
+
+def test_grant_bucket_access_requires_list_prefix_when_allow_list_enabled() -> None:
+    app = App()
+    stack = BackendLambdaStack(app, "GrantBucketAccessValidationStack")
+    fn = _lambda.Function(
+        stack,
+        "GrantBucketAccessValidationFn",
+        runtime=_lambda.Runtime.PYTHON_3_11,
+        code=_lambda.Code.from_inline("def handler(event, context):\n    return None\n"),
+        handler="index.handler",
+    )
+
+    for invalid_prefix in (None, "", "   ", (), ("",)):
+        try:
+            BackendLambdaStack._grant_bucket_access(
+                fn,
+                bucket_name="unit-test-bucket",
+                allow_read=False,
+                allow_put=False,
+                allow_list=True,
+                list_prefix=invalid_prefix,
+            )
+        except ValueError:
+            continue
+        raise AssertionError(
+            f"Expected ValueError for allow_list=True with list_prefix={invalid_prefix!r}"
+        )
+
+
+def test_grant_bucket_access_accepts_multiple_list_prefixes() -> None:
+    app = App()
+    stack = BackendLambdaStack(app, "GrantBucketAccessPrefixesStack")
+    fn = _lambda.Function(
+        stack,
+        "GrantBucketAccessPrefixesFn",
+        runtime=_lambda.Runtime.PYTHON_3_11,
+        code=_lambda.Code.from_inline("def handler(event, context):\n    return None\n"),
+        handler="index.handler",
+    )
+
+    BackendLambdaStack._grant_bucket_access(
+        fn,
+        bucket_name="unit-test-bucket",
+        allow_read=False,
+        allow_put=False,
+        allow_list=True,
+        list_prefix=BACKEND_LIST_PREFIXES,
+    )
+
+    template = Template.from_stack(stack).to_json()
+    role_logical_id = _role_logical_id_for_lambda(template, "GrantBucketAccessPrefixesFn")
+    conditions = _conditions_for_s3_action(template, role_logical_id, "s3:ListBucket")
+    assert len(conditions) == 1, "Expected exactly one ListBucket statement"
+
+    expected_prefix_entries: list[str] = []
+    for prefix in BACKEND_LIST_PREFIXES:
+        expected_prefix_entries.extend([prefix, f"{prefix}/*"])
+    assert conditions[0] == {"StringLike": {"s3:prefix": expected_prefix_entries}}
 
 
 def test_lambda_roles_do_not_have_s3_delete_permissions() -> None:

@@ -1773,7 +1773,9 @@ def report_to_pdf(document: ReportDocument) -> bytes:
             return _format_gbp(row_value)
         if "pct" in key or "percent" in key:
             return _format_percent(row_value, value_is_ratio=False)
-        if "return" in key or "drawdown" in key or key == "weight":
+        # Keep this block after the *_pct / percent check above so names like
+        # "return_pct" remain percent-point values (not ratio-scaled).
+        if "return" in key or "drawdown" in key or "weight" in key:
             return _format_percent(row_value, value_is_ratio=True)
         if column.type == "number":
             try:

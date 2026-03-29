@@ -1290,7 +1290,7 @@ def test_audit_template_builders_render_non_empty_rows(monkeypatch, caplog):
     monkeypatch.setattr(
         reports.risk_mod,
         "compute_portfolio_var",
-        lambda owner, confidence: {
+        lambda owner, confidence, include_cash=True: {
             "confidence": confidence,
             "1d": 12.34 if confidence == 0.95 else 18.76,
             "10d": 39.01 if confidence == 0.95 else 59.52,

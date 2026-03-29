@@ -1108,7 +1108,9 @@ def test_build_report_document_audit_template_dispatches_real_builders(monkeypat
     monkeypatch.setattr(
         reports.risk,
         "compute_portfolio_var",
-        lambda owner, confidence=0.95: {"1d": 10.0 if confidence == 0.95 else 20.0},
+        lambda owner, confidence=0.95, include_cash=True: {
+            "1d": 10.0 if confidence == 0.95 else 20.0
+        },
     )
     monkeypatch.setattr(reports.risk, "compute_sharpe_ratio", lambda owner: 1.11)
 

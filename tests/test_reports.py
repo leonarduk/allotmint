@@ -990,3 +990,199 @@ def test_transaction_roots_local(monkeypatch, tmp_path):
     assert output_root.as_posix() in roots
     assert accounts_root.as_posix() in roots
     assert transactions_dir.as_posix() in roots
+
+
+def test_audit_template_is_registered_with_expected_sections():
+    template = reports.BUILTIN_TEMPLATES.get("audit-report")
+
+    assert template is not None
+    assert template.builtin is True
+    assert [section.id for section in template.sections] == [
+        "portfolio-overview",
+        "true-exposure-sector",
+        "true-exposure-region",
+        "concentration-risk",
+        "risk-assessment",
+    ]
+    assert [section.source for section in template.sections] == [
+        "portfolio.overview",
+        "portfolio.sectors",
+        "portfolio.regions",
+        "portfolio.concentration",
+        "portfolio.var",
+    ]
+
+
+def test_audit_template_sources_are_all_registered():
+    template = reports.BUILTIN_TEMPLATES["audit-report"]
+    missing = [
+        section.source
+        for section in template.sections
+        if section.source not in reports.SECTION_BUILDERS
+    ]
+    assert missing == []
+
+
+def test_audit_template_builders_render_non_empty_rows(monkeypatch, caplog):
+    monkeypatch.setattr(
+        reports.portfolio_mod,
+        "build_owner_portfolio",
+        lambda owner, pricing_date=None: {
+            "owner": owner,
+            "total_value_estimate_gbp": 200.0,
+            "accounts": [
+                {
+                    "account_type": "ISA",
+                    "value_estimate_gbp": 200.0,
+                    "holdings": [
+                        {"ticker": "AAA.L", "asset_class": "Equity", "market_value_gbp": 120.0},
+                        {"ticker": "BBB.L", "asset_class": "Equity", "market_value_gbp": 80.0},
+                    ],
+                }
+            ],
+        },
+    )
+    monkeypatch.setattr(
+        reports.portfolio_utils,
+        "aggregate_by_sector",
+        lambda portfolio: [
+            {
+                "sector": "Technology",
+                "market_value_gbp": 120.0,
+                "gain_gbp": 12.0,
+                "cost_gbp": 108.0,
+                "gain_pct": 0.1111,
+                "contribution_pct": 0.6,
+            },
+            {
+                "sector": "Healthcare",
+                "market_value_gbp": 80.0,
+                "gain_gbp": 8.0,
+                "cost_gbp": 72.0,
+                "gain_pct": 0.1111,
+                "contribution_pct": 0.4,
+            },
+        ],
+    )
+    monkeypatch.setattr(
+        reports.portfolio_utils,
+        "aggregate_by_region",
+        lambda portfolio: [
+            {
+                "region": "North America",
+                "market_value_gbp": 150.0,
+                "gain_gbp": 15.0,
+                "cost_gbp": 135.0,
+                "gain_pct": 0.1111,
+                "contribution_pct": 0.75,
+            },
+            {
+                "region": "Europe",
+                "market_value_gbp": 50.0,
+                "gain_gbp": 5.0,
+                "cost_gbp": 45.0,
+                "gain_pct": 0.1111,
+                "contribution_pct": 0.25,
+            },
+        ],
+    )
+    monkeypatch.setattr(
+        reports.portfolio_utils,
+        "aggregate_by_ticker",
+        lambda portfolio: [
+            {"ticker": "AAA.L", "market_value_gbp": 120.0},
+            {"ticker": "BBB.L", "market_value_gbp": 80.0},
+        ],
+    )
+    monkeypatch.setattr(
+        reports.risk_mod,
+        "compute_portfolio_var",
+        lambda owner, confidence: {
+            "confidence": confidence,
+            "1d": 12.34 if confidence == 0.95 else 18.76,
+            "10d": 39.01 if confidence == 0.95 else 59.52,
+        },
+    )
+    monkeypatch.setattr(reports.risk_mod, "compute_sharpe_ratio", lambda owner: 1.23)
+
+    with caplog.at_level("WARNING", logger=reports.logger.name):
+        document = reports.build_report_document("audit-report", "alice")
+
+    assert "No builder registered" not in caplog.text
+    assert all(section.rows for section in document.sections)
+
+    csv_content = reports.report_to_csv(document).decode("utf-8")
+    assert "Sharpe ratio" in csv_content
+    assert "Technology" in csv_content
+    assert "AAA.L" in csv_content
+
+
+def test_audit_risk_section_includes_var_and_sharpe(monkeypatch):
+    monkeypatch.setattr(
+        reports,
+        "risk_mod",
+        SimpleNamespace(
+            compute_portfolio_var=lambda owner, confidence: {
+                "confidence": confidence,
+                "1d": 12.34 if confidence == 0.95 else 18.76,
+                "10d": 39.01 if confidence == 0.95 else 59.52,
+            },
+            compute_sharpe_ratio=lambda owner: 1.23,
+        ),
+    )
+    monkeypatch.setattr(
+        reports,
+        "portfolio_mod",
+        SimpleNamespace(
+            build_owner_portfolio=lambda owner, pricing_date=None: {"accounts": []}
+        ),
+    )
+
+    rows = reports._build_portfolio_var_section(
+        reports.ReportContext(owner="alice", start=None, end=None),
+        reports.ReportSectionSchema(
+            id="risk-assessment",
+            title="Risk assessment (VaR/Sharpe)",
+            source="portfolio.var",
+            columns=(),
+        ),
+    )
+
+    metrics = {row["metric"] for row in rows}
+    assert "Sharpe ratio" in metrics
+    assert sum(1 for row in rows if row["metric"] == "VaR") == 4
+    assert {row["confidence"] for row in rows if row["metric"] == "VaR"} == {0.95, 0.99}
+
+
+def test_build_report_document_fails_for_builtin_missing_builder(monkeypatch):
+    template = reports.ReportTemplate(
+        template_id="builtin-broken",
+        name="Broken",
+        description="",
+        sections=(
+            reports.ReportSectionSchema(
+                id="mystery",
+                title="Mystery",
+                source="unknown.section",
+                columns=(),
+            ),
+        ),
+        builtin=True,
+    )
+    monkeypatch.setattr(reports, "get_template", lambda template_id, store=None: template)
+    monkeypatch.setattr(
+        reports, "ReportContext", lambda owner, start=None, end=None: SimpleNamespace(
+            summary=lambda: reports.ReportData(
+                owner=owner,
+                start=None,
+                end=None,
+                realized_gains_gbp=0.0,
+                income_gbp=0.0,
+                cumulative_return=None,
+                max_drawdown=None,
+            ),
+        )
+    )
+
+    with pytest.raises(ValueError, match="references unsupported source"):
+        reports.build_report_document("builtin-broken", "alice")

@@ -330,6 +330,55 @@ def test_compute_portfolio_var_quantile_nan_returns_none(monkeypatch):
     assert result["10d"] is None
 
 
+def test_compute_portfolio_var_ignores_cash_timeseries_penny_bug(monkeypatch):
+    """Regression for #2565: VaR is invariant to broken CASH.GBP close feeds."""
+
+    portfolio = {
+        "accounts": [
+            {
+                "holdings": [
+                    {"ticker": "EQU.L", "units": 10_000},
+                    {"ticker": "CASH.GBP", "units": 81_000},
+                ]
+            }
+        ]
+    }
+
+    monkeypatch.setattr(
+        risk.portfolio_utils.portfolio_mod,
+        "build_owner_portfolio",
+        lambda owner, *, pricing_date=None, **_: portfolio,
+    )
+    monkeypatch.setattr(risk.portfolio_utils, "_PRICE_SNAPSHOT", {}, raising=False)
+    dates = pd.bdate_range("2024-01-02", periods=40)
+    equity_returns = np.tile(np.array([0.002, -0.001, 0.0015, -0.0005]), 10)
+    equity_close = 30.0 * np.cumprod(1 + equity_returns[: len(dates)])
+    def run_with_cash_feed(cash_level: float) -> dict:
+        cash_close = np.full(len(dates), cash_level)
+        # Deliberate bad feed spike day.
+        cash_close[20] = cash_level * 100
+        frames = {
+            ("EQU", "L"): pd.DataFrame({"Date": dates, "Close": equity_close}),
+            ("CASH", "GBP"): pd.DataFrame({"Date": dates, "Close": cash_close}),
+        }
+        monkeypatch.setattr(
+            risk.portfolio_utils,
+            "load_meta_timeseries",
+            lambda ticker, exchange, days: frames[(ticker, exchange)].copy(),
+        )
+        return risk.compute_portfolio_var("owner", days=30, confidence=0.95, include_cash=True)
+
+    clean = run_with_cash_feed(1.0)
+    penny_bug = run_with_cash_feed(0.01)
+    inflated_bug = run_with_cash_feed(99.0)
+
+    assert clean["1d"] is not None
+    assert penny_bug["1d"] == pytest.approx(clean["1d"], abs=1e-9)
+    assert inflated_bug["1d"] == pytest.approx(clean["1d"], abs=1e-9)
+    assert penny_bug["10d"] == pytest.approx(clean["10d"], abs=1e-9)
+    assert inflated_bug["10d"] == pytest.approx(clean["10d"], abs=1e-9)
+
+
 def test_compute_portfolio_var_breakdown_skip_conditions(monkeypatch):
     holdings = [
         {"ticker": None},
@@ -372,6 +421,69 @@ def test_compute_portfolio_var_breakdown_skip_conditions(monkeypatch):
     assert result == [
         {"ticker": "PQR.L", "contribution": pytest.approx(45.45, rel=1e-2)}
     ]
+
+
+def test_compute_portfolio_var_breakdown_includes_cash_even_when_var_is_none(monkeypatch):
+    holdings = [
+        {"ticker": "CASH.GBP", "market_value_gbp": 500.0, "currency": "GBP", "units": 500.0},
+        {"ticker": "ABC.L", "market_value_gbp": 250.0},
+    ]
+
+    monkeypatch.setattr(risk.portfolio_mod, "build_owner_portfolio", lambda owner: {})
+    monkeypatch.setattr(risk.portfolio_utils, "aggregate_by_ticker", lambda portfolio: holdings)
+
+    def fake_load_meta_timeseries(symbol, exchange, days):
+        if f"{symbol}.{exchange}" == "CASH.GBP":
+            return pd.DataFrame({"Close": [0.01, 99.0, 1.0]})
+        return pd.DataFrame({"Close": [9.0, 10.0]})
+
+    def fake_compute_var(ts, confidence):
+        closes = pd.to_numeric(ts["Close"], errors="coerce").dropna()
+        if closes.eq(1.0).all():
+            return None
+        return 3.0
+
+    monkeypatch.setattr(risk.portfolio_utils, "load_meta_timeseries", fake_load_meta_timeseries)
+    monkeypatch.setattr(risk.portfolio_utils, "compute_var", fake_compute_var)
+
+    result = risk.compute_portfolio_var_breakdown("owner", include_cash=True)
+
+    assert {"ticker": "CASH.GBP", "contribution": 0.0} in result
+    assert {"ticker": "ABC.L", "contribution": 75.0} in result
+
+
+def test_compute_portfolio_var_breakdown_scaling_matches_prescaled_input(monkeypatch):
+    holdings = [{"ticker": "GBX.L", "market_value_gbp": 1000.0}]
+    monkeypatch.setattr(risk.portfolio_mod, "build_owner_portfolio", lambda owner: {})
+    monkeypatch.setattr(risk.portfolio_utils, "aggregate_by_ticker", lambda portfolio: holdings)
+
+    returns = np.array([0.01, -0.005, 0.008, -0.004, 0.006, -0.003])
+    scaled_close = 10.0 * np.cumprod(1 + returns)
+    raw_close = scaled_close * 100.0
+
+    monkeypatch.setattr(
+        risk.portfolio_utils,
+        "compute_var",
+        lambda ts, confidence: 1.0,
+    )
+
+    monkeypatch.setattr(
+        risk.portfolio_utils,
+        "load_meta_timeseries",
+        lambda symbol, exchange, days: pd.DataFrame({"Close": raw_close}),
+    )
+    monkeypatch.setattr(risk.portfolio_utils, "get_scaling_override", lambda *_args, **_kwargs: 0.01)
+    with_scaling = risk.compute_portfolio_var_breakdown("owner")
+
+    monkeypatch.setattr(
+        risk.portfolio_utils,
+        "load_meta_timeseries",
+        lambda symbol, exchange, days: pd.DataFrame({"Close": scaled_close}),
+    )
+    monkeypatch.setattr(risk.portfolio_utils, "get_scaling_override", lambda *_args, **_kwargs: 1.0)
+    pre_scaled = risk.compute_portfolio_var_breakdown("owner")
+
+    assert with_scaling == pre_scaled
 
 
 def test_compute_portfolio_var_breakdown_preserves_normal_path(monkeypatch):

@@ -16,8 +16,8 @@ auth:
   smoke_identity: demo                # Owner to assume when running smoke tests (SMOKE_IDENTITY)
   local_login_email: ""             # Email identity to assume locally when auth is disabled (LOCAL_LOGIN_EMAIL)
   google_client_id: ""                # OAuth client id for Google auth (GOOGLE_CLIENT_ID)
-  allowed_emails:                     # Whitelisted emails (ALLOWED_EMAILS)
-    - steveleonard11@gmail.com
+  allowed_emails:                     # Whitelisted emails (ALLOWED_EMAILS) - override via env var in production
+    - your-email@example.com
 
 server:
   app_env: local                      # Runtime environment (APP_ENV)

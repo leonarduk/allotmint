@@ -920,8 +920,6 @@ def compute_owner_performance(
 
     flagged = {k.upper() for k, v in _PRICE_SNAPSHOT.items() if v.get("flagged")}
 
-    calc = PricingDateCalculator()
-
     holdings: List[tuple[str, str, float]] = []
     for acct in pf.get("accounts", []):
         for h in acct.get("holdings", []):
@@ -969,7 +967,24 @@ def compute_owner_performance(
             continue
         df = df[["Date", "Close"]].copy()
         df["Date"] = pd.to_datetime(df["Date"]).dt.date
-        values = df.set_index("Date")["Close"] * units
+        scale = get_scaling_override(ticker, exchange, requested_scaling=None)
+        df = apply_scaling(df, scale)
+        # ``apply_scaling`` currently preserves row order, but enforce date
+        # ordering here to keep value reconstruction deterministic even if
+        # upstream transforms change.
+        df = df.sort_values("Date").reset_index(drop=True)
+        closes = pd.to_numeric(df["Close"], errors="coerce")
+
+        full_ticker = f"{ticker}.{exchange}".upper()
+        if full_ticker == "CASH.GBP":
+            closes = pd.Series(1.0, index=df["Date"])
+        else:
+            closes.index = df["Date"]
+
+        closes = closes.dropna()
+        if closes.empty:
+            continue
+        values = closes * units
         total = total.add(values, fill_value=0)
 
     if total.empty:

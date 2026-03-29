@@ -8,6 +8,7 @@ from aws_cdk import aws_budgets as budgets
 from aws_cdk import aws_cloudwatch as cloudwatch
 from aws_cdk import aws_events as events
 from aws_cdk import aws_events_targets as targets
+from aws_cdk import aws_iam as iam
 from aws_cdk import aws_lambda as _lambda
 from aws_cdk import aws_logs as logs
 from aws_cdk import aws_s3 as s3
@@ -17,6 +18,43 @@ from constructs import Construct
 
 class BackendLambdaStack(Stack):
     """CDK stack that builds and deploys the backend Lambda."""
+
+    @staticmethod
+    def _grant_bucket_access(
+        fn: _lambda.DockerImageFunction,
+        *,
+        bucket_name: str,
+        allow_read: bool,
+        allow_put: bool,
+        allow_list: bool,
+    ) -> None:
+        """Grant the minimum required S3 actions for a Lambda function.
+
+        ``allow_list`` controls ``s3:ListBucket`` on the bucket ARN while
+        ``allow_read``/``allow_put`` scope object-level actions to ``/*``.
+        """
+
+        object_actions: list[str] = []
+        if allow_read:
+            object_actions.append("s3:GetObject")
+        if allow_put:
+            object_actions.append("s3:PutObject")
+
+        if object_actions:
+            fn.add_to_role_policy(
+                iam.PolicyStatement(
+                    actions=object_actions,
+                    resources=[f"arn:aws:s3:::{bucket_name}/*"],
+                )
+            )
+
+        if allow_list:
+            fn.add_to_role_policy(
+                iam.PolicyStatement(
+                    actions=["s3:ListBucket"],
+                    resources=[f"arn:aws:s3:::{bucket_name}"],
+                )
+            )
 
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
@@ -115,6 +153,17 @@ class BackendLambdaStack(Stack):
         backend_fn.add_environment("APP_ENV", env)
         app_secret.grant_read(backend_fn)
 
+        # BackendLambda: read + put + list
+        # Audited: serves API requests that read and write portfolio/price data to S3.
+        # s3:ListBucket required: backend serves listing endpoints (e.g. portfolio enumeration).
+        self._grant_bucket_access(
+            backend_fn,
+            bucket_name=bucket_name,
+            allow_read=True,
+            allow_put=True,
+            allow_list=True,
+        )
+
         backend_api = apigwv2.HttpApi(self, "BackendApi")
         self.backend_api_url = backend_api.api_endpoint
         backend_integration = apigwv2_integrations.HttpLambdaIntegration(
@@ -155,6 +204,20 @@ class BackendLambdaStack(Stack):
         )
         app_secret.grant_read(refresh_fn)
 
+        # PriceRefreshLambda: read + put, no list
+        # Audited: refresh_prices() calls get_price_snapshot() → load_meta_timeseries_range()
+        # → _rolling_cache() → _save_parquet(), which writes parquet files to S3 by known key
+        # (e.g. s3://bucket/meta/TICKER_EXCHANGE.parquet). All S3 access is by known key —
+        # no bucket enumeration. config.prices_json writes to local filesystem, not S3.
+        # See backend/timeseries/cache.py:_rolling_cache() and _save_parquet().
+        self._grant_bucket_access(
+            refresh_fn,
+            bucket_name=bucket_name,
+            allow_read=True,
+            allow_put=True,
+            allow_list=False,
+        )
+
         events.Rule(
             self,
             "DailyPriceRefresh",
@@ -185,6 +248,19 @@ class BackendLambdaStack(Stack):
             log_retention=logs.RetentionDays.ONE_WEEK,
         )
         app_secret.grant_read(agent_fn)
+
+        # TradingAgentLambda: read only, no put, no list
+        # Audited: backend/agent/trading_agent.py:run() calls load_prices_for_tickers()
+        # → load_meta_timeseries_range() which reads parquet files from S3 by known key.
+        # No S3 writes: _log_trade() writes to TRADE_LOG_PATH (local filesystem / CloudWatch).
+        # No bucket enumeration: all S3 access is by deterministic key.
+        self._grant_bucket_access(
+            agent_fn,
+            bucket_name=bucket_name,
+            allow_read=True,
+            allow_put=False,
+            allow_list=False,
+        )
 
         events.Rule(
             self,

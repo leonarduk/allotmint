@@ -1701,7 +1701,9 @@ def report_to_pdf(document: ReportDocument) -> bytes:
     if canvas is None:
         raise RuntimeError("reportlab is required for PDF output")
     buf = io.BytesIO()
-    c = canvas.Canvas(buf, pagesize=letter)
+    # Disable PDF stream compression so smoke tests can assert key rendered
+    # strings directly from raw bytes.
+    c = canvas.Canvas(buf, pagesize=letter, pageCompression=0)
     width, height = letter
     generated_at = document.generated_at.astimezone(UTC).strftime("%Y-%m-%d %H:%M UTC")
     page_number = 1

@@ -1512,13 +1512,14 @@ def build_report_document(
             section_rows: Sequence[Dict[str, Any]] = ()
         else:
             section_rows = list(builder(context, schema))
+        # Omit the VaR section from the audit report when the builder returns no
+        # rows (e.g. when VaR inputs are unavailable). Do not inject placeholder values.
         if (
             template.template_id == AUDIT_REPORT_TEMPLATE.template_id
             and schema.source == PORTFOLIO_VAR_SECTION.source
             and not section_rows
         ):
             continue
-        sections.append(ReportSectionData(schema=schema, rows=section_rows))
         # Omit sections backed by portfolio.key_findings when the owner has no
         # findings file — regardless of the section id chosen by the template
         # author (built-in or user-defined).
@@ -1719,7 +1720,9 @@ def report_to_pdf(document: ReportDocument) -> bytes:
     if canvas is None:
         raise RuntimeError("reportlab is required for PDF output")
     buf = io.BytesIO()
-    c = canvas.Canvas(buf, pagesize=letter)
+    # Disable PDF stream compression so smoke tests can assert key rendered
+    # strings directly from raw bytes.
+    c = canvas.Canvas(buf, pagesize=letter, pageCompression=0)
     # Keep page content uncompressed so byte-level PDF assertions remain stable
     # in tests that verify rendered section text is present in the output.
     if hasattr(c, "setPageCompression"):

@@ -1,0 +1,40 @@
+{
+  "owner": "demo-owner",
+  "as_of": "2026-03-01",
+  "total_value_estimate_gbp": 1000.0,
+  "accounts": [
+    {
+      "account_type": "ISA",
+      "value_estimate_gbp": 700.0,
+      "holdings": [
+        {
+          "ticker": "AAA.L",
+          "asset_class": "Equity",
+          "market_value_gbp": 400.0,
+          "sector": "Technology",
+          "region": "North America"
+        },
+        {
+          "ticker": "BBB.L",
+          "asset_class": "Equity",
+          "market_value_gbp": 300.0,
+          "sector": "Healthcare",
+          "region": "Europe"
+        }
+      ]
+    },
+    {
+      "account_type": "SIPP",
+      "value_estimate_gbp": 300.0,
+      "holdings": [
+        {
+          "ticker": "CCC.L",
+          "asset_class": "ETF",
+          "market_value_gbp": 300.0,
+          "sector": "Technology",
+          "region": "Europe"
+        }
+      ]
+    }
+  ]
+}

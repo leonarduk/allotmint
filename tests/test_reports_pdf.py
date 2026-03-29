@@ -150,11 +150,11 @@ def test_audit_report_pdf_contains_all_section_titles(monkeypatch):
         ],
     )
     monkeypatch.setattr(
-        reports.risk_mod,
+        reports.risk,
         "compute_portfolio_var",
         lambda owner, confidence: {"confidence": confidence, "1d": 800.0, "10d": 2530.0},
     )
-    monkeypatch.setattr(reports.risk_mod, "compute_sharpe_ratio", lambda owner: 1.42)
+    monkeypatch.setattr(reports.risk, "compute_sharpe_ratio", lambda owner: 1.42)
 
     document = reports.build_report_document("audit-report", "demo-owner")
 
@@ -202,11 +202,11 @@ def test_audit_report_json_section_order_and_presence(monkeypatch):
         lambda portfolio: [{"ticker": "VOD.L", "market_value_gbp": 10000.0}],
     )
     monkeypatch.setattr(
-        reports.risk_mod,
+        reports.risk,
         "compute_portfolio_var",
         lambda owner, confidence: {"confidence": confidence, "1d": 200.0, "10d": 630.0},
     )
-    monkeypatch.setattr(reports.risk_mod, "compute_sharpe_ratio", lambda owner: 0.85)
+    monkeypatch.setattr(reports.risk, "compute_sharpe_ratio", lambda owner: 0.85)
 
     document = reports.build_report_document("audit-report", "demo-owner")
 

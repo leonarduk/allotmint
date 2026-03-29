@@ -800,7 +800,11 @@ def test_portfolio_section_builders_use_monkeypatched_dependencies(monkeypatch):
         {"ticker": "BBB", "market_value_gbp": 300.0},
     ]
 
-    monkeypatch.setattr(reports, "build_owner_portfolio", lambda owner: mock_portfolio)
+    monkeypatch.setattr(
+        reports.portfolio_mod,
+        "build_owner_portfolio",
+        lambda owner, pricing_date=None: mock_portfolio,
+    )
     monkeypatch.setattr(reports.portfolio_utils, "aggregate_by_sector", lambda pf: mock_sectors)
     monkeypatch.setattr(reports.portfolio_utils, "aggregate_by_region", lambda pf: mock_regions)
     monkeypatch.setattr(reports.portfolio_utils, "aggregate_by_ticker", lambda pf: mock_tickers)

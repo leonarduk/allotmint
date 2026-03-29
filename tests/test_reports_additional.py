@@ -832,11 +832,11 @@ def test_audit_concentration_hhi_uses_full_holding_set(monkeypatch):
     assert all(row["hhi"] == pytest.approx(expected_hhi) for row in concentration)
 
 
-def test_normalise_value_weight_rows_prefers_value_consistently():
+def test_normalise_value_weight_rows_prefers_value_and_sorts_descending():
     rows = reports._normalise_value_weight_rows(
         [
-            {"sector": "Technology", "value": 70.0, "market_value_gbp": 700.0},
             {"sector": "Healthcare", "value": 30.0, "market_value_gbp": 300.0},
+            {"sector": "Technology", "value": 70.0, "market_value_gbp": 700.0},
         ],
         label_key="sector",
     )
@@ -844,6 +844,21 @@ def test_normalise_value_weight_rows_prefers_value_consistently():
     assert rows == [
         {"sector": "Technology", "value": 70.0, "weight": 0.7},
         {"sector": "Healthcare", "value": 30.0, "weight": 0.3},
+    ]
+
+
+def test_normalise_value_weight_rows_uses_weight_pct_and_unknown_label():
+    rows = reports._normalise_value_weight_rows(
+        [
+            {"sector": "", "market_value_gbp": 1000.0, "weight_pct": 75.0},
+            {"market_value_gbp": 333.0, "weight_pct": 25.0},
+        ],
+        label_key="sector",
+    )
+
+    assert rows == [
+        {"sector": "Unknown", "value": 1000.0, "weight": 0.75},
+        {"sector": "Unknown", "value": 333.0, "weight": 0.25},
     ]
 
 

@@ -890,17 +890,23 @@ def _normalise_value_weight_rows(
     label_key: str,
     value_key: str = "market_value_gbp",
 ) -> List[Dict[str, Any]]:
-    prepared_rows: List[tuple[Any, float | None, float | None]] = []
+    prepared_rows: List[tuple[str, float | None, float | None]] = []
     total_value = 0.0
     for row in rows:
-        label = row.get(label_key)
+        label = str(row.get(label_key) or "Unknown").strip() or "Unknown"
         value = _safe_float(row.get("value"))
         if value is None:
             value = _safe_float(row.get(value_key))
         weight = _safe_float(row.get("weight"))
+        if weight is None:
+            weight_pct = _safe_float(row.get("weight_pct"))
+            if weight_pct is not None:
+                weight = weight_pct / 100.0
         prepared_rows.append((label, value, weight))
         if value is not None:
             total_value += value
+
+    prepared_rows.sort(key=lambda item: item[1] if item[1] is not None else float("-inf"), reverse=True)
 
     normalised: List[Dict[str, Any]] = []
     for label, value, weight in prepared_rows:

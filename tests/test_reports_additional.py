@@ -413,6 +413,36 @@ def test_report_to_pdf_generates_output(monkeypatch):
         def drawString(self, *args, **kwargs):
             self.calls.append("drawString")
 
+        def drawRightString(self, *args, **kwargs):
+            self.calls.append("drawRightString")
+
+        def drawCentredString(self, *args, **kwargs):
+            self.calls.append("drawCentredString")
+
+        def setLineWidth(self, *args, **kwargs):
+            self.calls.append("setLineWidth")
+
+        def line(self, *args, **kwargs):
+            self.calls.append("line")
+
+        def saveState(self):
+            self.calls.append("saveState")
+
+        def restoreState(self):
+            self.calls.append("restoreState")
+
+        def setFillColorRGB(self, *args, **kwargs):
+            self.calls.append("setFillColorRGB")
+
+        def translate(self, *args, **kwargs):
+            self.calls.append("translate")
+
+        def rotate(self, *args, **kwargs):
+            self.calls.append("rotate")
+
+        def setTitle(self, *args, **kwargs):
+            self.calls.append("setTitle")
+
         def showPage(self):
             self.calls.append("showPage")
 
@@ -422,6 +452,7 @@ def test_report_to_pdf_generates_output(monkeypatch):
     fake_canvas_mod = SimpleNamespace(Canvas=FakeCanvas)
     monkeypatch.setattr(reports, "canvas", fake_canvas_mod)
     monkeypatch.setattr(reports, "letter", (200, 150))
+    monkeypatch.setattr(reports, "Table", None)
 
     schema = reports.ReportSectionSchema(
         id="metrics",
@@ -450,7 +481,7 @@ def test_report_to_pdf_generates_output(monkeypatch):
         ),
         owner="alice",
         generated_at=datetime.now(tz=UTC),
-        parameters={"start": "2024-01-01"},
+        parameters={"start": "2024-01-01", "watermark": "SAMPLE"},
         sections=(section,),
     )
 
@@ -471,6 +502,99 @@ def test_report_to_pdf_requires_canvas(monkeypatch):
 
     with pytest.raises(RuntimeError, match="reportlab is required"):
         reports.report_to_pdf(document)
+
+
+def test_report_to_pdf_formats_values_and_optional_watermark(monkeypatch):
+    class FakeCanvas:
+        last_instance = None
+
+        def __init__(self, buffer, pagesize):
+            self.calls: list[tuple[str, tuple, dict]] = []
+            FakeCanvas.last_instance = self
+
+        def setFont(self, *args, **kwargs):
+            self.calls.append(("setFont", args, kwargs))
+
+        def drawString(self, *args, **kwargs):
+            self.calls.append(("drawString", args, kwargs))
+
+        def drawRightString(self, *args, **kwargs):
+            self.calls.append(("drawRightString", args, kwargs))
+
+        def drawCentredString(self, *args, **kwargs):
+            self.calls.append(("drawCentredString", args, kwargs))
+
+        def setLineWidth(self, *args, **kwargs):
+            self.calls.append(("setLineWidth", args, kwargs))
+
+        def line(self, *args, **kwargs):
+            self.calls.append(("line", args, kwargs))
+
+        def saveState(self):
+            self.calls.append(("saveState", (), {}))
+
+        def restoreState(self):
+            self.calls.append(("restoreState", (), {}))
+
+        def setFillColorRGB(self, *args, **kwargs):
+            self.calls.append(("setFillColorRGB", args, kwargs))
+
+        def translate(self, *args, **kwargs):
+            self.calls.append(("translate", args, kwargs))
+
+        def rotate(self, *args, **kwargs):
+            self.calls.append(("rotate", args, kwargs))
+
+        def setTitle(self, *args, **kwargs):
+            self.calls.append(("setTitle", args, kwargs))
+
+        def showPage(self):
+            self.calls.append(("showPage", (), {}))
+
+        def save(self):
+            self.calls.append(("save", (), {}))
+
+    fake_canvas_mod = SimpleNamespace(Canvas=FakeCanvas)
+    monkeypatch.setattr(reports, "canvas", fake_canvas_mod)
+    monkeypatch.setattr(reports, "letter", (500, 700))
+    monkeypatch.setattr(reports, "Table", None)
+
+    schema = reports.ReportSectionSchema(
+        id="metrics",
+        title="Metrics",
+        source="performance.metrics",
+        columns=(
+            reports.ReportColumnSchema("amount_gbp", "Amount (GBP)", type="number"),
+            reports.ReportColumnSchema("daily_return", "Daily return", type="number"),
+        ),
+    )
+    section = reports.ReportSectionData(
+        schema=schema, rows=({"amount_gbp": 1234.5, "daily_return": 0.125},)
+    )
+    document = reports.ReportDocument(
+        template=reports.ReportTemplate(
+            template_id="pdf",
+            name="PDF",
+            description="",
+            sections=(schema,),
+            builtin=False,
+        ),
+        owner="alice",
+        generated_at=datetime.now(tz=UTC),
+        parameters={"watermark": "SAMPLE"},
+        sections=(section,),
+    )
+
+    output = reports.report_to_pdf(document)
+    assert isinstance(output, bytes)
+    calls = FakeCanvas.last_instance.calls
+    drawn_values = [args[2] for name, args, _ in calls if name == "drawString" and len(args) >= 3]
+    assert any("£1,234.50" in value for value in drawn_values)
+    assert any("12.50%" in value for value in drawn_values)
+    assert any(
+        name == "drawCentredString" and args[-1] == "SAMPLE"
+        for name, args, _ in calls
+    )
 
 
 def test_section_builders_use_context():
@@ -542,4 +666,3 @@ def test_build_report_document_includes_parameters(monkeypatch):
     document = reports.build_report_document("performance-summary", "alice", start=start, end=end)
 
     assert document.parameters == {"start": "2024-01-01", "end": "2024-01-02"}
-

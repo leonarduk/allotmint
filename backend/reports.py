@@ -1931,6 +1931,8 @@ def report_to_pdf(document: ReportDocument) -> bytes:
     def _draw_section_table(section: ReportSectionData, start_y: float) -> float:
         y = start_y
         y = _draw_section_header(section, y)
+        if section.schema.source == _KEY_FINDINGS_SOURCE:
+            return y
         if Table is None:
             c.setFont("Helvetica", 9)
             for row in section.rows:

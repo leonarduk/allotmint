@@ -48,6 +48,10 @@ _SECTION_ID_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$")
 # rendered in the visible parameters block on the title page.
 _PDF_INTERNAL_PARAM_KEYS: frozenset[str] = frozenset({"watermark"})
 
+# Source key that produces optional key-findings rows; sections using this source
+# are omitted from the document when the builder returns no rows.
+_KEY_FINDINGS_SOURCE = "portfolio.key_findings"
+
 
 @dataclass(slots=True)
 class ReportColumnSchema:
@@ -1295,7 +1299,10 @@ def build_report_document(
             section_rows: Sequence[Dict[str, Any]] = ()
         else:
             section_rows = list(builder(context, schema))
-        if schema.id == "key-findings" and not section_rows:
+        # Omit sections backed by portfolio.key_findings when the owner has no
+        # findings file — regardless of the section id chosen by the template
+        # author (built-in or user-defined).
+        if schema.source == _KEY_FINDINGS_SOURCE and not section_rows:
             continue
         sections.append(ReportSectionData(schema=schema, rows=tuple(section_rows)))
 
@@ -1614,7 +1621,7 @@ def report_to_pdf(document: ReportDocument) -> bytes:
             c.drawString(40, y, section.schema.description)
             y -= 14
 
-        if section.schema.id == "key-findings":
+        if section.schema.source == _KEY_FINDINGS_SOURCE:
             findings = [
                 str(row.get("finding", "")).strip()
                 for row in section.rows

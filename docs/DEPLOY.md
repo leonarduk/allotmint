@@ -19,6 +19,8 @@ Copy `.env.example` to `.env` and supply the following values:
 | `METADATA_PREFIX` | Prefix within the metadata bucket |
 | `GOOGLE_AUTH_ENABLED` | Toggle Google sign‑in |
 | `GOOGLE_CLIENT_ID` | OAuth client ID when Google sign‑in is enabled |
+| `APP_SECRET_NAME` | Secrets Manager secret name read by backend Lambdas (default `allotmint/app`) |
+| `BUDGET_ALERT_EMAIL` | Optional email recipient for the monthly AWS budget alert |
 
 The advisory AI review workflows run on pull request `opened`, `reopened`, and `synchronize`
 events. They require `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` to be configured as GitHub
@@ -142,7 +144,16 @@ DEPLOY_BACKEND=false cdk deploy StaticSiteStack
 DATA_BUCKET=my-data-bucket DEPLOY_BACKEND=true cdk deploy BackendLambdaStack StaticSiteStack
 # or as a CDK context parameter:
 DEPLOY_BACKEND=true cdk deploy BackendLambdaStack StaticSiteStack -c data_bucket=my-data-bucket
+# or deploy every stack managed by app.py:
+cdk deploy --all --require-approval never
 ```
+
+`BackendLambdaStack` now includes:
+- an S3 data bucket with versioning, SSE-S3 encryption, and non-current object expiry,
+- one-week CloudWatch log retention for backend/scheduled Lambdas,
+- a CloudWatch alarm on backend Lambda errors,
+- a monthly AWS Budget resource (default 5 USD, optionally with email alert),
+- and Secrets Manager read permissions (`secretsmanager:GetSecretValue`) for all backend Lambdas.
 
 ## CloudFront cache invalidation
 

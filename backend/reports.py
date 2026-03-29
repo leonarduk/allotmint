@@ -15,9 +15,14 @@ import pandas as pd
 
 try:
     from reportlab.lib.pagesizes import letter
+    from reportlab.platypus import Table, TableStyle
+    from reportlab.lib import colors
     from reportlab.pdfgen import canvas
 except ModuleNotFoundError:  # pragma: no cover - exercised in tests when missing
     letter = None
+    Table = None
+    TableStyle = None
+    colors = None
     canvas = None
 
 try:
@@ -43,6 +48,10 @@ logger = logging.getLogger(__name__)
 
 _TEMPLATE_ID_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$")
 _SECTION_ID_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$")
+
+# Parameters keys that are consumed internally by report_to_pdf and must not be
+# rendered in the visible parameters block on the title page.
+_PDF_INTERNAL_PARAM_KEYS: frozenset[str] = frozenset({"watermark"})
 
 
 @dataclass(slots=True)
@@ -805,7 +814,7 @@ def _build_history_section(
 
 def _build_transactions_section(
     context: ReportContext, section: ReportSectionSchema
-) -> Sequence[Dict[str, Any]]:
+) -> Sequence[Dict[str, Any]]:\
     return context.transactions()
 
 
@@ -1640,70 +1649,198 @@ def report_to_pdf(document: ReportDocument) -> bytes:
     buf = io.BytesIO()
     c = canvas.Canvas(buf, pagesize=letter)
     width, height = letter
+    generated_at = document.generated_at.astimezone(UTC).strftime("%Y-%m-%d %H:%M UTC")
+    page_number = 1
 
-    def _write_header() -> None:
-        c.setFont("Helvetica-Bold", 16)
-        c.drawString(40, height - 50, document.template.name)
-        c.setFont("Helvetica", 10)
-        c.drawString(40, height - 70, f"Owner: {document.owner}")
-        if document.parameters:
-            y = height - 85
-            for key, value in sorted(document.parameters.items()):
+    def _format_gbp(value: Any) -> str:
+        if value is None:
+            return "\u2014"
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            return str(value)
+        return f"\xa3{numeric:,.2f}"
+
+    def _format_percent(value: Any) -> str:
+        if value is None:
+            return "\u2014"
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            return str(value)
+        return f"{numeric * 100:.2f}%"
+
+    def _format_cell_value(column: ReportColumnSchema, row_value: Any) -> str:
+        key = column.key.lower()
+        label = column.label.lower()
+        if row_value is None:
+            return "\u2014"
+        if any(token in key for token in ("_gbp", "amount", "price", "value")) or "gbp" in label:
+            return _format_gbp(row_value)
+        if (
+            "return" in key
+            or "drawdown" in key
+            or "pct" in key
+            or "percent" in key
+        ):
+            return _format_percent(row_value)
+        if column.type == "number":
+            try:
+                return f"{float(row_value):,.4f}"
+            except (TypeError, ValueError):
+                return str(row_value)
+        return str(row_value)
+
+    def _draw_footer() -> None:
+        c.setFont("Helvetica", 8)
+        c.drawString(40, 24, f"Generated: {generated_at}")
+        c.drawRightString(width - 40, 24, f"Page {page_number}")
+
+    def _draw_watermark(text: str) -> None:
+        if not text:
+            return
+        c.saveState()
+        c.setFillColorRGB(0.86, 0.86, 0.86)
+        c.setFont("Helvetica-Bold", 64)
+        c.translate(width / 2, height / 2)
+        c.rotate(35)
+        c.drawCentredString(0, 0, text)
+        c.restoreState()
+
+    def _new_page() -> None:
+        nonlocal page_number
+        _draw_footer()
+        c.showPage()
+        page_number += 1
+
+    def _draw_title_page(watermark_text: str | None = None) -> None:
+        if watermark_text:
+            _draw_watermark(watermark_text)
+        c.setFont("Helvetica-Bold", 24)
+        c.drawString(40, height - 90, "AllotMint")
+        c.setFont("Helvetica-Bold", 18)
+        c.drawString(40, height - 135, document.template.name)
+        c.setFont("Helvetica", 12)
+        c.drawString(40, height - 170, f"Owner: {document.owner}")
+        c.drawString(40, height - 190, f"Generated: {generated_at}")
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(40, height - 220, "CONFIDENTIAL")
+        # Render user-visible parameters, excluding internal PDF rendering keys
+        # such as "watermark" which would otherwise leak into the visible report.
+        visible_params = {
+            k: v
+            for k, v in document.parameters.items()
+            if k not in _PDF_INTERNAL_PARAM_KEYS
+        }
+        if visible_params:
+            y = height - 245
+            c.setFont("Helvetica", 10)
+            for key, value in sorted(visible_params.items()):
                 c.drawString(40, y, f"{key}: {value}")
-                y -= 12
+                y -= 14
 
-    def _write_section(section: ReportSectionData, start_y: float) -> float:
-        y = start_y
-        c.setFont("Helvetica-Bold", 12)
+    def _draw_section_header(section: ReportSectionData, y: float) -> float:
+        c.setFont("Helvetica-Bold", 13)
         c.drawString(40, y, section.schema.title)
-        y -= 18
-        if section.schema.description:
-            c.setFont("Helvetica", 9)
-            c.drawString(40, y, section.schema.description)
-            y -= 14
-        if y < 80:
-            c.showPage()
-            _write_header()
-            y = height - 120
-            c.setFont("Helvetica-Bold", 12)
-            c.drawString(40, y, section.schema.title)
-            y -= 18
-        columns = [column.label for column in section.schema.columns]
-        c.setFont("Helvetica-Bold", 9)
-        c.drawString(40, y, " | ".join(columns))
         y -= 14
-        c.setFont("Helvetica", 9)
-        for row in section.rows:
-            values: List[str] = []
-            for column in section.schema.columns:
-                value = row.get(column.key)
-                if isinstance(value, float):
-                    values.append(f"{value:.4f}")
-                elif value is None:
-                    values.append("")
-                else:
-                    values.append(str(value))
-            line = " | ".join(values)
-            if y < 60:
-                c.showPage()
-                _write_header()
-                y = height - 120
-                c.setFont("Helvetica-Bold", 12)
-                c.drawString(40, y, section.schema.title)
-                y -= 18
-                c.setFont("Helvetica", 9)
-            c.drawString(40, y, line)
-            y -= 12
-        return y - 10
+        c.setLineWidth(0.5)
+        c.line(40, y, width - 40, y)
+        y -= 12
+        if section.schema.description:
+            c.setFont("Helvetica-Oblique", 9)
+            c.drawString(40, y, section.schema.description)
+            y -= 16
+        return y
 
-    _write_header()
-    y_cursor = height - 110
+    def _draw_section_table(section: ReportSectionData, start_y: float) -> float:
+        y = start_y
+        y = _draw_section_header(section, y)
+        if Table is None:
+            c.setFont("Helvetica", 9)
+            for row in section.rows:
+                line = " | ".join(
+                    _format_cell_value(column, row.get(column.key))
+                    for column in section.schema.columns
+                )
+                c.drawString(40, y, line)
+                y -= 12
+            return y - 10
+
+        headers = [column.label for column in section.schema.columns]
+        body_rows = [
+            [
+                _format_cell_value(column, row.get(column.key))
+                for column in section.schema.columns
+            ]
+            for row in section.rows
+        ]
+        if body_rows:
+            table_data = [headers, *body_rows]
+        else:
+            table_data = [headers, ["No rows"] + [""] * (len(headers) - 1)]
+        table_width = width - 80
+        col_width = table_width / max(len(headers), 1)
+        table = Table(table_data, colWidths=[col_width] * len(headers), repeatRows=1)
+        table_style = TableStyle(
+            [
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 8),
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#E6ECF5")),
+                ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#C7D2E3")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ]
+        )
+        for row_idx in range(1, len(table_data)):
+            if row_idx % 2 == 0:
+                table_style.add(
+                    "BACKGROUND", (0, row_idx), (-1, row_idx), colors.HexColor("#F7F9FC")
+                )
+        for idx, column in enumerate(section.schema.columns):
+            if column.type == "number" or column.key.lower() in {"value", "amount_gbp", "price"}:
+                table_style.add("ALIGN", (idx, 1), (idx, -1), "RIGHT")
+        table.setStyle(table_style)
+
+        # Initial layout check: does the table fit on the current page?
+        _, table_height = table.wrapOn(c, table_width, y - 60)
+        if y - table_height < 50:
+            # Table doesn't fit — start a new page and re-wrap against the full
+            # available height so layout is computed correctly for the new page.
+            _new_page()
+            if watermark:
+                _draw_watermark(watermark)
+            c.setFont("Helvetica-Bold", 12)
+            c.drawString(40, height - 60, document.template.name)
+            c.setFont("Helvetica", 9)
+            c.drawString(40, height - 76, f"Owner: {document.owner}")
+            y = _draw_section_header(section, height - 100)
+            _, table_height = table.wrapOn(c, table_width, y - 60)
+        table.drawOn(c, 40, y - table_height)
+        return y - table_height - 14
+
+    c.setTitle(document.template.name)
+    watermark = str(document.parameters.get("watermark", "")).strip() or None
+    _draw_title_page(watermark)
+    _new_page()
+    if watermark:
+        _draw_watermark(watermark)
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(40, height - 60, document.template.name)
+    c.setFont("Helvetica", 9)
+    c.drawString(40, height - 76, f"Owner: {document.owner}")
+    y_cursor = height - 100
     for section in document.sections:
         if y_cursor < 120:
-            c.showPage()
-            _write_header()
-            y_cursor = height - 110
-        y_cursor = _write_section(section, y_cursor)
-    c.showPage()
+            # _new_page() commits the current page before starting a new one;
+            # the watermark is drawn on the new page only.
+            _new_page()
+            if watermark:
+                _draw_watermark(watermark)
+            c.setFont("Helvetica-Bold", 12)
+            c.drawString(40, height - 60, document.template.name)
+            c.setFont("Helvetica", 9)
+            c.drawString(40, height - 76, f"Owner: {document.owner}")
+            y_cursor = height - 100
+        y_cursor = _draw_section_table(section, y_cursor)
+    _draw_footer()
     c.save()
     return buf.getvalue()

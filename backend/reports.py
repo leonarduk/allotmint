@@ -172,68 +172,6 @@ ALLOCATION_BREAKDOWN_TEMPLATE = ReportTemplate(
     ),
 )
 
-AUDIT_REPORT_TEMPLATE = ReportTemplate(
-    template_id="audit-report",
-    name="Audit report",
-    description="Comprehensive audit report with performance, activity, allocation, and key findings",
-    sections=(
-        ReportSectionSchema(
-            id="metrics",
-            title="Performance metrics",
-            source="performance.metrics",
-            description="Key return and cashflow metrics for the selected period",
-            columns=(
-                ReportColumnSchema("metric", "Metric"),
-                ReportColumnSchema("value", "Value"),
-                ReportColumnSchema("units", "Units"),
-            ),
-        ),
-        ReportSectionSchema(
-            id="performance-history",
-            title="Performance history",
-            source="performance.history",
-            description="Daily performance observations used for the summary",
-            columns=(
-                ReportColumnSchema("date", "Date", type="date"),
-                ReportColumnSchema("value", "Value", type="number"),
-                ReportColumnSchema("daily_return", "Daily return", type="number"),
-                ReportColumnSchema("weekly_return", "Weekly return", type="number"),
-                ReportColumnSchema("cumulative_return", "Cumulative return", type="number"),
-                ReportColumnSchema("drawdown", "Drawdown", type="number"),
-            ),
-        ),
-        ReportSectionSchema(
-            id="transactions",
-            title="Transactions",
-            source="transactions",
-            description="Raw transactions filtered by the provided window",
-            columns=(
-                ReportColumnSchema("date", "Date", type="date"),
-                ReportColumnSchema("type", "Type"),
-                ReportColumnSchema("description", "Description"),
-                ReportColumnSchema("amount_gbp", "Amount (GBP)", type="number"),
-                ReportColumnSchema("currency", "Currency"),
-            ),
-        ),
-        ReportSectionSchema(
-            id="allocation",
-            title="Allocation breakdown",
-            source="allocation",
-            description="Instrument-level allocation snapshot at the reporting date",
-            columns=(
-                ReportColumnSchema("ticker", "Ticker"),
-                ReportColumnSchema("exchange", "Exchange"),
-                ReportColumnSchema("units", "Units", type="number"),
-                ReportColumnSchema("price", "Price", type="number"),
-                ReportColumnSchema("value", "Value", type="number"),
-            ),
-        ),
-        ReportSectionSchema(
-            id="key-findings",
-            title="Key Findings",
-            source="portfolio.key_findings",
-            columns=(ReportColumnSchema("finding", "Finding"),),
-        ),
 PORTFOLIO_OVERVIEW_SECTION = ReportSectionSchema(
     id="portfolio-overview",
     title="Portfolio overview",
@@ -780,7 +718,7 @@ def _parse_key_findings_text(content: str) -> List[Dict[str, str]]:
         value = line.strip()
         if not value:
             continue
-        if value.startswith(("- ", "* ", "• ")):
+        if value.startswith(("- ", "* ", "\u2022 ")):
             value = value[2:].strip()
         else:
             numbered = re.match(r"^([1-9][0-9]?)\.\s+(.*)$", value)
@@ -877,7 +815,7 @@ def _build_history_section(
 
 def _build_transactions_section(
     context: ReportContext, section: ReportSectionSchema
-) -> Sequence[Dict[str, Any]]:\
+) -> Sequence[Dict[str, Any]]:
     return context.transactions()
 
 
@@ -1356,12 +1294,10 @@ def build_report_document(
             logger.warning("No builder registered for section source %s", schema.source)
             section_rows: Sequence[Dict[str, Any]] = ()
         else:
-            rows = builder(context, schema)
-        if schema.id == "key-findings" and not rows:
-            continue
-        sections.append(ReportSectionData(schema=schema, rows=tuple(rows)))
             section_rows = list(builder(context, schema))
-        sections.append(ReportSectionData(schema=schema, rows=section_rows))
+        if schema.id == "key-findings" and not section_rows:
+            continue
+        sections.append(ReportSectionData(schema=schema, rows=tuple(section_rows)))
 
     params: Dict[str, Any] = {}
     if start:
@@ -1666,9 +1602,6 @@ def report_to_pdf(document: ReportDocument) -> bytes:
         c.drawString(x, y, line)
         return y - line_height
 
-    def _write_section(section: ReportSectionData, start_y: float) -> float:
-        y = start_y
-        c.setFont("Helvetica-Bold", 12)
     def _draw_section_header(section: ReportSectionData, y: float) -> float:
         c.setFont("Helvetica-Bold", 13)
         c.drawString(40, y, section.schema.title)

@@ -137,7 +137,14 @@ def test_load_transactions_skips_missing_owner_directory(monkeypatch, tmp_path):
 
 def test_build_report_document_uses_context(monkeypatch):
     history = [
-        {"date": "2024-01-01", "value": 100.0, "daily_return": 0.1, "weekly_return": 0.2, "cumulative_return": 0.3, "drawdown": 0.0},
+        {
+            "date": "2024-01-01",
+            "value": 100.0,
+            "daily_return": 0.1,
+            "weekly_return": 0.2,
+            "cumulative_return": 0.3,
+            "drawdown": 0.0,
+        },
     ]
     summary = reports.ReportData(
         owner="alice",
@@ -151,10 +158,16 @@ def test_build_report_document_uses_context(monkeypatch):
     )
     performance = {"history": history, "reporting_date": "2024-01-01", "max_drawdown": -0.1}
 
-    monkeypatch.setattr(reports, "_compile_summary", lambda owner, start, end: (summary, performance))
-    monkeypatch.setattr(reports, "_load_transactions", lambda owner: [
-        {"date": "2024-01-01", "type": "SELL", "amount_minor": 1000, "currency": "GBP"}
-    ])
+    monkeypatch.setattr(
+        reports, "_compile_summary", lambda owner, start, end: (summary, performance)
+    )
+    monkeypatch.setattr(
+        reports,
+        "_load_transactions",
+        lambda owner: [
+            {"date": "2024-01-01", "type": "SELL", "amount_minor": 1000, "currency": "GBP"}
+        ],
+    )
     monkeypatch.setattr(
         reports.portfolio_utils,
         "portfolio_value_breakdown",
@@ -299,10 +312,12 @@ def test_file_template_store_filters_invalid_definitions(tmp_path, caplog):
 
     # Invalid schema (missing name) should also be skipped
     (tmp_path / "invalid.json").write_text(
-        json.dumps({
-            "template_id": "invalid",
-            "sections": [],
-        })
+        json.dumps(
+            {
+                "template_id": "invalid",
+                "sections": [],
+            }
+        )
     )
 
     with caplog.at_level("WARNING", logger=reports.logger.name):
@@ -353,7 +368,9 @@ def test_report_context_transactions_filters_and_sorts(monkeypatch):
 
     monkeypatch.setattr(reports, "_load_transactions", lambda owner: raw)
     monkeypatch.setattr(
-        reports, "_compile_summary", lambda owner, start, end: (
+        reports,
+        "_compile_summary",
+        lambda owner, start, end: (
             reports.ReportData(
                 owner=owner,
                 start=None,
@@ -364,7 +381,7 @@ def test_report_context_transactions_filters_and_sorts(monkeypatch):
                 max_drawdown=None,
             ),
             {},
-        )
+        ),
     )
 
     context = reports.ReportContext("alice", start=date(2024, 1, 1), end=None)
@@ -450,7 +467,9 @@ def test_build_report_document_warns_on_missing_builder(monkeypatch, caplog):
 
     monkeypatch.setattr(reports, "get_template", lambda template_id, store=None: template)
     monkeypatch.setattr(
-        reports, "ReportContext", lambda owner, start=None, end=None: SimpleNamespace(
+        reports,
+        "ReportContext",
+        lambda owner, start=None, end=None: SimpleNamespace(
             summary=lambda: reports.ReportData(
                 owner=owner,
                 start=None,
@@ -460,7 +479,7 @@ def test_build_report_document_warns_on_missing_builder(monkeypatch, caplog):
                 cumulative_return=None,
                 max_drawdown=None,
             ),
-        )
+        ),
     )
 
     with caplog.at_level("WARNING", logger=reports.logger.name):
@@ -583,3 +602,147 @@ def test_transaction_roots_local(monkeypatch, tmp_path):
     assert output_root.as_posix() in roots
     assert accounts_root.as_posix() in roots
     assert transactions_dir.as_posix() in roots
+
+
+def test_build_key_findings_section_parses_valid_file(tmp_path, monkeypatch):
+    monkeypatch.setattr(reports.config, "data_root", tmp_path, raising=False)
+    owner_dir = tmp_path / "accounts" / "demo-owner"
+    owner_dir.mkdir(parents=True)
+    (owner_dir / "key_findings.md").write_text(
+        "- Portfolio concentration is 42% in US tech versus 18% benchmark\n"
+        "2. Cash drag is 6.4% above the 2.0% target corridor\n",
+        encoding="utf-8",
+    )
+
+    context = reports.ReportContext("demo-owner", start=None, end=None)
+    schema = reports.ReportSectionSchema(
+        id="key-findings",
+        title="Key Findings",
+        source="portfolio.key_findings",
+        columns=(reports.ReportColumnSchema("finding", "Finding"),),
+    )
+
+    rows = reports._build_key_findings_section(context, schema)
+
+    assert rows == [
+        {"finding": "Portfolio concentration is 42% in US tech versus 18% benchmark"},
+        {"finding": "Cash drag is 6.4% above the 2.0% target corridor"},
+    ]
+
+
+def test_build_key_findings_section_returns_empty_when_missing(tmp_path, monkeypatch):
+    monkeypatch.setattr(reports.config, "data_root", tmp_path, raising=False)
+
+    context = reports.ReportContext("demo-owner", start=None, end=None)
+    schema = reports.ReportSectionSchema(
+        id="key-findings",
+        title="Key Findings",
+        source="portfolio.key_findings",
+        columns=(reports.ReportColumnSchema("finding", "Finding"),),
+    )
+
+    assert reports._build_key_findings_section(context, schema) == []
+
+
+def test_build_key_findings_section_rejects_missing_numbers(tmp_path, monkeypatch):
+    monkeypatch.setattr(reports.config, "data_root", tmp_path, raising=False)
+    owner_dir = tmp_path / "accounts" / "demo-owner"
+    owner_dir.mkdir(parents=True)
+    (owner_dir / "key_findings.md").write_text(
+        "- Portfolio concentration is heavily skewed to one sector\n",
+        encoding="utf-8",
+    )
+
+    context = reports.ReportContext("demo-owner", start=None, end=None)
+    schema = reports.ReportSectionSchema(
+        id="key-findings",
+        title="Key Findings",
+        source="portfolio.key_findings",
+        columns=(reports.ReportColumnSchema("finding", "Finding"),),
+    )
+
+    with pytest.raises(ValueError, match="Invalid key finding"):
+        reports._build_key_findings_section(context, schema)
+
+
+def test_key_findings_source_is_registered_for_template_validation():
+    payload = {
+        "template_id": "custom-findings",
+        "name": "Custom Findings",
+        "description": "",
+        "sections": [
+            {
+                "id": "key-findings",
+                "title": "Key Findings",
+                "source": "portfolio.key_findings",
+                "columns": [{"key": "finding", "label": "Finding"}],
+            }
+        ],
+    }
+
+    result = reports._validate_template_payload(payload)
+
+    assert result["sections"][0]["source"] == "portfolio.key_findings"
+
+
+def test_build_report_document_omits_empty_key_findings_section(monkeypatch):
+    template = reports.ReportTemplate(
+        template_id="audit-report",
+        name="Audit",
+        description="",
+        sections=(
+            reports.ReportSectionSchema(
+                id="metrics",
+                title="Metrics",
+                source="performance.metrics",
+                columns=(
+                    reports.ReportColumnSchema("metric", "Metric"),
+                    reports.ReportColumnSchema("value", "Value"),
+                    reports.ReportColumnSchema("units", "Units"),
+                ),
+            ),
+            reports.ReportSectionSchema(
+                id="key-findings",
+                title="Key Findings",
+                source="portfolio.key_findings",
+                columns=(reports.ReportColumnSchema("finding", "Finding"),),
+            ),
+        ),
+        builtin=True,
+    )
+
+    monkeypatch.setattr(reports, "get_template", lambda template_id, store=None: template)
+    monkeypatch.setattr(
+        reports,
+        "ReportContext",
+        lambda owner, start=None, end=None: SimpleNamespace(
+            summary=lambda: reports.ReportData(
+                owner=owner,
+                start=None,
+                end=None,
+                realized_gains_gbp=0.0,
+                income_gbp=0.0,
+                cumulative_return=None,
+                max_drawdown=None,
+            ),
+            transactions=lambda: [],
+            allocation=lambda: [],
+        ),
+    )
+    monkeypatch.setitem(
+        reports.SECTION_BUILDERS,
+        "portfolio.key_findings",
+        lambda context, section: [],
+    )
+
+    document = reports.build_report_document("audit-report", "demo-owner")
+
+    assert [section.schema.id for section in document.sections] == ["metrics"]
+
+
+def test_audit_report_template_has_key_findings_as_final_section():
+    template = reports.get_template("audit-report")
+
+    assert template is not None
+    assert template.sections[-1].id == "key-findings"
+    assert template.sections[-1].source == "portfolio.key_findings"

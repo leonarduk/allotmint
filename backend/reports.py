@@ -102,9 +102,7 @@ PERFORMANCE_SUMMARY_TEMPLATE = ReportTemplate(
                 ReportColumnSchema("value", "Value", type="number"),
                 ReportColumnSchema("daily_return", "Daily return", type="number"),
                 ReportColumnSchema("weekly_return", "Weekly return", type="number"),
-                ReportColumnSchema(
-                    "cumulative_return", "Cumulative return", type="number"
-                ),
+                ReportColumnSchema("cumulative_return", "Cumulative return", type="number"),
                 ReportColumnSchema("drawdown", "Drawdown", type="number"),
             ),
         ),
@@ -155,6 +153,71 @@ ALLOCATION_BREAKDOWN_TEMPLATE = ReportTemplate(
     ),
 )
 
+AUDIT_REPORT_TEMPLATE = ReportTemplate(
+    template_id="audit-report",
+    name="Audit report",
+    description="Comprehensive audit report with performance, activity, allocation, and key findings",
+    sections=(
+        ReportSectionSchema(
+            id="metrics",
+            title="Performance metrics",
+            source="performance.metrics",
+            description="Key return and cashflow metrics for the selected period",
+            columns=(
+                ReportColumnSchema("metric", "Metric"),
+                ReportColumnSchema("value", "Value"),
+                ReportColumnSchema("units", "Units"),
+            ),
+        ),
+        ReportSectionSchema(
+            id="performance-history",
+            title="Performance history",
+            source="performance.history",
+            description="Daily performance observations used for the summary",
+            columns=(
+                ReportColumnSchema("date", "Date", type="date"),
+                ReportColumnSchema("value", "Value", type="number"),
+                ReportColumnSchema("daily_return", "Daily return", type="number"),
+                ReportColumnSchema("weekly_return", "Weekly return", type="number"),
+                ReportColumnSchema("cumulative_return", "Cumulative return", type="number"),
+                ReportColumnSchema("drawdown", "Drawdown", type="number"),
+            ),
+        ),
+        ReportSectionSchema(
+            id="transactions",
+            title="Transactions",
+            source="transactions",
+            description="Raw transactions filtered by the provided window",
+            columns=(
+                ReportColumnSchema("date", "Date", type="date"),
+                ReportColumnSchema("type", "Type"),
+                ReportColumnSchema("description", "Description"),
+                ReportColumnSchema("amount_gbp", "Amount (GBP)", type="number"),
+                ReportColumnSchema("currency", "Currency"),
+            ),
+        ),
+        ReportSectionSchema(
+            id="allocation",
+            title="Allocation breakdown",
+            source="allocation",
+            description="Instrument-level allocation snapshot at the reporting date",
+            columns=(
+                ReportColumnSchema("ticker", "Ticker"),
+                ReportColumnSchema("exchange", "Exchange"),
+                ReportColumnSchema("units", "Units", type="number"),
+                ReportColumnSchema("price", "Price", type="number"),
+                ReportColumnSchema("value", "Value", type="number"),
+            ),
+        ),
+        ReportSectionSchema(
+            id="key-findings",
+            title="Key Findings",
+            source="portfolio.key_findings",
+            columns=(ReportColumnSchema("finding", "Finding"),),
+        ),
+    ),
+)
+
 
 BUILTIN_TEMPLATES: Dict[str, ReportTemplate] = {
     template.template_id: template
@@ -162,6 +225,7 @@ BUILTIN_TEMPLATES: Dict[str, ReportTemplate] = {
         PERFORMANCE_SUMMARY_TEMPLATE,
         TRANSACTIONS_TEMPLATE,
         ALLOCATION_BREAKDOWN_TEMPLATE,
+        AUDIT_REPORT_TEMPLATE,
     )
 }
 
@@ -406,9 +470,7 @@ def get_template_store() -> TemplateStore:
     if config.app_env == "aws":
         table_name = os.getenv("REPORT_TEMPLATES_TABLE")
         if not table_name:
-            raise RuntimeError(
-                "REPORT_TEMPLATES_TABLE environment variable is required in AWS"
-            )
+            raise RuntimeError("REPORT_TEMPLATES_TABLE environment variable is required in AWS")
         return DynamoTemplateStore(table_name)
     root = config.data_root / "reports"
     return FileTemplateStore(root)
@@ -543,12 +605,49 @@ def _normalise_transaction(
             break
     tx_type = (item.get("type") or "").upper()
     return {
-        "date": tx_date.isoformat() if tx_date else (date_str if isinstance(date_str, str) else None),
+        "date": (
+            tx_date.isoformat() if tx_date else (date_str if isinstance(date_str, str) else None)
+        ),
         "type": tx_type,
         "description": description,
         "amount_gbp": round(amount, 2),
         "currency": currency,
     }
+
+
+def _parse_key_findings_text(content: str) -> List[Dict[str, str]]:
+    findings: List[Dict[str, str]] = []
+    for line in content.splitlines():
+        value = line.strip()
+        if not value:
+            continue
+        if value.startswith(("- ", "* ", "• ")):
+            value = value[2:].strip()
+        else:
+            numbered = re.match(r"^([1-9][0-9]?)\.\s+(.*)$", value)
+            if numbered:
+                value = numbered.group(2).strip()
+        if not value:
+            continue
+        if len(value) < 20 or len(value) > 240 or not any(ch.isdigit() for ch in value):
+            raise ValueError(f"Invalid key finding: {value}")
+        findings.append({"finding": value})
+    return findings
+
+
+def _build_key_findings_section(
+    context: ReportContext, section: ReportSectionSchema
+) -> Sequence[Dict[str, Any]]:
+    owner_root = config.data_root / "accounts" / context.owner
+    candidates = (
+        owner_root / "key_findings.md",
+        owner_root / "key_findings.txt",
+    )
+    for path in candidates:
+        if path.exists():
+            content = path.read_text(encoding="utf-8")
+            return _parse_key_findings_text(content)
+    return []
 
 
 SectionBuilder = Callable[[ReportContext, ReportSectionSchema], Sequence[Dict[str, Any]]]
@@ -634,6 +733,7 @@ SECTION_BUILDERS: Dict[str, SectionBuilder] = {
     "performance.history": _build_history_section,
     "transactions": _build_transactions_section,
     "allocation": _build_allocation_section,
+    "portfolio.key_findings": _build_key_findings_section,
 }
 
 
@@ -650,11 +750,7 @@ def _validate_template_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         raise ValueError("Template name is required")
 
     description_raw = payload.get("description")
-    description = (
-        str(description_raw).strip()
-        if description_raw is not None
-        else ""
-    )
+    description = str(description_raw).strip() if description_raw is not None else ""
 
     sections_raw = payload.get("sections")
     if not isinstance(sections_raw, list) or not sections_raw:
@@ -850,6 +946,8 @@ def build_report_document(
             rows: Sequence[Dict[str, Any]] = []
         else:
             rows = builder(context, schema)
+        if schema.id == "key-findings" and not rows:
+            continue
         sections.append(ReportSectionData(schema=schema, rows=tuple(rows)))
 
     params: Dict[str, Any] = {}
@@ -949,7 +1047,9 @@ def _load_transactions(owner: str) -> List[dict]:
     return records
 
 
-def _compile_summary(owner: str, start: Optional[date] = None, end: Optional[date] = None) -> tuple[ReportData, Dict[str, Any]]:
+def _compile_summary(
+    owner: str, start: Optional[date] = None, end: Optional[date] = None
+) -> tuple[ReportData, Dict[str, Any]]:
     txs = _load_transactions(owner)
     realized = 0.0
     income = 0.0
@@ -998,7 +1098,9 @@ def _compile_summary(owner: str, start: Optional[date] = None, end: Optional[dat
     return data, perf
 
 
-def compile_report(owner: str, start: Optional[date] = None, end: Optional[date] = None) -> ReportData:
+def compile_report(
+    owner: str, start: Optional[date] = None, end: Optional[date] = None
+) -> ReportData:
     data, _perf = _compile_summary(owner, start=start, end=end)
     return data
 
@@ -1015,9 +1117,7 @@ def _section_to_dataframe(section: ReportSectionData) -> pd.DataFrame:
         rename_map = {column.key: column.label for column in section.schema.columns}
         df = df.rename(columns=rename_map)
     else:
-        df = pd.DataFrame(
-            columns=[column.label for column in section.schema.columns]
-        )
+        df = pd.DataFrame(columns=[column.label for column in section.schema.columns])
     return df
 
 
@@ -1057,6 +1157,24 @@ def report_to_pdf(document: ReportDocument) -> bytes:
                 c.drawString(40, y, f"{key}: {value}")
                 y -= 12
 
+    def _write_wrapped_lines(
+        text: str, x: float, y: float, max_width: float, line_height: float
+    ) -> float:
+        words = text.split()
+        if not words:
+            return y
+        line = words[0]
+        for word in words[1:]:
+            candidate = f"{line} {word}"
+            if c.stringWidth(candidate, "Helvetica", 11) <= max_width:
+                line = candidate
+            else:
+                c.drawString(x, y, line)
+                y -= line_height
+                line = word
+        c.drawString(x, y, line)
+        return y - line_height
+
     def _write_section(section: ReportSectionData, start_y: float) -> float:
         y = start_y
         c.setFont("Helvetica-Bold", 12)
@@ -1066,6 +1184,37 @@ def report_to_pdf(document: ReportDocument) -> bytes:
             c.setFont("Helvetica", 9)
             c.drawString(40, y, section.schema.description)
             y -= 14
+
+        if section.schema.id == "key-findings":
+            findings = [
+                str(row.get("finding", "")).strip()
+                for row in section.rows
+                if str(row.get("finding", "")).strip()
+            ]
+            c.setFont("Helvetica", 11)
+            index = 1
+            for finding in findings:
+                if y < 90:
+                    c.showPage()
+                    _write_header()
+                    y = height - 120
+                    c.setFont("Helvetica-Bold", 12)
+                    c.drawString(40, y, section.schema.title)
+                    y -= 18
+                    c.setFont("Helvetica", 11)
+                prefix = f"{index}. "
+                c.drawString(40, y, prefix)
+                y = _write_wrapped_lines(
+                    finding,
+                    x=58,
+                    y=y,
+                    max_width=width - 98,
+                    line_height=14,
+                )
+                y -= 4
+                index += 1
+            return y - 6
+
         if y < 80:
             c.showPage()
             _write_header()
@@ -1112,4 +1261,3 @@ def report_to_pdf(document: ReportDocument) -> bytes:
     c.showPage()
     c.save()
     return buf.getvalue()
-

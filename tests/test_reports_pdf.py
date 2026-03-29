@@ -52,3 +52,52 @@ def test_report_to_pdf_generates_pdf():
     assert pdf.startswith(b"%PDF")
     assert len(pdf) > 0
 
+
+def test_report_to_pdf_key_findings_section_renders_text():
+    if reports.canvas is None:
+        pytest.skip("reportlab not installed")
+
+    key_schema = reports.ReportSectionSchema(
+        id="key-findings",
+        title="Key Findings",
+        source="portfolio.key_findings",
+        columns=(reports.ReportColumnSchema("finding", "Finding"),),
+    )
+    template = reports.ReportTemplate(
+        template_id="audit-report",
+        name="Audit report",
+        description="",
+        sections=(key_schema,),
+        builtin=True,
+    )
+    section = reports.ReportSectionData(
+        schema=key_schema,
+        rows=(
+            {"finding": "Portfolio concentration is 42% in US tech versus 18% benchmark"},
+            {"finding": "Cash allocation is 12.6% compared with a 5.0% policy target"},
+        ),
+    )
+    document = reports.ReportDocument(
+        template=template,
+        owner="demo-owner",
+        generated_at=datetime.now(tz=reports.UTC),
+        parameters={},
+        sections=(section,),
+    )
+
+    pdf = reports.report_to_pdf(document)
+
+    assert pdf.startswith(b"%PDF")
+    assert b"Key Findings" in pdf
+    assert b"Portfolio concentration is 42% in US tech versus 18% benchmark" in pdf
+
+
+def test_report_to_pdf_succeeds_without_key_findings_section():
+    if reports.canvas is None:
+        pytest.skip("reportlab not installed")
+
+    document = _example_document()
+
+    pdf = reports.report_to_pdf(document)
+
+    assert pdf.startswith(b"%PDF")

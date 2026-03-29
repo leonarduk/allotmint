@@ -721,6 +721,24 @@ def test_portfolio_var_builder_extracts_numeric_from_payload(monkeypatch):
     ]
 
 
+def test_audit_portfolio_var_builder_returns_empty_when_risk_data_missing(monkeypatch):
+    monkeypatch.setattr(
+        reports.risk,
+        "compute_portfolio_var",
+        lambda owner, confidence=0.95: (_ for _ in ()).throw(FileNotFoundError("missing risk data")),
+    )
+    monkeypatch.setattr(
+        reports.risk,
+        "compute_sharpe_ratio",
+        lambda owner: (_ for _ in ()).throw(FileNotFoundError("missing sharpe data")),
+    )
+    context = reports.ReportContext(owner="alice", start=None, end=None)
+
+    var_rows = reports._build_portfolio_var_section(context, reports.AUDIT_REPORT_TEMPLATE.sections[4])
+
+    assert var_rows == []
+
+
 def test_portfolio_overview_counts_nested_holdings(monkeypatch):
     monkeypatch.setattr(
         reports,

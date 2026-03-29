@@ -1,7 +1,7 @@
 from pathlib import Path
 
 
-CLAUDE_PATH = Path("CLAUDE.md")
+CLAUDE_PATH = Path(__file__).parent.parent / "CLAUDE.md"
 
 
 def _claude_text() -> str:

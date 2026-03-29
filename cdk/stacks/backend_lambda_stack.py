@@ -77,7 +77,7 @@ class BackendLambdaStack(Stack):
             fn.add_to_role_policy(
                 iam.PolicyStatement(
                     actions=["s3:ListBucket"],
-                    resources=[f"arn:aws:s3:::{bucket_name}"],
+                    resources=[bucket.bucket_arn],
                     conditions={"StringLike": {"s3:prefix": prefix_conditions}},
                 )
             )

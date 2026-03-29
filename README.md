@@ -58,6 +58,7 @@ Use these steps when you want phones/tablets/laptops on your WiFi network to hit
 
 - Python 3.11+ with dependencies installed:
   - `python -m pip install -r requirements.txt -r requirements-dev.txt`
+  - (CI/CD workflows run on Python 3.12)
 - Node.js 20+ for frontend tooling.
 - Local environment defaults:
   - `cp .env.local.example .env.local`

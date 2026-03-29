@@ -59,6 +59,17 @@ Branch naming convention: `fix/issue-NNNN-short-description` or `feat/issue-NNNN
 4. Run the narrowest useful validation.
 5. Update nearby docs when commands or behavior changed.
 
+## Code quality invariants (non-negotiable)
+
+Derived from the NASA/JPL Power of Ten guidelines — applicable subset only.
+C-specific rules (no dynamic allocation, pointer restrictions, preprocessor limits, recursion ban) are omitted as inapplicable to this stack.
+
+- **Function length**: keep functions to ~60 lines or fewer. If a function no longer fits on one screen, refactor before making further changes.
+- **Zero lint warnings**: `make lint` and `npm --prefix frontend run lint` must pass clean. If a tool flags something incorrectly, rewrite the code until it doesn't — do not suppress warnings without a documented justification inline.
+- **No silent error swallowing**: every error path must be explicitly handled. No bare `except: pass`, no `catch` blocks that discard exceptions silently, no unhandled Promise rejections.
+- **No ignored return values**: check return values of functions that can fail. If you deliberately discard a return value, make it explicit (`_ =` in Python, explicit `void` comment in TS) and add a brief comment explaining why.
+- **Minimum scope**: declare variables as late as possible and as locally as possible. Avoid module-level mutable state unless genuinely necessary.
+
 ## If you touch specific areas
 
 ### Backend

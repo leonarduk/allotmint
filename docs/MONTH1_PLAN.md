@@ -16,10 +16,16 @@ Every hour spent on code quality, infra, or features not listed below is an hour
 
 ---
 
-## Code prerequisites (in order)
+## Code prerequisites
 
 These are the only things that need to be built before you can deliver a report to a customer.
 Everything else is out of scope until there is a paying customer.
+
+Dependency order (where stated):
+- #2572 must merge before #2578 (VaR section)
+- #2579 can run in parallel with #2578
+- #2580 requires #2579 to be done first
+- #2581 requires #2578, #2579, and #2580
 
 ### 1. Merge PR #2572 — VaR fix *(today, ~1 hour)*
 
@@ -42,7 +48,7 @@ New built-in template: `audit-report` composing sections 1–4.
 **Blocked by:** #2572 merged (for VaR section).  
 **Blocks:** #2581 (end-to-end test).
 
-### 3. Issue #2579 — PDF formatting *(Day 3, ~0.5 days)*
+### 3. Issue #2579 — PDF formatting *(Days 1–2 in parallel with #2578, ~0.5 days)*
 
 Current PDF is pipe-delimited monospace. Minimum bar for a customer-facing document:
 - Title page with owner name and date
@@ -52,8 +58,8 @@ Current PDF is pipe-delimited monospace. Minimum bar for a customer-facing docum
 - Page footer with page numbers
 - `watermark="SAMPLE"` parameter for demo reports
 
-**Blocked by:** nothing (can be done in parallel with #2578).  
-**Blocks:** #2581 (the test checks formatting).
+**Blocked by:** nothing — start this alongside #2578.  
+**Blocks:** #2580, #2581.
 
 ### 4. Issue #2580 — Key Findings section *(Day 3–4, ~0.5 days)*
 
@@ -76,14 +82,19 @@ Run the full pipeline locally against your own portfolio data and verify:
 **Blocked by:** #2578, #2579, #2580.  
 **Blocks:** everything in Week 2 onwards.
 
+### Also required: merge PR #2576 — remove personal email from config.yaml
+
+The repo is public. PR #2576 removes a personal email address committed to `config.yaml`.
+This should be merged before sharing the repo link with any prospect.
+
 ---
 
 ## Week-by-week plan
 
 ### Week 1 — Code sprint + market research (parallel)
 
-**Code (Days 1–5):** Complete issues #2572, #2578, #2579, #2580, #2581 in order.
-Target: demo PDF exists by end of Friday.
+**Code (Days 1–5):** Work through the prerequisites above. Note that #2578 and #2579 can
+run in parallel — start both on Day 1. Target: demo PDF exists by end of Friday.
 
 **Market research (every day, 1–2 hours):** Does not require the code to be working.
 - Read relevant investing and personal finance communities. Do not post yet. Identify people
@@ -94,6 +105,7 @@ Target: demo PDF exists by end of Friday.
 
 **Week 1 exit criteria:**
 - [ ] Demo PDF exists and passes the quality test
+- [ ] PR #2576 merged
 - [ ] 15 prospects identified
 - [ ] Positioning statement written
 - [ ] Payment mechanism live
@@ -192,8 +204,8 @@ Track only these five metrics weekly:
 | Ref | Type | Title | Prerequisite for |
 |---|---|---|---|
 | #2572 | PR | Fix VaR inputs for cash and scaled prices | #2578 |
+| #2576 | PR | Remove personal email from config.yaml | Sharing repo link with prospects |
 | #2578 | Issue | Wire sector/region/VaR/concentration into report pipeline | #2581 |
-| #2579 | Issue | Improve PDF report formatting | #2581 |
+| #2579 | Issue | Improve PDF report formatting | #2580, #2581 |
 | #2580 | Issue | Add Key Findings section to audit report PDF | #2581 |
 | #2581 | Issue | End-to-end manual test against real portfolio data | Week 2 outreach |
-| #2576 | PR | Remove personal email from config.yaml | Repo stays public |

@@ -68,15 +68,15 @@ This repository has a Python/FastAPI backend, a React/Vite frontend, AWS CDK inf
 
 **Never commit directly to `main`.** This applies without exception to all changes: code, documentation, config, and trivial fixes.
 
+This rule exists to preserve CI gating, review history, and the ability to revert cleanly. A direct push to `main` bypasses all of these and cannot be undone without rewriting history.
+
 Required workflow for every change:
 1. Create a branch from `main`
 2. Push all changes to that branch
 3. Open a PR targeting `main`
 4. Wait for review before merging
 
-Branch naming convention: `fix/issue-NNNN-short-description`, `feat/issue-NNNN-short-description`, or `docs/short-description`.
-
-This rule exists to preserve CI gating, review history, and the ability to revert cleanly.
+Branch naming convention: `fix/issue-NNNN-short-description`, `feat/issue-NNNN-short-description`, `docs/short-description`, or `chore/short-description`.
 
 ## 6. How to work safely in this codebase
 

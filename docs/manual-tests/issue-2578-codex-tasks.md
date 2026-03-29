@@ -1,15 +1,25 @@
 # Issue #2578 — Codex Implementation Tasks
 
-This checklist turns issue #2578 into execution-ready tasks with explicit validation criteria and AGENTS.md workflow compliance.
+Source issue: [Issue #2578](https://github.com/allotmint/allotmint/issues/2578)
+
+This checklist translates Issue #2578 into an implementation and validation workflow for the report pipeline sections `portfolio.overview`, `portfolio.sectors`, `portfolio.regions`, `portfolio.concentration`, and `portfolio.var`.
+
+This is a planning artifact only. It does **not** satisfy or close Issue #2578 by itself; closure requires backend/report code and tests landing in a follow-up implementation PR.
+
+Scope intent: implement or correct report-pipeline behavior for those sections only, preserve deterministic fixture-backed outputs, and avoid expanding into unrelated reporting features. Exclusions (including section 5 key findings and ETF overlap/scenario outputs) must be explicitly recorded as intentional when treated as out of scope.
+
+Use the same demo fixture owner/data baseline referenced by Issue #2578 for all JSON/PDF validation so results remain comparable across contributors.
 
 ## Task 0 — Scope lock and dependency gate
 
-- [ ] Confirm dependency issue/PR #2572 is merged before finalizing VaR behavior.
+- [ ] **Hard gate:** Do not proceed to Task 3 (backend changes) unless #2572 is merged to `main` and verified locally.
+- [ ] If #2572 is not merged and locally verified, STOP execution.
 - [ ] Confirm scope is limited to report sections 1–4 only (exclude section 5 key findings).
 - [ ] Record whether ETF overlap/scenario outputs are intentionally out of scope for #2578.
+- [ ] Add hard-gate status to the implementation PR body as a required checklist item so reviewers can block merge if it is not met.
 
 **Definition of done**
-- Scope and dependency status are documented in the issue/PR notes.
+- Scope and dependency status are documented in issue/PR notes, including explicit pass/fail status for the hard gate.
 
 ---
 
@@ -33,15 +43,19 @@ This checklist turns issue #2578 into execution-ready tasks with explicit valida
   - `portfolio.var`
 - [ ] Verify builder wiring for all required portfolio report sources.
 - [ ] Mark each AC row as pass/fail before changing code.
+- [ ] Define and record `portfolio.var` behavior before implementation:
+  - Required vs optional: `portfolio.var` is **optional** when upstream VaR inputs are unavailable.
+  - Fallback rule: when unavailable, omit the VaR section (do not inject placeholder numeric values).
+  - Test expectation: assert section presence when VaR inputs exist and conditional absence when VaR inputs are unavailable.
 
 **Definition of done**
-- A concise "gaps to fix" checklist exists.
+- A concise "gaps to fix" checklist exists, including explicit `portfolio.var` availability/fallback expectations.
 
 ---
 
 ## Task 3 — Implement targeted backend changes for failing AC rows
 
-- [ ] Update `backend/reports.py` only where AC failures require changes.
+- [ ] Prefer minimal, focused changes. `backend/reports.py` is the primary target, but update schemas, routes, or related layers if required to satisfy acceptance criteria.
 - [ ] Ensure output rows for overview/sector/region/concentration/var are stable and deterministic for demo fixture inputs.
 - [ ] Keep error handling explicit (no silent swallow patterns).
 
@@ -61,8 +75,19 @@ This checklist turns issue #2578 into execution-ready tasks with explicit valida
   - VaR/Sharpe availability fallback behavior,
   - no regressions to existing built-in templates.
 
+### Additional required validation dimensions
+
+**Auth / permissions**
+- [ ] Verify report endpoints enforce expected access control (unauthorized requests are rejected).
+
+**Frontend contract**
+- [ ] Verify section order and section presence match expected output in the frontend using a reproducible check (snapshot, automated test, or scripted smoke evidence attached to the PR).
+
+**PDF performance sanity**
+- [ ] Generate PDF using fixture data and confirm completion within a reasonable bound (no timeout and no obvious regression).
+
 **Definition of done**
-- AC matrix rows are all covered by deterministic tests.
+- AC matrix rows are all covered by deterministic tests, including auth, frontend contract, and PDF performance sanity checks.
 
 ---
 
@@ -72,7 +97,7 @@ This checklist turns issue #2578 into execution-ready tasks with explicit valida
   - `pytest tests/test_reports.py tests/test_reports_route.py tests/test_reports_pdf.py`
 - [ ] Run additional related suites if touched:
   - `pytest tests/test_reports_additional.py tests/test_reports_validation.py`
-- [ ] Run lint gate with zero warnings:
+- [ ] Run CI-aligned lint gate with zero warnings:
   - `make lint`
 
 **Definition of done**
@@ -82,7 +107,7 @@ This checklist turns issue #2578 into execution-ready tasks with explicit valida
 
 ## Task 6 — Branch and PR hygiene (AGENTS.md)
 
-- [ ] Work from non-main branch named with issue number (e.g., `feat/issue-2578-audit-report-pipeline`).
+- [ ] Work from non-main branch named with issue number (for example, `feat/issue-2578-audit-report-pipeline`; follow AGENTS.md naming policy).
 - [ ] Use focused commit messages.
 - [ ] PR description includes:
   - what changed,
@@ -92,15 +117,3 @@ This checklist turns issue #2578 into execution-ready tasks with explicit valida
 
 **Definition of done**
 - Branch and PR satisfy repository branch/PR policy.
-
----
-
-## Suggested execution order
-
-1. Task 0
-2. Task 1
-3. Task 2
-4. Task 3
-5. Task 4
-6. Task 5
-7. Task 6

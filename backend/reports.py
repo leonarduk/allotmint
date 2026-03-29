@@ -1512,6 +1512,14 @@ def build_report_document(
             section_rows: Sequence[Dict[str, Any]] = ()
         else:
             section_rows = list(builder(context, schema))
+        # Omit the VaR section from the audit report when the builder returns no
+        # rows (e.g. when VaR inputs are unavailable). Do not inject placeholder values.
+        if (
+            template.template_id == AUDIT_REPORT_TEMPLATE.template_id
+            and schema.source == PORTFOLIO_VAR_SECTION.source
+            and not section_rows
+        ):
+            continue
         # Omit sections backed by portfolio.key_findings when the owner has no
         # findings file — regardless of the section id chosen by the template
         # author (built-in or user-defined).

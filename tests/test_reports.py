@@ -1347,6 +1347,48 @@ def test_audit_risk_section_includes_var_and_sharpe(monkeypatch):
     assert {row["confidence"] for row in rows if row["metric"] == "VaR"} == {0.95, 0.99}
 
 
+def test_build_report_document_omits_empty_var_section_for_audit_report(monkeypatch, tmp_path):
+    """VaR section must be omitted from audit-report when the risk module is unavailable."""
+    monkeypatch.setattr(reports, "risk", None)
+    monkeypatch.setattr(reports, "_load_transactions", lambda owner: [])
+    monkeypatch.setattr(
+        reports,
+        "_compile_summary",
+        lambda owner, start, end: (
+            reports.ReportData(
+                owner=owner,
+                start=None,
+                end=None,
+                realized_gains_gbp=0.0,
+                income_gbp=0.0,
+                cumulative_return=None,
+                max_drawdown=None,
+            ),
+            {},
+        ),
+    )
+    monkeypatch.setattr(
+        reports.portfolio_mod,
+        "build_owner_portfolio",
+        lambda owner, pricing_date=None: {"total_value_estimate_gbp": 0.0, "accounts": []},
+    )
+    monkeypatch.setattr(
+        reports.portfolio_utils, "aggregate_by_sector", lambda portfolio: []
+    )
+    monkeypatch.setattr(
+        reports.portfolio_utils, "aggregate_by_region", lambda portfolio: []
+    )
+    monkeypatch.setattr(
+        reports.portfolio_utils, "aggregate_by_ticker", lambda portfolio: []
+    )
+    monkeypatch.setattr(reports.config, "data_root", tmp_path, raising=False)
+
+    document = reports.build_report_document("audit-report", "alice")
+
+    var_sections = [s for s in document.sections if s.schema.source == "portfolio.var"]
+    assert var_sections == [], "VaR section must be omitted when risk module is None"
+
+
 def test_build_report_document_fails_for_builtin_missing_builder(monkeypatch):
     template = reports.ReportTemplate(
         template_id="builtin-broken",

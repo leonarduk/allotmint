@@ -172,6 +172,95 @@ def test_build_report_document_uses_context(monkeypatch):
     assert history_rows[0]["date"] == "2024-01-01"
 
 
+def test_portfolio_section_builders(monkeypatch):
+    portfolio_payload = {
+        "total_value_estimate_gbp": 1000.0,
+        "accounts": [
+            {
+                "account_type": "ISA",
+                "value_estimate_gbp": 700.0,
+                "holdings": [
+                    {"asset_class": "Equity", "market_value_gbp": 400.0},
+                    {"asset_class": "Bond", "market_value_gbp": 300.0},
+                ],
+            },
+            {
+                "account_type": "GIA",
+                "value_estimate_gbp": 300.0,
+                "holdings": [{"asset_class": "Equity", "market_value_gbp": 300.0}],
+            },
+        ],
+    }
+    monkeypatch.setattr(reports.portfolio_mod, "build_owner_portfolio", lambda owner: portfolio_payload)
+    monkeypatch.setattr(
+        reports.portfolio_utils,
+        "aggregate_by_sector",
+        lambda portfolio: [
+            {"sector": "Tech", "market_value_gbp": 700.0, "gain_gbp": 100.0, "cost_gbp": 600.0, "gain_pct": 16.666666, "contribution_pct": 8.0},
+            {"sector": "Utilities", "market_value_gbp": 300.0, "gain_gbp": 20.0, "cost_gbp": 280.0, "gain_pct": 7.142857, "contribution_pct": 2.0},
+        ],
+    )
+    monkeypatch.setattr(
+        reports.portfolio_utils,
+        "aggregate_by_region",
+        lambda portfolio: [
+            {"region": "UK", "market_value_gbp": 600.0, "gain_gbp": 80.0, "cost_gbp": 520.0, "gain_pct": 15.384615, "contribution_pct": 6.0},
+            {"region": "US", "market_value_gbp": 400.0, "gain_gbp": 40.0, "cost_gbp": 360.0, "gain_pct": 11.111111, "contribution_pct": 4.0},
+        ],
+    )
+    monkeypatch.setattr(
+        reports.portfolio_utils,
+        "aggregate_by_ticker",
+        lambda portfolio: [
+            {"ticker": "AAA.L", "market_value_gbp": 600.0},
+            {"ticker": "BBB.L", "market_value_gbp": 400.0},
+        ],
+    )
+    monkeypatch.setattr(
+        reports.risk_mod,
+        "compute_portfolio_var",
+        lambda owner, confidence: {"confidence": confidence, "1d": 12.345, "10d": 34.567},
+    )
+    monkeypatch.setattr(reports.risk_mod, "compute_sharpe_ratio", lambda owner: 1.23456)
+
+    template = reports.ReportTemplate(
+        template_id="portfolio-insights",
+        name="Portfolio insights",
+        description="",
+        sections=(
+            reports.PORTFOLIO_OVERVIEW_SECTION,
+            reports.PORTFOLIO_SECTORS_SECTION,
+            reports.PORTFOLIO_REGIONS_SECTION,
+            reports.PORTFOLIO_CONCENTRATION_SECTION,
+            reports.PORTFOLIO_VAR_SECTION,
+        ),
+    )
+    monkeypatch.setattr(reports, "get_template", lambda template_id: template)
+
+    document = reports.build_report_document("portfolio-insights", "alice")
+    sources = {section.schema.source: section.rows for section in document.sections}
+
+    overview_rows = sources["portfolio.overview"]
+    assert any(row["label"] == "Total portfolio value" and row["value"] == 1000.0 for row in overview_rows)
+    assert any(row["category"] == "asset_class" and row["label"] == "Equity" and row["value"] == 700.0 for row in overview_rows)
+
+    sectors_rows = sources["portfolio.sectors"]
+    assert sectors_rows[0]["sector"] == "Tech"
+    assert sectors_rows[0]["weight_pct"] == 70.0
+
+    regions_rows = sources["portfolio.regions"]
+    assert regions_rows[0]["region"] == "UK"
+    assert regions_rows[0]["weight_pct"] == 60.0
+
+    concentration_rows = sources["portfolio.concentration"]
+    assert concentration_rows[0]["ticker"] == "AAA.L"
+    assert concentration_rows[0]["hhi"] == 0.52
+
+    var_rows = sources["portfolio.var"]
+    assert any(row["metric"] == "VaR" and row["confidence"] == 0.95 and row["horizon_days"] == 1 for row in var_rows)
+    assert any(row["metric"] == "Sharpe ratio" and row["value"] == 1.2346 for row in var_rows)
+
+
 def test_list_template_metadata_merges_user_templates(tmp_path):
     reports.get_template_store.cache_clear()
     store = reports.FileTemplateStore(tmp_path)

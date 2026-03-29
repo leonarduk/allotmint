@@ -27,6 +27,7 @@ class BackendLambdaStack(Stack):
         allow_read: bool,
         allow_put: bool,
         allow_list: bool,
+        list_prefix: str | None = None,
     ) -> None:
         """Grant the minimum required S3 actions for a Lambda function.
 
@@ -49,10 +50,14 @@ class BackendLambdaStack(Stack):
             )
 
         if allow_list:
+            normalized_prefix = (list_prefix or "").strip().strip("/")
+            if not normalized_prefix:
+                raise ValueError("list_prefix is required when allow_list=True")
             fn.add_to_role_policy(
                 iam.PolicyStatement(
                     actions=["s3:ListBucket"],
                     resources=[f"arn:aws:s3:::{bucket_name}"],
+                    conditions={"StringLike": {"s3:prefix": [f"{normalized_prefix}/*"]}},
                 )
             )
 
@@ -97,6 +102,7 @@ class BackendLambdaStack(Stack):
         )
 
         bucket_name = data_bucket.bucket_name
+        backend_list_prefix = "portfolio"
 
         seed_data_bucket = (
             self.node.try_get_context("seed_data_bucket")
@@ -162,6 +168,7 @@ class BackendLambdaStack(Stack):
             allow_read=True,
             allow_put=True,
             allow_list=True,
+            list_prefix=backend_list_prefix,
         )
 
         backend_api = apigwv2.HttpApi(self, "BackendApi")
@@ -268,16 +275,6 @@ class BackendLambdaStack(Stack):
             schedule=events.Schedule.cron(minute="0", hour="1"),
             targets=[targets.LambdaFunction(agent_fn)],
         )
-
-        # Grant Lambda roles read/write on the data bucket.
-        # IAM implicit deny covers all other principals; no explicit DENY
-        # resource policy is needed (and a StringNotLike list-based DENY
-        # would incorrectly lock out these roles too).
-        lambda_roles = [backend_fn.role, refresh_fn.role, agent_fn.role]
-        for role in lambda_roles:
-            if role is None:
-                continue
-            data_bucket.grant_read_write(role)
 
         backend_error_alarm = cloudwatch.Alarm(
             self,

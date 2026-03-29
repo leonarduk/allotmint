@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from pathlib import Path
 import sys
+from pathlib import Path
 
 from aws_cdk import App
 from aws_cdk.assertions import Template
@@ -108,6 +108,38 @@ def _resources_for_s3_action(template: dict, role_logical_id: str, target_action
     return found
 
 
+def _conditions_for_s3_action(
+    template: dict, role_logical_id: str, target_action: str
+) -> list[dict]:
+    """Return IAM Condition objects for statements granting target_action."""
+    found: list[dict] = []
+    resources = template["Resources"]
+    for resource in resources.values():
+        if resource.get("Type") != "AWS::IAM::Policy":
+            continue
+        roles = resource.get("Properties", {}).get("Roles", [])
+        role_refs = {
+            r["Ref"]
+            for r in roles
+            if isinstance(r, dict) and isinstance(r.get("Ref"), str)
+        }
+        if role_logical_id not in role_refs:
+            continue
+
+        policy_doc = resource.get("Properties", {}).get("PolicyDocument", {})
+        for statement in policy_doc.get("Statement", []):
+            actions = statement.get("Action", [])
+            if isinstance(actions, str):
+                actions = [actions]
+            if target_action not in actions:
+                continue
+            condition = statement.get("Condition")
+            if isinstance(condition, dict):
+                found.append(condition)
+
+    return found
+
+
 # Maximum allowed S3 action sets per Lambda role (upper bounds for least-privilege enforcement).
 # Audit evidence:
 #   BackendLambda      — full API; reads, writes, and lists portfolio/price data.
@@ -174,6 +206,15 @@ def test_s3_permissions_are_scoped_per_lambda() -> None:
             f"BackendLambda s3:ListBucket is scoped to an object ARN ({arn}); "
             "it must be scoped to the bucket ARN only (no trailing /*)"
         )
+
+    list_bucket_conditions = _conditions_for_s3_action(template, backend_role, "s3:ListBucket")
+    assert list_bucket_conditions, (
+        "BackendLambda has s3:ListBucket but no associated IAM Condition"
+    )
+    expected_prefix = {"StringLike": {"s3:prefix": ["portfolio/*"]}}
+    assert expected_prefix in list_bucket_conditions, (
+        "BackendLambda s3:ListBucket must be conditioned to portfolio/*"
+    )
 
 
 def test_lambda_roles_do_not_have_s3_delete_permissions() -> None:

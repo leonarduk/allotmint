@@ -543,7 +543,7 @@ def test_portfolio_var_returns_empty_when_var_rows_unavailable(monkeypatch):
 
 def test_owner_portfolio_failure_is_cached_once_per_report_build(monkeypatch):
     call_count = {"count": 0}
-    original_risk = reports.risk
+    var_call_count = {"count": 0}
 
     def _raise_on_build(owner, pricing_date=None):
         call_count["count"] += 1
@@ -559,7 +559,16 @@ def test_owner_portfolio_failure_is_cached_once_per_report_build(monkeypatch):
     monkeypatch.setattr(
         reports.portfolio_utils, "aggregate_by_ticker", lambda portfolio: pytest.fail("unexpected call")
     )
-    monkeypatch.setattr(reports, "risk", None)
+    monkeypatch.setattr(
+        reports,
+        "risk",
+        SimpleNamespace(
+            compute_portfolio_var=lambda owner, confidence=0.95: var_call_count.__setitem__(
+                "count", var_call_count["count"] + 1
+            ),
+            compute_sharpe_ratio=lambda owner: pytest.fail("unexpected sharpe call"),
+        ),
+    )
     monkeypatch.setattr(reports, "get_template", lambda template_id, store=None: _portfolio_template())
 
     document = reports.build_report_document(
@@ -574,7 +583,8 @@ def test_owner_portfolio_failure_is_cached_once_per_report_build(monkeypatch):
     assert sources["portfolio.sectors"] == ()
     assert sources["portfolio.regions"] == ()
     assert sources["portfolio.concentration"] == ()
-    monkeypatch.setattr(reports, "risk", original_risk)
+    assert sources["portfolio.var"] == ()
+    assert var_call_count["count"] == 0
 
 
 def test_portfolio_sections_return_empty_when_optional_modules_missing(monkeypatch):

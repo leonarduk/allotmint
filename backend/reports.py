@@ -1196,6 +1196,9 @@ def _build_portfolio_var_section(
 ) -> Sequence[Dict[str, Any]]:
     if risk is None:
         return []
+    portfolio = context.owner_portfolio()
+    if not portfolio:
+        return []
     rows: List[Dict[str, Any]] = []
     for confidence, metric in ((0.95, "VaR (95%)"), (0.99, "VaR (99%)")):
         try:

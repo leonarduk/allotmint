@@ -543,3 +543,82 @@ def test_build_report_document_includes_parameters(monkeypatch):
 
     assert document.parameters == {"start": "2024-01-01", "end": "2024-01-02"}
 
+
+def test_section_builders_include_portfolio_sources():
+    for source in (
+        "portfolio.overview",
+        "portfolio.sectors",
+        "portfolio.regions",
+        "portfolio.concentration",
+        "portfolio.var",
+    ):
+        assert source in reports.SECTION_BUILDERS
+
+
+def test_portfolio_section_builders_use_monkeypatched_dependencies(monkeypatch):
+    mock_portfolio = {
+        "total_value_estimate_gbp": 1234.56,
+        "holdings": [{"ticker": "AAA"}, {"ticker": "BBB"}],
+        "accounts": [{"id": "acc-1"}],
+    }
+    mock_sectors = [{"sector": "Technology", "value": 700.0, "weight": 0.56}]
+    mock_regions = [{"region": "North America", "value": 800.0, "weight": 0.65}]
+    mock_tickers = [
+        {"ticker": "AAA", "value": 500.0, "weight": 0.4},
+        {"ticker": "BBB", "value": 300.0, "weight": 0.2},
+    ]
+
+    monkeypatch.setattr(reports, "build_owner_portfolio", lambda owner: mock_portfolio)
+    monkeypatch.setattr(reports.portfolio_utils, "aggregate_by_sector", lambda pf: mock_sectors)
+    monkeypatch.setattr(reports.portfolio_utils, "aggregate_by_region", lambda pf: mock_regions)
+    monkeypatch.setattr(reports.portfolio_utils, "aggregate_by_ticker", lambda pf: mock_tickers)
+    monkeypatch.setattr(
+        reports.risk,
+        "compute_portfolio_var",
+        lambda owner, confidence=0.95: 0.12 if confidence == 0.95 else 0.2,
+    )
+    monkeypatch.setattr(reports.risk, "compute_sharpe_ratio", lambda owner: 1.75)
+
+    context = reports.ReportContext(owner="alice", start=None, end=None)
+
+    overview = reports._build_portfolio_overview_section(
+        context, reports.AUDIT_REPORT_TEMPLATE.sections[0]
+    )
+    sectors = reports._build_portfolio_sectors_section(
+        context, reports.AUDIT_REPORT_TEMPLATE.sections[1]
+    )
+    regions = reports._build_portfolio_regions_section(
+        context, reports.AUDIT_REPORT_TEMPLATE.sections[2]
+    )
+    concentration = reports._build_portfolio_concentration_section(
+        context, reports.AUDIT_REPORT_TEMPLATE.sections[3]
+    )
+    var_rows = reports._build_portfolio_var_section(
+        context, reports.AUDIT_REPORT_TEMPLATE.sections[4]
+    )
+
+    assert overview == [{"total_value_gbp": 1234.56, "holdings_count": 2, "accounts_count": 1}]
+    assert sectors == mock_sectors
+    assert regions == mock_regions
+    assert concentration[0]["ticker"] == "AAA"
+    assert concentration[0]["hhi"] == pytest.approx(0.2)
+    assert [row["metric"] for row in var_rows] == ["VaR (95%)", "VaR (99%)", "Sharpe ratio"]
+    assert [row["value"] for row in var_rows] == [0.12, 0.2, 1.75]
+
+
+def test_get_template_audit_report_has_expected_order_and_legacy_builtins():
+    template = reports.get_template("audit-report")
+    assert template is not None
+    assert [section.source for section in template.sections] == [
+        "portfolio.overview",
+        "portfolio.sectors",
+        "portfolio.regions",
+        "portfolio.concentration",
+        "portfolio.var",
+    ]
+
+    metadata = reports.list_template_metadata()
+    ids = {item["template_id"] for item in metadata}
+    assert "performance-summary" in ids
+    assert "transactions" in ids
+    assert "allocation-breakdown" in ids

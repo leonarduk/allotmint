@@ -21,6 +21,8 @@ except ModuleNotFoundError:  # pragma: no cover - exercised in tests when missin
     canvas = None
 
 from backend.common import portfolio_utils
+from backend.common import risk
+from backend.common.portfolio import build_owner_portfolio
 from backend.config import config
 
 logger = logging.getLogger(__name__)
@@ -155,6 +157,65 @@ ALLOCATION_BREAKDOWN_TEMPLATE = ReportTemplate(
     ),
 )
 
+AUDIT_REPORT_TEMPLATE = ReportTemplate(
+    template_id="audit-report",
+    name="Audit report",
+    description="Portfolio overview, concentration, allocation, and risk diagnostics",
+    sections=(
+        ReportSectionSchema(
+            id="portfolio-overview",
+            title="Portfolio overview",
+            source="portfolio.overview",
+            columns=(
+                ReportColumnSchema("total_value_gbp", "Total value (GBP)", type="number"),
+                ReportColumnSchema("holdings_count", "Holdings", type="number"),
+                ReportColumnSchema("accounts_count", "Accounts", type="number"),
+            ),
+        ),
+        ReportSectionSchema(
+            id="portfolio-sectors",
+            title="Sector allocation",
+            source="portfolio.sectors",
+            columns=(
+                ReportColumnSchema("sector", "Sector"),
+                ReportColumnSchema("value", "Value", type="number"),
+                ReportColumnSchema("weight", "Weight", type="number"),
+            ),
+        ),
+        ReportSectionSchema(
+            id="portfolio-regions",
+            title="Region allocation",
+            source="portfolio.regions",
+            columns=(
+                ReportColumnSchema("region", "Region"),
+                ReportColumnSchema("value", "Value", type="number"),
+                ReportColumnSchema("weight", "Weight", type="number"),
+            ),
+        ),
+        ReportSectionSchema(
+            id="portfolio-concentration",
+            title="Top holdings concentration",
+            source="portfolio.concentration",
+            columns=(
+                ReportColumnSchema("ticker", "Ticker"),
+                ReportColumnSchema("value", "Value", type="number"),
+                ReportColumnSchema("weight", "Weight", type="number"),
+                ReportColumnSchema("hhi", "HHI", type="number"),
+            ),
+        ),
+        ReportSectionSchema(
+            id="portfolio-var",
+            title="Portfolio risk",
+            source="portfolio.var",
+            columns=(
+                ReportColumnSchema("metric", "Metric"),
+                ReportColumnSchema("value", "Value", type="number"),
+                ReportColumnSchema("units", "Units"),
+            ),
+        ),
+    ),
+)
+
 
 BUILTIN_TEMPLATES: Dict[str, ReportTemplate] = {
     template.template_id: template
@@ -162,6 +223,7 @@ BUILTIN_TEMPLATES: Dict[str, ReportTemplate] = {
         PERFORMANCE_SUMMARY_TEMPLATE,
         TRANSACTIONS_TEMPLATE,
         ALLOCATION_BREAKDOWN_TEMPLATE,
+        AUDIT_REPORT_TEMPLATE,
     )
 }
 
@@ -629,11 +691,79 @@ def _build_allocation_section(
     return context.allocation()
 
 
+def _portfolio_snapshot(owner: str) -> Dict[str, Any]:
+    return build_owner_portfolio(owner)
+
+
+def _build_portfolio_overview_section(
+    context: ReportContext, section: ReportSectionSchema
+) -> Sequence[Dict[str, Any]]:
+    portfolio = _portfolio_snapshot(context.owner) or {}
+    return [
+        {
+            "total_value_gbp": _round_if_number(portfolio.get("total_value_estimate_gbp"), 2),
+            "holdings_count": len(portfolio.get("holdings", [])),
+            "accounts_count": len(portfolio.get("accounts", [])),
+        }
+    ]
+
+
+def _build_portfolio_sectors_section(
+    context: ReportContext, section: ReportSectionSchema
+) -> Sequence[Dict[str, Any]]:
+    portfolio = _portfolio_snapshot(context.owner)
+    rows = portfolio_utils.aggregate_by_sector(portfolio) or []
+    return [dict(row) for row in rows]
+
+
+def _build_portfolio_regions_section(
+    context: ReportContext, section: ReportSectionSchema
+) -> Sequence[Dict[str, Any]]:
+    portfolio = _portfolio_snapshot(context.owner)
+    rows = portfolio_utils.aggregate_by_region(portfolio) or []
+    return [dict(row) for row in rows]
+
+
+def _build_portfolio_concentration_section(
+    context: ReportContext, section: ReportSectionSchema
+) -> Sequence[Dict[str, Any]]:
+    portfolio = _portfolio_snapshot(context.owner)
+    rows = portfolio_utils.aggregate_by_ticker(portfolio) or []
+    top_rows = [dict(row) for row in rows[:10]]
+    weights = [
+        float(row.get("weight"))
+        for row in top_rows
+        if row.get("weight") is not None
+    ]
+    hhi = round(sum(weight * weight for weight in weights), 6) if weights else None
+    for row in top_rows:
+        row["hhi"] = hhi
+    return top_rows
+
+
+def _build_portfolio_var_section(
+    context: ReportContext, section: ReportSectionSchema
+) -> Sequence[Dict[str, Any]]:
+    var_95 = risk.compute_portfolio_var(context.owner, confidence=0.95)
+    var_99 = risk.compute_portfolio_var(context.owner, confidence=0.99)
+    sharpe = risk.compute_sharpe_ratio(context.owner)
+    return [
+        {"metric": "VaR (95%)", "value": _round_if_number(var_95, 6), "units": "ratio"},
+        {"metric": "VaR (99%)", "value": _round_if_number(var_99, 6), "units": "ratio"},
+        {"metric": "Sharpe ratio", "value": _round_if_number(sharpe, 6), "units": "ratio"},
+    ]
+
+
 SECTION_BUILDERS: Dict[str, SectionBuilder] = {
     "performance.metrics": _build_metrics_section,
     "performance.history": _build_history_section,
     "transactions": _build_transactions_section,
     "allocation": _build_allocation_section,
+    "portfolio.overview": _build_portfolio_overview_section,
+    "portfolio.sectors": _build_portfolio_sectors_section,
+    "portfolio.regions": _build_portfolio_regions_section,
+    "portfolio.concentration": _build_portfolio_concentration_section,
+    "portfolio.var": _build_portfolio_var_section,
 }
 
 
@@ -1112,4 +1242,3 @@ def report_to_pdf(document: ReportDocument) -> bytes:
     c.showPage()
     c.save()
     return buf.getvalue()
-

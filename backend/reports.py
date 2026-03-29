@@ -325,6 +325,13 @@ AUDIT_REPORT_TEMPLATE = ReportTemplate(
                 ReportColumnSchema("units", "Units"),
             ),
         ),
+        ReportSectionSchema(
+            id="key-findings",
+            title="Key Findings",
+            source=_KEY_FINDINGS_SOURCE,
+            description="Optional narrative findings loaded from the owner's key findings file",
+            columns=(ReportColumnSchema("finding", "Finding"),),
+        ),
     ),
 )
 
@@ -1785,6 +1792,13 @@ def report_to_pdf(document: ReportDocument) -> bytes:
             for key, value in sorted(visible_params.items()):
                 c.drawString(40, y, f"{key}: {value}")
                 y -= 14
+
+    def _write_header() -> None:
+        c.setFont("Helvetica-Bold", 16)
+        c.drawString(40, height - 50, document.template.name)
+        c.setFont("Helvetica", 10)
+        c.drawString(40, height - 68, f"Owner: {document.owner}")
+        c.drawRightString(width - 40, height - 68, generated_at)
 
     def _write_wrapped_lines(
         text: str, x: float, y: float, max_width: float, line_height: float

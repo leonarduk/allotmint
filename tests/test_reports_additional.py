@@ -1010,6 +1010,7 @@ def test_get_template_audit_report_has_expected_order_and_legacy_builtins():
         "portfolio.regions",
         "portfolio.concentration",
         "portfolio.var",
+        "portfolio.key_findings",
     ]
 
     metadata = reports.list_template_metadata()

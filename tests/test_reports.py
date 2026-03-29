@@ -569,10 +569,10 @@ def test_owner_portfolio_failure_is_cached_once_per_report_build(monkeypatch):
 
     assert call_count["count"] == 1
     sources = {section.schema.source: section.rows for section in document.sections}
-    assert sources["portfolio.overview"] == []
-    assert sources["portfolio.sectors"] == []
-    assert sources["portfolio.regions"] == []
-    assert sources["portfolio.concentration"] == []
+    assert sources["portfolio.overview"] == ()
+    assert sources["portfolio.sectors"] == ()
+    assert sources["portfolio.regions"] == ()
+    assert sources["portfolio.concentration"] == ()
 
 
 def test_portfolio_sections_return_empty_when_optional_modules_missing(monkeypatch):
@@ -1118,6 +1118,39 @@ def test_build_report_document_omits_empty_key_findings_section(monkeypatch):
                 title="Key Findings",
                 source="portfolio.key_findings",
                 columns=(reports.ReportColumnSchema("finding", "Finding"),),
+            ),
+        ),
+    )
+
+    monkeypatch.setattr(reports, "get_template", lambda template_id, store=None: template)
+    monkeypatch.setattr(
+        reports,
+        "ReportContext",
+        lambda owner, start=None, end=None: SimpleNamespace(
+            summary=lambda: reports.ReportData(
+                owner=owner,
+                start=None,
+                end=None,
+                realized_gains_gbp=0.0,
+                income_gbp=0.0,
+                cumulative_return=None,
+                max_drawdown=None,
+            ),
+            transactions=lambda: [],
+            allocation=lambda: [],
+        ),
+    )
+    monkeypatch.setitem(
+        reports.SECTION_BUILDERS,
+        "portfolio.key_findings",
+        lambda context, section: [],
+    )
+
+    document = reports.build_report_document("audit-report", "demo-owner")
+
+    assert [section.schema.id for section in document.sections] == ["metrics"]
+
+
 def test_audit_template_is_registered_with_expected_sections():
     template = reports.BUILTIN_TEMPLATES.get("audit-report")
 
@@ -1129,6 +1162,7 @@ def test_audit_template_is_registered_with_expected_sections():
         "true-exposure-region",
         "concentration-risk",
         "risk-assessment",
+        "key-findings",
     ]
     assert [section.source for section in template.sections] == [
         "portfolio.overview",
@@ -1136,6 +1170,7 @@ def test_audit_template_is_registered_with_expected_sections():
         "portfolio.regions",
         "portfolio.concentration",
         "portfolio.var",
+        "portfolio.key_findings",
     ]
 
 
@@ -1295,15 +1330,11 @@ def test_build_report_document_fails_for_builtin_missing_builder(monkeypatch):
         ),
         builtin=True,
     )
-
     monkeypatch.setattr(reports, "get_template", lambda template_id, store=None: template)
     monkeypatch.setattr(
         reports,
         "ReportContext",
         lambda owner, start=None, end=None: SimpleNamespace(
-    monkeypatch.setattr(reports, "get_template", lambda template_id, store=None: template)
-    monkeypatch.setattr(
-        reports, "ReportContext", lambda owner, start=None, end=None: SimpleNamespace(
             summary=lambda: reports.ReportData(
                 owner=owner,
                 start=None,
@@ -1313,19 +1344,11 @@ def test_build_report_document_fails_for_builtin_missing_builder(monkeypatch):
                 cumulative_return=None,
                 max_drawdown=None,
             ),
-            transactions=lambda: [],
-            allocation=lambda: [],
         ),
     )
-    monkeypatch.setitem(
-        reports.SECTION_BUILDERS,
-        "portfolio.key_findings",
-        lambda context, section: [],
-    )
 
-    document = reports.build_report_document("audit-report", "demo-owner")
-
-    assert [section.schema.id for section in document.sections] == ["metrics"]
+    with pytest.raises(ValueError, match="references unsupported source"):
+        reports.build_report_document("builtin-broken", "alice")
 
 
 def test_audit_report_template_has_key_findings_as_final_section():
@@ -1334,8 +1357,3 @@ def test_audit_report_template_has_key_findings_as_final_section():
     assert template is not None
     assert template.sections[-1].id == "key-findings"
     assert template.sections[-1].source == "portfolio.key_findings"
-        )
-    )
-
-    with pytest.raises(ValueError, match="references unsupported source"):
-        reports.build_report_document("builtin-broken", "alice")

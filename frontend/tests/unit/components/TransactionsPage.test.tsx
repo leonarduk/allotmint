@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { TransactionsPage } from "@/components/TransactionsPage";
 
@@ -42,6 +43,15 @@ vi.mock("@/api", () => ({
 }));
 
 describe("TransactionsPage", () => {
+  const getEditButtonForTicker = (ticker: string): HTMLButtonElement => {
+    const tickerCell = screen.getByText(ticker);
+    const row = tickerCell.closest("tr");
+    if (!row) {
+      throw new Error(`Could not find table row for ticker ${ticker}`);
+    }
+    return within(row).getByRole("button", { name: "Edit" });
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -66,13 +76,41 @@ describe("TransactionsPage", () => {
       />,
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    await screen.findByText("PFE");
+    fireEvent.click(getEditButtonForTicker("PFE"));
 
     expect(screen.getByLabelText(/owner/i)).toBeDisabled();
     expect(screen.getByLabelText(/account/i)).toBeDisabled();
     expect(
       screen.getByText(/owner and account filters are locked until you save or cancel/i),
     ).toBeInTheDocument();
+  });
+
+  it("rejects owner select interaction while editing (owner value stays unchanged)", async () => {
+    const user = userEvent.setup();
+    render(
+      <TransactionsPage
+        owners={[
+          { owner: "alex", full_name: "Alex Example", accounts: ["isa"] },
+          { owner: "sam", full_name: "Sam Example", accounts: ["sipp"] },
+        ]}
+      />,
+    );
+
+    await screen.findByText("MSFT");
+    const [ownerFilter, accountFilter] = screen.getAllByRole("combobox");
+    expect(ownerFilter).toHaveValue("");
+    expect(accountFilter).toHaveValue("");
+
+    await user.click(getEditButtonForTicker("PFE"));
+
+    expect(ownerFilter).toHaveValue("alex");
+    expect(accountFilter).toHaveValue("isa");
+    expect(ownerFilter).toBeDisabled();
+    expect(accountFilter).toBeDisabled();
+
+    await user.selectOptions(ownerFilter, "sam");
+    expect(ownerFilter).toHaveValue("alex");
   });
 
   it("syncs filter owner/account when editing and reflects it in the editor context", async () => {
@@ -91,11 +129,41 @@ describe("TransactionsPage", () => {
     expect(ownerFilter).toHaveValue("");
     expect(accountFilter).toHaveValue("");
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[1]!);
+    fireEvent.click(getEditButtonForTicker("MSFT"));
 
     expect(ownerFilter).toHaveValue("sam");
     expect(accountFilter).toHaveValue("sipp");
     expect(screen.getByText("sam / sipp")).toBeInTheDocument();
+  });
+
+  it("re-enables owner and account filters after canceling edit", async () => {
+    const user = userEvent.setup();
+    render(
+      <TransactionsPage
+        owners={[
+          { owner: "alex", full_name: "Alex Example", accounts: ["isa"] },
+          { owner: "sam", full_name: "Sam Example", accounts: ["sipp"] },
+        ]}
+      />,
+    );
+
+    await screen.findByText("MSFT");
+    const [ownerFilter, accountFilter] = screen.getAllByRole("combobox");
+
+    await user.click(getEditButtonForTicker("MSFT"));
+    expect(ownerFilter).toBeDisabled();
+    expect(accountFilter).toBeDisabled();
+    expect(
+      screen.getByText(/owner and account filters are locked until you save or cancel/i),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(ownerFilter).not.toBeDisabled();
+    expect(accountFilter).not.toBeDisabled();
+    expect(
+      screen.queryByText(/owner and account filters are locked until you save or cancel/i),
+    ).not.toBeInTheDocument();
   });
 
   it("guards validation when submitting without filter owner/account context", async () => {

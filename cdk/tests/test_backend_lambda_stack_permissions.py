@@ -38,14 +38,18 @@ def _role_logical_id_for_lambda(template: dict, lambda_fragment: str) -> str:
     raise AssertionError(f"Unable to find role for lambda fragment '{lambda_fragment}'")
 
 
-def _policy_actions_for_role(template: dict, role_logical_id: str) -> set[str]:
+def _s3_actions_for_role(template: dict, role_logical_id: str) -> set[str]:
+    """Return only s3:* actions from inline policies attached to role_logical_id.
+
+    Deliberately excludes AWS-managed policies (they have no Roles[] in template)
+    and non-S3 actions, to avoid false positives from AWSLambdaBasicExecutionRole
+    or future managed policies. Wildcards (s3:*) are detected and surfaced explicitly.
+    """
     actions: set[str] = set()
     resources = template["Resources"]
     for resource in resources.values():
         if resource.get("Type") != "AWS::IAM::Policy":
             continue
-        policy_doc = resource.get("Properties", {}).get("PolicyDocument", {})
-        statements = policy_doc.get("Statement", [])
         roles = resource.get("Properties", {}).get("Roles", [])
         role_refs = {
             role["Ref"]
@@ -55,33 +59,57 @@ def _policy_actions_for_role(template: dict, role_logical_id: str) -> set[str]:
         if role_logical_id not in role_refs:
             continue
 
-        for statement in statements:
+        policy_doc = resource.get("Properties", {}).get("PolicyDocument", {})
+        for statement in policy_doc.get("Statement", []):
             action = statement.get("Action", [])
             if isinstance(action, str):
-                actions.add(action)
-            else:
-                actions.update(action)
+                action = [action]
+            for a in action:
+                if a.startswith("s3:") or a == "*":
+                    actions.add(a)
 
     return actions
 
 
+# Maximum allowed S3 action sets per Lambda role (upper bounds for least-privilege enforcement)
+BACKEND_MAX_S3 = {"s3:GetObject", "s3:PutObject", "s3:ListBucket"}
+REFRESH_MAX_S3 = {"s3:GetObject", "s3:ListBucket"}
+TRADING_MAX_S3 = {"s3:GetObject", "s3:ListBucket"}
+
+
 def test_s3_permissions_are_scoped_per_lambda() -> None:
+    """Assert minimum and maximum S3 action sets per Lambda role."""
     template = _stack_template()
 
     backend_role = _role_logical_id_for_lambda(template, "BackendLambda")
     refresh_role = _role_logical_id_for_lambda(template, "PriceRefreshLambda")
     trading_role = _role_logical_id_for_lambda(template, "TradingAgentLambda")
 
-    backend_actions = _policy_actions_for_role(template, backend_role)
-    refresh_actions = _policy_actions_for_role(template, refresh_role)
-    trading_actions = _policy_actions_for_role(template, trading_role)
+    backend_actions = _s3_actions_for_role(template, backend_role)
+    refresh_actions = _s3_actions_for_role(template, refresh_role)
+    trading_actions = _s3_actions_for_role(template, trading_role)
 
-    assert {"s3:GetObject", "s3:PutObject", "s3:ListBucket"}.issubset(backend_actions)
-    assert "s3:PutObject" not in refresh_actions
-    assert "s3:PutObject" not in trading_actions
-    assert {"s3:GetObject", "s3:ListBucket"}.issubset(refresh_actions)
-    assert {"s3:GetObject", "s3:ListBucket"}.issubset(trading_actions)
+    # Minimum: required actions must be present
+    assert {"s3:GetObject", "s3:PutObject", "s3:ListBucket"}.issubset(backend_actions), (
+        f"BackendLambda missing required S3 actions: {backend_actions}"
+    )
+    assert {"s3:GetObject", "s3:ListBucket"}.issubset(refresh_actions), (
+        f"PriceRefreshLambda missing required S3 actions: {refresh_actions}"
+    )
+    assert {"s3:GetObject", "s3:ListBucket"}.issubset(trading_actions), (
+        f"TradingAgentLambda missing required S3 actions: {trading_actions}"
+    )
 
+    # Maximum: no role may have S3 actions beyond its audited set (prevents privilege creep)
+    assert backend_actions <= BACKEND_MAX_S3, (
+        f"BackendLambda has unexpected S3 actions: {backend_actions - BACKEND_MAX_S3}"
+    )
+    assert refresh_actions <= REFRESH_MAX_S3, (
+        f"PriceRefreshLambda has unexpected S3 actions: {refresh_actions - REFRESH_MAX_S3}"
+    )
+    assert trading_actions <= TRADING_MAX_S3, (
+        f"TradingAgentLambda has unexpected S3 actions: {trading_actions - TRADING_MAX_S3}"
+    )
 
 
 def test_lambda_roles_do_not_have_s3_delete_permissions() -> None:
@@ -92,5 +120,11 @@ def test_lambda_roles_do_not_have_s3_delete_permissions() -> None:
 
     for fragment in role_fragments:
         role = _role_logical_id_for_lambda(template, fragment)
-        actions = _policy_actions_for_role(template, role)
-        assert forbidden.isdisjoint(actions), f"Found forbidden actions for {fragment}: {actions & forbidden}"
+        actions = _s3_actions_for_role(template, role)
+        assert forbidden.isdisjoint(actions), (
+            f"Found forbidden actions for {fragment}: {actions & forbidden}"
+        )
+        # Also catch wildcard grants which implicitly include delete
+        assert "s3:*" not in actions and "*" not in actions, (
+            f"Found wildcard grant for {fragment} which implicitly includes delete"
+        )

@@ -1707,6 +1707,10 @@ def report_to_pdf(document: ReportDocument) -> bytes:
         raise RuntimeError("reportlab is required for PDF output")
     buf = io.BytesIO()
     c = canvas.Canvas(buf, pagesize=letter)
+    # Keep page content uncompressed so byte-level PDF assertions remain stable
+    # in tests that verify rendered section text is present in the output.
+    if hasattr(c, "setPageCompression"):
+        c.setPageCompression(0)
     width, height = letter
     generated_at = document.generated_at.astimezone(UTC).strftime("%Y-%m-%d %H:%M UTC")
     page_number = 1

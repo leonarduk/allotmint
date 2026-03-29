@@ -747,12 +747,12 @@ def _build_portfolio_overview_section(
         return []
 
     rows: List[Dict[str, Any]] = []
-    accounts = portfolio.get("accounts", [])
-    account_count = len(accounts) if isinstance(accounts, list) else 0
+    account_list = accounts if isinstance((accounts := portfolio.get("accounts", [])), list) else []
+    account_count = len(account_list)
     holdings_count = 0
     asset_class_totals: Dict[str, float] = {}
 
-    for account in accounts if isinstance(accounts, list) else []:
+    for account in account_list:
         holdings = account.get("holdings") if isinstance(account, dict) else []
         if not isinstance(holdings, list):
             continue
@@ -761,8 +761,9 @@ def _build_portfolio_overview_section(
             if not isinstance(holding, dict):
                 continue
             asset_class = str(holding.get("asset_class") or "Unknown").strip() or "Unknown"
-            value = _round_if_number(holding.get("market_value_gbp"), 2) or 0.0
-            asset_class_totals[asset_class] = asset_class_totals.get(asset_class, 0.0) + value
+            # Sum raw values; round only when emitting to avoid accumulated rounding error.
+            raw_value = float(holding.get("market_value_gbp") or 0.0)
+            asset_class_totals[asset_class] = asset_class_totals.get(asset_class, 0.0) + raw_value
 
     rows.extend(
         [
@@ -787,7 +788,7 @@ def _build_portfolio_overview_section(
         ]
     )
 
-    for account in accounts if isinstance(accounts, list) else []:
+    for account in account_list:
         account_type = str(account.get("account_type") or "Unknown")
         rows.append(
             {
@@ -821,6 +822,11 @@ def _build_portfolio_sectors_section(
         rows = portfolio_utils.aggregate_by_sector(portfolio)
     except (FileNotFoundError, ValueError):
         return []
+    # weight_pct is recomputed locally from market values so it is consistent
+    # across sector rows regardless of the denominator used by aggregate_by_sector
+    # internally.  contribution_pct is passed through from the aggregation function
+    # and may use a different base (e.g. cost basis or benchmark weight); the two
+    # fields are intentionally distinct.
     total_value = sum(float(row.get("market_value_gbp") or 0.0) for row in rows)
     out: List[Dict[str, Any]] = []
     for row in rows:
@@ -851,6 +857,7 @@ def _build_portfolio_regions_section(
         rows = portfolio_utils.aggregate_by_region(portfolio)
     except (FileNotFoundError, ValueError):
         return []
+    # See comment in _build_portfolio_sectors_section re weight_pct vs contribution_pct.
     total_value = sum(float(row.get("market_value_gbp") or 0.0) for row in rows)
     out: List[Dict[str, Any]] = []
     for row in rows:
@@ -900,9 +907,11 @@ def _build_portfolio_concentration_section(
     # top_n_weight_pct is the sum of the top-N holdings' weights (N = min(10, total)).
     # Both are reported in a single dedicated summary row rather than duplicated on
     # every holding row, which would be semantically misleading.
+    # n_holdings in the summary row is the TOTAL number of holdings in the portfolio,
+    # not the capped top-N count.
     hhi = sum(item["weight"] * item["weight"] for item in weighted_rows)
+    n_total = len(weighted_rows)  # total holdings in portfolio
     top_rows = weighted_rows[:10]
-    n = len(top_rows)
     top_n_weight_pct = sum(item["weight"] for item in top_rows) * 100.0
 
     holding_rows: List[Dict[str, Any]] = [
@@ -926,7 +935,7 @@ def _build_portfolio_concentration_section(
         "weight_pct": None,
         "hhi": _round_if_number(hhi, 6),
         "top_n_weight_pct": _round_if_number(top_n_weight_pct, 4),
-        "n_holdings": n,
+        "n_holdings": n_total,
     }
     return holding_rows + [summary_row]
 

@@ -4,7 +4,7 @@ import sys
 import types
 from datetime import date, datetime
 from types import SimpleNamespace
-from unittest.mock import call, patch
+from unittest.mock import Mock
 
 import pytest
 
@@ -205,7 +205,6 @@ def test_portfolio_section_builders(monkeypatch):
         ],
     }
     build_calls = {"count": 0}
-
     build_pricing_dates: list[date | None] = []
 
     def _build_owner_portfolio(owner, pricing_date=None):
@@ -272,7 +271,6 @@ def test_portfolio_section_builders(monkeypatch):
         lambda owner, confidence: {"confidence": confidence, "1d": 12.345, "10d": 34.567},
     )
     monkeypatch.setattr(reports.risk_mod, "compute_sharpe_ratio", lambda owner: 1.23456)
-
     monkeypatch.setattr(reports, "get_template", lambda template_id, store=None: _portfolio_template())
 
     document = reports.build_report_document(
@@ -304,13 +302,53 @@ def test_portfolio_section_builders(monkeypatch):
     summary = summary_rows[0]
     assert summary["hhi"] == pytest.approx(0.52, abs=1e-6)
     assert summary["top_n_weight_pct"] == pytest.approx(100.0, abs=1e-4)
+    # n_holdings is total portfolio holding count, not the top-N cap
     assert summary["n_holdings"] == 2
 
     var_rows = sources["portfolio.var"]
     assert any(row["metric"] == "VaR" and row["confidence"] == 0.95 and row["horizon_days"] == 1 for row in var_rows)
     assert any(row["metric"] == "Sharpe ratio" and row["value"] == pytest.approx(1.2346, abs=1e-4) for row in var_rows)
+    # portfolio is loaded exactly once for all five sections
     assert build_calls["count"] == 1
     assert build_pricing_dates == [date(2024, 1, 31)]
+
+
+def test_concentration_n_holdings_is_total_not_top_n(monkeypatch):
+    """n_holdings in the summary row must reflect total portfolio holding count,
+    not the capped top-10 slice."""
+    # 12 holdings: top-10 slice != total
+    tickers = [
+        {"ticker": f"T{i:02d}.L", "market_value_gbp": float(100 - i * 5)}
+        for i in range(12)
+    ]
+    monkeypatch.setattr(
+        reports.portfolio_utils,
+        "aggregate_by_ticker",
+        lambda portfolio: tickers,
+    )
+    context = reports.ReportContext(owner="alice", start=None, end=None)
+    # Pre-load a non-None portfolio so the builder proceeds.
+    context._owner_portfolio = {"accounts": []}
+    context._owner_portfolio_loaded = True
+
+    result = reports._build_portfolio_concentration_section(context, reports.PORTFOLIO_CONCENTRATION_SECTION)
+
+    holding_rows = [r for r in result if r["row_type"] == "holding"]
+    summary_rows = [r for r in result if r["row_type"] == "summary"]
+    assert len(holding_rows) == 10
+    assert len(summary_rows) == 1
+    summary = summary_rows[0]
+    # Total holdings is 12, not 10
+    assert summary["n_holdings"] == 12
+    # HHI is computed over all 12 holdings
+    total_value = sum(float(t["market_value_gbp"]) for t in tickers)
+    expected_hhi = sum((t["market_value_gbp"] / total_value) ** 2 for t in tickers)
+    assert summary["hhi"] == pytest.approx(expected_hhi, abs=1e-6)
+    # top_n_weight_pct covers only the top-10 by value
+    top10_weight = sum(sorted(
+        [t["market_value_gbp"] for t in tickers], reverse=True
+    )[:10]) / total_value * 100.0
+    assert summary["top_n_weight_pct"] == pytest.approx(top10_weight, abs=1e-4)
 
 
 def test_owner_portfolio_failure_is_cached_once_per_report_build(monkeypatch):
@@ -360,17 +398,21 @@ def test_portfolio_sections_return_empty_when_optional_modules_missing(monkeypat
 
 
 def test_portfolio_var_returns_empty_when_var_rows_unavailable(monkeypatch):
+    """VaR builder returns [] when both confidence-level calls raise."""
+    monkeypatch.setattr(reports.portfolio_mod, "build_owner_portfolio", lambda owner, pricing_date=None: {"accounts": []})
     monkeypatch.setattr(
         reports,
         "risk_mod",
         SimpleNamespace(
-            compute_portfolio_var=lambda owner, confidence: (_ for _ in ()).throw(ValueError("no var rows")),
-            compute_sharpe_ratio=lambda owner: 2.0,
+            compute_portfolio_var=Mock(side_effect=ValueError("no var rows")),
+            compute_sharpe_ratio=Mock(return_value=2.0),
         ),
     )
     context = reports.ReportContext(owner="alice", start=None, end=None)
 
-    assert reports._build_portfolio_var_section(context, reports.PORTFOLIO_VAR_SECTION) == []
+    result = reports._build_portfolio_var_section(context, reports.PORTFOLIO_VAR_SECTION)
+    assert result == []
+
 
 def test_list_template_metadata_merges_user_templates(tmp_path):
     reports.get_template_store.cache_clear()

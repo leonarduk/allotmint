@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import Sequence
 
 from aws_cdk import CfnOutput, Duration, Stack
 from aws_cdk import aws_apigatewayv2 as apigwv2
@@ -27,12 +28,19 @@ class BackendLambdaStack(Stack):
         allow_read: bool,
         allow_put: bool,
         allow_list: bool,
+        list_prefix: str | Sequence[str] | None = None,
     ) -> None:
         """Grant the minimum required S3 actions for a Lambda function.
 
         ``allow_list`` controls ``s3:ListBucket`` on the bucket ARN while
         ``allow_read``/``allow_put`` scope object-level actions to ``/*``.
         """
+
+        if not any((allow_read, allow_put, allow_list)):
+            raise ValueError(
+                "_grant_bucket_access called with no permissions enabled — this is a no-op. "
+                "Pass at least one of allow_read, allow_put, or allow_list as True."
+            )
 
         object_actions: list[str] = []
         if allow_read:
@@ -49,10 +57,28 @@ class BackendLambdaStack(Stack):
             )
 
         if allow_list:
+            raw_prefixes: list[str]
+            if isinstance(list_prefix, str):
+                raw_prefixes = [list_prefix]
+            elif list_prefix is None:
+                raw_prefixes = []
+            else:
+                raw_prefixes = list(list_prefix)
+
+            normalized_prefixes = [prefix.strip().strip("/") for prefix in raw_prefixes]
+            normalized_prefixes = [prefix for prefix in normalized_prefixes if prefix]
+            if not normalized_prefixes:
+                raise ValueError("list_prefix is required when allow_list=True")
+
+            prefix_conditions: list[str] = []
+            for prefix in normalized_prefixes:
+                prefix_conditions.append(prefix)
+                prefix_conditions.append(f"{prefix}/*")
             fn.add_to_role_policy(
                 iam.PolicyStatement(
                     actions=["s3:ListBucket"],
-                    resources=[bucket.bucket_arn],
+                    resources=[f"arn:aws:s3:::{bucket_name}"],
+                    conditions={"StringLike": {"s3:prefix": prefix_conditions}},
                 )
             )
 
@@ -97,6 +123,11 @@ class BackendLambdaStack(Stack):
         )
 
         bucket_name = data_bucket.bucket_name
+        lambda_list_prefixes = {
+            "backend": ("accounts", "queries", "timeseries/meta", "transactions"),
+            "price_refresh": (),
+            "trading_agent": (),
+        }
 
         seed_data_bucket = (
             self.node.try_get_context("seed_data_bucket")
@@ -154,14 +185,18 @@ class BackendLambdaStack(Stack):
         app_secret.grant_read(backend_fn)
 
         # BackendLambda: read + put + list
-        # Audited: serves API requests that read and write portfolio/price data to S3.
-        # s3:ListBucket required: backend serves listing endpoints (e.g. portfolio enumeration).
+        # Audited S3 list prefixes used by backend code paths:
+        # - accounts/        (auth + portfolio enumeration)
+        # - queries/         (saved query listing)
+        # - timeseries/meta/ (timeseries admin listing)
+        # - transactions/    (report transaction exports)
         self._grant_bucket_access(
             backend_fn,
             bucket=data_bucket,
             allow_read=True,
             allow_put=True,
             allow_list=True,
+            list_prefix=lambda_list_prefixes["backend"],
         )
 
         backend_api = apigwv2.HttpApi(self, "BackendApi")
@@ -216,6 +251,7 @@ class BackendLambdaStack(Stack):
             allow_read=True,
             allow_put=True,
             allow_list=False,
+            list_prefix=lambda_list_prefixes["price_refresh"],
         )
 
         events.Rule(
@@ -260,6 +296,7 @@ class BackendLambdaStack(Stack):
             allow_read=True,
             allow_put=False,
             allow_list=False,
+            list_prefix=lambda_list_prefixes["trading_agent"],
         )
 
         events.Rule(

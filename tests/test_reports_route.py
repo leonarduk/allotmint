@@ -142,6 +142,7 @@ def test_audit_report_json_smoke_includes_all_sections(client, monkeypatch):
         "portfolio.regions",
         "portfolio.concentration",
         "portfolio.var",
+        "portfolio.key_findings",
     ]
 
 
@@ -395,7 +396,7 @@ def test_owner_report_value_error(client, monkeypatch):
 
     resp = client.get("/reports/lucy?start=bad")
 
-    assert resp.status_code == 404
+    assert resp.status_code == 400
     assert resp.json() == {"detail": "invalid range"}
 
 
@@ -456,5 +457,5 @@ def test_owner_template_report_invalid_template(client, monkeypatch):
 
     resp = client.get("/reports/lucy/transactions")
 
-    assert resp.status_code == 404
+    assert resp.status_code == 400
     assert resp.json() == {"detail": "bad template"}

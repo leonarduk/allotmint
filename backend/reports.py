@@ -56,6 +56,10 @@ _SECTION_ID_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$")
 # rendered in the visible parameters block on the title page.
 _PDF_INTERNAL_PARAM_KEYS: frozenset[str] = frozenset({"watermark"})
 
+# Source key that produces optional key-findings rows; sections using this source
+# are omitted from the document when the builder returns no rows.
+_KEY_FINDINGS_SOURCE = "portfolio.key_findings"
+
 
 @dataclass(slots=True)
 class ReportColumnSchema:
@@ -129,9 +133,7 @@ PERFORMANCE_SUMMARY_TEMPLATE = ReportTemplate(
                 ReportColumnSchema("value", "Value", type="number"),
                 ReportColumnSchema("daily_return", "Daily return", type="number"),
                 ReportColumnSchema("weekly_return", "Weekly return", type="number"),
-                ReportColumnSchema(
-                    "cumulative_return", "Cumulative return", type="number"
-                ),
+                ReportColumnSchema("cumulative_return", "Cumulative return", type="number"),
                 ReportColumnSchema("drawdown", "Drawdown", type="number"),
             ),
         ),
@@ -322,6 +324,13 @@ AUDIT_REPORT_TEMPLATE = ReportTemplate(
                 ReportColumnSchema("value", "Value", type="number"),
                 ReportColumnSchema("units", "Units"),
             ),
+        ),
+        ReportSectionSchema(
+            id="key-findings",
+            title="Key Findings",
+            source=_KEY_FINDINGS_SOURCE,
+            description="Optional narrative findings loaded from the owner's key findings file",
+            columns=(ReportColumnSchema("finding", "Finding"),),
         ),
     ),
 )
@@ -578,9 +587,7 @@ def get_template_store() -> TemplateStore:
     if config.app_env == "aws":
         table_name = os.getenv("REPORT_TEMPLATES_TABLE")
         if not table_name:
-            raise RuntimeError(
-                "REPORT_TEMPLATES_TABLE environment variable is required in AWS"
-            )
+            raise RuntimeError("REPORT_TEMPLATES_TABLE environment variable is required in AWS")
         return DynamoTemplateStore(table_name)
     root = config.data_root / "reports"
     return FileTemplateStore(root)
@@ -741,12 +748,54 @@ def _normalise_transaction(
             break
     tx_type = (item.get("type") or "").upper()
     return {
-        "date": tx_date.isoformat() if tx_date else (date_str if isinstance(date_str, str) else None),
+        "date": (
+            tx_date.isoformat() if tx_date else (date_str if isinstance(date_str, str) else None)
+        ),
         "type": tx_type,
         "description": description,
         "amount_gbp": round(amount, 2),
         "currency": currency,
     }
+
+
+def _parse_key_findings_text(content: str, *, source_name: str = "key findings") -> List[Dict[str, str]]:
+    findings: List[Dict[str, str]] = []
+    for line in content.splitlines():
+        value = line.strip()
+        if not value:
+            continue
+        if value.startswith(("- ", "* ", "\u2022 ")):
+            value = value[2:].strip()
+        else:
+            numbered = re.match(r"^([1-9][0-9]?)\.\s+(.*)$", value)
+            if numbered:
+                value = numbered.group(2).strip()
+        if not value:
+            continue
+        if len(value) < 20 or len(value) > 240:
+            logger.warning(
+                "Skipping invalid key finding from %s: %s",
+                source_name,
+                value,
+            )
+            continue
+        findings.append({"finding": value})
+    return findings
+
+
+def _build_key_findings_section(
+    context: ReportContext, section: ReportSectionSchema
+) -> Sequence[Dict[str, Any]]:
+    owner_root = config.data_root / "accounts" / context.owner
+    candidates = (
+        owner_root / "key_findings.md",
+        owner_root / "key_findings.txt",
+    )
+    for path in candidates:
+        if path.exists():
+            content = path.read_text(encoding="utf-8")
+            return _parse_key_findings_text(content, source_name=path.name)
+    return []
 
 
 SectionBuilder = Callable[[ReportContext, ReportSectionSchema], Sequence[Dict[str, Any]]]
@@ -817,7 +866,7 @@ def _build_history_section(
 
 def _build_transactions_section(
     context: ReportContext, section: ReportSectionSchema
-) -> Sequence[Dict[str, Any]]:\
+) -> Sequence[Dict[str, Any]]:
     return context.transactions()
 
 
@@ -890,17 +939,23 @@ def _normalise_value_weight_rows(
     label_key: str,
     value_key: str = "market_value_gbp",
 ) -> List[Dict[str, Any]]:
-    prepared_rows: List[tuple[Any, float | None, float | None]] = []
+    prepared_rows: List[tuple[str, float | None, float | None]] = []
     total_value = 0.0
     for row in rows:
-        label = row.get(label_key)
+        label = str(row.get(label_key) or "Unknown").strip() or "Unknown"
         value = _safe_float(row.get("value"))
         if value is None:
             value = _safe_float(row.get(value_key))
         weight = _safe_float(row.get("weight"))
+        if weight is None:
+            weight_pct = _safe_float(row.get("weight_pct"))
+            if weight_pct is not None:
+                weight = weight_pct / 100.0
         prepared_rows.append((label, value, weight))
         if value is not None:
             total_value += value
+
+    prepared_rows.sort(key=lambda item: item[1] if item[1] is not None else float("-inf"), reverse=True)
 
     normalised: List[Dict[str, Any]] = []
     for label, value, weight in prepared_rows:
@@ -1235,6 +1290,7 @@ SECTION_BUILDERS: Dict[str, SectionBuilder] = {
     "performance.history": _build_history_section,
     "transactions": _build_transactions_section,
     "allocation": _build_allocation_section,
+    "portfolio.key_findings": _build_key_findings_section,
     "portfolio.overview": _build_portfolio_overview_section,
     "portfolio.sectors": _build_portfolio_sectors_section,
     "portfolio.regions": _build_portfolio_regions_section,
@@ -1256,11 +1312,7 @@ def _validate_template_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         raise ValueError("Template name is required")
 
     description_raw = payload.get("description")
-    description = (
-        str(description_raw).strip()
-        if description_raw is not None
-        else ""
-    )
+    description = str(description_raw).strip() if description_raw is not None else ""
 
     sections_raw = payload.get("sections")
     if not isinstance(sections_raw, list) or not sections_raw:
@@ -1460,7 +1512,12 @@ def build_report_document(
             section_rows: Sequence[Dict[str, Any]] = ()
         else:
             section_rows = list(builder(context, schema))
-        sections.append(ReportSectionData(schema=schema, rows=section_rows))
+        # Omit sections backed by portfolio.key_findings when the owner has no
+        # findings file — regardless of the section id chosen by the template
+        # author (built-in or user-defined).
+        if schema.source == _KEY_FINDINGS_SOURCE and not section_rows:
+            continue
+        sections.append(ReportSectionData(schema=schema, rows=tuple(section_rows)))
 
     params: Dict[str, Any] = {}
     if start:
@@ -1559,7 +1616,9 @@ def _load_transactions(owner: str) -> List[dict]:
     return records
 
 
-def _compile_summary(owner: str, start: Optional[date] = None, end: Optional[date] = None) -> tuple[ReportData, Dict[str, Any]]:
+def _compile_summary(
+    owner: str, start: Optional[date] = None, end: Optional[date] = None
+) -> tuple[ReportData, Dict[str, Any]]:
     txs = _load_transactions(owner)
     realized = 0.0
     income = 0.0
@@ -1608,7 +1667,9 @@ def _compile_summary(owner: str, start: Optional[date] = None, end: Optional[dat
     return data, perf
 
 
-def compile_report(owner: str, start: Optional[date] = None, end: Optional[date] = None) -> ReportData:
+def compile_report(
+    owner: str, start: Optional[date] = None, end: Optional[date] = None
+) -> ReportData:
     data, _perf = _compile_summary(owner, start=start, end=end)
     return data
 
@@ -1625,9 +1686,7 @@ def _section_to_dataframe(section: ReportSectionData) -> pd.DataFrame:
         rename_map = {column.key: column.label for column in section.schema.columns}
         df = df.rename(columns=rename_map)
     else:
-        df = pd.DataFrame(
-            columns=[column.label for column in section.schema.columns]
-        )
+        df = pd.DataFrame(columns=[column.label for column in section.schema.columns])
     return df
 
 
@@ -1653,7 +1712,13 @@ def report_to_pdf(document: ReportDocument) -> bytes:
     if canvas is None:
         raise RuntimeError("reportlab is required for PDF output")
     buf = io.BytesIO()
-    c = canvas.Canvas(buf, pagesize=letter)
+    # Disable PDF stream compression so smoke tests can assert key rendered
+    # strings directly from raw bytes.
+    c = canvas.Canvas(buf, pagesize=letter, pageCompression=0)
+    # Keep page content uncompressed so byte-level PDF assertions remain stable
+    # in tests that verify rendered section text is present in the output.
+    if hasattr(c, "setPageCompression"):
+        c.setPageCompression(0)
     width, height = letter
     generated_at = document.generated_at.astimezone(UTC).strftime("%Y-%m-%d %H:%M UTC")
     page_number = 1
@@ -1745,7 +1810,50 @@ def report_to_pdf(document: ReportDocument) -> bytes:
                 c.drawString(40, y, f"{key}: {value}")
                 y -= 14
 
-    def _draw_section_header(section: ReportSectionData, y: float) -> float:
+    def _write_header() -> None:
+        c.setFont("Helvetica-Bold", 16)
+        c.drawString(40, height - 50, document.template.name)
+        c.setFont("Helvetica", 10)
+        c.drawString(40, height - 68, f"Owner: {document.owner}")
+        c.drawRightString(width - 40, height - 68, generated_at)
+
+    def _start_content_page() -> float:
+        _new_page()
+        if watermark:
+            _draw_watermark(watermark)
+        _write_header()
+        return height - 100
+
+    def _write_wrapped_lines(
+        text: str,
+        x: float,
+        y: float,
+        max_width: float,
+        line_height: float,
+        *,
+        min_y: float = 60,
+        on_page_break: Callable[[], float] | None = None,
+    ) -> float:
+        words = text.split()
+        if not words:
+            return y
+        line = words[0]
+        for word in words[1:]:
+            candidate = f"{line} {word}"
+            if c.stringWidth(candidate, "Helvetica", 11) <= max_width:
+                line = candidate
+            else:
+                if y < min_y and on_page_break is not None:
+                    y = on_page_break()
+                c.drawString(x, y, line)
+                y -= line_height
+                line = word
+        if y < min_y and on_page_break is not None:
+            y = on_page_break()
+        c.drawString(x, y, line)
+        return y - line_height
+
+    def _draw_section_heading(section: ReportSectionData, y: float) -> float:
         c.setFont("Helvetica-Bold", 13)
         c.drawString(40, y, section.schema.title)
         y -= 14
@@ -1755,7 +1863,53 @@ def report_to_pdf(document: ReportDocument) -> bytes:
         if section.schema.description:
             c.setFont("Helvetica-Oblique", 9)
             c.drawString(40, y, section.schema.description)
-            y -= 16
+            y -= 14
+        return y
+
+    def _draw_key_findings_section(section: ReportSectionData, y: float) -> float:
+        findings = [
+            str(row.get("finding", "")).strip()
+            for row in section.rows
+            if str(row.get("finding", "")).strip()
+        ]
+
+        def _restart_key_findings_page() -> float:
+            next_y = _start_content_page()
+            next_y = _draw_section_heading(section, next_y)
+            c.setFont("Helvetica", 11)
+            return next_y
+
+        c.setFont("Helvetica", 11)
+        index = 1
+        for finding in findings:
+            if y < 90:
+                y = _restart_key_findings_page()
+            prefix = f"{index}. "
+            c.drawString(40, y, prefix)
+            y = _write_wrapped_lines(
+                finding,
+                x=58,
+                y=y,
+                max_width=width - 98,
+                line_height=14,
+                min_y=70,
+                on_page_break=_restart_key_findings_page,
+            )
+            y -= 4
+            index += 1
+        return y - 6
+
+    def _draw_section_header(section: ReportSectionData, y: float) -> float:
+        heading_height = 26 + (14 if section.schema.description else 0)
+        if y - heading_height < 60:
+            y = _start_content_page()
+
+        y = _draw_section_heading(section, y)
+        if section.schema.source == _KEY_FINDINGS_SOURCE:
+            return _draw_key_findings_section(section, y)
+
+        if y < 80:
+            y = _start_content_page()
         return y
 
     def _draw_section_table(section: ReportSectionData, start_y: float) -> float:
@@ -1826,26 +1980,10 @@ def report_to_pdf(document: ReportDocument) -> bytes:
     c.setTitle(document.template.name)
     watermark = str(document.parameters.get("watermark", "")).strip() or None
     _draw_title_page(watermark)
-    _new_page()
-    if watermark:
-        _draw_watermark(watermark)
-    c.setFont("Helvetica-Bold", 12)
-    c.drawString(40, height - 60, document.template.name)
-    c.setFont("Helvetica", 9)
-    c.drawString(40, height - 76, f"Owner: {document.owner}")
-    y_cursor = height - 100
+    y_cursor = _start_content_page()
     for section in document.sections:
         if y_cursor < 120:
-            # _new_page() commits the current page before starting a new one;
-            # the watermark is drawn on the new page only.
-            _new_page()
-            if watermark:
-                _draw_watermark(watermark)
-            c.setFont("Helvetica-Bold", 12)
-            c.drawString(40, height - 60, document.template.name)
-            c.setFont("Helvetica", 9)
-            c.drawString(40, height - 76, f"Owner: {document.owner}")
-            y_cursor = height - 100
+            y_cursor = _start_content_page()
         y_cursor = _draw_section_table(section, y_cursor)
     _draw_footer()
     c.save()

@@ -53,11 +53,12 @@ class BackendLambdaStack(Stack):
             normalized_prefix = (list_prefix or "").strip().strip("/")
             if not normalized_prefix:
                 raise ValueError("list_prefix is required when allow_list=True")
+            prefix_conditions = [normalized_prefix, f"{normalized_prefix}/*"]
             fn.add_to_role_policy(
                 iam.PolicyStatement(
                     actions=["s3:ListBucket"],
                     resources=[f"arn:aws:s3:::{bucket_name}"],
-                    conditions={"StringLike": {"s3:prefix": [f"{normalized_prefix}/*"]}},
+                    conditions={"StringLike": {"s3:prefix": prefix_conditions}},
                 )
             )
 
@@ -102,7 +103,11 @@ class BackendLambdaStack(Stack):
         )
 
         bucket_name = data_bucket.bucket_name
-        backend_list_prefix = "portfolio"
+        lambda_list_prefixes = {
+            "backend": "portfolio",
+            "price_refresh": None,
+            "trading_agent": None,
+        }
 
         seed_data_bucket = (
             self.node.try_get_context("seed_data_bucket")
@@ -168,7 +173,7 @@ class BackendLambdaStack(Stack):
             allow_read=True,
             allow_put=True,
             allow_list=True,
-            list_prefix=backend_list_prefix,
+            list_prefix=lambda_list_prefixes["backend"],
         )
 
         backend_api = apigwv2.HttpApi(self, "BackendApi")
@@ -223,6 +228,7 @@ class BackendLambdaStack(Stack):
             allow_read=True,
             allow_put=True,
             allow_list=False,
+            list_prefix=lambda_list_prefixes["price_refresh"],
         )
 
         events.Rule(
@@ -267,6 +273,7 @@ class BackendLambdaStack(Stack):
             allow_read=True,
             allow_put=False,
             allow_list=False,
+            list_prefix=lambda_list_prefixes["trading_agent"],
         )
 
         events.Rule(

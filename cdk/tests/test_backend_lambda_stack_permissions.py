@@ -211,9 +211,9 @@ def test_s3_permissions_are_scoped_per_lambda() -> None:
     assert list_bucket_conditions, (
         "BackendLambda has s3:ListBucket but no associated IAM Condition"
     )
-    expected_prefix = {"StringLike": {"s3:prefix": ["portfolio/*"]}}
+    expected_prefix = {"StringLike": {"s3:prefix": ["portfolio", "portfolio/*"]}}
     assert expected_prefix in list_bucket_conditions, (
-        "BackendLambda s3:ListBucket must be conditioned to portfolio/*"
+        "BackendLambda s3:ListBucket must be conditioned to portfolio and portfolio/*"
     )
 
 

@@ -597,6 +597,106 @@ def test_report_to_pdf_formats_values_and_optional_watermark(monkeypatch):
     )
 
 
+def test_report_to_pdf_key_findings_wrap_across_pages(monkeypatch):
+    class FakeCanvas:
+        last_instance = None
+
+        def __init__(self, buffer, pagesize):
+            self.calls: list[tuple[str, tuple, dict]] = []
+            FakeCanvas.last_instance = self
+
+        def setFont(self, *args, **kwargs):
+            self.calls.append(("setFont", args, kwargs))
+
+        def drawString(self, *args, **kwargs):
+            self.calls.append(("drawString", args, kwargs))
+
+        def drawRightString(self, *args, **kwargs):
+            self.calls.append(("drawRightString", args, kwargs))
+
+        def drawCentredString(self, *args, **kwargs):
+            self.calls.append(("drawCentredString", args, kwargs))
+
+        def setLineWidth(self, *args, **kwargs):
+            self.calls.append(("setLineWidth", args, kwargs))
+
+        def line(self, *args, **kwargs):
+            self.calls.append(("line", args, kwargs))
+
+        def saveState(self):
+            self.calls.append(("saveState", (), {}))
+
+        def restoreState(self):
+            self.calls.append(("restoreState", (), {}))
+
+        def setFillColorRGB(self, *args, **kwargs):
+            self.calls.append(("setFillColorRGB", args, kwargs))
+
+        def translate(self, *args, **kwargs):
+            self.calls.append(("translate", args, kwargs))
+
+        def rotate(self, *args, **kwargs):
+            self.calls.append(("rotate", args, kwargs))
+
+        def setTitle(self, *args, **kwargs):
+            self.calls.append(("setTitle", args, kwargs))
+
+        def showPage(self):
+            self.calls.append(("showPage", (), {}))
+
+        def save(self):
+            self.calls.append(("save", (), {}))
+
+        def stringWidth(self, text, font_name, font_size):
+            return len(text) * 12
+
+    fake_canvas_mod = SimpleNamespace(Canvas=FakeCanvas)
+    monkeypatch.setattr(reports, "canvas", fake_canvas_mod)
+    monkeypatch.setattr(reports, "letter", (220, 180))
+    monkeypatch.setattr(reports, "Table", None)
+
+    key_schema = reports.ReportSectionSchema(
+        id="key-findings",
+        title="Key Findings",
+        source="portfolio.key_findings",
+        description="Analyst notes",
+        columns=(reports.ReportColumnSchema("finding", "Finding"),),
+    )
+    section = reports.ReportSectionData(
+        schema=key_schema,
+        rows=(
+            {
+                "finding": (
+                    "Portfolio remains concentrated in a narrow set of US growth names while "
+                    "cash exposure has stayed above the house view for several review cycles"
+                )
+            },
+        ),
+    )
+    document = reports.ReportDocument(
+        template=reports.ReportTemplate(
+            template_id="audit-report",
+            name="Audit report",
+            description="",
+            sections=(key_schema,),
+            builtin=False,
+        ),
+        owner="alice",
+        generated_at=datetime.now(tz=UTC),
+        parameters={},
+        sections=(section,),
+    )
+
+    output = reports.report_to_pdf(document)
+
+    assert isinstance(output, bytes)
+    calls = FakeCanvas.last_instance.calls
+    assert sum(1 for name, _, _ in calls if name == "showPage") >= 2
+    drawn_values = [args[2] for name, args, _ in calls if name == "drawString" and len(args) >= 3]
+    assert drawn_values.count("Key Findings") >= 1
+    assert any("Portfolio remains concentrated" in value for value in drawn_values)
+
+
 def test_section_builders_use_context():
     summary = reports.ReportData(
         owner="alice",
@@ -832,11 +932,11 @@ def test_audit_concentration_hhi_uses_full_holding_set(monkeypatch):
     assert all(row["hhi"] == pytest.approx(expected_hhi) for row in concentration)
 
 
-def test_normalise_value_weight_rows_prefers_value_consistently():
+def test_normalise_value_weight_rows_prefers_value_and_sorts_descending():
     rows = reports._normalise_value_weight_rows(
         [
-            {"sector": "Technology", "value": 70.0, "market_value_gbp": 700.0},
             {"sector": "Healthcare", "value": 30.0, "market_value_gbp": 300.0},
+            {"sector": "Technology", "value": 70.0, "market_value_gbp": 700.0},
         ],
         label_key="sector",
     )
@@ -844,6 +944,21 @@ def test_normalise_value_weight_rows_prefers_value_consistently():
     assert rows == [
         {"sector": "Technology", "value": 70.0, "weight": 0.7},
         {"sector": "Healthcare", "value": 30.0, "weight": 0.3},
+    ]
+
+
+def test_normalise_value_weight_rows_uses_weight_pct_and_unknown_label():
+    rows = reports._normalise_value_weight_rows(
+        [
+            {"sector": "", "market_value_gbp": 1000.0, "weight_pct": 75.0},
+            {"market_value_gbp": 333.0, "weight_pct": 25.0},
+        ],
+        label_key="sector",
+    )
+
+    assert rows == [
+        {"sector": "Unknown", "value": 1000.0, "weight": 0.75},
+        {"sector": "Unknown", "value": 333.0, "weight": 0.25},
     ]
 
 
@@ -1010,6 +1125,7 @@ def test_get_template_audit_report_has_expected_order_and_legacy_builtins():
         "portfolio.regions",
         "portfolio.concentration",
         "portfolio.var",
+        "portfolio.key_findings",
     ]
 
     metadata = reports.list_template_metadata()

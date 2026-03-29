@@ -114,7 +114,7 @@ async def owner_report(
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Owner not found")
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc))
 
     if format.lower() == "csv":
         content = report_to_csv(document)
@@ -151,7 +151,7 @@ async def owner_template_report(
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Owner not found")
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc))
 
     if format.lower() == "csv":
         content = report_to_csv(document)
@@ -172,4 +172,3 @@ async def owner_template_report(
             },
         )
     return document.to_dict()
-

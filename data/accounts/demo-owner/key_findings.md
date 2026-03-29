@@ -1,0 +1,4 @@
+- US tech concentration is 44.2% of portfolio value versus 18.0% in the benchmark mix.
+- Cash allocation rose to 12.6% after March deposits, compared with a 5.0% strategic target.
+- 1-year drawdown reached -9.4%, while the blended peer basket declined only -6.1%.
+- FX exposure to USD is 61.0% of holdings, exceeding the 35.0% policy reference level.

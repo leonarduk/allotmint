@@ -565,19 +565,20 @@ class ReportContext:
             self._transactions = filtered
         return list(self._transactions)
 
-
     def owner_portfolio(self) -> Dict[str, Any] | None:
         if self._owner_portfolio_loaded:
             return self._owner_portfolio
         self._owner_portfolio_loaded = True
         if portfolio_mod is None:
+            logger.warning("portfolio module unavailable; portfolio sections will be empty")
             return None
         try:
             self._owner_portfolio = portfolio_mod.build_owner_portfolio(
                 self.owner,
                 pricing_date=self.end,
             )
-        except (FileNotFoundError, ValueError):
+        except (FileNotFoundError, ValueError) as exc:
+            logger.warning("failed to build owner portfolio for %s: %s", self.owner, exc)
             self._owner_portfolio = None
         return self._owner_portfolio
 
@@ -608,23 +609,6 @@ class ReportContext:
             normalised.sort(key=lambda item: (item.get("value") or 0.0), reverse=True)
             self._allocation = normalised
         return list(self._allocation)
-
-    def owner_portfolio(self) -> Dict[str, Any] | None:
-        """Return the owner portfolio, fetching and caching it on first call.
-
-        Returns None if portfolio_mod is unavailable or the fetch fails, so
-        callers must guard against None rather than catching exceptions.
-        """
-        if self._owner_portfolio is None:
-            if portfolio_mod is None:
-                logger.warning("portfolio module unavailable; portfolio sections will be empty")
-                return None
-            try:
-                self._owner_portfolio = portfolio_mod.build_owner_portfolio(self.owner)
-            except (FileNotFoundError, ValueError) as exc:
-                logger.warning("failed to build owner portfolio for %s: %s", self.owner, exc)
-                return None
-        return self._owner_portfolio
 
 
 def _round_if_number(value: Any, digits: int) -> Optional[float]:

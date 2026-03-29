@@ -206,8 +206,11 @@ def test_portfolio_section_builders(monkeypatch):
     }
     build_calls = {"count": 0}
 
-    def _build_owner_portfolio(owner):
+    build_pricing_dates: list[date | None] = []
+
+    def _build_owner_portfolio(owner, pricing_date=None):
         build_calls["count"] += 1
+        build_pricing_dates.append(pricing_date)
         return portfolio_payload
 
     monkeypatch.setattr(reports.portfolio_mod, "build_owner_portfolio", _build_owner_portfolio)
@@ -272,7 +275,9 @@ def test_portfolio_section_builders(monkeypatch):
 
     monkeypatch.setattr(reports, "get_template", lambda template_id, store=None: _portfolio_template())
 
-    document = reports.build_report_document("portfolio-insights", "alice")
+    document = reports.build_report_document(
+        "portfolio-insights", "alice", end=date(2024, 1, 31)
+    )
     sources = {section.schema.source: section.rows for section in document.sections}
 
     overview_rows = sources["portfolio.overview"]
@@ -305,6 +310,40 @@ def test_portfolio_section_builders(monkeypatch):
     assert any(row["metric"] == "VaR" and row["confidence"] == 0.95 and row["horizon_days"] == 1 for row in var_rows)
     assert any(row["metric"] == "Sharpe ratio" and row["value"] == pytest.approx(1.2346, abs=1e-4) for row in var_rows)
     assert build_calls["count"] == 1
+    assert build_pricing_dates == [date(2024, 1, 31)]
+
+
+def test_owner_portfolio_failure_is_cached_once_per_report_build(monkeypatch):
+    call_count = {"count": 0}
+
+    def _raise_on_build(owner, pricing_date=None):
+        call_count["count"] += 1
+        raise ValueError("missing portfolio")
+
+    monkeypatch.setattr(reports.portfolio_mod, "build_owner_portfolio", _raise_on_build)
+    monkeypatch.setattr(
+        reports.portfolio_utils, "aggregate_by_sector", lambda portfolio: pytest.fail("unexpected call")
+    )
+    monkeypatch.setattr(
+        reports.portfolio_utils, "aggregate_by_region", lambda portfolio: pytest.fail("unexpected call")
+    )
+    monkeypatch.setattr(
+        reports.portfolio_utils, "aggregate_by_ticker", lambda portfolio: pytest.fail("unexpected call")
+    )
+    monkeypatch.setattr(reports, "get_template", lambda template_id, store=None: _portfolio_template())
+
+    document = reports.build_report_document(
+        "portfolio-insights",
+        "alice",
+        end=date(2024, 1, 31),
+    )
+
+    assert call_count["count"] == 1
+    sources = {section.schema.source: section.rows for section in document.sections}
+    assert sources["portfolio.overview"] == []
+    assert sources["portfolio.sectors"] == []
+    assert sources["portfolio.regions"] == []
+    assert sources["portfolio.concentration"] == []
 
 
 def test_portfolio_sections_return_empty_when_optional_modules_missing(monkeypatch):

@@ -754,7 +754,9 @@ def _build_portfolio_overview_section(
     asset_class_totals: Dict[str, float] = {}
 
     for account in account_list:
-        holdings = account.get("holdings") if isinstance(account, dict) else []
+        if not isinstance(account, dict):
+            continue
+        holdings = account.get("holdings", [])
         if not isinstance(holdings, list):
             continue
         holdings_count += len(holdings)
@@ -790,6 +792,8 @@ def _build_portfolio_overview_section(
     )
 
     for account in account_list:
+        if not isinstance(account, dict):
+            continue
         account_type = str(account.get("account_type") or "Unknown")
         rows.append(
             {
@@ -919,14 +923,14 @@ def _build_portfolio_concentration_section(
         {
             "row_type": "holding",
             "rank": index + 1,
-            "ticker": row.get("ticker"),
-            "market_value_gbp": row.get("market_value_gbp"),
-            "weight_pct": _round_if_number((row.get("weight") or 0.0) * 100.0, 4),
+            "ticker": entry.get("ticker"),
+            "market_value_gbp": entry.get("market_value_gbp"),
+            "weight_pct": _round_if_number((entry.get("weight") or 0.0) * 100.0, 4),
             "hhi": None,
             "top_n_weight_pct": None,
             "n_holdings": None,
         }
-        for index, row in enumerate(top_rows)
+        for index, entry in enumerate(top_rows)
     ]
     summary_row: Dict[str, Any] = {
         "row_type": "summary",

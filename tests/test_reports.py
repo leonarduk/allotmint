@@ -170,6 +170,10 @@ def test_build_report_document_uses_context(monkeypatch):
     assert history_rows[0]["date"] == "2024-01-01"
 
 
+# ---------------------------------------------------------------------------
+# Helpers shared across portfolio section tests
+# ---------------------------------------------------------------------------
+
 def _portfolio_template():
     return reports.ReportTemplate(
         template_id="portfolio-insights",
@@ -184,6 +188,18 @@ def _portfolio_template():
         ),
     )
 
+
+def _preloaded_context(portfolio: dict) -> reports.ReportContext:
+    """Return a ReportContext with owner_portfolio() pre-loaded to avoid I/O."""
+    ctx = reports.ReportContext(owner="alice", start=None, end=None)
+    ctx._owner_portfolio = portfolio
+    ctx._owner_portfolio_loaded = True
+    return ctx
+
+
+# ---------------------------------------------------------------------------
+# Happy-path integration test
+# ---------------------------------------------------------------------------
 
 def test_portfolio_section_builders(monkeypatch):
     portfolio_payload = {
@@ -313,6 +329,100 @@ def test_portfolio_section_builders(monkeypatch):
     assert build_pricing_dates == [date(2024, 1, 31)]
 
 
+# ---------------------------------------------------------------------------
+# Overview builder edge cases
+# ---------------------------------------------------------------------------
+
+def test_overview_empty_accounts(monkeypatch):
+    """Overview with no accounts produces only summary rows (no account/asset_class rows)."""
+    ctx = _preloaded_context({"total_value_estimate_gbp": 500.0, "accounts": []})
+    result = reports._build_portfolio_overview_section(ctx, reports.PORTFOLIO_OVERVIEW_SECTION)
+    categories = [r["category"] for r in result]
+    assert "summary" in categories
+    assert "account" not in categories
+    assert "asset_class" not in categories
+    summary_rows = [r for r in result if r["label"] == "Total portfolio value"]
+    assert summary_rows[0]["value"] == 500.0
+
+
+def test_overview_non_dict_account_entries_are_skipped(monkeypatch):
+    """Non-dict entries in the accounts list must be skipped in both passes without raising."""
+    ctx = _preloaded_context({
+        "total_value_estimate_gbp": 200.0,
+        "accounts": [
+            "not-a-dict",
+            None,
+            {"account_type": "ISA", "value_estimate_gbp": 200.0, "holdings": [
+                {"asset_class": "Equity", "market_value_gbp": 200.0}
+            ]},
+        ],
+    })
+    result = reports._build_portfolio_overview_section(ctx, reports.PORTFOLIO_OVERVIEW_SECTION)
+    account_rows = [r for r in result if r["category"] == "account"]
+    # Only the dict account should produce a row
+    assert len(account_rows) == 1
+    assert account_rows[0]["label"] == "ISA"
+    # Asset class total from the one valid dict account
+    asset_rows = [r for r in result if r["category"] == "asset_class"]
+    assert len(asset_rows) == 1
+    assert asset_rows[0]["label"] == "Equity"
+
+
+# ---------------------------------------------------------------------------
+# Sectors / regions edge cases
+# ---------------------------------------------------------------------------
+
+def test_sectors_weight_pct_sums_to_100(monkeypatch):
+    """weight_pct values across all sector rows should sum to 100%."""
+    monkeypatch.setattr(
+        reports.portfolio_utils,
+        "aggregate_by_sector",
+        lambda portfolio: [
+            {"sector": "Tech", "market_value_gbp": 600.0},
+            {"sector": "Finance", "market_value_gbp": 250.0},
+            {"sector": "Energy", "market_value_gbp": 150.0},
+        ],
+    )
+    ctx = _preloaded_context({"accounts": []})
+    result = reports._build_portfolio_sectors_section(ctx, reports.PORTFOLIO_SECTORS_SECTION)
+    total_weight = sum(r["weight_pct"] for r in result)
+    assert total_weight == pytest.approx(100.0, abs=1e-6)
+
+
+def test_regions_weight_pct_sums_to_100(monkeypatch):
+    """weight_pct values across all region rows should sum to 100%."""
+    monkeypatch.setattr(
+        reports.portfolio_utils,
+        "aggregate_by_region",
+        lambda portfolio: [
+            {"region": "UK", "market_value_gbp": 700.0},
+            {"region": "US", "market_value_gbp": 300.0},
+        ],
+    )
+    ctx = _preloaded_context({"accounts": []})
+    result = reports._build_portfolio_regions_section(ctx, reports.PORTFOLIO_REGIONS_SECTION)
+    total_weight = sum(r["weight_pct"] for r in result)
+    assert total_weight == pytest.approx(100.0, abs=1e-6)
+
+
+def test_sectors_zero_total_value_yields_none_weight(monkeypatch):
+    """When all market values are 0, weight_pct should be None (no division)."""
+    monkeypatch.setattr(
+        reports.portfolio_utils,
+        "aggregate_by_sector",
+        lambda portfolio: [
+            {"sector": "Tech", "market_value_gbp": 0.0},
+        ],
+    )
+    ctx = _preloaded_context({"accounts": []})
+    result = reports._build_portfolio_sectors_section(ctx, reports.PORTFOLIO_SECTORS_SECTION)
+    assert result[0]["weight_pct"] is None
+
+
+# ---------------------------------------------------------------------------
+# Concentration edge cases
+# ---------------------------------------------------------------------------
+
 def test_concentration_n_holdings_is_total_not_top_n(monkeypatch):
     """n_holdings in the summary row must reflect total portfolio holding count,
     not the capped top-10 slice."""
@@ -326,12 +436,8 @@ def test_concentration_n_holdings_is_total_not_top_n(monkeypatch):
         "aggregate_by_ticker",
         lambda portfolio: tickers,
     )
-    context = reports.ReportContext(owner="alice", start=None, end=None)
-    # Pre-load a non-None portfolio so the builder proceeds.
-    context._owner_portfolio = {"accounts": []}
-    context._owner_portfolio_loaded = True
-
-    result = reports._build_portfolio_concentration_section(context, reports.PORTFOLIO_CONCENTRATION_SECTION)
+    ctx = _preloaded_context({"accounts": []})
+    result = reports._build_portfolio_concentration_section(ctx, reports.PORTFOLIO_CONCENTRATION_SECTION)
 
     holding_rows = [r for r in result if r["row_type"] == "holding"]
     summary_rows = [r for r in result if r["row_type"] == "summary"]
@@ -350,6 +456,78 @@ def test_concentration_n_holdings_is_total_not_top_n(monkeypatch):
     )[:10]) / total_value * 100.0
     assert summary["top_n_weight_pct"] == pytest.approx(top10_weight, abs=1e-4)
 
+
+# ---------------------------------------------------------------------------
+# VaR edge cases
+# ---------------------------------------------------------------------------
+
+def test_portfolio_var_partial_failure_one_confidence_level(monkeypatch):
+    """If 0.95 raises but 0.99 succeeds, the section returns only the 0.99 rows."""
+    monkeypatch.setattr(reports.portfolio_mod, "build_owner_portfolio",
+                        lambda owner, pricing_date=None: {"accounts": []})
+
+    call_count = {"n": 0}
+
+    def _var(owner, confidence):
+        call_count["n"] += 1
+        if confidence == 0.95:
+            raise ValueError("no data for 0.95")
+        return {"confidence": confidence, "1d": 5.0, "10d": 15.0}
+
+    monkeypatch.setattr(
+        reports,
+        "risk_mod",
+        SimpleNamespace(
+            compute_portfolio_var=_var,
+            compute_sharpe_ratio=lambda owner: None,
+        ),
+    )
+    ctx = reports.ReportContext(owner="alice", start=None, end=None)
+    result = reports._build_portfolio_var_section(ctx, reports.PORTFOLIO_VAR_SECTION)
+    # Only rows for confidence=0.99 (two horizons), Sharpe omitted because None
+    assert len(result) == 2
+    assert all(r["confidence"] == 0.99 for r in result)
+    assert call_count["n"] == 2  # both confidence levels were attempted
+
+
+def test_portfolio_var_omits_sharpe_row_when_sharpe_fails(monkeypatch):
+    """When VaR succeeds but compute_sharpe_ratio raises, no Sharpe row is appended."""
+    monkeypatch.setattr(reports.portfolio_mod, "build_owner_portfolio",
+                        lambda owner, pricing_date=None: {"accounts": []})
+    monkeypatch.setattr(
+        reports,
+        "risk_mod",
+        SimpleNamespace(
+            compute_portfolio_var=lambda owner, confidence: {"confidence": confidence, "1d": 10.0, "10d": 20.0},
+            compute_sharpe_ratio=Mock(side_effect=ValueError("no returns")),
+        ),
+    )
+    ctx = reports.ReportContext(owner="alice", start=None, end=None)
+    result = reports._build_portfolio_var_section(ctx, reports.PORTFOLIO_VAR_SECTION)
+    assert all(r["metric"] == "VaR" for r in result)
+    assert not any(r["metric"] == "Sharpe ratio" for r in result)
+
+
+def test_portfolio_var_returns_empty_when_var_rows_unavailable(monkeypatch):
+    """VaR builder returns [] when both confidence-level calls raise."""
+    monkeypatch.setattr(reports.portfolio_mod, "build_owner_portfolio",
+                        lambda owner, pricing_date=None: {"accounts": []})
+    monkeypatch.setattr(
+        reports,
+        "risk_mod",
+        SimpleNamespace(
+            compute_portfolio_var=Mock(side_effect=ValueError("no var rows")),
+            compute_sharpe_ratio=Mock(return_value=2.0),
+        ),
+    )
+    ctx = reports.ReportContext(owner="alice", start=None, end=None)
+    result = reports._build_portfolio_var_section(ctx, reports.PORTFOLIO_VAR_SECTION)
+    assert result == []
+
+
+# ---------------------------------------------------------------------------
+# Caching / module-missing paths
+# ---------------------------------------------------------------------------
 
 def test_owner_portfolio_failure_is_cached_once_per_report_build(monkeypatch):
     call_count = {"count": 0}
@@ -397,22 +575,9 @@ def test_portfolio_sections_return_empty_when_optional_modules_missing(monkeypat
     assert reports._build_portfolio_var_section(context, reports.PORTFOLIO_VAR_SECTION) == []
 
 
-def test_portfolio_var_returns_empty_when_var_rows_unavailable(monkeypatch):
-    """VaR builder returns [] when both confidence-level calls raise."""
-    monkeypatch.setattr(reports.portfolio_mod, "build_owner_portfolio", lambda owner, pricing_date=None: {"accounts": []})
-    monkeypatch.setattr(
-        reports,
-        "risk_mod",
-        SimpleNamespace(
-            compute_portfolio_var=Mock(side_effect=ValueError("no var rows")),
-            compute_sharpe_ratio=Mock(return_value=2.0),
-        ),
-    )
-    context = reports.ReportContext(owner="alice", start=None, end=None)
-
-    result = reports._build_portfolio_var_section(context, reports.PORTFOLIO_VAR_SECTION)
-    assert result == []
-
+# ---------------------------------------------------------------------------
+# Template store / existing tests
+# ---------------------------------------------------------------------------
 
 def test_list_template_metadata_merges_user_templates(tmp_path):
     reports.get_template_store.cache_clear()

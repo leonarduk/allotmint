@@ -936,6 +936,8 @@ def _build_portfolio_var_section(
 ) -> Sequence[Dict[str, Any]]:
     if risk_mod is None:
         return []
+    if not context.owner_portfolio():
+        return []
     rows: List[Dict[str, Any]] = []
     for confidence in (0.95, 0.99):
         try:
@@ -1203,10 +1205,12 @@ def build_report_document(
         builder = SECTION_BUILDERS.get(schema.source)
         if builder is None:
             logger.warning("No builder registered for section source %s", schema.source)
-            rows: Sequence[Dict[str, Any]] = []
+            rows: Sequence[Dict[str, Any]] = ()
+            section_rows: Sequence[Dict[str, Any]] = rows
         else:
             rows = builder(context, schema)
-        sections.append(ReportSectionData(schema=schema, rows=tuple(rows)))
+            section_rows = list(rows)
+        sections.append(ReportSectionData(schema=schema, rows=section_rows))
 
     params: Dict[str, Any] = {}
     if start:

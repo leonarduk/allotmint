@@ -1056,12 +1056,14 @@ def test_build_key_findings_section_returns_empty_when_missing(tmp_path, monkeyp
     assert reports._build_key_findings_section(context, schema) == []
 
 
-def test_build_key_findings_section_rejects_missing_numbers(tmp_path, monkeypatch):
+def test_build_key_findings_section_skips_invalid_lines_with_warning(tmp_path, monkeypatch, caplog):
     monkeypatch.setattr(reports.config, "data_root", tmp_path, raising=False)
     owner_dir = tmp_path / "accounts" / "demo-owner"
     owner_dir.mkdir(parents=True)
     (owner_dir / "key_findings.md").write_text(
-        "- Portfolio concentration is heavily skewed to one sector\n",
+        "- Portfolio concentration is 42% in US tech versus 18% benchmark\n"
+        "- Portfolio is heavily concentrated in US large-cap growth stocks\n"
+        f"- {'9' * 241}\n",
         encoding="utf-8",
     )
 
@@ -1073,8 +1075,38 @@ def test_build_key_findings_section_rejects_missing_numbers(tmp_path, monkeypatc
         columns=(reports.ReportColumnSchema("finding", "Finding"),),
     )
 
-    with pytest.raises(ValueError, match="Invalid key finding"):
-        reports._build_key_findings_section(context, schema)
+    with caplog.at_level("WARNING", logger=reports.logger.name):
+        rows = reports._build_key_findings_section(context, schema)
+
+    assert rows == [
+        {"finding": "Portfolio concentration is 42% in US tech versus 18% benchmark"},
+        {"finding": "Portfolio is heavily concentrated in US large-cap growth stocks"},
+    ]
+    assert "Skipping invalid key finding from key_findings.md" in caplog.text
+
+
+def test_build_key_findings_section_reads_txt_fallback(tmp_path, monkeypatch):
+    monkeypatch.setattr(reports.config, "data_root", tmp_path, raising=False)
+    owner_dir = tmp_path / "accounts" / "demo-owner"
+    owner_dir.mkdir(parents=True)
+    (owner_dir / "key_findings.txt").write_text(
+        "1. Cash drag is 6.4% above the 2.0% target corridor\n",
+        encoding="utf-8",
+    )
+
+    context = reports.ReportContext("demo-owner", start=None, end=None)
+    schema = reports.ReportSectionSchema(
+        id="key-findings",
+        title="Key Findings",
+        source="portfolio.key_findings",
+        columns=(reports.ReportColumnSchema("finding", "Finding"),),
+    )
+
+    rows = reports._build_key_findings_section(context, schema)
+
+    assert rows == [
+        {"finding": "Cash drag is 6.4% above the 2.0% target corridor"}
+    ]
 
 
 def test_key_findings_source_is_registered_for_template_validation():

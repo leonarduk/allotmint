@@ -650,12 +650,13 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "POST",
     "path": "/transactions",
     "body": {
-      "owner": "test",
-      "account": "test",
-      "ticker": "test",
+      "owner": smokeIdentity,
+      "account": "isa",
+      "ticker": "PFE",
       "date": "1970-01-01",
-      "price_gbp": 0,
-      "units": 0
+      "price_gbp": 1,
+      "units": 1,
+      "reason": "smoke test"
     }
   },
   {
@@ -683,12 +684,13 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "PUT",
     "path": "/transactions/{tx_id}",
     "body": {
-      "owner": "test",
-      "account": "test",
-      "ticker": "test",
+      "owner": smokeIdentity,
+      "account": "isa",
+      "ticker": "PFE",
       "date": "1970-01-01",
-      "price_gbp": 0,
-      "units": 0
+      "price_gbp": 1,
+      "units": 1,
+      "reason": "smoke test"
     }
   },
   {
@@ -724,7 +726,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "POST",
     "path": "/virtual-portfolios",
     "body": {
-      "id": "test",
+      "id": "smoke-vp-created",
       "name": "test"
     }
   },
@@ -741,6 +743,22 @@ export const smokeEndpoints: SmokeEndpoint[] = [
 // Provide sample values for path parameters so requests avoid 422/400 errors.
 // Values are chosen based on common parameter names. Unknown names default to
 // `1` which parses as an integer or string.
+type SmokeFixtures = {
+  owner: string;
+  user: string;
+  groupSlug: string;
+  querySlug: string;
+  questId: string;
+  taskId: string;
+  transactionId: string;
+  virtualPortfolioId: string;
+  virtualPortfolioDeleteId: string;
+};
+
+const sampleQuerySlug = `${smokeIdentity}-slug`;
+const sampleGroupSlug = 'all';
+const sampleVirtualPortfolioCreateId = 'smoke-vp-created';
+
 const SAMPLE_PATH_VALUES: Record<string, string> = {
   owner: smokeIdentity,
   account: 'isa',
@@ -748,17 +766,274 @@ const SAMPLE_PATH_VALUES: Record<string, string> = {
   email: 'user@example.com',
   source: 'trail',
   id: '1',
+  tx_id: '1',
   vp_id: '1',
   quest_id: 'check-in',
-  slug: `${smokeIdentity}-slug`,
+  slug: sampleQuerySlug,
   name: 'test',
   exchange: 'NASDAQ',
   ticker: 'PFE',
 };
 
-export function fillPath(path: string): string {
+function chooseFixtureOwner(payload: unknown): string | null {
+  if (!Array.isArray(payload)) {
+    return null;
+  }
+
+  for (const entry of payload) {
+    if (!entry || typeof entry !== 'object') {
+      continue;
+    }
+    const owner = typeof (entry as { owner?: unknown }).owner === 'string' ? (entry as { owner: string }).owner.trim() : '';
+    if (owner && owner.toLowerCase() !== 'demo') {
+      return owner;
+    }
+  }
+
+  for (const entry of payload) {
+    if (!entry || typeof entry !== 'object') {
+      continue;
+    }
+    const owner = typeof (entry as { owner?: unknown }).owner === 'string' ? (entry as { owner: string }).owner.trim() : '';
+    if (owner) {
+      return owner;
+    }
+  }
+
+  return null;
+}
+
+function chooseFixtureGroup(payload: unknown): string | null {
+  if (!Array.isArray(payload)) {
+    return null;
+  }
+
+  for (const entry of payload) {
+    if (!entry || typeof entry !== 'object') {
+      continue;
+    }
+    const slug = typeof (entry as { slug?: unknown }).slug === 'string' ? (entry as { slug: string }).slug.trim() : '';
+    if (slug) {
+      return slug;
+    }
+  }
+
+  return null;
+}
+
+function chooseFixtureId(payload: unknown, key: 'quests' | 'tasks'): string | null {
+  if (!payload || typeof payload !== 'object') {
+    return null;
+  }
+
+  const entries = (payload as Record<string, unknown>)[key];
+  if (!Array.isArray(entries)) {
+    return null;
+  }
+
+  for (const entry of entries) {
+    if (!entry || typeof entry !== 'object') {
+      continue;
+    }
+    const id = typeof (entry as { id?: unknown }).id === 'string' ? (entry as { id: string }).id.trim() : '';
+    if (id) {
+      return id;
+    }
+  }
+
+  return null;
+}
+
+async function resolveFixtures(base: string): Promise<SmokeFixtures> {
+  const fixtures: SmokeFixtures = {
+    owner: smokeIdentity,
+    user: smokeIdentity,
+    groupSlug: sampleGroupSlug,
+    querySlug: sampleQuerySlug,
+    questId: 'check_in',
+    taskId: 'log_in',
+    transactionId: '1',
+    virtualPortfolioId: sampleVirtualPortfolioCreateId,
+    virtualPortfolioDeleteId: '1',
+  };
+
+  try {
+    const ownersRes = await fetch(`${base}/owners`, { method: 'GET' });
+    if (ownersRes.ok) {
+      fixtures.owner = chooseFixtureOwner(await ownersRes.json()) ?? fixtures.owner;
+      fixtures.user = fixtures.owner;
+    }
+  } catch {
+    // Fall back to the configured identity when owner discovery is unavailable.
+  }
+
+  try {
+    const groupsRes = await fetch(`${base}/groups`, { method: 'GET' });
+    if (groupsRes.ok) {
+      fixtures.groupSlug = chooseFixtureGroup(await groupsRes.json()) ?? fixtures.groupSlug;
+    }
+  } catch {
+    // Fall back to the default group slug when group discovery is unavailable.
+  }
+
+  try {
+    const questsRes = await fetch(`${base}/quests/today`, { method: 'GET' });
+    if (questsRes.ok) {
+      fixtures.questId = chooseFixtureId(await questsRes.json(), 'quests') ?? fixtures.questId;
+    }
+  } catch {
+    // Fall back to the default quest id when quest discovery is unavailable.
+  }
+
+  try {
+    const trailRes = await fetch(`${base}/trail`, { method: 'GET' });
+    if (trailRes.ok) {
+      fixtures.taskId = chooseFixtureId(await trailRes.json(), 'tasks') ?? fixtures.taskId;
+    }
+  } catch {
+    // Fall back to the default task id when trail discovery is unavailable.
+  }
+
+  try {
+    const txRes = await fetch(`${base}/transactions`, { method: 'GET' });
+    if (txRes.ok) {
+      const payload = await txRes.json();
+      if (Array.isArray(payload)) {
+        for (const entry of payload) {
+          if (!entry || typeof entry !== 'object') {
+            continue;
+          }
+          const id = typeof (entry as { id?: unknown }).id === 'string' ? (entry as { id: string }).id.trim() : '';
+          if (id) {
+            fixtures.transactionId = id;
+            break;
+          }
+        }
+      }
+    }
+  } catch {
+    // Fall back to the default transaction id when discovery is unavailable.
+  }
+
+  try {
+    const vpRes = await fetch(`${base}/virtual-portfolios`, { method: 'GET' });
+    if (vpRes.ok) {
+      const payload = await vpRes.json();
+      if (Array.isArray(payload)) {
+        let fallbackId: string | null = null;
+        for (const entry of payload) {
+          if (!entry || typeof entry !== 'object') {
+            continue;
+          }
+          const id = String((entry as { id?: unknown }).id ?? '').trim();
+          if (id) {
+            fallbackId ??= id;
+            if (id !== sampleVirtualPortfolioCreateId) {
+              fixtures.virtualPortfolioDeleteId = id;
+              break;
+            }
+          }
+        }
+        if (fixtures.virtualPortfolioDeleteId === '1' && fallbackId) {
+          fixtures.virtualPortfolioDeleteId = fallbackId;
+        }
+      }
+    }
+  } catch {
+    // Fall back to the default virtual portfolio id when discovery is unavailable.
+  }
+
+  return fixtures;
+}
+
+async function ensureVirtualPortfolio(base: string, id: string): Promise<void> {
+  if (!id || id === '1') {
+    return;
+  }
+
+  try {
+    await fetch(`${base}/virtual-portfolios`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, name: id }),
+    });
+  } catch {
+    // Best-effort seeding only; route validation will still happen during the sweep.
+  }
+}
+
+function materializeValue(value: unknown, key: string, path: string, fixtures: SmokeFixtures): unknown {
+  if (typeof value === 'string') {
+    const lowerKey = key.toLowerCase();
+    if (lowerKey === 'owner' || lowerKey === 'user') {
+      return fixtures.owner;
+    }
+    if (lowerKey === 'slug') {
+      if (path.startsWith('/performance-group/') || path.startsWith('/portfolio-group/')) {
+        return fixtures.groupSlug;
+      }
+      return fixtures.querySlug;
+    }
+    if (value === smokeIdentity) {
+      return fixtures.owner;
+    }
+    if (value === sampleQuerySlug) {
+      return fixtures.querySlug;
+    }
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((entry) => materializeValue(entry, key, path, fixtures));
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([nestedKey, nestedValue]) => [
+        nestedKey,
+        materializeValue(nestedValue, nestedKey, path, fixtures),
+      ]),
+    );
+  }
+
+  return value;
+}
+
+function materializeQuery(
+  query: Record<string, string> | undefined,
+  path: string,
+  fixtures: SmokeFixtures,
+): Record<string, string> | undefined {
+  if (!query) {
+    return undefined;
+  }
+  return Object.fromEntries(
+    Object.entries(query).map(([key, value]) => [key, String(materializeValue(value, key, path, fixtures))]),
+  );
+}
+
+function materializeBody(body: any, path: string, fixtures: SmokeFixtures): any {
+  if (body === undefined) {
+    return undefined;
+  }
+  return materializeValue(body, '', path, fixtures);
+}
+
+export function fillPath(path: string, fixtures: SmokeFixtures, method?: string): string {
   return path.replace(/\{([^}]+)\}/g, (_, key: string) => {
     const k = key.toLowerCase();
+    if (k === 'slug') {
+      if (path.startsWith('/performance-group/') || path.startsWith('/portfolio-group/')) return fixtures.groupSlug;
+      return fixtures.querySlug;
+    }
+    if (k === 'owner') return fixtures.owner;
+    if (k === 'user') return fixtures.user;
+    if (k === 'quest_id') return fixtures.questId;
+    if (k === 'task_id') return fixtures.taskId;
+    if (k === 'tx_id') return fixtures.transactionId;
+    if (k === 'vp_id') {
+      return method === 'DELETE' ? fixtures.virtualPortfolioDeleteId : fixtures.virtualPortfolioId;
+    }
     if (SAMPLE_PATH_VALUES[k]) return SAMPLE_PATH_VALUES[k];
     if (k.includes('email')) return 'user@example.com';
     if (k.includes('id')) return '1';
@@ -781,22 +1056,30 @@ export async function runSmoke(base: string) {
     );
   }
 
+  const fixtures = await resolveFixtures(normalizedBase);
+  if (fixtures.virtualPortfolioDeleteId === fixtures.virtualPortfolioId) {
+    fixtures.virtualPortfolioDeleteId = 'smoke-vp-delete';
+  }
+  await ensureVirtualPortfolio(normalizedBase, fixtures.virtualPortfolioDeleteId);
+
   for (const ep of smokeEndpoints) {
-    let url = normalizedBase + fillPath(ep.path);
-    if (ep.query) url += '?' + new URLSearchParams(ep.query).toString();
+    let url = normalizedBase + fillPath(ep.path, fixtures, ep.method);
+    const query = materializeQuery(ep.query, ep.path, fixtures);
+    if (query) url += '?' + new URLSearchParams(query).toString();
     let body: any = undefined;
     let headers: any = undefined;
-    if (ep.body !== undefined) {
-      if ((ep.body as any).__form__) {
+    const requestBody = materializeBody(ep.body, ep.path, fixtures);
+    if (requestBody !== undefined) {
+      if ((requestBody as any).__form__) {
         const fd = new FormData();
-        for (const [k, v] of Object.entries((ep.body as any).__form__)) {
+        for (const [k, v] of Object.entries((requestBody as any).__form__)) {
           fd.set(k, v === '__file__' ? new Blob(['test']) : (v as any));
         }
         body = fd;
-      } else if (ep.body instanceof FormData) {
-        body = ep.body;
+      } else if (requestBody instanceof FormData) {
+        body = requestBody;
       } else {
-        body = JSON.stringify(ep.body);
+        body = JSON.stringify(requestBody);
         headers = { 'Content-Type': 'application/json' };
       }
     }
@@ -832,6 +1115,18 @@ export async function runSmoke(base: string) {
             ? "△"
             : "•";
     console.log(`${tag} ${ep.method} ${ep.path} (${res.status})`);
+
+    if (ep.method === 'POST' && ep.path === '/virtual-portfolios' && res.ok) {
+      try {
+        const created = await res.clone().json() as { id?: unknown };
+        const id = String(created.id ?? '').trim();
+        if (id) {
+          fixtures.virtualPortfolioId = id;
+        }
+      } catch {
+        // Ignore response parsing failures; the pre-resolved id remains available.
+      }
+    }
 
   }
 }

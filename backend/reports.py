@@ -772,7 +772,7 @@ def _parse_key_findings_text(content: str, *, source_name: str = "key findings")
                 value = numbered.group(2).strip()
         if not value:
             continue
-        if len(value) < 20 or len(value) > 240 or not any(ch.isdigit() for ch in value):
+        if len(value) < 20 or len(value) > 240:
             logger.warning(
                 "Skipping invalid key finding from %s: %s",
                 source_name,
@@ -1805,8 +1805,22 @@ def report_to_pdf(document: ReportDocument) -> bytes:
         c.drawString(40, height - 68, f"Owner: {document.owner}")
         c.drawRightString(width - 40, height - 68, generated_at)
 
+    def _start_content_page() -> float:
+        _new_page()
+        if watermark:
+            _draw_watermark(watermark)
+        _write_header()
+        return height - 100
+
     def _write_wrapped_lines(
-        text: str, x: float, y: float, max_width: float, line_height: float
+        text: str,
+        x: float,
+        y: float,
+        max_width: float,
+        line_height: float,
+        *,
+        min_y: float = 60,
+        on_page_break: Callable[[], float] | None = None,
     ) -> float:
         words = text.split()
         if not words:
@@ -1817,13 +1831,17 @@ def report_to_pdf(document: ReportDocument) -> bytes:
             if c.stringWidth(candidate, "Helvetica", 11) <= max_width:
                 line = candidate
             else:
+                if y < min_y and on_page_break is not None:
+                    y = on_page_break()
                 c.drawString(x, y, line)
                 y -= line_height
                 line = word
+        if y < min_y and on_page_break is not None:
+            y = on_page_break()
         c.drawString(x, y, line)
         return y - line_height
 
-    def _draw_section_header(section: ReportSectionData, y: float) -> float:
+    def _draw_section_heading(section: ReportSectionData, y: float) -> float:
         c.setFont("Helvetica-Bold", 13)
         c.drawString(40, y, section.schema.title)
         y -= 14
@@ -1834,42 +1852,52 @@ def report_to_pdf(document: ReportDocument) -> bytes:
             c.setFont("Helvetica-Oblique", 9)
             c.drawString(40, y, section.schema.description)
             y -= 14
+        return y
 
-        if section.schema.source == _KEY_FINDINGS_SOURCE:
-            findings = [
-                str(row.get("finding", "")).strip()
-                for row in section.rows
-                if str(row.get("finding", "")).strip()
-            ]
+    def _draw_key_findings_section(section: ReportSectionData, y: float) -> float:
+        findings = [
+            str(row.get("finding", "")).strip()
+            for row in section.rows
+            if str(row.get("finding", "")).strip()
+        ]
+
+        def _restart_key_findings_page() -> float:
+            next_y = _start_content_page()
+            next_y = _draw_section_heading(section, next_y)
             c.setFont("Helvetica", 11)
-            index = 1
-            for finding in findings:
-                if y < 90:
-                    c.showPage()
-                    _write_header()
-                    y = height - 120
-                    c.setFont("Helvetica-Bold", 12)
-                    c.drawString(40, y, section.schema.title)
-                    y -= 18
-                    c.setFont("Helvetica", 11)
-                prefix = f"{index}. "
-                c.drawString(40, y, prefix)
-                y = _write_wrapped_lines(
-                    finding,
-                    x=58,
-                    y=y,
-                    max_width=width - 98,
-                    line_height=14,
-                )
-                y -= 4
-                index += 1
-            return y - 6
+            return next_y
+
+        c.setFont("Helvetica", 11)
+        index = 1
+        for finding in findings:
+            if y < 90:
+                y = _restart_key_findings_page()
+            prefix = f"{index}. "
+            c.drawString(40, y, prefix)
+            y = _write_wrapped_lines(
+                finding,
+                x=58,
+                y=y,
+                max_width=width - 98,
+                line_height=14,
+                min_y=70,
+                on_page_break=_restart_key_findings_page,
+            )
+            y -= 4
+            index += 1
+        return y - 6
+
+    def _draw_section_header(section: ReportSectionData, y: float) -> float:
+        heading_height = 26 + (14 if section.schema.description else 0)
+        if y - heading_height < 60:
+            y = _start_content_page()
+
+        y = _draw_section_heading(section, y)
+        if section.schema.source == _KEY_FINDINGS_SOURCE:
+            return _draw_key_findings_section(section, y)
 
         if y < 80:
-            c.showPage()
-            _write_header()
-            y = height - 120
-            y -= 16
+            y = _start_content_page()
         return y
 
     def _draw_section_table(section: ReportSectionData, start_y: float) -> float:
@@ -1940,26 +1968,10 @@ def report_to_pdf(document: ReportDocument) -> bytes:
     c.setTitle(document.template.name)
     watermark = str(document.parameters.get("watermark", "")).strip() or None
     _draw_title_page(watermark)
-    _new_page()
-    if watermark:
-        _draw_watermark(watermark)
-    c.setFont("Helvetica-Bold", 12)
-    c.drawString(40, height - 60, document.template.name)
-    c.setFont("Helvetica", 9)
-    c.drawString(40, height - 76, f"Owner: {document.owner}")
-    y_cursor = height - 100
+    y_cursor = _start_content_page()
     for section in document.sections:
         if y_cursor < 120:
-            # _new_page() commits the current page before starting a new one;
-            # the watermark is drawn on the new page only.
-            _new_page()
-            if watermark:
-                _draw_watermark(watermark)
-            c.setFont("Helvetica-Bold", 12)
-            c.drawString(40, height - 60, document.template.name)
-            c.setFont("Helvetica", 9)
-            c.drawString(40, height - 76, f"Owner: {document.owner}")
-            y_cursor = height - 100
+            y_cursor = _start_content_page()
         y_cursor = _draw_section_table(section, y_cursor)
     _draw_footer()
     c.save()

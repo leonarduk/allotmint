@@ -1062,7 +1062,7 @@ def test_build_key_findings_section_skips_invalid_lines_with_warning(tmp_path, m
     owner_dir.mkdir(parents=True)
     (owner_dir / "key_findings.md").write_text(
         "- Portfolio concentration is 42% in US tech versus 18% benchmark\n"
-        "- Portfolio concentration is heavily skewed to one sector\n"
+        "- Portfolio is heavily concentrated in US large-cap growth stocks\n"
         f"- {'9' * 241}\n",
         encoding="utf-8",
     )
@@ -1079,7 +1079,8 @@ def test_build_key_findings_section_skips_invalid_lines_with_warning(tmp_path, m
         rows = reports._build_key_findings_section(context, schema)
 
     assert rows == [
-        {"finding": "Portfolio concentration is 42% in US tech versus 18% benchmark"}
+        {"finding": "Portfolio concentration is 42% in US tech versus 18% benchmark"},
+        {"finding": "Portfolio is heavily concentrated in US large-cap growth stocks"},
     ]
     assert "Skipping invalid key finding from key_findings.md" in caplog.text
 

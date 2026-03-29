@@ -111,8 +111,8 @@ Before deploying, confirm the deployment environment prerequisites:
   `cdk bootstrap aws://<account>/<region>`.
 - AWS CLI configured (`aws configure`, named profile, or environment
   variables).
-- Python 3.11+ and Node.js 18+ available in the CI/CD and local deployment
-  environments.
+- Python 3.11+ and Node.js 18+ available in local deployment environments
+  (CI/CD workflows use Python 3.12).
 
 Run the helper script from the repository root to bootstrap the environment.
 When deploying the backend, provide the S3 bucket for account data either via

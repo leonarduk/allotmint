@@ -13,6 +13,7 @@ from review_common import build_prompt, emit_empty_diff_notice, finalize_review,
 
 
 DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-6"
+DEFAULT_MAX_TOKENS = 2500
 
 
 def get_anthropic_model() -> str:
@@ -25,10 +26,23 @@ def get_anthropic_model() -> str:
     return os.environ.get("ANTHROPIC_MODEL", DEFAULT_ANTHROPIC_MODEL)
 
 
-def extract_claude_review(data: dict[str, Any]) -> str:
-    """Extract review text from Anthropic messages responses."""
+def get_max_tokens() -> int:
+    """Return the max_tokens budget for Claude review responses."""
+    raw = os.environ.get("ANTHROPIC_MAX_TOKENS", str(DEFAULT_MAX_TOKENS))
+    try:
+        value = int(raw)
+    except ValueError:
+        return DEFAULT_MAX_TOKENS
+    return max(256, value)
+
+
+def extract_claude_review(data: dict[str, Any]) -> tuple[str, str | None]:
+    """Extract review text and stop reason from Anthropic messages responses."""
     content = data.get("content", [])
-    return "\n".join(block.get("text", "") for block in content if block.get("type") == "text").strip()
+    review = "\n".join(
+        block.get("text", "") for block in content if block.get("type") == "text"
+    ).strip()
+    return review, data.get("stop_reason")
 
 
 def fetch_claude_review(api_key: str, prompt: str) -> str:
@@ -39,7 +53,7 @@ def fetch_claude_review(api_key: str, prompt: str) -> str:
     """
     payload = {
         "model": get_anthropic_model(),
-        "max_tokens": 1500,
+        "max_tokens": get_max_tokens(),
         "messages": [{"role": "user", "content": prompt}],
     }
     request = urllib.request.Request(
@@ -62,7 +76,14 @@ def fetch_claude_review(api_key: str, prompt: str) -> str:
         print(f"ERROR: Claude API returned {exc.code}: {body}", file=sys.stderr)
         raise SystemExit(1) from exc
 
-    return extract_claude_review(data)
+    review, stop_reason = extract_claude_review(data)
+    if stop_reason == "max_tokens":
+        review = (
+            f"{review}\n\n"
+            "_Note: Claude hit the review token budget before finishing. "
+            "Consider increasing `ANTHROPIC_MAX_TOKENS` if this keeps happening._"
+        ).strip()
+    return review
 
 
 def main() -> int:

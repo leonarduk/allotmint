@@ -156,12 +156,47 @@ ALLOCATION_BREAKDOWN_TEMPLATE = ReportTemplate(
 )
 
 
+AUDIT_REPORT_TEMPLATE = ReportTemplate(
+    template_id="audit-report",
+    name="Audit report",
+    description="Portfolio audit-focused overview with exposure and risk diagnostics",
+    sections=(
+        ReportSectionSchema(
+            id="portfolio-overview",
+            title="Portfolio overview",
+            source="portfolio.overview",
+        ),
+        ReportSectionSchema(
+            id="true-exposure-sector",
+            title="True exposure (sector)",
+            source="portfolio.sectors",
+        ),
+        ReportSectionSchema(
+            id="true-exposure-region",
+            title="True exposure (region)",
+            source="portfolio.regions",
+        ),
+        ReportSectionSchema(
+            id="concentration-risk",
+            title="Concentration risk",
+            source="portfolio.concentration",
+        ),
+        ReportSectionSchema(
+            id="risk-assessment",
+            title="Risk assessment (VaR/Sharpe)",
+            source="portfolio.var",
+        ),
+    ),
+)
+
+
 BUILTIN_TEMPLATES: Dict[str, ReportTemplate] = {
     template.template_id: template
     for template in (
         PERFORMANCE_SUMMARY_TEMPLATE,
         TRANSACTIONS_TEMPLATE,
         ALLOCATION_BREAKDOWN_TEMPLATE,
+        AUDIT_REPORT_TEMPLATE,
     )
 }
 
@@ -1112,4 +1147,3 @@ def report_to_pdf(document: ReportDocument) -> bytes:
     c.showPage()
     c.save()
     return buf.getvalue()
-

@@ -117,7 +117,12 @@ def test_no_broken_deny_resource_policy_on_data_bucket(template):
 
 
 def test_lambda_roles_granted_expected_s3_actions_without_wildcards(template):
-    """Stack grants expected S3 actions and avoids wildcard S3 permissions."""
+    """Stack grants expected S3 actions and avoids wildcard or destructive S3 permissions.
+
+    s3:DeleteObject is explicitly checked for absence: the PR #2574 regression
+    was caused by grant_read_write emitting DeleteObject as a side-effect of
+    the broader grant. This test prevents that from recurring.
+    """
     policies = template.find_resources("AWS::IAM::Policy")
     all_actions: list[str] = []
     for resource in policies.values():
@@ -143,6 +148,10 @@ def test_lambda_roles_granted_expected_s3_actions_without_wildcards(template):
     )
     assert not any(a == "s3:*" for a in all_actions), (
         "Did not expect wildcard S3 permissions in Lambda IAM policies"
+    )
+    assert not any(a == "s3:DeleteObject" for a in all_actions), (
+        "Did not expect s3:DeleteObject in Lambda IAM policies — "
+        "grant_read_write emits this as a side-effect; use explicit action grants instead"
     )
 
 

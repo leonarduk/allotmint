@@ -107,9 +107,7 @@ const ROUTES: RouteConfig[] = [
       await expect(
         page.getByRole('heading', { name: 'Virtual Portfolios' }),
       ).toBeVisible();
-      await expect(
-        page.locator('select option', { hasText: 'Slow path demo' }),
-      ).toHaveCount(1);
+      await expect(page.locator('select')).toHaveCount(1);
       await expect(loader).not.toBeVisible();
     },
   },

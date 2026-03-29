@@ -402,7 +402,7 @@ def test_report_to_csv_multiple_sections():
 
 def test_report_to_pdf_generates_output(monkeypatch):
     class FakeCanvas:
-        def __init__(self, buffer, pagesize):
+        def __init__(self, buffer, pagesize, **kwargs):
             self.buffer = buffer
             self.pagesize = pagesize
             self.calls: list[str] = []
@@ -448,6 +448,9 @@ def test_report_to_pdf_generates_output(monkeypatch):
 
         def save(self):
             self.calls.append("save")
+
+        def setPageCompression(self, *args, **kwargs):
+            pass
 
     fake_canvas_mod = SimpleNamespace(Canvas=FakeCanvas)
     monkeypatch.setattr(reports, "canvas", fake_canvas_mod)
@@ -508,7 +511,7 @@ def test_report_to_pdf_formats_values_and_optional_watermark(monkeypatch):
     class FakeCanvas:
         last_instance = None
 
-        def __init__(self, buffer, pagesize):
+        def __init__(self, buffer, pagesize, **kwargs):
             self.calls: list[tuple[str, tuple, dict]] = []
             FakeCanvas.last_instance = self
 
@@ -553,6 +556,9 @@ def test_report_to_pdf_formats_values_and_optional_watermark(monkeypatch):
 
         def save(self):
             self.calls.append(("save", (), {}))
+
+        def setPageCompression(self, *args, **kwargs):
+            pass
 
     fake_canvas_mod = SimpleNamespace(Canvas=FakeCanvas)
     monkeypatch.setattr(reports, "canvas", fake_canvas_mod)
@@ -601,7 +607,7 @@ def test_report_to_pdf_key_findings_wrap_across_pages(monkeypatch):
     class FakeCanvas:
         last_instance = None
 
-        def __init__(self, buffer, pagesize):
+        def __init__(self, buffer, pagesize, **kwargs):
             self.calls: list[tuple[str, tuple, dict]] = []
             FakeCanvas.last_instance = self
 
@@ -649,6 +655,9 @@ def test_report_to_pdf_key_findings_wrap_across_pages(monkeypatch):
 
         def stringWidth(self, text, font_name, font_size):
             return len(text) * 12
+
+        def setPageCompression(self, *args, **kwargs):
+            pass
 
     fake_canvas_mod = SimpleNamespace(Canvas=FakeCanvas)
     monkeypatch.setattr(reports, "canvas", fake_canvas_mod)

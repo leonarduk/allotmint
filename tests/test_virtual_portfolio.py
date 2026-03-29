@@ -4,7 +4,6 @@ import pandas as pd
 import pytest
 
 from backend.common import holding_utils, portfolio_utils
-import backend.utils.timeseries_helpers as timeseries_helpers
 
 
 def test_aggregate_with_mixed_holdings(monkeypatch):
@@ -122,9 +121,11 @@ def test_performance_with_synthetic_holdings(monkeypatch):
         return pd.DataFrame({"Date": dates, "Close": prices.get(ticker, [0, 0, 0])})
 
     monkeypatch.setattr(portfolio_utils, "load_meta_timeseries", fake_load_meta_timeseries)
-    # Prevent real instrument scaling config (e.g. GBX instruments in live data) from
-    # leaking into this unit test.  All synthetic tickers are treated as unscaled (1.0).
-    monkeypatch.setattr(timeseries_helpers, "get_scaling_override", lambda *_args, **_kwargs: 1.0)
+    # get_scaling_override is imported directly into portfolio_utils, so we must patch
+    # the name in that module's namespace rather than in timeseries_helpers.
+    # Prevents real instrument scaling config (e.g. GBX tickers in live data) from
+    # leaking into this unit test; all synthetic tickers are treated as unscaled (1.0).
+    monkeypatch.setattr(portfolio_utils, "get_scaling_override", lambda *_args, **_kwargs: 1.0)
     monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {}, raising=False)
 
     perf = portfolio_utils.compute_owner_performance("virtual", days=3)

@@ -115,6 +115,61 @@ def test_reports_pdf(client, monkeypatch):
     assert resp.headers["content-type"] == "application/pdf"
 
 
+def test_audit_report_json_smoke_includes_all_sections(client, monkeypatch):
+    section_data = tuple(
+        reports.ReportSectionData(schema=schema, rows=())
+        for schema in reports.AUDIT_REPORT_TEMPLATE.sections
+    )
+    document = reports.ReportDocument(
+        template=reports.AUDIT_REPORT_TEMPLATE,
+        owner="lucy",
+        generated_at=datetime.now(tz=reports.UTC),
+        parameters={},
+        sections=section_data,
+    )
+    monkeypatch.setattr(
+        reports_route,
+        "build_report_document",
+        lambda template_id, owner, start=None, end=None: document,
+    )
+
+    resp = client.get("/reports/lucy/audit-report?format=json")
+    assert resp.status_code == 200
+    sources = [section["source"] for section in resp.json()["sections"]]
+    assert sources == [
+        "portfolio.overview",
+        "portfolio.sectors",
+        "portfolio.regions",
+        "portfolio.concentration",
+        "portfolio.var",
+    ]
+
+
+def test_audit_report_pdf_smoke_returns_pdf_prefix(client, monkeypatch):
+    section_data = tuple(
+        reports.ReportSectionData(schema=schema, rows=())
+        for schema in reports.AUDIT_REPORT_TEMPLATE.sections
+    )
+    document = reports.ReportDocument(
+        template=reports.AUDIT_REPORT_TEMPLATE,
+        owner="lucy",
+        generated_at=datetime.now(tz=reports.UTC),
+        parameters={},
+        sections=section_data,
+    )
+    monkeypatch.setattr(
+        reports_route,
+        "build_report_document",
+        lambda template_id, owner, start=None, end=None: document,
+    )
+    monkeypatch.setattr(reports_route, "report_to_pdf", lambda doc: b"%PDF-audit")
+
+    resp = client.get("/reports/lucy/audit-report?format=pdf")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "application/pdf"
+    assert resp.content.startswith(b"%PDF")
+
+
 def test_reports_unknown_owner(client, monkeypatch):
     def fake_builder(template_id, owner, start=None, end=None):
         raise FileNotFoundError

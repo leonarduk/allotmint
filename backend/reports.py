@@ -1005,10 +1005,10 @@ def build_report_document(
                     f"Built-in template '{template.template_id}' references unsupported source '{schema.source}'"
                 )
             logger.warning("No builder registered for section source %s", schema.source)
-            rows = []
+            section_rows: Sequence[Dict[str, Any]] = ()
         else:
-            rows = builder(context, schema)
-        sections.append(ReportSectionData(schema=schema, rows=tuple(rows)))
+            section_rows = list(builder(context, schema))
+        sections.append(ReportSectionData(schema=schema, rows=section_rows))
 
     params: Dict[str, Any] = {}
     if start:

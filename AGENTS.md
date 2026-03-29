@@ -130,3 +130,26 @@ To support tool-specific agents, keep these files aligned when the repo guidance
 - `.github/copilot-instructions.md` — concise GitHub Copilot coding-agent instructions.
 
 When updating one of these, consider whether the same repo facts or command changes should be mirrored in the others.
+
+## 10. Code quality invariants (non-negotiable)
+
+Derived from the NASA/JPL Power of Ten guidelines — applicable subset only. C-specific rules (no dynamic allocation, pointer restrictions, preprocessor limits, recursion ban) are not applicable to this stack and are intentionally omitted.
+
+### Function length (P10 Rule 4)
+Keep functions to approximately 60 lines or fewer — roughly one screen. If a function exceeds this, refactor it before making further changes. Excessively long functions are a signal of poorly structured code, not a style preference.
+
+### Zero lint warnings (P10 Rule 10)
+`make lint` (Python) and `npm --prefix frontend run lint` (TypeScript) must both pass with zero warnings. If a tool flags something incorrectly, rewrite the code until it no longer triggers — do not suppress or ignore warnings without a documented justification inline. Zero-warning compliance must hold from the first day of work on a branch, not just before merge.
+
+### No silent error swallowing (P10 Rules 5 and 7)
+Every error path must be explicitly handled:
+- No bare `except: pass` or `except Exception: pass` in Python.
+- No `catch` blocks that silently discard exceptions in TypeScript.
+- No unhandled Promise rejections.
+- No `assert False, "unreachable"` used as a substitute for real error handling in production paths.
+
+### No ignored return values (P10 Rule 7)
+Check return values of functions that can signal failure. If you deliberately discard a return value, make it explicit (`_ =` in Python; a `void`-cast comment in TypeScript) and add a brief inline comment explaining why the return value is safe to ignore in that context.
+
+### Minimum scope (P10 Rule 6)
+Declare variables as late as possible and as locally as possible. Avoid module-level or class-level mutable state unless there is a clear, documented reason. Unnecessary broad scope makes fault diagnosis harder and increases the risk of unintended mutation across call sites.

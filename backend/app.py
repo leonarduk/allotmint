@@ -34,6 +34,10 @@ from backend.config import reload_config
 logger = logging.getLogger(__name__)
 
 
+class TokenIn(BaseModel):
+    id_token: str | None = None
+
+
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
 
@@ -61,9 +65,6 @@ def create_app() -> FastAPI:
 
     register_middleware(app, cfg)
     register_routers(app, cfg)
-
-    class TokenIn(BaseModel):
-        id_token: str | None = None
 
     @app.post("/token")
     async def login(body: TokenIn | None = None, username: str | None = Form(None)):

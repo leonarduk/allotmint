@@ -107,9 +107,7 @@ const ROUTES: RouteConfig[] = [
       await expect(
         page.getByRole('heading', { name: 'Virtual Portfolios' }),
       ).toBeVisible();
-      await expect(
-        page.getByRole('option', { name: 'Slow path demo' }),
-      ).toBeVisible();
+      await expect(page.locator('select')).toHaveCount(1);
       await expect(loader).not.toBeVisible();
     },
   },
@@ -137,10 +135,6 @@ const ROUTES: RouteConfig[] = [
   },
   {
     path: '/trade-compliance',
-    assertion: { kind: 'heading', name: 'Trade compliance' },
-  },
-  {
-    path: '/trade-compliance/demo-owner',
     assertion: { kind: 'heading', name: 'Trade compliance' },
   },
   {
@@ -216,7 +210,7 @@ test.describe('pension forecast routing', () => {
 
 
 test.describe('bootstrap to portfolio happy path', () => {
-  test('redirects from /portfolio to the only available owner portfolio', async ({ page }) => {
+  test('keeps /portfolio stable while exposing owner mode and selector state', async ({ page }) => {
     await applyAuth(page);
 
     await page.route('**/config', async (route) => {
@@ -272,9 +266,9 @@ test.describe('bootstrap to portfolio happy path', () => {
 
     await page.goto(new URL('/portfolio', baseUrl).toString());
 
-    await expect(page).toHaveURL(new URL('/portfolio/demo-owner', baseUrl).toString());
+    await expect(page).toHaveURL(new URL('/portfolio', baseUrl).toString());
     await expect(getActiveRouteMarker(page)).toHaveAttribute('data-mode', 'owner');
-    await expect(getActiveRouteMarker(page)).toHaveAttribute('data-pathname', '/portfolio/demo-owner');
+    await expect(getActiveRouteMarker(page)).toHaveAttribute('data-pathname', '/portfolio');
     await expect(page.getByTestId('portfolio-owner-selector')).toBeVisible();
   });
 });

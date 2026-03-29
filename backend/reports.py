@@ -771,6 +771,10 @@ def _parse_key_findings_text(content: str, *, source_name: str = "key findings")
             numbered = re.match(r"^([1-9][0-9]?)\.\s+(.*)$", value)
             if numbered:
                 value = numbered.group(2).strip()
+        if value in {"-", "*", "\u2022"}:
+            continue
+        if re.match(r"^([1-9][0-9]?)\.$", value):
+            continue
         if not value:
             continue
         if len(value) > max_length:

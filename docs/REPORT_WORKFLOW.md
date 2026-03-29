@@ -80,8 +80,8 @@ EOF2
 Writing guidance:
 - Findings are **not auto-generated**.
 - Use one bullet per finding with concrete numbers.
-- Keep each finding short and specific (recommended 20-240 chars).
-- Invalid lines are skipped with warnings instead of failing report generation.
+- Keep each finding short and specific (maximum 500 chars; no minimum beyond non-empty text).
+- Invalid lines are skipped with error logs instead of failing report generation.
 
 ## 4) Generate and download the PDF
 

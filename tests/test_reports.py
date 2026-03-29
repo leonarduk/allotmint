@@ -1087,6 +1087,54 @@ def test_build_key_findings_section_skips_invalid_lines_with_error(tmp_path, mon
     assert "Skipping invalid key finding from key_findings.md because it exceeds 500 characters" in caplog.text
 
 
+def test_build_key_findings_section_accepts_exactly_500_chars(tmp_path, monkeypatch):
+    monkeypatch.setattr(reports.config, "data_root", tmp_path, raising=False)
+    owner_dir = tmp_path / "accounts" / "demo-owner"
+    owner_dir.mkdir(parents=True)
+    exact_limit_finding = "9" * 500
+    (owner_dir / "key_findings.md").write_text(
+        f"- {exact_limit_finding}\n",
+        encoding="utf-8",
+    )
+
+    context = reports.ReportContext("demo-owner", start=None, end=None)
+    schema = reports.ReportSectionSchema(
+        id="key-findings",
+        title="Key Findings",
+        source="portfolio.key_findings",
+        columns=(reports.ReportColumnSchema("finding", "Finding"),),
+    )
+
+    rows = reports._build_key_findings_section(context, schema)
+
+    assert rows == [{"finding": exact_limit_finding}]
+
+
+def test_build_key_findings_section_skips_empty_entries_after_trimming(tmp_path, monkeypatch):
+    monkeypatch.setattr(reports.config, "data_root", tmp_path, raising=False)
+    owner_dir = tmp_path / "accounts" / "demo-owner"
+    owner_dir.mkdir(parents=True)
+    (owner_dir / "key_findings.md").write_text(
+        "- \n"
+        "* \n"
+        "2.   \n"
+        "- ok\n",
+        encoding="utf-8",
+    )
+
+    context = reports.ReportContext("demo-owner", start=None, end=None)
+    schema = reports.ReportSectionSchema(
+        id="key-findings",
+        title="Key Findings",
+        source="portfolio.key_findings",
+        columns=(reports.ReportColumnSchema("finding", "Finding"),),
+    )
+
+    rows = reports._build_key_findings_section(context, schema)
+
+    assert rows == [{"finding": "ok"}]
+
+
 def test_build_key_findings_section_reads_txt_fallback(tmp_path, monkeypatch):
     monkeypatch.setattr(reports.config, "data_root", tmp_path, raising=False)
     owner_dir = tmp_path / "accounts" / "demo-owner"

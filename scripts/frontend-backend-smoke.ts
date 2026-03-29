@@ -853,7 +853,7 @@ async function resolveFixtures(base: string): Promise<SmokeFixtures> {
     questId: 'check_in',
     taskId: 'log_in',
     transactionId: '1',
-    virtualPortfolioId: '1',
+    virtualPortfolioId: sampleVirtualPortfolioCreateId,
     virtualPortfolioDeleteId: '1',
   };
 

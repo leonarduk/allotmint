@@ -415,7 +415,7 @@ const demoPensionDeathAge = computeSmokeDeathAge(smokeIdentity);
         "    questId: 'check_in',\n"
         "    taskId: 'log_in',\n"
         "    transactionId: '1',\n"
-        "    virtualPortfolioId: '1',\n"
+        "    virtualPortfolioId: sampleVirtualPortfolioCreateId,\n"
         "    virtualPortfolioDeleteId: '1',\n"
         "  };\n"
         "\n  try {\n"

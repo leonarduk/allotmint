@@ -167,10 +167,7 @@ ALLOCATION_BREAKDOWN_TEMPLATE = ReportTemplate(
     ),
 )
 
-AUDIT_REPORT_TEMPLATE = ReportTemplate(
-    template_id="audit-report",
-    name="Audit report",
-    description="Portfolio overview, concentration, allocation, and risk diagnostics",
+
 PORTFOLIO_OVERVIEW_SECTION = ReportSectionSchema(
     id="portfolio-overview",
     title="Portfolio overview",
@@ -250,16 +247,16 @@ PORTFOLIO_VAR_SECTION = ReportSectionSchema(
     ),
 )
 
-
 AUDIT_REPORT_TEMPLATE = ReportTemplate(
     template_id="audit-report",
     name="Audit report",
-    description="Portfolio audit-focused overview with exposure and risk diagnostics",
+    description="Portfolio overview, concentration, allocation, and risk diagnostics",
     sections=(
         ReportSectionSchema(
             id="portfolio-overview",
             title="Portfolio overview",
             source="portfolio.overview",
+            description="Owner-level portfolio totals and account counts",
             columns=(
                 ReportColumnSchema("total_value_gbp", "Total value (GBP)", type="number"),
                 ReportColumnSchema("holdings_count", "Holdings", type="number"),
@@ -267,9 +264,10 @@ AUDIT_REPORT_TEMPLATE = ReportTemplate(
             ),
         ),
         ReportSectionSchema(
-            id="portfolio-sectors",
+            id="true-exposure-sector",
             title="Sector allocation",
             source="portfolio.sectors",
+            description="Holdings aggregated by sector with total value and weight",
             columns=(
                 ReportColumnSchema("sector", "Sector"),
                 ReportColumnSchema("value", "Value", type="number"),
@@ -277,9 +275,10 @@ AUDIT_REPORT_TEMPLATE = ReportTemplate(
             ),
         ),
         ReportSectionSchema(
-            id="portfolio-regions",
+            id="true-exposure-region",
             title="Region allocation",
             source="portfolio.regions",
+            description="Holdings aggregated by region with total value and weight",
             columns=(
                 ReportColumnSchema("region", "Region"),
                 ReportColumnSchema("value", "Value", type="number"),
@@ -287,9 +286,10 @@ AUDIT_REPORT_TEMPLATE = ReportTemplate(
             ),
         ),
         ReportSectionSchema(
-            id="portfolio-concentration",
+            id="concentration-risk",
             title="Top holdings concentration",
             source="portfolio.concentration",
+            description="Largest holdings by value with a portfolio concentration score",
             columns=(
                 ReportColumnSchema("ticker", "Ticker"),
                 ReportColumnSchema("value", "Value", type="number"),
@@ -298,44 +298,15 @@ AUDIT_REPORT_TEMPLATE = ReportTemplate(
             ),
         ),
         ReportSectionSchema(
-            id="portfolio-var",
+            id="risk-assessment",
             title="Portfolio risk",
             source="portfolio.var",
+            description="Headline VaR and Sharpe ratio diagnostics",
             columns=(
                 ReportColumnSchema("metric", "Metric"),
                 ReportColumnSchema("value", "Value", type="number"),
                 ReportColumnSchema("units", "Units"),
             ),
-            description=PORTFOLIO_OVERVIEW_SECTION.description,
-            columns=PORTFOLIO_OVERVIEW_SECTION.columns,
-        ),
-        ReportSectionSchema(
-            id="true-exposure-sector",
-            title="True exposure (sector)",
-            source="portfolio.sectors",
-            description=PORTFOLIO_SECTORS_SECTION.description,
-            columns=PORTFOLIO_SECTORS_SECTION.columns,
-        ),
-        ReportSectionSchema(
-            id="true-exposure-region",
-            title="True exposure (region)",
-            source="portfolio.regions",
-            description=PORTFOLIO_REGIONS_SECTION.description,
-            columns=PORTFOLIO_REGIONS_SECTION.columns,
-        ),
-        ReportSectionSchema(
-            id="concentration-risk",
-            title="Concentration risk",
-            source="portfolio.concentration",
-            description=PORTFOLIO_CONCENTRATION_SECTION.description,
-            columns=PORTFOLIO_CONCENTRATION_SECTION.columns,
-        ),
-        ReportSectionSchema(
-            id="risk-assessment",
-            title="Risk assessment (VaR/Sharpe)",
-            source="portfolio.var",
-            description=PORTFOLIO_VAR_SECTION.description,
-            columns=PORTFOLIO_VAR_SECTION.columns,
         ),
     ),
 )
@@ -868,6 +839,10 @@ def _extract_holdings_count(portfolio: Dict[str, Any]) -> int:
     return count
 
 
+def _column_keys(section: ReportSectionSchema) -> tuple[str, ...]:
+    return tuple(column.key for column in section.columns)
+
+
 def _normalise_value_weight_rows(
     rows: Sequence[Dict[str, Any]],
     *,
@@ -913,17 +888,16 @@ def _extract_var_value(payload: Any) -> float | None:
 def _build_portfolio_overview_section(
     context: ReportContext, section: ReportSectionSchema
 ) -> Sequence[Dict[str, Any]]:
-    portfolio = context.portfolio()
-    return [
-        {
-            "total_value_gbp": _round_if_number(portfolio.get("total_value_estimate_gbp"), 2),
-            "holdings_count": _extract_holdings_count(portfolio),
-            "accounts_count": len(portfolio.get("accounts", [])),
-        }
-    ]
-def _build_portfolio_overview_section(
-    context: ReportContext, section: ReportSectionSchema
-) -> Sequence[Dict[str, Any]]:
+    if _column_keys(section) == ("total_value_gbp", "holdings_count", "accounts_count"):
+        portfolio = context.portfolio()
+        return [
+            {
+                "total_value_gbp": _round_if_number(portfolio.get("total_value_estimate_gbp"), 2),
+                "holdings_count": _extract_holdings_count(portfolio),
+                "accounts_count": len(portfolio.get("accounts", [])),
+            }
+        ]
+
     portfolio = context.owner_portfolio()
     if not portfolio:
         return []
@@ -1001,9 +975,11 @@ def _build_portfolio_overview_section(
 def _build_portfolio_sectors_section(
     context: ReportContext, section: ReportSectionSchema
 ) -> Sequence[Dict[str, Any]]:
-    portfolio = context.portfolio()
-    rows = portfolio_utils.aggregate_by_sector(portfolio) or []
-    return _normalise_value_weight_rows(rows, label_key="sector")
+    if _column_keys(section) == ("sector", "value", "weight"):
+        portfolio = context.portfolio()
+        rows = portfolio_utils.aggregate_by_sector(portfolio) or []
+        return _normalise_value_weight_rows(rows, label_key="sector")
+
     portfolio = context.owner_portfolio()
     if not portfolio:
         return []
@@ -1034,9 +1010,11 @@ def _build_portfolio_sectors_section(
 def _build_portfolio_regions_section(
     context: ReportContext, section: ReportSectionSchema
 ) -> Sequence[Dict[str, Any]]:
-    portfolio = context.portfolio()
-    rows = portfolio_utils.aggregate_by_region(portfolio) or []
-    return _normalise_value_weight_rows(rows, label_key="region")
+    if _column_keys(section) == ("region", "value", "weight"):
+        portfolio = context.portfolio()
+        rows = portfolio_utils.aggregate_by_region(portfolio) or []
+        return _normalise_value_weight_rows(rows, label_key="region")
+
     portfolio = context.owner_portfolio()
     if not portfolio:
         return []
@@ -1067,15 +1045,17 @@ def _build_portfolio_regions_section(
 def _build_portfolio_concentration_section(
     context: ReportContext, section: ReportSectionSchema
 ) -> Sequence[Dict[str, Any]]:
-    portfolio = context.portfolio()
-    rows = portfolio_utils.aggregate_by_ticker(portfolio) or []
-    normalised_rows = _normalise_value_weight_rows(rows, label_key="ticker")
-    top_rows = normalised_rows[:10]
-    weights = [row["weight"] for row in top_rows if row.get("weight") is not None]
-    hhi = round(sum(weight * weight for weight in weights), 6) if weights else None
-    for row in top_rows:
-        row["hhi"] = hhi
-    return top_rows
+    if _column_keys(section) == ("ticker", "value", "weight", "hhi"):
+        portfolio = context.portfolio()
+        rows = portfolio_utils.aggregate_by_ticker(portfolio) or []
+        normalised_rows = _normalise_value_weight_rows(rows, label_key="ticker")
+        top_rows = normalised_rows[:10]
+        weights = [row["weight"] for row in top_rows if row.get("weight") is not None]
+        hhi = round(sum(weight * weight for weight in weights), 6) if weights else None
+        for row in top_rows:
+            row["hhi"] = hhi
+        return top_rows
+
     portfolio = context.owner_portfolio()
     if not portfolio:
         return []
@@ -1132,16 +1112,18 @@ def _build_portfolio_concentration_section(
 def _build_portfolio_var_section(
     context: ReportContext, section: ReportSectionSchema
 ) -> Sequence[Dict[str, Any]]:
-    var_95_payload = risk.compute_portfolio_var(context.owner, confidence=0.95)
-    var_99_payload = risk.compute_portfolio_var(context.owner, confidence=0.99)
-    var_95 = _extract_var_value(var_95_payload)
-    var_99 = _extract_var_value(var_99_payload)
-    sharpe = risk.compute_sharpe_ratio(context.owner)
-    return [
-        {"metric": "VaR (95%)", "value": _round_if_number(var_95, 6), "units": "GBP"},
-        {"metric": "VaR (99%)", "value": _round_if_number(var_99, 6), "units": "GBP"},
-        {"metric": "Sharpe ratio", "value": _round_if_number(sharpe, 6), "units": "ratio"},
-    ]
+    if _column_keys(section) == ("metric", "value", "units"):
+        var_95_payload = risk.compute_portfolio_var(context.owner, confidence=0.95)
+        var_99_payload = risk.compute_portfolio_var(context.owner, confidence=0.99)
+        var_95 = _extract_var_value(var_95_payload)
+        var_99 = _extract_var_value(var_99_payload)
+        sharpe = risk.compute_sharpe_ratio(context.owner)
+        return [
+            {"metric": "VaR (95%)", "value": _round_if_number(var_95, 6), "units": "GBP"},
+            {"metric": "VaR (99%)", "value": _round_if_number(var_99, 6), "units": "GBP"},
+            {"metric": "Sharpe ratio", "value": _round_if_number(sharpe, 6), "units": "ratio"},
+        ]
+
     if risk_mod is None:
         return []
     if not context.owner_portfolio():

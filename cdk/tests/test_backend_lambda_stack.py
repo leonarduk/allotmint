@@ -153,8 +153,12 @@ def test_all_lambda_functions_have_data_bucket_env_var(template):
     """
     lambda_functions = template.find_resources("AWS::Lambda::Function")
     for logical_id, resource in lambda_functions.items():
+        properties = resource.get("Properties", {})
+        if properties.get("PackageType") != "Image":
+            # Skip CDK-generated helper Lambdas (e.g. log retention provider).
+            continue
         env_vars = (
-            resource.get("Properties", {})
+            properties
             .get("Environment", {})
             .get("Variables", {})
         )
@@ -171,6 +175,60 @@ def test_all_lambda_functions_have_data_bucket_env_var(template):
 
 
 # ---------------------------------------------------------------------------
+# Observability, secrets, and cost guardrails
+# ---------------------------------------------------------------------------
+
+def test_all_lambda_functions_have_one_week_log_retention(template):
+    resources = template.find_resources("Custom::LogRetention")
+    # one log retention custom resource per Lambda function
+    assert len(resources) >= 3, (
+        "Expected Custom::LogRetention resources for backend, refresh, and agent Lambdas"
+    )
+
+
+def test_lambdas_get_secretsmanager_read_policy(template):
+    policies = template.find_resources("AWS::IAM::Policy")
+    all_actions: list[str] = []
+    for resource in policies.values():
+        statements = (
+            resource.get("Properties", {})
+            .get("PolicyDocument", {})
+            .get("Statement", [])
+        )
+        for stmt in statements:
+            actions = stmt.get("Action", [])
+            if isinstance(actions, str):
+                actions = [actions]
+            all_actions.extend(actions)
+
+    assert any(a == "secretsmanager:GetSecretValue" for a in all_actions), (
+        "Expected secretsmanager:GetSecretValue grant for Lambda roles"
+    )
+
+
+def test_backend_error_alarm_exists(template):
+    template.has_resource_properties(
+        "AWS::CloudWatch::Alarm",
+        {
+            "Threshold": 1,
+            "EvaluationPeriods": 1,
+            "ComparisonOperator": "GreaterThanOrEqualToThreshold",
+        },
+    )
+
+
+def test_monthly_budget_exists(template):
+    resources = template.find_resources("AWS::Budgets::Budget")
+    assert resources, "Expected an AWS::Budgets::Budget resource"
+    budget_props = next(iter(resources.values())).get("Properties", {}).get("Budget", {})
+    assert budget_props.get("BudgetType") == "COST"
+    assert budget_props.get("TimeUnit") == "MONTHLY"
+    budget_limit = budget_props.get("BudgetLimit", {})
+    assert float(budget_limit.get("Amount")) == 5.0
+    assert budget_limit.get("Unit") == "USD"
+
+
+# ---------------------------------------------------------------------------
 # CfnOutputs
 # ---------------------------------------------------------------------------
 
@@ -180,3 +238,7 @@ def test_backend_api_url_output_exists(template):
 
 def test_data_bucket_name_output_exists(template):
     template.has_output("DataBucketName", {})
+
+
+def test_backend_lambda_error_alarm_output_exists(template):
+    template.has_output("BackendLambdaErrorAlarmName", {})

@@ -1748,14 +1748,21 @@ def report_to_pdf(document: ReportDocument) -> bytes:
             return str(value)
         return f"\xa3{numeric:,.2f}"
 
-    def _format_percent(value: Any) -> str:
+    # Percentage rendering convention:
+    # - Keys ending in *_pct / containing "percent" are stored as percent points
+    #   (0-100), so they are rendered directly (e.g. 45.32 -> 45.32%).
+    # - Ratio-style fields (e.g. returns/drawdowns and audit "weight") are
+    #   stored as fractions (0-1), so they are multiplied by 100 for display.
+    def _format_percent(value: Any, *, value_is_ratio: bool) -> str:
         if value is None:
             return "\u2014"
         try:
             numeric = float(value)
         except (TypeError, ValueError):
             return str(value)
-        return f"{numeric * 100:.2f}%"
+        if value_is_ratio:
+            numeric *= 100.0
+        return f"{numeric:.2f}%"
 
     def _format_cell_value(column: ReportColumnSchema, row_value: Any) -> str:
         key = column.key.lower()
@@ -1764,13 +1771,12 @@ def report_to_pdf(document: ReportDocument) -> bytes:
             return "\u2014"
         if any(token in key for token in ("_gbp", "amount", "price", "value")) or "gbp" in label:
             return _format_gbp(row_value)
-        if (
-            "return" in key
-            or "drawdown" in key
-            or "pct" in key
-            or "percent" in key
-        ):
-            return _format_percent(row_value)
+        if "pct" in key or "percent" in key:
+            return _format_percent(row_value, value_is_ratio=False)
+        # Keep this block after the *_pct / percent check above so names like
+        # "return_pct" remain percent-point values (not ratio-scaled).
+        if "return" in key or "drawdown" in key or "weight" in key:
+            return _format_percent(row_value, value_is_ratio=True)
         if column.type == "number":
             try:
                 return f"{float(row_value):,.4f}"

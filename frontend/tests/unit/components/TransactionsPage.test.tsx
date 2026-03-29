@@ -6,7 +6,7 @@ const { getTransactionsMock, createTransactionMock } = vi.hoisted(() => ({
   getTransactionsMock: vi.fn(() =>
     Promise.resolve([
       {
-        id: "alex:isa:0",
+        id: "tx-1",
         owner: "alex",
         account: "isa",
         ticker: "PFE",
@@ -57,6 +57,22 @@ describe("TransactionsPage", () => {
     );
     expect(await screen.findByText("PFE")).toBeInTheDocument();
     expect((await screen.findAllByText("Alex Example")).at(-1)).toBeInTheDocument();
+  });
+
+  it("locks owner and account filters while editing", async () => {
+    render(
+      <TransactionsPage
+        owners={[{ owner: "alex", full_name: "Alex Example", accounts: ["isa"] }]}
+      />,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+
+    expect(screen.getByLabelText(/owner/i)).toBeDisabled();
+    expect(screen.getByLabelText(/account/i)).toBeDisabled();
+    expect(
+      screen.getByText(/owner and account filters are locked until you save or cancel/i),
+    ).toBeInTheDocument();
   });
 
   it("syncs filter owner/account when editing and reflects it in the editor context", async () => {

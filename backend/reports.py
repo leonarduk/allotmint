@@ -747,7 +747,8 @@ def _build_portfolio_overview_section(
         return []
 
     rows: List[Dict[str, Any]] = []
-    account_list = accounts if isinstance((accounts := portfolio.get("accounts", [])), list) else []
+    accounts_raw = portfolio.get("accounts", [])
+    account_list = accounts_raw if isinstance(accounts_raw, list) else []
     account_count = len(account_list)
     holdings_count = 0
     asset_class_totals: Dict[str, float] = {}
@@ -1214,11 +1215,9 @@ def build_report_document(
         builder = SECTION_BUILDERS.get(schema.source)
         if builder is None:
             logger.warning("No builder registered for section source %s", schema.source)
-            rows: Sequence[Dict[str, Any]] = ()
-            section_rows: Sequence[Dict[str, Any]] = rows
+            section_rows: Sequence[Dict[str, Any]] = ()
         else:
-            rows = builder(context, schema)
-            section_rows = list(rows)
+            section_rows = list(builder(context, schema))
         sections.append(ReportSectionData(schema=schema, rows=section_rows))
 
     params: Dict[str, Any] = {}

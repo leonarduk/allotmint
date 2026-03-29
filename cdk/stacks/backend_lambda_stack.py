@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import Sequence
 
 from aws_cdk import CfnOutput, Duration, Stack
 from aws_cdk import aws_apigatewayv2 as apigwv2
@@ -27,7 +28,7 @@ class BackendLambdaStack(Stack):
         allow_read: bool,
         allow_put: bool,
         allow_list: bool,
-        list_prefix: str | None = None,
+        list_prefix: str | Sequence[str] | None = None,
     ) -> None:
         """Grant the minimum required S3 actions for a Lambda function.
 
@@ -50,10 +51,23 @@ class BackendLambdaStack(Stack):
             )
 
         if allow_list:
-            normalized_prefix = (list_prefix or "").strip().strip("/")
-            if not normalized_prefix:
+            raw_prefixes: list[str]
+            if isinstance(list_prefix, str):
+                raw_prefixes = [list_prefix]
+            elif list_prefix is None:
+                raw_prefixes = []
+            else:
+                raw_prefixes = list(list_prefix)
+
+            normalized_prefixes = [prefix.strip().strip("/") for prefix in raw_prefixes]
+            normalized_prefixes = [prefix for prefix in normalized_prefixes if prefix]
+            if not normalized_prefixes:
                 raise ValueError("list_prefix is required when allow_list=True")
-            prefix_conditions = [normalized_prefix, f"{normalized_prefix}/*"]
+
+            prefix_conditions: list[str] = []
+            for prefix in normalized_prefixes:
+                prefix_conditions.append(prefix)
+                prefix_conditions.append(f"{prefix}/*")
             fn.add_to_role_policy(
                 iam.PolicyStatement(
                     actions=["s3:ListBucket"],
@@ -104,9 +118,9 @@ class BackendLambdaStack(Stack):
 
         bucket_name = data_bucket.bucket_name
         lambda_list_prefixes = {
-            "backend": "portfolio",
-            "price_refresh": None,
-            "trading_agent": None,
+            "backend": ("accounts", "queries", "timeseries/meta", "transactions"),
+            "price_refresh": (),
+            "trading_agent": (),
         }
 
         seed_data_bucket = (
@@ -165,8 +179,11 @@ class BackendLambdaStack(Stack):
         app_secret.grant_read(backend_fn)
 
         # BackendLambda: read + put + list
-        # Audited: serves API requests that read and write portfolio/price data to S3.
-        # s3:ListBucket required: backend serves listing endpoints (e.g. portfolio enumeration).
+        # Audited S3 list prefixes used by backend code paths:
+        # - accounts/        (auth + portfolio enumeration)
+        # - queries/         (saved query listing)
+        # - timeseries/meta/ (timeseries admin listing)
+        # - transactions/    (report transaction exports)
         self._grant_bucket_access(
             backend_fn,
             bucket_name=bucket_name,

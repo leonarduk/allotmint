@@ -34,6 +34,12 @@ class BackendLambdaStack(Stack):
         ``allow_read``/``allow_put`` scope object-level actions to ``/*``.
         """
 
+        if not any((allow_read, allow_put, allow_list)):
+            raise ValueError(
+                "_grant_bucket_access called with no permissions enabled — this is a no-op. "
+                "Pass at least one of allow_read, allow_put, or allow_list as True."
+            )
+
         object_actions: list[str] = []
         if allow_read:
             object_actions.append("s3:GetObject")

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from pathlib import Path
 import sys
+from pathlib import Path
 
+import pytest
 from aws_cdk import App
 from aws_cdk.assertions import Template
 
@@ -191,4 +192,23 @@ def test_lambda_roles_do_not_have_s3_delete_permissions() -> None:
         # Also catch wildcard grants which implicitly include delete
         assert "s3:*" not in actions and "*" not in actions, (
             f"Found wildcard grant for {fragment} which implicitly includes delete"
+        )
+
+
+def test_grant_bucket_access_raises_on_no_permissions() -> None:
+    class _MockFn:
+        def add_to_role_policy(self, policy_statement: object) -> None:
+            raise AssertionError(
+                "add_to_role_policy should not be called when no permissions are enabled"
+            )
+
+    mock_fn = _MockFn()
+
+    with pytest.raises(ValueError, match="no permissions enabled"):
+        BackendLambdaStack._grant_bucket_access(
+            mock_fn,
+            bucket_name="test-bucket",
+            allow_read=False,
+            allow_put=False,
+            allow_list=False,
         )

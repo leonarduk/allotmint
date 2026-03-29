@@ -35,6 +35,8 @@ except ModuleNotFoundError:  # pragma: no cover - exercised in tests when missin
 
 logger = logging.getLogger(__name__)
 
+_OWNER_PORTFOLIO_UNSET = object()
+
 
 _TEMPLATE_ID_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$")
 _SECTION_ID_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$")
@@ -538,8 +540,7 @@ class ReportContext:
     _performance: Dict[str, Any] | None = None
     _transactions: List[Dict[str, Any]] | None = None
     _allocation: List[Dict[str, Any]] | None = None
-    _owner_portfolio: Dict[str, Any] | None = None
-    _owner_portfolio_loaded: bool = False
+    _owner_portfolio: Dict[str, Any] | None | object = _OWNER_PORTFOLIO_UNSET
 
     def summary(self) -> ReportData:
         if self._summary is None:
@@ -566,11 +567,11 @@ class ReportContext:
         return list(self._transactions)
 
     def owner_portfolio(self) -> Dict[str, Any] | None:
-        if self._owner_portfolio_loaded:
-            return self._owner_portfolio
-        self._owner_portfolio_loaded = True
+        if self._owner_portfolio is not _OWNER_PORTFOLIO_UNSET:
+            return self._owner_portfolio if isinstance(self._owner_portfolio, dict) else None
         if portfolio_mod is None:
             logger.warning("portfolio module unavailable; portfolio sections will be empty")
+            self._owner_portfolio = None
             return None
         try:
             self._owner_portfolio = portfolio_mod.build_owner_portfolio(
@@ -580,7 +581,7 @@ class ReportContext:
         except (FileNotFoundError, ValueError) as exc:
             logger.warning("failed to build owner portfolio for %s: %s", self.owner, exc)
             self._owner_portfolio = None
-        return self._owner_portfolio
+        return self._owner_portfolio if isinstance(self._owner_portfolio, dict) else None
 
     def allocation(self) -> List[Dict[str, Any]]:
         if self._allocation is None:

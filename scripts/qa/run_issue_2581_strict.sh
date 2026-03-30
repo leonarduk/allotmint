@@ -204,6 +204,57 @@ if not math.isfinite(value) or value <= 0:
 PY
 }
 
+check_audit_report_sections() {
+  local json_file="$1"
+  python3 - "$json_file" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as f:
+    data = json.load(f)
+
+sections = data.get("sections")
+if not isinstance(sections, list):
+    raise ValueError("Report JSON missing 'sections' array")
+
+titles = []
+for section in sections:
+    if not isinstance(section, dict):
+        raise ValueError("Report JSON contains non-object section entry")
+    title = section.get("title")
+    if not isinstance(title, str) or not title.strip():
+        raise ValueError("Report JSON section missing non-empty title")
+    titles.append(title)
+
+required = [
+    "Portfolio overview",
+    "Sector allocation",
+    "Region allocation",
+    "Top holdings concentration",
+]
+for index, expected in enumerate(required):
+    if index >= len(titles) or titles[index] != expected:
+        raise ValueError(
+            f"Section {index + 1} must be '{expected}', got: {titles[index] if index < len(titles) else 'missing'}"
+        )
+
+allowed_optional = {"Portfolio risk", "Key Findings"}
+extras = titles[len(required):]
+for title in extras:
+    if title not in allowed_optional:
+        raise ValueError(f"Unexpected audit-report section title: {title}")
+
+if len(titles) < 4 or len(titles) > 6:
+    raise ValueError(f"Section count must be between 4 and 6 inclusive, got {len(titles)}")
+
+if "Key Findings" in titles and titles[-1] != "Key Findings":
+    raise ValueError("Key Findings must be the last section when present")
+
+if "Portfolio risk" in titles and titles.index("Portfolio risk") != 4:
+    raise ValueError("Portfolio risk must be section 5 when present")
+PY
+}
+
 write_summary() {
   run_verdict="PASS"
   if (( failure_count > 0 )); then
@@ -347,6 +398,10 @@ main() {
   echo "$code" >"$RUN_DIR/audit_report.pdf.status"
   if [[ "$code" != "200" ]]; then
     record_failure "P1" "step5" "Audit PDF generation failed with status $code"
+  fi
+  curl_json "$API_BASE/reports/$OWNER/audit-report?format=json" "$RUN_DIR/audit_report.json"
+  if [[ -f "$RUN_DIR/audit_report.json" ]] && ! check_audit_report_sections "$RUN_DIR/audit_report.json" 2>>"$RUN_DIR/audit_report.check.log"; then
+    record_failure "P1" "step5" "Audit report section contract check failed"
   fi
 
   # Step 6

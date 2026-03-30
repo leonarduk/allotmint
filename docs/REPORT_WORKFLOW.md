@@ -97,17 +97,20 @@ Optional JSON preview of section payloads:
 curl -sS "http://localhost:8000/reports/demo-owner/audit-report?format=json" | jq '.sections[].title'
 ```
 
-Expected section order for a complete demo report:
-1. Portfolio Summary
-2. Holdings Breakdown
-3. Sector Allocation
-4. Risk Analysis
-5. Key Findings
+Expected section titles and order for `audit-report`:
+1. Portfolio overview
+2. Sector allocation
+3. Region allocation
+4. Top holdings concentration
+5. Portfolio risk *(present only when VaR inputs are available)*
+6. Key Findings *(present only when `data/accounts/{owner}/key_findings.md` yields valid findings)*
 
 ## 5) Validate report quality before sending
 
 Minimum checks:
-- PDF opens and all five sections render (including Key Findings).
+- PDF opens and renders the four always-on sections (`Portfolio overview`, `Sector allocation`, `Region allocation`, `Top holdings concentration`).
+- `Portfolio risk` appears when VaR data is available; if risk inputs are unavailable, this section is legitimately omitted.
+- `Key Findings` appears only when a valid `key_findings.md` exists for the owner; otherwise it is legitimately omitted.
 - Currency and percentages are formatted for end users (no raw floats/internal IDs).
 - Narrative answers: total value, top risk, and recommended action are clear.
 - Product gate: "Would I confidently send this to a prospect?" must be **yes**.

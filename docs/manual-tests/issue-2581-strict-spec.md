@@ -217,12 +217,17 @@ curl -sS "$API_BASE/reports/$OWNER/audit-report?format=pdf" -o "$RUN_DIR/audit_r
 Rules:
 1. Structural hard fail:
    - PDF opens without error
-   - Exactly 5 sections present. The required sections are:
-     1. Portfolio Summary (total value, date, owner)
-     2. Holdings Breakdown (top holdings table)
-     3. Sector Allocation
-     4. Risk Analysis (VaR and Sharpe)
-     5. Key Findings (from `key_findings.md`; omitted only if file is absent per Step 0.3)
+   - Section titles/order match the current built-in `audit-report` contract:
+     1. Portfolio overview
+     2. Sector allocation
+     3. Region allocation
+     4. Top holdings concentration
+     5. Portfolio risk *(optional; omitted when VaR inputs are unavailable)*
+     6. Key Findings *(optional; omitted when `key_findings.md` is absent or yields no valid lines)*
+   - Section-count rule derived from the same contract:
+     - minimum 4 sections (always-on core)
+     - maximum 6 sections (all optional sections present)
+     - `Key Findings`, when present, must be the final section
 2. Data reconciliation hard fail:
    - total value
    - VaR

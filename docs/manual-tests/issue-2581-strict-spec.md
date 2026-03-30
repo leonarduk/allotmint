@@ -41,7 +41,7 @@ After each strict run, preserve evidence in `RUN_DIR` and use the generated summ
 
 ### What must be attached/linked on GitHub issue #2581
 
-Attach these artifacts directly to the issue comment, or link to a durable internal artifact store containing the same files:
+Attach these artifacts directly to the issue comment (or link to a durable internal artifact store containing the same files):
 
 - `summary.json`
 - `summary_for_issue.md`

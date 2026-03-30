@@ -568,6 +568,9 @@ export default function App({ onLogout }: AppProps) {
         {/* INSTRUMENT VIEW */}
         {mode === "instrument" && groups.length > 0 && (
           <>
+            <h1 className="mb-4 text-2xl">
+              {t("app.modes.instrument", { defaultValue: "Instruments" })}
+            </h1>
             {err && <p style={{ color: "red" }}>{err}</p>}
             {loading ? (
               <p>{t("app.loading")}</p>

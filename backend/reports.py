@@ -757,6 +757,9 @@ def _parse_key_findings_text(content: str, *, source_name: str = "key findings")
         if not value:
             index += 1
             continue
+        if re.match(r"^(=|-){3,}$", value):
+            index += 1
+            continue
         next_value = lines[index + 1].strip() if index + 1 < len(lines) else ""
         numbered = re.match(r"^([1-9][0-9]?)\.\s+(.*)$", value)
         if next_value and re.match(r"^(=|-){3,}$", next_value):

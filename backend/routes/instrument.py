@@ -292,8 +292,6 @@ async def instrument(
     scale = get_scaling_override(tkr, exch, None)
     if scale != 1.0:
         df = apply_scaling(df, scale)
-        if "Close_gbp" in df.columns:
-            df["Close_gbp"] = pd.to_numeric(df["Close_gbp"], errors="coerce") * scale
 
     df = df[pd.notnull(df["Close"])]
 

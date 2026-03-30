@@ -482,6 +482,37 @@ def test_gbx_prices_scaled_and_cost_basis_fallback(monkeypatch):
     assert position["gain_pct"] == pytest.approx(20.0)
 
 
+def test_gbx_with_scaling_override_does_not_double_scale_close_gbp(monkeypatch):
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    app = create_app()
+    df = pd.DataFrame(
+        {
+            "Date": pd.date_range("2020-01-01", periods=1, freq="D"),
+            "Close": [300.0],
+        }
+    )
+
+    monkeypatch.setattr(
+        "backend.routes.instrument.load_meta_timeseries_range", lambda *args, **kwargs: df
+    )
+    monkeypatch.setattr(
+        "backend.routes.instrument.get_security_meta", lambda ticker: {"currency": "GBX"}
+    )
+    monkeypatch.setattr(
+        "backend.routes.instrument.get_scaling_override", lambda *_args, **_kwargs: 0.01
+    )
+    monkeypatch.setattr("backend.routes.instrument.list_portfolios", lambda: [])
+
+    client = _auth_client(app)
+    resp = client.get("/instrument?ticker=ABC.L&days=1&format=json")
+    assert resp.status_code == 200
+    payload = resp.json()
+    prices = payload["prices"]
+
+    assert prices[-1]["close"] == pytest.approx(3.0)
+    assert prices[-1]["close_gbp"] == pytest.approx(3.0)
+
+
 def test_base_currency_fetch_failure_is_resilient(monkeypatch):
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
     app = create_app()

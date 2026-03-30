@@ -181,58 +181,7 @@ PY
 
 check_var_structure() {
   local json_file="$1"
-  python3 - "$json_file" <<'PY'
-import json, math, re, sys
-
-with open(sys.argv[1], 'r', encoding='utf-8') as f:
-    data = json.load(f)
-
-blob = json.dumps(data)
-if re.search(r'NaN|null', blob):
-    raise ValueError('VaR payload contains NaN/null')
-
-value = None
-
-def _coerce_numeric(candidate):
-    if isinstance(candidate, (int, float)) and not isinstance(candidate, bool):
-        return float(candidate)
-    return None
-
-if isinstance(data, dict):
-    for key in ('var', 'var_pct', 'value_at_risk'):
-        numeric = _coerce_numeric(data.get(key))
-        if numeric is not None:
-            value = numeric
-            break
-
-    if value is None and isinstance(data.get('var'), dict):
-        nested_var = data['var']
-        for horizon in ('1d', '10d'):
-            numeric = _coerce_numeric(nested_var.get(horizon))
-            if numeric is not None:
-                value = numeric
-                break
-
-        if value is None:
-            horizon_candidates = []
-            for nested_key, nested_value in nested_var.items():
-                if nested_key in ('window_days', 'confidence'):
-                    continue
-                if not re.fullmatch(r'\d+d', str(nested_key)):
-                    continue
-                numeric = _coerce_numeric(nested_value)
-                if numeric is not None:
-                    day_count = int(str(nested_key)[:-1])
-                    horizon_candidates.append((day_count, numeric))
-            if horizon_candidates:
-                horizon_candidates.sort(key=lambda pair: pair[0])
-                value = horizon_candidates[0][1]
-
-if value is None:
-    raise ValueError('VaR numeric value not found')
-if not math.isfinite(value) or value <= 0:
-    raise ValueError('VaR must be finite and > 0')
-PY
+  python3 scripts/qa/var_payload_validator.py "$json_file"
 }
 
 check_audit_report_sections() {

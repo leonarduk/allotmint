@@ -750,9 +750,29 @@ def _normalise_transaction(
 def _parse_key_findings_text(content: str, *, source_name: str = "key findings") -> List[Dict[str, str]]:
     max_length = 500
     findings: List[Dict[str, str]] = []
-    for line in content.splitlines():
-        value = line.strip()
+    lines = content.splitlines()
+    index = 0
+    # Maintain index manually because setext heading preambles consume two lines.
+    while index < len(lines):
+        value = lines[index].strip()
         if not value:
+            index += 1
+            continue
+        # Treat separator-only markdown lines as structure, not findings.
+        if re.match(r"^(=|-){3,}$", value):
+            index += 1
+            continue
+        next_value = lines[index + 1].strip() if index + 1 < len(lines) else ""
+        if next_value and re.match(r"^(=|-){3,}$", next_value):
+            is_numbered = re.match(r"^([1-9][0-9]?)\.\s+", value)
+            if not value.startswith(("- ", "* ", "\u2022 ")) and not is_numbered:
+                index += 2
+                continue
+        if re.match(r"^#{1,6}(?:\s|$)", value):
+            index += 1
+            continue
+        if re.match(r"^key findings:?$", value, flags=re.IGNORECASE):
+            index += 1
             continue
         if value.startswith(("- ", "* ", "\u2022 ")):
             value = value[2:].strip()
@@ -761,10 +781,13 @@ def _parse_key_findings_text(content: str, *, source_name: str = "key findings")
             if numbered:
                 value = numbered.group(2).strip()
         if value in {"-", "*", "\u2022"}:
+            index += 1
             continue
         if re.match(r"^([1-9][0-9]?)\.$", value):
+            index += 1
             continue
         if not value:
+            index += 1
             continue
         if len(value) > max_length:
             logger.error(
@@ -773,8 +796,10 @@ def _parse_key_findings_text(content: str, *, source_name: str = "key findings")
                 max_length,
                 value,
             )
+            index += 1
             continue
         findings.append({"finding": value})
+        index += 1
     return findings
 
 

@@ -19,7 +19,9 @@ def _patched_audit_report_dependencies(monkeypatch) -> dict:
     monkeypatch.setattr(
         reports.risk,
         "compute_portfolio_var",
-        lambda owner, confidence=0.95: {"1d": 25.0 if confidence == 0.95 else 40.0},
+        lambda owner, confidence=0.95, include_cash=True: {
+            "1d": 25.0 if confidence == 0.95 else 40.0
+        },
     )
     monkeypatch.setattr(reports.risk, "compute_sharpe_ratio", lambda owner: 1.2)
 

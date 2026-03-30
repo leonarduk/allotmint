@@ -302,6 +302,8 @@ Required issue attachments
 Required local durable evidence
 - backend_health.json
 - backend_health.timing
+- frontend_screenshot.png
+- startup_log.txt
 - portfolio_response.json
 - broker_snapshot.txt
 - sectors.json
@@ -347,6 +349,8 @@ $failure_lines
 ### Local-only (retain in run directory; attach when needed for review)
 - \`backend_health.json\`
 - \`backend_health.timing\`
+- \`frontend_screenshot.png\`
+- \`startup_log.txt\`
 - \`portfolio_response.json\`
 - \`broker_snapshot.txt\`
 - \`sectors.json\`

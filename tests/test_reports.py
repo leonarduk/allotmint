@@ -1113,6 +1113,149 @@ def test_build_key_findings_section_parses_valid_file(tmp_path, monkeypatch):
     ]
 
 
+def test_build_key_findings_section_skips_markdown_heading_preamble(tmp_path, monkeypatch):
+    monkeypatch.setattr(reports.config, "data_root", tmp_path, raising=False)
+    owner_dir = tmp_path / "accounts" / "demo-owner"
+    owner_dir.mkdir(parents=True)
+    (owner_dir / "key_findings.md").write_text(
+        "## Key Findings\n"
+        "Key Findings:\n"
+        "-----\n"
+        "- Portfolio is well-diversified across 4 regions and 8 sectors.\n",
+        encoding="utf-8",
+    )
+
+    context = reports.ReportContext("demo-owner", start=None, end=None)
+    schema = reports.ReportSectionSchema(
+        id="key-findings",
+        title="Key Findings",
+        source="portfolio.key_findings",
+        columns=(reports.ReportColumnSchema("finding", "Finding"),),
+    )
+
+    rows = reports._build_key_findings_section(context, schema)
+
+    assert rows == [{"finding": "Portfolio is well-diversified across 4 regions and 8 sectors."}]
+
+
+def test_build_key_findings_section_skips_standalone_separator_line(tmp_path, monkeypatch):
+    monkeypatch.setattr(reports.config, "data_root", tmp_path, raising=False)
+    owner_dir = tmp_path / "accounts" / "demo-owner"
+    owner_dir.mkdir(parents=True)
+    (owner_dir / "key_findings.md").write_text(
+        "---\n"
+        "- Portfolio is well-diversified across 4 regions and 8 sectors.\n",
+        encoding="utf-8",
+    )
+
+    context = reports.ReportContext("demo-owner", start=None, end=None)
+    schema = reports.ReportSectionSchema(
+        id="key-findings",
+        title="Key Findings",
+        source="portfolio.key_findings",
+        columns=(reports.ReportColumnSchema("finding", "Finding"),),
+    )
+
+    rows = reports._build_key_findings_section(context, schema)
+
+    assert rows == [{"finding": "Portfolio is well-diversified across 4 regions and 8 sectors."}]
+
+
+def test_build_key_findings_section_skips_setext_heading_preamble(tmp_path, monkeypatch):
+    monkeypatch.setattr(reports.config, "data_root", tmp_path, raising=False)
+    owner_dir = tmp_path / "accounts" / "demo-owner"
+    owner_dir.mkdir(parents=True)
+    (owner_dir / "key_findings.md").write_text(
+        "Summary\n"
+        "-------\n"
+        "- Portfolio is well-diversified across 4 regions and 8 sectors.\n",
+        encoding="utf-8",
+    )
+
+    context = reports.ReportContext("demo-owner", start=None, end=None)
+    schema = reports.ReportSectionSchema(
+        id="key-findings",
+        title="Key Findings",
+        source="portfolio.key_findings",
+        columns=(reports.ReportColumnSchema("finding", "Finding"),),
+    )
+
+    rows = reports._build_key_findings_section(context, schema)
+
+    assert rows == [{"finding": "Portfolio is well-diversified across 4 regions and 8 sectors."}]
+
+
+def test_build_key_findings_section_keeps_numbered_finding_before_separator(tmp_path, monkeypatch):
+    monkeypatch.setattr(reports.config, "data_root", tmp_path, raising=False)
+    owner_dir = tmp_path / "accounts" / "demo-owner"
+    owner_dir.mkdir(parents=True)
+    (owner_dir / "key_findings.md").write_text(
+        "1. Cash drag is elevated versus target corridor.\n"
+        "----------------\n",
+        encoding="utf-8",
+    )
+
+    context = reports.ReportContext("demo-owner", start=None, end=None)
+    schema = reports.ReportSectionSchema(
+        id="key-findings",
+        title="Key Findings",
+        source="portfolio.key_findings",
+        columns=(reports.ReportColumnSchema("finding", "Finding"),),
+    )
+
+    rows = reports._build_key_findings_section(context, schema)
+
+    assert rows == [{"finding": "Cash drag is elevated versus target corridor."}]
+
+
+def test_build_key_findings_section_skips_setext_heading_with_equals(tmp_path, monkeypatch):
+    monkeypatch.setattr(reports.config, "data_root", tmp_path, raising=False)
+    owner_dir = tmp_path / "accounts" / "demo-owner"
+    owner_dir.mkdir(parents=True)
+    (owner_dir / "key_findings.md").write_text(
+        "Summary\n"
+        "=======\n"
+        "- Portfolio is well-diversified across 4 regions and 8 sectors.\n",
+        encoding="utf-8",
+    )
+
+    context = reports.ReportContext("demo-owner", start=None, end=None)
+    schema = reports.ReportSectionSchema(
+        id="key-findings",
+        title="Key Findings",
+        source="portfolio.key_findings",
+        columns=(reports.ReportColumnSchema("finding", "Finding"),),
+    )
+
+    rows = reports._build_key_findings_section(context, schema)
+
+    assert rows == [{"finding": "Portfolio is well-diversified across 4 regions and 8 sectors."}]
+
+
+def test_build_key_findings_section_allows_findings_after_interleaved_heading(tmp_path, monkeypatch):
+    monkeypatch.setattr(reports.config, "data_root", tmp_path, raising=False)
+    owner_dir = tmp_path / "accounts" / "demo-owner"
+    owner_dir.mkdir(parents=True)
+    (owner_dir / "key_findings.md").write_text(
+        "- Finding one.\n"
+        "## Sub-section\n"
+        "- Finding two.\n",
+        encoding="utf-8",
+    )
+
+    context = reports.ReportContext("demo-owner", start=None, end=None)
+    schema = reports.ReportSectionSchema(
+        id="key-findings",
+        title="Key Findings",
+        source="portfolio.key_findings",
+        columns=(reports.ReportColumnSchema("finding", "Finding"),),
+    )
+
+    rows = reports._build_key_findings_section(context, schema)
+
+    assert rows == [{"finding": "Finding one."}, {"finding": "Finding two."}]
+
+
 def test_build_key_findings_section_returns_empty_when_missing(tmp_path, monkeypatch):
     monkeypatch.setattr(reports.config, "data_root", tmp_path, raising=False)
 

@@ -27,7 +27,7 @@ export function InstrumentTile({ instrument, days = 30 }: Props) {
       <div style={{ fontWeight: 600 }}>{instrument.ticker}</div>
       <div style={{ fontSize: 12, marginBottom: 4 }}>{instrument.name}</div>
       <div style={{ width: "100%", height: 80 }}>
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
           <LineChart data={points}>
             <YAxis domain={["auto", "auto"]} hide />
             <Line type="monotone" dataKey="price" stroke="#8884d8" dot={false} />

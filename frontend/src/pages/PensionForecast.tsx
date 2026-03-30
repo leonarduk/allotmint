@@ -559,7 +559,7 @@ export default function PensionForecast() {
           )}
           {data.length > 0 && (
             <div className="h-72 rounded-2xl bg-white p-4 shadow-sm">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                 <LineChart data={data}>
                   <XAxis dataKey="age" />
                   <YAxis />

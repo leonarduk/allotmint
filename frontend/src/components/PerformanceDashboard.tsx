@@ -306,7 +306,7 @@ export function PerformanceDashboard({ owner, asOf }: Props) {
           )}
           {drawdownDetailsAvailable ? (
             <div style={{ height: 220 }}>
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                 <LineChart data={drawdownSeries}>
                   <XAxis dataKey="date" />
                   <YAxis

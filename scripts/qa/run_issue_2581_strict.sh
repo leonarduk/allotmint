@@ -181,27 +181,7 @@ PY
 
 check_var_structure() {
   local json_file="$1"
-  python3 - "$json_file" <<'PY'
-import json, math, re, sys
-
-with open(sys.argv[1], 'r', encoding='utf-8') as f:
-    data = json.load(f)
-
-blob = json.dumps(data)
-if re.search(r'NaN|null', blob):
-    raise ValueError('VaR payload contains NaN/null')
-
-value = None
-for key in ('var', 'var_pct', 'value_at_risk'):
-    if isinstance(data, dict) and key in data and isinstance(data[key], (int, float)):
-        value = float(data[key])
-        break
-
-if value is None:
-    raise ValueError('VaR numeric value not found')
-if not math.isfinite(value) or value <= 0:
-    raise ValueError('VaR must be finite and > 0')
-PY
+  python3 scripts/qa/var_payload_validator.py "$json_file"
 }
 
 check_audit_report_sections() {

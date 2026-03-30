@@ -63,3 +63,32 @@ def test_check_var_structure_rejects_payload_without_numeric_var(tmp_path: Path)
 
     assert result.returncode != 0
     assert "VaR numeric value not found" in result.stderr
+
+
+def test_check_var_structure_accepts_alternative_horizon_key(tmp_path: Path) -> None:
+    result = _run_var_parser(
+        {
+            "owner": "demo",
+            "as_of": "2026-03-30",
+            "var": {"window_days": 365, "confidence": 0.95, "30d": 987.65},
+            "sharpe_ratio": 1.23,
+        },
+        tmp_path / "var_payload.json",
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_check_var_structure_rejects_non_horizon_numeric_nested_key(tmp_path: Path) -> None:
+    result = _run_var_parser(
+        {
+            "owner": "demo",
+            "as_of": "2026-03-30",
+            "var": {"window_days": 365, "confidence": 0.95, "random_metric": 22.5},
+            "sharpe_ratio": 1.23,
+        },
+        tmp_path / "var_payload.json",
+    )
+
+    assert result.returncode != 0
+    assert "VaR numeric value not found" in result.stderr

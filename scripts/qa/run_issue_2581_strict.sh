@@ -214,13 +214,19 @@ if isinstance(data, dict):
                 break
 
         if value is None:
+            horizon_candidates = []
             for nested_key, nested_value in nested_var.items():
                 if nested_key in ('window_days', 'confidence'):
                     continue
+                if not re.fullmatch(r'\d+d', str(nested_key)):
+                    continue
                 numeric = _coerce_numeric(nested_value)
                 if numeric is not None:
-                    value = numeric
-                    break
+                    day_count = int(str(nested_key)[:-1])
+                    horizon_candidates.append((day_count, numeric))
+            if horizon_candidates:
+                horizon_candidates.sort(key=lambda pair: pair[0])
+                value = horizon_candidates[0][1]
 
 if value is None:
     raise ValueError('VaR numeric value not found')

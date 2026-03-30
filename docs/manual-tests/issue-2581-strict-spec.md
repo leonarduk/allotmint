@@ -17,6 +17,10 @@ This document is intentionally strict:
 - `SNAPSHOT_TIME_UTC`: execution snapshot reference (ISO-8601 UTC).
 - `BROKER_SNAPSHOT_TIME_UTC`: broker valuation timestamp (ISO-8601 UTC).
 - `SYSTEM_FETCH_TIME_UTC`: system data fetch timestamp (ISO-8601 UTC).
+- `FRONTEND_SCREENSHOT_PATH`: absolute or repo-relative path to a `.png` screenshot file for Step 1 evidence.
+- `STARTUP_LOG_PATH`: absolute or repo-relative path to a plain-text startup log file for Step 1 evidence.
+- `BROKER_SNAPSHOT_PATH`: JSON broker snapshot file used for strict Step 2 reconciliation.
+- `DEMO_PRODUCT_GATE_RESULT`: operator-provided attestation for Step 6; must be `YES` or the runner records a strict failure.
 
 ## Artifact directory convention
 
@@ -59,7 +63,7 @@ Keep these under `RUN_DIR` for deeper review, and attach them when requested:
 
 - Step 1 local evidence (`frontend_screenshot.png`, `startup_log.txt`)
 - Raw endpoint payloads (`portfolio_response.json`, `sectors.json`, `regions.json`, `var.json`)
-- Manual external validation input (`broker_snapshot.txt`)
+- Manual external validation input (`broker_snapshot.json`)
 - Health, timing, and transport logs (`backend_health.json`, `backend_health.timing`, `*.stderr`, `*.status`, `*.check.log`)
 
 ### Runner-produced closure helper
@@ -157,7 +161,12 @@ curl -sS "$API_BASE/portfolio/$OWNER" -o "$RUN_DIR/portfolio_response.json"
 ```
 
 Required external input:
-- Same-day broker snapshot saved to `$RUN_DIR/broker_snapshot.txt`
+- Same-day broker snapshot JSON provided at `BROKER_SNAPSHOT_PATH` (the runner copies it to `$RUN_DIR/broker_snapshot.json`).
+- Minimum broker snapshot fields:
+  - portfolio-level numeric total, resolved in this precedence order: `total_value` → `portfolio_value` → `total`
+  - holdings list entries with symbol (`ticker`/`symbol`) and numeric value resolved in this precedence order: `market_value` → `value` → `position_value` → `current_value` → `amount`
+- If a non-JSON broker snapshot is provided, the runner records a P2 and skips automated Step 2 reconciliation (manual review required).
+- Legacy compatibility: if `BROKER_SNAPSHOT_PATH` is unset and `$RUN_DIR/broker_snapshot.txt` exists, the runner copies it to `broker_snapshot.json` and records a P2 migration warning.
 
 Rules:
 1. Holdings integrity (hard fail/P1)
@@ -238,6 +247,7 @@ Rules:
    - region %
    - sector %
    All must match endpoint values within rounding tolerance.
+   - The strict runner now performs an explicit reconciliation pass against the saved endpoint payloads and emits `audit_reconciliation.check.log`.
 3. Formatting checks (P2):
    - `£` for currency
    - `%` for percentages
@@ -275,6 +285,7 @@ Checks:
 2. Subjective gate (allowed only here):
    - Would you send this for £39?
    - YES = pass; NO requires reason
+   - Runner gate: set `DEMO_PRODUCT_GATE_RESULT=YES`; any other value is a strict fail (this is an explicit human attestation, not an automated quality score)
 
 ## Step 7) Strict closure criteria
 

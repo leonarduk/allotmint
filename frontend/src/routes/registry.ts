@@ -196,6 +196,18 @@ export const ROUTE_REGISTRY: RouteRegistryEntry[] = [
     lazyComponent: lazyPage(() => import('../pages/Trail')),
   },
   {
+    // No lazyComponent here by design: <Alerts /> is rendered eagerly inside App.tsx via the
+    // `mode === 'alerts'` branch, not via the standalonePageRoutes registry loop. This entry
+    // exists solely so that deriveModeFromPathname('/alerts') returns 'alerts' and navigation
+    // UI can be generated. standalonePageRoutes filters on `routePath && lazyComponent`, so
+    // this entry is never added to the React Router <Route> list.
+    mode: 'alerts',
+    routeSegment: 'alerts',
+    section: 'standalone',
+    priority: 103,
+    defaultPath: () => '/alerts',
+  },
+  {
     mode: 'alertsettings',
     routeSegment: 'alert-settings',
     section: 'user',

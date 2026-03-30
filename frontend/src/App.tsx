@@ -69,6 +69,8 @@ import {
 } from "./utils/groups";
 import { deriveModeFromPathname } from "./pageManifest";
 import { MAX_INSTRUMENT_CATALOGUE_ROWS } from "./constants/renderLimits";
+import { decodePathSegment, encodePathSegment } from "./utils/urlUtils";
+
 const PerformanceDashboard = lazyWithDelay(
   () => import("./components/PerformanceDashboard"),
 );
@@ -86,22 +88,6 @@ interface AppProps {
 const path = window.location.pathname.split("/").filter(Boolean);
 const initialMode = deriveModeFromPathname(window.location.pathname);
 const initialSlug = path[1] ?? "";
-
-function decodePathSegment(segment: string): string {
-  try {
-    return decodeURIComponent(segment);
-  } catch (error) {
-    console.warn("Failed to decode owner path segment; using raw value", {
-      segment,
-      error,
-    });
-    return segment;
-  }
-}
-
-function encodePathSegment(segment: string): string {
-  return encodeURIComponent(segment.trim());
-}
 
 type InstrumentMetadataWithSymbol = InstrumentMetadata & {
   symbol?: string | null;

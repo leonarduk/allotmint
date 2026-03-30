@@ -818,7 +818,11 @@ def test_portfolio_section_builders_use_monkeypatched_dependencies(monkeypatch):
         {"ticker": "BBB", "market_value_gbp": 300.0},
     ]
 
-    monkeypatch.setattr(reports, "build_owner_portfolio", lambda owner: mock_portfolio)
+    monkeypatch.setattr(
+        reports.portfolio_mod,
+        "build_owner_portfolio",
+        lambda owner, pricing_date=None: mock_portfolio,
+    )
     monkeypatch.setattr(reports.portfolio_utils, "aggregate_by_sector", lambda pf: mock_sectors)
     monkeypatch.setattr(reports.portfolio_utils, "aggregate_by_region", lambda pf: mock_regions)
     monkeypatch.setattr(reports.portfolio_utils, "aggregate_by_ticker", lambda pf: mock_tickers)
@@ -995,6 +999,11 @@ def test_portfolio_var_builder_extracts_numeric_from_payload(monkeypatch):
     include_cash_calls = []
 
     monkeypatch.setattr(
+        reports.portfolio_mod,
+        "build_owner_portfolio",
+        lambda owner, pricing_date=None: {"accounts": []},
+    )
+    monkeypatch.setattr(
         reports.risk,
         "compute_portfolio_var",
         lambda owner, confidence=0.95, include_cash=True: (
@@ -1021,6 +1030,11 @@ def test_portfolio_var_builder_extracts_numeric_from_payload(monkeypatch):
 
 
 def test_audit_portfolio_var_builder_returns_empty_when_risk_data_missing(monkeypatch):
+    monkeypatch.setattr(
+        reports.portfolio_mod,
+        "build_owner_portfolio",
+        lambda owner, pricing_date=None: {"accounts": []},
+    )
     monkeypatch.setattr(
         reports.risk,
         "compute_portfolio_var",
@@ -1099,6 +1113,10 @@ def test_build_report_document_audit_template_dispatches_real_builders(monkeypat
         summary=lambda: summary,
         transactions=lambda: [],
         allocation=lambda: [],
+        owner_portfolio=lambda: {
+            "total_value_estimate_gbp": 200.0,
+            "accounts": [{"holdings": [{"ticker": "AAA"}, {"ticker": "BBB"}]}],
+        },
         portfolio=lambda: {
             "total_value_estimate_gbp": 200.0,
             "accounts": [{"holdings": [{"ticker": "AAA"}, {"ticker": "BBB"}]}],

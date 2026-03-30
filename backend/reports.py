@@ -30,20 +30,11 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - exercised in tests when missing
     portfolio_mod = None
 
-try:
-    from backend.common import risk as risk_mod
-except ModuleNotFoundError:  # pragma: no cover - exercised in tests when missing
-    risk_mod = None
-
 from backend.common import portfolio_utils
 try:
     from backend.common import risk
 except ModuleNotFoundError:  # pragma: no cover - exercised in tests when missing
     risk = None
-try:
-    from backend.common.portfolio import build_owner_portfolio
-except ModuleNotFoundError:  # pragma: no cover - exercised in tests when missing
-    build_owner_portfolio = None
 from backend.config import config
 
 logger = logging.getLogger(__name__)
@@ -257,8 +248,6 @@ PORTFOLIO_VAR_SECTION = ReportSectionSchema(
     description="Portfolio Value-at-Risk and Sharpe ratio summary",
     columns=(
         ReportColumnSchema("metric", "Metric"),
-        ReportColumnSchema("confidence", "Confidence", type="number"),
-        ReportColumnSchema("horizon_days", "Horizon (days)", type="number"),
         ReportColumnSchema("value", "Value", type="number"),
         ReportColumnSchema("units", "Units"),
     ),
@@ -883,9 +872,9 @@ def _build_allocation_section(
 
 
 def _portfolio_snapshot(owner: str) -> Dict[str, Any]:
-    if build_owner_portfolio is None:
+    if portfolio_mod is None:
         return {}
-    return build_owner_portfolio(owner)
+    return portfolio_mod.build_owner_portfolio(owner)
 
 
 def _safe_float(value: Any) -> float | None:
@@ -932,11 +921,6 @@ def _is_audit_value_weight_section(section: ReportSectionSchema) -> bool:
 def _is_audit_concentration_section(section: ReportSectionSchema) -> bool:
     keys = _section_key_set(section)
     return {"ticker", "value", "weight", "hhi"} <= keys and "row_type" not in keys
-
-
-def _is_audit_var_section(section: ReportSectionSchema) -> bool:
-    keys = _section_key_set(section)
-    return {"metric", "value", "units"} <= keys and "confidence" not in keys
 
 
 def _normalise_value_weight_rows(
@@ -1216,79 +1200,47 @@ def _build_portfolio_concentration_section(
 def _build_portfolio_var_section(
     context: ReportContext, section: ReportSectionSchema
 ) -> Sequence[Dict[str, Any]]:
-    if _is_audit_var_section(section):
-        if risk is None:
-            return []
-        rows: List[Dict[str, Any]] = []
-        for confidence, metric in ((0.95, "VaR (95%)"), (0.99, "VaR (99%)")):
-            try:
-                payload = risk.compute_portfolio_var(
-                    context.owner,
-                    confidence=confidence,
-                    include_cash=False,
-                )
-            except (FileNotFoundError, ValueError):
-                continue
-            rows.append(
-                {
-                    "metric": metric,
-                    "value": _round_if_number(_extract_var_value(payload), 6),
-                    "units": "GBP",
-                }
-            )
-        if not rows:
-            return []
-        try:
-            sharpe = risk.compute_sharpe_ratio(context.owner)
-        except (FileNotFoundError, ValueError):
-            sharpe = None
-        if sharpe is not None:
-            rows.append(
-                {"metric": "Sharpe ratio", "value": _round_if_number(sharpe, 6), "units": "ratio"}
-            )
-        return rows
+    """Unified VaR section builder — single code path for all templates.
 
-    if risk_mod is None:
+    Guards on owner_portfolio() being available so VaR is only attempted when
+    the portfolio loaded successfully. Returns [] when risk is unavailable.
+    Cash is excluded from VaR computation (include_cash=False) to match the
+    original audit-report behaviour.
+    """
+    if risk is None:
         return []
-    if not context.owner_portfolio():
+    # Guard: only attempt VaR computation when the owner portfolio is available.
+    # This prevents repeated expensive I/O retries after a known portfolio-load
+    # failure and aligns with the caching contract in ReportContext.
+    portfolio = context.owner_portfolio()
+    if not portfolio:
         return []
     rows: List[Dict[str, Any]] = []
-    for confidence in (0.95, 0.99):
+    for confidence, metric in ((0.95, "VaR (95%)"), (0.99, "VaR (99%)")):
         try:
-            var_data = risk_mod.compute_portfolio_var(context.owner, confidence=confidence)
+            payload = risk.compute_portfolio_var(
+                context.owner, confidence=confidence, include_cash=False
+            )
         except (FileNotFoundError, ValueError):
             continue
         rows.append(
             {
-                "metric": "VaR",
-                "confidence": _round_if_number(var_data.get("confidence"), 2),
-                "horizon_days": 1,
-                "value": _round_if_number(var_data.get("1d"), 2),
-                "units": "GBP",
-            }
-        )
-        rows.append(
-            {
-                "metric": "VaR",
-                "confidence": _round_if_number(var_data.get("confidence"), 2),
-                "horizon_days": 10,
-                "value": _round_if_number(var_data.get("10d"), 2),
+                "metric": metric,
+                "value": _round_if_number(_extract_var_value(payload), 6),
                 "units": "GBP",
             }
         )
     if not rows:
         return []
     try:
-        sharpe_ratio = risk_mod.compute_sharpe_ratio(context.owner)
+        sharpe_ratio = risk.compute_sharpe_ratio(context.owner)
     except (FileNotFoundError, ValueError):
         sharpe_ratio = None
     if sharpe_ratio is not None:
         rows.append(
             {
                 "metric": "Sharpe ratio",
-                "confidence": None,
-                "horizon_days": None,
-                "value": _round_if_number(sharpe_ratio, 4),
+                "value": _round_if_number(sharpe_ratio, 6),
                 "units": "ratio",
             }
         )

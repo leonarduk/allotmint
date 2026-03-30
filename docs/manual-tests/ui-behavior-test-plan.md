@@ -1,42 +1,21 @@
 # UI behavior test plan (manual + AI-executable)
 
-This test plan provides deterministic, step-by-step validation for the AllotMint frontend UI.
+This runbook is a **single executable checklist** for validating frontend behavior end-to-end.
 
-It is designed for:
-- human testers running acceptance checks,
-- AI agents running guided browser checks,
-- triage after frontend routing or behavior changes.
+It is intended for:
+- human testers,
+- AI agents,
+- release/triage workflows.
 
-It complements (does not replace) automated smoke coverage in:
+Related automation (complementary, not replaced):
 - `docs/SMOKE_TESTS.md`
 - `frontend/tests/smoke.spec.ts`
 
 ---
 
-## 1) Scope and goals
+## 1) Environment setup
 
-### In scope
-- App boot and route stability.
-- Navigation coverage for high-value pages.
-- Priority user journeys (portfolio + reporting).
-- Evidence capture suitable for issue filing and regression tracking.
-
-### Out of scope
-- Pixel-perfect visual QA across all breakpoints.
-- Replacing Playwright/Vitest automation.
-- Exhaustive validation of every API edge case.
-
----
-
-## 2) Pre-flight: environment setup
-
-> Execute this section in order. Do not continue if any prerequisite fails.
-
-### 2.1 Required software
-1. Python and dependencies installed for backend.
-2. Node.js/npm dependencies installed for root + frontend.
-
-Reference install commands:
+## 1.1 Required installs
 
 ```bash
 python -m pip install -r requirements.txt -r requirements-dev.txt
@@ -44,252 +23,204 @@ npm install
 npm --prefix frontend install
 ```
 
-### 2.2 Start local services
-1. Start backend:
+## 1.2 Start local stack
+
+Terminal A (backend):
 
 ```bash
 bash scripts/bash/run-local-api.sh
 ```
 
-2. Start frontend in another terminal:
+Terminal B (frontend):
 
 ```bash
 npm --prefix frontend run dev
 ```
 
-3. Open the frontend URL shown by Vite (usually `http://localhost:5173`).
+Use the Vite URL (normally `http://localhost:5173`).
 
-### 2.3 Auth and identity assumptions
-Use one of these setups:
+## 1.3 Auth / identity assumptions
 
-- **A. Auth disabled/local login path** (preferred for local deterministic checks): backend config returns `disable_auth: true` and local identity values.
-- **B. Token-based path**: provide `SMOKE_AUTH_TOKEN` or `TEST_ID_TOKEN` if your backend enforces auth.
+Run one of these modes:
+1. **Local auth-disabled mode (preferred)**: backend config allows local login identity.
+2. **Token mode**: set `SMOKE_AUTH_TOKEN` (or `TEST_ID_TOKEN`) if auth is enforced.
 
-### 2.4 Seed/data assumptions
-- `demo-owner` data exists and is usable for owner-specific routes.
-- Config, owners, and portfolio endpoints are reachable.
-- If local data was reset, seed before continuing.
+## 1.4 Seed data assumptions
 
-### 2.5 Pre-flight gate
-Pass only if all are true:
-1. Backend health endpoint returns HTTP 200.
-2. Frontend root page loads without blank screen.
-3. Browser console has no uncaught runtime errors during initial load.
+Required baseline:
+- `demo-owner` exists,
+- `/config`, `/owners`, and portfolio endpoints are reachable.
 
-If any fail, mark run **BLOCKED** and log a bug before continuing.
+## 1.5 Pre-flight gate (must pass before execution)
+
+| Step ID | Check | Pass condition |
+|---|---|---|
+| 1.5.1 | Backend health | `/health` returns HTTP 200 |
+| 1.5.2 | Frontend boot | root page renders (not blank) |
+| 1.5.3 | Console sanity | no uncaught runtime errors on load |
+
+If any pre-flight step fails:
+1. mark run **BLOCKED**,
+2. log bug,
+3. skip dependent steps.
 
 ---
 
-## 3) Execution rules (strict)
+## 2) Execution rules
 
-### 3.1 Result status vocabulary
-Use only:
-- **PASS**: observed behavior matches expected result exactly.
-- **FAIL**: behavior differs from expected result.
-- **BLOCKED**: prerequisite failed; step not executable.
-- **N/A**: step intentionally skipped with documented reason.
+## 2.1 Status vocabulary (only these values)
+- **PASS**: expected result observed.
+- **FAIL**: expected result not observed.
+- **BLOCKED**: prerequisite failed.
+- **N/A**: intentionally skipped with reason.
 
-### 3.2 Evidence required for each FAIL
-For every failed step, capture:
-1. Exact step ID (for example, `4.3.2`).
-2. Actual URL.
-3. Screenshot (or short screen recording for transient bugs).
-4. Console/network error excerpt (if present).
-5. Expected result vs actual result.
+## 2.2 Required evidence for every FAIL
+- Step ID,
+- URL,
+- screenshot or short recording,
+- console/network error excerpt (if present),
+- expected vs actual behavior.
 
-### 3.3 If a prerequisite fails
-1. Mark dependent steps as **BLOCKED**.
-2. File/append bug immediately.
-3. Continue only with independent steps.
+## 2.3 Evidence capture commands (optional but recommended)
 
-### 3.4 Bug logging template
-Use this structure in GitHub issues/comments:
+Screenshot to deterministic path:
+
+```bash
+mkdir -p artifacts/ui-behavior/$RUN_ID/screenshots
+# save browser screenshot manually as:
+# artifacts/ui-behavior/$RUN_ID/screenshots/<step-id>.png
+```
+
+Console/network notes:
+
+```bash
+mkdir -p artifacts/ui-behavior/$RUN_ID/logs
+# save extracted errors as:
+# artifacts/ui-behavior/$RUN_ID/logs/console-errors.txt
+# artifacts/ui-behavior/$RUN_ID/logs/network-errors.txt
+```
+
+## 2.4 Bug report template
 
 ```md
 ### UI behavior test failure
 - Step ID: <id>
 - Route: <path>
-- Environment: local/staging/prod + commit hash
+- Environment: <local/staging/prod + commit>
 - Expected: <expected behavior>
 - Actual: <observed behavior>
-- Severity: P1/P2/P3
-- Evidence: <screenshot path + console excerpt>
+- Severity: <P1/P2/P3>
+- Evidence: <artifact paths>
 ```
 
-Suggested severity:
-- **P1**: crash, blank page, data corruption, blocked core journey.
+Severity guide:
+- **P1**: crash, blank screen, corrupted primary flow.
 - **P2**: functional mismatch with workaround.
 - **P3**: minor UX/copy/layout issue.
 
 ---
 
-## 4) Core navigation checks
+## 3) Core navigation checks (smoke-level)
 
-> Goal: verify app bootstrap and route transitions are stable before deep behavior checks.
+Run in order.
 
-### 4.1 App bootstrap
-1. Navigate to `/`.
-2. Wait for initial loading to settle.
-3. Confirm no white-screen crash.
+| Step ID | Route | Action | Expected visible result | Failure signals |
+|---|---|---|---|---|
+| 3.1 | `/` | open route | app shell renders, route is stable | blank page, crash loop |
+| 3.2 | `/portfolio` | direct-load URL | portfolio/owner view visible | redirect loop, crash |
+| 3.3 | `/performance` | direct-load URL | performance view visible | chart/runtime exception |
+| 3.4 | `/transactions` | direct-load URL | transactions view visible | blank state + errors |
+| 3.5 | `/trading` | direct-load URL | trading view visible | route bounce |
+| 3.6 | `/reports` | direct-load URL | reports page visible | crash/empty shell |
+| 3.7 | `/reports/new` | direct-load URL | heading `Create report template` | missing heading |
+| 3.8 | `/pension/forecast` | direct-load URL | heading `Pension Forecast` | wrong route/mode |
+| 3.9 | `/returns/compare` | direct-load URL | return comparison heading visible | render exception |
+| 3.10 | `/compliance` | direct-load URL | heading `Compliance warnings` | missing heading |
+| 3.11 | `/smoke-test` | direct-load URL | heading `Smoke test` | page crash |
 
-Expected:
-- App shell renders.
-- Active route marker/mode indicates group/root mode.
-- No uncaught console errors.
+For each step above, also validate:
+1. URL does not oscillate after load.
+2. Browser back/forward works.
+3. No fatal console errors.
 
-Failure signals:
-- Infinite spinner.
-- Blank viewport.
-- Error boundary or red stack trace in console.
-
-### 4.2 Route stability sweep
-For each path below, open URL directly in browser and verify the expected visible marker:
-
-| Route | Expected visible result |
-|---|---|
-| `/portfolio` | Owner/portfolio view renders |
-| `/performance` | Performance view renders |
-| `/transactions` | Transactions view renders |
-| `/trading` | Trading view renders |
-| `/reports` | Reports view renders |
-| `/reports/new` | Heading “Create report template” visible |
-| `/pension/forecast` | Heading “Pension Forecast” visible |
-| `/returns/compare` | Return comparison page heading visible |
-| `/compliance` | Heading “Compliance warnings” visible |
-| `/smoke-test` | Heading “Smoke test” visible |
-
-For each route, also verify:
-1. URL remains stable after initial load (no unexpected redirect loop).
-2. Back/forward browser navigation works.
-3. No fatal console errors appear.
-
-### 4.3 Optional extended route sweep
-Run this when validating broader regressions:
-
+Optional extended sweep:
 `/instrument`, `/screener`, `/settings`, `/timeseries`, `/watchlist`, `/market`, `/allocation`, `/rebalance`, `/movers`, `/instrumentadmin`, `/dataadmin`, `/tax-tools`, `/scenario`, `/research/AAA`, `/virtual`, `/support`, `/alerts`, `/alert-settings`, `/goals`, `/trail`, `/metrics-explained`, `/trade-compliance`.
 
 ---
 
-## 5) Page-level behavior checks (deterministic cases)
+## 4) Page-level behavior checks (deeper)
 
-Use this structure for each route: prerequisite state → action → expected result → obvious failure signals.
-
-### 5.1 Portfolio page (`/portfolio`)
-- Prerequisite: owner data available (for example `demo-owner`).
-- Action: open `/portfolio` then switch owner (if selector exists).
+## 4.1 Portfolio flow (`/portfolio`)
+- Prerequisite: owner data available (e.g. `demo-owner`).
+- Action: open route, then change owner if selector exists.
 - Expected:
-  1. Portfolio view remains active.
-  2. Key summary and holdings sections render.
-  3. Owner change updates visible data without route break.
-- Failure signals:
-  - owner selector empty unexpectedly,
-  - stale data after owner switch,
-  - route mode switches to unrelated page.
+  1. portfolio mode remains active,
+  2. summary/holdings render or explicit empty-state,
+  3. owner switch updates data without route break.
+- Failure signals: empty selector unexpectedly, stale data, mode switch to unrelated page.
 
-### 5.2 Performance page (`/performance` or `/performance/demo-owner`)
-- Prerequisite: performance API reachable.
-- Action: open route and wait for chart/table load.
-- Expected:
-  1. Performance mode/page marker visible.
-  2. Data panel renders or explicit empty-state messaging shown.
-  3. No crash when changing owner/date controls.
-- Failure signals:
-  - chart render exceptions,
-  - NaN/undefined-heavy UI,
-  - endless loading without timeout message.
+## 4.2 Performance flow (`/performance` or `/performance/demo-owner`)
+- Prerequisite: performance data endpoint reachable.
+- Action: open page and interact with primary controls (owner/date).
+- Expected: page remains stable, data panel/chart/table renders (or explicit empty-state), no uncaught errors.
+- Failure signals: NaN/undefined-heavy UI, endless spinner, control interaction crash.
 
-### 5.3 Reports list + report creation (`/reports`, `/reports/new`)
+## 4.3 Reporting flow (`/reports` + `/reports/new`)
 - Prerequisite: report routes reachable.
 - Action:
-  1. Open `/reports`.
-  2. Navigate to `/reports/new`.
-  3. Fill minimal required fields and attempt save/preview action (if available).
-- Expected:
-  1. Reports page loads with stable navigation.
-  2. “Create report template” heading shown on `/reports/new`.
-  3. Validation errors are explicit and actionable when input invalid.
-- Failure signals:
-  - form submit no-op,
-  - silent failure/toast mismatch,
-  - route bounce away from report flow.
+  1. open `/reports`,
+  2. open `/reports/new`,
+  3. attempt minimal create/preview action.
+- Expected: deterministic heading on new page, actionable validation on invalid input, no silent no-op.
+- Failure signals: form submit does nothing, unexpected route bounce, silent failure.
 
-### 5.4 Returns compare (`/returns/compare`, `/returns/compare?owner=demo-owner`)
-- Prerequisite: returns endpoint reachable.
-- Action: load base and owner-filtered route.
-- Expected:
-  1. Return comparison heading visible.
-  2. Owner-qualified route reflects owner context in heading/state.
-  3. Controls change comparison view without full-page crash.
-- Failure signals:
-  - owner route ignores query param,
-  - heading mismatch,
-  - control interaction causes uncaught errors.
+## 4.4 Returns compare (`/returns/compare`, `/returns/compare?owner=demo-owner`)
+- Prerequisite: returns compare endpoint reachable.
+- Action: load both routes and modify compare controls.
+- Expected: owner-qualified route reflects owner context; controls update comparison without crash.
+- Failure signals: query ignored, heading/state mismatch, control-driven crash.
 
-### 5.5 Pension forecast (`/pension/forecast`)
-- Prerequisite: pension mode enabled in tabs/config.
-- Action: open page and interact with primary controls/tabs.
+## 4.5 Pension forecast (`/pension/forecast`)
+- Prerequisite: pension tab/config available.
+- Action: open page and use main controls.
 - Expected:
-  1. “Pension Forecast” heading visible.
-  2. Route remains `/pension/forecast`.
-  3. Pension mode stays active even if config tab state is indeterminate.
-- Failure signals:
-  - redirected to unrelated route,
-  - heading missing,
-  - mode marker not pension.
+  1. heading `Pension Forecast` visible,
+  2. pathname stays `/pension/forecast`,
+  3. pension mode remains active.
+- Failure signals: redirect to wrong page, missing heading, wrong mode marker.
 
-### 5.6 Virtual portfolios (`/virtual`)
-- Prerequisite: virtual portfolios endpoint reachable.
-- Action: load page; observe initial loading state.
-- Expected:
-  1. “Virtual Portfolios” heading appears.
-  2. Loader appears then clears.
-  3. Portfolio selector/list becomes interactive.
-- Failure signals:
-  - loader never clears,
-  - missing selector despite successful response,
-  - uncaught fetch/render errors.
+## 4.6 Virtual portfolios (`/virtual`)
+- Prerequisite: virtual portfolio endpoint reachable.
+- Action: open route and wait for load cycle.
+- Expected: heading visible; loader appears then clears; selector/list becomes interactive.
+- Failure signals: loader never clears, selector absent after successful response, uncaught fetch/render errors.
 
 ---
 
-## 6) Priority flows (run in this order)
+## 5) Priority journeys (run first)
 
-### Flow A (P1): bootstrap → portfolio readiness
-1. `/` loads.
-2. Navigate to `/portfolio`.
-3. Verify owner-scoped portfolio content.
-4. Change owner/context and confirm UI updates.
+| Priority | Journey | Required steps |
+|---|---|---|
+| P1 | Bootstrap → Portfolio readiness | 3.1 → 3.2 → 4.1 |
+| P1 | Reporting | 3.6 → 3.7 → 4.3 |
+| P2 | Performance + Returns coherence | 3.3 → 3.9 → 4.2 → 4.4 |
+| P2 | Pension + Compliance gate | 3.8 → 3.10 → 4.5 |
 
-Pass condition: no crashes, stable route, visible data/empty-state messaging.
-
-### Flow B (P1): reporting path
-1. Open `/reports`.
-2. Open `/reports/new`.
-3. Attempt minimal template creation path.
-4. Confirm either success state or explicit validation guidance.
-
-Pass condition: deterministic heading and actionable form behavior.
-
-### Flow C (P2): performance and returns coherence
-1. Open `/performance`.
-2. Open `/returns/compare` and owner-qualified compare route.
-3. Confirm headings/controls match selected context.
-
-Pass condition: pages render and interactions do not crash.
-
-### Flow D (P2): pension + compliance gates
-1. Open `/pension/forecast`.
-2. Open `/compliance`.
-3. Confirm both pages render expected headings and maintain route stability.
-
-Pass condition: no unexpected redirect/blank/error states.
+Pass rule for each journey: no crash/blank/error boundary and expected headings/modes remain stable.
 
 ---
 
-## 7) Suggested run output format
+## 6) Run output format (required)
 
-Record your run in a markdown file, for example:
+Create one run folder:
 
-`artifacts/ui-behavior/<YYYYMMDDTHHMMSSZ>/ui-behavior-results.md`
+```bash
+RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)"
+mkdir -p "artifacts/ui-behavior/$RUN_ID"
+```
+
+Store a summary file at:
+`artifacts/ui-behavior/<RUN_ID>/ui-behavior-results.md`
 
 Template:
 
@@ -298,7 +229,7 @@ Template:
 - Date (UTC): <timestamp>
 - Commit: <git sha>
 - Base URL: <url>
-- Tester: <name or agent>
+- Tester: <human or agent>
 
 ## Summary
 - PASS: <count>
@@ -307,47 +238,42 @@ Template:
 - N/A: <count>
 
 ## Step results
-- [PASS] 4.1 App bootstrap
-- [FAIL] 5.3 Reports creation (see bug #xxxx)
-- [BLOCKED] 5.6 Virtual portfolios (endpoint unavailable)
+- [PASS] 3.1 Root boot
+- [FAIL] 4.3 Reporting create action
+- [BLOCKED] 4.6 Virtual portfolios (endpoint unavailable)
 
-## Evidence index
-- screenshots/<file>.png
+## Evidence
+- screenshots/<step-id>.png
 - logs/console-errors.txt
-- logs/network-failures.txt
+- logs/network-errors.txt
 ```
 
 ---
 
-## 8) Relationship to automated smoke tests
+## 7) Relationship to automated smoke tests
 
-Use this manual/AI plan with automation, not instead of it:
-- Fast automated route/assertion coverage: `frontend/tests/smoke.spec.ts`
-- Combined backend/frontend smoke orchestration: `npm run smoke:test:all`
-- Frontend-only smoke command: `npm --prefix frontend run smoke:frontend`
+Use this plan **with** automation:
+1. run smoke automation first,
+2. run this manual/AI behavior plan,
+3. file regressions referencing step IDs from this document.
 
-Recommended sequence for release confidence:
-1. Run automated smoke checks first.
-2. Run this UI behavior plan for acceptance-quality validation.
-3. File regressions with evidence tied to step IDs in this document.
+Automation references:
+- route/assertion smoke coverage: `frontend/tests/smoke.spec.ts`
+- combined smoke command: `npm run smoke:test:all`
+- frontend smoke command: `npm --prefix frontend run smoke:frontend`
 
 ---
 
-## 9) Maintenance guidance
+## 8) Maintenance guidance
 
-Update this file whenever one of these changes:
-1. Route paths or page headings.
-2. Auth prerequisites or environment startup commands.
-3. Priority user journeys (especially portfolio/reporting).
-4. Failure signals that are no longer representative.
+Update this file when any of these change:
+1. routes, headings, or mode markers,
+2. startup/auth requirements,
+3. priority journeys (especially portfolio/reporting),
+4. expected failure signals.
 
 Maintenance checklist:
-1. Confirm routes against `frontend/tests/smoke.spec.ts` and frontend route registration.
-2. Keep deterministic numbering intact (avoid renumber churn unless structure changes).
-3. Preserve explicit expected outputs (headings/markers/URL state).
-4. Ensure examples still match available npm/scripts commands.
-
-When a route is added/retired:
-- add/remove it from section 4 (navigation checks),
-- add/update any relevant section 5 behavior block,
-- adjust section 6 priority flows if user value changes.
+1. verify route/heading assertions against `frontend/tests/smoke.spec.ts`,
+2. keep deterministic step IDs stable,
+3. keep expected outputs explicit,
+4. verify referenced commands still exist.

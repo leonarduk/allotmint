@@ -1113,6 +1113,10 @@ def test_build_report_document_audit_template_dispatches_real_builders(monkeypat
         summary=lambda: summary,
         transactions=lambda: [],
         allocation=lambda: [],
+        owner_portfolio=lambda: {
+            "total_value_estimate_gbp": 200.0,
+            "accounts": [{"holdings": [{"ticker": "AAA"}, {"ticker": "BBB"}]}],
+        },
         portfolio=lambda: {
             "total_value_estimate_gbp": 200.0,
             "accounts": [{"holdings": [{"ticker": "AAA"}, {"ticker": "BBB"}]}],

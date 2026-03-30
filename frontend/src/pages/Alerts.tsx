@@ -60,11 +60,13 @@ export default function Alerts() {
     : alerts.map((_, index) => ({ index, start: index * 32, end: (index + 1) * 32 }));
 
   const marker = <span data-testid="alerts-page-marker" hidden />;
+  const heading = <h1>Alerts</h1>;
 
   if (loading) {
     return (
       <Fragment>
         {marker}
+        {heading}
         <div role="status" aria-live="polite">
           Loading...
         </div>
@@ -76,6 +78,7 @@ export default function Alerts() {
     return (
       <Fragment>
         {marker}
+        {heading}
         <div role="alert" aria-live="assertive">
           {error}
         </div>
@@ -87,6 +90,7 @@ export default function Alerts() {
     return (
       <Fragment>
         {marker}
+        {heading}
         <EmptyState message="No alerts." role="status" aria-live="polite" />
       </Fragment>
     );
@@ -95,6 +99,7 @@ export default function Alerts() {
   return (
     <Fragment>
       {marker}
+      {heading}
       <div
         ref={parentRef}
         style={{ maxHeight: "60vh", overflowY: "auto", overflowX: "hidden" }}
@@ -105,9 +110,11 @@ export default function Alerts() {
           {items.map((virtualRow) => {
             const a = alerts[virtualRow.index];
             const key = (a as any)?.id ?? `${a.ticker}-${virtualRow.index}`;
+            const alertLabel =
+              typeof a.ticker === "string" && a.ticker.trim().length > 0 ? a.ticker.trim() : "Alert";
             return (
               <li key={key} style={{ height: 32, display: "flex", alignItems: "center" }}>
-                <strong>{a.ticker}</strong>: {a.message}
+                <strong>{alertLabel}</strong>: {a.message}
               </li>
             );
           })}

@@ -196,6 +196,13 @@ export const ROUTE_REGISTRY: RouteRegistryEntry[] = [
     lazyComponent: lazyPage(() => import('../pages/Trail')),
   },
   {
+    mode: 'alerts',
+    routeSegment: 'alerts',
+    section: 'standalone',
+    priority: 103,
+    defaultPath: () => '/alerts',
+  },
+  {
     mode: 'alertsettings',
     routeSegment: 'alert-settings',
     section: 'user',

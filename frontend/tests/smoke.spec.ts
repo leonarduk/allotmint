@@ -112,7 +112,7 @@ const ROUTES: RouteConfig[] = [
     },
   },
   { path: '/support', assertion: { kind: 'heading', name: 'Support' } },
-  { path: '/alerts', assertion: { kind: 'testId', value: 'alerts-page-marker' } },
+  { path: '/alerts', assertion: { kind: 'mode', mode: 'alerts' } },
   { path: '/alert-settings', assertion: { kind: 'heading', name: 'Alert Settings' } },
   { path: '/goals', assertion: { kind: 'heading', name: 'Goals' } },
   { path: '/trail', assertion: { kind: 'heading', name: 'Trail progress' } },

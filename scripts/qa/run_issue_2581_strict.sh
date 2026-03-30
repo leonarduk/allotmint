@@ -192,10 +192,35 @@ if re.search(r'NaN|null', blob):
     raise ValueError('VaR payload contains NaN/null')
 
 value = None
-for key in ('var', 'var_pct', 'value_at_risk'):
-    if isinstance(data, dict) and key in data and isinstance(data[key], (int, float)):
-        value = float(data[key])
-        break
+
+def _coerce_numeric(candidate):
+    if isinstance(candidate, (int, float)) and not isinstance(candidate, bool):
+        return float(candidate)
+    return None
+
+if isinstance(data, dict):
+    for key in ('var', 'var_pct', 'value_at_risk'):
+        numeric = _coerce_numeric(data.get(key))
+        if numeric is not None:
+            value = numeric
+            break
+
+    if value is None and isinstance(data.get('var'), dict):
+        nested_var = data['var']
+        for horizon in ('1d', '10d'):
+            numeric = _coerce_numeric(nested_var.get(horizon))
+            if numeric is not None:
+                value = numeric
+                break
+
+        if value is None:
+            for nested_key, nested_value in nested_var.items():
+                if nested_key in ('window_days', 'confidence'):
+                    continue
+                numeric = _coerce_numeric(nested_value)
+                if numeric is not None:
+                    value = numeric
+                    break
 
 if value is None:
     raise ValueError('VaR numeric value not found')

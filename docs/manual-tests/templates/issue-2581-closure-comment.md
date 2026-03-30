@@ -4,8 +4,11 @@
 
 - Run timestamp (UTC):
 - Commit hash:
-- Environment lock file:
-- Artifact directory:
+- Artifact directory (durable path under `artifacts/issue-2581/<timestamp>/`):
+- Environment lock file (attachment/link):
+- summary.json (attachment/link):
+- summary_for_issue.md source used (attachment/link):
+- evidence_manifest.txt (attachment/link):
 
 ## Step results matrix
 
@@ -32,18 +35,25 @@
 
 ## Required artifacts checklist
 
+### Required attachments/links on issue #2581
+
+- [ ] summary.json
+- [ ] summary_for_issue.md
+- [ ] environment_lock.txt
+- [ ] evidence_manifest.txt
+- [ ] audit_report.pdf
+- [ ] demo_report.pdf
+
+### Required local durable evidence (keep in `RUN_DIR`, attach on request)
+
 - [ ] backend_health.json
-- [ ] frontend_screenshot.png
-- [ ] startup_log.txt
+- [ ] backend_health.timing
 - [ ] portfolio_response.json
 - [ ] broker_snapshot.txt
 - [ ] sectors.json
 - [ ] regions.json
 - [ ] var.json
-- [ ] audit_report.pdf
-- [ ] demo_report.pdf
-- [ ] environment_lock.txt
-- [ ] summary.json
+- [ ] transport/check logs (`*.stderr`, `*.status`, `*.check.log`)
 
 ## Step 6 product gate
 

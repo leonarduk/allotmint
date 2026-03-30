@@ -29,6 +29,45 @@ mkdir -p "$RUN_DIR"
 
 All outputs for this run must live under `RUN_DIR`.
 
+## Durable evidence workflow (required for review/closure)
+
+After each strict run, preserve evidence in `RUN_DIR` and use the generated summary artifacts as the canonical review payload.
+
+### Canonical persisted path
+
+- Local durable storage path: `artifacts/issue-2581/<timestamp>/`
+- Do not move files out of this run directory; append new runs as sibling timestamped folders.
+
+### What must be attached/linked on GitHub issue #2581
+
+Attach these artifacts directly to the issue comment (or link to a durable internal artifact store containing the same files):
+
+- `summary.json`
+- `summary_for_issue.md`
+- `environment_lock.txt`
+- `evidence_manifest.txt`
+- `audit_report.pdf`
+- `demo_report.pdf`
+
+The issue closure comment must include links/attachments to these exact artifacts.
+
+### What remains local by default
+
+Keep these under `RUN_DIR` for deeper review, and attach when requested:
+
+- Raw endpoint payloads (`portfolio_response.json`, `sectors.json`, `regions.json`, `var.json`)
+- Health/timing and transport logs (`backend_health.json`, `backend_health.timing`, `*.stderr`, `*.status`, `*.check.log`)
+
+### Runner-produced closure helper
+
+`scripts/qa/run_issue_2581_strict.sh` writes:
+
+- `summary.json` (machine-readable verdict)
+- `summary_for_issue.md` (paste-ready markdown for GitHub comment)
+- `evidence_manifest.txt` (explicit evidence inventory)
+
+Use `summary_for_issue.md` as the starting point for the closure comment template.
+
 ## 0) Global rules
 
 ### 0.1 Evidence requirement

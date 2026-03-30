@@ -2,7 +2,8 @@
 set -euo pipefail
 
 # Strict gate runner for Issue #2581.
-# This script performs objective checks and writes a machine-readable summary.
+# This script performs objective checks and writes durable evidence artifacts
+# suitable for attaching to the GitHub issue.
 
 API_BASE="${API_BASE:-http://localhost:8001}"
 OWNER="${OWNER:-}"
@@ -15,6 +16,7 @@ SYSTEM_FETCH_TIME_UTC="${SYSTEM_FETCH_TIME_UTC:-}"
 mkdir -p "$RUN_DIR"
 
 failure_count=0
+run_verdict="PASS"
 
 declare -a failures=()
 
@@ -203,16 +205,16 @@ PY
 }
 
 write_summary() {
-  local verdict="PASS"
+  run_verdict="PASS"
   if (( failure_count > 0 )); then
-    verdict="FAIL"
+    run_verdict="FAIL"
   fi
 
   {
     echo "{"
     echo "  \"timestamp_utc\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\","
     echo "  \"run_dir\": \"$RUN_DIR\","
-    echo "  \"verdict\": \"$verdict\","
+    echo "  \"verdict\": \"$run_verdict\","
     echo "  \"failure_count\": $failure_count,"
     echo "  \"failures\": ["
     local first=1
@@ -230,7 +232,71 @@ write_summary() {
   } >"$RUN_DIR/summary.json"
 
   echo "Wrote summary to $RUN_DIR/summary.json"
-  [[ "$verdict" == "PASS" ]]
+}
+
+write_evidence_manifest() {
+  cat >"$RUN_DIR/evidence_manifest.txt" <<EOF
+Issue: #2581
+Run timestamp (UTC): $(date -u +%Y-%m-%dT%H:%M:%SZ)
+Run directory: $RUN_DIR
+
+Required artifacts
+- backend_health.json
+- backend_health.timing
+- portfolio_response.json
+- sectors.json
+- regions.json
+- var.json
+- audit_report.pdf
+- demo_report.pdf
+- environment_lock.txt
+- docker_images.txt
+- summary.json
+- summary_for_issue.md
+EOF
+}
+
+write_issue_summary_markdown() {
+  local failure_lines=""
+
+  if (( failure_count > 0 )); then
+    for f in "${failures[@]}"; do
+      IFS='|' read -r code step message <<<"$f"
+      failure_lines+="- [$code] **$step**: $message"$'\n'
+    done
+  else
+    failure_lines="- None"$'\n'
+  fi
+
+  cat >"$RUN_DIR/summary_for_issue.md" <<EOF
+## Issue #2581 strict run summary
+
+- **Verdict:** $run_verdict
+- **Run timestamp (UTC):** $(date -u +%Y-%m-%dT%H:%M:%SZ)
+- **Run directory:** \`$RUN_DIR\`
+- **Environment lock:** \`$RUN_DIR/environment_lock.txt\`
+- **Machine summary:** \`$RUN_DIR/summary.json\`
+- **Evidence manifest:** \`$RUN_DIR/evidence_manifest.txt\`
+
+### Failures
+$failure_lines
+### Required issue attachments
+- \`summary.json\`
+- \`summary_for_issue.md\`
+- \`environment_lock.txt\`
+- \`evidence_manifest.txt\`
+- \`audit_report.pdf\`
+- \`demo_report.pdf\`
+
+### Local-only (retain in run directory; attach when needed for review)
+- \`backend_health.json\`
+- \`backend_health.timing\`
+- \`portfolio_response.json\`
+- \`sectors.json\`
+- \`regions.json\`
+- \`var.json\`
+- transport/check logs (\`*.stderr\`, \`*.check.log\`, \`*.status\`)
+EOF
 }
 
 main() {
@@ -286,6 +352,9 @@ main() {
   fi
 
   write_summary
+  write_evidence_manifest
+  write_issue_summary_markdown
+  [[ "$run_verdict" == "PASS" ]]
 }
 
 main "$@"

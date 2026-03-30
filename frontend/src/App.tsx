@@ -87,6 +87,18 @@ const path = window.location.pathname.split("/").filter(Boolean);
 const initialMode = deriveModeFromPathname(window.location.pathname);
 const initialSlug = path[1] ?? "";
 
+function decodePathSegment(segment: string): string {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+}
+
+function encodePathSegment(segment: string): string {
+  return encodeURIComponent(segment.trim());
+}
+
 type InstrumentMetadataWithSymbol = InstrumentMetadata & {
   symbol?: string | null;
 };
@@ -197,7 +209,8 @@ export function getOwnerRootRedirectPath(
   const atPerformanceRoot = segs[0] === "performance" && segs.length === 1;
   if (!atPortfolioRoot && !atPerformanceRoot) return null;
   const owner = owners[0].owner;
-  return atPerformanceRoot ? `/performance/${owner}` : `/portfolio/${owner}`;
+  const encodedOwner = encodePathSegment(owner);
+  return atPerformanceRoot ? `/performance/${encodedOwner}` : `/portfolio/${encodedOwner}`;
 }
 
 export default function App({ onLogout }: AppProps) {
@@ -213,7 +226,7 @@ export default function App({ onLogout }: AppProps) {
   const [mode, setMode] = useState(initialMode);
   const [selectedOwner, setSelectedOwner] = useState(
     initialMode === "owner" || initialMode === "performance"
-      ? initialSlug
+      ? decodePathSegment(initialSlug)
       : "",
   );
   const [selectedGroup, setSelectedGroup] = useState(
@@ -257,16 +270,18 @@ export default function App({ onLogout }: AppProps) {
 
   const handleOwnerSelectPerformance = useCallback(
     (owner: string) => {
-      setSelectedOwner(owner);
-      navigate(`/performance/${owner}`);
+      const trimmedOwner = owner.trim();
+      setSelectedOwner(trimmedOwner);
+      navigate(`/performance/${encodePathSegment(trimmedOwner)}`);
     },
     [navigate],
   );
 
   const handleOwnerSelectPortfolio = useCallback(
     (owner: string) => {
-      setSelectedOwner(owner);
-      navigate(`/portfolio/${owner}`);
+      const trimmedOwner = owner.trim();
+      setSelectedOwner(trimmedOwner);
+      navigate(`/portfolio/${encodePathSegment(trimmedOwner)}`);
     },
     [navigate],
   );
@@ -305,7 +320,7 @@ export default function App({ onLogout }: AppProps) {
     setMode(newMode);
     if (newMode === "owner" || newMode === "performance") {
       if (segs[1]) {
-        setSelectedOwner(segs[1]);
+        setSelectedOwner(decodePathSegment(segs[1]));
       }
     } else if (newMode === "instrument") {
       setSelectedGroup(segs[1] ?? "");

@@ -1455,6 +1455,7 @@ def build_report_document(
     *,
     start: Optional[date] = None,
     end: Optional[date] = None,
+    watermark: Optional[str] = None,
     store: TemplateStore | None = None,
 ) -> ReportDocument:
     template = get_template(template_id, store=store)
@@ -1494,6 +1495,10 @@ def build_report_document(
         params["start"] = start.isoformat()
     if end:
         params["end"] = end.isoformat()
+    if watermark:
+        watermark_text = watermark.strip()
+        if watermark_text:
+            params["watermark"] = watermark_text
 
     return ReportDocument(
         template=template,

@@ -171,6 +171,64 @@ def test_audit_report_pdf_smoke_returns_pdf_prefix(client, monkeypatch):
     assert resp.content.startswith(b"%PDF")
 
 
+def test_audit_report_pdf_forwards_watermark_query_parameter(client, monkeypatch):
+    captured: Dict[str, object] = {}
+
+    def fake_builder(template_id, owner, start=None, end=None, watermark=None):
+        captured["template_id"] = template_id
+        captured["owner"] = owner
+        captured["watermark"] = watermark
+        document = _build_sample_document()
+        document.parameters["watermark"] = str(watermark)
+        return document
+
+    monkeypatch.setattr(reports_route, "build_report_document", fake_builder)
+
+    def fake_pdf(document: reports.ReportDocument) -> bytes:
+        assert document.parameters["watermark"] == "SAMPLE"
+        return b"%PDF-watermark"
+
+    monkeypatch.setattr(reports_route, "report_to_pdf", fake_pdf)
+
+    resp = client.get("/reports/lucy/audit-report?format=pdf&watermark=SAMPLE")
+    assert resp.status_code == 200
+    assert captured == {
+        "template_id": "audit-report",
+        "owner": "lucy",
+        "watermark": "SAMPLE",
+    }
+    assert resp.content == b"%PDF-watermark"
+
+
+def test_owner_report_pdf_forwards_trimmed_watermark_query_parameter(client, monkeypatch):
+    captured: Dict[str, object] = {}
+
+    def fake_builder(template_id, owner, start=None, end=None, watermark=None):
+        captured["template_id"] = template_id
+        captured["owner"] = owner
+        captured["watermark"] = watermark
+        document = _build_sample_document()
+        document.parameters["watermark"] = str(watermark)
+        return document
+
+    monkeypatch.setattr(reports_route, "build_report_document", fake_builder)
+
+    def fake_pdf(document: reports.ReportDocument) -> bytes:
+        assert document.parameters["watermark"] == "SAMPLE"
+        return b"%PDF-watermark"
+
+    monkeypatch.setattr(reports_route, "report_to_pdf", fake_pdf)
+
+    resp = client.get("/reports/lucy?format=pdf&watermark=%20SAMPLE%20")
+    assert resp.status_code == 200
+    assert captured == {
+        "template_id": reports.DEFAULT_TEMPLATE_ID,
+        "owner": "lucy",
+        "watermark": "SAMPLE",
+    }
+    assert resp.content == b"%PDF-watermark"
+
+
 def test_reports_unknown_owner(client, monkeypatch):
     def fake_builder(template_id, owner, start=None, end=None):
         raise FileNotFoundError

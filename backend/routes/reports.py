@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import Response
@@ -100,17 +100,20 @@ async def owner_report(
     owner: str,
     start: Optional[str] = None,
     end: Optional[str] = None,
+    watermark: Optional[str] = None,
     format: str = "json",
 ):
     """Return summary report for ``owner``."""
 
     start_d = _parse_date(start)
     end_d = _parse_date(end)
+    watermark_text = watermark.strip() if watermark else None
 
     try:
-        document = build_report_document(
-            DEFAULT_TEMPLATE_ID, owner, start=start_d, end=end_d
-        )
+        build_kwargs: Dict[str, Any] = {"start": start_d, "end": end_d}
+        if watermark_text:
+            build_kwargs["watermark"] = watermark_text
+        document = build_report_document(DEFAULT_TEMPLATE_ID, owner, **build_kwargs)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Owner not found")
     except ValueError as exc:
@@ -139,15 +142,18 @@ async def owner_template_report(
     template_id: str,
     start: Optional[str] = None,
     end: Optional[str] = None,
+    watermark: Optional[str] = None,
     format: str = "json",
 ):
     start_d = _parse_date(start)
     end_d = _parse_date(end)
+    watermark_text = watermark.strip() if watermark else None
 
     try:
-        document = build_report_document(
-            template_id, owner, start=start_d, end=end_d
-        )
+        build_kwargs: Dict[str, Any] = {"start": start_d, "end": end_d}
+        if watermark_text:
+            build_kwargs["watermark"] = watermark_text
+        document = build_report_document(template_id, owner, **build_kwargs)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Owner not found")
     except ValueError as exc:

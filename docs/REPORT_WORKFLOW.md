@@ -89,6 +89,9 @@ Use the report route directly:
 
 ```bash
 curl -sS "http://localhost:8000/reports/demo-owner/audit-report?format=pdf&watermark=SAMPLE" -o demo-owner-audit-report.pdf
+
+# watermark only affects the rendered PDF overlay and is intentionally excluded
+# from the visible title-page parameters list.
 ```
 
 Optional JSON preview of section payloads:

@@ -17,6 +17,10 @@ This document is intentionally strict:
 - `SNAPSHOT_TIME_UTC`: execution snapshot reference (ISO-8601 UTC).
 - `BROKER_SNAPSHOT_TIME_UTC`: broker valuation timestamp (ISO-8601 UTC).
 - `SYSTEM_FETCH_TIME_UTC`: system data fetch timestamp (ISO-8601 UTC).
+- `FRONTEND_SCREENSHOT_PATH`: path to Step 1 screenshot evidence file.
+- `STARTUP_LOG_PATH`: path to startup log captured during local stack startup.
+- `BROKER_SNAPSHOT_PATH`: JSON broker snapshot file used for strict Step 2 reconciliation.
+- `DEMO_PRODUCT_GATE_RESULT`: must be `YES` to satisfy Step 6 product gate.
 
 ## Artifact directory convention
 
@@ -157,7 +161,11 @@ curl -sS "$API_BASE/portfolio/$OWNER" -o "$RUN_DIR/portfolio_response.json"
 ```
 
 Required external input:
-- Same-day broker snapshot saved to `$RUN_DIR/broker_snapshot.txt`
+- Same-day broker snapshot JSON provided at `BROKER_SNAPSHOT_PATH` (the runner copies it to `$RUN_DIR/broker_snapshot.txt`).
+- Minimum broker snapshot fields:
+  - portfolio-level numeric total (`total_value`, `portfolio_value`, or `total`)
+  - holdings list entries with symbol (`ticker`/`symbol`) and numeric value (`market_value`/`value`/`position_value`/`current_value`/`amount`)
+- If a non-JSON broker snapshot is provided, the runner records a P2 and skips automated Step 2 reconciliation (manual review required).
 
 Rules:
 1. Holdings integrity (hard fail/P1)
@@ -238,6 +246,7 @@ Rules:
    - region %
    - sector %
    All must match endpoint values within rounding tolerance.
+   - The strict runner now performs an explicit reconciliation pass against the saved endpoint payloads and emits `audit_reconciliation.check.log`.
 3. Formatting checks (P2):
    - `£` for currency
    - `%` for percentages
@@ -275,6 +284,7 @@ Checks:
 2. Subjective gate (allowed only here):
    - Would you send this for £39?
    - YES = pass; NO requires reason
+   - Runner gate: set `DEMO_PRODUCT_GATE_RESULT=YES`; any other value is a strict fail
 
 ## Step 7) Strict closure criteria
 

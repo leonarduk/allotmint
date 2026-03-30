@@ -825,7 +825,9 @@ def test_portfolio_section_builders_use_monkeypatched_dependencies(monkeypatch):
     monkeypatch.setattr(
         reports.risk,
         "compute_portfolio_var",
-        lambda owner, confidence=0.95: {"1d": 0.12} if confidence == 0.95 else {"1d": 0.2},
+        lambda owner, confidence=0.95, include_cash=True: {"1d": 0.12}
+        if confidence == 0.95
+        else {"1d": 0.2},
     )
     monkeypatch.setattr(reports.risk, "compute_sharpe_ratio", lambda owner: 1.75)
 
@@ -890,7 +892,7 @@ def test_portfolio_section_builders_reuse_cached_snapshot(monkeypatch):
     monkeypatch.setattr(
         reports.risk,
         "compute_portfolio_var",
-        lambda owner, confidence=0.95: {"1d": 0.12},
+        lambda owner, confidence=0.95, include_cash=True: {"1d": 0.12},
     )
     monkeypatch.setattr(reports.risk, "compute_sharpe_ratio", lambda owner: 1.75)
 
@@ -990,15 +992,20 @@ def test_normalise_value_weight_rows_uses_weight_pct_and_unknown_label():
 
 
 def test_portfolio_var_builder_extracts_numeric_from_payload(monkeypatch):
+    include_cash_calls = []
+
     monkeypatch.setattr(
         reports.risk,
         "compute_portfolio_var",
-        lambda owner, confidence=0.95: {
-            "window_days": 365,
-            "confidence": confidence,
-            "1d": 12.3456 if confidence == 0.95 else 23.4567,
-            "10d": 40.0 if confidence == 0.95 else 50.0,
-        },
+        lambda owner, confidence=0.95, include_cash=True: (
+            include_cash_calls.append(include_cash)
+            or {
+                "window_days": 365,
+                "confidence": confidence,
+                "1d": 12.3456 if confidence == 0.95 else 23.4567,
+                "10d": 40.0 if confidence == 0.95 else 50.0,
+            }
+        ),
     )
     monkeypatch.setattr(reports.risk, "compute_sharpe_ratio", lambda owner: 1.2)
     context = reports.ReportContext(owner="alice", start=None, end=None)
@@ -1010,13 +1017,16 @@ def test_portfolio_var_builder_extracts_numeric_from_payload(monkeypatch):
         {"metric": "VaR (99%)", "value": 23.4567, "units": "GBP"},
         {"metric": "Sharpe ratio", "value": 1.2, "units": "ratio"},
     ]
+    assert include_cash_calls == [False, False]
 
 
 def test_audit_portfolio_var_builder_returns_empty_when_risk_data_missing(monkeypatch):
     monkeypatch.setattr(
         reports.risk,
         "compute_portfolio_var",
-        lambda owner, confidence=0.95: (_ for _ in ()).throw(FileNotFoundError("missing risk data")),
+        lambda owner, confidence=0.95, include_cash=True: (_ for _ in ()).throw(
+            FileNotFoundError("missing risk data")
+        ),
     )
     monkeypatch.setattr(
         reports.risk,
@@ -1116,7 +1126,9 @@ def test_build_report_document_audit_template_dispatches_real_builders(monkeypat
     monkeypatch.setattr(
         reports.risk,
         "compute_portfolio_var",
-        lambda owner, confidence=0.95: {"1d": 10.0 if confidence == 0.95 else 20.0},
+        lambda owner, confidence=0.95, include_cash=True: {
+            "1d": 10.0 if confidence == 0.95 else 20.0
+        },
     )
     monkeypatch.setattr(reports.risk, "compute_sharpe_ratio", lambda owner: 1.11)
 

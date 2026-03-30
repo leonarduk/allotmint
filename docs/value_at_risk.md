@@ -9,6 +9,15 @@ This page describes the historical simulation approach used in AllotMint.
 - **confidence** – confidence level such as 95% or 99%
 - **include_cash** – whether to include cash balances in the portfolio value
 
+## Cash handling in report flows
+
+- `compute_portfolio_var` defaults to `include_cash=True` when called directly.
+- Audit report VaR rows (`portfolio.var` in the audit template) call
+  `compute_portfolio_var(..., include_cash=False)` so cash does not dominate
+  the risk estimate for cash-heavy portfolios.
+- API routes can still include or exclude cash based on the request flag
+  (`exclude_cash`).
+
 ## Algorithm
 
 1. **Reconstruct portfolio value history.**

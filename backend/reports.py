@@ -1222,7 +1222,11 @@ def _build_portfolio_var_section(
         rows: List[Dict[str, Any]] = []
         for confidence, metric in ((0.95, "VaR (95%)"), (0.99, "VaR (99%)")):
             try:
-                payload = risk.compute_portfolio_var(context.owner, confidence=confidence)
+                payload = risk.compute_portfolio_var(
+                    context.owner,
+                    confidence=confidence,
+                    include_cash=False,
+                )
             except (FileNotFoundError, ValueError):
                 continue
             rows.append(

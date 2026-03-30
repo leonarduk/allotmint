@@ -500,7 +500,7 @@ export default function App({ onLogout }: AppProps) {
             <OwnerSelector
               owners={owners}
               selected={selectedOwner}
-              onSelect={setSelectedOwner}
+              onSelect={handleOwnerSelectPortfolio}
             />
           )}
           {lastRefresh && (

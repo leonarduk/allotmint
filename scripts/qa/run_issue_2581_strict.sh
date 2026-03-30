@@ -166,14 +166,17 @@ capture_step1_artifacts() {
     return
   fi
 
-  if rg -q "$crash_pattern" "$RUN_DIR/startup_log.txt"; then
+  if grep -Eq "$crash_pattern" "$RUN_DIR/startup_log.txt"; then
     record_failure "P1" "step1" "Startup log contains crash/error signatures"
   fi
 }
 
 capture_broker_snapshot() {
   if [[ -z "$BROKER_SNAPSHOT_PATH" ]]; then
-    record_failure "P1" "step2" "BROKER_SNAPSHOT_PATH is required for strict broker reconciliation"
+    if [[ -f "$RUN_DIR/broker_snapshot.txt" ]]; then
+      return
+    fi
+    record_failure "P1" "step2" "BROKER_SNAPSHOT_PATH is required unless RUN_DIR/broker_snapshot.txt already exists"
     : >"$RUN_DIR/broker_snapshot.txt.missing"
     return
   fi
@@ -190,7 +193,6 @@ capture_broker_snapshot() {
 check_portfolio_vs_broker_snapshot() {
   python3 - "$RUN_DIR/portfolio_response.json" "$RUN_DIR/broker_snapshot.txt" <<'PY'
 import json
-import math
 import sys
 from typing import Any
 
@@ -388,7 +390,6 @@ check_pdf_endpoint_reconciliation() {
     "$RUN_DIR/regions.json" \
     "$RUN_DIR/var.json" <<'PY'
 import json
-import math
 import sys
 from typing import Any
 
@@ -436,6 +437,20 @@ def extract_labeled_weight(node: Any):
                 return result
     return None
 
+def value_from_section_title(report: Any, section_title: str):
+    if not isinstance(report, dict):
+        return None
+    sections = report.get("sections")
+    if not isinstance(sections, list):
+        return None
+    for section in sections:
+        if not isinstance(section, dict):
+            continue
+        title = section.get("title")
+        if title == section_title:
+            return first_numeric(section, ("weight", "percentage", "percent", "value_pct", "value"))
+    return None
+
 audit_total = first_numeric(audit, ("total_value", "portfolio_value", "total"))
 portfolio_total = first_numeric(portfolio, ("total_value", "portfolio_value", "total"))
 if audit_total is None or portfolio_total is None:
@@ -461,8 +476,8 @@ audit_blob = json.dumps(audit)
 if sector_label not in audit_blob or region_label not in audit_blob:
     raise ValueError("Audit report missing sector/region labels present in endpoints")
 
-audit_sector_weight = first_numeric(audit, (sector_label, "sector_weight", "sector_percentage"))
-audit_region_weight = first_numeric(audit, (region_label, "region_weight", "region_percentage"))
+audit_sector_weight = value_from_section_title(audit, "Sector allocation")
+audit_region_weight = value_from_section_title(audit, "Region allocation")
 if audit_sector_weight is None or abs(audit_sector_weight - sector_weight) > 1.0:
     raise ValueError("Audit sector percentage does not reconcile within ±1")
 if audit_region_weight is None or abs(audit_region_weight - region_weight) > 1.0:
@@ -471,7 +486,7 @@ PY
 }
 
 check_demo_watermark() {
-  if ! strings "$RUN_DIR/demo_report.pdf" | rg -q "SAMPLE"; then
+  if ! grep -aq "SAMPLE" "$RUN_DIR/demo_report.pdf"; then
     record_failure "P1" "step6" "Demo PDF watermark 'SAMPLE' not detected"
   fi
 }

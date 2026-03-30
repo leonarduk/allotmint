@@ -176,6 +176,7 @@ def test_get_price_snapshot_defaults_to_cached_close(monkeypatch: pytest.MonkeyP
     info = snapshot[ticker]
 
     assert info["last_price"] == pytest.approx(99.5)
+    assert info["price_currency"] == "GBP"
     assert info["last_price_date"] == last_trading_day.isoformat()
     assert info["last_price_time"] is None
     assert info["is_stale"] is True

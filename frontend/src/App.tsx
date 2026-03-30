@@ -90,7 +90,11 @@ const initialSlug = path[1] ?? "";
 function decodePathSegment(segment: string): string {
   try {
     return decodeURIComponent(segment);
-  } catch {
+  } catch (error) {
+    console.warn("Failed to decode owner path segment; using raw value", {
+      segment,
+      error,
+    });
     return segment;
   }
 }

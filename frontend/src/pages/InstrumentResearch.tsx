@@ -782,7 +782,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
         }
         return (
           <h1 style={{ marginBottom: "1rem" }}>
-            {tkr} {` - ${headingName}`}
+            {`${tkr} - ${headingName}`}
             {displaySector || displayCurrency ? (
               <span
                 style={{

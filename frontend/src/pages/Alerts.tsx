@@ -59,11 +59,13 @@ export default function Alerts() {
     ? virtualRows
     : alerts.map((_, index) => ({ index, start: index * 32, end: (index + 1) * 32 }));
 
+  const heading = <h1>Alerts</h1>;
   const marker = <span data-testid="alerts-page-marker" hidden />;
 
   if (loading) {
     return (
       <Fragment>
+        {heading}
         {marker}
         <div role="status" aria-live="polite">
           Loading...
@@ -75,6 +77,7 @@ export default function Alerts() {
   if (error) {
     return (
       <Fragment>
+        {heading}
         {marker}
         <div role="alert" aria-live="assertive">
           {error}
@@ -86,6 +89,7 @@ export default function Alerts() {
   if (alerts.length === 0) {
     return (
       <Fragment>
+        {heading}
         {marker}
         <EmptyState message="No alerts." role="status" aria-live="polite" />
       </Fragment>
@@ -94,6 +98,7 @@ export default function Alerts() {
 
   return (
     <Fragment>
+      {heading}
       {marker}
       <div
         ref={parentRef}
@@ -104,10 +109,14 @@ export default function Alerts() {
           {paddingTop > 0 && <li style={{ height: paddingTop }} />}
           {items.map((virtualRow) => {
             const a = alerts[virtualRow.index];
-            const key = (a as any)?.id ?? `${a.ticker}-${virtualRow.index}`;
+            const alertLabel =
+              typeof a.ticker === "string" && a.ticker.trim().length > 0 ? a.ticker.trim() : "Alert";
+            // Prefer a server-supplied stable id; fall back to content+position composite.
+            // timestamp is required by the Alert type so will never be undefined.
+            const key = (a as { id?: string }).id ?? `${alertLabel}-${a.message}-${a.timestamp}-${virtualRow.index}`;
             return (
               <li key={key} style={{ height: 32, display: "flex", alignItems: "center" }}>
-                <strong>{a.ticker}</strong>: {a.message}
+                <strong>{alertLabel}</strong>: {a.message}
               </li>
             );
           })}

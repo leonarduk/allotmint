@@ -112,7 +112,10 @@ const ROUTES: RouteConfig[] = [
     },
   },
   { path: '/support', assertion: { kind: 'heading', name: 'Support' } },
-  { path: '/alerts', assertion: { kind: 'testId', value: 'alerts-page-marker' } },
+  // /alerts is rendered inside the app shell via the mode === 'alerts' branch in App.tsx.
+  // Assert on the h1 heading (present in all render branches) rather than route-marker mode,
+  // so the test confirms the Alerts component actually mounted, not just that routing activated.
+  { path: '/alerts', assertion: { kind: 'heading', name: 'Alerts' } },
   { path: '/alert-settings', assertion: { kind: 'heading', name: 'Alert Settings' } },
   { path: '/goals', assertion: { kind: 'heading', name: 'Goals' } },
   { path: '/trail', assertion: { kind: 'heading', name: 'Trail progress' } },

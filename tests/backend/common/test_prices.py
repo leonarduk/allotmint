@@ -196,6 +196,7 @@ def test_last_close_fallback_snapshot_does_not_double_convert_fx(monkeypatch: py
     monkeypatch.setattr(prices.instrument_api, "_resolve_full_ticker", lambda full, latest: ("USDX", "US"))
 
     snapshot = prices.get_price_snapshot([ticker])
+    assert snapshot[ticker]["price_currency"] == "GBP"
     monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", snapshot, raising=False)
     monkeypatch.setattr("backend.common.instrument_api._resolve_full_ticker", lambda t, _: ("USDX", "US"))
     monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda _: {"currency": "USD", "name": "USD X"})
@@ -249,3 +250,4 @@ def test_last_close_fallback_snapshot_marks_gbx_prices_as_gbp(monkeypatch: pytes
     rows = portfolio_utils.aggregate_by_ticker(portfolio, base_currency="GBP")
     assert rows[0]["last_price_gbp"] == pytest.approx(1.103)
     assert rows[0]["market_value_gbp"] == pytest.approx(319.87)
+    assert rows[0]["gain_gbp"] == pytest.approx(119.41)

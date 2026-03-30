@@ -41,9 +41,30 @@ export default function MarketOverview() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <p>{t('common.loading')}</p>;
-  if (error) return <p className="text-red-500">{error}</p>;
-  if (!data) return null;
+  const pageHeading = t('app.modes.market', { defaultValue: 'Market Overview' });
+  if (loading) {
+    return (
+      <div className="container mx-auto p-4">
+        <h1 className="mb-4 text-2xl">{pageHeading}</h1>
+        <p>{t('common.loading')}</p>
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="container mx-auto p-4">
+        <h1 className="mb-4 text-2xl">{pageHeading}</h1>
+        <p className="text-red-500">{error}</p>
+      </div>
+    );
+  }
+  if (!data) {
+    return (
+      <div className="container mx-auto p-4">
+        <h1 className="mb-4 text-2xl">{pageHeading}</h1>
+      </div>
+    );
+  }
 
   const indexData = Object.entries(data.indexes).map(
     ([name, { value, change }]) => ({
@@ -55,9 +76,7 @@ export default function MarketOverview() {
 
   return (
     <div className="container mx-auto p-4">
-      <h1 className="mb-4 text-2xl">
-        {t('app.modes.market', { defaultValue: 'Market Overview' })}
-      </h1>
+      <h1 className="mb-4 text-2xl">{pageHeading}</h1>
 
       <div className="mb-8">
         <h2 className="mb-2 text-xl">

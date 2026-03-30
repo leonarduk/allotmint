@@ -29,6 +29,7 @@ describe("pageManifest", () => {
   it("derives modes and paths from the same manifest", () => {
     expect(deriveModeFromPathname("/")).toBe("group");
     expect(deriveModeFromPathname("/portfolio/alex")).toBe("owner");
+    expect(deriveModeFromPathname("/alerts")).toBe("alerts");
     expect(deriveModeFromPathname("/alert-settings")).toBe("alertsettings");
     expect(deriveModeFromPathname("/support")).toBe("support");
     expect(deriveModeFromPathname("/totally-unknown")).toBe("movers");

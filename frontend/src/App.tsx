@@ -61,6 +61,7 @@ import Menu from "./components/Menu";
 import Rebalance from "./pages/Rebalance";
 import PensionForecast from "./pages/PensionForecast";
 import TaxTools from "./pages/TaxTools";
+import Alerts from "./pages/Alerts";
 import RightRail from "./components/RightRail";
 import { sanitizeOwners } from "./utils/owners";
 import {
@@ -568,6 +569,9 @@ export default function App({ onLogout }: AppProps) {
         {/* INSTRUMENT VIEW */}
         {mode === "instrument" && groups.length > 0 && (
           <>
+            <h1 className="mb-4 text-2xl">
+              {t("app.modes.instrument", { defaultValue: "Instruments" })}
+            </h1>
             {err && <p style={{ color: "red" }}>{err}</p>}
             {loading ? (
               <p>{t("app.loading")}</p>
@@ -621,6 +625,7 @@ export default function App({ onLogout }: AppProps) {
         {mode === "market" && <MarketOverview />}
         {mode === "movers" && <TopMovers />}
         {mode === "reports" && (isReportCreationRoute ? <ReportTemplateCreator /> : <Reports />)}
+        {mode === "alerts" && <Alerts />}
         {mode === "taxtools" && <TaxTools />}
         {mode === "support" && <Support />}
         {mode === "settings" && <UserConfigPage />}

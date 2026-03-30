@@ -5,7 +5,7 @@ Price utilities driven entirely by the live portfolio universe
     {
       "TICKER": {
         "last_price":      ...,
-        "price_currency":  "USD" | "GBP" | "GBp" | None,
+        "price_currency":  "GBP" | None,
         "change_7d_pct":   ...,
         "change_30d_pct":  ...,
         "last_price_date": "YYYY-MM-DD",
@@ -17,19 +17,11 @@ Price utilities driven entirely by the live portfolio universe
 
 Note on price_currency semantics
 ---------------------------------
-* When ``price`` comes from ``load_live_prices`` the value has already been
-  converted to GBP by that function, so ``price_currency`` is set to "GBP".
-* When ``price`` comes from the ``_load_latest_prices`` fallback it may be in
-  the instrument's native currency (e.g. USD, GBp).  We emit the real currency
-  code so that ``portfolio_utils.aggregate_by_ticker`` can apply the correct FX
-  conversion via its ``_normalize_currency_code`` / ``_fx_to_base`` logic.
-* When no price data is available at all, ``price_currency`` is ``None``.
-
-  IMPORTANT: currency codes are emitted with their original case from metadata.
-  "GBp" (mixed-case) is the conventional notation for pence and must NOT be
-  uppercased to "GBP" — doing so would lose the pence signal and cause
-  aggregate_by_ticker to skip the /100 correction, producing 100x overvaluation
-  for LSE instruments priced in pence.
+* ``load_live_prices`` returns GBP-normalised prices, so live snapshots emit
+  ``price_currency = "GBP"``.
+* ``_load_latest_prices`` also returns GBP-normalised prices, so fallback
+  snapshots emit ``price_currency = "GBP"``.
+* When no price is available, ``price_currency`` is ``None``.
 """
 
 from __future__ import annotations

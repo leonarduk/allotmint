@@ -18,6 +18,7 @@ export type Mode =
   | "settings"
   | "research"
   | "reports"
+  | "alerts"
   | "alertsettings"
   | "trade-compliance"
   | "trail"
@@ -45,6 +46,7 @@ export const MODES: Mode[] = [
   "virtual",
   "research",
   "reports",
+  "alerts",
   "alertsettings",
   "trade-compliance",
   "settings",

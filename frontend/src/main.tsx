@@ -46,7 +46,6 @@ if (storedToken) setAuthToken(storedToken);
 
 const App = lazy(() => import('./App.tsx'));
 const ComplianceWarnings = lazy(() => import('./pages/ComplianceWarnings'));
-const Alerts = lazy(() => import('./pages/Alerts'));
 const Goals = lazy(() => import('./pages/Goals'));
 const PerformanceDiagnostics = lazy(() => import('./pages/PerformanceDiagnostics'));
 const ReturnComparison = lazy(() => import('./pages/ReturnComparison'));
@@ -310,7 +309,6 @@ export function Root() {
               <Route key={route.routePath} path={route.routePath} element={<Component />} />,
             ];
           })}
-          <Route path="/alerts" element={<Alerts />} />
           <Route path="/goals" element={<Goals />} />
           <Route path="/smoke-test" element={<SmokeTest />} />
           <Route

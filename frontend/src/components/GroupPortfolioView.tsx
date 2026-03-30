@@ -747,7 +747,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
 
       {typeRows.length > 0 && (
         <div style={{ width: "100%", height: 240, margin: "1rem 0" }}>
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
             <PieChart>
               <Pie
                 dataKey="value"
@@ -794,7 +794,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
               Region
             </button>
           </div>
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
             <BarChart
               data={
                 contribTab === "sector"

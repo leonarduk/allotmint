@@ -36,6 +36,7 @@ After each strict run, preserve evidence in `RUN_DIR` and use the generated summ
 ### Canonical persisted path
 
 - Local durable storage path: `artifacts/issue-2581/<timestamp>/`
+- Use the timestamp format shown above: `YYYYMMDDTHHMMSSZ`
 - Do not move files out of this run directory; append new runs as sibling timestamped folders.
 
 ### What must be attached/linked on GitHub issue #2581
@@ -49,14 +50,15 @@ Attach these artifacts directly to the issue comment (or link to a durable inter
 - `audit_report.pdf`
 - `demo_report.pdf`
 
-The issue closure comment must include links/attachments to these exact artifacts.
+The issue closure comment must include links or attachments to these exact artifacts.
 
 ### What remains local by default
 
-Keep these under `RUN_DIR` for deeper review, and attach when requested:
+Keep these under `RUN_DIR` for deeper review, and attach them when requested:
 
 - Raw endpoint payloads (`portfolio_response.json`, `sectors.json`, `regions.json`, `var.json`)
-- Health/timing and transport logs (`backend_health.json`, `backend_health.timing`, `*.stderr`, `*.status`, `*.check.log`)
+- Manual external validation input (`broker_snapshot.txt`)
+- Health, timing, and transport logs (`backend_health.json`, `backend_health.timing`, `*.stderr`, `*.status`, `*.check.log`)
 
 ### Runner-produced closure helper
 
@@ -152,7 +154,7 @@ curl -sS "$API_BASE/portfolio/$OWNER" -o "$RUN_DIR/portfolio_response.json"
 ```
 
 Required external input:
-- Same-day broker snapshot saved to `broker_snapshot.txt`
+- Same-day broker snapshot saved to `$RUN_DIR/broker_snapshot.txt`
 
 Rules:
 1. Holdings integrity (hard fail/P1)
@@ -215,12 +217,17 @@ curl -sS "$API_BASE/reports/$OWNER/audit-report?format=pdf" -o "$RUN_DIR/audit_r
 Rules:
 1. Structural hard fail:
    - PDF opens without error
-   - Exactly 5 sections present. The required sections are:
-     1. Portfolio Summary (total value, date, owner)
-     2. Holdings Breakdown (top holdings table)
-     3. Sector Allocation
-     4. Risk Analysis (VaR and Sharpe)
-     5. Key Findings (from `key_findings.md`; omitted only if file is absent per Step 0.3)
+   - Section titles/order match the current built-in `audit-report` contract:
+     1. Portfolio overview
+     2. Sector allocation
+     3. Region allocation
+     4. Top holdings concentration
+     5. Portfolio risk *(optional; omitted when VaR inputs are unavailable)*
+     6. Key Findings *(optional; omitted when `key_findings.md` is absent or yields no valid lines)*
+   - Section-count rule derived from the same contract:
+     - minimum 4 sections (always-on core)
+     - maximum 6 sections (all optional sections present)
+     - `Key Findings`, when present, must be the final section
 2. Data reconciliation hard fail:
    - total value
    - VaR

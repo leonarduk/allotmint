@@ -7,7 +7,7 @@
 - Artifact directory (durable path under `artifacts/issue-2581/<timestamp>/`):
 - Environment lock file (attachment/link):
 - summary.json (attachment/link):
-- summary_for_issue.md source used (attachment/link):
+- summary_for_issue.md as generated (attachment/link):
 - evidence_manifest.txt (attachment/link):
 
 ## Step results matrix

@@ -481,7 +481,7 @@ def test_portfolio_var_partial_failure_one_confidence_level(monkeypatch):
 
     call_count = {"n": 0}
 
-    def _var(owner, confidence):
+    def _var(owner, confidence, include_cash=True):
         call_count["n"] += 1
         if confidence == 0.95:
             raise ValueError("no data for 0.95")

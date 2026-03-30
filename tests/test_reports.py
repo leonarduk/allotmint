@@ -295,11 +295,11 @@ def test_portfolio_section_builders(monkeypatch):
         ],
     )
     monkeypatch.setattr(
-        reports.risk_mod,
+        reports.risk,
         "compute_portfolio_var",
         lambda owner, confidence, include_cash=True: {"confidence": confidence, "1d": 12.345, "10d": 34.567},
     )
-    monkeypatch.setattr(reports.risk_mod, "compute_sharpe_ratio", lambda owner: 1.23456)
+    monkeypatch.setattr(reports.risk, "compute_sharpe_ratio", lambda owner: 1.23456)
     monkeypatch.setattr(reports, "get_template", lambda template_id, store=None: _portfolio_template())
 
     document = reports.build_report_document(
@@ -335,8 +335,8 @@ def test_portfolio_section_builders(monkeypatch):
     assert summary["n_holdings"] == 2
 
     var_rows = sources["portfolio.var"]
-    assert any(row["metric"] == "VaR" and row["confidence"] == 0.95 and row["horizon_days"] == 1 for row in var_rows)
-    assert any(row["metric"] == "Sharpe ratio" and row["value"] == pytest.approx(1.2346, abs=1e-4) for row in var_rows)
+    assert [row["metric"] for row in var_rows] == ["VaR (95%)", "VaR (99%)", "Sharpe ratio"]
+    assert any(row["metric"] == "Sharpe ratio" and row["value"] == pytest.approx(1.23456, abs=1e-6) for row in var_rows)
     # portfolio is loaded exactly once for all five sections
     assert build_calls["count"] == 1
     assert build_pricing_dates == [date(2024, 1, 31)]
@@ -489,7 +489,7 @@ def test_portfolio_var_partial_failure_one_confidence_level(monkeypatch):
 
     monkeypatch.setattr(
         reports,
-        "risk_mod",
+        "risk",
         SimpleNamespace(
             compute_portfolio_var=_var,
             compute_sharpe_ratio=lambda owner: None,
@@ -497,9 +497,8 @@ def test_portfolio_var_partial_failure_one_confidence_level(monkeypatch):
     )
     ctx = reports.ReportContext(owner="alice", start=None, end=None)
     result = reports._build_portfolio_var_section(ctx, reports.PORTFOLIO_VAR_SECTION)
-    # Only rows for confidence=0.99 (two horizons), Sharpe omitted because None
-    assert len(result) == 2
-    assert all(r["confidence"] == 0.99 for r in result)
+    # Only the 0.99 row is retained; Sharpe is omitted because None.
+    assert result == [{"metric": "VaR (99%)", "value": 5.0, "units": "GBP"}]
     assert call_count["n"] == 2  # both confidence levels were attempted
 
 
@@ -509,7 +508,7 @@ def test_portfolio_var_omits_sharpe_row_when_sharpe_fails(monkeypatch):
                         lambda owner, pricing_date=None: {"accounts": []})
     monkeypatch.setattr(
         reports,
-        "risk_mod",
+        "risk",
         SimpleNamespace(
             compute_portfolio_var=lambda owner, confidence, include_cash=True: {"confidence": confidence, "1d": 10.0, "10d": 20.0},
             compute_sharpe_ratio=Mock(side_effect=ValueError("no returns")),
@@ -517,7 +516,7 @@ def test_portfolio_var_omits_sharpe_row_when_sharpe_fails(monkeypatch):
     )
     ctx = reports.ReportContext(owner="alice", start=None, end=None)
     result = reports._build_portfolio_var_section(ctx, reports.PORTFOLIO_VAR_SECTION)
-    assert all(r["metric"] == "VaR" for r in result)
+    assert [row["metric"] for row in result] == ["VaR (95%)", "VaR (99%)"]
     assert not any(r["metric"] == "Sharpe ratio" for r in result)
 
 
@@ -527,7 +526,7 @@ def test_portfolio_var_returns_empty_when_var_rows_unavailable(monkeypatch):
                         lambda owner, pricing_date=None: {"accounts": []})
     monkeypatch.setattr(
         reports,
-        "risk_mod",
+        "risk",
         SimpleNamespace(
             compute_portfolio_var=Mock(side_effect=ValueError("no var rows")),
             compute_sharpe_ratio=Mock(return_value=2.0),
@@ -544,6 +543,7 @@ def test_portfolio_var_returns_empty_when_var_rows_unavailable(monkeypatch):
 
 def test_owner_portfolio_failure_is_cached_once_per_report_build(monkeypatch):
     call_count = {"count": 0}
+    var_call_count = {"count": 0}
 
     def _raise_on_build(owner, pricing_date=None):
         call_count["count"] += 1
@@ -559,6 +559,16 @@ def test_owner_portfolio_failure_is_cached_once_per_report_build(monkeypatch):
     monkeypatch.setattr(
         reports.portfolio_utils, "aggregate_by_ticker", lambda portfolio: pytest.fail("unexpected call")
     )
+    monkeypatch.setattr(
+        reports,
+        "risk",
+        SimpleNamespace(
+            compute_portfolio_var=lambda owner, confidence=0.95: var_call_count.__setitem__(
+                "count", var_call_count["count"] + 1
+            ),
+            compute_sharpe_ratio=lambda owner: pytest.fail("unexpected sharpe call"),
+        ),
+    )
     monkeypatch.setattr(reports, "get_template", lambda template_id, store=None: _portfolio_template())
 
     document = reports.build_report_document(
@@ -573,11 +583,13 @@ def test_owner_portfolio_failure_is_cached_once_per_report_build(monkeypatch):
     assert sources["portfolio.sectors"] == ()
     assert sources["portfolio.regions"] == ()
     assert sources["portfolio.concentration"] == ()
+    assert sources["portfolio.var"] == ()
+    assert var_call_count["count"] == 0
 
 
 def test_portfolio_sections_return_empty_when_optional_modules_missing(monkeypatch):
     monkeypatch.setattr(reports, "portfolio_mod", None)
-    monkeypatch.setattr(reports, "risk_mod", None)
+    monkeypatch.setattr(reports, "risk", None)
 
     context = reports.ReportContext(owner="alice", start=None, end=None)
 
@@ -1338,7 +1350,7 @@ def test_audit_template_builders_render_non_empty_rows(monkeypatch, caplog):
         ],
     )
     monkeypatch.setattr(
-        reports.risk_mod,
+        reports.risk,
         "compute_portfolio_var",
         lambda owner, confidence, include_cash=True: {
             "confidence": confidence,
@@ -1346,7 +1358,7 @@ def test_audit_template_builders_render_non_empty_rows(monkeypatch, caplog):
             "10d": 39.01 if confidence == 0.95 else 59.52,
         },
     )
-    monkeypatch.setattr(reports.risk_mod, "compute_sharpe_ratio", lambda owner: 1.23)
+    monkeypatch.setattr(reports.risk, "compute_sharpe_ratio", lambda owner: 1.23)
 
     with caplog.at_level("WARNING", logger=reports.logger.name):
         document = reports.build_report_document("audit-report", "alice")
@@ -1363,7 +1375,7 @@ def test_audit_template_builders_render_non_empty_rows(monkeypatch, caplog):
 def test_audit_risk_section_includes_var_and_sharpe(monkeypatch):
     monkeypatch.setattr(
         reports,
-        "risk_mod",
+        "risk",
         SimpleNamespace(
             compute_portfolio_var=lambda owner, confidence, include_cash=True: {
                 "confidence": confidence,
@@ -1393,8 +1405,7 @@ def test_audit_risk_section_includes_var_and_sharpe(monkeypatch):
 
     metrics = {row["metric"] for row in rows}
     assert "Sharpe ratio" in metrics
-    assert sum(1 for row in rows if row["metric"] == "VaR") == 4
-    assert {row["confidence"] for row in rows if row["metric"] == "VaR"} == {0.95, 0.99}
+    assert [row["metric"] for row in rows] == ["VaR (95%)", "VaR (99%)", "Sharpe ratio"]
 
 
 def test_build_report_document_omits_empty_var_section_for_audit_report(monkeypatch, tmp_path):

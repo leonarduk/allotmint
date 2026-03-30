@@ -109,9 +109,9 @@ export default function Alerts() {
           {paddingTop > 0 && <li style={{ height: paddingTop }} />}
           {items.map((virtualRow) => {
             const a = alerts[virtualRow.index];
-            const key = (a as any)?.id ?? `${a.ticker}-${virtualRow.index}`;
             const alertLabel =
               typeof a.ticker === "string" && a.ticker.trim().length > 0 ? a.ticker.trim() : "Alert";
+            const key = `${alertLabel}-${a.message}-${a.timestamp}-${virtualRow.index}`;
             return (
               <li key={key} style={{ height: 32, display: "flex", alignItems: "center" }}>
                 <strong>{alertLabel}</strong>: {a.message}

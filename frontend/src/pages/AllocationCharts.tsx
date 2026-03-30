@@ -242,7 +242,7 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
       {error && <p className="text-red-500">{error}</p>}
       <div style={{ width: "100%", height: 400 }}>
         {supportsResizeObserver ? (
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
             <PieChart>
               <Pie
                 data={chartData}

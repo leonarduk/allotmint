@@ -181,7 +181,7 @@ export function PortfolioView({ data, loading, error, onDateChange }: Props) {
               </p>
             ) : sectorContrib && sectorContrib.length > 0 ? (
               <div className="h-64 w-full">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                   <BarChart data={sectorContrib}>
                     <XAxis dataKey="sector" interval={0} angle={-35} textAnchor="end" height={70} />
                     <YAxis />

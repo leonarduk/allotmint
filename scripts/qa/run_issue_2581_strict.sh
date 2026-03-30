@@ -175,6 +175,11 @@ capture_broker_snapshot() {
     if [[ -f "$BROKER_SNAPSHOT_RUN_PATH" ]]; then
       return
     fi
+    if [[ -f "$RUN_DIR/broker_snapshot.txt" ]]; then
+      cp "$RUN_DIR/broker_snapshot.txt" "$BROKER_SNAPSHOT_RUN_PATH"
+      record_failure "P2" "step2" "Using legacy broker_snapshot.txt fallback; migrate to broker_snapshot.json"
+      return
+    fi
     record_failure "P1" "step2" "BROKER_SNAPSHOT_PATH is required unless RUN_DIR/broker_snapshot.json already exists"
     : >"$BROKER_SNAPSHOT_RUN_PATH.missing"
     return

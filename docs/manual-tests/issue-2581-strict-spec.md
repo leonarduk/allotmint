@@ -166,6 +166,7 @@ Required external input:
   - portfolio-level numeric total, resolved in this precedence order: `total_value` → `portfolio_value` → `total`
   - holdings list entries with symbol (`ticker`/`symbol`) and numeric value resolved in this precedence order: `market_value` → `value` → `position_value` → `current_value` → `amount`
 - If a non-JSON broker snapshot is provided, the runner records a P2 and skips automated Step 2 reconciliation (manual review required).
+- Legacy compatibility: if `BROKER_SNAPSHOT_PATH` is unset and `$RUN_DIR/broker_snapshot.txt` exists, the runner copies it to `broker_snapshot.json` and records a P2 migration warning.
 
 Rules:
 1. Holdings integrity (hard fail/P1)

@@ -693,7 +693,10 @@ class ReportContext:
 
     def portfolio(self) -> Dict[str, Any]:
         if self._portfolio is None:
-            self._portfolio = _portfolio_snapshot(self.owner) or {}
+            if self.end is None:
+                self._portfolio = _portfolio_snapshot(self.owner) or {}
+            else:
+                self._portfolio = _portfolio_snapshot(self.owner, pricing_date=self.end) or {}
         return dict(self._portfolio)
 
 
@@ -871,10 +874,10 @@ def _build_allocation_section(
     return context.allocation()
 
 
-def _portfolio_snapshot(owner: str) -> Dict[str, Any]:
+def _portfolio_snapshot(owner: str, pricing_date: date | None = None) -> Dict[str, Any]:
     if portfolio_mod is None:
         return {}
-    return portfolio_mod.build_owner_portfolio(owner)
+    return portfolio_mod.build_owner_portfolio(owner, pricing_date=pricing_date)
 
 
 def _safe_float(value: Any) -> float | None:

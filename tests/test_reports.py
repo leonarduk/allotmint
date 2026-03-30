@@ -873,6 +873,21 @@ def test_report_context_allocation_rounds_and_sorts(monkeypatch):
     assert allocation[1]["ticker"] == "ABC.N"
 
 
+def test_report_context_portfolio_uses_end_date_for_snapshot(monkeypatch):
+    observed_calls: list[tuple[str, date | None]] = []
+
+    def fake_snapshot(owner: str, pricing_date: date | None = None):
+        observed_calls.append((owner, pricing_date))
+        return {"accounts": []}
+
+    monkeypatch.setattr(reports, "_portfolio_snapshot", fake_snapshot)
+
+    context = reports.ReportContext("alice", start=None, end=date(2024, 1, 1))
+    _ = context.portfolio()
+
+    assert observed_calls == [("alice", date(2024, 1, 1))]
+
+
 def test_build_report_document_warns_on_missing_builder(monkeypatch, caplog):
     template = reports.ReportTemplate(
         template_id="custom",

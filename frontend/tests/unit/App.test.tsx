@@ -571,6 +571,107 @@ describe("App", () => {
     expect(locationUpdates.some((path) => path.startsWith("/performance"))).toBe(false);
   });
 
+  it("navigates to the exact encoded URL path when selecting an owner from the portfolio body selector", async () => {
+    // Regression test for https://github.com/leonarduk/allotmint/issues/2653
+    // Asserts that the body OwnerSelector (data-testid="portfolio-owner-selector") calls
+    // handleOwnerSelectPortfolio, which navigates to /portfolio/<owner> and NOT just
+    // updates state (the original bug: setSelectedOwner was called directly without navigate).
+    window.history.pushState({}, "", "/portfolio/alice");
+
+    const mockGetOwners = vi
+      .fn()
+      .mockResolvedValue([
+        { owner: "alice", accounts: [] },
+        { owner: "bob", accounts: [] },
+      ]);
+    const mockGetPortfolio = vi.fn().mockImplementation((owner: string) =>
+      Promise.resolve({
+        owner,
+        as_of: "2024-01-01T00:00:00.000Z",
+        trades_this_month: 0,
+        trades_remaining: 0,
+        total_value_estimate_gbp: 0,
+        accounts: [],
+      }),
+    );
+
+    mockTradingSignals.mockResolvedValue([]);
+
+    vi.doMock("@/components/PerformanceDashboard", () => ({
+      __esModule: true,
+      default: () => <div data-testid="performance-dashboard" />,
+    }));
+
+    vi.doMock("@/api", async () => {
+      const actual = await vi.importActual<typeof import("@/api")>("@/api");
+      return {
+        ...actual,
+        getOwners: mockGetOwners,
+        getGroups: vi.fn().mockResolvedValue([]),
+        getPortfolio: mockGetPortfolio,
+        getGroupInstruments: vi.fn().mockResolvedValue([]),
+        getGroupPortfolio: vi.fn(),
+        getGroupAlphaVsBenchmark: vi.fn(),
+        getGroupTrackingError: vi.fn(),
+        getGroupMaxDrawdown: vi.fn(),
+        getGroupSectorContributions: vi.fn(),
+        getGroupRegionContributions: vi.fn(),
+        getGroupMovers: vi.fn(),
+        getCachedGroupInstruments: vi.fn(),
+        getAlerts: vi.fn().mockResolvedValue([]),
+        getNudges: vi.fn().mockResolvedValue([]),
+        getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+        getCompliance: vi.fn().mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+        complianceForOwner: vi.fn().mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+        getTimeseries: vi.fn().mockResolvedValue([]),
+        saveTimeseries: vi.fn(),
+        refetchTimeseries: vi.fn(),
+        rebuildTimeseriesCache: vi.fn(),
+        listTimeseries: vi.fn().mockResolvedValue([]),
+        listInstrumentMetadata: vi.fn().mockResolvedValue([]),
+        listInstrumentGroups: vi.fn().mockResolvedValue([]),
+        listInstrumentGroupingDefinitions: vi.fn().mockResolvedValue([]),
+        assignInstrumentGroup: vi.fn(),
+        clearInstrumentGroup: vi.fn(),
+        createInstrumentGroup: vi.fn(),
+        getTradingSignals: mockTradingSignals,
+        getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+        getValueAtRisk: vi.fn().mockResolvedValue({ var: {} }),
+        recomputeValueAtRisk: vi.fn(),
+        getVarBreakdown: vi.fn().mockResolvedValue([]),
+      };
+    });
+
+    const { default: App } = await import("@/App");
+    const user = userEvent.setup();
+
+    const router = createMemoryRouter(
+      [{ path: "*", element: <App /> }],
+      { initialEntries: ["/portfolio/alice"] },
+    );
+
+    render(<RouterProvider router={router} />);
+
+    // Wait for owners to load and selector to be populated
+    const ownerSelectorContainer = await screen.findByTestId("portfolio-owner-selector");
+    const portfolioSelector = within(ownerSelectorContainer).getByLabelText(/owner/i);
+    await waitFor(() => {
+      expect((portfolioSelector as HTMLSelectElement).options.length).toBeGreaterThan(1);
+    });
+
+    // Select bob — this exercises handleOwnerSelectPortfolio via the body selector
+    await user.selectOptions(portfolioSelector as HTMLSelectElement, "bob");
+
+    // Assert the exact URL pushed to history — not just "starts with /portfolio"
+    await waitFor(() => expect(router.state.location.pathname).toBe("/portfolio/bob"));
+
+    // Confirm the portfolio was fetched for the new owner
+    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("bob"));
+
+    // Confirm we never landed on /performance (wrong handler would navigate there)
+    expect(router.state.location.pathname.startsWith("/performance")).toBe(false);
+  });
+
   it("redirects /portfolio to the first owner when multiple owners are available", async () => {
     window.history.pushState({}, "", "/portfolio");
 

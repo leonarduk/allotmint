@@ -754,6 +754,12 @@ def _parse_key_findings_text(content: str, *, source_name: str = "key findings")
         value = line.strip()
         if not value:
             continue
+        if re.match(r"^#{1,6}\s+\S", value):
+            continue
+        if re.match(r"^(=|-){3,}$", value):
+            continue
+        if re.match(r"^key findings:?$", value, flags=re.IGNORECASE):
+            continue
         if value.startswith(("- ", "* ", "\u2022 ")):
             value = value[2:].strip()
         else:

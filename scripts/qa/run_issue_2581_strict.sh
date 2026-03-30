@@ -12,6 +12,11 @@ RUN_DIR="${RUN_DIR:-artifacts/issue-2581/$(date -u +%Y%m%dT%H%M%SZ)}"
 SNAPSHOT_TIME_UTC="${SNAPSHOT_TIME_UTC:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
 BROKER_SNAPSHOT_TIME_UTC="${BROKER_SNAPSHOT_TIME_UTC:-}"
 SYSTEM_FETCH_TIME_UTC="${SYSTEM_FETCH_TIME_UTC:-}"
+FRONTEND_SCREENSHOT_PATH="${FRONTEND_SCREENSHOT_PATH:-}"
+STARTUP_LOG_PATH="${STARTUP_LOG_PATH:-}"
+BROKER_SNAPSHOT_PATH="${BROKER_SNAPSHOT_PATH:-}"
+DEMO_PRODUCT_GATE_RESULT="${DEMO_PRODUCT_GATE_RESULT:-}"
+BROKER_SNAPSHOT_RUN_PATH="$RUN_DIR/broker_snapshot.json"
 
 mkdir -p "$RUN_DIR"
 
@@ -142,6 +147,140 @@ if lat >= 2.0:
 PY
 }
 
+capture_step1_artifacts() {
+  local crash_pattern='(Traceback|Unhandled|Segmentation fault|Fatal|ERROR:|Exception)'
+
+  if [[ -n "$FRONTEND_SCREENSHOT_PATH" && -f "$FRONTEND_SCREENSHOT_PATH" ]]; then
+    cp "$FRONTEND_SCREENSHOT_PATH" "$RUN_DIR/frontend_screenshot.png"
+  else
+    : >"$RUN_DIR/frontend_screenshot.png.missing"
+    record_failure "P1" "step1" "Missing frontend screenshot evidence (set FRONTEND_SCREENSHOT_PATH)"
+  fi
+
+  if [[ -n "$STARTUP_LOG_PATH" && -f "$STARTUP_LOG_PATH" ]]; then
+    cp "$STARTUP_LOG_PATH" "$RUN_DIR/startup_log.txt"
+  else
+    : >"$RUN_DIR/startup_log.txt.missing"
+    record_failure "P1" "step1" "Missing startup log evidence (set STARTUP_LOG_PATH)"
+    return
+  fi
+
+  if grep -Eq "$crash_pattern" "$RUN_DIR/startup_log.txt"; then
+    record_failure "P1" "step1" "Startup log contains crash/error signatures"
+  fi
+}
+
+capture_broker_snapshot() {
+  if [[ -z "$BROKER_SNAPSHOT_PATH" ]]; then
+    if [[ -f "$BROKER_SNAPSHOT_RUN_PATH" ]]; then
+      return
+    fi
+    record_failure "P1" "step2" "BROKER_SNAPSHOT_PATH is required unless RUN_DIR/broker_snapshot.json already exists"
+    : >"$BROKER_SNAPSHOT_RUN_PATH.missing"
+    return
+  fi
+
+  if [[ ! -f "$BROKER_SNAPSHOT_PATH" ]]; then
+    record_failure "P1" "step2" "BROKER_SNAPSHOT_PATH not found: $BROKER_SNAPSHOT_PATH"
+    : >"$BROKER_SNAPSHOT_RUN_PATH.missing"
+    return
+  fi
+
+  cp "$BROKER_SNAPSHOT_PATH" "$BROKER_SNAPSHOT_RUN_PATH"
+}
+
+broker_snapshot_is_json_object() {
+  python3 - "$BROKER_SNAPSHOT_RUN_PATH" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as f:
+    data = json.load(f)
+
+if not isinstance(data, dict):
+    raise ValueError("Broker snapshot must be a JSON object")
+PY
+}
+
+check_portfolio_vs_broker_snapshot() {
+  python3 - "$RUN_DIR/portfolio_response.json" "$BROKER_SNAPSHOT_RUN_PATH" <<'PY'
+import json
+import sys
+from typing import Any
+
+portfolio_path, broker_path = sys.argv[1:3]
+with open(portfolio_path, "r", encoding="utf-8") as f:
+    portfolio = json.load(f)
+with open(broker_path, "r", encoding="utf-8") as f:
+    broker = json.load(f)
+
+if not isinstance(broker, dict):
+    raise ValueError("Broker snapshot must be a JSON object")
+
+def first_numeric(node: Any, keys: tuple[str, ...]):
+    if isinstance(node, dict):
+        for key in keys:
+            value = node.get(key)
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                return float(value)
+        for child in node.values():
+            found = first_numeric(child, keys)
+            if found is not None:
+                return found
+    elif isinstance(node, list):
+        for child in node:
+            found = first_numeric(child, keys)
+            if found is not None:
+                return found
+    return None
+
+def extract_holdings(node: Any):
+    holdings = []
+    if isinstance(node, dict):
+        symbol = node.get("ticker") or node.get("symbol") or node.get("instrument") or node.get("name")
+        value = first_numeric(node, ("market_value", "value", "position_value", "current_value", "amount"))
+        if isinstance(symbol, str) and value is not None:
+            holdings.append((symbol.strip().upper(), float(value)))
+        for child in node.values():
+            holdings.extend(extract_holdings(child))
+    elif isinstance(node, list):
+        for child in node:
+            holdings.extend(extract_holdings(child))
+    return holdings
+
+broker_total = first_numeric(broker, ("total_value", "portfolio_value", "total"))
+portfolio_total = first_numeric(portfolio, ("total_value", "portfolio_value", "total"))
+if broker_total is None or portfolio_total is None:
+    raise ValueError("Could not read total portfolio values from broker or portfolio payload")
+
+if broker_total <= 0 or portfolio_total <= 0:
+    raise ValueError("Broker/portfolio totals must be positive")
+
+delta_pct = abs(portfolio_total - broker_total) / broker_total * 100
+if delta_pct > 2:
+    raise ValueError(f"Portfolio total delta is {delta_pct:.3f}% (>2% P1 threshold)")
+
+broker_holdings = {}
+for symbol, value in extract_holdings(broker):
+    broker_holdings[symbol] = max(value, broker_holdings.get(symbol, 0.0))
+
+portfolio_holdings = extract_holdings(portfolio)
+portfolio_holdings = sorted(portfolio_holdings, key=lambda x: x[1], reverse=True)[:10]
+if not portfolio_holdings:
+    raise ValueError("No holdings found in portfolio payload for top-10 reconciliation")
+
+for symbol, value in portfolio_holdings:
+    broker_value = broker_holdings.get(symbol)
+    if broker_value is None:
+        raise ValueError(f"Missing broker holding for top position: {symbol}")
+    if broker_value <= 0:
+        raise ValueError(f"Invalid broker value for holding {symbol}")
+    position_delta = abs(value - broker_value) / broker_value * 100
+    if position_delta > 1:
+        raise ValueError(f"Holding {symbol} delta {position_delta:.3f}% exceeds 1% threshold")
+PY
+}
+
 check_no_null_or_negative_weights() {
   local json_file="$1"
   local label="$2"
@@ -255,6 +394,153 @@ if "Portfolio risk" in titles and titles.index("Portfolio risk") != 4:
 PY
 }
 
+check_pdf_total_and_var_reconciliation() {
+  python3 - \
+    "$RUN_DIR/audit_report.json" \
+    "$RUN_DIR/portfolio_response.json" \
+    "$RUN_DIR/var.json" <<'PY'
+import json
+import sys
+from typing import Any
+
+audit_path, portfolio_path, var_path = sys.argv[1:]
+with open(audit_path, "r", encoding="utf-8") as f:
+    audit = json.load(f)
+with open(portfolio_path, "r", encoding="utf-8") as f:
+    portfolio = json.load(f)
+with open(var_path, "r", encoding="utf-8") as f:
+    var_data = json.load(f)
+
+def first_numeric(node: Any, keys: tuple[str, ...]):
+    if isinstance(node, dict):
+        for key in keys:
+            value = node.get(key)
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                return float(value)
+        for child in node.values():
+            found = first_numeric(child, keys)
+            if found is not None:
+                return found
+    elif isinstance(node, list):
+        for child in node:
+            found = first_numeric(child, keys)
+            if found is not None:
+                return found
+    return None
+
+audit_total = first_numeric(audit, ("total_value", "portfolio_value", "total"))
+portfolio_total = first_numeric(portfolio, ("total_value", "portfolio_value", "total"))
+if audit_total is None or portfolio_total is None:
+    raise ValueError("Missing total value for audit/portfolio reconciliation")
+if abs(audit_total - portfolio_total) > 0.5:
+    raise ValueError("Audit total value does not reconcile with portfolio endpoint (±0.5 tolerance)")
+
+audit_var = first_numeric(audit, ("var", "var_pct", "value_at_risk"))
+endpoint_var = first_numeric(var_data, ("var", "var_pct", "value_at_risk"))
+if audit_var is None or endpoint_var is None:
+    raise ValueError("Missing VaR value for reconciliation")
+if abs(audit_var - endpoint_var) > 0.01:
+    raise ValueError("Audit VaR does not reconcile with /var endpoint (±0.01 tolerance)")
+PY
+}
+
+check_pdf_sector_region_reconciliation() {
+  python3 - \
+    "$RUN_DIR/audit_report.json" \
+    "$RUN_DIR/sectors.json" \
+    "$RUN_DIR/regions.json" <<'PY'
+import json
+import sys
+from typing import Any
+
+audit_path, sectors_path, regions_path = sys.argv[1:]
+with open(audit_path, "r", encoding="utf-8") as f:
+    audit = json.load(f)
+with open(sectors_path, "r", encoding="utf-8") as f:
+    sectors = json.load(f)
+with open(regions_path, "r", encoding="utf-8") as f:
+    regions = json.load(f)
+
+def first_numeric(node: Any, keys: tuple[str, ...]):
+    if isinstance(node, dict):
+        for key in keys:
+            value = node.get(key)
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                return float(value)
+        for child in node.values():
+            found = first_numeric(child, keys)
+            if found is not None:
+                return found
+    elif isinstance(node, list):
+        for child in node:
+            found = first_numeric(child, keys)
+            if found is not None:
+                return found
+    return None
+
+def extract_labeled_weight(node: Any):
+    if isinstance(node, list):
+        for entry in node:
+            if isinstance(entry, dict):
+                label = entry.get("name") or entry.get("label") or entry.get("sector") or entry.get("region")
+                weight = first_numeric(entry, ("weight", "percentage", "percent", "value_pct"))
+                if isinstance(label, str) and weight is not None:
+                    return label, float(weight)
+    if isinstance(node, dict):
+        for value in node.values():
+            result = extract_labeled_weight(value)
+            if result is not None:
+                return result
+    return None
+
+def value_from_section_title(report: Any, section_title: str):
+    if not isinstance(report, dict):
+        return None
+    sections = report.get("sections")
+    if not isinstance(sections, list):
+        return None
+    for section in sections:
+        if not isinstance(section, dict):
+            continue
+        title = section.get("title")
+        if title == section_title:
+            return first_numeric(section, ("weight", "percentage", "percent", "value_pct", "value"))
+    return None
+
+sector = extract_labeled_weight(sectors)
+region = extract_labeled_weight(regions)
+if sector is None or region is None:
+    raise ValueError("Could not identify representative sector/region weights")
+
+sector_label, sector_weight = sector
+region_label, region_weight = region
+audit_blob = json.dumps(audit)
+if sector_label not in audit_blob or region_label not in audit_blob:
+    raise ValueError("Audit report missing sector/region labels present in endpoints")
+
+audit_sector_weight = value_from_section_title(audit, "Sector allocation")
+audit_region_weight = value_from_section_title(audit, "Region allocation")
+if audit_sector_weight is None or abs(audit_sector_weight - sector_weight) > 1.0:
+    raise ValueError("Audit sector percentage does not reconcile within ±1")
+if audit_region_weight is None or abs(audit_region_weight - region_weight) > 1.0:
+    raise ValueError("Audit region percentage does not reconcile within ±1")
+PY
+}
+
+check_demo_watermark() {
+  if ! grep -aq "SAMPLE" "$RUN_DIR/demo_report.pdf"; then
+    record_failure "P1" "step6" "Demo PDF watermark 'SAMPLE' not detected"
+  fi
+}
+
+check_demo_product_gate() {
+  local normalized
+  normalized=$(echo "$DEMO_PRODUCT_GATE_RESULT" | tr '[:lower:]' '[:upper:]')
+  if [[ "$normalized" != "YES" ]]; then
+    record_failure "P1" "step6" "Step 6 product gate must be YES (set DEMO_PRODUCT_GATE_RESULT=YES)"
+  fi
+}
+
 write_summary() {
   run_verdict="PASS"
   if (( failure_count > 0 )); then
@@ -305,7 +591,7 @@ Required local durable evidence
 - frontend_screenshot.png
 - startup_log.txt
 - portfolio_response.json
-- broker_snapshot.txt
+- broker_snapshot.json
 - sectors.json
 - regions.json
 - var.json
@@ -352,7 +638,7 @@ $failure_lines
 - \`frontend_screenshot.png\`
 - \`startup_log.txt\`
 - \`portfolio_response.json\`
-- \`broker_snapshot.txt\`
+- \`broker_snapshot.json\`
 - \`sectors.json\`
 - \`regions.json\`
 - \`var.json\`
@@ -376,9 +662,20 @@ main() {
   if ! check_health_latency; then
     record_failure "P1" "step1" "Backend /health latency >= 2s"
   fi
+  capture_step1_artifacts
 
   # Step 2
   curl_json "$API_BASE/portfolio/$OWNER" "$RUN_DIR/portfolio_response.json"
+  capture_broker_snapshot
+  if [[ -f "$BROKER_SNAPSHOT_RUN_PATH" ]]; then
+    if broker_snapshot_is_json_object 2>>"$RUN_DIR/portfolio_vs_broker.check.log"; then
+      if ! check_portfolio_vs_broker_snapshot 2>>"$RUN_DIR/portfolio_vs_broker.check.log"; then
+        record_failure "P1" "step2" "Portfolio reconciliation against broker snapshot failed"
+      fi
+    else
+      record_failure "P2" "step2" "Broker snapshot is non-JSON; automated reconciliation skipped (manual review required)"
+    fi
+  fi
 
   # Step 3
   curl_json "$API_BASE/portfolio/$OWNER/sectors" "$RUN_DIR/sectors.json"
@@ -407,6 +704,12 @@ main() {
   if [[ -f "$RUN_DIR/audit_report.json" ]] && ! check_audit_report_sections "$RUN_DIR/audit_report.json" 2>>"$RUN_DIR/audit_report.check.log"; then
     record_failure "P1" "step5" "Audit report section contract check failed"
   fi
+  if [[ -f "$RUN_DIR/audit_report.json" ]] && ! check_pdf_total_and_var_reconciliation 2>>"$RUN_DIR/audit_reconciliation.check.log"; then
+    record_failure "P1" "step5" "Audit total/VaR reconciliation against endpoints failed"
+  fi
+  if [[ -f "$RUN_DIR/audit_report.json" ]] && ! check_pdf_sector_region_reconciliation 2>>"$RUN_DIR/audit_reconciliation.check.log"; then
+    record_failure "P1" "step5" "Audit JSON reconciliation against endpoints failed"
+  fi
 
   # Step 6
   local demo_code
@@ -415,6 +718,10 @@ main() {
   if [[ "$demo_code" != "200" ]]; then
     record_failure "P1" "step6" "Demo PDF generation failed with status $demo_code"
   fi
+  if [[ -f "$RUN_DIR/demo_report.pdf" ]]; then
+    check_demo_watermark
+  fi
+  check_demo_product_gate
 
   write_summary
   write_evidence_manifest

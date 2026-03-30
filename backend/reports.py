@@ -693,10 +693,7 @@ class ReportContext:
 
     def portfolio(self) -> Dict[str, Any]:
         if self._portfolio is None:
-            if self.end is None:
-                self._portfolio = _portfolio_snapshot(self.owner) or {}
-            else:
-                self._portfolio = _portfolio_snapshot(self.owner, pricing_date=self.end) or {}
+            self._portfolio = _portfolio_snapshot(self.owner, pricing_date=self.end) or {}
         return dict(self._portfolio)
 
 

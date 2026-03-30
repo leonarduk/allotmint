@@ -872,7 +872,7 @@ def test_portfolio_section_builders_reuse_cached_snapshot(monkeypatch):
         "accounts": [{"id": "acc-1", "holdings": [{"ticker": "AAA"}, {"ticker": "BBB"}]}],
     }
 
-    def fake_snapshot(owner):
+    def fake_snapshot(owner, pricing_date=None):
         nonlocal snapshot_calls
         snapshot_calls += 1
         return mock_portfolio
@@ -910,7 +910,7 @@ def test_portfolio_section_builders_return_declared_schema_keys(monkeypatch):
     monkeypatch.setattr(
         reports,
         "_portfolio_snapshot",
-        lambda owner: {"accounts": [{"holdings": [{"ticker": "AAA"}]}]},
+        lambda owner, pricing_date=None: {"accounts": [{"holdings": [{"ticker": "AAA"}]}]},
     )
     monkeypatch.setattr(
         reports.portfolio_utils,
@@ -948,7 +948,9 @@ def test_audit_concentration_hhi_uses_full_holding_set(monkeypatch):
     monkeypatch.setattr(
         reports,
         "_portfolio_snapshot",
-        lambda owner: {"accounts": [{"holdings": [{"ticker": row["ticker"]} for row in tickers]}]},
+        lambda owner, pricing_date=None: {
+            "accounts": [{"holdings": [{"ticker": row["ticker"]} for row in tickers]}]
+        },
     )
     monkeypatch.setattr(reports.portfolio_utils, "aggregate_by_ticker", lambda pf: tickers)
     context = reports.ReportContext(owner="alice", start=None, end=None)
@@ -1058,7 +1060,7 @@ def test_portfolio_overview_counts_nested_holdings(monkeypatch):
     monkeypatch.setattr(
         reports,
         "_portfolio_snapshot",
-        lambda owner: {
+        lambda owner, pricing_date=None: {
             "total_value_estimate_gbp": 900.0,
             "accounts": [
                 {"id": "a1", "holdings": [{"ticker": "AAA"}, {"ticker": "BBB"}]},
@@ -1083,7 +1085,7 @@ def test_portfolio_overview_counts_nested_holdings(monkeypatch):
     ],
 )
 def test_portfolio_builders_handle_missing_snapshot(monkeypatch, builder, section):
-    monkeypatch.setattr(reports, "_portfolio_snapshot", lambda owner: None)
+    monkeypatch.setattr(reports, "_portfolio_snapshot", lambda owner, pricing_date=None: None)
     monkeypatch.setattr(reports.portfolio_utils, "aggregate_by_sector", lambda pf: [])
     monkeypatch.setattr(reports.portfolio_utils, "aggregate_by_region", lambda pf: [])
     monkeypatch.setattr(reports.portfolio_utils, "aggregate_by_ticker", lambda pf: [])

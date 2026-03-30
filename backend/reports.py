@@ -750,15 +750,21 @@ def _normalise_transaction(
 def _parse_key_findings_text(content: str, *, source_name: str = "key findings") -> List[Dict[str, str]]:
     max_length = 500
     findings: List[Dict[str, str]] = []
+    previous_non_empty = ""
     for line in content.splitlines():
         value = line.strip()
         if not value:
             continue
-        if re.match(r"^#{1,6}\s+\S", value):
+        if re.match(r"^#{1,6}(?:\s|$)", value):
+            previous_non_empty = value
             continue
-        if re.match(r"^(=|-){3,}$", value):
+        if re.match(r"^(=|-){3,}$", value) and re.match(
+            r"^key findings:?$", previous_non_empty, flags=re.IGNORECASE
+        ):
+            previous_non_empty = value
             continue
         if re.match(r"^key findings:?$", value, flags=re.IGNORECASE):
+            previous_non_empty = value
             continue
         if value.startswith(("- ", "* ", "\u2022 ")):
             value = value[2:].strip()
@@ -779,8 +785,10 @@ def _parse_key_findings_text(content: str, *, source_name: str = "key findings")
                 max_length,
                 value,
             )
+            previous_non_empty = value
             continue
         findings.append({"finding": value})
+        previous_non_empty = value
     return findings
 
 

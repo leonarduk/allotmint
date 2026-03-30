@@ -36,6 +36,8 @@ require_cmd() {
 require_cmd curl
 require_cmd jq
 require_cmd python3
+require_cmd rg
+require_cmd strings
 
 if [[ -z "$OWNER" || -z "$GROUP_SLUG" ]]; then
   die "OWNER and GROUP_SLUG are required"

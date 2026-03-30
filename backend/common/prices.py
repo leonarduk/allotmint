@@ -5,7 +5,7 @@ Price utilities driven entirely by the live portfolio universe
     {
       "TICKER": {
         "last_price":      ...,
-        "price_currency":  "USD" | "GBP" | "GBp" | None,
+        "price_currency":  "GBP" | None,
         "change_7d_pct":   ...,
         "change_30d_pct":  ...,
         "last_price_date": "YYYY-MM-DD",
@@ -17,19 +17,11 @@ Price utilities driven entirely by the live portfolio universe
 
 Note on price_currency semantics
 ---------------------------------
-* When ``price`` comes from ``load_live_prices`` the value has already been
-  converted to GBP by that function, so ``price_currency`` is set to "GBP".
-* When ``price`` comes from the ``_load_latest_prices`` fallback it may be in
-  the instrument's native currency (e.g. USD, GBp).  We emit the real currency
-  code so that ``portfolio_utils.aggregate_by_ticker`` can apply the correct FX
-  conversion via its ``_normalize_currency_code`` / ``_fx_to_base`` logic.
-* When no price data is available at all, ``price_currency`` is ``None``.
-
-  IMPORTANT: currency codes are emitted with their original case from metadata.
-  "GBp" (mixed-case) is the conventional notation for pence and must NOT be
-  uppercased to "GBP" — doing so would lose the pence signal and cause
-  aggregate_by_ticker to skip the /100 correction, producing 100x overvaluation
-  for LSE instruments priced in pence.
+* ``load_live_prices`` returns GBP-normalised prices, so live snapshots emit
+  ``price_currency = "GBP"``.
+* ``_load_latest_prices`` also returns GBP-normalised prices, so fallback
+  snapshots emit ``price_currency = "GBP"``.
+* When no price is available, ``price_currency`` is ``None``.
 """
 
 from __future__ import annotations
@@ -48,7 +40,6 @@ from backend.common.holding_utils import (
     load_latest_prices as _load_latest_prices,
     load_live_prices,
 )
-from backend.common.instruments import get_instrument_meta
 from backend.common.portfolio_loader import list_portfolios
 from backend.common.portfolio_utils import (
     list_all_unique_tickers,
@@ -113,23 +104,6 @@ def _close_on(sym: str, exch: str, d: date) -> Optional[float]:
     return value
 
 
-def _instrument_currency(full_ticker: str) -> str:
-    """Return the native currency for *full_ticker* from instrument metadata.
-
-    The currency code is returned with its original case from the metadata file.
-    Do NOT uppercase it: "GBp" (pence) must be preserved as-is so that
-    ``_normalize_currency_code`` in portfolio_utils can detect it and apply
-    the pence→pounds /100 correction.  Uppercasing "GBp" to "GBP" would
-    silently cause a 100x overvaluation for LSE instruments.
-
-    Falls back to "GBP" when metadata is unavailable or the currency field is
-    absent, which is the safe default for LSE-listed instruments.
-    """
-    meta = get_instrument_meta(full_ticker)
-    ccy = (meta.get("currency") or "").strip()  # strip whitespace only — preserve case
-    return ccy if ccy else "GBP"
-
-
 def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
     """Return last price and 7/30 day % changes for each ticker.
 
@@ -137,11 +111,10 @@ def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
     cache via ``fetch_meta_timeseries`` beforehand. Missing data results in
     ``None`` values so downstream consumers can skip incomplete entries.
 
-    ``price_currency`` reflects the *actual* currency of ``last_price``
-    with original case preserved (e.g. "GBp" not "GBP" for pence):
+    ``price_currency`` reflects the *actual* currency of ``last_price``:
     - Live-price path: ``load_live_prices`` already converts to GBP → "GBP".
-    - Last-close fallback: native instrument currency so that
-      ``portfolio_utils.aggregate_by_ticker`` can apply FX via its own logic.
+    - Last-close fallback: ``_load_latest_prices`` already converts to GBP
+      → "GBP".
     - No-data path: ``None`` (last_price is also None; consumers should skip).
     """
 
@@ -159,8 +132,7 @@ def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
         ts: Optional[datetime] = None
         is_stale = True
         # price_currency tracks the currency denomination of `price`.
-        # load_live_prices already normalises to GBP, so the live path is
-        # always "GBP".  The last-close fallback may be in native currency.
+        # Both live and last-close sources are GBP-normalised at this point.
         # None means no price data was available at all.
         price_currency: Optional[str]
 
@@ -174,9 +146,8 @@ def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
         elif last_close is not None:
             price = float(last_close)
             # no timestamp -> treat as stale
-            # Emit the real instrument currency (case-preserved) so
-            # portfolio_utils can apply FX and pence correction correctly.
-            price_currency = _instrument_currency(full)
+            # _load_latest_prices already normalises to GBP.
+            price_currency = "GBP"
         else:
             # No price data available. Emit None so consumers can distinguish
             # "priced at GBP" from "no data" without guessing.

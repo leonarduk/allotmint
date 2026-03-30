@@ -48,6 +48,8 @@
 
 - [ ] backend_health.json
 - [ ] backend_health.timing
+- [ ] frontend_screenshot.png
+- [ ] startup_log.txt
 - [ ] portfolio_response.json
 - [ ] broker_snapshot.txt
 - [ ] sectors.json

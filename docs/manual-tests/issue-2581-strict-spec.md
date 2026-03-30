@@ -51,11 +51,13 @@ Attach these artifacts directly to the issue comment (or link to a durable inter
 - `demo_report.pdf`
 
 The issue closure comment must include links or attachments to these exact artifacts.
+The runner writes these files into `RUN_DIR`; attaching or linking them on GitHub is a required manual closure step.
 
 ### What remains local by default
 
 Keep these under `RUN_DIR` for deeper review, and attach them when requested:
 
+- Step 1 local evidence (`frontend_screenshot.png`, `startup_log.txt`)
 - Raw endpoint payloads (`portfolio_response.json`, `sectors.json`, `regions.json`, `var.json`)
 - Manual external validation input (`broker_snapshot.txt`)
 - Health, timing, and transport logs (`backend_health.json`, `backend_health.timing`, `*.stderr`, `*.status`, `*.check.log`)
@@ -69,6 +71,7 @@ Keep these under `RUN_DIR` for deeper review, and attach them when requested:
 - `evidence_manifest.txt` (explicit evidence inventory)
 
 Use `summary_for_issue.md` as the starting point for the closure comment template.
+`evidence_manifest.txt` is a plain-text inventory grouped into `Required issue attachments` and `Required local durable evidence`.
 
 ## 0) Global rules
 

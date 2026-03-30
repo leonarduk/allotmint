@@ -59,14 +59,14 @@ export default function Alerts() {
     ? virtualRows
     : alerts.map((_, index) => ({ index, start: index * 32, end: (index + 1) * 32 }));
 
-  const marker = <span data-testid="alerts-page-marker" hidden />;
   const heading = <h1>Alerts</h1>;
+  const marker = <span data-testid="alerts-page-marker" hidden />;
 
   if (loading) {
     return (
       <Fragment>
-        {marker}
         {heading}
+        {marker}
         <div role="status" aria-live="polite">
           Loading...
         </div>
@@ -77,8 +77,8 @@ export default function Alerts() {
   if (error) {
     return (
       <Fragment>
-        {marker}
         {heading}
+        {marker}
         <div role="alert" aria-live="assertive">
           {error}
         </div>
@@ -89,8 +89,8 @@ export default function Alerts() {
   if (alerts.length === 0) {
     return (
       <Fragment>
-        {marker}
         {heading}
+        {marker}
         <EmptyState message="No alerts." role="status" aria-live="polite" />
       </Fragment>
     );
@@ -98,8 +98,8 @@ export default function Alerts() {
 
   return (
     <Fragment>
-      {marker}
       {heading}
+      {marker}
       <div
         ref={parentRef}
         style={{ maxHeight: "60vh", overflowY: "auto", overflowX: "hidden" }}
@@ -111,7 +111,9 @@ export default function Alerts() {
             const a = alerts[virtualRow.index];
             const alertLabel =
               typeof a.ticker === "string" && a.ticker.trim().length > 0 ? a.ticker.trim() : "Alert";
-            const key = `${alertLabel}-${a.message}-${a.timestamp}-${virtualRow.index}`;
+            // Prefer a server-supplied stable id; fall back to content+position composite.
+            // timestamp is required by the Alert type so will never be undefined.
+            const key = (a as { id?: string }).id ?? `${alertLabel}-${a.message}-${a.timestamp}-${virtualRow.index}`;
             return (
               <li key={key} style={{ height: 32, display: "flex", alignItems: "center" }}>
                 <strong>{alertLabel}</strong>: {a.message}

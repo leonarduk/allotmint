@@ -133,19 +133,19 @@ Severity guide:
 
 Run in order.
 
-| Step ID | Route               | Action          | Expected visible result            | Failure signals         |
-| ------- | ------------------- | --------------- | ---------------------------------- | ----------------------- |
-| 3.1     | `/`                 | open route      | app shell renders, route is stable | blank page, crash loop  |
-| 3.2     | `/portfolio`        | direct-load URL | portfolio/owner view visible       | redirect loop, crash    |
-| 3.3     | `/performance`      | direct-load URL | performance view visible           | chart/runtime exception |
-| 3.4     | `/transactions`     | direct-load URL | transactions view visible          | blank state + errors    |
-| 3.5     | `/trading`          | direct-load URL | trading view visible               | route bounce            |
-| 3.6     | `/reports`          | direct-load URL | reports page visible               | crash/empty shell       |
-| 3.7     | `/reports/new`      | direct-load URL | heading `Create report template`   | missing heading         |
-| 3.8     | `/pension/forecast` | direct-load URL | heading `Pension Forecast`         | wrong route/mode        |
-| 3.9     | `/returns/compare`  | direct-load URL | return comparison heading visible  | render exception        |
-| 3.10    | `/compliance`       | direct-load URL | heading `Compliance warnings`      | missing heading         |
-| 3.11    | `/smoke-test`       | direct-load URL | heading `Smoke test`               | page crash              |
+| Step ID | Route               | Action          | Assertion target (AI/manual)                                                                 | Expected visible result            | Failure signals         |
+| ------- | ------------------- | --------------- | -------------------------------------------------------------------------------------------- | ---------------------------------- | ----------------------- |
+| 3.1     | `/`                 | open route      | `[data-route-marker=\"active\"]` has `data-mode=\"group\"`                                   | app shell renders, route is stable | blank page, crash loop  |
+| 3.2     | `/portfolio`        | direct-load URL | `[data-route-marker=\"active\"]` has `data-mode=\"owner\"`                                   | portfolio/owner view visible       | redirect loop, crash    |
+| 3.3     | `/performance`      | direct-load URL | `[data-route-marker=\"active\"]` has `data-mode=\"performance\"`                             | performance view visible           | chart/runtime exception |
+| 3.4     | `/transactions`     | direct-load URL | `[data-route-marker=\"active\"]` has `data-mode=\"transactions\"`                            | transactions view visible          | blank state + errors    |
+| 3.5     | `/trading`          | direct-load URL | `[data-route-marker=\"active\"]` has `data-mode=\"trading\"`                                 | trading view visible               | route bounce            |
+| 3.6     | `/reports`          | direct-load URL | `[data-route-marker=\"active\"]` has `data-mode=\"reports\"`                                 | reports page visible               | crash/empty shell       |
+| 3.7     | `/reports/new`      | direct-load URL | heading text exactly `Create report template`                                                | heading `Create report template`   | missing heading         |
+| 3.8     | `/pension/forecast` | direct-load URL | heading text exactly `Pension Forecast` **and** route marker has `data-pathname` value match | heading `Pension Forecast`         | wrong route/mode        |
+| 3.9     | `/returns/compare`  | direct-load URL | heading text matches `/Return Comparison/`                                                   | return comparison heading visible  | render exception        |
+| 3.10    | `/compliance`       | direct-load URL | heading text exactly `Compliance warnings`                                                   | heading `Compliance warnings`      | missing heading         |
+| 3.11    | `/smoke-test`       | direct-load URL | heading text exactly `Smoke test`                                                            | heading `Smoke test`               | page crash              |
 
 For each step above, also validate:
 
@@ -155,6 +155,12 @@ For each step above, also validate:
 
 Optional extended sweep:
 `/instrument`, `/screener`, `/settings`, `/timeseries`, `/watchlist`, `/market`, `/allocation`, `/rebalance`, `/movers`, `/instrumentadmin`, `/dataadmin`, `/tax-tools`, `/scenario`, `/research/AAA`, `/virtual`, `/support`, `/alerts`, `/alert-settings`, `/goals`, `/trail`, `/metrics-explained`, `/trade-compliance`.
+
+When running this extended sweep with an AI/browser agent, prefer assertion order:
+
+1. route marker (`[data-route-marker="active"]`) when mode-based page,
+2. heading text when standalone page,
+3. explicit `data-testid` marker when present.
 
 ---
 

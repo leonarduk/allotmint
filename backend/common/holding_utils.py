@@ -134,8 +134,6 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
 
             selected_col = close_gbp_col or close_native_col
             val = float(last[selected_col])
-            if selected_col == close_gbp_col and scale not in (None, 1):
-                val *= scale
 
             if not (val == val and val != float("inf") and val != float("-inf")):
                 continue

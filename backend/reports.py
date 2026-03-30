@@ -1200,40 +1200,16 @@ def _build_portfolio_concentration_section(
 def _build_portfolio_var_section(
     context: ReportContext, section: ReportSectionSchema
 ) -> Sequence[Dict[str, Any]]:
-    if _is_audit_var_section(section):
-        if risk is None:
-            return []
-        rows: List[Dict[str, Any]] = []
-        for confidence, metric in ((0.95, "VaR (95%)"), (0.99, "VaR (99%)")):
-            try:
-                payload = risk.compute_portfolio_var(
-                    context.owner,
-                    confidence=confidence,
-                    include_cash=False,
-                )
-            except (FileNotFoundError, ValueError):
-                continue
-            rows.append(
-                {
-                    "metric": metric,
-                    "value": _round_if_number(_extract_var_value(payload), 6),
-                    "units": "GBP",
-                }
-            )
-        if not rows:
-            return []
-        try:
-            sharpe = risk.compute_sharpe_ratio(context.owner)
-        except (FileNotFoundError, ValueError):
-            sharpe = None
-        if sharpe is not None:
-            rows.append(
-                {"metric": "Sharpe ratio", "value": _round_if_number(sharpe, 6), "units": "ratio"}
-            )
-        return rows
+    """Unified VaR section builder — single code path for all templates.
 
-    if risk_mod is None:
+    Guards on owner_portfolio() being available so VaR is only attempted when
+    the portfolio loaded successfully. Returns [] when risk is unavailable.
+    """
+    if risk is None:
         return []
+    # Guard: only attempt VaR computation when the owner portfolio is available.
+    # This prevents repeated expensive I/O retries after a known portfolio-load
+    # failure and aligns with the caching contract in ReportContext.
     portfolio = context.owner_portfolio()
     if not portfolio:
         return []

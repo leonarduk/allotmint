@@ -873,19 +873,63 @@ def test_report_context_allocation_rounds_and_sorts(monkeypatch):
     assert allocation[1]["ticker"] == "ABC.N"
 
 
-def test_report_context_portfolio_uses_end_date_for_snapshot(monkeypatch):
-    observed_calls: list[tuple[str, date | None]] = []
+def test_audit_report_portfolio_sections_use_requested_end_snapshot(monkeypatch):
+    requested_end = date(2024, 1, 1)
+    observed_pricing_dates: list[date | None] = []
+    dated_portfolio = {
+        "snapshot": "dated",
+        "total_value_estimate_gbp": 500.0,
+        "accounts": [{"holdings": [{"ticker": "DATED"}]}],
+    }
+    latest_portfolio = {
+        "snapshot": "latest",
+        "total_value_estimate_gbp": 999.0,
+        "accounts": [{"holdings": [{"ticker": "LATEST"}]}],
+    }
 
     def fake_snapshot(owner: str, pricing_date: date | None = None):
-        observed_calls.append((owner, pricing_date))
-        return {"accounts": []}
+        observed_pricing_dates.append(pricing_date)
+        if pricing_date == requested_end:
+            return dated_portfolio
+        return latest_portfolio
 
     monkeypatch.setattr(reports, "_portfolio_snapshot", fake_snapshot)
+    monkeypatch.setattr(
+        reports.portfolio_utils,
+        "aggregate_by_sector",
+        lambda portfolio: [{"sector": portfolio["snapshot"], "market_value_gbp": 500.0}],
+    )
+    monkeypatch.setattr(
+        reports.portfolio_utils,
+        "aggregate_by_region",
+        lambda portfolio: [{"region": portfolio["snapshot"], "market_value_gbp": 500.0}],
+    )
+    monkeypatch.setattr(
+        reports.portfolio_utils,
+        "aggregate_by_ticker",
+        lambda portfolio: [{"ticker": portfolio["snapshot"], "market_value_gbp": 500.0}],
+    )
+    monkeypatch.setattr(
+        reports.risk,
+        "compute_portfolio_var",
+        lambda owner, confidence=0.95, include_cash=True: {"1d": 0.1},
+    )
+    monkeypatch.setattr(reports.risk, "compute_sharpe_ratio", lambda owner: 1.0)
 
-    context = reports.ReportContext("alice", start=None, end=date(2024, 1, 1))
-    _ = context.portfolio()
+    document = reports.build_report_document("audit-report", "alice", end=requested_end)
+    rows_by_source = {section.schema.source: section.rows for section in document.sections}
 
-    assert observed_calls == [("alice", date(2024, 1, 1))]
+    assert list(rows_by_source["portfolio.overview"]) == [
+        {"total_value_gbp": 500.0, "holdings_count": 1, "accounts_count": 1}
+    ]
+    assert list(rows_by_source["portfolio.sectors"]) == [
+        {"sector": "dated", "value": 500.0, "weight": 1.0}
+    ]
+    assert list(rows_by_source["portfolio.regions"]) == [
+        {"region": "dated", "value": 500.0, "weight": 1.0}
+    ]
+    assert rows_by_source["portfolio.concentration"][0]["ticker"] == "dated"
+    assert observed_pricing_dates == [requested_end]
 
 
 def test_build_report_document_warns_on_missing_builder(monkeypatch, caplog):

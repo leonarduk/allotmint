@@ -15,7 +15,11 @@ def _demo_owner_portfolio_fixture() -> dict:
 def _patched_audit_report_dependencies(monkeypatch) -> dict:
     fixture_portfolio = _demo_owner_portfolio_fixture()
 
-    monkeypatch.setattr(reports, "build_owner_portfolio", lambda owner: fixture_portfolio)
+    monkeypatch.setattr(
+        reports.portfolio_mod,
+        "build_owner_portfolio",
+        lambda owner, pricing_date=None: fixture_portfolio,
+    )
     monkeypatch.setattr(
         reports.risk,
         "compute_portfolio_var",

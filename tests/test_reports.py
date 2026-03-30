@@ -297,7 +297,7 @@ def test_portfolio_section_builders(monkeypatch):
     monkeypatch.setattr(
         reports.risk_mod,
         "compute_portfolio_var",
-        lambda owner, confidence: {"confidence": confidence, "1d": 12.345, "10d": 34.567},
+        lambda owner, confidence, include_cash=True: {"confidence": confidence, "1d": 12.345, "10d": 34.567},
     )
     monkeypatch.setattr(reports.risk_mod, "compute_sharpe_ratio", lambda owner: 1.23456)
     monkeypatch.setattr(reports, "get_template", lambda template_id, store=None: _portfolio_template())
@@ -511,7 +511,7 @@ def test_portfolio_var_omits_sharpe_row_when_sharpe_fails(monkeypatch):
         reports,
         "risk_mod",
         SimpleNamespace(
-            compute_portfolio_var=lambda owner, confidence: {"confidence": confidence, "1d": 10.0, "10d": 20.0},
+            compute_portfolio_var=lambda owner, confidence, include_cash=True: {"confidence": confidence, "1d": 10.0, "10d": 20.0},
             compute_sharpe_ratio=Mock(side_effect=ValueError("no returns")),
         ),
     )
@@ -1365,7 +1365,7 @@ def test_audit_risk_section_includes_var_and_sharpe(monkeypatch):
         reports,
         "risk_mod",
         SimpleNamespace(
-            compute_portfolio_var=lambda owner, confidence: {
+            compute_portfolio_var=lambda owner, confidence, include_cash=True: {
                 "confidence": confidence,
                 "1d": 12.34 if confidence == 0.95 else 18.76,
                 "10d": 39.01 if confidence == 0.95 else 59.52,

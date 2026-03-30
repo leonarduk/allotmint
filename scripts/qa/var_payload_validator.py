@@ -15,6 +15,8 @@ def _coerce_numeric(candidate: Any) -> float | None:
 
 
 def extract_var_value(payload: Any) -> float | None:
+    """Extract a numeric VaR value from supported payload shapes."""
+
     if not isinstance(payload, dict):
         return None
 
@@ -51,9 +53,24 @@ def extract_var_value(payload: Any) -> float | None:
     return horizon_candidates[0][1]
 
 
+def _contains_null_or_non_finite(value: Any) -> bool:
+    if value is None:
+        return True
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, (int, float)):
+        return not math.isfinite(value)
+    if isinstance(value, dict):
+        return any(_contains_null_or_non_finite(child) for child in value.values())
+    if isinstance(value, list):
+        return any(_contains_null_or_non_finite(child) for child in value)
+    return False
+
+
 def validate_var_payload(payload: Any) -> None:
-    blob = json.dumps(payload)
-    if re.search(r"NaN|null", blob):
+    """Validate strict-runner VaR payload rules and raise on invalid data."""
+
+    if _contains_null_or_non_finite(payload):
         raise ValueError("VaR payload contains NaN/null")
 
     value = extract_var_value(payload)

@@ -342,7 +342,7 @@
         "breakdownIntro": "Each row shows how the cumulative portfolio and benchmark returns evolve on the same trading days. Their difference is the excess return (alpha).",
         "calculation": "We compute time-weighted cumulative returns for both the portfolio and the configured benchmark. Alpha is simply the portfolio return minus the benchmark return, expressed in percentage points.",
         "detail": "Cumulative portfolio return: {{portfolio}} · Benchmark return: {{benchmark}} · Alpha: {{alpha}}",
-        "headline": "Alpha vs benchmark",
+        "headline": "Alpha vs Benchmark",
         "notes": [
           "Positive alpha means the portfolio outperformed the benchmark over the selected period.",
           "If either return series is unavailable for the full span we fall back to the overlapping dates only."

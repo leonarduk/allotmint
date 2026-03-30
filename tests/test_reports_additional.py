@@ -999,6 +999,11 @@ def test_portfolio_var_builder_extracts_numeric_from_payload(monkeypatch):
     include_cash_calls = []
 
     monkeypatch.setattr(
+        reports.portfolio_mod,
+        "build_owner_portfolio",
+        lambda owner, pricing_date=None: {"accounts": []},
+    )
+    monkeypatch.setattr(
         reports.risk,
         "compute_portfolio_var",
         lambda owner, confidence=0.95, include_cash=True: (
@@ -1025,6 +1030,11 @@ def test_portfolio_var_builder_extracts_numeric_from_payload(monkeypatch):
 
 
 def test_audit_portfolio_var_builder_returns_empty_when_risk_data_missing(monkeypatch):
+    monkeypatch.setattr(
+        reports.portfolio_mod,
+        "build_owner_portfolio",
+        lambda owner, pricing_date=None: {"accounts": []},
+    )
     monkeypatch.setattr(
         reports.risk,
         "compute_portfolio_var",

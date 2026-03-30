@@ -63,7 +63,7 @@ def test_load_latest_prices_resolution_scaling_and_missing(monkeypatch):
     monkeypatch.setattr(holding_utils, "_fx_to_base", lambda from_ccy, to_ccy, cache: 0.8)
 
     prices = holding_utils.load_latest_prices(["ABC", "USD", "XYZ"])
-    assert prices == {"ABC.L": 10.0, "USD.L": 80.0}
+    assert prices == {"ABC.L": 20.0, "USD.L": 80.0}
 
 
 def test_load_latest_prices_converts_native_close_to_gbp(monkeypatch):
@@ -106,6 +106,25 @@ def test_load_latest_prices_does_not_double_convert_close_gbp(monkeypatch):
     prices = holding_utils.load_latest_prices(["VUSA.L"])
 
     assert prices == {"VUSA.L": pytest.approx(79.0)}
+
+
+def test_load_latest_prices_close_gbp_not_rescaled(monkeypatch):
+    from backend.common import instrument_api
+
+    monkeypatch.setattr(instrument_api, "_resolve_full_ticker", lambda f, r: ("SBRY", "L"))
+    monkeypatch.setattr(
+        holding_utils,
+        "load_meta_timeseries_range",
+        lambda *args, **kwargs: pd.DataFrame(
+            {"Date": [dt.date(2024, 1, 1)], "Close": [283.4], "Close_gbp": [2.834]}
+        ),
+    )
+    monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *a, **k: 0.01)
+    monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {"currency": "GBX"})
+
+    prices = holding_utils.load_latest_prices(["SBRY.L"])
+
+    assert prices == {"SBRY.L": pytest.approx(2.834)}
 
 
 @pytest.mark.parametrize("raw_currency", ["GBX", "GBXP", "GBp"])

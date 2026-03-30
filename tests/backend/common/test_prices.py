@@ -216,3 +216,36 @@ def test_last_close_fallback_snapshot_does_not_double_convert_fx(monkeypatch: py
     rows = portfolio_utils.aggregate_by_ticker(portfolio, base_currency="GBP")
     assert rows[0]["last_price_gbp"] == pytest.approx(80.0)
     assert rows[0]["market_value_gbp"] == pytest.approx(160.0)
+
+
+def test_last_close_fallback_snapshot_marks_gbx_prices_as_gbp(monkeypatch: pytest.MonkeyPatch) -> None:
+    """GBX instruments should not be divided twice when snapshot uses last-close fallback."""
+
+    ticker = "VOD.L"
+    monkeypatch.setattr(prices, "_load_latest_prices", lambda _: {ticker: 1.103})
+    monkeypatch.setattr(prices, "load_live_prices", lambda _: {})
+    monkeypatch.setattr(prices, "_close_on", lambda *_: 1.103)
+    monkeypatch.setattr(prices.instrument_api, "_resolve_full_ticker", lambda full, latest: ("VOD", "L"))
+
+    snapshot = prices.get_price_snapshot([ticker])
+    assert snapshot[ticker]["price_currency"] == "GBP"
+
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", snapshot, raising=False)
+    monkeypatch.setattr("backend.common.instrument_api._resolve_full_ticker", lambda t, _: ("VOD", "L"))
+    monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda _: {"currency": "GBX", "name": "Vodafone"})
+    monkeypatch.setattr(portfolio_utils, "get_security_meta", lambda _: {"currency": "GBX"})
+    monkeypatch.setattr("backend.common.instrument_api.price_change_pct", lambda *_: None)
+
+    portfolio = {
+        "accounts": [
+            {
+                "holdings": [
+                    {"ticker": ticker, "exchange": "L", "units": 290, "cost_basis_gbp": 200.46, "currency": "GBX"}
+                ]
+            }
+        ]
+    }
+
+    rows = portfolio_utils.aggregate_by_ticker(portfolio, base_currency="GBP")
+    assert rows[0]["last_price_gbp"] == pytest.approx(1.103)
+    assert rows[0]["market_value_gbp"] == pytest.approx(319.87)

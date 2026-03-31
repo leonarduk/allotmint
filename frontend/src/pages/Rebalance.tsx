@@ -6,8 +6,14 @@ import { sanitizeOwners } from "../utils/owners";
 import { useRoute } from "../RouteContext";
 
 type Row = { ticker: string; current: string; target: string };
+type ParsedRow = { currentValue: number; targetWeight: number };
+type TradeRow = TradeSuggestion & { currentWeightPct: number; targetWeightPct: number };
 
 const BLANK_ROW: Row = { ticker: "", current: "", target: "" };
+const percentFormatter = new Intl.NumberFormat("en-GB", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
 
 function rowsFromPortfolio(portfolio: Portfolio): Row[] {
   const totalsByTicker = new Map<string, number>();
@@ -49,6 +55,43 @@ export default function Rebalance() {
   const [ownersError, setOwnersError] = useState<string | null>(null);
   const [selectedOwner, setSelectedOwner] = useState("");
   const [isPrefilling, setIsPrefilling] = useState(false);
+
+  const parsedRows = useMemo(() => {
+    const parsed = new Map<string, ParsedRow>();
+    for (const row of rows) {
+      const ticker = row.ticker.trim().toUpperCase();
+      if (!ticker) continue;
+      const currentValue = parseFloat(row.current);
+      const targetWeight = parseFloat(row.target);
+      if (!Number.isFinite(currentValue) || !Number.isFinite(targetWeight)) continue;
+      parsed.set(ticker, { currentValue, targetWeight });
+    }
+    return parsed;
+  }, [rows]);
+
+  const totalCurrentValue = useMemo(
+    () =>
+      [...parsedRows.values()].reduce(
+        (sum, parsed) => sum + Math.max(parsed.currentValue, 0),
+        0,
+      ),
+    [parsedRows],
+  );
+
+  const tradeRows = useMemo<TradeRow[] | null>(() => {
+    if (!trades) return null;
+    return trades.map((trade) => {
+      const parsed = parsedRows.get(trade.ticker);
+      const currentWeightPct =
+        parsed && totalCurrentValue > 0 ? (parsed.currentValue / totalCurrentValue) * 100 : 0;
+      const targetWeightPct = (parsed?.targetWeight ?? 0) * 100;
+      return {
+        ...trade,
+        currentWeightPct,
+        targetWeightPct,
+      };
+    });
+  }, [parsedRows, totalCurrentValue, trades]);
 
   useEffect(() => {
     let cancelled = false;
@@ -166,6 +209,9 @@ export default function Rebalance() {
         Holdings are prefilled from your selected portfolio. You can edit values manually to run
         custom or hypothetical rebalance scenarios.
       </p>
+      <p className="mb-4 text-xs text-slate-500 dark:text-slate-400">
+        Target weight expects a fraction where 1.0 equals 100% (for example, 0.20 means 20%).
+      </p>
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <label className="text-sm font-medium" htmlFor="rebalance-owner-select">
@@ -263,19 +309,23 @@ export default function Rebalance() {
         </div>
       </form>
       {err && <p className="text-red-600">{err}</p>}
-      {trades && trades.length > 0 && (
+      {tradeRows && tradeRows.length > 0 && (
         <table className="w-full border-collapse">
           <thead>
             <tr>
               <th>Ticker</th>
+              <th>Current weight</th>
+              <th>Target weight</th>
               <th>Action</th>
-              <th>Amount</th>
+              <th>Trade value</th>
             </tr>
           </thead>
           <tbody>
-            {trades.map((t) => (
+            {tradeRows.map((t) => (
               <tr key={t.ticker}>
                 <td>{t.ticker}</td>
+                <td>{percentFormatter.format(t.currentWeightPct)}%</td>
+                <td>{percentFormatter.format(t.targetWeightPct)}%</td>
                 <td className={t.action === "buy" ? "text-green-600" : "text-red-600"}>
                   {t.action.toUpperCase()}
                 </td>
@@ -284,6 +334,12 @@ export default function Rebalance() {
             ))}
           </tbody>
         </table>
+      )}
+      {tradeRows && tradeRows.length > 0 && (
+        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+          Trade value is the amount of portfolio value to buy or sell for each ticker (not number
+          of units/shares).
+        </p>
       )}
       {trades && trades.length === 0 && <EmptyState message="No trades required." />}
     </div>

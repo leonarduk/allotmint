@@ -18,7 +18,7 @@ import EmptyState from "../components/EmptyState";
 import { useConfig, SUPPORTED_CURRENCIES } from "../ConfigContext";
 import surfaceStyles from "../styles/surface.module.css";
 import { formatDateISO } from "../lib/date";
-import { money, percent } from "../lib/money";
+import { money, percent, quotedPrice } from "../lib/money";
 import { translateInstrumentType } from "../lib/instrumentType";
 
 function normaliseOptional(value: unknown) {
@@ -81,6 +81,45 @@ function addInstrumentTypeOption(options: string[], value: string) {
   return [...options, normalised].sort((a, b) =>
     a.localeCompare(b, undefined, { sensitivity: "base" }),
   );
+}
+
+type DisplayPrice = {
+  close: number;
+  currency: string;
+  date: string | null;
+};
+
+function resolveDisplayPrice(
+  price: Record<string, unknown>,
+  instrumentCurrency: string | undefined,
+  reportingCurrency: string | undefined,
+): DisplayPrice | null {
+  const nativeClose = typeof price.close === "number" && Number.isFinite(price.close)
+    ? price.close
+    : null;
+  const reportingClose =
+    typeof price.close_gbp === "number" && Number.isFinite(price.close_gbp)
+      ? price.close_gbp
+      : typeof price.close_usd === "number" && Number.isFinite(price.close_usd)
+        ? price.close_usd
+        : null;
+  const normalizedInstrumentCurrency = normaliseUppercase(instrumentCurrency);
+  const normalizedReportingCurrency = normaliseUppercase(reportingCurrency);
+  const shouldUseNativeClose =
+    normalizedInstrumentCurrency != null &&
+    normalizedReportingCurrency != null &&
+    normalizedInstrumentCurrency !== normalizedReportingCurrency;
+  const close =
+    shouldUseNativeClose && nativeClose != null
+      ? nativeClose
+      : reportingClose ?? nativeClose;
+  if (close == null) return null;
+  const currency =
+    shouldUseNativeClose && nativeClose != null
+      ? normalizedInstrumentCurrency ?? ""
+      : normalizedReportingCurrency ?? normalizedInstrumentCurrency ?? "";
+  const date = typeof price.date === "string" ? price.date : null;
+  return { close, currency, date };
 }
 
 type InstrumentResearchProps = {
@@ -242,12 +281,12 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
     if (!detail) return;
     const name = normaliseOptional(detail.name);
     const sector = normaliseOptional(detail.sector);
+    const normalizedInstrumentCurrency = normaliseUppercase(detail?.currency ?? undefined);
     const normalizedBaseCurrency =
       detail && typeof detail.base_currency === "string"
         ? normaliseUppercase(detail.base_currency)
         : undefined;
-    const currency =
-      normalizedBaseCurrency ?? normaliseUppercase(detail?.currency ?? undefined);
+    const currency = normalizedInstrumentCurrency ?? normalizedBaseCurrency;
     const detailRecord =
       detail && typeof detail === "object"
         ? (detail as unknown as Record<string, unknown>)
@@ -720,9 +759,10 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
 
   const fallbackSector = detail ? normaliseOptional(detail.sector) : undefined;
   const fallbackCurrency = detail
-    ? (typeof detail.base_currency === "string"
+    ? normaliseUppercase(detail.currency) ??
+      (typeof detail.base_currency === "string"
         ? normaliseUppercase(detail.base_currency)
-        : undefined) ?? normaliseUppercase(detail.currency)
+        : undefined)
     : undefined;
   const displayName = metadata.name || detail?.name || null;
   const displaySector = metadata.sector || fallbackSector || "";
@@ -1117,19 +1157,15 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
           .map((entry) => {
             if (!entry || typeof entry !== "object") return null;
             const value = entry as Record<string, unknown>;
-            const closeCandidates = [
-              value.close_gbp,
-              value.close,
-              value.close_usd,
-            ];
-            const close = closeCandidates.find(
-              (v) => typeof v === "number" && Number.isFinite(v),
-            ) as number | undefined;
-            if (close == null) return null;
-            const date = typeof value.date === "string" ? value.date : null;
-            return { close, date };
+            const resolvedPrice = resolveDisplayPrice(
+              value,
+              displayCurrency,
+              detail?.base_currency,
+            );
+            if (!resolvedPrice) return null;
+            return resolvedPrice;
           })
-          .filter((v): v is { close: number; date: string | null } => v != null);
+          .filter((v): v is DisplayPrice => v != null);
 
         const computeWindowChange = (window: number) => {
           if (parsedPrices.length < 2) return null;
@@ -1201,6 +1237,20 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
         const latestPriceEntry =
           parsedPrices.length > 0 ? parsedPrices[parsedPrices.length - 1] : null;
         const latestPrice = latestPriceEntry?.close ?? null;
+        const latestPriceCurrency = latestPriceEntry?.currency ?? displayCurrency;
+        const normalizedLatestCurrency = normaliseUppercase(latestPriceCurrency);
+        const normalizedReportingCurrency = normaliseUppercase(detail?.base_currency);
+        const formatDisplayPrice = (value: number | null, currency: string) => {
+          const normalizedCurrency = normaliseUppercase(currency);
+          if (
+            normalizedCurrency &&
+            normalizedReportingCurrency &&
+            normalizedCurrency === normalizedReportingCurrency
+          ) {
+            return money(value, normalizedCurrency);
+          }
+          return quotedPrice(value, normalizedCurrency ?? currency);
+        };
         const latestDate = (() => {
           if (!latestPriceEntry?.date) return null;
           const parsed = new Date(latestPriceEntry.date);
@@ -1224,11 +1274,6 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
             ? detail.rows.toLocaleString()
             : "—";
 
-        const priceCurrency =
-          (typeof detail?.base_currency === "string" && detail.base_currency) ||
-          displayCurrency ||
-          baseCurrency;
-
         const percentValue = (ratio: number | null, digits = 2) => {
           if (ratio == null || !Number.isFinite(ratio)) return "—";
           return percent(ratio * 100, digits);
@@ -1248,7 +1293,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
               {
                 label: "Last Close",
                 value: latestPrice != null
-                  ? money(latestPrice, priceCurrency)
+                  ? formatDisplayPrice(latestPrice, latestPriceCurrency)
                   : "—",
               },
               { label: "As of", value: latestDate ?? "—" },

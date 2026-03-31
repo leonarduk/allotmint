@@ -46,6 +46,20 @@ export const money = (
     }).format(v);
 };
 
+export const quotedPrice = (
+    v: number | null | undefined,
+    currency = "",
+    locale: string = i18n.language,
+): string => {
+    if (typeof v !== "number" || !Number.isFinite(v)) return "—";
+    const formatted = new Intl.NumberFormat(locale, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    }).format(v);
+    const normalizedCurrency = currency.trim().toUpperCase();
+    return normalizedCurrency ? `${formatted} ${normalizedCurrency}` : formatted;
+};
+
 export const percent = (
     v: number | null | undefined,
     fractionDigits = 2,

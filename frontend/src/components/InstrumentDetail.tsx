@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { getInstrumentDetail, getInstrumentIntraday } from "../api";
-import { money, percent } from "../lib/money";
+import { money, percent, quotedPrice } from "../lib/money";
 import { translateInstrumentType } from "../lib/instrumentType";
 import tableStyles from "../styles/table.module.css";
 import i18n from "../i18n";
@@ -39,6 +39,7 @@ type Price = {
   date: string;
   close_gbp: number | null | undefined;
   close?: number | null | undefined;
+  close_usd?: number | null | undefined;
 };
 
 type Position = InstrumentPosition & {
@@ -68,6 +69,13 @@ const fixed = (v: unknown, dp = 2): string => {
         maximumFractionDigits: dp,
       }).format(n)
     : "—";
+};
+
+const normaliseCurrency = (value: string | null | undefined): string | undefined => {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim().toUpperCase();
+  if (!trimmed) return undefined;
+  return /^[A-Z]{3,5}$/.test(trimmed) ? trimmed : undefined;
 };
 
 export function InstrumentPositionsTable({
@@ -319,40 +327,67 @@ export function InstrumentDetail({
     };
   }, [ticker, priceMode]);
 
-  const displayCurrency = currencyFromData ?? currencyProp ?? "?";
+  const displayCurrency = currencyProp ?? currencyFromData ?? "?";
+  const reportingCurrency = normaliseCurrency(baseCurrency ?? "GBP");
+  const instrumentCurrency = normaliseCurrency(displayCurrency);
 
   const [tickerBase, exch = "L"] = ticker.split(".", 2);
   const editLink = `/timeseries?ticker=${encodeURIComponent(tickerBase)}&exchange=${encodeURIComponent(exch)}`;
 
+  const shouldUseNativeClose =
+    instrumentCurrency != null &&
+    reportingCurrency != null &&
+    instrumentCurrency !== reportingCurrency;
+  const formatDisplayAmount = (amount: number | null | undefined, currency: string) => {
+    const normalized = normaliseCurrency(currency);
+    if (normalized != null && normalized === reportingCurrency) {
+      return money(amount, normalized);
+    }
+    return quotedPrice(amount, normalized ?? currency);
+  };
   const rawPrices = (data?.prices ?? [])
-    .map((p) => ({ date: p.date, close_gbp: toNum(p.close_gbp ?? p.close) }))
-    .filter((p) => Number.isFinite(p.close_gbp));
+    .map((p) => {
+      const nativeClose = toNum(p.close);
+      const reportingClose = toNum(p.close_gbp ?? p.close_usd);
+      const close =
+        shouldUseNativeClose && Number.isFinite(nativeClose)
+          ? nativeClose
+          : Number.isFinite(reportingClose)
+            ? reportingClose
+            : nativeClose;
+      const currency =
+        shouldUseNativeClose && Number.isFinite(nativeClose)
+          ? instrumentCurrency ?? ""
+          : reportingCurrency ?? instrumentCurrency ?? "";
+      return { date: p.date, close, currency };
+    })
+    .filter((p) => Number.isFinite(p.close));
 
   const withChanges = rawPrices.map((p, i) => {
     const prev = rawPrices[i - 1];
-    const change_gbp = prev ? p.close_gbp - prev.close_gbp : NaN;
-    const change_pct = prev ? (change_gbp / prev.close_gbp) * 100 : NaN;
-    return { ...p, change_gbp, change_pct };
+    const change = prev ? p.close - prev.close : NaN;
+    const change_pct = prev ? (change / prev.close) * 100 : NaN;
+    return { ...p, change, change_pct };
   });
 
   const prices = withChanges.map((p, i, arr) => {
     const slice20 = arr.slice(Math.max(0, i - 19), i + 1);
     const mean20 =
-      slice20.reduce((sum, s) => sum + s.close_gbp, 0) / slice20.length;
+      slice20.reduce((sum, s) => sum + s.close, 0) / slice20.length;
     const variance =
-      slice20.reduce((sum, s) => Math.pow(s.close_gbp - mean20, 2) + sum, 0) /
+      slice20.reduce((sum, s) => Math.pow(s.close - mean20, 2) + sum, 0) /
       slice20.length;
     const stdDev = Math.sqrt(variance);
     const has20 = slice20.length === 20;
 
     const slice50 = arr.slice(Math.max(0, i - 49), i + 1);
     const mean50 =
-      slice50.reduce((sum, s) => sum + s.close_gbp, 0) / slice50.length;
+      slice50.reduce((sum, s) => sum + s.close, 0) / slice50.length;
     const has50 = slice50.length === 50;
 
     const slice200 = arr.slice(Math.max(0, i - 199), i + 1);
     const mean200 =
-      slice200.reduce((sum, s) => sum + s.close_gbp, 0) / slice200.length;
+      slice200.reduce((sum, s) => sum + s.close, 0) / slice200.length;
     const has200 = slice200.length === 200;
 
     const rsiSlice = arr.slice(Math.max(0, i - 14), i + 1);
@@ -361,7 +396,7 @@ export function InstrumentDetail({
       let gains = 0;
       let losses = 0;
       for (let j = 1; j < rsiSlice.length; j++) {
-        const diff = rsiSlice[j].close_gbp - rsiSlice[j - 1].close_gbp;
+        const diff = rsiSlice[j].close - rsiSlice[j - 1].close;
         if (diff >= 0) gains += diff;
         else losses -= diff;
       }
@@ -388,7 +423,8 @@ export function InstrumentDetail({
   });
 
   // 7d / 30d change calculations
-  const latestClose = rawPrices[rawPrices.length - 1]?.close_gbp ?? NaN;
+  const latestClose = rawPrices[rawPrices.length - 1]?.close ?? NaN;
+  const latestCurrency = rawPrices[rawPrices.length - 1]?.currency ?? displayCurrency;
 
   const lookup = (days: number): number => {
     if (!rawPrices.length) return NaN;
@@ -396,7 +432,7 @@ export function InstrumentDetail({
     target.setDate(target.getDate() - days);
     for (let i = rawPrices.length - 1; i >= 0; i--) {
       const d = new Date(rawPrices[i].date);
-      if (d <= target) return rawPrices[i].close_gbp;
+      if (d <= target) return rawPrices[i].close;
     }
     return NaN;
   };
@@ -424,7 +460,7 @@ export function InstrumentDetail({
     const parts: string[] = [];
 
     if (Number.isFinite(absoluteChange)) {
-      parts.push(money(absoluteChange, baseCurrency));
+      parts.push(formatDisplayAmount(absoluteChange, latestCurrency));
     }
 
     if (Number.isFinite(percentChange)) {
@@ -707,7 +743,7 @@ export function InstrumentDetail({
                 yAxisId="rsi"
               />
             )}
-            <Line type="monotone" dataKey="close_gbp" dot={false} yAxisId="price" />
+            <Line type="monotone" dataKey="close" dot={false} yAxisId="price" />
           </LineChart>
         </ResponsiveContainer>
       )}
@@ -757,8 +793,8 @@ export function InstrumentDetail({
               .slice(-60)
               .reverse()
               .map((p) => {
-                const colour = Number.isFinite(p.change_gbp)
-                  ? p.change_gbp >= 0
+                const colour = Number.isFinite(p.change)
+                  ? p.change >= 0
                     ? palette.positive
                     : palette.negative
                   : undefined;
@@ -768,13 +804,13 @@ export function InstrumentDetail({
                       {formatDateISO(new Date(p.date))}
                     </td>
                     <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                      {money(p.close_gbp, baseCurrency)}
+                      {formatDisplayAmount(p.close, p.currency)}
                     </td>
                     <td
                       className={`${tableStyles.cell} ${tableStyles.right}`}
                       style={{ color: colour }}
                     >
-                      {money(p.change_gbp, baseCurrency)}
+                      {formatDisplayAmount(p.change, p.currency)}
                     </td>
                     <td
                       className={`${tableStyles.cell} ${tableStyles.right}`}

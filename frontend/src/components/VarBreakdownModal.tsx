@@ -4,6 +4,8 @@ import type { VarScenario } from "../types";
 interface Props {
   contributions: VarBreakdown[];
   scenarios: VarScenario[];
+  varDate: string | null;
+  varLossPercent: number | null;
   onSelectScenarioDate?: (date: string) => void;
   onClose: () => void;
 }
@@ -11,6 +13,8 @@ interface Props {
 export function VarBreakdownModal({
   contributions,
   scenarios,
+  varDate,
+  varLossPercent,
   onSelectScenarioDate,
   onClose,
 }: Props) {
@@ -45,6 +49,12 @@ export function VarBreakdownModal({
         }}
       >
         <h3>VaR Breakdown</h3>
+        {varDate && (
+          <p style={{ marginTop: 0 }}>
+            VaR quantile date: <strong>{varDate}</strong>
+            {varLossPercent != null ? ` (${varLossPercent.toFixed(2)}% loss)` : ""}
+          </p>
+        )}
         {hasScenarios ? (
           <div style={{ marginBottom: "1rem" }}>
             <h4 style={{ margin: "0 0 0.5rem 0" }}>Historical dates driving this VaR</h4>

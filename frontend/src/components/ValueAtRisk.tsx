@@ -23,6 +23,8 @@ export function ValueAtRisk({ owner, onDateChange }: Props) {
   const [loading, setLoading] = useState<boolean>(false);
   const [breakdown, setBreakdown] = useState<VarBreakdown[] | null>(null);
   const [scenarios, setScenarios] = useState<VarScenario[]>([]);
+  const [varDate, setVarDate] = useState<string | null>(null);
+  const [varLossPercent, setVarLossPercent] = useState<number | null>(null);
 
   useEffect(() => {
     if (!owner) return;
@@ -103,6 +105,8 @@ export function ValueAtRisk({ owner, onDateChange }: Props) {
                   .then((result) => {
                     setBreakdown(result.breakdown);
                     setScenarios(result.scenarios);
+                    setVarDate(result.varDate);
+                    setVarLossPercent(result.varLossPercent);
                   })
                   .catch((e) => setErr(e instanceof Error ? e.message : String(e)))
               }
@@ -121,6 +125,8 @@ export function ValueAtRisk({ owner, onDateChange }: Props) {
                   .then((result) => {
                     setBreakdown(result.breakdown);
                     setScenarios(result.scenarios);
+                    setVarDate(result.varDate);
+                    setVarLossPercent(result.varLossPercent);
                   })
                   .catch((e) => setErr(e instanceof Error ? e.message : String(e)))
               }
@@ -136,13 +142,19 @@ export function ValueAtRisk({ owner, onDateChange }: Props) {
         <VarBreakdownModal
           contributions={breakdown}
           scenarios={scenarios}
+          varDate={varDate}
+          varLossPercent={varLossPercent}
           onSelectScenarioDate={(date) => {
             onDateChange?.(date);
             setScenarios([]);
+            setVarDate(null);
+            setVarLossPercent(null);
             setBreakdown(null);
           }}
           onClose={() => {
             setScenarios([]);
+            setVarDate(null);
+            setVarLossPercent(null);
             setBreakdown(null);
           }}
         />

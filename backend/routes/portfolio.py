@@ -578,7 +578,7 @@ async def portfolio_var_breakdown(
     try:
         var = risk.compute_portfolio_var(owner, days=days, confidence=confidence, include_cash=not exclude_cash)
         breakdown = risk.compute_portfolio_var_breakdown(owner, days=days, confidence=confidence, include_cash=not exclude_cash)
-        scenarios = risk.compute_portfolio_var_scenarios(
+        scenario_payload = risk.compute_portfolio_var_scenarios(
             owner,
             days=days,
             confidence=confidence,
@@ -595,7 +595,9 @@ async def portfolio_var_breakdown(
         "as_of": calc.reporting_date.isoformat(),
         "var": var,
         "breakdown": breakdown,
-        "scenarios": scenarios,
+        "scenarios": scenario_payload.get("scenarios", []),
+        "var_date": scenario_payload.get("var_date"),
+        "var_loss_percent": scenario_payload.get("var_loss_percent"),
     }
 
 

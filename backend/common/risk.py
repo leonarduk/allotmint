@@ -213,8 +213,8 @@ def compute_portfolio_var_scenarios(
     horizon_days: int = 1,
     limit: int = 10,
     include_cash: bool = True,
-) -> List[Dict[str, float | str]]:
-    """Return worst historical dates that drive the VaR quantile."""
+) -> Dict[str, object]:
+    """Return VaR quantile date plus worst historical scenarios."""
 
     if days <= 0:
         raise ValueError("days must be positive")
@@ -238,15 +238,15 @@ def compute_portfolio_var_scenarios(
     )
     history = perf.get("history", []) if isinstance(perf, dict) else perf
     if not history:
-        return []
+        return {"var_date": None, "var_loss_percent": None, "scenarios": []}
 
     df = pd.DataFrame(history[-(days + horizon_days) :]).copy()
     if "date" not in df or "daily_return" not in df:
-        return []
+        return {"var_date": None, "var_loss_percent": None, "scenarios": []}
     df["daily_return"] = pd.to_numeric(df["daily_return"], errors="coerce")
     df = df.dropna(subset=["daily_return"])
     if df.empty:
-        return []
+        return {"var_date": None, "var_loss_percent": None, "scenarios": []}
 
     if horizon_days == 1:
         series = df.set_index("date")["daily_return"]
@@ -254,10 +254,15 @@ def compute_portfolio_var_scenarios(
         rolling = df["daily_return"].add(1).rolling(horizon_days).apply(np.prod, raw=True) - 1
         series = pd.Series(rolling.values, index=df["date"]).dropna()
     if series.empty:
-        return []
+        return {"var_date": None, "var_loss_percent": None, "scenarios": []}
 
     quantile = float(series.quantile(1 - confidence))
-    worst = series[series <= quantile].sort_values().head(limit)
+    loss_slice = series[series <= quantile].sort_values()
+    if loss_slice.empty:
+        return {"var_date": None, "var_loss_percent": None, "scenarios": []}
+    var_date = str(loss_slice.index[-1])[:10]
+    var_loss_percent = round(float(max(-loss_slice.iloc[-1], 0.0) * 100), 4)
+    worst = loss_slice.head(limit)
     scenarios: List[Dict[str, float | str]] = []
     for date, portfolio_return in worst.items():
         scenarios.append(
@@ -267,7 +272,11 @@ def compute_portfolio_var_scenarios(
                 "loss_percent": round(float(max(-portfolio_return, 0.0) * 100), 4),
             }
         )
-    return scenarios
+    return {
+        "var_date": var_date,
+        "var_loss_percent": var_loss_percent,
+        "scenarios": scenarios,
+    }
 
 
 def compute_sharpe_ratio(owner: str, days: int = 365) -> float | None:

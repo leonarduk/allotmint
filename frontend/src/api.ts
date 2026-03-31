@@ -12,6 +12,7 @@ import type {
   ValueAtRiskResponse,
   VarBreakdown,
   VarScenario,
+  VarBreakdownResponse,
   AlphaResponse,
   TrackingErrorResponse,
   MaxDrawdownResponse,
@@ -1325,7 +1326,7 @@ export const getRebalance = (
 export const getVarBreakdown = (
   owner: string,
   opts: { days?: number; confidence?: number; horizonDays?: number } = {},
-) => {
+): Promise<VarBreakdownResponse> => {
   const params = new URLSearchParams();
   if (opts.days != null) params.set("days", String(opts.days));
   if (opts.confidence != null)
@@ -1336,12 +1337,19 @@ export const getVarBreakdown = (
   return fetchJson<{
     breakdown?: VarBreakdown[];
     scenarios?: VarScenario[];
+    var_date?: string | null;
+    var_loss_percent?: number | null;
   } | VarBreakdown[]>(
     `${API_BASE}/var/${owner}/breakdown${qs ? `?${qs}` : ""}`
   ).then((response) => (
     Array.isArray(response)
-      ? { breakdown: response, scenarios: [] }
-      : { breakdown: response.breakdown ?? [], scenarios: response.scenarios ?? [] }
+      ? { breakdown: response, scenarios: [], varDate: null, varLossPercent: null }
+      : {
+          breakdown: response.breakdown ?? [],
+          scenarios: response.scenarios ?? [],
+          varDate: response.var_date ?? null,
+          varLossPercent: response.var_loss_percent ?? null,
+        }
   ));
 };
 

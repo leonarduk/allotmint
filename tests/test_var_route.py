@@ -71,6 +71,7 @@ def test_var_breakdown(deterministic_setup):
     data = resp.json()
     assert "breakdown" in data
     assert "scenarios" in data
+    assert "var_date" in data
     breakdown = data["breakdown"]
     assert len(breakdown) == 1
     item = breakdown[0]
@@ -78,6 +79,7 @@ def test_var_breakdown(deterministic_setup):
     assert item["contribution"] == pytest.approx(41.35, rel=1e-2)
     assert len(data["scenarios"]) >= 1
     assert data["scenarios"][0]["date"] == "2024-01-02"
+    assert data["var_date"] == "2024-01-02"
 
 
 def test_var_breakdown_bad_params(deterministic_setup):

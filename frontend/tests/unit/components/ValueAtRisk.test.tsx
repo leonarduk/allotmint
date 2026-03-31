@@ -37,6 +37,8 @@ describe("ValueAtRisk component", () => {
         return Promise.resolve({
           ok: true,
           json: async () => ({
+            var_date: "2024-01-02",
+            var_loss_percent: 5.0,
             scenarios: [
               { date: "2024-01-02", portfolio_return: -0.05, loss_percent: 5.0 },
             ],
@@ -67,6 +69,7 @@ describe("ValueAtRisk component", () => {
     fireEvent.click(btn);
 
     await waitFor(() => screen.getByRole("dialog"));
+    expect(screen.getByRole("dialog")).toHaveTextContent("VaR quantile date: 2024-01-02");
     expect(screen.getByRole("dialog")).toHaveTextContent("AAA");
     expect(screen.getByRole("dialog")).toHaveTextContent("BBB");
     expect(screen.getByRole("dialog")).toHaveTextContent("2024-01-02");

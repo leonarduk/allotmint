@@ -197,6 +197,13 @@ export interface VarScenario {
   loss_percent: number;
 }
 
+export interface VarBreakdownResponse {
+  breakdown: VarBreakdown[];
+  scenarios: VarScenario[];
+  varDate: string | null;
+  varLossPercent: number | null;
+}
+
 export interface ValueAtRiskResponse {
   owner: string;
   as_of: string;

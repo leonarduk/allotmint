@@ -186,6 +186,7 @@ export interface VarBreakdown {
   ticker: string;
   name?: string;
   contribution: number;
+  scenario_amount_gbp?: number | null;
   relative_change_percent?: number | null;
   relative_drop_percent?: number | null;
   var?: {

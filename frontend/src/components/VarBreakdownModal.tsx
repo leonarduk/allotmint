@@ -25,6 +25,10 @@ export function VarBreakdownModal({
     if (typeof value !== "number" || Number.isNaN(value)) return "—";
     return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
   };
+  const formatSignedAmount = (value: number | null | undefined) => {
+    if (typeof value !== "number" || Number.isNaN(value)) return "—";
+    return `${value >= 0 ? "+" : ""}${value.toFixed(2)}`;
+  };
 
   return (
     <div
@@ -86,7 +90,7 @@ export function VarBreakdownModal({
                 <th style={{ textAlign: "left", paddingRight: "1rem" }}>Ticker</th>
                 <th style={{ textAlign: "left", paddingRight: "1rem" }}>Stock</th>
                 <th style={{ textAlign: "right", paddingRight: "1rem" }}>Change</th>
-                <th style={{ textAlign: "right" }}>Contribution</th>
+                <th style={{ textAlign: "right" }}>Amount</th>
               </tr>
             </thead>
             <tbody>
@@ -103,7 +107,13 @@ export function VarBreakdownModal({
                           : null
                     )}
                   </td>
-                  <td style={{ textAlign: "right" }}>{c.contribution.toFixed(2)}</td>
+                  <td style={{ textAlign: "right" }}>
+                    {formatSignedAmount(
+                      typeof c.scenario_amount_gbp === "number"
+                        ? c.scenario_amount_gbp
+                        : c.contribution
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

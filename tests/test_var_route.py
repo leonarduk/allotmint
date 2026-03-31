@@ -78,6 +78,7 @@ def test_var_breakdown(deterministic_setup):
     assert item["ticker"] == "ABC.L"
     assert item["name"] == "ABC.L"
     assert item["contribution"] == pytest.approx(41.35, rel=1e-2)
+    assert item["scenario_amount_gbp"] == pytest.approx(-50.5, rel=1e-2)
     assert item["relative_change_percent"] == pytest.approx(-5.0, rel=1e-2)
     assert item["relative_drop_percent"] == pytest.approx(5.0, rel=1e-2)
     assert len(data["scenarios"]) >= 1

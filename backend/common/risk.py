@@ -221,11 +221,16 @@ def compute_portfolio_var_breakdown(
                     if not aligned.empty:
                         relative_change_percent = round(float(aligned.iloc[-1] * 100), 2)
 
+        scenario_amount_gbp: float | None = None
+        if relative_change_percent is not None:
+            scenario_amount_gbp = round(float(value * (relative_change_percent / 100.0)), 2)
+
         breakdown.append(
             {
                 "ticker": ticker,
                 "name": str(row.get("name") or ticker),
                 "contribution": round(float(contribution), 2),
+                "scenario_amount_gbp": scenario_amount_gbp,
                 "relative_change_percent": relative_change_percent,
                 # Backward-compatible alias while UI/tests migrate fully.
                 "relative_drop_percent": (
@@ -234,7 +239,10 @@ def compute_portfolio_var_breakdown(
             }
         )
 
-    breakdown.sort(key=lambda x: x["contribution"], reverse=True)
+    if scenario_date:
+        breakdown.sort(key=lambda x: (x.get("scenario_amount_gbp") is None, x.get("scenario_amount_gbp", 0.0)))
+    else:
+        breakdown.sort(key=lambda x: x["contribution"], reverse=True)
     return breakdown
 
 

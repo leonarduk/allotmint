@@ -210,7 +210,15 @@ export function PortfolioView({ data, loading, error, onDateChange }: Props) {
                 Showing {formatDateISO(new Date(data.as_of))}
               </span>
             )}
-            <div className="ml-auto flex items-center gap-2">
+          </form>
+          <div className="mb-6 text-lg font-semibold text-white">
+            Approx Total: {money(totalValue, baseCurrency)}
+          </div>
+          <div className="mb-6 rounded-lg border border-gray-800 bg-black/20 p-3">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+              Export portfolio
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => downloadPortfolioCsv(data)}
@@ -226,9 +234,6 @@ export function PortfolioView({ data, loading, error, onDateChange }: Props) {
                 Export PDF
               </button>
             </div>
-          </form>
-          <div className="mb-6 text-lg font-semibold text-white">
-            Approx Total: {money(totalValue, baseCurrency)}
           </div>
           {hasWarnings && (
             <div className="mb-4">

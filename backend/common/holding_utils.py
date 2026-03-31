@@ -70,11 +70,10 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
     - If ``Close_gbp``/``close_gbp`` exists, use it directly.
     - Otherwise use native close and convert to GBP using instrument metadata
       and scaling:
-      - If ``get_scaling_override`` returned a non-unity scale, ``apply_scaling``
-        has already performed the pence-to-pounds conversion; no further action.
-      - If scale == 1 and the currency is pence-denominated (GBX, GBXP, GBp),
-        divide by 100.
-      - All other non-GBP currencies are converted via ``_fx_to_base``.
+      - If ``get_scaling_override`` already applied pence scaling to the
+        DataFrame/quote, no additional pence conversion is applied.
+      - Otherwise, native values are converted through ``CurrencyNormaliser``
+        (pence-to-GBP and non-GBP FX paths).
 
     Additional behaviour:
     - Uses end_date = yesterday via PricingDateCalculator

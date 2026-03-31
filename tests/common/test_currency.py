@@ -53,3 +53,21 @@ def test_extract_currency_from_nested_meta():
 
     assert normaliser is not None
     assert normaliser.canonical == "GBX"
+
+
+def test_to_gbp_pence_and_gbp_passthrough():
+    assert CurrencyNormaliser.from_raw("GBX").to_gbp(250.0) == pytest.approx(2.5)
+    assert CurrencyNormaliser.from_raw("GBP").to_gbp(250.0) == pytest.approx(250.0)
+
+
+@pytest.mark.parametrize("bad_rate", [None, "oops", 0.0, -1.0, float("nan")])
+def test_to_gbp_invalid_fx_rate_raises(monkeypatch, bad_rate):
+    monkeypatch.setattr("backend.common.portfolio_utils._fx_to_base", lambda *_: bad_rate)
+
+    with pytest.raises(ValueError):
+        CurrencyNormaliser.from_raw("USD").to_gbp(100.0)
+
+
+def test_extract_currency_returns_none_for_missing_meta():
+    assert extract_currency(None) is None
+    assert extract_currency({}) is None

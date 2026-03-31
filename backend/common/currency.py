@@ -77,10 +77,12 @@ class CurrencyNormaliser:
 
         cache = fx_cache if fx_cache is not None else {}
         fx_rate = fx_rate_resolver(self.canonical, "GBP", cache)
-        if not fx_rate or not pd.notna(fx_rate) or not pd.api.types.is_number(fx_rate):
-            raise ValueError(f"Invalid FX rate for {self.canonical}->GBP: {fx_rate!r}")
 
-        rate = float(fx_rate)
+        try:
+            rate = float(fx_rate)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Invalid FX rate for {self.canonical}->GBP: {fx_rate!r}") from exc
+
         if not pd.notna(rate) or rate <= 0:
             raise ValueError(f"Invalid FX rate for {self.canonical}->GBP: {fx_rate!r}")
 

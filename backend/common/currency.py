@@ -5,7 +5,7 @@ from typing import Any, Callable, Dict, Optional
 
 import pandas as pd
 
-_PENCE_CODES = {"GBX", "GBXP", "GBPX"}  # "GBPX" is the uppercased form for mixed-case values like "GBpx"
+_PENCE_CODES = {"GBX", "GBXP", "GBPX"}  # covers uppercased feed codes (e.g. "GBpx" -> "GBPX")
 
 
 @dataclass(frozen=True)
@@ -19,7 +19,7 @@ class CurrencyNormaliser:
 
     @classmethod
     def from_raw(cls, raw_currency: object) -> "CurrencyNormaliser":
-        """Normalise raw currency codes; treats exact ``GBp`` as pence, but not lowercase ``gbp``."""
+        """Normalise raw currency codes; Yahoo uses exact ``GBp`` for pence while ``gbp`` means GBP."""
         if raw_currency is None:
             return cls(raw=None, canonical="GBP", display_code="GBP", is_pence=False)
 

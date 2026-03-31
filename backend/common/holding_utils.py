@@ -148,8 +148,9 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
                 normaliser = CurrencyNormaliser.from_raw(raw_currency)
 
                 # Equivalent to the previous "if scale == 1: /100" rule:
-                # skip conversion only when pence scaling (0.01) was already applied.
-                pence_scaled_in_dataframe = normaliser.is_pence and scale == normaliser.pence_factor
+                # for pence instruments, any non-unity scale means scaling already
+                # converted pence to pounds, so skip an additional conversion.
+                pence_scaled_in_dataframe = normaliser.is_pence and scale != 1.0
                 if not pence_scaled_in_dataframe:
                     try:
                         val = normaliser.to_gbp(val, fx_cache, _fx_to_base)
@@ -211,9 +212,9 @@ def load_live_prices(full_tickers: list[str]) -> dict[str, Dict[str, object]]:
             raw_currency = str(meta.get("currency") or "GBP").strip()
             normaliser = CurrencyNormaliser.from_raw(raw_currency)
 
-            # Same guard for live quotes: avoid double pence conversion when
-            # scaling already applied the 0.01 factor.
-            pence_scaled_in_quote = normaliser.is_pence and scale == normaliser.pence_factor
+            # Same guard for live quotes: for pence instruments, non-unity
+            # scaling indicates pence conversion already happened upstream.
+            pence_scaled_in_quote = normaliser.is_pence and scale != 1.0
             if not pence_scaled_in_quote:
                 try:
                     price = normaliser.to_gbp(price, fx_cache, _fx_to_base)

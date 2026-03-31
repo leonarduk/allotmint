@@ -99,3 +99,15 @@ def test_extract_currency_from_top_level_keys(meta):
     normaliser = extract_currency(meta)
 
     assert normaliser is not None
+
+
+def test_scale_dataframe_scales_case_insensitive_ohlc():
+    normaliser = CurrencyNormaliser.from_raw("GBX")
+    frame = pd.DataFrame({"open": [100.0], "HIGH": [200.0], "low": [150.0], "Close": [300.0]})
+
+    scaled = normaliser.scale_dataframe(frame)
+
+    assert scaled["open"].iloc[0] == pytest.approx(1.0)
+    assert scaled["HIGH"].iloc[0] == pytest.approx(2.0)
+    assert scaled["low"].iloc[0] == pytest.approx(1.5)
+    assert scaled["Close"].iloc[0] == pytest.approx(3.0)

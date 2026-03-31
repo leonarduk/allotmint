@@ -100,6 +100,28 @@ def test_normalise_snapshot_native_price_scales_pence_value_against_holding_pric
     assert currency == "GBP"
 
 
+def test_normalise_snapshot_native_price_scales_when_holding_price_is_zero():
+    price, currency = portfolio_utils._normalise_snapshot_native_price(
+        native_price=88.0,
+        native_currency="GBX",
+        holding_price_gbp=0.0,
+    )
+
+    assert price == pytest.approx(0.88)
+    assert currency == "GBP"
+
+
+def test_normalise_snapshot_native_price_scales_when_holding_price_is_negative():
+    price, currency = portfolio_utils._normalise_snapshot_native_price(
+        native_price=42.0,
+        native_currency="GBX",
+        holding_price_gbp=-1.0,
+    )
+
+    assert price == pytest.approx(0.42)
+    assert currency == "GBP"
+
+
 def test_load_snapshot_from_s3(monkeypatch):
     data = {"PFE": {"price": 123}}
     timestamp = datetime(2024, 1, 1, tzinfo=UTC)

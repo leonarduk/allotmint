@@ -1330,9 +1330,9 @@ export const getVarBreakdown = (
   if (opts.confidence != null)
     params.set("confidence", String(opts.confidence));
   const qs = params.toString();
-  return fetchJson<VarBreakdown[]>(
+  return fetchJson<{ breakdown?: VarBreakdown[] } | VarBreakdown[]>(
     `${API_BASE}/var/${owner}/breakdown${qs ? `?${qs}` : ""}`
-  );
+  ).then((response) => Array.isArray(response) ? response : response.breakdown ?? []);
 };
 
 // ───────────── Goals API ─────────────

@@ -32,6 +32,7 @@ from backend.routes.portfolio import router as portfolio_router
 from backend.routes.query import router as query_router
 from backend.routes.quest_routes import router as quest_router
 from backend.routes.quotes import router as quotes_router
+from backend.routes.rebalance import router as rebalance_router
 from backend.routes.reports import router as reports_router
 from backend.routes.scenario import router as scenario_router
 from backend.routes.screener import router as screener_router
@@ -76,6 +77,7 @@ def register_routers(app: FastAPI, cfg: Config) -> None:
     app.include_router(analytics_router, dependencies=protected)
     app.include_router(agent_router)
     app.include_router(trading_agent_router, dependencies=protected)
+    app.include_router(rebalance_router)
     app.include_router(config_router)
     app.include_router(quotes_router)
     app.include_router(news_router)

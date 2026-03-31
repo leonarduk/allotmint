@@ -6,8 +6,14 @@ import { sanitizeOwners } from "../utils/owners";
 import { useRoute } from "../RouteContext";
 
 type Row = { ticker: string; current: string; target: string };
+type ParsedRow = { currentValue: number; targetWeightPct: number };
+type TradeRow = TradeSuggestion & { currentWeightPct: number; targetWeightPct: number };
 
 const BLANK_ROW: Row = { ticker: "", current: "", target: "" };
+const percentFormatter = new Intl.NumberFormat("en-GB", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
 
 function rowsFromPortfolio(portfolio: Portfolio): Row[] {
   const totalsByTicker = new Map<string, number>();
@@ -35,7 +41,7 @@ function rowsFromPortfolio(portfolio: Portfolio): Row[] {
   return entries.map(([ticker, current]) => ({
     ticker,
     current: current.toFixed(2),
-    target: totalValue > 0 ? (current / totalValue).toFixed(4) : "0",
+    target: totalValue > 0 ? ((current / totalValue) * 100).toFixed(2) : "0",
   }));
 }
 
@@ -49,6 +55,51 @@ export default function Rebalance() {
   const [ownersError, setOwnersError] = useState<string | null>(null);
   const [selectedOwner, setSelectedOwner] = useState("");
   const [isPrefilling, setIsPrefilling] = useState(false);
+
+  const parsedRows = useMemo(() => {
+    const parsed = new Map<string, ParsedRow>();
+    for (const row of rows) {
+      const ticker = row.ticker.trim().toUpperCase();
+      if (!ticker) continue;
+      const currentValue = parseFloat(row.current);
+      const targetWeightPct = parseFloat(row.target);
+      if (!Number.isFinite(currentValue) || !Number.isFinite(targetWeightPct)) continue;
+      parsed.set(ticker, { currentValue, targetWeightPct });
+    }
+    return parsed;
+  }, [rows]);
+
+  const totalCurrentValue = useMemo(
+    () =>
+      [...parsedRows.values()].reduce(
+        (sum, parsed) => sum + Math.max(parsed.currentValue, 0),
+        0,
+      ),
+    [parsedRows],
+  );
+  const totalTargetWeightPct = useMemo(
+    () =>
+      [...parsedRows.values()].reduce(
+        (sum, parsed) => sum + parsed.targetWeightPct,
+        0,
+      ),
+    [parsedRows],
+  );
+
+  const tradeRows = useMemo<TradeRow[] | null>(() => {
+    if (!trades) return null;
+    return trades.map((trade) => {
+      const parsed = parsedRows.get(trade.ticker);
+      const currentWeightPct =
+        parsed && totalCurrentValue > 0 ? (parsed.currentValue / totalCurrentValue) * 100 : 0;
+      const targetWeightPct = parsed?.targetWeightPct ?? 0;
+      return {
+        ...trade,
+        currentWeightPct,
+        targetWeightPct,
+      };
+    });
+  }, [parsedRows, totalCurrentValue, trades]);
 
   useEffect(() => {
     let cancelled = false;
@@ -131,22 +182,49 @@ export default function Rebalance() {
     e.preventDefault();
     const actual: Record<string, number> = {};
     const target: Record<string, number> = {};
+    const validRows: Array<{ ticker: string; current: number; weightPct: number }> = [];
 
     for (const row of rows) {
       if (!row.ticker) {
         continue;
       }
       const current = parseFloat(row.current);
-      const weight = parseFloat(row.target);
-      if (Number.isNaN(current) || Number.isNaN(weight)) {
+      const weightPct = parseFloat(row.target);
+      if (Number.isNaN(current) || Number.isNaN(weightPct)) {
         setErr("Please enter valid numbers for current value and target weight.");
         setTrades(null);
         return;
       }
       const normalizedTicker = row.ticker.trim().toUpperCase();
       if (!normalizedTicker) continue;
-      actual[normalizedTicker] = current;
-      target[normalizedTicker] = weight;
+      validRows.push({ ticker: normalizedTicker, current, weightPct });
+    }
+
+    const totalInputCurrent = validRows.reduce((sum, row) => sum + row.current, 0);
+    const totalInputTargetPct = validRows.reduce((sum, row) => sum + row.weightPct, 0);
+    if (Math.abs(totalInputTargetPct - 100) > 0.01) {
+      setErr(
+        `Target weights must total 100%. Current total is ${percentFormatter.format(totalInputTargetPct)}%.`,
+      );
+      setTrades(null);
+      return;
+    }
+
+    for (const row of validRows) {
+      const exactCurrentWeightPct = totalInputCurrent > 0 ? (row.current / totalInputCurrent) * 100 : 0;
+      const roundedCurrentWeightPct = Number(exactCurrentWeightPct.toFixed(2));
+      const targetWeight =
+        Math.abs(row.weightPct - roundedCurrentWeightPct) < 1e-9
+          ? exactCurrentWeightPct / 100
+          : row.weightPct / 100;
+      actual[row.ticker] = row.current;
+      target[row.ticker] = targetWeight;
+    }
+    const normalizedTargetTotal = Object.values(target).reduce((sum, value) => sum + value, 0);
+    if (normalizedTargetTotal > 0) {
+      for (const ticker of Object.keys(target)) {
+        target[ticker] /= normalizedTargetTotal;
+      }
     }
 
     try {
@@ -166,7 +244,12 @@ export default function Rebalance() {
         Holdings are prefilled from your selected portfolio. You can edit values manually to run
         custom or hypothetical rebalance scenarios.
       </p>
-
+      <p className="mb-4 text-xs text-slate-500 dark:text-slate-400">
+        Target weight is entered as a percent (for example, 20 means 20%).
+      </p>
+      <p className="mb-4 text-xs text-slate-500 dark:text-slate-400">
+        Keeping a target equal to the shown current weight is treated as no-change for that ticker.
+      </p>
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <label className="text-sm font-medium" htmlFor="rebalance-owner-select">
           Portfolio owner
@@ -200,6 +283,7 @@ export default function Rebalance() {
             <tr>
               <th>Ticker</th>
               <th>Current value</th>
+              <th>Current weight</th>
               <th>Target weight</th>
               <th></th>
             </tr>
@@ -226,11 +310,25 @@ export default function Rebalance() {
                 </td>
                 <td>
                   <input
+                    type="text"
+                    className="w-full border p-1 opacity-80"
+                    value={
+                      Number.isFinite(parseFloat(row.current)) && totalCurrentValue > 0
+                        ? `${percentFormatter.format((parseFloat(row.current) / totalCurrentValue) * 100)}%`
+                        : "—"
+                    }
+                    readOnly
+                    aria-label={`Current weight for ${row.ticker || `row ${idx + 1}`}`}
+                  />
+                </td>
+                <td>
+                  <input
                     type="number"
                     step="any"
                     className="w-full border p-1"
                     value={row.target}
                     onChange={(e) => updateRow(idx, "target", e.target.value)}
+                    aria-label={`Target weight (%) for ${row.ticker || `row ${idx + 1}`}`}
                   />
                 </td>
                 <td>
@@ -246,6 +344,18 @@ export default function Rebalance() {
             ))}
           </tbody>
         </table>
+        <p
+          className={`mt-2 text-xs ${
+            Math.abs(totalTargetWeightPct - 100) <= 0.01
+              ? "text-green-600 dark:text-green-400"
+              : "text-red-600 dark:text-red-400"
+          }`}
+        >
+          Total target weight: {percentFormatter.format(totalTargetWeightPct)}%
+          {Math.abs(totalTargetWeightPct - 100) <= 0.01
+            ? " (ready to rebalance)"
+            : " (must equal 100%)"}
+        </p>
         <div className="mt-2 flex gap-2">
           <button
             type="button"
@@ -263,19 +373,23 @@ export default function Rebalance() {
         </div>
       </form>
       {err && <p className="text-red-600">{err}</p>}
-      {trades && trades.length > 0 && (
+      {tradeRows && tradeRows.length > 0 && (
         <table className="w-full border-collapse">
           <thead>
             <tr>
               <th>Ticker</th>
+              <th>Current weight</th>
+              <th>Target weight</th>
               <th>Action</th>
-              <th>Amount</th>
+              <th>Trade value</th>
             </tr>
           </thead>
           <tbody>
-            {trades.map((t) => (
+            {tradeRows.map((t) => (
               <tr key={t.ticker}>
                 <td>{t.ticker}</td>
+                <td>{percentFormatter.format(t.currentWeightPct)}%</td>
+                <td>{percentFormatter.format(t.targetWeightPct)}%</td>
                 <td className={t.action === "buy" ? "text-green-600" : "text-red-600"}>
                   {t.action.toUpperCase()}
                 </td>
@@ -284,6 +398,12 @@ export default function Rebalance() {
             ))}
           </tbody>
         </table>
+      )}
+      {tradeRows && tradeRows.length > 0 && (
+        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+          Trade value is the amount of portfolio value to buy or sell for each ticker (not number
+          of units/shares).
+        </p>
       )}
       {trades && trades.length === 0 && <EmptyState message="No trades required." />}
     </div>

@@ -171,7 +171,8 @@ def compute_portfolio_var_breakdown(
             continue
 
         sym, exch = (ticker.rsplit(".", 1) + ["L"])[:2]
-        ts = portfolio_utils.load_meta_timeseries(sym, exch, days)
+        effective_days = days + max(1, horizon_days)
+        ts = portfolio_utils.load_meta_timeseries(sym, exch, effective_days)
         if ts is None or ts.empty:
             continue
         scale = portfolio_utils.get_scaling_override(sym, exch, requested_scaling=None)

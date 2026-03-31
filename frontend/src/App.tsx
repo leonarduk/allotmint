@@ -14,12 +14,10 @@ import {
   getGroups,
   getOwners,
   getPortfolio,
-  listInstrumentMetadata,
 } from "./api";
 
 import type {
   GroupSummary,
-  InstrumentMetadata,
   InstrumentSummary,
   OwnerSummary,
   Portfolio,
@@ -90,10 +88,6 @@ const path = window.location.pathname.split("/").filter(Boolean);
 const initialMode = deriveModeFromPathname(window.location.pathname);
 const initialSlug = path[1] ?? "";
 
-type InstrumentMetadataWithSymbol = InstrumentMetadata & {
-  symbol?: string | null;
-};
-
 const routeMarkerStyle: CSSProperties = {
   position: "absolute",
   width: 1,
@@ -107,77 +101,6 @@ const routeMarkerStyle: CSSProperties = {
   clipPath: "inset(50%)",
   overflow: "hidden",
 };
-
-function metadataToInstrumentSummary(metadata: InstrumentMetadata): InstrumentSummary {
-  const metadataWithSymbol = metadata as InstrumentMetadataWithSymbol;
-  const ticker = (() => {
-    const rawTicker = typeof metadata.ticker === "string" ? metadata.ticker.trim() : "";
-    if (rawTicker) {
-      return rawTicker;
-    }
-    const symbol =
-      typeof metadataWithSymbol.symbol === "string" && metadataWithSymbol.symbol.trim()
-        ? metadataWithSymbol.symbol.trim()
-        : "";
-    if (!symbol) {
-      return metadata.name?.trim() || "UNKNOWN";
-    }
-    const exchange =
-      typeof metadata.exchange === "string" && metadata.exchange.trim()
-        ? metadata.exchange.trim()
-        : "";
-    return exchange ? `${symbol}.${exchange}` : symbol;
-  })();
-
-  const exchange =
-    typeof metadata.exchange === "string" && metadata.exchange.trim()
-      ? metadata.exchange.trim()
-      : null;
-  const currency =
-    typeof metadata.currency === "string" && metadata.currency.trim()
-      ? metadata.currency.trim()
-      : null;
-  const grouping = (() => {
-    const groupingCandidates = [
-      metadata.grouping,
-      metadata.sector,
-      metadata.region,
-      metadata.currency,
-    ];
-    for (const candidate of groupingCandidates) {
-      if (typeof candidate === "string" && candidate.trim()) {
-        return candidate.trim();
-      }
-    }
-    return null;
-  })();
-  const instrumentType = (() => {
-    if (typeof metadata.instrument_type === "string" && metadata.instrument_type.trim()) {
-      return metadata.instrument_type.trim();
-    }
-    if (typeof metadata.instrumentType === "string" && metadata.instrumentType.trim()) {
-      return metadata.instrumentType.trim();
-    }
-    return null;
-  })();
-
-  const name = metadata.name?.trim() || ticker;
-
-  return {
-    ticker,
-    name,
-    grouping,
-    exchange,
-    currency,
-    units: 0,
-    market_value_gbp: 0,
-    market_value_currency: currency,
-    gain_gbp: 0,
-    gain_currency: currency,
-    gain_pct: 0,
-    instrument_type: instrumentType,
-  };
-}
 
 function sameOwnerList(left: OwnerSummary[], right: OwnerSummary[]): boolean {
   if (left.length !== right.length) return false;
@@ -459,13 +382,8 @@ export default function App({ onLogout }: AppProps) {
     if (mode === "instrument" && selectedGroup) {
       setLoading(true);
       setErr(null);
-      // Store the full catalogue in state; render-time cap is applied below.
-      const fetchPromise =
-        selectedGroup === "all"
-          ? listInstrumentMetadata().then((catalogue) =>
-              catalogue.map((entry) => metadataToInstrumentSummary(entry)),
-            )
-          : getGroupInstruments(selectedGroup);
+      // Fetch live group holdings data for every group slug, including "all".
+      const fetchPromise = getGroupInstruments(selectedGroup);
       fetchPromise
         .then(setInstruments)
         .catch((e) => setErr(String(e)))

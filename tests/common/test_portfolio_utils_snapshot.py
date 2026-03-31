@@ -56,8 +56,8 @@ def test_refresh_snapshot_in_memory_from_timeseries_writes_file(tmp_path, monkey
 
     assert scale_calls == [1, 1]
     expected_snapshot = {
-        "FOO.L": {"last_price": 11.0, "last_price_date": "2024-01-02"},
-        "BAR.N": {"last_price": 22.0, "last_price_date": "2024-01-03"},
+        "FOO.L": {"last_price": 11.0, "price_currency": "GBP", "last_price_date": "2024-01-02"},
+        "BAR.N": {"last_price": 22.0, "price_currency": "GBP", "last_price_date": "2024-01-03"},
     }
     assert refreshed["snapshot"] == expected_snapshot
     assert isinstance(refreshed["timestamp"], datetime)
@@ -65,7 +65,7 @@ def test_refresh_snapshot_in_memory_from_timeseries_writes_file(tmp_path, monkey
     assert json.loads(prices_path.read_text()) == expected_snapshot
 
 
-def test_refresh_snapshot_scaling_override_rescales_gbp(tmp_path, monkeypatch):
+def test_refresh_snapshot_scaling_override_does_not_rescale_close_gbp(tmp_path, monkeypatch):
     tickers = ["GBX.L"]
     monkeypatch.setattr(pu, "_PRICE_SNAPSHOT", {t: {} for t in tickers})
     monkeypatch.setattr(pu, "list_all_unique_tickers", lambda: tickers)
@@ -109,7 +109,7 @@ def test_refresh_snapshot_scaling_override_rescales_gbp(tmp_path, monkeypatch):
     assert scale_calls == [0.5]
 
     expected_snapshot = {
-        "GBX.L": {"last_price": 30.0, "last_price_date": "2024-01-04"},
+        "GBX.L": {"last_price": 60.0, "price_currency": "GBP", "last_price_date": "2024-01-04"},
     }
 
     assert captured["snapshot"] == expected_snapshot
@@ -153,7 +153,7 @@ def test_refresh_snapshot_logs_warning_when_timeseries_missing(tmp_path, monkeyp
     assert "Could not get timeseries for BAD.N" in "\n".join(caplog.messages)
 
     expected_snapshot = {
-        "GOOD.L": {"last_price": 101.0, "last_price_date": "2024-02-02"},
+        "GOOD.L": {"last_price": 101.0, "price_currency": "GBP", "last_price_date": "2024-02-02"},
     }
 
     assert refreshed["snapshot"] == expected_snapshot
@@ -192,7 +192,7 @@ def test_refresh_snapshot_skips_write_when_path_missing(monkeypatch, caplog):
     pu.refresh_snapshot_in_memory_from_timeseries(days=1)
 
     assert recorded["snapshot"] == {
-        "SKIP.L": {"last_price": 12.0, "last_price_date": "2024-03-10"},
+        "SKIP.L": {"last_price": 12.0, "price_currency": "GBP", "last_price_date": "2024-03-10"},
     }
     assert any(
         "Price snapshot path not configured; skipping write" in message for message in caplog.messages

@@ -11,7 +11,6 @@ from typing import Any
 
 from review_common import build_prompt, emit_empty_diff_notice, finalize_review, load_review_context
 
-
 DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-6"
 DEFAULT_MAX_TOKENS = 2500
 

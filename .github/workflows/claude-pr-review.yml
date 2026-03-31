@@ -48,6 +48,7 @@ jobs:
       - name: Call Claude API
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_MAX_TOKENS: "6000"
           PR_TITLE: ${{ github.event.pull_request.title }}
           DIFF: ${{ steps.diff.outputs.diff }}
           ISSUE_BODY: ${{ steps.issue.outputs.body }}

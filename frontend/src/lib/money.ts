@@ -1,13 +1,34 @@
 import i18n from "../i18n";
 
+// Pence-denominated codes from known data providers (uppercased for lookup).
+// "GBp" (Yahoo Finance) is handled separately because its uppercase form "GBP"
+// is a legitimate currency code and must not be treated as a pence code.
 const PENCE_CODES = new Set(["GBX", "GBXP", "GBPX"]);
 
-const normalizeDisplayCurrency = (currency: string): string => {
+/**
+ * Map any pence-variant currency code to "GBP" for Intl.NumberFormat.
+ * Also normalises all codes to uppercase so that e.g. "gbp" works identically
+ * to "GBP" rather than causing a RangeError in some environments.
+ *
+ * Note: this does NOT divide the value by 100 — it only fixes the currency
+ * tag passed to Intl.NumberFormat. Backend prices are already GBP-normalised.
+ */
+export const normalizeDisplayCurrency = (currency: string): string => {
+    // Yahoo Finance uses exact "GBp" for pence. Its uppercase form is "GBP",
+    // which is NOT in PENCE_CODES, so it requires an explicit early return.
     if (currency === "GBp") {
         return "GBP";
     }
 
-    return PENCE_CODES.has(currency.toUpperCase()) ? "GBP" : currency;
+    const upper = currency.toUpperCase();
+    if (PENCE_CODES.has(upper)) {
+        return "GBP";
+    }
+
+    // Normalise to uppercase so Intl.NumberFormat never receives lowercase
+    // codes (e.g. "gbp" -> "GBP"). Intl accepts case-insensitive codes per
+    // spec, but normalising here makes the contract explicit.
+    return upper;
 };
 
 export const money = (

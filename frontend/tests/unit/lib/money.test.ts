@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { money, percentOrNa } from "@/lib/money";
+import { money, normalizeDisplayCurrency, percentOrNa } from "@/lib/money";
 
 describe("money", () => {
-  it.each(["GBX", "GBXP", "GBpx", "GBp"])(
+  it.each(["GBX", "GBXP", "GBPX", "GBpx", "GBp"])(
     "formats %s values using pound units",
     (currency) => {
       const value = 123.45;
@@ -11,6 +11,29 @@ describe("money", () => {
       );
     },
   );
+});
+
+describe("normalizeDisplayCurrency", () => {
+  it.each(["GBX", "GBXP", "GBPX", "GBpx", "GBp"])(
+    "maps pence code %s to GBP",
+    (currency) => {
+      expect(normalizeDisplayCurrency(currency)).toBe("GBP");
+    },
+  );
+
+  it("normalises lowercase gbp to GBP (not treated as pence)", () => {
+    // "gbp" is lowercase GBP, not a pence code — must return "GBP", not "gbp"
+    expect(normalizeDisplayCurrency("gbp")).toBe("GBP");
+  });
+
+  it("normalises GBP passthrough to uppercase", () => {
+    expect(normalizeDisplayCurrency("GBP")).toBe("GBP");
+  });
+
+  it("normalises other currency codes to uppercase", () => {
+    expect(normalizeDisplayCurrency("usd")).toBe("USD");
+    expect(normalizeDisplayCurrency("USD")).toBe("USD");
+  });
 });
 
 describe("percentOrNa", () => {

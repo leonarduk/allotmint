@@ -1152,6 +1152,8 @@ def _detect_single_day_flash_crash(
     *,
     absolute_threshold: float = 1.0,
     relative_threshold: float = 0.01,
+    rebound_drop_ratio: float = 0.35,
+    rebound_match_tolerance: float = 0.12,
 ) -> Tuple[pd.Series, List[Dict[str, Any]]]:
     """Remove isolated single-day collapses and report them."""
 
@@ -1173,7 +1175,14 @@ def _detect_single_day_flash_crash(
             continue
 
         min_neighbor = min(prev, nxt)
-        if current <= absolute_threshold or current <= min_neighbor * relative_threshold:
+        resembles_zero_glitch = (
+            current <= absolute_threshold or current <= min_neighbor * relative_threshold
+        )
+        large_one_day_drop = current <= min_neighbor * rebound_drop_ratio
+        neighbor_baseline = max(min_neighbor, 1.0)
+        neighbors_recovered = abs(prev - nxt) / neighbor_baseline <= rebound_match_tolerance
+
+        if resembles_zero_glitch or (large_one_day_drop and neighbors_recovered):
             label = values.index[idx]
             iso_date = label.isoformat() if hasattr(label, "isoformat") else str(label)
             issues.append(

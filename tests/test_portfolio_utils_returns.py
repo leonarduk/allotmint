@@ -379,3 +379,30 @@ def test_compute_owner_performance_drops_partial_close_nans(monkeypatch):
 
     assert [row["date"] for row in result["history"]] == ["2024-01-01", "2024-01-03"]
     assert [row["value"] for row in result["history"]] == [21.0, 23.0]
+
+
+def test_detect_single_day_flash_crash_removes_rebound_drop():
+    idx = pd.Index([date(2024, 1, 1), date(2024, 1, 2), date(2024, 1, 3)])
+    values = pd.Series([12000.0, 3100.0, 12100.0], index=idx)
+
+    cleaned, issues = pu._detect_single_day_flash_crash(values)
+
+    assert list(cleaned.index) == [date(2024, 1, 1), date(2024, 1, 3)]
+    assert issues == [
+        {
+            "date": "2024-01-02",
+            "value": 3100.0,
+            "previous_value": 12000.0,
+            "next_value": 12100.0,
+        }
+    ]
+
+
+def test_detect_single_day_flash_crash_keeps_real_downtrend():
+    idx = pd.Index([date(2024, 1, 1), date(2024, 1, 2), date(2024, 1, 3)])
+    values = pd.Series([12000.0, 7000.0, 6500.0], index=idx)
+
+    cleaned, issues = pu._detect_single_day_flash_crash(values)
+
+    assert cleaned.equals(values)
+    assert issues == []

@@ -29,6 +29,12 @@ def _clamp_loss_fraction(loss_fraction: float) -> float:
     return min(max(float(loss_fraction), 0.0), 1.0)
 
 
+def _safe_float(value: object) -> float:
+    if isinstance(value, (int, float)):
+        return float(value)
+    return 0.0
+
+
 def compute_portfolio_var(
     owner: str, days: int = 365, confidence: float = 0.95, include_cash: bool = True
 ) -> Dict:
@@ -126,8 +132,13 @@ def compute_portfolio_var(
 
 
 def compute_portfolio_var_breakdown(
-    owner: str, days: int = 365, confidence: float = 0.95, include_cash: bool = True
-) -> List[Dict[str, float]]:
+    owner: str,
+    days: int = 365,
+    confidence: float = 0.95,
+    include_cash: bool = True,
+    scenario_date: str | None = None,
+    horizon_days: int = 1,
+) -> List[Dict[str, object]]:
     """Return VaR contribution for each holding in the owner's portfolio.
 
     The calculation loads the owner's portfolio, collapses holdings to one row
@@ -156,7 +167,7 @@ def compute_portfolio_var_breakdown(
     portfolio = portfolio_mod.build_owner_portfolio(owner)
     rows = portfolio_utils.aggregate_by_ticker(portfolio)
 
-    breakdown: List[Dict[str, float]] = []
+    breakdown: List[Dict[str, object]] = []
     for row in rows:
         ticker = row.get("ticker")
         if not ticker:
@@ -166,7 +177,8 @@ def compute_portfolio_var_breakdown(
             continue
 
         sym, exch = (ticker.rsplit(".", 1) + ["L"])[:2]
-        ts = portfolio_utils.load_meta_timeseries(sym, exch, days)
+        effective_days = days + max(1, horizon_days)
+        ts = portfolio_utils.load_meta_timeseries(sym, exch, effective_days)
         if ts is None or ts.empty:
             continue
         scale = portfolio_utils.get_scaling_override(sym, exch, requested_scaling=None)
@@ -200,10 +212,142 @@ def compute_portfolio_var_breakdown(
             continue
 
         contribution = var_pct * value
-        breakdown.append({"ticker": ticker, "contribution": round(float(contribution), 2)})
+        relative_change_percent: float | None = None
+        if scenario_date:
+            closes = pd.to_numeric(ts["Close"], errors="coerce")
+            date_col = pd.to_datetime(ts["Date"], errors="coerce")
+            instrument_returns = pd.Series(closes.values, index=date_col).dropna()
+            instrument_returns = instrument_returns[~instrument_returns.index.isna()].sort_index()
+            if not instrument_returns.empty:
+                if horizon_days <= 1:
+                    shock_returns = instrument_returns.pct_change()
+                else:
+                    shock_returns = instrument_returns / instrument_returns.shift(horizon_days) - 1
+                scenario_ts = pd.to_datetime(scenario_date, errors="coerce")
+                if pd.notna(scenario_ts):
+                    aligned = shock_returns.loc[:scenario_ts].dropna()
+                    if not aligned.empty:
+                        relative_change_percent = round(float(aligned.iloc[-1] * 100), 2)
 
-    breakdown.sort(key=lambda x: x["contribution"], reverse=True)
+        scenario_amount_gbp: float | None = None
+        if relative_change_percent is not None:
+            scenario_amount_gbp = round(float(value * (relative_change_percent / 100.0)), 2)
+
+        item: Dict[str, object] = {
+            "ticker": ticker,
+            "contribution": round(float(contribution), 2),
+        }
+        if scenario_date:
+            item.update(
+                {
+                    "name": str(row.get("name") or ticker),
+                    "scenario_amount_gbp": scenario_amount_gbp,
+                    "relative_change_percent": relative_change_percent,
+                    # Backward-compatible alias while UI/tests migrate fully.
+                    "relative_drop_percent": (
+                        None if relative_change_percent is None else round(float(max(-relative_change_percent, 0.0)), 2)
+                    ),
+                }
+            )
+        breakdown.append(item)
+
+    if scenario_date:
+        breakdown.sort(
+            key=lambda x: (
+                x.get("scenario_amount_gbp") is None,
+                _safe_float(x.get("scenario_amount_gbp")),
+            )
+        )
+    else:
+        breakdown.sort(
+            key=lambda x: _safe_float(x.get("contribution")),
+            reverse=True,
+        )
     return breakdown
+
+
+def compute_portfolio_var_scenarios(
+    owner: str,
+    days: int = 365,
+    confidence: float = 0.95,
+    horizon_days: int = 1,
+    limit: int = 10,
+    include_cash: bool = True,
+) -> Dict[str, object]:
+    """Return VaR quantile date plus worst historical scenarios."""
+
+    if days <= 0:
+        raise ValueError("days must be positive")
+    if horizon_days <= 0:
+        raise ValueError("horizon_days must be positive")
+    if limit <= 0:
+        raise ValueError("limit must be positive")
+
+    if 0 < confidence < 1:
+        pass
+    elif 1 <= confidence <= 100 and float(confidence).is_integer():
+        confidence = confidence / 100
+    else:
+        raise ValueError("confidence must be between 0 and 1 or 0 and 100")
+
+    perf = portfolio_utils.compute_owner_performance(
+        owner,
+        days=days + horizon_days,
+        include_flagged=False,
+        include_cash=include_cash,
+    )
+    history = perf.get("history", []) if isinstance(perf, dict) else perf
+    if not history:
+        return {"var_date": None, "var_loss_percent": None, "scenarios": []}
+
+    df = pd.DataFrame(history[-(days + horizon_days) :]).copy()
+    if "date" not in df or "daily_return" not in df:
+        return {"var_date": None, "var_loss_percent": None, "scenarios": []}
+    df["daily_return"] = pd.to_numeric(df["daily_return"], errors="coerce")
+    df = df.dropna(subset=["daily_return"])
+    if df.empty:
+        return {"var_date": None, "var_loss_percent": None, "scenarios": []}
+
+    if horizon_days == 1:
+        series = df.set_index("date")["daily_return"]
+    else:
+        rolling = df["daily_return"].add(1).rolling(horizon_days).apply(np.prod, raw=True) - 1
+        series = pd.Series(rolling.values, index=df["date"]).dropna()
+    if series.empty:
+        return {"var_date": None, "var_loss_percent": None, "scenarios": []}
+
+    # Drop extreme shocks that are usually stale/missing-price artefacts.
+    # Performance diagnostics already flags >90% drawdowns as suspicious; we
+    # use a stricter VaR-scenario filter here to avoid surfacing implausible
+    # one-off spikes as "drivers" of VaR.
+    series = series[series.abs() <= 0.5]
+    if series.empty:
+        return {"var_date": None, "var_loss_percent": None, "scenarios": []}
+
+    quantile = float(series.quantile(1 - confidence))
+    # Keep only quantile-tail losses, then order from closest-to-quantile to
+    # more extreme losses. This avoids over-emphasising single bad ticks that
+    # may be data glitches and better reflects the VaR threshold event.
+    loss_slice = series[series <= quantile].sort_values(ascending=False)
+    if loss_slice.empty:
+        return {"var_date": None, "var_loss_percent": None, "scenarios": []}
+    var_date = str(loss_slice.index[0])[:10]
+    var_loss_percent = round(float(max(-loss_slice.iloc[0], 0.0) * 100), 4)
+    worst = loss_slice.head(limit)
+    scenarios: List[Dict[str, float | str]] = []
+    for date, portfolio_return in worst.items():
+        scenarios.append(
+            {
+                "date": str(date)[:10],
+                "portfolio_return": round(float(portfolio_return), 6),
+                "loss_percent": round(float(max(-portfolio_return, 0.0) * 100), 4),
+            }
+        )
+    return {
+        "var_date": var_date,
+        "var_loss_percent": var_loss_percent,
+        "scenarios": scenarios,
+    }
 
 
 def compute_sharpe_ratio(owner: str, days: int = 365) -> float | None:

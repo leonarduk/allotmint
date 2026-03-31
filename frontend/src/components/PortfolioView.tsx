@@ -374,7 +374,7 @@ export function PortfolioView({ data, loading, error, onDateChange }: Props) {
             </div>
           )}
           <div className="mb-6 rounded-lg border border-gray-800 bg-black/30 p-4">
-            <ValueAtRisk owner={data.owner} />
+            <ValueAtRisk owner={data.owner} onDateChange={onDateChange} />
           </div>
           <div className="mb-6 rounded-lg border border-gray-800 bg-black/30 p-4">
             <h3 className="mb-3 text-base font-semibold text-white">

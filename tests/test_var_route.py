@@ -66,20 +66,31 @@ def test_var_known_case(deterministic_setup):
 
 def test_var_breakdown(deterministic_setup):
     client = _auth_client()
-    resp = client.get("/var/alice/breakdown?days=4&confidence=0.95")
+    resp = client.get("/var/alice/breakdown?days=4&confidence=0.95&horizon_days=1")
     assert resp.status_code == 200
     data = resp.json()
     assert "breakdown" in data
+    assert "scenarios" in data
+    assert "var_date" in data
     breakdown = data["breakdown"]
     assert len(breakdown) == 1
     item = breakdown[0]
     assert item["ticker"] == "ABC.L"
+    assert item["name"] == "ABC.L"
     assert item["contribution"] == pytest.approx(41.35, rel=1e-2)
+    assert item["scenario_amount_gbp"] == pytest.approx(-50.5, rel=1e-2)
+    assert item["relative_change_percent"] == pytest.approx(-5.0, rel=1e-2)
+    assert item["relative_drop_percent"] == pytest.approx(5.0, rel=1e-2)
+    assert len(data["scenarios"]) >= 1
+    assert data["scenarios"][0]["date"] == "2024-01-02"
+    assert data["var_date"] == "2024-01-02"
 
 
 def test_var_breakdown_bad_params(deterministic_setup):
     client = _auth_client()
     resp = client.get("/var/alice/breakdown?days=0")
+    assert resp.status_code == 400
+    resp = client.get("/var/alice/breakdown?horizon_days=0")
     assert resp.status_code == 400
 
 
@@ -88,3 +99,24 @@ def test_var_breakdown_unknown_owner(monkeypatch):
     monkeypatch.setattr(portfolio_mod, "list_owners", lambda: ["alice"])
     resp = client.get("/var/unknown/breakdown")
     assert resp.status_code == 404
+
+
+def test_var_breakdown_scenario_filters_extreme_outlier(monkeypatch, deterministic_setup):
+    client = _auth_client()
+    monkeypatch.setattr(
+        portfolio_utils,
+        "compute_owner_performance",
+        lambda owner, days, include_flagged=False, include_cash=True: {
+            "history": [
+                {"date": "2024-01-01", "daily_return": -0.01, "value": 1000},
+                {"date": "2024-01-02", "daily_return": -0.8, "value": 200},
+                {"date": "2024-01-03", "daily_return": -0.02, "value": 980},
+                {"date": "2024-01-04", "daily_return": -0.03, "value": 950},
+            ]
+        },
+    )
+    resp = client.get("/var/alice/breakdown?days=4&confidence=0.95&horizon_days=1")
+    assert resp.status_code == 200
+    data = resp.json()
+    # The -80% outlier should be ignored in scenario selection.
+    assert data["var_date"] != "2024-01-02"

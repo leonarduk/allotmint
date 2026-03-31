@@ -1,11 +1,49 @@
+import { useEffect } from "react";
+
 import type { VarBreakdown } from "../types";
+import type { VarScenario } from "../types";
 
 interface Props {
   contributions: VarBreakdown[];
+  scenarios: VarScenario[];
+  varDate: string | null;
+  varLossPercent: number | null;
+  onSelectScenarioDate?: (date: string) => void;
   onClose: () => void;
 }
 
-export function VarBreakdownModal({ contributions, onClose }: Props) {
+export function VarBreakdownModal({
+  contributions,
+  scenarios,
+  varDate,
+  varLossPercent,
+  onSelectScenarioDate,
+  onClose,
+}: Props) {
+  const hasRows = contributions.length > 0;
+  const hasScenarios = scenarios.length > 0;
+
+  const formatSignedPercent = (value: number | null | undefined) => {
+    if (typeof value !== "number" || Number.isNaN(value)) return "—";
+    return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+  };
+  const formatSignedAmount = (value: number | null | undefined) => {
+    if (typeof value !== "number" || Number.isNaN(value)) return "—";
+    return `${value >= 0 ? "+" : ""}${value.toFixed(2)}`;
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose]);
+
   return (
     <div
       role="dialog"
@@ -22,24 +60,81 @@ export function VarBreakdownModal({ contributions, onClose }: Props) {
         justifyContent: 'center',
       }}
     >
-      <div style={{ background: 'white', padding: '1rem', maxHeight: '80%', overflow: 'auto' }}>
+      <div
+        style={{
+          background: "var(--surface-card-bg, #fff)",
+          color: "var(--surface-card-color, #111)",
+          border: "1px solid var(--surface-card-border, #d9d9d9)",
+          padding: "1rem",
+          maxHeight: "80%",
+          minWidth: "20rem",
+          overflow: "auto",
+        }}
+      >
         <h3>VaR Breakdown</h3>
-        <table>
-          <thead>
-            <tr>
-              <th>Ticker</th>
-              <th>Contribution</th>
-            </tr>
-          </thead>
-          <tbody>
-            {contributions.map((c) => (
-              <tr key={c.ticker}>
-                <td>{c.ticker}</td>
-                <td>{c.contribution.toFixed(2)}</td>
+        {varDate && (
+          <p style={{ marginTop: 0 }}>
+            VaR quantile date: <strong>{varDate}</strong>
+            {varLossPercent != null ? ` (${varLossPercent.toFixed(2)}% loss)` : ""}
+          </p>
+        )}
+        {hasScenarios ? (
+          <div style={{ marginBottom: "1rem" }}>
+            <h4 style={{ margin: "0 0 0.5rem 0" }}>Historical dates driving this VaR</h4>
+            <ul style={{ margin: 0, paddingLeft: "1rem" }}>
+              {scenarios.map((scenario) => (
+                <li key={scenario.date} style={{ marginBottom: "0.25rem" }}>
+                  <span>
+                    {scenario.date} ({scenario.loss_percent.toFixed(2)}% loss)
+                  </span>{" "}
+                  {onSelectScenarioDate && (
+                    <button type="button" onClick={() => onSelectScenarioDate(scenario.date)}>
+                      Show report
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        {hasRows ? (
+          <table>
+            <thead>
+              <tr>
+                <th style={{ textAlign: "left", paddingRight: "1rem" }}>Ticker</th>
+                <th style={{ textAlign: "left", paddingRight: "1rem" }}>Stock</th>
+                <th style={{ textAlign: "right", paddingRight: "1rem" }}>Change</th>
+                <th style={{ textAlign: "right" }}>Amount</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {contributions.map((c) => (
+                <tr key={c.ticker}>
+                  <td style={{ paddingRight: "1rem" }}>{c.ticker}</td>
+                  <td style={{ paddingRight: "1rem" }}>{c.name ?? c.ticker}</td>
+                  <td style={{ textAlign: "right", paddingRight: "1rem" }}>
+                    {formatSignedPercent(
+                      typeof c.relative_change_percent === "number"
+                        ? c.relative_change_percent
+                        : c.relative_drop_percent != null
+                          ? -Math.abs(c.relative_drop_percent)
+                          : null
+                    )}
+                  </td>
+                  <td style={{ textAlign: "right" }}>
+                    {formatSignedAmount(
+                      typeof c.scenario_amount_gbp === "number"
+                        ? c.scenario_amount_gbp
+                        : null
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p style={{ margin: 0 }}>No contribution data available.</p>
+        )}
         <button onClick={onClose} style={{ marginTop: '1rem' }}>
           Close
         </button>

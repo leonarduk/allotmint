@@ -7,13 +7,14 @@ import {
   getVarBreakdown,
 } from "../api";
 import VarBreakdownModal from "./VarBreakdownModal";
-import type { VarBreakdown } from "../types";
+import type { VarBreakdown, VarScenario } from "../types";
 
 interface Props {
   owner: string;
+  onDateChange?: (isoDate: string | null) => void;
 }
 
-export function ValueAtRisk({ owner }: Props) {
+export function ValueAtRisk({ owner, onDateChange }: Props) {
   const { t } = useTranslation();
   const [days, setDays] = useState<number>(30);
   const [var95, setVar95] = useState<number | null>(null);
@@ -21,6 +22,9 @@ export function ValueAtRisk({ owner }: Props) {
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [breakdown, setBreakdown] = useState<VarBreakdown[] | null>(null);
+  const [scenarios, setScenarios] = useState<VarScenario[]>([]);
+  const [varDate, setVarDate] = useState<string | null>(null);
+  const [varLossPercent, setVarLossPercent] = useState<number | null>(null);
 
   useEffect(() => {
     if (!owner) return;
@@ -97,8 +101,13 @@ export function ValueAtRisk({ owner }: Props) {
             <button
               onClick={() =>
                 var95 != null &&
-                getVarBreakdown(owner, { days, confidence: 95 })
-                  .then((d) => setBreakdown(d))
+                getVarBreakdown(owner, { days, confidence: 95, horizonDays: 1 })
+                  .then((result) => {
+                    setBreakdown(result.breakdown);
+                    setScenarios(result.scenarios);
+                    setVarDate(result.varDate);
+                    setVarLossPercent(result.varLossPercent);
+                  })
                   .catch((e) => setErr(e instanceof Error ? e.message : String(e)))
               }
               disabled={var95 == null}
@@ -112,8 +121,13 @@ export function ValueAtRisk({ owner }: Props) {
             <button
               onClick={() =>
                 var99 != null &&
-                getVarBreakdown(owner, { days, confidence: 99 })
-                  .then((d) => setBreakdown(d))
+                getVarBreakdown(owner, { days, confidence: 99, horizonDays: 10 })
+                  .then((result) => {
+                    setBreakdown(result.breakdown);
+                    setScenarios(result.scenarios);
+                    setVarDate(result.varDate);
+                    setVarLossPercent(result.varLossPercent);
+                  })
                   .catch((e) => setErr(e instanceof Error ? e.message : String(e)))
               }
               disabled={var99 == null}
@@ -127,7 +141,22 @@ export function ValueAtRisk({ owner }: Props) {
       {breakdown && (
         <VarBreakdownModal
           contributions={breakdown}
-          onClose={() => setBreakdown(null)}
+          scenarios={scenarios}
+          varDate={varDate}
+          varLossPercent={varLossPercent}
+          onSelectScenarioDate={(date) => {
+            onDateChange?.(date);
+            setScenarios([]);
+            setVarDate(null);
+            setVarLossPercent(null);
+            setBreakdown(null);
+          }}
+          onClose={() => {
+            setScenarios([]);
+            setVarDate(null);
+            setVarLossPercent(null);
+            setBreakdown(null);
+          }}
         />
       )}
     </div>
@@ -135,4 +164,3 @@ export function ValueAtRisk({ owner }: Props) {
 }
 
 export default ValueAtRisk;
-

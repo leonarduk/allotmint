@@ -184,11 +184,28 @@ export interface ValueAtRiskPoint {
 
 export interface VarBreakdown {
   ticker: string;
+  name?: string;
   contribution: number;
+  scenario_amount_gbp?: number | null;
+  relative_change_percent?: number | null;
+  relative_drop_percent?: number | null;
   var?: {
     [horizon: string]: number | null;
   };
   sharpe_ratio?: number | null;
+}
+
+export interface VarScenario {
+  date: string;
+  portfolio_return: number;
+  loss_percent: number;
+}
+
+export interface VarBreakdownResponse {
+  breakdown: VarBreakdown[];
+  scenarios: VarScenario[];
+  varDate: string | null;
+  varLossPercent: number | null;
 }
 
 export interface ValueAtRiskResponse {

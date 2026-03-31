@@ -11,6 +11,8 @@ import type {
   PerformanceResponse,
   ValueAtRiskResponse,
   VarBreakdown,
+  VarScenario,
+  VarBreakdownResponse,
   AlphaResponse,
   TrackingErrorResponse,
   MaxDrawdownResponse,
@@ -1323,16 +1325,32 @@ export const getRebalance = (
 /** Fetch per-ticker VaR contribution breakdown for an owner. */
 export const getVarBreakdown = (
   owner: string,
-  opts: { days?: number; confidence?: number } = {},
-) => {
+  opts: { days?: number; confidence?: number; horizonDays?: number } = {},
+): Promise<VarBreakdownResponse> => {
   const params = new URLSearchParams();
   if (opts.days != null) params.set("days", String(opts.days));
   if (opts.confidence != null)
     params.set("confidence", String(opts.confidence));
+  if (opts.horizonDays != null)
+    params.set("horizon_days", String(opts.horizonDays));
   const qs = params.toString();
-  return fetchJson<VarBreakdown[]>(
+  return fetchJson<{
+    breakdown?: VarBreakdown[];
+    scenarios?: VarScenario[];
+    var_date?: string | null;
+    var_loss_percent?: number | null;
+  } | VarBreakdown[]>(
     `${API_BASE}/var/${owner}/breakdown${qs ? `?${qs}` : ""}`
-  );
+  ).then((response) => (
+    Array.isArray(response)
+      ? { breakdown: response, scenarios: [], varDate: null, varLossPercent: null }
+      : {
+          breakdown: response.breakdown ?? [],
+          scenarios: response.scenarios ?? [],
+          varDate: response.var_date ?? null,
+          varLossPercent: response.var_loss_percent ?? null,
+        }
+  ));
 };
 
 // ───────────── Goals API ─────────────

@@ -31,14 +31,22 @@ describe("ValueAtRisk component", () => {
   });
 
   it("opens breakdown modal when VaR value clicked", async () => {
+    const onDateChange = vi.fn();
     vi.spyOn(globalThis, "fetch").mockImplementation((input: RequestInfo) => {
       if (typeof input === "string" && input.includes("/breakdown")) {
         return Promise.resolve({
           ok: true,
-          json: async () => [
-            { ticker: "AAA", contribution: 60 },
-            { ticker: "BBB", contribution: 40 },
-          ],
+          json: async () => ({
+            var_date: "2024-01-02",
+            var_loss_percent: 5.0,
+            scenarios: [
+              { date: "2024-01-02", portfolio_return: -0.05, loss_percent: 5.0 },
+            ],
+            breakdown: [
+              { ticker: "AAA", name: "Alpha Plc", relative_change_percent: -12.5, scenario_amount_gbp: -75, contribution: 60 },
+              { ticker: "BBB", name: "Beta Ltd", relative_change_percent: 8.4, scenario_amount_gbp: 20, contribution: 40 },
+            ],
+          }),
         } as unknown as Response);
       }
       return Promise.resolve({
@@ -51,7 +59,7 @@ describe("ValueAtRisk component", () => {
       } as unknown as Response);
     });
 
-    render(<ValueAtRisk owner="alice" />);
+    render(<ValueAtRisk owner="alice" onDateChange={onDateChange} />);
 
     await waitFor(() =>
       expect(screen.getByText(/95%:/)).toHaveTextContent("£100.00")
@@ -61,8 +69,22 @@ describe("ValueAtRisk component", () => {
     fireEvent.click(btn);
 
     await waitFor(() => screen.getByRole("dialog"));
+    expect(screen.getByRole("dialog")).toHaveTextContent("VaR quantile date: 2024-01-02");
     expect(screen.getByRole("dialog")).toHaveTextContent("AAA");
     expect(screen.getByRole("dialog")).toHaveTextContent("BBB");
+    expect(screen.getByRole("dialog")).toHaveTextContent("Alpha Plc");
+    expect(screen.getByRole("dialog")).toHaveTextContent("-12.50%");
+    expect(screen.getByRole("dialog")).toHaveTextContent("+8.40%");
+    expect(screen.getByRole("dialog")).toHaveTextContent("-75.00");
+    expect(screen.getByRole("dialog")).toHaveTextContent("+20.00");
+    expect(screen.getByRole("dialog")).toHaveTextContent("2024-01-02");
+    fireEvent.keyDown(window, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    fireEvent.click(btn);
+    await waitFor(() => screen.getByRole("dialog"));
+    fireEvent.click(screen.getByRole("button", { name: /Show report/i }));
+    expect(onDateChange).toHaveBeenCalledWith("2024-01-02");
   });
 
   it("renders placeholder when data missing and triggers recomputation", async () => {

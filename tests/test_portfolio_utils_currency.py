@@ -73,22 +73,19 @@ def test_aggregate_by_ticker_fx_conversion(monkeypatch):
 
 
 def test_aggregate_by_ticker_snapshot_price_is_fx_converted(monkeypatch):
-    """Exercises the fallback path: no price_currency in snapshot, falls back to
-    row currency from instrument metadata."""
+    """When snapshot currency metadata is missing, snapshot prices default to GBP."""
     portfolio = {"accounts": [{"holdings": [{"ticker": "ABC", "units": 2.0, "cost_gbp": 0.0}]}]}
 
     monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda _t: {"currency": "USD"})
-    # USD rate: 0.8 means 1 USD = 0.8 GBP.  Mock differentiates by currency so
-    # the test would fail if the rate direction were inverted.
+    # USD rate should not be consulted because missing price_currency defaults to GBP.
     monkeypatch.setattr(portfolio_utils, "fetch_fx_rate_range", _fake_fx({"USD": 0.8}))
-    # No price_currency in snapshot -> falls back to row.get("currency") from metadata
+    # No price_currency in snapshot -> default to GBP
     monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {"ABC.L": {"last_price": 100.0}})
 
     rows = portfolio_utils.aggregate_by_ticker(portfolio, base_currency="GBP")
     assert len(rows) == 1
-    # 2 units * 100 USD * 0.8 (USD->GBP) = 160 GBP
-    assert rows[0]["market_value_gbp"] == 160.0
-    assert rows[0]["last_price_gbp"] == pytest.approx(80.0)
+    assert rows[0]["market_value_gbp"] == 200.0
+    assert rows[0]["last_price_gbp"] == pytest.approx(100.0)
 
 
 def test_aggregate_by_ticker_snapshot_price_currency_field(monkeypatch):
@@ -118,7 +115,11 @@ def test_aggregate_by_ticker_snapshot_price_handles_gbpence(monkeypatch):
     portfolio = {"accounts": [{"holdings": [{"ticker": "ABC.L", "units": 10.0, "cost_gbp": 0.0}]}]}
 
     monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda _t: {"currency": "GBp"})
-    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {"ABC.L": {"last_price": 250.0}})
+    monkeypatch.setattr(
+        portfolio_utils,
+        "_PRICE_SNAPSHOT",
+        {"ABC.L": {"last_price": 250.0, "price_currency": "GBX"}},
+    )
     # GBX->GBP short-circuits in _fx_to_base (same currency after conversion),
     # but patch defensively to prevent any live network call.
     monkeypatch.setattr(portfolio_utils, "fetch_fx_rate_range", _fake_fx({"GBP": 1.0}))

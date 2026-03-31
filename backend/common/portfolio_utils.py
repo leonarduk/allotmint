@@ -662,11 +662,10 @@ def aggregate_by_ticker(
                             native_currency = _normalize_currency_code(raw_snapshot_currency)
                         else:
                             logger.debug(
-                                "snap for %s missing price_currency; falling back to row currency %s",
+                                "snap for %s missing price_currency; defaulting snapshot currency to GBP",
                                 full_tkr,
-                                row.get("currency"),
                             )
-                            native_currency = _normalize_currency_code(row.get("currency"))
+                            native_currency = "GBP"
 
                         native_price = price_value
                         if native_currency == "GBX":
@@ -1787,6 +1786,7 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
                     latest_row = df.iloc[-1]
                     snapshot[t] = {
                         "last_price": float(latest_row[close_col]),
+                        "price_currency": "GBP",
                         "last_price_date": pd.to_datetime(latest_row["Date"]).strftime("%Y-%m-%d"),
                     }
         except (OSError, ValueError, KeyError, IndexError, TypeError) as e:

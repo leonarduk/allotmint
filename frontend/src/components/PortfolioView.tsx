@@ -123,7 +123,7 @@ const buildPortfolioPrintHtml = (portfolio: Portfolio): string => {
     <meta charset="utf-8" />
     <title>${escapeHtml(portfolio.owner)} portfolio ${escapeHtml(portfolio.as_of)}</title>
     <style>
-      @page { size: A4 landscape; margin: 12mm; }
+      @page { size: A4; margin: 12mm; }
       body { font-family: Inter, Arial, sans-serif; margin: 0; color: #111827; }
       h1 { margin: 0 0 8px; font-size: 20px; }
       p { margin: 0 0 14px; color: #374151; }

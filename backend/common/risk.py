@@ -233,19 +233,23 @@ def compute_portfolio_var_breakdown(
         if relative_change_percent is not None:
             scenario_amount_gbp = round(float(value * (relative_change_percent / 100.0)), 2)
 
-        breakdown.append(
-            {
-                "ticker": ticker,
-                "name": str(row.get("name") or ticker),
-                "contribution": round(float(contribution), 2),
-                "scenario_amount_gbp": scenario_amount_gbp,
-                "relative_change_percent": relative_change_percent,
-                # Backward-compatible alias while UI/tests migrate fully.
-                "relative_drop_percent": (
-                    None if relative_change_percent is None else round(float(max(-relative_change_percent, 0.0)), 2)
-                ),
-            }
-        )
+        item: Dict[str, object] = {
+            "ticker": ticker,
+            "contribution": round(float(contribution), 2),
+        }
+        if scenario_date:
+            item.update(
+                {
+                    "name": str(row.get("name") or ticker),
+                    "scenario_amount_gbp": scenario_amount_gbp,
+                    "relative_change_percent": relative_change_percent,
+                    # Backward-compatible alias while UI/tests migrate fully.
+                    "relative_drop_percent": (
+                        None if relative_change_percent is None else round(float(max(-relative_change_percent, 0.0)), 2)
+                    ),
+                }
+            )
+        breakdown.append(item)
 
     if scenario_date:
         breakdown.sort(

@@ -8,8 +8,7 @@ from typing import Dict, List, Tuple
 import pandas as pd
 import pytest
 
-from backend.common import prices
-from backend.common import portfolio_utils
+from backend.common import portfolio_utils, prices
 
 
 def test_close_on_falls_back_to_close_column(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -251,3 +250,20 @@ def test_last_close_fallback_snapshot_marks_gbx_prices_as_gbp(monkeypatch: pytes
     assert rows[0]["last_price_gbp"] == pytest.approx(1.103)
     assert rows[0]["market_value_gbp"] == pytest.approx(319.87)
     assert rows[0]["gain_gbp"] == pytest.approx(119.41)
+
+
+def test_close_on_returns_none_when_fx_lookup_is_invalid(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``_close_on`` should return ``None`` when FX conversion cannot be resolved."""
+
+    sample_date = date(2024, 5, 9)
+    frame = pd.DataFrame({"Close": [100.0]})
+
+    monkeypatch.setattr(prices, "_nearest_weekday", lambda d, forward=False: sample_date)
+    monkeypatch.setattr(prices, "load_meta_timeseries_range", lambda *args, **kwargs: frame)
+
+    from backend.common import portfolio_utils
+
+    monkeypatch.setattr(portfolio_utils, "_fx_to_base", lambda *_: None)
+    monkeypatch.setattr("backend.common.instruments.get_instrument_meta", lambda *_: {"currency": "USD"})
+
+    assert prices._close_on("USDX", "US", sample_date) is None

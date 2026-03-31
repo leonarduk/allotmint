@@ -71,3 +71,13 @@ def test_to_gbp_invalid_fx_rate_raises(monkeypatch, bad_rate):
 def test_extract_currency_returns_none_for_missing_meta():
     assert extract_currency(None) is None
     assert extract_currency({}) is None
+
+
+def test_scale_dataframe_scales_volume_when_enabled():
+    normaliser = CurrencyNormaliser.from_raw("GBX")
+    frame = pd.DataFrame({"Open": [100.0], "Volume": [1000.0]})
+
+    scaled = normaliser.scale_dataframe(frame, scale_volume=True)
+
+    assert scaled["Open"].iloc[0] == pytest.approx(1.0)
+    assert scaled["Volume"].iloc[0] == pytest.approx(10.0)

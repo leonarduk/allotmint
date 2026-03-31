@@ -220,6 +220,12 @@ export default function Rebalance() {
       actual[row.ticker] = row.current;
       target[row.ticker] = targetWeight;
     }
+    const normalizedTargetTotal = Object.values(target).reduce((sum, value) => sum + value, 0);
+    if (normalizedTargetTotal > 0) {
+      for (const ticker of Object.keys(target)) {
+        target[ticker] /= normalizedTargetTotal;
+      }
+    }
 
     try {
       const res = await getRebalance(actual, target);

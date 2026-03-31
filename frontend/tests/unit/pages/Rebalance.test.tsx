@@ -90,4 +90,24 @@ describe("Rebalance page", () => {
       screen.getByText(/Target weights must total 100%. Current total is 63.33%./i),
     ).toBeInTheDocument();
   });
+
+  it("normalizes submitted targets to avoid backend precision 400s", async () => {
+    mockGetRebalance.mockResolvedValue([]);
+    const { default: Rebalance } = await import("@/pages/Rebalance");
+    render(<Rebalance />);
+
+    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("alex"));
+    await screen.findByDisplayValue("66.67");
+    fireEvent.change(screen.getByLabelText("Target weight (%) for AAA"), {
+      target: { value: "67.67" },
+    });
+    fireEvent.change(screen.getByLabelText("Target weight (%) for BBB"), {
+      target: { value: "32.33" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /rebalance/i }));
+    await waitFor(() => expect(mockGetRebalance).toHaveBeenCalledTimes(1));
+    const [, targetPayload] = mockGetRebalance.mock.calls[0];
+    expect(targetPayload.AAA + targetPayload.BBB).toBeCloseTo(1, 12);
+  });
 });

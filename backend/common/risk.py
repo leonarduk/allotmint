@@ -126,8 +126,13 @@ def compute_portfolio_var(
 
 
 def compute_portfolio_var_breakdown(
-    owner: str, days: int = 365, confidence: float = 0.95, include_cash: bool = True
-) -> List[Dict[str, float]]:
+    owner: str,
+    days: int = 365,
+    confidence: float = 0.95,
+    include_cash: bool = True,
+    scenario_date: str | None = None,
+    horizon_days: int = 1,
+) -> List[Dict[str, object]]:
     """Return VaR contribution for each holding in the owner's portfolio.
 
     The calculation loads the owner's portfolio, collapses holdings to one row
@@ -156,7 +161,7 @@ def compute_portfolio_var_breakdown(
     portfolio = portfolio_mod.build_owner_portfolio(owner)
     rows = portfolio_utils.aggregate_by_ticker(portfolio)
 
-    breakdown: List[Dict[str, float]] = []
+    breakdown: List[Dict[str, object]] = []
     for row in rows:
         ticker = row.get("ticker")
         if not ticker:
@@ -200,7 +205,30 @@ def compute_portfolio_var_breakdown(
             continue
 
         contribution = var_pct * value
-        breakdown.append({"ticker": ticker, "contribution": round(float(contribution), 2)})
+        relative_drop_percent: float | None = None
+        if scenario_date:
+            closes = pd.to_numeric(ts["Close"], errors="coerce")
+            date_col = pd.to_datetime(ts["Date"], errors="coerce")
+            instrument_returns = pd.Series(closes.values, index=date_col).dropna()
+            if not instrument_returns.empty:
+                if horizon_days <= 1:
+                    shock_returns = instrument_returns.pct_change()
+                else:
+                    shock_returns = instrument_returns / instrument_returns.shift(horizon_days) - 1
+                scenario_ts = pd.to_datetime(scenario_date, errors="coerce")
+                if pd.notna(scenario_ts):
+                    aligned = shock_returns.loc[:scenario_ts].dropna()
+                    if not aligned.empty:
+                        relative_drop_percent = round(float(max(-aligned.iloc[-1], 0.0) * 100), 2)
+
+        breakdown.append(
+            {
+                "ticker": ticker,
+                "name": str(row.get("name") or ticker),
+                "contribution": round(float(contribution), 2),
+                "relative_drop_percent": relative_drop_percent,
+            }
+        )
 
     breakdown.sort(key=lambda x: x["contribution"], reverse=True)
     return breakdown

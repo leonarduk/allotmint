@@ -79,6 +79,8 @@ export function VarBreakdownModal({
             <thead>
               <tr>
                 <th style={{ textAlign: "left", paddingRight: "1rem" }}>Ticker</th>
+                <th style={{ textAlign: "left", paddingRight: "1rem" }}>Stock</th>
+                <th style={{ textAlign: "right", paddingRight: "1rem" }}>Drop</th>
                 <th style={{ textAlign: "right" }}>Contribution</th>
               </tr>
             </thead>
@@ -86,6 +88,12 @@ export function VarBreakdownModal({
               {contributions.map((c) => (
                 <tr key={c.ticker}>
                   <td style={{ paddingRight: "1rem" }}>{c.ticker}</td>
+                  <td style={{ paddingRight: "1rem" }}>{c.name ?? c.ticker}</td>
+                  <td style={{ textAlign: "right", paddingRight: "1rem" }}>
+                    {typeof c.relative_drop_percent === "number"
+                      ? `${c.relative_drop_percent.toFixed(2)}%`
+                      : "—"}
+                  </td>
                   <td style={{ textAlign: "right" }}>{c.contribution.toFixed(2)}</td>
                 </tr>
               ))}

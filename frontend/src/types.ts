@@ -184,7 +184,9 @@ export interface ValueAtRiskPoint {
 
 export interface VarBreakdown {
   ticker: string;
+  name?: string;
   contribution: number;
+  relative_drop_percent?: number | null;
   var?: {
     [horizon: string]: number | null;
   };

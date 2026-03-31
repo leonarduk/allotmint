@@ -577,13 +577,20 @@ async def portfolio_var_breakdown(
         owner = owner_dir.name
     try:
         var = risk.compute_portfolio_var(owner, days=days, confidence=confidence, include_cash=not exclude_cash)
-        breakdown = risk.compute_portfolio_var_breakdown(owner, days=days, confidence=confidence, include_cash=not exclude_cash)
         scenario_payload = risk.compute_portfolio_var_scenarios(
             owner,
             days=days,
             confidence=confidence,
             horizon_days=horizon_days,
             include_cash=not exclude_cash,
+        )
+        breakdown = risk.compute_portfolio_var_breakdown(
+            owner,
+            days=days,
+            confidence=confidence,
+            include_cash=not exclude_cash,
+            scenario_date=scenario_payload.get("var_date"),
+            horizon_days=horizon_days,
         )
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Owner not found")

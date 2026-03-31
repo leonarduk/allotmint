@@ -76,7 +76,9 @@ def test_var_breakdown(deterministic_setup):
     assert len(breakdown) == 1
     item = breakdown[0]
     assert item["ticker"] == "ABC.L"
+    assert item["name"] == "ABC.L"
     assert item["contribution"] == pytest.approx(41.35, rel=1e-2)
+    assert item["relative_drop_percent"] == pytest.approx(5.0, rel=1e-2)
     assert len(data["scenarios"]) >= 1
     assert data["scenarios"][0]["date"] == "2024-01-02"
     assert data["var_date"] == "2024-01-02"

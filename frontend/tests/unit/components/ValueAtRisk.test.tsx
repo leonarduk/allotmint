@@ -43,8 +43,8 @@ describe("ValueAtRisk component", () => {
               { date: "2024-01-02", portfolio_return: -0.05, loss_percent: 5.0 },
             ],
             breakdown: [
-              { ticker: "AAA", contribution: 60 },
-              { ticker: "BBB", contribution: 40 },
+              { ticker: "AAA", name: "Alpha Plc", relative_drop_percent: 12.5, contribution: 60 },
+              { ticker: "BBB", name: "Beta Ltd", relative_drop_percent: 8.4, contribution: 40 },
             ],
           }),
         } as unknown as Response);
@@ -72,6 +72,8 @@ describe("ValueAtRisk component", () => {
     expect(screen.getByRole("dialog")).toHaveTextContent("VaR quantile date: 2024-01-02");
     expect(screen.getByRole("dialog")).toHaveTextContent("AAA");
     expect(screen.getByRole("dialog")).toHaveTextContent("BBB");
+    expect(screen.getByRole("dialog")).toHaveTextContent("Alpha Plc");
+    expect(screen.getByRole("dialog")).toHaveTextContent("12.50%");
     expect(screen.getByRole("dialog")).toHaveTextContent("2024-01-02");
     fireEvent.click(screen.getByRole("button", { name: /Show report/i }));
     expect(onDateChange).toHaveBeenCalledWith("2024-01-02");

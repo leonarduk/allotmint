@@ -65,7 +65,7 @@ def test_refresh_snapshot_in_memory_from_timeseries_writes_file(tmp_path, monkey
     assert json.loads(prices_path.read_text()) == expected_snapshot
 
 
-def test_refresh_snapshot_scaling_override_rescales_gbp(tmp_path, monkeypatch):
+def test_refresh_snapshot_scaling_override_does_not_rescale_close_gbp(tmp_path, monkeypatch):
     tickers = ["GBX.L"]
     monkeypatch.setattr(pu, "_PRICE_SNAPSHOT", {t: {} for t in tickers})
     monkeypatch.setattr(pu, "list_all_unique_tickers", lambda: tickers)
@@ -109,7 +109,7 @@ def test_refresh_snapshot_scaling_override_rescales_gbp(tmp_path, monkeypatch):
     assert scale_calls == [0.5]
 
     expected_snapshot = {
-        "GBX.L": {"last_price": 30.0, "last_price_date": "2024-01-04"},
+        "GBX.L": {"last_price": 60.0, "last_price_date": "2024-01-04"},
     }
 
     assert captured["snapshot"] == expected_snapshot

@@ -1775,9 +1775,6 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
             if df is not None and not df.empty:
                 scale = get_scaling_override(ticker_only, exchange, None)
                 df = apply_scaling(df, scale)
-                if scale != 1 and "Close_gbp" in df.columns:
-                    df["Close_gbp"] = pd.to_numeric(df["Close_gbp"], errors="coerce") * scale
-
                 name_map = {c.lower(): c for c in df.columns}
 
                 close_col = (

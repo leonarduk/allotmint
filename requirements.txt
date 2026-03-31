@@ -57,11 +57,10 @@ urllib3~=2.6.3
 uvicorn~=0.42.0
 websocket-client~=1.8.0
 websockets~=15.0.1
-win_inet_pton~=1.1.0
+win_inet_pton~=1.1.0; sys_platform == "win32"
 wsproto~=1.2.0
 yfinance~=0.2.65
 google-auth~=2.36.0
-
 google-auth-oauthlib~=1.2.2
 google-auth-httplib2~=0.2.0
 jsonschema~=4.23.0

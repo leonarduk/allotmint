@@ -232,5 +232,24 @@ describe("InstrumentDetail", () => {
     expect(screen.queryByRole('columnheader', { name: /Gain £/ })).toBeNull();
     expect(screen.getByRole('columnheader', { name: /Gain %/ })).toBeInTheDocument();
   });
-});
 
+  it("prefers page currency and renders native GBX prices", async () => {
+    mockGetInstrumentDetail.mockResolvedValue({
+      prices: [
+        { date: "2024-01-01", close: 245, close_gbp: 2.45 },
+        { date: "2024-01-02", close: 250, close_gbp: 2.5 },
+      ],
+      positions: [],
+      currency: "GBP",
+    });
+
+    render(
+      <MemoryRouter>
+        <InstrumentDetail ticker="ABC.L" name="ABC" currency="GBX" onClose={() => {}} />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("250.00 GBX")).toBeInTheDocument();
+    expect(screen.queryByText("£2.50")).not.toBeInTheDocument();
+  });
+});

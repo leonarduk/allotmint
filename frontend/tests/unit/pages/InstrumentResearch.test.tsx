@@ -256,6 +256,43 @@ describe("InstrumentResearch page", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows native GBX close values instead of GBP-normalized close_gbp", async () => {
+    mockListInstrumentMetadata.mockResolvedValueOnce([
+      {
+        ticker: "AAA.L",
+        exchange: "L",
+        name: "Acme Corp",
+        sector: "Tech",
+        currency: "GBX",
+      } as InstrumentMetadata,
+    ]);
+    mockUseInstrumentHistory.mockReturnValue({
+      data: {
+        mini: { "30": [] },
+        positions: [],
+        ticker: "AAA.L",
+        name: "Acme Corp",
+        currency: "GBX",
+        base_currency: "GBP",
+        prices: [
+          { date: "2024-01-01", close: 245, close_gbp: 2.45 },
+          { date: "2024-01-02", close: 250, close_gbp: 2.5 },
+        ],
+        rows: 2,
+        from: "2024-01-01",
+        to: "2024-01-02",
+      },
+      loading: false,
+      error: null,
+    } as any);
+
+    renderPage();
+
+    const lastCloseRow = await screen.findByText("Last Close");
+    expect(lastCloseRow.closest("div")).toHaveTextContent("250.00 GBX");
+    expect(lastCloseRow.closest("div")).not.toHaveTextContent("£2.50");
+  });
+
   it("shows fundamentals error messages", async () => {
     mockGetScreener.mockRejectedValueOnce(new Error("fundamentals fail"));
 

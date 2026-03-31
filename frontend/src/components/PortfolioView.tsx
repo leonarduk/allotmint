@@ -155,14 +155,42 @@ const buildPortfolioPrintHtml = (portfolio: Portfolio): string => {
 };
 
 const printPortfolioPdf = (portfolio: Portfolio): void => {
-  const printWindow = window.open("", "_blank", "noopener,noreferrer");
-  if (!printWindow) return;
-  printWindow.document.open();
-  printWindow.document.write(buildPortfolioPrintHtml(portfolio));
-  printWindow.document.close();
-  printWindow.focus();
-  printWindow.print();
-  printWindow.close();
+  const iframe = document.createElement("iframe");
+  iframe.style.position = "fixed";
+  iframe.style.right = "0";
+  iframe.style.bottom = "0";
+  iframe.style.width = "0";
+  iframe.style.height = "0";
+  iframe.style.border = "0";
+  iframe.setAttribute("aria-hidden", "true");
+  document.body.appendChild(iframe);
+
+  const cleanup = () => {
+    iframe.onload = null;
+    if (document.body.contains(iframe)) {
+      document.body.removeChild(iframe);
+    }
+  };
+
+  iframe.onload = () => {
+    const printContext = iframe.contentWindow;
+    if (!printContext) {
+      cleanup();
+      return;
+    }
+    printContext.focus();
+    printContext.print();
+    window.setTimeout(cleanup, 1200);
+  };
+
+  const frameDocument = iframe.contentDocument ?? iframe.contentWindow?.document;
+  if (!frameDocument) {
+    cleanup();
+    return;
+  }
+  frameDocument.open();
+  frameDocument.write(buildPortfolioPrintHtml(portfolio));
+  frameDocument.close();
 };
 
 // Props accepted by the view. `data` is null until a portfolio is loaded.

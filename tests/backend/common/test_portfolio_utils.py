@@ -74,6 +74,54 @@ def test_fx_to_base_falls_back_to_default_rate(monkeypatch):
     assert cache["CAD"] == 1.0
 
 
+def test_normalise_snapshot_native_price_keeps_gbx_value_when_already_gbp_scaled():
+    """Legacy GBX labels should not trigger an extra /100 for GBP-scaled values."""
+
+    price, currency = portfolio_utils._normalise_snapshot_native_price(
+        native_price=1.103,
+        native_currency="GBX",
+        holding_price_gbp=1.10,
+    )
+
+    assert price == pytest.approx(1.103)
+    assert currency == "GBP"
+
+
+def test_normalise_snapshot_native_price_scales_pence_value_against_holding_price():
+    """Clearly pence-like GBX values should still be scaled to GBP."""
+
+    price, currency = portfolio_utils._normalise_snapshot_native_price(
+        native_price=110.3,
+        native_currency="GBX",
+        holding_price_gbp=1.10,
+    )
+
+    assert price == pytest.approx(1.103)
+    assert currency == "GBP"
+
+
+def test_normalise_snapshot_native_price_scales_when_holding_price_is_zero():
+    price, currency = portfolio_utils._normalise_snapshot_native_price(
+        native_price=88.0,
+        native_currency="GBX",
+        holding_price_gbp=0.0,
+    )
+
+    assert price == pytest.approx(0.88)
+    assert currency == "GBP"
+
+
+def test_normalise_snapshot_native_price_scales_when_holding_price_is_negative():
+    price, currency = portfolio_utils._normalise_snapshot_native_price(
+        native_price=42.0,
+        native_currency="GBX",
+        holding_price_gbp=-1.0,
+    )
+
+    assert price == pytest.approx(0.42)
+    assert currency == "GBP"
+
+
 def test_load_snapshot_from_s3(monkeypatch):
     data = {"PFE": {"price": 123}}
     timestamp = datetime(2024, 1, 1, tzinfo=UTC)

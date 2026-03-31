@@ -10,7 +10,7 @@ import {
 } from "react-router-dom";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import i18n from "@/i18n";
-import type { InstrumentMetadata, InstrumentSummary, Portfolio } from "@/types";
+import type { InstrumentSummary, Portfolio } from "@/types";
 
 const mockTradingSignals = vi.fn();
 
@@ -119,21 +119,21 @@ describe("App", () => {
     );
   });
 
-  it("includes catalogue instruments in the /instrument/all view", async () => {
+  it("loads /instrument/all rows from group holdings API", async () => {
     window.history.pushState({}, "", "/instrument/all");
 
-    const mockGetGroupInstruments = vi.fn().mockResolvedValue([]);
-    const mockListInstrumentMetadata = vi.fn().mockResolvedValue([
+    const mockGetGroupInstruments = vi.fn().mockResolvedValue([
       {
-        ticker: "",
-        symbol: "FOO",
-        exchange: "LSE",
+        ticker: "FOO.L",
         name: "Foo Plc",
+        grouping: "Technology",
+        exchange: "L",
         currency: "GBP",
-        instrument_type: "equity",
-        grouping: "",
-        sector: "Technology",
-      } as InstrumentMetadata & { symbol: string },
+        units: 10,
+        market_value_gbp: 1234.56,
+        gain_gbp: 100.0,
+        gain_pct: 8.81,
+      } as InstrumentSummary,
     ]);
 
     let capturedRows: InstrumentSummary[] = [];
@@ -161,7 +161,6 @@ describe("App", () => {
           .mockResolvedValue([{ slug: "all", name: "All Instruments", members: [] }]),
         getPortfolio: vi.fn(),
         getGroupInstruments: mockGetGroupInstruments,
-        listInstrumentMetadata: mockListInstrumentMetadata,
         listInstrumentGroups: vi.fn().mockResolvedValue([]),
         listInstrumentGroupingDefinitions: vi.fn().mockResolvedValue([]),
         assignInstrumentGroup: vi.fn(),
@@ -192,14 +191,12 @@ describe("App", () => {
       </MemoryRouter>,
     );
 
-    await waitFor(() => {
-      expect(mockListInstrumentMetadata).toHaveBeenCalledTimes(1);
-    });
+    await waitFor(() => expect(mockGetGroupInstruments).toHaveBeenCalledTimes(1));
+    expect(mockGetGroupInstruments).toHaveBeenCalledWith("all");
 
     const table = await screen.findByTestId("instrument-table");
-    expect(within(table).getAllByText("FOO.LSE")).toHaveLength(1);
+    expect(within(table).getAllByText("FOO.L")).toHaveLength(1);
     expect(capturedRows[0]?.grouping).toBe("Technology");
-    expect(mockGetGroupInstruments).not.toHaveBeenCalled();
   });
 
   it("renders timeseries editor when path is /timeseries", async () => {

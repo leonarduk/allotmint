@@ -171,6 +171,34 @@ def _normalize_currency_code(currency: str | None) -> str:
     return upper
 
 
+def _normalise_snapshot_native_price(
+    *,
+    native_price: float,
+    native_currency: str,
+    holding_price_gbp: Any,
+) -> tuple[float, str]:
+    """Normalise legacy snapshot currency/price combinations.
+
+    Snapshot writers now emit GBP-normalised prices, but older snapshots may
+    still contain ``price_currency="GBX"``. Use the enriched holding price as a
+    guard: only apply a /100 conversion when the snapshot value is clearly
+    pence-denominated relative to the holding GBP price.
+    """
+
+    if native_currency != "GBX":
+        return native_price, native_currency
+
+    holding_px = _safe_num(holding_price_gbp, default=float("nan"))
+    if math.isfinite(holding_px) and holding_px > 0:
+        ratio = native_price / holding_px
+        if ratio > 20:
+            native_price *= 0.01
+    else:
+        native_price *= 0.01
+
+    return native_price, "GBP"
+
+
 # ──────────────────────────────────────────────────────────────
 # Snapshot loader (last_price / deltas)
 # ──────────────────────────────────────────────────────────────
@@ -667,10 +695,11 @@ def aggregate_by_ticker(
                             )
                             native_currency = "GBP"
 
-                        native_price = price_value
-                        if native_currency == "GBX":
-                            native_price *= 0.01
-                            native_currency = "GBP"
+                        native_price, native_currency = _normalise_snapshot_native_price(
+                            native_price=price_value,
+                            native_currency=native_currency,
+                            holding_price_gbp=h.get("current_price_gbp"),
+                        )
 
                         gbp_price = native_price * _fx_to_base(native_currency, "GBP", fx_cache)
 

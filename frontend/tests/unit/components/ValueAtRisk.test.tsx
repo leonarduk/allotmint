@@ -31,11 +31,15 @@ describe("ValueAtRisk component", () => {
   });
 
   it("opens breakdown modal when VaR value clicked", async () => {
+    const onDateChange = vi.fn();
     vi.spyOn(globalThis, "fetch").mockImplementation((input: RequestInfo) => {
       if (typeof input === "string" && input.includes("/breakdown")) {
         return Promise.resolve({
           ok: true,
           json: async () => ({
+            scenarios: [
+              { date: "2024-01-02", portfolio_return: -0.05, loss_percent: 5.0 },
+            ],
             breakdown: [
               { ticker: "AAA", contribution: 60 },
               { ticker: "BBB", contribution: 40 },
@@ -53,7 +57,7 @@ describe("ValueAtRisk component", () => {
       } as unknown as Response);
     });
 
-    render(<ValueAtRisk owner="alice" />);
+    render(<ValueAtRisk owner="alice" onDateChange={onDateChange} />);
 
     await waitFor(() =>
       expect(screen.getByText(/95%:/)).toHaveTextContent("£100.00")
@@ -65,6 +69,9 @@ describe("ValueAtRisk component", () => {
     await waitFor(() => screen.getByRole("dialog"));
     expect(screen.getByRole("dialog")).toHaveTextContent("AAA");
     expect(screen.getByRole("dialog")).toHaveTextContent("BBB");
+    expect(screen.getByRole("dialog")).toHaveTextContent("2024-01-02");
+    fireEvent.click(screen.getByRole("button", { name: /Show report/i }));
+    expect(onDateChange).toHaveBeenCalledWith("2024-01-02");
   });
 
   it("renders placeholder when data missing and triggers recomputation", async () => {

@@ -191,6 +191,12 @@ export interface VarBreakdown {
   sharpe_ratio?: number | null;
 }
 
+export interface VarScenario {
+  date: string;
+  portfolio_return: number;
+  loss_percent: number;
+}
+
 export interface ValueAtRiskResponse {
   owner: string;
   as_of: string;

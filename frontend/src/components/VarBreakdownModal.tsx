@@ -1,12 +1,21 @@
 import type { VarBreakdown } from "../types";
+import type { VarScenario } from "../types";
 
 interface Props {
   contributions: VarBreakdown[];
+  scenarios: VarScenario[];
+  onSelectScenarioDate?: (date: string) => void;
   onClose: () => void;
 }
 
-export function VarBreakdownModal({ contributions, onClose }: Props) {
+export function VarBreakdownModal({
+  contributions,
+  scenarios,
+  onSelectScenarioDate,
+  onClose,
+}: Props) {
   const hasRows = contributions.length > 0;
+  const hasScenarios = scenarios.length > 0;
 
   return (
     <div
@@ -36,6 +45,25 @@ export function VarBreakdownModal({ contributions, onClose }: Props) {
         }}
       >
         <h3>VaR Breakdown</h3>
+        {hasScenarios ? (
+          <div style={{ marginBottom: "1rem" }}>
+            <h4 style={{ margin: "0 0 0.5rem 0" }}>Historical dates driving this VaR</h4>
+            <ul style={{ margin: 0, paddingLeft: "1rem" }}>
+              {scenarios.map((scenario) => (
+                <li key={scenario.date} style={{ marginBottom: "0.25rem" }}>
+                  <span>
+                    {scenario.date} ({scenario.loss_percent.toFixed(2)}% loss)
+                  </span>{" "}
+                  {onSelectScenarioDate && (
+                    <button type="button" onClick={() => onSelectScenarioDate(scenario.date)}>
+                      Show report
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
         {hasRows ? (
           <table>
             <thead>

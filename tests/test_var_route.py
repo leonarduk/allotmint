@@ -66,20 +66,25 @@ def test_var_known_case(deterministic_setup):
 
 def test_var_breakdown(deterministic_setup):
     client = _auth_client()
-    resp = client.get("/var/alice/breakdown?days=4&confidence=0.95")
+    resp = client.get("/var/alice/breakdown?days=4&confidence=0.95&horizon_days=1")
     assert resp.status_code == 200
     data = resp.json()
     assert "breakdown" in data
+    assert "scenarios" in data
     breakdown = data["breakdown"]
     assert len(breakdown) == 1
     item = breakdown[0]
     assert item["ticker"] == "ABC.L"
     assert item["contribution"] == pytest.approx(41.35, rel=1e-2)
+    assert len(data["scenarios"]) >= 1
+    assert data["scenarios"][0]["date"] == "2024-01-02"
 
 
 def test_var_breakdown_bad_params(deterministic_setup):
     client = _auth_client()
     resp = client.get("/var/alice/breakdown?days=0")
+    assert resp.status_code == 400
+    resp = client.get("/var/alice/breakdown?horizon_days=0")
     assert resp.status_code == 400
 
 

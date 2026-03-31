@@ -569,6 +569,7 @@ async def portfolio_var_breakdown(
     days: int = 365,
     confidence: float = 0.95,
     exclude_cash: bool = False,
+    horizon_days: int = 1,
 ):
     accounts_root = resolve_accounts_root(request)
     owner_dir = resolve_owner_directory(accounts_root, owner)
@@ -577,6 +578,13 @@ async def portfolio_var_breakdown(
     try:
         var = risk.compute_portfolio_var(owner, days=days, confidence=confidence, include_cash=not exclude_cash)
         breakdown = risk.compute_portfolio_var_breakdown(owner, days=days, confidence=confidence, include_cash=not exclude_cash)
+        scenarios = risk.compute_portfolio_var_scenarios(
+            owner,
+            days=days,
+            confidence=confidence,
+            horizon_days=horizon_days,
+            include_cash=not exclude_cash,
+        )
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Owner not found")
     except ValueError as exc:
@@ -587,6 +595,7 @@ async def portfolio_var_breakdown(
         "as_of": calc.reporting_date.isoformat(),
         "var": var,
         "breakdown": breakdown,
+        "scenarios": scenarios,
     }
 
 

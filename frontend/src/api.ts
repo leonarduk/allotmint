@@ -11,6 +11,7 @@ import type {
   PerformanceResponse,
   ValueAtRiskResponse,
   VarBreakdown,
+  VarScenario,
   AlphaResponse,
   TrackingErrorResponse,
   MaxDrawdownResponse,
@@ -1323,16 +1324,25 @@ export const getRebalance = (
 /** Fetch per-ticker VaR contribution breakdown for an owner. */
 export const getVarBreakdown = (
   owner: string,
-  opts: { days?: number; confidence?: number } = {},
+  opts: { days?: number; confidence?: number; horizonDays?: number } = {},
 ) => {
   const params = new URLSearchParams();
   if (opts.days != null) params.set("days", String(opts.days));
   if (opts.confidence != null)
     params.set("confidence", String(opts.confidence));
+  if (opts.horizonDays != null)
+    params.set("horizon_days", String(opts.horizonDays));
   const qs = params.toString();
-  return fetchJson<{ breakdown?: VarBreakdown[] } | VarBreakdown[]>(
+  return fetchJson<{
+    breakdown?: VarBreakdown[];
+    scenarios?: VarScenario[];
+  } | VarBreakdown[]>(
     `${API_BASE}/var/${owner}/breakdown${qs ? `?${qs}` : ""}`
-  ).then((response) => Array.isArray(response) ? response : response.breakdown ?? []);
+  ).then((response) => (
+    Array.isArray(response)
+      ? { breakdown: response, scenarios: [] }
+      : { breakdown: response.breakdown ?? [], scenarios: response.scenarios ?? [] }
+  ));
 };
 
 // ───────────── Goals API ─────────────

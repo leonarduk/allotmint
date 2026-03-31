@@ -206,6 +206,70 @@ def compute_portfolio_var_breakdown(
     return breakdown
 
 
+def compute_portfolio_var_scenarios(
+    owner: str,
+    days: int = 365,
+    confidence: float = 0.95,
+    horizon_days: int = 1,
+    limit: int = 10,
+    include_cash: bool = True,
+) -> List[Dict[str, float | str]]:
+    """Return worst historical dates that drive the VaR quantile."""
+
+    if days <= 0:
+        raise ValueError("days must be positive")
+    if horizon_days <= 0:
+        raise ValueError("horizon_days must be positive")
+    if limit <= 0:
+        raise ValueError("limit must be positive")
+
+    if 0 < confidence < 1:
+        pass
+    elif 1 <= confidence <= 100 and float(confidence).is_integer():
+        confidence = confidence / 100
+    else:
+        raise ValueError("confidence must be between 0 and 1 or 0 and 100")
+
+    perf = portfolio_utils.compute_owner_performance(
+        owner,
+        days=days + horizon_days,
+        include_flagged=False,
+        include_cash=include_cash,
+    )
+    history = perf.get("history", []) if isinstance(perf, dict) else perf
+    if not history:
+        return []
+
+    df = pd.DataFrame(history[-(days + horizon_days) :]).copy()
+    if "date" not in df or "daily_return" not in df:
+        return []
+    df["daily_return"] = pd.to_numeric(df["daily_return"], errors="coerce")
+    df = df.dropna(subset=["daily_return"])
+    if df.empty:
+        return []
+
+    if horizon_days == 1:
+        series = df.set_index("date")["daily_return"]
+    else:
+        rolling = df["daily_return"].add(1).rolling(horizon_days).apply(np.prod, raw=True) - 1
+        series = pd.Series(rolling.values, index=df["date"]).dropna()
+    if series.empty:
+        return []
+
+    quantile = float(series.quantile(1 - confidence))
+    worst = series[series <= quantile].sort_values().head(limit)
+    scenarios: List[Dict[str, float | str]] = []
+    for date, portfolio_return in worst.items():
+        scenarios.append(
+            {
+                "date": str(date)[:10],
+                "portfolio_return": round(float(portfolio_return), 6),
+                "loss_percent": round(float(max(-portfolio_return, 0.0) * 100), 4),
+            }
+        )
+    return scenarios
+
+
 def compute_sharpe_ratio(owner: str, days: int = 365) -> float | None:
     """Calculate the annualised Sharpe ratio for ``owner``.
 

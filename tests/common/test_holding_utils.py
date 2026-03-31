@@ -4,9 +4,17 @@ from typing import Dict
 import pandas as pd
 import pytest
 
-from backend.common import holding_utils, instrument_api
 import backend.common.portfolio_utils as portfolio_utils
+from backend.common import holding_utils, instrument_api
 
+
+@pytest.mark.parametrize("raw_currency", ["GBX", "GBXP", "GBp", "GBpx"])
+def test_is_pence_currency_wrapper(raw_currency):
+    assert holding_utils._is_pence_currency(raw_currency)
+
+
+def test_is_pence_currency_wrapper_false_for_gbp():
+    assert not holding_utils._is_pence_currency("GBP")
 
 def test_close_column_selection():
     df = pd.DataFrame({"CLOSE_GBP": [1], "Close": [2], "Adj Close": [3]})
@@ -260,7 +268,11 @@ def test_load_live_prices_with_fx(monkeypatch):
 
     monkeypatch.setattr(holding_utils.requests, "get", lambda url, timeout: Resp())
     monkeypatch.setattr(holding_utils, "get_scaling_override", lambda t, e, r: 0.5 if t == "ABC" else 1.0)
-    monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda s: {"currency": "GBP"} if s == "ABC.L" else {"currency": "USD"})
+    monkeypatch.setattr(
+        holding_utils,
+        "get_instrument_meta",
+        lambda s: {"currency": "GBP"} if s == "ABC.L" else {"currency": "USD"},
+    )
     monkeypatch.setattr(holding_utils, "_fx_to_base", lambda f, t, cache: 0.8)
 
     prices = holding_utils.load_live_prices(["ABC.L", "XYZ"])
@@ -303,3 +315,33 @@ def test_enrich_holding_non_cash_standard_path(monkeypatch):
     assert out["price"] == 1.0
     assert out["market_value_gbp"] == 2.0
     assert out["cost_basis_source"] == "derived"
+
+
+def test_load_live_prices_gbx_with_scaling_override_not_double_converted(monkeypatch):
+    ts = int(dt.datetime(2024, 1, 1, tzinfo=dt.timezone.utc).timestamp())
+
+    class Resp:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "quoteResponse": {
+                    "result": [
+                        {"symbol": "HFEL.L", "regularMarketPrice": 10_000.0, "regularMarketTime": ts}
+                    ]
+                }
+            }
+
+    monkeypatch.setattr(holding_utils.requests, "get", lambda url, timeout: Resp())
+    monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *a, **k: 0.01)
+    monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {"currency": "GBX"})
+
+    def _boom_fx(*_args, **_kwargs):
+        raise AssertionError("FX conversion should not run for pre-scaled GBX quotes")
+
+    monkeypatch.setattr(holding_utils, "_fx_to_base", _boom_fx)
+
+    prices = holding_utils.load_live_prices(["HFEL.L"])
+
+    assert prices["HFEL.L"]["price"] == pytest.approx(100.0)

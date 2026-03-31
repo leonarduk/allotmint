@@ -1,12 +1,22 @@
 import i18n from "../i18n";
 
+const PENCE_CODES = new Set(["GBX", "GBXP", "GBPX"]);
+
+const normalizeDisplayCurrency = (currency: string): string => {
+    if (currency === "GBp") {
+        return "GBP";
+    }
+
+    return PENCE_CODES.has(currency.toUpperCase()) ? "GBP" : currency;
+};
+
 export const money = (
     v: number | null | undefined,
     currency = "GBP",
     locale: string = i18n.language,
 ): string => {
     if (typeof v !== "number" || !Number.isFinite(v)) return "—";
-    const displayCurrency = currency === "GBX" ? "GBP" : currency;
+    const displayCurrency = normalizeDisplayCurrency(currency);
     return new Intl.NumberFormat(locale, {
         style: "currency",
         currency: displayCurrency,

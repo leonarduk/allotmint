@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime as dt
 import inspect
 import logging
-from datetime import date, timedelta
+from datetime import timedelta
 from typing import Any, Dict, Optional
 
 import pandas as pd
@@ -17,6 +17,7 @@ from backend.common.constants import (
     TICKER,
     UNITS,
 )
+from backend.common.currency import CurrencyNormaliser
 from backend.common.instruments import get_instrument_meta
 from backend.common.user_config import UserConfig
 from backend.config import config
@@ -57,13 +58,8 @@ def _lower_name_map(df: pd.DataFrame) -> Dict[str, str]:
 
 
 def _is_pence_currency(raw: str) -> bool:
-    """Return True for pence-denominated currency codes.
-
-    Handles GBX (Bloomberg/most feeds), GBXP, and the mixed-case
-    Yahoo Finance variant 'GBp'. The raw string must be passed
-    *before* uppercasing so that 'GBp' is distinguished from 'GBP'.
-    """
-    return raw.upper() in {"GBX", "GBXP"} or raw == "GBp"
+    """Backwards-compatible wrapper for pence currency checks."""
+    return CurrencyNormaliser.from_raw(raw).is_pence
 
 
 def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
@@ -74,11 +70,10 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
     - If ``Close_gbp``/``close_gbp`` exists, use it directly.
     - Otherwise use native close and convert to GBP using instrument metadata
       and scaling:
-      - If ``get_scaling_override`` returned a non-unity scale, ``apply_scaling``
-        has already performed the pence-to-pounds conversion; no further action.
-      - If scale == 1 and the currency is pence-denominated (GBX, GBXP, GBp),
-        divide by 100.
-      - All other non-GBP currencies are converted via ``_fx_to_base``.
+      - If ``get_scaling_override`` already applied pence scaling to the
+        DataFrame/quote, no additional pence conversion is applied.
+      - Otherwise, native values are converted through ``CurrencyNormaliser``
+        (pence-to-GBP and non-GBP FX paths).
 
     Additional behaviour:
     - Uses end_date = yesterday via PricingDateCalculator
@@ -150,19 +145,16 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
                 raw_currency = str(meta.get("currency") or "").strip()
                 if not raw_currency:
                     continue
-                currency = raw_currency.upper()
+                normaliser = CurrencyNormaliser.from_raw(raw_currency)
 
-                if _is_pence_currency(raw_currency):
-                    if scale == 1:
-                        val /= 100.0
-                elif currency != "GBP":
-                    fx_rate = _fx_to_base(currency, "GBP", fx_cache)
-                    if not fx_rate or not pd.notna(fx_rate) or not pd.api.types.is_number(fx_rate):
+                # Equivalent to the previous "if scale == 1: /100" rule:
+                # skip conversion only when pence scaling (0.01) was already applied.
+                pence_scaled_in_dataframe = normaliser.is_pence and scale == normaliser.pence_factor
+                if not pence_scaled_in_dataframe:
+                    try:
+                        val = normaliser.to_gbp(val, fx_cache, _fx_to_base)
+                    except ValueError:
                         continue
-                    fx_rate = float(fx_rate)
-                    if not pd.notna(fx_rate) or fx_rate <= 0:
-                        continue
-                    val *= fx_rate
 
             if not pd.notna(val) or val <= 0:
                 continue
@@ -217,19 +209,16 @@ def load_live_prices(full_tickers: list[str]) -> dict[str, Dict[str, object]]:
             # Enforce GBP output contract without double-converting pence instruments.
             meta = get_instrument_meta(sym) or get_instrument_meta(tkr) or {}
             raw_currency = str(meta.get("currency") or "GBP").strip()
-            currency = raw_currency.upper()
+            normaliser = CurrencyNormaliser.from_raw(raw_currency)
 
-            if _is_pence_currency(raw_currency):
-                if scale == 1:
-                    price /= 100.0
-            elif currency != "GBP":
-                fx_rate = _fx_to_base(currency, "GBP", fx_cache)
-                if not fx_rate or not pd.notna(fx_rate) or not pd.api.types.is_number(fx_rate):
+            # Same guard for live quotes: avoid double pence conversion when
+            # scaling already applied the 0.01 factor.
+            pence_scaled_in_quote = normaliser.is_pence and scale == normaliser.pence_factor
+            if not pence_scaled_in_quote:
+                try:
+                    price = normaliser.to_gbp(price, fx_cache, _fx_to_base)
+                except ValueError:
                     continue
-                fx_rate = float(fx_rate)
-                if not pd.notna(fx_rate) or fx_rate <= 0:
-                    continue
-                price *= fx_rate
 
             if not pd.notna(price) or price <= 0:
                 continue

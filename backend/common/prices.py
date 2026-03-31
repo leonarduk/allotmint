@@ -30,21 +30,19 @@ import json
 import logging
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-from typing import Iterable, Dict, List, Optional
+from typing import Dict, Iterable, List, Optional
 
 import pandas as pd
 
 from backend.common import instrument_api
-from backend.common.holding_utils import (
-    _is_pence_currency,
-    load_latest_prices as _load_latest_prices,
-    load_live_prices,
-)
+from backend.common.currency import CurrencyNormaliser
+from backend.common.holding_utils import load_latest_prices as _load_latest_prices
+from backend.common.holding_utils import load_live_prices
 from backend.common.portfolio_loader import list_portfolios
 from backend.common.portfolio_utils import (
+    check_price_alerts,
     list_all_unique_tickers,
     refresh_snapshot_in_memory,
-    check_price_alerts,
 )
 
 # ──────────────────────────────────────────────────────────────
@@ -61,10 +59,9 @@ logger = logging.getLogger("prices")
 def _close_on(sym: str, exch: str, d: date) -> Optional[float]:
     """Fetch the close price in GBP for ``sym.exch`` on or nearest before ``d``.
 
-    Pence-denominated instruments (GBX / GBXP / GBp) are divided by 100.
-    All other non-GBP currencies are converted via ``_fx_to_base``.
-    Note: ``_close_on`` does not call ``apply_scaling``, so the /100 conversion
-    is always applied unconditionally for pence instruments (no scale guard needed).
+    Non-GBP closes are converted via CurrencyNormaliser + ``_fx_to_base``.
+    Pence-denominated instruments (GBX / GBXP / GBp / GBpx) are scaled to GBP
+    through the same conversion path used elsewhere.
     """
 
     snap = _nearest_weekday(d, forward=False)
@@ -93,13 +90,11 @@ def _close_on(sym: str, exch: str, d: date) -> Optional[float]:
 
         meta = get_instrument_meta(f"{sym}.{exch}") or get_instrument_meta(sym) or {}
         raw_currency = str(meta.get("currency") or "GBP").strip()
-        currency = raw_currency.upper()
-
-        if _is_pence_currency(raw_currency):
-            # _close_on does not apply scaling, so always divide by 100.
-            value /= 100.0
-        elif currency != "GBP":
-            value *= _fx_to_base(currency, "GBP", {})
+        normaliser = CurrencyNormaliser.from_raw(raw_currency)
+        try:
+            value = normaliser.to_gbp(value, {}, _fx_to_base)
+        except ValueError:
+            return None
 
     return value
 

@@ -2,12 +2,15 @@ import { describe, expect, it, vi } from "vitest";
 import { money, percentOrNa } from "@/lib/money";
 
 describe("money", () => {
-  it("formats GBX values using pound units", () => {
-    const value = 123.45;
-    expect(money(value, "GBX", "en-GB")).toBe(
-      money(value, "GBP", "en-GB"),
-    );
-  });
+  it.each(["GBX", "GBXP", "GBpx", "GBp"])(
+    "formats %s values using pound units",
+    (currency) => {
+      const value = 123.45;
+      expect(money(value, currency, "en-GB")).toBe(
+        money(value, "GBP", "en-GB"),
+      );
+    },
+  );
 });
 
 describe("percentOrNa", () => {

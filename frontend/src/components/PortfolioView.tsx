@@ -39,6 +39,9 @@ const CSV_HEADERS = [
   "gain_pct",
 ];
 
+const sanitizeFilenamePart = (value: string): string =>
+  value.replaceAll(/[^a-zA-Z0-9_-]/g, "_");
+
 const escapeCsvCell = (value: string | number | null | undefined): string => {
   const cell = value == null ? "" : String(value);
   const escaped = cell.replaceAll('"', '""');
@@ -66,7 +69,7 @@ const buildPortfolioCsv = (portfolio: Portfolio): string => {
     ...rows.map((row) => row.map(escapeCsvCell).join(",")),
   ];
 
-  return `${csvRows.join("\n")}\n`;
+  return `${csvRows.join("\r\n")}\r\n`;
 };
 
 const downloadPortfolioCsv = (portfolio: Portfolio): void => {
@@ -74,10 +77,14 @@ const downloadPortfolioCsv = (portfolio: Portfolio): void => {
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
+  const safeOwner = sanitizeFilenamePart(portfolio.owner);
+  const safeAsOf = sanitizeFilenamePart(portfolio.as_of);
   link.href = url;
-  link.download = `${portfolio.owner}-portfolio-${portfolio.as_of}.csv`;
+  link.download = `${safeOwner}-portfolio-${safeAsOf}.csv`;
+  document.body.appendChild(link);
   link.click();
-  URL.revokeObjectURL(url);
+  document.body.removeChild(link);
+  window.setTimeout(() => URL.revokeObjectURL(url), 250);
 };
 
 const escapeHtml = (value: string | number | null | undefined): string => {
@@ -289,7 +296,13 @@ export function PortfolioView({ data, loading, error, onDateChange }: Props) {
     onDateChange?.(trimmed ? trimmed : null);
   };
 
+  const handleExportCsv = () => {
+    if (!data) return;
+    downloadPortfolioCsv(data);
+  };
+
   const handleExportPdf = () => {
+    if (!data) return;
     printPortfolioPdf(data);
   };
 
@@ -334,7 +347,8 @@ export function PortfolioView({ data, loading, error, onDateChange }: Props) {
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={() => downloadPortfolioCsv(data)}
+                onClick={handleExportCsv}
+                aria-label="Export portfolio as CSV"
                 className="rounded border border-gray-700 px-3 py-1 text-white hover:border-gray-500 hover:bg-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
               >
                 Export CSV
@@ -342,6 +356,7 @@ export function PortfolioView({ data, loading, error, onDateChange }: Props) {
               <button
                 type="button"
                 onClick={handleExportPdf}
+                aria-label="Export portfolio as PDF"
                 className="rounded border border-gray-700 px-3 py-1 text-white hover:border-gray-500 hover:bg-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
               >
                 Export PDF

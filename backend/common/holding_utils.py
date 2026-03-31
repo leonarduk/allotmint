@@ -71,7 +71,8 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
     - Otherwise use native close and convert to GBP using instrument metadata
       and scaling:
       - If ``get_scaling_override`` already applied pence scaling to the
-        DataFrame/quote, no additional pence conversion is applied.
+        DataFrame/quote (scale == 0.01, the pence_factor), no additional
+        pence conversion is applied.
       - Otherwise, native values are converted through ``CurrencyNormaliser``
         (pence-to-GBP and non-GBP FX paths).
 
@@ -147,8 +148,9 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
                     continue
                 normaliser = CurrencyNormaliser.from_raw(raw_currency)
 
-                # Equivalent to the previous "if scale == 1: /100" rule:
-                # skip conversion only when pence scaling (0.01) was already applied.
+                # Skip pence->GBP conversion only when apply_scaling already applied the
+                # pence factor (scale == 0.01). A non-zero, non-pence-factor scale (e.g.
+                # 0.5 for a data-provider quirk) does NOT imply pence conversion happened.
                 pence_scaled_in_dataframe = normaliser.is_pence and scale == normaliser.pence_factor
                 if not pence_scaled_in_dataframe:
                     try:
@@ -211,8 +213,9 @@ def load_live_prices(full_tickers: list[str]) -> dict[str, Dict[str, object]]:
             raw_currency = str(meta.get("currency") or "GBP").strip()
             normaliser = CurrencyNormaliser.from_raw(raw_currency)
 
-            # Same guard for live quotes: avoid double pence conversion when
-            # scaling already applied the 0.01 factor.
+            # Skip pence->GBP conversion only when apply_scaling already applied the
+            # pence factor (scale == 0.01). A non-zero, non-pence-factor scale (e.g.
+            # 0.5 for a data-provider quirk) does NOT imply pence conversion happened.
             pence_scaled_in_quote = normaliser.is_pence and scale == normaliser.pence_factor
             if not pence_scaled_in_quote:
                 try:

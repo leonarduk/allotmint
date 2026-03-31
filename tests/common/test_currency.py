@@ -17,6 +17,7 @@ from backend.common.currency import CurrencyNormaliser, extract_currency
         ("USD", "USD", "USD", False, 1.0),
         (None, "GBP", "GBP", False, 1.0),
         ("", "GBP", "GBP", False, 1.0),
+        # "gbp" (all-lowercase) means GBP, NOT pence — critical distinction vs "GBp"
         ("gbp", "GBP", "GBP", False, 1.0),
     ],
 )
@@ -27,6 +28,22 @@ def test_from_raw_variants(raw, canonical, display, is_pence, factor):
     assert normaliser.display_code == display
     assert normaliser.is_pence is is_pence
     assert normaliser.pence_factor == factor
+
+
+def test_from_raw_gbp_lowercase_is_not_pence():
+    """'gbp' (all-lowercase) is GBP, not pence. Only exact 'GBp' (Yahoo convention) is pence."""
+    normaliser = CurrencyNormaliser.from_raw("gbp")
+    assert normaliser.is_pence is False
+    assert normaliser.canonical == "GBP"
+    assert normaliser.display_code == "GBP"
+
+
+def test_from_raw_GBp_is_pence():
+    """Exact 'GBp' (Yahoo Finance convention) must be treated as pence."""
+    normaliser = CurrencyNormaliser.from_raw("GBp")
+    assert normaliser.is_pence is True
+    assert normaliser.canonical == "GBX"
+    assert normaliser.display_code == "GBP"
 
 
 def test_scale_dataframe_scales_ohlc_only_for_pence():
@@ -99,3 +116,20 @@ def test_extract_currency_from_top_level_keys(meta):
     normaliser = extract_currency(meta)
 
     assert normaliser is not None
+
+
+def test_scale_dataframe_scales_case_insensitive_ohlc():
+    """scale_dataframe must handle mixed-case column names (HIGH, low, Close, etc.).
+
+    This confirms that the existing case-insensitive name_map in scale_dataframe
+    works correctly for feeds that don't use title-case column names.
+    """
+    normaliser = CurrencyNormaliser.from_raw("GBX")
+    frame = pd.DataFrame({"open": [100.0], "HIGH": [200.0], "low": [150.0], "Close": [300.0]})
+
+    scaled = normaliser.scale_dataframe(frame)
+
+    assert scaled["open"].iloc[0] == pytest.approx(1.0)
+    assert scaled["HIGH"].iloc[0] == pytest.approx(2.0)
+    assert scaled["low"].iloc[0] == pytest.approx(1.5)
+    assert scaled["Close"].iloc[0] == pytest.approx(3.0)

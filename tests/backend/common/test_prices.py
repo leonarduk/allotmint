@@ -66,6 +66,26 @@ def test_close_on_converts_native_currency_to_gbp(monkeypatch: pytest.MonkeyPatc
     assert prices._close_on("USDX", "US", sample_date) == pytest.approx(80.0)
 
 
+def test_close_on_converts_gbx_pence_to_gbp(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``_close_on`` should apply pence->GBP conversion through CurrencyNormaliser."""
+
+    sample_date = date(2024, 5, 8)
+    frame = pd.DataFrame({"Close": [250.0]})
+
+    monkeypatch.setattr(prices, "_nearest_weekday", lambda d, forward=False: sample_date)
+    monkeypatch.setattr(prices, "load_meta_timeseries_range", lambda *args, **kwargs: frame)
+    monkeypatch.setattr("backend.common.instruments.get_instrument_meta", lambda *_: {"currency": "GBX"})
+
+    # GBX conversion is arithmetic (/100); FX resolver must not be called.
+    monkeypatch.setattr(
+        portfolio_utils,
+        "_fx_to_base",
+        lambda *_: (_ for _ in ()).throw(AssertionError("_fx_to_base should not run for GBX")),
+    )
+
+    assert prices._close_on("VOD", "L", sample_date) == pytest.approx(2.5)
+
+
 def test_get_price_snapshot_handles_stale_and_missing_data(monkeypatch: pytest.MonkeyPatch) -> None:
     """``get_price_snapshot`` should correctly combine live and cached data."""
 

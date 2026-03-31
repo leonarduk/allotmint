@@ -204,6 +204,105 @@ def test_load_latest_prices_gbx_pence_with_scaling_override(monkeypatch):
     assert prices == {"HFEL.L": pytest.approx(100.0)}
 
 
+def test_load_latest_prices_gbx_non_pence_factor_scale_still_converts(monkeypatch):
+    """When scale is non-unity but NOT 0.01 (e.g. a data-provider quirk like 0.5),
+    pence->GBP conversion must still be applied.
+
+    A data provider might return prices already adjusted by 0.5 for some split
+    reason, but that does NOT mean pence->GBP has been handled. The instrument
+    is still GBX, so normaliser.to_gbp must divide by 100.
+
+    Native close 200.0 * scale 0.5 = 100.0 in scaled DF.
+    100.0 (pence) / 100 = 1.0 GBP expected.
+    """
+    from backend.common import instrument_api
+
+    monkeypatch.setattr(instrument_api, "_resolve_full_ticker", lambda f, r: ("HFEL", "L"))
+    monkeypatch.setattr(
+        holding_utils,
+        "load_meta_timeseries_range",
+        lambda *args, **kwargs: pd.DataFrame(
+            {"Date": [dt.date(2024, 1, 1)], "Close": [200.0]}
+        ),
+    )
+    # scale=0.5: non-unity but NOT the pence factor; pence->GBP must still run
+    monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *a, **k: 0.5)
+    monkeypatch.setattr(
+        holding_utils, "get_instrument_meta", lambda *_: {"currency": "GBX"}
+    )
+
+    def _boom_fx(*args, **kwargs):
+        raise AssertionError("_fx_to_base must not be called for GBX")
+
+    monkeypatch.setattr(holding_utils, "_fx_to_base", _boom_fx)
+
+    prices = holding_utils.load_latest_prices(["HFEL.L"])
+
+    # 200.0 * 0.5 = 100.0 via apply_scaling, then 100.0 / 100 = 1.0 GBP
+    assert prices == {"HFEL.L": pytest.approx(1.0)}
+
+
+def test_load_live_prices_gbx_non_pence_factor_scale_still_converts(monkeypatch):
+    """Same as above for load_live_prices: scale=0.5 (non-pence-factor) must NOT
+    skip pence->GBP conversion for GBX instruments."""
+    ts = int(dt.datetime(2024, 1, 1, tzinfo=dt.timezone.utc).timestamp())
+
+    class Resp:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "quoteResponse": {
+                    "result": [
+                        {"symbol": "HFEL.L", "regularMarketPrice": 200.0, "regularMarketTime": ts}
+                    ]
+                }
+            }
+
+    monkeypatch.setattr(holding_utils.requests, "get", lambda url, timeout: Resp())
+    # scale=0.5: NOT the pence factor; pence->GBP must still happen
+    monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *a, **k: 0.5)
+    monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {"currency": "GBX"})
+
+    def _boom_fx(*_args, **_kwargs):
+        raise AssertionError("FX conversion should not run for GBX")
+
+    monkeypatch.setattr(holding_utils, "_fx_to_base", _boom_fx)
+
+    prices = holding_utils.load_live_prices(["HFEL.L"])
+
+    # 200.0 * 0.5 = 100.0 (after scale), then 100.0 / 100 = 1.0 GBP
+    assert prices["HFEL.L"]["price"] == pytest.approx(1.0)
+
+
+def test_load_latest_prices_non_pence_scale_point_zero_one_still_fx_converts(monkeypatch):
+    """A 0.01 scaling override must not suppress conversion for non-pence instruments.
+
+    Guard logic uses ``normaliser.is_pence and scale == normaliser.pence_factor``.
+    This test ensures a coincidental 0.01 override on a USD instrument still
+    applies FX conversion rather than being treated like a pence pre-scaling.
+    """
+    from backend.common import instrument_api
+
+    monkeypatch.setattr(instrument_api, "_resolve_full_ticker", lambda f, r: ("VUSA", "L"))
+    monkeypatch.setattr(
+        holding_utils,
+        "load_meta_timeseries_range",
+        lambda *args, **kwargs: pd.DataFrame(
+            {"Date": [dt.date(2024, 1, 1)], "Close": [100.0]}
+        ),
+    )
+    # 100.0 * 0.01 = 1.0 USD after apply_scaling, then FX 0.8 => 0.8 GBP.
+    monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *a, **k: 0.01)
+    monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {"currency": "USD"})
+    monkeypatch.setattr(holding_utils, "_fx_to_base", lambda *_: 0.8)
+
+    prices = holding_utils.load_latest_prices(["VUSA.L"])
+
+    assert prices == {"VUSA.L": pytest.approx(0.8)}
+
+
 def test_load_latest_prices_handles_malformed(monkeypatch, caplog):
     def boom(*args, **kwargs):
         raise ValueError("bad data")

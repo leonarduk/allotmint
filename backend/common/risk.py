@@ -298,6 +298,14 @@ def compute_portfolio_var_scenarios(
     if series.empty:
         return {"var_date": None, "var_loss_percent": None, "scenarios": []}
 
+    # Drop extreme shocks that are usually stale/missing-price artefacts.
+    # Performance diagnostics already flags >90% drawdowns as suspicious; we
+    # use a stricter VaR-scenario filter here to avoid surfacing implausible
+    # one-off spikes as "drivers" of VaR.
+    series = series[series.abs() <= 0.5]
+    if series.empty:
+        return {"var_date": None, "var_loss_percent": None, "scenarios": []}
+
     quantile = float(series.quantile(1 - confidence))
     # Keep only quantile-tail losses, then order from closest-to-quantile to
     # more extreme losses. This avoids over-emphasising single bad ticks that

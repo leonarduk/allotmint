@@ -99,3 +99,24 @@ def test_var_breakdown_unknown_owner(monkeypatch):
     monkeypatch.setattr(portfolio_mod, "list_owners", lambda: ["alice"])
     resp = client.get("/var/unknown/breakdown")
     assert resp.status_code == 404
+
+
+def test_var_breakdown_scenario_filters_extreme_outlier(monkeypatch, deterministic_setup):
+    client = _auth_client()
+    monkeypatch.setattr(
+        portfolio_utils,
+        "compute_owner_performance",
+        lambda owner, days, include_flagged=False, include_cash=True: {
+            "history": [
+                {"date": "2024-01-01", "daily_return": -0.01, "value": 1000},
+                {"date": "2024-01-02", "daily_return": -0.8, "value": 200},
+                {"date": "2024-01-03", "daily_return": -0.02, "value": 980},
+                {"date": "2024-01-04", "daily_return": -0.03, "value": 950},
+            ]
+        },
+    )
+    resp = client.get("/var/alice/breakdown?days=4&confidence=0.95&horizon_days=1")
+    assert resp.status_code == 200
+    data = resp.json()
+    # The -80% outlier should be ignored in scenario selection.
+    assert data["var_date"] != "2024-01-02"

@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+
 import type { VarBreakdown } from "../types";
 import type { VarScenario } from "../types";
 
@@ -29,6 +31,18 @@ export function VarBreakdownModal({
     if (typeof value !== "number" || Number.isNaN(value)) return "—";
     return `${value >= 0 ? "+" : ""}${value.toFixed(2)}`;
   };
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose]);
 
   return (
     <div

@@ -78,6 +78,11 @@ describe("ValueAtRisk component", () => {
     expect(screen.getByRole("dialog")).toHaveTextContent("-75.00");
     expect(screen.getByRole("dialog")).toHaveTextContent("+20.00");
     expect(screen.getByRole("dialog")).toHaveTextContent("2024-01-02");
+    fireEvent.keyDown(window, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    fireEvent.click(btn);
+    await waitFor(() => screen.getByRole("dialog"));
     fireEvent.click(screen.getByRole("button", { name: /Show report/i }));
     expect(onDateChange).toHaveBeenCalledWith("2024-01-02");
   });

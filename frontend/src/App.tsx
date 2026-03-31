@@ -69,6 +69,7 @@ import {
 import { deriveModeFromPathname } from "./pageManifest";
 import { MAX_INSTRUMENT_CATALOGUE_ROWS } from "./constants/renderLimits";
 import { decodePathSegment, encodePathSegment } from "./utils/urlUtils";
+import { downloadInstrumentsCsv, printInstrumentsPdf } from "./lib/instrumentExports";
 
 const PerformanceDashboard = lazyWithDelay(
   () => import("./components/PerformanceDashboard"),
@@ -396,6 +397,15 @@ export default function App({ onLogout }: AppProps) {
     () => instruments.slice(0, MAX_INSTRUMENT_CATALOGUE_ROWS),
     [instruments],
   );
+  const exportGroupLabel = selectedGroup || "all";
+
+  const handleInstrumentExportCsv = useCallback(() => {
+    downloadInstrumentsCsv(instruments, exportGroupLabel);
+  }, [instruments, exportGroupLabel]);
+
+  const handleInstrumentExportPdf = useCallback(() => {
+    printInstrumentsPdf(instruments, exportGroupLabel);
+  }, [instruments, exportGroupLabel]);
 
   const renderMainContent = () => {
     if (backendUnavailable) {
@@ -495,6 +505,31 @@ export default function App({ onLogout }: AppProps) {
             <h1 className="mb-4 text-2xl">
               {t("app.modes.instrument", { defaultValue: "Instruments" })}
             </h1>
+            {selectedGroup === "all" && instruments.length > 0 && (
+              <div className="mb-4 rounded-lg border border-gray-800 bg-black/20 p-3">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                  Export instruments
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleInstrumentExportCsv}
+                    aria-label="Export instruments as CSV"
+                    className="rounded border border-gray-700 px-3 py-1 text-white hover:border-gray-500 hover:bg-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
+                  >
+                    Export CSV
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleInstrumentExportPdf}
+                    aria-label="Export instruments as PDF"
+                    className="rounded border border-gray-700 px-3 py-1 text-white hover:border-gray-500 hover:bg-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
+                  >
+                    Export PDF
+                  </button>
+                </div>
+              </div>
+            )}
             {err && <p style={{ color: "red" }}>{err}</p>}
             {loading ? (
               <p>{t("app.loading")}</p>

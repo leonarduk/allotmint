@@ -276,6 +276,33 @@ def test_load_live_prices_gbx_non_pence_factor_scale_still_converts(monkeypatch)
     assert prices["HFEL.L"]["price"] == pytest.approx(1.0)
 
 
+def test_load_latest_prices_non_pence_scale_point_zero_one_still_fx_converts(monkeypatch):
+    """A 0.01 scaling override must not suppress conversion for non-pence instruments.
+
+    Guard logic uses ``normaliser.is_pence and scale == normaliser.pence_factor``.
+    This test ensures a coincidental 0.01 override on a USD instrument still
+    applies FX conversion rather than being treated like a pence pre-scaling.
+    """
+    from backend.common import instrument_api
+
+    monkeypatch.setattr(instrument_api, "_resolve_full_ticker", lambda f, r: ("VUSA", "L"))
+    monkeypatch.setattr(
+        holding_utils,
+        "load_meta_timeseries_range",
+        lambda *args, **kwargs: pd.DataFrame(
+            {"Date": [dt.date(2024, 1, 1)], "Close": [100.0]}
+        ),
+    )
+    # 100.0 * 0.01 = 1.0 USD after apply_scaling, then FX 0.8 => 0.8 GBP.
+    monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *a, **k: 0.01)
+    monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {"currency": "USD"})
+    monkeypatch.setattr(holding_utils, "_fx_to_base", lambda *_: 0.8)
+
+    prices = holding_utils.load_latest_prices(["VUSA.L"])
+
+    assert prices == {"VUSA.L": pytest.approx(0.8)}
+
+
 def test_load_latest_prices_handles_malformed(monkeypatch, caplog):
     def boom(*args, **kwargs):
         raise ValueError("bad data")

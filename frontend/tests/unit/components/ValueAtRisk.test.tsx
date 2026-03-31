@@ -35,10 +35,12 @@ describe("ValueAtRisk component", () => {
       if (typeof input === "string" && input.includes("/breakdown")) {
         return Promise.resolve({
           ok: true,
-          json: async () => [
-            { ticker: "AAA", contribution: 60 },
-            { ticker: "BBB", contribution: 40 },
-          ],
+          json: async () => ({
+            breakdown: [
+              { ticker: "AAA", contribution: 60 },
+              { ticker: "BBB", contribution: 40 },
+            ],
+          }),
         } as unknown as Response);
       }
       return Promise.resolve({

@@ -6,6 +6,8 @@ interface Props {
 }
 
 export function VarBreakdownModal({ contributions, onClose }: Props) {
+  const hasRows = contributions.length > 0;
+
   return (
     <div
       role="dialog"
@@ -22,24 +24,38 @@ export function VarBreakdownModal({ contributions, onClose }: Props) {
         justifyContent: 'center',
       }}
     >
-      <div style={{ background: 'white', padding: '1rem', maxHeight: '80%', overflow: 'auto' }}>
+      <div
+        style={{
+          background: "var(--surface-card-bg, #fff)",
+          color: "var(--surface-card-color, #111)",
+          border: "1px solid var(--surface-card-border, #d9d9d9)",
+          padding: "1rem",
+          maxHeight: "80%",
+          minWidth: "20rem",
+          overflow: "auto",
+        }}
+      >
         <h3>VaR Breakdown</h3>
-        <table>
-          <thead>
-            <tr>
-              <th>Ticker</th>
-              <th>Contribution</th>
-            </tr>
-          </thead>
-          <tbody>
-            {contributions.map((c) => (
-              <tr key={c.ticker}>
-                <td>{c.ticker}</td>
-                <td>{c.contribution.toFixed(2)}</td>
+        {hasRows ? (
+          <table>
+            <thead>
+              <tr>
+                <th style={{ textAlign: "left", paddingRight: "1rem" }}>Ticker</th>
+                <th style={{ textAlign: "right" }}>Contribution</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {contributions.map((c) => (
+                <tr key={c.ticker}>
+                  <td style={{ paddingRight: "1rem" }}>{c.ticker}</td>
+                  <td style={{ textAlign: "right" }}>{c.contribution.toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p style={{ margin: 0 }}>No contribution data available.</p>
+        )}
         <button onClick={onClose} style={{ marginTop: '1rem' }}>
           Close
         </button>

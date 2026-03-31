@@ -26,6 +26,60 @@ const PerformanceDashboard = lazyWithDelay(
   () => import("@/components/PerformanceDashboard"),
 );
 
+const CSV_HEADERS = [
+  "owner",
+  "as_of",
+  "account_type",
+  "ticker",
+  "name",
+  "units",
+  "currency",
+  "market_value_gbp",
+  "gain_gbp",
+  "gain_pct",
+];
+
+const escapeCsvCell = (value: string | number | null | undefined): string => {
+  const cell = value == null ? "" : String(value);
+  const escaped = cell.replaceAll('"', '""');
+  return `"${escaped}"`;
+};
+
+const buildPortfolioCsv = (portfolio: Portfolio): string => {
+  const rows = portfolio.accounts.flatMap((account) =>
+    account.holdings.map((holding) => [
+      portfolio.owner,
+      portfolio.as_of,
+      account.account_type,
+      holding.ticker,
+      holding.name,
+      holding.units,
+      holding.currency ?? account.currency ?? "",
+      holding.market_value_gbp ?? "",
+      holding.gain_gbp ?? "",
+      holding.gain_pct ?? "",
+    ])
+  );
+
+  const csvRows = [
+    CSV_HEADERS.map(escapeCsvCell).join(","),
+    ...rows.map((row) => row.map(escapeCsvCell).join(",")),
+  ];
+
+  return `${csvRows.join("\n")}\n`;
+};
+
+const downloadPortfolioCsv = (portfolio: Portfolio): void => {
+  const csv = buildPortfolioCsv(portfolio);
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${portfolio.owner}-portfolio-${portfolio.as_of}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+};
+
 // Props accepted by the view. `data` is null until a portfolio is loaded.
 type Props = {
   data: Portfolio | null;
@@ -122,6 +176,10 @@ export function PortfolioView({ data, loading, error, onDateChange }: Props) {
     onDateChange?.(trimmed ? trimmed : null);
   };
 
+  const handleExportPdf = () => {
+    window.print();
+  };
+
   return (
     <div className="space-y-6">
       <div className="grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
@@ -152,6 +210,22 @@ export function PortfolioView({ data, loading, error, onDateChange }: Props) {
                 Showing {formatDateISO(new Date(data.as_of))}
               </span>
             )}
+            <div className="ml-auto flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => downloadPortfolioCsv(data)}
+                className="rounded border border-gray-700 px-3 py-1 text-white hover:border-gray-500 hover:bg-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
+              >
+                Export CSV
+              </button>
+              <button
+                type="button"
+                onClick={handleExportPdf}
+                className="rounded border border-gray-700 px-3 py-1 text-white hover:border-gray-500 hover:bg-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
+              >
+                Export PDF
+              </button>
+            </div>
           </form>
           <div className="mb-6 text-lg font-semibold text-white">
             Approx Total: {money(totalValue, baseCurrency)}

@@ -210,6 +210,7 @@ def compute_portfolio_var_breakdown(
             closes = pd.to_numeric(ts["Close"], errors="coerce")
             date_col = pd.to_datetime(ts["Date"], errors="coerce")
             instrument_returns = pd.Series(closes.values, index=date_col).dropna()
+            instrument_returns = instrument_returns[~instrument_returns.index.isna()].sort_index()
             if not instrument_returns.empty:
                 if horizon_days <= 1:
                     shock_returns = instrument_returns.pct_change()

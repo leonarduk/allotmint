@@ -111,7 +111,7 @@ export function VarBreakdownModal({
                     {formatSignedAmount(
                       typeof c.scenario_amount_gbp === "number"
                         ? c.scenario_amount_gbp
-                        : c.contribution
+                        : null
                     )}
                   </td>
                 </tr>

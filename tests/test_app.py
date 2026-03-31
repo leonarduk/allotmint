@@ -55,3 +55,12 @@ def test_skip_snapshot_warm(monkeypatch):
     mock_load.assert_not_called()
     mock_update.assert_not_called()
     mock_prime.assert_not_called()
+
+
+def test_create_app_registers_rebalance_route(monkeypatch):
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    monkeypatch.setattr(config, "snapshot_warm_days", 30)
+    app = create_app()
+
+    registered_paths = {route.path for route in app.routes}
+    assert "/rebalance" in registered_paths

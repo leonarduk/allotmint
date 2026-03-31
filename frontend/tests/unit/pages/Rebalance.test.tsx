@@ -38,7 +38,7 @@ describe("Rebalance page", () => {
     });
   });
 
-  it("shows current/target weight percentages and explains trade value units", async () => {
+  it("shows weights in the input table and sends target percentages as fractional weights", async () => {
     mockGetRebalance.mockResolvedValue([
       { ticker: "AAA", action: "buy", amount: 10 },
       { ticker: "BBB", action: "sell", amount: 10 },
@@ -51,6 +51,11 @@ describe("Rebalance page", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /rebalance/i }));
 
+    expect(mockGetRebalance).toHaveBeenCalledWith(
+      { AAA: 50, BBB: 50 },
+      { AAA: 0.5, BBB: 0.5 },
+    );
+
     expect(await screen.findByRole("columnheader", { name: /current weight/i })).toBeInTheDocument();
     expect(screen.getAllByRole("columnheader", { name: /target weight/i }).length).toBeGreaterThanOrEqual(2);
     expect(screen.getByRole("columnheader", { name: /trade value/i })).toBeInTheDocument();
@@ -59,5 +64,8 @@ describe("Rebalance page", () => {
       screen.getByText(/Trade value is the amount of portfolio value/i),
     ).toBeInTheDocument();
     expect(screen.getByText(/not number of units\/shares/i)).toBeInTheDocument();
+    for (const input of screen.getAllByDisplayValue("50.00%")) {
+      expect(input).toHaveAttribute("readonly");
+    }
   });
 });

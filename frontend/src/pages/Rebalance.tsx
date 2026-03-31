@@ -6,7 +6,7 @@ import { sanitizeOwners } from "../utils/owners";
 import { useRoute } from "../RouteContext";
 
 type Row = { ticker: string; current: string; target: string };
-type ParsedRow = { currentValue: number; targetWeight: number };
+type ParsedRow = { currentValue: number; targetWeightPct: number };
 type TradeRow = TradeSuggestion & { currentWeightPct: number; targetWeightPct: number };
 
 const BLANK_ROW: Row = { ticker: "", current: "", target: "" };
@@ -41,7 +41,7 @@ function rowsFromPortfolio(portfolio: Portfolio): Row[] {
   return entries.map(([ticker, current]) => ({
     ticker,
     current: current.toFixed(2),
-    target: totalValue > 0 ? (current / totalValue).toFixed(4) : "0",
+    target: totalValue > 0 ? ((current / totalValue) * 100).toFixed(2) : "0",
   }));
 }
 
@@ -62,9 +62,9 @@ export default function Rebalance() {
       const ticker = row.ticker.trim().toUpperCase();
       if (!ticker) continue;
       const currentValue = parseFloat(row.current);
-      const targetWeight = parseFloat(row.target);
-      if (!Number.isFinite(currentValue) || !Number.isFinite(targetWeight)) continue;
-      parsed.set(ticker, { currentValue, targetWeight });
+      const targetWeightPct = parseFloat(row.target);
+      if (!Number.isFinite(currentValue) || !Number.isFinite(targetWeightPct)) continue;
+      parsed.set(ticker, { currentValue, targetWeightPct });
     }
     return parsed;
   }, [rows]);
@@ -84,7 +84,7 @@ export default function Rebalance() {
       const parsed = parsedRows.get(trade.ticker);
       const currentWeightPct =
         parsed && totalCurrentValue > 0 ? (parsed.currentValue / totalCurrentValue) * 100 : 0;
-      const targetWeightPct = (parsed?.targetWeight ?? 0) * 100;
+      const targetWeightPct = parsed?.targetWeightPct ?? 0;
       return {
         ...trade,
         currentWeightPct,
@@ -180,8 +180,8 @@ export default function Rebalance() {
         continue;
       }
       const current = parseFloat(row.current);
-      const weight = parseFloat(row.target);
-      if (Number.isNaN(current) || Number.isNaN(weight)) {
+      const weightPct = parseFloat(row.target);
+      if (Number.isNaN(current) || Number.isNaN(weightPct)) {
         setErr("Please enter valid numbers for current value and target weight.");
         setTrades(null);
         return;
@@ -189,7 +189,7 @@ export default function Rebalance() {
       const normalizedTicker = row.ticker.trim().toUpperCase();
       if (!normalizedTicker) continue;
       actual[normalizedTicker] = current;
-      target[normalizedTicker] = weight;
+      target[normalizedTicker] = weightPct / 100;
     }
 
     try {
@@ -210,7 +210,7 @@ export default function Rebalance() {
         custom or hypothetical rebalance scenarios.
       </p>
       <p className="mb-4 text-xs text-slate-500 dark:text-slate-400">
-        Target weight expects a fraction where 1.0 equals 100% (for example, 0.20 means 20%).
+        Target weight is entered as a percent (for example, 20 means 20%).
       </p>
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -246,6 +246,7 @@ export default function Rebalance() {
             <tr>
               <th>Ticker</th>
               <th>Current value</th>
+              <th>Current weight</th>
               <th>Target weight</th>
               <th></th>
             </tr>
@@ -272,11 +273,25 @@ export default function Rebalance() {
                 </td>
                 <td>
                   <input
+                    type="text"
+                    className="w-full border p-1 opacity-80"
+                    value={
+                      Number.isFinite(parseFloat(row.current)) && totalCurrentValue > 0
+                        ? `${percentFormatter.format((parseFloat(row.current) / totalCurrentValue) * 100)}%`
+                        : "—"
+                    }
+                    readOnly
+                    aria-label={`Current weight for ${row.ticker || `row ${idx + 1}`}`}
+                  />
+                </td>
+                <td>
+                  <input
                     type="number"
                     step="any"
                     className="w-full border p-1"
                     value={row.target}
                     onChange={(e) => updateRow(idx, "target", e.target.value)}
+                    aria-label={`Target weight (%) for ${row.ticker || `row ${idx + 1}`}`}
                   />
                 </td>
                 <td>

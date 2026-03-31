@@ -30,8 +30,8 @@ describe("Rebalance page", () => {
       accounts: [
         {
           holdings: [
-            { ticker: "AAA", market_value_gbp: 50 },
-            { ticker: "BBB", market_value_gbp: 50 },
+            { ticker: "AAA", market_value_gbp: 2 },
+            { ticker: "BBB", market_value_gbp: 1 },
           ],
         },
       ],
@@ -51,21 +51,22 @@ describe("Rebalance page", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /rebalance/i }));
 
-    expect(mockGetRebalance).toHaveBeenCalledWith(
-      { AAA: 50, BBB: 50 },
-      { AAA: 0.5, BBB: 0.5 },
-    );
+    expect(mockGetRebalance).toHaveBeenCalledTimes(1);
+    const [actualPayload, targetPayload] = mockGetRebalance.mock.calls[0];
+    expect(actualPayload).toEqual({ AAA: 2, BBB: 1 });
+    expect(targetPayload.AAA + targetPayload.BBB).toBeCloseTo(1, 10);
+    expect(targetPayload.AAA).toBeCloseTo(2 / 3, 10);
+    expect(targetPayload.BBB).toBeCloseTo(1 / 3, 10);
 
     expect(await screen.findByRole("columnheader", { name: /current weight/i })).toBeInTheDocument();
     expect(screen.getAllByRole("columnheader", { name: /target weight/i }).length).toBeGreaterThanOrEqual(2);
     expect(screen.getByRole("columnheader", { name: /trade value/i })).toBeInTheDocument();
-    expect(screen.getAllByText("50.00%")).toHaveLength(4);
+    expect(screen.getByDisplayValue("66.67%")).toHaveAttribute("readonly");
+    expect(screen.getByDisplayValue("33.33%")).toHaveAttribute("readonly");
     expect(
       screen.getByText(/Trade value is the amount of portfolio value/i),
     ).toBeInTheDocument();
     expect(screen.getByText(/not number of units\/shares/i)).toBeInTheDocument();
-    for (const input of screen.getAllByDisplayValue("50.00%")) {
-      expect(input).toHaveAttribute("readonly");
-    }
+    expect(screen.getByText(/treated as no-change/i)).toBeInTheDocument();
   });
 });

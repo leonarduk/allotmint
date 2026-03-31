@@ -174,6 +174,7 @@ export default function Rebalance() {
     e.preventDefault();
     const actual: Record<string, number> = {};
     const target: Record<string, number> = {};
+    const validRows: Array<{ ticker: string; current: number; weightPct: number }> = [];
 
     for (const row of rows) {
       if (!row.ticker) {
@@ -188,8 +189,19 @@ export default function Rebalance() {
       }
       const normalizedTicker = row.ticker.trim().toUpperCase();
       if (!normalizedTicker) continue;
-      actual[normalizedTicker] = current;
-      target[normalizedTicker] = weightPct / 100;
+      validRows.push({ ticker: normalizedTicker, current, weightPct });
+    }
+
+    const totalInputCurrent = validRows.reduce((sum, row) => sum + row.current, 0);
+    for (const row of validRows) {
+      const exactCurrentWeightPct = totalInputCurrent > 0 ? (row.current / totalInputCurrent) * 100 : 0;
+      const roundedCurrentWeightPct = Number(exactCurrentWeightPct.toFixed(2));
+      const targetWeight =
+        Math.abs(row.weightPct - roundedCurrentWeightPct) < 1e-9
+          ? exactCurrentWeightPct / 100
+          : row.weightPct / 100;
+      actual[row.ticker] = row.current;
+      target[row.ticker] = targetWeight;
     }
 
     try {
@@ -211,6 +223,9 @@ export default function Rebalance() {
       </p>
       <p className="mb-4 text-xs text-slate-500 dark:text-slate-400">
         Target weight is entered as a percent (for example, 20 means 20%).
+      </p>
+      <p className="mb-4 text-xs text-slate-500 dark:text-slate-400">
+        Keeping a target equal to the shown current weight is treated as no-change for that ticker.
       </p>
 
       <div className="mb-4 flex flex-wrap items-center gap-3">

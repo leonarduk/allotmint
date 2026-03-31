@@ -48,17 +48,18 @@ describe("Rebalance page", () => {
     render(<Rebalance />);
 
     await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("alex"));
+    await screen.findByDisplayValue("66.67");
 
     fireEvent.click(screen.getByRole("button", { name: /rebalance/i }));
 
-    expect(mockGetRebalance).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(mockGetRebalance).toHaveBeenCalledTimes(1));
     const [actualPayload, targetPayload] = mockGetRebalance.mock.calls[0];
     expect(actualPayload).toEqual({ AAA: 2, BBB: 1 });
     expect(targetPayload.AAA + targetPayload.BBB).toBeCloseTo(1, 10);
     expect(targetPayload.AAA).toBeCloseTo(2 / 3, 10);
     expect(targetPayload.BBB).toBeCloseTo(1 / 3, 10);
 
-    expect(await screen.findByRole("columnheader", { name: /current weight/i })).toBeInTheDocument();
+    expect(screen.getAllByRole("columnheader", { name: /current weight/i }).length).toBeGreaterThanOrEqual(2);
     expect(screen.getAllByRole("columnheader", { name: /target weight/i }).length).toBeGreaterThanOrEqual(2);
     expect(screen.getByRole("columnheader", { name: /trade value/i })).toBeInTheDocument();
     expect(screen.getByDisplayValue("66.67%")).toHaveAttribute("readonly");
@@ -68,5 +69,25 @@ describe("Rebalance page", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/not number of units\/shares/i)).toBeInTheDocument();
     expect(screen.getByText(/treated as no-change/i)).toBeInTheDocument();
+  });
+
+  it("explains when target weights do not add up to 100%", async () => {
+    mockGetRebalance.mockResolvedValue([]);
+    const { default: Rebalance } = await import("@/pages/Rebalance");
+    render(<Rebalance />);
+
+    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("alex"));
+    await screen.findByDisplayValue("66.67");
+    fireEvent.change(screen.getByLabelText("Target weight (%) for AAA"), {
+      target: { value: "30" },
+    });
+
+    expect(screen.getByText(/Total target weight: 63.33% \(must equal 100%\)/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /rebalance/i }));
+
+    expect(mockGetRebalance).not.toHaveBeenCalled();
+    expect(
+      screen.getByText(/Target weights must total 100%. Current total is 63.33%./i),
+    ).toBeInTheDocument();
   });
 });

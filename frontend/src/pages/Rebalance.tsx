@@ -77,6 +77,14 @@ export default function Rebalance() {
       ),
     [parsedRows],
   );
+  const totalTargetWeightPct = useMemo(
+    () =>
+      [...parsedRows.values()].reduce(
+        (sum, parsed) => sum + parsed.targetWeightPct,
+        0,
+      ),
+    [parsedRows],
+  );
 
   const tradeRows = useMemo<TradeRow[] | null>(() => {
     if (!trades) return null;
@@ -193,6 +201,15 @@ export default function Rebalance() {
     }
 
     const totalInputCurrent = validRows.reduce((sum, row) => sum + row.current, 0);
+    const totalInputTargetPct = validRows.reduce((sum, row) => sum + row.weightPct, 0);
+    if (Math.abs(totalInputTargetPct - 100) > 0.01) {
+      setErr(
+        `Target weights must total 100%. Current total is ${percentFormatter.format(totalInputTargetPct)}%.`,
+      );
+      setTrades(null);
+      return;
+    }
+
     for (const row of validRows) {
       const exactCurrentWeightPct = totalInputCurrent > 0 ? (row.current / totalInputCurrent) * 100 : 0;
       const roundedCurrentWeightPct = Number(exactCurrentWeightPct.toFixed(2));
@@ -226,6 +243,18 @@ export default function Rebalance() {
       </p>
       <p className="mb-4 text-xs text-slate-500 dark:text-slate-400">
         Keeping a target equal to the shown current weight is treated as no-change for that ticker.
+      </p>
+      <p
+        className={`mb-4 text-xs ${
+          Math.abs(totalTargetWeightPct - 100) <= 0.01
+            ? "text-emerald-600 dark:text-emerald-400"
+            : "text-amber-600 dark:text-amber-400"
+        }`}
+      >
+        Total target weight: {percentFormatter.format(totalTargetWeightPct)}%
+        {Math.abs(totalTargetWeightPct - 100) <= 0.01
+          ? " (ready to rebalance)"
+          : " (must equal 100%)"}
       </p>
 
       <div className="mb-4 flex flex-wrap items-center gap-3">

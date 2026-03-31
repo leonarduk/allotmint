@@ -315,3 +315,33 @@ def test_enrich_holding_non_cash_standard_path(monkeypatch):
     assert out["price"] == 1.0
     assert out["market_value_gbp"] == 2.0
     assert out["cost_basis_source"] == "derived"
+
+
+def test_load_live_prices_gbx_with_scaling_override_not_double_converted(monkeypatch):
+    ts = int(dt.datetime(2024, 1, 1, tzinfo=dt.timezone.utc).timestamp())
+
+    class Resp:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "quoteResponse": {
+                    "result": [
+                        {"symbol": "HFEL.L", "regularMarketPrice": 10_000.0, "regularMarketTime": ts}
+                    ]
+                }
+            }
+
+    monkeypatch.setattr(holding_utils.requests, "get", lambda url, timeout: Resp())
+    monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *a, **k: 0.01)
+    monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {"currency": "GBX"})
+
+    def _boom_fx(*_args, **_kwargs):
+        raise AssertionError("FX conversion should not run for pre-scaled GBX quotes")
+
+    monkeypatch.setattr(holding_utils, "_fx_to_base", _boom_fx)
+
+    prices = holding_utils.load_live_prices(["HFEL.L"])
+
+    assert prices["HFEL.L"]["price"] == pytest.approx(100.0)

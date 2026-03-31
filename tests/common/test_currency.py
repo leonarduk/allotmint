@@ -31,12 +31,13 @@ def test_from_raw_variants(raw, canonical, display, is_pence, factor):
 
 def test_scale_dataframe_scales_ohlc_only_for_pence():
     normaliser = CurrencyNormaliser.from_raw("GBX")
-    frame = pd.DataFrame({"Open": [100.0], "High": [200.0], "Close": [300.0], "Volume": [1000]})
+    frame = pd.DataFrame({"Open": [100.0], "High": [200.0], "Low": [150.0], "Close": [300.0], "Volume": [1000]})
 
     scaled = normaliser.scale_dataframe(frame)
 
     assert scaled["Open"].iloc[0] == pytest.approx(1.0)
     assert scaled["High"].iloc[0] == pytest.approx(2.0)
+    assert scaled["Low"].iloc[0] == pytest.approx(1.5)
     assert scaled["Close"].iloc[0] == pytest.approx(3.0)
     assert scaled["Volume"].iloc[0] == pytest.approx(1000.0)
 
@@ -91,3 +92,10 @@ def test_scale_dataframe_is_noop_for_non_pence():
     scaled = normaliser.scale_dataframe(frame, scale_volume=True)
 
     assert scaled.equals(frame)
+
+
+@pytest.mark.parametrize("meta", [{"priceCurrency": "GBXP"}, {"currencyCode": "USD"}])
+def test_extract_currency_from_top_level_keys(meta):
+    normaliser = extract_currency(meta)
+
+    assert normaliser is not None

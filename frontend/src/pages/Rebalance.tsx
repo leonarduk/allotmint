@@ -244,19 +244,6 @@ export default function Rebalance() {
       <p className="mb-4 text-xs text-slate-500 dark:text-slate-400">
         Keeping a target equal to the shown current weight is treated as no-change for that ticker.
       </p>
-      <p
-        className={`mb-4 text-xs ${
-          Math.abs(totalTargetWeightPct - 100) <= 0.01
-            ? "text-emerald-600 dark:text-emerald-400"
-            : "text-amber-600 dark:text-amber-400"
-        }`}
-      >
-        Total target weight: {percentFormatter.format(totalTargetWeightPct)}%
-        {Math.abs(totalTargetWeightPct - 100) <= 0.01
-          ? " (ready to rebalance)"
-          : " (must equal 100%)"}
-      </p>
-
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <label className="text-sm font-medium" htmlFor="rebalance-owner-select">
           Portfolio owner
@@ -351,6 +338,18 @@ export default function Rebalance() {
             ))}
           </tbody>
         </table>
+        <p
+          className={`mt-2 text-xs ${
+            Math.abs(totalTargetWeightPct - 100) <= 0.01
+              ? "text-green-600 dark:text-green-400"
+              : "text-red-600 dark:text-red-400"
+          }`}
+        >
+          Total target weight: {percentFormatter.format(totalTargetWeightPct)}%
+          {Math.abs(totalTargetWeightPct - 100) <= 0.01
+            ? " (ready to rebalance)"
+            : " (must equal 100%)"}
+        </p>
         <div className="mt-2 flex gap-2">
           <button
             type="button"

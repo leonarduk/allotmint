@@ -80,6 +80,91 @@ const downloadPortfolioCsv = (portfolio: Portfolio): void => {
   URL.revokeObjectURL(url);
 };
 
+const escapeHtml = (value: string | number | null | undefined): string => {
+  const text = value == null ? "" : String(value);
+  return text
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+};
+
+const formatNumber = (value: number | null | undefined): string => {
+  if (value == null || Number.isNaN(value)) return "";
+  return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+};
+
+const buildPortfolioPrintHtml = (portfolio: Portfolio): string => {
+  const holdingsRows = portfolio.accounts.flatMap((account) =>
+    account.holdings.map((holding) => {
+      const cells = [
+        account.account_type,
+        holding.ticker,
+        holding.name,
+        formatNumber(holding.units),
+        holding.currency ?? account.currency ?? "",
+        formatNumber(holding.market_value_gbp),
+        formatNumber(holding.gain_gbp),
+        formatNumber(holding.gain_pct),
+      ];
+      const rowHtml = cells.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("");
+      return `<tr>${rowHtml}</tr>`;
+    })
+  );
+
+  const tableBody = holdingsRows.length
+    ? holdingsRows.join("")
+    : '<tr><td colspan="8">No holdings available.</td></tr>';
+
+  return `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>${escapeHtml(portfolio.owner)} portfolio ${escapeHtml(portfolio.as_of)}</title>
+    <style>
+      @page { size: A4 landscape; margin: 12mm; }
+      body { font-family: Inter, Arial, sans-serif; margin: 0; color: #111827; }
+      h1 { margin: 0 0 8px; font-size: 20px; }
+      p { margin: 0 0 14px; color: #374151; }
+      table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 11px; }
+      th, td { border: 1px solid #d1d5db; padding: 6px; text-align: left; vertical-align: top; word-break: break-word; }
+      th { background: #f3f4f6; font-weight: 700; }
+    </style>
+  </head>
+  <body>
+    <h1>Portfolio export: ${escapeHtml(portfolio.owner)}</h1>
+    <p>As of ${escapeHtml(portfolio.as_of)} • Generated ${escapeHtml(new Date().toLocaleString())}</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Account</th>
+          <th>Ticker</th>
+          <th>Name</th>
+          <th>Units</th>
+          <th>Currency</th>
+          <th>Market Value (GBP)</th>
+          <th>Gain (GBP)</th>
+          <th>Gain %</th>
+        </tr>
+      </thead>
+      <tbody>${tableBody}</tbody>
+    </table>
+  </body>
+</html>`;
+};
+
+const printPortfolioPdf = (portfolio: Portfolio): void => {
+  const printWindow = window.open("", "_blank", "noopener,noreferrer");
+  if (!printWindow) return;
+  printWindow.document.open();
+  printWindow.document.write(buildPortfolioPrintHtml(portfolio));
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
+  printWindow.close();
+};
+
 // Props accepted by the view. `data` is null until a portfolio is loaded.
 type Props = {
   data: Portfolio | null;
@@ -177,7 +262,7 @@ export function PortfolioView({ data, loading, error, onDateChange }: Props) {
   };
 
   const handleExportPdf = () => {
-    window.print();
+    printPortfolioPdf(data);
   };
 
   return (

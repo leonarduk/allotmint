@@ -29,6 +29,12 @@ def _clamp_loss_fraction(loss_fraction: float) -> float:
     return min(max(float(loss_fraction), 0.0), 1.0)
 
 
+def _safe_float(value: object) -> float:
+    if isinstance(value, (int, float)):
+        return float(value)
+    return 0.0
+
+
 def compute_portfolio_var(
     owner: str, days: int = 365, confidence: float = 0.95, include_cash: bool = True
 ) -> Dict:
@@ -242,9 +248,17 @@ def compute_portfolio_var_breakdown(
         )
 
     if scenario_date:
-        breakdown.sort(key=lambda x: (x.get("scenario_amount_gbp") is None, x.get("scenario_amount_gbp", 0.0)))
+        breakdown.sort(
+            key=lambda x: (
+                x.get("scenario_amount_gbp") is None,
+                _safe_float(x.get("scenario_amount_gbp")),
+            )
+        )
     else:
-        breakdown.sort(key=lambda x: x["contribution"], reverse=True)
+        breakdown.sort(
+            key=lambda x: _safe_float(x.get("contribution")),
+            reverse=True,
+        )
     return breakdown
 
 

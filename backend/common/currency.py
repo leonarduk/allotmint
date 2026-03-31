@@ -5,7 +5,7 @@ from typing import Any, Callable, Dict, Optional
 
 import pandas as pd
 
-_PENCE_CODES = {"GBX", "GBXP", "GBPX"}
+_PENCE_CODES = {"GBX", "GBXP", "GBPX"}  # "GBPX" handles mixed-case source values like "GBpx"
 
 
 @dataclass(frozen=True)
@@ -27,7 +27,7 @@ class CurrencyNormaliser:
             return cls(raw=None, canonical="GBP", display_code="GBP", is_pence=False)
 
         upper = text.upper()
-        is_gbpence = len(text) == 3 and text[:2].upper() == "GB" and text[2] == "p"
+        is_gbpence = text == "GBp"
         is_pence = upper in _PENCE_CODES or is_gbpence
 
         canonical = "GBX" if is_pence else upper

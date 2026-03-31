@@ -17,6 +17,7 @@ from backend.common.currency import CurrencyNormaliser, extract_currency
         ("USD", "USD", "USD", False, 1.0),
         (None, "GBP", "GBP", False, 1.0),
         ("", "GBP", "GBP", False, 1.0),
+        ("gbp", "GBP", "GBP", False, 1.0),
     ],
 )
 def test_from_raw_variants(raw, canonical, display, is_pence, factor):
@@ -81,3 +82,12 @@ def test_scale_dataframe_scales_volume_when_enabled():
 
     assert scaled["Open"].iloc[0] == pytest.approx(1.0)
     assert scaled["Volume"].iloc[0] == pytest.approx(10.0)
+
+
+def test_scale_dataframe_is_noop_for_non_pence():
+    normaliser = CurrencyNormaliser.from_raw("USD")
+    frame = pd.DataFrame({"Open": [100.0], "Volume": [1000.0]})
+
+    scaled = normaliser.scale_dataframe(frame, scale_volume=True)
+
+    assert scaled.equals(frame)

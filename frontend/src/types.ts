@@ -186,6 +186,7 @@ export interface VarBreakdown {
   ticker: string;
   name?: string;
   contribution: number;
+  relative_change_percent?: number | null;
   relative_drop_percent?: number | null;
   var?: {
     [horizon: string]: number | null;

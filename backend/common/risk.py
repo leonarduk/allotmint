@@ -205,7 +205,7 @@ def compute_portfolio_var_breakdown(
             continue
 
         contribution = var_pct * value
-        relative_drop_percent: float | None = None
+        relative_change_percent: float | None = None
         if scenario_date:
             closes = pd.to_numeric(ts["Close"], errors="coerce")
             date_col = pd.to_datetime(ts["Date"], errors="coerce")
@@ -219,14 +219,18 @@ def compute_portfolio_var_breakdown(
                 if pd.notna(scenario_ts):
                     aligned = shock_returns.loc[:scenario_ts].dropna()
                     if not aligned.empty:
-                        relative_drop_percent = round(float(max(-aligned.iloc[-1], 0.0) * 100), 2)
+                        relative_change_percent = round(float(aligned.iloc[-1] * 100), 2)
 
         breakdown.append(
             {
                 "ticker": ticker,
                 "name": str(row.get("name") or ticker),
                 "contribution": round(float(contribution), 2),
-                "relative_drop_percent": relative_drop_percent,
+                "relative_change_percent": relative_change_percent,
+                # Backward-compatible alias while UI/tests migrate fully.
+                "relative_drop_percent": (
+                    None if relative_change_percent is None else round(float(max(-relative_change_percent, 0.0)), 2)
+                ),
             }
         )
 

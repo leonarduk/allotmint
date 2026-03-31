@@ -21,6 +21,11 @@ export function VarBreakdownModal({
   const hasRows = contributions.length > 0;
   const hasScenarios = scenarios.length > 0;
 
+  const formatSignedPercent = (value: number | null | undefined) => {
+    if (typeof value !== "number" || Number.isNaN(value)) return "—";
+    return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+  };
+
   return (
     <div
       role="dialog"
@@ -80,7 +85,7 @@ export function VarBreakdownModal({
               <tr>
                 <th style={{ textAlign: "left", paddingRight: "1rem" }}>Ticker</th>
                 <th style={{ textAlign: "left", paddingRight: "1rem" }}>Stock</th>
-                <th style={{ textAlign: "right", paddingRight: "1rem" }}>Drop</th>
+                <th style={{ textAlign: "right", paddingRight: "1rem" }}>Change</th>
                 <th style={{ textAlign: "right" }}>Contribution</th>
               </tr>
             </thead>
@@ -90,9 +95,13 @@ export function VarBreakdownModal({
                   <td style={{ paddingRight: "1rem" }}>{c.ticker}</td>
                   <td style={{ paddingRight: "1rem" }}>{c.name ?? c.ticker}</td>
                   <td style={{ textAlign: "right", paddingRight: "1rem" }}>
-                    {typeof c.relative_drop_percent === "number"
-                      ? `${c.relative_drop_percent.toFixed(2)}%`
-                      : "—"}
+                    {formatSignedPercent(
+                      typeof c.relative_change_percent === "number"
+                        ? c.relative_change_percent
+                        : c.relative_drop_percent != null
+                          ? -Math.abs(c.relative_drop_percent)
+                          : null
+                    )}
                   </td>
                   <td style={{ textAlign: "right" }}>{c.contribution.toFixed(2)}</td>
                 </tr>

@@ -257,11 +257,14 @@ def compute_portfolio_var_scenarios(
         return {"var_date": None, "var_loss_percent": None, "scenarios": []}
 
     quantile = float(series.quantile(1 - confidence))
-    loss_slice = series[series <= quantile].sort_values()
+    # Keep only quantile-tail losses, then order from closest-to-quantile to
+    # more extreme losses. This avoids over-emphasising single bad ticks that
+    # may be data glitches and better reflects the VaR threshold event.
+    loss_slice = series[series <= quantile].sort_values(ascending=False)
     if loss_slice.empty:
         return {"var_date": None, "var_loss_percent": None, "scenarios": []}
-    var_date = str(loss_slice.index[-1])[:10]
-    var_loss_percent = round(float(max(-loss_slice.iloc[-1], 0.0) * 100), 4)
+    var_date = str(loss_slice.index[0])[:10]
+    var_loss_percent = round(float(max(-loss_slice.iloc[0], 0.0) * 100), 4)
     worst = loss_slice.head(limit)
     scenarios: List[Dict[str, float | str]] = []
     for date, portfolio_return in worst.items():

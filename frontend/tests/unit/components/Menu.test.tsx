@@ -164,4 +164,21 @@ describe("Menu", () => {
 
     expect(list).toHaveClass("gap-2");
   });
+
+  it("renders the research link in insights when enabled", async () => {
+    render(
+      <MemoryRouter>
+        <Menu />
+      </MemoryRouter>,
+    );
+
+    const insightsToggle = screen.getByRole("button", {
+      name: i18n.t("app.menuCategories.insights"),
+    });
+    fireEvent.click(insightsToggle);
+
+    const researchLink = await screen.findByRole("menuitem", { name: i18n.t("app.modes.research") });
+    expect(researchLink).toBeVisible();
+    expect(researchLink).toHaveAttribute("href", "/research");
+  });
 });

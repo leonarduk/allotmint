@@ -184,6 +184,15 @@ def _env_flag(name: str) -> Optional[bool]:
     return val.lower() in {"1", "true", "yes"}
 
 
+def _coerce_bool_with_default(value: Any, *, key: str, default: bool) -> bool:
+    """Return ``default`` for ``None`` and validate non-null boolean values."""
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    raise ConfigValidationError(f"'{key}' must be a boolean when provided")
+
+
 def _flatten_dict(src: Dict[str, Any], dst: Dict[str, Any]) -> None:
     """Flatten one level of ``src`` into ``dst`` while preserving nested maps."""
     for key, value in src.items():
@@ -417,10 +426,26 @@ def load_config() -> Config:
         demo_identity=demo_identity,
         smoke_identity=smoke_identity,
         relative_view_enabled=data.get("relative_view_enabled"),
-        enable_family_mvp=bool(data.get("enable_family_mvp", True)),
-        enable_compliance_workflows=bool(data.get("enable_compliance_workflows", False)),
-        enable_advanced_analytics=bool(data.get("enable_advanced_analytics", False)),
-        enable_reporting_extended=bool(data.get("enable_reporting_extended", False)),
+        enable_family_mvp=_coerce_bool_with_default(
+            data.get("enable_family_mvp"),
+            key="enable_family_mvp",
+            default=True,
+        ),
+        enable_compliance_workflows=_coerce_bool_with_default(
+            data.get("enable_compliance_workflows"),
+            key="enable_compliance_workflows",
+            default=False,
+        ),
+        enable_advanced_analytics=_coerce_bool_with_default(
+            data.get("enable_advanced_analytics"),
+            key="enable_advanced_analytics",
+            default=False,
+        ),
+        enable_reporting_extended=_coerce_bool_with_default(
+            data.get("enable_reporting_extended"),
+            key="enable_reporting_extended",
+            default=False,
+        ),
         theme=data.get("theme"),
         timeseries_cache_base=timeseries_cache_base,
         fx_proxy_url=data.get("fx_proxy_url"),

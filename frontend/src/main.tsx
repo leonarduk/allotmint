@@ -31,7 +31,12 @@ import { UserProvider, useUser } from './UserContext';
 import ErrorBoundary from './ErrorBoundary';
 import { loadStoredAuthUser, loadStoredUserProfile } from './authStorage';
 import { RouteProvider } from './RouteContext';
-import { deriveBootstrapMode, deriveModeFromPathname, standalonePageRoutes } from './pageManifest';
+import {
+  deriveBootstrapMode,
+  deriveModeFromPathname,
+  isModeEnabled,
+  standalonePageRoutes,
+} from './pageManifest';
 
 interface BootstrapConfig {
   google_auth_enabled?: boolean | null;
@@ -108,10 +113,8 @@ export function Root() {
   const navigate = useNavigate();
   const location = useLocation();
   const { tabs, disabledTabs } = useConfig();
-  const complianceRoutesEnabled =
-    tabs["trade-compliance"] !== false && !disabledTabs?.includes("trade-compliance");
-  const advancedAnalyticsEnabled =
-    tabs.scenario !== false && !disabledTabs?.includes("scenario");
+  const complianceRoutesEnabled = isModeEnabled("trade-compliance", tabs, disabledTabs);
+  const advancedAnalyticsEnabled = isModeEnabled("scenario", tabs, disabledTabs);
   const activeRequest = useRef<AbortController | null>(null);
   const retryTimer = useRef<number | null>(null);
   const isMounted = useRef(true);
@@ -312,7 +315,7 @@ export function Root() {
             if (route.routePath === '/virtual' || !route.lazyComponent) {
               return [];
             }
-            if (tabs[route.mode] === false || disabledTabs?.includes(route.mode)) {
+            if (!isModeEnabled(route.mode, tabs, disabledTabs)) {
               return [];
             }
 

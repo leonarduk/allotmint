@@ -97,15 +97,6 @@ const defaultTabs: TabsConfig = {
   scenario: true,
 };
 
-const FAMILY_MVP_DISABLED_TABS = [
-  "transactions",
-  "trade-compliance",
-  "trail",
-  "taxtools",
-  "reports",
-  "scenario",
-] as const;
-
 export interface ConfigContextValue extends AppConfig {
   refreshConfig: () => Promise<void>;
   setRelativeViewEnabled: (enabled: boolean) => void;
@@ -170,28 +161,28 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
       const disabledTabs = new Set<string>(
         Array.isArray(cfg.disabled_tabs) ? cfg.disabled_tabs : [],
       );
+      const disableTab = (tab: keyof TabsConfig) => {
+        disabledTabs.add(tab);
+        tabs[tab] = false;
+      };
       const familyMvpEnabled = cfg.enable_family_mvp !== false;
       if (familyMvpEnabled && cfg.enable_compliance_workflows !== true) {
-        disabledTabs.add("trade-compliance");
-        disabledTabs.add("trail");
-        disabledTabs.add("taxtools");
+        disableTab("trade-compliance");
+        disableTab("trail");
+        disableTab("taxtools");
       }
       if (familyMvpEnabled && cfg.enable_reporting_extended !== true) {
-        disabledTabs.add("reports");
+        disableTab("reports");
       }
       if (familyMvpEnabled && cfg.enable_advanced_analytics !== true) {
-        disabledTabs.add("scenario");
+        disableTab("scenario");
       }
       if (familyMvpEnabled) {
-        disabledTabs.add("transactions");
+        // Family MVP excludes transaction history from the default experience.
+        disableTab("transactions");
       }
       for (const [tab, enabled] of Object.entries(tabs)) {
         if (enabled === false) disabledTabs.add(String(tab));
-      }
-      for (const tab of FAMILY_MVP_DISABLED_TABS) {
-        if (disabledTabs.has(tab)) {
-          tabs[tab] = false;
-        }
       }
       const theme = isTheme(cfg.theme) ? cfg.theme : "system";
       const stored =

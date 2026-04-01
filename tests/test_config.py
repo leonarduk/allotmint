@@ -48,6 +48,84 @@ def test_theme_loaded():
     assert cfg.theme == "system"
 
 
+def test_family_mvp_flags_default_when_missing(monkeypatch, tmp_path):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("ui:\n  theme: dark\n")
+    monkeypatch.setattr(sys.modules["backend.config"], "_project_config_path", lambda: config_path)
+    monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
+
+    cfg = reload_config()
+    try:
+        assert cfg.enable_family_mvp is True
+        assert cfg.enable_compliance_workflows is False
+        assert cfg.enable_advanced_analytics is False
+        assert cfg.enable_reporting_extended is False
+    finally:
+        monkeypatch.undo()
+        reload_config()
+
+
+def test_family_mvp_flag_none_falls_back_to_default(monkeypatch, tmp_path):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("ui:\n  enable_family_mvp: null\n")
+    monkeypatch.setattr(sys.modules["backend.config"], "_project_config_path", lambda: config_path)
+    monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
+
+    cfg = reload_config()
+    try:
+        assert cfg.enable_family_mvp is True
+    finally:
+        monkeypatch.undo()
+        reload_config()
+
+
+def test_family_mvp_flags_load_from_ui_section(monkeypatch, tmp_path):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        "ui:\n"
+        "  enable_family_mvp: false\n"
+        "  enable_compliance_workflows: true\n"
+        "  enable_advanced_analytics: true\n"
+        "  enable_reporting_extended: true\n",
+    )
+    monkeypatch.setattr(sys.modules["backend.config"], "_project_config_path", lambda: config_path)
+    monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
+
+    cfg = reload_config()
+    try:
+        assert cfg.enable_family_mvp is False
+        assert cfg.enable_compliance_workflows is True
+        assert cfg.enable_advanced_analytics is True
+        assert cfg.enable_reporting_extended is True
+    finally:
+        monkeypatch.undo()
+        reload_config()
+
+
+def test_family_mvp_flags_reject_non_boolean_values(monkeypatch, tmp_path):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("ui:\n  enable_family_mvp: \"true\"\n")
+    monkeypatch.setattr(sys.modules["backend.config"], "_project_config_path", lambda: config_path)
+    monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
+
+    with pytest.raises(ConfigValidationError):
+        reload_config()
+
+    monkeypatch.undo()
+    reload_config()
+
+
+def test_config_endpoint_includes_family_mvp_flags():
+    client = TestClient(create_app())
+    response = client.get("/config")
+    assert response.status_code == 200
+    payload = response.json()
+    assert "enable_family_mvp" in payload
+    assert "enable_compliance_workflows" in payload
+    assert "enable_advanced_analytics" in payload
+    assert "enable_reporting_extended" in payload
+
+
 def test_stooq_timeout_loaded():
     cfg = reload_config()
     assert cfg.stooq_timeout == 10

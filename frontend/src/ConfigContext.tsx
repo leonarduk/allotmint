@@ -58,8 +58,17 @@ export interface RawConfig {
   relative_view_enabled?: boolean | null;
   tabs?: Partial<TabsConfig>;
   disabled_tabs?: string[];
+  enable_family_mvp?: boolean | null;
+  enable_compliance_workflows?: boolean | null;
+  enable_advanced_analytics?: boolean | null;
+  enable_reporting_extended?: boolean | null;
   theme?: string | null;
   allowed_emails?: string[] | null;
+}
+
+function readBooleanFlag(value: unknown, defaultValue: boolean): boolean {
+  if (value === undefined || value === null) return defaultValue;
+  return value === true;
 }
 
 const defaultTabs: TabsConfig = {
@@ -68,7 +77,7 @@ const defaultTabs: TabsConfig = {
   owner: true,
   instrument: true,
   performance: true,
-  transactions: true,
+  transactions: false,
   screener: true,
   trading: true,
   timeseries: true,
@@ -85,11 +94,11 @@ const defaultTabs: TabsConfig = {
   profile: false,
   alerts: true,
   pension: true,
-  trail: true,
+  trail: false,
   alertsettings: true,
-  taxtools: true,
-  'trade-compliance': true,
-  reports: true,
+  taxtools: false,
+  'trade-compliance': false,
+  reports: false,
   scenario: true,
 };
 
@@ -157,6 +166,29 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
       const disabledTabs = new Set<string>(
         Array.isArray(cfg.disabled_tabs) ? cfg.disabled_tabs : [],
       );
+      const disableTab = (tab: keyof TabsConfig) => {
+        disabledTabs.add(tab);
+        tabs[tab] = false;
+      };
+      const familyMvpEnabled = readBooleanFlag(cfg.enable_family_mvp, true);
+      const complianceEnabled = readBooleanFlag(cfg.enable_compliance_workflows, false);
+      const advancedAnalyticsEnabled = readBooleanFlag(cfg.enable_advanced_analytics, false);
+      const reportingExtendedEnabled = readBooleanFlag(cfg.enable_reporting_extended, false);
+      if (familyMvpEnabled && !complianceEnabled) {
+        disableTab("trade-compliance");
+        disableTab("trail");
+        disableTab("taxtools");
+      }
+      if (familyMvpEnabled && !reportingExtendedEnabled) {
+        disableTab("reports");
+      }
+      if (familyMvpEnabled && !advancedAnalyticsEnabled) {
+        disableTab("scenario");
+      }
+      if (familyMvpEnabled) {
+        // Family MVP excludes transaction history from the default experience.
+        disableTab("transactions");
+      }
       for (const [tab, enabled] of Object.entries(tabs)) {
         if (enabled === false) disabledTabs.add(String(tab));
       }

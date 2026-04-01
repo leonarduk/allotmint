@@ -517,6 +517,41 @@ def test_gbx_close_gbp_not_double_scaled_by_pence_override(monkeypatch):
     assert payload["prices"][-1]["close_gbp"] == pytest.approx(1.2)
 
 
+def test_gbx_close_gbp_tracks_scaled_close_for_non_pence_override(monkeypatch):
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    app = create_app()
+    df = pd.DataFrame(
+        {
+            "Date": pd.date_range("2020-01-01", periods=2, freq="D"),
+            "Close": [100.0, 120.0],
+        }
+    )
+
+    monkeypatch.setattr(
+        "backend.routes.instrument.load_meta_timeseries_range", lambda *args, **kwargs: df
+    )
+    monkeypatch.setattr(
+        "backend.routes.instrument.get_security_meta", lambda ticker: {"currency": "GBX"}
+    )
+    monkeypatch.setattr("backend.routes.instrument.list_portfolios", lambda: [])
+    monkeypatch.setattr("backend.routes.instrument.get_scaling_override", lambda *_: 0.001)
+
+    def _scale_close_only(df_in, scale):
+        df_scaled = df_in.copy()
+        df_scaled["Close"] = pd.to_numeric(df_scaled["Close"], errors="coerce") * scale
+        return df_scaled
+
+    monkeypatch.setattr("backend.routes.instrument.apply_scaling", _scale_close_only)
+
+    client = _auth_client(app)
+    resp = client.get("/instrument?ticker=ABC.L&days=1&format=json")
+    assert resp.status_code == 200
+    payload = resp.json()
+
+    assert payload["prices"][-1]["close"] == pytest.approx(0.12)
+    assert payload["prices"][-1]["close_gbp"] == pytest.approx(0.0012)
+
+
 def test_base_currency_fetch_failure_is_resilient(monkeypatch):
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
     app = create_app()

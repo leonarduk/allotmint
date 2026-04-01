@@ -261,6 +261,8 @@ async def instrument(
     if "Close" not in df.columns and "Close_gbp" in df.columns:
         df["Close"] = df["Close_gbp"]
 
+    # Track whether Close_gbp was derived directly from GBX native prices in this
+    # request so we can keep Close and Close_gbp in sync after scaling.
     close_gbp_from_gbx_native = False
 
     if "Close_gbp" not in df.columns and "Close" in df.columns:
@@ -295,11 +297,20 @@ async def instrument(
     scale = get_scaling_override(tkr, exch, None)
     if scale != 1.0:
         df = apply_scaling(df, scale)
-        should_scale_close_gbp = not (
-            close_gbp_from_gbx_native and np.isclose(scale, 0.01)
-        )
-        if "Close_gbp" in df.columns and should_scale_close_gbp:
-            df["Close_gbp"] = pd.to_numeric(df["Close_gbp"], errors="coerce") * scale
+        if "Close_gbp" in df.columns:
+            if close_gbp_from_gbx_native:
+                # GBX native prices are already converted once (pence -> pounds)
+                # when Close_gbp is initially created. If scale is the same
+                # pence->GBP factor, Close has now been converted too and should
+                # match Close_gbp directly. For any other scaling factor, apply
+                # it to Close_gbp as a real adjustment (e.g., split override).
+                gbx_to_gbp_scale = 0.01
+                if np.isclose(scale, gbx_to_gbp_scale) and "Close" in df.columns:
+                    df["Close_gbp"] = pd.to_numeric(df["Close"], errors="coerce")
+                else:
+                    df["Close_gbp"] = pd.to_numeric(df["Close_gbp"], errors="coerce") * scale
+            else:
+                df["Close_gbp"] = pd.to_numeric(df["Close_gbp"], errors="coerce") * scale
 
     df = df[pd.notnull(df["Close"])]
 

@@ -1155,7 +1155,7 @@ def _detect_single_day_flash_crash(
     rebound_drop_ratio: float = 0.35,
     rebound_match_tolerance: float = 0.12,
 ) -> Tuple[pd.Series, List[Dict[str, Any]]]:
-    """Remove isolated single-day collapses and report them."""
+    """Remove isolated short-lived collapses and report them."""
 
     if series.empty:
         return series, []
@@ -1164,36 +1164,55 @@ def _detect_single_day_flash_crash(
     issues: List[Dict[str, Any]] = []
     drop_indices: List[Any] = []
 
-    for idx in range(1, len(values) - 1):
-        current = float(values.iloc[idx])
-        prev = float(values.iloc[idx - 1])
-        nxt = float(values.iloc[idx + 1])
-
-        if not math.isfinite(current) or not math.isfinite(prev) or not math.isfinite(nxt):
-            continue
-        if prev <= 0 or nxt <= 0:
+    max_rebound_span = 3
+    for start_idx in range(0, len(values) - 2):
+        prev = float(values.iloc[start_idx])
+        if not math.isfinite(prev) or prev <= 0:
             continue
 
-        min_neighbor = min(prev, nxt)
-        resembles_zero_glitch = (
-            current <= absolute_threshold or current <= min_neighbor * relative_threshold
-        )
-        large_one_day_drop = current <= min_neighbor * rebound_drop_ratio
-        neighbor_baseline = max(min_neighbor, 1.0)
-        neighbors_recovered = abs(prev - nxt) / neighbor_baseline <= rebound_match_tolerance
+        for span in range(1, max_rebound_span + 1):
+            end_idx = start_idx + span + 1
+            if end_idx >= len(values):
+                break
 
-        if resembles_zero_glitch or (large_one_day_drop and neighbors_recovered):
-            label = values.index[idx]
-            iso_date = label.isoformat() if hasattr(label, "isoformat") else str(label)
-            issues.append(
-                {
-                    "date": iso_date,
-                    "value": round(current, 2),
-                    "previous_value": round(prev, 2),
-                    "next_value": round(nxt, 2),
-                }
+            nxt = float(values.iloc[end_idx])
+            if not math.isfinite(nxt) or nxt <= 0:
+                continue
+
+            min_neighbor = min(prev, nxt)
+            neighbor_baseline = max(min_neighbor, 1.0)
+            neighbors_recovered = abs(prev - nxt) / neighbor_baseline <= rebound_match_tolerance
+            if not neighbors_recovered:
+                continue
+
+            window = values.iloc[start_idx + 1 : end_idx]
+            if window.empty:
+                continue
+            finite_window = window[pd.to_numeric(window, errors="coerce").notna()]
+            if finite_window.empty:
+                continue
+
+            window_min = float(finite_window.min())
+            resembles_zero_glitch = (
+                window_min <= absolute_threshold or window_min <= min_neighbor * relative_threshold
             )
-            drop_indices.append(label)
+            large_short_lived_drop = window_min <= min_neighbor * rebound_drop_ratio
+            if not (resembles_zero_glitch or large_short_lived_drop):
+                continue
+
+            for label, value in window.items():
+                if label in drop_indices:
+                    continue
+                iso_date = label.isoformat() if hasattr(label, "isoformat") else str(label)
+                issues.append(
+                    {
+                        "date": iso_date,
+                        "value": round(float(value), 2),
+                        "previous_value": round(prev, 2),
+                        "next_value": round(nxt, 2),
+                    }
+                )
+                drop_indices.append(label)
 
     if not drop_indices:
         return values, issues

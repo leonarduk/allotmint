@@ -406,3 +406,28 @@ def test_detect_single_day_flash_crash_keeps_real_downtrend():
 
     assert cleaned.equals(values)
     assert issues == []
+
+
+def test_detect_single_day_flash_crash_removes_two_day_rebound_drop():
+    idx = pd.Index(
+        [date(2024, 1, 1), date(2024, 1, 2), date(2024, 1, 3), date(2024, 1, 4)]
+    )
+    values = pd.Series([20000.0, 6000.0, 5500.0, 19950.0], index=idx)
+
+    cleaned, issues = pu._detect_single_day_flash_crash(values)
+
+    assert list(cleaned.index) == [date(2024, 1, 1), date(2024, 1, 4)]
+    assert issues == [
+        {
+            "date": "2024-01-02",
+            "value": 6000.0,
+            "previous_value": 20000.0,
+            "next_value": 19950.0,
+        },
+        {
+            "date": "2024-01-03",
+            "value": 5500.0,
+            "previous_value": 20000.0,
+            "next_value": 19950.0,
+        },
+    ]

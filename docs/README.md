@@ -24,6 +24,7 @@ If you are onboarding, start with:
 - [`historical_scenario_schema.md`](historical_scenario_schema.md) — schema for historical scenario data.
 - [`screener-builder.md`](screener-builder.md) — screener pipeline and builder behavior.
 - [`performance-caching.md`](performance-caching.md) — performance cache strategy and caveats.
+- [`rebound-anomaly-validation.md`](rebound-anomaly-validation.md) — tuning and validation checklist for rebound anomaly repair logic.
 - [`frontend-page-manifest.md`](frontend-page-manifest.md) — frontend route/page inventory.
 - [`android-client.md`](android-client.md) — Android client integration notes.
 

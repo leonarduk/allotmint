@@ -165,6 +165,40 @@ export default function PerformanceDiagnostics() {
     [drawdownEvents],
   );
 
+  const renderDrawdownTooltip = ({
+    active,
+    payload,
+    label,
+  }: {
+    active?: boolean;
+    payload?: Array<{ payload?: PerformancePoint }>;
+    label?: string;
+  }) => {
+    if (!active || !payload?.length) return null;
+    const point = payload[0]?.payload;
+    const dateLabel = typeof label === "string" && label.length > 0 ? label : point?.date ?? "—";
+    const drawdownValue =
+      typeof point?.drawdown === "number" && Number.isFinite(point.drawdown)
+        ? point.drawdown
+        : null;
+    return (
+      <div
+        style={{
+          backgroundColor: "#ffffff",
+          border: "1px solid #d1d5db",
+          borderRadius: "0.5rem",
+          color: "#1f2937",
+          padding: "0.5rem 0.75rem",
+        }}
+      >
+        <p style={{ margin: 0, fontSize: "0.85rem", fontWeight: 600 }}>date: {dateLabel}</p>
+        <p style={{ margin: "0.25rem 0 0", fontSize: "0.85rem" }}>
+          drawdown: {percent((drawdownValue ?? 0) * 100)}
+        </p>
+      </div>
+    );
+  };
+
   useEffect(() => {
     if (!owner) {
       setHistory([]);
@@ -245,7 +279,7 @@ export default function PerformanceDiagnostics() {
                 >
                   <XAxis dataKey="date" />
                   <YAxis tickFormatter={(v) => percent(v * 100)} />
-                  <Tooltip formatter={(v: number | undefined) => percent((v ?? 0) * 100)} />
+                  <Tooltip content={renderDrawdownTooltip} />
                   <Line
                     type="monotone"
                     dataKey="drawdown"

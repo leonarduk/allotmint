@@ -332,15 +332,17 @@ def test_compute_owner_performance_filters_single_day_zero(monkeypatch):
 
     result = pu.compute_owner_performance("owner", days=10)
 
-    assert [row["date"] for row in result["history"]] == ["2024-01-01", "2024-01-03"]
+    assert [row["date"] for row in result["history"]] == ["2024-01-01", "2024-01-02", "2024-01-03"]
     assert result["history"][0]["value"] == pytest.approx(1000.0)
-    assert result["history"][1]["value"] == pytest.approx(1020.0)
+    assert result["history"][1]["value"] == pytest.approx(1010.0)
+    assert result["history"][2]["value"] == pytest.approx(1020.0)
 
     issues = result["data_quality_issues"]
     assert issues == [
         {
             "date": "2024-01-02",
             "value": 0.0,
+            "repaired_value": 1010.0,
             "previous_value": 1000.0,
             "next_value": 1020.0,
         }
@@ -377,5 +379,153 @@ def test_compute_owner_performance_drops_partial_close_nans(monkeypatch):
 
     result = pu.compute_owner_performance("owner", days=10, include_cash=True)
 
-    assert [row["date"] for row in result["history"]] == ["2024-01-01", "2024-01-03"]
-    assert [row["value"] for row in result["history"]] == [21.0, 23.0]
+    assert [row["date"] for row in result["history"]] == ["2024-01-01", "2024-01-02", "2024-01-03"]
+    assert [row["value"] for row in result["history"]] == [21.0, 22.0, 23.0]
+
+
+def test_detect_single_day_flash_crash_removes_rebound_drop():
+    idx = pd.Index([date(2024, 1, 1), date(2024, 1, 2), date(2024, 1, 3)])
+    values = pd.Series([12000.0, 3100.0, 12100.0], index=idx)
+
+    cleaned, issues = pu._detect_single_day_flash_crash(values)
+
+    assert list(cleaned.index) == [date(2024, 1, 1), date(2024, 1, 2), date(2024, 1, 3)]
+    assert cleaned.iloc[1] == pytest.approx(12050.0)
+    assert issues == [
+        {
+            "date": "2024-01-02",
+            "value": 3100.0,
+            "repaired_value": 12050.0,
+            "previous_value": 12000.0,
+            "next_value": 12100.0,
+        }
+    ]
+
+
+def test_detect_single_day_flash_crash_keeps_real_downtrend():
+    idx = pd.Index([date(2024, 1, 1), date(2024, 1, 2), date(2024, 1, 3)])
+    values = pd.Series([12000.0, 7000.0, 6500.0], index=idx)
+
+    cleaned, issues = pu._detect_single_day_flash_crash(values)
+
+    assert cleaned.equals(values)
+    assert issues == []
+
+
+def test_detect_single_day_flash_crash_removes_two_day_rebound_drop():
+    idx = pd.Index(
+        [date(2024, 1, 1), date(2024, 1, 2), date(2024, 1, 3), date(2024, 1, 4)]
+    )
+    values = pd.Series([20000.0, 6000.0, 5500.0, 19950.0], index=idx)
+
+    cleaned, issues = pu._detect_single_day_flash_crash(values)
+
+    assert list(cleaned.index) == [date(2024, 1, 1), date(2024, 1, 2), date(2024, 1, 3), date(2024, 1, 4)]
+    assert cleaned.iloc[1] == pytest.approx(19983.33, rel=1e-4)
+    assert cleaned.iloc[2] == pytest.approx(19966.67, rel=1e-4)
+    assert issues == [
+        {
+            "date": "2024-01-02",
+            "value": 6000.0,
+            "repaired_value": 19983.33,
+            "previous_value": 20000.0,
+            "next_value": 19950.0,
+        },
+        {
+            "date": "2024-01-03",
+            "value": 5500.0,
+            "repaired_value": 19966.67,
+            "previous_value": 20000.0,
+            "next_value": 19950.0,
+        },
+    ]
+
+
+def test_detect_single_day_flash_crash_removes_moderate_rebound_drop():
+    idx = pd.Index([date(2024, 1, 1), date(2024, 1, 2), date(2024, 1, 3)])
+    values = pd.Series([620000.0, 480000.0, 615000.0], index=idx)
+
+    cleaned, issues = pu._detect_single_day_flash_crash(values)
+
+    assert list(cleaned.index) == [date(2024, 1, 1), date(2024, 1, 2), date(2024, 1, 3)]
+    assert cleaned.iloc[1] == pytest.approx(617500.0)
+    assert issues == [
+        {
+            "date": "2024-01-02",
+            "value": 480000.0,
+            "repaired_value": 617500.0,
+            "previous_value": 620000.0,
+            "next_value": 615000.0,
+        }
+    ]
+
+
+def test_detect_single_day_flash_crash_keeps_drop_without_neighbor_recovery():
+    idx = pd.Index([date(2024, 1, 1), date(2024, 1, 2), date(2024, 1, 3)])
+    values = pd.Series([12000.0, 3100.0, 8000.0], index=idx)
+
+    cleaned, issues = pu._detect_single_day_flash_crash(values)
+
+    assert cleaned.equals(values)
+    assert issues == []
+
+
+def test_detect_single_day_flash_crash_handles_small_value_series():
+    idx = pd.Index([date(2024, 1, 1), date(2024, 1, 2), date(2024, 1, 3)])
+    values = pd.Series([0.5, 0.1, 0.51], index=idx)
+
+    cleaned, issues = pu._detect_single_day_flash_crash(values)
+
+    assert cleaned.iloc[1] == pytest.approx(0.505)
+    assert issues[0]["date"] == "2024-01-02"
+
+
+def test_detect_single_day_flash_crash_short_series_noop():
+    idx = pd.Index([date(2024, 1, 1), date(2024, 1, 2)])
+    values = pd.Series([100.0, 90.0], index=idx)
+
+    cleaned, issues = pu._detect_single_day_flash_crash(values)
+
+    assert cleaned.equals(values)
+    assert issues == []
+
+
+def test_detect_single_day_flash_crash_ignores_nan_in_window():
+    idx = pd.Index(
+        [date(2024, 1, 1), date(2024, 1, 2), date(2024, 1, 3), date(2024, 1, 4)]
+    )
+    values = pd.Series([1000.0, float("nan"), 50.0, 1001.0], index=idx)
+
+    cleaned, issues = pu._detect_single_day_flash_crash(values)
+
+    assert pd.isna(cleaned.iloc[1])
+    assert cleaned.iloc[2] == pytest.approx(1000.6667, rel=1e-4)
+    assert [issue["date"] for issue in issues] == ["2024-01-03"]
+
+
+def test_detect_single_day_flash_crash_repairs_upward_spike():
+    idx = pd.Index([date(2024, 1, 1), date(2024, 1, 2), date(2024, 1, 3)])
+    values = pd.Series([10000.0, 12500.0, 10050.0], index=idx)
+
+    cleaned, issues = pu._detect_single_day_flash_crash(values, rebound_drop_pct_threshold=0.12)
+
+    assert cleaned.iloc[1] == pytest.approx(10025.0)
+    assert issues == [
+        {
+            "date": "2024-01-02",
+            "value": 12500.0,
+            "repaired_value": 10025.0,
+            "previous_value": 10000.0,
+            "next_value": 10050.0,
+        }
+    ]
+
+
+def test_detect_single_day_flash_crash_handles_duplicate_index():
+    idx = pd.Index([date(2024, 1, 1), date(2024, 1, 2), date(2024, 1, 2), date(2024, 1, 3)])
+    values = pd.Series([1000.0, 50.0, 55.0, 1005.0], index=idx)
+
+    cleaned, issues = pu._detect_single_day_flash_crash(values, max_rebound_span=2)
+
+    assert len(cleaned) == 4
+    assert len(issues) >= 1

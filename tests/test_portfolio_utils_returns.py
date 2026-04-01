@@ -431,3 +431,20 @@ def test_detect_single_day_flash_crash_removes_two_day_rebound_drop():
             "next_value": 19950.0,
         },
     ]
+
+
+def test_detect_single_day_flash_crash_removes_moderate_rebound_drop():
+    idx = pd.Index([date(2024, 1, 1), date(2024, 1, 2), date(2024, 1, 3)])
+    values = pd.Series([620000.0, 480000.0, 615000.0], index=idx)
+
+    cleaned, issues = pu._detect_single_day_flash_crash(values)
+
+    assert list(cleaned.index) == [date(2024, 1, 1), date(2024, 1, 3)]
+    assert issues == [
+        {
+            "date": "2024-01-02",
+            "value": 480000.0,
+            "previous_value": 620000.0,
+            "next_value": 615000.0,
+        }
+    ]

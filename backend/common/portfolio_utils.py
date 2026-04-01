@@ -1152,7 +1152,7 @@ def _detect_single_day_flash_crash(
     *,
     absolute_threshold: float = 1.0,
     relative_threshold: float = 0.01,
-    rebound_drop_ratio: float = 0.35,
+    rebound_drop_pct_threshold: float = 0.12,
     rebound_match_tolerance: float = 0.12,
 ) -> Tuple[pd.Series, List[Dict[str, Any]]]:
     """Remove isolated short-lived collapses and report them."""
@@ -1196,7 +1196,8 @@ def _detect_single_day_flash_crash(
             resembles_zero_glitch = (
                 window_min <= absolute_threshold or window_min <= min_neighbor * relative_threshold
             )
-            large_short_lived_drop = window_min <= min_neighbor * rebound_drop_ratio
+            drop_pct = 1 - (window_min / min_neighbor)
+            large_short_lived_drop = drop_pct >= rebound_drop_pct_threshold
             if not (resembles_zero_glitch or large_short_lived_drop):
                 continue
 

@@ -1155,14 +1155,15 @@ def _detect_single_day_flash_crash(
     rebound_drop_pct_threshold: float = 0.12,
     rebound_match_tolerance: float = 0.12,
 ) -> Tuple[pd.Series, List[Dict[str, Any]]]:
-    """Remove isolated short-lived collapses and report them."""
+    """Interpolate isolated short-lived collapses and report repairs."""
 
     if series.empty:
         return series, []
 
     values = series.sort_index()
+    repaired = values.copy()
     issues: List[Dict[str, Any]] = []
-    drop_indices: List[Any] = []
+    repaired_indices: set[Any] = set()
 
     max_rebound_span = 3
     for start_idx in range(0, len(values) - 2):
@@ -1201,25 +1202,25 @@ def _detect_single_day_flash_crash(
             if not (resembles_zero_glitch or large_short_lived_drop):
                 continue
 
-            for label, value in window.items():
-                if label in drop_indices:
+            span_len = len(window)
+            for offset, (label, value) in enumerate(window.items(), start=1):
+                if label in repaired_indices:
                     continue
+                repaired_value = prev + ((nxt - prev) * (offset / (span_len + 1)))
                 iso_date = label.isoformat() if hasattr(label, "isoformat") else str(label)
                 issues.append(
                     {
                         "date": iso_date,
                         "value": round(float(value), 2),
+                        "repaired_value": round(float(repaired_value), 2),
                         "previous_value": round(prev, 2),
                         "next_value": round(nxt, 2),
                     }
                 )
-                drop_indices.append(label)
+                repaired.loc[label] = repaired_value
+                repaired_indices.add(label)
 
-    if not drop_indices:
-        return values, issues
-
-    cleaned = values.drop(index=drop_indices)
-    return cleaned, issues
+    return repaired, issues
 
 
 def _portfolio_value_series(

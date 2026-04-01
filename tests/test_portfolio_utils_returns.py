@@ -332,15 +332,17 @@ def test_compute_owner_performance_filters_single_day_zero(monkeypatch):
 
     result = pu.compute_owner_performance("owner", days=10)
 
-    assert [row["date"] for row in result["history"]] == ["2024-01-01", "2024-01-03"]
+    assert [row["date"] for row in result["history"]] == ["2024-01-01", "2024-01-02", "2024-01-03"]
     assert result["history"][0]["value"] == pytest.approx(1000.0)
-    assert result["history"][1]["value"] == pytest.approx(1020.0)
+    assert result["history"][1]["value"] == pytest.approx(1010.0)
+    assert result["history"][2]["value"] == pytest.approx(1020.0)
 
     issues = result["data_quality_issues"]
     assert issues == [
         {
             "date": "2024-01-02",
             "value": 0.0,
+            "repaired_value": 1010.0,
             "previous_value": 1000.0,
             "next_value": 1020.0,
         }
@@ -377,8 +379,8 @@ def test_compute_owner_performance_drops_partial_close_nans(monkeypatch):
 
     result = pu.compute_owner_performance("owner", days=10, include_cash=True)
 
-    assert [row["date"] for row in result["history"]] == ["2024-01-01", "2024-01-03"]
-    assert [row["value"] for row in result["history"]] == [21.0, 23.0]
+    assert [row["date"] for row in result["history"]] == ["2024-01-01", "2024-01-02", "2024-01-03"]
+    assert [row["value"] for row in result["history"]] == [21.0, 22.0, 23.0]
 
 
 def test_detect_single_day_flash_crash_removes_rebound_drop():
@@ -387,11 +389,13 @@ def test_detect_single_day_flash_crash_removes_rebound_drop():
 
     cleaned, issues = pu._detect_single_day_flash_crash(values)
 
-    assert list(cleaned.index) == [date(2024, 1, 1), date(2024, 1, 3)]
+    assert list(cleaned.index) == [date(2024, 1, 1), date(2024, 1, 2), date(2024, 1, 3)]
+    assert cleaned.iloc[1] == pytest.approx(12050.0)
     assert issues == [
         {
             "date": "2024-01-02",
             "value": 3100.0,
+            "repaired_value": 12050.0,
             "previous_value": 12000.0,
             "next_value": 12100.0,
         }
@@ -416,17 +420,21 @@ def test_detect_single_day_flash_crash_removes_two_day_rebound_drop():
 
     cleaned, issues = pu._detect_single_day_flash_crash(values)
 
-    assert list(cleaned.index) == [date(2024, 1, 1), date(2024, 1, 4)]
+    assert list(cleaned.index) == [date(2024, 1, 1), date(2024, 1, 2), date(2024, 1, 3), date(2024, 1, 4)]
+    assert cleaned.iloc[1] == pytest.approx(19983.33, rel=1e-4)
+    assert cleaned.iloc[2] == pytest.approx(19966.67, rel=1e-4)
     assert issues == [
         {
             "date": "2024-01-02",
             "value": 6000.0,
+            "repaired_value": 19983.33,
             "previous_value": 20000.0,
             "next_value": 19950.0,
         },
         {
             "date": "2024-01-03",
             "value": 5500.0,
+            "repaired_value": 19966.67,
             "previous_value": 20000.0,
             "next_value": 19950.0,
         },
@@ -439,11 +447,13 @@ def test_detect_single_day_flash_crash_removes_moderate_rebound_drop():
 
     cleaned, issues = pu._detect_single_day_flash_crash(values)
 
-    assert list(cleaned.index) == [date(2024, 1, 1), date(2024, 1, 3)]
+    assert list(cleaned.index) == [date(2024, 1, 1), date(2024, 1, 2), date(2024, 1, 3)]
+    assert cleaned.iloc[1] == pytest.approx(617500.0)
     assert issues == [
         {
             "date": "2024-01-02",
             "value": 480000.0,
+            "repaired_value": 617500.0,
             "previous_value": 620000.0,
             "next_value": 615000.0,
         }

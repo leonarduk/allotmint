@@ -1,238 +1,93 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { StrictMode } from "react";
-import { afterEach, describe, it, expect, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import VirtualPortfolio from "@/pages/VirtualPortfolio";
-import * as api from "@/api";
-import type { OwnerSummary, VirtualPortfolio as VirtualPortfolioType } from "@/types";
 
-vi.mock("@/api");
-
-const mockGetVirtualPortfolios = vi.mocked(api.getVirtualPortfolios);
-const mockGetOwners = vi.mocked(api.getOwners);
-const mockGetVirtualPortfolio = vi.mocked(api.getVirtualPortfolio);
+const STORAGE_KEY = "familyManualPortfolio.v1";
 
 describe("VirtualPortfolio page", () => {
   afterEach(() => {
-    vi.resetAllMocks();
+    window.localStorage.clear();
+    vi.restoreAllMocks();
   });
 
-  it("loads portfolios and allows selecting one", async () => {
-    mockGetVirtualPortfolios.mockResolvedValueOnce([
-      {
-        id: 1,
-        name: "Test VP",
-        accounts: [],
-        holdings: [],
-      } as VirtualPortfolioType,
-    ]);
-    mockGetOwners.mockResolvedValueOnce([
-      { owner: "bob", full_name: "Bob Example", accounts: ["A1"] } as OwnerSummary,
-    ]);
-    mockGetVirtualPortfolio.mockResolvedValueOnce({
-      id: 1,
-      name: "Test VP",
-      accounts: ["bob:A1"],
-      holdings: [],
-    } as VirtualPortfolioType);
-
+  it("adds multiple accounts and holdings", () => {
     render(<VirtualPortfolio />);
 
-    // Wait for portfolios to load
-    expect(await screen.findByRole("option", { name: "Test VP" })).toBeInTheDocument();
+    const addInput = screen.getByPlaceholderText(/Account name/i);
+    fireEvent.change(addInput, { target: { value: "ISA" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add account" }));
 
-    // Select the portfolio
-    fireEvent.change(screen.getByLabelText(/Select/i), { target: { value: "1" } });
+    fireEvent.change(addInput, { target: { value: "Pension" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add account" }));
 
-    await waitFor(() => expect(mockGetVirtualPortfolio).toHaveBeenCalledWith(1));
+    expect(screen.getAllByLabelText("Account name")).toHaveLength(2);
 
-    expect(screen.getByLabelText(/Name/i)).toHaveValue("Test VP");
-    const accountCheckbox = screen.getByLabelText("A1") as HTMLInputElement;
-    expect(accountCheckbox.checked).toBe(true);
+    fireEvent.click(screen.getAllByRole("button", { name: "Add holding" })[0]);
+
+    const tickerInputs = screen.getAllByPlaceholderText("AAPL");
+    expect(tickerInputs.length).toBeGreaterThanOrEqual(3);
   });
 
-  it("keeps showing the initial loading state until portfolios resolve", async () => {
-    mockGetVirtualPortfolios.mockImplementationOnce(
-      () =>
-        new Promise<VirtualPortfolioType[]>((resolve) => {
-          setTimeout(
-            () =>
-              resolve([
-                {
-                  id: 3,
-                  name: "Delayed VP",
-                  accounts: [],
-                  holdings: [],
-                } as VirtualPortfolioType,
-              ]),
-            50,
-          );
-        }),
-    );
-    mockGetOwners.mockResolvedValueOnce([
-      { owner: "alice", full_name: "Alice", accounts: [] } as OwnerSummary,
-    ]);
-
+  it("persists and hydrates from localStorage", () => {
     render(<VirtualPortfolio />);
 
-    expect(screen.getByText(/Loading\.\.\./i)).toBeInTheDocument();
+    const addInput = screen.getByPlaceholderText(/Account name/i);
+    fireEvent.change(addInput, { target: { value: "Brokerage" } });
+    fireEvent.submit(addInput.closest("form")!);
 
-    expect(
-      await screen.findByRole("option", { name: "Delayed VP" }),
-    ).toBeInTheDocument();
+    const accountNameInput = screen.getByLabelText("Account name");
+    fireEvent.change(accountNameInput, { target: { value: "Brokerage Main" } });
 
-    await waitFor(() => {
-      expect(screen.queryByText(/Loading\.\.\./i)).not.toBeInTheDocument();
-    });
-  });
-
-  it("populates the select once a delayed virtual portfolios request resolves", async () => {
-    mockGetVirtualPortfolios.mockImplementationOnce(
-      () =>
-        new Promise<VirtualPortfolioType[]>((resolve) => {
-          setTimeout(
-            () =>
-              resolve([
-                {
-                  id: 7,
-                  name: "Slow result",
-                  accounts: [],
-                  holdings: [],
-                } as VirtualPortfolioType,
-              ]),
-            80,
-          );
-        }),
-    );
-    mockGetOwners.mockImplementationOnce(
-      () =>
-        new Promise<OwnerSummary[]>((resolve) => {
-          setTimeout(
-            () =>
-              resolve([
-                {
-                  owner: "slow-owner",
-                  full_name: "Slow Owner",
-                  accounts: ["Account S"],
-                } as OwnerSummary,
-              ]),
-            40,
-          );
-        }),
-    );
+    const stored = window.localStorage.getItem(STORAGE_KEY);
+    expect(stored).toContain("Brokerage Main");
 
     render(<VirtualPortfolio />);
-
-    const option = await screen.findByRole("option", { name: "Slow result" });
-    expect(option).toBeInTheDocument();
-
-    await waitFor(() => {
-      expect(screen.queryByText(/Loading\.\.\./i)).not.toBeInTheDocument();
-    });
+    expect(screen.getAllByDisplayValue("Brokerage Main").length).toBeGreaterThan(0);
   });
 
-  it("shows error when loading portfolios fails", async () => {
-    mockGetVirtualPortfolios.mockRejectedValue(new Error("fail"));
-    mockGetOwners.mockResolvedValue([]);
-
+  it("prevents duplicate account names and shows feedback", () => {
     render(<VirtualPortfolio />);
 
-    expect(
-      await screen.findByText(
-        /Unable to load virtual portfolios\. Please try again\./i,
-        undefined,
-        { timeout: 6000 },
-      ),
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/Loading\.\.\./i)).not.toBeInTheDocument();
-    expect(
-      await screen.findByRole("button", { name: /Retry/i }, { timeout: 6000 }),
-    ).toBeInTheDocument();
+    const addInput = screen.getByPlaceholderText(/Account name/i);
+    fireEvent.change(addInput, { target: { value: "ISA" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add account" }));
+
+    fireEvent.change(addInput, { target: { value: "isa" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add account" }));
+
+    expect(screen.getByText("Use a unique account name.")).toBeInTheDocument();
+    expect(screen.getAllByLabelText("Account name")).toHaveLength(1);
   });
 
-  it("allows retrying the initial load after failures", async () => {
-    mockGetVirtualPortfolios
-      .mockRejectedValueOnce(new Error("fail"))
-      .mockRejectedValueOnce(new Error("fail again"))
-      .mockRejectedValueOnce(new Error("still failing"))
-      .mockResolvedValueOnce([
+  it("filters malformed holdings from stored payload", () => {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify([
         {
-          id: 2,
-          name: "Recovered VP",
-          accounts: [],
-          holdings: [],
-        } as VirtualPortfolioType,
-      ]);
-    mockGetOwners.mockResolvedValue([]);
+          id: "a-1",
+          name: "ISA",
+          holdings: [{ ticker: "AAPL" }],
+        },
+      ]),
+    );
 
     render(<VirtualPortfolio />);
 
-    const retryButton = await screen.findByRole(
-      "button",
-      { name: /Retry/i },
-      { timeout: 6000 },
-    );
-
-    mockGetOwners.mockResolvedValueOnce([
-      { owner: "bob", full_name: "Bob Example", accounts: ["A1"] } as OwnerSummary,
-    ]);
-
-    fireEvent.click(retryButton);
-
-    expect(
-      await screen.findByRole("option", { name: "Recovered VP" }),
-    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Account name")).toHaveValue("ISA");
+    expect(screen.queryByPlaceholderText("AAPL")).not.toBeInTheDocument();
   });
 
-  it("shows slow portfolios after StrictMode remounts", async () => {
-    mockGetVirtualPortfolios.mockImplementation(() =>
-      new Promise<VirtualPortfolioType[]>((resolve) => {
-        setTimeout(
-          () =>
-            resolve([
-              {
-                id: 99,
-                name: "Slow path demo",
-                accounts: [],
-                holdings: [],
-              } as VirtualPortfolioType,
-            ]),
-          50,
-        );
-      }),
-    );
-
-    mockGetOwners.mockImplementation(() =>
-      new Promise<OwnerSummary[]>((resolve) => {
-        setTimeout(
-          () =>
-            resolve([
-              {
-                owner: "slow-owner",
-                full_name: "Slow Owner",
-                accounts: [],
-              } as OwnerSummary,
-            ]),
-          30,
-        );
-      }),
-    );
-
-    render(
-      <StrictMode>
-        <VirtualPortfolio />
-      </StrictMode>,
-    );
-
-    expect(screen.getByTestId("virtual-portfolio-loader")).toBeInTheDocument();
-
-    const option = await screen.findByRole("option", { name: "Slow path demo" });
-    expect(option).toBeInTheDocument();
-
-    expect(mockGetVirtualPortfolios).toHaveBeenCalledTimes(1);
-    expect(mockGetOwners).toHaveBeenCalledTimes(1);
-
-    await waitFor(() => {
-      expect(screen.queryByText(/Loading\.\.\./i)).not.toBeInTheDocument();
+  it("shows a status message when localStorage write fails", () => {
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("quota");
     });
+
+    render(<VirtualPortfolio />);
+
+    const addInput = screen.getByPlaceholderText(/Account name/i);
+    fireEvent.change(addInput, { target: { value: "ISA" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add account" }));
+
+    expect(screen.getByText("Could not save your changes in this browser.")).toBeInTheDocument();
   });
 });

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 
 interface ManualHolding {
   id: string;
@@ -40,6 +40,17 @@ function parseNumber(value: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function isManualHolding(value: unknown): value is ManualHolding {
+  const row = value as ManualHolding | null;
+  return (
+    typeof row?.id === "string"
+    && typeof row.ticker === "string"
+    && typeof row.totalValue === "string"
+    && typeof row.units === "string"
+    && typeof row.price === "string"
+  );
+}
+
 function readInitialAccounts(): ManualAccount[] {
   if (typeof window === "undefined") return [];
   const raw = window.localStorage.getItem(STORAGE_KEY);
@@ -50,12 +61,16 @@ function readInitialAccounts(): ManualAccount[] {
     if (!Array.isArray(parsed)) return [];
     return parsed
       .filter((account) => typeof account?.id === "string" && typeof account?.name === "string")
-      .map((account) => ({
-        ...account,
-        holdings: Array.isArray(account.holdings) && account.holdings.length > 0
-          ? account.holdings
-          : [createHolding()],
-      }));
+      .map((account) => {
+        const sanitizedHoldings = Array.isArray(account.holdings)
+          ? account.holdings.filter((holding) => isManualHolding(holding))
+          : [];
+
+        return {
+          ...account,
+          holdings: sanitizedHoldings,
+        };
+      });
   } catch {
     return [];
   }
@@ -64,17 +79,37 @@ function readInitialAccounts(): ManualAccount[] {
 export function VirtualPortfolio() {
   const [accounts, setAccounts] = useState<ManualAccount[]>(readInitialAccounts);
   const [newAccountName, setNewAccountName] = useState("");
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const canAddAccount = newAccountName.trim().length > 0;
 
   const saveAccounts = (next: ManualAccount[]) => {
     setAccounts(next);
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      setStatusMessage(null);
+    } catch {
+      setStatusMessage("Could not save your changes in this browser.");
+    }
   };
 
-  const addAccount = () => {
+  const addAccount = (event?: FormEvent) => {
+    event?.preventDefault();
     const trimmed = newAccountName.trim();
-    if (!trimmed) return;
+    if (!trimmed) {
+      setStatusMessage("Enter an account name before adding it.");
+      return;
+    }
+
+    const isDuplicateName = accounts.some(
+      (account) => account.name.trim().toLowerCase() === trimmed.toLowerCase(),
+    );
+    if (isDuplicateName) {
+      setStatusMessage("Use a unique account name.");
+      return;
+    }
+
     saveAccounts([...accounts, createAccount(trimmed)]);
     setNewAccountName("");
   };
@@ -84,6 +119,17 @@ export function VirtualPortfolio() {
   };
 
   const updateAccountName = (accountId: string, name: string) => {
+    const trimmed = name.trim();
+    const isDuplicateName = accounts.some(
+      (account) => account.id !== accountId
+        && account.name.trim().toLowerCase() === trimmed.toLowerCase()
+        && trimmed.length > 0,
+    );
+    if (isDuplicateName) {
+      setStatusMessage("Account names must stay unique.");
+      return;
+    }
+
     saveAccounts(
       accounts.map((account) => (account.id === accountId ? { ...account, name } : account)),
     );
@@ -106,7 +152,7 @@ export function VirtualPortfolio() {
         const nextHoldings = account.holdings.filter((holding) => holding.id !== holdingId);
         return {
           ...account,
-          holdings: nextHoldings.length > 0 ? nextHoldings : [createHolding()],
+          holdings: nextHoldings,
         };
       }),
     );
@@ -140,17 +186,18 @@ export function VirtualPortfolio() {
             const totalValue = parseNumber(holding.totalValue);
             const units = parseNumber(holding.units);
             const price = parseNumber(holding.price);
-            if (!holding.ticker.trim()) return null;
+            const ticker = holding.ticker.trim().toUpperCase();
+            if (!ticker) return null;
 
             if (totalValue != null) {
-              return { ticker: holding.ticker.trim().toUpperCase(), total_value: totalValue };
+              return { ticker, total_value: totalValue };
             }
 
             if (units != null && price != null) {
-              return { ticker: holding.ticker.trim().toUpperCase(), units, price };
+              return { ticker, units, price };
             }
 
-            return { ticker: holding.ticker.trim().toUpperCase() };
+            return null;
           })
           .filter((holding) => holding != null),
       })),
@@ -167,7 +214,13 @@ export function VirtualPortfolio() {
         </p>
       </header>
 
-      <section className="rounded border border-slate-200 p-4">
+      {statusMessage && (
+        <p className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          {statusMessage}
+        </p>
+      )}
+
+      <form className="rounded border border-slate-200 p-4" onSubmit={addAccount}>
         <h2 className="text-lg font-medium">Add account</h2>
         <div className="mt-3 flex flex-col gap-2 sm:flex-row">
           <input
@@ -178,15 +231,14 @@ export function VirtualPortfolio() {
             onChange={(e) => setNewAccountName(e.target.value)}
           />
           <button
-            type="button"
+            type="submit"
             className="rounded bg-slate-900 px-4 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50"
-            onClick={addAccount}
             disabled={!canAddAccount}
           >
             Add account
           </button>
         </div>
-      </section>
+      </form>
 
       <section className="space-y-4">
         {accounts.length === 0 && (
@@ -221,7 +273,7 @@ export function VirtualPortfolio() {
                     <th className="px-2 py-2">Total value</th>
                     <th className="px-2 py-2">Units</th>
                     <th className="px-2 py-2">Price</th>
-                    <th className="px-2 py-2"></th>
+                    <th className="px-2 py-2">Actions</th>
                   </tr>
                 </thead>
                 <tbody>

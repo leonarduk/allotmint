@@ -58,6 +58,10 @@ export interface RawConfig {
   relative_view_enabled?: boolean | null;
   tabs?: Partial<TabsConfig>;
   disabled_tabs?: string[];
+  enable_family_mvp?: boolean;
+  enable_compliance_workflows?: boolean;
+  enable_advanced_analytics?: boolean;
+  enable_reporting_extended?: boolean;
   theme?: string | null;
   allowed_emails?: string[] | null;
 }
@@ -68,7 +72,7 @@ const defaultTabs: TabsConfig = {
   owner: true,
   instrument: true,
   performance: true,
-  transactions: true,
+  transactions: false,
   screener: true,
   trading: true,
   timeseries: true,
@@ -85,11 +89,11 @@ const defaultTabs: TabsConfig = {
   profile: false,
   alerts: true,
   pension: true,
-  trail: true,
+  trail: false,
   alertsettings: true,
-  taxtools: true,
-  'trade-compliance': true,
-  reports: true,
+  taxtools: false,
+  'trade-compliance': false,
+  reports: false,
   scenario: true,
 };
 
@@ -157,6 +161,26 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
       const disabledTabs = new Set<string>(
         Array.isArray(cfg.disabled_tabs) ? cfg.disabled_tabs : [],
       );
+      const disableTab = (tab: keyof TabsConfig) => {
+        disabledTabs.add(tab);
+        tabs[tab] = false;
+      };
+      const familyMvpEnabled = cfg.enable_family_mvp !== false;
+      if (familyMvpEnabled && cfg.enable_compliance_workflows !== true) {
+        disableTab("trade-compliance");
+        disableTab("trail");
+        disableTab("taxtools");
+      }
+      if (familyMvpEnabled && cfg.enable_reporting_extended !== true) {
+        disableTab("reports");
+      }
+      if (familyMvpEnabled && cfg.enable_advanced_analytics !== true) {
+        disableTab("scenario");
+      }
+      if (familyMvpEnabled) {
+        // Family MVP excludes transaction history from the default experience.
+        disableTab("transactions");
+      }
       for (const [tab, enabled] of Object.entries(tabs)) {
         if (enabled === false) disabledTabs.add(String(tab));
       }

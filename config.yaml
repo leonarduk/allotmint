@@ -74,6 +74,10 @@ trading:
     min_sharpe: null
     max_volatility: null
 ui:
+  enable_family_mvp: true
+  enable_compliance_workflows: false
+  enable_advanced_analytics: false
+  enable_reporting_extended: false
   relative_view_enabled: false        # Enable relative performance views
   theme: system                       # Default theme: light, dark, or system
   tabs:                               # Toggle availability of frontend tabs
@@ -83,7 +87,7 @@ ui:
     instrument: true
     owner: true
     performance: true
-    transactions: true
+    transactions: false
     screener: true
     trading: true
     timeseries: true
@@ -97,10 +101,10 @@ ui:
     settings: true
     profile: true
     pension: true
-    reports: true
+    reports: false
     scenario: true
     alertsettings: true
-    taxtools: true
-    trail: true
-    trade-compliance: true
+    taxtools: false
+    trail: false
+    trade-compliance: false
     logs: true

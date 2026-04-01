@@ -1283,7 +1283,7 @@ def _portfolio_value_series(
     total = total[total.index <= calc.reporting_date]
     if days:
         total = total.tail(days)
-    total, _issues = _detect_single_day_flash_crash(total)
+    total, _issues = _detect_single_day_flash_crash(total, rebound_drop_pct_threshold=0.60)
     return total
 
 

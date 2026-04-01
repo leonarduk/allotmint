@@ -232,6 +232,41 @@ def test_group_opportunities_recalculates_weights_and_enriches(monkeypatch):
     assert result == {"gainers": [], "losers": [], "anomalies": []}
 
 
+def test_group_opportunities_sums_duplicate_ticker_market_values(monkeypatch):
+    summaries = [
+        {"ticker": "AAA", "market_value_gbp": 200.0},
+        {"ticker": "AAA", "market_value_gbp": 50.0},
+        {"ticker": "BBB", "market_value_gbp": 250.0},
+    ]
+    captured = {}
+
+    monkeypatch.setattr(
+        opportunities_module.instrument_api,
+        "instrument_summaries_for_group",
+        lambda slug: summaries,
+    )
+    monkeypatch.setattr(
+        opportunities_module,
+        "_calculate_weights_and_market_values",
+        lambda rows: (["AAA", "BBB"], {"AAA": 50.0, "BBB": 50.0}, {"AAA": 250.0, "BBB": 250.0}),
+    )
+
+    def fake_top_movers(tickers, days, limit, *, min_weight, weights):
+        captured["tickers"] = tickers
+        captured["weights"] = weights
+        return {"gainers": [], "losers": [], "anomalies": []}
+
+    monkeypatch.setattr(opportunities_module.instrument_api, "top_movers", fake_top_movers)
+
+    opportunities_module._group_opportunities("family", days=7, limit=5, min_weight=0.0)
+
+    assert captured["tickers"] == ["AAA", "BBB"]
+    assert captured["weights"] == {
+        "AAA": pytest.approx(50.0),
+        "BBB": pytest.approx(50.0),
+    }
+
+
 def test_group_opportunities_error_and_short_circuit(monkeypatch):
     def raise_lookup(slug):
         raise RuntimeError("boom")

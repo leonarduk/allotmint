@@ -80,11 +80,14 @@ def _group_opportunities(
         ticker = summary.get("ticker")
         if not ticker:
             continue
+        ticker_key = str(ticker).strip()
+        if not ticker_key:
+            continue
         mv_raw = summary.get("market_value_gbp")
         if mv_raw is None:
             continue
         mv = float(mv_raw)
-        market_weight_totals[ticker] = mv
+        market_weight_totals[ticker_key] = market_weight_totals.get(ticker_key, 0.0) + mv
         total_mv += mv
 
     if total_mv > 0:

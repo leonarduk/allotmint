@@ -740,17 +740,26 @@ def _calculate_weights_and_market_values(
     summaries: Sequence[Dict[str, Any]],
 ) -> Tuple[List[str], Dict[str, float], Dict[str, float]]:
     tickers: List[str] = []
+    seen_tickers: set[str] = set()
     market_values: Dict[str, float] = {}
     for s in summaries:
         t = s.get("ticker")
         if not t:
             continue
-        tickers.append(t)
+        ticker = str(t).strip()
+        if not ticker:
+            continue
+        if ticker not in seen_tickers:
+            tickers.append(ticker)
+            seen_tickers.add(ticker)
         mv = s.get("market_value_gbp")
         if mv is not None:
-            t_upper = t.upper()
-            market_values[t_upper] = mv
-            market_values[t_upper.split(".", 1)[0]] = mv
+            mv_float = float(mv)
+            t_upper = ticker.upper()
+            bare = t_upper.split(".", 1)[0]
+            market_values[t_upper] = market_values.get(t_upper, 0.0) + mv_float
+            if bare != t_upper:
+                market_values[bare] = market_values.get(bare, 0.0) + mv_float
 
     n = len(tickers)
     if n == 0:

@@ -17,12 +17,24 @@ import requests
 from requests import exceptions as req_exc
 
 from backend import config
+
 logger = logging.getLogger(__name__)
+
+
+def _current_config() -> Any:
+    """Return the in-memory config object without triggering lazy reload."""
+    return getattr(config, "config", None)
+
+
+def _read_config_attr(name: str, default: Any = None) -> Any:
+    """Read a config attribute from the current in-memory settings."""
+    cfg = _current_config()
+    return getattr(cfg, name, default) if cfg is not None else default
 
 
 def redact_token(text: str) -> str:
     """Replace any occurrence of the Telegram token in ``text`` with ***."""
-    token = config.telegram_bot_token
+    token = _read_config_attr("telegram_bot_token")
     if not token:
         return text
     return text.replace(token, "***")
@@ -32,7 +44,7 @@ class RedactTokenFilter(logging.Filter):
     """Filter that redacts the Telegram token from log records."""
 
     def filter(self, record: logging.LogRecord) -> bool:  # pragma: no cover - logging internals
-        token = config.telegram_bot_token
+        token = _read_config_attr("telegram_bot_token")
         if token:
             if isinstance(record.msg, str):
                 record.msg = record.msg.replace(token, "***")
@@ -53,8 +65,8 @@ _NEXT_ALLOWED_TIME = 0.0
 
 
 def send_message(text: str) -> None:
-    token = config.telegram_bot_token
-    chat_id = config.telegram_chat_id
+    token = _read_config_attr("telegram_bot_token")
+    chat_id = _read_config_attr("telegram_chat_id")
 
     missing = []
     if not token:
@@ -69,7 +81,7 @@ def send_message(text: str) -> None:
         )
         return
 
-    if config.offline_mode:
+    if _read_config_attr("offline_mode", False):
         logger.info(f"Offline-alert: {text}")
         return
 
@@ -135,7 +147,7 @@ class TelegramLogHandler(logging.Handler):
             return
         try:
             message = self.format(record)
-            if not config.offline_mode:
+            if not _read_config_attr("offline_mode", False):
                 send_message(message)
         except Exception:
             # Let logging's handleError respect logging.raiseExceptions.

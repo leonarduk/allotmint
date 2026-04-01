@@ -1,4 +1,3 @@
-import pytest
 import sys
 
 import yaml
@@ -7,7 +6,6 @@ from fastapi.testclient import TestClient
 from backend.app import create_app
 from backend.config import reload_config
 from backend.routes import config as routes_config
-
 
 
 def _setup_config(monkeypatch, tmp_path, content: str = "auth:\n  google_auth_enabled: false\n"):
@@ -44,6 +42,21 @@ def test_update_config_writes_and_merges(monkeypatch, tmp_path):
     monkeypatch.undo()
     reload_config()
 
+
+
+def test_update_config_accepts_research_tab(monkeypatch, tmp_path):
+    config_path = _setup_config(monkeypatch, tmp_path, "ui:\n  tabs:\n    research: false\n")
+    client = TestClient(create_app())
+
+    resp = client.put("/config", json={"ui": {"tabs": {"research": True}}})
+    assert resp.status_code == 200
+    assert resp.json()["tabs"]["research"] is True
+
+    data = yaml.safe_load(config_path.read_text())
+    assert data["ui"]["tabs"]["research"] is True
+
+    monkeypatch.undo()
+    reload_config()
 
 
 def test_update_config_env_invalid_google_auth(monkeypatch, tmp_path):

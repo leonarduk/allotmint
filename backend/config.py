@@ -5,7 +5,6 @@ import os
 from dataclasses import asdict, dataclass, field
 from functools import lru_cache
 from pathlib import Path
-from functools import lru_cache
 from typing import Any, Dict, List, Optional
 
 import yaml
@@ -70,6 +69,7 @@ class TabsConfig:
     reports: bool = True
     scenario: bool = True
     logs: bool = True
+    research: bool = True
 
 
 @dataclass
@@ -340,7 +340,9 @@ def load_config() -> Config:
             google_auth_enabled = False
         else:
             raise ConfigValidationError(
-                f"GOOGLE_AUTH_ENABLED must be one of: '1', 'true', 'yes', '0', 'false', 'no' (case-insensitive); got '{env_google_auth}'",
+                "GOOGLE_AUTH_ENABLED must be one of: "
+                "'1', 'true', 'yes', '0', 'false', 'no' "
+                f"(case-insensitive); got '{env_google_auth}'",
             )
 
     google_client_id = data.get("google_client_id")

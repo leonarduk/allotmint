@@ -1,6 +1,6 @@
 import pytest
 
-from backend.config import TabsConfig, validate_tabs, ConfigValidationError
+from backend.config import ConfigValidationError, TabsConfig, validate_tabs
 
 
 def test_validate_tabs_accepts_new_keys():
@@ -10,6 +10,7 @@ def test_validate_tabs_accepts_new_keys():
         "rebalance": False,
         "pension": True,
         "alertsettings": True,
+        "research": True,
     })
     assert isinstance(tabs, TabsConfig)
     assert tabs.market is False
@@ -17,6 +18,7 @@ def test_validate_tabs_accepts_new_keys():
     assert tabs.rebalance is False
     assert tabs.pension is True
     assert tabs.alertsettings is True
+    assert tabs.research is True
 
 
 def test_validate_tabs_rejects_unknown_key():

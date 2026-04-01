@@ -1,6 +1,15 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import VirtualPortfolio from "@/pages/VirtualPortfolio";
+import * as api from "@/api";
+
+vi.mock("@/api", async () => {
+  const actual = await vi.importActual<typeof import("@/api")>("@/api");
+  return {
+    ...actual,
+    logAnalyticsEvent: vi.fn().mockResolvedValue(undefined),
+  };
+});
 
 const STORAGE_KEY = "familyManualPortfolio.v1";
 
@@ -8,6 +17,14 @@ describe("VirtualPortfolio page", () => {
   afterEach(() => {
     window.localStorage.clear();
     vi.restoreAllMocks();
+  });
+
+  it("sends a view analytics event", () => {
+    const mockLogAnalyticsEvent = vi.mocked(api.logAnalyticsEvent);
+    render(<VirtualPortfolio />);
+    expect(mockLogAnalyticsEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ source: "virtual_portfolio", event: "view" }),
+    );
   });
 
   it("adds multiple accounts and holdings", () => {
@@ -88,6 +105,36 @@ describe("VirtualPortfolio page", () => {
     fireEvent.change(addInput, { target: { value: "ISA" } });
     fireEvent.click(screen.getByRole("button", { name: "Add account" }));
 
-    expect(screen.getByText("Could not save your changes in this browser.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Changes were not saved in this browser. Try freeing local storage space."),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Account name")).not.toBeInTheDocument();
+  });
+
+  it("rejects empty account renames", () => {
+    render(<VirtualPortfolio />);
+
+    const addInput = screen.getByPlaceholderText(/Account name/i);
+    fireEvent.change(addInput, { target: { value: "ISA" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add account" }));
+
+    const accountNameInput = screen.getByLabelText("Account name");
+    fireEvent.change(accountNameInput, { target: { value: "   " } });
+
+    expect(screen.getByText("Account name cannot be empty.")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("ISA")).toBeInTheDocument();
+  });
+
+  it("prevents removing the final holding row", () => {
+    render(<VirtualPortfolio />);
+
+    const addInput = screen.getByPlaceholderText(/Account name/i);
+    fireEvent.change(addInput, { target: { value: "ISA" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add account" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
+
+    expect(screen.getByText("Each account must keep at least one holding row.")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("AAPL")).toBeInTheDocument();
   });
 });

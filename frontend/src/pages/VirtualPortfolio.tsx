@@ -1,4 +1,5 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { logAnalyticsEvent } from "@/api";
 
 interface ManualHolding {
   id: string;
@@ -16,9 +17,21 @@ interface ManualAccount {
 
 const STORAGE_KEY = "familyManualPortfolio.v1";
 
+function createId(): string {
+  try {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+      return crypto.randomUUID();
+    }
+  } catch {
+    // Fallback below.
+  }
+
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 function createHolding(): ManualHolding {
   return {
-    id: crypto.randomUUID(),
+    id: createId(),
     ticker: "",
     totalValue: "",
     units: "",
@@ -28,7 +41,7 @@ function createHolding(): ManualHolding {
 
 function createAccount(name: string): ManualAccount {
   return {
-    id: crypto.randomUUID(),
+    id: createId(),
     name,
     holdings: [createHolding()],
   };
@@ -83,14 +96,25 @@ export function VirtualPortfolio() {
 
   const canAddAccount = newAccountName.trim().length > 0;
 
+  useEffect(() => {
+    const maybePromise = logAnalyticsEvent({
+      source: "virtual_portfolio",
+      event: "view",
+      metadata: { storage_mode: "local" },
+    });
+    void maybePromise?.catch?.(() => undefined);
+  }, []);
+
   const saveAccounts = (next: ManualAccount[]) => {
+    const previous = accounts;
     setAccounts(next);
 
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       setStatusMessage(null);
     } catch {
-      setStatusMessage("Could not save your changes in this browser.");
+      setAccounts(previous);
+      setStatusMessage("Changes were not saved in this browser. Try freeing local storage space.");
     }
   };
 
@@ -120,10 +144,14 @@ export function VirtualPortfolio() {
 
   const updateAccountName = (accountId: string, name: string) => {
     const trimmed = name.trim();
+    if (!trimmed) {
+      setStatusMessage("Account name cannot be empty.");
+      return;
+    }
+
     const isDuplicateName = accounts.some(
       (account) => account.id !== accountId
         && account.name.trim().toLowerCase() === trimmed.toLowerCase()
-        && trimmed.length > 0,
     );
     if (isDuplicateName) {
       setStatusMessage("Account names must stay unique.");
@@ -131,7 +159,7 @@ export function VirtualPortfolio() {
     }
 
     saveAccounts(
-      accounts.map((account) => (account.id === accountId ? { ...account, name } : account)),
+      accounts.map((account) => (account.id === accountId ? { ...account, name: trimmed } : account)),
     );
   };
 
@@ -146,15 +174,21 @@ export function VirtualPortfolio() {
   };
 
   const removeHolding = (accountId: string, holdingId: string) => {
+    const account = accounts.find((entry) => entry.id === accountId);
+    if (!account) return;
+
+    const nextHoldings = account.holdings.filter((holding) => holding.id !== holdingId);
+    if (nextHoldings.length === 0) {
+      setStatusMessage("Each account must keep at least one holding row.");
+      return;
+    }
+
     saveAccounts(
-      accounts.map((account) => {
-        if (account.id !== accountId) return account;
-        const nextHoldings = account.holdings.filter((holding) => holding.id !== holdingId);
-        return {
-          ...account,
-          holdings: nextHoldings,
-        };
-      }),
+      accounts.map((entry) =>
+        entry.id === accountId
+          ? { ...entry, holdings: nextHoldings }
+          : entry,
+      ),
     );
   };
 

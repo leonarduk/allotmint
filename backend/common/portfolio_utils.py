@@ -1154,20 +1154,29 @@ def _detect_single_day_flash_crash(
     relative_threshold: float = 0.01,
     rebound_drop_pct_threshold: float = 0.12,
     rebound_match_tolerance: float = 0.12,
+    max_rebound_span: int = 3,
 ) -> Tuple[pd.Series, List[Dict[str, Any]]]:
-    """Interpolate isolated short-lived collapses and report repairs."""
+    """Interpolate short-lived rebound drops (up to ``max_rebound_span`` days).
+
+    Detection modes:
+    - Near-zero glitch: interior point falls below ``absolute_threshold`` or
+      ``relative_threshold`` of the lower neighbour.
+    - Rebound drop: interior point(s) drop by at least
+      ``rebound_drop_pct_threshold`` while the window endpoints remain within
+      ``rebound_match_tolerance`` of each other.
+    """
 
     if series.empty:
         return series, []
 
-    values = series.sort_index()
-    repaired = values.copy()
+    values = pd.to_numeric(series.sort_index(), errors="coerce")
+    repaired = values.astype(float).copy()
     issues: List[Dict[str, Any]] = []
     repaired_indices: set[Any] = set()
 
-    max_rebound_span = 3
-    for start_idx in range(0, len(values) - 2):
-        prev = float(values.iloc[start_idx])
+    epsilon = 1e-9
+    for start_idx in range(0, len(values) - 1):
+        prev = float(repaired.iloc[start_idx])
         if not math.isfinite(prev) or prev <= 0:
             continue
 
@@ -1176,17 +1185,17 @@ def _detect_single_day_flash_crash(
             if end_idx >= len(values):
                 break
 
-            nxt = float(values.iloc[end_idx])
+            nxt = float(repaired.iloc[end_idx])
             if not math.isfinite(nxt) or nxt <= 0:
                 continue
 
             min_neighbor = min(prev, nxt)
-            neighbor_baseline = max(min_neighbor, 1.0)
+            neighbor_baseline = min_neighbor if min_neighbor > epsilon else 1.0
             neighbors_recovered = abs(prev - nxt) / neighbor_baseline <= rebound_match_tolerance
             if not neighbors_recovered:
                 continue
 
-            window = values.iloc[start_idx + 1 : end_idx]
+            window = repaired.iloc[start_idx + 1 : end_idx]
             if window.empty:
                 continue
             finite_window = window[pd.to_numeric(window, errors="coerce").notna()]
@@ -1203,9 +1212,17 @@ def _detect_single_day_flash_crash(
                 continue
 
             span_len = len(window)
-            for offset, (label, value) in enumerate(window.items(), start=1):
+            repaired_any = False
+            for label, value in finite_window.items():
                 if label in repaired_indices:
                     continue
+                point = float(value)
+                point_drop_pct = 1 - (point / min_neighbor)
+                is_zero_like = point <= absolute_threshold or point <= min_neighbor * relative_threshold
+                is_large_drop = point_drop_pct >= rebound_drop_pct_threshold
+                if not (is_zero_like or is_large_drop):
+                    continue
+                offset = window.index.get_loc(label) + 1
                 repaired_value = prev + ((nxt - prev) * (offset / (span_len + 1)))
                 iso_date = label.isoformat() if hasattr(label, "isoformat") else str(label)
                 issues.append(
@@ -1219,6 +1236,9 @@ def _detect_single_day_flash_crash(
                 )
                 repaired.loc[label] = repaired_value
                 repaired_indices.add(label)
+                repaired_any = True
+            if repaired_any:
+                break
 
     return repaired, issues
 

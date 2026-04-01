@@ -12,7 +12,14 @@ import { createRoot } from 'react-dom/client';
 import { HelmetProvider } from 'react-helmet-async';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import {
+  BrowserRouter,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from 'react-router-dom';
 import './index.css';
 import './styles/responsive.css';
 import './i18n';
@@ -56,6 +63,13 @@ const PerformanceDiagnostics = lazy(() => import('./pages/PerformanceDiagnostics
 const ReturnComparison = lazy(() => import('./pages/ReturnComparison'));
 const MetricsExplanation = lazy(() => import('./pages/MetricsExplanation'));
 const SmokeTest = lazy(() => import('./pages/SmokeTest'));
+const FAMILY_MVP_ROUTE_GATES: ReadonlyArray<{ mode: Parameters<typeof isModeEnabled>[0]; path: string }> = [
+  { mode: "transactions", path: "/transactions" },
+  { mode: "reports", path: "/reports" },
+  { mode: "taxtools", path: "/tax-tools" },
+  { mode: "trail", path: "/trail" },
+  { mode: "trade-compliance", path: "/trade-compliance" },
+];
 
 const routeMarkerStyle: CSSProperties = {
   position: 'absolute',
@@ -324,6 +338,11 @@ export function Root() {
               <Route key={route.routePath} path={route.routePath} element={<Component />} />,
             ];
           })}
+          {FAMILY_MVP_ROUTE_GATES.flatMap(({ mode, path }) =>
+            isModeEnabled(mode, tabs, disabledTabs)
+              ? []
+              : [<Route key={`disabled-${path}`} path={path} element={<Navigate to="/" replace />} />],
+          )}
           <Route path="/goals" element={<Goals />} />
           <Route path="/smoke-test" element={<SmokeTest />} />
           {advancedAnalyticsEnabled ? (

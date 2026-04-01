@@ -64,4 +64,86 @@ describe("ConfigProvider Family MVP gating", () => {
       expect(disabledTabs.has("scenario")).toBe(true);
     });
   });
+
+  it("keeps optional feature tabs enabled when their Family MVP flags are explicitly enabled", async () => {
+    const { getConfig } = await import("@/api");
+    vi.mocked(getConfig).mockResolvedValue({
+      enable_family_mvp: true,
+      enable_compliance_workflows: true,
+      enable_advanced_analytics: true,
+      enable_reporting_extended: true,
+      tabs: {
+        "trade-compliance": true,
+        trail: true,
+        taxtools: true,
+        reports: true,
+        scenario: true,
+      },
+    });
+
+    render(
+      <ConfigProvider>
+        <Probe />
+      </ConfigProvider>,
+    );
+
+    await waitFor(() => {
+      const probe = screen.getByTestId("config-probe");
+      const tabs = JSON.parse(probe.getAttribute("data-tabs") ?? "{}") as Record<string, boolean>;
+      const disabledTabs = new Set(
+        JSON.parse(probe.getAttribute("data-disabled-tabs") ?? "[]") as string[],
+      );
+
+      expect(tabs["trade-compliance"]).toBe(true);
+      expect(tabs.trail).toBe(true);
+      expect(tabs.taxtools).toBe(true);
+      expect(tabs.reports).toBe(true);
+      expect(tabs.scenario).toBe(true);
+      expect(disabledTabs.has("trade-compliance")).toBe(false);
+      expect(disabledTabs.has("reports")).toBe(false);
+      expect(disabledTabs.has("scenario")).toBe(false);
+      expect(tabs.transactions).toBe(false);
+      expect(disabledTabs.has("transactions")).toBe(true);
+    });
+  });
+
+  it("does not apply Family MVP forced tab disables when Family MVP is disabled", async () => {
+    const { getConfig } = await import("@/api");
+    vi.mocked(getConfig).mockResolvedValue({
+      enable_family_mvp: false,
+      tabs: {
+        transactions: true,
+        "trade-compliance": true,
+        trail: true,
+        taxtools: true,
+        reports: true,
+        scenario: true,
+      },
+    });
+
+    render(
+      <ConfigProvider>
+        <Probe />
+      </ConfigProvider>,
+    );
+
+    await waitFor(() => {
+      const probe = screen.getByTestId("config-probe");
+      const tabs = JSON.parse(probe.getAttribute("data-tabs") ?? "{}") as Record<string, boolean>;
+      const disabledTabs = new Set(
+        JSON.parse(probe.getAttribute("data-disabled-tabs") ?? "[]") as string[],
+      );
+
+      expect(tabs.transactions).toBe(true);
+      expect(tabs["trade-compliance"]).toBe(true);
+      expect(tabs.trail).toBe(true);
+      expect(tabs.taxtools).toBe(true);
+      expect(tabs.reports).toBe(true);
+      expect(tabs.scenario).toBe(true);
+      expect(disabledTabs.has("transactions")).toBe(false);
+      expect(disabledTabs.has("trade-compliance")).toBe(false);
+      expect(disabledTabs.has("reports")).toBe(false);
+      expect(disabledTabs.has("scenario")).toBe(false);
+    });
+  });
 });

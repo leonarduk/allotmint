@@ -79,6 +79,29 @@ def test_family_mvp_flag_none_falls_back_to_default(monkeypatch, tmp_path):
         reload_config()
 
 
+def test_family_mvp_flags_load_from_ui_section(monkeypatch, tmp_path):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        "ui:\n"
+        "  enable_family_mvp: false\n"
+        "  enable_compliance_workflows: true\n"
+        "  enable_advanced_analytics: true\n"
+        "  enable_reporting_extended: true\n",
+    )
+    monkeypatch.setattr(sys.modules["backend.config"], "_project_config_path", lambda: config_path)
+    monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
+
+    cfg = reload_config()
+    try:
+        assert cfg.enable_family_mvp is False
+        assert cfg.enable_compliance_workflows is True
+        assert cfg.enable_advanced_analytics is True
+        assert cfg.enable_reporting_extended is True
+    finally:
+        monkeypatch.undo()
+        reload_config()
+
+
 def test_stooq_timeout_loaded():
     cfg = reload_config()
     assert cfg.stooq_timeout == 10

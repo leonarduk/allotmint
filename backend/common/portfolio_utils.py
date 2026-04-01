@@ -1157,7 +1157,7 @@ def _detect_single_day_flash_crash(
     rebound_match_tolerance: float = 0.12,
     max_rebound_span: int = 3,
 ) -> Tuple[pd.Series, List[Dict[str, Any]]]:
-    """Interpolate short-lived rebound drops (up to ``max_rebound_span`` days).
+    """Interpolate short-lived rebound anomalies (up to ``max_rebound_span`` days).
 
     Detection modes:
     - Near-zero glitch: interior point falls below ``absolute_threshold`` or
@@ -1168,6 +1168,14 @@ def _detect_single_day_flash_crash(
     - Rebound jump: interior point(s) spike above neighbours by at least
       ``rebound_jump_pct_threshold`` (or ``rebound_drop_pct_threshold`` when
       omitted), with the same endpoint recovery check.
+
+    Tuning notes:
+    - ``rebound_match_tolerance`` is a fractional endpoint-difference threshold.
+      For example, 0.12 allows endpoints to differ by up to 12%.
+    - ``rebound_drop_pct_threshold`` / ``rebound_jump_pct_threshold`` are
+      fractional interior deviations from the endpoint baseline.
+    - For conservative paths (e.g. drawdown analytics), prefer higher drop/jump
+      thresholds so only near-zero glitches are repaired.
     """
 
     if series.empty:
@@ -1226,8 +1234,10 @@ def _detect_single_day_flash_crash(
 
             span_len = len(window)
             repaired_any = False
-            for label, value in finite_window.items():
+            for offset, (label, value) in enumerate(window.items(), start=1):
                 if label in repaired_indices:
+                    continue
+                if not pd.notna(value):
                     continue
                 point = float(value)
                 point_drop_pct = 1 - (point / min_neighbor)
@@ -1237,7 +1247,6 @@ def _detect_single_day_flash_crash(
                 is_large_jump = point_jump_pct >= jump_threshold
                 if not (is_zero_like or is_large_drop or is_large_jump):
                     continue
-                offset = window.index.get_loc(label) + 1
                 repaired_value = prev + ((nxt - prev) * (offset / (span_len + 1)))
                 iso_date = label.isoformat() if hasattr(label, "isoformat") else str(label)
                 issues.append(
@@ -1318,7 +1327,13 @@ def _portfolio_value_series(
     total = total[total.index <= calc.reporting_date]
     if days:
         total = total.tail(days)
-    total, _issues = _detect_single_day_flash_crash(total, rebound_drop_pct_threshold=0.60)
+    total, _issues = _detect_single_day_flash_crash(
+        total,
+        rebound_drop_pct_threshold=1.0,
+        rebound_jump_pct_threshold=1.0,
+    )
+    if _issues:
+        logger.info("Repaired %d near-zero portfolio value anomalies in series path", len(_issues))
     return total
 
 

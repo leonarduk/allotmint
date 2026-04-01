@@ -519,3 +519,13 @@ def test_detect_single_day_flash_crash_repairs_upward_spike():
             "next_value": 10050.0,
         }
     ]
+
+
+def test_detect_single_day_flash_crash_handles_duplicate_index():
+    idx = pd.Index([date(2024, 1, 1), date(2024, 1, 2), date(2024, 1, 2), date(2024, 1, 3)])
+    values = pd.Series([1000.0, 50.0, 55.0, 1005.0], index=idx)
+
+    cleaned, issues = pu._detect_single_day_flash_crash(values, max_rebound_span=2)
+
+    assert len(cleaned) == 4
+    assert len(issues) >= 1

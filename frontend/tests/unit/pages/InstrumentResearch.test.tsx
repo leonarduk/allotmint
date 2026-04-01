@@ -234,6 +234,22 @@ describe("InstrumentResearch page", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows a chooser message on /research without ticker", async () => {
+    render(
+      <configContext.Provider value={defaultConfig}>
+        <MemoryRouter initialEntries={["/research"]}>
+          <Routes>
+            <Route path="/research" element={<InstrumentResearch />} />
+          </Routes>
+        </MemoryRouter>
+      </configContext.Provider>,
+    );
+
+    expect(
+      await screen.findByText("Choose a ticker from search to open research."),
+    ).toBeInTheDocument();
+  });
+
   it("loads fundamentals when tab is selected", async () => {
     renderPage();
     const fundamentalsTab = screen.getByRole("button", {

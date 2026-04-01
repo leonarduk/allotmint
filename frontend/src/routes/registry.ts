@@ -282,6 +282,7 @@ export const ROUTE_REGISTRY: RouteRegistryEntry[] = [
     mode: 'research',
     routeSegment: 'research',
     section: 'user',
+    menuCategory: 'insights',
     priority: 140,
     defaultPath: () => '/research',
   },

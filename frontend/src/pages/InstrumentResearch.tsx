@@ -131,6 +131,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
   const { t } = useTranslation();
   const resolvedTicker =
     typeof ticker === "string" && ticker ? ticker : routeTicker ?? "";
+  const hasTickerInput = resolvedTicker.trim().length > 0;
   const tkr =
     resolvedTicker && /^[A-Za-z0-9.-]{1,10}$/.test(resolvedTicker)
       ? resolvedTicker
@@ -811,6 +812,15 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
     muted: "#555",
   };
 
+  if (!hasTickerInput) {
+    return (
+      <EmptyState
+        message={t("instrumentDetail.chooseTicker", {
+          defaultValue: "Choose a ticker from search to open research.",
+        })}
+      />
+    );
+  }
   if (!tkr) return <div>Invalid ticker</div>;
 
   return (

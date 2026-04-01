@@ -501,3 +501,21 @@ def test_detect_single_day_flash_crash_ignores_nan_in_window():
     assert pd.isna(cleaned.iloc[1])
     assert cleaned.iloc[2] == pytest.approx(1000.6667, rel=1e-4)
     assert [issue["date"] for issue in issues] == ["2024-01-03"]
+
+
+def test_detect_single_day_flash_crash_repairs_upward_spike():
+    idx = pd.Index([date(2024, 1, 1), date(2024, 1, 2), date(2024, 1, 3)])
+    values = pd.Series([10000.0, 12500.0, 10050.0], index=idx)
+
+    cleaned, issues = pu._detect_single_day_flash_crash(values, rebound_drop_pct_threshold=0.12)
+
+    assert cleaned.iloc[1] == pytest.approx(10025.0)
+    assert issues == [
+        {
+            "date": "2024-01-02",
+            "value": 12500.0,
+            "repaired_value": 10025.0,
+            "previous_value": 10000.0,
+            "next_value": 10050.0,
+        }
+    ]

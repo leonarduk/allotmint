@@ -1153,6 +1153,7 @@ def _detect_single_day_flash_crash(
     absolute_threshold: float = 1.0,
     relative_threshold: float = 0.01,
     rebound_drop_pct_threshold: float = 0.12,
+    rebound_jump_pct_threshold: float | None = None,
     rebound_match_tolerance: float = 0.12,
     max_rebound_span: int = 3,
 ) -> Tuple[pd.Series, List[Dict[str, Any]]]:
@@ -1164,6 +1165,9 @@ def _detect_single_day_flash_crash(
     - Rebound drop: interior point(s) drop by at least
       ``rebound_drop_pct_threshold`` while the window endpoints remain within
       ``rebound_match_tolerance`` of each other.
+    - Rebound jump: interior point(s) spike above neighbours by at least
+      ``rebound_jump_pct_threshold`` (or ``rebound_drop_pct_threshold`` when
+      omitted), with the same endpoint recovery check.
     """
 
     if series.empty:
@@ -1173,6 +1177,11 @@ def _detect_single_day_flash_crash(
     repaired = values.astype(float).copy()
     issues: List[Dict[str, Any]] = []
     repaired_indices: set[Any] = set()
+    jump_threshold = (
+        rebound_drop_pct_threshold
+        if rebound_jump_pct_threshold is None
+        else rebound_jump_pct_threshold
+    )
 
     epsilon = 1e-9
     for start_idx in range(0, len(values) - 1):
@@ -1203,12 +1212,16 @@ def _detect_single_day_flash_crash(
                 continue
 
             window_min = float(finite_window.min())
+            window_max = float(finite_window.max())
+            max_neighbor = max(prev, nxt)
             resembles_zero_glitch = (
                 window_min <= absolute_threshold or window_min <= min_neighbor * relative_threshold
             )
             drop_pct = 1 - (window_min / min_neighbor)
+            jump_pct = (window_max / max_neighbor) - 1 if max_neighbor > epsilon else 0.0
             large_short_lived_drop = drop_pct >= rebound_drop_pct_threshold
-            if not (resembles_zero_glitch or large_short_lived_drop):
+            large_short_lived_jump = jump_pct >= jump_threshold
+            if not (resembles_zero_glitch or large_short_lived_drop or large_short_lived_jump):
                 continue
 
             span_len = len(window)
@@ -1218,9 +1231,11 @@ def _detect_single_day_flash_crash(
                     continue
                 point = float(value)
                 point_drop_pct = 1 - (point / min_neighbor)
+                point_jump_pct = (point / max_neighbor) - 1 if max_neighbor > epsilon else 0.0
                 is_zero_like = point <= absolute_threshold or point <= min_neighbor * relative_threshold
                 is_large_drop = point_drop_pct >= rebound_drop_pct_threshold
-                if not (is_zero_like or is_large_drop):
+                is_large_jump = point_jump_pct >= jump_threshold
+                if not (is_zero_like or is_large_drop or is_large_jump):
                     continue
                 offset = window.index.get_loc(label) + 1
                 repaired_value = prev + ((nxt - prev) * (offset / (span_len + 1)))

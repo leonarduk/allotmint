@@ -16,7 +16,7 @@ import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-ro
 import './index.css';
 import './styles/responsive.css';
 import './i18n';
-import { ConfigProvider } from './ConfigContext';
+import { ConfigProvider, useConfig } from './ConfigContext';
 import { PriceRefreshProvider } from './PriceRefreshContext';
 import { AuthProvider, useAuth } from './AuthContext';
 import {
@@ -107,6 +107,11 @@ export function Root() {
   const { setProfile } = useUser();
   const navigate = useNavigate();
   const location = useLocation();
+  const { tabs, disabledTabs } = useConfig();
+  const complianceRoutesEnabled =
+    tabs["trade-compliance"] !== false && !disabledTabs?.includes("trade-compliance");
+  const advancedAnalyticsEnabled =
+    tabs.scenario !== false && !disabledTabs?.includes("scenario");
   const activeRequest = useRef<AbortController | null>(null);
   const retryTimer = useRef<number | null>(null);
   const isMounted = useRef(true);
@@ -297,10 +302,17 @@ export function Root() {
     <ErrorBoundary key={location.pathname}>
       <Suspense fallback={<div>Loading...</div>}>
         <Routes>
-          <Route path="/compliance" element={<ComplianceWarnings />} />
-          <Route path="/compliance/:owner" element={<ComplianceWarnings />} />
+          {complianceRoutesEnabled ? (
+            <>
+              <Route path="/compliance" element={<ComplianceWarnings />} />
+              <Route path="/compliance/:owner" element={<ComplianceWarnings />} />
+            </>
+          ) : null}
           {standalonePageRoutes.flatMap((route) => {
             if (route.routePath === '/virtual' || !route.lazyComponent) {
+              return [];
+            }
+            if (tabs[route.mode] === false || disabledTabs?.includes(route.mode)) {
               return [];
             }
 
@@ -311,12 +323,16 @@ export function Root() {
           })}
           <Route path="/goals" element={<Goals />} />
           <Route path="/smoke-test" element={<SmokeTest />} />
-          <Route
-            path="/performance/:owner/diagnostics"
-            element={<PerformanceDiagnostics />}
-          />
-          <Route path="/returns/compare" element={<ReturnComparison />} />
-          <Route path="/metrics-explained" element={<MetricsExplanation />} />
+          {advancedAnalyticsEnabled ? (
+            <>
+              <Route
+                path="/performance/:owner/diagnostics"
+                element={<PerformanceDiagnostics />}
+              />
+              <Route path="/returns/compare" element={<ReturnComparison />} />
+              <Route path="/metrics-explained" element={<MetricsExplanation />} />
+            </>
+          ) : null}
           <Route
             path="/*"
             element={

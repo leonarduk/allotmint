@@ -121,6 +121,10 @@ class Config:
     allowed_emails: Optional[List[str]] = None
     local_login_email: Optional[str] = None
     relative_view_enabled: Optional[bool] = None
+    enable_family_mvp: bool = True
+    enable_compliance_workflows: bool = False
+    enable_advanced_analytics: bool = False
+    enable_reporting_extended: bool = False
     theme: Optional[str] = None
     timeseries_cache_base: Optional[str] = None
     fx_proxy_url: Optional[str] = None
@@ -413,6 +417,10 @@ def load_config() -> Config:
         demo_identity=demo_identity,
         smoke_identity=smoke_identity,
         relative_view_enabled=data.get("relative_view_enabled"),
+        enable_family_mvp=bool(data.get("enable_family_mvp", True)),
+        enable_compliance_workflows=bool(data.get("enable_compliance_workflows", False)),
+        enable_advanced_analytics=bool(data.get("enable_advanced_analytics", False)),
+        enable_reporting_extended=bool(data.get("enable_reporting_extended", False)),
         theme=data.get("theme"),
         timeseries_cache_base=timeseries_cache_base,
         fx_proxy_url=data.get("fx_proxy_url"),

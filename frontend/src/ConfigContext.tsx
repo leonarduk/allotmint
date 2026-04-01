@@ -58,6 +58,10 @@ export interface RawConfig {
   relative_view_enabled?: boolean | null;
   tabs?: Partial<TabsConfig>;
   disabled_tabs?: string[];
+  enable_family_mvp?: boolean;
+  enable_compliance_workflows?: boolean;
+  enable_advanced_analytics?: boolean;
+  enable_reporting_extended?: boolean;
   theme?: string | null;
   allowed_emails?: string[] | null;
 }
@@ -68,7 +72,7 @@ const defaultTabs: TabsConfig = {
   owner: true,
   instrument: true,
   performance: true,
-  transactions: true,
+  transactions: false,
   screener: true,
   trading: true,
   timeseries: true,
@@ -85,13 +89,22 @@ const defaultTabs: TabsConfig = {
   profile: false,
   alerts: true,
   pension: true,
-  trail: true,
+  trail: false,
   alertsettings: true,
-  taxtools: true,
-  'trade-compliance': true,
-  reports: true,
+  taxtools: false,
+  'trade-compliance': false,
+  reports: false,
   scenario: true,
 };
+
+const FAMILY_MVP_DISABLED_TABS = [
+  "transactions",
+  "trade-compliance",
+  "trail",
+  "taxtools",
+  "reports",
+  "scenario",
+] as const;
 
 export interface ConfigContextValue extends AppConfig {
   refreshConfig: () => Promise<void>;
@@ -157,8 +170,28 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
       const disabledTabs = new Set<string>(
         Array.isArray(cfg.disabled_tabs) ? cfg.disabled_tabs : [],
       );
+      const familyMvpEnabled = cfg.enable_family_mvp !== false;
+      if (familyMvpEnabled && cfg.enable_compliance_workflows !== true) {
+        disabledTabs.add("trade-compliance");
+        disabledTabs.add("trail");
+        disabledTabs.add("taxtools");
+      }
+      if (familyMvpEnabled && cfg.enable_reporting_extended !== true) {
+        disabledTabs.add("reports");
+      }
+      if (familyMvpEnabled && cfg.enable_advanced_analytics !== true) {
+        disabledTabs.add("scenario");
+      }
+      if (familyMvpEnabled) {
+        disabledTabs.add("transactions");
+      }
       for (const [tab, enabled] of Object.entries(tabs)) {
         if (enabled === false) disabledTabs.add(String(tab));
+      }
+      for (const tab of FAMILY_MVP_DISABLED_TABS) {
+        if (disabledTabs.has(tab)) {
+          tabs[tab] = false;
+        }
       }
       const theme = isTheme(cfg.theme) ? cfg.theme : "system";
       const stored =

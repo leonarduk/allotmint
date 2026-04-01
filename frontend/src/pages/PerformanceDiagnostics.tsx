@@ -9,6 +9,7 @@ import {
   Tooltip,
 } from "recharts";
 import { getPerformance, getPortfolioHoldings } from "../api";
+import Menu from "../components/Menu";
 import type {
   PerformancePoint,
   HoldingValue,
@@ -222,6 +223,9 @@ export default function PerformanceDiagnostics() {
 
   return (
     <div style={{ padding: "1rem" }}>
+      <div style={{ marginBottom: "1rem" }}>
+        <Menu selectedOwner={owner} />
+      </div>
       <h1>Performance Diagnostics – {owner}</h1>
       {err ? (
         <div role="alert" aria-live="assertive" style={{ marginTop: "1rem" }}>

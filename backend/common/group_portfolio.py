@@ -228,3 +228,36 @@ def build_group_portfolio(slug: str, *, pricing_date: date | None = None) -> Dic
         "subtotals_by_account_type": subtotals_by_account_type,
         ACCOUNTS: merged_accounts,
     }
+
+
+def aggregate_group_exposure(portfolio: Dict[str, Any]) -> Dict[str, Any]:
+    """Return combined portfolio value and per-ticker exposure rows."""
+
+    by_ticker: Dict[str, float] = {}
+    total_value = 0.0
+
+    for account in portfolio.get(ACCOUNTS, []):
+        for holding in account.get(HOLDINGS, []) or []:
+            ticker = str(holding.get("ticker") or "").strip().upper()
+            if not ticker:
+                continue
+            market_value = float(holding.get("market_value_gbp") or 0.0)
+            total_value += market_value
+            by_ticker[ticker] = by_ticker.get(ticker, 0.0) + market_value
+
+    rows: List[Dict[str, Any]] = []
+    for ticker, market_value in by_ticker.items():
+        percentage = (market_value / total_value * 100.0) if total_value else 0.0
+        rows.append(
+            {
+                "ticker": ticker,
+                "total_value_gbp": market_value,
+                "percentage_of_portfolio": percentage,
+            }
+        )
+
+    rows.sort(key=lambda row: row["total_value_gbp"], reverse=True)
+    return {
+        "total_portfolio_value_gbp": total_value,
+        "holdings": rows,
+    }

@@ -736,6 +736,16 @@ async def group_regions(slug: str, as_of: str | None = None):
     return portfolio_utils.aggregate_by_region(gp)
 
 
+@router.get("/portfolio-group/{slug}/exposure")
+async def group_exposure(slug: str, as_of: str | None = None):
+    try:
+        pricing_date = _resolve_pricing_date(as_of)
+        gp = _build_group_portfolio(slug, pricing_date)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Group not found") from exc
+    return group_portfolio.aggregate_group_exposure(gp)
+
+
 def _calculate_weights_and_market_values(
     summaries: Sequence[Dict[str, Any]],
 ) -> Tuple[List[str], Dict[str, float], Dict[str, float]]:

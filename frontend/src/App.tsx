@@ -431,11 +431,13 @@ export default function App({ onLogout }: AppProps) {
           />
           <InstrumentSearchBarToggle />
           {mode === "owner" && (
-            <OwnerSelector
-              owners={owners}
-              selected={selectedOwner}
-              onSelect={handleOwnerSelectPortfolio}
-            />
+            <div data-testid="portfolio-owner-selector">
+              <OwnerSelector
+                owners={owners}
+                selected={selectedOwner}
+                onSelect={handleOwnerSelectPortfolio}
+              />
+            </div>
           )}
           {lastRefresh && (
             <span
@@ -472,13 +474,6 @@ export default function App({ onLogout }: AppProps) {
         {/* OWNER VIEW */}
         {mode === "owner" && (
           <>
-            <div data-testid="portfolio-owner-selector">
-              <OwnerSelector
-                owners={owners}
-                selected={selectedOwner}
-                onSelect={handleOwnerSelectPortfolio}
-              />
-            </div>
             <ComplianceWarnings owners={selectedOwner ? [selectedOwner] : []} />
             <PortfolioView
               data={portfolio}

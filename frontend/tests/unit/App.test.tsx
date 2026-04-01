@@ -568,9 +568,55 @@ describe("App", () => {
     expect(locationUpdates.some((path) => path.startsWith("/performance"))).toBe(false);
   });
 
-  it("navigates to the exact encoded URL path when selecting an owner from the portfolio body selector", async () => {
+  it("renders a single owner selector on the portfolio page", async () => {
+    window.history.pushState({}, "", "/portfolio/alice");
+
+    const mockGetOwners = vi.fn().mockResolvedValue([
+      { owner: "alice", accounts: [] },
+      { owner: "bob", accounts: [] },
+    ]);
+
+    vi.doMock("@/api", async () => {
+      const actual = await vi.importActual<typeof import("@/api")>("@/api");
+      return {
+        ...actual,
+        getOwners: mockGetOwners,
+        getGroups: vi.fn().mockResolvedValue([]),
+        getPortfolio: vi.fn().mockResolvedValue({
+          owner: "alice",
+          as_of: "2024-01-01T00:00:00.000Z",
+          trades_this_month: 0,
+          trades_remaining: 0,
+          total_value_estimate_gbp: 0,
+          accounts: [],
+        }),
+        getGroupInstruments: vi.fn().mockResolvedValue([]),
+        getAlerts: vi.fn().mockResolvedValue([]),
+        getNudges: vi.fn().mockResolvedValue([]),
+        getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+        getCompliance: vi.fn().mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+        complianceForOwner: vi.fn().mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+        getTradingSignals: vi.fn().mockResolvedValue([]),
+        getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+      };
+    });
+
+    const { default: App } = await import("@/App");
+    render(
+      <MemoryRouter initialEntries={["/portfolio/alice"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    await screen.findByTestId("portfolio-owner-selector");
+    await waitFor(() => {
+      expect(screen.queryAllByTestId("portfolio-owner-selector")).toHaveLength(1);
+    });
+  });
+
+  it("navigates to the exact encoded URL path when selecting an owner from the portfolio selector", async () => {
     // Regression test for https://github.com/leonarduk/allotmint/issues/2653
-    // Asserts that the body OwnerSelector (data-testid="portfolio-owner-selector") calls
+    // Asserts that the portfolio OwnerSelector (data-testid="portfolio-owner-selector") calls
     // handleOwnerSelectPortfolio, which navigates to /portfolio/<owner> and NOT just
     // updates state (the original bug: setSelectedOwner was called directly without navigate).
     window.history.pushState({}, "", "/portfolio/alice");
@@ -656,7 +702,7 @@ describe("App", () => {
       expect((portfolioSelector as HTMLSelectElement).options.length).toBeGreaterThan(1);
     });
 
-    // Select bob — this exercises handleOwnerSelectPortfolio via the body selector
+    // Select bob — this exercises handleOwnerSelectPortfolio via the portfolio selector
     await user.selectOptions(portfolioSelector as HTMLSelectElement, "bob");
 
     // Assert the exact URL pushed to history — not just "starts with /portfolio"

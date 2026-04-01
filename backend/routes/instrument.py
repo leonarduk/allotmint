@@ -261,12 +261,15 @@ async def instrument(
     if "Close" not in df.columns and "Close_gbp" in df.columns:
         df["Close"] = df["Close_gbp"]
 
+    close_gbp_from_gbx_native = False
+
     if "Close_gbp" not in df.columns and "Close" in df.columns:
         close_native = pd.to_numeric(df["Close"], errors="coerce")
 
         if native_currency == "GBX":
             df["Close_gbp"] = close_native / 100.0
             native_currency = "GBP"
+            close_gbp_from_gbx_native = True
         elif native_currency == "GBP" or native_currency is None:
             df["Close_gbp"] = close_native
         else:
@@ -292,7 +295,10 @@ async def instrument(
     scale = get_scaling_override(tkr, exch, None)
     if scale != 1.0:
         df = apply_scaling(df, scale)
-        if "Close_gbp" in df.columns:
+        should_scale_close_gbp = not (
+            close_gbp_from_gbx_native and np.isclose(scale, 0.01)
+        )
+        if "Close_gbp" in df.columns and should_scale_close_gbp:
             df["Close_gbp"] = pd.to_numeric(df["Close_gbp"], errors="coerce") * scale
 
     df = df[pd.notnull(df["Close"])]

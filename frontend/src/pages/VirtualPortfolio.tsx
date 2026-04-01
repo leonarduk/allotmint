@@ -1,412 +1,313 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  getVirtualPortfolios,
-  getVirtualPortfolio,
-  createVirtualPortfolio,
-  updateVirtualPortfolio,
-  deleteVirtualPortfolio,
-  getOwners,
-  logAnalyticsEvent,
-} from "../api";
-import errorToast from "../utils/errorToast";
-import type {
-  SyntheticHolding,
-  VirtualPortfolio as VP,
-  OwnerSummary,
-  VirtualPortfolioAnalyticsEvent,
-} from "../types";
-import {
-  sanitizeOwners,
-  createOwnerDisplayLookup,
-  getOwnerDisplayName,
-} from "../utils/owners";
+import { useMemo, useState } from "react";
 
-const MAX_INITIAL_LOAD_ATTEMPTS = 3;
-const INITIAL_RETRY_BASE_DELAY_MS = 500;
-const INITIAL_RETRY_MAX_DELAY_MS = 2000;
+interface ManualHolding {
+  id: string;
+  ticker: string;
+  totalValue: string;
+  units: string;
+  price: string;
+}
 
-let initialDataPromise: Promise<[VP[], OwnerSummary[]]> | null = null;
+interface ManualAccount {
+  id: string;
+  name: string;
+  holdings: ManualHolding[];
+}
 
-async function resolveInitialData() {
-  if (!initialDataPromise) {
-    initialDataPromise = Promise.all([getVirtualPortfolios(), getOwners()]);
-  }
+const STORAGE_KEY = "familyManualPortfolio.v1";
+
+function createHolding(): ManualHolding {
+  return {
+    id: crypto.randomUUID(),
+    ticker: "",
+    totalValue: "",
+    units: "",
+    price: "",
+  };
+}
+
+function createAccount(name: string): ManualAccount {
+  return {
+    id: crypto.randomUUID(),
+    name,
+    holdings: [createHolding()],
+  };
+}
+
+function parseNumber(value: string): number | null {
+  if (value.trim() === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function readInitialAccounts(): ManualAccount[] {
+  if (typeof window === "undefined") return [];
+  const raw = window.localStorage.getItem(STORAGE_KEY);
+  if (!raw) return [];
 
   try {
-    return await initialDataPromise;
-  } finally {
-    initialDataPromise = null;
+    const parsed = JSON.parse(raw) as ManualAccount[];
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((account) => typeof account?.id === "string" && typeof account?.name === "string")
+      .map((account) => ({
+        ...account,
+        holdings: Array.isArray(account.holdings) && account.holdings.length > 0
+          ? account.holdings
+          : [createHolding()],
+      }));
+  } catch {
+    return [];
   }
 }
 
 export function VirtualPortfolio() {
-  const [portfolios, setPortfolios] = useState<VP[]>([]);
-  const [owners, setOwners] = useState<OwnerSummary[]>([]);
-  const [selected, setSelected] = useState<number | null>(null);
-  const [name, setName] = useState("");
-  const [accounts, setAccounts] = useState<string[]>([]);
-  const [holdings, setHoldings] = useState<SyntheticHolding[]>([]);
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [hasLoadedInitialData, setHasLoadedInitialData] = useState(false);
-  const [initialLoadInProgress, setInitialLoadInProgress] = useState(true);
-  const isMountedRef = useRef(true);
-  const initialLoadStartedRef = useRef(false);
-  const initialLoadInFlightRef = useRef(false);
-  const ownerLookup = useMemo(
-    () => createOwnerDisplayLookup(owners),
-    [owners],
-  );
+  const [accounts, setAccounts] = useState<ManualAccount[]>(readInitialAccounts);
+  const [newAccountName, setNewAccountName] = useState("");
 
-  const track = useCallback(
-    (
-      event: VirtualPortfolioAnalyticsEvent,
-      metadata?: Record<string, unknown>,
-    ) => {
-      const maybePromise = logAnalyticsEvent({
-        source: "virtual_portfolio",
-        event,
-        metadata,
-      });
+  const canAddAccount = newAccountName.trim().length > 0;
 
-      void maybePromise?.catch?.(() => undefined);
-    },
-    [],
-  );
+  const saveAccounts = (next: ManualAccount[]) => {
+    setAccounts(next);
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  };
 
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
+  const addAccount = () => {
+    const trimmed = newAccountName.trim();
+    if (!trimmed) return;
+    saveAccounts([...accounts, createAccount(trimmed)]);
+    setNewAccountName("");
+  };
 
-  const loadInitialData = useCallback(async () => {
-    if (!isMountedRef.current) return;
+  const deleteAccount = (accountId: string) => {
+    saveAccounts(accounts.filter((account) => account.id !== accountId));
+  };
 
-    if (initialLoadInFlightRef.current) {
-      return;
-    }
+  const updateAccountName = (accountId: string, name: string) => {
+    saveAccounts(
+      accounts.map((account) => (account.id === accountId ? { ...account, name } : account)),
+    );
+  };
 
-    initialLoadInFlightRef.current = true;
+  const addHolding = (accountId: string) => {
+    saveAccounts(
+      accounts.map((account) =>
+        account.id === accountId
+          ? { ...account, holdings: [...account.holdings, createHolding()] }
+          : account,
+      ),
+    );
+  };
 
-    setHasLoadedInitialData(false);
-    setLoading(true);
-    setInitialLoadInProgress(true);
-    setMessage(null);
-    setError(null);
+  const removeHolding = (accountId: string, holdingId: string) => {
+    saveAccounts(
+      accounts.map((account) => {
+        if (account.id !== accountId) return account;
+        const nextHoldings = account.holdings.filter((holding) => holding.id !== holdingId);
+        return {
+          ...account,
+          holdings: nextHoldings.length > 0 ? nextHoldings : [createHolding()],
+        };
+      }),
+    );
+  };
 
-    try {
-      for (let attempt = 0; attempt < MAX_INITIAL_LOAD_ATTEMPTS; attempt += 1) {
-        try {
-          const [ps, os] = await resolveInitialData();
+  const updateHolding = (
+    accountId: string,
+    holdingId: string,
+    field: keyof Omit<ManualHolding, "id">,
+    value: string,
+  ) => {
+    saveAccounts(
+      accounts.map((account) => {
+        if (account.id !== accountId) return account;
+        return {
+          ...account,
+          holdings: account.holdings.map((holding) =>
+            holding.id === holdingId ? { ...holding, [field]: value } : holding,
+          ),
+        };
+      }),
+    );
+  };
 
-          if (!isMountedRef.current) {
-            return;
-          }
+  const normalizedPreview = useMemo(
+    () =>
+      accounts.map((account) => ({
+        account_name: account.name,
+        holdings: account.holdings
+          .map((holding) => {
+            const totalValue = parseNumber(holding.totalValue);
+            const units = parseNumber(holding.units);
+            const price = parseNumber(holding.price);
+            if (!holding.ticker.trim()) return null;
 
-          const normalizedPortfolios = Array.isArray(ps) ? ps : [];
-          const normalizedOwners = Array.isArray(os) ? os : [];
-
-          setPortfolios(normalizedPortfolios);
-          setOwners(sanitizeOwners(normalizedOwners));
-          track("view", { portfolio_count: normalizedPortfolios.length });
-          setLoading(false);
-          setHasLoadedInitialData(true);
-          setInitialLoadInProgress(false);
-          return;
-        } catch (e) {
-          const err = e instanceof Error ? e : new Error(String(e));
-
-          if (!isMountedRef.current) {
-            return;
-          }
-
-          const isFinalAttempt = attempt === MAX_INITIAL_LOAD_ATTEMPTS - 1;
-          if (isFinalAttempt) {
-            setError(
-              navigator.onLine
-                ? "Unable to load virtual portfolios. Please try again."
-                : "You appear to be offline.",
-            );
-            setLoading(false);
-            setInitialLoadInProgress(false);
-            errorToast(err);
-            return;
-          }
-
-          const delay = Math.min(
-            INITIAL_RETRY_BASE_DELAY_MS * 2 ** attempt,
-            INITIAL_RETRY_MAX_DELAY_MS,
-          );
-
-          if (delay > 0) {
-            await new Promise<void>((resolve) => setTimeout(resolve, delay));
-            if (!isMountedRef.current) {
-              return;
+            if (totalValue != null) {
+              return { ticker: holding.ticker.trim().toUpperCase(), total_value: totalValue };
             }
-          }
-        }
-      }
-    } finally {
-      initialLoadInFlightRef.current = false;
-    }
-  }, [track]);
 
-  useEffect(() => {
-    if (initialLoadStartedRef.current) {
-      return;
-    }
+            if (units != null && price != null) {
+              return { ticker: holding.ticker.trim().toUpperCase(), units, price };
+            }
 
-    initialLoadStartedRef.current = true;
-    loadInitialData();
-  }, [loadInitialData]);
-
-  const handleInitialRetry = useCallback(() => {
-    if (loading) return;
-    loadInitialData();
-  }, [loadInitialData, loading]);
-
-  async function load(id: number) {
-    try {
-      const vp = await getVirtualPortfolio(id);
-      setSelected(id);
-      setName(vp.name);
-      setAccounts(vp.accounts);
-      setHoldings(vp.holdings || []);
-      track("select", { portfolio_id: id });
-    } catch (e) {
-      const err = e instanceof Error ? e.message : String(e);
-      setError(err);
-      errorToast(e);
-    }
-  }
-
-  function toggleAccount(account: string) {
-    setAccounts((prev) =>
-      prev.includes(account)
-        ? prev.filter((a) => a !== account)
-        : [...prev, account],
-    );
-  }
-
-  function updateHolding(
-    idx: number,
-    field: keyof SyntheticHolding,
-    value: string | number | undefined,
-  ) {
-    setHoldings((prev) =>
-      prev.map((h, i) => (i === idx ? { ...h, [field]: value } : h)),
-    );
-  }
-
-  function addHolding() {
-    setHoldings((prev) => [...prev, { ticker: "", units: 0, price: undefined, purchase_date: "" }]);
-  }
-
-  function removeHolding(idx: number) {
-    setHoldings((prev) => prev.filter((_, i) => i !== idx));
-  }
-
-  async function handleSave() {
-    setMessage(null);
-    setError(null);
-    const payload: VP = { name, accounts, holdings };
-    try {
-      if (selected != null) {
-        await updateVirtualPortfolio(selected, payload);
-        track("update", { portfolio_id: selected, holding_count: holdings.length });
-      } else {
-        const created = await createVirtualPortfolio(payload);
-        setSelected(created.id ?? null);
-        track("create", {
-          portfolio_id: created.id ?? null,
-          holding_count: holdings.length,
-        });
-      }
-      setMessage("Saved");
-      setPortfolios(await getVirtualPortfolios());
-    } catch (e) {
-      const err = e instanceof Error ? e.message : String(e);
-      setError(err);
-      errorToast(e);
-    }
-  }
-
-  async function handleDelete() {
-    if (selected == null) return;
-    try {
-      await deleteVirtualPortfolio(selected);
-      track("delete", { portfolio_id: selected });
-      setSelected(null);
-      setName("");
-      setAccounts([]);
-      setHoldings([]);
-      setPortfolios(await getVirtualPortfolios());
-    } catch (e) {
-      const err = e instanceof Error ? e.message : String(e);
-      setError(err);
-      errorToast(e);
-    }
-  }
-
-  const isInitialLoading = initialLoadInProgress && !hasLoadedInitialData;
+            return { ticker: holding.ticker.trim().toUpperCase() };
+          })
+          .filter((holding) => holding != null),
+      })),
+    [accounts],
+  );
 
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="mb-4 text-2xl md:text-4xl">Virtual Portfolios</h1>
+    <div className="container mx-auto max-w-5xl space-y-6 p-4">
+      <header>
+        <h1 className="text-2xl font-semibold md:text-4xl">Family Manual Portfolio Setup</h1>
+        <p className="mt-2 text-sm text-slate-600">
+          Add accounts and holdings manually. Entries are saved in this browser and survive page
+          refresh.
+        </p>
+      </header>
 
-      {isInitialLoading && <p data-testid="virtual-portfolio-loader">Loading...</p>}
-      {error && (
-        <div className="mb-2">
-          <p className="text-red-500">{error}</p>
-          {!hasLoadedInitialData && (
+      <section className="rounded border border-slate-200 p-4">
+        <h2 className="text-lg font-medium">Add account</h2>
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+          <input
+            className="w-full rounded border border-slate-300 px-3 py-2"
+            type="text"
+            placeholder="Account name (e.g. ISA, Pension, Brokerage)"
+            value={newAccountName}
+            onChange={(e) => setNewAccountName(e.target.value)}
+          />
+          <button
+            type="button"
+            className="rounded bg-slate-900 px-4 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={addAccount}
+            disabled={!canAddAccount}
+          >
+            Add account
+          </button>
+        </div>
+      </section>
+
+      <section className="space-y-4">
+        {accounts.length === 0 && (
+          <p className="rounded border border-dashed border-slate-300 p-4 text-sm text-slate-600">
+            No accounts yet. Add at least two accounts to complete the initial setup.
+          </p>
+        )}
+        {accounts.map((account) => (
+          <article key={account.id} className="rounded border border-slate-200 p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <input
+                className="w-full rounded border border-slate-300 px-3 py-2"
+                type="text"
+                value={account.name}
+                onChange={(e) => updateAccountName(account.id, e.target.value)}
+                aria-label="Account name"
+              />
+              <button
+                type="button"
+                className="rounded border border-red-300 px-3 py-2 text-sm text-red-600"
+                onClick={() => deleteAccount(account.id)}
+              >
+                Remove account
+              </button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[680px] border-collapse text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 text-left">
+                    <th className="px-2 py-2">Ticker</th>
+                    <th className="px-2 py-2">Total value</th>
+                    <th className="px-2 py-2">Units</th>
+                    <th className="px-2 py-2">Price</th>
+                    <th className="px-2 py-2"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {account.holdings.map((holding) => (
+                    <tr key={holding.id} className="border-b border-slate-100 align-top">
+                      <td className="px-2 py-2">
+                        <input
+                          className="w-full rounded border border-slate-300 px-2 py-1"
+                          type="text"
+                          value={holding.ticker}
+                          onChange={(e) =>
+                            updateHolding(account.id, holding.id, "ticker", e.target.value)
+                          }
+                          placeholder="AAPL"
+                        />
+                      </td>
+                      <td className="px-2 py-2">
+                        <input
+                          className="w-full rounded border border-slate-300 px-2 py-1"
+                          type="number"
+                          step="any"
+                          value={holding.totalValue}
+                          onChange={(e) =>
+                            updateHolding(account.id, holding.id, "totalValue", e.target.value)
+                          }
+                          placeholder="25000"
+                        />
+                      </td>
+                      <td className="px-2 py-2">
+                        <input
+                          className="w-full rounded border border-slate-300 px-2 py-1"
+                          type="number"
+                          step="any"
+                          value={holding.units}
+                          onChange={(e) =>
+                            updateHolding(account.id, holding.id, "units", e.target.value)
+                          }
+                          placeholder="10"
+                        />
+                      </td>
+                      <td className="px-2 py-2">
+                        <input
+                          className="w-full rounded border border-slate-300 px-2 py-1"
+                          type="number"
+                          step="any"
+                          value={holding.price}
+                          onChange={(e) =>
+                            updateHolding(account.id, holding.id, "price", e.target.value)
+                          }
+                          placeholder="150"
+                        />
+                      </td>
+                      <td className="px-2 py-2">
+                        <button
+                          type="button"
+                          className="rounded border border-slate-300 px-2 py-1"
+                          onClick={() => removeHolding(account.id, holding.id)}
+                        >
+                          Remove
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
             <button
               type="button"
-              onClick={handleInitialRetry}
-              disabled={loading}
-              className="mt-2 rounded border border-red-300 px-3 py-1 text-sm text-red-600 transition disabled:opacity-50"
+              className="mt-3 rounded border border-slate-300 px-3 py-2 text-sm"
+              onClick={() => addHolding(account.id)}
             >
-              Retry
+              Add holding
             </button>
-          )}
-        </div>
-      )}
-      {message && <p className="text-green-600">{message}</p>}
-
-      <div className="mb-4">
-        <label>
-          Select
-          {!isInitialLoading && (
-            <select
-              value={selected ?? ""}
-              onChange={(e) => {
-                const id = e.target.value ? Number(e.target.value) : null;
-                if (id) load(id);
-              }}
-              className="ml-2"
-              size={Math.min(6, Math.max(1, portfolios.length + 1))}
-            >
-              <option value="">New…</option>
-              {portfolios.map((p) => (
-                <option key={p.id} value={p.id ?? ""}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          )}
-        </label>
-      </div>
-
-      <div className="mb-4">
-        <label>
-          Name
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            style={{ marginLeft: "0.5rem" }}
-          />
-        </label>
-      </div>
-
-      <fieldset className="mb-4">
-        <legend>Include Accounts</legend>
-        {owners.map((o) => (
-          <div key={o.owner} style={{ marginBottom: "0.25rem" }}>
-            <strong>{getOwnerDisplayName(ownerLookup, o.owner, o.owner)}</strong>
-            {o.accounts.map((a) => {
-              const val = `${o.owner}:${a}`;
-              return (
-                <label key={val} style={{ marginLeft: "0.5rem" }}>
-                  <input
-                    type="checkbox"
-                    checked={accounts.includes(val)}
-                    onChange={() => toggleAccount(val)}
-                  />
-                  {a}
-                </label>
-              );
-            })}
-          </div>
+          </article>
         ))}
-      </fieldset>
+      </section>
 
-      <div className="mb-4">
-        <h3>Synthetic Holdings</h3>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              <th>Ticker</th>
-              <th>Units</th>
-              <th>Price</th>
-              <th>Date</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {holdings.map((h, i) => (
-              <tr key={i}>
-                <td>
-                  <input
-                    value={h.ticker}
-                    onChange={(e) => updateHolding(i, "ticker", e.target.value)}
-                  />
-                </td>
-                <td>
-                  <input
-                    type="number"
-                    value={h.units}
-                    onChange={(e) =>
-                      updateHolding(i, "units", parseFloat(e.target.value))
-                    }
-                  />
-                </td>
-                <td>
-                  <input
-                    type="number"
-                    value={h.price ?? ""}
-                    onChange={(e) =>
-                      updateHolding(i, "price", parseFloat(e.target.value))
-                    }
-                  />
-                </td>
-                <td>
-                  <input
-                    type="date"
-                    value={h.purchase_date ?? ""}
-                    onChange={(e) =>
-                      updateHolding(i, "purchase_date", e.target.value)
-                    }
-                  />
-                </td>
-                <td>
-                  <button onClick={() => removeHolding(i)}>✕</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <button onClick={addHolding} style={{ marginTop: "0.5rem" }}>
-          Add Holding
-        </button>
-      </div>
-
-      <div className="mt-4">
-        <button onClick={handleSave} className="mr-2">
-          Save
-        </button>
-        {selected != null && (
-          <button onClick={handleDelete} className="mr-2">
-            Delete
-          </button>
-        )}
-        <a href="/">Back</a>
-      </div>
+      <details className="rounded border border-slate-200 p-3">
+        <summary className="cursor-pointer text-sm font-medium">Preview saved payload</summary>
+        <pre className="mt-2 overflow-x-auto rounded bg-slate-50 p-3 text-xs">
+          {JSON.stringify({ accounts: normalizedPreview }, null, 2)}
+        </pre>
+      </details>
     </div>
   );
 }
 
 export default VirtualPortfolio;
-

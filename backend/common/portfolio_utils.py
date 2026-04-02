@@ -1313,15 +1313,35 @@ def _portfolio_value_series(
         requested_pricing_date=pricing_date,
         reporting_date=calc.reporting_date,
     )
-    total = pd.Series(dtype=float)
+    value_series: list[pd.Series] = []
     for ticker, exchange, units in holdings:
         df = load_meta_timeseries(ticker, exchange, effective_days)
         if df.empty or "Date" not in df.columns or "Close" not in df.columns:
             continue
         df = df[["Date", "Close"]].copy()
         df["Date"] = pd.to_datetime(df["Date"]).dt.date
-        values = df.set_index("Date")["Close"] * units
-        total = total.add(values, fill_value=0)
+        closes = pd.to_numeric(df.set_index("Date")["Close"], errors="coerce")
+        valid_closes = closes.dropna()
+        if valid_closes.empty:
+            continue
+        if valid_closes.shape[0] != closes.shape[0]:
+            logger.warning(
+                "Discarding %d non-numeric closes for %s.%s while rebuilding portfolio series",
+                closes.shape[0] - valid_closes.shape[0],
+                ticker,
+                exchange,
+            )
+        values = (valid_closes * units).sort_index()
+        values = values[values.index <= calc.reporting_date]
+        if values.empty:
+            continue
+        value_series.append(values)
+
+    if not value_series:
+        return pd.Series(dtype=float)
+
+    value_frame = pd.concat(value_series, axis=1).sort_index()
+    total = value_frame.ffill(limit=_MAX_PRICE_GAP_FILL_DAYS).sum(axis=1, min_count=1)
 
     total = total.sort_index()
     total = total[total.index <= calc.reporting_date]
@@ -1667,6 +1687,10 @@ _CASH_FLOW_SIGNS = {
     "DIVIDENDS": 1,
     "INTEREST": 1,
 }
+
+# Carry prices across short data outages only; do not propagate stale prices
+# indefinitely when an instrument has a long missing-data window.
+_MAX_PRICE_GAP_FILL_DAYS = 5
 
 
 def compute_time_weighted_return(

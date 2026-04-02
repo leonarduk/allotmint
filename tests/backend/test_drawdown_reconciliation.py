@@ -47,7 +47,7 @@ def mock_env(monkeypatch, price_data):
 
     monkeypatch.setattr(portfolio_utils, "load_meta_timeseries", fake_load_meta_timeseries)
 
-    portfolio_utils._PRICE_SNAPSHOT = {"FLAG.L": {"flagged": True}}
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {"FLAG.L": {"flagged": True}})
 
     return calls
 
@@ -62,6 +62,91 @@ def test_compute_max_drawdown_ignores_flagged(mock_env):
     val = portfolio_utils.compute_max_drawdown("mixed", days=5)
     assert val == pytest.approx(-0.4, rel=1e-4)
     assert ("FLAG", "L") not in mock_env
+
+
+def test_compute_max_drawdown_forward_fills_short_price_gaps(monkeypatch):
+    idx = pd.date_range("2024-01-01", periods=4, freq="D").date
+    series_by_ticker = {
+        "STEADY": pd.DataFrame({"Date": idx, "Close": [100, 100, 100, 100]}),
+        "GAPPY": pd.DataFrame(
+            {
+                "Date": [idx[0], idx[1], idx[3]],
+                "Close": [400, 420, 430],
+            }
+        ),
+    }
+
+    def fake_build_owner_portfolio(owner, accounts_root=None, pricing_date=None):
+        return {
+            "accounts": [
+                {
+                    "holdings": [
+                        {"ticker": "STEADY", "exchange": "L", "units": 1},
+                        {"ticker": "GAPPY", "exchange": "L", "units": 1},
+                    ]
+                }
+            ]
+        }
+
+    monkeypatch.setattr(portfolio_mod, "build_owner_portfolio", fake_build_owner_portfolio)
+    monkeypatch.setattr(
+        "backend.common.instrument_api._resolve_full_ticker",
+        lambda ticker, latest: (ticker.split(".")[0], "L"),
+    )
+    monkeypatch.setattr(
+        portfolio_utils,
+        "load_meta_timeseries",
+        lambda ticker, exchange, days: series_by_ticker.get(ticker, pd.DataFrame()),
+    )
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {})
+
+    reconstructed = portfolio_utils._portfolio_value_series("gap-owner", days=10)
+    max_drawdown = portfolio_utils.compute_max_drawdown("gap-owner", days=10)
+
+    assert reconstructed.loc[idx[2]] == pytest.approx(520.0)
+    assert max_drawdown == pytest.approx(0.0)
+
+
+def test_portfolio_value_series_does_not_forward_fill_long_gaps(monkeypatch):
+    idx = pd.date_range("2024-01-01", periods=10, freq="D").date
+    series_by_ticker = {
+        "STEADY": pd.DataFrame({"Date": idx, "Close": [100] * len(idx)}),
+        "GAPPY": pd.DataFrame(
+            {
+                "Date": [idx[0], idx[1], idx[8], idx[9]],
+                "Close": [400, 420, 410, 415],
+            }
+        ),
+    }
+
+    def fake_build_owner_portfolio(owner, accounts_root=None, pricing_date=None):
+        return {
+            "accounts": [
+                {
+                    "holdings": [
+                        {"ticker": "STEADY", "exchange": "L", "units": 1},
+                        {"ticker": "GAPPY", "exchange": "L", "units": 1},
+                    ]
+                }
+            ]
+        }
+
+    monkeypatch.setattr(portfolio_mod, "build_owner_portfolio", fake_build_owner_portfolio)
+    monkeypatch.setattr(
+        "backend.common.instrument_api._resolve_full_ticker",
+        lambda ticker, latest: (ticker.split(".")[0], "L"),
+    )
+    monkeypatch.setattr(
+        portfolio_utils,
+        "load_meta_timeseries",
+        lambda ticker, exchange, days: series_by_ticker.get(ticker, pd.DataFrame()),
+    )
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {})
+
+    reconstructed = portfolio_utils._portfolio_value_series("gap-owner", days=10)
+
+    assert reconstructed.loc[idx[5]] == pytest.approx(520.0)
+    assert reconstructed.loc[idx[7]] == pytest.approx(100.0)
 
 
 def reconcile(owner, price_data):

@@ -26,6 +26,88 @@ def _sample_portfolio():
     }
 
 
+def test_group_exposure_aggregates_total_and_duplicate_tickers(monkeypatch):
+    client = _client()
+    portfolio_data = {
+        **_sample_portfolio(),
+        "accounts": [
+            {
+                "account_type": "ISA",
+                "owner": "alice",
+                "holdings": [
+                    {"ticker": "AAA", "market_value_gbp": 100.0},
+                    {"ticker": "BBB", "market_value_gbp": 50.0},
+                ],
+            },
+            {
+                "account_type": "SIPP",
+                "owner": "bob",
+                "holdings": [
+                    {"ticker": "AAA", "market_value_gbp": 25.0},
+                    {"ticker": "CCC", "market_value_gbp": 25.0},
+                ],
+            },
+        ],
+    }
+
+    monkeypatch.setattr(
+        portfolio.group_portfolio,
+        "build_group_portfolio",
+        lambda slug, **_: portfolio_data,
+    )
+
+    resp = client.get("/portfolio-group/demo/exposure")
+    assert resp.status_code == 200
+
+    payload = resp.json()
+    assert payload["total_portfolio_value_gbp"] == 200.0
+    assert payload["holdings"] == [
+        {
+            "ticker": "AAA",
+            "total_value_gbp": 125.0,
+            "percentage_of_portfolio": 62.5,
+        },
+        {
+            "ticker": "BBB",
+            "total_value_gbp": 50.0,
+            "percentage_of_portfolio": 25.0,
+        },
+        {
+            "ticker": "CCC",
+            "total_value_gbp": 25.0,
+            "percentage_of_portfolio": 12.5,
+        },
+    ]
+
+
+def test_group_exposure_handles_missing_holdings(monkeypatch):
+    client = _client()
+    portfolio_data = {**_sample_portfolio(), "accounts": [{"account_type": "ISA", "owner": "alice"}]}
+
+    monkeypatch.setattr(
+        portfolio.group_portfolio,
+        "build_group_portfolio",
+        lambda slug, **_: portfolio_data,
+    )
+
+    resp = client.get("/portfolio-group/demo/exposure")
+    assert resp.status_code == 200
+    assert resp.json() == {"total_portfolio_value_gbp": 0.0, "holdings": []}
+
+
+def test_group_exposure_rejects_invalid_as_of(monkeypatch):
+    client = _client()
+    monkeypatch.setattr(
+        portfolio.group_portfolio,
+        "build_group_portfolio",
+        lambda slug, **_: _sample_portfolio(),
+    )
+
+    resp = client.get("/portfolio-group/demo/exposure", params={"as_of": "not-a-date"})
+    assert resp.status_code == 400
+    assert resp.json() == {"detail": "Invalid as_of date"}
+
+
 def test_group_instruments_without_filters(monkeypatch):
     client = _client()
     portfolio_data = _sample_portfolio()
@@ -153,6 +235,8 @@ def test_group_endpoints_accept_as_of(monkeypatch):
     resp = client.get("/portfolio-group/demo/regions", params=params)
     assert resp.status_code == 200
 
-    assert len(captured) == 4
-    assert all(date == dt.date(2024, 1, 15) for date in captured)
+    resp = client.get("/portfolio-group/demo/exposure", params=params)
+    assert resp.status_code == 200
 
+    assert len(captured) == 5
+    assert all(date == dt.date(2024, 1, 15) for date in captured)

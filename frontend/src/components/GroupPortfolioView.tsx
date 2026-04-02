@@ -68,6 +68,8 @@ const PIE_COLORS = [
 ];
 
 const DAY_CHANGE_BASELINE_EPSILON = 1e-2;
+// Warn when a single holding represents more than this share of the full portfolio.
+const CONCENTRATION_THRESHOLD_PCT = 20;
 
 const computeDayChangePct = (value: number, delta: number): number | null => {
   if (!Number.isFinite(value) || !Number.isFinite(delta)) {
@@ -81,6 +83,25 @@ const computeDayChangePct = (value: number, delta: number): number | null => {
   }
 
   return (delta / baseline) * 100;
+};
+
+const computeTopHoldingSharePct = (
+  rows: InstrumentSummary[] | null,
+): number | null => {
+  if (!rows?.length) return null;
+
+  let total = 0;
+  let top = 0;
+  for (const row of rows) {
+    const marketValue = row.market_value_gbp ?? 0;
+    if (!Number.isFinite(marketValue) || marketValue <= 0) continue;
+    total += marketValue;
+    if (marketValue > top) {
+      top = marketValue;
+    }
+  }
+  if (total <= 0 || top <= 0) return null;
+  return (top / total) * 100;
 };
 
 type Props = {
@@ -549,6 +570,14 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
 
   const isAllPositions = activeOwner === null;
   const hasFilteredAccounts = filteredAccounts.length > 0;
+  const topHoldingSharePct = computeTopHoldingSharePct(instrumentRows);
+  // Only show the concentration warning in the full group view; per-owner
+  // filtered slices can look spuriously concentrated even when the group
+  // as a whole is well-diversified.
+  const showConcentrationWarning =
+    isAllPositions &&
+    topHoldingSharePct != null &&
+    topHoldingSharePct > CONCENTRATION_THRESHOLD_PCT;
 
   /* ── render ────────────────────────────────────────────── */
   const pricingDate = portfolio.as_of
@@ -1105,6 +1134,23 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
             width: "100%",
           }}
         >
+          {showConcentrationWarning && (
+            <div
+              role="alert"
+              style={{
+                marginBottom: "0.75rem",
+                padding: "0.5rem 0.75rem",
+                borderRadius: "6px",
+                border: "1px solid #b45309",
+                backgroundColor: "rgba(217, 119, 6, 0.15)",
+                color: "#fbbf24",
+                fontSize: "0.9rem",
+                fontWeight: 500,
+              }}
+            >
+              Top holding is {percent(topHoldingSharePct)} of your portfolio
+            </div>
+          )}
           <InstrumentTable rows={instrumentRows} />
         </div>
       )}

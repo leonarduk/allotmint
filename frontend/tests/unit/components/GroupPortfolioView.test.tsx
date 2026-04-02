@@ -521,6 +521,119 @@ describe("GroupPortfolioView", () => {
     );
   });
 
+  it("shows concentration warning when the top holding exceeds 20%", async () => {
+    const mockPortfolio = {
+      name: "At a glance",
+      accounts: [
+        {
+          owner: "alice",
+          account_type: "isa",
+          value_estimate_gbp: 300,
+          holdings: [],
+        },
+      ],
+    };
+
+    mockAllFetches(mockPortfolio, {
+      instruments: {
+        [instrumentKey()]: [
+          { ticker: "AAA", name: "Alpha", market_value_gbp: 210, gain_gbp: 0 },
+          { ticker: "BBB", name: "Beta", market_value_gbp: 90, gain_gbp: 0 },
+        ],
+      },
+    });
+
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+
+    expect(
+      await screen.findByText("Top holding is 70.00% of your portfolio"),
+    ).toBeInTheDocument();
+  });
+
+  it("does not show concentration warning when no holding exceeds 20%", async () => {
+    const mockPortfolio = {
+      name: "At a glance",
+      accounts: [
+        {
+          owner: "alice",
+          account_type: "isa",
+          value_estimate_gbp: 400,
+          holdings: [],
+        },
+      ],
+    };
+
+    mockAllFetches(mockPortfolio, {
+      instruments: {
+        [instrumentKey()]: [
+          { ticker: "AAA", name: "Alpha", market_value_gbp: 80, gain_gbp: 0 },
+          { ticker: "BBB", name: "Beta", market_value_gbp: 80, gain_gbp: 0 },
+          { ticker: "CCC", name: "Gamma", market_value_gbp: 80, gain_gbp: 0 },
+          { ticker: "DDD", name: "Delta", market_value_gbp: 80, gain_gbp: 0 },
+          { ticker: "EEE", name: "Epsilon", market_value_gbp: 80, gain_gbp: 0 },
+        ],
+      },
+    });
+
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+
+    await screen.findByText("At a glance");
+    await waitFor(() =>
+      expect(screen.queryByText(/Top holding is .* of your portfolio/i)).toBeNull(),
+    );
+  });
+
+  it("does not show concentration warning when filtered to a single owner", async () => {
+    // In the full group view AAA is 70% — warning would show.
+    // When filtered to alice (single-holding sub-portfolio), the warning must
+    // be suppressed because it only reflects a filtered slice, not real exposure.
+    const mockPortfolio = {
+      name: "At a glance",
+      accounts: [
+        {
+          owner: "alice",
+          account_type: "isa",
+          value_estimate_gbp: 300,
+          holdings: [],
+        },
+        {
+          owner: "bob",
+          account_type: "isa",
+          value_estimate_gbp: 100,
+          holdings: [],
+        },
+      ],
+    };
+
+    mockAllFetches(mockPortfolio, {
+      instruments: {
+        [instrumentKey()]: [
+          { ticker: "AAA", name: "Alpha", market_value_gbp: 210, gain_gbp: 0 },
+          { ticker: "BBB", name: "Beta", market_value_gbp: 90, gain_gbp: 0 },
+        ],
+        // Alice's filtered view has only one holding — looks 100% concentrated
+        [instrumentKey("alice")]: [
+          { ticker: "AAA", name: "Alpha", market_value_gbp: 210, gain_gbp: 0 },
+        ],
+      },
+    });
+
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+
+    // Wait for full group view to load and show the warning
+    expect(
+      await screen.findByText("Top holding is 70.00% of your portfolio"),
+    ).toBeInTheDocument();
+
+    // Switch to alice's filtered view
+    await userEvent.click(screen.getByRole("tab", { name: "Alice Example" }));
+
+    // Warning must disappear — we are in a filtered (non-isAllPositions) view
+    await waitFor(() =>
+      expect(screen.queryByText(/Top holding is .* of your portfolio/i)).toBeNull(),
+    );
+  });
+
   const locales = ["en", "fr", "de", "es", "pt", "it"] as const;
 
   it.each(locales)("renders select group message in %s", async (lng) => {

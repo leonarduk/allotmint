@@ -546,7 +546,7 @@ describe("GroupPortfolioView", () => {
     renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
 
     expect(
-      await screen.findByText("Top holding is 70.00% of your portfolio"),
+      await screen.findByText("Top holding AAA is 70.00% of your portfolio"),
     ).toBeInTheDocument();
   });
 
@@ -579,7 +579,7 @@ describe("GroupPortfolioView", () => {
 
     await screen.findByText("At a glance");
     await waitFor(() =>
-      expect(screen.queryByText(/Top holding is .* of your portfolio/i)).toBeNull(),
+      expect(screen.queryByText(/Top holding .* is .* of your portfolio/i)).toBeNull(),
     );
   });
 
@@ -622,7 +622,7 @@ describe("GroupPortfolioView", () => {
 
     // Wait for full group view to load and show the warning
     expect(
-      await screen.findByText("Top holding is 70.00% of your portfolio"),
+      await screen.findByText("Top holding AAA is 70.00% of your portfolio"),
     ).toBeInTheDocument();
 
     // Switch to alice's filtered view
@@ -630,8 +630,87 @@ describe("GroupPortfolioView", () => {
 
     // Warning must disappear — we are in a filtered (non-isAllPositions) view
     await waitFor(() =>
-      expect(screen.queryByText(/Top holding is .* of your portfolio/i)).toBeNull(),
+      expect(screen.queryByText(/Top holding .* is .* of your portfolio/i)).toBeNull(),
     );
+  });
+
+  it("falls back to duplication insight when concentration is not triggered", async () => {
+    mockAllFetches(
+      {
+        name: "At a glance",
+        accounts: [
+          {
+            owner: "alice",
+            account_type: "isa",
+            value_estimate_gbp: 100,
+            holdings: [
+              { ticker: "VWRL.L", units: 1, market_value_gbp: 60, instrument_type: "etf" },
+            ],
+          },
+          {
+            owner: "bob",
+            account_type: "sipp",
+            value_estimate_gbp: 100,
+            holdings: [
+              { ticker: "VWRL.L", units: 1, market_value_gbp: 40, instrument_type: "etf" },
+            ],
+          },
+        ],
+      },
+      {
+        instruments: {
+          [instrumentKey()]: [
+            { ticker: "AAA", name: "Alpha", market_value_gbp: 20, gain_gbp: 0 },
+            { ticker: "BBB", name: "Beta", market_value_gbp: 20, gain_gbp: 0 },
+            { ticker: "CCC", name: "Gamma", market_value_gbp: 20, gain_gbp: 0 },
+            { ticker: "DDD", name: "Delta", market_value_gbp: 20, gain_gbp: 0 },
+            { ticker: "EEE", name: "Epsilon", market_value_gbp: 20, gain_gbp: 0 },
+          ],
+        },
+      },
+    );
+
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+
+    expect(
+      await screen.findByText("You hold VWRL.L in 2 accounts"),
+    ).toBeInTheDocument();
+  });
+
+  it("falls back to cash drag insight when concentration and duplication are absent", async () => {
+    mockAllFetches(
+      {
+        name: "At a glance",
+        accounts: [
+          {
+            owner: "alice",
+            account_type: "isa",
+            value_estimate_gbp: 100,
+            holdings: [
+              { ticker: "AAA", units: 1, market_value_gbp: 70, instrument_type: "equity" },
+              { ticker: "CASH.GBP", units: 30, market_value_gbp: 30, instrument_type: "cash" },
+            ],
+          },
+        ],
+      },
+      {
+        instruments: {
+          [instrumentKey()]: [
+            { ticker: "AAA", name: "Alpha", market_value_gbp: 20, gain_gbp: 0 },
+            { ticker: "BBB", name: "Beta", market_value_gbp: 20, gain_gbp: 0 },
+            { ticker: "CCC", name: "Gamma", market_value_gbp: 20, gain_gbp: 0 },
+            { ticker: "DDD", name: "Delta", market_value_gbp: 20, gain_gbp: 0 },
+            { ticker: "EEE", name: "Epsilon", market_value_gbp: 20, gain_gbp: 0 },
+          ],
+        },
+      },
+    );
+
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+
+    expect(
+      await screen.findByText("30.00% of your portfolio is in cash"),
+    ).toBeInTheDocument();
   });
 
   const locales = ["en", "fr", "de", "es", "pt", "it"] as const;

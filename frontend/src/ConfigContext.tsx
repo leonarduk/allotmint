@@ -42,6 +42,7 @@ export interface TabsConfig {
 }
 
 export interface AppConfig {
+  configLoaded: boolean;
   relativeViewEnabled: boolean;
   /**
    * Tabs that should be hidden/disabled from the UI.  We keep the type
@@ -105,6 +106,7 @@ export interface ConfigContextValue extends AppConfig {
 }
 
 export const configContext = createContext<ConfigContextValue>({
+  configLoaded: false,
   relativeViewEnabled: false,
   disabledTabs: [],
   tabs: defaultTabs,
@@ -127,6 +129,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         ? window.localStorage.getItem("baseCurrency")
         : null;
     return {
+      configLoaded: false,
       relativeViewEnabled: storedRel === "true",
       disabledTabs: [],
       tabs: defaultTabs,
@@ -192,6 +195,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
           ? window.localStorage.getItem("relativeViewEnabled")
           : null;
       setConfig((previousConfig) => ({
+        configLoaded: true,
         relativeViewEnabled: stored
           ? stored === "true"
           : Boolean(cfg.relative_view_enabled),
@@ -200,10 +204,13 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         theme,
         baseCurrency: previousConfig.baseCurrency,
         enableAdvancedAnalytics: cfg.enable_advanced_analytics !== false,
-      });
+      }));
       applyTheme(theme);
     } catch {
-      /* ignore */
+      setConfig((previousConfig) => ({
+        ...previousConfig,
+        configLoaded: true,
+      }));
     }
   }, []);
 

@@ -706,6 +706,44 @@ describe("GroupPortfolioView", () => {
     ).toBeInTheDocument();
   });
 
+  it("breaks duplication ties by duplicated market value", async () => {
+    mockAllFetches({
+      name: "At a glance",
+      accounts: [
+        {
+          owner: "alice",
+          account_type: "isa",
+          value_estimate_gbp: 100,
+          holdings: [
+            { ticker: "AAA", units: 1, market_value_gbp: 5, instrument_type: "equity" },
+            { ticker: "BBB", units: 1, market_value_gbp: 20, instrument_type: "equity" },
+            { ticker: "CCC", units: 1, market_value_gbp: 20, instrument_type: "equity" },
+            { ticker: "DDD", units: 1, market_value_gbp: 20, instrument_type: "equity" },
+            { ticker: "EEE", units: 1, market_value_gbp: 35, instrument_type: "equity" },
+          ],
+        },
+        {
+          owner: "bob",
+          account_type: "sipp",
+          value_estimate_gbp: 100,
+          holdings: [
+            { ticker: "AAA", units: 1, market_value_gbp: 5, instrument_type: "equity" },
+            { ticker: "BBB", units: 1, market_value_gbp: 30, instrument_type: "equity" },
+            { ticker: "FFF", units: 1, market_value_gbp: 20, instrument_type: "equity" },
+            { ticker: "GGG", units: 1, market_value_gbp: 20, instrument_type: "equity" },
+            { ticker: "HHH", units: 1, market_value_gbp: 25, instrument_type: "equity" },
+          ],
+        },
+      ],
+    });
+
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+
+    expect(
+      await screen.findByText("You hold BBB in 2 accounts"),
+    ).toBeInTheDocument();
+  });
+
   it("falls back to cash drag insight when concentration and duplication are absent", async () => {
     mockAllFetches({
       name: "At a glance",
@@ -781,6 +819,31 @@ describe("GroupPortfolioView", () => {
             { ticker: "DDD", units: 1, market_value_gbp: 19.8, instrument_type: "equity" },
             { ticker: "EEE", units: 1, market_value_gbp: 19.8, instrument_type: "equity" },
             { ticker: "CASH.GBP", units: 1, market_value_gbp: 1, instrument_type: "cash" },
+          ],
+        },
+      ],
+    });
+
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+
+    await screen.findByText("At a glance");
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+  });
+
+  it("shows no insight when concentration, duplication, and cash drag are all absent", async () => {
+    mockAllFetches({
+      name: "At a glance",
+      accounts: [
+        {
+          owner: "alice",
+          account_type: "isa",
+          value_estimate_gbp: 100,
+          holdings: [
+            { ticker: "AAA", units: 1, market_value_gbp: 20, instrument_type: "equity" },
+            { ticker: "BBB", units: 1, market_value_gbp: 20, instrument_type: "equity" },
+            { ticker: "CCC", units: 1, market_value_gbp: 20, instrument_type: "equity" },
+            { ticker: "DDD", units: 1, market_value_gbp: 20, instrument_type: "equity" },
+            { ticker: "EEE", units: 1, market_value_gbp: 20, instrument_type: "equity" },
           ],
         },
       ],

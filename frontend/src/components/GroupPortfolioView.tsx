@@ -135,26 +135,46 @@ const computeConcentrationInsight = (
 };
 
 const computeDuplicationInsight = (accounts: GroupPortfolio["accounts"]): PortfolioInsight => {
-  const tickerAccounts = new Map<string, Set<string>>();
+  const tickerAccounts = new Map<
+    string,
+    { accounts: Set<string>; totalMarketValue: number }
+  >();
+
   for (const [accountIndex, account] of accounts.entries()) {
     const accountKey = `${account.owner ?? "unknown"}::${account.account_type ?? "unknown"}::${accountIndex}`;
     for (const holding of account.holdings ?? []) {
-      if (!holding.ticker) continue;
-      const entry = tickerAccounts.get(holding.ticker) ?? new Set<string>();
-      entry.add(accountKey);
-      tickerAccounts.set(holding.ticker, entry);
+      const ticker = holding.ticker?.trim();
+      if (!ticker) continue;
+
+      const entry =
+        tickerAccounts.get(ticker) ?? { accounts: new Set<string>(), totalMarketValue: 0 };
+      entry.accounts.add(accountKey);
+
+      const marketValue = holding.market_value_gbp ?? 0;
+      if (Number.isFinite(marketValue) && marketValue > 0) {
+        entry.totalMarketValue += marketValue;
+      }
+
+      tickerAccounts.set(ticker, entry);
     }
   }
 
   let bestTicker: string | null = null;
   let bestCount = 1;
-  for (const [ticker, accountSet] of tickerAccounts.entries()) {
+  let bestMarketValue = 0;
+  for (const [ticker, { accounts: accountSet, totalMarketValue }] of tickerAccounts.entries()) {
     const count = accountSet.size;
-    if (count > bestCount) {
+    if (
+      count > bestCount ||
+      (count === bestCount && totalMarketValue > bestMarketValue) ||
+      (count === bestCount &&
+        totalMarketValue === bestMarketValue &&
+        bestTicker !== null &&
+        ticker < bestTicker)
+    ) {
       bestTicker = ticker;
       bestCount = count;
-    } else if (count === bestCount && bestTicker && ticker < bestTicker) {
-      bestTicker = ticker;
+      bestMarketValue = totalMarketValue;
     }
   }
 

@@ -68,6 +68,7 @@ const PIE_COLORS = [
 ];
 
 const DAY_CHANGE_BASELINE_EPSILON = 1e-2;
+// Warn when a single holding represents more than this share of the full portfolio.
 const CONCENTRATION_THRESHOLD_PCT = 20;
 
 const computeDayChangePct = (value: number, delta: number): number | null => {
@@ -570,7 +571,11 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   const isAllPositions = activeOwner === null;
   const hasFilteredAccounts = filteredAccounts.length > 0;
   const topHoldingSharePct = computeTopHoldingSharePct(instrumentRows);
+  // Only show the concentration warning in the full group view; per-owner
+  // filtered slices can look spuriously concentrated even when the group
+  // as a whole is well-diversified.
   const showConcentrationWarning =
+    isAllPositions &&
     topHoldingSharePct != null &&
     topHoldingSharePct > CONCENTRATION_THRESHOLD_PCT;
 
@@ -1131,7 +1136,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
         >
           {showConcentrationWarning && (
             <div
-              role="status"
+              role="alert"
               style={{
                 marginBottom: "0.75rem",
                 padding: "0.5rem 0.75rem",

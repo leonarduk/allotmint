@@ -521,7 +521,7 @@ describe("GroupPortfolioView", () => {
     );
   });
 
-  it("shows concentration warning when the top holding exceeds 20%", async () => {
+  it("shows concentration warning when holdings data exceeds 20%", async () => {
     const mockPortfolio = {
       name: "At a glance",
       accounts: [
@@ -529,7 +529,10 @@ describe("GroupPortfolioView", () => {
           owner: "alice",
           account_type: "isa",
           value_estimate_gbp: 300,
-          holdings: [],
+          holdings: [
+            { ticker: "AAA", units: 1, market_value_gbp: 210, instrument_type: "equity" },
+            { ticker: "BBB", units: 1, market_value_gbp: 90, instrument_type: "equity" },
+          ],
         },
       ],
     };
@@ -537,8 +540,11 @@ describe("GroupPortfolioView", () => {
     mockAllFetches(mockPortfolio, {
       instruments: {
         [instrumentKey()]: [
-          { ticker: "AAA", name: "Alpha", market_value_gbp: 210, gain_gbp: 0 },
-          { ticker: "BBB", name: "Beta", market_value_gbp: 90, gain_gbp: 0 },
+          { ticker: "AAA", name: "Alpha", market_value_gbp: 60, gain_gbp: 0 },
+          { ticker: "BBB", name: "Beta", market_value_gbp: 60, gain_gbp: 0 },
+          { ticker: "CCC", name: "Gamma", market_value_gbp: 60, gain_gbp: 0 },
+          { ticker: "DDD", name: "Delta", market_value_gbp: 60, gain_gbp: 0 },
+          { ticker: "EEE", name: "Epsilon", market_value_gbp: 60, gain_gbp: 0 },
         ],
       },
     });
@@ -558,22 +564,18 @@ describe("GroupPortfolioView", () => {
           owner: "alice",
           account_type: "isa",
           value_estimate_gbp: 400,
-          holdings: [],
+          holdings: [
+            { ticker: "AAA", units: 1, market_value_gbp: 80, instrument_type: "equity" },
+            { ticker: "BBB", units: 1, market_value_gbp: 80, instrument_type: "equity" },
+            { ticker: "CCC", units: 1, market_value_gbp: 80, instrument_type: "equity" },
+            { ticker: "DDD", units: 1, market_value_gbp: 80, instrument_type: "equity" },
+            { ticker: "EEE", units: 1, market_value_gbp: 80, instrument_type: "equity" },
+          ],
         },
       ],
     };
 
-    mockAllFetches(mockPortfolio, {
-      instruments: {
-        [instrumentKey()]: [
-          { ticker: "AAA", name: "Alpha", market_value_gbp: 80, gain_gbp: 0 },
-          { ticker: "BBB", name: "Beta", market_value_gbp: 80, gain_gbp: 0 },
-          { ticker: "CCC", name: "Gamma", market_value_gbp: 80, gain_gbp: 0 },
-          { ticker: "DDD", name: "Delta", market_value_gbp: 80, gain_gbp: 0 },
-          { ticker: "EEE", name: "Epsilon", market_value_gbp: 80, gain_gbp: 0 },
-        ],
-      },
-    });
+    mockAllFetches(mockPortfolio);
 
     renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
 
@@ -584,9 +586,6 @@ describe("GroupPortfolioView", () => {
   });
 
   it("does not show concentration warning when filtered to a single owner", async () => {
-    // In the full group view AAA is 70% — warning would show.
-    // When filtered to alice (single-holding sub-portfolio), the warning must
-    // be suppressed because it only reflects a filtered slice, not real exposure.
     const mockPortfolio = {
       name: "At a glance",
       accounts: [
@@ -594,24 +593,24 @@ describe("GroupPortfolioView", () => {
           owner: "alice",
           account_type: "isa",
           value_estimate_gbp: 300,
-          holdings: [],
+          holdings: [
+            { ticker: "AAA", units: 1, market_value_gbp: 210, instrument_type: "equity" },
+            { ticker: "BBB", units: 1, market_value_gbp: 90, instrument_type: "equity" },
+          ],
         },
         {
           owner: "bob",
           account_type: "isa",
           value_estimate_gbp: 100,
-          holdings: [],
+          holdings: [
+            { ticker: "CCC", units: 1, market_value_gbp: 100, instrument_type: "equity" },
+          ],
         },
       ],
     };
 
     mockAllFetches(mockPortfolio, {
       instruments: {
-        [instrumentKey()]: [
-          { ticker: "AAA", name: "Alpha", market_value_gbp: 210, gain_gbp: 0 },
-          { ticker: "BBB", name: "Beta", market_value_gbp: 90, gain_gbp: 0 },
-        ],
-        // Alice's filtered view has only one holding — looks 100% concentrated
         [instrumentKey("alice")]: [
           { ticker: "AAA", name: "Alpha", market_value_gbp: 210, gain_gbp: 0 },
         ],
@@ -620,55 +619,85 @@ describe("GroupPortfolioView", () => {
 
     renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
 
-    // Wait for full group view to load and show the warning
     expect(
-      await screen.findByText("Top holding AAA is 70.00% of your portfolio"),
+      await screen.findByText("Top holding AAA is 52.50% of your portfolio"),
     ).toBeInTheDocument();
 
-    // Switch to alice's filtered view
     await userEvent.click(screen.getByRole("tab", { name: "Alice Example" }));
 
-    // Warning must disappear — we are in a filtered (non-isAllPositions) view
     await waitFor(() =>
       expect(screen.queryByText(/Top holding .* is .* of your portfolio/i)).toBeNull(),
     );
   });
 
   it("falls back to duplication insight when concentration is not triggered", async () => {
-    mockAllFetches(
-      {
-        name: "At a glance",
-        accounts: [
-          {
-            owner: "alice",
-            account_type: "isa",
-            value_estimate_gbp: 100,
-            holdings: [
-              { ticker: "VWRL.L", units: 1, market_value_gbp: 60, instrument_type: "etf" },
-            ],
-          },
-          {
-            owner: "bob",
-            account_type: "sipp",
-            value_estimate_gbp: 100,
-            holdings: [
-              { ticker: "VWRL.L", units: 1, market_value_gbp: 40, instrument_type: "etf" },
-            ],
-          },
-        ],
-      },
-      {
-        instruments: {
-          [instrumentKey()]: [
-            { ticker: "AAA", name: "Alpha", market_value_gbp: 20, gain_gbp: 0 },
-            { ticker: "BBB", name: "Beta", market_value_gbp: 20, gain_gbp: 0 },
-            { ticker: "CCC", name: "Gamma", market_value_gbp: 20, gain_gbp: 0 },
-            { ticker: "DDD", name: "Delta", market_value_gbp: 20, gain_gbp: 0 },
-            { ticker: "EEE", name: "Epsilon", market_value_gbp: 20, gain_gbp: 0 },
+    mockAllFetches({
+      name: "At a glance",
+      accounts: [
+        {
+          owner: "alice",
+          account_type: "isa",
+          value_estimate_gbp: 100,
+          holdings: [
+            { ticker: "VWRL.L", units: 1, market_value_gbp: 20, instrument_type: "etf" },
+            { ticker: "AAA", units: 1, market_value_gbp: 20, instrument_type: "equity" },
+            { ticker: "BBB", units: 1, market_value_gbp: 20, instrument_type: "equity" },
+            { ticker: "CCC", units: 1, market_value_gbp: 20, instrument_type: "equity" },
+            { ticker: "DDD", units: 1, market_value_gbp: 20, instrument_type: "equity" },
           ],
         },
-      },
-    );
+        {
+          owner: "bob",
+          account_type: "sipp",
+          value_estimate_gbp: 100,
+          holdings: [
+            { ticker: "VWRL.L", units: 1, market_value_gbp: 20, instrument_type: "etf" },
+            { ticker: "EEE", units: 1, market_value_gbp: 20, instrument_type: "equity" },
+            { ticker: "FFF", units: 1, market_value_gbp: 20, instrument_type: "equity" },
+            { ticker: "GGG", units: 1, market_value_gbp: 20, instrument_type: "equity" },
+            { ticker: "HHH", units: 1, market_value_gbp: 20, instrument_type: "equity" },
+          ],
+        },
+      ],
+    });
+
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+
+    expect(
+      await screen.findByText("You hold VWRL.L in 2 accounts"),
+    ).toBeInTheDocument();
+  });
+
+  it("counts duplicated tickers across distinct same-owner account rows", async () => {
+    mockAllFetches({
+      name: "At a glance",
+      accounts: [
+        {
+          owner: "alice",
+          account_type: "isa",
+          value_estimate_gbp: 100,
+          holdings: [
+            { ticker: "VWRL.L", units: 1, market_value_gbp: 20, instrument_type: "etf" },
+            { ticker: "AAA", units: 1, market_value_gbp: 20, instrument_type: "equity" },
+            { ticker: "BBB", units: 1, market_value_gbp: 20, instrument_type: "equity" },
+            { ticker: "CCC", units: 1, market_value_gbp: 20, instrument_type: "equity" },
+            { ticker: "DDD", units: 1, market_value_gbp: 20, instrument_type: "equity" },
+          ],
+        },
+        {
+          owner: "alice",
+          account_type: "isa",
+          value_estimate_gbp: 100,
+          holdings: [
+            { ticker: "VWRL.L", units: 1, market_value_gbp: 20, instrument_type: "etf" },
+            { ticker: "EEE", units: 1, market_value_gbp: 20, instrument_type: "equity" },
+            { ticker: "FFF", units: 1, market_value_gbp: 20, instrument_type: "equity" },
+            { ticker: "GGG", units: 1, market_value_gbp: 20, instrument_type: "equity" },
+            { ticker: "HHH", units: 1, market_value_gbp: 20, instrument_type: "equity" },
+          ],
+        },
+      ],
+    });
 
     renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
 
@@ -678,39 +707,89 @@ describe("GroupPortfolioView", () => {
   });
 
   it("falls back to cash drag insight when concentration and duplication are absent", async () => {
-    mockAllFetches(
-      {
-        name: "At a glance",
-        accounts: [
-          {
-            owner: "alice",
-            account_type: "isa",
-            value_estimate_gbp: 100,
-            holdings: [
-              { ticker: "AAA", units: 1, market_value_gbp: 70, instrument_type: "equity" },
-              { ticker: "CASH.GBP", units: 30, market_value_gbp: 30, instrument_type: "cash" },
-            ],
-          },
-        ],
-      },
-      {
-        instruments: {
-          [instrumentKey()]: [
-            { ticker: "AAA", name: "Alpha", market_value_gbp: 20, gain_gbp: 0 },
-            { ticker: "BBB", name: "Beta", market_value_gbp: 20, gain_gbp: 0 },
-            { ticker: "CCC", name: "Gamma", market_value_gbp: 20, gain_gbp: 0 },
-            { ticker: "DDD", name: "Delta", market_value_gbp: 20, gain_gbp: 0 },
-            { ticker: "EEE", name: "Epsilon", market_value_gbp: 20, gain_gbp: 0 },
+    mockAllFetches({
+      name: "At a glance",
+      accounts: [
+        {
+          owner: "alice",
+          account_type: "isa",
+          value_estimate_gbp: 100,
+          holdings: [
+            { ticker: "AAA", units: 1, market_value_gbp: 20, instrument_type: "equity" },
+            { ticker: "BBB", units: 1, market_value_gbp: 20, instrument_type: "equity" },
+            { ticker: "CCC", units: 1, market_value_gbp: 20, instrument_type: "equity" },
+            { ticker: "DDD", units: 1, market_value_gbp: 20, instrument_type: "equity" },
+            { ticker: "CASH.GBP", units: 20, market_value_gbp: 20, instrument_type: "cash" },
           ],
         },
-      },
-    );
+      ],
+    });
 
     renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
 
     expect(
-      await screen.findByText("30.00% of your portfolio is in cash"),
+      await screen.findByText("20.00% of your portfolio is in cash"),
     ).toBeInTheDocument();
+  });
+
+  it("prefers concentration over duplication and cash drag", async () => {
+    mockAllFetches({
+      name: "At a glance",
+      accounts: [
+        {
+          owner: "alice",
+          account_type: "isa",
+          value_estimate_gbp: 80,
+          holdings: [
+            { ticker: "AAA", units: 1, market_value_gbp: 70, instrument_type: "equity" },
+            { ticker: "VWRL.L", units: 1, market_value_gbp: 10, instrument_type: "etf" },
+          ],
+        },
+        {
+          owner: "bob",
+          account_type: "sipp",
+          value_estimate_gbp: 20,
+          holdings: [
+            { ticker: "VWRL.L", units: 1, market_value_gbp: 10, instrument_type: "etf" },
+            { ticker: "CASH.GBP", units: 10, market_value_gbp: 10, instrument_type: "cash" },
+          ],
+        },
+      ],
+    });
+
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+
+    expect(
+      await screen.findByText("Top holding AAA is 70.00% of your portfolio"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("You hold VWRL.L in 2 accounts")).toBeNull();
+    expect(screen.queryByText("10.00% of your portfolio is in cash")).toBeNull();
+  });
+
+  it("suppresses tiny cash balances as an insight", async () => {
+    mockAllFetches({
+      name: "At a glance",
+      accounts: [
+        {
+          owner: "alice",
+          account_type: "isa",
+          value_estimate_gbp: 100,
+          holdings: [
+            { ticker: "AAA", units: 1, market_value_gbp: 19.8, instrument_type: "equity" },
+            { ticker: "BBB", units: 1, market_value_gbp: 19.8, instrument_type: "equity" },
+            { ticker: "CCC", units: 1, market_value_gbp: 19.8, instrument_type: "equity" },
+            { ticker: "DDD", units: 1, market_value_gbp: 19.8, instrument_type: "equity" },
+            { ticker: "EEE", units: 1, market_value_gbp: 19.8, instrument_type: "equity" },
+            { ticker: "CASH.GBP", units: 1, market_value_gbp: 1, instrument_type: "cash" },
+          ],
+        },
+      ],
+    });
+
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+
+    await screen.findByText("At a glance");
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
   });
 
   const locales = ["en", "fr", "de", "es", "pt", "it"] as const;

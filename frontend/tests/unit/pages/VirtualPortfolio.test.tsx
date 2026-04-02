@@ -91,7 +91,9 @@ describe("VirtualPortfolio page", () => {
     render(<VirtualPortfolio />);
 
     expect(screen.getByLabelText("Account name")).toHaveValue("ISA");
-    expect(screen.queryByPlaceholderText("AAPL")).not.toBeInTheDocument();
+    // Malformed holding was stripped; account still gets one blank holding row
+    expect(screen.getByPlaceholderText("AAPL")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("AAPL")).toHaveValue("");
   });
 
   it("shows a status message when localStorage write fails", () => {
@@ -125,16 +127,21 @@ describe("VirtualPortfolio page", () => {
     expect(screen.getByDisplayValue("ISA")).toBeInTheDocument();
   });
 
-  it("prevents removing the final holding row", () => {
+  it("disables the Remove button when only one holding remains", () => {
     render(<VirtualPortfolio />);
 
     const addInput = screen.getByPlaceholderText(/Account name/i);
     fireEvent.change(addInput, { target: { value: "ISA" } });
     fireEvent.click(screen.getByRole("button", { name: "Add account" }));
 
-    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
+    // Single holding row — Remove button must be disabled.
+    const removeButton = screen.getByRole("button", { name: "Remove holding" });
+    expect(removeButton).toBeDisabled();
 
-    expect(screen.getByText("Each account must keep at least one holding row.")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("AAPL")).toBeInTheDocument();
+    // Add a second holding — Remove should now be enabled.
+    fireEvent.click(screen.getByRole("button", { name: "Add holding" }));
+    const removeButtons = screen.getAllByRole("button", { name: "Remove holding" });
+    expect(removeButtons).toHaveLength(2);
+    removeButtons.forEach((btn) => expect(btn).not.toBeDisabled());
   });
 });

@@ -51,6 +51,7 @@ function createId(): string {
 
   // Absolute last resort: time + performance counter (no Math.random).
   // Uniqueness is best-effort only; this path should never be reached in production.
+  // NOTE: result is not a valid UUID — do not rely on UUID format here.
   return `${Date.now().toString(16)}-${(typeof performance !== "undefined" ? performance.now() : 0).toString(16).replace(".", "")}`;
 }
 
@@ -135,16 +136,22 @@ export function VirtualPortfolio() {
     void maybePromise?.catch?.(() => undefined);
   }, []);
 
-  const saveAccounts = (next: ManualAccount[]) => {
+  /**
+   * Persist `next` to both React state and localStorage.
+   * Returns true on success, false if localStorage threw (state is rolled back).
+   */
+  const saveAccounts = (next: ManualAccount[]): boolean => {
     const previous = accounts;
     setAccounts(next);
 
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       setStatusMessage(null);
+      return true;
     } catch {
       setAccounts(previous);
       setStatusMessage("Changes were not saved in this browser. Try freeing local storage space.");
+      return false;
     }
   };
 
@@ -187,7 +194,7 @@ export function VirtualPortfolio() {
   // onBlur: validate the draft and persist if valid, otherwise revert the draft.
   const commitAccountName = (accountId: string) => {
     const draft = draftNames[accountId];
-    // If there's no draft for this account the value hasn't changed — nothing to do.
+    // No draft means the value hasn't changed since last persist — nothing to do.
     if (draft === undefined) return;
 
     const trimmed = draft.trim();
@@ -210,17 +217,20 @@ export function VirtualPortfolio() {
       return;
     }
 
-    // Valid — persist and clear the draft (input will fall back to accounts state).
-    setDraftNames((prev) => {
-      const next = { ...prev };
-      delete next[accountId];
-      return next;
-    });
-    saveAccounts(
+    // Attempt to persist. Only clear the draft if the write succeeded — if localStorage
+    // threw, the draft remains so the user can retry by re-focusing and blurring again.
+    const saved = saveAccounts(
       accounts.map((account) =>
         account.id === accountId ? { ...account, name: trimmed } : account,
       ),
     );
+    if (saved) {
+      setDraftNames((prev) => {
+        const next = { ...prev };
+        delete next[accountId];
+        return next;
+      });
+    }
   };
 
   const addHolding = (accountId: string) => {

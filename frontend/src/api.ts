@@ -996,12 +996,46 @@ export interface CreateTransactionPayload {
   comments?: string;
 }
 
+export interface ManualHoldingPayload {
+  owner: string;
+  account: string;
+  ticker: string;
+  value_gbp?: number;
+  units?: number;
+  price_gbp?: number;
+  currency?: string;
+}
+
+export interface ManualHoldingAccount {
+  account_type: string;
+  currency: string;
+  holdings: Array<Record<string, unknown>>;
+  holding_count: number;
+}
+
 export const createTransaction = (payload: CreateTransactionPayload) =>
   fetchJson<Transaction>(`${API_BASE}/transactions`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
+
+export const createManualHolding = (payload: ManualHoldingPayload) =>
+  fetchJson<{
+    status: string;
+    owner: string;
+    account: string;
+    holding: Record<string, unknown>;
+  }>(`${API_BASE}/holdings/manual`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+export const getManualHoldings = (owner: string) =>
+  fetchJson<{ owner: string; accounts: ManualHoldingAccount[] }>(
+    `${API_BASE}/holdings/manual?owner=${encodeURIComponent(owner)}`,
+  );
 
 export const updateTransaction = (id: string, payload: CreateTransactionPayload) =>
   fetchJson<Transaction>(`${API_BASE}/transactions/${encodeURIComponent(id)}`, {

@@ -355,6 +355,7 @@ export function Root() {
               <Route path="/metrics-explained" element={<MetricsExplanation />} />
             </>
           ) : null}
+          <Route path="/input" element={<Navigate to="/transactions" replace />} />
           <Route
             path="/*"
             element={

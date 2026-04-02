@@ -163,6 +163,64 @@ class TransactionUpdate(TransactionCreate):
     pass
 
 
+class ManualHoldingCreate(BaseModel):
+    owner: str
+    account: str
+    ticker: str
+    value_gbp: float | None = Field(default=None, gt=0)
+    units: float | None = Field(default=None, gt=0)
+    price_gbp: float | None = Field(default=None, gt=0)
+    currency: str | None = None
+
+
+def _normalise_account_file_name(account: str) -> str:
+    return account.strip().lower()
+
+
+def _load_account_holdings_file(path: Path, owner: str, account: str) -> dict[str, Any]:
+    if path.exists():
+        try:
+            loaded = json.loads(path.read_text())
+        except Exception:
+            loaded = {}
+    else:
+        loaded = {}
+
+    if not isinstance(loaded, dict):
+        loaded = {}
+
+    loaded.setdefault("owner", owner)
+    loaded.setdefault("account_type", account)
+    loaded.setdefault("currency", "GBP")
+    holdings = loaded.get("holdings")
+    if not isinstance(holdings, list):
+        loaded["holdings"] = []
+    return loaded
+
+
+def _account_payload_summary(payload: Mapping[str, Any]) -> dict[str, Any]:
+    account_type = str(payload.get("account_type") or "").strip()
+    currency = str(payload.get("currency") or "GBP").strip().upper() or "GBP"
+    holdings_raw = payload.get("holdings")
+    holdings = holdings_raw if isinstance(holdings_raw, list) else []
+    return {
+        "account_type": account_type,
+        "currency": currency,
+        "holdings": holdings,
+        "holding_count": len(holdings),
+    }
+
+
+def _validate_manual_holding_payload(payload: ManualHoldingCreate) -> None:
+    has_value = payload.value_gbp is not None
+    has_units_price = payload.units is not None and payload.price_gbp is not None
+    if has_value == has_units_price:
+        raise HTTPException(
+            status_code=400,
+            detail="Provide either value_gbp or both units and price_gbp",
+        )
+
+
 def _build_transaction_id(owner: str, account: str, index: int) -> str:
     return f"{owner}:{account}:{index}"
 
@@ -562,6 +620,69 @@ async def import_holdings(
         raise HTTPException(status_code=400, detail=f"Unknown provider: {exc}")
     except Exception as exc:  # pragma: no cover - parsing errors
         raise HTTPException(status_code=400, detail=f"Failed to import file: {exc}")
+
+
+@router.post("/holdings/manual")
+async def create_manual_holding(request: Request, payload: ManualHoldingCreate) -> dict[str, Any]:
+    _validate_manual_holding_payload(payload)
+    owner = _validate_component(payload.owner, "owner")
+    account = _validate_component(payload.account, "account")
+    ticker = str(payload.ticker or "").strip().upper()
+    if not ticker:
+        raise HTTPException(status_code=400, detail="ticker is required")
+
+    accounts_root = _require_accounts_root(request)
+    owner_dir = accounts_root / owner
+    owner_dir.mkdir(parents=True, exist_ok=True)
+
+    account_slug = _normalise_account_file_name(account)
+    account_file = owner_dir / f"{account_slug}.json"
+    account_payload = _load_account_holdings_file(account_file, owner, account_slug)
+
+    holding: dict[str, Any] = {"ticker": ticker}
+    if payload.value_gbp is not None:
+        holding["value_gbp"] = float(payload.value_gbp)
+    else:
+        holding["units"] = float(payload.units or 0.0)
+        holding["price"] = float(payload.price_gbp or 0.0)
+    if payload.currency:
+        account_payload["currency"] = payload.currency.strip().upper() or "GBP"
+    account_payload.setdefault("last_updated", date.today().isoformat())
+    account_payload["last_updated"] = date.today().isoformat()
+    account_payload.setdefault("holdings", [])
+    account_payload["holdings"].append(holding)
+    account_payload["owner"] = owner
+    account_payload["account_type"] = account_slug
+
+    account_file.write_text(json.dumps(account_payload, indent=2) + "\n")
+
+    return {
+        "status": "saved",
+        "owner": owner,
+        "account": account_slug,
+        "holding": holding,
+    }
+
+
+@router.get("/holdings/manual")
+async def list_manual_holdings(
+    request: Request,
+    owner: str,
+) -> dict[str, Any]:
+    owner_name = _validate_component(owner, "owner")
+    accounts_root = _require_accounts_root(request)
+    owner_dir = accounts_root / owner_name
+    if not owner_dir.exists():
+        return {"owner": owner_name, "accounts": []}
+
+    accounts: list[dict[str, Any]] = []
+    for path in sorted(owner_dir.glob("*.json")):
+        if path.name.endswith("_transactions.json") or path.name == "person.json":
+            continue
+        payload = _load_account_holdings_file(path, owner_name, path.stem.lower())
+        accounts.append(_account_payload_summary(payload))
+
+    return {"owner": owner_name, "accounts": accounts}
 
 
 @router.get("/transactions", response_model=List[Transaction])

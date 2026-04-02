@@ -2,8 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ChangeEvent, ChangeEventHandler, FormEvent } from "react";
 import type { OwnerSummary, Transaction } from "../types";
 import {
+  createManualHolding,
   createTransaction,
   deleteTransaction,
+  getManualHoldings,
   getTransactions,
   updateTransaction,
 } from "../api";
@@ -37,8 +39,25 @@ export function TransactionsPage({ owners }: Props) {
     EMPTY_TRANSACTION_FORM_VALUES,
   );
   const [submitting, setSubmitting] = useState(false);
+  const [manualSubmitting, setManualSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
+  const [manualError, setManualError] = useState<string | null>(null);
+  const [manualSuccess, setManualSuccess] = useState<string | null>(null);
+  const [manualAccounts, setManualAccounts] = useState<
+    Array<{
+      account_type: string;
+      currency: string;
+      holdings: Array<Record<string, unknown>>;
+      holding_count: number;
+    }>
+  >([]);
+  const [manualOwner, setManualOwner] = useState("");
+  const [manualAccount, setManualAccount] = useState("");
+  const [manualTicker, setManualTicker] = useState("");
+  const [manualValue, setManualValue] = useState("");
+  const [manualUnits, setManualUnits] = useState("");
+  const [manualPrice, setManualPrice] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const { t } = useTranslation();
   const { baseCurrency } = useConfig();
@@ -136,6 +155,91 @@ export function TransactionsPage({ owners }: Props) {
     setFormError(null);
     setFormSuccess(null);
   }, [setFilterOwnerAndAccount]);
+
+  const fetchManualAccounts = useCallback(async (ownerValue: string) => {
+    const trimmedOwner = ownerValue.trim();
+    if (!trimmedOwner) {
+      setManualAccounts([]);
+      return;
+    }
+    try {
+      const response = await getManualHoldings(trimmedOwner);
+      setManualAccounts(response.accounts);
+      setManualError(null);
+    } catch (err) {
+      setManualError(err instanceof Error ? err.message : "Failed to load manual holdings.");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!manualOwner && owners.length > 0) {
+      setManualOwner(owners[0].owner);
+    }
+  }, [manualOwner, owners]);
+
+  useEffect(() => {
+    void fetchManualAccounts(manualOwner);
+  }, [fetchManualAccounts, manualOwner]);
+
+  const handleSaveManualHolding = useCallback(async () => {
+    const trimmedOwner = manualOwner.trim();
+    const trimmedAccount = manualAccount.trim();
+    const ticker = manualTicker.trim().toUpperCase();
+    if (!trimmedOwner || !trimmedAccount || !ticker) {
+      setManualError("Owner, account, and ticker are required.");
+      return;
+    }
+    const value = Number(manualValue);
+    const units = Number(manualUnits);
+    const price = Number(manualPrice);
+    const hasValue = manualValue.trim() !== "" && Number.isFinite(value) && value > 0;
+    const hasUnitsPrice =
+      manualUnits.trim() !== "" &&
+      manualPrice.trim() !== "" &&
+      Number.isFinite(units) &&
+      Number.isFinite(price) &&
+      units > 0 &&
+      price > 0;
+    if (hasValue === hasUnitsPrice) {
+      setManualError("Provide either Value (GBP) or both Units + Price (GBP).");
+      return;
+    }
+
+    setManualSubmitting(true);
+    setManualError(null);
+    setManualSuccess(null);
+    try {
+      await createManualHolding(
+        hasValue
+          ? { owner: trimmedOwner, account: trimmedAccount, ticker, value_gbp: value }
+          : {
+              owner: trimmedOwner,
+              account: trimmedAccount,
+              ticker,
+              units,
+              price_gbp: price,
+            },
+      );
+      setManualSuccess("Holding saved.");
+      setManualTicker("");
+      setManualValue("");
+      setManualUnits("");
+      setManualPrice("");
+      await fetchManualAccounts(trimmedOwner);
+    } catch (err) {
+      setManualError(err instanceof Error ? err.message : "Failed to save holding.");
+    } finally {
+      setManualSubmitting(false);
+    }
+  }, [
+    fetchManualAccounts,
+    manualAccount,
+    manualOwner,
+    manualPrice,
+    manualTicker,
+    manualUnits,
+    manualValue,
+  ]);
 
   const handleCancelEdit = useCallback(() => {
     setEditingId(null);
@@ -316,6 +420,103 @@ export function TransactionsPage({ owners }: Props) {
 
   return (
     <div>
+      <section className="mb-6 rounded border border-slate-300 bg-slate-50 p-4">
+        <h2 className="mb-2 text-lg font-semibold">Account + Holdings Input</h2>
+        <p className="mb-3 text-sm text-slate-600">
+          Create accounts and add holdings that persist after refresh.
+        </p>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          <label className="text-sm">
+            Owner
+            <input
+              list="manual-owner-options"
+              className="mt-1 w-full rounded border border-slate-300 p-2"
+              value={manualOwner}
+              onChange={(event) => setManualOwner(event.target.value)}
+              placeholder="alice"
+            />
+            <datalist id="manual-owner-options">
+              {owners.map((entry) => (
+                <option key={entry.owner} value={entry.owner} />
+              ))}
+            </datalist>
+          </label>
+          <label className="text-sm">
+            Account
+            <input
+              className="mt-1 w-full rounded border border-slate-300 p-2"
+              value={manualAccount}
+              onChange={(event) => setManualAccount(event.target.value)}
+              placeholder="ISA"
+            />
+          </label>
+          <label className="text-sm">
+            Ticker
+            <input
+              className="mt-1 w-full rounded border border-slate-300 p-2 uppercase"
+              value={manualTicker}
+              onChange={(event) => setManualTicker(event.target.value.toUpperCase())}
+              placeholder="VUSA.L"
+            />
+          </label>
+          <label className="text-sm">
+            Value (GBP)
+            <input
+              className="mt-1 w-full rounded border border-slate-300 p-2"
+              value={manualValue}
+              onChange={(event) => setManualValue(event.target.value)}
+              placeholder="1250"
+            />
+          </label>
+          <label className="text-sm">
+            Units
+            <input
+              className="mt-1 w-full rounded border border-slate-300 p-2"
+              value={manualUnits}
+              onChange={(event) => setManualUnits(event.target.value)}
+              placeholder="10"
+            />
+          </label>
+          <label className="text-sm">
+            Price (GBP)
+            <input
+              className="mt-1 w-full rounded border border-slate-300 p-2"
+              value={manualPrice}
+              onChange={(event) => setManualPrice(event.target.value)}
+              placeholder="120.50"
+            />
+          </label>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            className="rounded bg-slate-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
+            disabled={manualSubmitting}
+            onClick={() => void handleSaveManualHolding()}
+          >
+            {manualSubmitting ? "Saving..." : "Save holding"}
+          </button>
+          {manualError && <p className="text-sm text-red-700">{manualError}</p>}
+          {manualSuccess && <p className="text-sm text-emerald-700">{manualSuccess}</p>}
+        </div>
+        <div className="mt-4 space-y-2">
+          <h3 className="text-sm font-semibold text-slate-700">Saved accounts</h3>
+          {manualAccounts.length === 0 ? (
+            <p className="text-sm text-slate-500">No saved accounts yet for this owner.</p>
+          ) : (
+            <ul className="space-y-2">
+              {manualAccounts.map((entry) => (
+                <li key={entry.account_type} className="rounded border border-slate-200 p-2 text-sm">
+                  <div className="font-medium">
+                    {entry.account_type.toUpperCase()} ({entry.holding_count} holdings)
+                  </div>
+                  <div className="text-slate-500">{entry.currency}</div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </section>
       <TransactionsFilters
         owner={owner}
         account={account}

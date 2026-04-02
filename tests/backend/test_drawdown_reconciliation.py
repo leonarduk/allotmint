@@ -47,7 +47,7 @@ def mock_env(monkeypatch, price_data):
 
     monkeypatch.setattr(portfolio_utils, "load_meta_timeseries", fake_load_meta_timeseries)
 
-    portfolio_utils._PRICE_SNAPSHOT = {"FLAG.L": {"flagged": True}}
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {"FLAG.L": {"flagged": True}})
 
     return calls
 
@@ -100,7 +100,7 @@ def test_compute_max_drawdown_forward_fills_short_price_gaps(monkeypatch):
         "load_meta_timeseries",
         lambda ticker, exchange, days: series_by_ticker.get(ticker, pd.DataFrame()),
     )
-    portfolio_utils._PRICE_SNAPSHOT = {}
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {})
 
     max_drawdown = portfolio_utils.compute_max_drawdown("gap-owner", days=10)
 

@@ -70,6 +70,7 @@ const PIE_COLORS = [
 const DAY_CHANGE_BASELINE_EPSILON = 1e-2;
 // Warn when a single holding represents more than this share of the full portfolio.
 const CONCENTRATION_THRESHOLD_PCT = 20;
+const CASH_DRAG_THRESHOLD_PCT = 5;
 
 const computeDayChangePct = (value: number, delta: number): number | null => {
   if (!Number.isFinite(value) || !Number.isFinite(delta)) {
@@ -85,23 +86,141 @@ const computeDayChangePct = (value: number, delta: number): number | null => {
   return (delta / baseline) * 100;
 };
 
-const computeTopHoldingSharePct = (
-  rows: InstrumentSummary[] | null,
-): number | null => {
-  if (!rows?.length) return null;
+type PortfolioInsight =
+  | { kind: "concentration"; message: string }
+  | { kind: "duplication"; message: string }
+  | { kind: "cash_drag"; message: string }
+  | null;
 
+const computeConcentrationInsight = (
+  accounts: GroupPortfolio["accounts"],
+): PortfolioInsight => {
+  const holdingsByTicker = new Map<string, number>();
   let total = 0;
-  let top = 0;
-  for (const row of rows) {
-    const marketValue = row.market_value_gbp ?? 0;
-    if (!Number.isFinite(marketValue) || marketValue <= 0) continue;
-    total += marketValue;
-    if (marketValue > top) {
-      top = marketValue;
+
+  for (const account of accounts) {
+    for (const holding of account.holdings ?? []) {
+      const ticker = holding.ticker?.trim();
+      const marketValue = holding.market_value_gbp ?? 0;
+      if (!ticker || !Number.isFinite(marketValue) || marketValue <= 0) continue;
+
+      total += marketValue;
+      holdingsByTicker.set(ticker, (holdingsByTicker.get(ticker) ?? 0) + marketValue);
     }
   }
-  if (total <= 0 || top <= 0) return null;
-  return (top / total) * 100;
+
+  if (total <= 0) return null;
+
+  let topTicker: string | null = null;
+  let topMarketValue = 0;
+  for (const [ticker, marketValue] of holdingsByTicker.entries()) {
+    if (
+      marketValue > topMarketValue ||
+      (marketValue === topMarketValue && topTicker !== null && ticker < topTicker)
+    ) {
+      topTicker = ticker;
+      topMarketValue = marketValue;
+    }
+  }
+
+  if (!topTicker || topMarketValue <= 0) return null;
+
+  const topSharePct = (topMarketValue / total) * 100;
+  if (topSharePct <= CONCENTRATION_THRESHOLD_PCT) return null;
+
+  return {
+    kind: "concentration",
+    message: `Top holding ${topTicker} is ${percent(topSharePct)} of your portfolio`,
+  };
+};
+
+const computeDuplicationInsight = (accounts: GroupPortfolio["accounts"]): PortfolioInsight => {
+  const tickerAccounts = new Map<
+    string,
+    { accounts: Set<string>; totalMarketValue: number }
+  >();
+
+  for (const [accountIndex, account] of accounts.entries()) {
+    // Treat separate account rows as distinct even when owner/type labels match.
+    const accountKey = `${account.owner ?? "unknown"}::${account.account_type ?? "unknown"}::${accountIndex}`;
+    for (const holding of account.holdings ?? []) {
+      const ticker = holding.ticker?.trim();
+      if (
+        !ticker ||
+        isCashInstrument({
+          instrument_type: holding.instrument_type,
+          ticker: holding.ticker,
+        })
+      ) {
+        continue;
+      }
+
+      const entry =
+        tickerAccounts.get(ticker) ?? { accounts: new Set<string>(), totalMarketValue: 0 };
+      entry.accounts.add(accountKey);
+
+      const marketValue = holding.market_value_gbp ?? 0;
+      if (Number.isFinite(marketValue) && marketValue > 0) {
+        entry.totalMarketValue += marketValue;
+      }
+
+      tickerAccounts.set(ticker, entry);
+    }
+  }
+
+  let bestTicker: string | null = null;
+  let bestCount = 1;
+  let bestMarketValue = 0;
+  for (const [ticker, { accounts: accountSet, totalMarketValue }] of tickerAccounts.entries()) {
+    const count = accountSet.size;
+    if (
+      count > bestCount ||
+      (count === bestCount && totalMarketValue > bestMarketValue) ||
+      (count === bestCount &&
+        totalMarketValue === bestMarketValue &&
+        bestTicker !== null &&
+        ticker < bestTicker)
+    ) {
+      bestTicker = ticker;
+      bestCount = count;
+      bestMarketValue = totalMarketValue;
+    }
+  }
+
+  if (!bestTicker || bestCount < 2) return null;
+  return {
+    kind: "duplication",
+    message: `You hold ${bestTicker} in ${bestCount} accounts`,
+  };
+};
+
+const computeCashDragInsight = (accounts: GroupPortfolio["accounts"]): PortfolioInsight => {
+  let total = 0;
+  let cash = 0;
+
+  for (const account of accounts) {
+    for (const holding of account.holdings ?? []) {
+      const marketValue = holding.market_value_gbp ?? 0;
+      if (!Number.isFinite(marketValue) || marketValue <= 0) continue;
+      total += marketValue;
+      if (
+        isCashInstrument({
+          instrument_type: holding.instrument_type,
+          ticker: holding.ticker,
+        })
+      ) {
+        cash += marketValue;
+      }
+    }
+  }
+
+  if (total <= 0 || cash <= 0) return null;
+  const cashPct = (cash / total) * 100;
+  if (cashPct <= CASH_DRAG_THRESHOLD_PCT) return null;
+  return {
+    kind: "cash_drag",
+    message: `${percent(cashPct)} of your portfolio is in cash`,
+  };
 };
 
 type Props = {
@@ -551,6 +670,19 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     });
   }, []);
 
+  const isAllPositions = activeOwner === null;
+  const hasFilteredAccounts = filteredAccounts.length > 0;
+  const portfolioInsight = useMemo<PortfolioInsight>(() => {
+    // Filtered owner/account slices can look spuriously concentrated, so only surface the
+    // plain-language insight for the full group view.
+    if (!isAllPositions || !portfolio) return null;
+    return (
+      computeConcentrationInsight(portfolio.accounts ?? []) ??
+      computeDuplicationInsight(portfolio.accounts ?? []) ??
+      computeCashDragInsight(portfolio.accounts ?? [])
+    );
+  }, [isAllPositions, portfolio]);
+
   /* ── early-return states ───────────────────────────────── */
   if (!slug) return <p>{t("group.select")}</p>;
   if (portfolioError)
@@ -571,17 +703,6 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     maxDrawdown != null && Math.abs(maxDrawdown) > 1
       ? maxDrawdown / 100
       : maxDrawdown;
-
-  const isAllPositions = activeOwner === null;
-  const hasFilteredAccounts = filteredAccounts.length > 0;
-  const topHoldingSharePct = computeTopHoldingSharePct(instrumentRows);
-  // Only show the concentration warning in the full group view; per-owner
-  // filtered slices can look spuriously concentrated even when the group
-  // as a whole is well-diversified.
-  const showConcentrationWarning =
-    isAllPositions &&
-    topHoldingSharePct != null &&
-    topHoldingSharePct > CONCENTRATION_THRESHOLD_PCT;
 
   /* ── render ────────────────────────────────────────────── */
   const pricingDate = portfolio.as_of
@@ -1138,7 +1259,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
             width: "100%",
           }}
         >
-          {showConcentrationWarning && (
+          {portfolioInsight && (
             <div
               role="alert"
               style={{
@@ -1152,7 +1273,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                 fontWeight: 500,
               }}
             >
-              Top holding is {percent(topHoldingSharePct)} of your portfolio
+              {portfolioInsight.message}
             </div>
           )}
           <InstrumentTable rows={instrumentRows} />

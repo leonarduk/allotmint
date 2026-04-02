@@ -36,6 +36,15 @@ def _resolve_instruments_dir() -> Path:
 
 
 _INSTRUMENTS_DIR = _resolve_instruments_dir()
+_DEFAULT_INSTRUMENTS_DIR = _INSTRUMENTS_DIR
+
+
+def _active_instruments_dir() -> Path:
+    if _INSTRUMENTS_DIR != _DEFAULT_INSTRUMENTS_DIR or _INSTRUMENTS_DIR.exists():
+        return _INSTRUMENTS_DIR
+    return _resolve_instruments_dir()
+
+
 _VALID_RE = re.compile(r"^[A-Z0-9-]+$")
 
 METADATA_BUCKET_ENV = "METADATA_BUCKET"
@@ -105,19 +114,21 @@ def _s3_location() -> tuple[str, str] | None:
 
 
 def _instrument_path(ticker: str) -> Path:
+    instruments_dir = _active_instruments_dir()
     sym, exch = (ticker.split(".", 1) + [None])[:2]
     sym = _validate_part(sym)
     if exch is not None:
         exch = _validate_part(exch)
     if sym == "CASH":
         ccy = exch or "GBP"
-        return _INSTRUMENTS_DIR / "Cash" / f"{ccy}.json"
+        return instruments_dir / "Cash" / f"{ccy}.json"
     folder = exch if exch else "Unknown"
-    return _INSTRUMENTS_DIR / folder / f"{sym}.json"
+    return instruments_dir / folder / f"{sym}.json"
 
 
 def _instrument_key(ticker: str, prefix: str) -> str:
-    rel = _instrument_path(ticker).relative_to(_INSTRUMENTS_DIR).as_posix()
+    instruments_dir = _active_instruments_dir()
+    rel = _instrument_path(ticker).relative_to(instruments_dir).as_posix()
     return f"{prefix}{rel}"
 
 
@@ -457,7 +468,7 @@ def list_instruments() -> List[Dict[str, Any]]:
     """Return metadata for every instrument found under ``data/instruments``."""
 
     instruments: List[Dict[str, Any]] = []
-    for p in _INSTRUMENTS_DIR.rglob("*.json"):
+    for p in _active_instruments_dir().rglob("*.json"):
         try:
             with p.open("r", encoding="utf-8") as f:
                 data = json.load(f)

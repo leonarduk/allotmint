@@ -52,7 +52,7 @@ def _build_owner_portfolio(owner_summary: dict) -> dict:
                       }
     """
     owner = owner_summary["owner"]
-    names = owner_summary["accounts"]
+    names = owner_summary.get("accounts", [])
 
     return {
         "owner": owner,

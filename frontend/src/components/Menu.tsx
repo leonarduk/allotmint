@@ -1,8 +1,15 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useConfig } from '../ConfigContext';
 import type { TabPluginId } from '../tabPlugins';
+import { isFamilyMvpMode } from '../familyMvp';
 import { SUPPORT_TABS } from '../tabPlugins';
 import {
   buildPathForMode,
@@ -40,7 +47,10 @@ export default function Menu({
   const mode = deriveModeFromPathname(location.pathname) as TabPluginId;
   const isSupportMode = (SUPPORT_TABS as readonly string[]).includes(mode);
   const inSupport = mode === 'support';
-  const supportEnabled = tabs.support !== false && !disabledTabs?.includes('support');
+  const supportEnabled =
+    isFamilyMvpMode('support') &&
+    tabs.support !== false &&
+    !disabledTabs?.includes('support');
 
   const categoryDefinitions = useMemo<MenuCategoryDefinition[]>(() => {
     const section = isSupportMode ? 'support' : 'user';
@@ -54,13 +64,20 @@ export default function Menu({
     () =>
       getMenuEntries(isSupportMode ? 'support' : 'user').filter((entry) => {
         if (entry.mode === 'support') return false;
-        if (!inSupport && SUPPORT_ONLY_TABS.includes(entry.mode as TabPluginId)) {
+        if (
+          !inSupport &&
+          SUPPORT_ONLY_TABS.includes(entry.mode as TabPluginId)
+        ) {
           return false;
         }
 
-        return tabs[entry.mode] === true && !disabledTabs?.includes(entry.mode);
+        return (
+          isFamilyMvpMode(entry.mode) &&
+          tabs[entry.mode] === true &&
+          !disabledTabs?.includes(entry.mode)
+        );
       }),
-    [disabledTabs, inSupport, isSupportMode, tabs],
+    [disabledTabs, inSupport, isSupportMode, tabs]
   );
 
   const categoriesToRender = useMemo<CategorizedMenu[]>(
@@ -72,9 +89,12 @@ export default function Menu({
         }))
         .filter((category) => {
           if (category.tabs.length > 0) return true;
-          return category.id === 'preferences' && (supportEnabled || Boolean(onLogout));
+          return (
+            category.id === 'preferences' &&
+            (supportEnabled || Boolean(onLogout))
+          );
         }),
-    [availableTabs, categoryDefinitions, onLogout, supportEnabled],
+    [availableTabs, categoryDefinitions, onLogout, supportEnabled]
   );
 
   const [openCategory, setOpenCategory] = useState<string | null>(null);
@@ -131,7 +151,11 @@ export default function Menu({
     };
 
   return (
-    <nav className="mb-4" style={style} ref={mobileMenuRef as React.Ref<HTMLElement>}>
+    <nav
+      className="mb-4"
+      style={style}
+      ref={mobileMenuRef as React.Ref<HTMLElement>}
+    >
       <button
         type="button"
         aria-expanded={mobileMenuOpen}
@@ -147,7 +171,9 @@ export default function Menu({
       >
         {categoriesToRender.map((category) => {
           const isOpen = category.id === openCategory;
-          const containsActiveTab = category.tabs.some((tab) => tab.mode === mode);
+          const containsActiveTab = category.tabs.some(
+            (tab) => tab.mode === mode
+          );
           const buttonId = `menu-trigger-${category.id}`;
           const panelId = `menu-panel-${category.id}`;
           const assignFirstFocusable = registerFirstFocusable(category.id);
@@ -165,7 +191,9 @@ export default function Menu({
                     : 'bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                 }`}
                 onClick={() =>
-                  setOpenCategory((current) => (current === category.id ? null : category.id))
+                  setOpenCategory((current) =>
+                    current === category.id ? null : category.id
+                  )
                 }
                 onKeyDown={(event) => {
                   if (event.key === 'ArrowDown') {
@@ -182,7 +210,9 @@ export default function Menu({
                   }
                 }}
               >
-                <span className="truncate">{t(`app.menuCategories.${category.titleKey}`)}</span>
+                <span className="truncate">
+                  {t(`app.menuCategories.${category.titleKey}`)}
+                </span>
                 <span aria-hidden="true" className="text-xs">
                   {isOpen ? '▴' : '▾'}
                 </span>
@@ -228,7 +258,13 @@ export default function Menu({
                       <Link
                         ref={assignFirstFocusable}
                         role="menuitem"
-                        to={inSupport ? buildPathForMode('group', { group: selectedGroup }) : buildPathForMode('support')}
+                        to={
+                          inSupport
+                            ? buildPathForMode('group', {
+                                group: selectedGroup,
+                              })
+                            : buildPathForMode('support')
+                        }
                         className={`block min-h-11 w-full rounded px-3 py-2 text-sm transition-colors duration-150 focus:outline-none focus-visible:ring ${
                           inSupport
                             ? 'font-semibold text-gray-900'

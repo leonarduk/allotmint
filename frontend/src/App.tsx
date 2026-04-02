@@ -6,101 +6,94 @@ import {
   useState,
   Suspense,
   type CSSProperties,
-} from "react";
-import { useNavigate, useLocation } from "react-router-dom";
-import { useTranslation } from "react-i18next";
-import {
-  getGroupInstruments,
-  getGroups,
-  getOwners,
-  getPortfolio,
-} from "./api";
+} from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import { getGroupInstruments, getGroups, getOwners, getPortfolio } from './api';
 
 import type {
   GroupSummary,
   InstrumentSummary,
   OwnerSummary,
   Portfolio,
-} from "./types";
+} from './types';
 
-import { OwnerSelector } from "./components/OwnerSelector";
-import { PortfolioView } from "./components/PortfolioView";
-import { GroupPortfolioView } from "./components/GroupPortfolioView";
-import { InstrumentTable } from "./components/InstrumentTable";
-import { TransactionsPage } from "./components/TransactionsPage";
-import lazyWithDelay from "./utils/lazyWithDelay";
-import PortfolioDashboardSkeleton from "./components/skeletons/PortfolioDashboardSkeleton";
-import Defer from "./components/Defer";
+import { OwnerSelector } from './components/OwnerSelector';
+import { PortfolioView } from './components/PortfolioView';
+import { GroupPortfolioView } from './components/GroupPortfolioView';
+import { InstrumentTable } from './components/InstrumentTable';
+import { TransactionsPage } from './components/TransactionsPage';
+import lazyWithDelay from './utils/lazyWithDelay';
+import PortfolioDashboardSkeleton from './components/skeletons/PortfolioDashboardSkeleton';
 
-import { NotificationsDrawer } from "./components/NotificationsDrawer";
-import { ComplianceWarnings } from "./components/ComplianceWarnings";
-import { ScreenerQuery } from "./pages/ScreenerQuery";
-import useFetchWithRetry from "./hooks/useFetchWithRetry";
-import { LanguageSwitcher } from "./components/LanguageSwitcher";
-import { TimeseriesEdit } from "./pages/TimeseriesEdit";
-import Watchlist from "./pages/Watchlist";
-import TopMovers from "./pages/TopMovers";
-import MarketOverview from "./pages/MarketOverview";
-import Trading from "./pages/Trading";
-import { useConfig } from "./ConfigContext";
-import { usePriceRefresh } from "./PriceRefreshContext";
-import DataAdmin from "./pages/DataAdmin";
-import Support from "./pages/Support";
-import ScenarioTester from "./pages/ScenarioTester";
-import UserConfigPage from "./pages/UserConfig";
-import BackendUnavailableCard from "./components/BackendUnavailableCard";
-import Reports from "./pages/Reports";
-import ReportTemplateCreator from "./pages/ReportTemplateCreator";
-import InstrumentSearchBarToggle from "./components/InstrumentSearchBar";
-import UserAvatar from "./components/UserAvatar";
-import AllocationCharts from "./pages/AllocationCharts";
-import InstrumentAdmin from "./pages/InstrumentAdmin";
-import Menu from "./components/Menu";
-import Rebalance from "./pages/Rebalance";
-import PensionForecast from "./pages/PensionForecast";
-import TaxTools from "./pages/TaxTools";
-import Alerts from "./pages/Alerts";
-import RightRail from "./components/RightRail";
-import { sanitizeOwners } from "./utils/owners";
+import { NotificationsDrawer } from './components/NotificationsDrawer';
+import { ComplianceWarnings } from './components/ComplianceWarnings';
+import { ScreenerQuery } from './pages/ScreenerQuery';
+import useFetchWithRetry from './hooks/useFetchWithRetry';
+import { LanguageSwitcher } from './components/LanguageSwitcher';
+import { TimeseriesEdit } from './pages/TimeseriesEdit';
+import Watchlist from './pages/Watchlist';
+import TopMovers from './pages/TopMovers';
+import MarketOverview from './pages/MarketOverview';
+import Trading from './pages/Trading';
+import { useConfig } from './ConfigContext';
+import { usePriceRefresh } from './PriceRefreshContext';
+import DataAdmin from './pages/DataAdmin';
+import Support from './pages/Support';
+import ScenarioTester from './pages/ScenarioTester';
+import UserConfigPage from './pages/UserConfig';
+import BackendUnavailableCard from './components/BackendUnavailableCard';
+import Reports from './pages/Reports';
+import ReportTemplateCreator from './pages/ReportTemplateCreator';
+import UserAvatar from './components/UserAvatar';
+import AllocationCharts from './pages/AllocationCharts';
+import InstrumentAdmin from './pages/InstrumentAdmin';
+import Menu from './components/Menu';
+import Rebalance from './pages/Rebalance';
+import PensionForecast from './pages/PensionForecast';
+import TaxTools from './pages/TaxTools';
+import Alerts from './pages/Alerts';
+import { sanitizeOwners } from './utils/owners';
+import { isDefaultGroupSlug, normaliseGroupSlug } from './utils/groups';
+import { deriveModeFromPathname } from './pageManifest';
+import { MAX_INSTRUMENT_CATALOGUE_ROWS } from './constants/renderLimits';
+import { decodePathSegment, encodePathSegment } from './utils/urlUtils';
 import {
-  isDefaultGroupSlug,
-  normaliseGroupSlug,
-} from "./utils/groups";
-import { deriveModeFromPathname } from "./pageManifest";
-import { MAX_INSTRUMENT_CATALOGUE_ROWS } from "./constants/renderLimits";
-import { decodePathSegment, encodePathSegment } from "./utils/urlUtils";
-import { downloadInstrumentsCsv, printInstrumentsPdf } from "./lib/instrumentExports";
+  downloadInstrumentsCsv,
+  printInstrumentsPdf,
+} from './lib/instrumentExports';
+import { isFamilyMvpMode } from './familyMvp';
 
 const PerformanceDashboard = lazyWithDelay(
-  () => import("./components/PerformanceDashboard"),
+  () => import('./components/PerformanceDashboard')
 );
 const InstrumentResearch = lazyWithDelay(
-  () => import("./pages/InstrumentResearch"),
+  () => import('./pages/InstrumentResearch')
 );
 const VirtualPortfolio = lazyWithDelay(
-  () => import("./pages/VirtualPortfolio"),
+  () => import('./pages/VirtualPortfolio')
 );
 
 interface AppProps {
   onLogout?: () => void;
 }
 
-const path = window.location.pathname.split("/").filter(Boolean);
+const path = window.location.pathname.split('/').filter(Boolean);
 const initialMode = deriveModeFromPathname(window.location.pathname);
-const initialSlug = path[1] ?? "";
+const initialSlug = path[1] ?? '';
 
 const routeMarkerStyle: CSSProperties = {
-  position: "absolute",
+  position: 'absolute',
   width: 1,
   height: 1,
   padding: 0,
   margin: -1,
   border: 0,
   opacity: 0,
-  pointerEvents: "none",
-  clip: "rect(0 0 0 0)",
-  clipPath: "inset(50%)",
-  overflow: "hidden",
+  pointerEvents: 'none',
+  clip: 'rect(0 0 0 0)',
+  clipPath: 'inset(50%)',
+  overflow: 'hidden',
 };
 
 function sameOwnerList(left: OwnerSummary[], right: OwnerSummary[]): boolean {
@@ -116,16 +109,38 @@ function sameGroupList(left: GroupSummary[], right: GroupSummary[]): boolean {
 export function getOwnerRootRedirectPath(
   pathname: string,
   selectedOwner: string,
-  owners: OwnerSummary[],
+  owners: OwnerSummary[]
 ): string | null {
   if (selectedOwner || owners.length === 0) return null;
-  const segs = pathname.split("/").filter(Boolean);
-  const atPortfolioRoot = segs[0] === "portfolio" && segs.length === 1;
-  const atPerformanceRoot = segs[0] === "performance" && segs.length === 1;
+  const segs = pathname.split('/').filter(Boolean);
+  const atPortfolioRoot = segs[0] === 'portfolio' && segs.length === 1;
+  const atPerformanceRoot = segs[0] === 'performance' && segs.length === 1;
   if (!atPortfolioRoot && !atPerformanceRoot) return null;
   const owner = owners[0].owner;
   const encodedOwner = encodePathSegment(owner);
-  return atPerformanceRoot ? `/performance/${encodedOwner}` : `/portfolio/${encodedOwner}`;
+  return atPerformanceRoot
+    ? `/performance/${encodedOwner}`
+    : `/portfolio/${encodedOwner}`;
+}
+
+export function getFamilyMvpRedirectPath(
+  pathname: string,
+  search: string
+): string | null {
+  // Family MVP redirect policy:
+  // - Any non-MVP route gets sent to the input flow (/transactions).
+  // - Bare root also lands on /transactions for quickest time-to-value.
+  //
+  // This is intentionally separate from getOwnerRootRedirectPath, which only
+  // handles owner/performance root hydration once an owner list is available.
+  const routeMode = deriveModeFromPathname(pathname);
+  if (!isFamilyMvpMode(routeMode)) {
+    return pathname === '/transactions' ? null : '/transactions';
+  }
+  if (routeMode === 'group' && pathname === '/' && !search) {
+    return '/transactions';
+  }
+  return null;
 }
 
 export default function App({ onLogout }: AppProps) {
@@ -137,21 +152,22 @@ export default function App({ onLogout }: AppProps) {
 
   const params = new URLSearchParams(location.search);
   const isReportCreationRoute =
-    location.pathname === "/reports/new" || location.pathname.startsWith("/reports/new/");
+    location.pathname === '/reports/new' ||
+    location.pathname.startsWith('/reports/new/');
   const [mode, setMode] = useState(initialMode);
   const [selectedOwner, setSelectedOwner] = useState(
-    initialMode === "owner" || initialMode === "performance"
+    initialMode === 'owner' || initialMode === 'performance'
       ? decodePathSegment(initialSlug)
-      : "",
+      : ''
   );
   const [selectedGroup, setSelectedGroup] = useState(
-    initialMode === "instrument"
+    initialMode === 'instrument'
       ? initialSlug
-      : normaliseGroupSlug(params.get("group"))
+      : normaliseGroupSlug(params.get('group'))
   );
 
   const [researchTicker, setResearchTicker] = useState(
-    initialMode === "research" ? decodeURIComponent(initialSlug) : ""
+    initialMode === 'research' ? decodeURIComponent(initialSlug) : ''
   );
 
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
@@ -172,7 +188,7 @@ export default function App({ onLogout }: AppProps) {
         fetchedAt: number;
         lastRefresh: string | null;
       }
-    >(),
+    >()
   );
 
   const [backendUnavailable, setBackendUnavailable] = useState(false);
@@ -189,7 +205,7 @@ export default function App({ onLogout }: AppProps) {
       setSelectedOwner(trimmedOwner);
       navigate(`/performance/${encodePathSegment(trimmedOwner)}`);
     },
-    [navigate],
+    [navigate]
   );
 
   const handleOwnerSelectPortfolio = useCallback(
@@ -198,9 +214,8 @@ export default function App({ onLogout }: AppProps) {
       setSelectedOwner(trimmedOwner);
       navigate(`/portfolio/${encodePathSegment(trimmedOwner)}`);
     },
-    [navigate],
+    [navigate]
   );
-
 
   const handlePortfolioDateChange = useCallback((isoDate: string | null) => {
     setPortfolioAsOf(isoDate);
@@ -216,37 +231,51 @@ export default function App({ onLogout }: AppProps) {
   const groupsReq = useFetchWithRetry(getGroups, 500, 5, [retryNonce]);
 
   useEffect(() => {
-    const segs = location.pathname.split("/").filter(Boolean);
+    const redirectPath = getFamilyMvpRedirectPath(
+      location.pathname,
+      location.search
+    );
+    if (redirectPath) {
+      navigate(redirectPath, { replace: true });
+    }
+  }, [location.pathname, location.search, navigate]);
+
+  useEffect(() => {
+    if (getFamilyMvpRedirectPath(location.pathname, location.search)) {
+      return;
+    }
+
+    const segs = location.pathname.split('/').filter(Boolean);
     const params = new URLSearchParams(location.search);
     const newMode = deriveModeFromPathname(location.pathname);
 
     const isDisabled =
       tabs[newMode] === false || disabledTabs?.includes(newMode);
     if (isDisabled) {
-      setMode("group");
-      navigate("/", { replace: true });
+      setMode('group');
+      navigate('/', { replace: true });
       return;
     }
-    if (newMode === "movers" && location.pathname !== "/movers") {
-      setMode("movers");
-      navigate("/movers", { replace: true });
+    if (newMode === 'movers' && location.pathname !== '/movers') {
+      setMode('movers');
+      navigate('/movers', { replace: true });
       return;
     }
     setMode(newMode);
-    if (newMode === "owner" || newMode === "performance") {
+    if (newMode === 'owner' || newMode === 'performance') {
       if (segs[1]) {
         setSelectedOwner(decodePathSegment(segs[1]));
       }
-    } else if (newMode === "instrument") {
-      setSelectedGroup(segs[1] ?? "");
-    } else if (newMode === "group") {
-      const groupParam = params.get("group");
+    } else if (newMode === 'instrument') {
+      setSelectedGroup(segs[1] ?? '');
+    } else if (newMode === 'group') {
+      const groupParam = params.get('group');
       setSelectedGroup(normaliseGroupSlug(groupParam));
       if (groupParam && isDefaultGroupSlug(groupParam) && location.search) {
-        navigate("/", { replace: true });
+        navigate('/', { replace: true });
       }
-    } else if (newMode === "research") {
-      setResearchTicker(segs[1] ? decodeURIComponent(segs[1] ?? "") : "");
+    } else if (newMode === 'research') {
+      setResearchTicker(segs[1] ? decodeURIComponent(segs[1] ?? '') : '');
     }
   }, [location.pathname, location.search, tabs, disabledTabs, navigate]);
 
@@ -254,7 +283,9 @@ export default function App({ onLogout }: AppProps) {
     if (!ownersReq.data) return;
     const sanitizedOwners = sanitizeOwners(ownersReq.data);
     setOwners((currentOwners) =>
-      sameOwnerList(currentOwners, sanitizedOwners) ? currentOwners : sanitizedOwners,
+      sameOwnerList(currentOwners, sanitizedOwners)
+        ? currentOwners
+        : sanitizedOwners
     );
   }, [ownersReq.data]);
 
@@ -262,7 +293,7 @@ export default function App({ onLogout }: AppProps) {
     if (!selectedOwner) return;
 
     const match = owners.find(
-      (o) => o.owner.toLowerCase() === selectedOwner.toLowerCase(),
+      (o) => o.owner.toLowerCase() === selectedOwner.toLowerCase()
     );
 
     if (match) {
@@ -272,12 +303,13 @@ export default function App({ onLogout }: AppProps) {
       return;
     }
 
-    const segs = location.pathname.split("/").filter(Boolean);
+    const segs = location.pathname.split('/').filter(Boolean);
     const routeSpecifiesOwner =
-      (segs[0] === "portfolio" || segs[0] === "performance") && Boolean(segs[1]);
+      (segs[0] === 'portfolio' || segs[0] === 'performance') &&
+      Boolean(segs[1]);
 
     if (!routeSpecifiesOwner) {
-      setSelectedOwner("");
+      setSelectedOwner('');
     }
   }, [owners, selectedOwner, setSelectedOwner, location.pathname]);
 
@@ -286,7 +318,7 @@ export default function App({ onLogout }: AppProps) {
       setGroups((currentGroups) =>
         sameGroupList(currentGroups, groupsReq.data ?? [])
           ? currentGroups
-          : (groupsReq.data ?? []),
+          : (groupsReq.data ?? [])
       );
     }
   }, [groupsReq.data]);
@@ -305,24 +337,28 @@ export default function App({ onLogout }: AppProps) {
 
   // redirect to defaults if no selection provided
   useEffect(() => {
-    const nextPath = getOwnerRootRedirectPath(location.pathname, selectedOwner, owners);
+    const nextPath = getOwnerRootRedirectPath(
+      location.pathname,
+      selectedOwner,
+      owners
+    );
     if (nextPath) {
       navigate(nextPath, { replace: true });
     }
-    if (mode === "instrument" && !selectedGroup && groups.length) {
+    if (mode === 'instrument' && !selectedGroup && groups.length) {
       const slug = groups[0].slug;
       setSelectedGroup(slug);
-      if (slug && slug !== "all") {
+      if (slug && slug !== 'all') {
         navigate(`/instrument/${slug}`, { replace: true });
       }
     }
-    if (mode === "group" && groups.length) {
+    if (mode === 'group' && groups.length) {
       const hasSelection = groups.some((g) => g.slug === selectedGroup);
       if (!hasSelection) {
         const slug = groups[0].slug;
         setSelectedGroup(slug);
         if (isDefaultGroupSlug(slug)) {
-          if (location.search) navigate("/", { replace: true });
+          if (location.search) navigate('/', { replace: true });
         } else {
           navigate(`/?group=${slug}`, { replace: true });
         }
@@ -341,9 +377,8 @@ export default function App({ onLogout }: AppProps) {
 
   // data fetching based on route
   useEffect(() => {
-
-    if (mode === "owner" && selectedOwner) {
-      const cacheKey = `${selectedOwner}::${portfolioAsOf ?? ""}::${lastRefresh ?? ""}`;
+    if (mode === 'owner' && selectedOwner) {
+      const cacheKey = `${selectedOwner}::${portfolioAsOf ?? ''}::${lastRefresh ?? ''}`;
       const cached = portfolioCache.current.get(cacheKey);
 
       if (cached) {
@@ -374,13 +409,13 @@ export default function App({ onLogout }: AppProps) {
   }, [mode, selectedOwner, portfolioAsOf, lastRefresh]);
 
   useEffect(() => {
-    if (mode === "owner" && selectedOwner) {
+    if (mode === 'owner' && selectedOwner) {
       setPortfolioAsOf(null);
     }
   }, [mode, selectedOwner]);
 
   useEffect(() => {
-    if (mode === "instrument" && selectedGroup) {
+    if (mode === 'instrument' && selectedGroup) {
       setLoading(true);
       setErr(null);
       // Fetch live group holdings data for every group slug, including "all".
@@ -395,9 +430,9 @@ export default function App({ onLogout }: AppProps) {
   // Render-only cap: never mutate the full instruments state.
   const visibleInstruments = useMemo(
     () => instruments.slice(0, MAX_INSTRUMENT_CATALOGUE_ROWS),
-    [instruments],
+    [instruments]
   );
-  const exportGroupLabel = selectedGroup || "all";
+  const exportGroupLabel = selectedGroup || 'all';
 
   const handleInstrumentExportCsv = useCallback(() => {
     downloadInstrumentsCsv(instruments, exportGroupLabel);
@@ -416,10 +451,10 @@ export default function App({ onLogout }: AppProps) {
       <>
         <div
           style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.5rem",
-            margin: "1rem 0",
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            margin: '1rem 0',
           }}
         >
           <LanguageSwitcher />
@@ -429,8 +464,7 @@ export default function App({ onLogout }: AppProps) {
             onLogout={handleLogout}
             style={{ margin: 0 }}
           />
-          <InstrumentSearchBarToggle />
-          {mode === "owner" && (
+          {mode === 'owner' && (
             <div data-testid="portfolio-owner-selector">
               <OwnerSelector
                 owners={owners}
@@ -442,12 +476,12 @@ export default function App({ onLogout }: AppProps) {
           {lastRefresh && (
             <span
               style={{
-                background: "#eee",
-                borderRadius: "1rem",
-                padding: "0.25rem 0.5rem",
-                fontSize: "0.75rem",
+                background: '#eee',
+                borderRadius: '1rem',
+                padding: '0.25rem 0.5rem',
+                fontSize: '0.75rem',
               }}
-              title={t("app.last") ?? undefined}
+              title={t('app.last') ?? undefined}
             >
               {new Date(lastRefresh).toLocaleString()}
             </span>
@@ -456,10 +490,10 @@ export default function App({ onLogout }: AppProps) {
             aria-label="notifications"
             onClick={() => setNotificationsOpen(true)}
             style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              fontSize: "1.5rem",
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: '1.5rem',
             }}
           >
             🔔
@@ -472,7 +506,7 @@ export default function App({ onLogout }: AppProps) {
         />
 
         {/* OWNER VIEW */}
-        {mode === "owner" && (
+        {mode === 'owner' && (
           <>
             <ComplianceWarnings owners={selectedOwner ? [selectedOwner] : []} />
             <PortfolioView
@@ -485,22 +519,24 @@ export default function App({ onLogout }: AppProps) {
         )}
 
         {/* GROUP VIEW */}
-        {mode === "group" && selectedGroup && (
+        {mode === 'group' && selectedGroup && (
           <>
             <ComplianceWarnings
-              owners={groups.find((g) => g.slug === selectedGroup)?.members ?? []}
+              owners={
+                groups.find((g) => g.slug === selectedGroup)?.members ?? []
+              }
             />
             <GroupPortfolioView slug={selectedGroup} owners={owners} />
           </>
         )}
 
         {/* INSTRUMENT VIEW */}
-        {mode === "instrument" && groups.length > 0 && (
+        {mode === 'instrument' && groups.length > 0 && (
           <>
             <h1 className="mb-4 text-2xl">
-              {t("app.modes.instrument", { defaultValue: "Instruments" })}
+              {t('app.modes.instrument', { defaultValue: 'Instruments' })}
             </h1>
-            {selectedGroup === "all" && instruments.length > 0 && (
+            {selectedGroup === 'all' && instruments.length > 0 && (
               <div className="mb-4 rounded-lg border border-gray-800 bg-black/20 p-3">
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
                   Export instruments
@@ -525,15 +561,15 @@ export default function App({ onLogout }: AppProps) {
                 </div>
               </div>
             )}
-            {err && <p style={{ color: "red" }}>{err}</p>}
+            {err && <p style={{ color: 'red' }}>{err}</p>}
             {loading ? (
-              <p>{t("app.loading")}</p>
+              <p>{t('app.loading')}</p>
             ) : (
               <>
                 <InstrumentTable rows={visibleInstruments} />
                 {instruments.length > MAX_INSTRUMENT_CATALOGUE_ROWS && (
                   <p className="mt-2 text-xs text-slate-500">
-                    {t("app.instrumentCatalogueTruncated", {
+                    {t('app.instrumentCatalogueTruncated', {
                       shown: MAX_INSTRUMENT_CATALOGUE_ROWS.toLocaleString(),
                       total: instruments.length.toLocaleString(),
                       defaultValue: `Showing first ${MAX_INSTRUMENT_CATALOGUE_ROWS.toLocaleString()} of ${instruments.length.toLocaleString()} instruments.`,
@@ -546,7 +582,7 @@ export default function App({ onLogout }: AppProps) {
         )}
 
         {/* PERFORMANCE VIEW */}
-        {mode === "performance" && (
+        {mode === 'performance' && (
           <>
             <OwnerSelector
               owners={owners}
@@ -559,45 +595,42 @@ export default function App({ onLogout }: AppProps) {
           </>
         )}
 
-        {mode === "transactions" && <TransactionsPage owners={owners} />}
+        {mode === 'transactions' && <TransactionsPage owners={owners} />}
 
-        {mode === "trading" && <Trading />}
+        {mode === 'trading' && <Trading />}
 
-        {mode === "screener" && <ScreenerQuery />}
-        {mode === "timeseries" && <TimeseriesEdit />}
-        {mode === "virtual" && (
-          <Suspense fallback={<p>{t("app.loading")}</p>}>
+        {mode === 'screener' && <ScreenerQuery />}
+        {mode === 'timeseries' && <TimeseriesEdit />}
+        {mode === 'virtual' && (
+          <Suspense fallback={<p>{t('app.loading')}</p>}>
             <VirtualPortfolio />
           </Suspense>
         )}
-        {mode === "instrumentadmin" && <InstrumentAdmin />}
-        {mode === "dataadmin" && <DataAdmin />}
-        {mode === "watchlist" && <Watchlist />}
-        {mode === "allocation" && <AllocationCharts />}
-        {mode === "rebalance" && <Rebalance />}
-        {mode === "market" && <MarketOverview />}
-        {mode === "movers" && <TopMovers />}
-        {mode === "reports" && (isReportCreationRoute ? <ReportTemplateCreator /> : <Reports />)}
-        {mode === "alerts" && <Alerts />}
-        {mode === "taxtools" && <TaxTools />}
-        {mode === "support" && <Support />}
-        {mode === "settings" && <UserConfigPage />}
-        {mode === "scenario" && <ScenarioTester />}
-        {mode === "research" && (
-          <Suspense fallback={<p>{t("app.loading")}</p>}>
+        {mode === 'instrumentadmin' && <InstrumentAdmin />}
+        {mode === 'dataadmin' && <DataAdmin />}
+        {mode === 'watchlist' && <Watchlist />}
+        {mode === 'allocation' && <AllocationCharts />}
+        {mode === 'rebalance' && <Rebalance />}
+        {mode === 'market' && <MarketOverview />}
+        {mode === 'movers' && <TopMovers />}
+        {mode === 'reports' &&
+          (isReportCreationRoute ? <ReportTemplateCreator /> : <Reports />)}
+        {mode === 'alerts' && <Alerts />}
+        {mode === 'taxtools' && <TaxTools />}
+        {mode === 'support' && <Support />}
+        {mode === 'settings' && <UserConfigPage />}
+        {mode === 'scenario' && <ScenarioTester />}
+        {mode === 'research' && (
+          <Suspense fallback={<p>{t('app.loading')}</p>}>
             <InstrumentResearch ticker={researchTicker} />
           </Suspense>
         )}
-        {mode === "pension" && <PensionForecast />}
+        {mode === 'pension' && <PensionForecast />}
       </>
     );
   };
 
-  const rightRail = backendUnavailable ? null : (
-    <Defer>
-      <RightRail owner={selectedOwner} />
-    </Defer>
-  );
+  const rightRail = null;
 
   return (
     <div className="mx-auto flex w-full max-w-screen-xl flex-col gap-4 px-4 py-4 xl:flex-row xl:items-start">

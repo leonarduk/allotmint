@@ -80,7 +80,7 @@ def _group_opportunities(
         ticker = summary.get("ticker")
         if not ticker:
             continue
-        ticker_key = str(ticker).strip()
+        ticker_key = str(ticker).strip().upper()
         if not ticker_key:
             continue
         mv_raw = summary.get("market_value_gbp")

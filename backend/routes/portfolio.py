@@ -740,8 +740,9 @@ def _calculate_weights_and_market_values(
     summaries: Sequence[Dict[str, Any]],
 ) -> Tuple[List[str], Dict[str, float], Dict[str, float]]:
     tickers: List[str] = []
-    seen_tickers: set[str] = set()
+    seen_tickers_upper: set[str] = set()
     market_values: Dict[str, float] = {}
+    bare_alias_source: Dict[str, str] = {}
     for s in summaries:
         t = s.get("ticker")
         if not t:
@@ -749,17 +750,20 @@ def _calculate_weights_and_market_values(
         ticker = str(t).strip()
         if not ticker:
             continue
-        if ticker not in seen_tickers:
-            tickers.append(ticker)
-            seen_tickers.add(ticker)
+        ticker_upper = ticker.upper()
+        if ticker_upper not in seen_tickers_upper:
+            tickers.append(ticker_upper)
+            seen_tickers_upper.add(ticker_upper)
         mv = s.get("market_value_gbp")
         if mv is not None:
             mv_float = float(mv)
-            t_upper = ticker.upper()
-            bare = t_upper.split(".", 1)[0]
-            market_values[t_upper] = market_values.get(t_upper, 0.0) + mv_float
-            if bare != t_upper:
-                market_values[bare] = market_values.get(bare, 0.0) + mv_float
+            bare = ticker_upper.split(".", 1)[0]
+            market_values[ticker_upper] = market_values.get(ticker_upper, 0.0) + mv_float
+            if bare != ticker_upper:
+                alias_source = bare_alias_source.get(bare)
+                if alias_source in (None, ticker_upper):
+                    bare_alias_source[bare] = ticker_upper
+                    market_values[bare] = market_values[ticker_upper]
 
     n = len(tickers)
     if n == 0:

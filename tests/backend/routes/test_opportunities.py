@@ -2,6 +2,7 @@ import pytest
 from fastapi import HTTPException
 
 from backend.routes import opportunities as opportunities_module
+from backend.routes import portfolio as portfolio_module
 
 
 @pytest.fixture(autouse=True)
@@ -248,7 +249,7 @@ def test_group_opportunities_sums_duplicate_ticker_market_values(monkeypatch):
     monkeypatch.setattr(
         opportunities_module,
         "_calculate_weights_and_market_values",
-        lambda rows: (["AAA", "BBB"], {"AAA": 50.0, "BBB": 50.0}, {"AAA": 250.0, "BBB": 250.0}),
+        portfolio_module._calculate_weights_and_market_values,
     )
 
     def fake_top_movers(tickers, days, limit, *, min_weight, weights):
@@ -261,10 +262,7 @@ def test_group_opportunities_sums_duplicate_ticker_market_values(monkeypatch):
     opportunities_module._group_opportunities("family", days=7, limit=5, min_weight=0.0)
 
     assert captured["tickers"] == ["AAA", "BBB"]
-    assert captured["weights"] == {
-        "AAA": pytest.approx(50.0),
-        "BBB": pytest.approx(50.0),
-    }
+    assert captured["weights"] == {"AAA": pytest.approx(50.0), "BBB": pytest.approx(50.0)}
 
 
 def test_group_opportunities_error_and_short_circuit(monkeypatch):

@@ -126,5 +126,6 @@ def test_validate_var_payload_file_accepts_valid_payload(tmp_path) -> None:
 
 
 def test_strict_runner_delegates_to_shared_var_validator() -> None:
-    script_text = Path("scripts/qa/run_issue_2581_strict.sh").read_text(encoding="utf-8")
+    script_path = Path(__file__).resolve().parents[2] / "scripts" / "qa" / "run_issue_2581_strict.sh"
+    script_text = script_path.read_text(encoding="utf-8")
     assert 'python3 scripts/qa/var_payload_validator.py "$json_file"' in script_text

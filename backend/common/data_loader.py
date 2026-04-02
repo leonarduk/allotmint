@@ -143,9 +143,8 @@ def resolve_paths(
     handled even when running on a POSIX platform.
     """
 
-    if repo_root and Path(repo_root).exists():
-        repo_path = Path(repo_root).expanduser()
-    else:
+    repo_path = Path(repo_root).expanduser() if repo_root else Path(__file__).resolve().parents[2]
+    if not repo_path.exists():
         repo_path = Path(__file__).resolve().parents[2]
 
     data_root = repo_path / "data"
@@ -294,7 +293,7 @@ def _build_owner_summary(
         meta_email = meta.get("email")
         if isinstance(meta_email, str) and meta_email.strip():
             email = meta_email.strip()
-        for key in ("full_name", "display_name", "preferred_name", "owner", "name"):
+        for key in ("full_name", "display_name", "preferred_name", "name"):
             value = meta.get(key)
             if isinstance(value, str) and value.strip():
                 display_name = value.strip()
@@ -995,6 +994,7 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
         except Exception:  # pragma: no cover - extremely defensive
             local_root = None
 
+    explicit_local_fallback = data_root is not None
     has_local_fallback = local_root is not None
     bucket = os.getenv(DATA_BUCKET_ENV)
 
@@ -1022,9 +1022,9 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
                     exc,
                     exc_info=True,
                 )
-                if config.app_env == "aws" and not has_local_fallback:
+                if not explicit_local_fallback:
                     return {}
-        elif config.app_env == "aws" and not has_local_fallback:
+        elif config.app_env == "aws" and not explicit_local_fallback:
             # No bucket configured and no local fallback: nothing to load.
             return {}
 
@@ -1056,10 +1056,10 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
                     },
                     exc_info=True,
                 )
-                if not has_local_fallback:
+                if not explicit_local_fallback:
                     return {}
 
-    if not local_root:
+    if not explicit_local_fallback or not local_root:
         return {}
 
     owner_index = _get_local_owner_index(Path(local_root))

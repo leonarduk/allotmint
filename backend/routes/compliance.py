@@ -84,6 +84,17 @@ def _known_owners(accounts_root) -> KnownOwnerSet:
         owners.active_root_has_entries = active_root_has_entries
         return owners
 
+    try:
+        root_path = Path(accounts_root) if accounts_root else None
+    except Exception:
+        root_path = None
+
+    if root_path is not None and root_path.exists():
+        try:
+            active_root_has_entries = any(entry.is_dir() for entry in root_path.iterdir())
+        except OSError:
+            active_root_has_entries = False
+
     if not list_plots_failed:
         owners.active_root_has_entries = active_root_has_entries
         return owners

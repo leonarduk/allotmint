@@ -95,6 +95,19 @@ def test_group_exposure_handles_missing_holdings(monkeypatch):
     assert resp.json() == {"total_portfolio_value_gbp": 0.0, "holdings": []}
 
 
+def test_group_exposure_rejects_invalid_as_of(monkeypatch):
+    client = _client()
+    monkeypatch.setattr(
+        portfolio.group_portfolio,
+        "build_group_portfolio",
+        lambda slug, **_: _sample_portfolio(),
+    )
+
+    resp = client.get("/portfolio-group/demo/exposure", params={"as_of": "not-a-date"})
+    assert resp.status_code == 400
+    assert resp.json() == {"detail": "Invalid as_of date"}
+
+
 def test_group_instruments_without_filters(monkeypatch):
     client = _client()
     portfolio_data = _sample_portfolio()

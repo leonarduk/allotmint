@@ -231,7 +231,13 @@ def build_group_portfolio(slug: str, *, pricing_date: date | None = None) -> Dic
 
 
 def aggregate_group_exposure(portfolio: Dict[str, Any]) -> Dict[str, Any]:
-    """Return combined portfolio value and per-ticker exposure rows."""
+    """Return combined GBP value and per-ticker exposure rows sorted by value."""
+
+    def _safe_float(value: Any) -> float:
+        try:
+            return float(value or 0.0)
+        except (TypeError, ValueError):
+            return 0.0
 
     by_ticker: Dict[str, float] = {}
     total_value = 0.0
@@ -241,7 +247,7 @@ def aggregate_group_exposure(portfolio: Dict[str, Any]) -> Dict[str, Any]:
             ticker = str(holding.get("ticker") or "").strip().upper()
             if not ticker:
                 continue
-            market_value = float(holding.get("market_value_gbp") or 0.0)
+            market_value = _safe_float(holding.get("market_value_gbp"))
             total_value += market_value
             by_ticker[ticker] = by_ticker.get(ticker, 0.0) + market_value
 

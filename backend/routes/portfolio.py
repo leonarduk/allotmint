@@ -140,6 +140,17 @@ class MoversResponse(BaseModel):
     losers: List[Mover] = Field(default_factory=list)
 
 
+class GroupExposureHolding(BaseModel):
+    ticker: str
+    total_value_gbp: float
+    percentage_of_portfolio: float
+
+
+class GroupExposureResponse(BaseModel):
+    total_portfolio_value_gbp: float
+    holdings: List[GroupExposureHolding] = Field(default_factory=list)
+
+
 # --------------------------------------------------------------
 # Simple lists
 # --------------------------------------------------------------
@@ -736,10 +747,10 @@ async def group_regions(slug: str, as_of: str | None = None):
     return portfolio_utils.aggregate_by_region(gp)
 
 
-@router.get("/portfolio-group/{slug}/exposure")
+@router.get("/portfolio-group/{slug}/exposure", response_model=GroupExposureResponse)
 async def group_exposure(slug: str, as_of: str | None = None):
+    pricing_date = _resolve_pricing_date(as_of)
     try:
-        pricing_date = _resolve_pricing_date(as_of)
         gp = _build_group_portfolio(slug, pricing_date)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail="Group not found") from exc

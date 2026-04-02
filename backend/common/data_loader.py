@@ -143,30 +143,16 @@ def resolve_paths(
     handled even when running on a POSIX platform.
     """
 
-    def _usable_path(value: Path | str | None) -> Path | None:
-        if value is None:
-            return None
-        raw = str(value)
-        candidate = Path(raw).expanduser()
-        if candidate.exists():
-            return candidate
-        if candidate.is_absolute() and not candidate.exists():
-            return None
-        if PureWindowsPath(raw).is_absolute():
-            return None
-        return candidate
-
-    repo_path = _usable_path(repo_root) or Path(__file__).resolve().parents[2]
+    repo_path = Path(repo_root).expanduser() if repo_root else Path(__file__).resolve().parents[2]
+    if not repo_path.exists():
+        repo_path = Path(__file__).resolve().parents[2]
 
     data_root = repo_path / "data"
 
     if accounts_root:
         acct_str = str(accounts_root)
-        usable_accounts_root = _usable_path(accounts_root)
-        if usable_accounts_root is not None and usable_accounts_root.is_absolute():
-            accounts_path = usable_accounts_root
-        elif Path(acct_str).is_absolute() or PureWindowsPath(acct_str).is_absolute():
-            accounts_path = data_root / "accounts"
+        if Path(acct_str).is_absolute() or PureWindowsPath(acct_str).is_absolute():
+            accounts_path = Path(acct_str).expanduser()
         else:
             accounts_path = (repo_path / acct_str).resolve()
         data_root = accounts_path.parent
@@ -307,7 +293,7 @@ def _build_owner_summary(
         meta_email = meta.get("email")
         if isinstance(meta_email, str) and meta_email.strip():
             email = meta_email.strip()
-        for key in ("full_name", "display_name", "preferred_name", "owner", "name"):
+        for key in ("full_name", "display_name", "preferred_name", "name"):
             value = meta.get(key)
             if isinstance(value, str) and value.strip():
                 display_name = value.strip()
@@ -1008,6 +994,7 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
         except Exception:  # pragma: no cover - extremely defensive
             local_root = None
 
+    explicit_local_fallback = data_root is not None
     has_local_fallback = local_root is not None
     bucket = os.getenv(DATA_BUCKET_ENV)
 
@@ -1035,9 +1022,9 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
                     exc,
                     exc_info=True,
                 )
-                if config.app_env == "aws" and not has_local_fallback:
+                if not explicit_local_fallback:
                     return {}
-        elif config.app_env == "aws" and not has_local_fallback:
+        elif config.app_env == "aws" and not explicit_local_fallback:
             # No bucket configured and no local fallback: nothing to load.
             return {}
 
@@ -1069,10 +1056,10 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
                     },
                     exc_info=True,
                 )
-                if not has_local_fallback:
+                if not explicit_local_fallback:
                     return {}
 
-    if not local_root:
+    if not explicit_local_fallback or not local_root:
         return {}
 
     owner_index = _get_local_owner_index(Path(local_root))

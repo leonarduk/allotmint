@@ -52,6 +52,7 @@ export interface AppConfig {
   tabs: TabsConfig;
   theme: "dark" | "light" | "system";
   baseCurrency: string;
+  enableAdvancedAnalytics?: boolean;
 }
 
 export interface RawConfig {
@@ -109,6 +110,7 @@ export const configContext = createContext<ConfigContextValue>({
   tabs: defaultTabs,
   theme: "system",
   baseCurrency: "GBP",
+  enableAdvancedAnalytics: true,
   refreshConfig: async () => {},
   setRelativeViewEnabled: () => {},
   setBaseCurrency: () => {},
@@ -130,6 +132,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
       tabs: defaultTabs,
       theme: "system",
       baseCurrency: storedCurrency || "GBP",
+      enableAdvancedAnalytics: true,
     };
   });
 
@@ -197,6 +200,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         tabs,
         theme,
         baseCurrency: config.baseCurrency,
+        enableAdvancedAnalytics: cfg.enable_advanced_analytics !== false,
       });
       applyTheme(theme);
     } catch {

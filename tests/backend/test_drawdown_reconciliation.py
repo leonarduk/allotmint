@@ -64,6 +64,48 @@ def test_compute_max_drawdown_ignores_flagged(mock_env):
     assert ("FLAG", "L") not in mock_env
 
 
+
+
+def test_compute_max_drawdown_forward_fills_short_price_gaps(monkeypatch):
+    idx = pd.date_range("2024-01-01", periods=4, freq="D").date
+    series_by_ticker = {
+        "STEADY": pd.DataFrame({"Date": idx, "Close": [100, 100, 100, 100]}),
+        "GAPPY": pd.DataFrame(
+            {
+                "Date": [idx[0], idx[1], idx[3]],
+                "Close": [400, 420, 430],
+            }
+        ),
+    }
+
+    def fake_build_owner_portfolio(owner, accounts_root=None, pricing_date=None):
+        return {
+            "accounts": [
+                {
+                    "holdings": [
+                        {"ticker": "STEADY", "exchange": "L", "units": 1},
+                        {"ticker": "GAPPY", "exchange": "L", "units": 1},
+                    ]
+                }
+            ]
+        }
+
+    monkeypatch.setattr(portfolio_mod, "build_owner_portfolio", fake_build_owner_portfolio)
+    monkeypatch.setattr(
+        "backend.common.instrument_api._resolve_full_ticker",
+        lambda ticker, latest: (ticker.split(".")[0], "L"),
+    )
+    monkeypatch.setattr(
+        portfolio_utils,
+        "load_meta_timeseries",
+        lambda ticker, exchange, days: series_by_ticker.get(ticker, pd.DataFrame()),
+    )
+    portfolio_utils._PRICE_SNAPSHOT = {}
+
+    max_drawdown = portfolio_utils.compute_max_drawdown("gap-owner", days=10)
+
+    assert max_drawdown == pytest.approx(0.0)
+
 def reconcile(owner, price_data):
     for tkr, df in price_data.items():
         bad = df[df["Close"] <= 0]

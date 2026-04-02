@@ -11,6 +11,7 @@ describe('getFamilyMvpRedirectPath', () => {
     expect(getFamilyMvpRedirectPath('/transactions', '')).toBeNull();
     expect(getFamilyMvpRedirectPath('/portfolio/alex', '')).toBeNull();
     expect(getFamilyMvpRedirectPath('/performance/alex', '')).toBeNull();
+    expect(getFamilyMvpRedirectPath('/performance/alex', '?range=1y')).toBeNull();
   });
 
   it('redirects bare root to transactions for faster input flow', () => {

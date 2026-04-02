@@ -127,6 +127,12 @@ export function getFamilyMvpRedirectPath(
   pathname: string,
   search: string
 ): string | null {
+  // Family MVP redirect policy:
+  // - Any non-MVP route gets sent to the input flow (/transactions).
+  // - Bare root also lands on /transactions for quickest time-to-value.
+  //
+  // This is intentionally separate from getOwnerRootRedirectPath, which only
+  // handles owner/performance root hydration once an owner list is available.
   const routeMode = deriveModeFromPathname(pathname);
   if (!isFamilyMvpMode(routeMode)) {
     return pathname === '/transactions' ? null : '/transactions';
@@ -235,6 +241,10 @@ export default function App({ onLogout }: AppProps) {
   }, [location.pathname, location.search, navigate]);
 
   useEffect(() => {
+    if (getFamilyMvpRedirectPath(location.pathname, location.search)) {
+      return;
+    }
+
     const segs = location.pathname.split('/').filter(Boolean);
     const params = new URLSearchParams(location.search);
     const newMode = deriveModeFromPathname(location.pathname);

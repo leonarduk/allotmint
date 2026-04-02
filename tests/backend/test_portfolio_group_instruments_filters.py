@@ -1,5 +1,6 @@
 import datetime as dt
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -237,6 +238,34 @@ def test_group_endpoints_accept_as_of(monkeypatch):
 
     resp = client.get("/portfolio-group/demo/exposure", params=params)
     assert resp.status_code == 200
-
     assert len(captured) == 5
     assert all(date == dt.date(2024, 1, 15) for date in captured)
+
+def test_calculate_weights_and_market_values_dedupes_case_and_sums_duplicates():
+    summaries = [
+        {"ticker": "aaa", "market_value_gbp": 100.0},
+        {"ticker": "AAA", "market_value_gbp": 50.0},
+        {"ticker": "BBB", "market_value_gbp": 250.0},
+    ]
+
+    tickers, weights, market_values = portfolio._calculate_weights_and_market_values(summaries)
+
+    assert tickers == ["AAA", "BBB"]
+    assert weights == {"AAA": 50.0, "BBB": 50.0}
+    assert market_values["AAA"] == pytest.approx(150.0)
+    assert market_values["BBB"] == pytest.approx(250.0)
+
+
+def test_calculate_weights_and_market_values_keeps_bare_alias_without_double_count():
+    summaries = [
+        {"ticker": "AAA.L", "market_value_gbp": 100.0},
+        {"ticker": "AAA.L", "market_value_gbp": 50.0},
+        {"ticker": "AAA.NYSE", "market_value_gbp": 200.0},
+    ]
+
+    tickers, _weights, market_values = portfolio._calculate_weights_and_market_values(summaries)
+
+    assert tickers == ["AAA.L", "AAA.NYSE"]
+    assert market_values["AAA.L"] == pytest.approx(150.0)
+    assert market_values["AAA.NYSE"] == pytest.approx(200.0)
+    assert market_values["AAA"] == pytest.approx(150.0)

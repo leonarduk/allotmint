@@ -761,17 +761,30 @@ def _calculate_weights_and_market_values(
     summaries: Sequence[Dict[str, Any]],
 ) -> Tuple[List[str], Dict[str, float], Dict[str, float]]:
     tickers: List[str] = []
+    seen_tickers_upper: set[str] = set()
     market_values: Dict[str, float] = {}
+    bare_alias_source: Dict[str, str] = {}
     for s in summaries:
         t = s.get("ticker")
         if not t:
             continue
-        tickers.append(t)
+        ticker = str(t).strip()
+        if not ticker:
+            continue
+        ticker_upper = ticker.upper()
+        if ticker_upper not in seen_tickers_upper:
+            tickers.append(ticker_upper)
+            seen_tickers_upper.add(ticker_upper)
         mv = s.get("market_value_gbp")
         if mv is not None:
-            t_upper = t.upper()
-            market_values[t_upper] = mv
-            market_values[t_upper.split(".", 1)[0]] = mv
+            mv_float = float(mv)
+            bare = ticker_upper.split(".", 1)[0]
+            market_values[ticker_upper] = market_values.get(ticker_upper, 0.0) + mv_float
+            if bare != ticker_upper:
+                alias_source = bare_alias_source.get(bare)
+                if alias_source in (None, ticker_upper):
+                    bare_alias_source[bare] = ticker_upper
+                    market_values[bare] = market_values[ticker_upper]
 
     n = len(tickers)
     if n == 0:

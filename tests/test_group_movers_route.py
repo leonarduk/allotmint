@@ -108,6 +108,34 @@ def test_group_movers_equal_weight_when_market_values_zero(monkeypatch):
     assert data["losers"][0]["market_value_gbp"] == 0.0
 
 
+def test_group_movers_sums_duplicate_ticker_market_values(monkeypatch):
+    def fake_summaries(slug: str):
+        return [
+            {"ticker": "AAA", "market_value_gbp": 100.0},
+            {"ticker": "AAA", "market_value_gbp": 150.0},
+            {"ticker": "BBB", "market_value_gbp": 250.0},
+        ]
+
+    def fake_top_movers(tickers, days, limit, *, min_weight, weights):
+        assert tickers == ["AAA", "BBB"]
+        assert weights["AAA"] == pytest.approx(50.0)
+        assert weights["BBB"] == pytest.approx(50.0)
+        return {
+            "gainers": [{"ticker": "AAA", "name": "AAA", "change_pct": 1.0}],
+            "losers": [{"ticker": "BBB", "name": "BBB", "change_pct": -1.0}],
+        }
+
+    monkeypatch.setattr(ia, "instrument_summaries_for_group", fake_summaries)
+    monkeypatch.setattr(ia, "top_movers", fake_top_movers)
+
+    client = _auth_client()
+    resp = client.get("/portfolio-group/demo/movers")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["gainers"][0]["market_value_gbp"] == 250.0
+    assert data["losers"][0]["market_value_gbp"] == 250.0
+
+
 def test_group_movers_limit_too_high():
     client = _auth_client()
     resp = client.get("/portfolio-group/demo/movers?limit=101")

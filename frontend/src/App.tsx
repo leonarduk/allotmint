@@ -62,7 +62,10 @@ import {
   downloadInstrumentsCsv,
   printInstrumentsPdf,
 } from './lib/instrumentExports';
-import { isFamilyMvpMode } from './familyMvp';
+import {
+  getFamilyMvpEntryPath,
+  isFamilyMvpMode,
+} from './familyMvp';
 
 const PerformanceDashboard = lazyWithDelay(
   () => import('./components/PerformanceDashboard')
@@ -127,22 +130,28 @@ export function getFamilyMvpRedirectPath(
   pathname: string,
   search: string,
   familyMvpEnabled: boolean
+  entryPath: string | null = '/portfolio'
 ): string | null {
   if (!familyMvpEnabled) {
     return null;
   }
   // Family MVP redirect policy:
-  // - Any non-MVP route gets sent to the input flow (/transactions).
-  // - Bare root also lands on /transactions for quickest time-to-value.
+  // - Bare root lands on the configured entry flow.
+  // - Any other non-MVP route gets sent to that same entry flow.
+  // - If every Family MVP tab is disabled, leave route selection to the caller.
   //
   // This is intentionally separate from getOwnerRootRedirectPath, which only
   // handles owner/performance root hydration once an owner list is available.
+  if (!entryPath) {
+    return null;
+  }
+  if (pathname === '/' && !search) {
+    return entryPath;
+  }
+
   const routeMode = deriveModeFromPathname(pathname);
   if (!isFamilyMvpMode(routeMode)) {
-    return pathname === '/transactions' ? null : '/transactions';
-  }
-  if (routeMode === 'group' && pathname === '/' && !search) {
-    return '/transactions';
+    return pathname === entryPath ? null : entryPath;
   }
   return null;
 }
@@ -151,8 +160,12 @@ export default function App({ onLogout }: AppProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useTranslation();
-  const { tabs, disabledTabs, familyMvpEnabled } = useConfig();
+  const { tabs, disabledTabs, familyMvpEnabled, configLoaded } = useConfig();
   const { lastRefresh } = usePriceRefresh();
+  const familyMvpEntryPath = useMemo(
+    () => (configLoaded ? getFamilyMvpEntryPath(tabs, disabledTabs) : null),
+    [configLoaded, tabs, disabledTabs]
+  );
 
   const params = new URLSearchParams(location.search);
   const isReportCreationRoute =
@@ -239,6 +252,7 @@ export default function App({ onLogout }: AppProps) {
       location.pathname,
       location.search,
       familyMvpEnabled
+      familyMvpEntryPath
     );
     if (redirectPath) {
       navigate(redirectPath, { replace: true });
@@ -247,6 +261,20 @@ export default function App({ onLogout }: AppProps) {
 
   useEffect(() => {
     if (getFamilyMvpRedirectPath(location.pathname, location.search, familyMvpEnabled)) {
+      return;
+  }, [location.pathname, location.search, navigate, familyMvpEntryPath]);
+
+  useEffect(() => {
+    if (!configLoaded) {
+      return;
+    }
+
+    const redirectPath = getFamilyMvpRedirectPath(
+      location.pathname,
+      location.search,
+      familyMvpEntryPath
+    );
+    if (redirectPath) {
       return;
     }
 
@@ -282,7 +310,16 @@ export default function App({ onLogout }: AppProps) {
     } else if (newMode === 'research') {
       setResearchTicker(segs[1] ? decodeURIComponent(segs[1] ?? '') : '');
     }
-  }, [familyMvpEnabled, location.pathname, location.search, tabs, disabledTabs, navigate]);
+  }, [
+    familyMvpEnabled,     
+    configLoaded,
+    familyMvpEntryPath,
+    location.pathname,
+    location.search,
+    tabs,
+    disabledTabs,
+    navigate,
+  ]);
 
   useEffect(() => {
     if (!ownersReq.data) return;

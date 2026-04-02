@@ -219,7 +219,7 @@ export function PortfolioView({ data, loading, error, onDateChange }: Props) {
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
   const [hasWarnings, setHasWarnings] = useState(false);
   const [pendingDate, setPendingDate] = useState<string>("");
-  const { baseCurrency, familyMvpEnabled } = useConfig();
+  const { baseCurrency, familyMvpEnabledy, enableAdvancedAnalytics = true } = useConfig();
 
   const accountKey = (acct: Account, idx: number) => `${acct.account_type}-${idx}`;
 
@@ -235,15 +235,19 @@ export function PortfolioView({ data, loading, error, onDateChange }: Props) {
   const asOf = data?.as_of ?? null;
 
   const fetchSectorContribution = useCallback(() => {
-    if (!owner) return Promise.resolve([] as SectorContribution[]);
+    if (!owner || !enableAdvancedAnalytics) return Promise.resolve([] as SectorContribution[]);
     return getOwnerSectorContributions(owner, { asOf: asOf ?? undefined });
-  }, [owner, asOf]);
+  }, [owner, asOf, enableAdvancedAnalytics]);
 
   const {
     data: sectorContrib,
     loading: sectorLoading,
     error: sectorError,
-  } = useFetch<SectorContribution[]>(fetchSectorContribution, [], Boolean(owner));
+  } = useFetch<SectorContribution[]>(
+    fetchSectorContribution,
+    [owner, asOf, enableAdvancedAnalytics],
+    Boolean(owner && enableAdvancedAnalytics),
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -413,6 +417,44 @@ export function PortfolioView({ data, loading, error, onDateChange }: Props) {
                 <p className="text-sm text-gray-400">No sector data available.</p>
               )}
             </div>
+          {enableAdvancedAnalytics && (
+            <>
+              <div className="mb-6 rounded-lg border border-gray-800 bg-black/30 p-4">
+                <ValueAtRisk owner={data.owner} onDateChange={onDateChange} />
+              </div>
+              <div className="mb-6 rounded-lg border border-gray-800 bg-black/30 p-4">
+                <h3 className="mb-3 text-base font-semibold text-white">
+                  Sector contribution
+                </h3>
+                {sectorLoading ? (
+                  <p className="text-sm text-gray-400">Loading sector data…</p>
+                ) : sectorError ? (
+                  <p className="text-sm text-red-500">
+                    Failed to load sector contribution
+                  </p>
+                ) : sectorContrib && sectorContrib.length > 0 ? (
+                  <div className="h-64 w-full">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
+                      <BarChart data={sectorContrib}>
+                        <XAxis dataKey="sector" interval={0} angle={-35} textAnchor="end" height={70} />
+                        <YAxis />
+                        <Tooltip formatter={(v: number | undefined) => money(v, baseCurrency)} />
+                        <Bar dataKey="gain_gbp">
+                          {sectorContrib.map((row, idx) => (
+                            <Cell
+                              key={`${row.sector}-${idx}`}
+                              fill={row.gain_gbp >= 0 ? "#22c55e" : "#ef4444"}
+                            />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-400">No sector data available.</p>
+                )}
+              </div>
+            </>
           )}
           <div className="space-y-4">
             {data.accounts.map((acct, idx) => {
@@ -454,9 +496,11 @@ export function PortfolioView({ data, loading, error, onDateChange }: Props) {
           </div>
         </section>
         <section className="rounded-lg border border-gray-800 bg-gray-900/70 p-4 md:p-6">
-          <Suspense fallback={<PortfolioDashboardSkeleton />}>
-            <PerformanceDashboard owner={data.owner} asOf={data.as_of} />
-          </Suspense>
+          {enableAdvancedAnalytics && (
+            <Suspense fallback={<PortfolioDashboardSkeleton />}>
+              <PerformanceDashboard owner={data.owner} asOf={data.as_of} />
+            </Suspense>
+          )}
         </section>
       </div>
     </div>

@@ -660,7 +660,11 @@ class ReportContext:
             )
         except (FileNotFoundError, ValueError) as exc:
             logger.warning("failed to build owner portfolio for %s: %s", self.owner, exc)
-            self._owner_portfolio = None
+            fallback_portfolio = self._portfolio
+            if fallback_portfolio is None and _DEFAULT_PORTFOLIO_SNAPSHOT is not None and _portfolio_snapshot is not _DEFAULT_PORTFOLIO_SNAPSHOT:
+                fallback_portfolio = _portfolio_snapshot(self.owner, pricing_date=self.end) or None
+                self._portfolio = fallback_portfolio or self._portfolio
+            self._owner_portfolio = fallback_portfolio or None
         return self._owner_portfolio
 
     def allocation(self) -> List[Dict[str, Any]]:
@@ -900,6 +904,9 @@ def _portfolio_snapshot(owner: str, pricing_date: date | None = None) -> Dict[st
     if portfolio_mod is None:
         return {}
     return portfolio_mod.build_owner_portfolio(owner, pricing_date=pricing_date)
+
+
+_DEFAULT_PORTFOLIO_SNAPSHOT = _portfolio_snapshot
 
 
 def _safe_float(value: Any) -> float | None:

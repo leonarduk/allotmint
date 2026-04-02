@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -6,15 +7,25 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.common import data_loader
+from backend import config as backend_config
 from backend.local_api.main import app
 
 
 @pytest.fixture
 def client():
+    os.environ["TESTING"] = "1"
+    previous = backend_config.offline_mode
+    backend_config.offline_mode = True
     client = TestClient(app)
-    token = client.post("/token", json={"id_token": "good"}).json()["access_token"]
+    response = client.post("/token", data={"username": "testuser", "password": "password"})
+    payload = response.json()
+    assert response.status_code == 200, payload
+    token = payload["access_token"]
     client.headers.update({"Authorization": f"Bearer {token}"})
-    return client
+    try:
+        yield client
+    finally:
+        backend_config.offline_mode = previous
 
 # Shared mock data
 mock_owners = [
@@ -181,7 +192,7 @@ def test_get_account_case_insensitive(mock_load_account, mock_resolve, client, t
 
 
 def test_get_account_demo_fallback(client, monkeypatch):
-    expected = data_loader.load_account("demo", "isa")
+    expected = data_loader.load_account("demo", "isa", data_loader.resolve_paths(None, None).accounts_root)
 
     monkeypatch.setenv("DATA_ROOT", ".")
     monkeypatch.setattr(client.app.state, "accounts_root", Path("."))

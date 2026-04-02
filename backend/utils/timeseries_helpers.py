@@ -38,12 +38,18 @@ def get_scaling_override(ticker: str, exchange: str, requested_scaling: Optional
     if requested_scaling is not None:
         return requested_scaling
 
-    repo_root = Path(__file__).resolve().parents[2]
-    if config.repo_root:
-        candidate = str(config.repo_root)
-        if "://" not in candidate:
-            repo_root = Path(config.repo_root)
-    path = repo_root / "data" / "scaling_overrides.json"
+    path = Path(__file__).resolve().parents[2] / "data" / "scaling_overrides.json"
+    configured_data_root = getattr(config, "data_root", None)
+    if configured_data_root:
+        candidate = Path(str(configured_data_root)).expanduser()
+        candidate_path = candidate / "scaling_overrides.json"
+        if candidate_path.exists():
+            path = candidate_path
+    configured_repo_root = getattr(config, "repo_root", None)
+    if configured_repo_root:
+        candidate = Path(str(configured_repo_root)).expanduser() / "data" / "scaling_overrides.json"
+        if candidate.exists():
+            path = candidate
     try:
         with path.open() as f:
             ov = json.load(f)

@@ -1,5 +1,6 @@
+import { useEffect } from "react";
 import { render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ConfigProvider, useConfig } from "@/ConfigContext";
 
 vi.mock("@/api", async (importOriginal) => {
@@ -11,17 +12,41 @@ vi.mock("@/api", async (importOriginal) => {
 });
 
 function Probe() {
-  const { tabs, disabledTabs } = useConfig();
+  const { tabs, disabledTabs, configLoaded } = useConfig();
   return (
     <div
       data-testid="config-probe"
+      data-config-loaded={String(configLoaded)}
       data-tabs={JSON.stringify(tabs)}
       data-disabled-tabs={JSON.stringify(disabledTabs ?? [])}
     />
   );
 }
 
+function BaseCurrencySetter() {
+  const { baseCurrency, setBaseCurrency } = useConfig();
+  useEffect(() => {
+    setBaseCurrency("USD");
+  }, [setBaseCurrency]);
+  return <div data-testid="base-currency-probe">{baseCurrency}</div>;
+}
+
+
+function UnwrappedProbe() {
+  const { configLoaded } = useConfig();
+  return <div data-testid="unwrapped-config-loaded">{String(configLoaded)}</div>;
+}
+
 describe("ConfigProvider Family MVP gating", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("defaults to an unloaded config state outside the provider", () => {
+    render(<UnwrappedProbe />);
+    expect(screen.getByTestId("unwrapped-config-loaded").textContent).toBe("false");
+  });
+
   it("disables non-MVP tabs by default when Family MVP mode is enabled", async () => {
     const { getConfig } = await import("@/api");
     vi.mocked(getConfig).mockResolvedValue({
@@ -52,6 +77,7 @@ describe("ConfigProvider Family MVP gating", () => {
         JSON.parse(probe.getAttribute("data-disabled-tabs") ?? "[]") as string[],
       );
 
+      expect(probe.getAttribute("data-config-loaded")).toBe("true");
       expect(tabs.transactions).toBe(false);
       expect(tabs["trade-compliance"]).toBe(false);
       expect(tabs.trail).toBe(false);
@@ -144,6 +170,40 @@ describe("ConfigProvider Family MVP gating", () => {
       expect(disabledTabs.has("trade-compliance")).toBe(false);
       expect(disabledTabs.has("reports")).toBe(false);
       expect(disabledTabs.has("scenario")).toBe(false);
+    });
+  });
+
+  it("does not refetch config when base currency changes locally", async () => {
+    const { getConfig } = await import("@/api");
+    vi.mocked(getConfig).mockResolvedValue({
+      enable_family_mvp: true,
+      tabs: {},
+    });
+
+    render(
+      <ConfigProvider>
+        <BaseCurrencySetter />
+      </ConfigProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("base-currency-probe").textContent).toBe("USD");
+    });
+    expect(vi.mocked(getConfig)).toHaveBeenCalledTimes(1);
+  });
+
+  it("marks config as loaded when config fetch fails", async () => {
+    const { getConfig } = await import("@/api");
+    vi.mocked(getConfig).mockRejectedValue(new Error("boom"));
+
+    render(
+      <ConfigProvider>
+        <Probe />
+      </ConfigProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("config-probe").getAttribute("data-config-loaded")).toBe("true");
     });
   });
 });

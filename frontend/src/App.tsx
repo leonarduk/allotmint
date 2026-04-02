@@ -229,6 +229,13 @@ export default function App({ onLogout }: AppProps) {
 
   const ownersReq = useFetchWithRetry(getOwners, 500, 5, [retryNonce]);
   const groupsReq = useFetchWithRetry(getGroups, 500, 5, [retryNonce]);
+  const identityCatalogReady = ownersReq.data !== undefined && groupsReq.data !== undefined;
+  const selectedOwnerIsGroup = useMemo(
+    () =>
+      Boolean(selectedOwner) &&
+      (groupsReq.data ?? groups).some((group) => group.slug === selectedOwner),
+    [groupsReq.data, groups, selectedOwner]
+  );
 
   useEffect(() => {
     const redirectPath = getFamilyMvpRedirectPath(
@@ -377,7 +384,7 @@ export default function App({ onLogout }: AppProps) {
 
   // data fetching based on route
   useEffect(() => {
-    if (mode === 'owner' && selectedOwner) {
+    if (mode === 'owner' && selectedOwner && identityCatalogReady && !selectedOwnerIsGroup) {
       const cacheKey = `${selectedOwner}::${portfolioAsOf ?? ''}::${lastRefresh ?? ''}`;
       const cached = portfolioCache.current.get(cacheKey);
 
@@ -406,13 +413,13 @@ export default function App({ onLogout }: AppProps) {
         .catch((e) => setErr(String(e)))
         .finally(() => setLoading(false));
     }
-  }, [mode, selectedOwner, portfolioAsOf, lastRefresh]);
+  }, [mode, selectedOwner, portfolioAsOf, lastRefresh, selectedOwnerIsGroup, identityCatalogReady]);
 
   useEffect(() => {
-    if (mode === 'owner' && selectedOwner) {
+    if (mode === 'owner' && selectedOwner && !selectedOwnerIsGroup) {
       setPortfolioAsOf(null);
     }
-  }, [mode, selectedOwner]);
+  }, [mode, selectedOwner, selectedOwnerIsGroup]);
 
   useEffect(() => {
     if (mode === 'instrument' && selectedGroup) {
@@ -506,7 +513,7 @@ export default function App({ onLogout }: AppProps) {
         />
 
         {/* OWNER VIEW */}
-        {mode === 'owner' && (
+        {mode === 'owner' && !selectedOwnerIsGroup && (
           <>
             <ComplianceWarnings owners={selectedOwner ? [selectedOwner] : []} />
             <PortfolioView
@@ -515,6 +522,15 @@ export default function App({ onLogout }: AppProps) {
               error={err}
               onDateChange={handlePortfolioDateChange}
             />
+          </>
+        )}
+
+        {mode === 'owner' && selectedOwnerIsGroup && (
+          <>
+            <ComplianceWarnings
+              owners={groups.find((group) => group.slug === selectedOwner)?.members ?? []}
+            />
+            <GroupPortfolioView slug={selectedOwner} owners={owners} />
           </>
         )}
 

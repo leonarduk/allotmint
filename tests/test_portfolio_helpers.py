@@ -11,8 +11,9 @@ def test_calculate_weights_and_market_values():
     ]
     tickers, weights, market_values = portfolio._calculate_weights_and_market_values(summaries)
 
-    assert tickers == ["aaa", "BBB.L"]
-    assert weights == {"aaa": pytest.approx(50.0), "BBB.L": pytest.approx(50.0)}
+    # tickers are normalised to uppercase by _calculate_weights_and_market_values
+    assert tickers == ["AAA", "BBB.L"]
+    assert weights == {"AAA": pytest.approx(50.0), "BBB.L": pytest.approx(50.0)}
     assert market_values["AAA"] == 100.0
     assert market_values["BBB"] == 50.0
     assert market_values["BBB.L"] == 50.0

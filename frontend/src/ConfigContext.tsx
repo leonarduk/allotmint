@@ -3,7 +3,6 @@ import {
   createContext,
   useContext,
   useEffect,
-  useRef,
   useState,
   useCallback,
   type ReactNode,
@@ -133,9 +132,6 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
       baseCurrency: storedCurrency || "GBP",
     };
   });
-  const baseCurrencyRef = useRef(config.baseCurrency);
-  baseCurrencyRef.current = config.baseCurrency;
-
   const setRelativeViewEnabled = useCallback((enabled: boolean) => {
     setConfig((prev) => ({ ...prev, relativeViewEnabled: enabled }));
     if (typeof window !== "undefined") {
@@ -192,15 +188,15 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         typeof window !== "undefined"
           ? window.localStorage.getItem("relativeViewEnabled")
           : null;
-      setConfig({
+      setConfig((previousConfig) => ({
         relativeViewEnabled: stored
           ? stored === "true"
           : Boolean(cfg.relative_view_enabled),
         disabledTabs: Array.from(disabledTabs),
         tabs,
         theme,
-        baseCurrency: baseCurrencyRef.current,
-      });
+        baseCurrency: previousConfig.baseCurrency,
+      }));
       applyTheme(theme);
     } catch {
       /* ignore */

@@ -200,7 +200,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         theme,
         baseCurrency: previousConfig.baseCurrency,
         enableAdvancedAnalytics: cfg.enable_advanced_analytics !== false,
-      });
+      }));
       applyTheme(theme);
     } catch {
       /* ignore */

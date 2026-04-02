@@ -62,7 +62,7 @@ import {
   downloadInstrumentsCsv,
   printInstrumentsPdf,
 } from './lib/instrumentExports';
-import { isFamilyMvpMode } from './familyMvp';
+import { getFamilyMvpEntryPath, isFamilyMvpMode } from './familyMvp';
 
 const PerformanceDashboard = lazyWithDelay(
   () => import('./components/PerformanceDashboard')
@@ -126,14 +126,20 @@ export function getOwnerRootRedirectPath(
 export function getFamilyMvpRedirectPath(
   pathname: string,
   search: string,
-  entryPath = '/portfolio'
+  entryPath: string | null = '/portfolio'
 ): string | null {
   // Family MVP redirect policy:
   // - Any non-MVP route gets sent to the configured entry flow.
   // - Bare root also lands on the configured entry flow for quickest time-to-value.
+  // - If every Family MVP tab is disabled, leave the current route alone rather
+  //   than redirecting to a route we already know is unavailable.
   //
   // This is intentionally separate from getOwnerRootRedirectPath, which only
   // handles owner/performance root hydration once an owner list is available.
+  if (!entryPath) {
+    return null;
+  }
+
   const routeMode = deriveModeFromPathname(pathname);
   if (!isFamilyMvpMode(routeMode)) {
     return pathname === entryPath ? null : entryPath;
@@ -150,12 +156,10 @@ export default function App({ onLogout }: AppProps) {
   const { t } = useTranslation();
   const { tabs, disabledTabs } = useConfig();
   const { lastRefresh } = usePriceRefresh();
-  const familyMvpEntryPath = useMemo(() => {
-    if (isModeEnabled('owner', tabs, disabledTabs)) return '/portfolio';
-    if (isModeEnabled('performance', tabs, disabledTabs)) return '/performance';
-    if (isModeEnabled('transactions', tabs, disabledTabs)) return '/transactions';
-    return '/portfolio';
-  }, [tabs, disabledTabs]);
+  const familyMvpEntryPath = useMemo(
+    () => getFamilyMvpEntryPath(tabs, disabledTabs),
+    [tabs, disabledTabs]
+  );
 
   const params = new URLSearchParams(location.search);
   const isReportCreationRoute =

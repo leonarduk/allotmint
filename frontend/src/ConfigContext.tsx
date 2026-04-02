@@ -43,6 +43,7 @@ export interface TabsConfig {
 
 export interface AppConfig {
   relativeViewEnabled: boolean;
+  familyMvpEnabled: boolean;
   /**
    * Tabs that should be hidden/disabled from the UI.  We keep the type
    * flexible here so that the context can be consumed without depending on
@@ -72,7 +73,7 @@ const defaultTabs: TabsConfig = {
   owner: true,
   instrument: true,
   performance: true,
-  transactions: false,
+  transactions: true,
   screener: true,
   trading: true,
   timeseries: true,
@@ -105,6 +106,7 @@ export interface ConfigContextValue extends AppConfig {
 
 export const configContext = createContext<ConfigContextValue>({
   relativeViewEnabled: false,
+  familyMvpEnabled: true,
   disabledTabs: [],
   tabs: defaultTabs,
   theme: "system",
@@ -126,6 +128,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         : null;
     return {
       relativeViewEnabled: storedRel === "true",
+      familyMvpEnabled: true,
       disabledTabs: [],
       tabs: defaultTabs,
       theme: "system",
@@ -177,10 +180,6 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
       if (familyMvpEnabled && cfg.enable_advanced_analytics !== true) {
         disableTab("scenario");
       }
-      if (familyMvpEnabled) {
-        // Family MVP excludes transaction history from the default experience.
-        disableTab("transactions");
-      }
       for (const [tab, enabled] of Object.entries(tabs)) {
         if (enabled === false) disabledTabs.add(String(tab));
       }
@@ -193,6 +192,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         relativeViewEnabled: stored
           ? stored === "true"
           : Boolean(cfg.relative_view_enabled),
+        familyMvpEnabled,
         disabledTabs: Array.from(disabledTabs),
         tabs,
         theme,

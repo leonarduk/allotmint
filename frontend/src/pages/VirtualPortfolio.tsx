@@ -18,6 +18,7 @@ interface ManualAccount {
 const STORAGE_KEY = "familyManualPortfolio.v1";
 
 function createId(): string {
+  // Prefer built-in cryptographically secure UUID when available (all modern browsers + HTTPS).
   try {
     if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
       return crypto.randomUUID();
@@ -26,7 +27,31 @@ function createId(): string {
     // Fallback below.
   }
 
-  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  // crypto.randomUUID unavailable: derive a UUID v4 from secure random bytes.
+  // This path is only reached on very old browsers or non-secure contexts.
+  try {
+    const globalCrypto: Crypto | undefined =
+      typeof crypto !== "undefined"
+        ? crypto
+        : (typeof window !== "undefined" && (window as unknown as { crypto?: Crypto }).crypto);
+
+    if (globalCrypto && typeof globalCrypto.getRandomValues === "function") {
+      const bytes = new Uint8Array(16);
+      globalCrypto.getRandomValues(bytes);
+      // Set version (4) and variant bits per RFC 4122.
+      bytes[6] = (bytes[6] & 0x0f) | 0x40;
+      bytes[8] = (bytes[8] & 0x3f) | 0x80;
+      const toHex = (n: number) => n.toString(16).padStart(2, "0");
+      const b = Array.from(bytes, toHex).join("");
+      return [b.slice(0, 8), b.slice(8, 12), b.slice(12, 16), b.slice(16, 20), b.slice(20)].join("-");
+    }
+  } catch {
+    // Last-resort fallback below.
+  }
+
+  // Absolute last resort: time + performance counter (no Math.random).
+  // Uniqueness is best-effort only; document that this path should never be reached in production.
+  return `${Date.now().toString(16)}-${(typeof performance !== "undefined" ? performance.now() : 0).toString(16).replace(".", "")}`;
 }
 
 function createHolding(): ManualHolding {
@@ -81,7 +106,8 @@ function readInitialAccounts(): ManualAccount[] {
 
         return {
           ...account,
-          holdings: sanitizedHoldings,
+          // Ensure every account has at least one holding row after hydration.
+          holdings: sanitizedHoldings.length > 0 ? sanitizedHoldings : [createHolding()],
         };
       });
   } catch {
@@ -307,7 +333,7 @@ export function VirtualPortfolio() {
                     <th className="px-2 py-2">Total value</th>
                     <th className="px-2 py-2">Units</th>
                     <th className="px-2 py-2">Price</th>
-                    <th className="px-2 py-2">Actions</th>
+                    <th className="px-2 py-2" aria-label="Actions">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -363,8 +389,10 @@ export function VirtualPortfolio() {
                       <td className="px-2 py-2">
                         <button
                           type="button"
-                          className="rounded border border-slate-300 px-2 py-1"
+                          className="rounded border border-slate-300 px-2 py-1 disabled:cursor-not-allowed disabled:opacity-40"
+                          disabled={account.holdings.length <= 1}
                           onClick={() => removeHolding(account.id, holding.id)}
+                          aria-label="Remove holding"
                         >
                           Remove
                         </button>

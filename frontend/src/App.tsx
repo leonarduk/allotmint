@@ -123,6 +123,20 @@ export function getOwnerRootRedirectPath(
     : `/portfolio/${encodedOwner}`;
 }
 
+export function getFamilyMvpRedirectPath(
+  pathname: string,
+  search: string
+): string | null {
+  const routeMode = deriveModeFromPathname(pathname);
+  if (!isFamilyMvpMode(routeMode)) {
+    return pathname === '/transactions' ? null : '/transactions';
+  }
+  if (routeMode === 'group' && pathname === '/' && !search) {
+    return '/transactions';
+  }
+  return null;
+}
+
 export default function App({ onLogout }: AppProps) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -211,15 +225,14 @@ export default function App({ onLogout }: AppProps) {
   const groupsReq = useFetchWithRetry(getGroups, 500, 5, [retryNonce]);
 
   useEffect(() => {
-    if (!isFamilyMvpMode(mode)) {
-      navigate('/transactions', { replace: true });
-      return;
+    const redirectPath = getFamilyMvpRedirectPath(
+      location.pathname,
+      location.search
+    );
+    if (redirectPath) {
+      navigate(redirectPath, { replace: true });
     }
-
-    if (mode === 'group' && location.pathname === '/' && !location.search) {
-      navigate('/transactions', { replace: true });
-    }
-  }, [location.pathname, location.search, mode, navigate]);
+  }, [location.pathname, location.search, navigate]);
 
   useEffect(() => {
     const segs = location.pathname.split('/').filter(Boolean);

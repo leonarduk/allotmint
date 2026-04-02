@@ -125,8 +125,12 @@ export function getOwnerRootRedirectPath(
 
 export function getFamilyMvpRedirectPath(
   pathname: string,
-  search: string
+  search: string,
+  familyMvpEnabled: boolean
 ): string | null {
+  if (!familyMvpEnabled) {
+    return null;
+  }
   // Family MVP redirect policy:
   // - Any non-MVP route gets sent to the input flow (/transactions).
   // - Bare root also lands on /transactions for quickest time-to-value.
@@ -147,7 +151,7 @@ export default function App({ onLogout }: AppProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useTranslation();
-  const { tabs, disabledTabs } = useConfig();
+  const { tabs, disabledTabs, familyMvpEnabled } = useConfig();
   const { lastRefresh } = usePriceRefresh();
 
   const params = new URLSearchParams(location.search);
@@ -233,15 +237,16 @@ export default function App({ onLogout }: AppProps) {
   useEffect(() => {
     const redirectPath = getFamilyMvpRedirectPath(
       location.pathname,
-      location.search
+      location.search,
+      familyMvpEnabled
     );
     if (redirectPath) {
       navigate(redirectPath, { replace: true });
     }
-  }, [location.pathname, location.search, navigate]);
+  }, [familyMvpEnabled, location.pathname, location.search, navigate]);
 
   useEffect(() => {
-    if (getFamilyMvpRedirectPath(location.pathname, location.search)) {
+    if (getFamilyMvpRedirectPath(location.pathname, location.search, familyMvpEnabled)) {
       return;
     }
 
@@ -277,7 +282,7 @@ export default function App({ onLogout }: AppProps) {
     } else if (newMode === 'research') {
       setResearchTicker(segs[1] ? decodeURIComponent(segs[1] ?? '') : '');
     }
-  }, [location.pathname, location.search, tabs, disabledTabs, navigate]);
+  }, [familyMvpEnabled, location.pathname, location.search, tabs, disabledTabs, navigate]);
 
   useEffect(() => {
     if (!ownersReq.data) return;

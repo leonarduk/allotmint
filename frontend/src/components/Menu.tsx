@@ -43,12 +43,12 @@ export default function Menu({
 }: MenuProps) {
   const location = useLocation();
   const { t } = useTranslation();
-  const { tabs, disabledTabs } = useConfig();
+  const { tabs, disabledTabs, familyMvpEnabled } = useConfig();
   const mode = deriveModeFromPathname(location.pathname) as TabPluginId;
   const isSupportMode = (SUPPORT_TABS as readonly string[]).includes(mode);
   const inSupport = mode === 'support';
   const supportEnabled =
-    isFamilyMvpMode('support') &&
+    !familyMvpEnabled &&
     tabs.support !== false &&
     !disabledTabs?.includes('support');
 
@@ -71,11 +71,8 @@ export default function Menu({
           return false;
         }
 
-        return (
-          isFamilyMvpMode(entry.mode) &&
-          tabs[entry.mode] === true &&
-          !disabledTabs?.includes(entry.mode)
-        );
+        const modeAllowed = !familyMvpEnabled || isFamilyMvpMode(entry.mode);
+        return modeAllowed && tabs[entry.mode] === true && !disabledTabs?.includes(entry.mode);
       }),
     [disabledTabs, inSupport, isSupportMode, tabs]
   );
@@ -91,10 +88,10 @@ export default function Menu({
           if (category.tabs.length > 0) return true;
           return (
             category.id === 'preferences' &&
-            (supportEnabled || Boolean(onLogout))
+            (supportEnabled || (!familyMvpEnabled && Boolean(onLogout)))
           );
         }),
-    [availableTabs, categoryDefinitions, onLogout, supportEnabled]
+    [availableTabs, categoryDefinitions, familyMvpEnabled, onLogout, supportEnabled]
   );
 
   const [openCategory, setOpenCategory] = useState<string | null>(null);
@@ -275,7 +272,7 @@ export default function Menu({
                       </Link>
                     </li>
                   )}
-                  {category.id === 'preferences' && onLogout && (
+                  {category.id === 'preferences' && !familyMvpEnabled && onLogout && (
                     <li key="logout">
                       <button
                         ref={(element) => assignFirstFocusable(element)}

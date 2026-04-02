@@ -36,7 +36,7 @@ export function HoldingsTable({
   showForward30d = false,
 }: Props) {
   const { t } = useTranslation();
-  const { relativeViewEnabled, baseCurrency } = useConfig();
+  const { relativeViewEnabled, baseCurrency, familyMvpEnabled } = useConfig();
   let navigate: (path: string) => void = () => {};
   try {
     navigate = useNavigate();
@@ -213,66 +213,70 @@ export function HoldingsTable({
   return (
     <>
       <FilterBar state={filters} dispatch={dispatchFilters} />
-      <div className="mb-2">
-        <RelativeViewToggle />
-      </div>
-      <div className="mb-2">
-        {t("holdingsTable.range")}
-        {[7, 30, 180].map((d) => (
-          <label key={d} className="ml-2">
+      {!familyMvpEnabled && (
+        <>
+          <div className="mb-2">
+            <RelativeViewToggle />
+          </div>
+          <div className="mb-2">
+            {t("holdingsTable.range")}
+            {[7, 30, 180].map((d) => (
+              <label key={d} className="ml-2">
+                <input
+                  type="radio"
+                  name="sparkRange"
+                  checked={sparkRange === d}
+                  onChange={() => setSparkRange(d as 7 | 30 | 180)}
+                />
+                {t("holdingsTable.rangeOption", { count: d })}
+              </label>
+            ))}
+          </div>
+          <div className="mb-2">
+            {t("holdingsTable.view")}
+            {viewPresets.map((p) => (
+              <button
+                key={p.label}
+                type="button"
+                onClick={() => setViewPreset(p.value)}
+                className={`ml-2 ${viewPreset === p.value ? 'font-bold' : ''} focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+          <div className="mb-2">
+            {t("holdingsTable.quickFilters")}
+            <button
+              type="button"
+              className="ml-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+              onClick={() => handleFilterChange("sell_eligible", "true")}
+            >
+              {t("holdingsTable.quickFiltersSellEligible")}
+            </button>
             <input
-              type="radio"
-              name="sparkRange"
-              checked={sparkRange === d}
-              onChange={() => setSparkRange(d as 7 | 30 | 180)}
+              type="number"
+              placeholder={t("holdingsTable.minimumGainPrompt")}
+              value={filters.gain_pct}
+              onChange={(e) => handleFilterChange("gain_pct", e.target.value)}
+              className="ml-2"
             />
-            {t("holdingsTable.rangeOption", { count: d })}
-          </label>
-        ))}
-      </div>
-      <div className="mb-2">
-        {t("holdingsTable.view")}
-        {viewPresets.map((p) => (
-          <button
-            key={p.label}
-            type="button"
-            onClick={() => setViewPreset(p.value)}
-            className={`ml-2 ${viewPreset === p.value ? 'font-bold' : ''} focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500`}
-          >
-            {p.label}
-          </button>
-        ))}
-      </div>
-      <div className="mb-2">
-        {t("holdingsTable.quickFilters")}
-        <button
-          type="button"
-          className="ml-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
-          onClick={() => handleFilterChange("sell_eligible", "true")}
-        >
-          {t("holdingsTable.quickFiltersSellEligible")}
-        </button>
-        <input
-          type="number"
-          placeholder={t("holdingsTable.minimumGainPrompt")}
-          value={filters.gain_pct}
-          onChange={(e) => handleFilterChange("gain_pct", e.target.value)}
-          className="ml-2"
-        />
-      </div>
-      <div className="mb-2">
-        {t("holdingsTable.columnsLabel")}
-        {columnLabels.map(([key, label]) => (
-          <label key={key} className="ml-2">
-            <input
-              type="checkbox"
-              checked={visibleColumns[key]}
-              onChange={() => toggleColumn(key)}
-            />
-            {label}
-          </label>
-        ))}
-      </div>
+          </div>
+          <div className="mb-2">
+            {t("holdingsTable.columnsLabel")}
+            {columnLabels.map(([key, label]) => (
+              <label key={key} className="ml-2">
+                <input
+                  type="checkbox"
+                  checked={visibleColumns[key]}
+                  onChange={() => toggleColumn(key)}
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+        </>
+      )}
       {sortedRows.length ? (
         <div ref={tableContainerRef} className="overflow-x-auto md:overflow-visible">
           <table className={`${tableStyles.table} mb-4 w-full`}>

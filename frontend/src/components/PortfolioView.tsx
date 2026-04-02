@@ -219,7 +219,7 @@ export function PortfolioView({ data, loading, error, onDateChange }: Props) {
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
   const [hasWarnings, setHasWarnings] = useState(false);
   const [pendingDate, setPendingDate] = useState<string>("");
-  const { baseCurrency, enableAdvancedAnalytics = true } = useConfig();
+  const { baseCurrency, enableAdvancedAnalytics = true, familyMvpEnabled } = useConfig();
 
   const accountKey = (acct: Account, idx: number) => `${acct.account_type}-${idx}`;
 
@@ -314,59 +314,63 @@ export function PortfolioView({ data, loading, error, onDateChange }: Props) {
     <div className="space-y-6">
       <div className="grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <section className="rounded-lg border border-gray-800 bg-gray-900/70 p-4 md:p-6">
-          <form
-            onSubmit={handleDateSubmit}
-            className="mb-4 flex flex-wrap items-center gap-2 text-sm text-gray-300"
-          >
-            <label htmlFor="portfolio-as-of" className="flex items-center gap-2">
-              <span>As of</span>
-              <input
-                id="portfolio-as-of"
-                type="date"
-                value={pendingDate}
-                max={todayIso}
-                onChange={(e) => setPendingDate(e.target.value)}
-                className="rounded border border-gray-700 bg-gray-800 p-1 text-white"
-              />
-            </label>
-            <button
-              type="submit"
-              className="rounded bg-blue-600 px-3 py-1 text-white hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
+          {!familyMvpEnabled && (
+            <form
+              onSubmit={handleDateSubmit}
+              className="mb-4 flex flex-wrap items-center gap-2 text-sm text-gray-300"
             >
-              Go
-            </button>
-            {data.as_of && (
-              <span className="text-xs text-gray-400">
-                Showing {formatDateISO(new Date(data.as_of))}
-              </span>
-            )}
-          </form>
+              <label htmlFor="portfolio-as-of" className="flex items-center gap-2">
+                <span>As of</span>
+                <input
+                  id="portfolio-as-of"
+                  type="date"
+                  value={pendingDate}
+                  max={todayIso}
+                  onChange={(e) => setPendingDate(e.target.value)}
+                  className="rounded border border-gray-700 bg-gray-800 p-1 text-white"
+                />
+              </label>
+              <button
+                type="submit"
+                className="rounded bg-blue-600 px-3 py-1 text-white hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
+              >
+                Go
+              </button>
+              {data.as_of && (
+                <span className="text-xs text-gray-400">
+                  Showing {formatDateISO(new Date(data.as_of))}
+                </span>
+              )}
+            </form>
+          )}
           <div className="mb-6 text-lg font-semibold text-white">
             Approx Total: {money(totalValue, baseCurrency)}
           </div>
-          <div className="mb-6 rounded-lg border border-gray-800 bg-black/20 p-3">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
-              Export portfolio
-            </p>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={handleExportCsv}
-                aria-label="Export portfolio as CSV"
-                className="rounded border border-gray-700 px-3 py-1 text-white hover:border-gray-500 hover:bg-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
-              >
-                Export CSV
-              </button>
-              <button
-                type="button"
-                onClick={handleExportPdf}
-                aria-label="Export portfolio as PDF"
-                className="rounded border border-gray-700 px-3 py-1 text-white hover:border-gray-500 hover:bg-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
-              >
-                Export PDF
-              </button>
+          {!familyMvpEnabled && (
+            <div className="mb-6 rounded-lg border border-gray-800 bg-black/20 p-3">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                Export portfolio
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleExportCsv}
+                  aria-label="Export portfolio as CSV"
+                  className="rounded border border-gray-700 px-3 py-1 text-white hover:border-gray-500 hover:bg-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
+                >
+                  Export CSV
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportPdf}
+                  aria-label="Export portfolio as PDF"
+                  className="rounded border border-gray-700 px-3 py-1 text-white hover:border-gray-500 hover:bg-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
+                >
+                  Export PDF
+                </button>
+              </div>
             </div>
-          </div>
+          )}
           {hasWarnings && (
             <div className="mb-4">
               <Link
@@ -415,6 +419,42 @@ export function PortfolioView({ data, loading, error, onDateChange }: Props) {
                 )}
               </div>
             </>
+          <div className="mb-6 rounded-lg border border-gray-800 bg-black/30 p-4">
+            <ValueAtRisk owner={data.owner} onDateChange={onDateChange} />
+          </div>
+          {!familyMvpEnabled && (
+            <div className="mb-6 rounded-lg border border-gray-800 bg-black/30 p-4">
+              <h3 className="mb-3 text-base font-semibold text-white">
+                Sector contribution
+              </h3>
+              {sectorLoading ? (
+                <p className="text-sm text-gray-400">Loading sector data…</p>
+              ) : sectorError ? (
+                <p className="text-sm text-red-500">
+                  Failed to load sector contribution
+                </p>
+              ) : sectorContrib && sectorContrib.length > 0 ? (
+                <div className="h-64 w-full">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
+                    <BarChart data={sectorContrib}>
+                      <XAxis dataKey="sector" interval={0} angle={-35} textAnchor="end" height={70} />
+                      <YAxis />
+                      <Tooltip formatter={(v: number | undefined) => money(v, baseCurrency)} />
+                      <Bar dataKey="gain_gbp">
+                        {sectorContrib.map((row, idx) => (
+                          <Cell
+                            key={`${row.sector}-${idx}`}
+                            fill={row.gain_gbp >= 0 ? "#22c55e" : "#ef4444"}
+                          />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-400">No sector data available.</p>
+              )}
+            </div>
           )}
           <div className="space-y-4">
             {data.accounts.map((acct, idx) => {

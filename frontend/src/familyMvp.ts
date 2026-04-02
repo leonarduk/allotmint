@@ -3,7 +3,6 @@ import type { Mode } from './modes';
 export const FAMILY_MVP_MODES: ReadonlySet<Mode> = new Set<Mode>([
   'transactions',
   'owner',
-  'performance',
 ]);
 
 export function isFamilyMvpMode(mode: Mode): boolean {

@@ -125,20 +125,21 @@ export function getOwnerRootRedirectPath(
 
 export function getFamilyMvpRedirectPath(
   pathname: string,
-  search: string
+  search: string,
+  entryPath = '/portfolio'
 ): string | null {
   // Family MVP redirect policy:
-  // - Any non-MVP route gets sent to the input flow (/transactions).
-  // - Bare root also lands on /transactions for quickest time-to-value.
+  // - Any non-MVP route gets sent to the configured entry flow.
+  // - Bare root also lands on the configured entry flow for quickest time-to-value.
   //
   // This is intentionally separate from getOwnerRootRedirectPath, which only
   // handles owner/performance root hydration once an owner list is available.
   const routeMode = deriveModeFromPathname(pathname);
   if (!isFamilyMvpMode(routeMode)) {
-    return pathname === '/transactions' ? null : '/transactions';
+    return pathname === entryPath ? null : entryPath;
   }
   if (routeMode === 'group' && pathname === '/' && !search) {
-    return '/transactions';
+    return entryPath;
   }
   return null;
 }
@@ -149,6 +150,12 @@ export default function App({ onLogout }: AppProps) {
   const { t } = useTranslation();
   const { tabs, disabledTabs } = useConfig();
   const { lastRefresh } = usePriceRefresh();
+  const familyMvpEntryPath = useMemo(() => {
+    if (isModeEnabled('owner', tabs, disabledTabs)) return '/portfolio';
+    if (isModeEnabled('performance', tabs, disabledTabs)) return '/performance';
+    if (isModeEnabled('transactions', tabs, disabledTabs)) return '/transactions';
+    return '/portfolio';
+  }, [tabs, disabledTabs]);
 
   const params = new URLSearchParams(location.search);
   const isReportCreationRoute =
@@ -233,15 +240,16 @@ export default function App({ onLogout }: AppProps) {
   useEffect(() => {
     const redirectPath = getFamilyMvpRedirectPath(
       location.pathname,
-      location.search
+      location.search,
+      familyMvpEntryPath
     );
     if (redirectPath) {
       navigate(redirectPath, { replace: true });
     }
-  }, [location.pathname, location.search, navigate]);
+  }, [location.pathname, location.search, navigate, familyMvpEntryPath]);
 
   useEffect(() => {
-    if (getFamilyMvpRedirectPath(location.pathname, location.search)) {
+    if (getFamilyMvpRedirectPath(location.pathname, location.search, familyMvpEntryPath)) {
       return;
     }
 
@@ -277,7 +285,7 @@ export default function App({ onLogout }: AppProps) {
     } else if (newMode === 'research') {
       setResearchTicker(segs[1] ? decodeURIComponent(segs[1] ?? '') : '');
     }
-  }, [location.pathname, location.search, tabs, disabledTabs, navigate]);
+  }, [location.pathname, location.search, tabs, disabledTabs, navigate, familyMvpEntryPath]);
 
   useEffect(() => {
     if (!ownersReq.data) return;

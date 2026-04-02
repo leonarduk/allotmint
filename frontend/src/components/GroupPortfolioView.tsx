@@ -123,7 +123,11 @@ type Props = {
  * ────────────────────────────────────────────────────────── */
 export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   const { t } = useTranslation();
-  const { relativeViewEnabled, baseCurrency } = useConfig();
+  const {
+    relativeViewEnabled,
+    baseCurrency,
+    enableAdvancedAnalytics = true,
+  } = useConfig();
   const [asOfOverride, setAsOfOverride] = useState<string | null>(null);
 
   const fetchPortfolio = useCallback(
@@ -146,13 +150,13 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   );
   const { data: sectorContrib } = useFetch<SectorContribution[]>(
     fetchSector,
-    [slug, asOfOverride],
-    !!slug,
+    [slug, asOfOverride, enableAdvancedAnalytics],
+    !!slug && enableAdvancedAnalytics,
   );
   const { data: regionContrib } = useFetch<RegionContribution[]>(
     fetchRegion,
-    [slug, asOfOverride],
-    !!slug,
+    [slug, asOfOverride, enableAdvancedAnalytics],
+    !!slug && enableAdvancedAnalytics,
   );
   const [alpha, setAlpha] = useState<number | null>(null);
   const [trackingError, setTrackingError] = useState<number | null>(null);
@@ -336,7 +340,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   }, [portfolio]);
 
   useEffect(() => {
-    if (!slug) return;
+    if (!slug || !enableAdvancedAnalytics) return;
     setError(null);
     Promise.all([
       getGroupAlphaVsBenchmark(slug, "VWRL.L"),
@@ -351,7 +355,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
       .catch((e) =>
         setError(e instanceof Error ? e : new Error(String(e)))
       );
-  }, [slug]);
+  }, [slug, enableAdvancedAnalytics]);
 
   useEffect(() => {
     if (onTradeInfo) {
@@ -684,7 +688,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
         <PortfolioSummary totals={totals} />
       )}
 
-      {isAllPositions && (
+      {isAllPositions && enableAdvancedAnalytics && (
         <div
           style={{
             display: "flex",
@@ -753,7 +757,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
         </div>
       )}
 
-      {isAllPositions && (
+      {isAllPositions && enableAdvancedAnalytics && (
         <div style={{ marginBottom: "1rem" }}>
           <a
             href="/metrics-explained"
@@ -768,7 +772,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
         </div>
       )}
 
-      {isAllPositions && error && (
+      {isAllPositions && enableAdvancedAnalytics && error && (
         <p style={{ color: "red" }}>
           {t("common.error")}: {error.message}
         </p>
@@ -806,7 +810,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
         </div>
       )}
 
-      {isAllPositions && (sectorContrib?.length || regionContrib?.length) && (
+      {isAllPositions && enableAdvancedAnalytics && (sectorContrib?.length || regionContrib?.length) && (
         <div style={{ width: "100%", height: 300, margin: "1rem 0" }}>
           <div style={{ marginBottom: "0.5rem" }}>
             <button
@@ -849,7 +853,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
         </div>
       )}
 
-      {isAllPositions && <TopMoversSummary slug={slug} />}
+      {isAllPositions && enableAdvancedAnalytics && <TopMoversSummary slug={slug} />}
 
       {ownerRows.length > 0 && (
         <table className={tableStyles.table} style={{ marginBottom: "1rem" }}>

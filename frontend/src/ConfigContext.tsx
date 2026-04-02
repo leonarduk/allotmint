@@ -52,6 +52,7 @@ export interface AppConfig {
   tabs: TabsConfig;
   theme: "dark" | "light" | "system";
   baseCurrency: string;
+  enableAdvancedAnalytics?: boolean;
 }
 
 export interface RawConfig {
@@ -109,6 +110,7 @@ export const configContext = createContext<ConfigContextValue>({
   tabs: defaultTabs,
   theme: "system",
   baseCurrency: "GBP",
+  enableAdvancedAnalytics: true,
   refreshConfig: async () => {},
   setRelativeViewEnabled: () => {},
   setBaseCurrency: () => {},
@@ -130,9 +132,9 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
       tabs: defaultTabs,
       theme: "system",
       baseCurrency: storedCurrency || "GBP",
+      enableAdvancedAnalytics: true,
     };
   });
-
   const setRelativeViewEnabled = useCallback((enabled: boolean) => {
     setConfig((prev) => ({ ...prev, relativeViewEnabled: enabled }));
     if (typeof window !== "undefined") {
@@ -189,20 +191,21 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         typeof window !== "undefined"
           ? window.localStorage.getItem("relativeViewEnabled")
           : null;
-      setConfig({
+      setConfig((previousConfig) => ({
         relativeViewEnabled: stored
           ? stored === "true"
           : Boolean(cfg.relative_view_enabled),
         disabledTabs: Array.from(disabledTabs),
         tabs,
         theme,
-        baseCurrency: config.baseCurrency,
+        baseCurrency: previousConfig.baseCurrency,
+        enableAdvancedAnalytics: cfg.enable_advanced_analytics !== false,
       });
       applyTheme(theme);
     } catch {
       /* ignore */
     }
-  }, [config.baseCurrency]);
+  }, []);
 
   useEffect(() => {
     refreshConfig();

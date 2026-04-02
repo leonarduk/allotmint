@@ -187,10 +187,9 @@ def test_local_login_email_override(monkeypatch, tmp_path):
 
 
 def test_allowed_emails_loaded_lowercase():
-    expected = [
-        email.lower()
-        for email in yaml.safe_load(_project_config_path().read_text())["auth"]["allowed_emails"]
-    ]
+    raw = yaml.safe_load(_project_config_path().read_text())["auth"]["allowed_emails"]
+    emails = raw if isinstance(raw, list) else [raw]
+    expected = [email.lower() for email in emails]
     cfg = reload_config()
     assert cfg.allowed_emails == expected
 

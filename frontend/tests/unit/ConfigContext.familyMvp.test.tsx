@@ -1,5 +1,6 @@
+import { useEffect } from "react";
 import { render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ConfigProvider, useConfig } from "@/ConfigContext";
 
 vi.mock("@/api", async (importOriginal) => {
@@ -21,7 +22,19 @@ function Probe() {
   );
 }
 
+function BaseCurrencySetter() {
+  const { baseCurrency, setBaseCurrency } = useConfig();
+  useEffect(() => {
+    setBaseCurrency("USD");
+  }, [setBaseCurrency]);
+  return <div data-testid="base-currency-probe">{baseCurrency}</div>;
+}
+
 describe("ConfigProvider Family MVP gating", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("disables non-MVP tabs by default when Family MVP mode is enabled", async () => {
     const { getConfig } = await import("@/api");
     vi.mocked(getConfig).mockResolvedValue({
@@ -145,5 +158,24 @@ describe("ConfigProvider Family MVP gating", () => {
       expect(disabledTabs.has("reports")).toBe(false);
       expect(disabledTabs.has("scenario")).toBe(false);
     });
+  });
+
+  it("does not refetch config when base currency changes locally", async () => {
+    const { getConfig } = await import("@/api");
+    vi.mocked(getConfig).mockResolvedValue({
+      enable_family_mvp: true,
+      tabs: {},
+    });
+
+    render(
+      <ConfigProvider>
+        <BaseCurrencySetter />
+      </ConfigProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("base-currency-probe").textContent).toBe("USD");
+    });
+    expect(vi.mocked(getConfig)).toHaveBeenCalledTimes(1);
   });
 });

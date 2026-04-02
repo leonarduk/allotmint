@@ -90,7 +90,7 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
         allowlist_raw = getattr(cfg, "allowed_emails", None)
-        if allowlist_raw and not os.getenv("TESTING"):
+        if allowlist_raw and not (cfg.disable_auth or os.getenv("TESTING")):
             normalized = {item.strip().lower() for item in allowlist_raw if isinstance(item, str) and item.strip()}
             if normalized and email.lower() not in normalized:
                 logger.warning("Email %s not authorized for login", email)

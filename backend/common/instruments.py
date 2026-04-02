@@ -35,7 +35,6 @@ def _resolve_instruments_dir() -> Path:
     return configured_dir
 
 
-_INSTRUMENTS_DIR = _resolve_instruments_dir()
 _VALID_RE = re.compile(r"^[A-Z0-9-]+$")
 
 METADATA_BUCKET_ENV = "METADATA_BUCKET"
@@ -105,19 +104,21 @@ def _s3_location() -> tuple[str, str] | None:
 
 
 def _instrument_path(ticker: str) -> Path:
+    instruments_dir = _resolve_instruments_dir()
     sym, exch = (ticker.split(".", 1) + [None])[:2]
     sym = _validate_part(sym)
     if exch is not None:
         exch = _validate_part(exch)
     if sym == "CASH":
         ccy = exch or "GBP"
-        return _INSTRUMENTS_DIR / "Cash" / f"{ccy}.json"
+        return instruments_dir / "Cash" / f"{ccy}.json"
     folder = exch if exch else "Unknown"
-    return _INSTRUMENTS_DIR / folder / f"{sym}.json"
+    return instruments_dir / folder / f"{sym}.json"
 
 
 def _instrument_key(ticker: str, prefix: str) -> str:
-    rel = _instrument_path(ticker).relative_to(_INSTRUMENTS_DIR).as_posix()
+    instruments_dir = _resolve_instruments_dir()
+    rel = _instrument_path(ticker).relative_to(instruments_dir).as_posix()
     return f"{prefix}{rel}"
 
 

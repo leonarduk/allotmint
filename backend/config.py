@@ -194,13 +194,17 @@ def _coerce_bool_with_default(value: Any, *, key: str, default: bool) -> bool:
 
 
 def _flatten_dict(src: Dict[str, Any], dst: Dict[str, Any]) -> None:
-    """Flatten one level of ``src`` into ``dst`` while preserving nested maps."""
+    """Flatten one level of ``src`` into ``dst`` while preserving nested maps.
+
+    Keep the first value seen for a key so duplicated legacy top-level entries
+    do not override the canonical section-based values parsed earlier.
+    """
     for key, value in src.items():
         if isinstance(value, dict):
             for sub_key, sub_val in value.items():
-                dst[sub_key] = sub_val
+                dst.setdefault(sub_key, sub_val)
         else:
-            dst[key] = value
+            dst.setdefault(key, value)
 
 
 def _parse_str_list(val: Any) -> Optional[List[str]]:

@@ -660,7 +660,7 @@ class ReportContext:
             )
         except (FileNotFoundError, ValueError) as exc:
             logger.warning("failed to build owner portfolio for %s: %s", self.owner, exc)
-            self._owner_portfolio = None
+            self._owner_portfolio = self.portfolio() or None
         return self._owner_portfolio
 
     def allocation(self) -> List[Dict[str, Any]]:

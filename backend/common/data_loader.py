@@ -143,17 +143,30 @@ def resolve_paths(
     handled even when running on a POSIX platform.
     """
 
-    if repo_root and Path(repo_root).exists():
-        repo_path = Path(repo_root).expanduser()
-    else:
-        repo_path = Path(__file__).resolve().parents[2]
+    def _usable_path(value: Path | str | None) -> Path | None:
+        if value is None:
+            return None
+        raw = str(value)
+        candidate = Path(raw).expanduser()
+        if candidate.exists():
+            return candidate
+        if candidate.is_absolute() and not candidate.exists():
+            return None
+        if PureWindowsPath(raw).is_absolute():
+            return None
+        return candidate
+
+    repo_path = _usable_path(repo_root) or Path(__file__).resolve().parents[2]
 
     data_root = repo_path / "data"
 
     if accounts_root:
         acct_str = str(accounts_root)
-        if Path(acct_str).is_absolute() or PureWindowsPath(acct_str).is_absolute():
-            accounts_path = Path(acct_str).expanduser()
+        usable_accounts_root = _usable_path(accounts_root)
+        if usable_accounts_root is not None and usable_accounts_root.is_absolute():
+            accounts_path = usable_accounts_root
+        elif Path(acct_str).is_absolute() or PureWindowsPath(acct_str).is_absolute():
+            accounts_path = data_root / "accounts"
         else:
             accounts_path = (repo_path / acct_str).resolve()
         data_root = accounts_path.parent

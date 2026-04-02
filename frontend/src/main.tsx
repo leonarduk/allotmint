@@ -12,11 +12,18 @@ import { createRoot } from 'react-dom/client';
 import { HelmetProvider } from 'react-helmet-async';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import {
+  BrowserRouter,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from 'react-router-dom';
 import './index.css';
 import './styles/responsive.css';
 import './i18n';
-import { ConfigProvider } from './ConfigContext';
+import { ConfigProvider, useConfig } from './ConfigContext';
 import { PriceRefreshProvider } from './PriceRefreshContext';
 import { AuthProvider, useAuth } from './AuthContext';
 import {
@@ -31,7 +38,12 @@ import { UserProvider, useUser } from './UserContext';
 import ErrorBoundary from './ErrorBoundary';
 import { loadStoredAuthUser, loadStoredUserProfile } from './authStorage';
 import { RouteProvider } from './RouteContext';
-import { deriveBootstrapMode, deriveModeFromPathname, standalonePageRoutes } from './pageManifest';
+import {
+  deriveBootstrapMode,
+  deriveModeFromPathname,
+  isModeEnabled,
+  standalonePageRoutes,
+} from './pageManifest';
 
 interface BootstrapConfig {
   google_auth_enabled?: boolean | null;
@@ -51,6 +63,13 @@ const PerformanceDiagnostics = lazy(() => import('./pages/PerformanceDiagnostics
 const ReturnComparison = lazy(() => import('./pages/ReturnComparison'));
 const MetricsExplanation = lazy(() => import('./pages/MetricsExplanation'));
 const SmokeTest = lazy(() => import('./pages/SmokeTest'));
+const FAMILY_MVP_ROUTE_GATES: ReadonlyArray<{ mode: Parameters<typeof isModeEnabled>[0]; path: string }> = [
+  { mode: "transactions", path: "/transactions" },
+  { mode: "reports", path: "/reports" },
+  { mode: "taxtools", path: "/tax-tools" },
+  { mode: "trail", path: "/trail" },
+  { mode: "trade-compliance", path: "/trade-compliance" },
+];
 
 const routeMarkerStyle: CSSProperties = {
   position: 'absolute',
@@ -107,6 +126,9 @@ export function Root() {
   const { setProfile } = useUser();
   const navigate = useNavigate();
   const location = useLocation();
+  const { tabs, disabledTabs } = useConfig();
+  const complianceRoutesEnabled = isModeEnabled("trade-compliance", tabs, disabledTabs);
+  const advancedAnalyticsEnabled = isModeEnabled("scenario", tabs, disabledTabs);
   const activeRequest = useRef<AbortController | null>(null);
   const retryTimer = useRef<number | null>(null);
   const isMounted = useRef(true);
@@ -297,10 +319,17 @@ export function Root() {
     <ErrorBoundary key={location.pathname}>
       <Suspense fallback={<div>Loading...</div>}>
         <Routes>
-          <Route path="/compliance" element={<ComplianceWarnings />} />
-          <Route path="/compliance/:owner" element={<ComplianceWarnings />} />
+          {complianceRoutesEnabled ? (
+            <>
+              <Route path="/compliance" element={<ComplianceWarnings />} />
+              <Route path="/compliance/:owner" element={<ComplianceWarnings />} />
+            </>
+          ) : null}
           {standalonePageRoutes.flatMap((route) => {
             if (route.routePath === '/virtual' || !route.lazyComponent) {
+              return [];
+            }
+            if (!isModeEnabled(route.mode, tabs, disabledTabs)) {
               return [];
             }
 
@@ -309,14 +338,23 @@ export function Root() {
               <Route key={route.routePath} path={route.routePath} element={<Component />} />,
             ];
           })}
+          {FAMILY_MVP_ROUTE_GATES.flatMap(({ mode, path }) =>
+            isModeEnabled(mode, tabs, disabledTabs)
+              ? []
+              : [<Route key={`disabled-${path}`} path={path} element={<Navigate to="/" replace />} />],
+          )}
           <Route path="/goals" element={<Goals />} />
           <Route path="/smoke-test" element={<SmokeTest />} />
-          <Route
-            path="/performance/:owner/diagnostics"
-            element={<PerformanceDiagnostics />}
-          />
-          <Route path="/returns/compare" element={<ReturnComparison />} />
-          <Route path="/metrics-explained" element={<MetricsExplanation />} />
+          {advancedAnalyticsEnabled ? (
+            <>
+              <Route
+                path="/performance/:owner/diagnostics"
+                element={<PerformanceDiagnostics />}
+              />
+              <Route path="/returns/compare" element={<ReturnComparison />} />
+              <Route path="/metrics-explained" element={<MetricsExplanation />} />
+            </>
+          ) : null}
           <Route
             path="/*"
             element={

@@ -106,7 +106,7 @@ export interface ConfigContextValue extends AppConfig {
 }
 
 export const configContext = createContext<ConfigContextValue>({
-  configLoaded: true,
+  configLoaded: false,
   relativeViewEnabled: false,
   disabledTabs: [],
   tabs: defaultTabs,

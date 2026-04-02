@@ -255,6 +255,10 @@ export default function App({ onLogout }: AppProps) {
   }, [location.pathname, location.search, navigate, familyMvpEntryPath]);
 
   useEffect(() => {
+    if (!configLoaded) {
+      return;
+    }
+
     const redirectPath = getFamilyMvpRedirectPath(
       location.pathname,
       location.search,

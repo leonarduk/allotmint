@@ -31,9 +31,20 @@ function BaseCurrencySetter() {
   return <div data-testid="base-currency-probe">{baseCurrency}</div>;
 }
 
+
+function UnwrappedProbe() {
+  const { configLoaded } = useConfig();
+  return <div data-testid="unwrapped-config-loaded">{String(configLoaded)}</div>;
+}
+
 describe("ConfigProvider Family MVP gating", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("defaults to an unloaded config state outside the provider", () => {
+    render(<UnwrappedProbe />);
+    expect(screen.getByTestId("unwrapped-config-loaded").textContent).toBe("false");
   });
 
   it("disables non-MVP tabs by default when Family MVP mode is enabled", async () => {
@@ -179,5 +190,20 @@ describe("ConfigProvider Family MVP gating", () => {
       expect(screen.getByTestId("base-currency-probe").textContent).toBe("USD");
     });
     expect(vi.mocked(getConfig)).toHaveBeenCalledTimes(1);
+  });
+
+  it("marks config as loaded when config fetch fails", async () => {
+    const { getConfig } = await import("@/api");
+    vi.mocked(getConfig).mockRejectedValue(new Error("boom"));
+
+    render(
+      <ConfigProvider>
+        <Probe />
+      </ConfigProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("config-probe").getAttribute("data-config-loaded")).toBe("true");
+    });
   });
 });

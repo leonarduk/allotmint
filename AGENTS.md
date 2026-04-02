@@ -52,6 +52,7 @@ This repository has a Python/FastAPI backend, a React/Vite frontend, AWS CDK inf
 - Backend/API smoke: `npm run smoke:test`
 - Combined smoke orchestration: `npm run smoke:test:all`
 - Frontend smoke: `npm --prefix frontend run smoke:frontend`
+- Codex browser POC smoke: `npm run smoke:test:codex:poc`
 
 ## 4. Important repo-specific realities discovered during review
 

@@ -25,6 +25,7 @@ bash scripts/bash/run-local-api.sh
 npm --prefix frontend run dev
 npm run smoke:test
 npm run smoke:test:all
+npm run smoke:test:codex:poc
 ```
 
 ## High-signal warnings

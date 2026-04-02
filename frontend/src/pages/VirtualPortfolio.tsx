@@ -50,7 +50,7 @@ function createId(): string {
   }
 
   // Absolute last resort: time + performance counter (no Math.random).
-  // Uniqueness is best-effort only; document that this path should never be reached in production.
+  // Uniqueness is best-effort only; this path should never be reached in production.
   return `${Date.now().toString(16)}-${(typeof performance !== "undefined" ? performance.now() : 0).toString(16).replace(".", "")}`;
 }
 
@@ -119,6 +119,10 @@ export function VirtualPortfolio() {
   const [accounts, setAccounts] = useState<ManualAccount[]>(readInitialAccounts);
   const [newAccountName, setNewAccountName] = useState("");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  // draftNames holds the in-progress value for account name inputs, decoupled from
+  // the persisted accounts state. This prevents the input from snapping back to the
+  // last-saved value while the user is mid-edit (e.g. clearing the field to retype).
+  const [draftNames, setDraftNames] = useState<Record<string, string>>({});
 
   const canAddAccount = newAccountName.trim().length > 0;
 
@@ -166,26 +170,56 @@ export function VirtualPortfolio() {
 
   const deleteAccount = (accountId: string) => {
     saveAccounts(accounts.filter((account) => account.id !== accountId));
+    setDraftNames((prev) => {
+      const next = { ...prev };
+      delete next[accountId];
+      return next;
+    });
   };
 
-  const updateAccountName = (accountId: string, name: string) => {
-    const trimmed = name.trim();
+  // onChange: update draft only — no validation, no persistence.
+  const handleAccountNameChange = (accountId: string, value: string) => {
+    setDraftNames((prev) => ({ ...prev, [accountId]: value }));
+    // Clear any lingering status message so stale warnings don't confuse the user.
+    setStatusMessage(null);
+  };
+
+  // onBlur: validate the draft and persist if valid, otherwise revert the draft.
+  const commitAccountName = (accountId: string) => {
+    const draft = draftNames[accountId];
+    // If there's no draft for this account the value hasn't changed — nothing to do.
+    if (draft === undefined) return;
+
+    const trimmed = draft.trim();
     if (!trimmed) {
       setStatusMessage("Account name cannot be empty.");
+      // Revert draft to last-saved name so the input shows the correct value.
+      const saved = accounts.find((a) => a.id === accountId)?.name ?? "";
+      setDraftNames((prev) => ({ ...prev, [accountId]: saved }));
       return;
     }
 
     const isDuplicateName = accounts.some(
       (account) => account.id !== accountId
-        && account.name.trim().toLowerCase() === trimmed.toLowerCase()
+        && account.name.trim().toLowerCase() === trimmed.toLowerCase(),
     );
     if (isDuplicateName) {
       setStatusMessage("Account names must stay unique.");
+      const saved = accounts.find((a) => a.id === accountId)?.name ?? "";
+      setDraftNames((prev) => ({ ...prev, [accountId]: saved }));
       return;
     }
 
+    // Valid — persist and clear the draft (input will fall back to accounts state).
+    setDraftNames((prev) => {
+      const next = { ...prev };
+      delete next[accountId];
+      return next;
+    });
     saveAccounts(
-      accounts.map((account) => (account.id === accountId ? { ...account, name: trimmed } : account)),
+      accounts.map((account) =>
+        account.id === accountId ? { ...account, name: trimmed } : account,
+      ),
     );
   };
 
@@ -204,10 +238,8 @@ export function VirtualPortfolio() {
     if (!account) return;
 
     const nextHoldings = account.holdings.filter((holding) => holding.id !== holdingId);
-    if (nextHoldings.length === 0) {
-      setStatusMessage("Each account must keep at least one holding row.");
-      return;
-    }
+    // Button is disabled when holdings.length <= 1 so this guard is a safety net only.
+    if (nextHoldings.length === 0) return;
 
     saveAccounts(
       accounts.map((entry) =>
@@ -249,6 +281,7 @@ export function VirtualPortfolio() {
             const ticker = holding.ticker.trim().toUpperCase();
             if (!ticker) return null;
 
+            // totalValue takes precedence over units+price when both are provided.
             if (totalValue != null) {
               return { ticker, total_value: totalValue };
             }
@@ -312,8 +345,10 @@ export function VirtualPortfolio() {
               <input
                 className="w-full rounded border border-slate-300 px-3 py-2"
                 type="text"
-                value={account.name}
-                onChange={(e) => updateAccountName(account.id, e.target.value)}
+                // Use draft value while editing; fall back to persisted name otherwise.
+                value={draftNames[account.id] ?? account.name}
+                onChange={(e) => handleAccountNameChange(account.id, e.target.value)}
+                onBlur={() => commitAccountName(account.id)}
                 aria-label="Account name"
               />
               <button

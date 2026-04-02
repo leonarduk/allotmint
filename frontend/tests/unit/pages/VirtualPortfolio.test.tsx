@@ -52,8 +52,10 @@ describe("VirtualPortfolio page", () => {
     fireEvent.change(addInput, { target: { value: "Brokerage" } });
     fireEvent.submit(addInput.closest("form")!);
 
+    // Rename via the account name input: change + blur to commit.
     const accountNameInput = screen.getByLabelText("Account name");
     fireEvent.change(accountNameInput, { target: { value: "Brokerage Main" } });
+    fireEvent.blur(accountNameInput);
 
     const stored = window.localStorage.getItem(STORAGE_KEY);
     expect(stored).toContain("Brokerage Main");
@@ -91,7 +93,7 @@ describe("VirtualPortfolio page", () => {
     render(<VirtualPortfolio />);
 
     expect(screen.getByLabelText("Account name")).toHaveValue("ISA");
-    // Malformed holding was stripped; account still gets one blank holding row
+    // Malformed holding was stripped; account still gets one blank holding row.
     expect(screen.getByPlaceholderText("AAPL")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("AAPL")).toHaveValue("");
   });
@@ -113,7 +115,7 @@ describe("VirtualPortfolio page", () => {
     expect(screen.queryByLabelText("Account name")).not.toBeInTheDocument();
   });
 
-  it("rejects empty account renames", () => {
+  it("allows typing an intermediate empty value without snapping back", () => {
     render(<VirtualPortfolio />);
 
     const addInput = screen.getByPlaceholderText(/Account name/i);
@@ -121,10 +123,34 @@ describe("VirtualPortfolio page", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add account" }));
 
     const accountNameInput = screen.getByLabelText("Account name");
-    fireEvent.change(accountNameInput, { target: { value: "   " } });
 
+    // Clear the field mid-edit — input should show empty, not snap back to "ISA".
+    fireEvent.change(accountNameInput, { target: { value: "" } });
+    expect(accountNameInput).toHaveValue("");
+
+    // Blur without a valid value — input reverts to saved name, warning shown.
+    fireEvent.blur(accountNameInput);
     expect(screen.getByText("Account name cannot be empty.")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("ISA")).toBeInTheDocument();
+    expect(accountNameInput).toHaveValue("ISA");
+  });
+
+  it("rejects duplicate account renames on blur", () => {
+    render(<VirtualPortfolio />);
+
+    const addInput = screen.getByPlaceholderText(/Account name/i);
+    fireEvent.change(addInput, { target: { value: "ISA" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add account" }));
+    fireEvent.change(addInput, { target: { value: "Pension" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add account" }));
+
+    // Try to rename Pension to ISA (case-insensitive).
+    const [, pensionInput] = screen.getAllByLabelText("Account name");
+    fireEvent.change(pensionInput, { target: { value: "isa" } });
+    fireEvent.blur(pensionInput);
+
+    expect(screen.getByText("Account names must stay unique.")).toBeInTheDocument();
+    // Input should revert to "Pension", not remain as "isa".
+    expect(pensionInput).toHaveValue("Pension");
   });
 
   it("disables the Remove button when only one holding remains", () => {

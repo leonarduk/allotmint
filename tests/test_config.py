@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from backend.app import create_app
 from backend.config import (
     ConfigValidationError,
+    _flatten_dict,
     _project_config_path,
     config,
     demo_identity,
@@ -223,6 +224,16 @@ def test_reload_preserves_monkeypatched_allowed_emails(monkeypatch):
     cfg = reload_config()
     assert cfg.allowed_emails == ["override@example.com"]
     reload_config()
+
+
+def test_flatten_dict_preserves_canonical_section_precedence():
+    flattened: dict[str, object] = {}
+
+    _flatten_dict({"auth": {"disable_auth": False, "google_auth_enabled": True}}, flattened)
+    _flatten_dict({"disable_auth": True, "google_auth_enabled": False}, flattened)
+
+    assert flattened["disable_auth"] is False
+    assert flattened["google_auth_enabled"] is True
 
 
 def test_google_auth_requires_client_id(monkeypatch):

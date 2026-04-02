@@ -13,8 +13,7 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Form, HTTPException
-from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException, Request
 
 import backend.auth as auth
 from backend.common.portfolio_utils import (
@@ -32,10 +31,6 @@ from backend.bootstrap import (
 from backend.config import reload_config
 
 logger = logging.getLogger(__name__)
-
-
-class TokenIn(BaseModel):
-    id_token: str | None = None
 
 
 def create_app() -> FastAPI:
@@ -67,16 +62,35 @@ def create_app() -> FastAPI:
     register_routers(app, cfg)
 
     @app.post("/token")
-    async def login(body: TokenIn | None = None, username: str | None = Form(None)):
+    async def login(request: Request):
         """Handle both JSON (id_token) and form (username/password) authentication."""
+        id_token: str | None = None
+        username: str | None = None
+
+        content_type = request.headers.get("content-type", "").lower()
+        if "application/json" in content_type:
+            payload = await request.json()
+            if isinstance(payload, dict):
+                token_candidate = payload.get("id_token")
+                if isinstance(token_candidate, str):
+                    id_token = token_candidate
+        elif "application/x-www-form-urlencoded" in content_type or "multipart/form-data" in content_type:
+            form_data = await request.form()
+            username_raw = form_data.get("username")
+            if isinstance(username_raw, str):
+                username = username_raw
+            token_raw = form_data.get("id_token")
+            if isinstance(token_raw, str):
+                id_token = token_raw
+
         if username is not None:
             if cfg.disable_auth or os.getenv("TESTING"):
                 email = "user@example.com"
             else:
                 raise HTTPException(status_code=400, detail="Password auth not supported in production")
-        elif body and body.id_token:
+        elif id_token:
             try:
-                email = auth.authenticate_user(body.id_token)
+                email = auth.authenticate_user(id_token)
             except HTTPException as exc:
                 logger.warning("User authentication failed: %s", exc.detail)
                 raise

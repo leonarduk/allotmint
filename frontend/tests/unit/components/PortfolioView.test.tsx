@@ -2,6 +2,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { PortfolioView } from "@/components/PortfolioView";
 import type { Portfolio } from "@/types";
+import { configContext } from "@/ConfigContext";
 
 vi.mock("@/api", () => ({
   complianceForOwner: vi.fn().mockResolvedValue({ warnings: [] }),
@@ -68,5 +69,57 @@ describe("PortfolioView", () => {
         fireEvent.click(sippCheckbox);
 
         expect(total).toHaveTextContent("£0.00");
+    });
+
+    it("hides advanced analytics panels when feature flag is disabled", () => {
+        render(
+            <configContext.Provider
+                value={{
+                    relativeViewEnabled: false,
+                    tabs: {
+                        group: true,
+                        market: true,
+                        owner: true,
+                        instrument: true,
+                        performance: true,
+                        transactions: true,
+                        screener: true,
+                        trading: true,
+                        timeseries: true,
+                        watchlist: true,
+                        allocation: true,
+                        rebalance: true,
+                        movers: true,
+                        instrumentadmin: true,
+                        dataadmin: true,
+                        virtual: true,
+                        research: true,
+                        support: true,
+                        settings: true,
+                        profile: false,
+                        alerts: true,
+                        pension: true,
+                        trail: false,
+                        alertsettings: true,
+                        taxtools: false,
+                        "trade-compliance": false,
+                        reports: false,
+                        scenario: false,
+                    },
+                    theme: "system",
+                    baseCurrency: "GBP",
+                    enableAdvancedAnalytics: false,
+                    disabledTabs: [],
+                    refreshConfig: async () => {},
+                    setRelativeViewEnabled: () => {},
+                    setBaseCurrency: () => {},
+                }}
+            >
+                <PortfolioView data={mockOwner} />
+            </configContext.Provider>,
+        );
+
+        expect(screen.queryByText(/Sector contribution/i)).not.toBeInTheDocument();
+        expect(screen.queryByTestId("performance-dashboard")).not.toBeInTheDocument();
     });
 });

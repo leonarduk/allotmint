@@ -12,10 +12,11 @@ vi.mock("@/api", async (importOriginal) => {
 });
 
 function Probe() {
-  const { tabs, disabledTabs } = useConfig();
+  const { tabs, disabledTabs, configLoaded } = useConfig();
   return (
     <div
       data-testid="config-probe"
+      data-config-loaded={String(configLoaded)}
       data-tabs={JSON.stringify(tabs)}
       data-disabled-tabs={JSON.stringify(disabledTabs ?? [])}
     />
@@ -65,6 +66,7 @@ describe("ConfigProvider Family MVP gating", () => {
         JSON.parse(probe.getAttribute("data-disabled-tabs") ?? "[]") as string[],
       );
 
+      expect(probe.getAttribute("data-config-loaded")).toBe("true");
       expect(tabs.transactions).toBe(false);
       expect(tabs["trade-compliance"]).toBe(false);
       expect(tabs.trail).toBe(false);

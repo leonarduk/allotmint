@@ -52,7 +52,7 @@ describe('getFamilyMvpRedirectPath', () => {
     expect(getFamilyMvpRedirectPath('/', '')).toBe('/portfolio');
   });
 
-  it('redirects group query routes via the non-MVP fallback', () => {
+  it('redirects group query routes because group mode is non-MVP', () => {
     expect(getFamilyMvpRedirectPath('/', '?group=kids')).toBe('/portfolio');
   });
 
@@ -81,6 +81,19 @@ describe('getFamilyMvpEntryPath', () => {
     ).toBe('/transactions');
   });
 
+  it('respects disabledTabs over enabled tab values', () => {
+    expect(
+      getFamilyMvpEntryPath(
+        {
+          ...baseTabs,
+          owner: true,
+          performance: true,
+        },
+        ['owner']
+      )
+    ).toBe('/performance');
+  });
+
   it('returns null when every family MVP route is disabled', () => {
     expect(
       getFamilyMvpEntryPath(
@@ -95,3 +108,4 @@ describe('getFamilyMvpEntryPath', () => {
     ).toBeNull();
   });
 });
+

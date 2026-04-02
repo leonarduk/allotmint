@@ -62,7 +62,10 @@ import {
   downloadInstrumentsCsv,
   printInstrumentsPdf,
 } from './lib/instrumentExports';
-import { getFamilyMvpEntryPath, isFamilyMvpMode } from './familyMvp';
+import {
+  getFamilyMvpEntryPath,
+  isFamilyMvpMode,
+} from './familyMvp';
 
 const PerformanceDashboard = lazyWithDelay(
   () => import('./components/PerformanceDashboard')
@@ -129,23 +132,22 @@ export function getFamilyMvpRedirectPath(
   entryPath: string | null = '/portfolio'
 ): string | null {
   // Family MVP redirect policy:
-  // - Any non-MVP route gets sent to the configured entry flow.
-  // - Bare root also lands on the configured entry flow for quickest time-to-value.
-  // - If every Family MVP tab is disabled, leave the current route alone rather
-  //   than redirecting to a route we already know is unavailable.
+  // - Bare root lands on the configured entry flow.
+  // - Any other non-MVP route gets sent to that same entry flow.
+  // - If every Family MVP tab is disabled, leave route selection to the caller.
   //
   // This is intentionally separate from getOwnerRootRedirectPath, which only
   // handles owner/performance root hydration once an owner list is available.
   if (!entryPath) {
     return null;
   }
+  if (pathname === '/' && !search) {
+    return entryPath;
+  }
 
   const routeMode = deriveModeFromPathname(pathname);
   if (!isFamilyMvpMode(routeMode)) {
     return pathname === entryPath ? null : entryPath;
-  }
-  if (routeMode === 'group' && pathname === '/' && !search) {
-    return entryPath;
   }
   return null;
 }
@@ -154,11 +156,11 @@ export default function App({ onLogout }: AppProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useTranslation();
-  const { tabs, disabledTabs } = useConfig();
+  const { tabs, disabledTabs, configLoaded } = useConfig();
   const { lastRefresh } = usePriceRefresh();
   const familyMvpEntryPath = useMemo(
-    () => getFamilyMvpEntryPath(tabs, disabledTabs),
-    [tabs, disabledTabs]
+    () => (configLoaded ? getFamilyMvpEntryPath(tabs, disabledTabs) : null),
+    [configLoaded, tabs, disabledTabs]
   );
 
   const params = new URLSearchParams(location.search);
@@ -253,7 +255,12 @@ export default function App({ onLogout }: AppProps) {
   }, [location.pathname, location.search, navigate, familyMvpEntryPath]);
 
   useEffect(() => {
-    if (getFamilyMvpRedirectPath(location.pathname, location.search, familyMvpEntryPath)) {
+    const redirectPath = getFamilyMvpRedirectPath(
+      location.pathname,
+      location.search,
+      familyMvpEntryPath
+    );
+    if (redirectPath) {
       return;
     }
 
@@ -289,7 +296,15 @@ export default function App({ onLogout }: AppProps) {
     } else if (newMode === 'research') {
       setResearchTicker(segs[1] ? decodeURIComponent(segs[1] ?? '') : '');
     }
-  }, [location.pathname, location.search, tabs, disabledTabs, navigate, familyMvpEntryPath]);
+  }, [
+    configLoaded,
+    familyMvpEntryPath,
+    location.pathname,
+    location.search,
+    tabs,
+    disabledTabs,
+    navigate,
+  ]);
 
   useEffect(() => {
     if (!ownersReq.data) return;

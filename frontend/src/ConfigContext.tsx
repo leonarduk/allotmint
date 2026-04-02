@@ -3,6 +3,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useRef,
   useState,
   useCallback,
   type ReactNode,
@@ -132,6 +133,8 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
       baseCurrency: storedCurrency || "GBP",
     };
   });
+  const baseCurrencyRef = useRef(config.baseCurrency);
+  baseCurrencyRef.current = config.baseCurrency;
 
   const setRelativeViewEnabled = useCallback((enabled: boolean) => {
     setConfig((prev) => ({ ...prev, relativeViewEnabled: enabled }));
@@ -196,13 +199,13 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         disabledTabs: Array.from(disabledTabs),
         tabs,
         theme,
-        baseCurrency: config.baseCurrency,
+        baseCurrency: baseCurrencyRef.current,
       });
       applyTheme(theme);
     } catch {
       /* ignore */
     }
-  }, [config.baseCurrency]);
+  }, []);
 
   useEffect(() => {
     refreshConfig();

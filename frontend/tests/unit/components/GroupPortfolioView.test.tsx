@@ -804,7 +804,7 @@ describe("GroupPortfolioView", () => {
     expect(screen.queryByText("10.00% of your portfolio is in cash")).toBeNull();
   });
 
-  it("suppresses tiny cash balances as an insight", async () => {
+  it("suppresses cash balances below the cash-drag threshold", async () => {
     mockAllFetches({
       name: "At a glance",
       accounts: [
@@ -813,12 +813,12 @@ describe("GroupPortfolioView", () => {
           account_type: "isa",
           value_estimate_gbp: 100,
           holdings: [
-            { ticker: "AAA", units: 1, market_value_gbp: 19.8, instrument_type: "equity" },
-            { ticker: "BBB", units: 1, market_value_gbp: 19.8, instrument_type: "equity" },
-            { ticker: "CCC", units: 1, market_value_gbp: 19.8, instrument_type: "equity" },
-            { ticker: "DDD", units: 1, market_value_gbp: 19.8, instrument_type: "equity" },
-            { ticker: "EEE", units: 1, market_value_gbp: 19.8, instrument_type: "equity" },
-            { ticker: "CASH.GBP", units: 1, market_value_gbp: 1, instrument_type: "cash" },
+            { ticker: "AAA", units: 1, market_value_gbp: 19.2, instrument_type: "equity" },
+            { ticker: "BBB", units: 1, market_value_gbp: 19.2, instrument_type: "equity" },
+            { ticker: "CCC", units: 1, market_value_gbp: 19.2, instrument_type: "equity" },
+            { ticker: "DDD", units: 1, market_value_gbp: 19.2, instrument_type: "equity" },
+            { ticker: "EEE", units: 1, market_value_gbp: 19.2, instrument_type: "equity" },
+            { ticker: "CASH.GBP", units: 4, market_value_gbp: 4, instrument_type: "cash" },
           ],
         },
       ],
@@ -844,6 +844,41 @@ describe("GroupPortfolioView", () => {
             { ticker: "CCC", units: 1, market_value_gbp: 20, instrument_type: "equity" },
             { ticker: "DDD", units: 1, market_value_gbp: 20, instrument_type: "equity" },
             { ticker: "EEE", units: 1, market_value_gbp: 20, instrument_type: "equity" },
+          ],
+        },
+      ],
+    });
+
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+
+    await screen.findByText("At a glance");
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+  });
+
+  it("ignores duplicated cash tickers when choosing the duplication insight", async () => {
+    mockAllFetches({
+      name: "At a glance",
+      accounts: [
+        {
+          owner: "alice",
+          account_type: "isa",
+          value_estimate_gbp: 50,
+          holdings: [
+            { ticker: "AAA", units: 1, market_value_gbp: 16, instrument_type: "equity" },
+            { ticker: "BBB", units: 1, market_value_gbp: 16, instrument_type: "equity" },
+            { ticker: "CCC", units: 1, market_value_gbp: 16, instrument_type: "equity" },
+            { ticker: "CASH.GBP", units: 2, market_value_gbp: 2, instrument_type: "cash" },
+          ],
+        },
+        {
+          owner: "bob",
+          account_type: "sipp",
+          value_estimate_gbp: 50,
+          holdings: [
+            { ticker: "DDD", units: 1, market_value_gbp: 16, instrument_type: "equity" },
+            { ticker: "EEE", units: 1, market_value_gbp: 16, instrument_type: "equity" },
+            { ticker: "FFF", units: 1, market_value_gbp: 16, instrument_type: "equity" },
+            { ticker: "CASH.GBP", units: 2, market_value_gbp: 2, instrument_type: "cash" },
           ],
         },
       ],

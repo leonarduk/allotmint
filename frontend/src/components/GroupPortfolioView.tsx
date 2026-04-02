@@ -70,7 +70,7 @@ const PIE_COLORS = [
 const DAY_CHANGE_BASELINE_EPSILON = 1e-2;
 // Warn when a single holding represents more than this share of the full portfolio.
 const CONCENTRATION_THRESHOLD_PCT = 20;
-const CASH_DRAG_THRESHOLD_PCT = 1;
+const CASH_DRAG_THRESHOLD_PCT = 5;
 
 const computeDayChangePct = (value: number, delta: number): number | null => {
   if (!Number.isFinite(value) || !Number.isFinite(delta)) {
@@ -141,10 +141,19 @@ const computeDuplicationInsight = (accounts: GroupPortfolio["accounts"]): Portfo
   >();
 
   for (const [accountIndex, account] of accounts.entries()) {
+    // Treat separate account rows as distinct even when owner/type labels match.
     const accountKey = `${account.owner ?? "unknown"}::${account.account_type ?? "unknown"}::${accountIndex}`;
     for (const holding of account.holdings ?? []) {
       const ticker = holding.ticker?.trim();
-      if (!ticker) continue;
+      if (
+        !ticker ||
+        isCashInstrument({
+          instrument_type: holding.instrument_type,
+          ticker: holding.ticker,
+        })
+      ) {
+        continue;
+      }
 
       const entry =
         tickerAccounts.get(ticker) ?? { accounts: new Set<string>(), totalMarketValue: 0 };
@@ -664,6 +673,8 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   const isAllPositions = activeOwner === null;
   const hasFilteredAccounts = filteredAccounts.length > 0;
   const portfolioInsight = useMemo<PortfolioInsight>(() => {
+    // Filtered owner/account slices can look spuriously concentrated, so only surface the
+    // plain-language insight for the full group view.
     if (!isAllPositions || !portfolio) return null;
     return (
       computeConcentrationInsight(portfolio.accounts ?? []) ??

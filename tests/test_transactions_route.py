@@ -178,6 +178,57 @@ def test_parse_date_rejects_invalid_formats():
     assert transactions._parse_date("not-a-date") is None
 
 
+def test_locked_transactions_data_does_not_persist_failed_update(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "accounts_root", tmp_path)
+    owner_dir = tmp_path / "alice"
+    owner_dir.mkdir()
+    file_path = owner_dir / "ISA_transactions.json"
+    file_path.write_text(
+        json.dumps(
+            {
+                "owner": "alice",
+                "account_type": "ISA",
+                "transactions": [{"ticker": "PFE", "price_gbp": 10, "units": 1}],
+            }
+        )
+    )
+
+    with pytest.raises(RuntimeError):
+        with transactions._locked_transactions_data("alice", "ISA", tmp_path) as (data, _):
+            data["transactions"].append({"ticker": "MSFT", "price_gbp": 20, "units": 2})
+            raise RuntimeError("boom")
+
+    saved = json.loads(file_path.read_text())
+    assert saved["transactions"] == [{"ticker": "PFE", "price_gbp": 10, "units": 1}]
+
+    with transactions._locked_transactions_data("alice", "ISA", tmp_path) as (data, _):
+        data["transactions"].append({"ticker": "MSFT", "price_gbp": 20, "units": 2})
+
+    saved = json.loads(file_path.read_text())
+    assert saved["transactions"] == [
+        {"ticker": "PFE", "price_gbp": 10, "units": 1},
+        {"ticker": "MSFT", "price_gbp": 20, "units": 2},
+    ]
+
+
+def test_locked_account_holdings_data_discards_failed_new_file(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "accounts_root", tmp_path)
+    file_path = tmp_path / "alice" / "isa.json"
+
+    with pytest.raises(RuntimeError):
+        with transactions._locked_account_holdings_data("alice", "isa", tmp_path) as (data, _):
+            data["holdings"].append({"ticker": "VUSA.L", "value_gbp": 1000})
+            raise RuntimeError("boom")
+
+    assert not file_path.exists()
+
+    with transactions._locked_account_holdings_data("alice", "isa", tmp_path) as (data, _):
+        data["holdings"].append({"ticker": "VUSA.L", "value_gbp": 1000})
+
+    saved = json.loads(file_path.read_text())
+    assert saved["holdings"] == [{"ticker": "VUSA.L", "value_gbp": 1000}]
+
+
 def test_create_transaction_requires_accounts_root(tmp_path, monkeypatch):
     client = _make_client(tmp_path, monkeypatch, accounts_root="")
     resp = client.post("/transactions", json=_valid_payload())

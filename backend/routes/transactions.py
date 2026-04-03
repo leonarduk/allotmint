@@ -6,7 +6,7 @@ import os
 import platform
 import re
 from collections import defaultdict
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Mapping, Optional, Tuple, TextIO
@@ -361,25 +361,44 @@ def _locked_transactions_data(
     owner_dir = accounts_root / owner
     owner_dir.mkdir(parents=True, exist_ok=True)
     file_path = owner_dir / f"{account}_transactions.json"
-    mode = "r+" if file_path.exists() else "w+"
+    file_existed = file_path.exists()
+    mode = "r+" if file_existed else "w+"
+    committed = False
+    pending_error: BaseException | None = None
+    pending_traceback = None
     with file_path.open(mode, encoding="utf-8") as f:
         _lock_file(f)
-        f.seek(0)
         try:
-            data = json.load(f)
-        except (json.JSONDecodeError, OSError):
-            data = {"owner": owner, "account_type": account, "transactions": []}
-        else:
-            data.setdefault("owner", owner)
-            data.setdefault("account_type", account)
-            data.setdefault("transactions", [])
-        yield data, f
-        f.seek(0)
-        f.truncate()
-        json.dump(data, f, indent=2)
-        f.flush()
-        os.fsync(f.fileno())
-        _unlock_file(f)
+            f.seek(0)
+            try:
+                data = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                data = {"owner": owner, "account_type": account, "transactions": []}
+            else:
+                data.setdefault("owner", owner)
+                data.setdefault("account_type", account)
+                data.setdefault("transactions", [])
+
+            try:
+                yield data, f
+            except BaseException as exc:
+                pending_error = exc
+                pending_traceback = exc.__traceback__
+            else:
+                f.seek(0)
+                f.truncate()
+                json.dump(data, f, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+                committed = True
+        finally:
+            _unlock_file(f)
+
+    if not committed and not file_existed:
+        with suppress(FileNotFoundError):
+            file_path.unlink()
+    if pending_error is not None:
+        raise pending_error.with_traceback(pending_traceback)
 
 
 @contextmanager
@@ -389,34 +408,51 @@ def _locked_account_holdings_data(
     owner_dir = accounts_root / owner
     owner_dir.mkdir(parents=True, exist_ok=True)
     file_path = owner_dir / f"{account}.json"
-    mode = "r+" if file_path.exists() else "w+"
+    file_existed = file_path.exists()
+    mode = "r+" if file_existed else "w+"
+    committed = False
+    pending_error: BaseException | None = None
+    pending_traceback = None
     with file_path.open(mode, encoding="utf-8") as f:
         _lock_file(f)
-        f.seek(0)
         try:
-            data = json.load(f)
-        except (json.JSONDecodeError, OSError):
-            data = {}
+            f.seek(0)
+            try:
+                data = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                data = {}
 
-        if not isinstance(data, dict):
-            data = {}
+            if not isinstance(data, dict):
+                data = {}
 
-        data.setdefault("owner", owner)
-        data.setdefault("account_type", account)
-        data.setdefault("currency", "GBP")
-        holdings = data.get("holdings")
-        if not isinstance(holdings, list):
-            data["holdings"] = []
+            data.setdefault("owner", owner)
+            data.setdefault("account_type", account)
+            data.setdefault("currency", "GBP")
+            holdings = data.get("holdings")
+            if not isinstance(holdings, list):
+                data["holdings"] = []
 
-        yield data, f
+            try:
+                yield data, f
+            except BaseException as exc:
+                pending_error = exc
+                pending_traceback = exc.__traceback__
+            else:
+                f.seek(0)
+                f.truncate()
+                json.dump(data, f, indent=2)
+                f.write("\n")
+                f.flush()
+                os.fsync(f.fileno())
+                committed = True
+        finally:
+            _unlock_file(f)
 
-        f.seek(0)
-        f.truncate()
-        json.dump(data, f, indent=2)
-        f.write("\n")
-        f.flush()
-        os.fsync(f.fileno())
-        _unlock_file(f)
+    if not committed and not file_existed:
+        with suppress(FileNotFoundError):
+            file_path.unlink()
+    if pending_error is not None:
+        raise pending_error.with_traceback(pending_traceback)
 
 
 def _rebuild_portfolio(owner: str, account: str, accounts_root: Path) -> None:

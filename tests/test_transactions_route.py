@@ -475,26 +475,40 @@ def test_create_manual_holding_updates_existing_ticker_in_account(tmp_path, monk
 def test_create_manual_holding_rejects_invalid_metric_combo(tmp_path, monkeypatch):
     client = _make_client(tmp_path, monkeypatch)
 
-    both_payload = {
-        "owner": "alice",
-        "account": "SIPP",
-        "ticker": "MSFT",
-        "value_gbp": 10,
-        "units": 1,
-        "price_gbp": 10,
-    }
-    both_resp = client.post("/holdings/manual", json=both_payload)
-    assert both_resp.status_code == 400
-    assert both_resp.json()["detail"] == "Provide either value_gbp or both units and price_gbp"
+    invalid_payloads = [
+        {
+            "owner": "alice",
+            "account": "SIPP",
+            "ticker": "MSFT",
+            "value_gbp": 10,
+            "units": 1,
+            "price_gbp": 10,
+        },
+        {
+            "owner": "alice",
+            "account": "SIPP",
+            "ticker": "MSFT",
+        },
+        {
+            "owner": "alice",
+            "account": "SIPP",
+            "ticker": "MSFT",
+            "value_gbp": 10,
+            "units": 1,
+        },
+        {
+            "owner": "alice",
+            "account": "SIPP",
+            "ticker": "MSFT",
+            "value_gbp": 10,
+            "price_gbp": 10,
+        },
+    ]
 
-    neither_payload = {
-        "owner": "alice",
-        "account": "SIPP",
-        "ticker": "MSFT",
-    }
-    neither_resp = client.post("/holdings/manual", json=neither_payload)
-    assert neither_resp.status_code == 400
-    assert neither_resp.json()["detail"] == "Provide either value_gbp or both units and price_gbp"
+    for payload in invalid_payloads:
+        resp = client.post("/holdings/manual", json=payload)
+        assert resp.status_code == 400
+        assert resp.json()["detail"] == "Provide either value_gbp or both units and price_gbp"
 
 
 def test_list_manual_holdings_returns_accounts(tmp_path, monkeypatch):

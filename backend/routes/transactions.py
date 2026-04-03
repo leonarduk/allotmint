@@ -181,7 +181,7 @@ def _load_account_holdings_file(path: Path, owner: str, account: str) -> dict[st
     if path.exists():
         try:
             loaded = json.loads(path.read_text())
-        except Exception:
+        except (json.JSONDecodeError, OSError, ValueError):
             loaded = {}
     else:
         loaded = {}
@@ -213,8 +213,11 @@ def _account_payload_summary(payload: Mapping[str, Any]) -> dict[str, Any]:
 
 def _validate_manual_holding_payload(payload: ManualHoldingCreate) -> None:
     has_value = payload.value_gbp is not None
-    has_units_price = payload.units is not None and payload.price_gbp is not None
-    if has_value == has_units_price:
+    has_units = payload.units is not None
+    has_price = payload.price_gbp is not None
+    has_units_price = has_units and has_price
+    has_partial_units_price = has_units != has_price
+    if has_partial_units_price or has_value == has_units_price:
         raise HTTPException(
             status_code=400,
             detail="Provide either value_gbp or both units and price_gbp",
@@ -711,11 +714,6 @@ async def create_manual_holding(request: Request, payload: ManualHoldingCreate) 
     if payload.value_gbp is not None:
         holding["value_gbp"] = float(payload.value_gbp)
     else:
-        if payload.units is None or payload.price_gbp is None:
-            raise HTTPException(
-                status_code=400,
-                detail="Provide either value_gbp or both units and price_gbp",
-            )
         holding["units"] = float(payload.units)
         holding["price"] = float(payload.price_gbp)
 

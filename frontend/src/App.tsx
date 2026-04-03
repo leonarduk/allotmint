@@ -230,12 +230,14 @@ export default function App({ onLogout }: AppProps) {
   const ownersReq = useFetchWithRetry(getOwners, 500, 5, [retryNonce]);
   const groupsReq = useFetchWithRetry(getGroups, 500, 5, [retryNonce]);
   const identityCatalogReady = ownersReq.data !== undefined && groupsReq.data !== undefined;
-  const selectedOwnerIsGroup = useMemo(
+  const selectedOwnerGroup = useMemo(
     () =>
-      Boolean(selectedOwner) &&
-      (groupsReq.data ?? groups).some((group) => group.slug === selectedOwner),
-    [groupsReq.data, groups, selectedOwner]
+      selectedOwner && groupsReq.data
+        ? groupsReq.data.find((group) => group.slug === selectedOwner) ?? null
+        : null,
+    [groupsReq.data, selectedOwner]
   );
+  const selectedOwnerIsGroup = selectedOwnerGroup !== null;
 
   useEffect(() => {
     const redirectPath = getFamilyMvpRedirectPath(
@@ -416,10 +418,10 @@ export default function App({ onLogout }: AppProps) {
   }, [mode, selectedOwner, portfolioAsOf, lastRefresh, selectedOwnerIsGroup, identityCatalogReady]);
 
   useEffect(() => {
-    if (mode === 'owner' && selectedOwner && !selectedOwnerIsGroup) {
+    if (mode === 'owner' && selectedOwner && identityCatalogReady) {
       setPortfolioAsOf(null);
     }
-  }, [mode, selectedOwner, selectedOwnerIsGroup]);
+  }, [mode, selectedOwner, identityCatalogReady]);
 
   useEffect(() => {
     if (mode === 'instrument' && selectedGroup) {
@@ -512,7 +514,7 @@ export default function App({ onLogout }: AppProps) {
           onClose={() => setNotificationsOpen(false)}
         />
 
-        {/* OWNER VIEW */}
+        {/* INDIVIDUAL OWNER VIEW */}
         {mode === 'owner' && !selectedOwnerIsGroup && (
           <>
             <ComplianceWarnings owners={selectedOwner ? [selectedOwner] : []} />
@@ -525,12 +527,10 @@ export default function App({ onLogout }: AppProps) {
           </>
         )}
 
-        {mode === 'owner' && selectedOwnerIsGroup && (
+        {mode === 'owner' && selectedOwnerGroup && (
           <>
-            <ComplianceWarnings
-              owners={groups.find((group) => group.slug === selectedOwner)?.members ?? []}
-            />
-            <GroupPortfolioView slug={selectedOwner} owners={owners} />
+            <ComplianceWarnings owners={selectedOwnerGroup.members} />
+            <GroupPortfolioView slug={selectedOwnerGroup.slug} owners={owners} />
           </>
         )}
 

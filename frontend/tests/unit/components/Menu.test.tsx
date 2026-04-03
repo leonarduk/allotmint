@@ -131,6 +131,7 @@ describe('Menu', () => {
         reports: true,
         scenario: true,
       },
+      familyMvpEnabled: true,
       theme: 'system',
       baseCurrency: 'GBP',
       refreshConfig: async () => {},
@@ -154,10 +155,16 @@ describe('Menu', () => {
   it('renders logout button when callback provided', async () => {
     const onLogout = vi.fn();
     i18n.changeLanguage('fr');
+    const config: ConfigContextValue = {
+      ...configContext._currentValue,
+      familyMvpEnabled: false,
+    };
     render(
-      <MemoryRouter>
-        <Menu onLogout={onLogout} />
-      </MemoryRouter>
+      <configContext.Provider value={config}>
+        <MemoryRouter>
+          <Menu onLogout={onLogout} />
+        </MemoryRouter>
+      </configContext.Provider>
     );
     const settingsToggle = screen.getByRole('button', {
       name: i18n.t('app.menuCategories.preferences'),
@@ -171,6 +178,10 @@ describe('Menu', () => {
 
   it('applies 44px touch target sizing to dropdown menu items', async () => {
     const onLogout = vi.fn();
+    const config: ConfigContextValue = {
+      ...configContext._currentValue,
+      familyMvpEnabled: false,
+    };
     render(
       <configContext.Provider value={configWithTransactions}>
         <MemoryRouter>

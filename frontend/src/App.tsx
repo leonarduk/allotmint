@@ -122,8 +122,12 @@ export function getOwnerRootRedirectPath(
 export function getFamilyMvpRedirectPath(
   pathname: string,
   search: string,
-  entryPath: string | null = '/input'
+  familyMvpEnabled: boolean,
+  entryPath: string | null = '/portfolio'
 ): string | null {
+  if (!familyMvpEnabled) {
+    return null;
+  }
   // Family MVP redirect policy:
   // - Bare root lands on the configured entry flow.
   // - Any other non-MVP route gets sent to that same entry flow.
@@ -149,7 +153,7 @@ export default function App({ onLogout }: AppProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useTranslation();
-  const { tabs, disabledTabs, configLoaded } = useConfig();
+  const { tabs, disabledTabs, familyMvpEnabled, configLoaded } = useConfig();
   const { lastRefresh } = usePriceRefresh();
   const familyMvpEntryPath = useMemo(
     () => (configLoaded ? getFamilyMvpEntryPath(tabs, disabledTabs) : null),
@@ -258,26 +262,38 @@ export default function App({ onLogout }: AppProps) {
   );
   const selectedOwnerIsGroup = selectedOwnerGroup !== null;
 
+  // Redirect to the Family MVP entry path whenever the current route is not
+  // in FAMILY_MVP_MODES. Fires on every location change and whenever the
+  // config (and therefore familyMvpEnabled / familyMvpEntryPath) resolves.
   useEffect(() => {
     const redirectPath = getFamilyMvpRedirectPath(
       location.pathname,
       location.search,
+      familyMvpEnabled,
       familyMvpEntryPath
     );
     if (redirectPath) {
       navigate(redirectPath, { replace: true });
     }
-  }, [location.pathname, location.search, navigate, familyMvpEntryPath]);
+  }, [familyMvpEnabled, familyMvpEntryPath, location.pathname, location.search, navigate]);
 
+  // Sync route state (mode, selectedOwner, selectedGroup) with the current
+  // location. Waits for config to load so that disabled-tab redirects use
+  // the correct tab config. Also skips the sync when a Family MVP redirect
+  // is about to fire, to avoid transient mode flips.
   useEffect(() => {
-    const redirectPath = configLoaded
-      ? getFamilyMvpRedirectPath(
-          location.pathname,
-          location.search,
-          familyMvpEntryPath
-        )
-      : null;
+    if (!configLoaded) {
+      return;
+    }
+
+    const redirectPath = getFamilyMvpRedirectPath(
+      location.pathname,
+      location.search,
+      familyMvpEnabled,
+      familyMvpEntryPath
+    );
     if (redirectPath) {
+      // The first useEffect will navigate; skip syncing mode for this location.
       return;
     }
 
@@ -324,6 +340,7 @@ export default function App({ onLogout }: AppProps) {
       setResearchTicker(segs[1] ? decodeURIComponent(segs[1] ?? '') : '');
     }
   }, [
+    familyMvpEnabled,
     configLoaded,
     familyMvpEntryPath,
     location.pathname,

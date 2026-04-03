@@ -44,6 +44,7 @@ export interface TabsConfig {
 export interface AppConfig {
   configLoaded: boolean;
   relativeViewEnabled: boolean;
+  familyMvpEnabled: boolean;
   /**
    * Tabs that should be hidden/disabled from the UI.  We keep the type
    * flexible here so that the context can be consumed without depending on
@@ -74,7 +75,9 @@ const defaultTabs: TabsConfig = {
   owner: true,
   instrument: true,
   performance: true,
-  transactions: false,
+  // transactions enabled by default; Family MVP uses /transactions as its
+  // entry point so it must remain on. Non-MVP deployments also show it.
+  transactions: true,
   screener: true,
   trading: true,
   timeseries: true,
@@ -108,6 +111,9 @@ export interface ConfigContextValue extends AppConfig {
 export const configContext = createContext<ConfigContextValue>({
   configLoaded: false,
   relativeViewEnabled: false,
+  // Default to false (show everything) until server config confirms MVP mode.
+  // Failing open is safer than briefly hiding UI from non-MVP users.
+  familyMvpEnabled: false,
   disabledTabs: [],
   tabs: defaultTabs,
   theme: "system",
@@ -131,6 +137,9 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     return {
       configLoaded: false,
       relativeViewEnabled: storedRel === "true",
+      // Default to false until the /config fetch resolves, so non-MVP users
+      // never see a flash of MVP-restricted UI on page load.
+      familyMvpEnabled: false,
       disabledTabs: [],
       tabs: defaultTabs,
       theme: "system",
@@ -182,10 +191,6 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
       if (familyMvpEnabled && cfg.enable_advanced_analytics !== true) {
         disableTab("scenario");
       }
-      if (familyMvpEnabled) {
-        // Family MVP excludes transaction history from the default experience.
-        disableTab("transactions");
-      }
       for (const [tab, enabled] of Object.entries(tabs)) {
         if (enabled === false) disabledTabs.add(String(tab));
       }
@@ -199,6 +204,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         relativeViewEnabled: stored
           ? stored === "true"
           : Boolean(cfg.relative_view_enabled),
+        familyMvpEnabled,
         disabledTabs: Array.from(disabledTabs),
         tabs,
         theme,

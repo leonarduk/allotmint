@@ -12,9 +12,9 @@ from __future__ import annotations
 import logging
 import os
 from contextlib import asynccontextmanager
+from json import JSONDecodeError
 
-from fastapi import FastAPI, Form, HTTPException
-from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException, Request
 
 import backend.auth as auth
 from backend.common.portfolio_utils import (
@@ -32,10 +32,6 @@ from backend.bootstrap import (
 from backend.config import reload_config
 
 logger = logging.getLogger(__name__)
-
-
-class TokenIn(BaseModel):
-    id_token: str | None = None
 
 
 def create_app() -> FastAPI:
@@ -66,17 +62,73 @@ def create_app() -> FastAPI:
     register_middleware(app, cfg)
     register_routers(app, cfg)
 
-    @app.post("/token")
-    async def login(body: TokenIn | None = None, username: str | None = Form(None)):
+    @app.post(
+        "/token",
+        openapi_extra={
+            "requestBody": {
+                "required": False,
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "properties": {"id_token": {"type": "string"}},
+                        }
+                    },
+                    "application/x-www-form-urlencoded": {
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "username": {"type": "string"},
+                                "password": {"type": "string"},
+                            },
+                        }
+                    },
+                    "multipart/form-data": {
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "username": {"type": "string"},
+                                "password": {"type": "string"},
+                            },
+                        }
+                    },
+                },
+            }
+        },
+    )
+    async def login(request: Request):
         """Handle both JSON (id_token) and form (username/password) authentication."""
+        id_token: str | None = None
+        username: str | None = None
+
+        content_type = request.headers.get("content-type", "").lower()
+        if "application/json" in content_type:
+            try:
+                payload = await request.json()
+            except (JSONDecodeError, UnicodeDecodeError) as exc:
+                raise HTTPException(status_code=400, detail="Invalid JSON body") from exc
+            if not isinstance(payload, dict):
+                raise HTTPException(status_code=400, detail="Invalid JSON body")
+
+            if "id_token" in payload:
+                token_candidate = payload.get("id_token")
+                if not isinstance(token_candidate, str) or not token_candidate.strip():
+                    raise HTTPException(status_code=400, detail="Invalid id_token")
+                id_token = token_candidate
+        elif "application/x-www-form-urlencoded" in content_type or "multipart/form-data" in content_type:
+            form_data = await request.form()
+            username_raw = form_data.get("username")
+            if isinstance(username_raw, str):
+                username = username_raw
+
         if username is not None:
             if cfg.disable_auth or os.getenv("TESTING"):
                 email = "user@example.com"
             else:
                 raise HTTPException(status_code=400, detail="Password auth not supported in production")
-        elif body and body.id_token:
+        elif id_token:
             try:
-                email = auth.authenticate_user(body.id_token)
+                email = auth.authenticate_user(id_token)
             except HTTPException as exc:
                 logger.warning("User authentication failed: %s", exc.detail)
                 raise

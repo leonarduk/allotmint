@@ -9,6 +9,7 @@ by FastAPI.
 
 from __future__ import annotations
 
+from json import JSONDecodeError
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -69,7 +70,10 @@ def create_app() -> FastAPI:
 
         content_type = request.headers.get("content-type", "").lower()
         if "application/json" in content_type:
-            payload = await request.json()
+            try:
+                payload = await request.json()
+            except (JSONDecodeError, UnicodeDecodeError) as exc:
+                raise HTTPException(status_code=400, detail="Invalid JSON body") from exc
             if isinstance(payload, dict):
                 token_candidate = payload.get("id_token")
                 if isinstance(token_candidate, str):
@@ -79,9 +83,6 @@ def create_app() -> FastAPI:
             username_raw = form_data.get("username")
             if isinstance(username_raw, str):
                 username = username_raw
-            token_raw = form_data.get("id_token")
-            if isinstance(token_raw, str):
-                id_token = token_raw
 
         if username is not None:
             if cfg.disable_auth or os.getenv("TESTING"):

@@ -16,3 +16,17 @@ def test_token_requires_configured_email():
     bad = client.post("/token", json={"id_token": "other"})
     # Unauthorized email returns 403 Forbidden: request understood but not allowed
     assert bad.status_code == 403
+
+
+def test_token_rejects_malformed_json_body():
+    app = create_app()
+    client = TestClient(app)
+
+    response = client.post(
+        "/token",
+        content="{not-json",
+        headers={"content-type": "application/json"},
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Invalid JSON body"}

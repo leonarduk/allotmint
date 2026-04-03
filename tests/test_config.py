@@ -229,8 +229,8 @@ def test_reload_preserves_monkeypatched_allowed_emails(monkeypatch):
 def test_flatten_dict_preserves_canonical_section_precedence():
     flattened: dict[str, object] = {}
 
-    _flatten_dict({"auth": {"disable_auth": False, "google_auth_enabled": True}}, flattened)
     _flatten_dict({"disable_auth": True, "google_auth_enabled": False}, flattened)
+    _flatten_dict({"auth": {"disable_auth": False, "google_auth_enabled": True}}, flattened)
 
     assert flattened["disable_auth"] is False
     assert flattened["google_auth_enabled"] is True

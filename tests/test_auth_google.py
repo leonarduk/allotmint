@@ -42,3 +42,24 @@ def test_token_accepts_form_username_login():
     payload = response.json()
     assert payload["token_type"] == "bearer"
     assert "access_token" in payload
+
+
+def test_token_rejects_non_string_json_id_token():
+    app = create_app()
+    client = TestClient(app)
+
+    response = client.post("/token", json={"id_token": 123})
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Invalid id_token"}
+
+
+def test_token_openapi_documents_json_and_form_payloads():
+    app = create_app()
+
+    request_body = app.openapi()["paths"]["/token"]["post"]["requestBody"]
+    content = request_body["content"]
+
+    assert content["application/json"]["schema"]["properties"]["id_token"]["type"] == "string"
+    assert content["application/x-www-form-urlencoded"]["schema"]["properties"]["username"]["type"] == "string"
+    assert content["multipart/form-data"]["schema"]["properties"]["password"]["type"] == "string"

@@ -12,6 +12,7 @@ Read `AGENTS.md` for full repository guidance. Use these short rules while gener
 - Keep changes out of generated dependency folders such as `node_modules/`.
 - Be careful when changing `data/`, auth defaults, or smoke-test flows; these are tightly coupled to local development and demos.
 - Preserve bash/PowerShell parity when editing shared developer workflows.
+- For Codex browser-testing setup and POC commands, see `docs/CODEX_PLAYWRIGHT_MCP.md`.
 
 ## Code quality invariants (non-negotiable)
 

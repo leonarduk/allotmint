@@ -7,7 +7,6 @@ from fastapi.testclient import TestClient
 from backend.app import create_app
 from backend.config import (
     ConfigValidationError,
-    _flatten_dict,
     _project_config_path,
     config,
     demo_identity,
@@ -226,14 +225,29 @@ def test_reload_preserves_monkeypatched_allowed_emails(monkeypatch):
     reload_config()
 
 
-def test_flatten_dict_preserves_canonical_section_precedence():
-    flattened: dict[str, object] = {}
+@pytest.mark.parametrize(
+    "config_text",
+    [
+        "demo_identity: legacy-demo\nsmoke_identity: legacy-smoke\nauth:\n  demo_identity: section-demo\n  smoke_identity: section-smoke\n",
+        "auth:\n  demo_identity: section-demo\n  smoke_identity: section-smoke\ndemo_identity: legacy-demo\nsmoke_identity: legacy-smoke\n",
+    ],
+)
+def test_reload_prefers_canonical_auth_section_over_legacy_top_level(monkeypatch, tmp_path, config_text):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(config_text)
 
-    _flatten_dict({"disable_auth": True, "google_auth_enabled": False}, flattened)
-    _flatten_dict({"auth": {"disable_auth": False, "google_auth_enabled": True}}, flattened)
+    monkeypatch.setattr(sys.modules["backend.config"], "_project_config_path", lambda: config_path)
+    monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
 
-    assert flattened["disable_auth"] is False
-    assert flattened["google_auth_enabled"] is True
+    cfg = reload_config()
+    try:
+        assert cfg.demo_identity == "section-demo"
+        assert cfg.smoke_identity == "section-smoke"
+        assert demo_identity() == "section-demo"
+        assert smoke_identity() == "section-smoke"
+    finally:
+        monkeypatch.undo()
+        reload_config()
 
 
 def test_google_auth_requires_client_id(monkeypatch):

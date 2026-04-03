@@ -9,10 +9,10 @@ by FastAPI.
 
 from __future__ import annotations
 
-from json import JSONDecodeError
 import logging
 import os
 from contextlib import asynccontextmanager
+from json import JSONDecodeError
 
 from fastapi import FastAPI, HTTPException, Request
 

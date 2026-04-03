@@ -30,3 +30,15 @@ def test_token_rejects_malformed_json_body():
 
     assert response.status_code == 400
     assert response.json() == {"detail": "Invalid JSON body"}
+
+
+def test_token_accepts_form_username_login():
+    app = create_app()
+    client = TestClient(app)
+
+    response = client.post("/token", data={"username": "testuser", "password": "password"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["token_type"] == "bearer"
+    assert "access_token" in payload

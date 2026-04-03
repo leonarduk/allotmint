@@ -326,6 +326,14 @@ npm run smoke:test:all
 npm --prefix frontend run smoke:frontend
 ```
 
+### Codex browser-testing proof of concept
+
+```bash
+npm run smoke:test:codex:poc
+```
+
+For setup and exploratory Codex+MCP usage, see [docs/CODEX_PLAYWRIGHT_MCP.md](CODEX_PLAYWRIGHT_MCP.md).
+
 ### Deployment-oriented entrypoints
 
 ```bash

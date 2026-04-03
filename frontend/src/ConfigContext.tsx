@@ -75,6 +75,8 @@ const defaultTabs: TabsConfig = {
   owner: true,
   instrument: true,
   performance: true,
+  // transactions enabled by default; Family MVP uses /transactions as its
+  // entry point so it must remain on. Non-MVP deployments also show it.
   transactions: true,
   screener: true,
   trading: true,
@@ -109,7 +111,9 @@ export interface ConfigContextValue extends AppConfig {
 export const configContext = createContext<ConfigContextValue>({
   configLoaded: false,
   relativeViewEnabled: false,
-  familyMvpEnabled: true,
+  // Default to false (show everything) until server config confirms MVP mode.
+  // Failing open is safer than briefly hiding UI from non-MVP users.
+  familyMvpEnabled: false,
   disabledTabs: [],
   tabs: defaultTabs,
   theme: "system",
@@ -133,7 +137,9 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     return {
       configLoaded: false,
       relativeViewEnabled: storedRel === "true",
-      familyMvpEnabled: true,
+      // Default to false until the /config fetch resolves, so non-MVP users
+      // never see a flash of MVP-restricted UI on page load.
+      familyMvpEnabled: false,
       disabledTabs: [],
       tabs: defaultTabs,
       theme: "system",

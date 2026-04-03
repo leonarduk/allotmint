@@ -212,9 +212,10 @@ export function HoldingsTable({
 
   return (
     <>
-      <FilterBar state={filters} dispatch={dispatchFilters} />
+      {/* FilterBar and all advanced controls are hidden in Family MVP mode */}
       {!familyMvpEnabled && (
         <>
+          <FilterBar state={filters} dispatch={dispatchFilters} />
           <div className="mb-2">
             <RelativeViewToggle />
           </div>

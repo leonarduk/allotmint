@@ -1,10 +1,8 @@
-import pytest
 from fastapi.testclient import TestClient
 
 from backend.app import create_app
 
 
-@pytest.mark.xfail(reason="To fix")
 def test_token_requires_configured_email():
     app = create_app()
     client = TestClient(app)
@@ -18,3 +16,50 @@ def test_token_requires_configured_email():
     bad = client.post("/token", json={"id_token": "other"})
     # Unauthorized email returns 403 Forbidden: request understood but not allowed
     assert bad.status_code == 403
+
+
+def test_token_rejects_malformed_json_body():
+    app = create_app()
+    client = TestClient(app)
+
+    response = client.post(
+        "/token",
+        content="{not-json",
+        headers={"content-type": "application/json"},
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Invalid JSON body"}
+
+
+def test_token_accepts_form_username_login():
+    app = create_app()
+    client = TestClient(app)
+
+    response = client.post("/token", data={"username": "testuser", "password": "password"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["token_type"] == "bearer"
+    assert "access_token" in payload
+
+
+def test_token_rejects_non_string_json_id_token():
+    app = create_app()
+    client = TestClient(app)
+
+    response = client.post("/token", json={"id_token": 123})
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Invalid id_token"}
+
+
+def test_token_openapi_documents_json_and_form_payloads():
+    app = create_app()
+
+    request_body = app.openapi()["paths"]["/token"]["post"]["requestBody"]
+    content = request_body["content"]
+
+    assert content["application/json"]["schema"]["properties"]["id_token"]["type"] == "string"
+    assert content["application/x-www-form-urlencoded"]["schema"]["properties"]["username"]["type"] == "string"
+    assert content["multipart/form-data"]["schema"]["properties"]["password"]["type"] == "string"

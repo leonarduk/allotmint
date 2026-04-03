@@ -11,6 +11,7 @@ If you are onboarding, start with:
 
 ### Core contributor and operations docs
 - [`CONTRIBUTOR_RUNBOOK.md`](CONTRIBUTOR_RUNBOOK.md) — contributor onboarding and day-to-day development flow.
+- [`CODEX_PLAYWRIGHT_MCP.md`](CODEX_PLAYWRIGHT_MCP.md) — exact Playwright MCP registration steps for Codex.
 - [`DEPLOY.md`](DEPLOY.md) — deployment workflow and operational deployment notes.
 - [`SMOKE_TESTS.md`](SMOKE_TESTS.md) — smoke test commands and expectations.
 - [`SECURITY.md`](SECURITY.md) — security guidance and controls.

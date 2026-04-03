@@ -265,6 +265,9 @@ export default function App({ onLogout }: AppProps) {
   );
   const selectedOwnerIsGroup = selectedOwnerGroup !== null;
 
+  // Redirect to the Family MVP entry path whenever the current route is not
+  // in FAMILY_MVP_MODES. Fires on every location change and whenever the
+  // config (and therefore familyMvpEnabled / familyMvpEntryPath) resolves.
   useEffect(() => {
     const redirectPath = getFamilyMvpRedirectPath(
       location.pathname,
@@ -277,23 +280,23 @@ export default function App({ onLogout }: AppProps) {
     }
   }, [familyMvpEnabled, familyMvpEntryPath, location.pathname, location.search, navigate]);
 
+  // Sync route state (mode, selectedOwner, selectedGroup) with the current
+  // location. Waits for config to load so that disabled-tab redirects use
+  // the correct tab config. Also skips the sync when a Family MVP redirect
+  // is about to fire, to avoid transient mode flips.
   useEffect(() => {
-
     if (!configLoaded) {
       return;
     }
 
-    
-    const redirectPath = configLoaded
-      ? getFamilyMvpRedirectPath(
-          location.pathname,
-          location.search,
-          familyMvpEnabled,
-          familyMvpEntryPath
-        )
-      : null;
-
+    const redirectPath = getFamilyMvpRedirectPath(
+      location.pathname,
+      location.search,
+      familyMvpEnabled,
+      familyMvpEntryPath
+    );
     if (redirectPath) {
+      // The first useEffect will navigate; skip syncing mode for this location.
       return;
     }
 

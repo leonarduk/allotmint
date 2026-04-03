@@ -47,6 +47,9 @@ export default function Menu({
   const mode = deriveModeFromPathname(location.pathname) as TabPluginId;
   const isSupportMode = (SUPPORT_TABS as readonly string[]).includes(mode);
   const inSupport = mode === 'support';
+  // Support link is only shown for non-MVP users who have the support tab enabled.
+  // (Previously gated by isFamilyMvpMode('support') which always returned false
+  // because 'support' is not in FAMILY_MVP_MODES — this is equivalent but explicit.)
   const supportEnabled =
     !familyMvpEnabled &&
     tabs.support !== false &&
@@ -71,10 +74,11 @@ export default function Menu({
           return false;
         }
 
+        // In Family MVP mode, only show tabs that are in FAMILY_MVP_MODES.
         const modeAllowed = !familyMvpEnabled || isFamilyMvpMode(entry.mode);
         return modeAllowed && tabs[entry.mode] === true && !disabledTabs?.includes(entry.mode);
       }),
-    [disabledTabs, inSupport, isSupportMode, tabs]
+    [disabledTabs, familyMvpEnabled, inSupport, isSupportMode, tabs]
   );
 
   const categoriesToRender = useMemo<CategorizedMenu[]>(

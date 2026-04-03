@@ -81,10 +81,6 @@ interface AppProps {
   onLogout?: () => void;
 }
 
-const path = window.location.pathname.split('/').filter(Boolean);
-const initialMode = deriveModeFromPathname(window.location.pathname);
-const initialSlug = path[1] ?? '';
-
 const routeMarkerStyle: CSSProperties = {
   position: 'absolute',
   width: 1,
@@ -167,21 +163,27 @@ export default function App({ onLogout }: AppProps) {
   const isReportCreationRoute =
     location.pathname === '/reports/new' ||
     location.pathname.startsWith('/reports/new/');
-  const [mode, setMode] = useState(initialMode);
-  const [selectedOwner, setSelectedOwner] = useState(
-    initialMode === 'owner' || initialMode === 'performance'
-      ? decodePathSegment(initialSlug)
-      : ''
-  );
-  const [selectedGroup, setSelectedGroup] = useState(
-    initialMode === 'instrument'
-      ? initialSlug
-      : normaliseGroupSlug(params.get('group'))
-  );
+  const [mode, setMode] = useState(() => deriveModeFromPathname(location.pathname));
+  const [selectedOwner, setSelectedOwner] = useState(() => {
+    const initialPath = location.pathname.split('/').filter(Boolean);
+    const initialMode = deriveModeFromPathname(location.pathname);
+    return initialMode === 'owner' || initialMode === 'performance'
+      ? decodePathSegment(initialPath[1] ?? '')
+      : '';
+  });
+  const [selectedGroup, setSelectedGroup] = useState(() => {
+    const initialPath = location.pathname.split('/').filter(Boolean);
+    return deriveModeFromPathname(location.pathname) === 'instrument'
+      ? initialPath[1] ?? ''
+      : normaliseGroupSlug(params.get('group'));
+  });
 
-  const [researchTicker, setResearchTicker] = useState(
-    initialMode === 'research' ? decodeURIComponent(initialSlug) : ''
-  );
+  const [researchTicker, setResearchTicker] = useState(() => {
+    const initialPath = location.pathname.split('/').filter(Boolean);
+    return deriveModeFromPathname(location.pathname) === 'research'
+      ? decodeURIComponent(initialPath[1] ?? '')
+      : '';
+  });
 
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
   const [groups, setGroups] = useState<GroupSummary[]>([]);
@@ -242,6 +244,22 @@ export default function App({ onLogout }: AppProps) {
 
   const ownersReq = useFetchWithRetry(getOwners, 500, 5, [retryNonce]);
   const groupsReq = useFetchWithRetry(getGroups, 500, 5, [retryNonce]);
+  const identityCatalogReady = ownersReq.data !== null && groupsReq.data !== null;
+  const selectedOwnerGroup = useMemo(
+    () =>
+      selectedOwner && groupsReq.data
+        ? groupsReq.data.find((group) => group.slug === selectedOwner) ?? null
+        : null,
+    [groupsReq.data, selectedOwner]
+  );
+  const selectedGroupSummary = useMemo(
+    () =>
+      selectedGroup && groupsReq.data
+        ? groupsReq.data.find((group) => group.slug === selectedGroup) ?? null
+        : null,
+    [groupsReq.data, selectedGroup]
+  );
+  const selectedOwnerIsGroup = selectedOwnerGroup !== null;
 
   useEffect(() => {
     const redirectPath = getFamilyMvpRedirectPath(
@@ -255,15 +273,13 @@ export default function App({ onLogout }: AppProps) {
   }, [location.pathname, location.search, navigate, familyMvpEntryPath]);
 
   useEffect(() => {
-    if (!configLoaded) {
-      return;
-    }
-
-    const redirectPath = getFamilyMvpRedirectPath(
-      location.pathname,
-      location.search,
-      familyMvpEntryPath
-    );
+    const redirectPath = configLoaded
+      ? getFamilyMvpRedirectPath(
+          location.pathname,
+          location.search,
+          familyMvpEntryPath
+        )
+      : null;
     if (redirectPath) {
       return;
     }
@@ -288,6 +304,16 @@ export default function App({ onLogout }: AppProps) {
     if (newMode === 'owner' || newMode === 'performance') {
       if (segs[1]) {
         setSelectedOwner(decodePathSegment(segs[1]));
+      } else if (owners.length > 0) {
+        const owner = owners[0].owner;
+        setSelectedOwner(owner);
+        navigate(
+          newMode === 'performance'
+            ? `/performance/${encodePathSegment(owner)}`
+            : `/portfolio/${encodePathSegment(owner)}`,
+          { replace: true }
+        );
+        return;
       }
     } else if (newMode === 'instrument') {
       setSelectedGroup(segs[1] ?? '');
@@ -307,6 +333,7 @@ export default function App({ onLogout }: AppProps) {
     location.search,
     tabs,
     disabledTabs,
+    owners,
     navigate,
   ]);
 
@@ -408,7 +435,7 @@ export default function App({ onLogout }: AppProps) {
 
   // data fetching based on route
   useEffect(() => {
-    if (mode === 'owner' && selectedOwner) {
+    if (mode === 'owner' && selectedOwner && identityCatalogReady && !selectedOwnerIsGroup) {
       const cacheKey = `${selectedOwner}::${portfolioAsOf ?? ''}::${lastRefresh ?? ''}`;
       const cached = portfolioCache.current.get(cacheKey);
 
@@ -437,13 +464,13 @@ export default function App({ onLogout }: AppProps) {
         .catch((e) => setErr(String(e)))
         .finally(() => setLoading(false));
     }
-  }, [mode, selectedOwner, portfolioAsOf, lastRefresh]);
+  }, [mode, selectedOwner, portfolioAsOf, lastRefresh, selectedOwnerIsGroup, identityCatalogReady]);
 
   useEffect(() => {
-    if (mode === 'owner' && selectedOwner) {
+    if (mode === 'owner' && selectedOwner && identityCatalogReady) {
       setPortfolioAsOf(null);
     }
-  }, [mode, selectedOwner]);
+  }, [mode, selectedOwner, identityCatalogReady]);
 
   useEffect(() => {
     if (mode === 'instrument' && selectedGroup) {
@@ -536,8 +563,8 @@ export default function App({ onLogout }: AppProps) {
           onClose={() => setNotificationsOpen(false)}
         />
 
-        {/* OWNER VIEW */}
-        {mode === 'owner' && (
+        {/* INDIVIDUAL OWNER VIEW */}
+        {mode === 'owner' && !selectedOwnerIsGroup && (
           <>
             <ComplianceWarnings owners={selectedOwner ? [selectedOwner] : []} />
             <PortfolioView
@@ -549,14 +576,17 @@ export default function App({ onLogout }: AppProps) {
           </>
         )}
 
+        {mode === 'owner' && selectedOwnerGroup && (
+          <>
+            <ComplianceWarnings owners={selectedOwnerGroup.members} />
+            <GroupPortfolioView slug={selectedOwnerGroup.slug} owners={owners} />
+          </>
+        )}
+
         {/* GROUP VIEW */}
         {mode === 'group' && selectedGroup && (
           <>
-            <ComplianceWarnings
-              owners={
-                groups.find((g) => g.slug === selectedGroup)?.members ?? []
-              }
-            />
+            <ComplianceWarnings owners={selectedGroupSummary?.members ?? []} />
             <GroupPortfolioView slug={selectedGroup} owners={owners} />
           </>
         )}

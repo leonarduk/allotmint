@@ -62,10 +62,7 @@ import {
   downloadInstrumentsCsv,
   printInstrumentsPdf,
 } from './lib/instrumentExports';
-import {
-  getFamilyMvpEntryPath,
-  isFamilyMvpMode,
-} from './familyMvp';
+import { getFamilyMvpEntryPath, isFamilyMvpMode } from './familyMvp';
 
 const PerformanceDashboard = lazyWithDelay(
   () => import('./components/PerformanceDashboard')
@@ -129,7 +126,7 @@ export function getOwnerRootRedirectPath(
 export function getFamilyMvpRedirectPath(
   pathname: string,
   search: string,
-  entryPath: string | null = '/portfolio'
+  entryPath: string | null = '/input'
 ): string | null {
   // Family MVP redirect policy:
   // - Bare root lands on the configured entry flow.
@@ -626,7 +623,12 @@ export default function App({ onLogout }: AppProps) {
           </>
         )}
 
-        {mode === 'transactions' && <TransactionsPage owners={owners} />}
+        {mode === 'transactions' && (
+          <TransactionsPage
+            owners={owners}
+            inputOnly={location.pathname === '/input'}
+          />
+        )}
 
         {mode === 'trading' && <Trading />}
 

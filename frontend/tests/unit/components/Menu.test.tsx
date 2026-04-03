@@ -5,12 +5,47 @@ import i18n from '@/i18n';
 import Menu from '@/components/Menu';
 import { configContext, type ConfigContextValue } from '@/ConfigContext';
 
+const configWithTransactions: ConfigContextValue = {
+  relativeViewEnabled: false,
+  disabledTabs: [],
+  tabs: {
+    group: true,
+    market: true,
+    owner: true,
+    instrument: true,
+    performance: true,
+    transactions: true,
+    screener: true,
+    trading: true,
+    timeseries: true,
+    watchlist: true,
+    allocation: true,
+    rebalance: true,
+    movers: true,
+    instrumentadmin: true,
+    dataadmin: true,
+    virtual: true,
+    support: true,
+    settings: true,
+    pension: true,
+    reports: true,
+    scenario: true,
+  },
+  theme: 'system',
+  baseCurrency: 'GBP',
+  refreshConfig: async () => {},
+  setRelativeViewEnabled: () => {},
+  setBaseCurrency: () => {},
+};
+
 describe('Menu', () => {
   it('hides links by default and shows them after toggle', async () => {
     render(
-      <MemoryRouter>
-        <Menu />
-      </MemoryRouter>
+      <configContext.Provider value={configWithTransactions}>
+        <MemoryRouter>
+          <Menu />
+        </MemoryRouter>
+      </configContext.Provider>
     );
     const settingsToggle = screen.getByRole('button', {
       name: i18n.t('app.menuCategories.dashboard'),
@@ -25,7 +60,7 @@ describe('Menu', () => {
       name: i18n.t('app.modes.transactions'),
     });
     expect(inputLink).toBeVisible();
-    expect(inputLink).toHaveAttribute('href', '/transactions');
+    expect(inputLink).toHaveAttribute('href', '/input');
     fireEvent.click(settingsToggle);
     expect(settingsToggle).toHaveAttribute('aria-expanded', 'false');
     await waitFor(() =>
@@ -137,9 +172,11 @@ describe('Menu', () => {
   it('applies 44px touch target sizing to dropdown menu items', async () => {
     const onLogout = vi.fn();
     render(
-      <MemoryRouter>
-        <Menu onLogout={onLogout} />
-      </MemoryRouter>
+      <configContext.Provider value={configWithTransactions}>
+        <MemoryRouter>
+          <Menu onLogout={onLogout} />
+        </MemoryRouter>
+      </configContext.Provider>
     );
 
     const dashboardToggle = screen.getByRole('button', {

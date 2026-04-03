@@ -382,6 +382,43 @@ def _locked_transactions_data(
         _unlock_file(f)
 
 
+@contextmanager
+def _locked_account_holdings_data(
+    owner: str, account: str, accounts_root: Path
+) -> Iterator[Tuple[dict[str, Any], TextIO]]:
+    owner_dir = accounts_root / owner
+    owner_dir.mkdir(parents=True, exist_ok=True)
+    file_path = owner_dir / f"{account}.json"
+    mode = "r+" if file_path.exists() else "w+"
+    with file_path.open(mode, encoding="utf-8") as f:
+        _lock_file(f)
+        f.seek(0)
+        try:
+            data = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            data = {}
+
+        if not isinstance(data, dict):
+            data = {}
+
+        data.setdefault("owner", owner)
+        data.setdefault("account_type", account)
+        data.setdefault("currency", "GBP")
+        holdings = data.get("holdings")
+        if not isinstance(holdings, list):
+            data["holdings"] = []
+
+        yield data, f
+
+        f.seek(0)
+        f.truncate()
+        json.dump(data, f, indent=2)
+        f.write("\n")
+        f.flush()
+        os.fsync(f.fileno())
+        _unlock_file(f)
+
+
 def _rebuild_portfolio(owner: str, account: str, accounts_root: Path) -> None:
     try:
         if not config.offline_mode:
@@ -632,29 +669,39 @@ async def create_manual_holding(request: Request, payload: ManualHoldingCreate) 
         raise HTTPException(status_code=400, detail="ticker is required")
 
     accounts_root = _require_accounts_root(request)
-    owner_dir = accounts_root / owner
-    owner_dir.mkdir(parents=True, exist_ok=True)
-
     account_slug = _normalise_account_file_name(account)
-    account_file = owner_dir / f"{account_slug}.json"
-    account_payload = _load_account_holdings_file(account_file, owner, account_slug)
 
     holding: dict[str, Any] = {"ticker": ticker}
     if payload.value_gbp is not None:
         holding["value_gbp"] = float(payload.value_gbp)
     else:
-        holding["units"] = float(payload.units or 0.0)
-        holding["price"] = float(payload.price_gbp or 0.0)
-    if payload.currency:
-        account_payload["currency"] = payload.currency.strip().upper() or "GBP"
-    account_payload.setdefault("last_updated", date.today().isoformat())
-    account_payload["last_updated"] = date.today().isoformat()
-    account_payload.setdefault("holdings", [])
-    account_payload["holdings"].append(holding)
-    account_payload["owner"] = owner
-    account_payload["account_type"] = account_slug
+        if payload.units is None or payload.price_gbp is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Provide either value_gbp or both units and price_gbp",
+            )
+        holding["units"] = float(payload.units)
+        holding["price"] = float(payload.price_gbp)
 
-    account_file.write_text(json.dumps(account_payload, indent=2) + "\n")
+    with _locked_account_holdings_data(owner, account_slug, accounts_root) as (account_payload, _):
+        if payload.currency:
+            account_payload["currency"] = payload.currency.strip().upper() or "GBP"
+        account_payload["last_updated"] = date.today().isoformat()
+        account_payload["owner"] = owner
+        account_payload["account_type"] = account_slug
+
+        holdings = account_payload.setdefault("holdings", [])
+        for index, existing in enumerate(holdings):
+            existing_ticker = (
+                str(existing.get("ticker") or "").strip().upper()
+                if isinstance(existing, Mapping)
+                else ""
+            )
+            if existing_ticker == ticker:
+                holdings[index] = holding
+                break
+        else:
+            holdings.append(holding)
 
     return {
         "status": "saved",

@@ -37,7 +37,12 @@ export interface DerivedRoute {
 }
 
 const lazyPage = (loader: Parameters<typeof lazy>[0]) => lazy(loader);
-const routeContext = ({ owner, group, selectedOwner, selectedGroup }: RoutePathContext) => ({
+const routeContext = ({
+  owner,
+  group,
+  selectedOwner,
+  selectedGroup,
+}: RoutePathContext) => ({
   owner: owner ?? selectedOwner ?? '',
   group: group ?? selectedGroup ?? '',
 });
@@ -110,8 +115,8 @@ export const ROUTE_REGISTRY: RouteRegistryEntry[] = [
     routeSegment: 'transactions',
     section: 'user',
     menuCategory: 'dashboard',
-    priority: 50,
-    defaultPath: () => '/transactions',
+    priority: 25,
+    defaultPath: () => '/input',
   },
   {
     mode: 'trading',
@@ -292,24 +297,35 @@ export const pageManifest = ROUTE_REGISTRY;
 export const PAGE_MANIFEST = ROUTE_REGISTRY;
 
 export const pageManifestByMode = Object.fromEntries(
-  ROUTE_REGISTRY.map((route) => [route.mode, route]),
+  ROUTE_REGISTRY.map((route) => [route.mode, route])
 ) as Record<Mode, RouteRegistryEntry>;
 
 export const pageManifestBySegment = new Map(
-  ROUTE_REGISTRY.filter((route) => route.routeSegment !== null).map((route) => [route.routeSegment, route] as const),
+  ROUTE_REGISTRY.filter((route) => route.routeSegment !== null).map(
+    (route) => [route.routeSegment, route] as const
+  )
 );
 
-export const MENU_CATEGORY_ORDER: Record<MenuSection, readonly MenuCategory[]> = {
-  user: ['dashboard', 'insights', 'goals', 'preferences'],
-  support: ['operations', 'preferences'],
-};
+export const MENU_CATEGORY_ORDER: Record<MenuSection, readonly MenuCategory[]> =
+  {
+    user: ['dashboard', 'insights', 'goals', 'preferences'],
+    support: ['operations', 'preferences'],
+  };
 
 export const menuCategories = {
-  user: MENU_CATEGORY_ORDER.user.map((category) => ({ id: category, titleKey: category })),
-  support: MENU_CATEGORY_ORDER.support.map((category) => ({ id: category, titleKey: category })),
+  user: MENU_CATEGORY_ORDER.user.map((category) => ({
+    id: category,
+    titleKey: category,
+  })),
+  support: MENU_CATEGORY_ORDER.support.map((category) => ({
+    id: category,
+    titleKey: category,
+  })),
 } as const;
 
-export function getPageManifestEntry(mode: Mode): RouteRegistryEntry | undefined {
+export function getPageManifestEntry(
+  mode: Mode
+): RouteRegistryEntry | undefined {
   return pageManifestByMode[mode];
 }
 
@@ -319,6 +335,10 @@ export function deriveRouteFromPathname(pathname: string): DerivedRoute {
 
   if (!first) {
     return { mode: 'group', routeSegment: null, slug: '' };
+  }
+
+  if (first === 'input') {
+    return { mode: 'transactions', routeSegment: 'transactions', slug };
   }
 
   const matchedRoute = pageManifestBySegment.get(first);
@@ -339,29 +359,41 @@ export function deriveModeFromPathname(pathname: string): Mode {
 
 export function deriveBootstrapMode(
   pathname: string,
-  state: 'loading' | 'config-error' | 'auth',
+  state: 'loading' | 'config-error' | 'auth'
 ): Mode | 'loading' {
   return state === 'loading' ? 'loading' : deriveModeFromPathname(pathname);
 }
 
-export function buildPathForMode(mode: Mode, context: RoutePathContext = {}): string {
+export function buildPathForMode(
+  mode: Mode,
+  context: RoutePathContext = {}
+): string {
   return pageManifestByMode[mode].defaultPath(context);
 }
 
-export function pathForMode(mode: Mode, context: RoutePathContext = {}): string {
+export function pathForMode(
+  mode: Mode,
+  context: RoutePathContext = {}
+): string {
   return buildPathForMode(mode, context);
 }
 
-export function isModeEnabled(mode: Mode, tabs: TabsConfig, disabledTabs?: readonly string[]): boolean {
+export function isModeEnabled(
+  mode: Mode,
+  tabs: TabsConfig,
+  disabledTabs?: readonly string[]
+): boolean {
   return tabs[mode] !== false && !disabledTabs?.includes(mode);
 }
 
-export function getMenuEntries(section: MenuSection): Array<RouteRegistryEntry & { menuCategory: MenuCategory }> {
+export function getMenuEntries(
+  section: MenuSection
+): Array<RouteRegistryEntry & { menuCategory: MenuCategory }> {
   return ROUTE_REGISTRY.filter(
-    (entry) => entry.section === section && Boolean(entry.menuCategory),
-  ).sort((left, right) => (left.priority ?? 0) - (right.priority ?? 0)) as Array<
-    RouteRegistryEntry & { menuCategory: MenuCategory }
-  >;
+    (entry) => entry.section === section && Boolean(entry.menuCategory)
+  ).sort(
+    (left, right) => (left.priority ?? 0) - (right.priority ?? 0)
+  ) as Array<RouteRegistryEntry & { menuCategory: MenuCategory }>;
 }
 
 export function validatePageManifest() {
@@ -375,7 +407,8 @@ export function validatePageManifest() {
     seenModes.add(entry.mode);
 
     if (entry.routeSegment) {
-      if (seenSegments.has(entry.routeSegment)) duplicateSegments.add(entry.routeSegment);
+      if (seenSegments.has(entry.routeSegment))
+        duplicateSegments.add(entry.routeSegment);
       seenSegments.add(entry.routeSegment);
     }
   }
@@ -386,8 +419,11 @@ export function validatePageManifest() {
   };
 }
 
-export const standalonePageRoutes = ROUTE_REGISTRY.filter(
-  (entry) => Boolean(entry.routePath && entry.lazyComponent),
+export const standalonePageRoutes = ROUTE_REGISTRY.filter((entry) =>
+  Boolean(entry.routePath && entry.lazyComponent)
 ) as Array<
-  RouteRegistryEntry & { routePath: string; lazyComponent: LazyExoticComponent<ComponentType> }
+  RouteRegistryEntry & {
+    routePath: string;
+    lazyComponent: LazyExoticComponent<ComponentType>;
+  }
 >;

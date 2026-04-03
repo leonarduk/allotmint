@@ -389,6 +389,38 @@ def test_create_manual_holding_with_units_and_price(tmp_path, monkeypatch):
     assert resp.json()["holding"] == {"ticker": "MSFT", "units": 5.0, "price": 312.4}
 
 
+def test_create_manual_holding_updates_existing_ticker_in_account(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+
+    first = client.post(
+        "/holdings/manual",
+        json={
+            "owner": "alice",
+            "account": "ISA",
+            "ticker": "VUSA.L",
+            "value_gbp": 1250,
+        },
+    )
+    assert first.status_code == 200
+
+    second = client.post(
+        "/holdings/manual",
+        json={
+            "owner": "alice",
+            "account": "ISA",
+            "ticker": "vusa.l",
+            "units": 3,
+            "price_gbp": 100,
+        },
+    )
+    assert second.status_code == 200
+    assert second.json()["holding"] == {"ticker": "VUSA.L", "units": 3.0, "price": 100.0}
+
+    account_path = tmp_path / "alice" / "isa.json"
+    saved = json.loads(account_path.read_text())
+    assert saved["holdings"] == [{"ticker": "VUSA.L", "units": 3.0, "price": 100.0}]
+
+
 def test_create_manual_holding_rejects_invalid_metric_combo(tmp_path, monkeypatch):
     client = _make_client(tmp_path, monkeypatch)
 

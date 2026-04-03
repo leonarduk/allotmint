@@ -6,7 +6,7 @@ import os
 import platform
 import re
 from collections import defaultdict
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Mapping, Optional, Tuple, TextIO
@@ -163,6 +163,67 @@ class TransactionUpdate(TransactionCreate):
     pass
 
 
+class ManualHoldingCreate(BaseModel):
+    owner: str
+    account: str
+    ticker: str
+    value_gbp: float | None = Field(default=None, gt=0)
+    units: float | None = Field(default=None, gt=0)
+    price_gbp: float | None = Field(default=None, gt=0)
+    currency: str | None = None
+
+
+def _normalise_account_file_name(account: str) -> str:
+    return account.strip().lower()
+
+
+def _load_account_holdings_file(path: Path, owner: str, account: str) -> dict[str, Any]:
+    if path.exists():
+        try:
+            loaded = json.loads(path.read_text())
+        except (json.JSONDecodeError, OSError, ValueError):
+            loaded = {}
+    else:
+        loaded = {}
+
+    if not isinstance(loaded, dict):
+        loaded = {}
+
+    loaded.setdefault("owner", owner)
+    loaded.setdefault("account_type", account)
+    loaded.setdefault("currency", "GBP")
+    holdings = loaded.get("holdings")
+    if not isinstance(holdings, list):
+        loaded["holdings"] = []
+    return loaded
+
+
+def _account_payload_summary(payload: Mapping[str, Any]) -> dict[str, Any]:
+    account_type = str(payload.get("account_type") or "").strip()
+    currency = str(payload.get("currency") or "GBP").strip().upper() or "GBP"
+    holdings_raw = payload.get("holdings")
+    holdings = holdings_raw if isinstance(holdings_raw, list) else []
+    return {
+        "account_type": account_type,
+        "currency": currency,
+        "holdings": holdings,
+        "holding_count": len(holdings),
+    }
+
+
+def _validate_manual_holding_payload(payload: ManualHoldingCreate) -> None:
+    has_value = payload.value_gbp is not None
+    has_units = payload.units is not None
+    has_price = payload.price_gbp is not None
+    has_units_price = has_units and has_price
+    has_partial_units_price = has_units != has_price
+    if has_partial_units_price or has_value == has_units_price:
+        raise HTTPException(
+            status_code=400,
+            detail="Provide either value_gbp or both units and price_gbp",
+        )
+
+
 def _build_transaction_id(owner: str, account: str, index: int) -> str:
     return f"{owner}:{account}:{index}"
 
@@ -303,25 +364,98 @@ def _locked_transactions_data(
     owner_dir = accounts_root / owner
     owner_dir.mkdir(parents=True, exist_ok=True)
     file_path = owner_dir / f"{account}_transactions.json"
-    mode = "r+" if file_path.exists() else "w+"
+    file_existed = file_path.exists()
+    mode = "r+" if file_existed else "w+"
+    committed = False
+    pending_error: BaseException | None = None
+    pending_traceback = None
     with file_path.open(mode, encoding="utf-8") as f:
         _lock_file(f)
-        f.seek(0)
         try:
-            data = json.load(f)
-        except (json.JSONDecodeError, OSError):
-            data = {"owner": owner, "account_type": account, "transactions": []}
-        else:
+            f.seek(0)
+            try:
+                data = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                data = {"owner": owner, "account_type": account, "transactions": []}
+            else:
+                data.setdefault("owner", owner)
+                data.setdefault("account_type", account)
+                data.setdefault("transactions", [])
+
+            try:
+                yield data, f
+            except BaseException as exc:
+                pending_error = exc
+                pending_traceback = exc.__traceback__
+            else:
+                f.seek(0)
+                f.truncate()
+                json.dump(data, f, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+                committed = True
+        finally:
+            _unlock_file(f)
+
+    if not committed and not file_existed:
+        with suppress(FileNotFoundError):
+            file_path.unlink()
+    if pending_error is not None:
+        raise pending_error.with_traceback(pending_traceback)
+
+
+@contextmanager
+def _locked_account_holdings_data(
+    owner: str, account: str, accounts_root: Path
+) -> Iterator[Tuple[dict[str, Any], TextIO]]:
+    owner_dir = accounts_root / owner
+    owner_dir.mkdir(parents=True, exist_ok=True)
+    file_path = owner_dir / f"{account}.json"
+    file_existed = file_path.exists()
+    mode = "r+" if file_existed else "w+"
+    committed = False
+    pending_error: BaseException | None = None
+    pending_traceback = None
+    with file_path.open(mode, encoding="utf-8") as f:
+        _lock_file(f)
+        try:
+            f.seek(0)
+            try:
+                data = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                data = {}
+
+            if not isinstance(data, dict):
+                data = {}
+
             data.setdefault("owner", owner)
             data.setdefault("account_type", account)
-            data.setdefault("transactions", [])
-        yield data, f
-        f.seek(0)
-        f.truncate()
-        json.dump(data, f, indent=2)
-        f.flush()
-        os.fsync(f.fileno())
-        _unlock_file(f)
+            data.setdefault("currency", "GBP")
+            holdings = data.get("holdings")
+            if not isinstance(holdings, list):
+                data["holdings"] = []
+
+            try:
+                yield data, f
+            except BaseException as exc:
+                pending_error = exc
+                pending_traceback = exc.__traceback__
+            else:
+                f.seek(0)
+                f.truncate()
+                json.dump(data, f, indent=2)
+                f.write("\n")
+                f.flush()
+                os.fsync(f.fileno())
+                committed = True
+        finally:
+            _unlock_file(f)
+
+    if not committed and not file_existed:
+        with suppress(FileNotFoundError):
+            file_path.unlink()
+    if pending_error is not None:
+        raise pending_error.with_traceback(pending_traceback)
 
 
 def _rebuild_portfolio(owner: str, account: str, accounts_root: Path) -> None:
@@ -562,6 +696,74 @@ async def import_holdings(
         raise HTTPException(status_code=400, detail=f"Unknown provider: {exc}")
     except Exception as exc:  # pragma: no cover - parsing errors
         raise HTTPException(status_code=400, detail=f"Failed to import file: {exc}")
+
+
+@router.post("/holdings/manual")
+async def create_manual_holding(request: Request, payload: ManualHoldingCreate) -> dict[str, Any]:
+    _validate_manual_holding_payload(payload)
+    owner = _validate_component(payload.owner, "owner")
+    account = _validate_component(payload.account, "account")
+    ticker = str(payload.ticker or "").strip().upper()
+    if not ticker:
+        raise HTTPException(status_code=400, detail="ticker is required")
+
+    accounts_root = _require_accounts_root(request)
+    account_slug = _normalise_account_file_name(account)
+
+    holding: dict[str, Any] = {"ticker": ticker}
+    if payload.value_gbp is not None:
+        holding["value_gbp"] = float(payload.value_gbp)
+    else:
+        holding["units"] = float(payload.units)
+        holding["price"] = float(payload.price_gbp)
+
+    with _locked_account_holdings_data(owner, account_slug, accounts_root) as (account_payload, _):
+        if payload.currency:
+            account_payload["currency"] = payload.currency.strip().upper() or "GBP"
+        account_payload["last_updated"] = date.today().isoformat()
+        account_payload["owner"] = owner
+        account_payload["account_type"] = account_slug
+
+        holdings = account_payload.setdefault("holdings", [])
+        for index, existing in enumerate(holdings):
+            existing_ticker = (
+                str(existing.get("ticker") or "").strip().upper()
+                if isinstance(existing, Mapping)
+                else ""
+            )
+            if existing_ticker == ticker:
+                holdings[index] = holding
+                break
+        else:
+            holdings.append(holding)
+
+    return {
+        "status": "saved",
+        "owner": owner,
+        "account": account_slug,
+        "holding": holding,
+    }
+
+
+@router.get("/holdings/manual")
+async def list_manual_holdings(
+    request: Request,
+    owner: str,
+) -> dict[str, Any]:
+    owner_name = _validate_component(owner, "owner")
+    accounts_root = _require_accounts_root(request)
+    owner_dir = accounts_root / owner_name
+    if not owner_dir.exists():
+        return {"owner": owner_name, "accounts": []}
+
+    accounts: list[dict[str, Any]] = []
+    for path in sorted(owner_dir.glob("*.json")):
+        if path.name.endswith("_transactions.json") or path.name == "person.json":
+            continue
+        payload = _load_account_holdings_file(path, owner_name, path.stem.lower())
+        accounts.append(_account_payload_summary(payload))
+
+    return {"owner": owner_name, "accounts": accounts}
 
 
 @router.get("/transactions", response_model=List[Transaction])

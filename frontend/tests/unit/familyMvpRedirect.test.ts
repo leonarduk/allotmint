@@ -76,6 +76,35 @@ describe('getFamilyMvpRedirectPath', () => {
   it('supports overriding the entry path when a different MVP route is enabled', () => {
     expect(getFamilyMvpRedirectPath('/', '', true, '/performance')).toBe('/performance');
     expect(getFamilyMvpRedirectPath('/support', '', true, '/transactions')).toBe('/transactions');
+  it('redirects non-MVP routes to the configured entry path', () => {
+    expect(getFamilyMvpRedirectPath('/market', '')).toBe('/input');
+    expect(getFamilyMvpRedirectPath('/support', '')).toBe('/input');
+  });
+
+  it('does not redirect MVP routes', () => {
+    expect(getFamilyMvpRedirectPath('/portfolio', '', '/portfolio')).toBeNull();
+    expect(getFamilyMvpRedirectPath('/input', '')).toBeNull();
+    expect(getFamilyMvpRedirectPath('/transactions', '')).toBeNull();
+    expect(getFamilyMvpRedirectPath('/portfolio/alex', '')).toBeNull();
+    expect(getFamilyMvpRedirectPath('/performance/alex', '')).toBeNull();
+    expect(
+      getFamilyMvpRedirectPath('/performance/alex', '?range=1y')
+    ).toBeNull();
+  });
+
+  it('redirects bare root to default portfolio entry path', () => {
+    expect(getFamilyMvpRedirectPath('/', '')).toBe('/input');
+  });
+
+  it('redirects group query routes because group mode is non-MVP', () => {
+    expect(getFamilyMvpRedirectPath('/', '?group=kids')).toBe('/input');
+  });
+
+  it('supports overriding the entry path when a different MVP route is enabled', () => {
+    expect(getFamilyMvpRedirectPath('/', '', '/performance')).toBe(
+      '/performance'
+    );
+    expect(getFamilyMvpRedirectPath('/support', '', '/input')).toBe('/input');
   });
 
   it('skips redirecting when every family MVP route is disabled (null entryPath)', () => {
@@ -85,9 +114,14 @@ describe('getFamilyMvpRedirectPath', () => {
 });
 
 describe('getFamilyMvpEntryPath', () => {
-  it('prefers portfolio, then performance, then transactions', () => {
+  it('prefers input, then portfolio, then performance', () => {
+    expect(getFamilyMvpEntryPath({ ...baseTabs, transactions: true })).toBe(
+      '/input'
+    );
     expect(getFamilyMvpEntryPath(baseTabs)).toBe('/portfolio');
-    expect(getFamilyMvpEntryPath({ ...baseTabs, owner: false })).toBe('/performance');
+    expect(getFamilyMvpEntryPath({ ...baseTabs, owner: false })).toBe(
+      '/performance'
+    );
     expect(
       getFamilyMvpEntryPath({
         ...baseTabs,
@@ -95,7 +129,7 @@ describe('getFamilyMvpEntryPath', () => {
         performance: false,
         transactions: true,
       })
-    ).toBe('/transactions');
+    ).toBe('/input');
   });
 
   it('respects disabledTabs over enabled tab values', () => {

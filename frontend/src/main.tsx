@@ -59,16 +59,22 @@ if (storedToken) setAuthToken(storedToken);
 const App = lazy(() => import('./App.tsx'));
 const ComplianceWarnings = lazy(() => import('./pages/ComplianceWarnings'));
 const Goals = lazy(() => import('./pages/Goals'));
-const PerformanceDiagnostics = lazy(() => import('./pages/PerformanceDiagnostics'));
+const PerformanceDiagnostics = lazy(
+  () => import('./pages/PerformanceDiagnostics')
+);
 const ReturnComparison = lazy(() => import('./pages/ReturnComparison'));
 const MetricsExplanation = lazy(() => import('./pages/MetricsExplanation'));
 const SmokeTest = lazy(() => import('./pages/SmokeTest'));
-const FAMILY_MVP_ROUTE_GATES: ReadonlyArray<{ mode: Parameters<typeof isModeEnabled>[0]; path: string }> = [
-  { mode: "transactions", path: "/transactions" },
-  { mode: "reports", path: "/reports" },
-  { mode: "taxtools", path: "/tax-tools" },
-  { mode: "trail", path: "/trail" },
-  { mode: "trade-compliance", path: "/trade-compliance" },
+const FAMILY_MVP_ROUTE_GATES: ReadonlyArray<{
+  mode: Parameters<typeof isModeEnabled>[0];
+  path: string;
+}> = [
+  { mode: 'transactions', path: '/input' },
+  { mode: 'transactions', path: '/transactions' },
+  { mode: 'reports', path: '/reports' },
+  { mode: 'taxtools', path: '/tax-tools' },
+  { mode: 'trail', path: '/trail' },
+  { mode: 'trade-compliance', path: '/trade-compliance' },
 ];
 
 const routeMarkerStyle: CSSProperties = {
@@ -87,7 +93,7 @@ const routeMarkerStyle: CSSProperties = {
 
 const renderRouteMarker = (
   pathname: string,
-  state: 'loading' | 'config-error' | 'auth',
+  state: 'loading' | 'config-error' | 'auth'
 ) => {
   const mode = deriveModeFromPathname(pathname);
   const bootstrapMode = deriveBootstrapMode(pathname, state);
@@ -127,8 +133,16 @@ export function Root() {
   const navigate = useNavigate();
   const location = useLocation();
   const { tabs, disabledTabs } = useConfig();
-  const complianceRoutesEnabled = isModeEnabled("trade-compliance", tabs, disabledTabs);
-  const advancedAnalyticsEnabled = isModeEnabled("scenario", tabs, disabledTabs);
+  const complianceRoutesEnabled = isModeEnabled(
+    'trade-compliance',
+    tabs,
+    disabledTabs
+  );
+  const advancedAnalyticsEnabled = isModeEnabled(
+    'scenario',
+    tabs,
+    disabledTabs
+  );
   const activeRequest = useRef<AbortController | null>(null);
   const retryTimer = useRef<number | null>(null);
   const isMounted = useRef(true);
@@ -186,17 +200,25 @@ export function Root() {
 
       getConfig<BootstrapConfig>({ signal: controller.signal })
         .then((cfg) => {
-          if (!isMounted.current || activeRequest.current !== controller) return;
+          if (!isMounted.current || activeRequest.current !== controller)
+            return;
 
           const configAuthEnabled = cfg.google_auth_enabled === true;
           const disableAuth = cfg.disable_auth === true;
-          const configuredClientId = typeof cfg.google_client_id === 'string' ? cfg.google_client_id : '';
+          const configuredClientId =
+            typeof cfg.google_client_id === 'string'
+              ? cfg.google_client_id
+              : '';
           const localLoginEmail =
-            typeof cfg.local_login_email === 'string' ? cfg.local_login_email.trim() : '';
+            typeof cfg.local_login_email === 'string'
+              ? cfg.local_login_email.trim()
+              : '';
           // Backend auth semantics: null/empty allowed_emails means no allowlist
           // enforcement (allow all users). Keep this normalization explicit to
           // avoid accidental "deny all" behavior in future bootstrap guards.
-          const allowedEmails = Array.isArray(cfg.allowed_emails) ? cfg.allowed_emails : [];
+          const allowedEmails = Array.isArray(cfg.allowed_emails)
+            ? cfg.allowed_emails
+            : [];
           void allowedEmails;
 
           setGoogleLoginEnabled(configAuthEnabled);
@@ -222,7 +244,8 @@ export function Root() {
           setRetryScheduled(false);
         })
         .catch((err) => {
-          if (!isMounted.current || activeRequest.current !== controller) return;
+          if (!isMounted.current || activeRequest.current !== controller)
+            return;
 
           console.error('Failed to load configuration', err);
           const error =
@@ -238,7 +261,8 @@ export function Root() {
         })
         .finally(() => {
           window.clearTimeout(timeoutId);
-          const isCurrent = isMounted.current && activeRequest.current === controller;
+          const isCurrent =
+            isMounted.current && activeRequest.current === controller;
           if (isCurrent) {
             activeRequest.current = null;
             setConfigLoading(false);
@@ -251,7 +275,7 @@ export function Root() {
           }
         });
     },
-    [clearRetryTimer, setProfile, setUser],
+    [clearRetryTimer, setProfile, setUser]
   );
 
   useEffect(() => {
@@ -298,7 +322,9 @@ export function Root() {
 
   if (needsAuth && !authed && !isPublicSupportRoute) {
     if (!googleLoginEnabled || !clientId) {
-      console.error('Authentication is enforced but Google login is not fully configured');
+      console.error(
+        'Authentication is enforced but Google login is not fully configured'
+      );
       return (
         <>
           {renderRouteMarker(location.pathname, 'auth')}
@@ -322,7 +348,10 @@ export function Root() {
           {complianceRoutesEnabled ? (
             <>
               <Route path="/compliance" element={<ComplianceWarnings />} />
-              <Route path="/compliance/:owner" element={<ComplianceWarnings />} />
+              <Route
+                path="/compliance/:owner"
+                element={<ComplianceWarnings />}
+              />
             </>
           ) : null}
           {standalonePageRoutes.flatMap((route) => {
@@ -335,13 +364,23 @@ export function Root() {
 
             const Component = route.lazyComponent;
             return [
-              <Route key={route.routePath} path={route.routePath} element={<Component />} />,
+              <Route
+                key={route.routePath}
+                path={route.routePath}
+                element={<Component />}
+              />,
             ];
           })}
           {FAMILY_MVP_ROUTE_GATES.flatMap(({ mode, path }) =>
             isModeEnabled(mode, tabs, disabledTabs)
               ? []
-              : [<Route key={`disabled-${path}`} path={path} element={<Navigate to="/" replace />} />],
+              : [
+                  <Route
+                    key={`disabled-${path}`}
+                    path={path}
+                    element={<Navigate to="/" replace />}
+                  />,
+                ]
           )}
           <Route path="/goals" element={<Goals />} />
           <Route path="/smoke-test" element={<SmokeTest />} />
@@ -352,7 +391,10 @@ export function Root() {
                 element={<PerformanceDiagnostics />}
               />
               <Route path="/returns/compare" element={<ReturnComparison />} />
-              <Route path="/metrics-explained" element={<MetricsExplanation />} />
+              <Route
+                path="/metrics-explained"
+                element={<MetricsExplanation />}
+              />
             </>
           ) : null}
           <Route
@@ -381,7 +423,10 @@ const bootstrapRuntimeConfig = async () => {
       setApiBase(payload.apiBaseUrl);
     }
   } catch (error) {
-    console.warn('Runtime config not loaded, using default API base URL', error);
+    console.warn(
+      'Runtime config not loaded, using default API base URL',
+      error
+    );
   }
 };
 
@@ -402,6 +447,6 @@ void bootstrapRuntimeConfig().finally(() => {
           </PriceRefreshProvider>
         </ConfigProvider>
       </HelmetProvider>
-    </StrictMode>,
+    </StrictMode>
   );
 });

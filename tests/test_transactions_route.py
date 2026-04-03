@@ -178,6 +178,57 @@ def test_parse_date_rejects_invalid_formats():
     assert transactions._parse_date("not-a-date") is None
 
 
+def test_locked_transactions_data_does_not_persist_failed_update(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "accounts_root", tmp_path)
+    owner_dir = tmp_path / "alice"
+    owner_dir.mkdir()
+    file_path = owner_dir / "ISA_transactions.json"
+    file_path.write_text(
+        json.dumps(
+            {
+                "owner": "alice",
+                "account_type": "ISA",
+                "transactions": [{"ticker": "PFE", "price_gbp": 10, "units": 1}],
+            }
+        )
+    )
+
+    with pytest.raises(RuntimeError):
+        with transactions._locked_transactions_data("alice", "ISA", tmp_path) as (data, _):
+            data["transactions"].append({"ticker": "MSFT", "price_gbp": 20, "units": 2})
+            raise RuntimeError("boom")
+
+    saved = json.loads(file_path.read_text())
+    assert saved["transactions"] == [{"ticker": "PFE", "price_gbp": 10, "units": 1}]
+
+    with transactions._locked_transactions_data("alice", "ISA", tmp_path) as (data, _):
+        data["transactions"].append({"ticker": "MSFT", "price_gbp": 20, "units": 2})
+
+    saved = json.loads(file_path.read_text())
+    assert saved["transactions"] == [
+        {"ticker": "PFE", "price_gbp": 10, "units": 1},
+        {"ticker": "MSFT", "price_gbp": 20, "units": 2},
+    ]
+
+
+def test_locked_account_holdings_data_discards_failed_new_file(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "accounts_root", tmp_path)
+    file_path = tmp_path / "alice" / "isa.json"
+
+    with pytest.raises(RuntimeError):
+        with transactions._locked_account_holdings_data("alice", "isa", tmp_path) as (data, _):
+            data["holdings"].append({"ticker": "VUSA.L", "value_gbp": 1000})
+            raise RuntimeError("boom")
+
+    assert not file_path.exists()
+
+    with transactions._locked_account_holdings_data("alice", "isa", tmp_path) as (data, _):
+        data["holdings"].append({"ticker": "VUSA.L", "value_gbp": 1000})
+
+    saved = json.loads(file_path.read_text())
+    assert saved["holdings"] == [{"ticker": "VUSA.L", "value_gbp": 1000}]
+
+
 def test_create_transaction_requires_accounts_root(tmp_path, monkeypatch):
     client = _make_client(tmp_path, monkeypatch, accounts_root="")
     resp = client.post("/transactions", json=_valid_payload())
@@ -346,6 +397,148 @@ def test_import_holdings_unknown_provider(tmp_path, monkeypatch):
 
     assert resp.status_code == 400
     assert resp.json()["detail"] == "Unknown provider: bad"
+
+
+def test_create_manual_holding_with_value_persists_account_file(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+    payload = {
+        "owner": "alice",
+        "account": "ISA",
+        "ticker": "VUSA.L",
+        "value_gbp": 1250,
+    }
+
+    resp = client.post("/holdings/manual", json=payload)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "saved"
+    assert data["owner"] == "alice"
+    assert data["account"] == "isa"
+    assert data["holding"]["ticker"] == "VUSA.L"
+    assert data["holding"]["value_gbp"] == 1250
+
+    account_path = tmp_path / "alice" / "isa.json"
+    assert account_path.exists()
+    saved = json.loads(account_path.read_text())
+    assert saved["owner"] == "alice"
+    assert saved["account_type"] == "isa"
+    assert saved["holdings"] == [{"ticker": "VUSA.L", "value_gbp": 1250.0}]
+
+
+def test_create_manual_holding_with_units_and_price(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+    payload = {
+        "owner": "alice",
+        "account": "SIPP",
+        "ticker": "MSFT",
+        "units": 5,
+        "price_gbp": 312.4,
+    }
+
+    resp = client.post("/holdings/manual", json=payload)
+    assert resp.status_code == 200
+    assert resp.json()["holding"] == {"ticker": "MSFT", "units": 5.0, "price": 312.4}
+
+
+def test_create_manual_holding_updates_existing_ticker_in_account(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+
+    first = client.post(
+        "/holdings/manual",
+        json={
+            "owner": "alice",
+            "account": "ISA",
+            "ticker": "VUSA.L",
+            "value_gbp": 1250,
+        },
+    )
+    assert first.status_code == 200
+
+    second = client.post(
+        "/holdings/manual",
+        json={
+            "owner": "alice",
+            "account": "ISA",
+            "ticker": "vusa.l",
+            "units": 3,
+            "price_gbp": 100,
+        },
+    )
+    assert second.status_code == 200
+    assert second.json()["holding"] == {"ticker": "VUSA.L", "units": 3.0, "price": 100.0}
+
+    account_path = tmp_path / "alice" / "isa.json"
+    saved = json.loads(account_path.read_text())
+    assert saved["holdings"] == [{"ticker": "VUSA.L", "units": 3.0, "price": 100.0}]
+
+
+def test_create_manual_holding_rejects_invalid_metric_combo(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+
+    invalid_payloads = [
+        {
+            "owner": "alice",
+            "account": "SIPP",
+            "ticker": "MSFT",
+            "value_gbp": 10,
+            "units": 1,
+            "price_gbp": 10,
+        },
+        {
+            "owner": "alice",
+            "account": "SIPP",
+            "ticker": "MSFT",
+        },
+        {
+            "owner": "alice",
+            "account": "SIPP",
+            "ticker": "MSFT",
+            "value_gbp": 10,
+            "units": 1,
+        },
+        {
+            "owner": "alice",
+            "account": "SIPP",
+            "ticker": "MSFT",
+            "value_gbp": 10,
+            "price_gbp": 10,
+        },
+    ]
+
+    for payload in invalid_payloads:
+        resp = client.post("/holdings/manual", json=payload)
+        assert resp.status_code == 400
+        assert resp.json()["detail"] == "Provide either value_gbp or both units and price_gbp"
+
+
+def test_list_manual_holdings_returns_accounts(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+    owner_dir = tmp_path / "alice"
+    owner_dir.mkdir(parents=True)
+    (owner_dir / "isa.json").write_text(
+        json.dumps(
+            {
+                "owner": "alice",
+                "account_type": "isa",
+                "currency": "GBP",
+                "holdings": [{"ticker": "VUSA.L", "value_gbp": 400.0}],
+            }
+        )
+    )
+    (owner_dir / "ISA_transactions.json").write_text(json.dumps({"transactions": []}))
+
+    resp = client.get("/holdings/manual", params={"owner": "alice"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["owner"] == "alice"
+    assert body["accounts"] == [
+        {
+            "account_type": "isa",
+            "currency": "GBP",
+            "holdings": [{"ticker": "VUSA.L", "value_gbp": 400.0}],
+            "holding_count": 1,
+        }
+    ]
 
 
 def test_transactions_and_dividends_filters(tmp_path, monkeypatch):

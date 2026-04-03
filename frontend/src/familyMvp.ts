@@ -9,10 +9,10 @@ export const FAMILY_MVP_MODES: ReadonlySet<Mode> = new Set<Mode>([
 ]);
 
 const FAMILY_MVP_ENTRY_CANDIDATES = [
+  { mode: 'transactions', path: '/input' },
   // Owner mode is routed under /portfolio paths.
   { mode: 'owner', path: '/portfolio' },
   { mode: 'performance', path: '/performance' },
-  { mode: 'transactions', path: '/transactions' },
 ] as const;
 
 export function isFamilyMvpMode(mode: Mode): boolean {

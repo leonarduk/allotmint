@@ -129,7 +129,7 @@ export function getOwnerRootRedirectPath(
 export function getFamilyMvpRedirectPath(
   pathname: string,
   search: string,
-  familyMvpEnabled: boolean
+  familyMvpEnabled: boolean,
   entryPath: string | null = '/portfolio'
 ): string | null {
   if (!familyMvpEnabled) {
@@ -251,18 +251,13 @@ export default function App({ onLogout }: AppProps) {
     const redirectPath = getFamilyMvpRedirectPath(
       location.pathname,
       location.search,
-      familyMvpEnabled
+      familyMvpEnabled,
       familyMvpEntryPath
     );
     if (redirectPath) {
       navigate(redirectPath, { replace: true });
     }
-  }, [familyMvpEnabled, location.pathname, location.search, navigate]);
-
-  useEffect(() => {
-    if (getFamilyMvpRedirectPath(location.pathname, location.search, familyMvpEnabled)) {
-      return;
-  }, [location.pathname, location.search, navigate, familyMvpEntryPath]);
+  }, [familyMvpEnabled, familyMvpEntryPath, location.pathname, location.search, navigate]);
 
   useEffect(() => {
     if (!configLoaded) {
@@ -272,6 +267,7 @@ export default function App({ onLogout }: AppProps) {
     const redirectPath = getFamilyMvpRedirectPath(
       location.pathname,
       location.search,
+      familyMvpEnabled,
       familyMvpEntryPath
     );
     if (redirectPath) {
@@ -311,7 +307,7 @@ export default function App({ onLogout }: AppProps) {
       setResearchTicker(segs[1] ? decodeURIComponent(segs[1] ?? '') : '');
     }
   }, [
-    familyMvpEnabled,     
+    familyMvpEnabled,
     configLoaded,
     familyMvpEntryPath,
     location.pathname,

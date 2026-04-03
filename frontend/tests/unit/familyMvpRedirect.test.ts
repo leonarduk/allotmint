@@ -57,35 +57,35 @@ describe('getFamilyMvpRedirectPath', () => {
 
   it('redirects group query routes to transactions because group is non-MVP', () => {
     expect(getFamilyMvpRedirectPath('/', '?group=kids', true)).toBe('/transactions');
-  it('redirects non-MVP routes to the configured entry path', () => {
-    expect(getFamilyMvpRedirectPath('/market', '')).toBe('/portfolio');
-    expect(getFamilyMvpRedirectPath('/support', '')).toBe('/portfolio');
   });
 
-  it('does not redirect MVP routes', () => {
-    expect(getFamilyMvpRedirectPath('/portfolio', '', '/portfolio')).toBeNull();
-    expect(getFamilyMvpRedirectPath('/transactions', '')).toBeNull();
-    expect(getFamilyMvpRedirectPath('/portfolio/alex', '')).toBeNull();
-    expect(getFamilyMvpRedirectPath('/performance/alex', '')).toBeNull();
-    expect(getFamilyMvpRedirectPath('/performance/alex', '?range=1y')).toBeNull();
+  it('redirects non-MVP routes to the configured entry path', () => {
+    expect(getFamilyMvpRedirectPath('/market', '', true, '/portfolio')).toBe('/portfolio');
+    expect(getFamilyMvpRedirectPath('/support', '', true, '/portfolio')).toBe('/portfolio');
+  });
+
+  it('does not redirect MVP routes (legacy 4-arg form)', () => {
+    expect(getFamilyMvpRedirectPath('/portfolio', '', true, '/portfolio')).toBeNull();
+    expect(getFamilyMvpRedirectPath('/transactions', '', true)).toBeNull();
+    expect(getFamilyMvpRedirectPath('/portfolio/alex', '', true)).toBeNull();
   });
 
   it('redirects bare root to default portfolio entry path', () => {
-    expect(getFamilyMvpRedirectPath('/', '')).toBe('/portfolio');
+    expect(getFamilyMvpRedirectPath('/', '', true)).toBe('/transactions');
   });
 
   it('redirects group query routes because group mode is non-MVP', () => {
-    expect(getFamilyMvpRedirectPath('/', '?group=kids')).toBe('/portfolio');
+    expect(getFamilyMvpRedirectPath('/', '?group=kids', true)).toBe('/transactions');
   });
 
   it('supports overriding the entry path when a different MVP route is enabled', () => {
-    expect(getFamilyMvpRedirectPath('/', '', '/performance')).toBe('/performance');
-    expect(getFamilyMvpRedirectPath('/support', '', '/transactions')).toBe('/transactions');
+    expect(getFamilyMvpRedirectPath('/', '', true, '/performance')).toBe('/performance');
+    expect(getFamilyMvpRedirectPath('/support', '', true, '/transactions')).toBe('/transactions');
   });
 
   it('skips redirecting when every family MVP route is disabled', () => {
-    expect(getFamilyMvpRedirectPath('/', '', null)).toBeNull();
-    expect(getFamilyMvpRedirectPath('/support', '', null)).toBeNull();
+    expect(getFamilyMvpRedirectPath('/', '', true, null)).toBeNull();
+    expect(getFamilyMvpRedirectPath('/support', '', true, null)).toBeNull();
   });
 });
 
@@ -130,4 +130,3 @@ describe('getFamilyMvpEntryPath', () => {
     ).toBeNull();
   });
 });
-

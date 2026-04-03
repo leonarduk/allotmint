@@ -13,13 +13,17 @@ import i18n from "@/i18n";
 import type { InstrumentSummary, Portfolio } from "@/types";
 
 const mockTradingSignals = vi.fn();
+const mockComplianceWarnings = vi.fn();
 
 vi.mock("@/components/TopMoversSummary", () => ({
   TopMoversSummary: () => <div data-testid="top-movers-summary" />,
 }));
 
 vi.mock("@/components/ComplianceWarnings", () => ({
-  ComplianceWarnings: () => null,
+  ComplianceWarnings: ({ owners }: { owners: string[] }) => {
+    mockComplianceWarnings(owners);
+    return null;
+  },
 }));
 
 // Dynamic import after setting location and mocking APIs
@@ -28,6 +32,7 @@ describe("App", () => {
   beforeEach(() => {
     vi.resetModules();
     mockTradingSignals.mockReset();
+    mockComplianceWarnings.mockReset();
     (globalThis as any).lastRefresh = null;
   });
 
@@ -197,6 +202,180 @@ describe("App", () => {
     const table = await screen.findByTestId("instrument-table");
     expect(within(table).getAllByText("FOO.L")).toHaveLength(1);
     expect(capturedRows[0]?.grouping).toBe("Technology");
+  });
+
+  it("loads /portfolio/all using the group portfolio endpoint", async () => {
+    const mockGetPortfolio = vi.fn().mockResolvedValue({
+      owner: "all",
+      as_of: "2026-01-01",
+      trades_this_month: 0,
+      trades_remaining: 0,
+      total_value_estimate_gbp: 0,
+      accounts: [],
+    } as Portfolio);
+    const mockGetGroupPortfolio = vi.fn().mockResolvedValue({
+      name: "At a glance",
+      slug: "all",
+      accounts: [],
+      trades_this_month: 0,
+      trades_remaining: 0,
+    });
+    const mockGetGroupAlpha = vi
+      .fn()
+      .mockResolvedValue({ alpha_vs_benchmark: 0 });
+    const mockGetGroupTracking = vi.fn().mockResolvedValue({ tracking_error: 0 });
+    const mockGetGroupMaxDrawdown = vi
+      .fn()
+      .mockResolvedValue({ max_drawdown: 0 });
+    const mockGetGroupSector = vi.fn().mockResolvedValue([]);
+    const mockGetGroupRegion = vi.fn().mockResolvedValue([]);
+    const mockGetGroupMovers = vi
+      .fn()
+      .mockResolvedValue({ gainers: [], losers: [] });
+
+    vi.doMock("@/api", async () => {
+      const actual = await vi.importActual<typeof import("@/api")>("@/api");
+      return {
+        ...actual,
+        getOwners: vi
+          .fn()
+          .mockResolvedValue([{ owner: "alex", full_name: "Alex", accounts: [] }]),
+        getGroups: vi
+          .fn()
+          .mockResolvedValue([{ slug: "all", name: "At a glance", members: ["alex"] }]),
+        getPortfolio: mockGetPortfolio,
+        getGroupPortfolio: mockGetGroupPortfolio,
+        getGroupAlphaVsBenchmark: mockGetGroupAlpha,
+        getGroupTrackingError: mockGetGroupTracking,
+        getGroupMaxDrawdown: mockGetGroupMaxDrawdown,
+        getGroupSectorContributions: mockGetGroupSector,
+        getGroupRegionContributions: mockGetGroupRegion,
+        getGroupMovers: mockGetGroupMovers,
+        getGroupInstruments: vi.fn().mockResolvedValue([]),
+        getCachedGroupInstruments: undefined,
+        listInstrumentGroups: vi.fn().mockResolvedValue([]),
+        listInstrumentGroupingDefinitions: vi.fn().mockResolvedValue([]),
+        refreshPrices: vi.fn(),
+        getAlerts: vi.fn().mockResolvedValue([]),
+        getNudges: vi.fn().mockResolvedValue([]),
+        getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+        getCompliance: vi
+          .fn()
+          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+        getTimeseries: vi.fn().mockResolvedValue([]),
+        saveTimeseries: vi.fn(),
+        refetchTimeseries: vi.fn(),
+        rebuildTimeseriesCache: vi.fn(),
+        getTradingSignals: vi.fn().mockResolvedValue([]),
+        getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+      };
+    });
+
+    const { default: App } = await import("@/App");
+
+    render(
+      <MemoryRouter initialEntries={["/portfolio/all"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() =>
+      expect(mockGetGroupPortfolio).toHaveBeenCalledWith("all", {
+        asOf: undefined,
+      }),
+    );
+    expect(mockGetGroupPortfolio).toHaveBeenCalledTimes(1);
+    expect(mockGetPortfolio).not.toHaveBeenCalled();
+    expect(mockComplianceWarnings.mock.calls).toContainEqual([["alex"]]);
+  });
+
+  it("waits for groups before treating /portfolio/all as a group route", async () => {
+    let resolveGroups:
+      | ((groups: { slug: string; name: string; members: string[] }[]) => void)
+      | undefined;
+
+    const mockGetPortfolio = vi.fn().mockResolvedValue({
+      owner: "all",
+      as_of: "2026-01-01",
+      trades_this_month: 0,
+      trades_remaining: 0,
+      total_value_estimate_gbp: 0,
+      accounts: [],
+    } as Portfolio);
+    const mockGetGroupPortfolio = vi.fn().mockResolvedValue({
+      name: "At a glance",
+      slug: "all",
+      accounts: [],
+      trades_this_month: 0,
+      trades_remaining: 0,
+    });
+    const groupsPromise = new Promise<
+      { slug: string; name: string; members: string[] }[]
+    >((resolve) => {
+      resolveGroups = resolve;
+    });
+
+    vi.doMock("@/api", async () => {
+      const actual = await vi.importActual<typeof import("@/api")>("@/api");
+      return {
+        ...actual,
+        getOwners: vi
+          .fn()
+          .mockResolvedValue([{ owner: "alex", full_name: "Alex", accounts: [] }]),
+        getGroups: vi.fn().mockReturnValue(groupsPromise),
+        getPortfolio: mockGetPortfolio,
+        getGroupPortfolio: mockGetGroupPortfolio,
+        getGroupAlphaVsBenchmark: vi
+          .fn()
+          .mockResolvedValue({ alpha_vs_benchmark: 0 }),
+        getGroupTrackingError: vi.fn().mockResolvedValue({ tracking_error: 0 }),
+        getGroupMaxDrawdown: vi.fn().mockResolvedValue({ max_drawdown: 0 }),
+        getGroupSectorContributions: vi.fn().mockResolvedValue([]),
+        getGroupRegionContributions: vi.fn().mockResolvedValue([]),
+        getGroupMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+        getGroupInstruments: vi.fn().mockResolvedValue([]),
+        getCachedGroupInstruments: undefined,
+        listInstrumentGroups: vi.fn().mockResolvedValue([]),
+        listInstrumentGroupingDefinitions: vi.fn().mockResolvedValue([]),
+        refreshPrices: vi.fn(),
+        getAlerts: vi.fn().mockResolvedValue([]),
+        getNudges: vi.fn().mockResolvedValue([]),
+        getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+        getCompliance: vi
+          .fn()
+          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+        getTimeseries: vi.fn().mockResolvedValue([]),
+        saveTimeseries: vi.fn(),
+        refetchTimeseries: vi.fn(),
+        rebuildTimeseriesCache: vi.fn(),
+        getTradingSignals: vi.fn().mockResolvedValue([]),
+        getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+      };
+    });
+
+    const { default: App } = await import("@/App");
+
+    render(
+      <MemoryRouter initialEntries={["/portfolio/all"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(mockGetPortfolio).not.toHaveBeenCalled();
+    expect(mockGetGroupPortfolio).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveGroups?.([{ slug: "all", name: "At a glance", members: ["alex"] }]);
+      await Promise.resolve();
+    });
+
+    await waitFor(() =>
+      expect(mockGetGroupPortfolio).toHaveBeenCalledWith("all", {
+        asOf: undefined,
+      }),
+    );
+    expect(mockGetPortfolio).not.toHaveBeenCalled();
+    expect(mockComplianceWarnings.mock.calls).toContainEqual([["alex"]]);
   });
 
   it("renders timeseries editor when path is /timeseries", async () => {

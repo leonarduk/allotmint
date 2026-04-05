@@ -49,7 +49,9 @@ async function mockCommonAppDependencies() {
     return {
       ...actual,
       getOwners: vi.fn().mockResolvedValue([]),
-      getGroups: vi.fn().mockResolvedValue([]),
+      getGroups: vi
+        .fn()
+        .mockResolvedValue([{ slug: "kids", name: "Kids", members: [] }]),
       getGroupInstruments: vi.fn().mockResolvedValue([]),
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
@@ -69,6 +71,29 @@ async function mockCommonAppDependencies() {
   });
 }
 
+function mockConfig(overrides: Record<string, unknown>) {
+  vi.doMock("@/ConfigContext", async () => {
+    const actual = await vi.importActual<typeof import("@/ConfigContext")>("@/ConfigContext");
+    return {
+      ...actual,
+      useConfig: () => ({
+        ...baseConfig,
+        ...overrides,
+      }),
+    };
+  });
+}
+
+async function renderAppAt(path: string) {
+  const App = (await import("@/App")).default;
+  const router = createMemoryRouter(
+    [{ path: "*", element: <App /> }],
+    { initialEntries: [path] },
+  );
+  render(<RouterProvider router={router} />);
+  return router;
+}
+
 describe("App family MVP redirects", () => {
   beforeEach(() => {
     vi.resetModules();
@@ -77,46 +102,24 @@ describe("App family MVP redirects", () => {
   it("does not redirect root routes before config finishes loading", async () => {
     window.history.pushState({}, "", "/");
 
-    vi.doMock("@/ConfigContext", async () => {
-      const actual = await vi.importActual<typeof import("@/ConfigContext")>("@/ConfigContext");
-      return {
-        ...actual,
-        useConfig: () => ({
-          ...baseConfig,
-          configLoaded: false,
-        }),
-      };
-    });
+    mockConfig({ configLoaded: false });
 
     await mockCommonAppDependencies();
 
-    const App = (await import("@/App")).default;
-    const router = createMemoryRouter(
-      [{ path: "*", element: <App /> }],
-      { initialEntries: ["/"] },
-    );
-
-    render(<RouterProvider router={router} />);
+    const router = await renderAppAt("/");
 
     await waitFor(() => expect(router.state.location.pathname).toBe("/"));
   });
 
-  it("does not render the Movers heading on non-MVP aliases in family MVP mode", async () => {
-    vi.doMock("@/ConfigContext", async () => {
-      const actual = await vi.importActual<typeof import("@/ConfigContext")>("@/ConfigContext");
-      return {
-        ...actual,
-        useConfig: () => ({
-          ...baseConfig,
-          configLoaded: true,
-          familyMvpEnabled: true,
-          disabledTabs: [],
-          tabs: {
-            ...baseConfig.tabs,
-            owner: true,
-          },
-        }),
-      };
+  it("hides movers page content when family MVP is enabled and an entry route exists", async () => {
+    mockConfig({
+      configLoaded: true,
+      familyMvpEnabled: true,
+      disabledTabs: [],
+      tabs: {
+        ...baseConfig.tabs,
+        owner: true,
+      },
     });
 
     vi.doMock("@/pages/TopMovers", () => ({
@@ -125,16 +128,80 @@ describe("App family MVP redirects", () => {
 
     await mockCommonAppDependencies();
 
-    const App = (await import("@/App")).default;
-    const router = createMemoryRouter(
-      [{ path: "*", element: <App /> }],
-      { initialEntries: ["/family"] },
-    );
-
-    render(<RouterProvider router={router} />);
+    await renderAppAt("/movers");
 
     await waitFor(() => {
       expect(screen.queryByRole("heading", { name: /movers/i })).not.toBeInTheDocument();
+    });
+  });
+
+  it("renders movers page content when family MVP is disabled", async () => {
+    mockConfig({
+      configLoaded: true,
+      familyMvpEnabled: false,
+      disabledTabs: [],
+      tabs: {
+        ...baseConfig.tabs,
+        owner: true,
+      },
+    });
+
+    vi.doMock("@/pages/TopMovers", () => ({
+      default: () => <h1>Movers</h1>,
+    }));
+
+    await mockCommonAppDependencies();
+
+    await renderAppAt("/movers");
+
+    expect(await screen.findByRole("heading", { name: /movers/i })).toBeInTheDocument();
+  });
+
+  it("preserves movers fallback when family MVP has no available entry path", async () => {
+    mockConfig({
+      configLoaded: true,
+      familyMvpEnabled: true,
+      disabledTabs: ["owner", "performance", "transactions"],
+      tabs: {
+        ...baseConfig.tabs,
+        owner: false,
+        performance: false,
+        transactions: false,
+      },
+    });
+
+    vi.doMock("@/pages/TopMovers", () => ({
+      default: () => <h1>Movers</h1>,
+    }));
+
+    await mockCommonAppDependencies();
+
+    await renderAppAt("/movers");
+
+    expect(await screen.findByRole("heading", { name: /movers/i })).toBeInTheDocument();
+  });
+
+  it("hides group view content when family MVP is enabled and an entry route exists", async () => {
+    mockConfig({
+      configLoaded: true,
+      familyMvpEnabled: true,
+      disabledTabs: [],
+      tabs: {
+        ...baseConfig.tabs,
+        owner: true,
+      },
+    });
+
+    vi.doMock("@/components/GroupPortfolioView", () => ({
+      GroupPortfolioView: () => <section>Group Portfolio View</section>,
+    }));
+
+    await mockCommonAppDependencies();
+
+    await renderAppAt("/?group=kids");
+
+    await waitFor(() => {
+      expect(screen.queryByText("Group Portfolio View")).not.toBeInTheDocument();
     });
   });
 });

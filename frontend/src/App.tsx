@@ -598,7 +598,7 @@ export default function App({ onLogout }: AppProps) {
         )}
 
         {/* GROUP VIEW */}
-        {mode === 'group' && selectedGroup && (
+        {mode === 'group' && selectedGroup && !familyMvpEnabled && (
           <>
             <ComplianceWarnings owners={selectedGroupSummary?.members ?? []} />
             <GroupPortfolioView slug={selectedGroup} owners={owners} />
@@ -692,7 +692,7 @@ export default function App({ onLogout }: AppProps) {
         {mode === 'allocation' && <AllocationCharts />}
         {mode === 'rebalance' && <Rebalance />}
         {mode === 'market' && <MarketOverview />}
-        {mode === 'movers' && <TopMovers />}
+        {mode === 'movers' && !familyMvpEnabled && <TopMovers />}
         {mode === 'reports' &&
           (isReportCreationRoute ? <ReportTemplateCreator /> : <Reports />)}
         {mode === 'alerts' && <Alerts />}

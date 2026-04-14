@@ -183,8 +183,8 @@ If deployment fails or the live environment does not match local behavior:
 3. Inspect backend Lambda errors (CloudWatch):
 
    ```bash
-   aws cloudformation describe-stack-resource --stack-name BackendLambdaStack \
-     --logical-resource-id BackendLambda --query "StackResourceDetail.PhysicalResourceId" --output text
+   aws cloudformation list-stack-resources --stack-name BackendLambdaStack \
+     --query "StackResourceSummaries[?ResourceType=='AWS::Lambda::Function' && starts_with(LogicalResourceId, 'BackendLambda')].PhysicalResourceId | [0]" --output text
    aws logs tail /aws/lambda/<BackendLambdaPhysicalName> --since 30m --follow
    ```
 

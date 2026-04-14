@@ -133,11 +133,14 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION }}
         run: |
           set -euo pipefail
-          backend_fn="$(aws cloudformation describe-stack-resource \
+          backend_fn="$(aws cloudformation list-stack-resources \
             --stack-name BackendLambdaStack \
-            --logical-resource-id BackendLambda \
-            --query "StackResourceDetail.PhysicalResourceId" \
+            --query "StackResourceSummaries[?ResourceType=='AWS::Lambda::Function' && starts_with(LogicalResourceId, 'BackendLambda')].PhysicalResourceId | [0]" \
             --output text)"
+          if [ -z "$backend_fn" ] || [ "$backend_fn" = "None" ]; then
+            echo "Unable to resolve BackendLambda physical function name from BackendLambdaStack resources" >&2
+            exit 1
+          fi
           read -r start_time end_time <<EOF
           $(python - <<'PY'
           from datetime import datetime, timedelta, timezone

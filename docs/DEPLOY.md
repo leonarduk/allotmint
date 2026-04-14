@@ -183,6 +183,8 @@ If deployment fails or the live environment does not match local behavior:
 3. Inspect backend Lambda errors (CloudWatch):
 
    ```bash
+   aws cloudformation describe-stack-resource --stack-name BackendLambdaStack \
+     --logical-resource-id BackendLambda --query "StackResourceDetail.PhysicalResourceId" --output text
    aws logs tail /aws/lambda/<BackendLambdaPhysicalName> --since 30m --follow
    ```
 
@@ -191,7 +193,7 @@ If deployment fails or the live environment does not match local behavior:
    ```bash
    aws cloudformation describe-stacks --stack-name BackendLambdaStack \
      --query "Stacks[0].Outputs[?OutputKey=='BackendApiUrl'].OutputValue" --output text
-   curl -fsSL "<BackendApiUrl>docs" >/dev/null
+   curl -fsSL "<BackendApiUrl>/docs" >/dev/null
    ```
 
 5. Validate static frontend output with `DistributionDomain`:

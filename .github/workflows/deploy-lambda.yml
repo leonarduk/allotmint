@@ -9,6 +9,10 @@ permissions:
   contents: read
   id-token: write
 
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -89,14 +93,14 @@ jobs:
       - name: CDK diff
         env:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
-          CDK_OUTDIR: ../../.cdk.out
+          CDK_OUTDIR: /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
         run: cdk diff --all
         working-directory: cdk
 
       - name: Deploy CDK stack
         env:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
-          CDK_OUTDIR: ../../.cdk.out
+          CDK_OUTDIR: /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
         run: cdk deploy --all --require-approval never
         working-directory: cdk
 
@@ -121,7 +125,7 @@ jobs:
             echo "DistributionDomain output is missing from StaticSiteStack" >&2
             exit 1
           fi
-          curl --fail --show-error --silent "${backend_url}docs" >/dev/null
+          curl --fail --show-error --silent "${backend_url%/}/docs" >/dev/null
           curl --fail --show-error --silent "https://${frontend_domain}" >/dev/null
 
       - name: Check recent BackendLambda CloudWatch errors
@@ -134,19 +138,55 @@ jobs:
             --logical-resource-id BackendLambda \
             --query "StackResourceDetail.PhysicalResourceId" \
             --output text)"
+          read -r start_time end_time <<EOF
+          $(python - <<'PY'
+          from datetime import datetime, timedelta, timezone
+          end = datetime.now(timezone.utc)
+          start = end - timedelta(minutes=5)
+          print(start.strftime("%Y-%m-%dT%H:%M:%SZ"), end.strftime("%Y-%m-%dT%H:%M:%SZ"))
+          PY
+          )
+          EOF
+          invocation_sum="$(aws cloudwatch get-metric-statistics \
+            --namespace AWS/Lambda \
+            --metric-name Invocations \
+            --dimensions "Name=FunctionName,Value=${backend_fn}" \
+            --start-time "${start_time}" \
+            --end-time "${end_time}" \
+            --period 60 \
+            --statistics Sum \
+            --query "sum(Datapoints[].Sum)" \
+            --output text)"
           error_sum="$(aws cloudwatch get-metric-statistics \
             --namespace AWS/Lambda \
             --metric-name Errors \
             --dimensions "Name=FunctionName,Value=${backend_fn}" \
-            --start-time "$(date -u -d '15 minutes ago' +%FT%TZ)" \
-            --end-time "$(date -u +%FT%TZ)" \
-            --period 300 \
+            --start-time "${start_time}" \
+            --end-time "${end_time}" \
+            --period 60 \
             --statistics Sum \
             --query "sum(Datapoints[].Sum)" \
             --output text)"
-          error_sum="${error_sum:-0}"
-          if [ "${error_sum%%.*}" -gt 0 ]; then
-            echo "Backend Lambda reported ${error_sum} errors in the last 15 minutes" >&2
+          normalize_metric() {
+            local metric_value="$1"
+            if [ -z "${metric_value}" ] || [ "${metric_value}" = "None" ] || [ "${metric_value}" = "null" ]; then
+              echo "0"
+              return
+            fi
+            if ! [[ "${metric_value}" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+              echo "Unexpected CloudWatch metric value: ${metric_value}" >&2
+              exit 1
+            fi
+            echo "${metric_value%%.*}"
+          }
+          invocation_count="$(normalize_metric "${invocation_sum}")"
+          error_count="$(normalize_metric "${error_sum}")"
+          if [ "${invocation_count}" -lt 1 ]; then
+            echo "Backend Lambda had no invocations in the last 5 minutes; post-deploy validation cannot confirm runtime health" >&2
+            exit 1
+          fi
+          if [ "${error_count}" -gt 0 ]; then
+            echo "Backend Lambda reported ${error_count} errors in the last 5 minutes" >&2
             exit 1
           fi
 

@@ -104,8 +104,8 @@ cd ..
 ## Deploy with AWS CDK
 
 Production deploys are automated through `.github/workflows/deploy-lambda.yml`
-on pushed git tags (plus manual `workflow_dispatch`). Tag a commit only when it
-is ready for production so CI/CD deploys the exact tagged revision.
+on pushed git tags matching `v*`. Tag a commit only when it is ready for
+production so CI/CD deploys the exact tagged revision.
 
 Before deploying, confirm the deployment environment prerequisites:
 

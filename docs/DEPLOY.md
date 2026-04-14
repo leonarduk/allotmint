@@ -104,9 +104,9 @@ cd ..
 ## Deploy with AWS CDK
 
 Production deploys are automated through `.github/workflows/deploy-lambda.yml`
-on every push to `main` (plus manual `workflow_dispatch`). Prefer merging via
-PR and letting CI/CD deploy so the live stack stays aligned with the repository
-history.
+on pushes to `release/*` branches (plus manual `workflow_dispatch`). Prefer
+promoting changes through a release branch and letting CI/CD deploy so the live
+stack stays aligned with release history.
 
 Before deploying, confirm the deployment environment prerequisites:
 

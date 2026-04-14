@@ -50,6 +50,7 @@ Always:
 2. Push changes to the branch
 3. Open a PR targeting `main`
 4. Wait for review/merge
+5. If implementing a GitHub issue, include an auto-closing reference in the PR body (for example: `Closes #1234`).
 
 Branch naming convention: `fix/issue-NNNN-short-description` or `feat/issue-NNNN-short-description` or `docs/short-description`.
 

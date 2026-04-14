@@ -2,8 +2,8 @@ name: Deploy Infrastructure
 
 on:
   push:
-    branches:
-      - 'release/*'
+    tags:
+      - '*'
   workflow_dispatch:
 
 permissions:

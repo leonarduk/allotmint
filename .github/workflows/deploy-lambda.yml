@@ -3,11 +3,7 @@ name: Deploy Infrastructure
 on:
   push:
     branches:
-      - 'release/*'
-    tags:
-      - '*.*'        # match tags like v1.2 or 1.2
-    tags-ignore:
-      - '*.*.*'      # ignore patch tags like v1.2.3
+      - main
   workflow_dispatch:
 
 permissions:
@@ -17,8 +13,6 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    outputs:
-      deploy: ${{ steps.parse.outputs.deploy }}
     env:
       SMOKE_TEST_URL: ${{ vars.SMOKE_TEST_URL }}
     steps:
@@ -84,24 +78,7 @@ jobs:
       - name: Run backend tests
         run: pytest
 
-      - name: Parse ref for deploy
-        id: parse
-        run: |
-          ref="${{ github.ref_name }}"
-          version="${ref#v}"
-          if [[ "$version" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]]; then
-            IFS='.' read -r major minor patch <<<"$version"
-            if [ -z "$patch" ] || [ "$patch" = "0" ]; then
-              echo "deploy=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "deploy=false" >> "$GITHUB_OUTPUT"
-            fi
-          else
-            echo "deploy=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Verify DATA_BUCKET secret
-        if: steps.parse.outputs.deploy == 'true'
         env:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
         run: |
@@ -110,16 +87,72 @@ jobs:
             exit 1
           fi
 
+      - name: CDK diff
+        env:
+          DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
+          CDK_OUTDIR: ../../.cdk.out
+        run: cdk diff --all
+        working-directory: cdk
+
       - name: Deploy CDK stack
-        if: steps.parse.outputs.deploy == 'true'
         env:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
           CDK_OUTDIR: ../../.cdk.out
         run: cdk deploy --all --require-approval never
         working-directory: cdk
 
+      - name: Validate backend and frontend endpoints
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          backend_url="$(aws cloudformation describe-stacks \
+            --stack-name BackendLambdaStack \
+            --query "Stacks[0].Outputs[?OutputKey=='BackendApiUrl'].OutputValue" \
+            --output text)"
+          frontend_domain="$(aws cloudformation describe-stacks \
+            --stack-name StaticSiteStack \
+            --query "Stacks[0].Outputs[?OutputKey=='DistributionDomain'].OutputValue" \
+            --output text)"
+          if [ -z "$backend_url" ] || [ "$backend_url" = "None" ]; then
+            echo "BackendApiUrl output is missing from BackendLambdaStack" >&2
+            exit 1
+          fi
+          if [ -z "$frontend_domain" ] || [ "$frontend_domain" = "None" ]; then
+            echo "DistributionDomain output is missing from StaticSiteStack" >&2
+            exit 1
+          fi
+          curl --fail --show-error --silent "${backend_url}docs" >/dev/null
+          curl --fail --show-error --silent "https://${frontend_domain}" >/dev/null
+
+      - name: Check recent BackendLambda CloudWatch errors
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          backend_fn="$(aws cloudformation describe-stack-resource \
+            --stack-name BackendLambdaStack \
+            --logical-resource-id BackendLambda \
+            --query "StackResourceDetail.PhysicalResourceId" \
+            --output text)"
+          error_sum="$(aws cloudwatch get-metric-statistics \
+            --namespace AWS/Lambda \
+            --metric-name Errors \
+            --dimensions "Name=FunctionName,Value=${backend_fn}" \
+            --start-time "$(date -u -d '15 minutes ago' +%FT%TZ)" \
+            --end-time "$(date -u +%FT%TZ)" \
+            --period 300 \
+            --statistics Sum \
+            --query "sum(Datapoints[].Sum)" \
+            --output text)"
+          error_sum="${error_sum:-0}"
+          if [ "${error_sum%%.*}" -gt 0 ]; then
+            echo "Backend Lambda reported ${error_sum} errors in the last 15 minutes" >&2
+            exit 1
+          fi
+
       - name: Run Lighthouse CI
-        if: steps.parse.outputs.deploy == 'true'
+        if: env.SMOKE_TEST_URL != ''
         run: |
           npm install --no-save @lhci/cli
           npx lhci autorun --collect.url="$SMOKE_TEST_URL" \
@@ -128,7 +161,6 @@ jobs:
   smoke-test:
     runs-on: ubuntu-latest
     needs: deploy
-    if: needs.deploy.outputs.deploy == 'true'
     env:
       SMOKE_URL: ${{ vars.SMOKE_URL }}
     steps:

@@ -103,6 +103,11 @@ cd ..
 
 ## Deploy with AWS CDK
 
+Production deploys are automated through `.github/workflows/deploy-lambda.yml`
+on every push to `main` (plus manual `workflow_dispatch`). Prefer merging via
+PR and letting CI/CD deploy so the live stack stays aligned with the repository
+history.
+
 Before deploying, confirm the deployment environment prerequisites:
 
 - AWS account credentials with IAM permissions for CloudFormation, Lambda, API
@@ -148,6 +153,13 @@ DEPLOY_BACKEND=true cdk deploy BackendLambdaStack StaticSiteStack -c data_bucket
 cdk deploy --all --require-approval never
 ```
 
+When manually validating drift before a deploy, always run:
+
+```bash
+cd cdk
+cdk diff --all
+```
+
 `BackendLambdaStack` now includes:
 - an S3 data bucket with versioning, SSE-S3 encryption, and non-current object expiry,
 - one-week CloudWatch log retention for backend/scheduled Lambdas,
@@ -162,3 +174,33 @@ If static files are updated without redeploying the stack, invalidate the distri
 ```bash
 aws cloudfront create-invalidation --distribution-id <DIST_ID> --paths "/*"
 ```
+
+## Deployment troubleshooting checklist
+
+If deployment fails or the live environment does not match local behavior:
+
+1. Re-run `cdk diff --all` and confirm intended stack changes are present.
+2. Run `cdk deploy --all --require-approval never` and capture the exact failing resource from CloudFormation events.
+3. Inspect backend Lambda errors (CloudWatch):
+
+   ```bash
+   aws logs tail /aws/lambda/<BackendLambdaPhysicalName> --since 30m --follow
+   ```
+
+4. Validate API Gateway connectivity with the `BackendApiUrl` output:
+
+   ```bash
+   aws cloudformation describe-stacks --stack-name BackendLambdaStack \
+     --query "Stacks[0].Outputs[?OutputKey=='BackendApiUrl'].OutputValue" --output text
+   curl -fsSL "<BackendApiUrl>docs" >/dev/null
+   ```
+
+5. Validate static frontend output with `DistributionDomain`:
+
+   ```bash
+   aws cloudformation describe-stacks --stack-name StaticSiteStack \
+     --query "Stacks[0].Outputs[?OutputKey=='DistributionDomain'].OutputValue" --output text
+   curl -fsSL "https://<DistributionDomain>" >/dev/null
+   ```
+
+6. If the frontend is stale after a successful deploy, run CloudFront invalidation (`/*`).

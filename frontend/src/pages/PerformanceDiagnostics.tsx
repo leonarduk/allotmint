@@ -171,8 +171,8 @@ export default function PerformanceDiagnostics() {
     label,
   }: {
     active?: boolean;
-    payload?: Array<{ payload?: PerformancePoint }>;
-    label?: string;
+    payload?: ReadonlyArray<{ payload?: PerformancePoint }>;
+    label?: string | number;
   }) => {
     if (!active || !payload?.length) return null;
     const point = payload[0]?.payload;

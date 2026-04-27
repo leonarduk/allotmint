@@ -39,7 +39,7 @@ export interface Holding {
   forward_7d_change_pct?: number | null;
   forward_30d_change_pct?: number | null;
 
-  days_held?: number;
+  days_held?: number | null;
   sell_eligible?: boolean;
   days_until_eligible?: number | null;
   next_eligible_sell_date?: string | null;

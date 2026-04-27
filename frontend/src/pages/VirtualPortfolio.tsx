@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { logAnalyticsEvent } from "@/api";
 
 interface ManualHolding {
@@ -33,7 +33,9 @@ function createId(): string {
     const globalCrypto: Crypto | undefined =
       typeof crypto !== "undefined"
         ? crypto
-        : (typeof window !== "undefined" && (window as unknown as { crypto?: Crypto }).crypto);
+        : typeof window !== "undefined"
+          ? (window as unknown as { crypto?: Crypto }).crypto
+          : undefined;
 
     if (globalCrypto && typeof globalCrypto.getRandomValues === "function") {
       const bytes = new Uint8Array(16);

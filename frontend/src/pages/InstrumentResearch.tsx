@@ -1170,7 +1170,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
             const resolvedPrice = resolveDisplayPrice(
               value,
               displayCurrency,
-              detail?.base_currency,
+              detail?.base_currency ?? undefined,
             );
             if (!resolvedPrice) return null;
             return resolvedPrice;
@@ -1248,7 +1248,6 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
           parsedPrices.length > 0 ? parsedPrices[parsedPrices.length - 1] : null;
         const latestPrice = latestPriceEntry?.close ?? null;
         const latestPriceCurrency = latestPriceEntry?.currency ?? displayCurrency;
-        const normalizedLatestCurrency = normaliseUppercase(latestPriceCurrency);
         const normalizedReportingCurrency = normaliseUppercase(detail?.base_currency);
         const formatDisplayPrice = (value: number | null, currency: string) => {
           const normalizedCurrency = normaliseUppercase(currency);

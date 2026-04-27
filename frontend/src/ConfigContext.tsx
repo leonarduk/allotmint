@@ -176,7 +176,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         Array.isArray(cfg.disabled_tabs) ? cfg.disabled_tabs : [],
       );
       const disableTab = (tab: keyof TabsConfig) => {
-        disabledTabs.add(tab);
+        disabledTabs.add(String(tab));
         tabs[tab] = false;
       };
       const familyMvpEnabled = cfg.enable_family_mvp !== false;

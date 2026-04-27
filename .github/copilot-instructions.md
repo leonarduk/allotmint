@@ -9,6 +9,7 @@ Read `AGENTS.md` for full repository guidance. Use these short rules while gener
 - Use `npm --prefix frontend run lint` and `npm --prefix frontend run test -- --run` for frontend changes.
 - Prefer `bash scripts/bash/run-local-api.sh` for the local backend instead of outdated `uvicorn app:app` examples.
 - Verify command names against actual `package.json`, `Makefile`, and scripts before updating docs.
+- If your change implements an issue, include an auto-closing PR reference (for example: `Closes #1234`).
 - Keep changes out of generated dependency folders such as `node_modules/`.
 - Be careful when changing `data/`, auth defaults, or smoke-test flows; these are tightly coupled to local development and demos.
 - Preserve bash/PowerShell parity when editing shared developer workflows.

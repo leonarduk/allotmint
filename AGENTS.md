@@ -120,6 +120,7 @@ Before finishing:
   - why it changed,
   - what you validated,
   - any known follow-up or risk.
+- If work implements a GitHub issue, include an auto-closing reference in the PR body (for example: `Closes #1234`).
 - If you changed UI behavior, attach screenshots.
 - If you changed operational workflows, mention the exact commands used for validation.
 

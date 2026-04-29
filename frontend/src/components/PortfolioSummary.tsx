@@ -16,6 +16,7 @@ export type PortfolioTotals = {
   totalDayChangePct: number;
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function computePortfolioTotals(accounts: Account[]): PortfolioTotals {
   let totalValue = 0;
   let totalStockValue = 0;
@@ -175,4 +176,3 @@ function SummaryCard({ label, icon, value, secondary, accentColor }: SummaryCard
     </div>
   );
 }
-

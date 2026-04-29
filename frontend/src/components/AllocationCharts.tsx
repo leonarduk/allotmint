@@ -38,6 +38,7 @@ function addToTree(root: Record<string, AllocationNode>, inst: InstrumentSummary
   regNode.value! += inst.market_value_gbp;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function buildAllocationHierarchy(
   instruments: InstrumentSummary[],
 ): AllocationNode[] {

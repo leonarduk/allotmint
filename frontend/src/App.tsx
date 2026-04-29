@@ -102,6 +102,7 @@ function sameGroupList(left: GroupSummary[], right: GroupSummary[]): boolean {
   return left.every((entry, index) => entry.slug === right[index]?.slug);
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function getOwnerRootRedirectPath(
   pathname: string,
   selectedOwner: string,
@@ -119,6 +120,7 @@ export function getOwnerRootRedirectPath(
     : `/portfolio/${encodedOwner}`;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function getFamilyMvpRedirectPath(
   pathname: string,
   search: string,

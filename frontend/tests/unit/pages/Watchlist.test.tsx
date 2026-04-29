@@ -55,7 +55,7 @@ describe("Watchlist page", () => {
     (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue(sampleRows);
     localStorage.setItem("watchlistSymbols", "AAA,BBB");
 
-    const { unmount } = render(<Watchlist />);
+    render(<Watchlist />);
 
     expect(await screen.findByText("Alpha")).toBeInTheDocument();
     expect(getQuotes).toHaveBeenCalledWith(["AAA", "BBB"]);
@@ -71,8 +71,6 @@ describe("Watchlist page", () => {
     fireEvent.click(screen.getByText("Chg %"));
     rows = screen.getAllByRole("row").slice(1);
     expect(rows[0]).toHaveTextContent("AAA");
-
-    unmount();
   });
 
   it("shows error message when API fails", async () => {
@@ -126,6 +124,7 @@ describe("Watchlist page", () => {
     await flushPromises();
     expect(getQuotes).toHaveBeenCalledTimes(2);
     vi.useRealTimers();
+    unmount();
   });
 
   it("allows toggling refresh frequency", async () => {
@@ -185,4 +184,3 @@ describe("Watchlist page", () => {
     vi.useRealTimers();
   });
 });
-

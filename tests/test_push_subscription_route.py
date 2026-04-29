@@ -41,7 +41,10 @@ def test_push_subscription_owner_validation(client, tmp_path):
     resp_bad = client.post("/alerts/push-subscription/unknown", json=payload)
     assert resp_bad.status_code == 404
 
-    client.app.state.accounts_root = tmp_path / "does-not-exist"
+    # Delete the subscription — do not override accounts_root here; that would
+    # cause the DELETE route to skip removal (subscriptions storage is separate
+    # from the accounts directory). accounts_root fallback behaviour is tested
+    # separately in test_push_subscription_falls_back_to_default_dataset.
     resp_del = client.delete(f"/alerts/push-subscription/{owner}")
     assert resp_del.status_code == 200
     assert alert_utils.get_user_push_subscription(owner) is None

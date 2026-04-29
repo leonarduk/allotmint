@@ -4,7 +4,6 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi } from "vitest";
 import { searchInstruments } from "@/api";
-import i18n from "@/i18n";
 
 vi.mock("@/api", () => ({
   searchInstruments: vi.fn(),
@@ -48,4 +47,3 @@ describe("InstrumentSearchBar", () => {
     expect(onNavigate).toHaveBeenCalled();
   });
 });
-

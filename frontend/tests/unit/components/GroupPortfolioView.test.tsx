@@ -127,7 +127,7 @@ const mockAllFetches = (
         : 0),
     trades_this_month: portfolio.trades_this_month ?? 0,
     trades_remaining: portfolio.trades_remaining ?? 0,
-    accounts: (portfolio.accounts ?? []).map((account: any, accountIndex: number) => ({
+    accounts: (portfolio.accounts ?? []).map((account: any, _accountIndex: number) => ({
       currency: account.currency ?? "GBP",
       ...account,
       holdings: (account.holdings ?? []).map((holding: any, holdingIndex: number) => ({

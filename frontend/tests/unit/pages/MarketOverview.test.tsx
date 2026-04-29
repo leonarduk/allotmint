@@ -8,27 +8,25 @@ vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (_k: string, opts?: any) => opts?.defaultValue ?? _k }),
 }));
 
-var mockBar: any;
+// vi.hoisted ensures mockBar is initialised before vi.mock factories run.
+const mockBar = vi.hoisted(() => vi.fn(() => null));
 
-vi.mock("recharts", () => {
-  mockBar = vi.fn(() => null);
-  return {
-    ResponsiveContainer: ({ children }: any) => <div>{children}</div>,
-    BarChart: ({ data, children }: any) => (
-      <div>
-        {data.map((d: any) => (
-          <div key={d.name}>{d.name}</div>
-        ))}
-        {children}
-      </div>
-    ),
-    Bar: mockBar,
-    XAxis: () => null,
-    YAxis: () => null,
-    Tooltip: () => null,
-    Cell: () => null,
-  };
-});
+vi.mock("recharts", () => ({
+  ResponsiveContainer: ({ children }: any) => <div>{children}</div>,
+  BarChart: ({ data, children }: any) => (
+    <div>
+      {data.map((d: any) => (
+        <div key={d.name}>{d.name}</div>
+      ))}
+      {children}
+    </div>
+  ),
+  Bar: mockBar,
+  XAxis: () => null,
+  YAxis: () => null,
+  Tooltip: () => null,
+  Cell: () => null,
+}));
 
 const mockGetMarketOverview = vi.mocked(api.getMarketOverview);
 

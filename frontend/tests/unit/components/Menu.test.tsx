@@ -155,12 +155,12 @@ describe('Menu', () => {
   it('renders logout button when callback provided', async () => {
     const onLogout = vi.fn();
     i18n.changeLanguage('fr');
-    const config: ConfigContextValue = {
+    const _config: ConfigContextValue = {
       ...configContext._currentValue,
       familyMvpEnabled: false,
     };
     render(
-      <configContext.Provider value={config}>
+      <configContext.Provider value={_config}>
         <MemoryRouter>
           <Menu onLogout={onLogout} />
         </MemoryRouter>
@@ -178,7 +178,7 @@ describe('Menu', () => {
 
   it('applies 44px touch target sizing to dropdown menu items', async () => {
     const onLogout = vi.fn();
-    const config: ConfigContextValue = {
+    const _config: ConfigContextValue = {
       ...configContext._currentValue,
       familyMvpEnabled: false,
     };

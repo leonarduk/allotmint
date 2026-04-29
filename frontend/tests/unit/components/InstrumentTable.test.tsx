@@ -210,7 +210,8 @@ describe("InstrumentTable", () => {
         return tickers;
     };
 
-    const getGroupOrder = () =>
+    // Defined for potential future use — currently not called in tests
+    const _getGroupOrder = () =>
         screen
             .getAllByRole("button", { name: /^Toggle / })
             .map((button) => {
@@ -222,7 +223,7 @@ describe("InstrumentTable", () => {
                 return label ? label.replace(/^Toggle\s+/, "") : "";
             });
 
-    const expectGroupsCollapsed = () => {
+    const _expectGroupsCollapsed = () => {
         screen
             .getAllByRole("button", { name: /^Toggle / })
             .forEach((button) =>

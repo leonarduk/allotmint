@@ -1,5 +1,5 @@
 import { useContext } from 'react';
-import { RouteContext } from '../RouteContext';
+import { RouteContext } from '../contexts/route';
 
 export function useRoute() {
   const ctx = useContext(RouteContext);

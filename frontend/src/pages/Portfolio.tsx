@@ -25,8 +25,10 @@ export function Portfolio() {
 
   let routeContext: ReturnType<typeof useRoute> | null = null;
   try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     routeContext = useRoute();
   } catch {
+    // Intentional: component may be used outside RouteProvider (tests/storybook).
     routeContext = null;
   }
 

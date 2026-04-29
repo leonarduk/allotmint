@@ -145,7 +145,6 @@ export function createClient(
     let fullUrl = url;
     try {
       // Throws for relative paths in Node/undici; succeeds for absolute URLs.
-      // eslint-disable-next-line no-new
       new URL(url);
     } catch {
       const resolvedBase = resolveBase();

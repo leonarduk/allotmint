@@ -30,6 +30,9 @@ export default tseslint.config([
       '@typescript-eslint/no-explicit-any': 'off',
       'spaced-comment': 'off',
       'new-cap': 'off',
+      // Allow underscore-prefixed names as intentionally unused
+      'no-unused-vars': ['error', { varsIgnorePattern: '^_', argsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': ['error', { varsIgnorePattern: '^_', argsIgnorePattern: '^_' }],
     },
   },
 ]);

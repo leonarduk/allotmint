@@ -5,6 +5,7 @@ import { useEffect, useState, useRef } from "react";
 import { toast } from "react-toastify";
 import { Link } from "react-router-dom";
 import { AlertsTicker } from "./AlertsTicker";
+
 export function AlertsPanel({ user = "default" }: { user?: string }) {
   const { data: alerts, loading, error } = useFetch<Alert[]>(api.getAlerts, []);
   const [threshold, setThreshold] = useState<number>();
@@ -26,16 +27,6 @@ export function AlertsPanel({ user = "default" }: { user?: string }) {
     }
   };
 
-  if (loading) return null;
-
-  if (error || settingsError) {
-    return (
-      <div style={{ border: "1px solid #ccc", padding: "0.5rem", marginBottom: "1rem" }}>
-        Cannot reach server
-      </div>
-    );
-  }
-
   const importAlert = alerts?.find((a) => a.ticker === "IMPORT");
   const otherAlerts = alerts?.filter((a) => a.ticker !== "IMPORT") ?? [];
 
@@ -48,7 +39,9 @@ export function AlertsPanel({ user = "default" }: { user?: string }) {
       ? otherAlerts.filter((a) => a.change_pct >= threshold)
       : otherAlerts;
 
+  // Must be called unconditionally — keep above any early returns.
   useEffect(() => {
+    if (loading || error || settingsError) return;
     highPriorityAlerts.forEach((a) => {
       const key = `${a.ticker}-${a.message}-${a.timestamp}`;
       if (!displayed.current.has(key)) {
@@ -60,7 +53,17 @@ export function AlertsPanel({ user = "default" }: { user?: string }) {
         displayed.current.add(key);
       }
     });
-  }, [highPriorityAlerts]);
+  }, [highPriorityAlerts, loading, error, settingsError]);
+
+  if (loading) return null;
+
+  if (error || settingsError) {
+    return (
+      <div style={{ border: "1px solid #ccc", padding: "0.5rem", marginBottom: "1rem" }}>
+        Cannot reach server
+      </div>
+    );
+  }
 
   if (!importAlert && otherAlerts.length === 0) return null;
 

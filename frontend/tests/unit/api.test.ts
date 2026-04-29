@@ -27,7 +27,7 @@ describe("auth token handling", () => {
     const mockFetch = vi
       .fn()
       .mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
-    // @ts-ignore
+    // @ts-expect-error: replacing global fetch with mock
     global.fetch = mockFetch;
     await fetchJson("/foo");
     expect(mockFetch).toHaveBeenCalled();
@@ -51,7 +51,7 @@ describe("login", () => {
         ok: true,
         json: () => Promise.resolve({ access_token: "abc" }),
       });
-    // @ts-ignore
+    // @ts-expect-error: replacing global fetch with mock
     global.fetch = mockFetch;
     const token = await login("good-id-token");
     expect(token).toBe("abc");
@@ -68,7 +68,7 @@ describe("login", () => {
     const mockFetch = vi
       .fn()
       .mockResolvedValue({ ok: false, status: 400, statusText: "Bad" });
-    // @ts-ignore
+    // @ts-expect-error: replacing global fetch with mock
     global.fetch = mockFetch;
     await expect(login("bad-id-token")).rejects.toThrow("Login failed");
   });
@@ -83,7 +83,7 @@ describe("nudge subscriptions", () => {
     const mockFetch = vi
       .fn()
       .mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
-    // @ts-ignore
+    // @ts-expect-error: replacing global fetch with mock
     global.fetch = mockFetch;
     await subscribeNudges("bob", 0);
     let args = mockFetch.mock.calls[0];
@@ -110,7 +110,7 @@ describe("runtime api base", () => {
     const mockFetch = vi
       .fn()
       .mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
-    // @ts-ignore
+    // @ts-expect-error: replacing global fetch with mock
     global.fetch = mockFetch;
 
     await fetchJson("/health");
@@ -154,7 +154,7 @@ describe("portfolio holdings", () => {
           ],
         }),
     });
-    // @ts-ignore
+    // @ts-expect-error: replacing global fetch with mock
     global.fetch = mockFetch;
     const data = await getPortfolio("alice");
     const holding = data.accounts[0].holdings[0];
@@ -168,7 +168,7 @@ describe("contract validation", () => {
     const mockFetch = vi
       .fn()
       .mockResolvedValue({ ok: true, json: () => Promise.resolve({ app_env: 123 }) });
-    // @ts-ignore
+    // @ts-expect-error: replacing global fetch with mock
     global.fetch = mockFetch;
 
     await expect(getConfig()).rejects.toThrow();
@@ -180,7 +180,7 @@ describe("scenario APIs", () => {
     const mockFetch = vi
       .fn()
       .mockResolvedValue({ ok: true, json: () => Promise.resolve([]) });
-    // @ts-ignore
+    // @ts-expect-error: replacing global fetch with mock
     global.fetch = mockFetch;
     await getEvents();
     expect(mockFetch).toHaveBeenCalledWith(
@@ -193,7 +193,7 @@ describe("scenario APIs", () => {
     const mockFetch = vi
       .fn()
       .mockResolvedValue({ ok: true, json: () => Promise.resolve([]) });
-    // @ts-ignore
+    // @ts-expect-error: replacing global fetch with mock
     global.fetch = mockFetch;
     await runScenario({ event_id: "e1", horizons: ["1d", "1w"] });
     const url =
@@ -221,7 +221,7 @@ describe("pension forecast", () => {
             earliest_retirement_age: null,
           }),
       });
-    // @ts-ignore
+    // @ts-expect-error: replacing global fetch with mock
     global.fetch = mockFetch;
     await getPensionForecast({
       owner: "alex",
@@ -247,7 +247,7 @@ describe("pension forecast", () => {
             earliest_retirement_age: null,
           }),
       });
-    // @ts-ignore
+    // @ts-expect-error: replacing global fetch with mock
     global.fetch = mockFetch;
     await getPensionForecast({
       owner: "alex",

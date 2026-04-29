@@ -83,7 +83,7 @@ describe('Root config states', () => {
       const mod = await importOriginal<typeof import('@/api')>()
       return {
         ...mod,
-        getConfig: vi.fn((_init?: RequestInit) =>
+        getConfig: vi.fn((_?: RequestInit) =>
           Promise.reject(new DOMException('Aborted', 'AbortError'))
         ),
         getStoredAuthToken: vi.fn()

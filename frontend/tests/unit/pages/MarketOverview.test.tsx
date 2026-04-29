@@ -8,10 +8,11 @@ vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (_k: string, opts?: any) => opts?.defaultValue ?? _k }),
 }));
 
-var mockBar: any;
+const mockBar: any = vi.fn();
 
 vi.mock("recharts", () => {
-  mockBar = vi.fn(() => null);
+  mockBar.mockReset();
+  mockBar.mockReturnValue(null);
   return {
     ResponsiveContainer: ({ children }: any) => <div>{children}</div>,
     BarChart: ({ data, children }: any) => (

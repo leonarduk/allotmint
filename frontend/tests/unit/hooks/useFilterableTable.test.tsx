@@ -69,7 +69,7 @@ describe("useFilterableTable", () => {
 
   it("applies a custom comparator before falling back to column order", () => {
     const { result } = renderHook(() =>
-      useFilterableTable(rows, "age", filters, (a, b, _sortKey, _asc) => {
+      useFilterableTable(rows, "age", filters, (a, b) => {
         if (a.active && !b.active) {
           return -1;
         }

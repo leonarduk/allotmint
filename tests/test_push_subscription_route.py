@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import pytest
@@ -12,12 +13,22 @@ from backend.common.storage import get_storage
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
+    # Redirect subscription storage to a fresh tmp file.
     monkeypatch.setattr(
         alert_utils,
         "_SUBSCRIPTIONS_STORAGE",
         get_storage(f"file://{tmp_path / 'push.json'}"),
     )
+    # Clear the in-memory cache so tests start from a known-empty state.
     alert_utils._PUSH_SUBSCRIPTIONS.clear()
+    # Unset DATA_BUCKET so _save_subscriptions/_load_subscriptions use the
+    # monkeypatched file storage rather than attempting (and silently failing)
+    # S3 calls.  When DATA_BUCKET is set, _save_subscriptions returns after the
+    # S3 path without ever writing to _SUBSCRIPTIONS_STORAGE, so the tmp file
+    # is never updated and a subsequent reload repopulates _PUSH_SUBSCRIPTIONS
+    # from the stale file written during the POST.
+    monkeypatch.delenv("DATA_BUCKET", raising=False)
+
     original_arn = alert_utils.config.sns_topic_arn
     alert_utils.config.sns_topic_arn = None
     original_disable_auth = backend_config.config.disable_auth
@@ -41,7 +52,6 @@ def test_push_subscription_owner_validation(client, tmp_path):
     resp_bad = client.post("/alerts/push-subscription/unknown", json=payload)
     assert resp_bad.status_code == 404
 
-    client.app.state.accounts_root = tmp_path / "does-not-exist"
     resp_del = client.delete(f"/alerts/push-subscription/{owner}")
     assert resp_del.status_code == 200
     assert alert_utils.get_user_push_subscription(owner) is None

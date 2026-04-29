@@ -1,16 +1,8 @@
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { useState, useContext, type ReactNode } from 'react';
+import { PriceRefreshContext } from './contexts/priceRefresh';
 
-interface PriceRefreshContextValue {
-  lastRefresh: string | null;
-  setLastRefresh: (ts: string | null) => void;
-}
-
-const defaultValue: PriceRefreshContextValue = {
-  lastRefresh: null,
-  setLastRefresh: () => {},
-};
-
-export const PriceRefreshContext = createContext<PriceRefreshContextValue>(defaultValue);
+export type { PriceRefreshContextValue } from './contexts/priceRefresh';
+export { PriceRefreshContext } from './contexts/priceRefresh';
 
 export function PriceRefreshProvider({ children }: { children: ReactNode }) {
   const [lastRefresh, setLastRefresh] = useState<string | null>(null);

@@ -6,7 +6,11 @@ on:
     types: [opened, reopened, synchronize]
   push:
     branches: [main]
-
+    
+permissions:
+  contents: read
+  id-token: write
+  
 jobs:
   integration-tests:
     runs-on: ubuntu-latest

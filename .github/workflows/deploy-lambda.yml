@@ -66,8 +66,8 @@ jobs:
             echo "AWS_REGION is not configured (set as secret or repository variable)" >&2
             missing=1
           fi
-          if [ -z "${{ secrets.AWS_ROLE_TO_ASSUME }}" ]; then
-            echo "AWS_ROLE_TO_ASSUME secret is not configured" >&2
+          if [ -z "${{ secrets.AWS_ROLE_TO_ASSUME }}${{ vars.AWS_ROLE_TO_ASSUME }}" ]; then
+            echo "AWS_ROLE_TO_ASSUME is not configured (set as secret or repository variable)" >&2
             missing=1
           fi
           if [ "$missing" -eq 1 ]; then exit 1; fi

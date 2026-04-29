@@ -1,30 +1,14 @@
-import { createContext, useContext, useState, useCallback } from "react";
-import type { ReactNode } from "react";
-import {
-  loadStoredAuthUser,
-  persistStoredAuthUser,
-  type StoredUserProfile,
-} from "./authStorage";
+import { useState, useCallback, useContext } from 'react';
+import type { ReactNode } from 'react';
+import { loadStoredAuthUser, persistStoredAuthUser } from './authStorage';
+import { AuthContext } from './contexts/auth';
 
-export type UserProfile = StoredUserProfile;
-
-interface AuthContextValue {
-  user: UserProfile | null;
-  setUser: (u: UserProfile | null) => void;
-}
-
-// Default context used when no provider is present. The setter is a no-op so
-// components can still call it safely in tests or non-authenticated scenarios.
-export const AuthContext = createContext<AuthContextValue>({
-  user: null,
-  setUser: () => {},
-});
+export type { UserProfile } from './contexts/auth';
+export { AuthContext } from './contexts/auth';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUserState] = useState<UserProfile | null>(() =>
-    loadStoredAuthUser(),
-  );
-  const setUser = useCallback((u: UserProfile | null) => {
+  const [user, setUserState] = useState(() => loadStoredAuthUser());
+  const setUser = useCallback((u: Parameters<typeof setUserState>[0]) => {
     setUserState(u);
     persistStoredAuthUser(u);
   }, []);
@@ -38,4 +22,3 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useAuth() {
   return useContext(AuthContext);
 }
-

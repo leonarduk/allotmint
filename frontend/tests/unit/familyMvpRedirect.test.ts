@@ -41,9 +41,6 @@ describe('getFamilyMvpRedirectPath', () => {
   });
 
   it('redirects non-MVP routes to transactions', () => {
-    // entryPath defaults to /portfolio but at runtime familyMvpEntryPath
-    // resolves to /transactions (first enabled FAMILY_MVP_ENTRY_CANDIDATE).
-    // These tests pass the default explicitly to confirm function behaviour.
     expect(getFamilyMvpRedirectPath('/market', '', true)).toBe('/transactions');
     expect(getFamilyMvpRedirectPath('/support', '', true)).toBe('/transactions');
     expect(getFamilyMvpRedirectPath('/performance/alex', '', true)).toBe('/transactions');
@@ -76,35 +73,6 @@ describe('getFamilyMvpRedirectPath', () => {
   it('supports overriding the entry path when a different MVP route is enabled', () => {
     expect(getFamilyMvpRedirectPath('/', '', true, '/performance')).toBe('/performance');
     expect(getFamilyMvpRedirectPath('/support', '', true, '/transactions')).toBe('/transactions');
-  it('redirects non-MVP routes to the configured entry path', () => {
-    expect(getFamilyMvpRedirectPath('/market', '')).toBe('/input');
-    expect(getFamilyMvpRedirectPath('/support', '')).toBe('/input');
-  });
-
-  it('does not redirect MVP routes', () => {
-    expect(getFamilyMvpRedirectPath('/portfolio', '', '/portfolio')).toBeNull();
-    expect(getFamilyMvpRedirectPath('/input', '')).toBeNull();
-    expect(getFamilyMvpRedirectPath('/transactions', '')).toBeNull();
-    expect(getFamilyMvpRedirectPath('/portfolio/alex', '')).toBeNull();
-    expect(getFamilyMvpRedirectPath('/performance/alex', '')).toBeNull();
-    expect(
-      getFamilyMvpRedirectPath('/performance/alex', '?range=1y')
-    ).toBeNull();
-  });
-
-  it('redirects bare root to default portfolio entry path', () => {
-    expect(getFamilyMvpRedirectPath('/', '')).toBe('/input');
-  });
-
-  it('redirects group query routes because group mode is non-MVP', () => {
-    expect(getFamilyMvpRedirectPath('/', '?group=kids')).toBe('/input');
-  });
-
-  it('supports overriding the entry path when a different MVP route is enabled', () => {
-    expect(getFamilyMvpRedirectPath('/', '', '/performance')).toBe(
-      '/performance'
-    );
-    expect(getFamilyMvpRedirectPath('/support', '', '/input')).toBe('/input');
   });
 
   it('skips redirecting when every family MVP route is disabled (null entryPath)', () => {

@@ -5,7 +5,6 @@ import { AuthContext } from './contexts/auth';
 import type { UserProfile } from './contexts/auth';
 
 export type { UserProfile } from './contexts/auth';
-// eslint-disable-next-line react-refresh/only-export-components
 export { AuthContext } from './contexts/auth';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -21,6 +20,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   return useContext(AuthContext);
 }

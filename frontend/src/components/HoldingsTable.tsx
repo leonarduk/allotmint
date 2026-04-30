@@ -108,7 +108,8 @@ export function HoldingsTable({
       localStorage.setItem(VIEW_PRESET_STORAGE_KEY, viewPreset);
     }
     dispatchFilters({ type: "set", key: "instrument_type", value: viewPreset });
-  }, [viewPreset]); // eslint-disable-line react-hooks/exhaustive-deps
+    // dispatchFilters is stable (useReducer dispatch), including it satisfies exhaustive-deps without risk
+  }, [viewPreset, dispatchFilters]);
 
   // derive cost/market/gain/gain_pct
   const computed = holdings.map((h) => {

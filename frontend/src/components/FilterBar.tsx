@@ -1,7 +1,6 @@
 import { useReducer } from "react";
 import { useTranslation } from "react-i18next";
 
-// eslint-disable-next-line react-refresh/only-export-components
 export type FilterState = {
   ticker: string;
   name: string;
@@ -11,7 +10,6 @@ export type FilterState = {
   sell_eligible: string;
 };
 
-// eslint-disable-next-line react-refresh/only-export-components
 export type FilterAction =
   | { type: "set"; key: keyof FilterState; value: string }
   | { type: "clear"; key: keyof FilterState }

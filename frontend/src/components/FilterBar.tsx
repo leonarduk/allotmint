@@ -15,6 +15,7 @@ export type FilterAction =
   | { type: "clear"; key: keyof FilterState }
   | { type: "clearAll" };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function filterReducer(state: FilterState, action: FilterAction): FilterState {
   switch (action.type) {
     case "set":
@@ -28,6 +29,7 @@ export function filterReducer(state: FilterState, action: FilterAction): FilterS
   }
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useFilterReducer(initial?: Partial<FilterState>) {
   const defaultState: FilterState = {
     ticker: "",

@@ -5,6 +5,7 @@ import { AuthContext } from './contexts/auth';
 import type { UserProfile } from './contexts/auth';
 
 export type { UserProfile } from './contexts/auth';
+// eslint-disable-next-line react-refresh/only-export-components
 export { AuthContext } from './contexts/auth';
 
 export function AuthProvider({ children }: { children: ReactNode }) {

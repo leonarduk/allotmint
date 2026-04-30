@@ -80,8 +80,8 @@ export default function InstrumentAdmin() {
             } as Row;
           }),
         );
-      } catch (e) {
-        if (!cancelled) setError(String(e));
+      } catch (err) {
+        if (!cancelled) setError(String(err));
       }
     })();
     return () => {
@@ -155,7 +155,7 @@ export default function InstrumentAdmin() {
           } as Row;
         }),
       );
-    } catch (e) {
+    } catch {
       setMessage(t("instrumentadmin.saveError"));
     }
   };

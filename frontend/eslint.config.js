@@ -30,6 +30,11 @@ export default tseslint.config([
       '@typescript-eslint/no-explicit-any': 'off',
       'spaced-comment': 'off',
       'new-cap': 'off',
+      // Disable the base no-unused-vars rule for TS files — it does not
+      // understand type-only imports and produces false positives. The
+      // TypeScript-aware version below handles all cases correctly.
+      'no-unused-vars': 'off',
+      '@typescript-eslint/no-unused-vars': ['error', { varsIgnorePattern: '^_', argsIgnorePattern: '^_' }],
     },
   },
 ]);

@@ -39,9 +39,11 @@ export function HoldingsTable({
   const { relativeViewEnabled, baseCurrency, familyMvpEnabled } = useConfig();
   let navigate: (path: string) => void = () => {};
   try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     navigate = useNavigate();
   } catch {
-    // no router context
+    // Intentional: component may be rendered outside a Router in tests/storybook.
+    // useNavigate() is only used for the EmptyState screener shortcut.
   }
 
   const viewPresets = useMemo(
@@ -106,7 +108,8 @@ export function HoldingsTable({
       localStorage.setItem(VIEW_PRESET_STORAGE_KEY, viewPreset);
     }
     dispatchFilters({ type: "set", key: "instrument_type", value: viewPreset });
-  }, [viewPreset]);
+    // dispatchFilters is stable (useReducer dispatch), including it satisfies exhaustive-deps without risk
+  }, [viewPreset, dispatchFilters]);
 
   // derive cost/market/gain/gain_pct
   const computed = holdings.map((h) => {

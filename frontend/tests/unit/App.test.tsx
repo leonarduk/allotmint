@@ -9,7 +9,6 @@ import {
   useLocation,
 } from "react-router-dom";
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import i18n from "@/i18n";
 import type { InstrumentSummary, Portfolio } from "@/types";
 
 const mockTradingSignals = vi.fn();

@@ -9,6 +9,15 @@ import {
 import { useRouteMode } from "@/hooks/useRouteMode";
 import { type ReactNode } from "react";
 
+/** Minimal config with all tabs enabled including trail. */
+const allTabsConfig: ConfigContextValue = {
+  ...configContext._currentValue,
+  tabs: {
+    ...configContext._currentValue.tabs,
+    trail: true,
+  },
+};
+
 describe("useRouteMode", () => {
   it("defaults to group mode on root path", async () => {
     window.history.pushState({}, "", "/");
@@ -29,8 +38,12 @@ describe("useRouteMode", () => {
   it("recognizes trail mode", async () => {
     window.history.pushState({}, "", "/trail");
 
+    // trail is disabled in defaultTabs — supply a config that enables it so the
+    // hook does not redirect away from /trail to the first enabled tab.
     const wrapper = ({ children }: { children: ReactNode }) => (
-      <MemoryRouter initialEntries={["/trail"]}>{children}</MemoryRouter>
+      <configContext.Provider value={allTabsConfig}>
+        <MemoryRouter initialEntries={["/trail"]}>{children}</MemoryRouter>
+      </configContext.Provider>
     );
 
     const { result } = renderHook(

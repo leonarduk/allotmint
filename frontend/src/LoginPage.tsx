@@ -83,7 +83,7 @@ export default function LoginPage({ clientId, onSuccess }: Props) {
     return () => {
       document.head.removeChild(script);
     };
-  }, [clientId, onSuccess]);
+  }, [clientId, onSuccess, setProfile, setUser]);
 
   return (
     <div

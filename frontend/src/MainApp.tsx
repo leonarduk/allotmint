@@ -66,8 +66,8 @@ export default function MainApp() {
   const [backendUnavailable, setBackendUnavailable] = useState(false);
   const [retryNonce, setRetryNonce] = useState(0);
 
-  const ownersReq = useFetchWithRetry(getOwners, 200, 5, [retryNonce]);
-  const groupsReq = useFetchWithRetry(getGroups, 200, 5, [retryNonce]);
+  const ownersReq = useFetchWithRetry(getOwners, 200, 5, retryNonce);
+  const groupsReq = useFetchWithRetry(getGroups, 200, 5, retryNonce);
   const demoOnly =
     ownersReq.data?.length === 1 && ownersReq.data[0].owner === "demo";
   const unauthorized = demoOnly
@@ -85,7 +85,7 @@ export default function MainApp() {
       setSelectedOwner(owner);
       navigate(`/performance/${owner}`);
     },
-    [navigate],
+    [navigate, setSelectedOwner],
   );
 
   useEffect(() => {

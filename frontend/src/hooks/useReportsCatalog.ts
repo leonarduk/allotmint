@@ -17,7 +17,7 @@ export function useReportsCatalog(): ReportsCatalogResult {
   const fetchCatalog = useCallback(() => listReportTemplates(), []);
   const { data, loading, error } = useFetch(fetchCatalog, []);
 
-  const templates = data ?? [];
+  const templates = useMemo(() => data ?? [], [data]);
 
   const { builtin, custom } = useMemo(() => {
     const builtinTemplates: ReportTemplateMetadata[] = [];

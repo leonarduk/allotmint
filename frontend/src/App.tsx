@@ -245,8 +245,8 @@ export default function App({ onLogout }: AppProps) {
     onLogout?.();
   }, [onLogout]);
 
-  const ownersReq = useFetchWithRetry(getOwners, 500, 5, [retryNonce]);
-  const groupsReq = useFetchWithRetry(getGroups, 500, 5, [retryNonce]);
+  const ownersReq = useFetchWithRetry(getOwners, 500, 5, retryNonce);
+  const groupsReq = useFetchWithRetry(getGroups, 500, 5, retryNonce);
   const identityCatalogReady = ownersReq.data !== null && groupsReq.data !== null;
   const selectedOwnerGroup = useMemo(
     () =>

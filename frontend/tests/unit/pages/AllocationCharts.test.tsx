@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import AllocationCharts from "@/pages/AllocationCharts";
 import * as api from "@/api";
@@ -269,8 +269,13 @@ describe("AllocationCharts page", () => {
     render(<AllocationCharts />);
     await screen.findByText(/Instrument Types/);
 
-    const slices = screen.getByTestId("pie-slices");
-    expect(within(slices).getByText("Equity: 10")).toBeInTheDocument();
+    // The chart effect runs asynchronously after the loading state resolves.
+    // Use waitFor so the pie-slices assertion is deferred until assetData is populated.
+    await waitFor(() => {
+      const slices = screen.getByTestId("pie-slices");
+      expect(within(slices).getByText("Equity: 10")).toBeInTheDocument();
+    });
+
     expect(warnSpy).toHaveBeenCalledWith("Dropped invalid holding value", {
       ticker: "NULL",
       originalValue: null,
@@ -298,8 +303,12 @@ describe("AllocationCharts page", () => {
     render(<AllocationCharts />);
     await screen.findByText(/Instrument Types/);
 
-    const slices = screen.getByTestId("pie-slices");
-    expect(within(slices).getByText("Equity: 12")).toBeInTheDocument();
+    // Same async chart-effect timing issue as the null test — use waitFor.
+    await waitFor(() => {
+      const slices = screen.getByTestId("pie-slices");
+      expect(within(slices).getByText("Equity: 12")).toBeInTheDocument();
+    });
+
     expect(warnSpy).toHaveBeenCalledWith("Dropped invalid holding value", {
       ticker: "UNDEF",
       originalValue: undefined,

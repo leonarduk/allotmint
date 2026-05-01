@@ -739,8 +739,10 @@ describe("GroupPortfolioView", () => {
 
     renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
 
+    // Extended timeout: tie-breaking requires multi-account value aggregation
+    // which can exceed the default 1000ms timeout in CI environments.
     expect(
-      await screen.findByText("You hold BBB in 2 accounts"),
+      await screen.findByText("You hold BBB in 2 accounts", {}, { timeout: 5000 }),
     ).toBeInTheDocument();
   });
 

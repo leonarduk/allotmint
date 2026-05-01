@@ -41,9 +41,11 @@ describe('getFamilyMvpRedirectPath', () => {
   });
 
   it('redirects non-MVP routes to transactions', () => {
-    expect(getFamilyMvpRedirectPath('/market', '', true)).toBe('/transactions');
-    expect(getFamilyMvpRedirectPath('/support', '', true)).toBe('/transactions');
-    expect(getFamilyMvpRedirectPath('/performance/alex', '', true)).toBe('/transactions');
+    // Pass '/transactions' explicitly — the function default is '/portfolio'
+    // but these tests assert the transactions entry path is used.
+    expect(getFamilyMvpRedirectPath('/market', '', true, '/transactions')).toBe('/transactions');
+    expect(getFamilyMvpRedirectPath('/support', '', true, '/transactions')).toBe('/transactions');
+    expect(getFamilyMvpRedirectPath('/performance/alex', '', true, '/transactions')).toBe('/transactions');
   });
 
   it('does not redirect MVP routes', () => {
@@ -52,11 +54,11 @@ describe('getFamilyMvpRedirectPath', () => {
   });
 
   it('redirects bare root to the configured entry path', () => {
-    expect(getFamilyMvpRedirectPath('/', '', true)).toBe('/transactions');
+    expect(getFamilyMvpRedirectPath('/', '', true, '/transactions')).toBe('/transactions');
   });
 
   it('redirects group query routes to the entry path because group mode is non-MVP', () => {
-    expect(getFamilyMvpRedirectPath('/', '?group=kids', true)).toBe('/transactions');
+    expect(getFamilyMvpRedirectPath('/', '?group=kids', true, '/transactions')).toBe('/transactions');
   });
 
   it('redirects non-MVP routes to an explicit entry path override', () => {

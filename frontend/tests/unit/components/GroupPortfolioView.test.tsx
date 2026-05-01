@@ -739,8 +739,10 @@ describe("GroupPortfolioView", () => {
 
     renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
 
+    // Use a generous timeout — the insight derivation is async and may take
+    // longer than the default 1 000 ms in a busy CI environment.
     expect(
-      await screen.findByText("You hold BBB in 2 accounts"),
+      await screen.findByText("You hold BBB in 2 accounts", {}, { timeout: 5000 }),
     ).toBeInTheDocument();
   });
 

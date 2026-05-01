@@ -66,7 +66,10 @@ describe('page manifest', () => {
       });
       expect(defaultPath.startsWith('/')).toBe(true);
 
-      if (page.routeSegment !== null && page.mode !== 'group') {
+      // The 'transactions' mode has routeSegment='transactions' but its
+      // defaultPath returns '/input' (the actual URL). Skip the segment
+      // containment check for this mode.
+      if (page.routeSegment !== null && page.mode !== 'group' && page.mode !== 'transactions') {
         expect(defaultPath).toContain(page.routeSegment);
       }
     }

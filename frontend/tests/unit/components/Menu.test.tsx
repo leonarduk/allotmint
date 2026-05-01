@@ -38,6 +38,12 @@ const configWithTransactions: ConfigContextValue = {
   setBaseCurrency: () => {},
 };
 
+/** Config that enables Family MVP mode — hides non-MVP categories like insights/goals. */
+const familyMvpConfig: ConfigContextValue = {
+  ...configWithTransactions,
+  familyMvpEnabled: true,
+};
+
 describe('Menu', () => {
   it('hides links by default and shows them after toggle', async () => {
     render(
@@ -231,10 +237,14 @@ describe('Menu', () => {
   });
 
   it('does not render non-MVP menu categories', () => {
+    // familyMvpEnabled: true is required — the context default is false ("fail open")
+    // so an explicit provider is needed for the MVP-gating assertion to hold.
     render(
-      <MemoryRouter>
-        <Menu />
-      </MemoryRouter>
+      <configContext.Provider value={familyMvpConfig}>
+        <MemoryRouter>
+          <Menu />
+        </MemoryRouter>
+      </configContext.Provider>
     );
 
     expect(

@@ -18,6 +18,7 @@ aws_cdk = pytest.importorskip("aws_cdk", reason="aws-cdk-lib not installed")
 
 from aws_cdk import App, assertions  # noqa: E402
 from cdk.stacks.backend_lambda_stack import BackendLambdaStack  # noqa: E402
+from cdk.stacks.exports import BACKEND_API_URL_EXPORT  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -257,7 +258,7 @@ def test_backend_api_url_output_has_stable_export_name(template):
     """
     template.has_output(
         "BackendApiUrl",
-        {"Export": {"Name": "BackendLambdaStack-BackendApiUrl"}},
+        {"Export": {"Name": BACKEND_API_URL_EXPORT}},
     )
 
 

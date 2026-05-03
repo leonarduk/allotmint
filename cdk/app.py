@@ -4,6 +4,7 @@ import aws_cdk as cdk
 from aws_cdk import Fn
 
 from stacks.backend_lambda_stack import BackendLambdaStack
+from stacks.exports import BACKEND_API_URL_EXPORT
 from stacks.static_site_stack import StaticSiteStack
 
 app = cdk.App()
@@ -19,7 +20,7 @@ backend_stack = BackendLambdaStack(app, "BackendLambdaStack")
 static_stack = StaticSiteStack(
     app,
     "StaticSiteStack",
-    api_base_url=Fn.import_value("BackendLambdaStack-BackendApiUrl"),
+    api_base_url=Fn.import_value(BACKEND_API_URL_EXPORT),
 )
 # Ensure BackendLambdaStack is fully deployed (and its export published) before
 # StaticSiteStack attempts to import the value.

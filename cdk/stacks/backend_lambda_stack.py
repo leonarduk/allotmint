@@ -16,6 +16,8 @@ from aws_cdk import aws_s3 as s3
 from aws_cdk import aws_secretsmanager as secretsmanager
 from constructs import Construct
 
+from stacks.exports import BACKEND_API_URL_EXPORT
+
 
 class BackendLambdaStack(Stack):
     """CDK stack that builds and deploys the backend Lambda."""
@@ -356,7 +358,7 @@ class BackendLambdaStack(Stack):
             self,
             "BackendApiUrl",
             value=backend_api.api_endpoint,
-            export_name="BackendLambdaStack-BackendApiUrl",
+            export_name=BACKEND_API_URL_EXPORT,
         )
         CfnOutput(self, "DataBucketName", value=data_bucket.bucket_name)
         CfnOutput(self, "BackendLambdaErrorAlarmName", value=backend_error_alarm.alarm_name)

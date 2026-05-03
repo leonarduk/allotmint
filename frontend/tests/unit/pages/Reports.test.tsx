@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -130,8 +130,18 @@ describe("Reports page", () => {
   it("renders the reports catalog with template metadata", async () => {
     await renderReports();
 
+    const builtinRadio = await screen.findByRole("radio", {
+      name: "Select Performance summary template",
+    });
+
+    await waitFor(() => {
+      expect(builtinRadio).toBeChecked();
+    });
+
+    expect(builtinRadio).toBeChecked();
+
     expect(
-      await screen.findByRole("radio", {
+      screen.getByRole("radio", {
         name: "Select Performance summary template",
       }),
     ).toBeChecked();

@@ -460,6 +460,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
 
   useEffect(() => {
     if (!slug || !enableAdvancedAnalytics) return;
+    let cancelled = false;
     setError(null);
     Promise.all([
       getGroupAlphaVsBenchmark(slug, "VWRL.L"),
@@ -467,13 +468,18 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
       getGroupMaxDrawdown(slug),
     ])
       .then(([a, te, md]) => {
+        if (cancelled) return;
         setAlpha(a.alpha_vs_benchmark);
         setTrackingError(te.tracking_error);
         setMaxDrawdown(md.max_drawdown);
       })
-      .catch((e) =>
-        setError(e instanceof Error ? e : new Error(String(e)))
-      );
+      .catch((e) => {
+        if (cancelled) return;
+        setError(e instanceof Error ? e : new Error(String(e)));
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [slug, enableAdvancedAnalytics]);
 
   useEffect(() => {

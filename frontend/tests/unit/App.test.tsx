@@ -854,6 +854,12 @@ describe("App", () => {
       };
     });
 
+    // Use the real useNavigate so handleOwnerSelectPortfolio can navigate to
+    // /portfolio/bob when the user changes the owner selector.
+    vi.doMock("react-router-dom", async () =>
+      vi.importActual<typeof import("react-router-dom")>("react-router-dom"),
+    );
+
     const { default: App } = await import("@/App");
     const { configContext } = await import("@/ConfigContext");
     const user = userEvent.setup();
@@ -873,9 +879,16 @@ describe("App", () => {
 
     await user.selectOptions(portfolioSelector as HTMLSelectElement, "bob");
 
-    await waitFor(() => expect(router.state.location.pathname).toBe("/portfolio/bob"));
+    await waitFor(() =>
+      expect(screen.getByTestId("active-route-marker")).toHaveAttribute(
+        "data-pathname",
+        "/portfolio/bob",
+      ),
+    );
     await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("bob"));
-    expect(router.state.location.pathname.startsWith("/performance")).toBe(false);
+    expect(
+      screen.getByTestId("active-route-marker").getAttribute("data-pathname")?.startsWith("/performance"),
+    ).toBe(false);
   });
 
   it("redirects /portfolio to the first owner when multiple owners are available", async () => {

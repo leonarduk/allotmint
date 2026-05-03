@@ -707,6 +707,9 @@ describe("GroupPortfolioView", () => {
   });
 
   it("breaks duplication ties by duplicated market value", async () => {
+    // AAA and BBB both appear in 2 accounts (tied on count). BBB has higher total
+    // market value (35 vs 10) so it wins. No single ticker exceeds the 20%
+    // concentration threshold (BBB = 35/200 = 17.5%), so duplication fires first.
     mockAllFetches({
       name: "At a glance",
       accounts: [
@@ -716,10 +719,11 @@ describe("GroupPortfolioView", () => {
           value_estimate_gbp: 100,
           holdings: [
             { ticker: "AAA", units: 1, market_value_gbp: 5, instrument_type: "equity" },
-            { ticker: "BBB", units: 1, market_value_gbp: 20, instrument_type: "equity" },
+            { ticker: "BBB", units: 1, market_value_gbp: 15, instrument_type: "equity" },
             { ticker: "CCC", units: 1, market_value_gbp: 20, instrument_type: "equity" },
             { ticker: "DDD", units: 1, market_value_gbp: 20, instrument_type: "equity" },
-            { ticker: "EEE", units: 1, market_value_gbp: 35, instrument_type: "equity" },
+            { ticker: "EEE", units: 1, market_value_gbp: 20, instrument_type: "equity" },
+            { ticker: "FFF", units: 1, market_value_gbp: 20, instrument_type: "equity" },
           ],
         },
         {
@@ -728,10 +732,11 @@ describe("GroupPortfolioView", () => {
           value_estimate_gbp: 100,
           holdings: [
             { ticker: "AAA", units: 1, market_value_gbp: 5, instrument_type: "equity" },
-            { ticker: "BBB", units: 1, market_value_gbp: 30, instrument_type: "equity" },
-            { ticker: "FFF", units: 1, market_value_gbp: 20, instrument_type: "equity" },
+            { ticker: "BBB", units: 1, market_value_gbp: 20, instrument_type: "equity" },
             { ticker: "GGG", units: 1, market_value_gbp: 20, instrument_type: "equity" },
-            { ticker: "HHH", units: 1, market_value_gbp: 25, instrument_type: "equity" },
+            { ticker: "HHH", units: 1, market_value_gbp: 20, instrument_type: "equity" },
+            { ticker: "III", units: 1, market_value_gbp: 20, instrument_type: "equity" },
+            { ticker: "JJJ", units: 1, market_value_gbp: 15, instrument_type: "equity" },
           ],
         },
       ],

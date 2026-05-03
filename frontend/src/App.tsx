@@ -7,7 +7,7 @@ import {
   Suspense,
   type CSSProperties,
 } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { getGroupInstruments, getGroups, getOwners, getPortfolio } from './api';
 
@@ -49,6 +49,7 @@ import UserAvatar from './components/UserAvatar';
 import AllocationCharts from './pages/AllocationCharts';
 import InstrumentAdmin from './pages/InstrumentAdmin';
 import Menu from './components/Menu';
+import { InstrumentSearchBarToggle } from './components/InstrumentSearchBar';
 import Rebalance from './pages/Rebalance';
 import PensionForecast from './pages/PensionForecast';
 import TaxTools from './pages/TaxTools';
@@ -320,15 +321,8 @@ export default function App({ onLogout }: AppProps) {
       if (segs[1]) {
         setSelectedOwner(decodePathSegment(segs[1]));
       } else if (owners.length > 0) {
-        const owner = owners[0].owner;
-        setSelectedOwner(owner);
-        navigate(
-          newMode === 'performance'
-            ? `/performance/${encodePathSegment(owner)}`
-            : `/portfolio/${encodePathSegment(owner)}`,
-          { replace: true }
-        );
-        return;
+        // URL redirect is handled by the render-time <Navigate> in renderMainContent.
+        setSelectedOwner(owners[0].owner);
       }
     } else if (newMode === 'instrument') {
       setSelectedGroup(segs[1] ?? '');
@@ -521,6 +515,25 @@ export default function App({ onLogout }: AppProps) {
       return <BackendUnavailableCard onRetry={handleRetry} />;
     }
 
+    // Synchronous render-time redirect for owner-root and performance-root paths
+    // when owners are available. Using <Navigate> instead of navigate() from
+    // useEffect avoids deferred-update issues in data-router test environments.
+    const redirectSegs = location.pathname.split('/').filter(Boolean);
+    const redirectMode = deriveModeFromPathname(location.pathname);
+    if (
+      configLoaded &&
+      !getFamilyMvpRedirectPath(location.pathname, location.search, familyMvpEnabled, familyMvpEntryPath) &&
+      (redirectMode === 'owner' || redirectMode === 'performance') &&
+      !redirectSegs[1] &&
+      owners.length > 0
+    ) {
+      const owner = owners[0].owner;
+      const destPath = redirectMode === 'performance'
+        ? `/performance/${encodePathSegment(owner)}`
+        : `/portfolio/${encodePathSegment(owner)}`;
+      return <Navigate to={destPath} replace />;
+    }
+
     return (
       <>
         <div
@@ -560,6 +573,7 @@ export default function App({ onLogout }: AppProps) {
               {new Date(lastRefresh).toLocaleString()}
             </span>
           )}
+          <InstrumentSearchBarToggle />
           <button
             aria-label="notifications"
             onClick={() => setNotificationsOpen(true)}

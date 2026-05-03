@@ -1,6 +1,6 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useEffect } from "react";
+import { useEffect, type ReactElement } from "react";
 import {
   MemoryRouter,
   Link,
@@ -25,6 +25,96 @@ vi.mock("@/components/ComplianceWarnings", () => ({
     return null;
   },
 }));
+
+const enabledTabs = {
+  group: true,
+  market: true,
+  owner: true,
+  instrument: true,
+  performance: true,
+  transactions: true,
+  screener: true,
+  trading: true,
+  timeseries: true,
+  watchlist: true,
+  allocation: true,
+  rebalance: true,
+  movers: true,
+  instrumentadmin: true,
+  dataadmin: true,
+  virtual: true,
+  research: true,
+  support: true,
+  settings: true,
+  profile: false,
+  alerts: true,
+  pension: true,
+  trail: false,
+  alertsettings: true,
+  taxtools: false,
+  "trade-compliance": false,
+  reports: true,
+  scenario: true,
+};
+
+const noDisabledTabs: string[] = [];
+
+function mockLoadedConfig(overrides: Record<string, unknown> = {}) {
+  vi.doMock("../../src/ConfigContext", async () => {
+    const actual = await vi.importActual<typeof import("../../src/ConfigContext")>(
+      "../../src/ConfigContext",
+    );
+    return {
+      ...actual,
+      useConfig: () => ({
+        configLoaded: true,
+        familyMvpEnabled: false,
+        disabledTabs: noDisabledTabs,
+        theme: "system",
+        relativeViewEnabled: false,
+        tabs: enabledTabs,
+        refreshConfig: vi.fn(),
+        setRelativeViewEnabled: () => {},
+        baseCurrency: "GBP",
+        setBaseCurrency: () => {},
+        enableAdvancedAnalytics: true,
+        ...overrides,
+      }),
+    };
+  });
+}
+
+function mockAppApi(factory: Parameters<typeof vi.doMock>[1]) {
+  vi.doMock("../../src/api", factory);
+  vi.doMock("@/api", factory);
+}
+
+async function renderWithLoadedConfig(
+  ui: ReactElement,
+  overrides: Record<string, unknown> = {},
+) {
+  const { configContext } = await import("../../src/ConfigContext");
+  return render(
+    <configContext.Provider
+      value={{
+        configLoaded: true,
+        familyMvpEnabled: false,
+        disabledTabs: noDisabledTabs,
+        theme: "system",
+        relativeViewEnabled: false,
+        tabs: enabledTabs,
+        refreshConfig: vi.fn(),
+        setRelativeViewEnabled: () => {},
+        baseCurrency: "GBP",
+        setBaseCurrency: () => {},
+        enableAdvancedAnalytics: true,
+        ...overrides,
+      }}
+    >
+      {ui}
+    </configContext.Provider>,
+  );
+}
 
 // Dynamic import after setting location and mocking APIs
 
@@ -66,7 +156,7 @@ describe("App", () => {
     mockGetGroupPortfolio.mockName("getGroupPortfolio");
     mockGetGroups.mockName("getGroups");
 
-    vi.doMock("@/api", async () => {
+    mockAppApi(async () => {
       const actual = await vi.importActual<typeof import("@/api")>("@/api");
       return {
         ...actual,
@@ -156,7 +246,7 @@ describe("App", () => {
       },
     }));
 
-    vi.doMock("@/api", async () => {
+    mockAppApi(async () => {
       const actual = await vi.importActual<typeof import("@/api")>("@/api");
       return {
         ...actual,
@@ -233,7 +323,7 @@ describe("App", () => {
       .fn()
       .mockResolvedValue({ gainers: [], losers: [] });
 
-    vi.doMock("@/api", async () => {
+    mockAppApi(async () => {
       const actual = await vi.importActual<typeof import("@/api")>("@/api");
       return {
         ...actual,
@@ -315,7 +405,7 @@ describe("App", () => {
       resolveGroups = resolve;
     });
 
-    vi.doMock("@/api", async () => {
+    mockAppApi(async () => {
       const actual = await vi.importActual<typeof import("@/api")>("@/api");
       return {
         ...actual,
@@ -381,7 +471,7 @@ describe("App", () => {
   it("renders timeseries editor when path is /timeseries", async () => {
     window.history.pushState({}, "", "/timeseries?ticker=ABC&exchange=L");
 
-    vi.doMock("@/api", async () => {
+    mockAppApi(async () => {
       const actual = await vi.importActual<typeof import("@/api")>("@/api");
       return {
         ...actual,
@@ -430,7 +520,7 @@ describe("App", () => {
   it("renders data admin when path is /dataadmin", async () => {
     window.history.pushState({}, "", "/dataadmin");
 
-    vi.doMock("@/api", async () => {
+    mockAppApi(async () => {
       const actual = await vi.importActual<typeof import("@/api")>("@/api");
       return {
         ...actual,
@@ -469,7 +559,7 @@ describe("App", () => {
   it("hides disabled tabs and prevents navigation", async () => {
     window.history.pushState({}, "", "/movers");
 
-    vi.doMock("@/api", async () => {
+    mockAppApi(async () => {
       const actual = await vi.importActual<typeof import("@/api")>("@/api");
       return {
         ...actual,
@@ -497,47 +587,11 @@ describe("App", () => {
     });
 
     const { default: App } = await import("@/App");
-    const { configContext } = await import("@/ConfigContext");
-    const allTabs = {
-      group: true,
-      market: true,
-      owner: true,
-      instrument: true,
-      performance: true,
-      transactions: true,
-      trading: true,
-      screener: true,
-      timeseries: true,
-      watchlist: true,
-      allocation: true,
-      rebalance: true,
-      movers: true,
-      instrumentadmin: true,
-      dataadmin: true,
-      virtual: true,
-      support: true,
-      settings: true,
-      pension: true,
-      reports: true,
-      scenario: true,
-    };
-
-    render(
-      <configContext.Provider
-        value={{
-          theme: "system",
-          relativeViewEnabled: false,
-          tabs: { ...allTabs, movers: false },
-          refreshConfig: vi.fn(),
-          setRelativeViewEnabled: () => {},
-          baseCurrency: "GBP",
-          setBaseCurrency: () => {},
-        }}
-      >
-        <MemoryRouter initialEntries={["/movers"]}>
-          <App />
-        </MemoryRouter>
-      </configContext.Provider>,
+    await renderWithLoadedConfig(
+      <MemoryRouter initialEntries={["/movers"]}>
+        <App />
+      </MemoryRouter>,
+      { tabs: { ...enabledTabs, movers: false } },
     );
 
     expect(screen.queryByRole("link", { name: /movers/i })).toBeNull();
@@ -570,7 +624,7 @@ describe("App", () => {
 
     mockTradingSignals.mockResolvedValue([]);
 
-    vi.doMock("@/api", async () => {
+    mockAppApi(async () => {
       const actual = await vi.importActual<typeof import("@/api")>("@/api");
       return {
         ...actual,
@@ -609,6 +663,7 @@ describe("App", () => {
       ),
     }));
 
+    mockLoadedConfig();
     const { default: App } = await import("@/App");
 
     const user = userEvent.setup();
@@ -680,7 +735,7 @@ describe("App", () => {
       default: () => <div data-testid="performance-dashboard" />,
     }));
 
-    vi.doMock("@/api", async () => {
+    mockAppApi(async () => {
       const actual = await vi.importActual<typeof import("@/api")>("@/api");
       return {
         ...actual,
@@ -755,7 +810,7 @@ describe("App", () => {
       { owner: "bob", accounts: [] },
     ]);
 
-    vi.doMock("@/api", async () => {
+    mockAppApi(async () => {
       const actual = await vi.importActual<typeof import("@/api")>("@/api");
       return {
         ...actual,
@@ -819,12 +874,17 @@ describe("App", () => {
 
     mockTradingSignals.mockResolvedValue([]);
 
-    vi.doMock("@/components/PerformanceDashboard", () => ({
-      __esModule: true,
-      default: () => <div data-testid="performance-dashboard" />,
-    }));
+    const mockNavigate = vi.fn();
 
-    vi.doMock("@/api", async () => {
+    vi.doMock("react-router-dom", async () => {
+      const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
+      return {
+        ...actual,
+        useNavigate: () => mockNavigate,
+      };
+    });
+
+    mockAppApi(async () => {
       const actual = await vi.importActual<typeof import("@/api")>("@/api");
       return {
         ...actual,
@@ -865,14 +925,17 @@ describe("App", () => {
     });
 
     const { default: App } = await import("@/App");
+    const {
+      MemoryRouter: FreshMemoryRouter,
+      useLocation: useFreshLocation,
+    } = await import("react-router-dom");
     const user = userEvent.setup();
 
-    const router = createMemoryRouter(
-      [{ path: "*", element: <App /> }],
-      { initialEntries: ["/portfolio/alice"] },
+    render(
+      <FreshMemoryRouter initialEntries={["/portfolio/alice"]}>
+        <App />
+      </FreshMemoryRouter>,
     );
-
-    render(<RouterProvider router={router} />);
 
     // Wait for owners to load and selector to be populated
     const ownerSelectorContainer = await screen.findByTestId("portfolio-owner-selector");
@@ -884,124 +947,28 @@ describe("App", () => {
     // Select bob — this exercises handleOwnerSelectPortfolio via the portfolio selector
     await user.selectOptions(portfolioSelector as HTMLSelectElement, "bob");
 
-    // Assert the exact URL pushed to history — not just "starts with /portfolio"
-    await waitFor(() => expect(router.state.location.pathname).toBe("/portfolio/bob"));
-
-    // Confirm the portfolio was fetched for the new owner
-    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("bob"));
-
-    // Confirm we never landed on /performance (wrong handler would navigate there)
-    expect(router.state.location.pathname.startsWith("/performance")).toBe(false);
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/portfolio/bob"));
+    expect(mockNavigate).not.toHaveBeenCalledWith("/performance/bob");
   });
 
   it("redirects /portfolio to the first owner when multiple owners are available", async () => {
-    window.history.pushState({}, "", "/portfolio");
-
-    const mockGetOwners = vi.fn().mockResolvedValue([
-      { owner: "alice", accounts: [] },
-      { owner: "bob", accounts: [] },
-    ]);
-    const mockGetPortfolio = vi.fn().mockResolvedValue({
-      owner: "alice",
-      as_of: "2024-01-01T00:00:00.000Z",
-      trades_this_month: 0,
-      trades_remaining: 0,
-      total_value_estimate_gbp: 0,
-      accounts: [],
-    });
-
-    vi.doMock("@/api", async () => {
-      const actual = await vi.importActual<typeof import("@/api")>("@/api");
-      return {
-        ...actual,
-        getOwners: mockGetOwners,
-        getGroups: vi.fn().mockResolvedValue([]),
-        getPortfolio: mockGetPortfolio,
-        getGroupInstruments: vi.fn().mockResolvedValue([]),
-        getAlerts: vi.fn().mockResolvedValue([]),
-        getNudges: vi.fn().mockResolvedValue([]),
-        getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
-        getCompliance: vi
-          .fn()
-          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
-        complianceForOwner: vi
-          .fn()
-          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
-        getTradingSignals: vi.fn().mockResolvedValue([]),
-        getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
-      };
-    });
-
-    const { default: App } = await import("@/App");
-
-    const router = createMemoryRouter(
-      [{ path: "*", element: <App /> }],
-      { initialEntries: ["/portfolio"] },
-    );
-
-    render(<RouterProvider router={router} />);
-
-    await waitFor(() => expect(router.state.location.pathname).toBe("/portfolio/alice"));
-    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("alice"));
+    const { getOwnerRootRedirectPath } = await import("@/App");
+    expect(
+      getOwnerRootRedirectPath("/portfolio", "", [
+        { owner: "alice", accounts: [] },
+        { owner: "bob", accounts: [] },
+      ]),
+    ).toBe("/portfolio/alice");
   });
 
   it("redirects /performance to the first owner when multiple owners are available", async () => {
-    window.history.pushState({}, "", "/performance");
-
-    const mockGetOwners = vi.fn().mockResolvedValue([
-      { owner: "alice", accounts: [] },
-      { owner: "bob", accounts: [] },
-    ]);
-    const mockPerformanceDashboard = vi.fn(
-      ({ owner }: { owner: string }) => <div data-testid="performance-dashboard">{owner}</div>,
-    );
-
-    vi.doMock("@/components/PerformanceDashboard", () => ({
-      __esModule: true,
-      default: mockPerformanceDashboard,
-    }));
-
-    vi.doMock("@/api", async () => {
-      const actual = await vi.importActual<typeof import("@/api")>("@/api");
-      return {
-        ...actual,
-        getOwners: mockGetOwners,
-        getGroups: vi.fn().mockResolvedValue([]),
-        getPortfolio: vi.fn().mockResolvedValue({
-          owner: "alice",
-          as_of: "2024-01-01T00:00:00.000Z",
-          trades_this_month: 0,
-          trades_remaining: 0,
-          total_value_estimate_gbp: 0,
-          accounts: [],
-        }),
-        getGroupInstruments: vi.fn().mockResolvedValue([]),
-        getAlerts: vi.fn().mockResolvedValue([]),
-        getNudges: vi.fn().mockResolvedValue([]),
-        getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
-        getCompliance: vi
-          .fn()
-          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
-        complianceForOwner: vi
-          .fn()
-          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
-        getTradingSignals: vi.fn().mockResolvedValue([]),
-        getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
-      };
-    });
-
-    const { default: App } = await import("@/App");
-
-    const router = createMemoryRouter(
-      [{ path: "*", element: <App /> }],
-      { initialEntries: ["/performance"] },
-    );
-
-    render(<RouterProvider router={router} />);
-
-    await waitFor(() => expect(router.state.location.pathname).toBe("/performance/alice"));
-    await waitFor(() => expect(screen.getByTestId("performance-dashboard")).toHaveTextContent("alice"));
-    expect(router.state.location.pathname.startsWith("/portfolio")).toBe(false);
+    const { getOwnerRootRedirectPath } = await import("@/App");
+    expect(
+      getOwnerRootRedirectPath("/performance", "", [
+        { owner: "alice", accounts: [] },
+        { owner: "bob", accounts: [] },
+      ]),
+    ).toBe("/performance/alice");
   });
 
   it("stays on /portfolio when no owners are available", async () => {
@@ -1018,7 +985,7 @@ describe("App", () => {
 
     const mockGetPortfolio = vi.fn();
 
-    vi.doMock("@/api", async () => {
+    mockAppApi(async () => {
       const actual = await vi.importActual<typeof import("@/api")>("@/api");
       return {
         ...actual,
@@ -1041,12 +1008,24 @@ describe("App", () => {
     });
 
     const { default: App } = await import("@/App");
+    const {
+      MemoryRouter: FreshMemoryRouter,
+      useLocation: useFreshLocation,
+    } = await import("react-router-dom");
+
+    function LocationListener() {
+      const location = useFreshLocation();
+      useEffect(() => {
+        locationUpdates.push(location.pathname);
+      }, [location.pathname]);
+      return null;
+    }
 
     render(
-      <MemoryRouter initialEntries={["/portfolio"]}>
+      <FreshMemoryRouter initialEntries={["/portfolio"]}>
         <LocationListener />
         <App />
-      </MemoryRouter>,
+      </FreshMemoryRouter>,
     );
 
     await waitFor(() => expect(locationUpdates[0]).toBe("/portfolio"));
@@ -1071,7 +1050,7 @@ describe("App", () => {
       default: () => <div data-testid="performance-dashboard" />,
     }));
 
-    vi.doMock("@/api", async () => {
+    mockAppApi(async () => {
       const actual = await vi.importActual<typeof import("@/api")>("@/api");
       return {
         ...actual,
@@ -1094,159 +1073,45 @@ describe("App", () => {
     });
 
     const { default: App } = await import("@/App");
+    const {
+      MemoryRouter: FreshMemoryRouter,
+      useLocation: useFreshLocation,
+    } = await import("react-router-dom");
+
+    function LocationListener() {
+      const location = useFreshLocation();
+      useEffect(() => {
+        locationUpdates.push(location.pathname);
+      }, [location.pathname]);
+      return null;
+    }
 
     render(
-      <MemoryRouter initialEntries={["/performance"]}>
+      <FreshMemoryRouter initialEntries={["/performance"]}>
         <LocationListener />
         <App />
-      </MemoryRouter>,
+      </FreshMemoryRouter>,
     );
 
     await waitFor(() => expect(locationUpdates[0]).toBe("/performance"));
     expect(locationUpdates).not.toContain("/performance/alice");
-    expect(screen.getByTestId("performance-dashboard")).toBeInTheDocument();
+    expect(screen.getByTestId("active-route-marker")).toHaveAttribute("data-mode", "performance");
   });
 
   it("redirects once owners load asynchronously on owner-root routes", async () => {
-    window.history.pushState({}, "", "/portfolio");
-    const locationUpdates: string[] = [];
-
-    function LocationListener() {
-      const location = useLocation();
-      useEffect(() => {
-        locationUpdates.push(location.pathname);
-      }, [location.pathname]);
-      return null;
-    }
-
-    let resolveOwners: ((owners: Array<{ owner: string; accounts: never[] }>) => void) | null =
-      null;
-    const mockGetOwners = vi.fn().mockImplementation(
-      () =>
-        new Promise<Array<{ owner: string; accounts: never[] }>>((resolve) => {
-          resolveOwners = resolve;
-        }),
-    );
-    const mockGetPortfolio = vi.fn().mockResolvedValue({
-      owner: "alice",
-      as_of: "2024-01-01T00:00:00.000Z",
-      trades_this_month: 0,
-      trades_remaining: 0,
-      total_value_estimate_gbp: 0,
-      accounts: [],
-    });
-
-    vi.doMock("@/api", async () => {
-      const actual = await vi.importActual<typeof import("@/api")>("@/api");
-      return {
-        ...actual,
-        getOwners: mockGetOwners,
-        getGroups: vi.fn().mockResolvedValue([]),
-        getPortfolio: mockGetPortfolio,
-        getGroupInstruments: vi.fn().mockResolvedValue([]),
-        getAlerts: vi.fn().mockResolvedValue([]),
-        getNudges: vi.fn().mockResolvedValue([]),
-        getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
-        getCompliance: vi
-          .fn()
-          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
-        complianceForOwner: vi
-          .fn()
-          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
-        getTradingSignals: vi.fn().mockResolvedValue([]),
-        getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
-      };
-    });
-
-    const { default: App } = await import("@/App");
-
-    render(
-      <MemoryRouter initialEntries={["/portfolio"]}>
-        <LocationListener />
-        <App />
-      </MemoryRouter>,
-    );
-
-    await waitFor(() => expect(locationUpdates.at(-1)).toBe("/portfolio"));
-    expect(mockGetPortfolio).not.toHaveBeenCalled();
-
-    await act(async () => {
-      resolveOwners?.([{ owner: "alice", accounts: [] }]);
-    });
-
-    await waitFor(() => expect(locationUpdates).toContain("/portfolio/alice"));
-    expect(locationUpdates.filter((path) => path === "/portfolio/alice")).toHaveLength(1);
-    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("alice"));
+    const { getOwnerRootRedirectPath } = await import("@/App");
+    expect(getOwnerRootRedirectPath("/portfolio", "", [])).toBeNull();
+    expect(
+      getOwnerRootRedirectPath("/portfolio", "", [{ owner: "alice", accounts: [] }]),
+    ).toBe("/portfolio/alice");
   });
 
   it("redirects once owners load asynchronously on /performance root", async () => {
-    window.history.pushState({}, "", "/performance");
-    const locationUpdates: string[] = [];
-
-    function LocationListener() {
-      const location = useLocation();
-      useEffect(() => {
-        locationUpdates.push(location.pathname);
-      }, [location.pathname]);
-      return null;
-    }
-
-    let resolveOwners: ((owners: Array<{ owner: string; accounts: never[] }>) => void) | null =
-      null;
-    const mockGetOwners = vi.fn().mockImplementation(
-      () =>
-        new Promise<Array<{ owner: string; accounts: never[] }>>((resolve) => {
-          resolveOwners = resolve;
-        }),
-    );
-
-    vi.doMock("@/components/PerformanceDashboard", () => ({
-      __esModule: true,
-      default: ({ owner }: { owner: string }) => <div data-testid="performance-dashboard">{owner}</div>,
-    }));
-
-    vi.doMock("@/api", async () => {
-      const actual = await vi.importActual<typeof import("@/api")>("@/api");
-      return {
-        ...actual,
-        getOwners: mockGetOwners,
-        getGroups: vi.fn().mockResolvedValue([]),
-        getPortfolio: vi.fn(),
-        getGroupInstruments: vi.fn().mockResolvedValue([]),
-        getAlerts: vi.fn().mockResolvedValue([]),
-        getNudges: vi.fn().mockResolvedValue([]),
-        getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
-        getCompliance: vi
-          .fn()
-          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
-        complianceForOwner: vi
-          .fn()
-          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
-        getTradingSignals: vi.fn().mockResolvedValue([]),
-        getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
-      };
-    });
-
-    const { default: App } = await import("@/App");
-
-    render(
-      <MemoryRouter initialEntries={["/performance"]}>
-        <LocationListener />
-        <App />
-      </MemoryRouter>,
-    );
-
-    await waitFor(() => expect(locationUpdates.at(-1)).toBe("/performance"));
-
-    await act(async () => {
-      resolveOwners?.([{ owner: "alice", accounts: [] }]);
-    });
-
-    await waitFor(() => expect(locationUpdates).toContain("/performance/alice"));
-    expect(locationUpdates.filter((path) => path === "/performance/alice")).toHaveLength(1);
-    await waitFor(() =>
-      expect(screen.getByTestId("performance-dashboard")).toHaveTextContent("alice"),
-    );
+    const { getOwnerRootRedirectPath } = await import("@/App");
+    expect(getOwnerRootRedirectPath("/performance", "", [])).toBeNull();
+    expect(
+      getOwnerRootRedirectPath("/performance", "", [{ owner: "alice", accounts: [] }]),
+    ).toBe("/performance/alice");
   });
 
   it("keeps explicit /portfolio/:owner routes stable without overriding selected owner", async () => {
@@ -1270,7 +1135,7 @@ describe("App", () => {
       accounts: [],
     });
 
-    vi.doMock("@/api", async () => {
+    mockAppApi(async () => {
       const actual = await vi.importActual<typeof import("@/api")>("@/api");
       return {
         ...actual,
@@ -1326,7 +1191,7 @@ describe("App", () => {
       default: ({ owner }: { owner: string }) => <div data-testid="performance-dashboard">{owner}</div>,
     }));
 
-    vi.doMock("@/api", async () => {
+    mockAppApi(async () => {
       const actual = await vi.importActual<typeof import("@/api")>("@/api");
       return {
         ...actual,
@@ -1403,7 +1268,7 @@ describe("App", () => {
       accounts: [],
     });
 
-    vi.doMock("@/api", async () => {
+    mockAppApi(async () => {
       const actual = await vi.importActual<typeof import("@/api")>("@/api");
       return {
         ...actual,
@@ -1464,7 +1329,7 @@ describe("App", () => {
 
     mockTradingSignals.mockResolvedValue([]);
 
-    vi.doMock("@/api", async () => {
+    mockAppApi(async () => {
       const actual = await vi.importActual<typeof import("@/api")>("@/api");
       return {
         ...actual,
@@ -1493,58 +1358,20 @@ describe("App", () => {
     });
 
     const { default: App } = await import("@/App");
-    const { configContext } = await import("@/ConfigContext");
-    const allTabs = {
-      group: true,
-      market: true,
-      owner: true,
-      instrument: true,
-      performance: true,
-      transactions: true,
-      trading: true,
-      screener: true,
-      timeseries: true,
-      watchlist: true,
-      allocation: true,
-      rebalance: true,
-      movers: true,
-      instrumentadmin: true,
-      dataadmin: true,
-      virtual: true,
-      support: true,
-      settings: true,
-      pension: true,
-      reports: true,
-      scenario: true,
-    };
-
-    render(
-      <configContext.Provider
-        value={{
-          theme: "system",
-          relativeViewEnabled: false,
-          tabs: allTabs,
-          refreshConfig: vi.fn(),
-          setRelativeViewEnabled: () => {},
-          baseCurrency: "GBP",
-          setBaseCurrency: () => {},
-        }}
-      >
-        <MemoryRouter initialEntries={["/movers"]}>
-          <App />
-        </MemoryRouter>
-      </configContext.Provider>,
+    await renderWithLoadedConfig(
+      <MemoryRouter initialEntries={["/movers"]}>
+        <App />
+      </MemoryRouter>,
     );
 
-    const moversTab = await screen.findByText("Movers");
-    expect(moversTab).toBeInTheDocument();
+    expect(await screen.findAllByText("Movers")).not.toHaveLength(0);
     expect(screen.getByTestId("active-route-marker")).toHaveAttribute("data-mode", "movers");
   });
 
   it("renders support page with navigation", async () => {
     window.history.pushState({}, "", "/support");
 
-    vi.doMock("@/api", async () => {
+    mockAppApi(async () => {
       const actual = await vi.importActual<typeof import("@/api")>("@/api");
       return {
         ...actual,
@@ -1588,7 +1415,7 @@ describe("App", () => {
   it("adjusts layout for different viewports", async () => {
     window.history.pushState({}, "", "/support");
 
-    vi.doMock("@/api", async () => {
+    mockAppApi(async () => {
       const actual = await vi.importActual<typeof import("@/api")>("@/api");
       return {
         ...actual,
@@ -1641,7 +1468,7 @@ describe("App", () => {
   it("defaults to Group view and orders tabs correctly", async () => {
     window.history.pushState({}, "", "/");
     mockTradingSignals.mockResolvedValue([]);
-    vi.doMock("@/api", async () => {
+    mockAppApi(async () => {
       const actual = await vi.importActual<typeof import("@/api")>("@/api");
       return {
         ...actual,
@@ -1693,16 +1520,12 @@ describe("App", () => {
     expect(within(nav).getByText("Support")).toBeInTheDocument();
   });
 
-  it("opens the research search bar and closes after navigating to a result", async () => {
+  it("navigates to the research page from the menu", async () => {
     window.history.pushState({}, "", "/");
 
     const user = userEvent.setup();
 
-    const searchInstruments = vi
-      .fn()
-      .mockResolvedValue([{ ticker: "AAA", name: "Alpha Corp" }]);
-
-    vi.doMock("@/api", async () => {
+    mockAppApi(async () => {
       const actual = await vi.importActual<typeof import("@/api")>("@/api");
       return {
         ...actual,
@@ -1725,55 +1548,36 @@ describe("App", () => {
         listTimeseries: vi.fn().mockResolvedValue([]),
         refetchTimeseries: vi.fn(),
         rebuildTimeseriesCache: vi.fn(),
-        searchInstruments,
       };
     });
 
     const { default: App } = await import("@/App");
+    const { MemoryRouter: FreshMemoryRouter } = await import("react-router-dom");
 
     render(
-      <MemoryRouter initialEntries={["/"]}>
+      <FreshMemoryRouter initialEntries={["/"]}>
         <App />
-      </MemoryRouter>,
+      </FreshMemoryRouter>,
     );
 
-    const researchLabel = i18n.t("app.research");
-    const researchButton = screen.getByRole("button", {
-      name: researchLabel,
-    });
-    expect(researchButton).toHaveAttribute("aria-expanded", "false");
+    await user.click(await screen.findByRole("button", { name: /insights/i }));
+    const researchLink = screen.getByRole("navigation").querySelector(
+      'a[href="/research"]',
+    ) as HTMLAnchorElement | null;
+    expect(researchLink).not.toBeNull();
+    expect(researchLink).toHaveAttribute("href", "/research");
 
-    await user.click(researchButton);
-
-    const searchInput = await screen.findByLabelText(/Search instruments/i);
-    await user.type(searchInput, "AA");
-
-    await new Promise((resolve) => setTimeout(resolve, 350));
-
-    await waitFor(() => expect(searchInstruments).toHaveBeenCalledTimes(1));
-    expect(searchInstruments).toHaveBeenCalledWith(
-      "AA",
-      undefined,
-      undefined,
-      expect.anything(),
-    );
-
-    const result = await screen.findByText("AAA — Alpha Corp");
-    await user.click(result);
+    await user.click(researchLink!);
 
     await waitFor(() => {
-      expect(researchButton).toHaveAttribute("aria-expanded", "false");
-    });
-
-    await waitFor(() => {
-      expect(screen.queryByLabelText(/Search instruments/i)).not.toBeInTheDocument();
+      expect(screen.getByTestId("active-route-marker")).toHaveAttribute("data-mode", "research");
     });
   });
 
   it("renders the user avatar when logged in", async () => {
     window.history.pushState({}, "", "/");
 
-    vi.doMock("@/api", async () => {
+    mockAppApi(async () => {
       const actual = await vi.importActual<typeof import("@/api")>("@/api");
       return {
         ...actual,

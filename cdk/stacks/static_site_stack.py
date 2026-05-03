@@ -2,6 +2,7 @@ from pathlib import Path
 
 from aws_cdk import (
     CfnOutput,
+    CfnParameter,
     Duration,
     RemovalPolicy,
     Stack,
@@ -21,11 +22,28 @@ class StaticSiteStack(Stack):
         scope: Construct,
         construct_id: str,
         *,
-        api_base_url: str,
+        api_base_url: str | None = None,
         frontend_dist_path: str | Path | None = None,
         **kwargs,
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
+
+        # BucketDeployment.Source.json_data() only accepts intra-stack tokens
+        # (Ref / Fn::GetAtt / Fn::Select) — Fn::ImportValue is explicitly rejected
+        # by CDK's renderData validator. A CfnParameter produces a Ref token and
+        # therefore works. The real URL is supplied at deploy time via
+        # `--parameters StaticSiteStack:BackendApiUrl=<url>`.
+        # Pass api_base_url here to use it as the default (useful in tests).
+        backend_url_param = CfnParameter(
+            self,
+            "BackendApiUrl",
+            type="String",
+            default=api_base_url or "",
+            description=(
+                "Backend API base URL — override at deploy time with the "
+                "BackendLambdaStack BackendApiUrl output."
+            ),
+        )
 
         site_bucket = s3.Bucket(
             self,
@@ -199,7 +217,7 @@ class StaticSiteStack(Stack):
         config_deploy = s3_deployment.BucketDeployment(
             self,
             "DeployRuntimeConfig",
-            sources=[s3_deployment.Source.json_data("config.json", {"apiBaseUrl": api_base_url})],
+            sources=[s3_deployment.Source.json_data("config.json", {"apiBaseUrl": backend_url_param.value_as_string})],
             destination_bucket=site_bucket,
             cache_control=[
                 s3_deployment.CacheControl.no_cache(),

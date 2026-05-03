@@ -11,6 +11,15 @@ app = cdk.App()
 # providing a context flag or environment variable.
 backend_stack = BackendLambdaStack(app, "BackendLambdaStack")
 
-StaticSiteStack(app, "StaticSiteStack", api_base_url=backend_stack.backend_api_url)
+# StaticSiteStack uses a CfnParameter (BackendApiUrl) for the backend URL so
+# that BucketDeployment.Source.json_data() receives an intra-stack Ref token —
+# the only kind its renderData validator accepts.  The real URL is injected at
+# deploy time via:
+#   cdk deploy StaticSiteStack --parameters StaticSiteStack:BackendApiUrl=<url>
+# See deploy-lambda.yml for how the URL is extracted from BackendLambdaStack.
+static_stack = StaticSiteStack(app, "StaticSiteStack")
+# Guarantee BackendLambdaStack is deployed before StaticSiteStack so the
+# BackendApiUrl output is available when the workflow reads it.
+static_stack.add_dependency(backend_stack)
 
 app.synth()

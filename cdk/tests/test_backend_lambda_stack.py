@@ -18,6 +18,7 @@ aws_cdk = pytest.importorskip("aws_cdk", reason="aws-cdk-lib not installed")
 
 from aws_cdk import App, assertions  # noqa: E402
 from cdk.stacks.backend_lambda_stack import BackendLambdaStack  # noqa: E402
+from cdk.stacks.exports import BACKEND_API_URL_EXPORT  # noqa: E402  # stable name guard
 
 
 @pytest.fixture(scope="module")
@@ -247,6 +248,22 @@ def test_monthly_budget_exists(template):
 
 def test_backend_api_url_output_exists(template):
     template.has_output("BackendApiUrl", {})
+
+
+def test_backend_api_url_output_has_stable_export_name(template):
+    """BackendApiUrl must have a stable export name for workflow and cross-stack consumers.
+
+    The deployment workflow reads this export via `aws cloudformation describe-stacks`
+    and passes the value to StaticSiteStack at deploy time via --parameters.
+    StaticSiteStack does NOT use Fn::ImportValue (CDK's BucketDeployment renderData
+    validator rejects it); it receives the URL through a CfnParameter instead.
+
+    Renaming this export requires updating the workflow query and any future consumers.
+    """
+    template.has_output(
+        "BackendApiUrl",
+        {"Export": {"Name": BACKEND_API_URL_EXPORT}},
+    )
 
 
 def test_data_bucket_name_output_exists(template):

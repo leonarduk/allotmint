@@ -21,7 +21,7 @@ _DUMMY_API_URL = "https://abc123.execute-api.eu-west-1.amazonaws.com"
 
 @pytest.fixture(scope="module")
 def template(tmp_path_factory):
-    """Synthesise StaticSiteStack and return its CloudFormation template."""
+    """Synthesise StaticSiteStack with a plain URL (used by most tests)."""
     dist = tmp_path_factory.mktemp("dist")
     (dist / "index.html").write_text("<html></html>")
     app = App()
@@ -109,6 +109,38 @@ def test_three_separate_bucket_deployments(template):
         f"Expected at least 3 BucketDeployment resources (assets, html, config.json); "
         f"found {len(resources)}"
     )
+
+
+def test_backend_api_url_parameter_exists(template):
+    """StaticSiteStack must expose BackendApiUrl as a CloudFormation parameter.
+
+    BucketDeployment.Source.json_data() only accepts intra-stack tokens
+    (Ref / Fn::GetAtt / Fn::Select).  The CfnParameter produces a Ref token
+    and avoids the renderData validator rejection that occurs with Fn::ImportValue.
+    The actual URL is injected at deploy time via --parameters.
+    """
+    template.has_parameter(
+        "BackendApiUrl",
+        {"Type": "String"},
+    )
+
+
+def test_static_site_stack_synthesises_without_api_base_url(tmp_path):
+    """StaticSiteStack must synthesise successfully without an api_base_url argument.
+
+    This mirrors the production app.py path where no URL is passed at synth time —
+    the real URL is supplied by the workflow via --parameters at deploy time.
+    A regression here would mean the stack can only be synthesised in tests, not
+    deployed from CI.
+    """
+    from aws_cdk import App  # noqa: PLC0415
+    from cdk.stacks.static_site_stack import StaticSiteStack  # noqa: PLC0415
+
+    (tmp_path / "index.html").write_text("<html></html>")
+    app = App()
+    # Must not raise — no api_base_url, CfnParameter default is empty string.
+    StaticSiteStack(app, "NoUrlStack", frontend_dist_path=str(tmp_path))
+    app.synth()
 
 
 # ---------------------------------------------------------------------------

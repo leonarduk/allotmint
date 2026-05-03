@@ -113,6 +113,7 @@ async def test_lifecycle_service_shutdown_cancels_tasks_and_temp_dirs(
 @pytest.mark.asyncio
 async def test_lifecycle_service_startup_survives_prime_latest_prices_failure(
     monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
 ):
     """Startup must not raise when prime_latest_prices fails.
 
@@ -120,6 +121,10 @@ async def test_lifecycle_service_startup_survives_prime_latest_prices_failure(
     request (including /docs) returns 500.  Remove the raise so that Lambda
     cold-start network failures are non-fatal.
     """
+
+    def _fail_prime():
+        raise RuntimeError("simulated network failure")
+
     monkeypatch.setattr("backend.bootstrap.startup._load_snapshot", lambda: ({}, None))
     monkeypatch.setattr(
         "backend.bootstrap.startup.refresh_snapshot_in_memory",
@@ -131,7 +136,7 @@ async def test_lifecycle_service_startup_survives_prime_latest_prices_failure(
     )
     monkeypatch.setattr(
         "backend.common.instrument_api.prime_latest_prices",
-        lambda: (_ for _ in ()).throw(RuntimeError("simulated network failure")),
+        _fail_prime,
     )
     monkeypatch.setattr("backend.bootstrap.startup.refresh_snapshot_async", lambda days: None)
 
@@ -139,8 +144,16 @@ async def test_lifecycle_service_startup_survives_prime_latest_prices_failure(
     service = AppLifecycleService(cfg=config)
     app = app_module.create_app()
 
-    # Must not raise — previously the re-raise turned this into a 500 for all requests.
-    await service.startup(app)
+    import logging
+
+    with caplog.at_level(logging.ERROR):
+        # Must not raise — previously the re-raise turned this into a 500 for all requests.
+        await service.startup(app)
+
+    assert any("prime" in r.message.lower() for r in caplog.records), (
+        "Expected a log record mentioning 'prime' but got: "
+        + str([r.message for r in caplog.records])
+    )
 
 
 def test_create_app_skips_snapshot_warm_when_disabled(monkeypatch: pytest.MonkeyPatch):

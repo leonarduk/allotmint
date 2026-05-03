@@ -7,7 +7,7 @@ ARG DATA_BRANCH
 # Install application dependencies and sync prerequisites
 COPY backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt \
-    && yum install -y git \
+    && dnf install -y git \
     && pip install awscli
 
 # Copy application code and sync script into the Lambda task root

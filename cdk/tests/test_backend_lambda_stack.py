@@ -249,6 +249,18 @@ def test_backend_api_url_output_exists(template):
     template.has_output("BackendApiUrl", {})
 
 
+def test_backend_api_url_output_has_stable_export_name(template):
+    """BackendApiUrl must have a fixed export name so StaticSiteStack can use Fn::ImportValue.
+
+    Changing this value requires a two-phase deployment (add new export, migrate
+    consumer, remove old export) — do not rename without a migration plan.
+    """
+    template.has_output(
+        "BackendApiUrl",
+        {"Export": {"Name": "BackendLambdaStack-BackendApiUrl"}},
+    )
+
+
 def test_data_bucket_name_output_exists(template):
     template.has_output("DataBucketName", {})
 

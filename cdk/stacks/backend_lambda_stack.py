@@ -352,6 +352,11 @@ class BackendLambdaStack(Stack):
             notifications_with_subscribers=[budget_notification] if budget_notification else None,
         )
 
-        CfnOutput(self, "BackendApiUrl", value=backend_api.api_endpoint)
+        CfnOutput(
+            self,
+            "BackendApiUrl",
+            value=backend_api.api_endpoint,
+            export_name="BackendLambdaStack-BackendApiUrl",
+        )
         CfnOutput(self, "DataBucketName", value=data_bucket.bucket_name)
         CfnOutput(self, "BackendLambdaErrorAlarmName", value=backend_error_alarm.alarm_name)

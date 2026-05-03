@@ -20,10 +20,17 @@ _DUMMY_API_URL = "https://abc123.execute-api.eu-west-1.amazonaws.com"
 
 
 @pytest.fixture(scope="module")
-def template():
+def template(tmp_path_factory):
     """Synthesise StaticSiteStack and return its CloudFormation template."""
+    dist = tmp_path_factory.mktemp("dist")
+    (dist / "index.html").write_text("<html></html>")
     app = App()
-    stack = StaticSiteStack(app, "TestStaticSiteStack", api_base_url=_DUMMY_API_URL)
+    stack = StaticSiteStack(
+        app,
+        "TestStaticSiteStack",
+        api_base_url=_DUMMY_API_URL,
+        frontend_dist_path=str(dist),
+    )
     return assertions.Template.from_stack(stack)
 
 

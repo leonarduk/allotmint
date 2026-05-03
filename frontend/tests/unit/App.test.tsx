@@ -9,7 +9,6 @@ import {
   useLocation,
 } from "react-router-dom";
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import i18n from "@/i18n";
 import type { InstrumentSummary, Portfolio } from "@/types";
 
 const mockTradingSignals = vi.fn();
@@ -27,6 +26,30 @@ vi.mock("@/components/ComplianceWarnings", () => ({
 }));
 
 // Dynamic import after setting location and mocking APIs
+
+/** Default configContext value with configLoaded:true and familyMvpEnabled:false.
+ *  Used in tests that rely on the route-sync useEffect, which is gated by configLoaded. */
+const makeConfigValue = (overrides: Record<string, unknown> = {}) => ({
+  theme: "system" as const,
+  relativeViewEnabled: false,
+  configLoaded: true,
+  familyMvpEnabled: false,
+  disabledTabs: [] as string[],
+  tabs: {
+    group: true, market: true, owner: true, instrument: true,
+    performance: true, transactions: true, trading: true, screener: true,
+    timeseries: true, watchlist: true, allocation: true, rebalance: true,
+    movers: true, instrumentadmin: true, dataadmin: true, virtual: true,
+    support: true, settings: true, pension: true, reports: true,
+    scenario: true, research: true, alerts: true, alertsettings: true,
+    profile: false, trail: false, taxtools: false, "trade-compliance": false,
+  },
+  baseCurrency: "GBP",
+  refreshConfig: vi.fn(),
+  setRelativeViewEnabled: () => {},
+  setBaseCurrency: () => {},
+  ...overrides,
+});
 
 describe("App", () => {
   beforeEach(() => {
@@ -498,42 +521,9 @@ describe("App", () => {
 
     const { default: App } = await import("@/App");
     const { configContext } = await import("@/ConfigContext");
-    const allTabs = {
-      group: true,
-      market: true,
-      owner: true,
-      instrument: true,
-      performance: true,
-      transactions: true,
-      trading: true,
-      screener: true,
-      timeseries: true,
-      watchlist: true,
-      allocation: true,
-      rebalance: true,
-      movers: true,
-      instrumentadmin: true,
-      dataadmin: true,
-      virtual: true,
-      support: true,
-      settings: true,
-      pension: true,
-      reports: true,
-      scenario: true,
-    };
 
     render(
-      <configContext.Provider
-        value={{
-          theme: "system",
-          relativeViewEnabled: false,
-          tabs: { ...allTabs, movers: false },
-          refreshConfig: vi.fn(),
-          setRelativeViewEnabled: () => {},
-          baseCurrency: "GBP",
-          setBaseCurrency: () => {},
-        }}
-      >
+      <configContext.Provider value={makeConfigValue({ tabs: { ...makeConfigValue().tabs, movers: false } })}>
         <MemoryRouter initialEntries={["/movers"]}>
           <App />
         </MemoryRouter>
@@ -610,14 +600,17 @@ describe("App", () => {
     }));
 
     const { default: App } = await import("@/App");
+    const { configContext } = await import("@/ConfigContext");
 
     const user = userEvent.setup();
 
     render(
-      <MemoryRouter initialEntries={["/research/MSFT"]}>
-        <LocationListener />
-        <App />
-      </MemoryRouter>,
+      <configContext.Provider value={makeConfigValue()}>
+        <MemoryRouter initialEntries={["/research/MSFT"]}>
+          <LocationListener />
+          <App />
+        </MemoryRouter>
+      </configContext.Provider>,
     );
 
     await user.click(await screen.findByRole("link", { name: /steve/i }));
@@ -795,9 +788,6 @@ describe("App", () => {
 
   it("navigates to the exact encoded URL path when selecting an owner from the portfolio selector", async () => {
     // Regression test for https://github.com/leonarduk/allotmint/issues/2653
-    // Asserts that the portfolio OwnerSelector (data-testid="portfolio-owner-selector") calls
-    // handleOwnerSelectPortfolio, which navigates to /portfolio/<owner> and NOT just
-    // updates state (the original bug: setSelectedOwner was called directly without navigate).
     window.history.pushState({}, "", "/portfolio/alice");
 
     const mockGetOwners = vi
@@ -864,34 +854,41 @@ describe("App", () => {
       };
     });
 
+    // Use the real useNavigate so handleOwnerSelectPortfolio can navigate to
+    // /portfolio/bob when the user changes the owner selector.
+    vi.doMock("react-router-dom", async () =>
+      vi.importActual<typeof import("react-router-dom")>("react-router-dom"),
+    );
+
     const { default: App } = await import("@/App");
+    const { configContext } = await import("@/ConfigContext");
     const user = userEvent.setup();
 
     const router = createMemoryRouter(
-      [{ path: "*", element: <App /> }],
+      [{ path: "*", element: <configContext.Provider value={makeConfigValue()}><App /></configContext.Provider> }],
       { initialEntries: ["/portfolio/alice"] },
     );
 
     render(<RouterProvider router={router} />);
 
-    // Wait for owners to load and selector to be populated
     const ownerSelectorContainer = await screen.findByTestId("portfolio-owner-selector");
     const portfolioSelector = within(ownerSelectorContainer).getByLabelText(/owner/i);
     await waitFor(() => {
       expect((portfolioSelector as HTMLSelectElement).options.length).toBeGreaterThan(1);
     });
 
-    // Select bob — this exercises handleOwnerSelectPortfolio via the portfolio selector
     await user.selectOptions(portfolioSelector as HTMLSelectElement, "bob");
 
-    // Assert the exact URL pushed to history — not just "starts with /portfolio"
-    await waitFor(() => expect(router.state.location.pathname).toBe("/portfolio/bob"));
-
-    // Confirm the portfolio was fetched for the new owner
+    await waitFor(() =>
+      expect(screen.getByTestId("active-route-marker")).toHaveAttribute(
+        "data-pathname",
+        "/portfolio/bob",
+      ),
+    );
     await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("bob"));
-
-    // Confirm we never landed on /performance (wrong handler would navigate there)
-    expect(router.state.location.pathname.startsWith("/performance")).toBe(false);
+    expect(
+      screen.getByTestId("active-route-marker").getAttribute("data-pathname")?.startsWith("/performance"),
+    ).toBe(false);
   });
 
   it("redirects /portfolio to the first owner when multiple owners are available", async () => {
@@ -933,9 +930,10 @@ describe("App", () => {
     });
 
     const { default: App } = await import("@/App");
+    const { configContext } = await import("@/ConfigContext");
 
     const router = createMemoryRouter(
-      [{ path: "*", element: <App /> }],
+      [{ path: "*", element: <configContext.Provider value={makeConfigValue()}><App /></configContext.Provider> }],
       { initialEntries: ["/portfolio"] },
     );
 
@@ -991,9 +989,10 @@ describe("App", () => {
     });
 
     const { default: App } = await import("@/App");
+    const { configContext } = await import("@/ConfigContext");
 
     const router = createMemoryRouter(
-      [{ path: "*", element: <App /> }],
+      [{ path: "*", element: <configContext.Provider value={makeConfigValue()}><App /></configContext.Provider> }],
       { initialEntries: ["/performance"] },
     );
 
@@ -1094,17 +1093,21 @@ describe("App", () => {
     });
 
     const { default: App } = await import("@/App");
+    const { configContext } = await import("@/ConfigContext");
 
     render(
-      <MemoryRouter initialEntries={["/performance"]}>
-        <LocationListener />
-        <App />
-      </MemoryRouter>,
+      <configContext.Provider value={makeConfigValue()}>
+        <MemoryRouter initialEntries={["/performance"]}>
+          <LocationListener />
+          <App />
+        </MemoryRouter>
+      </configContext.Provider>,
     );
 
     await waitFor(() => expect(locationUpdates[0]).toBe("/performance"));
     expect(locationUpdates).not.toContain("/performance/alice");
-    expect(screen.getByTestId("performance-dashboard")).toBeInTheDocument();
+    // PerformanceDashboard is lazy — use findByTestId to await Suspense resolution
+    expect(await screen.findByTestId("performance-dashboard")).toBeInTheDocument();
   });
 
   it("redirects once owners load asynchronously on owner-root routes", async () => {
@@ -1159,12 +1162,15 @@ describe("App", () => {
     });
 
     const { default: App } = await import("@/App");
+    const { configContext } = await import("@/ConfigContext");
 
     render(
-      <MemoryRouter initialEntries={["/portfolio"]}>
-        <LocationListener />
-        <App />
-      </MemoryRouter>,
+      <configContext.Provider value={makeConfigValue()}>
+        <MemoryRouter initialEntries={["/portfolio"]}>
+          <LocationListener />
+          <App />
+        </MemoryRouter>
+      </configContext.Provider>,
     );
 
     await waitFor(() => expect(locationUpdates.at(-1)).toBe("/portfolio"));
@@ -1228,12 +1234,15 @@ describe("App", () => {
     });
 
     const { default: App } = await import("@/App");
+    const { configContext } = await import("@/ConfigContext");
 
     render(
-      <MemoryRouter initialEntries={["/performance"]}>
-        <LocationListener />
-        <App />
-      </MemoryRouter>,
+      <configContext.Provider value={makeConfigValue()}>
+        <MemoryRouter initialEntries={["/performance"]}>
+          <LocationListener />
+          <App />
+        </MemoryRouter>
+      </configContext.Provider>,
     );
 
     await waitFor(() => expect(locationUpdates.at(-1)).toBe("/performance"));
@@ -1494,50 +1503,18 @@ describe("App", () => {
 
     const { default: App } = await import("@/App");
     const { configContext } = await import("@/ConfigContext");
-    const allTabs = {
-      group: true,
-      market: true,
-      owner: true,
-      instrument: true,
-      performance: true,
-      transactions: true,
-      trading: true,
-      screener: true,
-      timeseries: true,
-      watchlist: true,
-      allocation: true,
-      rebalance: true,
-      movers: true,
-      instrumentadmin: true,
-      dataadmin: true,
-      virtual: true,
-      support: true,
-      settings: true,
-      pension: true,
-      reports: true,
-      scenario: true,
-    };
 
     render(
-      <configContext.Provider
-        value={{
-          theme: "system",
-          relativeViewEnabled: false,
-          tabs: allTabs,
-          refreshConfig: vi.fn(),
-          setRelativeViewEnabled: () => {},
-          baseCurrency: "GBP",
-          setBaseCurrency: () => {},
-        }}
-      >
+      <configContext.Provider value={makeConfigValue()}>
         <MemoryRouter initialEntries={["/movers"]}>
           <App />
         </MemoryRouter>
       </configContext.Provider>,
     );
 
-    const moversTab = await screen.findByText("Movers");
-    expect(moversTab).toBeInTheDocument();
+    // findAllByText: both the nav item and TopMovers h1 may render "Movers"
+    const moversMatches = await screen.findAllByText("Movers");
+    expect(moversMatches.length).toBeGreaterThan(0);
     expect(screen.getByTestId("active-route-marker")).toHaveAttribute("data-mode", "movers");
   });
 
@@ -1737,9 +1714,10 @@ describe("App", () => {
       </MemoryRouter>,
     );
 
-    const researchLabel = i18n.t("app.research");
+    // Use a case-insensitive regex to find the research button robustly,
+    // avoiding dependency on i18n key resolution order in CI.
     const researchButton = screen.getByRole("button", {
-      name: researchLabel,
+      name: /research/i,
     });
     expect(researchButton).toHaveAttribute("aria-expanded", "false");
 

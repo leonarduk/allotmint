@@ -22,6 +22,7 @@ class StaticSiteStack(Stack):
         construct_id: str,
         *,
         api_base_url: str,
+        frontend_dist_path: str | Path | None = None,
         **kwargs,
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
@@ -161,7 +162,11 @@ class StaticSiteStack(Stack):
             price_class=cloudfront.PriceClass.PRICE_CLASS_100,
         )
 
-        frontend_dir = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+        frontend_dir = (
+            Path(frontend_dist_path)
+            if frontend_dist_path is not None
+            else Path(__file__).resolve().parents[2] / "frontend" / "dist"
+        )
 
         asset_deploy = s3_deployment.BucketDeployment(
             self,

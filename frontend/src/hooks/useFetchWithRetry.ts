@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type DependencyList } from "react";
+import { useEffect, useRef, useState } from "react";
 import retry from "../utils/retry";
 import errorToast from "../utils/errorToast";
 
@@ -19,7 +19,7 @@ export function useFetchWithRetry<T>(
   fn: () => Promise<T>,
   baseDelay = 500,
   maxAttempts = 5,
-  deps: DependencyList = [],
+  key: unknown = undefined,
 ): UseFetchResult<T> & {
   attempt: number;
   maxAttempts: number;
@@ -71,7 +71,7 @@ export function useFetchWithRetry<T>(
       cancelled = true;
       controller.abort();
     };
-  }, [baseDelay, maxAttempts, ...deps]);
+  }, [baseDelay, maxAttempts, key]);
 
   const unauthorized = error?.message.includes("HTTP 401") ?? false;
   return { data, loading, error, attempt, maxAttempts, unauthorized };

@@ -36,14 +36,18 @@ function QuerySection() {
     () => (Array.isArray(owners) ? sanitizeOwners(owners) : []),
     [owners],
   );
-  const ownerList = sanitizedOwners.length
-    ? sanitizedOwners
-    : isTest
-    ? [
-        { owner: "alice", full_name: "Alice Example", accounts: [] },
-        { owner: "bob", full_name: "Bob Example", accounts: [] },
-      ]
-    : [];
+  const ownerList = useMemo(
+    () =>
+      sanitizedOwners.length
+        ? sanitizedOwners
+        : isTest
+        ? [
+            { owner: "alice", full_name: "Alice Example", accounts: [] },
+            { owner: "bob", full_name: "Bob Example", accounts: [] },
+          ]
+        : [],
+    [sanitizedOwners, isTest],
+  );
   const ownerLookup = useMemo(
     () => createOwnerDisplayLookup(ownerList),
     [ownerList],

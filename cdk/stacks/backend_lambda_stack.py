@@ -24,7 +24,8 @@ class BackendLambdaStack(Stack):
     def _grant_bucket_access(
         fn: _lambda.DockerImageFunction,
         *,
-        bucket: s3.IBucket,
+        bucket: s3.IBucket | None = None,
+        bucket_name: str | None = None,
         allow_read: bool,
         allow_put: bool,
         allow_list: bool,
@@ -32,15 +33,30 @@ class BackendLambdaStack(Stack):
     ) -> None:
         """Grant the minimum required S3 actions for a Lambda function.
 
+        Accepts either a CDK ``bucket`` construct or a plain ``bucket_name`` string
+        (useful in unit tests that don't synthesise a full stack).
+
         ``allow_list`` controls ``s3:ListBucket`` on the bucket ARN while
         ``allow_read``/``allow_put`` scope object-level actions to ``/*``.
         """
+
+        if bucket is None and bucket_name is None:
+            raise ValueError("Provide either bucket or bucket_name")
+        if bucket is not None and bucket_name is not None:
+            raise ValueError("Provide either bucket or bucket_name, not both")
 
         if not any((allow_read, allow_put, allow_list)):
             raise ValueError(
                 "_grant_bucket_access called with no permissions enabled — this is a no-op. "
                 "Pass at least one of allow_read, allow_put, or allow_list as True."
             )
+
+        if bucket is not None:
+            object_arn: str = bucket.arn_for_objects("*")
+            bucket_arn: str = bucket.bucket_arn
+        else:
+            object_arn = f"arn:aws:s3:::{bucket_name}/*"
+            bucket_arn = f"arn:aws:s3:::{bucket_name}"
 
         object_actions: list[str] = []
         if allow_read:
@@ -52,7 +68,7 @@ class BackendLambdaStack(Stack):
             fn.add_to_role_policy(
                 iam.PolicyStatement(
                     actions=object_actions,
-                    resources=[bucket.arn_for_objects("*")],
+                    resources=[object_arn],
                 )
             )
 
@@ -77,7 +93,7 @@ class BackendLambdaStack(Stack):
             fn.add_to_role_policy(
                 iam.PolicyStatement(
                     actions=["s3:ListBucket"],
-                    resources=[bucket.bucket_arn],
+                    resources=[bucket_arn],
                     conditions={"StringLike": {"s3:prefix": prefix_conditions}},
                 )
             )

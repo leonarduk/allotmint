@@ -16,6 +16,29 @@ vi.mock('react-router-dom', async () => {
   };
 });
 
+// Fix AbortSignal compatibility for React Router data-router tests.
+// JSDOM overrides global.AbortController, but Node's undici (used by native Request)
+// validates signals against its own AbortSignal class. When createClientSideRequest
+// constructs new Request(url, { signal: jsDomSignal }), undici rejects it.
+// We patch Request to retry without the signal on that specific TypeError.
+if (typeof globalThis.Request !== 'undefined') {
+  const _OriginalRequest = globalThis.Request as typeof Request;
+  (globalThis as Record<string, unknown>).Request = function PatchedRequest(
+    input: RequestInfo | URL,
+    init?: RequestInit,
+  ) {
+    try {
+      return new _OriginalRequest(input, init);
+    } catch (e) {
+      if (init?.signal && e instanceof TypeError) {
+        const { signal: _s, ...rest } = init;
+        return new _OriginalRequest(input, rest);
+      }
+      throw e;
+    }
+  };
+}
+
 // Ensure React Testing Library cleans up between tests to avoid cross-test DOM leakage
 afterEach(() => cleanup());
 

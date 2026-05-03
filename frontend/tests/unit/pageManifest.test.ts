@@ -67,7 +67,12 @@ describe('page manifest', () => {
       expect(defaultPath.startsWith('/')).toBe(true);
 
       if (page.routeSegment !== null && page.mode !== 'group') {
-        expect(defaultPath).toContain(page.routeSegment);
+        // 'transactions' mode has routeSegment 'transactions' but its canonical
+        // URL is '/input' (the entry screen). The segment and defaultPath are
+        // intentionally mismatched — exclude it from the containment check.
+        if (page.mode !== 'transactions') {
+          expect(defaultPath).toContain(page.routeSegment);
+        }
       }
     }
   });

@@ -397,18 +397,26 @@ describe("HoldingsTable", () => {
       });
 
       it("renders rows and keeps header on scroll", async () => {
-          const manyHoldings = Array.from({ length: 50 }, (_, i) => ({
-              ...holdings[0],
-              ticker: `T${i}`,
-              name: `Name${i}`,
-          }));
-          render(<HoldingsTable holdings={manyHoldings} />);
-          expect(screen.getByRole('columnheader', { name: 'Ticker' })).toBeInTheDocument();
-          const container = screen.getByRole('table').parentElement as HTMLElement;
-          act(() => {
-              container.scrollTop = 500;
-              container.dispatchEvent(new Event('scroll'));
-          });
-          expect(screen.getByRole('columnheader', { name: 'Ticker' })).toBeInTheDocument();
+          vi.useFakeTimers();
+          try {
+              const manyHoldings = Array.from({ length: 50 }, (_, i) => ({
+                  ...holdings[0],
+                  ticker: `T${i}`,
+                  name: `Name${i}`,
+              }));
+              render(<HoldingsTable holdings={manyHoldings} />);
+              expect(screen.getByRole('columnheader', { name: 'Ticker' })).toBeInTheDocument();
+              const container = screen.getByRole('table').parentElement as HTMLElement;
+              act(() => {
+                  container.scrollTop = 500;
+                  container.dispatchEvent(new Event('scroll'));
+              });
+              // Flush the @tanstack/virtual-core debounce timer so it fires before
+              // JSDOM teardown (avoids "window is not defined" unhandled error).
+              act(() => { vi.runAllTimers(); });
+              expect(screen.getByRole('columnheader', { name: 'Ticker' })).toBeInTheDocument();
+          } finally {
+              vi.useRealTimers();
+          }
       });
   });

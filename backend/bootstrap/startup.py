@@ -64,8 +64,11 @@ class AppLifecycleService:
         try:
             await asyncio.to_thread(instrument_api.prime_latest_prices)
         except Exception:
+            # Non-fatal: price priming is a startup optimisation. If it fails (e.g.
+            # network unavailable on Lambda cold start) the app should still serve
+            # requests; a re-raise here propagates through the ASGI lifespan and
+            # causes every subsequent request to return 500.
             logger.exception("Failed to prime latest prices from warmed snapshot")
-            raise
 
     @staticmethod
     def _flush_logging() -> None:

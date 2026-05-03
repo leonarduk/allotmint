@@ -110,6 +110,39 @@ async def test_lifecycle_service_shutdown_cancels_tasks_and_temp_dirs(
     assert not temp_dir.exists()
 
 
+@pytest.mark.asyncio
+async def test_lifecycle_service_startup_survives_prime_latest_prices_failure(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Startup must not raise when prime_latest_prices fails.
+
+    If the re-raise is present, the ASGI lifespan aborts and every subsequent
+    request (including /docs) returns 500.  Remove the raise so that Lambda
+    cold-start network failures are non-fatal.
+    """
+    monkeypatch.setattr("backend.bootstrap.startup._load_snapshot", lambda: ({}, None))
+    monkeypatch.setattr(
+        "backend.bootstrap.startup.refresh_snapshot_in_memory",
+        lambda snapshot, ts: None,
+    )
+    monkeypatch.setattr(
+        "backend.common.instrument_api.update_latest_prices_from_snapshot",
+        lambda snapshot: None,
+    )
+    monkeypatch.setattr(
+        "backend.common.instrument_api.prime_latest_prices",
+        lambda: (_ for _ in ()).throw(RuntimeError("simulated network failure")),
+    )
+    monkeypatch.setattr("backend.bootstrap.startup.refresh_snapshot_async", lambda days: None)
+
+    config.skip_snapshot_warm = False
+    service = AppLifecycleService(cfg=config)
+    app = app_module.create_app()
+
+    # Must not raise — previously the re-raise turned this into a 500 for all requests.
+    await service.startup(app)
+
+
 def test_create_app_skips_snapshot_warm_when_disabled(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(config, "skip_snapshot_warm", True, raising=False)
 

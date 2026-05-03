@@ -18,7 +18,7 @@ aws_cdk = pytest.importorskip("aws_cdk", reason="aws-cdk-lib not installed")
 
 from aws_cdk import App, assertions  # noqa: E402
 from cdk.stacks.backend_lambda_stack import BackendLambdaStack  # noqa: E402
-from cdk.stacks.exports import BACKEND_API_URL_EXPORT  # noqa: E402
+from cdk.stacks.exports import BACKEND_API_URL_EXPORT  # noqa: E402  # stable name guard
 
 
 @pytest.fixture(scope="module")

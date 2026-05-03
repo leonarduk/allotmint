@@ -110,11 +110,35 @@ jobs:
         run: cdk diff --all
         working-directory: cdk
 
-      - name: Deploy CDK stack
+      - name: Deploy BackendLambdaStack
         env:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
           CDK_OUTDIR: /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
-        run: cdk deploy --all --require-approval never
+        run: cdk deploy BackendLambdaStack --require-approval never
+        working-directory: cdk
+
+      - name: Get backend API URL
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          BACKEND_URL="$(aws cloudformation describe-stacks \
+            --stack-name BackendLambdaStack \
+            --query "Stacks[0].Outputs[?OutputKey=='BackendApiUrl'].OutputValue" \
+            --output text)"
+          if [ -z "$BACKEND_URL" ] || [ "$BACKEND_URL" = "None" ]; then
+            echo "BackendApiUrl output is missing from BackendLambdaStack" >&2
+            exit 1
+          fi
+          echo "BACKEND_URL=$BACKEND_URL" >> "$GITHUB_ENV"
+
+      - name: Deploy StaticSiteStack
+        env:
+          DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
+          CDK_OUTDIR: /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
+        run: >
+          cdk deploy StaticSiteStack --require-approval never
+          --parameters StaticSiteStack:BackendApiUrl="$BACKEND_URL"
         working-directory: cdk
 
       - name: Validate backend and frontend endpoints

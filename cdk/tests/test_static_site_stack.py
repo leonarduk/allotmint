@@ -4,7 +4,6 @@ Run from the repo root:
     pip install aws-cdk-lib constructs pytest --quiet
     pytest cdk/tests/test_static_site_stack.py -v
 """
-import json
 import sys
 from pathlib import Path
 
@@ -14,8 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 aws_cdk = pytest.importorskip("aws_cdk", reason="aws-cdk-lib not installed")
 
-from aws_cdk import App, Fn, assertions  # noqa: E402
-from cdk.stacks.exports import BACKEND_API_URL_EXPORT  # noqa: E402
+from aws_cdk import App, assertions  # noqa: E402
 from cdk.stacks.static_site_stack import StaticSiteStack  # noqa: E402
 
 _DUMMY_API_URL = "https://abc123.execute-api.eu-west-1.amazonaws.com"
@@ -31,21 +29,6 @@ def template(tmp_path_factory):
         app,
         "TestStaticSiteStack",
         api_base_url=_DUMMY_API_URL,
-        frontend_dist_path=str(dist),
-    )
-    return assertions.Template.from_stack(stack)
-
-
-@pytest.fixture(scope="module")
-def import_template(tmp_path_factory):
-    """Synthesise StaticSiteStack with Fn.import_value, mirroring production app.py."""
-    dist = tmp_path_factory.mktemp("dist_import")
-    (dist / "index.html").write_text("<html></html>")
-    app = App()
-    stack = StaticSiteStack(
-        app,
-        "TestStaticSiteStackImport",
-        api_base_url=Fn.import_value(BACKEND_API_URL_EXPORT),
         frontend_dist_path=str(dist),
     )
     return assertions.Template.from_stack(stack)
@@ -128,6 +111,20 @@ def test_three_separate_bucket_deployments(template):
     )
 
 
+def test_backend_api_url_parameter_exists(template):
+    """StaticSiteStack must expose BackendApiUrl as a CloudFormation parameter.
+
+    BucketDeployment.Source.json_data() only accepts intra-stack tokens
+    (Ref / Fn::GetAtt / Fn::Select).  The CfnParameter produces a Ref token
+    and avoids the renderData validator rejection that occurs with Fn::ImportValue.
+    The actual URL is injected at deploy time via --parameters.
+    """
+    template.has_parameter(
+        "BackendApiUrl",
+        {"Type": "String"},
+    )
+
+
 # ---------------------------------------------------------------------------
 # CloudFront distribution outputs
 # ---------------------------------------------------------------------------
@@ -159,24 +156,4 @@ def test_site_bucket_blocks_public_access(template):
                 "RestrictPublicBuckets": True,
             }
         },
-    )
-
-
-# ---------------------------------------------------------------------------
-# Cross-stack reference: BackendApiUrl import
-# ---------------------------------------------------------------------------
-
-def test_static_site_stack_imports_backend_api_url(import_template):
-    """StaticSiteStack must propagate Fn::ImportValue for the BackendApiUrl export.
-
-    A regression here (e.g. a raw Fn::GetAtt to a resource in BackendLambdaStack
-    slipping through Source.json_data()) causes CloudFormation to reject
-    StaticSiteStack's template at deploy time with "undefined resource" errors.
-    The import name is locked by BACKEND_API_URL_EXPORT; changing it requires a
-    two-phase migration — see cdk/stacks/exports.py.
-    """
-    template_str = json.dumps(import_template.to_json())
-    assert BACKEND_API_URL_EXPORT in template_str, (
-        f"StaticSiteStack template does not reference the expected export "
-        f"'{BACKEND_API_URL_EXPORT}' — the Fn::ImportValue cross-stack wiring may be broken"
     )

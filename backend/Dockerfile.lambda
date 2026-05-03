@@ -3,7 +3,8 @@ FROM public.ecr.aws/lambda/python:3.12
 # Install application dependencies
 COPY backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt \
-    && yum install -y git
+    && dnf install -y git \
+    && pip install awscli
 
 # Copy application code and pre-synced data into the Lambda task root
 COPY backend/ /var/task/

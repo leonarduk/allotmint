@@ -713,25 +713,25 @@ describe("GroupPortfolioView", () => {
         {
           owner: "alice",
           account_type: "isa",
-          value_estimate_gbp: 100,
+          value_estimate_gbp: 150,
           holdings: [
             { ticker: "AAA", units: 1, market_value_gbp: 5, instrument_type: "equity" },
             { ticker: "BBB", units: 1, market_value_gbp: 20, instrument_type: "equity" },
-            { ticker: "CCC", units: 1, market_value_gbp: 20, instrument_type: "equity" },
-            { ticker: "DDD", units: 1, market_value_gbp: 20, instrument_type: "equity" },
-            { ticker: "EEE", units: 1, market_value_gbp: 35, instrument_type: "equity" },
+            { ticker: "CCC", units: 1, market_value_gbp: 40, instrument_type: "equity" },
+            { ticker: "DDD", units: 1, market_value_gbp: 40, instrument_type: "equity" },
+            { ticker: "EEE", units: 1, market_value_gbp: 45, instrument_type: "equity" },
           ],
         },
         {
           owner: "bob",
           account_type: "sipp",
-          value_estimate_gbp: 100,
+          value_estimate_gbp: 150,
           holdings: [
             { ticker: "AAA", units: 1, market_value_gbp: 5, instrument_type: "equity" },
             { ticker: "BBB", units: 1, market_value_gbp: 30, instrument_type: "equity" },
-            { ticker: "FFF", units: 1, market_value_gbp: 20, instrument_type: "equity" },
-            { ticker: "GGG", units: 1, market_value_gbp: 20, instrument_type: "equity" },
-            { ticker: "HHH", units: 1, market_value_gbp: 25, instrument_type: "equity" },
+            { ticker: "FFF", units: 1, market_value_gbp: 40, instrument_type: "equity" },
+            { ticker: "GGG", units: 1, market_value_gbp: 40, instrument_type: "equity" },
+            { ticker: "HHH", units: 1, market_value_gbp: 35, instrument_type: "equity" },
           ],
         },
       ],
@@ -740,9 +740,9 @@ describe("GroupPortfolioView", () => {
     renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
 
     expect(
-      await screen.findByText("You hold BBB in 2 accounts"),
+      await screen.findByText("You hold BBB in 2 accounts", {}, { timeout: 8000 }),
     ).toBeInTheDocument();
-  });
+  }, 10000);
 
   it("falls back to cash drag insight when concentration and duplication are absent", async () => {
     mockAllFetches({

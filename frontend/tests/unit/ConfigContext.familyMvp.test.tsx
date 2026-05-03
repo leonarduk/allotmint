@@ -78,13 +78,13 @@ describe("ConfigProvider Family MVP gating", () => {
       );
 
       expect(probe.getAttribute("data-config-loaded")).toBe("true");
-      expect(tabs.transactions).toBe(false);
+      expect(tabs.transactions).toBe(true);
       expect(tabs["trade-compliance"]).toBe(false);
       expect(tabs.trail).toBe(false);
       expect(tabs.taxtools).toBe(false);
       expect(tabs.reports).toBe(false);
       expect(tabs.scenario).toBe(false);
-      expect(disabledTabs.has("transactions")).toBe(true);
+      expect(disabledTabs.has("transactions")).toBe(false);
       expect(disabledTabs.has("trade-compliance")).toBe(true);
       expect(disabledTabs.has("reports")).toBe(true);
       expect(disabledTabs.has("scenario")).toBe(true);
@@ -128,8 +128,8 @@ describe("ConfigProvider Family MVP gating", () => {
       expect(disabledTabs.has("trade-compliance")).toBe(false);
       expect(disabledTabs.has("reports")).toBe(false);
       expect(disabledTabs.has("scenario")).toBe(false);
-      expect(tabs.transactions).toBe(false);
-      expect(disabledTabs.has("transactions")).toBe(true);
+      expect(tabs.transactions).toBe(true);
+      expect(disabledTabs.has("transactions")).toBe(false);
     });
   });
 

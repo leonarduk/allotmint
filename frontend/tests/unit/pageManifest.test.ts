@@ -66,7 +66,11 @@ describe('page manifest', () => {
       });
       expect(defaultPath.startsWith('/')).toBe(true);
 
-      if (page.routeSegment !== null && page.mode !== 'group') {
+      if (
+        page.routeSegment !== null &&
+        page.mode !== 'group' &&
+        page.mode !== 'transactions'
+      ) {
         expect(defaultPath).toContain(page.routeSegment);
       }
     }

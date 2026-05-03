@@ -145,20 +145,8 @@ class BackendLambdaStack(Stack):
             "trading_agent": (),
         }
 
-        seed_data_bucket = (
-            self.node.try_get_context("seed_data_bucket")
-            or os.getenv("SEED_DATA_BUCKET")
-            or os.getenv("DATA_BUCKET")
-        )
-        build_args: dict[str, str] = {
-            "DATA_BUCKET": seed_data_bucket or "",
-            "DATA_BRANCH": data_branch,
-        }
-        if data_repo:
-            build_args["DATA_REPO"] = data_repo
-
         image_code = _lambda.DockerImageCode.from_image_asset(
-            str(project_root), file="backend/Dockerfile.lambda", build_args=build_args
+            str(project_root), file="backend/Dockerfile.lambda"
         )
 
         env = self.node.try_get_context("app_env") or os.getenv("APP_ENV") or "aws"
@@ -236,7 +224,6 @@ class BackendLambdaStack(Stack):
             str(project_root),
             file="backend/Dockerfile.lambda",
             cmd=["backend.lambda_api.price_refresh.lambda_handler"],
-            build_args=build_args,
         )
         refresh_env = {
             "APP_ENV": env,
@@ -282,7 +269,6 @@ class BackendLambdaStack(Stack):
             str(project_root),
             file="backend/Dockerfile.lambda",
             cmd=["backend.lambda_api.trading_agent.lambda_handler"],
-            build_args=build_args,
         )
         agent_env = {
             "APP_ENV": env,

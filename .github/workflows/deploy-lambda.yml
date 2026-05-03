@@ -25,7 +25,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4.4.0
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Install AWS CDK
         run: npm install -g aws-cdk
@@ -225,7 +225,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4.4.0
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Install root dependencies
         run: npm ci

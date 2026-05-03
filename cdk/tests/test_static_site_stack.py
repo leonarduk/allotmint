@@ -125,6 +125,24 @@ def test_backend_api_url_parameter_exists(template):
     )
 
 
+def test_static_site_stack_synthesises_without_api_base_url(tmp_path):
+    """StaticSiteStack must synthesise successfully without an api_base_url argument.
+
+    This mirrors the production app.py path where no URL is passed at synth time —
+    the real URL is supplied by the workflow via --parameters at deploy time.
+    A regression here would mean the stack can only be synthesised in tests, not
+    deployed from CI.
+    """
+    from aws_cdk import App  # noqa: PLC0415
+    from cdk.stacks.static_site_stack import StaticSiteStack  # noqa: PLC0415
+
+    (tmp_path / "index.html").write_text("<html></html>")
+    app = App()
+    # Must not raise — no api_base_url, CfnParameter default is empty string.
+    StaticSiteStack(app, "NoUrlStack", frontend_dist_path=str(tmp_path))
+    app.synth()
+
+
 # ---------------------------------------------------------------------------
 # CloudFront distribution outputs
 # ---------------------------------------------------------------------------

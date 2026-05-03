@@ -251,10 +251,14 @@ def test_backend_api_url_output_exists(template):
 
 
 def test_backend_api_url_output_has_stable_export_name(template):
-    """BackendApiUrl must have a fixed export name so StaticSiteStack can use Fn::ImportValue.
+    """BackendApiUrl must have a stable export name for workflow and cross-stack consumers.
 
-    Changing this value requires a two-phase deployment (add new export, migrate
-    consumer, remove old export) — do not rename without a migration plan.
+    The deployment workflow reads this export via `aws cloudformation describe-stacks`
+    and passes the value to StaticSiteStack at deploy time via --parameters.
+    StaticSiteStack does NOT use Fn::ImportValue (CDK's BucketDeployment renderData
+    validator rejects it); it receives the URL through a CfnParameter instead.
+
+    Renaming this export requires updating the workflow query and any future consumers.
     """
     template.has_output(
         "BackendApiUrl",

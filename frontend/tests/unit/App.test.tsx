@@ -4,12 +4,9 @@ import { useEffect, type ReactElement } from "react";
 import {
   MemoryRouter,
   Link,
-  RouterProvider,
-  createMemoryRouter,
   useLocation,
 } from "react-router-dom";
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import i18n from "@/i18n";
 import type { InstrumentSummary, Portfolio } from "@/types";
 
 const mockTradingSignals = vi.fn();
@@ -925,10 +922,7 @@ describe("App", () => {
     });
 
     const { default: App } = await import("@/App");
-    const {
-      MemoryRouter: FreshMemoryRouter,
-      useLocation: useFreshLocation,
-    } = await import("react-router-dom");
+    const { MemoryRouter: FreshMemoryRouter } = await import("react-router-dom");
     const user = userEvent.setup();
 
     render(

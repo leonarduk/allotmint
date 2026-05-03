@@ -149,7 +149,7 @@ export default function Reports() {
   const [owner, setOwner] = useState("");
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(
+  const [explicitTemplateId, setExplicitTemplateId] = useState<string | null>(
     null,
   );
 
@@ -162,12 +162,14 @@ export default function Reports() {
       .finally(() => setOwnersLoaded(true));
   }, []);
 
-  useEffect(() => {
-    if (templates.length === 0 || selectedTemplateId) return;
-    const preferred =
-      templates.find((template) => template.builtin) ?? templates[0];
-    setSelectedTemplateId(preferred.template_id);
-  }, [templates, selectedTemplateId]);
+  const selectedTemplateId = useMemo(() => {
+    if (explicitTemplateId) return explicitTemplateId;
+    return (
+      templates.find((template) => template.builtin)?.template_id ??
+      templates[0]?.template_id ??
+      null
+    );
+  }, [explicitTemplateId, templates]);
 
   const selectedTemplate = useMemo(
     () =>
@@ -248,14 +250,14 @@ export default function Reports() {
                 title={t("reports.catalog.groups.builtin")}
                 templates={builtin}
                 selectedTemplateId={selectedTemplateId}
-                onSelect={setSelectedTemplateId}
+                onSelect={setExplicitTemplateId}
                 t={t}
               />
               <TemplateGroup
                 title={t("reports.catalog.groups.custom")}
                 templates={custom}
                 selectedTemplateId={selectedTemplateId}
-                onSelect={setSelectedTemplateId}
+                onSelect={setExplicitTemplateId}
                 t={t}
               />
             </>

@@ -1,4 +1,4 @@
-import { render, screen, within, act, waitFor } from "@testing-library/react";
+import { render, screen, within, act, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import i18n from "@/i18n";
@@ -292,7 +292,7 @@ describe("HoldingsTable", () => {
         expect(screen.queryByText('XYZ')).toBeNull();
     });
 
-      it("persists view preset selection", async () => {
+    it("persists view preset selection", async () => {
           const mixedHoldings: Holding[] = [
               ...holdings,
             {
@@ -324,6 +324,30 @@ describe("HoldingsTable", () => {
         expect(screen.getByPlaceholderText('Type')).toHaveValue('Bond');
         expect(screen.getByText('BND1')).toBeInTheDocument();
           expect(screen.queryByText('AAA')).toBeNull();
+      });
+
+      it("cancels pending virtualizer timers on unmount", async () => {
+          const clearTimeoutSpy = vi.spyOn(window, "clearTimeout");
+          try {
+              const { container, unmount } = render(<HoldingsTable holdings={holdings} />);
+              await screen.findByText("AAA");
+
+              const scrollContainer = container.querySelector(".overflow-x-auto");
+              expect(scrollContainer).not.toBeNull();
+
+              fireEvent.scroll(scrollContainer as Element, {
+                  target: { scrollTop: 24 },
+              });
+
+              const clearTimeoutCallsBeforeUnmount = clearTimeoutSpy.mock.calls.length;
+              unmount();
+
+              expect(clearTimeoutSpy.mock.calls.length).toBeGreaterThan(
+                  clearTimeoutCallsBeforeUnmount,
+              );
+          } finally {
+              clearTimeoutSpy.mockRestore();
+          }
       });
 
       it("shows controls and fallback when no rows match", async () => {

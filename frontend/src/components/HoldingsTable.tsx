@@ -13,13 +13,72 @@ import { RelativeViewToggle } from "./RelativeViewToggle";
 import FilterBar, { useFilterReducer, type FilterState } from "./FilterBar";
 import EmptyState from "./EmptyState";
 import { useNavigate } from "react-router-dom";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { useVirtualizer, type Virtualizer } from "@tanstack/react-virtual";
 import { ResponsiveContainer, LineChart, Line } from "recharts";
 import Sparkline from "./Sparkline";
 import { getGrowthStage } from "../utils/growthStage";
 import { preloadInstrumentHistory } from "../hooks/useInstrumentHistory";
 
 const VIEW_PRESET_STORAGE_KEY = "holdingsTableViewPreset";
+const SUPPORTS_SCROLLEND =
+  typeof window === "undefined" ? true : "onscrollend" in window;
+
+function observeElementOffsetWithCleanup(
+  instance: Virtualizer<HTMLDivElement, HTMLTableRowElement>,
+  cb: (offset: number, isScrolling: boolean) => void,
+) {
+  const element = instance.scrollElement;
+  if (!element) return;
+
+  const targetWindow = instance.targetWindow;
+  if (!targetWindow) return;
+
+  let offset = 0;
+  let timeoutId: number | null = null;
+  const registerScrollendEvent =
+    instance.options.useScrollendEvent && SUPPORTS_SCROLLEND;
+
+  const clearPendingTimeout = () => {
+    if (timeoutId === null) return;
+    targetWindow.clearTimeout(timeoutId);
+    timeoutId = null;
+  };
+
+  const fallback = registerScrollendEvent
+    ? () => undefined
+    : () => {
+        clearPendingTimeout();
+        timeoutId = targetWindow.setTimeout(() => {
+          timeoutId = null;
+          cb(offset, false);
+        }, instance.options.isScrollingResetDelay);
+      };
+
+  const createHandler = (isScrolling: boolean) => () => {
+    const { horizontal, isRtl } = instance.options;
+    offset = horizontal
+      ? element.scrollLeft * ((isRtl && -1) || 1)
+      : element.scrollTop;
+    fallback();
+    cb(offset, isScrolling);
+  };
+
+  const handler = createHandler(true);
+  const endHandler = createHandler(false);
+
+  element.addEventListener("scroll", handler, { passive: true });
+  if (registerScrollendEvent) {
+    element.addEventListener("scrollend", endHandler, { passive: true });
+  }
+
+  return () => {
+    clearPendingTimeout();
+    element.removeEventListener("scroll", handler);
+    if (registerScrollendEvent) {
+      element.removeEventListener("scrollend", endHandler);
+    }
+  };
+}
 
 type Props = {
   holdings: Holding[];
@@ -200,6 +259,7 @@ export function HoldingsTable({
   const rowVirtualizer = useVirtualizer({
     count: sortedRows.length,
     getScrollElement: () => tableContainerRef.current,
+    observeElementOffset: observeElementOffsetWithCleanup,
     estimateSize: () => 40,
     overscan: 5,
     scrollMargin: headerHeight,

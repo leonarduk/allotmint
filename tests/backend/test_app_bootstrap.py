@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from pathlib import Path
 
 import pytest
@@ -139,20 +140,19 @@ async def test_lifecycle_service_startup_survives_prime_latest_prices_failure(
         _fail_prime,
     )
     monkeypatch.setattr("backend.bootstrap.startup.refresh_snapshot_async", lambda days: None)
+    monkeypatch.setattr(config, "skip_snapshot_warm", False, raising=False)
 
-    config.skip_snapshot_warm = False
     service = AppLifecycleService(cfg=config)
     app = app_module.create_app()
-
-    import logging
 
     with caplog.at_level(logging.ERROR):
         # Must not raise — previously the re-raise turned this into a 500 for all requests.
         await service.startup(app)
 
-    assert any("prime" in r.message.lower() for r in caplog.records), (
-        "Expected a log record mentioning 'prime' but got: "
-        + str([r.message for r in caplog.records])
+    assert any(
+        "Failed to prime latest prices" in r.message for r in caplog.records
+    ), "Expected 'Failed to prime latest prices' log but got: " + str(
+        [r.message for r in caplog.records]
     )
 
 

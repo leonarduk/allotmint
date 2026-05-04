@@ -3,11 +3,9 @@ import importlib
 import pytest
 from fastapi.testclient import TestClient
 
-from backend.auth import get_current_user
 from backend.config import config
 
 
-@pytest.mark.xfail(reason="To fix")
 @pytest.mark.parametrize("disable_auth", [True, False])
 def test_trail_routes(tmp_path, monkeypatch, disable_auth):
     monkeypatch.setenv("TRAIL_URI", f"file://{tmp_path/'trail.json'}")
@@ -20,10 +18,11 @@ def test_trail_routes(tmp_path, monkeypatch, disable_auth):
     importlib.reload(trail_route_module)
     importlib.reload(app_mod)
     app = app_mod.create_app()
-    if not disable_auth:
-        app.dependency_overrides[get_current_user] = lambda: "demo"
 
     with TestClient(app) as client:
+        if not disable_auth:
+            token = client.post("/token", json={"id_token": "good"}).json()["access_token"]
+            client.headers.update({"Authorization": f"Bearer {token}"})
         resp = client.get("/trail")
         assert resp.status_code == 200
         payload = resp.json()

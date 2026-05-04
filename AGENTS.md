@@ -71,6 +71,8 @@ This repository has a Python/FastAPI backend, a React/Vite frontend, AWS CDK inf
 
 This rule exists to preserve CI gating, review history, and the ability to revert cleanly. A direct push to `main` bypasses all of these and cannot be undone without rewriting history.
 
+Agents must treat branch creation as a first step, not a release step at the end. Before editing files, create or switch to a non-`main` branch. If the current checkout is dirty or already tied to unrelated work, create a clean worktree from `main` first and do the task there.
+
 Required workflow for every change:
 1. Create a branch from `main`
 2. Push all changes to that branch
@@ -103,8 +105,9 @@ Branch naming convention: `fix/issue-NNNN-short-description`, `feat/issue-NNNN-s
 Before making changes:
 1. Read this file.
 2. Check `git status` for uncommitted user work and avoid overwriting it.
-3. Verify whether there are more specific `AGENTS.md` files deeper in the tree for files you plan to touch.
-4. Inspect the command definitions you plan to reference instead of trusting older prose docs.
+3. Create or switch to the task branch before editing files; if the checkout is dirty with unrelated work, create a clean worktree from `main`.
+4. Verify whether there are more specific `AGENTS.md` files deeper in the tree for files you plan to touch.
+5. Inspect the command definitions you plan to reference instead of trusting older prose docs.
 
 Before finishing:
 1. Run the smallest relevant automated checks.

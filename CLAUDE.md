@@ -45,6 +45,8 @@ npm run smoke:test:codex:poc
 This rule exists to preserve CI gating, review history, and the ability to revert cleanly.
 A direct push to `main` bypasses all of these and cannot be undone without rewriting history.
 
+Treat branch creation as the first implementation step. Before editing files, create or switch to a non-`main` branch. If the current checkout is dirty or already contains unrelated work, create a clean worktree from `main` and do the task there.
+
 Always:
 1. Create a branch (`git checkout -b <branch-name>` or via API)
 2. Push changes to the branch
@@ -58,10 +60,11 @@ Branch naming convention: `fix/issue-NNNN-short-description` or `feat/issue-NNNN
 
 0. For any change touching existing files, read the current file content in full from disk before writing; do not rely on diff snippets or memory of earlier reads.
 1. Inspect `git status` and avoid disturbing user changes.
-2. Read the exact script/package targets you plan to mention or change.
-3. Make the smallest coherent change.
-4. Run the narrowest useful validation.
-5. Update nearby docs when commands or behavior changed.
+2. Create or switch to the task branch before editing files; if the checkout is dirty with unrelated work, create a clean worktree from `main`.
+3. Read the exact script/package targets you plan to mention or change.
+4. Make the smallest coherent change.
+5. Run the narrowest useful validation.
+6. Update nearby docs when commands or behavior changed.
 
 ## Code quality invariants (non-negotiable)
 

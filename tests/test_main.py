@@ -1,4 +1,5 @@
 import os
+import warnings
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -6,6 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from backend.app import create_app
 from backend.common import data_loader
 from backend import config as backend_config
 from backend.local_api.main import app
@@ -225,13 +227,6 @@ def test_get_account_invalid_payload(mock_load_account, client):
 
 
 @patch("backend.common.prices.refresh_prices", return_value={"updated": 5})
-def test_prices_refresh(mock_refresh, client):
-    response = client.post("/prices/refresh")
-    assert response.status_code == 200
-    assert response.json() == {"status": "ok", "updated": 5}
-
-
-@patch("backend.common.prices.refresh_prices", return_value={"updated": 5})
 def test_prices_refresh_get(mock_refresh, client):
     response = client.get("/prices/refresh")
     assert response.status_code == 200
@@ -247,9 +242,6 @@ def test_prices_refresh_post(mock_refresh, client):
 
 def test_openapi_no_duplicate_operation_ids():
     """Regression test: all OpenAPI operation IDs must be unique (issue #2809)."""
-    import warnings
-    from backend.app import create_app
-
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         local_app = create_app()

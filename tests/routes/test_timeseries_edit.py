@@ -95,7 +95,7 @@ def test_post_csv_saves_parquet(tmp_path, monkeypatch):
     headers = {"Content-Type": "text/csv"}
     resp = client.post(
         "/timeseries/edit?ticker=XYZ&exchange=L",
-        data=csv_data,
+        content=csv_data,
         headers=headers,
     )
     assert resp.status_code == 200

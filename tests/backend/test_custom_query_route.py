@@ -2,7 +2,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from fastapi.testclient import TestClient
 
 from backend.app import create_app
@@ -19,7 +18,6 @@ def temp_queries_dir(tmp_path, monkeypatch):
     return queries_dir
 
 
-@pytest.mark.xfail(reason="Query fallback mechanism needs investigation")
 def test_custom_query_routes_fallback_to_local(monkeypatch):
     monkeypatch.setattr(config, "app_env", "aws")
     monkeypatch.setattr(config, "skip_snapshot_warm", True)

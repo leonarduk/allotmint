@@ -1,4 +1,5 @@
 import os
+import warnings
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -6,6 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from backend.app import create_app
 from backend.common import data_loader
 from backend import config as backend_config
 from backend.local_api.main import app
@@ -225,10 +227,42 @@ def test_get_account_invalid_payload(mock_load_account, client):
 
 
 @patch("backend.common.prices.refresh_prices", return_value={"updated": 5})
-def test_prices_refresh(mock_refresh, client):
+def test_prices_refresh_get(mock_refresh, client):
+    response = client.get("/prices/refresh")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok", "updated": 5}
+
+
+@patch("backend.common.prices.refresh_prices", return_value={"updated": 5})
+def test_prices_refresh_post(mock_refresh, client):
     response = client.post("/prices/refresh")
     assert response.status_code == 200
     assert response.json() == {"status": "ok", "updated": 5}
+
+
+def test_openapi_no_duplicate_operation_ids():
+    """Regression test: all OpenAPI operation IDs must be unique (issue #2809)."""
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        local_app = create_app()
+        schema = local_app.openapi()
+
+    duplicate_warnings = [str(w.message) for w in caught if "Duplicate Operation ID" in str(w.message)]
+    assert not duplicate_warnings, f"Duplicate operation IDs found: {duplicate_warnings}"
+
+    operation_ids = []
+    for methods in schema.get("paths", {}).values():
+        for op in methods.values():
+            if isinstance(op, dict) and "operationId" in op:
+                operation_ids.append(op["operationId"])
+
+    refresh_path = schema.get("paths", {}).get("/prices/refresh", {})
+    assert refresh_path, "Expected /prices/refresh path in OpenAPI schema"
+    refresh_ops = {m: refresh_path[m].get("operationId") for m in ("get", "post") if m in refresh_path}
+    assert refresh_ops == {"get": "refresh_prices_get", "post": "refresh_prices_post"}, (
+        f"Unexpected refresh_prices operationIds: {refresh_ops}"
+    )
+    assert len(operation_ids) == len(set(operation_ids)), "Found duplicate operationIds in OpenAPI schema"
 
 
 @patch("backend.common.portfolio_utils.aggregate_by_ticker", return_value=[{"ticker": "ABC"}])

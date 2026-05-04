@@ -924,8 +924,18 @@ async def instrument_detail(slug: str, ticker: str):
     return {"prices": prices_list, "mini": series.get("mini", {}), "positions": positions_list}
 
 
-@router.api_route("/prices/refresh", methods=["GET", "POST"])
-async def refresh_prices():
+def _do_refresh_prices() -> dict:
+    # Shared by GET and POST handlers; see issue #2818 to make this non-blocking.
     log.info("Refreshing prices via /prices/refresh")
     result = prices.refresh_prices()
     return {"status": "ok", **result}
+
+
+@router.get("/prices/refresh", operation_id="refresh_prices_get")
+async def refresh_prices_get():
+    return _do_refresh_prices()
+
+
+@router.post("/prices/refresh", operation_id="refresh_prices_post")
+async def refresh_prices_post():
+    return _do_refresh_prices()

@@ -231,6 +231,37 @@ def test_prices_refresh(mock_refresh, client):
     assert response.json() == {"status": "ok", "updated": 5}
 
 
+@patch("backend.common.prices.refresh_prices", return_value={"updated": 3})
+def test_prices_refresh_get(mock_refresh, client):
+    response = client.get("/prices/refresh")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok", "updated": 3}
+
+
+def test_openapi_no_duplicate_operation_ids():
+    """Regression test: all OpenAPI operation IDs must be unique (issue #2809)."""
+    import warnings
+    from backend.app import create_app
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        local_app = create_app()
+        schema = local_app.openapi()
+
+    duplicate_warnings = [str(w.message) for w in caught if "Duplicate Operation ID" in str(w.message)]
+    assert not duplicate_warnings, f"Duplicate operation IDs found: {duplicate_warnings}"
+
+    operation_ids = []
+    for methods in schema.get("paths", {}).values():
+        for op in methods.values():
+            if isinstance(op, dict) and "operationId" in op:
+                operation_ids.append(op["operationId"])
+
+    refresh_ops = {schema["paths"]["/prices/refresh"][m]["operationId"] for m in ("get", "post")}
+    assert refresh_ops == {"refresh_prices_get", "refresh_prices_post"}
+    assert len(operation_ids) == len(set(operation_ids)), "Found duplicate operationIds in OpenAPI schema"
+
+
 @patch("backend.common.portfolio_utils.aggregate_by_ticker", return_value=[{"ticker": "ABC"}])
 @patch("backend.common.group_portfolio.build_group_portfolio", return_value={"slug": "testslug"})
 @patch("backend.common.group_portfolio.list_groups", return_value=mock_groups)

@@ -10,6 +10,7 @@ Owners / groups / portfolio endpoints (shared).
 
 from __future__ import annotations
 
+import asyncio
 import datetime as dt
 import inspect
 import logging
@@ -924,18 +925,17 @@ async def instrument_detail(slug: str, ticker: str):
     return {"prices": prices_list, "mini": series.get("mini", {}), "positions": positions_list}
 
 
-def _do_refresh_prices() -> dict:
-    # Shared by GET and POST handlers; see issue #2818 to make this non-blocking.
+async def _do_refresh_prices() -> dict:
     log.info("Refreshing prices via /prices/refresh")
-    result = prices.refresh_prices()
+    result = await asyncio.to_thread(prices.refresh_prices)
     return {"status": "ok", **result}
 
 
 @router.get("/prices/refresh", operation_id="refresh_prices_get")
 async def refresh_prices_get():
-    return _do_refresh_prices()
+    return await _do_refresh_prices()
 
 
 @router.post("/prices/refresh", operation_id="refresh_prices_post")
 async def refresh_prices_post():
-    return _do_refresh_prices()
+    return await _do_refresh_prices()

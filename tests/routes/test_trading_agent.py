@@ -13,7 +13,6 @@ def make_client() -> TestClient:
     return client
 
 
-@pytest.mark.xfail(reason="To fix")
 def test_basic_response_model_validation(monkeypatch):
     fake_signals = [
         {
@@ -41,7 +40,6 @@ def test_basic_response_model_validation(monkeypatch):
     ]
 
 
-@pytest.mark.xfail(reason="To fix")
 def test_notify_email(monkeypatch):
     fake_signals = [
         {
@@ -75,7 +73,6 @@ def test_notify_email(monkeypatch):
     assert pushed["message"] == "BUY AAA: r"
 
 
-@pytest.mark.xfail(reason="To fix")
 def test_notify_telegram_env_gating(monkeypatch):
     fake_signals = [
         {
@@ -111,7 +108,6 @@ def test_notify_telegram_env_gating(monkeypatch):
     assert sent["text"] == "BUY AAA: r"
 
 
-@pytest.mark.xfail(reason="To fix")
 def test_no_signals(monkeypatch):
     monkeypatch.setattr("backend.agent.trading_agent.run", lambda **_: [])
 

@@ -134,7 +134,7 @@ repository root that is ignored by git.
 ./scripts/deploy-to-AWS.ps1
 ```
 
-The script changes into the `cdk/` directory, ensures the repo-pinned CDK CLI is
+The script changes into the `cdk/` directory, installs the repo-pinned CDK CLI if
 necessary, then deploys `BackendLambdaStack` and `StaticSiteStack` when
 `-Backend` is specified.
 

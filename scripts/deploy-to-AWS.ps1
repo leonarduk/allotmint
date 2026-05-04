@@ -23,7 +23,34 @@ $devRequirementsFile = Join-Path $REPO_ROOT 'requirements-dev.txt'
 if (Test-Path $devRequirementsFile) {
   $requirementsSources += @{ Description = "pip install -r $devRequirementsFile"; Args = @('-r', $devRequirementsFile) }
 }
-$requirementsSources += @{ Description = 'pip install aws-cdk-lib~=2.151.0 constructs~=10.3.0'; Args = @('aws-cdk-lib~=2.151.0', 'constructs~=10.3.0') }
+$requirementsSources += @{ Description = 'pip install aws-cdk-lib~=2.252.0 constructs~=10.6.0'; Args = @('aws-cdk-lib~=2.252.0', 'constructs~=10.6.0') }
+
+$rootNpmCmd = Get-Command npm -ErrorAction SilentlyContinue
+$localNodeBin = Join-Path $REPO_ROOT 'node_modules/.bin'
+$localCdkCli = Join-Path $localNodeBin 'cdk.cmd'
+if (-not (Test-Path $localCdkCli)) {
+  $localCdkCli = Join-Path $localNodeBin 'cdk'
+}
+if (-not (Test-Path $localCdkCli) -and (Test-Path (Join-Path $REPO_ROOT 'package.json'))) {
+  if (-not $rootNpmCmd) {
+    Write-Host 'npm is required to install the pinned AWS CDK CLI. Install Node.js and rerun the script.' -ForegroundColor Red
+    exit 1
+  }
+  Push-Location $REPO_ROOT
+  try {
+    Write-Host 'Installing root npm dependencies to provide the pinned AWS CDK CLI...' -ForegroundColor Cyan
+    & $rootNpmCmd.Path 'ci'
+    if ($LASTEXITCODE -ne 0) {
+      Write-Host 'Failed to install root npm dependencies.' -ForegroundColor Red
+      exit $LASTEXITCODE
+    }
+  } finally {
+    Pop-Location
+  }
+}
+if (Test-Path $localNodeBin) {
+  $env:PATH = "$localNodeBin$([System.IO.Path]::PathSeparator)$env:PATH"
+}
 
 # Ensure Python is available by validating the command actually executes and can import aws_cdk.
 $pythonCandidates = @(
@@ -258,7 +285,7 @@ if ($Backend) {
     $env:DEPLOY_BACKEND = 'true'
     $cdkCmd = Get-Command cdk -ErrorAction SilentlyContinue
     if (-not $cdkCmd) {
-      Write-Host 'AWS CDK CLI not found. Install via `npm install -g aws-cdk` or use an existing installation.' -ForegroundColor Red
+      Write-Host 'AWS CDK CLI not found. Run `npm ci` in the repository root to install the pinned version.' -ForegroundColor Red
       exit 1
     }
     $effectiveBucket = if ($env:DATA_BUCKET) { $env:DATA_BUCKET } elseif ($DataBucket) { $DataBucket } else { $null }
@@ -277,7 +304,7 @@ if ($Backend) {
     $env:DEPLOY_BACKEND = 'false'
     $cdkCmd = Get-Command cdk -ErrorAction SilentlyContinue
     if (-not $cdkCmd) {
-      Write-Host 'AWS CDK CLI not found. Install via `npm install -g aws-cdk` or use an existing installation.' -ForegroundColor Red
+      Write-Host 'AWS CDK CLI not found. Run `npm ci` in the repository root to install the pinned version.' -ForegroundColor Red
       exit 1
     }
     # Provide a context value for data_bucket so the app can instantiate BackendLambdaStack

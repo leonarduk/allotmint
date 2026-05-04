@@ -90,6 +90,7 @@ aws s3 sync data/accounts s3://$DATA_BUCKET/accounts/
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
+npm ci
 ```
 
 ## Build the frontend
@@ -112,7 +113,7 @@ Before deploying, confirm the deployment environment prerequisites:
 - AWS account credentials with IAM permissions for CloudFormation, Lambda, API
   Gateway, S3, CloudFront, and IAM role updates.
 - CDK bootstrap completed in the target account/region:
-  `cdk bootstrap aws://<account>/<region>`.
+  `npx cdk bootstrap aws://<account>/<region>`.
 - AWS CLI configured (`aws configure`, named profile, or environment
   variables).
 - Python 3.11+ and Node.js 18+ available in local deployment environments
@@ -133,7 +134,7 @@ repository root that is ignored by git.
 ./scripts/deploy-to-AWS.ps1
 ```
 
-The script changes into the `cdk/` directory, runs `cdk bootstrap` if
+The script changes into the `cdk/` directory, installs the repo-pinned CDK CLI if
 necessary, then deploys `BackendLambdaStack` and `StaticSiteStack` when
 `-Backend` is specified.
 
@@ -141,22 +142,22 @@ Alternatively, run the commands manually:
 
 ```bash
 cd cdk
-cdk bootstrap   # once per account/region
-DEPLOY_BACKEND=false cdk deploy StaticSiteStack
+npx cdk bootstrap   # once per account/region
+DEPLOY_BACKEND=false npx cdk deploy StaticSiteStack
 # or deploy backend and frontend together. Supply the name of your
 # data bucket either via environment variable:
-DATA_BUCKET=my-data-bucket DEPLOY_BACKEND=true cdk deploy BackendLambdaStack StaticSiteStack
+DATA_BUCKET=my-data-bucket DEPLOY_BACKEND=true npx cdk deploy BackendLambdaStack StaticSiteStack
 # or as a CDK context parameter:
-DEPLOY_BACKEND=true cdk deploy BackendLambdaStack StaticSiteStack -c data_bucket=my-data-bucket
+DEPLOY_BACKEND=true npx cdk deploy BackendLambdaStack StaticSiteStack -c data_bucket=my-data-bucket
 # or deploy every stack managed by app.py:
-cdk deploy --all --require-approval never
+npx cdk deploy --all --require-approval never
 ```
 
 When manually validating drift before a deploy, always run:
 
 ```bash
 cd cdk
-cdk diff --all
+npx cdk diff --all
 ```
 
 `BackendLambdaStack` now includes:
@@ -178,8 +179,8 @@ aws cloudfront create-invalidation --distribution-id <DIST_ID> --paths "/*"
 
 If deployment fails or the live environment does not match local behavior:
 
-1. Re-run `cdk diff --all` and confirm intended stack changes are present.
-2. Run `cdk deploy --all --require-approval never` and capture the exact failing resource from CloudFormation events.
+1. Re-run `npx cdk diff --all` and confirm intended stack changes are present.
+2. Run `npx cdk deploy --all --require-approval never` and capture the exact failing resource from CloudFormation events.
 3. Inspect backend Lambda errors (CloudWatch):
 
    ```bash

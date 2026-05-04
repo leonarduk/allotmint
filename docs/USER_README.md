@@ -95,8 +95,9 @@ If the variable is unset the UI defaults to `http://localhost:8000` (or
 - **Get trading agent signals**: `curl http://localhost:8000/trading-agent/signals` or invoke the `price_refresh` Lambda
 - **Deploy to AWS**:
   1. `cd frontend && npm run build`
-  2. `cd cdk && DEPLOY_BACKEND=false cdk deploy StaticSiteStack`
-  3. To include the backend: `DEPLOY_BACKEND=true cdk deploy BackendLambdaStack StaticSiteStack`
+  2. `npm ci`
+  3. `cd cdk && DEPLOY_BACKEND=false npx cdk deploy StaticSiteStack`
+  4. To include the backend: `DEPLOY_BACKEND=true npx cdk deploy BackendLambdaStack StaticSiteStack`
 
 ## Filtering group instrument holdings
 
@@ -116,4 +117,3 @@ curl "http://localhost:8000/portfolio-group/all/instruments?owner=alex&account_t
 
 The response continues to include the standard grouping metadata while limiting
 the holdings considered by the request.
-

@@ -2,6 +2,7 @@
 
 Read `AGENTS.md` for full repository guidance. Use these short rules while generating code or PRs in this repo:
 
+- Create or switch to a non-`main` branch before editing files; if the checkout is dirty with unrelated work, use a clean worktree from `main`.
 - For contributor setup/run-mode guidance, prefer `docs/CONTRIBUTOR_RUNBOOK.md`.
 - Backend entrypoint: `backend.app:create_app`; local app: `backend.local_api.main:app`.
 - Primary backend tests live in top-level `tests/`.

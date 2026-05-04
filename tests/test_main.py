@@ -231,11 +231,18 @@ def test_prices_refresh(mock_refresh, client):
     assert response.json() == {"status": "ok", "updated": 5}
 
 
-@patch("backend.common.prices.refresh_prices", return_value={"updated": 3})
+@patch("backend.common.prices.refresh_prices", return_value={"updated": 5})
 def test_prices_refresh_get(mock_refresh, client):
     response = client.get("/prices/refresh")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "updated": 3}
+    assert response.json() == {"status": "ok", "updated": 5}
+
+
+@patch("backend.common.prices.refresh_prices", return_value={"updated": 5})
+def test_prices_refresh_post(mock_refresh, client):
+    response = client.post("/prices/refresh")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok", "updated": 5}
 
 
 def test_openapi_no_duplicate_operation_ids():
@@ -257,8 +264,12 @@ def test_openapi_no_duplicate_operation_ids():
             if isinstance(op, dict) and "operationId" in op:
                 operation_ids.append(op["operationId"])
 
-    refresh_ops = {schema["paths"]["/prices/refresh"][m]["operationId"] for m in ("get", "post")}
-    assert refresh_ops == {"refresh_prices_get", "refresh_prices_post"}
+    refresh_path = schema.get("paths", {}).get("/prices/refresh", {})
+    assert refresh_path, "Expected /prices/refresh path in OpenAPI schema"
+    refresh_ops = {m: refresh_path[m].get("operationId") for m in ("get", "post") if m in refresh_path}
+    assert refresh_ops == {"get": "refresh_prices_get", "post": "refresh_prices_post"}, (
+        f"Unexpected refresh_prices operationIds: {refresh_ops}"
+    )
     assert len(operation_ids) == len(set(operation_ids)), "Found duplicate operationIds in OpenAPI schema"
 
 

@@ -117,12 +117,14 @@ describe("AllocationCharts page", () => {
 
     expect(await screen.findByText(/Instrument Types/)).toBeInTheDocument();
     // asset/type dimension
-    let slices = screen.getByTestId("pie-slices");
-    expect(within(slices).getByText("Equity: 100")).toBeInTheDocument();
+    // The chart effect runs asynchronously after loading resolves — use waitFor.
+    await waitFor(() => {
+      expect(within(screen.getByTestId("pie-slices")).getByText("Equity: 100")).toBeInTheDocument();
+    });
 
     // sector dimension
     fireEvent.click(screen.getByRole("button", { name: /industries|sector/i }));
-    slices = screen.getByTestId("pie-slices");
+    let slices = screen.getByTestId("pie-slices");
     expect(within(slices).getByText("Tech: 100")).toBeInTheDocument();
     expect(within(slices).queryByText(/Utilities/)).not.toBeInTheDocument();
     expect(within(slices).queryByText(/Finance/)).not.toBeInTheDocument();

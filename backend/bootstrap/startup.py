@@ -60,7 +60,11 @@ class AppLifecycleService:
 
         from backend.common import instrument_api
 
-        instrument_api.update_latest_prices_from_snapshot(snapshot)
+        try:
+            instrument_api.update_latest_prices_from_snapshot(snapshot)
+        except Exception:
+            logger.exception("Failed to update latest prices from snapshot")
+
         try:
             await asyncio.to_thread(instrument_api.prime_latest_prices)
         except Exception:

@@ -64,3 +64,56 @@ def test_create_app_registers_rebalance_route(monkeypatch):
 
     registered_paths = {route.path for route in app.routes}
     assert "/rebalance" in registered_paths
+
+
+def test_docs_endpoint_returns_200(monkeypatch):
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    monkeypatch.setattr(config, "snapshot_warm_days", 30)
+    with patch("backend.bootstrap.startup.refresh_snapshot_async"):
+        app = create_app()
+        with TestClient(app) as client:
+            resp = client.get("/docs")
+    assert resp.status_code == 200
+
+
+def test_docs_returns_200_when_prime_latest_prices_fails(monkeypatch):
+    monkeypatch.setattr(config, "skip_snapshot_warm", False)
+    monkeypatch.setattr(config, "snapshot_warm_days", 30)
+
+    def _fail():
+        raise RuntimeError("simulated network failure on cold start")
+
+    with (
+        patch("backend.bootstrap.startup.refresh_snapshot_async"),
+        patch("backend.bootstrap.startup._load_snapshot", return_value=({}, None)),
+        patch("backend.bootstrap.startup.refresh_snapshot_in_memory"),
+        patch("backend.common.instrument_api.update_latest_prices_from_snapshot"),
+        patch("backend.common.instrument_api.prime_latest_prices", side_effect=_fail),
+    ):
+        app = create_app()
+        with TestClient(app) as client:
+            resp = client.get("/docs")
+    assert resp.status_code == 200
+
+
+def test_docs_returns_200_when_update_latest_prices_fails(monkeypatch):
+    monkeypatch.setattr(config, "skip_snapshot_warm", False)
+    monkeypatch.setattr(config, "snapshot_warm_days", 30)
+
+    def _fail(_snapshot):
+        raise RuntimeError("simulated update_latest_prices failure")
+
+    with (
+        patch("backend.bootstrap.startup.refresh_snapshot_async"),
+        patch("backend.bootstrap.startup._load_snapshot", return_value=({}, None)),
+        patch("backend.bootstrap.startup.refresh_snapshot_in_memory"),
+        patch(
+            "backend.common.instrument_api.update_latest_prices_from_snapshot",
+            side_effect=_fail,
+        ),
+        patch("backend.common.instrument_api.prime_latest_prices"),
+    ):
+        app = create_app()
+        with TestClient(app) as client:
+            resp = client.get("/docs")
+    assert resp.status_code == 200

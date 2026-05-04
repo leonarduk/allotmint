@@ -8,8 +8,8 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-node@v6.4.0
         with:
           node-version: '24'
       - run: npm ci
@@ -18,7 +18,7 @@ jobs:
         working-directory: frontend
       - run: npm test -- --run
         working-directory: frontend
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6.2.0
         with:
           python-version: '3.12'
       - run: pip install -r requirements.txt -r requirements-dev.txt

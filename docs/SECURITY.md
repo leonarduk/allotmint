@@ -25,8 +25,9 @@ To enforce a CSP:
 2. Add your directives to the header string.
 3. Associate the policy with the distribution's behavior and redeploy:
    ```bash
+   npm ci
    cd cdk
-   cdk deploy StaticSiteStack
+   npx cdk deploy StaticSiteStack
    ```
 
 For temporary local testing you may instead inject a `<meta http-equiv="Content-Security-Policy">` tag in `frontend/index.html`, but prefer the header-based policy in production.

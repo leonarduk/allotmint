@@ -27,9 +27,6 @@ jobs:
         with:
           node-version: '24'
 
-      - name: Install AWS CDK
-        run: npm install -g aws-cdk
-
       - name: Install root dependencies
         run: npm ci
 
@@ -107,14 +104,14 @@ jobs:
         env:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
           CDK_OUTDIR: /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
-        run: cdk diff --all
+        run: npx cdk diff --all
         working-directory: cdk
 
       - name: Deploy BackendLambdaStack
         env:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
           CDK_OUTDIR: /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
-        run: cdk deploy BackendLambdaStack --require-approval never
+        run: npx cdk deploy BackendLambdaStack --require-approval never
         working-directory: cdk
 
       - name: Get backend API URL
@@ -137,7 +134,7 @@ jobs:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
           CDK_OUTDIR: /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
         run: >
-          cdk deploy StaticSiteStack --require-approval never
+          npx cdk deploy StaticSiteStack --require-approval never
           --parameters StaticSiteStack:BackendApiUrl="$BACKEND_URL"
         working-directory: cdk
 

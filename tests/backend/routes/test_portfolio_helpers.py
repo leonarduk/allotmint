@@ -1,3 +1,4 @@
+import asyncio
 import types
 from pathlib import Path
 
@@ -127,3 +128,33 @@ def test_list_owner_summaries_appends_demo_when_missing(monkeypatch: pytest.Monk
 
     second_result = portfolio._list_owner_summaries(request)
     assert [summary.owner for summary in second_result] == ["demo"]
+
+
+@pytest.mark.asyncio
+async def test_do_refresh_prices_uses_to_thread(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: dict[str, object] = {}
+
+    def fake_refresh_prices() -> dict:
+        calls["refresh_called"] = True
+        return {"updated": 5}
+
+    async def fake_to_thread(func, /, *args, **kwargs):
+        calls["to_thread"] = {
+            "func": func,
+            "args": args,
+            "kwargs": kwargs,
+        }
+        return func(*args, **kwargs)
+
+    monkeypatch.setattr(portfolio.prices, "refresh_prices", fake_refresh_prices)
+    monkeypatch.setattr(asyncio, "to_thread", fake_to_thread)
+
+    result = await portfolio._do_refresh_prices()
+
+    assert result == {"status": "ok", "updated": 5}
+    assert calls["refresh_called"] is True
+    assert calls["to_thread"] == {
+        "func": fake_refresh_prices,
+        "args": (),
+        "kwargs": {},
+    }

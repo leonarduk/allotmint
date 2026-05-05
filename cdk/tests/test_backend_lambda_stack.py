@@ -33,6 +33,21 @@ def template():
 
 
 # ---------------------------------------------------------------------------
+# Required secrets guard
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("missing_var", ["JWT_SECRET", "GOOGLE_CLIENT_ID"])
+def test_stack_raises_when_required_env_var_absent(missing_var, monkeypatch):
+    monkeypatch.delenv(missing_var, raising=False)
+    # Ensure the other required var is present so only one is missing at a time
+    other = "GOOGLE_CLIENT_ID" if missing_var == "JWT_SECRET" else "JWT_SECRET"
+    monkeypatch.setenv(other, "dummy")
+    with pytest.raises(ValueError, match=missing_var):
+        BackendLambdaStack(App(), "GuardTestStack")
+
+
+# ---------------------------------------------------------------------------
 # Data bucket properties
 # ---------------------------------------------------------------------------
 

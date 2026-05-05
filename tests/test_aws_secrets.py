@@ -109,3 +109,57 @@ def test_missing_key_in_secret_is_skipped(monkeypatch):
 
     load_aws_secrets_to_env(secret_name="test/secret")
     assert os.getenv("JWT_SECRET") is None
+
+
+@pytest.mark.parametrize("app_env", ["AWS", "Production", "PRODUCTION"])
+def test_app_env_case_insensitive(monkeypatch, app_env):
+    monkeypatch.setenv("APP_ENV", app_env)
+    monkeypatch.delenv("JWT_SECRET", raising=False)
+
+    secret_payload = {"jwt_secret": "secret-from-upper-env"}
+
+    class _FakeClient:
+        def get_secret_value(self, *, SecretId):
+            return {"SecretString": json.dumps(secret_payload)}
+
+    import boto3
+    monkeypatch.setattr(boto3, "client", lambda *a, **kw: _FakeClient())
+
+    load_aws_secrets_to_env(secret_name="test/secret")
+    assert os.environ["JWT_SECRET"] == "secret-from-upper-env"
+
+
+def test_non_dict_json_does_not_raise(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "aws")
+    monkeypatch.delenv("JWT_SECRET", raising=False)
+
+    class _FakeClient:
+        def get_secret_value(self, *, SecretId):
+            return {"SecretString": '"just-a-string"'}
+
+    import boto3
+    monkeypatch.setattr(boto3, "client", lambda *a, **kw: _FakeClient())
+
+    load_aws_secrets_to_env(secret_name="test/secret")
+    assert os.getenv("JWT_SECRET") is None
+
+
+def test_uses_app_secret_name_env_var(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "aws")
+    monkeypatch.setenv("APP_SECRET_NAME", "my-custom/secret")
+    monkeypatch.delenv("JWT_SECRET", raising=False)
+
+    fetched_ids: list[str] = []
+
+    class _FakeClient:
+        def get_secret_value(self, *, SecretId):
+            fetched_ids.append(SecretId)
+            return {"SecretString": json.dumps({"jwt_secret": "custom-secret"})}
+
+    import boto3
+    monkeypatch.setattr(boto3, "client", lambda *a, **kw: _FakeClient())
+
+    load_aws_secrets_to_env()  # no explicit secret_name — should read APP_SECRET_NAME
+
+    assert fetched_ids == ["my-custom/secret"]
+    assert os.environ["JWT_SECRET"] == "custom-secret"

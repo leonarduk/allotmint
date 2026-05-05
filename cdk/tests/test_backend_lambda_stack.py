@@ -203,6 +203,22 @@ def test_all_lambda_functions_have_one_week_log_retention(template):
     )
 
 
+def test_backend_lambda_has_jwt_and_google_env_vars(template):
+    template.has_resource_properties(
+        "AWS::Lambda::Function",
+        {
+            "Environment": {
+                "Variables": assertions.Match.object_like(
+                    {
+                        "JWT_SECRET": assertions.Match.any_value(),
+                        "GOOGLE_CLIENT_ID": assertions.Match.any_value(),
+                    }
+                )
+            }
+        },
+    )
+
+
 def test_backend_error_alarm_exists(template):
     template.has_resource_properties(
         "AWS::CloudWatch::Alarm",

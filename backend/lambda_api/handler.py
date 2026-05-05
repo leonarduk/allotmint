@@ -5,6 +5,14 @@ Handler: backend.lambda_api.handler.lambda_handler
 
 import asyncio
 
+# Load secrets from AWS Secrets Manager before any backend module is imported.
+# backend.auth reads JWT_SECRET at import time and raises RuntimeError when it
+# is absent in production.  Populating os.environ here ensures the value is
+# available before the import below triggers that module-level code.
+from backend.bootstrap.aws_secrets import load_aws_secrets_to_env
+
+load_aws_secrets_to_env()
+
 from mangum import Mangum
 
 from backend.app import create_app

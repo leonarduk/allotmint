@@ -1,6 +1,6 @@
 import os
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 from aws_cdk import CfnOutput, Duration, Stack
 from aws_cdk import aws_apigatewayv2 as apigwv2
@@ -168,7 +168,6 @@ class BackendLambdaStack(Stack):
 
         backend_env = {
             "GOOGLE_AUTH_ENABLED": "true",
-            "GOOGLE_CLIENT_ID": "${GOOGLE_CLIENT_ID}",
             "DISABLE_AUTH": "false",
             "DATA_BUCKET": bucket_name,
             "DATA_BRANCH": data_branch,
@@ -176,6 +175,9 @@ class BackendLambdaStack(Stack):
             # Lambda runtime variable and cannot be set as a custom environment variable.
             "APP_REGION": self.region,
             "CORS_ORIGINS": ",".join(cors_origins),
+            # The secret name is passed explicitly so load_aws_secrets_to_env() can
+            # retrieve JWT_SECRET and GOOGLE_CLIENT_ID at Lambda cold-start.
+            "APP_SECRET_NAME": secret_name,
         }
         if data_repo:
             backend_env["DATA_REPO"] = data_repo

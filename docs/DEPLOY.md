@@ -29,17 +29,23 @@ GitHub Actions secrets at synth time and injects them as Lambda environment
 variables. Add them under **Settings → Secrets and variables → Actions →
 New repository secret** before triggering a deploy.
 
-| Secret name | How to obtain |
-| --- | --- |
-| `AWS_REGION` | Your target AWS region (e.g. `eu-west-1`) |
-| `AWS_ROLE_TO_ASSUME` | ARN of the IAM role the workflow assumes for CDK deployment |
-| `DATA_BUCKET` | Name of the S3 bucket holding account data |
-| `JWT_SECRET` | Random string used to sign JWTs — generate with `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
-| `GOOGLE_CLIENT_ID` | OAuth client ID from Google Cloud Console (ends in `.apps.googleusercontent.com`) |
+| Secret name | New? | How to obtain |
+| --- | --- | --- |
+| `AWS_REGION` | Pre-existing | Your target AWS region (e.g. `eu-west-1`) |
+| `AWS_ROLE_TO_ASSUME` | Pre-existing | ARN of the IAM role the workflow assumes for CDK deployment |
+| `DATA_BUCKET` | Pre-existing | Name of the S3 bucket holding account data |
+| `JWT_SECRET` | **Required since #2838** | Random string used to sign JWTs — generate with `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
+| `GOOGLE_CLIENT_ID` | **Required since #2838** | OAuth client ID from Google Cloud Console (ends in `.apps.googleusercontent.com`) |
 
-The CDK stack will raise a `ValueError` at synth time if `JWT_SECRET` or
-`GOOGLE_CLIENT_ID` is absent, failing the deploy step immediately with a
-clear message.
+The CDK stack (`cdk/stacks/backend_lambda_stack.py`) raises a `ValueError`
+at synth time if `JWT_SECRET` or `GOOGLE_CLIENT_ID` is absent, failing the
+deploy step immediately with a clear message rather than deploying a broken
+Lambda.
+
+**Migrating from the Secrets Manager approach** (pre-#2838): `APP_SECRET_NAME`
+and the `allotmint/app` Secrets Manager secret are no longer used. Remove
+`APP_SECRET_NAME` from any existing GitHub Actions secrets or local `.env`
+files and add `JWT_SECRET` and `GOOGLE_CLIENT_ID` directly instead.
 
 The advisory AI review workflows run on pull request `opened`, `reopened`, and `synchronize`
 events. They require `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` to be configured as GitHub

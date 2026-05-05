@@ -19,8 +19,33 @@ Copy `.env.example` to `.env` and supply the following values:
 | `METADATA_PREFIX` | Prefix within the metadata bucket |
 | `GOOGLE_AUTH_ENABLED` | Toggle Google sign‑in |
 | `GOOGLE_CLIENT_ID` | OAuth client ID when Google sign‑in is enabled |
-| `APP_SECRET_NAME` | Secrets Manager secret name read by backend Lambdas (default `allotmint/app`) |
+| `JWT_SECRET` | Secret used to sign and verify JWT tokens |
 | `BUDGET_ALERT_EMAIL` | Optional email recipient for the monthly AWS budget alert |
+
+## GitHub Actions secrets required for AWS deployment
+
+The deploy workflow (`deploy-lambda.yml`) reads the following values from
+GitHub Actions secrets at synth time and injects them as Lambda environment
+variables. Add them under **Settings → Secrets and variables → Actions →
+New repository secret** before triggering a deploy.
+
+| Secret name | New? | How to obtain |
+| --- | --- | --- |
+| `AWS_REGION` | Pre-existing | Your target AWS region (e.g. `eu-west-1`) |
+| `AWS_ROLE_TO_ASSUME` | Pre-existing | ARN of the IAM role the workflow assumes for CDK deployment |
+| `DATA_BUCKET` | Pre-existing | Name of the S3 bucket holding account data |
+| `JWT_SECRET` | **Required since #2838** | Random string used to sign JWTs — generate with `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
+| `GOOGLE_CLIENT_ID` | **Required since #2838** | OAuth client ID from Google Cloud Console (ends in `.apps.googleusercontent.com`) |
+
+The CDK stack (`cdk/stacks/backend_lambda_stack.py`) raises a `ValueError`
+at synth time if `JWT_SECRET` or `GOOGLE_CLIENT_ID` is absent, failing the
+deploy step immediately with a clear message rather than deploying a broken
+Lambda.
+
+**Migrating from the Secrets Manager approach** (pre-#2838): `APP_SECRET_NAME`
+and the `allotmint/app` Secrets Manager secret are no longer used. Remove
+`APP_SECRET_NAME` from any existing GitHub Actions secrets or local `.env`
+files and add `JWT_SECRET` and `GOOGLE_CLIENT_ID` directly instead.
 
 The advisory AI review workflows run on pull request `opened`, `reopened`, and `synchronize`
 events. They require `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` to be configured as GitHub

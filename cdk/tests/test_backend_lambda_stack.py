@@ -204,6 +204,9 @@ def test_all_lambda_functions_have_one_week_log_retention(template):
 
 
 def test_backend_lambda_has_jwt_and_google_env_vars(template):
+    # Only BackendLambda receives JWT_SECRET and GOOGLE_CLIENT_ID; the refresh
+    # and agent Lambdas do not import backend.auth so they don't need them.
+    # This assertion therefore targets BackendLambda specifically in practice.
     template.has_resource_properties(
         "AWS::Lambda::Function",
         {

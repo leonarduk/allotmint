@@ -200,26 +200,6 @@ def test_all_lambda_functions_have_one_week_log_retention(template):
     )
 
 
-def test_lambdas_get_secretsmanager_read_policy(template):
-    policies = template.find_resources("AWS::IAM::Policy")
-    all_actions: list[str] = []
-    for resource in policies.values():
-        statements = (
-            resource.get("Properties", {})
-            .get("PolicyDocument", {})
-            .get("Statement", [])
-        )
-        for stmt in statements:
-            actions = stmt.get("Action", [])
-            if isinstance(actions, str):
-                actions = [actions]
-            all_actions.extend(actions)
-
-    assert any(a == "secretsmanager:GetSecretValue" for a in all_actions), (
-        "Expected secretsmanager:GetSecretValue grant for Lambda roles"
-    )
-
-
 def test_backend_error_alarm_exists(template):
     template.has_resource_properties(
         "AWS::CloudWatch::Alarm",

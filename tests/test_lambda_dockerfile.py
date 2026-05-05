@@ -1,8 +1,10 @@
+"""Regression tests for Lambda Dockerfile and requirements dependency hygiene (issue #2810)."""
+
 from pathlib import Path
 import unittest
 
-
 DOCKERFILE = Path(__file__).resolve().parents[1] / "backend" / "Dockerfile.lambda"
+REQUIREMENTS = Path(__file__).resolve().parents[1] / "backend" / "requirements.txt"
 
 
 class LambdaDockerfileTests(unittest.TestCase):
@@ -28,3 +30,22 @@ class LambdaDockerfileTests(unittest.TestCase):
             "Lambda Dockerfile is expected to copy pre-synced data into the "
             "image rather than fetching it during the build.",
         )
+
+    def test_boto3_version_not_tightly_pinned(self) -> None:
+        """boto3 must not be pinned to a minor-version ceiling in requirements.txt.
+
+        A tight ~= 1.37.x pin conflicts with packages that pull in a newer
+        botocore. Use >= with only a lower bound.
+        """
+        content = REQUIREMENTS.read_text(encoding="utf-8")
+        for line in content.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("boto3"):
+                self.assertNotIn(
+                    "~=",
+                    stripped,
+                    f"boto3 must not use ~= pin in requirements.txt (found: {stripped!r}). "
+                    "Use '>=' with only a lower bound to allow pip to resolve compatible "
+                    "botocore/s3transfer versions (see issue #2810).",
+                )
+                break

@@ -276,6 +276,8 @@ def test_update_config_rejects_invalid_google_auth(monkeypatch, tmp_path):
 
     monkeypatch.setattr(sys.modules["backend.config"], "_project_config_path", lambda: config_path)
     monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
+    monkeypatch.delenv("GOOGLE_CLIENT_ID", raising=False)
+    monkeypatch.delenv("GOOGLE_AUTH_ENABLED", raising=False)
 
     reload_config()
 

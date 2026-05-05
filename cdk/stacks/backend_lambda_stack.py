@@ -158,7 +158,11 @@ class BackendLambdaStack(Stack):
         cors_origins = list(dict.fromkeys(cors_origins))
 
         jwt_secret = os.getenv("JWT_SECRET", "")
+        if not jwt_secret:
+            raise ValueError("JWT_SECRET must be set in the environment before deploying")
         google_client_id = os.getenv("GOOGLE_CLIENT_ID", "")
+        if not google_client_id:
+            raise ValueError("GOOGLE_CLIENT_ID must be set in the environment before deploying")
 
         backend_env = {
             "GOOGLE_AUTH_ENABLED": "true",

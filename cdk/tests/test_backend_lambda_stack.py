@@ -24,6 +24,9 @@ from cdk.stacks.exports import BACKEND_API_URL_EXPORT  # noqa: E402  # stable na
 @pytest.fixture(scope="module")
 def template():
     """Synthesise BackendLambdaStack and return its CloudFormation template."""
+    env_patch = {"JWT_SECRET": "test-secret", "GOOGLE_CLIENT_ID": "test-client-id"}
+    for key, value in env_patch.items():
+        os.environ.setdefault(key, value)
     app = App()
     stack = BackendLambdaStack(app, "TestBackendStack")
     return assertions.Template.from_stack(stack)

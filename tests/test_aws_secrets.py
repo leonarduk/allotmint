@@ -41,7 +41,7 @@ def test_injects_missing_env_vars(monkeypatch, app_env):
     import boto3
     monkeypatch.setattr(boto3, "client", lambda *a, **kw: _FakeClient())
 
-    load_aws_secrets_to_env(secret_name="test/secret")
+    load_aws_secrets_to_env(secret_id="test/secret")
 
     assert os.environ["JWT_SECRET"] == "super-secret-key"
     assert os.environ["GOOGLE_CLIENT_ID"] == "client-id.apps.googleusercontent.com"
@@ -60,7 +60,7 @@ def test_does_not_overwrite_existing_env_var(monkeypatch):
     import boto3
     monkeypatch.setattr(boto3, "client", lambda *a, **kw: _FakeClient())
 
-    load_aws_secrets_to_env(secret_name="test/secret")
+    load_aws_secrets_to_env(secret_id="test/secret")
 
     assert os.environ["JWT_SECRET"] == "already-set"
 
@@ -77,7 +77,7 @@ def test_boto3_error_does_not_raise(monkeypatch):
     monkeypatch.setattr(boto3, "client", lambda *a, **kw: _FakeClient())
 
     # Must not propagate the exception
-    load_aws_secrets_to_env(secret_name="test/secret")
+    load_aws_secrets_to_env(secret_id="test/secret")
     assert os.getenv("JWT_SECRET") is None
 
 
@@ -92,7 +92,7 @@ def test_invalid_json_does_not_raise(monkeypatch):
     import boto3
     monkeypatch.setattr(boto3, "client", lambda *a, **kw: _FakeClient())
 
-    load_aws_secrets_to_env(secret_name="test/secret")
+    load_aws_secrets_to_env(secret_id="test/secret")
     assert os.getenv("JWT_SECRET") is None
 
 
@@ -107,7 +107,7 @@ def test_missing_key_in_secret_is_skipped(monkeypatch):
     import boto3
     monkeypatch.setattr(boto3, "client", lambda *a, **kw: _FakeClient())
 
-    load_aws_secrets_to_env(secret_name="test/secret")
+    load_aws_secrets_to_env(secret_id="test/secret")
     assert os.getenv("JWT_SECRET") is None
 
 
@@ -116,7 +116,7 @@ def test_app_env_case_insensitive(monkeypatch, app_env):
     monkeypatch.setenv("APP_ENV", app_env)
     monkeypatch.delenv("JWT_SECRET", raising=False)
 
-    secret_payload = {"jwt_secret": "secret-from-upper-env"}
+    secret_payload = {"jwt_secret": "value-from-upper-env"}
 
     class _FakeClient:
         def get_secret_value(self, *, SecretId):
@@ -125,8 +125,8 @@ def test_app_env_case_insensitive(monkeypatch, app_env):
     import boto3
     monkeypatch.setattr(boto3, "client", lambda *a, **kw: _FakeClient())
 
-    load_aws_secrets_to_env(secret_name="test/secret")
-    assert os.environ["JWT_SECRET"] == "secret-from-upper-env"
+    load_aws_secrets_to_env(secret_id="test/secret")
+    assert os.environ["JWT_SECRET"] == "value-from-upper-env"
 
 
 def test_non_dict_json_does_not_raise(monkeypatch):
@@ -140,7 +140,7 @@ def test_non_dict_json_does_not_raise(monkeypatch):
     import boto3
     monkeypatch.setattr(boto3, "client", lambda *a, **kw: _FakeClient())
 
-    load_aws_secrets_to_env(secret_name="test/secret")
+    load_aws_secrets_to_env(secret_id="test/secret")
     assert os.getenv("JWT_SECRET") is None
 
 
@@ -154,12 +154,12 @@ def test_uses_app_secret_name_env_var(monkeypatch):
     class _FakeClient:
         def get_secret_value(self, *, SecretId):
             fetched_ids.append(SecretId)
-            return {"SecretString": json.dumps({"jwt_secret": "custom-secret"})}
+            return {"SecretString": json.dumps({"jwt_secret": "custom-value"})}
 
     import boto3
     monkeypatch.setattr(boto3, "client", lambda *a, **kw: _FakeClient())
 
-    load_aws_secrets_to_env()  # no explicit secret_name — should read APP_SECRET_NAME
+    load_aws_secrets_to_env()  # no explicit secret_id — should read APP_SECRET_NAME
 
     assert fetched_ids == ["my-custom/secret"]
-    assert os.environ["JWT_SECRET"] == "custom-secret"
+    assert os.environ["JWT_SECRET"] == "custom-value"

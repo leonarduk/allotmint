@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -19,6 +20,8 @@ BACKEND_LIST_PREFIXES = ("accounts", "queries", "timeseries/meta", "transactions
 
 
 def _stack_template() -> dict:
+    os.environ.setdefault("JWT_SECRET", "test-secret")
+    os.environ.setdefault("GOOGLE_CLIENT_ID", "test-client-id")
     app = App(
         context={
             "data_bucket": "unit-test-data-bucket",

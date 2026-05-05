@@ -24,9 +24,27 @@ from cdk.stacks.exports import BACKEND_API_URL_EXPORT  # noqa: E402  # stable na
 @pytest.fixture(scope="module")
 def template():
     """Synthesise BackendLambdaStack and return its CloudFormation template."""
+    env_patch = {"JWT_SECRET": "test-secret", "GOOGLE_CLIENT_ID": "test-client-id"}
+    for key, value in env_patch.items():
+        os.environ.setdefault(key, value)
     app = App()
     stack = BackendLambdaStack(app, "TestBackendStack")
     return assertions.Template.from_stack(stack)
+
+
+# ---------------------------------------------------------------------------
+# Required secrets guard
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("missing_var", ["JWT_SECRET", "GOOGLE_CLIENT_ID"])
+def test_stack_raises_when_required_env_var_absent(missing_var, monkeypatch):
+    monkeypatch.delenv(missing_var, raising=False)
+    # Ensure the other required var is present so only one is missing at a time
+    other = "GOOGLE_CLIENT_ID" if missing_var == "JWT_SECRET" else "JWT_SECRET"
+    monkeypatch.setenv(other, "dummy")
+    with pytest.raises(ValueError, match=missing_var):
+        BackendLambdaStack(App(), "GuardTestStack")
 
 
 # ---------------------------------------------------------------------------
@@ -200,23 +218,22 @@ def test_all_lambda_functions_have_one_week_log_retention(template):
     )
 
 
-def test_lambdas_get_secretsmanager_read_policy(template):
-    policies = template.find_resources("AWS::IAM::Policy")
-    all_actions: list[str] = []
-    for resource in policies.values():
-        statements = (
-            resource.get("Properties", {})
-            .get("PolicyDocument", {})
-            .get("Statement", [])
-        )
-        for stmt in statements:
-            actions = stmt.get("Action", [])
-            if isinstance(actions, str):
-                actions = [actions]
-            all_actions.extend(actions)
-
-    assert any(a == "secretsmanager:GetSecretValue" for a in all_actions), (
-        "Expected secretsmanager:GetSecretValue grant for Lambda roles"
+def test_backend_lambda_has_jwt_and_google_env_vars(template):
+    # Only BackendLambda receives JWT_SECRET and GOOGLE_CLIENT_ID; the refresh
+    # and agent Lambdas do not import backend.auth so they don't need them.
+    # This assertion therefore targets BackendLambda specifically in practice.
+    template.has_resource_properties(
+        "AWS::Lambda::Function",
+        {
+            "Environment": {
+                "Variables": assertions.Match.object_like(
+                    {
+                        "JWT_SECRET": assertions.Match.any_value(),
+                        "GOOGLE_CLIENT_ID": assertions.Match.any_value(),
+                    }
+                )
+            }
+        },
     )
 
 

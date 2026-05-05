@@ -13,7 +13,6 @@ from aws_cdk import aws_iam as iam
 from aws_cdk import aws_lambda as _lambda
 from aws_cdk import aws_logs as logs
 from aws_cdk import aws_s3 as s3
-from aws_cdk import aws_secretsmanager as secretsmanager
 from constructs import Construct
 
 from stacks.exports import BACKEND_API_URL_EXPORT
@@ -118,14 +117,6 @@ class BackendLambdaStack(Stack):
         budget_alert_email = self.node.try_get_context("budget_alert_email") or os.getenv(
             "BUDGET_ALERT_EMAIL"
         )
-        secret_name = self.node.try_get_context("app_secret_name") or os.getenv(
-            "APP_SECRET_NAME", "allotmint/app"
-        )
-
-        app_secret = secretsmanager.Secret.from_secret_name_v2(
-            self, "AppConfigSecret", secret_name
-        )
-
         data_bucket = s3.Bucket(
             self,
             "PortfolioDataBucket",
@@ -166,6 +157,13 @@ class BackendLambdaStack(Stack):
             )
         cors_origins = list(dict.fromkeys(cors_origins))
 
+        jwt_secret = os.getenv("JWT_SECRET", "")
+        if not jwt_secret:
+            raise ValueError("JWT_SECRET must be set in the environment before deploying")
+        google_client_id = os.getenv("GOOGLE_CLIENT_ID", "")
+        if not google_client_id:
+            raise ValueError("GOOGLE_CLIENT_ID must be set in the environment before deploying")
+
         backend_env = {
             "GOOGLE_AUTH_ENABLED": "true",
             "DISABLE_AUTH": "false",
@@ -175,9 +173,8 @@ class BackendLambdaStack(Stack):
             # Lambda runtime variable and cannot be set as a custom environment variable.
             "APP_REGION": self.region,
             "CORS_ORIGINS": ",".join(cors_origins),
-            # The secret name is passed explicitly so load_aws_secrets_to_env() can
-            # retrieve JWT_SECRET and GOOGLE_CLIENT_ID at Lambda cold-start.
-            "APP_SECRET_NAME": secret_name,
+            "JWT_SECRET": jwt_secret,
+            "GOOGLE_CLIENT_ID": google_client_id,
         }
         if data_repo:
             backend_env["DATA_REPO"] = data_repo
@@ -190,7 +187,6 @@ class BackendLambdaStack(Stack):
             log_retention=logs.RetentionDays.ONE_WEEK,
         )
         backend_fn.add_environment("APP_ENV", env)
-        app_secret.grant_read(backend_fn)
 
         # BackendLambda: read + put + list
         # Audited S3 list prefixes used by backend code paths:
@@ -244,7 +240,6 @@ class BackendLambdaStack(Stack):
             environment=refresh_env,
             log_retention=logs.RetentionDays.ONE_WEEK,
         )
-        app_secret.grant_read(refresh_fn)
 
         # PriceRefreshLambda: read + put, no list
         # Audited: refresh_prices() calls get_price_snapshot() → load_meta_timeseries_range()
@@ -289,7 +284,6 @@ class BackendLambdaStack(Stack):
             environment=agent_env,
             log_retention=logs.RetentionDays.ONE_WEEK,
         )
-        app_secret.grant_read(agent_fn)
 
         # TradingAgentLambda: read only, no put, no list
         # Audited: backend/agent/trading_agent.py:run() calls load_prices_for_tickers()

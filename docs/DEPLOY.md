@@ -19,8 +19,27 @@ Copy `.env.example` to `.env` and supply the following values:
 | `METADATA_PREFIX` | Prefix within the metadata bucket |
 | `GOOGLE_AUTH_ENABLED` | Toggle Google sign‑in |
 | `GOOGLE_CLIENT_ID` | OAuth client ID when Google sign‑in is enabled |
-| `APP_SECRET_NAME` | Secrets Manager secret name read by backend Lambdas (default `allotmint/app`) |
+| `JWT_SECRET` | Secret used to sign and verify JWT tokens |
 | `BUDGET_ALERT_EMAIL` | Optional email recipient for the monthly AWS budget alert |
+
+## GitHub Actions secrets required for AWS deployment
+
+The deploy workflow (`deploy-lambda.yml`) reads the following values from
+GitHub Actions secrets at synth time and injects them as Lambda environment
+variables. Add them under **Settings → Secrets and variables → Actions →
+New repository secret** before triggering a deploy.
+
+| Secret name | How to obtain |
+| --- | --- |
+| `AWS_REGION` | Your target AWS region (e.g. `eu-west-1`) |
+| `AWS_ROLE_TO_ASSUME` | ARN of the IAM role the workflow assumes for CDK deployment |
+| `DATA_BUCKET` | Name of the S3 bucket holding account data |
+| `JWT_SECRET` | Random string used to sign JWTs — generate with `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
+| `GOOGLE_CLIENT_ID` | OAuth client ID from Google Cloud Console (ends in `.apps.googleusercontent.com`) |
+
+The CDK stack will raise a `ValueError` at synth time if `JWT_SECRET` or
+`GOOGLE_CLIENT_ID` is absent, failing the deploy step immediately with a
+clear message.
 
 The advisory AI review workflows run on pull request `opened`, `reopened`, and `synchronize`
 events. They require `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` to be configured as GitHub

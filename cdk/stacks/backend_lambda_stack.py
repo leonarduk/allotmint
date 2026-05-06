@@ -184,6 +184,7 @@ class BackendLambdaStack(Stack):
             "BackendLambda",
             code=image_code,
             environment=backend_env,
+            timeout=Duration.seconds(30),
             log_retention=logs.RetentionDays.ONE_WEEK,
         )
         backend_fn.add_environment("APP_ENV", env)

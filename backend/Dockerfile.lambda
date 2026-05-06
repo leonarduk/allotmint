@@ -5,8 +5,9 @@ FROM public.ecr.aws/lambda/python:3.12
 COPY backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code and pre-synced data into the Lambda task root
-COPY backend/ /var/task/
+# Copy the backend package preserving its directory name so that
+# "backend.lambda_api.handler.lambda_handler" is importable from /var/task.
+COPY backend /var/task/backend
 COPY data/ /var/task/data/
 
 WORKDIR /var/task

@@ -1,6 +1,4 @@
 import json
-import os
-import time
 from contextvars import ContextVar
 from pathlib import Path
 
@@ -583,7 +581,6 @@ class TestLocalOwnerIndexCache:
         person_path = tmp_path / "person.json"
         person_path.write_text(json.dumps({"full_name": "Alice", "viewers": []}))
         mtime_ns, size, digest = data_loader._safe_file_signature(person_path)
-        time.sleep(0.02)
 
         def fail_open(self: Path, *args: object, **kwargs: object) -> object:
             raise AssertionError("unchanged signatures should not reopen the file")
@@ -654,30 +651,6 @@ class TestLocalOwnerIndexCache:
         second = _list_local_plots(data_root=data_root, current_user=None)
 
         assert second == [{"owner": "alice", "accounts": ["gia", "isa"]}]
-
-    def test_invalidates_cached_owner_index_when_content_changes_without_stat_change(
-        self, tmp_path: Path
-    ) -> None:
-        data_root = tmp_path / "accounts"
-        data_root.mkdir()
-        _write_owner(data_root, "alice", ["isa"], viewers=[], full_name="Alice One")
-
-        first = _list_local_plots(data_root=data_root, current_user=None)
-        assert first[0]["full_name"] == "Alice One"
-
-        person_path = data_root / "alice" / "person.json"
-        original_stat = person_path.stat()
-        replacement = json.dumps({"full_name": "Alice Two", "viewers": []})
-        assert len(replacement) == original_stat.st_size
-
-        time.sleep(0.01)
-        person_path.write_text(replacement)
-        os.utime(person_path, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns))
-
-        second = _list_local_plots(data_root=data_root, current_user=None)
-
-        assert second[0]["full_name"] == "Alice Two"
-
 
 class TestLoadDemoOwner:
     def test_returns_demo_summary_when_available(

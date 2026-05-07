@@ -7,7 +7,6 @@ import inspect
 import json
 import logging
 import os
-import time
 from dataclasses import dataclass
 from pathlib import Path, PureWindowsPath
 from threading import RLock
@@ -46,10 +45,8 @@ class _LocalOwnerIndex:
     owners: Dict[str, _LocalOwnerRecord]
 
 
-_LOCAL_FILE_CTIME_CACHE: dict[str, int] = {}
 _LOCAL_OWNER_INDEX_CACHE: dict[str, _LocalOwnerIndex] = {}
 _LOCAL_OWNER_INDEX_LOCK = RLock()
-_SIGNATURE_STABILITY_NS = 10_000_000
 
 
 def _safe_file_signature(
@@ -58,33 +55,24 @@ def _safe_file_signature(
     cached_mtime_ns: int = 0,
     cached_size: int = 0,
 ) -> tuple[int, int, str]:
-    try:
-        stat = path.stat()
-    except OSError:
-        return (0, 0, "")
+    # Skip re-hash when mtime and size match the cached entry.
+    if cached_digest:
+        try:
+            stat = path.stat()
+        except OSError:
+            return (0, 0, "")
+        if int(stat.st_mtime_ns) == cached_mtime_ns and stat.st_size == cached_size:
+            return (int(stat.st_mtime_ns), stat.st_size, cached_digest)
 
-    mtime_ns = int(stat.st_mtime_ns)
-    size = stat.st_size
-    cache_key = str(path.expanduser())
-    cached_ctime_ns = _LOCAL_FILE_CTIME_CACHE.get(cache_key)
-    if (
-        mtime_ns == cached_mtime_ns
-        and size == cached_size
-        and cached_digest
-        and cached_ctime_ns == int(stat.st_ctime_ns)
-        and time.time_ns() - cached_ctime_ns > _SIGNATURE_STABILITY_NS
-    ):
-        return (mtime_ns, size, cached_digest)
-
+    # Use open() + os.fstat() so that the stat and the read are on the same
+    # file descriptor, eliminating the TOCTOU race between stat() and read().
     try:
         with path.open("rb") as handle:
             data = handle.read()
             stat = os.fstat(handle.fileno())
     except OSError:
-        _LOCAL_FILE_CTIME_CACHE.pop(cache_key, None)
         return (0, 0, "")
 
-    _LOCAL_FILE_CTIME_CACHE[cache_key] = int(stat.st_ctime_ns)
     digest = hashlib.blake2b(data, digest_size=8).hexdigest()
     return (int(stat.st_mtime_ns), stat.st_size, digest)
 
@@ -190,13 +178,13 @@ def _get_local_owner_index(root: Path) -> _LocalOwnerIndex:
     cache_key = str(root.expanduser())
     with _LOCAL_OWNER_INDEX_LOCK:
         cached = _LOCAL_OWNER_INDEX_CACHE.get(cache_key)
-
-    signature = _collect_local_owner_signature(root, cached.signature if cached else None)
-    if cached is not None and cached.signature == signature:
-        return cached
-
-    fresh_index = _build_local_owner_index(root, signature)
-    with _LOCAL_OWNER_INDEX_LOCK:
+        # Collect the signature and rebuild (if needed) inside the lock so that
+        # a concurrent clear_local_owner_index_cache() cannot cause a stale entry
+        # to be written back after the cache has been invalidated.
+        signature = _collect_local_owner_signature(root, cached.signature if cached else None)
+        if cached is not None and cached.signature == signature:
+            return cached
+        fresh_index = _build_local_owner_index(root, signature)
         _LOCAL_OWNER_INDEX_CACHE[cache_key] = fresh_index
     return fresh_index
 
@@ -204,7 +192,6 @@ def _get_local_owner_index(root: Path) -> _LocalOwnerIndex:
 def clear_local_owner_index_cache() -> None:
     with _LOCAL_OWNER_INDEX_LOCK:
         _LOCAL_OWNER_INDEX_CACHE.clear()
-        _LOCAL_FILE_CTIME_CACHE.clear()
 
 
 # ------------------------------------------------------------------

@@ -41,9 +41,7 @@ def test_compute_sharpe_ratio(monkeypatch):
     trading_days = 252
     returns = np.array([0.01, 0.02, -0.01])
     excess = returns - rf / trading_days
-    expected = float(
-        np.round((excess.mean() / excess.std(ddof=1)) * np.sqrt(trading_days), 4)
-    )
+    expected = float(np.round((excess.mean() / excess.std(ddof=1)) * np.sqrt(trading_days), 4))
     assert risk.compute_sharpe_ratio("steve", days=3) == expected
 
 
@@ -125,14 +123,10 @@ def test_compute_portfolio_var_breakdown_deterministic(monkeypatch, include_cash
     def fake_compute_var(ts, confidence):
         return var_map[ts.attrs["ticker"]]
 
-    monkeypatch.setattr(
-        risk.portfolio_utils, "load_meta_timeseries", fake_load_meta_timeseries
-    )
+    monkeypatch.setattr(risk.portfolio_utils, "load_meta_timeseries", fake_load_meta_timeseries)
     monkeypatch.setattr(risk.portfolio_utils, "compute_var", fake_compute_var)
 
-    result = risk.compute_portfolio_var_breakdown(
-        "owner", days=10, confidence=0.95, include_cash=include_cash
-    )
+    result = risk.compute_portfolio_var_breakdown("owner", days=10, confidence=0.95, include_cash=include_cash)
 
     assert result == expected
 
@@ -224,6 +218,45 @@ def test_compute_portfolio_var_overflow_inputs_remain_bounded(monkeypatch):
     assert 0.0 <= result["1d"] <= 110.0
     if result["10d"] is not None:
         assert 0.0 <= result["10d"] <= 110.0
+
+
+def test_compute_portfolio_var_ignores_nonfinite_edge_inputs(monkeypatch):
+    history = [
+        {"value": 100.0, "daily_return": 0.01},
+        {"value": 101.0, "daily_return": float("inf")},
+        {"value": 102.0, "daily_return": float("-inf")},
+        {"value": 103.0, "daily_return": float("nan")},
+        {"value": 104.0, "daily_return": -0.02},
+    ]
+
+    monkeypatch.setattr(
+        risk.portfolio_utils,
+        "compute_owner_performance",
+        lambda owner, days=365, include_flagged=False, include_cash=True: {"history": history},
+    )
+
+    result = risk.compute_portfolio_var("owner", days=4)
+
+    assert result["1d"] is not None
+    assert 0.0 <= result["1d"] <= 104.0
+    assert result["10d"] is None
+
+
+def test_compute_portfolio_var_returns_none_for_nonfinite_current_value(monkeypatch):
+    history = [
+        {"value": 100.0, "daily_return": 0.01},
+        {"value": float("inf"), "daily_return": -0.02},
+    ]
+
+    monkeypatch.setattr(
+        risk.portfolio_utils,
+        "compute_owner_performance",
+        lambda owner, days=365, include_flagged=False, include_cash=True: {"history": history},
+    )
+
+    result = risk.compute_portfolio_var("owner", days=1)
+
+    assert result == {"window_days": 1, "confidence": 0.95, "1d": None, "10d": None}
 
 
 def test_compute_portfolio_var_produces_values(monkeypatch):
@@ -353,6 +386,7 @@ def test_compute_portfolio_var_ignores_cash_timeseries_penny_bug(monkeypatch):
     dates = pd.bdate_range("2024-01-02", periods=40)
     equity_returns = np.tile(np.array([0.002, -0.001, 0.0015, -0.0005]), 10)
     equity_close = 30.0 * np.cumprod(1 + equity_returns[: len(dates)])
+
     def run_with_cash_feed(cash_level: float) -> dict:
         cash_close = np.full(len(dates), cash_level)
         # Deliberate bad feed spike day.
@@ -418,9 +452,7 @@ def test_compute_portfolio_var_breakdown_skip_conditions(monkeypatch):
 
     result = risk.compute_portfolio_var_breakdown("owner", include_cash=False)
 
-    assert result == [
-        {"ticker": "PQR.L", "contribution": pytest.approx(45.45, rel=1e-2)}
-    ]
+    assert result == [{"ticker": "PQR.L", "contribution": pytest.approx(45.45, rel=1e-2)}]
 
 
 def test_compute_portfolio_var_breakdown_includes_cash_even_when_var_is_none(monkeypatch):

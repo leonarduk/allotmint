@@ -7,6 +7,7 @@ import inspect
 import json
 import logging
 import os
+import sys
 from dataclasses import dataclass
 from pathlib import Path, PureWindowsPath
 from threading import RLock
@@ -45,20 +46,84 @@ class _LocalOwnerIndex:
     owners: Dict[str, _LocalOwnerRecord]
 
 
+# Per-file ctime recorded on each full hash; used on POSIX to detect content-only
+# rewrites that restore mtime/size via os.utime.  Cleared by
+# clear_local_owner_index_cache().  The dict stays small because it tracks only
+# files under the accounts directory; stale entries for removed files are
+# implicitly irrelevant (they never match a live path.stat() ctime).
+_LOCAL_FILE_CTIME_CACHE: dict[str, int] = {}
 _LOCAL_OWNER_INDEX_CACHE: dict[str, _LocalOwnerIndex] = {}
 _LOCAL_OWNER_INDEX_LOCK = RLock()
+# On Windows st_ctime_ns is the file *creation* time and is not updated when
+# file content changes, so the ctime guard cannot detect content-only rewrites there.
+_CTIME_TRACKS_CHANGES: bool = sys.platform != "win32"
 
 
-def _safe_file_signature(path: Path) -> tuple[int, int, str]:
+def _safe_file_signature(
+    path: Path,
+    cached_digest: str = "",
+    cached_mtime_ns: int = 0,
+    cached_size: int = 0,
+) -> tuple[int, int, str]:
+    cache_key = str(path.expanduser())
+    cached_ctime_ns = _LOCAL_FILE_CTIME_CACHE.get(cache_key) if _CTIME_TRACKS_CHANGES else None
+    # Skip re-hash when mtime and size match. On platforms where ctime tracks
+    # content changes (non-Windows) also require ctime to match, catching
+    # content-only rewrites that restore mtime/size via os.utime.
+    if cached_digest:
+        try:
+            stat = path.stat()
+        except OSError:
+            _LOCAL_FILE_CTIME_CACHE.pop(cache_key, None)
+            return (0, 0, "")
+        ctime_ok = not _CTIME_TRACKS_CHANGES or (
+            cached_ctime_ns is not None and int(stat.st_ctime_ns) == cached_ctime_ns
+        )
+        if int(stat.st_mtime_ns) == cached_mtime_ns and stat.st_size == cached_size and ctime_ok:
+            return (int(stat.st_mtime_ns), stat.st_size, cached_digest)
+
+    # Use open() + os.fstat() so that the stat and the read are on the same
+    # file descriptor, eliminating the TOCTOU race between stat() and read().
     try:
-        stat = path.stat()
-        digest = hashlib.blake2b(path.read_bytes(), digest_size=8).hexdigest()
+        with path.open("rb") as handle:
+            data = handle.read()
+            stat = os.fstat(handle.fileno())
     except OSError:
+        _LOCAL_FILE_CTIME_CACHE.pop(cache_key, None)
         return (0, 0, "")
+
+    if _CTIME_TRACKS_CHANGES:
+        _LOCAL_FILE_CTIME_CACHE[cache_key] = int(stat.st_ctime_ns)
+    digest = hashlib.blake2b(data, digest_size=8).hexdigest()
     return (int(stat.st_mtime_ns), stat.st_size, digest)
 
 
-def _collect_owner_file_signatures(owner_dir: Path) -> list[tuple[str, int, int, str]]:
+def _safe_dir_signature(owner_key: str, owner_dir: Path) -> tuple[str, int, int, str]:
+    try:
+        stat = owner_dir.stat()
+    except OSError:
+        return (f"dir:{owner_key}", 0, 0, "")
+    return (f"dir:{owner_key}", int(stat.st_mtime_ns), stat.st_size, "")
+
+
+def _cached_owner_file_signatures(
+    cached_signature: Tuple[Tuple[str, int, int, str], ...] | None,
+) -> dict[str, dict[str, tuple[int, int, str]]]:
+    cached_files: dict[str, dict[str, tuple[int, int, str]]] = {}
+    owner_key = ""
+    for entry_key, mtime_ns, size, digest in cached_signature or ():
+        if entry_key.startswith("dir:"):
+            owner_key = entry_key.removeprefix("dir:")
+            cached_files.setdefault(owner_key, {})
+        elif owner_key and entry_key.startswith("file:"):
+            cached_files[owner_key][entry_key] = (mtime_ns, size, digest)
+    return cached_files
+
+
+def _collect_owner_file_signatures(
+    owner_dir: Path,
+    cached_signatures: dict[str, tuple[int, int, str]] | None = None,
+) -> list[tuple[str, int, int, str]]:
     try:
         child_entries = sorted(owner_dir.iterdir(), key=lambda entry: entry.name.casefold())
     except OSError:
@@ -68,12 +133,23 @@ def _collect_owner_file_signatures(owner_dir: Path) -> list[tuple[str, int, int,
     for child in child_entries:
         if not child.is_file() or child.suffix.lower() != ".json":
             continue
-        signature.append((f"file:{child.name.casefold()}", *_safe_file_signature(child)))
+        entry_key = f"file:{child.name.casefold()}"
+        cached_mtime_ns, cached_size, cached_digest = (cached_signatures or {}).get(entry_key, (0, 0, ""))
+        signature.append(
+            (
+                entry_key,
+                *_safe_file_signature(child, cached_digest, cached_mtime_ns, cached_size),
+            )
+        )
     return signature
 
 
-def _collect_local_owner_signature(root: Path) -> Tuple[Tuple[str, int, int, str], ...]:
+def _collect_local_owner_signature(
+    root: Path,
+    cached_signature: Tuple[Tuple[str, int, int, str], ...] | None = None,
+) -> Tuple[Tuple[str, int, int, str], ...]:
     signature: list[tuple[str, int, int, str]] = []
+    cached_files = _cached_owner_file_signatures(cached_signature)
 
     try:
         owner_entries = sorted(root.iterdir(), key=lambda entry: entry.name.casefold())
@@ -84,8 +160,8 @@ def _collect_local_owner_signature(root: Path) -> Tuple[Tuple[str, int, int, str
         if not owner_dir.is_dir():
             continue
         owner_key = owner_dir.name.casefold()
-        signature.append((f"dir:{owner_key}", 0, 0, ""))
-        signature.extend(_collect_owner_file_signatures(owner_dir))
+        signature.append(_safe_dir_signature(owner_key, owner_dir))
+        signature.extend(_collect_owner_file_signatures(owner_dir, cached_files.get(owner_key)))
 
     return tuple(signature)
 
@@ -121,21 +197,43 @@ def _build_local_owner_index(
 
 def _get_local_owner_index(root: Path) -> _LocalOwnerIndex:
     cache_key = str(root.expanduser())
-    signature = _collect_local_owner_signature(root)
     with _LOCAL_OWNER_INDEX_LOCK:
         cached = _LOCAL_OWNER_INDEX_CACHE.get(cache_key)
-        if cached is not None and cached.signature == signature:
-            return cached
+
+    # Signature collection and index build happen outside the lock so that
+    # file I/O does not serialise concurrent callers.
+    #
+    # Safety of the lock-free window: if clear_local_owner_index_cache() runs
+    # after we release the lock above, it also clears _LOCAL_FILE_CTIME_CACHE.
+    # When _safe_file_signature then looks up cached_ctime_ns it gets None,
+    # making ctime_ok=False on POSIX, so every file is re-read from disk.
+    # The stale mtime/size/digest values from cached_sig are therefore never
+    # used to skip I/O — they are only passed as hints that get ignored.
+    # On Windows (_CTIME_TRACKS_CHANGES=False) ctime_ok is always True, so a
+    # stale cached_sig could let a content-only change slip through for one
+    # call; this is the same known limitation as the rest of the Windows path.
+    cached_sig = cached.signature if cached else None
+    signature = _collect_local_owner_signature(root, cached_sig)
+
+    if cached is not None and cached.signature == signature:
+        return cached
 
     fresh_index = _build_local_owner_index(root, signature)
+
     with _LOCAL_OWNER_INDEX_LOCK:
-        _LOCAL_OWNER_INDEX_CACHE[cache_key] = fresh_index
+        # Double-check: only write if the cache is empty or still holds the same
+        # signature we computed.  This prevents overwriting a newer entry placed
+        # by a concurrent clear_local_owner_index_cache() + rebuild.
+        current = _LOCAL_OWNER_INDEX_CACHE.get(cache_key)
+        if current is None or current.signature == signature:
+            _LOCAL_OWNER_INDEX_CACHE[cache_key] = fresh_index
     return fresh_index
 
 
 def clear_local_owner_index_cache() -> None:
     with _LOCAL_OWNER_INDEX_LOCK:
         _LOCAL_OWNER_INDEX_CACHE.clear()
+        _LOCAL_FILE_CTIME_CACHE.clear()
 
 
 # ------------------------------------------------------------------

@@ -1,4 +1,6 @@
 import json
+import os
+import sys
 from contextvars import ContextVar
 from pathlib import Path
 
@@ -9,12 +11,12 @@ from backend.common.data_loader import (
     DATA_BUCKET_ENV,
     ResolvedPaths,
     _build_owner_summary,
-    clear_local_owner_index_cache,
+    _extract_account_names,
     _list_local_plots,
     _load_demo_owner,
-    _extract_account_names,
     _merge_accounts,
     _safe_json_load,
+    clear_local_owner_index_cache,
     list_plots,
     load_account_record,
     load_person_meta,
@@ -81,7 +83,7 @@ class TestExtractAccountNames:
 
 class TestMergeAccounts:
     def test_merges_unique_accounts_and_full_name(self) -> None:
-        base = {"accounts": ["ISA"]}
+        base = {"owner": "alice", "accounts": ["ISA"]}
         extra = {"accounts": ["isa", "GIA", 123], "full_name": "Alice Example"}
 
         _merge_accounts(base, extra)
@@ -245,7 +247,7 @@ class TestLoadAccountRecord:
             load_account_record("alice", "ISA", data_root=tmp_path)
 
 
-class TestMergeAccounts:
+class TestMergeAccountsWithOwner:
     def test_merges_without_duplication_and_sets_missing_full_name(self) -> None:
         base = {"owner": "alex", "accounts": ["ISA"]}
         extra = {"accounts": ["isa", "SIPP"], "full_name": "Alex Smith"}
@@ -575,6 +577,24 @@ class TestListLocalPlots:
 
 
 class TestLocalOwnerIndexCache:
+    def test_safe_file_signature_reuses_digest_when_stat_is_unchanged(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        person_path = tmp_path / "person.json"
+        person_path.write_text(json.dumps({"full_name": "Alice", "viewers": []}))
+        mtime_ns, size, digest = data_loader._safe_file_signature(person_path)
+
+        def fail_open(self: Path, *args: object, **kwargs: object) -> object:
+            raise AssertionError("unchanged signatures should not reopen the file")
+
+        monkeypatch.setattr(Path, "open", fail_open)
+
+        assert data_loader._safe_file_signature(person_path, digest, mtime_ns, size) == (
+            mtime_ns,
+            size,
+            digest,
+        )
+
     def test_reuses_cached_owner_index_when_signature_is_unchanged(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -633,6 +653,50 @@ class TestLocalOwnerIndexCache:
         second = _list_local_plots(data_root=data_root, current_user=None)
 
         assert second == [{"owner": "alice", "accounts": ["gia", "isa"]}]
+
+    def test_invalidates_cached_owner_index_when_owner_added(
+        self, tmp_path: Path
+    ) -> None:
+        data_root = tmp_path / "accounts"
+        data_root.mkdir()
+        _write_owner(data_root, "alice", ["isa"], viewers=[])
+
+        first = _list_local_plots(data_root=data_root, current_user=None)
+        assert [e["owner"] for e in first] == ["alice"]
+
+        _write_owner(data_root, "bob", ["sipp"], viewers=[])
+
+        second = _list_local_plots(data_root=data_root, current_user=None)
+        assert [e["owner"] for e in second] == ["alice", "bob"]
+
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="st_ctime_ns is file creation time on Windows; content-only changes cannot be detected without re-reading",
+    )
+    def test_invalidates_cached_owner_index_when_content_changes_without_stat_change(
+        self, tmp_path: Path
+    ) -> None:
+        data_root = tmp_path / "accounts"
+        data_root.mkdir()
+        _write_owner(data_root, "alice", ["isa"], viewers=[], full_name="Alice One")
+
+        first = _list_local_plots(data_root=data_root, current_user=None)
+        assert first[0]["full_name"] == "Alice One"
+
+        person_path = data_root / "alice" / "person.json"
+        original_stat = person_path.stat()
+        replacement = json.dumps({"full_name": "Alice Two", "viewers": []})
+        # Use byte-length to match st_size correctly (avoids multi-byte char surprises).
+        assert len(replacement.encode()) == original_stat.st_size
+
+        # Write bytes directly so size is unchanged, then restore mtime/atime.
+        # ctime updates to "now" on POSIX, which is what triggers re-hashing.
+        person_path.write_bytes(replacement.encode())
+        os.utime(person_path, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns))
+
+        second = _list_local_plots(data_root=data_root, current_user=None)
+
+        assert second[0]["full_name"] == "Alice Two"
 
 
 class TestLoadDemoOwner:

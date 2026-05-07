@@ -437,7 +437,6 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
         }
       } catch (err) {
         if (cancelled) return;
-        console.error(err);
         const baseMessage = t("instrumentDetail.metadataLoadError");
         const extra = err instanceof Error ? err.message : String(err);
         setMetadataStatus({ kind: "error", text: `${baseMessage} ${extra}` });
@@ -502,7 +501,6 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
       setIsEditingMetadata(true);
       setMetadataStatus(null);
     } catch (err) {
-      console.error(err);
       const message = err instanceof Error ? err.message : String(err);
       setRefreshError(`${t("instrumentDetail.refreshError")} ${message}`);
     } finally {
@@ -553,7 +551,6 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
       }
       setMetadataStatus({ kind: "success", text: t("instrumentDetail.refreshSuccess") });
     } catch (err) {
-      console.error(err);
       const message = err instanceof Error ? err.message : String(err);
       setRefreshError(`${t("instrumentDetail.refreshError")} ${message}`);
     } finally {
@@ -649,7 +646,6 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
       }
       setMetadataStatus({ kind: "success", text: t("instrumentDetail.metadataSaveSuccess") });
     } catch (err) {
-      console.error(err);
       const baseMessage = t("instrumentDetail.metadataSaveError");
       const extra = err instanceof Error ? err.message : String(err);
       setMetadataStatus({ kind: "error", text: `${baseMessage} ${extra}` });
@@ -673,7 +669,6 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
         if (error?.name === "AbortError") {
           return;
         }
-        console.error(err);
         setNews([]);
         setNewsError(err instanceof Error ? err.message : String(err));
       } finally {
@@ -721,7 +716,6 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
       } catch (err) {
         const error = err as { name?: string } | null | undefined;
         if (error?.name === "AbortError") return;
-        console.error(err);
         if (!cancelled) {
           const message = err instanceof Error ? err.message : String(err);
           setFundamentalsError(`Unable to load fundamentals: ${message}`);

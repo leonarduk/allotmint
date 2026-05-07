@@ -4,6 +4,17 @@ vi.mock("@/hooks/useInstrumentHistory", () => ({
   getCachedInstrumentHistory: vi.fn(() => null),
   updateCachedInstrumentHistory: vi.fn(),
 }));
+
+vi.mock("@/api", () => ({
+  getNews: vi.fn(),
+  listInstrumentMetadata: vi.fn(),
+  updateInstrumentMetadata: vi.fn(),
+  refreshInstrumentMetadata: vi.fn(),
+  confirmInstrumentMetadata: vi.fn(),
+  getScreener: vi.fn(),
+  getInstrumentDetail: vi.fn(),
+  getInstrumentIntraday: vi.fn(),
+}));
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
@@ -13,12 +24,14 @@ import { useInstrumentHistory } from "@/hooks/useInstrumentHistory";
 import * as api from "@/api";
 import { configContext, type ConfigContextValue } from "@/ConfigContext";
 
-const mockGetNews = vi.spyOn(api, "getNews");
-const mockListInstrumentMetadata = vi.spyOn(api, "listInstrumentMetadata");
-const mockUpdateInstrumentMetadata = vi.spyOn(api, "updateInstrumentMetadata");
-const mockRefreshInstrumentMetadata = vi.spyOn(api, "refreshInstrumentMetadata");
-const mockConfirmInstrumentMetadata = vi.spyOn(api, "confirmInstrumentMetadata");
-const mockGetScreener = vi.spyOn(api, "getScreener");
+const mockGetNews = vi.mocked(api.getNews);
+const mockListInstrumentMetadata = vi.mocked(api.listInstrumentMetadata);
+const mockUpdateInstrumentMetadata = vi.mocked(api.updateInstrumentMetadata);
+const mockRefreshInstrumentMetadata = vi.mocked(api.refreshInstrumentMetadata);
+const mockConfirmInstrumentMetadata = vi.mocked(api.confirmInstrumentMetadata);
+const mockGetScreener = vi.mocked(api.getScreener);
+const mockGetInstrumentDetail = vi.mocked(api.getInstrumentDetail);
+const mockGetInstrumentIntraday = vi.mocked(api.getInstrumentIntraday);
 const mockUseInstrumentHistory = vi.mocked(useInstrumentHistory);
 
 const defaultConfig: ConfigContextValue = {
@@ -100,8 +113,19 @@ describe("InstrumentResearch page", () => {
     mockRefreshInstrumentMetadata.mockReset();
     mockConfirmInstrumentMetadata.mockReset();
     mockGetScreener.mockReset();
+    mockGetInstrumentDetail.mockReset();
+    mockGetInstrumentIntraday.mockReset();
     mockGetNews.mockReset();
     mockGetNews.mockResolvedValue([]);
+    mockGetInstrumentDetail.mockResolvedValue({
+      prices: [
+        { date: "2024-01-01", close_gbp: 100 },
+        { date: "2024-01-02", close_gbp: 101 },
+      ],
+      positions: [],
+      currency: "GBP",
+    } as any);
+    mockGetInstrumentIntraday.mockResolvedValue({ prices: [] });
     mockRefreshInstrumentMetadata.mockResolvedValue({
       status: "preview",
       metadata: {

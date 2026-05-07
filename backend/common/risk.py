@@ -11,8 +11,8 @@ from typing import Dict, List
 import numpy as np
 import pandas as pd
 
-from backend.common import portfolio_utils
 from backend.common import portfolio as portfolio_mod
+from backend.common import portfolio_utils
 from backend.config import config
 
 
@@ -35,9 +35,35 @@ def _safe_float(value: object) -> float:
     return 0.0
 
 
-def compute_portfolio_var(
-    owner: str, days: int = 365, confidence: float = 0.95, include_cash: bool = True
-) -> Dict:
+def _bounded_return_series(values: object) -> pd.Series:
+    """Return finite daily returns clipped to financially bounded losses.
+
+    Historical VaR only needs downside loss magnitudes. Clipping losses at
+    -100% and extreme gains at +100% keeps NumPy/Pandas quantile interpolation
+    from overflowing while preserving normal portfolio-return behaviour.
+    """
+
+    returns = pd.to_numeric(pd.Series(values), errors="coerce")
+    returns = returns.replace([np.inf, -np.inf], np.nan).dropna()
+    return returns.clip(lower=-1.0, upper=1.0)
+
+
+def _compound_returns(returns: pd.Series, window: int) -> pd.Series:
+    """Compound rolling returns without overflowing intermediate products."""
+
+    compounded = []
+    for values in returns.rolling(window):
+        if len(values) < window:
+            compounded.append(float("nan"))
+            continue
+        if (values <= -1.0).any():
+            compounded.append(-1.0)
+            continue
+        compounded.append(float(np.expm1(np.log1p(values).sum())))
+    return pd.Series(compounded, index=returns.index)
+
+
+def compute_portfolio_var(owner: str, days: int = 365, confidence: float = 0.95, include_cash: bool = True) -> Dict:
     """Calculate 1-day and 10-day historical VaR for ``owner``.
 
     Parameters
@@ -96,13 +122,15 @@ def compute_portfolio_var(
         return {"window_days": days, "confidence": confidence, "1d": None, "10d": None}
 
     df = pd.DataFrame(history[-(days + 1) :])
-    returns = df["daily_return"].dropna()
+    returns = _bounded_return_series(df["daily_return"])
     if len(returns) > days:
         returns = returns.iloc[-days:]
     if returns.empty:
         return {"window_days": days, "confidence": confidence, "1d": None, "10d": None}
 
-    current_value = float(df["value"].iloc[-1])
+    current_value = float(pd.to_numeric(pd.Series([df["value"].iloc[-1]]), errors="coerce").iloc[0])
+    if not np.isfinite(current_value) or current_value < 0:
+        return {"window_days": days, "confidence": confidence, "1d": None, "10d": None}
 
     quantile_1d = returns.quantile(1 - confidence)
     if pd.isna(quantile_1d):
@@ -111,8 +139,7 @@ def compute_portfolio_var(
         var_1d_loss_pct = _clamp_loss_fraction(-(quantile_1d))
         var_1d = float(var_1d_loss_pct * current_value)
 
-    ten_day_returns = returns.add(1).rolling(10).apply(np.prod) - 1
-    ten_day_returns = ten_day_returns.dropna()
+    ten_day_returns = _compound_returns(returns, 10).dropna()
     if ten_day_returns.empty:
         var_10d = None
     else:

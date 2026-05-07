@@ -175,5 +175,5 @@ def test_missing_jwt_secret_raises_error(monkeypatch):
     monkeypatch.setattr(auth.config, "disable_auth", False)
     with pytest.raises(RuntimeError):
         importlib.reload(auth)
-    monkeypatch.setenv("JWT_SECRET", "restored")
+    monkeypatch.setenv("JWT_SECRET", "a-restored-test-secret-that-is-at-least-32-bytes")
     importlib.reload(auth)

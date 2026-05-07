@@ -7,6 +7,7 @@ import inspect
 import json
 import logging
 import os
+import time
 from dataclasses import dataclass
 from pathlib import Path, PureWindowsPath
 from threading import RLock
@@ -45,20 +46,75 @@ class _LocalOwnerIndex:
     owners: Dict[str, _LocalOwnerRecord]
 
 
+_LOCAL_FILE_CTIME_CACHE: dict[str, int] = {}
 _LOCAL_OWNER_INDEX_CACHE: dict[str, _LocalOwnerIndex] = {}
 _LOCAL_OWNER_INDEX_LOCK = RLock()
+_SIGNATURE_STABILITY_NS = 10_000_000
 
 
-def _safe_file_signature(path: Path) -> tuple[int, int, str]:
+def _safe_file_signature(
+    path: Path,
+    cached_digest: str = "",
+    cached_mtime_ns: int = 0,
+    cached_size: int = 0,
+) -> tuple[int, int, str]:
     try:
         stat = path.stat()
-        digest = hashlib.blake2b(path.read_bytes(), digest_size=8).hexdigest()
     except OSError:
         return (0, 0, "")
+
+    mtime_ns = int(stat.st_mtime_ns)
+    size = stat.st_size
+    cache_key = str(path.expanduser())
+    cached_ctime_ns = _LOCAL_FILE_CTIME_CACHE.get(cache_key)
+    if (
+        mtime_ns == cached_mtime_ns
+        and size == cached_size
+        and cached_digest
+        and cached_ctime_ns == int(stat.st_ctime_ns)
+        and time.time_ns() - cached_ctime_ns > _SIGNATURE_STABILITY_NS
+    ):
+        return (mtime_ns, size, cached_digest)
+
+    try:
+        with path.open("rb") as handle:
+            data = handle.read()
+            stat = os.fstat(handle.fileno())
+    except OSError:
+        _LOCAL_FILE_CTIME_CACHE.pop(cache_key, None)
+        return (0, 0, "")
+
+    _LOCAL_FILE_CTIME_CACHE[cache_key] = int(stat.st_ctime_ns)
+    digest = hashlib.blake2b(data, digest_size=8).hexdigest()
     return (int(stat.st_mtime_ns), stat.st_size, digest)
 
 
-def _collect_owner_file_signatures(owner_dir: Path) -> list[tuple[str, int, int, str]]:
+def _safe_dir_signature(owner_key: str, owner_dir: Path) -> tuple[str, int, int, str]:
+    try:
+        stat = owner_dir.stat()
+    except OSError:
+        return (f"dir:{owner_key}", 0, 0, "")
+    return (f"dir:{owner_key}", int(stat.st_mtime_ns), stat.st_size, "")
+
+
+def _cached_owner_file_signatures(
+    cached_signature: Tuple[Tuple[str, int, int, str], ...] | None,
+) -> dict[str, dict[str, tuple[int, int, str]]]:
+    cached_files: dict[str, dict[str, tuple[int, int, str]]] = {}
+    owner_key = ""
+    for entry_key, mtime_ns, size, digest in cached_signature or ():
+        if entry_key.startswith("dir:"):
+            owner_key = entry_key.removeprefix("dir:")
+            cached_files.setdefault(owner_key, {})
+        elif owner_key and entry_key.startswith("file:"):
+            cached_files[owner_key][entry_key] = (mtime_ns, size, digest)
+    return cached_files
+
+
+def _collect_owner_file_signatures(
+    owner_dir: Path,
+    cached_signatures: dict[str, tuple[int, int, str]] | None = None,
+) -> list[tuple[str, int, int, str]]:
     try:
         child_entries = sorted(owner_dir.iterdir(), key=lambda entry: entry.name.casefold())
     except OSError:
@@ -68,12 +124,23 @@ def _collect_owner_file_signatures(owner_dir: Path) -> list[tuple[str, int, int,
     for child in child_entries:
         if not child.is_file() or child.suffix.lower() != ".json":
             continue
-        signature.append((f"file:{child.name.casefold()}", *_safe_file_signature(child)))
+        entry_key = f"file:{child.name.casefold()}"
+        cached_mtime_ns, cached_size, cached_digest = (cached_signatures or {}).get(entry_key, (0, 0, ""))
+        signature.append(
+            (
+                entry_key,
+                *_safe_file_signature(child, cached_digest, cached_mtime_ns, cached_size),
+            )
+        )
     return signature
 
 
-def _collect_local_owner_signature(root: Path) -> Tuple[Tuple[str, int, int, str], ...]:
+def _collect_local_owner_signature(
+    root: Path,
+    cached_signature: Tuple[Tuple[str, int, int, str], ...] | None = None,
+) -> Tuple[Tuple[str, int, int, str], ...]:
     signature: list[tuple[str, int, int, str]] = []
+    cached_files = _cached_owner_file_signatures(cached_signature)
 
     try:
         owner_entries = sorted(root.iterdir(), key=lambda entry: entry.name.casefold())
@@ -84,8 +151,8 @@ def _collect_local_owner_signature(root: Path) -> Tuple[Tuple[str, int, int, str
         if not owner_dir.is_dir():
             continue
         owner_key = owner_dir.name.casefold()
-        signature.append((f"dir:{owner_key}", 0, 0, ""))
-        signature.extend(_collect_owner_file_signatures(owner_dir))
+        signature.append(_safe_dir_signature(owner_key, owner_dir))
+        signature.extend(_collect_owner_file_signatures(owner_dir, cached_files.get(owner_key)))
 
     return tuple(signature)
 
@@ -121,11 +188,12 @@ def _build_local_owner_index(
 
 def _get_local_owner_index(root: Path) -> _LocalOwnerIndex:
     cache_key = str(root.expanduser())
-    signature = _collect_local_owner_signature(root)
     with _LOCAL_OWNER_INDEX_LOCK:
         cached = _LOCAL_OWNER_INDEX_CACHE.get(cache_key)
-        if cached is not None and cached.signature == signature:
-            return cached
+
+    signature = _collect_local_owner_signature(root, cached.signature if cached else None)
+    if cached is not None and cached.signature == signature:
+        return cached
 
     fresh_index = _build_local_owner_index(root, signature)
     with _LOCAL_OWNER_INDEX_LOCK:
@@ -136,6 +204,7 @@ def _get_local_owner_index(root: Path) -> _LocalOwnerIndex:
 def clear_local_owner_index_cache() -> None:
     with _LOCAL_OWNER_INDEX_LOCK:
         _LOCAL_OWNER_INDEX_CACHE.clear()
+        _LOCAL_FILE_CTIME_CACHE.clear()
 
 
 # ------------------------------------------------------------------

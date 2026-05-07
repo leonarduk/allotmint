@@ -8,6 +8,28 @@ import { cleanup } from '@testing-library/react';
 import { toHaveNoViolations } from 'jest-axe';
 expect.extend(toHaveNoViolations);
 
+// Vitest does not serve public/config.json, so intercept only the runtime
+// config asset request and let all API requests continue through the real fetch.
+const nativeFetch = globalThis.fetch.bind(globalThis);
+
+const isRuntimeConfigRequest = (input: RequestInfo | URL) => {
+  if (typeof input === 'string') return input === '/config.json';
+  if (input instanceof URL) return input.pathname === '/config.json';
+
+  return input.url.endsWith('/config.json');
+};
+
+const createRuntimeConfigResponse = () =>
+  new Response(null, { status: 404 });
+
+globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+  if (isRuntimeConfigRequest(input)) {
+    return Promise.resolve(createRuntimeConfigResponse());
+  }
+
+  return nativeFetch(input, init);
+}) as typeof fetch;
+
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
   return {

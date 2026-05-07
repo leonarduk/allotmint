@@ -17,10 +17,12 @@ const RECHARTS_DIMENSION_WARNING_PATTERN = /width\((?:0|-1)\)|height\((?:0|-1)\)
 let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
 
-const hasRechartsDimensionWarning = (args: unknown[]) =>
-  args.some(
-    (arg) =>
-      typeof arg === "string" && RECHARTS_DIMENSION_WARNING_PATTERN.test(arg),
+const getRechartsDimensionWarningCalls = (calls: unknown[][]) =>
+  calls.filter((args) =>
+    args.some(
+      (arg) =>
+        typeof arg === "string" && RECHARTS_DIMENSION_WARNING_PATTERN.test(arg),
+    ),
   );
 
 beforeEach(() => {
@@ -36,14 +38,12 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  const dimensionWarningCalls = consoleErrorSpy.mock.calls.filter(
-    hasRechartsDimensionWarning,
+  expect(getRechartsDimensionWarningCalls(consoleErrorSpy.mock.calls)).toEqual(
+    [],
   );
-  expect(dimensionWarningCalls).toEqual([]);
-  const dimensionWarnCalls = consoleWarnSpy.mock.calls.filter(
-    hasRechartsDimensionWarning,
+  expect(getRechartsDimensionWarningCalls(consoleWarnSpy.mock.calls)).toEqual(
+    [],
   );
-  expect(dimensionWarnCalls).toEqual([]);
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   api.clearGroupInstrumentCache();

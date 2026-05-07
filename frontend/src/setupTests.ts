@@ -158,8 +158,8 @@ HTMLElement.prototype.getBoundingClientRect = function (this: HTMLElement) {
     return originalGetBoundingClientRect.call(this);
   }
 
-  const width = this.offsetWidth || 800;
-  const height = this.offsetHeight || 600;
+  const width = this.offsetWidth;
+  const height = this.offsetHeight;
   return {
     x: 0,
     y: 0,

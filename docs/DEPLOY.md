@@ -206,13 +206,18 @@ If deployment fails or the live environment does not match local behavior:
 
 1. Re-run `npx cdk diff --all` and confirm intended stack changes are present.
 2. Run `npx cdk deploy --all --require-approval never` and capture the exact failing resource from CloudFormation events.
-3. Inspect backend Lambda errors (CloudWatch):
+3. Inspect backend Lambda errors (CloudWatch). Lambda functions in this stack use
+   explicit CDK-managed log groups, so read the deployed log group name from the
+   stack outputs instead of assuming the `/aws/lambda/<function-name>` convention:
 
    ```bash
-   aws cloudformation list-stack-resources --stack-name BackendLambdaStack \
-     --query "StackResourceSummaries[?ResourceType=='AWS::Lambda::Function' && starts_with(LogicalResourceId, 'BackendLambda')].PhysicalResourceId | [0]" --output text
-   aws logs tail /aws/lambda/<BackendLambdaPhysicalName> --since 30m --follow
+   BACKEND_LOG_GROUP=$(aws cloudformation describe-stacks --stack-name BackendLambdaStack \
+     --query "Stacks[0].Outputs[?OutputKey=='BackendLambdaLogGroupName'].OutputValue" --output text)
+   aws logs tail "$BACKEND_LOG_GROUP" --since 30m --follow
    ```
+
+   The scheduled Lambdas expose the same discoverability outputs as
+   `PriceRefreshLambdaLogGroupName` and `TradingAgentLambdaLogGroupName`.
 
 4. Validate API Gateway connectivity with the `BackendApiUrl` output:
 

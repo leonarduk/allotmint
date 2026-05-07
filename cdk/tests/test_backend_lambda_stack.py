@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 aws_cdk = pytest.importorskip("aws_cdk", reason="aws-cdk-lib not installed")
 
 from aws_cdk import App, assertions  # noqa: E402
+
 from cdk.stacks.backend_lambda_stack import BackendLambdaStack  # noqa: E402
 from cdk.stacks.exports import BACKEND_API_URL_EXPORT  # noqa: E402  # stable name guard
 
@@ -268,7 +269,8 @@ def test_backend_lambda_timeout_is_at_least_30s(template):
         resource["Properties"].get("Timeout", 3)
         for resource in functions.values()
         if resource.get("Properties", {}).get("PackageType") == "Image"
-        and "JWT_SECRET" in resource.get("Properties", {}).get("Environment", {}).get("Variables", {})
+        and "JWT_SECRET"
+        in resource.get("Properties", {}).get("Environment", {}).get("Variables", {})
     ]
     assert backend_timeouts, "BackendLambda not found in synthesised template"
     assert all(t >= 30 for t in backend_timeouts), (
@@ -324,6 +326,15 @@ def test_backend_api_url_output_has_stable_export_name(template):
 
 def test_data_bucket_name_output_exists(template):
     template.has_output("DataBucketName", {})
+
+
+def test_lambda_log_group_name_outputs_exist(template):
+    for output_name in (
+        "BackendLambdaLogGroupName",
+        "PriceRefreshLambdaLogGroupName",
+        "TradingAgentLambdaLogGroupName",
+    ):
+        template.has_output(output_name, {})
 
 
 def test_backend_lambda_error_alarm_output_exists(template):

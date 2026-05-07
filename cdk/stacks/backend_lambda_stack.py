@@ -190,12 +190,13 @@ class BackendLambdaStack(Stack):
         if data_repo:
             backend_env["DATA_REPO"] = data_repo
 
+        backend_log_group = self._lambda_log_group(self, "BackendLambdaLogGroup")
         backend_fn = _lambda.DockerImageFunction(
             self,
             "BackendLambda",
             code=image_code,
             environment=backend_env,
-            log_group=self._lambda_log_group(self, "BackendLambdaLogGroup"),
+            log_group=backend_log_group,
             timeout=Duration.seconds(30),
         )
         backend_fn.add_environment("APP_ENV", env)
@@ -245,12 +246,13 @@ class BackendLambdaStack(Stack):
         if data_repo:
             refresh_env["DATA_REPO"] = data_repo
 
+        refresh_log_group = self._lambda_log_group(self, "PriceRefreshLambdaLogGroup")
         refresh_fn = _lambda.DockerImageFunction(
             self,
             "PriceRefreshLambda",
             code=refresh_code,
             environment=refresh_env,
-            log_group=self._lambda_log_group(self, "PriceRefreshLambdaLogGroup"),
+            log_group=refresh_log_group,
         )
 
         # PriceRefreshLambda: read + put, no list
@@ -289,12 +291,13 @@ class BackendLambdaStack(Stack):
         if data_repo:
             agent_env["DATA_REPO"] = data_repo
 
+        agent_log_group = self._lambda_log_group(self, "TradingAgentLambdaLogGroup")
         agent_fn = _lambda.DockerImageFunction(
             self,
             "TradingAgentLambda",
             code=agent_code,
             environment=agent_env,
-            log_group=self._lambda_log_group(self, "TradingAgentLambdaLogGroup"),
+            log_group=agent_log_group,
         )
 
         # TradingAgentLambda: read only, no put, no list
@@ -369,4 +372,7 @@ class BackendLambdaStack(Stack):
             export_name=BACKEND_API_URL_EXPORT,
         )
         CfnOutput(self, "DataBucketName", value=data_bucket.bucket_name)
+        CfnOutput(self, "BackendLambdaLogGroupName", value=backend_log_group.log_group_name)
+        CfnOutput(self, "PriceRefreshLambdaLogGroupName", value=refresh_log_group.log_group_name)
+        CfnOutput(self, "TradingAgentLambdaLogGroupName", value=agent_log_group.log_group_name)
         CfnOutput(self, "BackendLambdaErrorAlarmName", value=backend_error_alarm.alarm_name)

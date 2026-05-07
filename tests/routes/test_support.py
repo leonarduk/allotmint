@@ -40,7 +40,7 @@ def test_portfolio_health_suggestions(monkeypatch):
             {"message": "all good"},
         ]
 
-    monkeypatch.setattr(support, "run_check", fake_run_check)
+    monkeypatch.setattr("scripts.check_portfolio_health.run_check", fake_run_check)
 
     client = make_client()
     resp = client.post("/support/portfolio-health", json={"threshold": 0.5})
@@ -70,7 +70,7 @@ def test_portfolio_health_handles_run_check_errors(monkeypatch):
             return [{"message": "initial"}]
         raise RuntimeError("boom")
 
-    monkeypatch.setattr(support, "run_check", fake_run_check)
+    monkeypatch.setattr("scripts.check_portfolio_health.run_check", fake_run_check)
 
     client = make_client()
 
@@ -110,7 +110,7 @@ def test_portfolio_health_initial_failure_returns_error(monkeypatch):
     def boom(threshold: float) -> list[dict]:  # pragma: no cover - signature for typing
         raise RuntimeError("boom")
 
-    monkeypatch.setattr(support, "run_check", boom)
+    monkeypatch.setattr("scripts.check_portfolio_health.run_check", boom)
 
     client = make_client()
     resp = client.post("/support/portfolio-health", json={"threshold": 0.1})

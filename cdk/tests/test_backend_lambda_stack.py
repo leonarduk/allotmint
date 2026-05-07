@@ -261,6 +261,21 @@ def test_backend_lambda_has_jwt_and_google_env_vars(template):
     )
 
 
+def test_backend_lambda_timeout_is_at_least_30s(template):
+    """BackendLambda must have a timeout > the 3 s default to survive cold starts."""
+    functions = template.find_resources("AWS::Lambda::Function")
+    backend_timeouts = [
+        resource["Properties"].get("Timeout", 3)
+        for resource in functions.values()
+        if resource.get("Properties", {}).get("PackageType") == "Image"
+        and "JWT_SECRET" in resource.get("Properties", {}).get("Environment", {}).get("Variables", {})
+    ]
+    assert backend_timeouts, "BackendLambda not found in synthesised template"
+    assert all(t >= 30 for t in backend_timeouts), (
+        f"BackendLambda timeout must be >= 30 s; found {backend_timeouts}"
+    )
+
+
 def test_backend_error_alarm_exists(template):
     template.has_resource_properties(
         "AWS::CloudWatch::Alarm",

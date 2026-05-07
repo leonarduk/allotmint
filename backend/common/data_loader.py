@@ -46,6 +46,11 @@ class _LocalOwnerIndex:
     owners: Dict[str, _LocalOwnerRecord]
 
 
+# Per-file ctime recorded on each full hash; used on POSIX to detect content-only
+# rewrites that restore mtime/size via os.utime.  Cleared by
+# clear_local_owner_index_cache().  The dict stays small because it tracks only
+# files under the accounts directory; stale entries for removed files are
+# implicitly irrelevant (they never match a live path.stat() ctime).
 _LOCAL_FILE_CTIME_CACHE: dict[str, int] = {}
 _LOCAL_OWNER_INDEX_CACHE: dict[str, _LocalOwnerIndex] = {}
 _LOCAL_OWNER_INDEX_LOCK = RLock()
@@ -194,14 +199,24 @@ def _get_local_owner_index(root: Path) -> _LocalOwnerIndex:
     cache_key = str(root.expanduser())
     with _LOCAL_OWNER_INDEX_LOCK:
         cached = _LOCAL_OWNER_INDEX_CACHE.get(cache_key)
-        # Collect the signature and rebuild (if needed) inside the lock so that
-        # a concurrent clear_local_owner_index_cache() cannot cause a stale entry
-        # to be written back after the cache has been invalidated.
-        signature = _collect_local_owner_signature(root, cached.signature if cached else None)
-        if cached is not None and cached.signature == signature:
-            return cached
-        fresh_index = _build_local_owner_index(root, signature)
-        _LOCAL_OWNER_INDEX_CACHE[cache_key] = fresh_index
+
+    # Signature collection and index build happen outside the lock so that
+    # file I/O does not serialise concurrent callers.
+    cached_sig = cached.signature if cached else None
+    signature = _collect_local_owner_signature(root, cached_sig)
+
+    if cached is not None and cached.signature == signature:
+        return cached
+
+    fresh_index = _build_local_owner_index(root, signature)
+
+    with _LOCAL_OWNER_INDEX_LOCK:
+        # Double-check: only write if the cache is empty or still holds the same
+        # signature we computed.  This prevents overwriting a newer entry placed
+        # by a concurrent clear_local_owner_index_cache() + rebuild.
+        current = _LOCAL_OWNER_INDEX_CACHE.get(cache_key)
+        if current is None or current.signature == signature:
+            _LOCAL_OWNER_INDEX_CACHE[cache_key] = fresh_index
     return fresh_index
 
 

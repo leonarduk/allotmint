@@ -125,21 +125,28 @@ const defineSize = (prop: 'offsetWidth' | 'offsetHeight', value: number) => {
 defineSize('offsetWidth', 800);
 defineSize('offsetHeight', 600);
 
-// Fallback for getBoundingClientRect to return a sensible box
-if (!HTMLElement.prototype.getBoundingClientRect) {
-  HTMLElement.prototype.getBoundingClientRect = function (this: HTMLElement) {
-    const width = this.offsetWidth || 800;
-    const height = this.offsetHeight || 600;
-    return {
-      x: 0,
-      y: 0,
-      top: 0,
-      left: 0,
-      right: width,
-      bottom: height,
-      width,
-      height,
-      toJSON() {},
-    } as DOMRect;
-  };
-}
+// JSDOM provides getBoundingClientRect, but it always reports zero-sized
+// boxes because there is no layout engine. Keep default geometry for most
+// elements, but give Recharts ResponsiveContainer nodes deterministic boxes so
+// chart tests avoid transient 0x0 resize states without affecting virtualized
+// table measurements.
+const originalGetBoundingClientRect = HTMLElement.prototype.getBoundingClientRect;
+HTMLElement.prototype.getBoundingClientRect = function (this: HTMLElement) {
+  if (!this.classList.contains('recharts-responsive-container')) {
+    return originalGetBoundingClientRect.call(this);
+  }
+
+  const width = this.offsetWidth || 800;
+  const height = this.offsetHeight || 600;
+  return {
+    x: 0,
+    y: 0,
+    top: 0,
+    left: 0,
+    right: width,
+    bottom: height,
+    width,
+    height,
+    toJSON() {},
+  } as DOMRect;
+};

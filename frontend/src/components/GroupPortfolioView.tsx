@@ -71,6 +71,8 @@ const DAY_CHANGE_BASELINE_EPSILON = 1e-2;
 // Warn when a single holding represents more than this share of the full portfolio.
 const CONCENTRATION_THRESHOLD_PCT = 20;
 const CASH_DRAG_THRESHOLD_PCT = 5;
+const TYPE_CHART_INITIAL_DIMENSION = { width: 800, height: 240 };
+const CONTRIBUTION_CHART_INITIAL_DIMENSION = { width: 800, height: 300 };
 
 const computeDayChangePct = (value: number, delta: number): number | null => {
   if (!Number.isFinite(value) || !Number.isFinite(delta)) {
@@ -907,7 +909,13 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
 
       {typeRows.length > 0 && (
         <div style={{ width: "100%", height: 240, margin: "1rem 0" }}>
-          <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
+          <ResponsiveContainer
+            width="100%"
+            height="100%"
+            minWidth={1}
+            minHeight={1}
+            initialDimension={TYPE_CHART_INITIAL_DIMENSION}
+          >
             <PieChart>
               <Pie
                 dataKey="value"
@@ -954,7 +962,13 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
               Region
             </button>
           </div>
-          <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
+          <ResponsiveContainer
+            width="100%"
+            height="100%"
+            minWidth={1}
+            minHeight={1}
+            initialDimension={CONTRIBUTION_CHART_INITIAL_DIMENSION}
+          >
             <BarChart
               data={
                 contribTab === "sector"

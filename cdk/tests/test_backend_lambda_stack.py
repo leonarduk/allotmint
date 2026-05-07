@@ -210,12 +210,36 @@ def test_all_lambda_functions_have_data_bucket_env_var(template):
 # Observability, secrets, and cost guardrails
 # ---------------------------------------------------------------------------
 
-def test_all_lambda_functions_have_one_week_log_retention(template):
-    resources = template.find_resources("Custom::LogRetention")
-    # one log retention custom resource per Lambda function
-    assert len(resources) >= 3, (
-        "Expected Custom::LogRetention resources for backend, refresh, and agent Lambdas"
-    )
+def test_all_lambda_functions_have_one_week_log_groups(template):
+    resources = template.find_resources("AWS::Logs::LogGroup")
+    lambda_log_groups = {
+        logical_id: resource
+        for logical_id, resource in resources.items()
+        if logical_id.startswith(
+            ("BackendLambdaLogGroup", "PriceRefreshLambdaLogGroup", "TradingAgentLambdaLogGroup")
+        )
+    }
+
+    assert len(lambda_log_groups) == 3
+    for logical_id, resource in lambda_log_groups.items():
+        assert resource["Properties"]["RetentionInDays"] == 7, (
+            f"Lambda log group {logical_id} must retain logs for one week"
+        )
+        assert resource["DeletionPolicy"] == "Delete", (
+            f"Lambda log group {logical_id} must be destroyed with the stack"
+        )
+
+    lambda_functions = template.find_resources("AWS::Lambda::Function")
+    image_functions = {
+        logical_id: resource
+        for logical_id, resource in lambda_functions.items()
+        if resource.get("Properties", {}).get("PackageType") == "Image"
+    }
+    for logical_id, resource in image_functions.items():
+        assert "LogGroup" in resource["Properties"].get("LoggingConfig", {}), (
+            f"Lambda function {logical_id} must use an explicit log group"
+        )
+    assert template.find_resources("Custom::LogRetention") == {}
 
 
 def test_backend_lambda_has_jwt_and_google_env_vars(template):

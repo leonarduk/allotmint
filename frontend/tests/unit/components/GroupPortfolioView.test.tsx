@@ -15,6 +15,7 @@ vi.mock("@/components/TopMoversSummary", () => ({
 const RECHARTS_DIMENSION_WARNING_PATTERN = /width\((?:0|-1)\)|height\((?:0|-1)\)/;
 
 let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
 
 const hasRechartsDimensionWarning = (args: unknown[]) =>
   args.some(
@@ -31,6 +32,7 @@ beforeEach(() => {
     .spyOn(api, "getCachedGroupInstruments")
     .mockImplementation((slug, filters) => api.getGroupInstruments(slug, filters));
   consoleErrorSpy = vi.spyOn(console, "error");
+  consoleWarnSpy = vi.spyOn(console, "warn");
 });
 
 afterEach(async () => {
@@ -38,6 +40,10 @@ afterEach(async () => {
     hasRechartsDimensionWarning,
   );
   expect(dimensionWarningCalls).toEqual([]);
+  const dimensionWarnCalls = consoleWarnSpy.mock.calls.filter(
+    hasRechartsDimensionWarning,
+  );
+  expect(dimensionWarnCalls).toEqual([]);
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   api.clearGroupInstrumentCache();

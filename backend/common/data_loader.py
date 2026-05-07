@@ -202,6 +202,16 @@ def _get_local_owner_index(root: Path) -> _LocalOwnerIndex:
 
     # Signature collection and index build happen outside the lock so that
     # file I/O does not serialise concurrent callers.
+    #
+    # Safety of the lock-free window: if clear_local_owner_index_cache() runs
+    # after we release the lock above, it also clears _LOCAL_FILE_CTIME_CACHE.
+    # When _safe_file_signature then looks up cached_ctime_ns it gets None,
+    # making ctime_ok=False on POSIX, so every file is re-read from disk.
+    # The stale mtime/size/digest values from cached_sig are therefore never
+    # used to skip I/O — they are only passed as hints that get ignored.
+    # On Windows (_CTIME_TRACKS_CHANGES=False) ctime_ok is always True, so a
+    # stale cached_sig could let a content-only change slip through for one
+    # call; this is the same known limitation as the rest of the Windows path.
     cached_sig = cached.signature if cached else None
     signature = _collect_local_owner_signature(root, cached_sig)
 

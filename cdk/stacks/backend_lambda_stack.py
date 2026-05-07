@@ -2,7 +2,7 @@ import os
 from collections.abc import Sequence
 from pathlib import Path
 
-from aws_cdk import CfnOutput, Duration, Stack
+from aws_cdk import CfnOutput, Duration, RemovalPolicy, Stack
 from aws_cdk import aws_apigatewayv2 as apigwv2
 from aws_cdk import aws_apigatewayv2_integrations as apigwv2_integrations
 from aws_cdk import aws_budgets as budgets
@@ -20,6 +20,17 @@ from stacks.exports import BACKEND_API_URL_EXPORT
 
 class BackendLambdaStack(Stack):
     """CDK stack that builds and deploys the backend Lambda."""
+
+    @staticmethod
+    def _lambda_log_group(scope: Construct, construct_id: str) -> logs.LogGroup:
+        """Create the Lambda log group with the stack's standard retention policy."""
+
+        return logs.LogGroup(
+            scope,
+            construct_id,
+            retention=logs.RetentionDays.ONE_WEEK,
+            removal_policy=RemovalPolicy.DESTROY,
+        )
 
     @staticmethod
     def _grant_bucket_access(
@@ -184,8 +195,8 @@ class BackendLambdaStack(Stack):
             "BackendLambda",
             code=image_code,
             environment=backend_env,
+            log_group=self._lambda_log_group(self, "BackendLambdaLogGroup"),
             timeout=Duration.seconds(30),
-            log_retention=logs.RetentionDays.ONE_WEEK,
         )
         backend_fn.add_environment("APP_ENV", env)
 
@@ -239,7 +250,7 @@ class BackendLambdaStack(Stack):
             "PriceRefreshLambda",
             code=refresh_code,
             environment=refresh_env,
-            log_retention=logs.RetentionDays.ONE_WEEK,
+            log_group=self._lambda_log_group(self, "PriceRefreshLambdaLogGroup"),
         )
 
         # PriceRefreshLambda: read + put, no list
@@ -283,7 +294,7 @@ class BackendLambdaStack(Stack):
             "TradingAgentLambda",
             code=agent_code,
             environment=agent_env,
-            log_retention=logs.RetentionDays.ONE_WEEK,
+            log_group=self._lambda_log_group(self, "TradingAgentLambdaLogGroup"),
         )
 
         # TradingAgentLambda: read only, no put, no list

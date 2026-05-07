@@ -4,7 +4,10 @@
 
 - Backend uses Python's `logging` module. The main configuration lives in `backend/logging.ini`.
 - A minimal top-level `logging.ini` only overrides noisy third-party loggers such as `yfinance`.
-- When deployed on AWS Lambda, logs are available in CloudWatch log groups named `/aws/lambda/<FunctionName>`.
+- When deployed on AWS Lambda, logs are written to explicit CDK-managed CloudWatch log groups.
+  Discover the deployed names from the `BackendLambdaStack` outputs:
+  `BackendLambdaLogGroupName`, `PriceRefreshLambdaLogGroupName`, and
+  `TradingAgentLambdaLogGroupName`.
 - Local runs print logs to the console.
 
 ## Dashboards

@@ -4,6 +4,10 @@ import type { UserConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import path from 'node:path'
 
+const defaultAppBaseUrl = 'https://app.allotmint.io'
+
+process.env.VITE_APP_BASE_URL = process.env.VITE_APP_BASE_URL || defaultAppBaseUrl
+
 // https://vite.dev/config/
 export default defineConfig(() => {
   const plugins: PluginOption[] = [

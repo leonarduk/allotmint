@@ -29,7 +29,7 @@ pandas~=2.3.1
 peewee~=3.18.2
 pillow>=9.2.0,<12.0  # moviepy~=2.2.1 requires pillow<12.0
 platformdirs~=3.10.0
-protobuf>=4.25.8,<5  # Keep protobuf 4.x for compatibility with requested dependency policy
+protobuf>=6.31.0,<7  # 6.31.0 includes protocolbuffers/protobuf#15999 for Python 3.14 PyType_Spec compatibility
 pyarrow~=21.0.0
 reportlab~=4.4.3
 pycparser~=2.21

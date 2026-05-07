@@ -12,7 +12,6 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from backend.utils.telegram_utils import send_message
-from scripts.check_portfolio_health import run_check
 
 router = APIRouter(prefix="/support", tags=["support"])
 
@@ -62,6 +61,9 @@ def _cache_is_fresh(cache: _PortfolioHealthSnapshot, threshold: float) -> bool:
 
 async def _compute_portfolio_health(threshold: float) -> _PortfolioHealthSnapshot:
     try:
+        # Deferred: scripts/ is outside the backend package and not present in the
+        # Lambda Docker image, so a module-level import would block Lambda startup.
+        from scripts.check_portfolio_health import run_check  # noqa: PLC0415
         findings = await asyncio.to_thread(run_check, threshold)
     except Exception:  # pragma: no cover - defensive logging
         logger.exception(

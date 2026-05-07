@@ -51,7 +51,7 @@ def test_portfolio_health_empty_cache(monkeypatch):
         calls.append(threshold)
         return [{"type": "owner", "message": "Owner foo max drawdown unavailable"}]
 
-    monkeypatch.setattr("backend.routes.support.run_check", fake_run_check)
+    monkeypatch.setattr("scripts.check_portfolio_health.run_check", fake_run_check)
 
     app = create_app()
     with TestClient(app) as client:

@@ -2,13 +2,14 @@ from __future__ import annotations
 
 """Data loading helpers for AllotMint."""
 
+import hashlib
 import inspect
 import json
 import logging
 import os
 from dataclasses import dataclass
-from threading import RLock
 from pathlib import Path, PureWindowsPath
+from threading import RLock
 from typing import Any, Dict, List, Optional, Tuple
 
 from pydantic import ValidationError
@@ -25,8 +26,8 @@ from backend.common.data_providers import (
     _safe_json_load,
 )
 from backend.common.virtual_portfolio import VirtualPortfolio
-from backend.config import config, demo_identity as get_demo_identity
-
+from backend.config import config
+from backend.config import demo_identity as get_demo_identity
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +41,7 @@ class _LocalOwnerRecord:
 
 @dataclass(frozen=True)
 class _LocalOwnerIndex:
-    signature: Tuple[Tuple[str, int, int], ...]
+    signature: Tuple[Tuple[str, int, int, str], ...]
     owners: Dict[str, _LocalOwnerRecord]
 
 
@@ -48,16 +49,31 @@ _LOCAL_OWNER_INDEX_CACHE: dict[str, _LocalOwnerIndex] = {}
 _LOCAL_OWNER_INDEX_LOCK = RLock()
 
 
-def _safe_stat_signature(path: Path) -> tuple[int, int]:
+def _safe_file_signature(path: Path) -> tuple[int, int, str]:
     try:
         stat = path.stat()
+        digest = hashlib.blake2b(path.read_bytes(), digest_size=8).hexdigest()
     except OSError:
-        return (0, 0)
-    return (int(stat.st_mtime_ns), stat.st_size)
+        return (0, 0, "")
+    return (int(stat.st_mtime_ns), stat.st_size, digest)
 
 
-def _collect_local_owner_signature(root: Path) -> Tuple[Tuple[str, int, int], ...]:
-    signature: list[tuple[str, int, int]] = []
+def _collect_owner_file_signatures(owner_dir: Path) -> list[tuple[str, int, int, str]]:
+    try:
+        child_entries = sorted(owner_dir.iterdir(), key=lambda entry: entry.name.casefold())
+    except OSError:
+        return []
+
+    signature: list[tuple[str, int, int, str]] = []
+    for child in child_entries:
+        if not child.is_file() or child.suffix.lower() != ".json":
+            continue
+        signature.append((f"file:{child.name.casefold()}", *_safe_file_signature(child)))
+    return signature
+
+
+def _collect_local_owner_signature(root: Path) -> Tuple[Tuple[str, int, int, str], ...]:
+    signature: list[tuple[str, int, int, str]] = []
 
     try:
         owner_entries = sorted(root.iterdir(), key=lambda entry: entry.name.casefold())
@@ -68,13 +84,15 @@ def _collect_local_owner_signature(root: Path) -> Tuple[Tuple[str, int, int], ..
         if not owner_dir.is_dir():
             continue
         owner_key = owner_dir.name.casefold()
-        signature.append((f"dir:{owner_key}", *_safe_stat_signature(owner_dir)))
-        signature.append((f"person:{owner_key}", *_safe_stat_signature(owner_dir / "person.json")))
+        signature.append((f"dir:{owner_key}", 0, 0, ""))
+        signature.extend(_collect_owner_file_signatures(owner_dir))
 
     return tuple(signature)
 
 
-def _build_local_owner_index(root: Path, signature: Tuple[Tuple[str, int, int], ...] | None = None) -> _LocalOwnerIndex:
+def _build_local_owner_index(
+    root: Path, signature: Tuple[Tuple[str, int, int, str], ...] | None = None
+) -> _LocalOwnerIndex:
     owners: Dict[str, _LocalOwnerRecord] = {}
 
     try:
@@ -466,9 +484,7 @@ def _list_local_plots(
     explicit_root = data_root is not None
 
     try:
-        explicit_matches_fallback = (
-            explicit_root and Path(data_root).expanduser().resolve() == fallback_root.resolve()
-        )
+        explicit_matches_fallback = explicit_root and Path(data_root).expanduser().resolve() == fallback_root.resolve()
     except Exception:
         explicit_matches_fallback = False
 
@@ -476,8 +492,7 @@ def _list_local_plots(
         explicit_matches_config = (
             explicit_root
             and getattr(config, "accounts_root", None)
-            and Path(config.accounts_root).expanduser().resolve()
-            == Path(data_root).expanduser().resolve()
+            and Path(config.accounts_root).expanduser().resolve() == Path(data_root).expanduser().resolve()
         )
     except Exception:
         explicit_matches_config = False
@@ -490,9 +505,7 @@ def _list_local_plots(
     except Exception:
         config_repo_matches_fallback = False
 
-    explicit_is_global = explicit_matches_fallback or (
-        explicit_matches_config and config_repo_matches_fallback
-    )
+    explicit_is_global = explicit_matches_fallback or (explicit_matches_config and config_repo_matches_fallback)
 
     include_demo_primary = bool(config.disable_auth) and (not explicit_root or explicit_is_global)
 
@@ -665,9 +678,7 @@ def _list_local_plots(
 
     skip_aliases = _skip_owners()
     filtered_results = [
-        entry
-        for entry in filtered_results
-        if str(entry.get("owner", "")).strip().lower() not in skip_aliases
+        entry for entry in filtered_results if str(entry.get("owner", "")).strip().lower() not in skip_aliases
     ]
 
     return filtered_results
@@ -693,10 +704,7 @@ def _list_aws_plots(current_user: Optional[str] = None) -> List[Dict[str, Any]]:
     """
 
     try:
-        owners = {
-            entry["owner"]: entry["accounts"]
-            for entry in S3DataProvider().list_plots(current_user=current_user)
-        }
+        owners = {entry["owner"]: entry["accounts"] for entry in S3DataProvider().list_plots(current_user=current_user)}
     except ProviderUnavailable as exc:
         if "boto3 is not available" in str(exc):
             return []
@@ -723,9 +731,7 @@ def _list_aws_plots(current_user: Optional[str] = None) -> List[Dict[str, Any]]:
             email = meta.get("email") if isinstance(meta, dict) else None
             if isinstance(email, str) and email.strip():
                 allowed_identities.add(email.strip().lower())
-            allowed_identities.update(
-                viewer.lower() for viewer in viewers if isinstance(viewer, str)
-            )
+            allowed_identities.update(viewer.lower() for viewer in viewers if isinstance(viewer, str))
             if not isinstance(user, str) or user.lower() not in allowed_identities:
                 continue
         results.append(_build_owner_summary(owner, accounts, meta))
@@ -981,11 +987,7 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
         """
         validated = PersonMetadata.model_validate(data)
         all_values = validated.model_dump()
-        return {
-            k: v
-            for k, v in all_values.items()
-            if k in data and v is not None
-        }
+        return {k: v for k, v in all_values.items() if k in data and v is not None}
 
     local_root: Optional[Path] = data_root
     if local_root is None:

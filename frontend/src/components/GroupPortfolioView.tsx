@@ -71,6 +71,7 @@ const DAY_CHANGE_BASELINE_EPSILON = 1e-2;
 // Warn when a single holding represents more than this share of the full portfolio.
 const CONCENTRATION_THRESHOLD_PCT = 20;
 const CASH_DRAG_THRESHOLD_PCT = 5;
+// JSDOM has no layout engine; these give Recharts a non-zero initial size in tests.
 const TYPE_CHART_INITIAL_DIMENSION = { width: 800, height: 240 };
 const CONTRIBUTION_CHART_INITIAL_DIMENSION = { width: 800, height: 300 };
 

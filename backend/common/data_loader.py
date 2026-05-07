@@ -7,6 +7,7 @@ import inspect
 import json
 import logging
 import os
+import sys
 from dataclasses import dataclass
 from pathlib import Path, PureWindowsPath
 from threading import RLock
@@ -45,8 +46,12 @@ class _LocalOwnerIndex:
     owners: Dict[str, _LocalOwnerRecord]
 
 
+_LOCAL_FILE_CTIME_CACHE: dict[str, int] = {}
 _LOCAL_OWNER_INDEX_CACHE: dict[str, _LocalOwnerIndex] = {}
 _LOCAL_OWNER_INDEX_LOCK = RLock()
+# On Windows st_ctime_ns is the file *creation* time and is not updated when
+# file content changes, so the ctime guard cannot detect content-only rewrites there.
+_CTIME_TRACKS_CHANGES: bool = sys.platform != "win32"
 
 
 def _safe_file_signature(
@@ -55,13 +60,21 @@ def _safe_file_signature(
     cached_mtime_ns: int = 0,
     cached_size: int = 0,
 ) -> tuple[int, int, str]:
-    # Skip re-hash when mtime and size match the cached entry.
+    cache_key = str(path.expanduser())
+    cached_ctime_ns = _LOCAL_FILE_CTIME_CACHE.get(cache_key) if _CTIME_TRACKS_CHANGES else None
+    # Skip re-hash when mtime and size match. On platforms where ctime tracks
+    # content changes (non-Windows) also require ctime to match, catching
+    # content-only rewrites that restore mtime/size via os.utime.
     if cached_digest:
         try:
             stat = path.stat()
         except OSError:
+            _LOCAL_FILE_CTIME_CACHE.pop(cache_key, None)
             return (0, 0, "")
-        if int(stat.st_mtime_ns) == cached_mtime_ns and stat.st_size == cached_size:
+        ctime_ok = not _CTIME_TRACKS_CHANGES or (
+            cached_ctime_ns is not None and int(stat.st_ctime_ns) == cached_ctime_ns
+        )
+        if int(stat.st_mtime_ns) == cached_mtime_ns and stat.st_size == cached_size and ctime_ok:
             return (int(stat.st_mtime_ns), stat.st_size, cached_digest)
 
     # Use open() + os.fstat() so that the stat and the read are on the same
@@ -71,8 +84,11 @@ def _safe_file_signature(
             data = handle.read()
             stat = os.fstat(handle.fileno())
     except OSError:
+        _LOCAL_FILE_CTIME_CACHE.pop(cache_key, None)
         return (0, 0, "")
 
+    if _CTIME_TRACKS_CHANGES:
+        _LOCAL_FILE_CTIME_CACHE[cache_key] = int(stat.st_ctime_ns)
     digest = hashlib.blake2b(data, digest_size=8).hexdigest()
     return (int(stat.st_mtime_ns), stat.st_size, digest)
 
@@ -192,6 +208,7 @@ def _get_local_owner_index(root: Path) -> _LocalOwnerIndex:
 def clear_local_owner_index_cache() -> None:
     with _LOCAL_OWNER_INDEX_LOCK:
         _LOCAL_OWNER_INDEX_CACHE.clear()
+        _LOCAL_FILE_CTIME_CACHE.clear()
 
 
 # ------------------------------------------------------------------

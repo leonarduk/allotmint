@@ -1,4 +1,6 @@
 import json
+import os
+import sys
 from contextvars import ContextVar
 from pathlib import Path
 
@@ -651,6 +653,36 @@ class TestLocalOwnerIndexCache:
         second = _list_local_plots(data_root=data_root, current_user=None)
 
         assert second == [{"owner": "alice", "accounts": ["gia", "isa"]}]
+
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="st_ctime_ns is file creation time on Windows; content-only changes cannot be detected without re-reading",
+    )
+    def test_invalidates_cached_owner_index_when_content_changes_without_stat_change(
+        self, tmp_path: Path
+    ) -> None:
+        data_root = tmp_path / "accounts"
+        data_root.mkdir()
+        _write_owner(data_root, "alice", ["isa"], viewers=[], full_name="Alice One")
+
+        first = _list_local_plots(data_root=data_root, current_user=None)
+        assert first[0]["full_name"] == "Alice One"
+
+        person_path = data_root / "alice" / "person.json"
+        original_stat = person_path.stat()
+        replacement = json.dumps({"full_name": "Alice Two", "viewers": []})
+        # Use byte-length to match st_size correctly (avoids multi-byte char surprises).
+        assert len(replacement.encode()) == original_stat.st_size
+
+        # Write bytes directly so size is unchanged, then restore mtime/atime.
+        # ctime updates to "now" on POSIX, which is what triggers re-hashing.
+        person_path.write_bytes(replacement.encode())
+        os.utime(person_path, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns))
+
+        second = _list_local_plots(data_root=data_root, current_user=None)
+
+        assert second[0]["full_name"] == "Alice Two"
+
 
 class TestLoadDemoOwner:
     def test_returns_demo_summary_when_available(

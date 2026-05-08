@@ -11,6 +11,12 @@ interface StoredSession {
   expiresAt: number;
 }
 
+interface AuthConfig {
+  domain: string;
+  clientId: string;
+  redirectPath: string;
+}
+
 const SESSION_KEY = 'awsUiAuthSession';
 const STATE_KEY = 'awsUiAuthState';
 const VERIFIER_KEY = 'awsUiAuthCodeVerifier';
@@ -89,27 +95,32 @@ const hasValidSession = () => {
   return true;
 };
 
-const exchangeCode = async (
-  config: Required<Pick<AwsUiAuthConfig, 'domain' | 'clientId'>>
-) => {
+const exchangeCode = async (config: AuthConfig) => {
   const params = new URLSearchParams(window.location.search);
   const code = params.get('code');
   const state = params.get('state');
+  const errorParam = params.get('error');
+
+  // Cognito returns ?error=access_denied (etc.) on cancellation or policy denial.
+  if (errorParam) throw new Error(`Cognito auth error: ${errorParam}`);
   if (!code || !state) return false;
 
   const expectedState = window.sessionStorage.getItem(STATE_KEY);
   const verifier = window.sessionStorage.getItem(VERIFIER_KEY);
-  window.sessionStorage.removeItem(STATE_KEY);
-  window.sessionStorage.removeItem(VERIFIER_KEY);
   if (!expectedState || !verifier || state !== expectedState) {
+    window.sessionStorage.removeItem(STATE_KEY);
+    window.sessionStorage.removeItem(VERIFIER_KEY);
     throw new Error('Invalid AWS UI authentication callback state');
   }
+  // State matched — consume the one-time PKCE credentials before the fetch.
+  window.sessionStorage.removeItem(STATE_KEY);
+  window.sessionStorage.removeItem(VERIFIER_KEY);
 
   const tokenParams = new URLSearchParams({
     grant_type: 'authorization_code',
     client_id: config.clientId,
     code,
-    redirect_uri: redirectUri(),
+    redirect_uri: redirectUri(config.redirectPath),
     code_verifier: verifier,
   });
   const response = await fetch(`${config.domain}/oauth2/token`, {
@@ -134,9 +145,7 @@ const exchangeCode = async (
   return true;
 };
 
-const redirectToHostedUi = async (
-  config: Required<Pick<AwsUiAuthConfig, 'domain' | 'clientId'>>
-) => {
+const redirectToHostedUi = async (config: AuthConfig) => {
   const verifier = randomString(64);
   const state = randomString(32);
   window.sessionStorage.setItem(STATE_KEY, state);
@@ -144,7 +153,7 @@ const redirectToHostedUi = async (
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: config.clientId,
-    redirect_uri: redirectUri(),
+    redirect_uri: redirectUri(config.redirectPath),
     scope: SCOPE,
     state,
     code_challenge: await sha256Base64Url(verifier),
@@ -167,7 +176,8 @@ export const ensureAwsUiAuth = async (config?: AwsUiAuthConfig | null) => {
   if (!domain || !clientId)
     throw new Error('AWS UI authentication is enabled but not configured');
 
-  const authConfig = { domain, clientId };
+  const redirectPath = authConfigInput.redirectPath ?? DEFAULT_REDIRECT_PATH;
+  const authConfig: AuthConfig = { domain, clientId, redirectPath };
   if (await exchangeCode(authConfig)) return true;
   if (hasValidSession()) return true;
   await redirectToHostedUi(authConfig);

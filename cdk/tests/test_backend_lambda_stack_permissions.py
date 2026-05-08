@@ -138,11 +138,12 @@ def _conditions_for_s3_action(template: dict, role_logical_id: str, target_actio
 #   BackendLambda      — full API; reads, writes, and lists portfolio/price data.
 #   PriceRefreshLambda — calls _rolling_cache() → _save_parquet() which writes parquet to S3
 #                        and may need to list the timeseries/ prefix via pyarrow.
-#   TradingAgentLambda — shares the timeseries parquet cache helpers, which need scoped
-#                        GetObject, PutObject, and ListBucket access under timeseries/.
+#   TradingAgentLambda — calls load_prices_for_tickers() → load_meta_timeseries_range() which
+#                        reads parquet from S3 by known key. No writes anywhere in this path.
+#                        Pyarrow may list the timeseries/ prefix before reading cached files.
 BACKEND_MAX_S3 = {"s3:GetObject", "s3:PutObject", "s3:ListBucket"}
 REFRESH_MAX_S3 = {"s3:GetObject", "s3:PutObject", "s3:ListBucket"}
-TRADING_MAX_S3 = {"s3:GetObject", "s3:PutObject", "s3:ListBucket"}
+TRADING_MAX_S3 = {"s3:GetObject", "s3:ListBucket"}
 
 
 def test_s3_permissions_are_scoped_per_lambda() -> None:
@@ -164,7 +165,7 @@ def test_s3_permissions_are_scoped_per_lambda() -> None:
     assert {"s3:GetObject", "s3:PutObject", "s3:ListBucket"}.issubset(
         refresh_actions
     ), f"PriceRefreshLambda missing required S3 actions: {refresh_actions}"
-    assert {"s3:GetObject", "s3:PutObject", "s3:ListBucket"}.issubset(
+    assert {"s3:GetObject", "s3:ListBucket"}.issubset(
         trading_actions
     ), f"TradingAgentLambda missing required S3 actions: {trading_actions}"
 
@@ -178,6 +179,14 @@ def test_s3_permissions_are_scoped_per_lambda() -> None:
     assert (
         trading_actions <= TRADING_MAX_S3
     ), f"TradingAgentLambda has unexpected S3 actions: {trading_actions - TRADING_MAX_S3}"
+
+    # Explicit absence checks (belt-and-suspenders on top of upper-bound)
+    assert "s3:PutObject" not in trading_actions, (
+        "TradingAgentLambda must not have s3:PutObject — read-only S3 access"
+    )
+    assert "s3:ListBucket" not in refresh_actions or all(
+        _conditions_for_s3_action(template, refresh_role, "s3:ListBucket")
+    ), "PriceRefreshLambda s3:ListBucket must always be conditioned (no unrestricted list)"
 
     # s3:ListBucket must be scoped to the bucket ARN (no trailing /*), not the object ARN.
     # Granting ListBucket on /* is both functionally wrong (IAM ignores it) and overly broad.
@@ -204,16 +213,31 @@ def test_all_lambdas_have_scoped_timeseries_cache_permissions() -> None:
     template = _stack_template()
     expected_condition = {"StringLike": {"s3:prefix": ["timeseries", "timeseries/*"]}}
 
+    # All three Lambdas must be able to read from and list the timeseries/ prefix
     for fragment in ("BackendLambda", "PriceRefreshLambda", "TradingAgentLambda"):
         role = _role_logical_id_for_lambda(template, fragment)
-        for action in ("s3:GetObject", "s3:PutObject"):
-            resources = _resources_for_s3_action(template, role, action)
-            assert any(
-                "timeseries/*" in resource for resource in resources
-            ), f"{fragment} missing {action} on the timeseries/* object prefix"
+        resources = _resources_for_s3_action(template, role, "s3:GetObject")
+        assert any(
+            "timeseries/*" in resource for resource in resources
+        ), f"{fragment} missing s3:GetObject on the timeseries/* object prefix"
 
         conditions = _conditions_for_s3_action(template, role, "s3:ListBucket")
         assert expected_condition in conditions, f"{fragment} missing ListBucket scoped to the timeseries/ prefix"
+
+    # Only write-capable Lambdas may put objects under the timeseries/ prefix
+    for fragment in ("BackendLambda", "PriceRefreshLambda"):
+        role = _role_logical_id_for_lambda(template, fragment)
+        resources = _resources_for_s3_action(template, role, "s3:PutObject")
+        assert any(
+            "timeseries/*" in resource for resource in resources
+        ), f"{fragment} missing s3:PutObject on the timeseries/* object prefix"
+
+    # TradingAgentLambda must NOT have PutObject on timeseries/ — read-only cache access
+    trading_role = _role_logical_id_for_lambda(template, "TradingAgentLambda")
+    trading_put_resources = _resources_for_s3_action(template, trading_role, "s3:PutObject")
+    assert not any("timeseries/*" in r for r in trading_put_resources), (
+        "TradingAgentLambda must not have s3:PutObject on timeseries/* — read-only S3 access"
+    )
 
 
 def test_grant_bucket_access_requires_list_prefix_when_allow_list_enabled() -> None:

@@ -243,6 +243,24 @@ def test_all_lambda_functions_have_one_week_log_groups(template):
     assert template.find_resources("Custom::LogRetention") == {}
 
 
+def test_all_lambda_functions_have_timeseries_cache_base_env_var(template):
+    """Every image Lambda must have TIMESERIES_CACHE_BASE so timeseries/cache.py doesn't
+    raise ValueError at import time (which causes 503 on every request)."""
+    lambda_functions = template.find_resources("AWS::Lambda::Function")
+    for logical_id, resource in lambda_functions.items():
+        properties = resource.get("Properties", {})
+        if properties.get("PackageType") != "Image":
+            continue
+        env_vars = properties.get("Environment", {}).get("Variables", {})
+        assert "TIMESERIES_CACHE_BASE" in env_vars, (
+            f"Lambda function {logical_id} is missing TIMESERIES_CACHE_BASE environment variable"
+        )
+        cache_base = env_vars["TIMESERIES_CACHE_BASE"]
+        assert cache_base, (
+            f"Lambda {logical_id} TIMESERIES_CACHE_BASE must not be empty"
+        )
+
+
 def test_backend_lambda_has_jwt_and_google_env_vars(template):
     # Only BackendLambda receives JWT_SECRET and GOOGLE_CLIENT_ID; the refresh
     # and agent Lambdas do not import backend.auth so they don't need them.

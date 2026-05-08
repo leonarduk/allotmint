@@ -7,6 +7,15 @@
     "host": "example.com"
   },
   "requestContext": {
+    "accept": "*/*",
+    "host": "localhost:9010",
+    "user-agent": "curl/7.68.0"
+  },
+  "requestContext": {
+    "accountId": "123456789012",
+    "apiId": "local",
+    "domainName": "localhost",
+    "domainPrefix": "local",
     "http": {
       "method": "GET",
       "path": "/health",
@@ -14,6 +23,13 @@
       "sourceIp": "127.0.0.1",
       "userAgent": "make lambda-test"
     }
+      "userAgent": "curl/7.68.0"
+    },
+    "requestId": "local-test-request-id",
+    "routeKey": "GET /health",
+    "stage": "$default",
+    "time": "01/Jan/2026:00:00:00 +0000",
+    "timeEpoch": 1767225600000
   },
   "isBase64Encoded": false
 }

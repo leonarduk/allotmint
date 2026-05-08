@@ -310,12 +310,16 @@ def load_meta_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame:
         _load_meta_timeseries_cached.cache_clear()
         _CACHE_FILE_MTIMES.clear()
 
-    path = meta_timeseries_cache_path(ticker, exchange)
-    mtime = path.stat().st_mtime if path.exists() else 0.0
-    prev = _CACHE_FILE_MTIMES.get(str(path))
+    cache = meta_timeseries_cache_path(ticker, exchange)
+    if cache.startswith("s3://"):
+        mtime = 0.0
+    else:
+        p = Path(cache)
+        mtime = p.stat().st_mtime if p.exists() else 0.0
+    prev = _CACHE_FILE_MTIMES.get(cache)
     if prev is not None and prev != mtime:
         _load_meta_timeseries_cached.cache_clear()
-    _CACHE_FILE_MTIMES[str(path)] = mtime
+    _CACHE_FILE_MTIMES[cache] = mtime
 
     return _load_meta_timeseries_cached(ticker, exchange, days).copy()
 
@@ -517,12 +521,15 @@ def load_meta_timeseries_range(
 
 
 def has_cached_meta_timeseries(ticker: str, exchange: str) -> bool:
-    path = meta_timeseries_cache_path(ticker, exchange)
-    return path.exists() and path.stat().st_size > 0
+    cache = meta_timeseries_cache_path(ticker, exchange)
+    if cache.startswith("s3://"):
+        return True  # S3 presence is checked lazily on read
+    p = Path(cache)
+    return p.exists() and p.stat().st_size > 0
 
 
-def meta_timeseries_cache_path(ticker: str, exchange: str) -> Path:
-    return Path(_cache_path("meta", f"{ticker.upper()}_{exchange.upper()}.parquet"))
+def meta_timeseries_cache_path(ticker: str, exchange: str) -> str:
+    return _cache_path("meta", f"{ticker.upper()}_{exchange.upper()}.parquet")
 
 
 # NOTE: keep arg order to avoid breaking existing callers

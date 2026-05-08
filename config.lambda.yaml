@@ -1,0 +1,112 @@
+# Lambda runtime configuration.
+# Baked into the Docker image by Dockerfile.lambda as /var/task/config.yaml.
+# All write paths use /tmp (the only writable filesystem in Lambda).
+# Sensitive values (auth tokens, API keys, bucket names) are injected at
+# runtime via environment variables and override these defaults.
+
+paths:
+  repo_root: /var/task
+  data_root: /tmp/data              # writable; populated at runtime from S3
+  accounts_root: accounts           # → /tmp/data/accounts
+  prices_json: prices/latest_prices.json  # → /tmp/data/prices/latest_prices.json
+  timeseries_cache_base: timeseries # → /tmp/data/timeseries
+  portfolio_xml_path: portfolio/investments.xml  # → /tmp/data/portfolio/investments.xml
+  transactions_output_root: accounts  # → /tmp/data/accounts
+  log_config: backend/logging.ini   # present at /var/task/backend/logging.ini
+
+auth:
+  google_auth_enabled: false        # overridden by GOOGLE_AUTH_ENABLED env var
+  disable_auth: false               # overridden by DISABLE_AUTH env var
+  demo_identity: demo
+  smoke_identity: demo
+  local_login_email: ""
+  allowed_emails: []
+
+server:
+  app_env: aws                      # overridden by APP_ENV env var
+  rate_limit_per_minute: 6000
+  sns_topic_arn: ""                 # overridden by SNS_TOPIC_ARN env var
+  telegram_bot_token: ""            # overridden by TELEGRAM_BOT_TOKEN env var
+  telegram_chat_id: ""              # overridden by TELEGRAM_CHAT_ID env var
+  cors:
+    aws:
+      - https://app.allotmint.io
+    local:
+      - http://localhost:3000
+      - http://localhost:5173
+
+market_data:
+  offline_mode: false
+  fx_proxy_url: ""
+  alpha_vantage_enabled: false      # overridden by ALPHA_VANTAGE_KEY presence
+  alpha_vantage_key: ""             # overridden by ALPHA_VANTAGE_KEY env var
+  fundamentals_cache_ttl_seconds: 86400
+  stooq_timeout: 10
+  stooq_requests_per_minute: 60
+  news_requests_per_day: 25
+  default_sector_region: US
+  uk_sector_endpoint: https://www.londonstockexchange.com/api/sectors/ftse350
+  yahoo_news_endpoint: https://query1.finance.yahoo.com/v1/finance/search
+  yahoo_news_key: ""
+  yahoo_news_requests_per_day: 500
+  google_news_endpoint: https://news.google.com/rss/search
+  google_news_key: ""
+  google_news_requests_per_day: 500
+  ft_url_template: "https://markets.ft.com/data/funds/tearsheet/historical?s={ticker}"
+  selenium_headless: true
+
+trading:
+  max_trades_per_month: 20
+  hold_days_min: 30
+  risk_free_rate: 0.01
+  skip_snapshot_warm: false
+  snapshot_warm_days: 30
+  approval_valid_days: 2
+  approval_exempt_types: ETF
+  approval_exempt_tickers: []
+  trading_agent:
+    rsi_buy: 30
+    rsi_sell: 70
+    rsi_window: 14
+    ma_short_window: 20
+    ma_long_window: 50
+    pe_max: null
+    de_max: null
+    min_sharpe: null
+    max_volatility: null
+
+ui:
+  enable_family_mvp: true
+  enable_compliance_workflows: false
+  enable_advanced_analytics: false
+  enable_reporting_extended: false
+  relative_view_enabled: false
+  theme: system
+  tabs:
+    movers: true
+    group: true
+    market: true
+    instrument: true
+    owner: true
+    performance: true
+    transactions: true
+    screener: true
+    trading: true
+    timeseries: true
+    watchlist: true
+    allocation: true
+    rebalance: true
+    instrumentadmin: true
+    dataadmin: true
+    virtual: true
+    support: true
+    settings: true
+    profile: true
+    pension: true
+    reports: true
+    scenario: true
+    alertsettings: true
+    taxtools: true
+    trail: true
+    trade-compliance: true
+    logs: true

@@ -182,6 +182,8 @@ class StaticSiteStack(Stack):
             price_class=cloudfront.PriceClass.PRICE_CLASS_100,
         )
 
+        # WARNING: DESTROY removes the UserPool and all users on stack deletion.
+        # Change to RemovalPolicy.RETAIN before deploying to production.
         ui_auth_pool = cognito.UserPool(
             self,
             "UiAuthUserPool",
@@ -193,7 +195,9 @@ class StaticSiteStack(Stack):
         ui_auth_callback_url = Fn.join("", ["https://", distribution.domain_name, "/"])
         ui_auth_client = ui_auth_pool.add_client(
             "UiAuthClient",
-            auth_flows=cognito.AuthFlow(user_password=True, user_srp=True),
+            # user_srp=True is sufficient for the hosted UI + PKCE authorization-code flow.
+            # user_password=True would also enable ALLOW_USER_PASSWORD_AUTH which is weaker.
+            auth_flows=cognito.AuthFlow(user_srp=True),
             o_auth=cognito.OAuthSettings(
                 flows=cognito.OAuthFlows(authorization_code_grant=True),
                 scopes=[

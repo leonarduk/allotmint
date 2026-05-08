@@ -14,7 +14,7 @@ FIXED_TIMESTAMP = "2026-05-08T00:00:00Z"
 
 
 def _noop() -> None:
-    return None
+    pass
 
 
 def _load_event(path: str) -> dict[str, Any]:
@@ -37,6 +37,9 @@ def _invoke_api_http(event: dict[str, Any]) -> dict[str, Any]:
 
 
 def _invoke_price_refresh(event: dict[str, Any]) -> dict[str, Any]:
+    # Patch backend.common.prices before evicting + re-importing the handler so
+    # that the handler's `from backend.common.prices import refresh_prices` picks
+    # up the stub on re-import (the prices module stays cached in sys.modules).
     import backend.common.prices as prices
 
     def refresh_prices_stub() -> dict[str, Any]:
@@ -55,6 +58,8 @@ def _invoke_price_refresh(event: dict[str, Any]) -> dict[str, Any]:
 
 
 def _invoke_trading_agent(event: dict[str, Any]) -> dict[str, Any]:
+    # Patch backend.agent.trading_agent before evicting + re-importing the handler
+    # so the handler's `from backend.agent.trading_agent import run` picks up the stub.
     import backend.agent.trading_agent as trading_agent
 
     trading_agent.run = _noop

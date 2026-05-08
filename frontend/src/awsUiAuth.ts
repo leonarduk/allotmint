@@ -125,6 +125,7 @@ const exchangeCode = async (config: AuthConfig) => {
   if (!expectedState || !verifier || state !== expectedState) {
     window.sessionStorage.removeItem(STATE_KEY);
     window.sessionStorage.removeItem(VERIFIER_KEY);
+    window.history.replaceState({}, document.title, window.location.pathname);
     throw new Error('Invalid AWS UI authentication callback state');
   }
   // State matched — consume the one-time PKCE credentials before the fetch.

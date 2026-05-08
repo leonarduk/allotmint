@@ -182,15 +182,21 @@ class StaticSiteStack(Stack):
             price_class=cloudfront.PriceClass.PRICE_CLASS_100,
         )
 
-        # WARNING: DESTROY removes the UserPool and all users on stack deletion.
-        # Change to RemovalPolicy.RETAIN before deploying to production.
+        # Retain the UserPool (and all user accounts) when the CDK context key
+        # "retainUserPool" is set to "true" — required for production deployments.
+        # Default (no context key) is DESTROY for convenience in ephemeral/dev
+        # environments.  Set it at deploy time:
+        #   cdk deploy --context retainUserPool=true
+        _retain_user_pool = (
+            str(self.node.try_get_context("retainUserPool") or "").lower() == "true"
+        )
         ui_auth_pool = cognito.UserPool(
             self,
             "UiAuthUserPool",
             account_recovery=cognito.AccountRecovery.EMAIL_ONLY,
             self_sign_up_enabled=False,
             sign_in_aliases=cognito.SignInAliases(email=True),
-            removal_policy=RemovalPolicy.DESTROY,
+            removal_policy=RemovalPolicy.RETAIN if _retain_user_pool else RemovalPolicy.DESTROY,
         )
         ui_auth_callback_url = Fn.join("", ["https://", distribution.domain_name, "/"])
         ui_auth_client = ui_auth_pool.add_client(

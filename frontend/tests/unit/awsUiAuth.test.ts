@@ -229,12 +229,16 @@ describe('ensureAwsUiAuth', () => {
       expect(replaceState).toHaveBeenCalledWith({}, document.title, '/');
     });
 
-    it('throws on state mismatch', async () => {
+    it('throws on state mismatch and cleans up URL', async () => {
+      const replaceState = vi.spyOn(window.history, 'replaceState');
       window.sessionStorage.setItem('awsUiAuthState', 'different-state');
 
       await expect(ensureAwsUiAuth(AUTH_CONFIG)).rejects.toThrow(
         'Invalid AWS UI authentication callback state'
       );
+      expect(replaceState).toHaveBeenCalledWith({}, document.title, '/');
+      expect(window.sessionStorage.getItem('awsUiAuthState')).toBeNull();
+      expect(window.sessionStorage.getItem('awsUiAuthCodeVerifier')).toBeNull();
     });
 
     it('throws when token endpoint returns an error response', async () => {

@@ -17,6 +17,11 @@
 # The MinIO console is at http://localhost:9001 (same credentials as MINIO_ROOT_*).
 #
 # No real AWS credentials are required; dummy values are used throughout.
+#
+# All three Lambda services share the same image (allotmint-lambda:latest).
+# Only lambda-api carries the build: stanza so the image is built once;
+# lambda-price-refresh and lambda-trading-agent reference it via image: only.
+# The handler is selected at runtime via the command: override.
 
 services:
 
@@ -41,6 +46,7 @@ services:
   minio-setup:
     image: minio/mc:latest
     container_name: allotmint-lambda-minio-setup
+    restart: on-failure
     depends_on:
       minio:
         condition: service_healthy
@@ -85,9 +91,6 @@ services:
       - lambda-test
 
   lambda-price-refresh:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile.lambda
     image: allotmint-lambda:latest
     container_name: allotmint-lambda-price-refresh
     command: ["backend.lambda_api.price_refresh.lambda_handler"]
@@ -103,15 +106,12 @@ services:
       APP_ENV: ${APP_ENV:-local}
       ALLOTMINT_ENABLE_TRADING_AGENT: ${ALLOTMINT_ENABLE_TRADING_AGENT:-false}
     depends_on:
-      minio-setup:
-        condition: service_completed_successfully
+      lambda-api:
+        condition: service_started
     networks:
       - lambda-test
 
   lambda-trading-agent:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile.lambda
     image: allotmint-lambda:latest
     container_name: allotmint-lambda-trading-agent
     command: ["backend.lambda_api.trading_agent.lambda_handler"]
@@ -126,8 +126,8 @@ services:
       DATA_BRANCH: ${DATA_BRANCH:-main}
       APP_ENV: ${APP_ENV:-local}
     depends_on:
-      minio-setup:
-        condition: service_completed_successfully
+      lambda-api:
+        condition: service_started
     networks:
       - lambda-test
 

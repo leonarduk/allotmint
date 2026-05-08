@@ -2,20 +2,21 @@
 
 ## Content Security Policy
 
-AllotMint's frontend is served from S3 behind CloudFront. Implementing a Content Security Policy (CSP) header limits the sources the browser may load resources from. The stack currently does **not** set a CSP header, so browsers accept resources from any origin.
+AllotMint's frontend is served from S3 behind CloudFront. The static site stack sets a Content Security Policy (CSP) header to limit the sources the browser may load resources from.
 
-A restrictive policy might look like:
+The deployed CloudFront policy is:
 
 ```
 default-src 'self';
-img-src 'self' data:;
-script-src 'self';
-style-src 'self' 'unsafe-inline';
-connect-src 'self' https://www.alphavantage.co;
+script-src 'self' https://accounts.google.com/gsi/client;
+frame-src 'self' https://accounts.google.com/gsi/;
+connect-src 'self' https://*.execute-api.*.amazonaws.com https://*.amazoncognito.com;
 frame-ancestors 'none';
+object-src 'none';
+base-uri 'self';
 ```
 
-This would prevent third‑party scripts or styles from executing unless explicitly whitelisted.
+The `connect-src` directive intentionally permits only API Gateway and Amazon Cognito hosted UI/token exchange endpoints in the AWS namespace. If the frontend adds calls to another AWS service, add the narrowest service-specific host pattern instead of broadening this to `https://*.amazonaws.com`.
 
 ### Adding or updating the policy
 

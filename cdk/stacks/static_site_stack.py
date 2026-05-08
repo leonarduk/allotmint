@@ -13,6 +13,21 @@ from aws_cdk import (
 )
 from constructs import Construct
 
+_STATIC_SITE_CSP = (
+    "; ".join(
+        [
+            "default-src 'self'",
+            "script-src 'self' https://accounts.google.com/gsi/client",
+            "frame-src 'self' https://accounts.google.com/gsi/",
+            "connect-src 'self' https://*.execute-api.*.amazonaws.com https://*.amazoncognito.com",
+            "frame-ancestors 'none'",
+            "object-src 'none'",
+            "base-uri 'self'",
+        ]
+    )
+    + ";"
+)
+
 
 class StaticSiteStack(Stack):
     """CDK stack that provisions S3 + CloudFront for the frontend."""
@@ -60,9 +75,9 @@ class StaticSiteStack(Stack):
             "SecurityHeaders",
             comment="Security headers for static site",
             security_headers_behavior=cloudfront.ResponseSecurityHeadersBehavior(
-                # Allow Google Identity Services script and iframe
+                # Allow Google Identity Services, API Gateway calls, and Cognito token exchange.
                 content_security_policy=cloudfront.ResponseHeadersContentSecurityPolicy(
-                    content_security_policy="default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; frame-src 'self' https://accounts.google.com/gsi/; frame-ancestors 'none'; object-src 'none'; base-uri 'self'",
+                    content_security_policy=_STATIC_SITE_CSP,
                     override=True,
                 ),
                 strict_transport_security=cloudfront.ResponseHeadersStrictTransportSecurity(
@@ -217,7 +232,11 @@ class StaticSiteStack(Stack):
         config_deploy = s3_deployment.BucketDeployment(
             self,
             "DeployRuntimeConfig",
-            sources=[s3_deployment.Source.json_data("config.json", {"apiBaseUrl": backend_url_param.value_as_string})],
+            sources=[
+                s3_deployment.Source.json_data(
+                    "config.json", {"apiBaseUrl": backend_url_param.value_as_string}
+                )
+            ],
             destination_bucket=site_bucket,
             cache_control=[
                 s3_deployment.CacheControl.no_cache(),

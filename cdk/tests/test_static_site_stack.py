@@ -4,6 +4,7 @@ Run from the repo root:
     pip install aws-cdk-lib constructs pytest --quiet
     pytest cdk/tests/test_static_site_stack.py -v
 """
+
 import sys
 from pathlib import Path
 
@@ -37,6 +38,7 @@ def template(tmp_path_factory):
 # ---------------------------------------------------------------------------
 # SPA error responses
 # ---------------------------------------------------------------------------
+
 
 def test_403_redirects_to_index_html(template):
     """CloudFront must return /index.html for 403 (S3 access-denied) responses."""
@@ -85,6 +87,7 @@ def test_404_redirects_to_index_html(template):
 # ---------------------------------------------------------------------------
 # config.json deployment
 # ---------------------------------------------------------------------------
+
 
 def test_runtime_config_deployment_exists(template):
     """At least one BucketDeployment resource must be present (config.json injection)."""
@@ -144,8 +147,39 @@ def test_static_site_stack_synthesises_without_api_base_url(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# CloudFront security headers
+# ---------------------------------------------------------------------------
+
+
+def test_csp_connect_src_is_limited_to_required_aws_services(template):
+    """CSP connect-src must avoid a broad *.amazonaws.com wildcard."""
+    resources = template.find_resources("AWS::CloudFront::ResponseHeadersPolicy")
+    csp_headers = [
+        security_headers["ContentSecurityPolicy"]["ContentSecurityPolicy"]
+        for resource in resources.values()
+        if (
+            security_headers := resource["Properties"]["ResponseHeadersPolicyConfig"].get(
+                "SecurityHeadersConfig", {}
+            )
+        )
+        if "ContentSecurityPolicy" in security_headers
+    ]
+
+    assert csp_headers == [
+        "default-src 'self'; "
+        "script-src 'self' https://accounts.google.com/gsi/client; "
+        "frame-src 'self' https://accounts.google.com/gsi/; "
+        "connect-src 'self' "
+        "https://*.execute-api.*.amazonaws.com https://*.amazoncognito.com; "
+        "frame-ancestors 'none'; object-src 'none'; base-uri 'self';"
+    ]
+    assert "https://*.amazonaws.com" not in csp_headers[0]
+
+
+# ---------------------------------------------------------------------------
 # CloudFront distribution outputs
 # ---------------------------------------------------------------------------
+
 
 def test_distribution_id_output_exists(template):
     template.has_output("DistributionId", {})
@@ -162,6 +196,7 @@ def test_site_bucket_output_exists(template):
 # ---------------------------------------------------------------------------
 # Site bucket security
 # ---------------------------------------------------------------------------
+
 
 def test_site_bucket_blocks_public_access(template):
     template.has_resource_properties(

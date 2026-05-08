@@ -1,0 +1,19 @@
+{
+  "version": "2.0",
+  "routeKey": "GET /health",
+  "rawPath": "/health",
+  "rawQueryString": "",
+  "headers": {
+    "host": "example.com"
+  },
+  "requestContext": {
+    "http": {
+      "method": "GET",
+      "path": "/health",
+      "protocol": "HTTP/1.1",
+      "sourceIp": "127.0.0.1",
+      "userAgent": "make lambda-test"
+    }
+  },
+  "isBase64Encoded": false
+}

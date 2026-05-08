@@ -101,7 +101,9 @@ const exchangeCode = async (config: AuthConfig) => {
   const state = params.get('state');
   const errorParam = params.get('error');
 
-  // Cognito returns ?error=access_denied (etc.) on cancellation or policy denial.
+  // access_denied = user clicked Cancel on the Cognito hosted UI — redirect
+  // back so they get another login opportunity rather than an error screen.
+  if (errorParam === 'access_denied') return false;
   if (errorParam) throw new Error(`Cognito auth error: ${errorParam}`);
   if (!code || !state) return false;
 

@@ -155,13 +155,17 @@ repository root that is ignored by git.
 # Deploy backend and frontend stacks
 ./scripts/deploy-to-AWS.ps1 -Backend -DataBucket my-bucket
 
+# Deploy to a live/production environment; retains the Cognito user pool on destroy
+./scripts/deploy-to-AWS.ps1 -Backend -DataBucket my-bucket -Prod
+
 # Deploy only the frontend stack
 ./scripts/deploy-to-AWS.ps1
 ```
 
 The script changes into the `cdk/` directory, installs the repo-pinned CDK CLI if
 necessary, then deploys `BackendLambdaStack` and `StaticSiteStack` when
-`-Backend` is specified.
+`-Backend` is specified. Pass `-Prod` for any live environment so the Cognito
+user pool uses `RemovalPolicy.RETAIN` and stack deletion does not delete users.
 
 Alternatively, run the commands manually:
 
@@ -169,21 +173,27 @@ Alternatively, run the commands manually:
 cd cdk
 npx cdk bootstrap   # once per account/region
 DEPLOY_BACKEND=false npx cdk deploy StaticSiteStack
+# For live/production frontend deploys, pass -c prod=true so Cognito users are retained:
+DEPLOY_BACKEND=false npx cdk deploy StaticSiteStack -c prod=true
 # or deploy backend and frontend together. Supply the name of your
 # data bucket either via environment variable:
 DATA_BUCKET=my-data-bucket DEPLOY_BACKEND=true npx cdk deploy BackendLambdaStack StaticSiteStack
-# or as a CDK context parameter:
-DEPLOY_BACKEND=true npx cdk deploy BackendLambdaStack StaticSiteStack -c data_bucket=my-data-bucket
-# or deploy every stack managed by app.py:
-npx cdk deploy --all --require-approval never
+# or as CDK context parameters, including prod=true for live environments:
+DEPLOY_BACKEND=true npx cdk deploy BackendLambdaStack StaticSiteStack -c data_bucket=my-data-bucket -c prod=true
+# or deploy every stack managed by app.py for production:
+npx cdk deploy --all --require-approval never -c prod=true
 ```
 
-When manually validating drift before a deploy, always run:
+When manually validating drift before a deploy, always run the diff with the
+same production context you will deploy with:
 
 ```bash
 cd cdk
-npx cdk diff --all
+npx cdk diff --all -c prod=true
 ```
+
+Omit `-c prod=true` only for disposable development stacks where `cdk destroy`
+should remove the demo Cognito user pool.
 
 `BackendLambdaStack` now includes:
 - an S3 data bucket with versioning, SSE-S3 encryption, and non-current object expiry,
@@ -204,8 +214,8 @@ aws cloudfront create-invalidation --distribution-id <DIST_ID> --paths "/*"
 
 If deployment fails or the live environment does not match local behavior:
 
-1. Re-run `npx cdk diff --all` and confirm intended stack changes are present.
-2. Run `npx cdk deploy --all --require-approval never` and capture the exact failing resource from CloudFormation events.
+1. Re-run `npx cdk diff --all -c prod=true` and confirm intended stack changes are present.
+2. Run `npx cdk deploy --all --require-approval never -c prod=true` and capture the exact failing resource from CloudFormation events.
 3. Inspect backend Lambda errors (CloudWatch). Lambda functions in this stack use
    explicit CDK-managed log groups, so read the deployed log group name from the
    stack outputs instead of assuming the `/aws/lambda/<function-name>` convention:

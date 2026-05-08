@@ -1,6 +1,7 @@
 Param(
   [switch]$Backend,
-  [string]$DataBucket
+  [string]$DataBucket,
+  [switch]$Prod
 )
 
 $ErrorActionPreference = 'Stop'
@@ -293,7 +294,8 @@ if ($Backend) {
       Write-Host 'DATA_BUCKET is required for backend deployment. Provide via -DataBucket or DATA_BUCKET env var.' -ForegroundColor Red
       exit 1
     }
-    & $cdkCmd.Path deploy BackendLambdaStack StaticSiteStack -c "data_bucket=$effectiveBucket"
+    $prodContext = if ($Prod) { 'true' } else { 'false' }
+    & $cdkCmd.Path deploy BackendLambdaStack StaticSiteStack -c "data_bucket=$effectiveBucket" -c "prod=$prodContext"
   } finally {
     Pop-Location
   }
@@ -309,7 +311,8 @@ if ($Backend) {
     }
     # Provide a context value for data_bucket so the app can instantiate BackendLambdaStack
     $effectiveBucket = if ($env:DATA_BUCKET) { $env:DATA_BUCKET } elseif ($DataBucket) { $DataBucket } else { 'placeholder-bucket' }
-    & $cdkCmd.Path deploy StaticSiteStack -c "data_bucket=$effectiveBucket"
+    $prodContext = if ($Prod) { 'true' } else { 'false' }
+    & $cdkCmd.Path deploy StaticSiteStack -c "data_bucket=$effectiveBucket" -c "prod=$prodContext"
   } finally {
     Pop-Location
   }

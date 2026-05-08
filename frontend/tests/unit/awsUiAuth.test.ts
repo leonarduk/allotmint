@@ -113,6 +113,19 @@ describe('ensureAwsUiAuth', () => {
     expect(assignMock).not.toHaveBeenCalled();
   });
 
+  it('skips code exchange when a valid session exists despite stale ?code= in URL', async () => {
+    // A stale ?code= with no PKCE verifier in sessionStorage would throw
+    // 'Invalid AWS UI authentication callback state' if exchangeCode ran first.
+    setLocation('?code=stale-code&state=stale-state');
+    window.sessionStorage.setItem(
+      'awsUiAuthSession',
+      JSON.stringify({ idToken: 'tok', expiresAt: Date.now() + 3600 * 1000 })
+    );
+
+    await expect(ensureAwsUiAuth(AUTH_CONFIG)).resolves.toBe(true);
+    expect(assignMock).not.toHaveBeenCalled();
+  });
+
   it('redirects back to Cognito when session is expired', async () => {
     vi.spyOn(crypto, 'getRandomValues').mockImplementation((array) => {
       (array as Uint8Array).fill(1);

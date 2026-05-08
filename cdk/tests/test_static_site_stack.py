@@ -4,6 +4,7 @@ Run from the repo root:
     pip install aws-cdk-lib constructs pytest --quiet
     pytest cdk/tests/test_static_site_stack.py -v
 """
+
 import sys
 from pathlib import Path
 
@@ -14,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 aws_cdk = pytest.importorskip("aws_cdk", reason="aws-cdk-lib not installed")
 
 from aws_cdk import App, assertions  # noqa: E402
+
 from cdk.stacks.static_site_stack import StaticSiteStack  # noqa: E402
 
 _DUMMY_API_URL = "https://abc123.execute-api.eu-west-1.amazonaws.com"
@@ -37,6 +39,7 @@ def template(tmp_path_factory):
 # ---------------------------------------------------------------------------
 # SPA error responses
 # ---------------------------------------------------------------------------
+
 
 def test_403_redirects_to_index_html(template):
     """CloudFront must return /index.html for 403 (S3 access-denied) responses."""
@@ -86,6 +89,7 @@ def test_404_redirects_to_index_html(template):
 # config.json deployment
 # ---------------------------------------------------------------------------
 
+
 def test_runtime_config_deployment_exists(template):
     """At least one BucketDeployment resource must be present (config.json injection)."""
     # BucketDeployment is backed by Custom::CDKBucketDeployment.
@@ -134,6 +138,7 @@ def test_static_site_stack_synthesises_without_api_base_url(tmp_path):
     deployed from CI.
     """
     from aws_cdk import App  # noqa: PLC0415
+
     from cdk.stacks.static_site_stack import StaticSiteStack  # noqa: PLC0415
 
     (tmp_path / "index.html").write_text("<html></html>")
@@ -146,6 +151,7 @@ def test_static_site_stack_synthesises_without_api_base_url(tmp_path):
 # ---------------------------------------------------------------------------
 # CloudFront distribution outputs
 # ---------------------------------------------------------------------------
+
 
 def test_distribution_id_output_exists(template):
     template.has_output("DistributionId", {})
@@ -163,6 +169,7 @@ def test_site_bucket_output_exists(template):
 # Site bucket security
 # ---------------------------------------------------------------------------
 
+
 def test_site_bucket_blocks_public_access(template):
     template.has_resource_properties(
         "AWS::S3::Bucket",
@@ -175,3 +182,36 @@ def test_site_bucket_blocks_public_access(template):
             }
         },
     )
+
+
+def test_ui_auth_user_pool_created(template):
+    """Static site deploys a Cognito user pool to gate the hosted UI."""
+    template.has_resource_properties(
+        "AWS::Cognito::UserPool",
+        {
+            "AccountRecoverySetting": {
+                "RecoveryMechanisms": assertions.Match.array_with(
+                    [assertions.Match.object_like({"Name": "verified_email", "Priority": 1})]
+                )
+            },
+            "AdminCreateUserConfig": {"AllowAdminCreateUserOnly": True},
+        },
+    )
+
+
+def test_ui_auth_client_uses_authorization_code_flow(template):
+    """Hosted UI auth must use the authorization-code flow for the SPA."""
+    template.has_resource_properties(
+        "AWS::Cognito::UserPoolClient",
+        {
+            "AllowedOAuthFlows": ["code"],
+            "AllowedOAuthScopes": assertions.Match.array_with(["email", "openid", "profile"]),
+            "SupportedIdentityProviders": ["COGNITO"],
+        },
+    )
+
+
+def test_ui_auth_outputs_exist(template):
+    template.has_output("UiAuthUserPoolId", {})
+    template.has_output("UiAuthUserPoolClientId", {})
+    template.has_output("UiAuthDomain", {})

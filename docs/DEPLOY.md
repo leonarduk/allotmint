@@ -227,12 +227,19 @@ If deployment fails or the live environment does not match local behavior:
    curl -fsSL "<BackendApiUrl>/docs" >/dev/null
    ```
 
-5. Validate static frontend output with `DistributionDomain`:
+5. Validate static frontend output and the Cognito UI gate outputs:
 
    ```bash
    aws cloudformation describe-stacks --stack-name StaticSiteStack \
      --query "Stacks[0].Outputs[?OutputKey=='DistributionDomain'].OutputValue" --output text
-   curl -fsSL "https://<DistributionDomain>" >/dev/null
+   aws cloudformation describe-stacks --stack-name StaticSiteStack \
+     --query "Stacks[0].Outputs[?starts_with(OutputKey, 'UiAuth')].[OutputKey,OutputValue]" \
+     --output table
    ```
+
+   Create or invite at least one administrator-approved user in the emitted
+   Cognito user pool before sharing the CloudFront URL; self sign-up is disabled.
+   Browser validation should now redirect unauthenticated visitors to Cognito
+   instead of returning a bare HTTP 200 for the dashboard.
 
 6. If the frontend is stale after a successful deploy, run CloudFront invalidation (`/*`).

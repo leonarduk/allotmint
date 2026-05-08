@@ -38,6 +38,7 @@ import { UserProvider, useUser } from './UserContext';
 import ErrorBoundary from './ErrorBoundary';
 import { loadStoredAuthUser, loadStoredUserProfile } from './authStorage';
 import { RouteProvider } from './RouteContext';
+import { ensureAwsUiAuth, type AwsUiAuthConfig } from './awsUiAuth';
 import {
   deriveBootstrapMode,
   deriveModeFromPathname,
@@ -415,38 +416,56 @@ const rootEl = document.getElementById('root');
 if (!rootEl) throw new Error('Root element not found');
 
 const bootstrapRuntimeConfig = async () => {
+  let payload: { apiBaseUrl?: unknown; awsUiAuth?: AwsUiAuthConfig } | null =
+    null;
   try {
     const response = await fetch('/config.json', { cache: 'no-store' });
-    if (!response.ok) return;
-    const payload = (await response.json()) as { apiBaseUrl?: unknown };
-    if (typeof payload.apiBaseUrl === 'string') {
-      setApiBase(payload.apiBaseUrl);
-    }
+    if (!response.ok) return true;
+    payload = (await response.json()) as {
+      apiBaseUrl?: unknown;
+      awsUiAuth?: AwsUiAuthConfig;
+    };
   } catch (error) {
     console.warn(
       'Runtime config not loaded, using default API base URL',
       error
     );
+    return true;
   }
+
+  if (typeof payload.apiBaseUrl === 'string') {
+    setApiBase(payload.apiBaseUrl);
+  }
+  return ensureAwsUiAuth(payload.awsUiAuth);
 };
 
-void bootstrapRuntimeConfig().finally(() => {
-  createRoot(rootEl).render(
-    <StrictMode>
-      <HelmetProvider>
-        <ConfigProvider>
-          <PriceRefreshProvider>
-            <AuthProvider>
-              <UserProvider>
-                <BrowserRouter>
-                  <Root />
-                </BrowserRouter>
-                <ToastContainer autoClose={5000} />
-              </UserProvider>
-            </AuthProvider>
-          </PriceRefreshProvider>
-        </ConfigProvider>
-      </HelmetProvider>
-    </StrictMode>
-  );
-});
+void bootstrapRuntimeConfig()
+  .then((shouldRender) => {
+    if (!shouldRender) return;
+    createRoot(rootEl).render(
+      <StrictMode>
+        <HelmetProvider>
+          <ConfigProvider>
+            <PriceRefreshProvider>
+              <AuthProvider>
+                <UserProvider>
+                  <BrowserRouter>
+                    <Root />
+                  </BrowserRouter>
+                  <ToastContainer autoClose={5000} />
+                </UserProvider>
+              </AuthProvider>
+            </PriceRefreshProvider>
+          </ConfigProvider>
+        </HelmetProvider>
+      </StrictMode>
+    );
+  })
+  .catch((error) => {
+    console.error('AWS UI authentication bootstrap failed', error);
+    createRoot(rootEl).render(
+      <div role="alert" className="app-offline">
+        Authentication is unavailable. Please contact your administrator.
+      </div>
+    );
+  });

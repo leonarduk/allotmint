@@ -40,7 +40,7 @@ describe('ensureAwsUiAuth', () => {
     expect(assignMock).not.toHaveBeenCalled();
   });
 
-  it('allows rendering when enabled is the string "true"', async () => {
+  it('redirects to Cognito when enabled is the string "true"', async () => {
     vi.spyOn(crypto, 'getRandomValues').mockImplementation((array) => {
       (array as Uint8Array).fill(1);
       return array;
@@ -88,6 +88,21 @@ describe('ensureAwsUiAuth', () => {
     expect(target.searchParams.get('scope')).toBe('openid email profile');
   });
 
+  it('uses a configured redirectPath in the hosted UI redirect URL', async () => {
+    vi.spyOn(crypto, 'getRandomValues').mockImplementation((array) => {
+      (array as Uint8Array).fill(1);
+      return array;
+    });
+    vi.spyOn(crypto.subtle, 'digest').mockResolvedValue(new Uint8Array(32).buffer);
+
+    await ensureAwsUiAuth({ ...AUTH_CONFIG, redirectPath: '/callback' });
+
+    const target = new URL(assignMock.mock.calls[0][0]);
+    expect(target.searchParams.get('redirect_uri')).toBe(
+      'https://app.example.test/callback'
+    );
+  });
+
   it('skips redirect when a valid session is already stored', async () => {
     window.sessionStorage.setItem(
       'awsUiAuthSession',
@@ -95,6 +110,15 @@ describe('ensureAwsUiAuth', () => {
     );
 
     await expect(ensureAwsUiAuth(AUTH_CONFIG)).resolves.toBe(true);
+    expect(assignMock).not.toHaveBeenCalled();
+  });
+
+  it('throws when Cognito returns an error query param', async () => {
+    setLocation('?error=access_denied');
+
+    await expect(ensureAwsUiAuth(AUTH_CONFIG)).rejects.toThrow(
+      'Cognito auth error: access_denied'
+    );
     expect(assignMock).not.toHaveBeenCalled();
   });
 
@@ -131,6 +155,22 @@ describe('ensureAwsUiAuth', () => {
       const stored = JSON.parse(storedRaw!);
       expect(stored.idToken).toBe('id-tok');
       expect(stored.accessToken).toBe('access-tok');
+    });
+
+    it('uses configured redirectPath in the token exchange request', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({
+          ok: true,
+          json: () => Promise.resolve({ id_token: 'tok', expires_in: 3600 }),
+        })
+      );
+
+      await ensureAwsUiAuth({ ...AUTH_CONFIG, redirectPath: '/callback' });
+
+      const fetchCall = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+      const body = new URLSearchParams(fetchCall[1].body as string);
+      expect(body.get('redirect_uri')).toBe('https://app.example.test/callback');
     });
 
     it('clears the code and state from the URL after exchange', async () => {

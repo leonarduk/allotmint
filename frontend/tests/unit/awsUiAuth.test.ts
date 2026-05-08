@@ -113,11 +113,42 @@ describe('ensureAwsUiAuth', () => {
     expect(assignMock).not.toHaveBeenCalled();
   });
 
-  it('throws when Cognito returns an error query param', async () => {
+  it('redirects back to Cognito when session is expired', async () => {
+    vi.spyOn(crypto, 'getRandomValues').mockImplementation((array) => {
+      (array as Uint8Array).fill(1);
+      return array;
+    });
+    vi.spyOn(crypto.subtle, 'digest').mockResolvedValue(new Uint8Array(32).buffer);
+
+    window.sessionStorage.setItem(
+      'awsUiAuthSession',
+      JSON.stringify({ idToken: 'tok', expiresAt: Date.now() - 1000 })
+    );
+
+    const result = await ensureAwsUiAuth(AUTH_CONFIG);
+    expect(result).toBe(false);
+    expect(assignMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('redirects back to Cognito when user cancels (access_denied)', async () => {
+    vi.spyOn(crypto, 'getRandomValues').mockImplementation((array) => {
+      (array as Uint8Array).fill(1);
+      return array;
+    });
+    vi.spyOn(crypto.subtle, 'digest').mockResolvedValue(new Uint8Array(32).buffer);
+
     setLocation('?error=access_denied');
 
+    const result = await ensureAwsUiAuth(AUTH_CONFIG);
+    expect(result).toBe(false);
+    expect(assignMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('throws when Cognito returns a non-cancellation error', async () => {
+    setLocation('?error=server_error');
+
     await expect(ensureAwsUiAuth(AUTH_CONFIG)).rejects.toThrow(
-      'Cognito auth error: access_denied'
+      'Cognito auth error: server_error'
     );
     expect(assignMock).not.toHaveBeenCalled();
   });

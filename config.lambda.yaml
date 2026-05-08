@@ -63,7 +63,7 @@ trading:
   snapshot_warm_days: 30
   approval_valid_days: 2
   approval_exempt_types: ETF
-  approval_exempt_tickers: ""
+  approval_exempt_tickers: []
   trading_agent:
     rsi_buy: 30
     rsi_sell: 70

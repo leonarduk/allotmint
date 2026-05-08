@@ -49,7 +49,8 @@ const redirectUri = (redirectPath?: string) => {
 };
 
 const loadSession = (): StoredSession | null => {
-  const raw = window.localStorage.getItem(SESSION_KEY);
+  // sessionStorage is cleared on tab close, limiting token exposure window.
+  const raw = window.sessionStorage.getItem(SESSION_KEY);
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as Partial<StoredSession>;
@@ -62,7 +63,7 @@ const loadSession = (): StoredSession | null => {
     return parsed as StoredSession;
   } catch (error) {
     console.warn('Discarding unreadable AWS UI auth session', error);
-    window.localStorage.removeItem(SESSION_KEY);
+    window.sessionStorage.removeItem(SESSION_KEY);
     return null;
   }
 };
@@ -78,7 +79,8 @@ const storeSession = (payload: {
     accessToken: payload.access_token,
     expiresAt: Date.now() + expiresInSeconds * 1000,
   };
-  window.localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  // sessionStorage scopes the token to this tab/session only.
+  window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
 };
 
 const hasValidSession = () => {

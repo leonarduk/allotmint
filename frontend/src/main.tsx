@@ -416,8 +416,7 @@ const rootEl = document.getElementById('root');
 if (!rootEl) throw new Error('Root element not found');
 
 const bootstrapRuntimeConfig = async () => {
-  let payload: { apiBaseUrl?: unknown; awsUiAuth?: AwsUiAuthConfig } | null =
-    null;
+  let payload: { apiBaseUrl?: unknown; awsUiAuth?: AwsUiAuthConfig } = {};
   try {
     const response = await fetch('/config.json', { cache: 'no-store' });
     if (!response.ok) return true;

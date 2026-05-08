@@ -195,8 +195,10 @@ class StaticSiteStack(Stack):
         ui_auth_callback_url = Fn.join("", ["https://", distribution.domain_name, "/"])
         ui_auth_client = ui_auth_pool.add_client(
             "UiAuthClient",
-            # user_srp=True is sufficient for the hosted UI + PKCE authorization-code flow.
-            # user_password=True would also enable ALLOW_USER_PASSWORD_AUTH which is weaker.
+            # auth_flows gates the direct Cognito API auth endpoints (USER_SRP_AUTH,
+            # USER_PASSWORD_AUTH). The hosted UI uses browser redirects and does not
+            # go through these API flows. user_srp=True is kept to avoid enabling the
+            # weaker ALLOW_USER_PASSWORD_AUTH endpoint on this public client.
             auth_flows=cognito.AuthFlow(user_srp=True),
             o_auth=cognito.OAuthSettings(
                 flows=cognito.OAuthFlows(authorization_code_grant=True),

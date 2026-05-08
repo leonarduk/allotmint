@@ -23,12 +23,14 @@ The current policy is defined in `cdk/stacks/static_site_stack.py` and includes 
 ```text
 default-src 'self';
 script-src 'self' https://accounts.google.com/gsi/client;
-connect-src 'self' https://*.amazonaws.com;
+connect-src 'self' https://*.amazonaws.com https://*.amazoncognito.com;
 frame-src 'self' https://accounts.google.com/gsi/;
 frame-ancestors 'none';
 object-src 'none';
 base-uri 'self'
 ```
+
+Note: `https://*.amazoncognito.com` is required for the PKCE token exchange — the Cognito hosted UI token endpoint (`/oauth2/token`) lives under `amazoncognito.com`, not `amazonaws.com`.
 
 ### Adding or updating the policy
 

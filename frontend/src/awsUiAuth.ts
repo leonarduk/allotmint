@@ -193,8 +193,11 @@ export const ensureAwsUiAuth = async (config?: AwsUiAuthConfig | null) => {
 
   const redirectPath = authConfigInput.redirectPath ?? DEFAULT_REDIRECT_PATH;
   const authConfig: AuthConfig = { domain, clientId, redirectPath };
-  if (await exchangeCode(authConfig)) return true;
+  // Session check before code exchange: if the user already has a valid session,
+  // skip exchangeCode entirely to avoid a state-mismatch error when ?code= params
+  // are present in the URL from a previous (already-consumed) callback.
   if (hasValidSession()) return true;
+  if (await exchangeCode(authConfig)) return true;
   await redirectToHostedUi(authConfig);
   return false;
 };

@@ -317,10 +317,13 @@ class BackendLambdaStack(Stack):
             log_group=agent_log_group,
         )
 
-        # TradingAgentLambda: read-only for general data keys. The explicit
-        # timeseries cache grant includes GetObject, PutObject, and ListBucket on
-        # timeseries/ so shared parquet cache helpers can use pyarrow S3 safely.
-        # _log_trade() writes to TRADE_LOG_PATH (local filesystem / CloudWatch).
+        # TradingAgentLambda: read-only, no put, no general list.
+        # Audited: trading_agent.py:run() → load_prices_for_tickers()
+        # → load_meta_timeseries_range() reads parquet from S3 by known key.
+        # No S3 writes: _log_trade() writes to TRADE_LOG_PATH (local filesystem / CloudWatch).
+        # The timeseries cache grant adds scoped GetObject and ListBucket so pyarrow
+        # can read cached parquet files under timeseries/. allow_put=False enforces
+        # the read-only invariant on the timeseries prefix.
         self._grant_bucket_access(
             agent_fn,
             bucket=data_bucket,
@@ -329,7 +332,7 @@ class BackendLambdaStack(Stack):
             allow_list=False,
             list_prefix=lambda_list_prefixes["trading_agent"],
         )
-        self._grant_timeseries_cache_access(agent_fn, bucket=data_bucket, allow_put=True)
+        self._grant_timeseries_cache_access(agent_fn, bucket=data_bucket, allow_put=False)
 
         events.Rule(
             self,

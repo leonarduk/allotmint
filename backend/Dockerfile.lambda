@@ -10,6 +10,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend /var/task/backend
 COPY data/ /var/task/data/
 
+# Lambda-specific runtime configuration. All write paths resolve to /tmp so
+# the read-only Lambda filesystem is not written to. Sensitive values are
+# injected at deploy time via environment variables.
+COPY config.lambda.yaml /var/task/config.yaml
+
 WORKDIR /var/task
 
 # Set the Lambda handler

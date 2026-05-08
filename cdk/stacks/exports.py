@@ -4,3 +4,7 @@
 #   2. Migrate consumers to the new name.
 #   3. Remove the old export name.
 BACKEND_API_URL_EXPORT = "BackendLambdaStack-BackendApiUrl"
+
+UI_AUTH_USER_POOL_ID_EXPORT = "StaticSiteStack-UiAuthUserPoolId"
+UI_AUTH_USER_POOL_CLIENT_ID_EXPORT = "StaticSiteStack-UiAuthUserPoolClientId"
+UI_AUTH_DOMAIN_EXPORT = "StaticSiteStack-UiAuthDomain"

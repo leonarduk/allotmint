@@ -318,6 +318,43 @@ def test_monthly_budget_exists(template):
     assert budget_limit.get("Unit") == "USD"
 
 
+
+
+def test_backend_api_auth_parameters_exist(template):
+    template.has_parameter("UiAuthUserPoolId", {"Type": "String"})
+    template.has_parameter("UiAuthUserPoolClientId", {"Type": "String"})
+
+
+def test_backend_api_has_cognito_jwt_authorizer(template):
+    """API Gateway must validate Cognito JWTs before invoking the backend Lambda."""
+    template.has_resource_properties(
+        "AWS::ApiGatewayV2::Authorizer",
+        {
+            "AuthorizerType": "JWT",
+            "IdentitySource": ["$request.header.Authorization"],
+            "JwtConfiguration": {
+                "Audience": assertions.Match.any_value(),
+                "Issuer": assertions.Match.any_value(),
+            },
+        },
+    )
+
+
+def test_backend_api_routes_require_cognito_authorizer(template):
+    routes = template.find_resources("AWS::ApiGatewayV2::Route")
+    protected_routes = {
+        resource["Properties"].get("RouteKey"): resource["Properties"]
+        for resource in routes.values()
+        if resource["Properties"].get("RouteKey") in {"ANY /", "ANY /{proxy+}"}
+    }
+    assert set(protected_routes) == {"ANY /", "ANY /{proxy+}"}
+    for route_key, properties in protected_routes.items():
+        assert properties.get("AuthorizationType") == "JWT", (
+            f"Route {route_key} must require Cognito JWT authorization"
+        )
+        assert "AuthorizerId" in properties, f"Route {route_key} must reference the JWT authorizer"
+
+
 # ---------------------------------------------------------------------------
 # CfnOutputs
 # ---------------------------------------------------------------------------

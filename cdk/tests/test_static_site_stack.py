@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 aws_cdk = pytest.importorskip("aws_cdk", reason="aws-cdk-lib not installed")
 
 from aws_cdk import App, assertions  # noqa: E402
+
 from cdk.stacks.static_site_stack import StaticSiteStack  # noqa: E402
 
 _DUMMY_API_URL = "https://abc123.execute-api.eu-west-1.amazonaws.com"
@@ -134,6 +135,7 @@ def test_static_site_stack_synthesises_without_api_base_url(tmp_path):
     deployed from CI.
     """
     from aws_cdk import App  # noqa: PLC0415
+
     from cdk.stacks.static_site_stack import StaticSiteStack  # noqa: PLC0415
 
     (tmp_path / "index.html").write_text("<html></html>")
@@ -175,3 +177,42 @@ def test_site_bucket_blocks_public_access(template):
             }
         },
     )
+
+
+def test_ui_auth_user_pool_created(template):
+    """Static site deploys a Cognito user pool to gate the hosted UI."""
+    template.has_resource_properties(
+        "AWS::Cognito::UserPool",
+        {
+            "AccountRecoverySetting": {
+                "RecoveryMechanisms": assertions.Match.array_with(
+                    [assertions.Match.object_like({"Name": "verified_email", "Priority": 1})]
+                )
+            },
+            "AdminCreateUserConfig": {"AllowAdminCreateUserOnly": True},
+        },
+    )
+
+
+def test_ui_auth_client_uses_authorization_code_flow(template):
+    """Hosted UI auth must use the authorization-code flow for the SPA."""
+    template.has_resource_properties(
+        "AWS::Cognito::UserPoolClient",
+        {
+            "AllowedOAuthFlows": ["code"],
+            "AllowedOAuthScopes": assertions.Match.array_with(["email", "openid", "profile"]),
+            "SupportedIdentityProviders": ["COGNITO"],
+        },
+    )
+
+
+def test_ui_auth_outputs_are_exported(template):
+    template.has_output(
+        "UiAuthUserPoolId",
+        {"Export": {"Name": "StaticSiteStack-UiAuthUserPoolId"}},
+    )
+    template.has_output(
+        "UiAuthUserPoolClientId",
+        {"Export": {"Name": "StaticSiteStack-UiAuthUserPoolClientId"}},
+    )
+    template.has_output("UiAuthDomain", {"Export": {"Name": "StaticSiteStack-UiAuthDomain"}})

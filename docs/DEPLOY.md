@@ -163,19 +163,25 @@ The script changes into the `cdk/` directory, installs the repo-pinned CDK CLI i
 necessary, then deploys `BackendLambdaStack` and `StaticSiteStack` when
 `-Backend` is specified.
 
-Alternatively, run the commands manually:
+Alternatively, run the commands manually. Deploy the static stack once first so
+Cognito exists, pass its outputs into the backend stack, then redeploy the static
+stack with the protected API URL in `/config.json`:
 
 ```bash
 cd cdk
 npx cdk bootstrap   # once per account/region
-DEPLOY_BACKEND=false npx cdk deploy StaticSiteStack
-# or deploy backend and frontend together. Supply the name of your
-# data bucket either via environment variable:
-DATA_BUCKET=my-data-bucket DEPLOY_BACKEND=true npx cdk deploy BackendLambdaStack StaticSiteStack
-# or as a CDK context parameter:
-DEPLOY_BACKEND=true npx cdk deploy BackendLambdaStack StaticSiteStack -c data_bucket=my-data-bucket
-# or deploy every stack managed by app.py:
-npx cdk deploy --all --require-approval never
+npx cdk deploy StaticSiteStack --require-approval never
+UI_AUTH_USER_POOL_ID=$(aws cloudformation describe-stacks --stack-name StaticSiteStack \
+  --query "Stacks[0].Outputs[?OutputKey=='UiAuthUserPoolId'].OutputValue" --output text)
+UI_AUTH_USER_POOL_CLIENT_ID=$(aws cloudformation describe-stacks --stack-name StaticSiteStack \
+  --query "Stacks[0].Outputs[?OutputKey=='UiAuthUserPoolClientId'].OutputValue" --output text)
+DATA_BUCKET=my-data-bucket npx cdk deploy BackendLambdaStack --require-approval never \
+  --parameters BackendLambdaStack:UiAuthUserPoolId="$UI_AUTH_USER_POOL_ID" \
+  --parameters BackendLambdaStack:UiAuthUserPoolClientId="$UI_AUTH_USER_POOL_CLIENT_ID"
+BACKEND_URL=$(aws cloudformation describe-stacks --stack-name BackendLambdaStack \
+  --query "Stacks[0].Outputs[?OutputKey=='BackendApiUrl'].OutputValue" --output text)
+npx cdk deploy StaticSiteStack --require-approval never \
+  --parameters StaticSiteStack:BackendApiUrl="$BACKEND_URL"
 ```
 
 When manually validating drift before a deploy, always run:
@@ -219,20 +225,31 @@ If deployment fails or the live environment does not match local behavior:
    The scheduled Lambdas expose the same discoverability outputs as
    `PriceRefreshLambdaLogGroupName` and `TradingAgentLambdaLogGroupName`.
 
-4. Validate API Gateway connectivity with the `BackendApiUrl` output:
+4. Validate API Gateway and Cognito API authorization outputs:
 
    ```bash
    aws cloudformation describe-stacks --stack-name BackendLambdaStack \
      --query "Stacks[0].Outputs[?OutputKey=='BackendApiUrl'].OutputValue" --output text
-   curl -fsSL "<BackendApiUrl>/docs" >/dev/null
+   aws cloudformation describe-stacks --stack-name StaticSiteStack \
+     --query "Stacks[0].Outputs[?starts_with(OutputKey, 'UiAuth')].[OutputKey,OutputValue]" \
+     --output table
+   curl -i "<BackendApiUrl>/docs"
    ```
+
+   The unauthenticated `curl` should return `401` from API Gateway. Browser users
+   must first authenticate through the Cognito hosted UI; the React app then
+   forwards the Cognito ID token as `Authorization: Bearer <idToken>` on API calls.
 
 5. Validate static frontend output with `DistributionDomain`:
 
    ```bash
    aws cloudformation describe-stacks --stack-name StaticSiteStack \
      --query "Stacks[0].Outputs[?OutputKey=='DistributionDomain'].OutputValue" --output text
-   curl -fsSL "https://<DistributionDomain>" >/dev/null
    ```
+
+   Create or invite at least one administrator-approved user in the emitted
+   Cognito user pool before sharing the CloudFront URL. A browser visit to the
+   distribution should redirect unauthenticated visitors to Cognito instead of
+   rendering the dashboard directly.
 
 6. If the frontend is stale after a successful deploy, run CloudFront invalidation (`/*`).

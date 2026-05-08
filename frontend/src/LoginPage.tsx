@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { API_BASE, setAuthToken } from './api';
+import { getAwsUiAuthIdToken } from './awsUiAuth';
 import { useUser } from './UserContext';
 import { useAuth } from './AuthContext';
 
@@ -41,9 +42,14 @@ export default function LoginPage({ clientId, onSuccess }: Props) {
             picture: decoded.picture,
           });
 
+          const headers = new Headers({ 'Content-Type': 'application/json' });
+          const awsUiIdToken = getAwsUiAuthIdToken();
+          if (awsUiIdToken) {
+            headers.set('Authorization', `Bearer ${awsUiIdToken}`);
+          }
           const res = await fetch(`${API_BASE}/token/google`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers,
             body: JSON.stringify({ token: resp.credential }),
           });
           if (res.ok) {

@@ -38,6 +38,7 @@ import { UserProvider, useUser } from './UserContext';
 import ErrorBoundary from './ErrorBoundary';
 import { loadStoredAuthUser, loadStoredUserProfile } from './authStorage';
 import { RouteProvider } from './RouteContext';
+import { ensureAwsUiAuth, type AwsUiAuthConfig } from './awsUiAuth';
 import {
   deriveBootstrapMode,
   deriveModeFromPathname,
@@ -415,10 +416,14 @@ const rootEl = document.getElementById('root');
 if (!rootEl) throw new Error('Root element not found');
 
 const bootstrapRuntimeConfig = async () => {
+  let payload: { apiBaseUrl?: unknown; awsUiAuth?: AwsUiAuthConfig } = {};
   try {
     const response = await fetch('/config.json', { cache: 'no-store' });
-    if (!response.ok) return;
-    const payload = (await response.json()) as { apiBaseUrl?: unknown };
+    if (!response.ok) return true;
+    payload = (await response.json()) as {
+      apiBaseUrl?: unknown;
+      awsUiAuth?: AwsUiAuthConfig;
+    };
     if (typeof payload.apiBaseUrl === 'string') {
       setApiBase(payload.apiBaseUrl);
     }
@@ -427,26 +432,42 @@ const bootstrapRuntimeConfig = async () => {
       'Runtime config not loaded, using default API base URL',
       error
     );
+    return true;
   }
+  return ensureAwsUiAuth(payload.awsUiAuth);
 };
 
-void bootstrapRuntimeConfig().finally(() => {
-  createRoot(rootEl).render(
-    <StrictMode>
-      <HelmetProvider>
-        <ConfigProvider>
-          <PriceRefreshProvider>
-            <AuthProvider>
-              <UserProvider>
-                <BrowserRouter>
-                  <Root />
-                </BrowserRouter>
-                <ToastContainer autoClose={5000} />
-              </UserProvider>
-            </AuthProvider>
-          </PriceRefreshProvider>
-        </ConfigProvider>
-      </HelmetProvider>
-    </StrictMode>
-  );
-});
+const renderBootstrapError = (message: string) => {
+  rootEl.innerHTML = '';
+  const errorEl = document.createElement('div');
+  errorEl.setAttribute('role', 'alert');
+  errorEl.textContent = message;
+  rootEl.appendChild(errorEl);
+};
+
+void bootstrapRuntimeConfig()
+  .then((shouldRender) => {
+    if (!shouldRender) return;
+    createRoot(rootEl).render(
+      <StrictMode>
+        <HelmetProvider>
+          <ConfigProvider>
+            <PriceRefreshProvider>
+              <AuthProvider>
+                <UserProvider>
+                  <BrowserRouter>
+                    <Root />
+                  </BrowserRouter>
+                  <ToastContainer autoClose={5000} />
+                </UserProvider>
+              </AuthProvider>
+            </PriceRefreshProvider>
+          </ConfigProvider>
+        </HelmetProvider>
+      </StrictMode>
+    );
+  })
+  .catch((error: unknown) => {
+    console.error('Application bootstrap failed', error);
+    renderBootstrapError('Unable to start AllotMint authentication.');
+  });

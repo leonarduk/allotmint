@@ -2,11 +2,13 @@ import os
 from collections.abc import Sequence
 from pathlib import Path
 
-from aws_cdk import CfnOutput, Duration, RemovalPolicy, Stack
+from aws_cdk import CfnOutput, CfnParameter, Duration, RemovalPolicy, Stack
 from aws_cdk import aws_apigatewayv2 as apigwv2
+from aws_cdk import aws_apigatewayv2_authorizers as apigwv2_authorizers
 from aws_cdk import aws_apigatewayv2_integrations as apigwv2_integrations
 from aws_cdk import aws_budgets as budgets
 from aws_cdk import aws_cloudwatch as cloudwatch
+from aws_cdk import aws_cognito as cognito
 from aws_cdk import aws_events as events
 from aws_cdk import aws_events_targets as targets
 from aws_cdk import aws_iam as iam
@@ -177,7 +179,7 @@ class BackendLambdaStack(Stack):
 
         backend_env = {
             "GOOGLE_AUTH_ENABLED": "true",
-            "DISABLE_AUTH": "false",
+            "DISABLE_AUTH": "true",
             "DATA_BUCKET": bucket_name,
             "DATA_BRANCH": data_branch,
             # APP_REGION is used instead of AWS_REGION because AWS_REGION is a reserved
@@ -217,7 +219,51 @@ class BackendLambdaStack(Stack):
             list_prefix=lambda_list_prefixes["backend"],
         )
 
-        backend_api = apigwv2.HttpApi(self, "BackendApi")
+        ui_auth_user_pool_id_param = CfnParameter(
+            self,
+            "UiAuthUserPoolId",
+            type="String",
+            default=self.node.try_get_context("ui_auth_user_pool_id")
+            or os.getenv("UI_AUTH_USER_POOL_ID")
+            or "",
+            description=(
+                "Cognito user pool ID exported by StaticSiteStack for API JWT authorization."
+            ),
+        )
+        ui_auth_client_id_param = CfnParameter(
+            self,
+            "UiAuthUserPoolClientId",
+            type="String",
+            default=self.node.try_get_context("ui_auth_user_pool_client_id")
+            or os.getenv("UI_AUTH_USER_POOL_CLIENT_ID")
+            or "",
+            description=(
+                "Cognito app client ID exported by StaticSiteStack for API JWT authorization."
+            ),
+        )
+        ui_auth_user_pool = cognito.UserPool.from_user_pool_id(
+            self, "ImportedUiAuthUserPool", ui_auth_user_pool_id_param.value_as_string
+        )
+        backend_authorizer = apigwv2_authorizers.HttpUserPoolAuthorizer(
+            "BackendCognitoAuthorizer",
+            ui_auth_user_pool,
+            user_pool_clients=[
+                cognito.UserPoolClient.from_user_pool_client_id(
+                    self, "ImportedUiAuthUserPoolClient", ui_auth_client_id_param.value_as_string
+                )
+            ],
+            identity_source=["$request.header.Authorization"],
+        )
+        backend_api = apigwv2.HttpApi(
+            self,
+            "BackendApi",
+            cors_preflight=apigwv2.CorsPreflightOptions(
+                allow_headers=["Authorization", "Content-Type", "X-CSRFToken"],
+                allow_methods=[apigwv2.CorsHttpMethod.ANY],
+                allow_origins=cors_origins,
+                allow_credentials=True,
+            ),
+        )
         self.backend_api_url = backend_api.api_endpoint
         backend_integration = apigwv2_integrations.HttpLambdaIntegration(
             "BackendLambdaIntegration", backend_fn
@@ -226,11 +272,13 @@ class BackendLambdaStack(Stack):
             path="/",
             methods=[apigwv2.HttpMethod.ANY],
             integration=backend_integration,
+            authorizer=backend_authorizer,
         )
         backend_api.add_routes(
             path="/{proxy+}",
             methods=[apigwv2.HttpMethod.ANY],
             integration=backend_integration,
+            authorizer=backend_authorizer,
         )
 
         # Scheduled function to refresh prices daily

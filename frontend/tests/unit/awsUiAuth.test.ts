@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ensureAwsUiAuth } from '@/awsUiAuth';
+import { ensureAwsUiAuth, UserCancelledError } from '@/awsUiAuth';
 
 const assignMock = vi.fn();
 
@@ -130,18 +130,15 @@ describe('ensureAwsUiAuth', () => {
     expect(assignMock).toHaveBeenCalledTimes(1);
   });
 
-  it('redirects back to Cognito when user cancels (access_denied)', async () => {
-    vi.spyOn(crypto, 'getRandomValues').mockImplementation((array) => {
-      (array as Uint8Array).fill(1);
-      return array;
-    });
-    vi.spyOn(crypto.subtle, 'digest').mockResolvedValue(new Uint8Array(32).buffer);
-
+  it('throws UserCancelledError and cleans up URL when user cancels (access_denied)', async () => {
+    const replaceState = vi.spyOn(window.history, 'replaceState');
     setLocation('?error=access_denied');
 
-    const result = await ensureAwsUiAuth(AUTH_CONFIG);
-    expect(result).toBe(false);
-    expect(assignMock).toHaveBeenCalledTimes(1);
+    await expect(ensureAwsUiAuth(AUTH_CONFIG)).rejects.toBeInstanceOf(UserCancelledError);
+    expect(assignMock).not.toHaveBeenCalled();
+    expect(replaceState).toHaveBeenCalledWith({}, document.title, '/');
+    expect(window.sessionStorage.getItem('awsUiAuthState')).toBeNull();
+    expect(window.sessionStorage.getItem('awsUiAuthCodeVerifier')).toBeNull();
   });
 
   it('throws when Cognito returns a non-cancellation error', async () => {

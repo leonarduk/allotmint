@@ -18,8 +18,10 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Callable, Dict
 
+import boto3
 import pandas as pd
 import requests
+from botocore.exceptions import ClientError
 
 from backend.common.instruments import get_instrument_meta
 from backend.config import config
@@ -446,7 +448,6 @@ def _convert_to_base_currency(
                 return pd.DataFrame()
             fx["Date"] = pd.to_datetime(fx["Date"])
 
-
         fx["Rate"] = pd.to_numeric(fx["Rate"], errors="coerce")
         return fx
 
@@ -520,10 +521,28 @@ def load_meta_timeseries_range(
     return _empty_ts()
 
 
+def _s3_cache_object_exists(cache: str) -> bool:
+    without_scheme = cache.removeprefix("s3://")
+    bucket, _, key = without_scheme.partition("/")
+    if not bucket or not key:
+        logger.warning("Invalid S3 timeseries cache path: %s", cache)
+        return False
+
+    try:
+        boto3.client("s3").head_object(Bucket=bucket, Key=key)
+    except ClientError as exc:
+        error_code = exc.response.get("Error", {}).get("Code")
+        if error_code in {"404", "NoSuchKey", "NotFound"}:
+            return False
+        logger.warning("Unable to check S3 timeseries cache object %s: %s", cache, exc)
+        return False
+    return True
+
+
 def has_cached_meta_timeseries(ticker: str, exchange: str) -> bool:
     cache = meta_timeseries_cache_path(ticker, exchange)
     if cache.startswith("s3://"):
-        return True  # S3 presence is checked lazily on read
+        return _s3_cache_object_exists(cache)
     p = Path(cache)
     return p.exists() and p.stat().st_size > 0
 

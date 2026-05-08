@@ -39,3 +39,49 @@ def test_cache_base_from_config(monkeypatch, tmp_path):
     cache = import_cache()
     assert cache._cache_path("baz") == str(tmp_path / "baz")
 
+
+def test_has_cached_meta_timeseries_returns_true_for_existing_s3_object(monkeypatch):
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", "s3://bucket/timeseries")
+    cache = import_cache()
+    calls = []
+
+    class FakeS3Client:
+        def head_object(self, Bucket, Key):  # noqa: N803 - boto3 API parameter names
+            calls.append((Bucket, Key))
+            return {"ContentLength": 10}
+
+    monkeypatch.setattr(cache.boto3, "client", lambda service: FakeS3Client())
+
+    assert cache.has_cached_meta_timeseries("aapl", "us") is True
+    assert calls == [("bucket", "timeseries/meta/AAPL_US.parquet")]
+
+
+def test_has_cached_meta_timeseries_returns_false_for_missing_s3_object(monkeypatch):
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", "s3://bucket/timeseries")
+    cache = import_cache()
+
+    class FakeS3Client:
+        def head_object(self, Bucket, Key):  # noqa: N803 - boto3 API parameter names
+            raise cache.ClientError(
+                {"Error": {"Code": "404", "Message": "Not Found"}},
+                "HeadObject",
+            )
+
+    monkeypatch.setattr(cache.boto3, "client", lambda service: FakeS3Client())
+
+    assert cache.has_cached_meta_timeseries("missing", "l") is False
+
+
+def test_has_cached_meta_timeseries_keeps_local_path_behaviour(monkeypatch, tmp_path):
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
+    cache = import_cache()
+
+    assert cache.has_cached_meta_timeseries("empty", "l") is False
+
+    path = tmp_path / "meta" / "EMPTY_L.parquet"
+    path.parent.mkdir(parents=True)
+    path.write_bytes(b"")
+    assert cache.has_cached_meta_timeseries("empty", "l") is False
+
+    path.write_bytes(b"cached")
+    assert cache.has_cached_meta_timeseries("empty", "l") is True

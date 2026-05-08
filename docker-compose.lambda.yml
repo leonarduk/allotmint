@@ -1,0 +1,138 @@
+# Local Lambda test harness using the AWS Lambda Runtime Interface Emulator (RIE).
+#
+# Usage:
+#   cp .env.lambda.example .env.lambda   # adjust values as needed
+#   make lambda-up                        # build image and start all services
+#   make lambda-test                      # invoke the API handler
+#   make lambda-test-price                # invoke the price-refresh handler
+#   make lambda-test-trading              # invoke the trading-agent handler
+#   make lambda-down                      # tear everything down
+#
+# Each Lambda service exposes the RIE on a dedicated host port:
+#   lambda-api          -> http://localhost:9010
+#   lambda-price-refresh -> http://localhost:9011
+#   lambda-trading-agent -> http://localhost:9012
+#
+# MinIO provides a local S3-compatible store reachable at http://localhost:9000.
+# The MinIO console is at http://localhost:9001 (same credentials as MINIO_ROOT_*).
+#
+# No real AWS credentials are required; dummy values are used throughout.
+
+version: '3.8'
+
+services:
+
+  minio:
+    image: minio/minio:latest
+    container_name: allotmint-lambda-minio
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - lambda-test
+
+  minio-setup:
+    image: minio/mc:latest
+    container_name: allotmint-lambda-minio-setup
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set local http://minio:9000 $${MINIO_ROOT_USER:-minioadmin} $${MINIO_ROOT_PASSWORD:-minioadmin} &&
+        mc mb --ignore-existing local/$${DATA_BUCKET:-allotmint-local} &&
+        echo 'Bucket ready: '$${DATA_BUCKET:-allotmint-local}
+      "
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      DATA_BUCKET: ${DATA_BUCKET:-allotmint-local}
+    networks:
+      - lambda-test
+
+  lambda-api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.lambda
+    image: allotmint-lambda:latest
+    container_name: allotmint-lambda-api
+    command: ["backend.lambda_api.handler.lambda_handler"]
+    ports:
+      - "9010:8080"
+    environment:
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
+      AWS_ENDPOINT_URL: http://minio:9000
+      DATA_BUCKET: ${DATA_BUCKET:-allotmint-local}
+      DATA_BRANCH: ${DATA_BRANCH:-main}
+      APP_ENV: ${APP_ENV:-local}
+      DISABLE_AUTH: ${DISABLE_AUTH:-true}
+      GOOGLE_AUTH_ENABLED: ${GOOGLE_AUTH_ENABLED:-false}
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-not-for-production}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173}
+    depends_on:
+      minio-setup:
+        condition: service_completed_successfully
+    networks:
+      - lambda-test
+
+  lambda-price-refresh:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.lambda
+    image: allotmint-lambda:latest
+    container_name: allotmint-lambda-price-refresh
+    command: ["backend.lambda_api.price_refresh.lambda_handler"]
+    ports:
+      - "9011:8080"
+    environment:
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
+      AWS_ENDPOINT_URL: http://minio:9000
+      DATA_BUCKET: ${DATA_BUCKET:-allotmint-local}
+      DATA_BRANCH: ${DATA_BRANCH:-main}
+      APP_ENV: ${APP_ENV:-local}
+      ALLOTMINT_ENABLE_TRADING_AGENT: ${ALLOTMINT_ENABLE_TRADING_AGENT:-false}
+    depends_on:
+      minio-setup:
+        condition: service_completed_successfully
+    networks:
+      - lambda-test
+
+  lambda-trading-agent:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.lambda
+    image: allotmint-lambda:latest
+    container_name: allotmint-lambda-trading-agent
+    command: ["backend.lambda_api.trading_agent.lambda_handler"]
+    ports:
+      - "9012:8080"
+    environment:
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
+      AWS_ENDPOINT_URL: http://minio:9000
+      DATA_BUCKET: ${DATA_BUCKET:-allotmint-local}
+      DATA_BRANCH: ${DATA_BRANCH:-main}
+      APP_ENV: ${APP_ENV:-local}
+    depends_on:
+      minio-setup:
+        condition: service_completed_successfully
+    networks:
+      - lambda-test
+
+networks:
+  lambda-test:
+    driver: bridge

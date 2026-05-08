@@ -6,6 +6,7 @@ build/
 .env*
 !.env.example
 !.env.local.example
+!.env.lambda.example
 !.env.production
 
 # PWA icons (downloaded separately)

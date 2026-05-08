@@ -186,6 +186,7 @@ class BackendLambdaStack(Stack):
             "CORS_ORIGINS": ",".join(cors_origins),
             "JWT_SECRET": jwt_secret,
             "GOOGLE_CLIENT_ID": google_client_id,
+            "TIMESERIES_CACHE_BASE": f"s3://{bucket_name}/timeseries",
         }
         if data_repo:
             backend_env["DATA_REPO"] = data_repo
@@ -242,6 +243,7 @@ class BackendLambdaStack(Stack):
             "APP_ENV": env,
             "DATA_BUCKET": bucket_name,
             "DATA_BRANCH": data_branch,
+            "TIMESERIES_CACHE_BASE": f"s3://{bucket_name}/timeseries",
         }
         if data_repo:
             refresh_env["DATA_REPO"] = data_repo
@@ -287,6 +289,7 @@ class BackendLambdaStack(Stack):
             "APP_ENV": env,
             "DATA_BUCKET": bucket_name,
             "DATA_BRANCH": data_branch,
+            "TIMESERIES_CACHE_BASE": f"s3://{bucket_name}/timeseries",
         }
         if data_repo:
             agent_env["DATA_REPO"] = data_repo

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import logging
+from pathlib import Path
 
 import pandas as pd
 from fastapi import APIRouter, Query, Request
@@ -50,10 +51,11 @@ def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> tuple[str, st
 
 
 def _load_timeseries(ticker: str, exchange: str) -> pd.DataFrame:
-    path = meta_timeseries_cache_path(ticker, exchange)
-    if path.exists():
+    cache = meta_timeseries_cache_path(ticker, exchange)
+    exists = cache.startswith("s3://") or Path(cache).exists()
+    if exists:
         try:
-            return _ensure_schema(pd.read_parquet(path))
+            return _ensure_schema(pd.read_parquet(cache))
         except Exception as exc:  # pragma: no cover - defensive
             raise InternalServiceError(
                 f"Failed to load cached timeseries for {ticker}.{exchange}",
@@ -105,7 +107,8 @@ async def post_timeseries_edit(
     if "Source" not in df.columns or df["Source"].isna().all():
         df["Source"] = "Manual"
 
-    path = meta_timeseries_cache_path(ticker, exchange)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_parquet(path, index=False)
+    cache = meta_timeseries_cache_path(ticker, exchange)
+    if not cache.startswith("s3://"):
+        Path(cache).parent.mkdir(parents=True, exist_ok=True)
+    df.to_parquet(cache, index=False)
     return JSONResponse({"status": "ok", "rows": len(df)})

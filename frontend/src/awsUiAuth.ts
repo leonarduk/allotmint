@@ -1,3 +1,10 @@
+export class UserCancelledError extends Error {
+  constructor() {
+    super('User cancelled Cognito login');
+    this.name = 'UserCancelledError';
+  }
+}
+
 export interface AwsUiAuthConfig {
   enabled?: boolean | string;
   domain?: string;
@@ -101,9 +108,15 @@ const exchangeCode = async (config: AuthConfig) => {
   const state = params.get('state');
   const errorParam = params.get('error');
 
-  // access_denied = user clicked Cancel on the Cognito hosted UI — redirect
-  // back so they get another login opportunity rather than an error screen.
-  if (errorParam === 'access_denied') return false;
+  // access_denied = user clicked Cancel on the Cognito hosted UI.
+  // Clean up PKCE state and URL, then throw so the caller renders a retry UI
+  // instead of falling through to redirectToHostedUi and looping indefinitely.
+  if (errorParam === 'access_denied') {
+    window.sessionStorage.removeItem(STATE_KEY);
+    window.sessionStorage.removeItem(VERIFIER_KEY);
+    window.history.replaceState({}, document.title, window.location.pathname);
+    throw new UserCancelledError();
+  }
   if (errorParam) throw new Error(`Cognito auth error: ${errorParam}`);
   if (!code || !state) return false;
 

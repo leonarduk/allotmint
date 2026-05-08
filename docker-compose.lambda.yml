@@ -18,8 +18,6 @@
 #
 # No real AWS credentials are required; dummy values are used throughout.
 
-version: '3.8'
-
 services:
 
   minio:
@@ -33,7 +31,7 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:9000/minio/health/live || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 10

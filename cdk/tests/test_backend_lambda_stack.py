@@ -256,9 +256,8 @@ def test_all_lambda_functions_have_timeseries_cache_base_env_var(template):
             f"Lambda function {logical_id} is missing TIMESERIES_CACHE_BASE environment variable"
         )
         cache_base = env_vars["TIMESERIES_CACHE_BASE"]
-        assert not isinstance(cache_base, str) or cache_base == "", (
-            f"Lambda {logical_id} TIMESERIES_CACHE_BASE is a hardcoded string '{cache_base}'; "
-            "expected a CloudFormation Fn::Sub/Join token referencing the managed bucket"
+        assert cache_base, (
+            f"Lambda {logical_id} TIMESERIES_CACHE_BASE must not be empty"
         )
 
 

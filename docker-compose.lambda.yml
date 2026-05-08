@@ -106,8 +106,8 @@ services:
       APP_ENV: ${APP_ENV:-local}
       ALLOTMINT_ENABLE_TRADING_AGENT: ${ALLOTMINT_ENABLE_TRADING_AGENT:-false}
     depends_on:
-      lambda-api:
-        condition: service_started
+      minio-setup:
+        condition: service_completed_successfully
     networks:
       - lambda-test
 
@@ -126,8 +126,8 @@ services:
       DATA_BRANCH: ${DATA_BRANCH:-main}
       APP_ENV: ${APP_ENV:-local}
     depends_on:
-      lambda-api:
-        condition: service_started
+      minio-setup:
+        condition: service_completed_successfully
     networks:
       - lambda-test
 

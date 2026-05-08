@@ -38,7 +38,7 @@ import { UserProvider, useUser } from './UserContext';
 import ErrorBoundary from './ErrorBoundary';
 import { loadStoredAuthUser, loadStoredUserProfile } from './authStorage';
 import { RouteProvider } from './RouteContext';
-import { ensureAwsUiAuth, type AwsUiAuthConfig } from './awsUiAuth';
+import { ensureAwsUiAuth, UserCancelledError, type AwsUiAuthConfig } from './awsUiAuth';
 import {
   deriveBootstrapMode,
   deriveModeFromPathname,
@@ -462,9 +462,20 @@ void bootstrapRuntimeConfig()
   })
   .catch((error) => {
     console.error('AWS UI authentication bootstrap failed', error);
-    createRoot(rootEl).render(
-      <div role="alert" className="app-offline">
-        Authentication is unavailable. Please contact your administrator.
-      </div>
-    );
+    if (error instanceof UserCancelledError) {
+      createRoot(rootEl).render(
+        <div role="alert" className="app-offline">
+          <p>Login cancelled.</p>
+          <button type="button" onClick={() => window.location.reload()}>
+            Sign in
+          </button>
+        </div>
+      );
+    } else {
+      createRoot(rootEl).render(
+        <div role="alert" className="app-offline">
+          Authentication is unavailable. Please contact your administrator.
+        </div>
+      );
+    }
   });

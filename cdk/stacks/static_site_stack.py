@@ -55,12 +55,13 @@ class StaticSiteStack(Stack):
             "SecurityHeaders",
             comment="Security headers for static site",
             security_headers_behavior=cloudfront.ResponseSecurityHeadersBehavior(
-                # Allow Google Identity Services script and iframe
+                # Allow Google Identity Services script and iframe, and Cognito
+                # hosted UI token exchange (amazoncognito.com != amazonaws.com).
                 content_security_policy=cloudfront.ResponseHeadersContentSecurityPolicy(
                     content_security_policy=(
                         "default-src 'self'; "
                         "script-src 'self' https://accounts.google.com/gsi/client; "
-                        "connect-src 'self' https://*.amazonaws.com; "
+                        "connect-src 'self' https://*.amazonaws.com https://*.amazoncognito.com; "
                         "frame-src 'self' https://accounts.google.com/gsi/; "
                         "frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
                     ),

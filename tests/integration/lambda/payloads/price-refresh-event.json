@@ -1,0 +1,7 @@
+{
+  "source": "allotmint.local",
+  "detail-type": "Scheduled Event",
+  "detail": {
+    "reason": "local price refresh smoke"
+  }
+}

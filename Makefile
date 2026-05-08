@@ -1,4 +1,4 @@
-.PHONY: format lint local-up local-down
+.PHONY: format lint local-up local-down lambda-test
 
 format:
 	isort --sp backend/pyproject.toml backend tests
@@ -15,3 +15,6 @@ local-up:
 
 local-down:
 	docker compose -f docker-compose.local.yml --env-file .env.local down --remove-orphans
+
+lambda-test:
+	bash scripts/bash/lambda-test.sh

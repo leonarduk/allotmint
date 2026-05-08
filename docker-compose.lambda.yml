@@ -1,0 +1,48 @@
+services:
+  lambda-backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.lambda
+    command: ["${LAMBDA_HANDLER:-backend.lambda_api.handler.lambda_handler}"]
+    depends_on:
+      - dynamodb-local
+    environment:
+      APP_ENV: ${APP_ENV:-local}
+      DATA_ROOT: ${DATA_ROOT:-/var/task/data}
+      DISABLE_AUTH: ${DISABLE_AUTH:-true}
+      GOOGLE_AUTH_ENABLED: ${GOOGLE_AUTH_ENABLED:-false}
+      JWT_SECRET: ${JWT_SECRET:-local-lambda-dev-secret}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-local-lambda-client}
+      DATA_BUCKET: ${DATA_BUCKET:-local-lambda-data}
+      METADATA_BUCKET: ${METADATA_BUCKET:-local-lambda-metadata}
+      METADATA_PREFIX: ${METADATA_PREFIX:-instruments}
+      QUOTES_TABLE: ${QUOTES_TABLE:-QuotesLocal}
+      REPORT_TEMPLATES_TABLE: ${REPORT_TEMPLATES_TABLE:-ReportTemplatesLocal}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-dummy}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-dummy}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-dummy}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
+      APP_REGION: ${APP_REGION:-us-east-1}
+      AWS_ENDPOINT_URL_DYNAMODB: ${AWS_ENDPOINT_URL_DYNAMODB:-http://dynamodb-local:8000}
+      ALPHA_VANTAGE_KEY: ${ALPHA_VANTAGE_KEY:-demo}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      SMTP_HOST: ${SMTP_HOST:-mailhog}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+    ports:
+      - "${LAMBDA_HOST_PORT:-9000}:8080"
+    volumes:
+      - ./data:/var/task/data:ro
+      - ./config.yaml:/var/task/config.yaml:ro
+
+  dynamodb-local:
+    image: amazon/dynamodb-local:2.5.4
+    command: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-inMemory"]
+    ports:
+      - "${DYNAMODB_HOST_PORT:-8001}:8000"
+
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    profiles: ["ses"]
+    ports:
+      - "${MAILHOG_SMTP_HOST_PORT:-1025}:1025"
+      - "${MAILHOG_UI_HOST_PORT:-8025}:8025"

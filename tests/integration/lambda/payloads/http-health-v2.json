@@ -1,0 +1,29 @@
+{
+  "version": "2.0",
+  "routeKey": "GET /health",
+  "rawPath": "/health",
+  "rawQueryString": "",
+  "headers": {
+    "accept": "application/json",
+    "host": "localhost"
+  },
+  "requestContext": {
+    "accountId": "123456789012",
+    "apiId": "local-lambda-api",
+    "domainName": "localhost",
+    "domainPrefix": "localhost",
+    "http": {
+      "method": "GET",
+      "path": "/health",
+      "protocol": "HTTP/1.1",
+      "sourceIp": "127.0.0.1",
+      "userAgent": "allotmint-lambda-docker-harness"
+    },
+    "requestId": "local-health-check",
+    "routeKey": "GET /health",
+    "stage": "$default",
+    "time": "07/May/2026:00:00:00 +0000",
+    "timeEpoch": 1778112000000
+  },
+  "isBase64Encoded": false
+}

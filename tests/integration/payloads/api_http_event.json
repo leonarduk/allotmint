@@ -4,9 +4,6 @@
   "rawPath": "/health",
   "rawQueryString": "",
   "headers": {
-    "host": "example.com"
-  },
-  "requestContext": {
     "accept": "*/*",
     "host": "localhost:9010",
     "user-agent": "curl/7.68.0"
@@ -21,8 +18,6 @@
       "path": "/health",
       "protocol": "HTTP/1.1",
       "sourceIp": "127.0.0.1",
-      "userAgent": "make lambda-test"
-    }
       "userAgent": "curl/7.68.0"
     },
     "requestId": "local-test-request-id",

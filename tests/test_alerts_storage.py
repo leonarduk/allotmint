@@ -9,7 +9,9 @@ import backend.alerts as alerts
 @pytest.fixture(autouse=True)
 def clear_caches(monkeypatch):
     monkeypatch.setattr(alerts, "_USER_THRESHOLDS", {})
+    monkeypatch.setattr(alerts, "_SETTINGS_LOADED", False)
     monkeypatch.setattr(alerts, "_PUSH_SUBSCRIPTIONS", {})
+    monkeypatch.setattr(alerts, "_SUBSCRIPTIONS_LOADED", False)
 
 
 def test_parse_thresholds_parses_valid_entries():
@@ -329,7 +331,9 @@ def test_threshold_and_subscription_persistence(monkeypatch):
 
     # Clear caches and reload to verify persistence via getters
     alerts._USER_THRESHOLDS = {}
+    alerts._SETTINGS_LOADED = False
     alerts._PUSH_SUBSCRIPTIONS = {}
+    alerts._SUBSCRIPTIONS_LOADED = False
 
     assert alerts.get_user_threshold("u1") == 0.9
     assert alerts.get_user_push_subscription("u1") == {"x": 1}

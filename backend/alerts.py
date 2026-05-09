@@ -56,9 +56,11 @@ except Exception as exc:  # pragma: no cover - configuration errors
 
 # In-memory cache of settings
 _USER_THRESHOLDS: Dict[str, float] = {}
+_SETTINGS_LOADED: bool = False
 
 # In-memory cache of push subscriptions
 _PUSH_SUBSCRIPTIONS: Dict[str, Dict] = {}
+_SUBSCRIPTIONS_LOADED: bool = False
 
 
 def _s3_client():
@@ -104,9 +106,10 @@ def _parse_subscriptions(data: Dict) -> Dict[str, Dict]:
 
 def _load_settings() -> None:
     """Load threshold settings into memory from configured storage."""
-    global _USER_THRESHOLDS
-    if _USER_THRESHOLDS:
+    global _USER_THRESHOLDS, _SETTINGS_LOADED
+    if _SETTINGS_LOADED or _USER_THRESHOLDS:
         return
+    _SETTINGS_LOADED = True
     bucket = _data_bucket()
     if bucket:
         s3 = _s3_client()
@@ -134,9 +137,10 @@ def _load_settings() -> None:
 
 def _load_subscriptions() -> None:
     """Load push subscription data into memory from configured storage."""
-    global _PUSH_SUBSCRIPTIONS
-    if _PUSH_SUBSCRIPTIONS:
+    global _PUSH_SUBSCRIPTIONS, _SUBSCRIPTIONS_LOADED
+    if _SUBSCRIPTIONS_LOADED or _PUSH_SUBSCRIPTIONS:
         return
+    _SUBSCRIPTIONS_LOADED = True
     bucket = _data_bucket()
     if bucket:
         s3 = _s3_client()
@@ -216,10 +220,6 @@ def _save_subscriptions() -> None:
         _SUBSCRIPTIONS_STORAGE.save(_PUSH_SUBSCRIPTIONS)
     except Exception as exc:  # pragma: no cover - storage backend failures
         logger.error('Failed to save push subscriptions to persistent storage: %s', exc)
-
-
-_load_settings()
-_load_subscriptions()
 
 
 def get_user_threshold(user: str, default: float = DEFAULT_THRESHOLD_PCT) -> float:

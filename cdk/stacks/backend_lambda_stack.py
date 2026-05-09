@@ -232,6 +232,7 @@ class BackendLambdaStack(Stack):
             self,
             "UiAuthUserPoolId",
             type="String",
+            allowed_pattern=".+",  # fail at deploy time if empty
             default=self.node.try_get_context("ui_auth_user_pool_id")
             or os.getenv("UI_AUTH_USER_POOL_ID")
             or "",
@@ -243,6 +244,7 @@ class BackendLambdaStack(Stack):
             self,
             "UiAuthUserPoolClientId",
             type="String",
+            allowed_pattern=".+",  # fail at deploy time if empty
             default=self.node.try_get_context("ui_auth_user_pool_client_id")
             or os.getenv("UI_AUTH_USER_POOL_CLIENT_ID")
             or "",

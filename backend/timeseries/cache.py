@@ -11,6 +11,7 @@ where the parquet files live, e.g.
 
 from __future__ import annotations
 
+import importlib
 import logging
 import os
 from datetime import date, datetime, timedelta
@@ -288,6 +289,44 @@ def load_stooq_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame
 _CACHE_FILE_MTIMES: Dict[str, float] = {}
 
 
+def _s3_object_mtime(cache: str) -> float:
+    """Return the S3 object's LastModified timestamp for cache invalidation."""
+
+    without_scheme = cache[len("s3://") :]
+    bucket, _, key = without_scheme.partition("/")
+    if not bucket or not key:
+        logger.warning("Invalid S3 timeseries cache path: %s", cache)
+        return 0.0
+
+    boto3 = importlib.import_module("boto3")
+    try:
+        resp = boto3.client("s3").head_object(Bucket=bucket, Key=key)
+    except Exception as exc:  # pragma: no cover - defensive AWS path
+        logger.warning("Unable to read S3 cache metadata for %s: %s", cache, exc)
+        return 0.0
+
+    last_modified = resp.get("LastModified")
+    if not hasattr(last_modified, "timestamp"):
+        logger.warning("S3 cache metadata for %s is missing LastModified", cache)
+        return 0.0
+    return float(last_modified.timestamp())
+
+
+def _invalidate_meta_caches_if_stale(ticker: str, exchange: str) -> None:
+    """Clear both meta LRUs when the backing file's mtime has changed."""
+    cache = meta_timeseries_cache_path(ticker, exchange)
+    if cache.startswith("s3://"):
+        mtime = _s3_object_mtime(cache)
+    else:
+        p = Path(cache)
+        mtime = p.stat().st_mtime if p.exists() else 0.0
+    prev = _CACHE_FILE_MTIMES.get(cache)
+    if prev is not None and prev != mtime:
+        _load_meta_timeseries_cached.cache_clear()
+        _memoized_range_cached.cache_clear()
+    _CACHE_FILE_MTIMES[cache] = mtime
+
+
 @lru_cache(maxsize=512)
 def _load_meta_timeseries_cached(ticker: str, exchange: str, days: int) -> pd.DataFrame:
     """LRU-backed loader for Meta timeseries."""
@@ -310,19 +349,10 @@ def load_meta_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame:
     if OFFLINE_MODE != config.offline_mode:
         OFFLINE_MODE = config.offline_mode
         _load_meta_timeseries_cached.cache_clear()
+        _memoized_range_cached.cache_clear()
         _CACHE_FILE_MTIMES.clear()
 
-    cache = meta_timeseries_cache_path(ticker, exchange)
-    if cache.startswith("s3://"):
-        mtime = 0.0
-    else:
-        p = Path(cache)
-        mtime = p.stat().st_mtime if p.exists() else 0.0
-    prev = _CACHE_FILE_MTIMES.get(cache)
-    if prev is not None and prev != mtime:
-        _load_meta_timeseries_cached.cache_clear()
-    _CACHE_FILE_MTIMES[cache] = mtime
-
+    _invalidate_meta_caches_if_stale(ticker, exchange)
     return _load_meta_timeseries_cached(ticker, exchange, days).copy()
 
 
@@ -487,6 +517,7 @@ def load_meta_timeseries_range(
     base_currency: str = "GBP",
 ) -> pd.DataFrame:
     global OFFLINE_MODE
+    _invalidate_meta_caches_if_stale(ticker, exchange)
     for offset in range(0, 5):  # try same day, 1-day back, 2-day back...
         s = start_date - timedelta(days=offset)
         e = end_date - timedelta(days=offset)

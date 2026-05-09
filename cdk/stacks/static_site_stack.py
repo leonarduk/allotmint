@@ -1,17 +1,21 @@
 from pathlib import Path
 
-from aws_cdk import (
-    CfnOutput,
-    CfnParameter,
-    Duration,
-    RemovalPolicy,
-    Stack,
-    aws_cloudfront as cloudfront,
-    aws_cloudfront_origins as origins,
-    aws_s3 as s3,
-    aws_s3_deployment as s3_deployment,
-)
+from aws_cdk import Aws, CfnOutput, CfnParameter, Duration, Fn, RemovalPolicy, Stack
+from aws_cdk import aws_cloudfront as cloudfront
+from aws_cdk import aws_cloudfront_origins as origins
+from aws_cdk import aws_cognito as cognito
+from aws_cdk import aws_s3 as s3
+from aws_cdk import aws_s3_deployment as s3_deployment
 from constructs import Construct
+
+
+def _is_truthy_context(value: object) -> bool:
+    """Return true when a CDK context value explicitly opts into production."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes"}
+    return False
 
 
 class StaticSiteStack(Stack):
@@ -27,6 +31,12 @@ class StaticSiteStack(Stack):
         **kwargs,
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
+
+        ui_auth_removal_policy = (
+            RemovalPolicy.RETAIN
+            if _is_truthy_context(self.node.try_get_context("prod"))
+            else RemovalPolicy.DESTROY
+        )
 
         # BucketDeployment.Source.json_data() only accepts intra-stack tokens
         # (Ref / Fn::GetAtt / Fn::Select) — Fn::ImportValue is explicitly rejected
@@ -60,9 +70,16 @@ class StaticSiteStack(Stack):
             "SecurityHeaders",
             comment="Security headers for static site",
             security_headers_behavior=cloudfront.ResponseSecurityHeadersBehavior(
-                # Allow Google Identity Services script and iframe
+                # Allow Google Identity Services script and iframe, and Cognito
+                # hosted UI token exchange (amazoncognito.com != amazonaws.com).
                 content_security_policy=cloudfront.ResponseHeadersContentSecurityPolicy(
-                    content_security_policy="default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; frame-src 'self' https://accounts.google.com/gsi/; frame-ancestors 'none'; object-src 'none'; base-uri 'self'",
+                    content_security_policy=(
+                        "default-src 'self'; "
+                        "script-src 'self' https://accounts.google.com/gsi/client; "
+                        "connect-src 'self' https://*.amazonaws.com https://*.amazoncognito.com; "
+                        "frame-src 'self' https://accounts.google.com/gsi/; "
+                        "frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
+                    ),
                     override=True,
                 ),
                 strict_transport_security=cloudfront.ResponseHeadersStrictTransportSecurity(
@@ -180,6 +197,11 @@ class StaticSiteStack(Stack):
             price_class=cloudfront.PriceClass.PRICE_CLASS_100,
         )
 
+        ui_auth_pool, ui_auth_client, ui_auth_domain = self._create_ui_auth(
+            distribution=distribution,
+            removal_policy=ui_auth_removal_policy,
+        )
+
         frontend_dir = (
             Path(frontend_dist_path)
             if frontend_dist_path is not None
@@ -217,7 +239,20 @@ class StaticSiteStack(Stack):
         config_deploy = s3_deployment.BucketDeployment(
             self,
             "DeployRuntimeConfig",
-            sources=[s3_deployment.Source.json_data("config.json", {"apiBaseUrl": backend_url_param.value_as_string})],
+            sources=[
+                s3_deployment.Source.json_data(
+                    "config.json",
+                    {
+                        "apiBaseUrl": backend_url_param.value_as_string,
+                        "awsUiAuth": {
+                            "enabled": True,
+                            "domain": ui_auth_domain,
+                            "clientId": ui_auth_client.user_pool_client_id,
+                            "redirectPath": "/",
+                        },
+                    },
+                )
+            ],
             destination_bucket=site_bucket,
             cache_control=[
                 s3_deployment.CacheControl.no_cache(),
@@ -231,3 +266,49 @@ class StaticSiteStack(Stack):
         CfnOutput(self, "SiteBucket", value=site_bucket.bucket_name)
         CfnOutput(self, "DistributionId", value=distribution.distribution_id)
         CfnOutput(self, "DistributionDomain", value=distribution.domain_name)
+        CfnOutput(self, "UiAuthUserPoolId", value=ui_auth_pool.user_pool_id)
+        CfnOutput(self, "UiAuthUserPoolClientId", value=ui_auth_client.user_pool_client_id)
+        CfnOutput(self, "UiAuthDomain", value=ui_auth_domain)
+
+    def _create_ui_auth(
+        self,
+        *,
+        distribution: cloudfront.Distribution,
+        removal_policy: RemovalPolicy,
+    ) -> tuple[cognito.UserPool, cognito.UserPoolClient, str]:
+        ui_auth_pool = cognito.UserPool(
+            self,
+            "UiAuthUserPool",
+            account_recovery=cognito.AccountRecovery.EMAIL_ONLY,
+            self_sign_up_enabled=False,
+            sign_in_aliases=cognito.SignInAliases(email=True),
+            removal_policy=removal_policy,
+        )
+        ui_auth_callback_url = Fn.join("", ["https://", distribution.domain_name, "/"])
+        ui_auth_client = ui_auth_pool.add_client(
+            "UiAuthClient",
+            auth_flows=cognito.AuthFlow(user_password=True, user_srp=True),
+            o_auth=cognito.OAuthSettings(
+                flows=cognito.OAuthFlows(authorization_code_grant=True),
+                scopes=[
+                    cognito.OAuthScope.EMAIL,
+                    cognito.OAuthScope.OPENID,
+                    cognito.OAuthScope.PROFILE,
+                ],
+                callback_urls=[ui_auth_callback_url],
+                logout_urls=[ui_auth_callback_url],
+            ),
+            prevent_user_existence_errors=True,
+        )
+        ui_auth_domain_prefix = Fn.join("-", ["allotmint", Aws.ACCOUNT_ID, Aws.REGION])
+        ui_auth_pool.add_domain(
+            "UiAuthDomain",
+            cognito_domain=cognito.CognitoDomainOptions(
+                domain_prefix=ui_auth_domain_prefix,
+            ),
+        )
+        ui_auth_domain = Fn.join(
+            "",
+            ["https://", ui_auth_domain_prefix, ".auth.", Aws.REGION, ".amazoncognito.com"],
+        )
+        return ui_auth_pool, ui_auth_client, ui_auth_domain

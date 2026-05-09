@@ -10,13 +10,17 @@ The deployed CloudFront policy is:
 default-src 'self';
 script-src 'self' https://accounts.google.com/gsi/client;
 frame-src 'self' https://accounts.google.com/gsi/;
-connect-src 'self' https://*.execute-api.*.amazonaws.com https://*.amazoncognito.com;
+connect-src 'self' {BackendApiUrl} https://*.amazoncognito.com;
 frame-ancestors 'none';
 object-src 'none';
 base-uri 'self';
 ```
 
-The `connect-src` directive intentionally permits only API Gateway and Amazon Cognito hosted UI/token exchange endpoints in the AWS namespace. If the frontend adds calls to another AWS service, add the narrowest service-specific host pattern instead of broadening this to `https://*.amazonaws.com`.
+`{BackendApiUrl}` is replaced at deploy time by the CloudFormation `BackendApiUrl` parameter (e.g. `https://abc123.execute-api.eu-west-1.amazonaws.com`). This produces the narrowest possible `connect-src` — pinned to the exact API origin the app uses.
+
+A static wildcard cannot substitute for this parameter. API Gateway URLs have the form `{api-id}.execute-api.{region}.amazonaws.com`. The CSP spec only permits wildcards as the leftmost hostname label, so patterns like `*.execute-api.*.amazonaws.com` are invalid and silently ignored by browsers. The next valid option (`*.amazonaws.com`) is too broad — it covers every AWS service endpoint. Injecting the exact URL avoids both problems.
+
+The `connect-src` directive also permits `https://*.amazoncognito.com` for the Cognito hosted UI and token exchange endpoints.
 
 ### Adding or updating the policy
 

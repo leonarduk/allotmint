@@ -23,6 +23,7 @@ def patch_s3_client(monkeypatch, cache, client):
         created_clients.append(service)
         return client
 
+    cache._s3_client.cache_clear()
     monkeypatch.setattr(cache.boto3, "client", fake_client)
     return created_clients
 

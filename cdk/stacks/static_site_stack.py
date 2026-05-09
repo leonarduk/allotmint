@@ -76,7 +76,8 @@ class StaticSiteStack(Stack):
                     content_security_policy=(
                         "default-src 'self'; "
                         "script-src 'self' https://accounts.google.com/gsi/client; "
-                        "connect-src 'self' https://*.amazonaws.com https://*.amazoncognito.com; "
+                        f"connect-src 'self' {backend_url_param.value_as_string} "
+                        "https://*.amazoncognito.com; "
                         "frame-src 'self' https://accounts.google.com/gsi/; "
                         "frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
                     ),

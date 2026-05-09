@@ -17,11 +17,6 @@ from json import JSONDecodeError
 from fastapi import FastAPI, HTTPException, Request
 
 import backend.auth as auth
-from backend.common.portfolio_utils import (
-    _load_snapshot,
-    refresh_snapshot_async,
-    refresh_snapshot_in_memory,
-)
 from backend.bootstrap import (
     AppLifecycleService,
     configure_runtime_paths,
@@ -163,6 +158,25 @@ def create_app() -> FastAPI:
                 email = auth.verify_google_token(token)
             except HTTPException as exc:
                 logger.warning("Google token verification failed: %s", exc.detail)
+                raise
+        jwt_token = auth.create_access_token(email)
+        return {"access_token": jwt_token, "token_type": "bearer"}
+
+    @app.post("/token/cognito")
+    async def cognito_token(payload: dict):
+        token = payload.get("id_token")
+        client_id = payload.get("client_id")
+        if cfg.disable_auth:
+            email = "user@example.com"
+        else:
+            if not isinstance(token, str) or not token:
+                raise HTTPException(status_code=400, detail="Missing ID token")
+            if not isinstance(client_id, str) or not client_id:
+                raise HTTPException(status_code=400, detail="Missing client ID")
+            try:
+                email = auth.verify_cognito_token(token, client_id)
+            except HTTPException as exc:
+                logger.warning("Cognito token verification failed: %s", exc.detail)
                 raise
         jwt_token = auth.create_access_token(email)
         return {"access_token": jwt_token, "token_type": "bearer"}

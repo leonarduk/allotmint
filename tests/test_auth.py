@@ -3,18 +3,18 @@ import importlib
 import logging
 import sys
 from datetime import datetime, timedelta, timezone
+from importlib import machinery, util
 from types import SimpleNamespace
 
 import pytest
 from fastapi import FastAPI, HTTPException
 from starlette.requests import Request
-from importlib import machinery, util
 
 import backend.auth as auth
 import backend.common.data_loader as dl
+import tests.conftest as tests_conftest
 from backend.common.account_models import PersonMetadata
 from tests.conftest import _real_verify_google_token
-import tests.conftest as tests_conftest
 
 
 async def _empty_receive() -> dict[str, object]:
@@ -125,9 +125,7 @@ def test_allowed_emails_aws_s3_error(monkeypatch, caplog):
         emails = auth._allowed_emails()
 
     assert emails == set()
-    assert any(
-        "Failed to list allowed emails from S3" in record.message for record in caplog.records
-    )
+    assert any("Failed to list allowed emails from S3" in record.message for record in caplog.records)
 
 
 def test_create_and_decode_token_round_trip():
@@ -346,8 +344,7 @@ def test_missing_secret_key_generates_ephemeral_secret(monkeypatch, caplog):
 
     assert reloaded.SECRET_KEY
     assert any(
-        "JWT_SECRET not set; using ephemeral secret for development" in record.getMessage()
-        for record in caplog.records
+        "JWT_SECRET not set; using ephemeral secret for development" in record.getMessage() for record in caplog.records
     )
 
     tests_conftest._real_verify_google_token = reloaded.verify_google_token
@@ -380,3 +377,47 @@ def test_authenticate_user_delegates_to_verification(monkeypatch):
     monkeypatch.setattr(auth, "verify_google_token", fake_verify)
 
     assert auth.authenticate_user("stub") is sentinel
+
+
+def test_verify_cognito_token_success(monkeypatch):
+    class FakeSigningKey:
+        key = "public-key"
+
+    class FakeJwksClient:
+        def __init__(self, url):
+            assert url == ("https://cognito-idp.eu-west-2.amazonaws.com/pool/.well-known/jwks.json")
+
+        def get_signing_key_from_jwt(self, token):
+            assert token == "token"
+            return FakeSigningKey()
+
+    def fake_decode(token, *args, **kwargs):
+        if kwargs.get("options") == {"verify_signature": False}:
+            return {"iss": "https://cognito-idp.eu-west-2.amazonaws.com/pool"}
+        assert kwargs["audience"] == "client"
+        assert kwargs["issuer"] == "https://cognito-idp.eu-west-2.amazonaws.com/pool"
+        return {
+            "aud": "client",
+            "email": "user@example.com",
+            "email_verified": True,
+            "iss": kwargs["issuer"],
+            "token_use": "id",
+        }
+
+    monkeypatch.setattr(auth.jwt, "PyJWKClient", FakeJwksClient)
+    monkeypatch.setattr(auth.jwt, "decode", fake_decode)
+    monkeypatch.setattr(auth, "_allowed_emails", lambda: {"user@example.com"})
+
+    assert auth.verify_cognito_token("token", "client") == "user@example.com"
+
+
+def test_verify_cognito_token_rejects_unsupported_issuer(monkeypatch):
+    def fake_decode(token, *args, **kwargs):
+        return {"iss": "https://issuer.example.com/pool"}
+
+    monkeypatch.setattr(auth.jwt, "decode", fake_decode)
+
+    with pytest.raises(HTTPException) as exc:
+        auth.verify_cognito_token("token", "client")
+
+    assert exc.value.status_code == 401

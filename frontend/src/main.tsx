@@ -27,6 +27,7 @@ import { ConfigProvider, useConfig } from './ConfigContext';
 import { PriceRefreshProvider } from './PriceRefreshContext';
 import { AuthProvider, useAuth } from './AuthContext';
 import {
+  API_BASE,
   getConfig,
   logout as apiLogout,
   getStoredAuthToken,
@@ -35,6 +36,8 @@ import {
 } from './api';
 import LoginPage from './LoginPage';
 import {
+  consumeCognitoAuthSession,
+  exchangeCognitoCodeForTokens,
   getRuntimeAwsUiAuth,
   parseAwsUiAuthConfig,
   setRuntimeAwsUiAuth,
@@ -138,6 +141,10 @@ export function Root() {
     getRuntimeAwsUiAuth()
   );
   const [authed, setAuthed] = useState(Boolean(storedToken));
+  const [cognitoCallbackPending, setCognitoCallbackPending] = useState(false);
+  const [cognitoCallbackError, setCognitoCallbackError] = useState<string | null>(
+    null
+  );
   const { setUser } = useAuth();
   const { setProfile } = useUser();
   const navigate = useNavigate();
@@ -309,6 +316,63 @@ export function Root() {
     fetchConfig(0, { manual: true });
   }, [fetchConfig]);
 
+  const completeCognitoCallback = useCallback(
+    async (config: AwsUiAuthConfig, code: string, state: string | null) => {
+      const session = consumeCognitoAuthSession(state);
+      if (!session) throw new Error('Invalid Cognito sign-in state.');
+
+      const tokens = await exchangeCognitoCodeForTokens(
+        config,
+        window.location.origin,
+        code,
+        session.codeVerifier
+      );
+      if (!tokens.id_token) throw new Error('Cognito did not return an ID token.');
+
+      const response = await fetch(`${API_BASE}/token/cognito`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_id: config.clientId,
+          id_token: tokens.id_token,
+        }),
+      });
+      if (!response.ok) throw new Error('Backend Cognito login failed.');
+
+      const data = (await response.json()) as { access_token?: string };
+      if (!data.access_token) throw new Error('Backend token response missing.');
+      setAuthToken(data.access_token);
+      setAuthed(true);
+      navigate(session.returnPath, { replace: true });
+    },
+    [navigate]
+  );
+
+  useEffect(() => {
+    if (!awsUiAuth || authed || cognitoCallbackPending) return;
+
+    const params = new URLSearchParams(location.search);
+    const code = params.get('code');
+    if (!code) return;
+
+    setCognitoCallbackPending(true);
+    setCognitoCallbackError(null);
+    void completeCognitoCallback(awsUiAuth, code, params.get('state'))
+      .catch((error) => {
+        console.error('Failed to complete Cognito sign-in', error);
+        setCognitoCallbackError('Cognito sign-in failed. Please try again.');
+      })
+      .finally(() => {
+        setCognitoCallbackPending(false);
+      });
+  }, [
+    awsUiAuth,
+    authed,
+    cognitoCallbackPending,
+    completeCognitoCallback,
+    location.search,
+  ]);
+
   const isPublicSupportRoute = location.pathname === '/support';
 
   if (configLoading && !retryScheduled) {
@@ -332,6 +396,28 @@ export function Root() {
           <button type="button" onClick={handleRetry}>
             Retry
           </button>
+        </div>
+      </>
+    );
+  }
+
+  if (cognitoCallbackPending) {
+    return (
+      <>
+        {renderRouteMarker(location.pathname, 'auth')}
+        <div role="status" className="app-loading">
+          Completing Cognito sign-in...
+        </div>
+      </>
+    );
+  }
+
+  if (cognitoCallbackError) {
+    return (
+      <>
+        {renderRouteMarker(location.pathname, 'auth')}
+        <div role="alert" className="app-offline">
+          {cognitoCallbackError}
         </div>
       </>
     );

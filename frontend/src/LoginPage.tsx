@@ -2,7 +2,11 @@ import { useEffect, useState } from 'react';
 import { API_BASE, setAuthToken } from './api';
 import { useUser } from './UserContext';
 import { useAuth } from './AuthContext';
-import { buildCognitoHostedUiUrl, type AwsUiAuthConfig } from './awsUiAuth';
+import {
+  buildCognitoHostedUiUrl,
+  createCognitoAuthSession,
+  type AwsUiAuthConfig,
+} from './awsUiAuth';
 
 interface Props {
   clientId: string;
@@ -95,16 +99,20 @@ export default function LoginPage({
     };
   }, [clientId, googleLoginEnabled, onSuccess, setProfile, setUser]);
 
-  const handleCognitoSignIn = () => {
+  const handleCognitoSignIn = async () => {
     if (!awsUiAuth) return;
 
-    window.location.assign(
-      buildCognitoHostedUiUrl(
-        awsUiAuth,
-        window.location.origin,
+    try {
+      const session = await createCognitoAuthSession(
         `${window.location.pathname}${window.location.search}`
-      )
-    );
+      );
+      window.location.assign(
+        buildCognitoHostedUiUrl(awsUiAuth, window.location.origin, session)
+      );
+    } catch (error) {
+      console.error('Failed to start Cognito sign-in', error);
+      setError('Unable to start Cognito sign-in. Please try again.');
+    }
   };
 
   return (

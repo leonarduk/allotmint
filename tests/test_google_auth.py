@@ -1,17 +1,16 @@
-from typing import Optional
+import functools
 import sys
 from dataclasses import replace
-import functools
+from typing import Optional
 
 import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
+from backend import auth, config_module
 from backend.app import create_app
 from backend.config import ConfigValidationError, reload_config
-from backend import config_module
 from backend.routes import timeseries_admin
-from backend import auth
 
 
 def _setup_app(monkeypatch, tmp_path, allowed_email: Optional[str] = "user@example.com"):
@@ -30,9 +29,7 @@ def _setup_app(monkeypatch, tmp_path, allowed_email: Optional[str] = "user@examp
     if allowed_email:
         owner_dir = accounts_root / "owner"
         owner_dir.mkdir(parents=True)
-        (owner_dir / "person.json").write_text(
-            f'{{"email": "{allowed_email}"}}', encoding="utf-8"
-        )
+        (owner_dir / "person.json").write_text(f'{{"email": "{allowed_email}"}}', encoding="utf-8")
     monkeypatch.setattr(cfg_module.config, "accounts_root", accounts_root)
 
     return TestClient(app)
@@ -41,9 +38,7 @@ def _setup_app(monkeypatch, tmp_path, allowed_email: Optional[str] = "user@examp
 def test_google_token_flow(monkeypatch, tmp_path):
     monkeypatch.setattr(auth, "verify_google_token", lambda token: "user@example.com")
     client = _setup_app(monkeypatch, tmp_path)
-    monkeypatch.setattr(
-        timeseries_admin, "load_meta_timeseries", lambda *args, **kwargs: pd.DataFrame()
-    )
+    monkeypatch.setattr(timeseries_admin, "load_meta_timeseries", lambda *args, **kwargs: pd.DataFrame())
     resp = client.post("/token/google", json={"token": "abc"})
     assert resp.status_code == 200
     token = resp.json()["access_token"]
@@ -101,3 +96,21 @@ def test_create_app_guard_raises(monkeypatch):
 
     with pytest.raises(RuntimeError):
         create_app()
+
+
+def test_cognito_token_flow(monkeypatch, tmp_path):
+    monkeypatch.setattr(auth, "verify_cognito_token", lambda token, client_id: "user@example.com")
+    client = _setup_app(monkeypatch, tmp_path)
+    resp = client.post(
+        "/token/cognito",
+        json={"id_token": "abc", "client_id": "cognito-client"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["token_type"] == "bearer"
+
+
+def test_cognito_token_rejects_missing_client_id(monkeypatch, tmp_path):
+    monkeypatch.setattr(auth, "verify_cognito_token", lambda token, client_id: "user@example.com")
+    client = _setup_app(monkeypatch, tmp_path)
+    resp = client.post("/token/cognito", json={"id_token": "abc"})
+    assert resp.status_code == 400

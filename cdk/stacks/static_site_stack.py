@@ -66,10 +66,12 @@ class StaticSiteStack(Stack):
                     content_security_policy=(
                         "default-src 'self'; "
                         "script-src 'self' https://accounts.google.com/gsi/client; "
+                        # CSP wildcards must be leftmost-only; use single-label wildcards
+                        # to cover API Gateway (*.amazonaws.com) and Cognito hosted UI
+                        # (*.amazoncognito.com) without invalid multi-wildcard patterns.
                         "connect-src 'self' "
-                        "https://*.execute-api.*.amazonaws.com "
-                        "https://cognito-idp.*.amazonaws.com "
-                        "https://*.auth.*.amazoncognito.com; "
+                        "https://*.amazonaws.com "
+                        "https://*.amazoncognito.com; "
                         "frame-src 'self' https://accounts.google.com/gsi/; "
                         "frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
                     ),

@@ -136,6 +136,7 @@ def test_has_cached_meta_timeseries_returns_false_when_s3_client_creation_fails(
         created_clients.append(service)
         raise cache.BotoCoreError()
 
+    cache._s3_client.cache_clear()
     monkeypatch.setattr(cache.boto3, "client", fake_client)
 
     assert cache.has_cached_meta_timeseries("any", "us") is False

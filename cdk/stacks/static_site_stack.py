@@ -13,21 +13,6 @@ from aws_cdk import (
 )
 from constructs import Construct
 
-_STATIC_SITE_CSP = (
-    "; ".join(
-        [
-            "default-src 'self'",
-            "script-src 'self' https://accounts.google.com/gsi/client",
-            "frame-src 'self' https://accounts.google.com/gsi/",
-            "connect-src 'self' https://*.execute-api.*.amazonaws.com https://*.amazoncognito.com",
-            "frame-ancestors 'none'",
-            "object-src 'none'",
-            "base-uri 'self'",
-        ]
-    )
-    + ";"
-)
-
 
 class StaticSiteStack(Stack):
     """CDK stack that provisions S3 + CloudFront for the frontend."""
@@ -60,6 +45,26 @@ class StaticSiteStack(Stack):
             ),
         )
 
+        # CSP connect-src uses the BackendApiUrl parameter directly so that
+        # CloudFormation resolves it to the exact API origin at deploy time.
+        # A static wildcard like *.execute-api.*.amazonaws.com is invalid CSP
+        # syntax (wildcards are only permitted as the leftmost hostname label)
+        # and would be silently ignored by browsers, blocking all API calls.
+        _csp = (
+            "; ".join(
+                [
+                    "default-src 'self'",
+                    "script-src 'self' https://accounts.google.com/gsi/client",
+                    "frame-src 'self' https://accounts.google.com/gsi/",
+                    f"connect-src 'self' {backend_url_param.value_as_string} https://*.amazoncognito.com",
+                    "frame-ancestors 'none'",
+                    "object-src 'none'",
+                    "base-uri 'self'",
+                ]
+            )
+            + ";"
+        )
+
         site_bucket = s3.Bucket(
             self,
             "StaticSiteBucket",
@@ -77,7 +82,7 @@ class StaticSiteStack(Stack):
             security_headers_behavior=cloudfront.ResponseSecurityHeadersBehavior(
                 # Allow Google Identity Services, API Gateway calls, and Cognito token exchange.
                 content_security_policy=cloudfront.ResponseHeadersContentSecurityPolicy(
-                    content_security_policy=_STATIC_SITE_CSP,
+                    content_security_policy=_csp,
                     override=True,
                 ),
                 strict_transport_security=cloudfront.ResponseHeadersStrictTransportSecurity(

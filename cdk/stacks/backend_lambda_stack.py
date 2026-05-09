@@ -119,7 +119,7 @@ class BackendLambdaStack(Stack):
     ) -> None:
         """Grant S3 permissions required by the Lambda timeseries parquet cache."""
 
-        actions = ["s3:GetObject"]
+        actions = ["s3:GetObject", "s3:HeadObject"]
         if allow_put:
             actions.append("s3:PutObject")
 

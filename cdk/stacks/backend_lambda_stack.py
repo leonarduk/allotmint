@@ -164,7 +164,11 @@ class BackendLambdaStack(Stack):
 
         bucket_name = data_bucket.bucket_name
         lambda_list_prefixes = {
-            "backend": ("accounts", "queries", "timeseries/meta", "transactions"),
+            # alerts/ and prices/ are included because S3 returns 403 (not 404) when
+            # a key is absent and the caller lacks s3:ListBucket on that prefix, which
+            # prevents the fallback logic in alerts.py and the price-snapshot loader
+            # from distinguishing "missing" from "denied".
+            "backend": ("accounts", "alerts", "prices", "queries", "timeseries/meta", "transactions"),
             "price_refresh": (),
             "trading_agent": (),
         }

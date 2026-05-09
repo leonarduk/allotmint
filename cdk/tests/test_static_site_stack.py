@@ -148,6 +148,28 @@ def test_static_site_stack_synthesises_without_api_base_url(tmp_path):
     app.synth()
 
 
+def _response_headers_policy_csp(template: assertions.Template) -> object:
+    resources = template.find_resources("AWS::CloudFront::ResponseHeadersPolicy")
+    assert len(resources) == 1, f"Expected one response headers policy, found {len(resources)}"
+    policy = next(iter(resources.values()))
+    return policy["Properties"]["ResponseHeadersPolicyConfig"]["SecurityHeadersConfig"][
+        "ContentSecurityPolicy"
+    ]["ContentSecurityPolicy"]
+
+
+def test_csp_connect_src_uses_backend_api_url_parameter(template):
+    """CSP connect-src must use the exact API URL parameter, not AWS wildcards."""
+    csp = _response_headers_policy_csp(template)
+
+    assert isinstance(csp, dict)
+    parts = csp["Fn::Join"][1]
+    assert {"Ref": "BackendApiUrl"} in parts
+    rendered_static_parts = "".join(part for part in parts if isinstance(part, str))
+    assert "connect-src 'self' " in rendered_static_parts
+    assert "https://*.amazoncognito.com" in rendered_static_parts
+    assert "*.amazonaws.com" not in rendered_static_parts
+
+
 # ---------------------------------------------------------------------------
 # CloudFront distribution outputs
 # ---------------------------------------------------------------------------

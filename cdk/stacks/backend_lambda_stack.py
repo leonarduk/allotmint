@@ -179,6 +179,9 @@ class BackendLambdaStack(Stack):
 
         backend_env = {
             "GOOGLE_AUTH_ENABLED": "true",
+            # API Gateway enforces Cognito JWT auth before Lambda is invoked. DISABLE_AUTH
+            # is intentionally "true" so FastAPI does not also try to decode the Cognito ID
+            # token with the app JWT secret, which would reject every authenticated request.
             "DISABLE_AUTH": "true",
             "DATA_BUCKET": bucket_name,
             "DATA_BRANCH": data_branch,
@@ -190,6 +193,12 @@ class BackendLambdaStack(Stack):
             "GOOGLE_CLIENT_ID": google_client_id,
             "TIMESERIES_CACHE_BASE": f"s3://{bucket_name}/timeseries",
         }
+
+        backend_fn.add_permission(
+            "AllowApiGatewayInvoke",
+            principal=iam.ServicePrincipal("apigateway.amazonaws.com"),
+            source_arn=backend_api.arn_for_execute_api(),
+        )
         if data_repo:
             backend_env["DATA_REPO"] = data_repo
 

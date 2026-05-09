@@ -141,9 +141,9 @@ def _conditions_for_s3_action(template: dict, role_logical_id: str, target_actio
 #   TradingAgentLambda — calls load_prices_for_tickers() → load_meta_timeseries_range() which
 #                        reads parquet from S3 by known key. No writes anywhere in this path.
 #                        Pyarrow may list the timeseries/ prefix before reading cached files.
-BACKEND_MAX_S3 = {"s3:GetObject", "s3:PutObject", "s3:ListBucket"}
-REFRESH_MAX_S3 = {"s3:GetObject", "s3:PutObject", "s3:ListBucket"}
-TRADING_MAX_S3 = {"s3:GetObject", "s3:ListBucket"}
+BACKEND_MAX_S3 = {"s3:GetObject", "s3:HeadObject", "s3:PutObject", "s3:ListBucket"}
+REFRESH_MAX_S3 = {"s3:GetObject", "s3:HeadObject", "s3:PutObject", "s3:ListBucket"}
+TRADING_MAX_S3 = {"s3:GetObject", "s3:HeadObject", "s3:ListBucket"}
 
 
 def test_s3_permissions_are_scoped_per_lambda() -> None:
@@ -213,13 +213,14 @@ def test_all_lambdas_have_scoped_timeseries_cache_permissions() -> None:
     template = _stack_template()
     expected_condition = {"StringLike": {"s3:prefix": ["timeseries", "timeseries/*"]}}
 
-    # All three Lambdas must be able to read from and list the timeseries/ prefix
+    # All three Lambdas must be able to read, head, and list the timeseries/ prefix
     for fragment in ("BackendLambda", "PriceRefreshLambda", "TradingAgentLambda"):
         role = _role_logical_id_for_lambda(template, fragment)
-        resources = _resources_for_s3_action(template, role, "s3:GetObject")
-        assert any(
-            "timeseries/*" in resource for resource in resources
-        ), f"{fragment} missing s3:GetObject on the timeseries/* object prefix"
+        for action in ("s3:GetObject", "s3:HeadObject"):
+            resources = _resources_for_s3_action(template, role, action)
+            assert any(
+                "timeseries/*" in resource for resource in resources
+            ), f"{fragment} missing {action} on the timeseries/* object prefix"
 
         conditions = _conditions_for_s3_action(template, role, "s3:ListBucket")
         assert expected_condition in conditions, f"{fragment} missing ListBucket scoped to the timeseries/ prefix"

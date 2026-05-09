@@ -21,7 +21,7 @@ from typing import Callable, Dict
 import boto3
 import pandas as pd
 import requests
-from botocore.exceptions import ClientError
+from botocore.exceptions import BotoCoreError, ClientError
 
 from backend.common.instruments import get_instrument_meta
 from backend.config import config
@@ -534,7 +534,10 @@ def _s3_cache_object_exists(cache: str) -> bool:
         error_code = exc.response.get("Error", {}).get("Code")
         if error_code in {"404", "NoSuchKey", "NotFound"}:
             return False
-        logger.warning("Unable to check S3 timeseries cache object %s: %s", cache, exc)
+        logger.error("Unable to check S3 timeseries cache object %s: %s", cache, exc)
+        return False
+    except BotoCoreError as exc:
+        logger.error("AWS client error checking S3 timeseries cache object %s: %s", cache, exc)
         return False
     return True
 

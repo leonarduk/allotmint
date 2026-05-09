@@ -232,6 +232,7 @@ def _normalise_threshold(raw: object) -> float | None:
 
 
 def _has_custom_threshold(user: str) -> bool:
+    alerts._load_settings()
     thresholds = getattr(alerts, "_USER_THRESHOLDS", {})
     if not isinstance(thresholds, dict):
         return False

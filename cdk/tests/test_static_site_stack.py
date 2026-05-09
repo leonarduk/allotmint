@@ -151,10 +151,17 @@ def test_static_site_stack_synthesises_without_api_base_url(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_csp_connect_src_is_limited_to_required_aws_services(template):
-    """CSP connect-src must avoid a broad *.amazonaws.com wildcard."""
+def test_csp_connect_src_uses_backend_url_parameter(template):
+    """CSP connect-src must reference BackendApiUrl directly, not a static wildcard.
+
+    API Gateway URLs have the form {api-id}.execute-api.{region}.amazonaws.com.
+    No valid static CSP wildcard can match this structure while staying narrower
+    than *.amazonaws.com, so the BackendApiUrl parameter is injected directly,
+    producing a CloudFormation Fn::Join that resolves to the exact origin at
+    deploy time.
+    """
     resources = template.find_resources("AWS::CloudFront::ResponseHeadersPolicy")
-    csp_headers = [
+    csp_values = [
         security_headers["ContentSecurityPolicy"]["ContentSecurityPolicy"]
         for resource in resources.values()
         if (
@@ -165,15 +172,27 @@ def test_csp_connect_src_is_limited_to_required_aws_services(template):
         if "ContentSecurityPolicy" in security_headers
     ]
 
-    assert csp_headers == [
-        "default-src 'self'; "
-        "script-src 'self' https://accounts.google.com/gsi/client; "
-        "frame-src 'self' https://accounts.google.com/gsi/; "
-        "connect-src 'self' "
-        "https://*.execute-api.*.amazonaws.com https://*.amazoncognito.com; "
-        "frame-ancestors 'none'; object-src 'none'; base-uri 'self';"
-    ]
-    assert "https://*.amazonaws.com" not in csp_headers[0]
+    assert len(csp_values) == 1, "Expected exactly one ResponseHeadersPolicy with a CSP"
+    csp = csp_values[0]
+
+    # The CSP value must be a Fn::Join because it contains a parameter reference.
+    assert isinstance(csp, dict) and "Fn::Join" in csp, (
+        "CSP must be a Fn::Join (BackendApiUrl token interpolation); got a plain string, "
+        "which means the connect-src is using a static value instead of the parameter"
+    )
+    join_parts = csp["Fn::Join"][1]
+
+    # The join must include a direct Ref to BackendApiUrl for the narrowest connect-src.
+    assert {"Ref": "BackendApiUrl"} in join_parts, (
+        "CSP Fn::Join must contain a Ref to BackendApiUrl"
+    )
+
+    # No static *.amazonaws.com wildcard should appear in any string fragment.
+    static_text = "".join(p for p in join_parts if isinstance(p, str))
+    assert "amazonaws.com" not in static_text, (
+        "CSP must not contain any static amazonaws.com wildcard in its string fragments"
+    )
+    assert "https://*.amazoncognito.com" in static_text
 
 
 # ---------------------------------------------------------------------------

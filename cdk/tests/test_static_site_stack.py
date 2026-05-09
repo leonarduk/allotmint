@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 aws_cdk = pytest.importorskip("aws_cdk", reason="aws-cdk-lib not installed")
 
 from aws_cdk import App, assertions  # noqa: E402
+
 from cdk.stacks.static_site_stack import StaticSiteStack  # noqa: E402
 
 _DUMMY_API_URL = "https://abc123.execute-api.eu-west-1.amazonaws.com"
@@ -137,6 +138,7 @@ def test_static_site_stack_synthesises_without_api_base_url(tmp_path):
     deployed from CI.
     """
     from aws_cdk import App  # noqa: PLC0415
+
     from cdk.stacks.static_site_stack import StaticSiteStack  # noqa: PLC0415
 
     (tmp_path / "index.html").write_text("<html></html>")
@@ -229,3 +231,59 @@ def test_site_bucket_blocks_public_access(template):
             }
         },
     )
+
+
+def _template_with_context(tmp_path: Path, context: dict[str, object]) -> assertions.Template:
+    (tmp_path / "index.html").write_text("<html></html>")
+    app = App(context=context)
+    stack = StaticSiteStack(app, "ContextStaticSiteStack", frontend_dist_path=str(tmp_path))
+    return assertions.Template.from_stack(stack)
+
+
+def test_ui_auth_user_pool_created(template):
+    """Static site deploys a Cognito user pool to gate the hosted UI."""
+    template.has_resource_properties(
+        "AWS::Cognito::UserPool",
+        {
+            "AccountRecoverySetting": {
+                "RecoveryMechanisms": assertions.Match.array_with(
+                    [assertions.Match.object_like({"Name": "verified_email", "Priority": 1})]
+                )
+            },
+            "AdminCreateUserConfig": {"AllowAdminCreateUserOnly": True},
+        },
+    )
+
+
+def test_ui_auth_client_uses_authorization_code_flow(template):
+    """Hosted UI auth must use the authorization-code flow for the SPA."""
+    template.has_resource_properties(
+        "AWS::Cognito::UserPoolClient",
+        {
+            "AllowedOAuthFlows": ["code"],
+            "AllowedOAuthScopes": assertions.Match.array_with(["email", "openid", "profile"]),
+            "SupportedIdentityProviders": ["COGNITO"],
+        },
+    )
+
+
+def test_ui_auth_user_pool_is_destroyed_by_default(tmp_path):
+    template = _template_with_context(tmp_path, {})
+    template.has_resource(
+        "AWS::Cognito::UserPool",
+        {"DeletionPolicy": "Delete", "UpdateReplacePolicy": "Delete"},
+    )
+
+
+def test_ui_auth_user_pool_is_retained_for_prod_context(tmp_path):
+    template = _template_with_context(tmp_path, {"prod": "true"})
+    template.has_resource(
+        "AWS::Cognito::UserPool",
+        {"DeletionPolicy": "Retain", "UpdateReplacePolicy": "Retain"},
+    )
+
+
+def test_ui_auth_outputs_exist(template):
+    template.has_output("UiAuthUserPoolId", {})
+    template.has_output("UiAuthUserPoolClientId", {})
+    template.has_output("UiAuthDomain", {})

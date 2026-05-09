@@ -18,6 +18,15 @@ def _is_truthy_context(value: object) -> bool:
     return False
 
 
+def _ui_auth_removal_policy(scope: Construct) -> RemovalPolicy:
+    """Retain the Cognito user pool when production retention is requested."""
+    retain_user_pool = _is_truthy_context(scope.node.try_get_context("retainUserPool"))
+    prod = _is_truthy_context(scope.node.try_get_context("prod"))
+    if retain_user_pool or prod:
+        return RemovalPolicy.RETAIN
+    return RemovalPolicy.DESTROY
+
+
 class StaticSiteStack(Stack):
     """CDK stack that provisions S3 + CloudFront for the frontend."""
 
@@ -31,6 +40,8 @@ class StaticSiteStack(Stack):
         **kwargs,
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
+
+        ui_auth_removal_policy = _ui_auth_removal_policy(self)
 
         # BucketDeployment.Source.json_data() only accepts intra-stack tokens
         # (Ref / Fn::GetAtt / Fn::Select) — Fn::ImportValue is explicitly rejected
@@ -70,7 +81,8 @@ class StaticSiteStack(Stack):
                     content_security_policy=(
                         "default-src 'self'; "
                         "script-src 'self' https://accounts.google.com/gsi/client; "
-                        "connect-src 'self' https://*.amazonaws.com https://*.amazoncognito.com; "
+                        f"connect-src 'self' {backend_url_param.value_as_string} "
+                        "https://*.amazoncognito.com; "
                         "frame-src 'self' https://accounts.google.com/gsi/; "
                         "frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
                     ),

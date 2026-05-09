@@ -69,7 +69,7 @@ def test_has_cached_meta_timeseries_returns_false_for_missing_s3_object(monkeypa
 
     monkeypatch.setattr(cache.boto3, "client", lambda service: FakeS3Client())
 
-    assert cache.has_cached_meta_timeseries("missing", "l") is False
+    assert cache.has_cached_meta_timeseries("missing", "us") is False
 
 
 def test_has_cached_meta_timeseries_keeps_local_path_behaviour(monkeypatch, tmp_path):
@@ -85,3 +85,40 @@ def test_has_cached_meta_timeseries_keeps_local_path_behaviour(monkeypatch, tmp_
 
     path.write_bytes(b"cached")
     assert cache.has_cached_meta_timeseries("empty", "l") is True
+
+
+def test_has_cached_meta_timeseries_returns_false_for_non_404_client_error(monkeypatch):
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", "s3://bucket/timeseries")
+    cache = import_cache()
+
+    class FakeS3Client:
+        def head_object(self, Bucket, Key):  # noqa: N803 - boto3 API parameter names
+            raise cache.ClientError(
+                {"Error": {"Code": "403", "Message": "Forbidden"}},
+                "HeadObject",
+            )
+
+    monkeypatch.setattr(cache.boto3, "client", lambda service: FakeS3Client())
+
+    assert cache.has_cached_meta_timeseries("restricted", "us") is False
+
+
+def test_has_cached_meta_timeseries_returns_false_for_botocore_error(monkeypatch):
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", "s3://bucket/timeseries")
+    cache = import_cache()
+
+    class FakeS3Client:
+        def head_object(self, Bucket, Key):  # noqa: N803 - boto3 API parameter names
+            raise cache.BotoCoreError()
+
+    monkeypatch.setattr(cache.boto3, "client", lambda service: FakeS3Client())
+
+    assert cache.has_cached_meta_timeseries("any", "us") is False
+
+
+def test_s3_cache_object_exists_returns_false_for_invalid_path(monkeypatch):
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", "s3://bucket/timeseries")
+    cache = import_cache()
+
+    assert cache._s3_cache_object_exists("s3://") is False
+    assert cache._s3_cache_object_exists("s3:///nokey") is False

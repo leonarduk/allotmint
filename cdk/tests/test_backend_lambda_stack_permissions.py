@@ -15,7 +15,7 @@ if str(CDK_DIR) not in sys.path:
 
 from stacks.backend_lambda_stack import BackendLambdaStack
 
-BACKEND_LIST_PREFIXES = ("accounts", "queries", "timeseries/meta", "transactions")
+BACKEND_LIST_PREFIXES = ("accounts", "alerts", "prices", "queries", "timeseries/meta", "transactions")
 
 
 def _stack_template() -> dict:

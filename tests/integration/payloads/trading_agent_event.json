@@ -1,0 +1,13 @@
+{
+  "version": "0",
+  "id": "11111111-1111-1111-1111-111111111111",
+  "detail-type": "Scheduled Event",
+  "source": "aws.events",
+  "account": "123456789012",
+  "time": "2026-05-08T00:05:00Z",
+  "region": "eu-west-2",
+  "resources": [
+    "arn:aws:events:eu-west-2:123456789012:rule/allotmint-trading-agent"
+  ],
+  "detail": {}
+}

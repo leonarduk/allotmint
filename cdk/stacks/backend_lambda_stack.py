@@ -110,6 +110,33 @@ class BackendLambdaStack(Stack):
                 )
             )
 
+    @staticmethod
+    def _grant_timeseries_cache_access(
+        fn: _lambda.DockerImageFunction,
+        *,
+        bucket: s3.IBucket,
+        allow_put: bool,
+    ) -> None:
+        """Grant S3 permissions required by the Lambda timeseries parquet cache."""
+
+        actions = ["s3:GetObject"]
+        if allow_put:
+            actions.append("s3:PutObject")
+
+        fn.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=actions,
+                resources=[bucket.arn_for_objects("timeseries/*")],
+            )
+        )
+        fn.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["s3:ListBucket"],
+                resources=[bucket.bucket_arn],
+                conditions={"StringLike": {"s3:prefix": ["timeseries", "timeseries/*"]}},
+            )
+        )
+
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
@@ -118,16 +145,13 @@ class BackendLambdaStack(Stack):
         data_repo = os.getenv("DATA_REPO")
         data_branch = os.getenv("DATA_BRANCH", "main")
         budget_limit_usd = float(
-            self.node.try_get_context("monthly_budget_limit_usd")
-            or os.getenv("MONTHLY_BUDGET_LIMIT_USD", "5")
+            self.node.try_get_context("monthly_budget_limit_usd") or os.getenv("MONTHLY_BUDGET_LIMIT_USD", "5")
         )
         noncurrent_expiry_days = int(
             self.node.try_get_context("data_bucket_noncurrent_expiry_days")
             or os.getenv("DATA_BUCKET_NONCURRENT_EXPIRY_DAYS", "30")
         )
-        budget_alert_email = self.node.try_get_context("budget_alert_email") or os.getenv(
-            "BUDGET_ALERT_EMAIL"
-        )
+        budget_alert_email = self.node.try_get_context("budget_alert_email") or os.getenv("BUDGET_ALERT_EMAIL")
         data_bucket = s3.Bucket(
             self,
             "PortfolioDataBucket",
@@ -135,37 +159,31 @@ class BackendLambdaStack(Stack):
             encryption=s3.BucketEncryption.S3_MANAGED,
             enforce_ssl=True,
             versioned=True,
-            lifecycle_rules=[
-                s3.LifecycleRule(
-                    noncurrent_version_expiration=Duration.days(noncurrent_expiry_days)
-                )
-            ],
+            lifecycle_rules=[s3.LifecycleRule(noncurrent_version_expiration=Duration.days(noncurrent_expiry_days))],
         )
 
         bucket_name = data_bucket.bucket_name
         lambda_list_prefixes = {
-            "backend": ("accounts", "queries", "timeseries/meta", "transactions"),
+            # alerts/ and prices/ are included because S3 returns 403 (not 404) when
+            # a key is absent and the caller lacks s3:ListBucket on that prefix, which
+            # prevents the fallback logic in alerts.py and the price-snapshot loader
+            # from distinguishing "missing" from "denied".
+            "backend": ("accounts", "alerts", "prices", "queries", "timeseries/meta", "transactions"),
             "price_refresh": (),
             "trading_agent": (),
         }
 
-        image_code = _lambda.DockerImageCode.from_image_asset(
-            str(project_root), file="backend/Dockerfile.lambda"
-        )
+        image_code = _lambda.DockerImageCode.from_image_asset(str(project_root), file="backend/Dockerfile.lambda")
 
         env = self.node.try_get_context("app_env") or os.getenv("APP_ENV") or "aws"
-        frontend_origin = self.node.try_get_context("frontend_origin") or os.getenv(
-            "FRONTEND_ORIGIN"
-        )
+        frontend_origin = self.node.try_get_context("frontend_origin") or os.getenv("FRONTEND_ORIGIN")
         extra_cors_origins = self.node.try_get_context("cors_origins") or os.getenv("CORS_ORIGINS")
 
         cors_origins = ["http://localhost:3000", "http://localhost:5173"]
         if frontend_origin:
             cors_origins.insert(0, frontend_origin)
         if extra_cors_origins:
-            cors_origins.extend(
-                [origin.strip() for origin in extra_cors_origins.split(",") if origin.strip()]
-            )
+            cors_origins.extend([origin.strip() for origin in extra_cors_origins.split(",") if origin.strip()])
         cors_origins = list(dict.fromkeys(cors_origins))
 
         jwt_secret = os.getenv("JWT_SECRET", "")
@@ -202,7 +220,9 @@ class BackendLambdaStack(Stack):
         )
         backend_fn.add_environment("APP_ENV", env)
 
-        # BackendLambda: read + put + list
+        # BackendLambda: read + put + list for API data paths. Add an explicit
+        # timeseries cache grant below so the synthesized IAM policy always covers
+        # pyarrow's S3 parquet read/write/list behavior at timeseries/*.
         # Audited S3 list prefixes used by backend code paths:
         # - accounts/        (auth + portfolio enumeration)
         # - queries/         (saved query listing)
@@ -216,12 +236,11 @@ class BackendLambdaStack(Stack):
             allow_list=True,
             list_prefix=lambda_list_prefixes["backend"],
         )
+        self._grant_timeseries_cache_access(backend_fn, bucket=data_bucket, allow_put=True)
 
         backend_api = apigwv2.HttpApi(self, "BackendApi")
         self.backend_api_url = backend_api.api_endpoint
-        backend_integration = apigwv2_integrations.HttpLambdaIntegration(
-            "BackendLambdaIntegration", backend_fn
-        )
+        backend_integration = apigwv2_integrations.HttpLambdaIntegration("BackendLambdaIntegration", backend_fn)
         backend_api.add_routes(
             path="/",
             methods=[apigwv2.HttpMethod.ANY],
@@ -257,11 +276,9 @@ class BackendLambdaStack(Stack):
             log_group=refresh_log_group,
         )
 
-        # PriceRefreshLambda: read + put, no list
-        # Audited: refresh_prices() calls get_price_snapshot() → load_meta_timeseries_range()
-        # → _rolling_cache() → _save_parquet(), which writes parquet files to S3 by known key
-        # (e.g. s3://bucket/meta/TICKER_EXCHANGE.parquet). All S3 access is by known key —
-        # no bucket enumeration. config.prices_json writes to local filesystem, not S3.
+        # PriceRefreshLambda: read + put by known data keys. The explicit timeseries
+        # cache grant also allows ListBucket on timeseries/ because some S3 parquet
+        # clients list the prefix before reading or writing cached parquet files.
         # See backend/timeseries/cache.py:_rolling_cache() and _save_parquet().
         self._grant_bucket_access(
             refresh_fn,
@@ -271,6 +288,7 @@ class BackendLambdaStack(Stack):
             allow_list=False,
             list_prefix=lambda_list_prefixes["price_refresh"],
         )
+        self._grant_timeseries_cache_access(refresh_fn, bucket=data_bucket, allow_put=True)
 
         events.Rule(
             self,
@@ -303,11 +321,13 @@ class BackendLambdaStack(Stack):
             log_group=agent_log_group,
         )
 
-        # TradingAgentLambda: read only, no put, no list
-        # Audited: backend/agent/trading_agent.py:run() calls load_prices_for_tickers()
-        # → load_meta_timeseries_range() which reads parquet files from S3 by known key.
+        # TradingAgentLambda: read-only, no put, no general list.
+        # Audited: trading_agent.py:run() → load_prices_for_tickers()
+        # → load_meta_timeseries_range() reads parquet from S3 by known key.
         # No S3 writes: _log_trade() writes to TRADE_LOG_PATH (local filesystem / CloudWatch).
-        # No bucket enumeration: all S3 access is by deterministic key.
+        # The timeseries cache grant adds scoped GetObject and ListBucket so pyarrow
+        # can read cached parquet files under timeseries/. allow_put=False enforces
+        # the read-only invariant on the timeseries prefix.
         self._grant_bucket_access(
             agent_fn,
             bucket=data_bucket,
@@ -316,6 +336,7 @@ class BackendLambdaStack(Stack):
             allow_list=False,
             list_prefix=lambda_list_prefixes["trading_agent"],
         )
+        self._grant_timeseries_cache_access(agent_fn, bucket=data_bucket, allow_put=False)
 
         events.Rule(
             self,
@@ -347,9 +368,7 @@ class BackendLambdaStack(Stack):
                     threshold_type="PERCENTAGE",
                 ),
                 subscribers=[
-                    budgets.CfnBudget.SubscriberProperty(
-                        subscription_type="EMAIL", address=budget_alert_email
-                    )
+                    budgets.CfnBudget.SubscriberProperty(subscription_type="EMAIL", address=budget_alert_email)
                 ],
             )
 

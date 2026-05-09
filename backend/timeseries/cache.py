@@ -310,6 +310,21 @@ def _s3_object_mtime(cache: str) -> float:
     return float(last_modified.timestamp())
 
 
+def _invalidate_meta_caches_if_stale(ticker: str, exchange: str) -> None:
+    """Clear both meta LRUs when the backing file's mtime has changed."""
+    cache = meta_timeseries_cache_path(ticker, exchange)
+    if cache.startswith("s3://"):
+        mtime = _s3_object_mtime(cache)
+    else:
+        p = Path(cache)
+        mtime = p.stat().st_mtime if p.exists() else 0.0
+    prev = _CACHE_FILE_MTIMES.get(cache)
+    if prev is not None and prev != mtime:
+        _load_meta_timeseries_cached.cache_clear()
+        _memoized_range_cached.cache_clear()
+    _CACHE_FILE_MTIMES[cache] = mtime
+
+
 @lru_cache(maxsize=512)
 def _load_meta_timeseries_cached(ticker: str, exchange: str, days: int) -> pd.DataFrame:
     """LRU-backed loader for Meta timeseries."""
@@ -332,19 +347,10 @@ def load_meta_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame:
     if OFFLINE_MODE != config.offline_mode:
         OFFLINE_MODE = config.offline_mode
         _load_meta_timeseries_cached.cache_clear()
+        _memoized_range_cached.cache_clear()
         _CACHE_FILE_MTIMES.clear()
 
-    cache = meta_timeseries_cache_path(ticker, exchange)
-    if cache.startswith("s3://"):
-        mtime = _s3_object_mtime(cache)
-    else:
-        p = Path(cache)
-        mtime = p.stat().st_mtime if p.exists() else 0.0
-    prev = _CACHE_FILE_MTIMES.get(cache)
-    if prev is not None and prev != mtime:
-        _load_meta_timeseries_cached.cache_clear()
-    _CACHE_FILE_MTIMES[cache] = mtime
-
+    _invalidate_meta_caches_if_stale(ticker, exchange)
     return _load_meta_timeseries_cached(ticker, exchange, days).copy()
 
 
@@ -509,6 +515,7 @@ def load_meta_timeseries_range(
     base_currency: str = "GBP",
 ) -> pd.DataFrame:
     global OFFLINE_MODE
+    _invalidate_meta_caches_if_stale(ticker, exchange)
     for offset in range(0, 5):  # try same day, 1-day back, 2-day back...
         s = start_date - timedelta(days=offset)
         e = end_date - timedelta(days=offset)

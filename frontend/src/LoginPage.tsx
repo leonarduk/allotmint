@@ -2,9 +2,12 @@ import { useEffect, useState } from 'react';
 import { API_BASE, setAuthToken } from './api';
 import { useUser } from './UserContext';
 import { useAuth } from './AuthContext';
+import { buildCognitoHostedUiUrl, type AwsUiAuthConfig } from './awsUiAuth';
 
 interface Props {
   clientId: string;
+  googleLoginEnabled?: boolean;
+  awsUiAuth?: AwsUiAuthConfig | null;
   onSuccess: () => void;
 }
 
@@ -20,11 +23,18 @@ function sanitize(input: string): string {
   );
 }
 
-export default function LoginPage({ clientId, onSuccess }: Props) {
+export default function LoginPage({
+  clientId,
+  googleLoginEnabled = true,
+  awsUiAuth = null,
+  onSuccess,
+}: Props) {
   const { setProfile } = useUser();
   const { setUser } = useAuth();
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
+    if (!googleLoginEnabled || !clientId) return undefined;
+
     const script = document.createElement('script');
     script.src = 'https://accounts.google.com/gsi/client';
     script.async = true;
@@ -83,7 +93,19 @@ export default function LoginPage({ clientId, onSuccess }: Props) {
     return () => {
       document.head.removeChild(script);
     };
-  }, [clientId, onSuccess, setProfile, setUser]);
+  }, [clientId, googleLoginEnabled, onSuccess, setProfile, setUser]);
+
+  const handleCognitoSignIn = () => {
+    if (!awsUiAuth) return;
+
+    window.location.assign(
+      buildCognitoHostedUiUrl(
+        awsUiAuth,
+        window.location.origin,
+        `${window.location.pathname}${window.location.search}`
+      )
+    );
+  };
 
   return (
     <div
@@ -103,7 +125,12 @@ export default function LoginPage({ clientId, onSuccess }: Props) {
           Error: {error}
         </div>
       )}
-      <div id="google-signin"></div>
+      {awsUiAuth ? (
+        <button type="button" onClick={handleCognitoSignIn}>
+          Sign in with Cognito
+        </button>
+      ) : null}
+      {googleLoginEnabled && clientId ? <div id="google-signin"></div> : null}
     </div>
   );
 }

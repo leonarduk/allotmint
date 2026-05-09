@@ -34,6 +34,12 @@ import {
   setAuthToken,
 } from './api';
 import LoginPage from './LoginPage';
+import {
+  getRuntimeAwsUiAuth,
+  parseAwsUiAuthConfig,
+  setRuntimeAwsUiAuth,
+  type AwsUiAuthConfig,
+} from './awsUiAuth';
 import { UserProvider, useUser } from './UserContext';
 import ErrorBoundary from './ErrorBoundary';
 import { loadStoredAuthUser, loadStoredUserProfile } from './authStorage';
@@ -51,6 +57,7 @@ interface BootstrapConfig {
   disable_auth?: boolean;
   local_login_email?: string | null;
   allowed_emails?: string[] | null;
+  awsUiAuth?: unknown;
 }
 
 const storedToken = getStoredAuthToken();
@@ -127,6 +134,9 @@ export function Root() {
   const [needsAuth, setNeedsAuth] = useState(false);
   const [googleLoginEnabled, setGoogleLoginEnabled] = useState(false);
   const [clientId, setClientId] = useState('');
+  const [awsUiAuth, setAwsUiAuth] = useState<AwsUiAuthConfig | null>(() =>
+    getRuntimeAwsUiAuth()
+  );
   const [authed, setAuthed] = useState(Boolean(storedToken));
   const { setUser } = useAuth();
   const { setProfile } = useUser();
@@ -221,8 +231,15 @@ export function Root() {
             : [];
           void allowedEmails;
 
+          const configuredAwsUiAuth = Object.prototype.hasOwnProperty.call(
+            cfg,
+            'awsUiAuth'
+          )
+            ? parseAwsUiAuthConfig(cfg.awsUiAuth)
+            : getRuntimeAwsUiAuth();
           setGoogleLoginEnabled(configAuthEnabled);
           setClientId(configuredClientId);
+          setAwsUiAuth(configuredAwsUiAuth);
           // Backend semantics:
           // - disable_auth controls whether login is required.
           // - allowed_emails may be null (no explicit allowlist) without
@@ -321,9 +338,9 @@ export function Root() {
   }
 
   if (needsAuth && !authed && !isPublicSupportRoute) {
-    if (!googleLoginEnabled || !clientId) {
+    if ((!googleLoginEnabled || !clientId) && !awsUiAuth) {
       console.error(
-        'Authentication is enforced but Google login is not fully configured'
+        'Authentication is enforced but no login provider is fully configured'
       );
       return (
         <>
@@ -336,7 +353,12 @@ export function Root() {
     return (
       <>
         {renderRouteMarker(location.pathname, 'auth')}
-        <LoginPage clientId={clientId} onSuccess={() => setAuthed(true)} />
+        <LoginPage
+          clientId={clientId}
+          googleLoginEnabled={googleLoginEnabled}
+          awsUiAuth={awsUiAuth}
+          onSuccess={() => setAuthed(true)}
+        />
       </>
     );
   }
@@ -418,10 +440,14 @@ const bootstrapRuntimeConfig = async () => {
   try {
     const response = await fetch('/config.json', { cache: 'no-store' });
     if (!response.ok) return;
-    const payload = (await response.json()) as { apiBaseUrl?: unknown };
+    const payload = (await response.json()) as {
+      apiBaseUrl?: unknown;
+      awsUiAuth?: unknown;
+    };
     if (typeof payload.apiBaseUrl === 'string') {
       setApiBase(payload.apiBaseUrl);
     }
+    setRuntimeAwsUiAuth(parseAwsUiAuthConfig(payload.awsUiAuth));
   } catch (error) {
     console.warn(
       'Runtime config not loaded, using default API base URL',

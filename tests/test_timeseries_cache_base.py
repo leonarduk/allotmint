@@ -2,7 +2,6 @@ import importlib
 import os
 import sys
 from datetime import datetime, timezone
-from types import SimpleNamespace
 
 import pandas as pd
 import pytest
@@ -14,6 +13,18 @@ def import_cache():
     """Import ``backend.timeseries.cache`` after clearing any previous copy."""
     sys.modules.pop("backend.timeseries.cache", None)
     return importlib.import_module("backend.timeseries.cache")
+
+
+def patch_s3_client(monkeypatch, cache, client):
+    created_clients = []
+
+    def fake_client(service):
+        assert service == "s3"
+        created_clients.append(service)
+        return client
+
+    monkeypatch.setattr(cache.boto3, "client", fake_client)
+    return created_clients
 
 
 def test_missing_cache_base_raises(monkeypatch):
@@ -54,10 +65,15 @@ def test_has_cached_meta_timeseries_returns_true_for_existing_s3_object(monkeypa
             calls.append((Bucket, Key))
             return {"ContentLength": 10}
 
-    monkeypatch.setattr(cache.boto3, "client", lambda service: FakeS3Client())
+    created_clients = patch_s3_client(monkeypatch, cache, FakeS3Client())
 
     assert cache.has_cached_meta_timeseries("aapl", "us") is True
-    assert calls == [("bucket", "timeseries/meta/AAPL_US.parquet")]
+    assert cache.has_cached_meta_timeseries("aapl", "us") is True
+    assert calls == [
+        ("bucket", "timeseries/meta/AAPL_US.parquet"),
+        ("bucket", "timeseries/meta/AAPL_US.parquet"),
+    ]
+    assert created_clients == ["s3"]
 
 
 def test_has_cached_meta_timeseries_returns_false_for_missing_s3_object(monkeypatch):
@@ -71,9 +87,10 @@ def test_has_cached_meta_timeseries_returns_false_for_missing_s3_object(monkeypa
                 "HeadObject",
             )
 
-    monkeypatch.setattr(cache.boto3, "client", lambda service: FakeS3Client())
+    created_clients = patch_s3_client(monkeypatch, cache, FakeS3Client())
 
     assert cache.has_cached_meta_timeseries("missing", "us") is False
+    assert created_clients == ["s3"]
 
 
 def test_has_cached_meta_timeseries_keeps_local_path_behaviour(monkeypatch, tmp_path):
@@ -102,22 +119,26 @@ def test_has_cached_meta_timeseries_returns_false_for_non_404_client_error(monke
                 "HeadObject",
             )
 
-    monkeypatch.setattr(cache.boto3, "client", lambda service: FakeS3Client())
+    created_clients = patch_s3_client(monkeypatch, cache, FakeS3Client())
 
     assert cache.has_cached_meta_timeseries("restricted", "us") is False
+    assert created_clients == ["s3"]
 
 
-def test_has_cached_meta_timeseries_returns_false_for_botocore_error(monkeypatch):
+def test_has_cached_meta_timeseries_returns_false_when_s3_client_creation_fails(monkeypatch):
     monkeypatch.setenv("TIMESERIES_CACHE_BASE", "s3://bucket/timeseries")
     cache = import_cache()
+    created_clients = []
 
-    class FakeS3Client:
-        def head_object(self, Bucket, Key):  # noqa: N803 - boto3 API parameter names
-            raise cache.BotoCoreError()
+    def fake_client(service):
+        assert service == "s3"
+        created_clients.append(service)
+        raise cache.BotoCoreError()
 
-    monkeypatch.setattr(cache.boto3, "client", lambda service: FakeS3Client())
+    monkeypatch.setattr(cache.boto3, "client", fake_client)
 
     assert cache.has_cached_meta_timeseries("any", "us") is False
+    assert created_clients == ["s3"]
 
 
 def test_s3_cache_object_exists_returns_false_for_invalid_path(monkeypatch):
@@ -126,6 +147,9 @@ def test_s3_cache_object_exists_returns_false_for_invalid_path(monkeypatch):
 
     assert cache._s3_cache_object_exists("s3://") is False
     assert cache._s3_cache_object_exists("s3:///nokey") is False
+    assert cache._s3_cache_object_exists("s3://bucket") is False
+
+
 def _frame(close: float) -> pd.DataFrame:
     return pd.DataFrame(
         {
@@ -153,7 +177,7 @@ def test_s3_meta_cache_invalidates_when_last_modified_changes(monkeypatch):
             assert Key == "timeseries/meta/ABC_L.parquet"
             return {"LastModified": last_modified}
 
-    monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=lambda _service: FakeS3()))
+    patch_s3_client(monkeypatch, cache, FakeS3())
 
     loads = []
 
@@ -213,7 +237,7 @@ def test_s3_range_cache_invalidates_when_last_modified_changes(monkeypatch):
         def head_object(self, *, Bucket, Key):
             return {"LastModified": last_modified}
 
-    monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=lambda _service: FakeS3()))
+    patch_s3_client(monkeypatch, cache, FakeS3())
 
     loads = []
 

@@ -11,7 +11,6 @@ where the parquet files live, e.g.
 
 from __future__ import annotations
 
-import importlib
 import logging
 import os
 from datetime import date, datetime, timedelta
@@ -289,19 +288,32 @@ def load_stooq_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame
 _CACHE_FILE_MTIMES: Dict[str, float] = {}
 
 
-def _s3_object_mtime(cache: str) -> float:
-    """Return the S3 object's LastModified timestamp for cache invalidation."""
+@lru_cache(maxsize=1)
+def _s3_client():
+    """Return the shared boto3 S3 client used by cache metadata checks."""
+    return boto3.client("s3")
 
+
+def _split_s3_cache_uri(cache: str) -> tuple[str, str] | None:
     without_scheme = cache[len("s3://") :]
     bucket, _, key = without_scheme.partition("/")
     if not bucket or not key:
         logger.warning("Invalid S3 timeseries cache path: %s", cache)
-        return 0.0
+        return None
+    return bucket, key
 
-    boto3 = importlib.import_module("boto3")
+
+def _s3_object_mtime(cache: str) -> float:
+    """Return the S3 object's LastModified timestamp for cache invalidation."""
+
+    parsed = _split_s3_cache_uri(cache)
+    if parsed is None:
+        return 0.0
+    bucket, key = parsed
+
     try:
-        resp = boto3.client("s3").head_object(Bucket=bucket, Key=key)
-    except Exception as exc:  # pragma: no cover - defensive AWS path
+        resp = _s3_client().head_object(Bucket=bucket, Key=key)
+    except (BotoCoreError, ClientError) as exc:  # pragma: no cover - defensive AWS path
         logger.warning("Unable to read S3 cache metadata for %s: %s", cache, exc)
         return 0.0
 
@@ -553,14 +565,19 @@ def load_meta_timeseries_range(
 
 
 def _s3_cache_object_exists(cache: str) -> bool:
-    without_scheme = cache.removeprefix("s3://")
-    bucket, _, key = without_scheme.partition("/")
-    if not bucket or not key:
-        logger.warning("Invalid S3 timeseries cache path: %s", cache)
+    """Return whether an S3 cache object exists using a shared boto3 client.
+
+    Non-404 AWS errors are treated as cache misses after error logging so local
+    fallback paths can continue when credentials, networking, or IAM are broken.
+    """
+
+    parsed = _split_s3_cache_uri(cache)
+    if parsed is None:
         return False
+    bucket, key = parsed
 
     try:
-        boto3.client("s3").head_object(Bucket=bucket, Key=key)
+        _s3_client().head_object(Bucket=bucket, Key=key)
     except ClientError as exc:
         error_code = exc.response.get("Error", {}).get("Code")
         if error_code in {"404", "NoSuchKey", "NotFound"}:

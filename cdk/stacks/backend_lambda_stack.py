@@ -117,7 +117,11 @@ class BackendLambdaStack(Stack):
         bucket: s3.IBucket,
         allow_put: bool,
     ) -> None:
-        """Grant S3 permissions required by the Lambda timeseries parquet cache."""
+        """Grant S3 permissions required by the Lambda timeseries parquet cache.
+
+        S3 HeadObject authorization is covered by s3:GetObject, so the read
+        grant below supports both parquet reads and cache-existence checks.
+        """
 
         actions = ["s3:GetObject"]
         if allow_put:

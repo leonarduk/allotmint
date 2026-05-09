@@ -18,6 +18,15 @@ def _is_truthy_context(value: object) -> bool:
     return False
 
 
+def _ui_auth_removal_policy(scope: Construct) -> RemovalPolicy:
+    """Retain the Cognito user pool when production retention is requested."""
+    retain_user_pool = _is_truthy_context(scope.node.try_get_context("retainUserPool"))
+    prod = _is_truthy_context(scope.node.try_get_context("prod"))
+    if retain_user_pool or prod:
+        return RemovalPolicy.RETAIN
+    return RemovalPolicy.DESTROY
+
+
 class StaticSiteStack(Stack):
     """CDK stack that provisions S3 + CloudFront for the frontend."""
 
@@ -32,11 +41,7 @@ class StaticSiteStack(Stack):
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
-        ui_auth_removal_policy = (
-            RemovalPolicy.RETAIN
-            if _is_truthy_context(self.node.try_get_context("prod"))
-            else RemovalPolicy.DESTROY
-        )
+        ui_auth_removal_policy = _ui_auth_removal_policy(self)
 
         # BucketDeployment.Source.json_data() only accepts intra-stack tokens
         # (Ref / Fn::GetAtt / Fn::Select) — Fn::ImportValue is explicitly rejected

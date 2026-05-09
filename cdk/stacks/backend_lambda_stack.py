@@ -145,13 +145,16 @@ class BackendLambdaStack(Stack):
         data_repo = os.getenv("DATA_REPO")
         data_branch = os.getenv("DATA_BRANCH", "main")
         budget_limit_usd = float(
-            self.node.try_get_context("monthly_budget_limit_usd") or os.getenv("MONTHLY_BUDGET_LIMIT_USD", "5")
+            self.node.try_get_context("monthly_budget_limit_usd")
+            or os.getenv("MONTHLY_BUDGET_LIMIT_USD", "5")
         )
         noncurrent_expiry_days = int(
             self.node.try_get_context("data_bucket_noncurrent_expiry_days")
             or os.getenv("DATA_BUCKET_NONCURRENT_EXPIRY_DAYS", "30")
         )
-        budget_alert_email = self.node.try_get_context("budget_alert_email") or os.getenv("BUDGET_ALERT_EMAIL")
+        budget_alert_email = self.node.try_get_context("budget_alert_email") or os.getenv(
+            "BUDGET_ALERT_EMAIL"
+        )
         data_bucket = s3.Bucket(
             self,
             "PortfolioDataBucket",
@@ -159,7 +162,11 @@ class BackendLambdaStack(Stack):
             encryption=s3.BucketEncryption.S3_MANAGED,
             enforce_ssl=True,
             versioned=True,
-            lifecycle_rules=[s3.LifecycleRule(noncurrent_version_expiration=Duration.days(noncurrent_expiry_days))],
+            lifecycle_rules=[
+                s3.LifecycleRule(
+                    noncurrent_version_expiration=Duration.days(noncurrent_expiry_days)
+                )
+            ],
         )
 
         bucket_name = data_bucket.bucket_name
@@ -167,23 +174,37 @@ class BackendLambdaStack(Stack):
             # alerts/ and prices/ are included because S3 returns 403 (not 404) when
             # a key is absent and the caller lacks s3:ListBucket on that prefix, which
             # prevents the fallback logic in alerts.py and the price-snapshot loader
-            # from distinguishing "missing" from "denied".
-            "backend": ("accounts", "alerts", "prices", "queries", "timeseries/meta", "transactions"),
-            "price_refresh": (),
-            "trading_agent": (),
+            # from distinguishing "missing" from "denied". PriceRefreshLambda and
+            # TradingAgentLambda also import the price loader during cold start.
+            "backend": (
+                "accounts",
+                "alerts",
+                "prices",
+                "queries",
+                "timeseries/meta",
+                "transactions",
+            ),
+            "price_refresh": ("prices",),
+            "trading_agent": ("prices",),
         }
 
-        image_code = _lambda.DockerImageCode.from_image_asset(str(project_root), file="backend/Dockerfile.lambda")
+        image_code = _lambda.DockerImageCode.from_image_asset(
+            str(project_root), file="backend/Dockerfile.lambda"
+        )
 
         env = self.node.try_get_context("app_env") or os.getenv("APP_ENV") or "aws"
-        frontend_origin = self.node.try_get_context("frontend_origin") or os.getenv("FRONTEND_ORIGIN")
+        frontend_origin = self.node.try_get_context("frontend_origin") or os.getenv(
+            "FRONTEND_ORIGIN"
+        )
         extra_cors_origins = self.node.try_get_context("cors_origins") or os.getenv("CORS_ORIGINS")
 
         cors_origins = ["http://localhost:3000", "http://localhost:5173"]
         if frontend_origin:
             cors_origins.insert(0, frontend_origin)
         if extra_cors_origins:
-            cors_origins.extend([origin.strip() for origin in extra_cors_origins.split(",") if origin.strip()])
+            cors_origins.extend(
+                [origin.strip() for origin in extra_cors_origins.split(",") if origin.strip()]
+            )
         cors_origins = list(dict.fromkeys(cors_origins))
 
         jwt_secret = os.getenv("JWT_SECRET", "")
@@ -240,7 +261,9 @@ class BackendLambdaStack(Stack):
 
         backend_api = apigwv2.HttpApi(self, "BackendApi")
         self.backend_api_url = backend_api.api_endpoint
-        backend_integration = apigwv2_integrations.HttpLambdaIntegration("BackendLambdaIntegration", backend_fn)
+        backend_integration = apigwv2_integrations.HttpLambdaIntegration(
+            "BackendLambdaIntegration", backend_fn
+        )
         backend_api.add_routes(
             path="/",
             methods=[apigwv2.HttpMethod.ANY],
@@ -276,16 +299,18 @@ class BackendLambdaStack(Stack):
             log_group=refresh_log_group,
         )
 
-        # PriceRefreshLambda: read + put by known data keys. The explicit timeseries
-        # cache grant also allows ListBucket on timeseries/ because some S3 parquet
-        # clients list the prefix before reading or writing cached parquet files.
+        # PriceRefreshLambda: read + put by known data keys, plus scoped ListBucket
+        # on prices/ so the price-snapshot loader can distinguish missing snapshots
+        # from denied access during cold start. The explicit timeseries cache grant
+        # also allows ListBucket on timeseries/ because some S3 parquet clients list
+        # the prefix before reading or writing cached parquet files.
         # See backend/timeseries/cache.py:_rolling_cache() and _save_parquet().
         self._grant_bucket_access(
             refresh_fn,
             bucket=data_bucket,
             allow_read=True,
             allow_put=True,
-            allow_list=False,
+            allow_list=True,
             list_prefix=lambda_list_prefixes["price_refresh"],
         )
         self._grant_timeseries_cache_access(refresh_fn, bucket=data_bucket, allow_put=True)
@@ -321,7 +346,9 @@ class BackendLambdaStack(Stack):
             log_group=agent_log_group,
         )
 
-        # TradingAgentLambda: read-only, no put, no general list.
+        # TradingAgentLambda: read-only, no put, no general list. It has scoped
+        # ListBucket on prices/ so the price-snapshot loader can distinguish missing
+        # snapshots from denied access during cold start.
         # Audited: trading_agent.py:run() → load_prices_for_tickers()
         # → load_meta_timeseries_range() reads parquet from S3 by known key.
         # No S3 writes: _log_trade() writes to TRADE_LOG_PATH (local filesystem / CloudWatch).
@@ -333,7 +360,7 @@ class BackendLambdaStack(Stack):
             bucket=data_bucket,
             allow_read=True,
             allow_put=False,
-            allow_list=False,
+            allow_list=True,
             list_prefix=lambda_list_prefixes["trading_agent"],
         )
         self._grant_timeseries_cache_access(agent_fn, bucket=data_bucket, allow_put=False)
@@ -368,7 +395,9 @@ class BackendLambdaStack(Stack):
                     threshold_type="PERCENTAGE",
                 ),
                 subscribers=[
-                    budgets.CfnBudget.SubscriberProperty(subscription_type="EMAIL", address=budget_alert_email)
+                    budgets.CfnBudget.SubscriberProperty(
+                        subscription_type="EMAIL", address=budget_alert_email
+                    )
                 ],
             )
 

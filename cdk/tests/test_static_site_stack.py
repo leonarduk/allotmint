@@ -125,7 +125,10 @@ def test_backend_api_url_parameter_exists(template):
     """
     template.has_parameter(
         "BackendApiUrl",
-        {"Type": "String"},
+        {
+            "AllowedPattern": "^$|^https://.+",
+            "Type": "String",
+        },
     )
 
 
@@ -157,25 +160,12 @@ def _response_headers_policy_csp(template: assertions.Template) -> object:
     ]["ContentSecurityPolicy"]
 
 
-def test_csp_connect_src_uses_backend_api_url_parameter(template):
-    """CSP connect-src must use the exact API URL parameter, not AWS wildcards."""
-    csp = _response_headers_policy_csp(template)
-
-    assert isinstance(csp, dict)
-    parts = csp["Fn::Join"][1]
-    assert {"Ref": "BackendApiUrl"} in parts
-    rendered_static_parts = "".join(part for part in parts if isinstance(part, str))
-    assert "connect-src 'self' " in rendered_static_parts
-    assert "https://*.amazoncognito.com" in rendered_static_parts
-    assert "*.amazonaws.com" not in rendered_static_parts
-
-
 # ---------------------------------------------------------------------------
 # CloudFront security headers
 # ---------------------------------------------------------------------------
 
 
-def test_csp_connect_src_uses_backend_url_parameter(template):
+def test_csp_connect_src_uses_backend_api_url_parameter(template):
     """CSP connect-src must reference BackendApiUrl directly, not a static wildcard.
 
     API Gateway URLs have the form {api-id}.execute-api.{region}.amazonaws.com.
@@ -216,10 +206,26 @@ def test_csp_connect_src_uses_backend_url_parameter(template):
     assert "amazonaws.com" not in static_text, (
         "CSP must not contain any static amazonaws.com wildcard in its string fragments"
     )
+    assert "connect-src 'self' " in static_text
     assert "https://*.amazoncognito.com" in static_text
-    assert "base-uri 'self'" in static_text
+    assert "script-src 'self' https://accounts.google.com/gsi/client" in static_text
+    assert "frame-src 'self' https://accounts.google.com/gsi/" in static_text
+    assert "frame-ancestors 'none'" in static_text
     assert static_text.count("object-src 'none'") == 1
+    assert static_text.count("base-uri 'self'") == 1
+    assert "; ;" not in static_text
     assert "'self'object-src" not in static_text, "Missing semicolon between base-uri and object-src"
+
+
+def test_csp_header_overrides_origin_csp(template):
+    """CloudFront must emit the managed CSP rather than preserving an origin CSP."""
+    resources = template.find_resources("AWS::CloudFront::ResponseHeadersPolicy")
+    assert len(resources) == 1, f"Expected one response headers policy, found {len(resources)}"
+    policy = next(iter(resources.values()))
+    csp_header = policy["Properties"]["ResponseHeadersPolicyConfig"]["SecurityHeadersConfig"][
+        "ContentSecurityPolicy"
+    ]
+    assert csp_header["Override"] is True
 
 
 # ---------------------------------------------------------------------------

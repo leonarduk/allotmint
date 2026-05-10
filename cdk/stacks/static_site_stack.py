@@ -54,6 +54,11 @@ class StaticSiteStack(Stack):
             "BackendApiUrl",
             type="String",
             default=api_base_url or "",
+            allowed_pattern=r"^$|^https://.+",
+            constraint_description=(
+                "BackendApiUrl must be empty for synth-only workflows or an "
+                "HTTPS URL such as https://abc123.execute-api.us-east-1.amazonaws.com."
+            ),
             description=(
                 "Backend API base URL — override at deploy time with the "
                 "BackendLambdaStack BackendApiUrl output."

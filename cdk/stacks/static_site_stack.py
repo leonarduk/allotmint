@@ -66,7 +66,7 @@ class StaticSiteStack(Stack):
                     "default-src 'self'",
                     "script-src 'self' https://accounts.google.com/gsi/client",
                     "frame-src 'self' https://accounts.google.com/gsi/",
-                    f"connect-src 'self' {backend_url_param.value_as_string} https://*.amazonaws.com https://*.amazoncognito.com; ",
+                    f"connect-src 'self' {backend_url_param.value_as_string} https://*.amazoncognito.com",
                     "frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
                     "object-src 'none'",
                     "base-uri 'self'",              

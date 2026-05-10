@@ -54,11 +54,33 @@ class StaticSiteStack(Stack):
             "BackendApiUrl",
             type="String",
             default=api_base_url or "",
+            allowed_pattern=r"^$|^https://.+",
+            constraint_description=(
+                "BackendApiUrl must be empty for synth-only workflows or an "
+                "HTTPS URL such as https://abc123.execute-api.us-east-1.amazonaws.com."
+            ),
             description=(
                 "Backend API base URL — override at deploy time with the "
                 "BackendLambdaStack BackendApiUrl output."
             ),
         )
+
+        # CSP connect-src uses the BackendApiUrl parameter directly so that
+        # CloudFormation resolves it to the exact API origin at deploy time.
+        # A static wildcard like *.execute-api.*.amazonaws.com is invalid CSP
+        # syntax (wildcards are only permitted as the leftmost hostname label)
+        # and would be silently ignored by browsers, blocking all API calls.
+        _csp = "; ".join(
+            [
+                "default-src 'self'",
+                "script-src 'self' https://accounts.google.com/gsi/client",
+                "frame-src 'self' https://accounts.google.com/gsi/",
+                f"connect-src 'self' {backend_url_param.value_as_string} https://*.amazoncognito.com",
+                "frame-ancestors 'none'",
+                "object-src 'none'",
+                "base-uri 'self'",
+            ]
+        ) + ";"
 
         site_bucket = s3.Bucket(
             self,
@@ -75,17 +97,9 @@ class StaticSiteStack(Stack):
             "SecurityHeaders",
             comment="Security headers for static site",
             security_headers_behavior=cloudfront.ResponseSecurityHeadersBehavior(
-                # Allow Google Identity Services script and iframe, and Cognito
-                # hosted UI token exchange (amazoncognito.com != amazonaws.com).
+                # Allow Google Identity Services, API Gateway calls, and Cognito token exchange.
                 content_security_policy=cloudfront.ResponseHeadersContentSecurityPolicy(
-                    content_security_policy=(
-                        "default-src 'self'; "
-                        "script-src 'self' https://accounts.google.com/gsi/client; "
-                        f"connect-src 'self' {backend_url_param.value_as_string} "
-                        "https://*.amazoncognito.com; "
-                        "frame-src 'self' https://accounts.google.com/gsi/; "
-                        "frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
-                    ),
+                    content_security_policy=_csp,
                     override=True,
                 ),
                 strict_transport_security=cloudfront.ResponseHeadersStrictTransportSecurity(

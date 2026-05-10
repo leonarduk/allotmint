@@ -11,7 +11,6 @@ where the parquet files live, e.g.
 
 from __future__ import annotations
 
-import importlib
 import logging
 import os
 from datetime import date, datetime, timedelta
@@ -19,8 +18,10 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Callable, Dict
 
+import boto3
 import pandas as pd
 import requests
+from botocore.exceptions import BotoCoreError, ClientError
 
 from backend.common.instruments import get_instrument_meta
 from backend.config import config
@@ -287,19 +288,32 @@ def load_stooq_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame
 _CACHE_FILE_MTIMES: Dict[str, float] = {}
 
 
-def _s3_object_mtime(cache: str) -> float:
-    """Return the S3 object's LastModified timestamp for cache invalidation."""
+@lru_cache(maxsize=1)
+def _s3_client():
+    """Return the shared boto3 S3 client used by cache metadata checks."""
+    return boto3.client("s3")
 
+
+def _split_s3_cache_uri(cache: str) -> tuple[str, str] | None:
     without_scheme = cache[len("s3://") :]
     bucket, _, key = without_scheme.partition("/")
     if not bucket or not key:
         logger.warning("Invalid S3 timeseries cache path: %s", cache)
-        return 0.0
+        return None
+    return bucket, key
 
-    boto3 = importlib.import_module("boto3")
+
+def _s3_object_mtime(cache: str) -> float:
+    """Return the S3 object's LastModified timestamp for cache invalidation."""
+
+    parsed = _split_s3_cache_uri(cache)
+    if parsed is None:
+        return 0.0
+    bucket, key = parsed
+
     try:
-        resp = boto3.client("s3").head_object(Bucket=bucket, Key=key)
-    except Exception as exc:  # pragma: no cover - defensive AWS path
+        resp = _s3_client().head_object(Bucket=bucket, Key=key)
+    except (BotoCoreError, ClientError) as exc:  # pragma: no cover - defensive AWS path
         logger.warning("Unable to read S3 cache metadata for %s: %s", cache, exc)
         return 0.0
 
@@ -550,10 +564,36 @@ def load_meta_timeseries_range(
     return _empty_ts()
 
 
+def _s3_cache_object_exists(cache: str) -> bool:
+    """Return whether an S3 cache object exists using a shared boto3 client.
+
+    Non-404 AWS errors are treated as cache misses after error logging so local
+    fallback paths can continue when credentials, networking, or IAM are broken.
+    """
+
+    parsed = _split_s3_cache_uri(cache)
+    if parsed is None:
+        return False
+    bucket, key = parsed
+
+    try:
+        _s3_client().head_object(Bucket=bucket, Key=key)
+    except ClientError as exc:
+        error_code = exc.response.get("Error", {}).get("Code")
+        if error_code in {"404", "NoSuchKey", "NotFound"}:
+            return False
+        logger.error("Unable to check S3 timeseries cache object %s: %s", cache, exc)
+        return False
+    except BotoCoreError as exc:
+        logger.error("AWS client error checking S3 timeseries cache object %s: %s", cache, exc)
+        return False
+    return True
+
+
 def has_cached_meta_timeseries(ticker: str, exchange: str) -> bool:
     cache = meta_timeseries_cache_path(ticker, exchange)
     if cache.startswith("s3://"):
-        return True  # S3 presence is checked lazily on read
+        return _s3_cache_object_exists(cache)
     p = Path(cache)
     return p.exists() and p.stat().st_size > 0
 

@@ -117,7 +117,13 @@ class BackendLambdaStack(Stack):
         bucket: s3.IBucket,
         allow_put: bool,
     ) -> None:
-        """Grant S3 permissions required by the Lambda timeseries parquet cache."""
+        """Grant S3 permissions required by the Lambda timeseries parquet cache.
+
+        In AWS IAM, HeadObject is authorized by the s3:GetObject action (there
+        is no separate s3:HeadObject action in the S3 IAM namespace), so a
+        single s3:GetObject grant covers both parquet reads and cache-existence
+        checks via boto3 head_object.
+        """
 
         actions = ["s3:GetObject", "s3:HeadObject"]
         if allow_put:

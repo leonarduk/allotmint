@@ -217,6 +217,9 @@ def test_csp_connect_src_uses_backend_url_parameter(template):
         "CSP must not contain any static amazonaws.com wildcard in its string fragments"
     )
     assert "https://*.amazoncognito.com" in static_text
+    assert "base-uri 'self'" in static_text
+    assert static_text.count("object-src 'none'") == 1
+    assert "'self'object-src" not in static_text, "Missing semicolon between base-uri and object-src"
 
 
 # ---------------------------------------------------------------------------

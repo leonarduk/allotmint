@@ -24,6 +24,10 @@ API Gateway URLs include the API ID and the AWS region in different hostname lab
 ```text
 https://{api-id}.execute-api.{region}.amazonaws.com
 ```
+
+The deployed CSP is:
+
+```text
 default-src 'self';
 script-src 'self' https://accounts.google.com/gsi/client;
 frame-src 'self' https://accounts.google.com/gsi/;

@@ -60,20 +60,17 @@ class StaticSiteStack(Stack):
         # A static wildcard like *.execute-api.*.amazonaws.com is invalid CSP
         # syntax (wildcards are only permitted as the leftmost hostname label)
         # and would be silently ignored by browsers, blocking all API calls.
-        _csp = (
-            "; ".join(
-                [
-                    "default-src 'self'",
-                    "script-src 'self' https://accounts.google.com/gsi/client",
-                    "frame-src 'self' https://accounts.google.com/gsi/",
-                    f"connect-src 'self' {backend_url_param.value_as_string} https://*.amazoncognito.com",
-                    "frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
-                    "object-src 'none'",
-                    "base-uri 'self'",              
-                ]
-            )
-            + ";"
-        )
+        _csp = "; ".join(
+            [
+                "default-src 'self'",
+                "script-src 'self' https://accounts.google.com/gsi/client",
+                "frame-src 'self' https://accounts.google.com/gsi/",
+                f"connect-src 'self' {backend_url_param.value_as_string} https://*.amazoncognito.com",
+                "frame-ancestors 'none'",
+                "object-src 'none'",
+                "base-uri 'self'",
+            ]
+        ) + ";"
 
         site_bucket = s3.Bucket(
             self,

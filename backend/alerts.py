@@ -121,16 +121,11 @@ def _load_settings() -> None:
                 _SETTINGS_LOADED = True
                 return
             except Exception as exc:
-                code = None
-                try:
-                    code = exc.response['Error']['Code']
-                except (AttributeError, KeyError, TypeError):
-                    pass
-                if code == 'NoSuchKey':
+                _resp = getattr(exc, 'response', {}) or {}
+                if _resp.get('Error', {}).get('Code') == 'NoSuchKey':
                     _SETTINGS_LOADED = True
-                else:
-                    logging.getLogger("alerts").exception("Failed to load alert thresholds from S3")
-                return
+                    return
+                logging.getLogger("alerts").exception("Failed to load alert thresholds from S3")
     try:
         data = _SETTINGS_STORAGE.load()
     except Exception as exc:  # pragma: no cover - storage backend failures
@@ -164,16 +159,11 @@ def _load_subscriptions() -> None:
                 _SUBSCRIPTIONS_LOADED = True
                 return
             except Exception as exc:
-                code = None
-                try:
-                    code = exc.response['Error']['Code']
-                except (AttributeError, KeyError, TypeError):
-                    pass
-                if code == 'NoSuchKey':
+                _resp = getattr(exc, 'response', {}) or {}
+                if _resp.get('Error', {}).get('Code') == 'NoSuchKey':
                     _SUBSCRIPTIONS_LOADED = True
-                else:
-                    logging.getLogger("alerts").exception("Failed to load push subscriptions from S3")
-                return
+                    return
+                logging.getLogger("alerts").exception("Failed to load push subscriptions from S3")
     try:
         data = _SUBSCRIPTIONS_STORAGE.load()
     except Exception as exc:  # pragma: no cover - storage backend failures

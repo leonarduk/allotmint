@@ -1,0 +1,94 @@
+name: IaC Validation
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize]
+  push:
+    branches: [main]
+
+jobs:
+  detect-iac-changes:
+    name: Detect IaC changes
+    runs-on: ubuntu-latest
+    outputs:
+      iac_changed: ${{ steps.changed-files.outputs.iac_changed }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Check for IaC-relevant file changes
+        id: changed-files
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$BASE_SHA" ] || ! git cat-file -e "$BASE_SHA^{commit}"; then
+            BASE_SHA="$(git rev-parse "$HEAD_SHA^")"
+          fi
+
+          changed_files="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" -- cdk infra .github/workflows)"
+          if [ -n "$changed_files" ]; then
+            echo "iac_changed=true" >> "$GITHUB_OUTPUT"
+            echo "IaC validation will run for these files:"
+            echo "$changed_files"
+          else
+            echo "iac_changed=false" >> "$GITHUB_OUTPUT"
+            echo "No IaC-relevant changes detected."
+          fi
+
+  cdk-validation:
+    name: CDK validation
+    needs: detect-iac-changes
+    if: needs.detect-iac-changes.outputs.iac_changed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6.0.2
+
+      - name: Set up Python
+        uses: actions/setup-python@v6.2.0
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+            cdk/requirements.txt
+
+      - name: Install Python dependencies
+        run: python -m pip install -r requirements.txt -r requirements-dev.txt -r cdk/requirements.txt
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6.4.0
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
+
+      - name: Install CDK CLI dependencies
+        run: npm ci
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend assets for CDK synth
+        working-directory: frontend
+        run: npm run build
+
+      - name: Run CDK tests
+        run: pytest cdk/tests
+
+      - name: Synthesize CDK app
+        working-directory: cdk
+        env:
+          JWT_SECRET: ci-cdk-validation-secret
+          GOOGLE_CLIENT_ID: ci-cdk-validation-client-id.apps.googleusercontent.com
+        run: npx cdk synth

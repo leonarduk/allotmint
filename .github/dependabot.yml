@@ -1,0 +1,57 @@
+# Dependabot version updates for the dependency ecosystems used by AllotMint.
+#
+# Dependency Review still protects pull requests that modify manifests; this file
+# adds proactive scheduled update PRs. To extend coverage, add another entry under
+# `updates` with a supported `package-ecosystem`, the manifest `directory`, and a
+# `schedule` block.
+version: 2
+updates:
+  # GitHub Actions: scans workflows under .github/workflows from the repo root.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+      - "chore"
+
+  # Root npm workspace: package.json and package-lock.json in the repo root.
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+      - "chore"
+
+  # Frontend npm workspace: React/Vite app dependencies in frontend/.
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+      - "chore"
+
+  # Root Python dependencies: requirements.txt plus requirements-dev.txt.
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+      - "chore"
+
+  # CDK Python dependencies: infrastructure requirements in cdk/.
+  - package-ecosystem: "pip"
+    directory: "/cdk"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+      - "chore"

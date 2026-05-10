@@ -27,10 +27,16 @@ workflow has two opt-in triggers:
 
 - **Manual dispatch**: run **Opt-in Smoke Tests** from the Actions tab and choose
   `all`, `backend`, `frontend`, or `codex-poc`. The optional `smoke_url` input
-  points the suites at a deployed target; if omitted, the workflow falls back to
-  the repository `SMOKE_URL` variable.
-- **PR label**: add the `run-smoke` label to a PR. The workflow reruns on new
-  commits while the label is present and executes the combined `all` target.
+  points the backend and default frontend API base at a deployed target; if
+  omitted, the workflow falls back to the repository `SMOKE_URL` variable. When
+  frontend smoke tests need a different API base, set `frontend_api_base`; it
+  falls back to `smoke_url`, then the `VITE_ALLOTMINT_API_BASE` repository
+  variable, and finally `SMOKE_URL`.
+- **PR label**: add the `run-smoke` label to a PR. Label-triggered runs execute
+  the combined `all` target only; the `codex-poc` target is manual-dispatch
+  only. To protect smoke credentials, label-triggered runs do not rerun
+  automatically on new commits. Remove and re-add the label, or use manual
+  dispatch, after reviewing follow-up commits.
 
 Use this workflow for release-bound or higher-risk changes such as auth,
 deployment, API routing, smoke-test infrastructure, or broad `frontend/` updates.
@@ -38,10 +44,12 @@ It intentionally does not run for every PR by default, so the deterministic CI
 checks remain the fast required gate.
 
 The workflow forwards the same environment variables described above. Configure
-`SMOKE_URL` and `SMOKE_IDENTITY` as repository variables when a stable deployment
-or identity should be used by label-triggered runs. Configure `SMOKE_TEST_ID_TOKEN`
-and `SMOKE_AUTH_TOKEN` as repository secrets when the target requires
-authenticated smoke coverage.
+`SMOKE_URL`, `SMOKE_IDENTITY`, and optionally `VITE_ALLOTMINT_API_BASE` as
+repository variables when a stable deployment, identity, or separate frontend API
+base should be used by label-triggered runs. Configure `SMOKE_TEST_ID_TOKEN` and
+`SMOKE_AUTH_TOKEN` as repository secrets when the target requires authenticated
+smoke coverage. Those secrets are scoped to the smoke-test execution steps rather
+than dependency installation or summary steps.
 
 ## Usage
 

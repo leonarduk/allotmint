@@ -112,6 +112,39 @@ class BackendLambdaStack(Stack):
                 )
             )
 
+    @staticmethod
+    def _grant_timeseries_cache_access(
+        fn: _lambda.DockerImageFunction,
+        *,
+        bucket: s3.IBucket,
+        allow_put: bool,
+    ) -> None:
+        """Grant S3 permissions required by the Lambda timeseries parquet cache.
+
+        In AWS IAM, HeadObject is authorized by the s3:GetObject action (there
+        is no separate s3:HeadObject action in the S3 IAM namespace), so a
+        single s3:GetObject grant covers both parquet reads and cache-existence
+        checks via boto3 head_object.
+        """
+
+        actions = ["s3:GetObject", "s3:HeadObject"]
+        if allow_put:
+            actions.append("s3:PutObject")
+
+        fn.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=actions,
+                resources=[bucket.arn_for_objects("timeseries/*")],
+            )
+        )
+        fn.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["s3:ListBucket"],
+                resources=[bucket.bucket_arn],
+                conditions={"StringLike": {"s3:prefix": ["timeseries", "timeseries/*"]}},
+            )
+        )
+
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
@@ -146,9 +179,21 @@ class BackendLambdaStack(Stack):
 
         bucket_name = data_bucket.bucket_name
         lambda_list_prefixes = {
-            "backend": ("accounts", "queries", "timeseries/meta", "transactions"),
-            "price_refresh": (),
-            "trading_agent": (),
+            # alerts/ and prices/ are included because S3 returns 403 (not 404) when
+            # a key is absent and the caller lacks s3:ListBucket on that prefix, which
+            # prevents the fallback logic in alerts.py and the price-snapshot loader
+            # from distinguishing "missing" from "denied". PriceRefreshLambda and
+            # TradingAgentLambda also import the price loader during cold start.
+            "backend": (
+                "accounts",
+                "alerts",
+                "prices",
+                "queries",
+                "timeseries/meta",
+                "transactions",
+            ),
+            "price_refresh": ("prices",),
+            "trading_agent": ("prices",),
         }
 
         image_code = _lambda.DockerImageCode.from_image_asset(
@@ -193,12 +238,6 @@ class BackendLambdaStack(Stack):
             "GOOGLE_CLIENT_ID": google_client_id,
             "TIMESERIES_CACHE_BASE": f"s3://{bucket_name}/timeseries",
         }
-
-        backend_fn.add_permission(
-            "AllowApiGatewayInvoke",
-            principal=iam.ServicePrincipal("apigateway.amazonaws.com"),
-            source_arn=backend_api.arn_for_execute_api(),
-        )
         if data_repo:
             backend_env["DATA_REPO"] = data_repo
 
@@ -213,9 +252,13 @@ class BackendLambdaStack(Stack):
         )
         backend_fn.add_environment("APP_ENV", env)
 
-        # BackendLambda: read + put + list
+        # BackendLambda: read + put + list for API data paths. Add an explicit
+        # timeseries cache grant below so the synthesized IAM policy always covers
+        # pyarrow's S3 parquet read/write/list behavior at timeseries/*.
         # Audited S3 list prefixes used by backend code paths:
         # - accounts/        (auth + portfolio enumeration)
+        # - alerts/          (alert fallback path)
+        # - prices/          (price snapshot loader)
         # - queries/         (saved query listing)
         # - timeseries/meta/ (timeseries admin listing)
         # - transactions/    (report transaction exports)
@@ -227,6 +270,7 @@ class BackendLambdaStack(Stack):
             allow_list=True,
             list_prefix=lambda_list_prefixes["backend"],
         )
+        self._grant_timeseries_cache_access(backend_fn, bucket=data_bucket, allow_put=True)
 
         ui_auth_user_pool_id_param = CfnParameter(
             self,
@@ -316,20 +360,21 @@ class BackendLambdaStack(Stack):
             log_group=refresh_log_group,
         )
 
-        # PriceRefreshLambda: read + put, no list
-        # Audited: refresh_prices() calls get_price_snapshot() → load_meta_timeseries_range()
-        # → _rolling_cache() → _save_parquet(), which writes parquet files to S3 by known key
-        # (e.g. s3://bucket/meta/TICKER_EXCHANGE.parquet). All S3 access is by known key —
-        # no bucket enumeration. config.prices_json writes to local filesystem, not S3.
+        # PriceRefreshLambda: read + put by known data keys, plus scoped ListBucket
+        # on prices/ so the price-snapshot loader can distinguish missing snapshots
+        # from denied access during cold start. The explicit timeseries cache grant
+        # also allows ListBucket on timeseries/ because some S3 parquet clients list
+        # the prefix before reading or writing cached parquet files.
         # See backend/timeseries/cache.py:_rolling_cache() and _save_parquet().
         self._grant_bucket_access(
             refresh_fn,
             bucket=data_bucket,
             allow_read=True,
             allow_put=True,
-            allow_list=False,
+            allow_list=True,
             list_prefix=lambda_list_prefixes["price_refresh"],
         )
+        self._grant_timeseries_cache_access(refresh_fn, bucket=data_bucket, allow_put=True)
 
         events.Rule(
             self,
@@ -362,19 +407,24 @@ class BackendLambdaStack(Stack):
             log_group=agent_log_group,
         )
 
-        # TradingAgentLambda: read only, no put, no list
-        # Audited: backend/agent/trading_agent.py:run() calls load_prices_for_tickers()
-        # → load_meta_timeseries_range() which reads parquet files from S3 by known key.
+        # TradingAgentLambda: read-only, no put, no general list. It has scoped
+        # ListBucket on prices/ so the price-snapshot loader can distinguish missing
+        # snapshots from denied access during cold start.
+        # Audited: trading_agent.py:run() -> load_prices_for_tickers()
+        # -> load_meta_timeseries_range() reads parquet from S3 by known key.
         # No S3 writes: _log_trade() writes to TRADE_LOG_PATH (local filesystem / CloudWatch).
-        # No bucket enumeration: all S3 access is by deterministic key.
+        # The timeseries cache grant adds scoped GetObject and ListBucket so pyarrow
+        # can read cached parquet files under timeseries/. allow_put=False enforces
+        # the read-only invariant on the timeseries prefix.
         self._grant_bucket_access(
             agent_fn,
             bucket=data_bucket,
             allow_read=True,
             allow_put=False,
-            allow_list=False,
+            allow_list=True,
             list_prefix=lambda_list_prefixes["trading_agent"],
         )
+        self._grant_timeseries_cache_access(agent_fn, bucket=data_bucket, allow_put=False)
 
         events.Rule(
             self,

@@ -30,7 +30,7 @@
     "react-i18next": "^15.7.4",
     "react-router-dom": "^7.12.1",
     "react-toastify": "^10.0.0",
-    "react-window": "^1.8.11",
+    "react-window": "^2.2.7",
     "recharts": "^3.6.0",
     "sharp": "^0.34.5",
     "vite-plugin-ssr": "^0.4.142"

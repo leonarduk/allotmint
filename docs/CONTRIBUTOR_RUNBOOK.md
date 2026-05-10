@@ -27,7 +27,7 @@ npm --prefix frontend install
 Notes:
 
 - Python formatting/lint configuration lives in `backend/pyproject.toml`, while pytest and coverage defaults live in the root `pyproject.toml`.
-- CI uses Python 3.12 for the primary backend test path and a lightweight Python 3.11/3.12 compatibility smoke matrix to catch version-specific regressions without duplicating the full integration workflow.
+- CI uses Python 3.12 for the primary backend test path and a lightweight Python 3.11 compatibility smoke job to catch version-specific regressions without duplicating the full integration workflow.
 - The frontend already has its own `package.json`; use `npm --prefix frontend ...` from the repo root unless you intentionally `cd frontend`.
 
 ## 3. Environment variables you are most likely to need

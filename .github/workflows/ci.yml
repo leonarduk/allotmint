@@ -32,12 +32,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.11', '3.12']
+        python-version: ['3.11']
     steps:
       - uses: actions/checkout@v6.0.2
-      # Python 3.12 remains the primary CI/backend integration version; this
-      # lightweight matrix keeps Python 3.11 support honest without duplicating
-      # the full backend integration and coverage workflow.
+      # Python 3.12 remains covered by the primary CI/backend integration job;
+      # this lightweight smoke keeps Python 3.11 support honest without
+      # duplicating the full backend integration and coverage workflow.
       - uses: actions/setup-python@v6.2.0
         with:
           python-version: ${{ matrix.python-version }}

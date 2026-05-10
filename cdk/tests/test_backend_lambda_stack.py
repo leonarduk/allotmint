@@ -318,11 +318,36 @@ def test_monthly_budget_exists(template):
     assert budget_limit.get("Unit") == "USD"
 
 
-
-
 def test_backend_api_auth_parameters_exist(template):
-    template.has_parameter("UiAuthUserPoolId", {"Type": "String"})
-    template.has_parameter("UiAuthUserPoolClientId", {"Type": "String"})
+    template.has_parameter(
+        "UiAuthUserPoolId",
+        {
+            "Type": "String",
+            "AllowedPattern": ".+",
+        },
+    )
+    template.has_parameter(
+        "UiAuthUserPoolClientId",
+        {
+            "Type": "String",
+            "AllowedPattern": ".+",
+        },
+    )
+    params = template.to_json()["Parameters"]
+    assert "Default" not in params["UiAuthUserPoolId"]
+    assert "Default" not in params["UiAuthUserPoolClientId"]
+
+
+def test_backend_lambda_disables_app_jwt_decode_for_cognito_authorizer(template):
+    """Lambda trusts API Gateway for Cognito auth and does not decode ID tokens as app JWTs."""
+    template.has_resource_properties(
+        "AWS::Lambda::Function",
+        {
+            "Environment": {
+                "Variables": assertions.Match.object_like({"DISABLE_AUTH": "true"})
+            }
+        },
+    )
 
 
 def test_backend_api_has_cognito_jwt_authorizer(template):

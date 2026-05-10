@@ -26,11 +26,19 @@ AllotMint's frontend is served from S3 behind CloudFront. `StaticSiteStack` atta
 ```
 default-src 'self';
 script-src 'self' https://accounts.google.com/gsi/client;
-connect-src 'self' https://*.execute-api.*.amazonaws.com https://cognito-idp.*.amazonaws.com https://*.auth.*.amazoncognito.com;
+connect-src 'self' https://*.amazonaws.com https://*.amazoncognito.com;
 frame-src 'self' https://accounts.google.com/gsi/;
 frame-ancestors 'none';
 object-src 'none';
 base-uri 'self'
 ```
 
-When adding third-party services, update the CloudFront response headers policy in `cdk/stacks/static_site_stack.py` rather than relying on a page-level meta tag. For temporary local testing you may inject a `<meta http-equiv="Content-Security-Policy">` tag in `frontend/index.html`, but prefer the header-based policy in production.
+The `connect-src` directive intentionally uses syntactically valid
+leftmost-label wildcards because CSP host sources only support an optional
+leading wildcard. The broader `*.amazonaws.com` entry covers API Gateway and
+Cognito IdP endpoints; `*.amazoncognito.com` covers the Cognito hosted UI token
+endpoint. When adding third-party services, update the CloudFront response
+headers policy in `cdk/stacks/static_site_stack.py` rather than relying on a
+page-level meta tag. For temporary local testing you may inject a
+`<meta http-equiv="Content-Security-Policy">` tag in `frontend/index.html`, but
+prefer the header-based policy in production.

@@ -184,12 +184,12 @@ npx cdk deploy StaticSiteStack --require-approval never \
   --parameters StaticSiteStack:BackendApiUrl="$BACKEND_URL"
 ```
 
-When manually validating drift before a deploy, always run:
-
-```bash
-cd cdk
-npx cdk diff --all
-```
+When manually validating drift before a deploy, run `npx cdk diff --all` from
+`cdk/`, but do **not** use `npx cdk deploy --all` for a fresh
+Cognito-enabled environment. The backend stack needs the user-pool outputs from
+the first static deploy, and the static stack needs the backend URL from the
+backend deploy, so deployments must follow the static/backend/static sequence
+above.
 
 `BackendLambdaStack` now includes:
 - an S3 data bucket with versioning, SSE-S3 encryption, and non-current object expiry,
@@ -211,7 +211,10 @@ aws cloudfront create-invalidation --distribution-id <DIST_ID> --paths "/*"
 If deployment fails or the live environment does not match local behavior:
 
 1. Re-run `npx cdk diff --all` and confirm intended stack changes are present.
-2. Run `npx cdk deploy --all --require-approval never` and capture the exact failing resource from CloudFormation events.
+2. Re-run the static/backend/static deployment commands above and capture the
+   exact failing resource from CloudFormation events. Do not substitute
+   `npx cdk deploy --all` for this flow in a fresh environment because the
+   stacks exchange deploy-time parameters between phases.
 3. Inspect backend Lambda errors (CloudWatch). Lambda functions in this stack use
    explicit CDK-managed log groups, so read the deployed log group name from the
    stack outputs instead of assuming the `/aws/lambda/<function-name>` convention:

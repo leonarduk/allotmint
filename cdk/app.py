@@ -19,6 +19,9 @@ backend_stack = BackendLambdaStack(app, "BackendLambdaStack")
 #   cdk deploy StaticSiteStack --parameters StaticSiteStack:BackendApiUrl=<url>
 # See deploy-lambda.yml for the two-phase static/backend/static deployment that
 # first creates Cognito, then wires API authorization, then refreshes config.json.
+# Do not use `cdk deploy --all` for a fresh Cognito-enabled environment: the
+# BackendLambdaStack requires StaticSiteStack auth outputs as deploy parameters,
+# and StaticSiteStack's runtime config is refreshed only after the backend URL exists.
 static_stack = StaticSiteStack(app, "StaticSiteStack")
 
 app.synth()

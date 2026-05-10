@@ -272,29 +272,40 @@ class BackendLambdaStack(Stack):
         )
         self._grant_timeseries_cache_access(backend_fn, bucket=data_bucket, allow_put=True)
 
+        ui_auth_user_pool_id_default = self.node.try_get_context(
+            "ui_auth_user_pool_id"
+        ) or os.getenv("UI_AUTH_USER_POOL_ID")
+        ui_auth_user_pool_id_param_kwargs = {
+            "type": "String",
+            "allowed_pattern": ".+",
+            "description": (
+                "Cognito user pool ID exported by StaticSiteStack for API JWT authorization."
+            ),
+        }
+        if ui_auth_user_pool_id_default:
+            ui_auth_user_pool_id_param_kwargs["default"] = ui_auth_user_pool_id_default
         ui_auth_user_pool_id_param = CfnParameter(
             self,
             "UiAuthUserPoolId",
-            type="String",
-            allowed_pattern=".+",  # fail at deploy time if empty
-            default=self.node.try_get_context("ui_auth_user_pool_id")
-            or os.getenv("UI_AUTH_USER_POOL_ID")
-            or "",
-            description=(
-                "Cognito user pool ID exported by StaticSiteStack for API JWT authorization."
-            ),
+            **ui_auth_user_pool_id_param_kwargs,
         )
+
+        ui_auth_client_id_default = self.node.try_get_context(
+            "ui_auth_user_pool_client_id"
+        ) or os.getenv("UI_AUTH_USER_POOL_CLIENT_ID")
+        ui_auth_client_id_param_kwargs = {
+            "type": "String",
+            "allowed_pattern": ".+",
+            "description": (
+                "Cognito app client ID exported by StaticSiteStack for API JWT authorization."
+            ),
+        }
+        if ui_auth_client_id_default:
+            ui_auth_client_id_param_kwargs["default"] = ui_auth_client_id_default
         ui_auth_client_id_param = CfnParameter(
             self,
             "UiAuthUserPoolClientId",
-            type="String",
-            allowed_pattern=".+",  # fail at deploy time if empty
-            default=self.node.try_get_context("ui_auth_user_pool_client_id")
-            or os.getenv("UI_AUTH_USER_POOL_CLIENT_ID")
-            or "",
-            description=(
-                "Cognito app client ID exported by StaticSiteStack for API JWT authorization."
-            ),
+            **ui_auth_client_id_param_kwargs,
         )
         ui_auth_user_pool = cognito.UserPool.from_user_pool_id(
             self, "ImportedUiAuthUserPool", ui_auth_user_pool_id_param.value_as_string

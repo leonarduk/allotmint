@@ -358,12 +358,16 @@ export function Root() {
     const code = params.get('code');
     if (!code) return;
 
+    const redirectPath = awsUiAuth.redirectPath;
     setCognitoCallbackPending(true);
     setCognitoCallbackError(null);
     void completeCognitoCallback(awsUiAuth, code, params.get('state'))
-      .catch((error) => {
-        console.error('Failed to complete Cognito sign-in', error);
+      .catch((err) => {
+        console.error('Failed to complete Cognito sign-in', err);
         setCognitoCallbackError('Cognito sign-in failed. Please try again.');
+        // Strip ?code= from the URL so this effect doesn't re-fire when
+        // cognitoCallbackPending resets to false after a network failure.
+        navigate(redirectPath, { replace: true });
       })
       .finally(() => {
         setCognitoCallbackPending(false);
@@ -375,6 +379,7 @@ export function Root() {
     completeCognitoCallback,
     location.pathname,
     location.search,
+    navigate,
   ]);
 
   const isPublicSupportRoute = location.pathname === '/support';

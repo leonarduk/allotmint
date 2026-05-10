@@ -1,9 +1,16 @@
 import json
 import sys
 import types
+
 import pytest
 
 import backend.alerts as alerts
+
+
+class FakeS3Error(Exception):
+    def __init__(self, code):
+        super().__init__(code)
+        self.response = {"Error": {"Code": code}}
 
 
 @pytest.fixture(autouse=True)
@@ -62,6 +69,55 @@ def test_load_settings_falls_back_to_local_on_s3_error(monkeypatch):
     monkeypatch.setattr(alerts, "_SETTINGS_STORAGE", types.SimpleNamespace(load=loader))
 
     alerts._load_settings()
+    assert alerts._USER_THRESHOLDS == {"a": 0.4}
+
+
+def test_load_settings_does_not_retry_missing_s3_key(monkeypatch):
+    calls = []
+
+    class MissingKeyS3:
+        def get_object(self, Bucket, Key):
+            calls.append((Bucket, Key))
+            raise FakeS3Error("NoSuchKey")
+
+    def boom():
+        raise AssertionError("local load should not be used for missing S3 key")
+
+    monkeypatch.setattr(alerts, "_data_bucket", lambda: "bucket")
+    monkeypatch.setattr(alerts, "_s3_client", lambda: MissingKeyS3())
+    monkeypatch.setattr(alerts, "_SETTINGS_STORAGE", types.SimpleNamespace(load=boom))
+
+    alerts._load_settings()
+    alerts._load_settings()
+
+    assert calls == [("bucket", alerts._THRESHOLDS_KEY)]
+    assert alerts._SETTINGS_LOADED is True
+    assert alerts._USER_THRESHOLDS == {}
+
+
+def test_load_settings_s3_error_falls_back_to_local_once(monkeypatch):
+    s3_calls = []
+    local_calls = []
+
+    class BrokenS3:
+        def get_object(self, Bucket, Key):
+            s3_calls.append((Bucket, Key))
+            raise FakeS3Error("AccessDenied")
+
+    def loader():
+        local_calls.append("load")
+        return {"a": "0.4"}
+
+    monkeypatch.setattr(alerts, "_data_bucket", lambda: "bucket")
+    monkeypatch.setattr(alerts, "_s3_client", lambda: BrokenS3())
+    monkeypatch.setattr(alerts, "_SETTINGS_STORAGE", types.SimpleNamespace(load=loader))
+
+    alerts._load_settings()
+    alerts._load_settings()
+
+    assert s3_calls == [("bucket", alerts._THRESHOLDS_KEY)]
+    assert local_calls == ["load"]
+    assert alerts._SETTINGS_LOADED is True
     assert alerts._USER_THRESHOLDS == {"a": 0.4}
 
 
@@ -161,6 +217,55 @@ def test_load_subscriptions_falls_back_to_local_on_s3_error(monkeypatch):
     monkeypatch.setattr(alerts, "_SUBSCRIPTIONS_STORAGE", types.SimpleNamespace(load=loader))
 
     alerts._load_subscriptions()
+    assert alerts._PUSH_SUBSCRIPTIONS == {"u1": {"a": 1}}
+
+
+def test_load_subscriptions_does_not_retry_missing_s3_key(monkeypatch):
+    calls = []
+
+    class MissingKeyS3:
+        def get_object(self, Bucket, Key):
+            calls.append((Bucket, Key))
+            raise FakeS3Error("NoSuchKey")
+
+    def boom():
+        raise AssertionError("local load should not be used for missing S3 key")
+
+    monkeypatch.setattr(alerts, "_data_bucket", lambda: "bucket")
+    monkeypatch.setattr(alerts, "_s3_client", lambda: MissingKeyS3())
+    monkeypatch.setattr(alerts, "_SUBSCRIPTIONS_STORAGE", types.SimpleNamespace(load=boom))
+
+    alerts._load_subscriptions()
+    alerts._load_subscriptions()
+
+    assert calls == [("bucket", alerts._SUBSCRIPTIONS_KEY)]
+    assert alerts._SUBSCRIPTIONS_LOADED is True
+    assert alerts._PUSH_SUBSCRIPTIONS == {}
+
+
+def test_load_subscriptions_s3_error_falls_back_to_local_once(monkeypatch):
+    s3_calls = []
+    local_calls = []
+
+    class BrokenS3:
+        def get_object(self, Bucket, Key):
+            s3_calls.append((Bucket, Key))
+            raise FakeS3Error("AccessDenied")
+
+    def loader():
+        local_calls.append("load")
+        return {"u1": {"a": 1}, "u2": "bad"}
+
+    monkeypatch.setattr(alerts, "_data_bucket", lambda: "bucket")
+    monkeypatch.setattr(alerts, "_s3_client", lambda: BrokenS3())
+    monkeypatch.setattr(alerts, "_SUBSCRIPTIONS_STORAGE", types.SimpleNamespace(load=loader))
+
+    alerts._load_subscriptions()
+    alerts._load_subscriptions()
+
+    assert s3_calls == [("bucket", alerts._SUBSCRIPTIONS_KEY)]
+    assert local_calls == ["load"]
+    assert alerts._SUBSCRIPTIONS_LOADED is True
     assert alerts._PUSH_SUBSCRIPTIONS == {"u1": {"a": 1}}
 
 

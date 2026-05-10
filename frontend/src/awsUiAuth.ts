@@ -110,12 +110,14 @@ export const consumeCognitoAuthSession = (
   state: string | null
 ): CognitoAuthSession | null => {
   const rawSession = storage()?.getItem(SESSION_STORAGE_KEY);
-  storage()?.removeItem(SESSION_STORAGE_KEY);
   if (!rawSession || !state) return null;
 
   try {
     const session = JSON.parse(rawSession) as Partial<CognitoAuthSession>;
     if (session.state !== state || !session.codeVerifier) return null;
+    // Only remove after successful state validation so a mismatch doesn't
+    // destroy the session and prevent a retry.
+    storage()?.removeItem(SESSION_STORAGE_KEY);
     return {
       state,
       codeVerifier: session.codeVerifier,

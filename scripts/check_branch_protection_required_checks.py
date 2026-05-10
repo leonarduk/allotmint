@@ -47,7 +47,11 @@ def workflow_check_contexts() -> set[str]:
     contexts: set[str] = set()
 
     for workflow_path in WORKFLOWS_DIR.glob("*.yml"):
-        workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+        try:
+            workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+        except yaml.YAMLError as exc:
+            print(f"Warning: could not parse {workflow_path.name}: {exc}", file=sys.stderr)
+            continue
         if not isinstance(workflow, dict):
             continue
         workflow_name = workflow.get("name")

@@ -12,7 +12,7 @@ jobs:
       - uses: actions/setup-python@v6.2.0
         with:
           python-version: '3.12'
-      - run: pip install -r requirements.txt
+      - run: pip install -r requirements.txt -r requirements-dev.txt
       - run: python scripts/check_branch_protection_required_checks.py
       - uses: actions/setup-node@v6.4.0
         with:
@@ -23,5 +23,4 @@ jobs:
         working-directory: frontend
       - run: npm test -- --run
         working-directory: frontend
-      - run: pip install -r requirements-dev.txt
       - run: pytest

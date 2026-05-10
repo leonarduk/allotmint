@@ -31,9 +31,7 @@ ONCE_XP_REWARD = 25
 # Storage helpers
 # ---------------------------------------------------------------------------
 
-_DEFAULT_TRAIL_URI = (
-    f"file://{(config.repo_root or Path(__file__).resolve().parents[1]) / 'data' / 'trail.json'}"
-)
+_DEFAULT_TRAIL_URI = f"file://{(config.repo_root or Path(__file__).resolve().parents[1]) / 'data' / 'trail.json'}"
 _TRAIL_STORAGE = get_storage(os.getenv("TRAIL_URI", _DEFAULT_TRAIL_URI))
 
 # Data format per user::
@@ -146,8 +144,7 @@ def _build_allowance_tasks(owners: Iterable[str]) -> List[TaskDefinition]:
             label_raw = account.replace("_", " ")
             account_label = label_raw.upper() if label_raw.upper() == "ISA" else label_raw.title()
             commentary = (
-                f"{account_label} allowance remaining: {_format_currency(remaining)}"
-                f" of {_format_currency(limit)}."
+                f"{account_label} allowance remaining: {_format_currency(remaining)}" f" of {_format_currency(limit)}."
             )
             tasks.append(
                 TaskDefinition(
@@ -232,6 +229,7 @@ def _normalise_threshold(raw: object) -> float | None:
 
 
 def _has_custom_threshold(user: str) -> bool:
+    alerts.ensure_alert_settings_loaded()
     thresholds = getattr(alerts, "_USER_THRESHOLDS", {})
     if not isinstance(thresholds, dict):
         return False
@@ -251,10 +249,7 @@ def _has_custom_threshold(user: str) -> bool:
         if default_threshold >= 1:
             default_variants.add(default_threshold / 100)
 
-    if any(
-        math.isclose(candidate, default, rel_tol=1e-9, abs_tol=1e-9)
-        for default in default_variants
-    ):
+    if any(math.isclose(candidate, default, rel_tol=1e-9, abs_tol=1e-9) for default in default_variants):
         return False
 
     return True
@@ -273,7 +268,7 @@ _AUTO_ONCE_BLOCKLIST = {
 def _sync_once_completion(user_data: Dict, task_id: str, should_complete: bool) -> None:
     """Ensure ``task_id`` reflects ``should_complete`` within ``user_data``."""
 
-    once_list = user_data.setdefault("once", [])
+    _ = user_data.setdefault("once", [])  # Keep manual completions initialized.
     auto_list = user_data.setdefault(_AUTO_ONCE_KEY, [])
 
     if should_complete:
@@ -474,6 +469,7 @@ def _save() -> None:
 # Public API
 # ---------------------------------------------------------------------------
 
+
 def get_tasks(user: str) -> Dict:
     """Return tasks and completion state for ``user``."""
     _load()
@@ -485,9 +481,7 @@ def get_tasks(user: str) -> Dict:
     daily_task_ids = [task.id for task in task_defs if task.type == "daily"]
     once_task_ids = [task.id for task in task_defs if task.type == "once"]
 
-    daily_completed = {
-        task_id for task_id in user_data["daily"].get(today, []) if task_id in daily_task_ids
-    }
+    daily_completed = {task_id for task_id in user_data["daily"].get(today, []) if task_id in daily_task_ids}
     user_data["daily"][today] = sorted(daily_completed)
     manual_once = [task_id for task_id in user_data.get("once", []) if task_id in once_task_ids]
     auto_once = [task_id for task_id in user_data.get(_AUTO_ONCE_KEY, []) if task_id in once_task_ids]
@@ -496,9 +490,7 @@ def get_tasks(user: str) -> Dict:
 
     tasks: List[Dict[str, object]] = []
     for task in task_defs:
-        completed = (
-            task.id in once_completed if task.type == "once" else task.id in daily_completed
-        )
+        completed = task.id in once_completed if task.type == "once" else task.id in daily_completed
         if task.id == "set_alert_threshold" and has_custom_threshold:
             completed = True
         tasks.append(

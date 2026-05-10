@@ -483,7 +483,12 @@ def _cognito_issuer_from_unverified_token(token: str) -> str:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid Cognito issuer",
         )
-    if not parsed.hostname.startswith("cognito-idp."):
+    # Require both the cognito-idp. prefix and the .amazonaws.com suffix to
+    # prevent attacker-controlled JWKS endpoints at cognito-idp.attacker.com.
+    if not (
+        parsed.hostname.startswith("cognito-idp.")
+        and parsed.hostname.endswith(".amazonaws.com")
+    ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Unsupported Cognito issuer",

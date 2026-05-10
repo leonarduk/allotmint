@@ -350,6 +350,9 @@ export function Root() {
 
   useEffect(() => {
     if (!awsUiAuth || authed || cognitoCallbackPending) return;
+    // Only intercept ?code= on the configured Cognito redirect path to avoid
+    // consuming code params that belong to other features or shareable URLs.
+    if (location.pathname !== awsUiAuth.redirectPath) return;
 
     const params = new URLSearchParams(location.search);
     const code = params.get('code');
@@ -370,6 +373,7 @@ export function Root() {
     authed,
     cognitoCallbackPending,
     completeCognitoCallback,
+    location.pathname,
     location.search,
   ]);
 
@@ -418,6 +422,15 @@ export function Root() {
         {renderRouteMarker(location.pathname, 'auth')}
         <div role="alert" className="app-offline">
           {cognitoCallbackError}
+          <button
+            type="button"
+            onClick={() => {
+              setCognitoCallbackError(null);
+              navigate('/', { replace: true });
+            }}
+          >
+            Try again
+          </button>
         </div>
       </>
     );

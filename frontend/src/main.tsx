@@ -142,9 +142,9 @@ export function Root() {
   );
   const [authed, setAuthed] = useState(Boolean(storedToken));
   const [cognitoCallbackPending, setCognitoCallbackPending] = useState(false);
-  const [cognitoCallbackError, setCognitoCallbackError] = useState<string | null>(
-    null
-  );
+  const [cognitoCallbackError, setCognitoCallbackError] = useState<
+    string | null
+  >(null);
   const { setUser } = useAuth();
   const { setProfile } = useUser();
   const navigate = useNavigate();
@@ -163,6 +163,7 @@ export function Root() {
   const activeRequest = useRef<AbortController | null>(null);
   const retryTimer = useRef<number | null>(null);
   const isMounted = useRef(true);
+  const cognitoCallbackInFlight = useRef(false);
 
   const clearRetryTimer = useCallback(() => {
     if (retryTimer.current !== null) {
@@ -327,7 +328,8 @@ export function Root() {
         code,
         session.codeVerifier
       );
-      if (!tokens.id_token) throw new Error('Cognito did not return an ID token.');
+      if (!tokens.id_token)
+        throw new Error('Cognito did not return an ID token.');
 
       const response = await fetch(`${API_BASE}/token/cognito`, {
         method: 'POST',
@@ -340,7 +342,8 @@ export function Root() {
       if (!response.ok) throw new Error('Backend Cognito login failed.');
 
       const data = (await response.json()) as { access_token?: string };
-      if (!data.access_token) throw new Error('Backend token response missing.');
+      if (!data.access_token)
+        throw new Error('Backend token response missing.');
       setAuthToken(data.access_token);
       setAuthed(true);
       navigate(session.returnPath, { replace: true });
@@ -349,7 +352,7 @@ export function Root() {
   );
 
   useEffect(() => {
-    if (!awsUiAuth || authed || cognitoCallbackPending) return;
+    if (!awsUiAuth || authed || cognitoCallbackInFlight.current) return;
     // Only intercept ?code= on the configured Cognito redirect path to avoid
     // consuming code params that belong to other features or shareable URLs.
     if (location.pathname !== awsUiAuth.redirectPath) return;
@@ -359,6 +362,7 @@ export function Root() {
     if (!code) return;
 
     const redirectPath = awsUiAuth.redirectPath;
+    cognitoCallbackInFlight.current = true;
     setCognitoCallbackPending(true);
     setCognitoCallbackError(null);
     void completeCognitoCallback(awsUiAuth, code, params.get('state'))
@@ -370,12 +374,12 @@ export function Root() {
         navigate(redirectPath, { replace: true });
       })
       .finally(() => {
+        cognitoCallbackInFlight.current = false;
         setCognitoCallbackPending(false);
       });
   }, [
     awsUiAuth,
     authed,
-    cognitoCallbackPending,
     completeCognitoCallback,
     location.pathname,
     location.search,
@@ -434,7 +438,7 @@ export function Root() {
               navigate('/', { replace: true });
             }}
           >
-            Try again
+            Return to login
           </button>
         </div>
       </>

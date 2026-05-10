@@ -411,6 +411,18 @@ def test_verify_cognito_token_success(monkeypatch):
     assert auth.verify_cognito_token("token", "client") == "user@example.com"
 
 
+def test_verify_cognito_token_rejects_cognito_prefixed_non_aws_issuer(monkeypatch):
+    def fake_decode(token, *args, **kwargs):
+        return {"iss": "https://cognito-idp.attacker.com/pool"}
+
+    monkeypatch.setattr(auth.jwt, "decode", fake_decode)
+
+    with pytest.raises(HTTPException) as exc:
+        auth.verify_cognito_token("token", "client")
+
+    assert exc.value.status_code == 401
+
+
 def test_verify_cognito_token_rejects_unsupported_issuer(monkeypatch):
     def fake_decode(token, *args, **kwargs):
         return {"iss": "https://issuer.example.com/pool"}

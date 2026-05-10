@@ -113,4 +113,11 @@ def test_cognito_token_rejects_missing_client_id(monkeypatch, tmp_path):
     monkeypatch.setattr(auth, "verify_cognito_token", lambda token, client_id: "user@example.com")
     client = _setup_app(monkeypatch, tmp_path)
     resp = client.post("/token/cognito", json={"id_token": "abc"})
-    assert resp.status_code == 400
+    assert resp.status_code == 422
+
+
+def test_cognito_token_rejects_non_object_payload(monkeypatch, tmp_path):
+    monkeypatch.setattr(auth, "verify_cognito_token", lambda token, client_id: "user@example.com")
+    client = _setup_app(monkeypatch, tmp_path)
+    resp = client.post("/token/cognito", json=["abc"])
+    assert resp.status_code == 422

@@ -29,6 +29,27 @@ describe('awsUiAuth helpers', () => {
     expect(
       parseAwsUiAuthConfig({ enabled: true, domain: '', clientId: 'client' })
     ).toBeNull();
+    expect(
+      parseAwsUiAuthConfig({
+        enabled: true,
+        domain: 'https://example.auth.eu-west-2.amazoncognito.com',
+        clientId: '',
+      })
+    ).toBeNull();
+    expect(
+      parseAwsUiAuthConfig({
+        enabled: true,
+        domain: 'http://example.auth.eu-west-2.amazoncognito.com',
+        clientId: 'client',
+      })
+    ).toBeNull();
+    expect(
+      parseAwsUiAuthConfig({
+        enabled: true,
+        domain: 'https://example.auth.eu-west-2.amazoncognito.com/path',
+        clientId: 'client',
+      })
+    ).toBeNull();
   });
 
   it('builds the Cognito authorization-code redirect URL with PKCE', () => {
@@ -75,6 +96,17 @@ describe('awsUiAuth helpers', () => {
       returnPath: '/portfolio?family=demo',
     });
     expect(consumeCognitoAuthSession(session.state)).toBeNull();
+  });
+
+  it('rejects a mismatched state without consuming the stored session', async () => {
+    const session = await createCognitoAuthSession('/portfolio?family=demo');
+
+    expect(consumeCognitoAuthSession('wrong-state')).toBeNull();
+    expect(consumeCognitoAuthSession(session.state)).toEqual({
+      state: session.state,
+      codeVerifier: session.codeVerifier,
+      returnPath: '/portfolio?family=demo',
+    });
   });
 
   it('rejects external return paths from stored Cognito auth sessions', async () => {

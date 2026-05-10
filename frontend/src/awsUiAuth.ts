@@ -33,12 +33,29 @@ const normalizeRedirectPath = (value: unknown): string => {
   return redirectPath.startsWith('/') ? redirectPath : `/${redirectPath}`;
 };
 
+const normalizeHttpsDomain = (value: unknown): string => {
+  const domain = asTrimmedString(value).replace(/\/+$/, '');
+  if (!domain) return '';
+
+  try {
+    const parsed = new URL(domain);
+    if (parsed.protocol !== 'https:') return '';
+    if (parsed.pathname !== '/' || parsed.search || parsed.hash) return '';
+    return parsed.toString().replace(/\/+$/, '');
+  } catch {
+    return '';
+  }
+};
+
 const base64UrlEncode = (bytes: Uint8Array): string => {
   let binary = '';
   bytes.forEach((byte) => {
     binary += String.fromCharCode(byte);
   });
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return btoa(binary)
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
 };
 
 const randomBase64Url = (byteLength: number): string => {
@@ -78,7 +95,7 @@ export const parseAwsUiAuthConfig = (
   const rawConfig = value as Record<string, unknown>;
   if (rawConfig.enabled !== true) return null;
 
-  const domain = asTrimmedString(rawConfig.domain).replace(/\/+$/, '');
+  const domain = normalizeHttpsDomain(rawConfig.domain);
   const clientId = asTrimmedString(rawConfig.clientId);
   const redirectPath = normalizeRedirectPath(rawConfig.redirectPath);
   if (!domain || !clientId) return null;

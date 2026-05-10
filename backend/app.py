@@ -15,6 +15,7 @@ from contextlib import asynccontextmanager
 from json import JSONDecodeError
 
 from fastapi import FastAPI, HTTPException, Request
+from pydantic import BaseModel
 
 import backend.auth as auth
 from backend.bootstrap import (
@@ -27,6 +28,11 @@ from backend.bootstrap import (
 from backend.config import reload_config
 
 logger = logging.getLogger(__name__)
+
+
+class CognitoTokenRequest(BaseModel):
+    id_token: str
+    client_id: str
 
 
 def create_app() -> FastAPI:
@@ -163,9 +169,9 @@ def create_app() -> FastAPI:
         return {"access_token": jwt_token, "token_type": "bearer"}
 
     @app.post("/token/cognito")
-    async def cognito_token(payload: dict):
-        token = payload.get("id_token")
-        client_id = payload.get("client_id")
+    async def cognito_token(payload: CognitoTokenRequest):
+        token = payload.id_token
+        client_id = payload.client_id
         if cfg.disable_auth:
             email = "user@example.com"
         else:

@@ -109,8 +109,8 @@ export default function LoginPage({
       window.location.assign(
         buildCognitoHostedUiUrl(awsUiAuth, window.location.origin, session)
       );
-    } catch (error) {
-      console.error('Failed to start Cognito sign-in', error);
+    } catch (signInError) {
+      console.error('Failed to start Cognito sign-in', signInError);
       setError('Unable to start Cognito sign-in. Please try again.');
     }
   };

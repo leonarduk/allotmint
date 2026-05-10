@@ -203,9 +203,44 @@ class StaticSiteStack(Stack):
             price_class=cloudfront.PriceClass.PRICE_CLASS_100,
         )
 
-        ui_auth_pool, ui_auth_client, ui_auth_domain = self._create_ui_auth(
-            distribution=distribution,
+        ui_auth_pool = cognito.UserPool(
+            self,
+            "UiAuthUserPool",
+            account_recovery=cognito.AccountRecovery.EMAIL_ONLY,
+            self_sign_up_enabled=False,
+            sign_in_aliases=cognito.SignInAliases(email=True),
             removal_policy=ui_auth_removal_policy,
+        )
+        ui_auth_callback_url = Fn.join("", ["https://", distribution.domain_name, "/"])
+        ui_auth_client = ui_auth_pool.add_client(
+            "UiAuthClient",
+            # auth_flows gates the direct Cognito API auth endpoints (USER_SRP_AUTH,
+            # USER_PASSWORD_AUTH). The hosted UI uses browser redirects and does not
+            # go through these API flows. user_srp=True is kept to avoid enabling the
+            # weaker ALLOW_USER_PASSWORD_AUTH endpoint on this public client.
+            auth_flows=cognito.AuthFlow(user_srp=True),
+            o_auth=cognito.OAuthSettings(
+                flows=cognito.OAuthFlows(authorization_code_grant=True),
+                scopes=[
+                    cognito.OAuthScope.EMAIL,
+                    cognito.OAuthScope.OPENID,
+                    cognito.OAuthScope.PROFILE,
+                ],
+                callback_urls=[ui_auth_callback_url],
+                logout_urls=[ui_auth_callback_url],
+            ),
+            prevent_user_existence_errors=True,
+        )
+        ui_auth_domain_prefix = Fn.join("-", ["allotmint", Aws.ACCOUNT_ID, Aws.REGION])
+        ui_auth_pool.add_domain(
+            "UiAuthDomain",
+            cognito_domain=cognito.CognitoDomainOptions(
+                domain_prefix=ui_auth_domain_prefix,
+            ),
+        )
+        ui_auth_domain = Fn.join(
+            "",
+            ["https://", ui_auth_domain_prefix, ".auth.", Aws.REGION, ".amazoncognito.com"],
         )
 
         frontend_dir = (
@@ -275,46 +310,3 @@ class StaticSiteStack(Stack):
         CfnOutput(self, "UiAuthUserPoolId", value=ui_auth_pool.user_pool_id)
         CfnOutput(self, "UiAuthUserPoolClientId", value=ui_auth_client.user_pool_client_id)
         CfnOutput(self, "UiAuthDomain", value=ui_auth_domain)
-
-    def _create_ui_auth(
-        self,
-        *,
-        distribution: cloudfront.Distribution,
-        removal_policy: RemovalPolicy,
-    ) -> tuple[cognito.UserPool, cognito.UserPoolClient, str]:
-        ui_auth_pool = cognito.UserPool(
-            self,
-            "UiAuthUserPool",
-            account_recovery=cognito.AccountRecovery.EMAIL_ONLY,
-            self_sign_up_enabled=False,
-            sign_in_aliases=cognito.SignInAliases(email=True),
-            removal_policy=removal_policy,
-        )
-        ui_auth_callback_url = Fn.join("", ["https://", distribution.domain_name, "/"])
-        ui_auth_client = ui_auth_pool.add_client(
-            "UiAuthClient",
-            auth_flows=cognito.AuthFlow(user_password=True, user_srp=True),
-            o_auth=cognito.OAuthSettings(
-                flows=cognito.OAuthFlows(authorization_code_grant=True),
-                scopes=[
-                    cognito.OAuthScope.EMAIL,
-                    cognito.OAuthScope.OPENID,
-                    cognito.OAuthScope.PROFILE,
-                ],
-                callback_urls=[ui_auth_callback_url],
-                logout_urls=[ui_auth_callback_url],
-            ),
-            prevent_user_existence_errors=True,
-        )
-        ui_auth_domain_prefix = Fn.join("-", ["allotmint", Aws.ACCOUNT_ID, Aws.REGION])
-        ui_auth_pool.add_domain(
-            "UiAuthDomain",
-            cognito_domain=cognito.CognitoDomainOptions(
-                domain_prefix=ui_auth_domain_prefix,
-            ),
-        )
-        ui_auth_domain = Fn.join(
-            "",
-            ["https://", ui_auth_domain_prefix, ".auth.", Aws.REGION, ".amazoncognito.com"],
-        )
-        return ui_auth_pool, ui_auth_client, ui_auth_domain

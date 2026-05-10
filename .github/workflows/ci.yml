@@ -11,6 +11,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-python@v6.2.0
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: python scripts/check_branch_protection_required_checks.py
       - uses: actions/setup-node@v6.4.0
         with:
           node-version: '24'
@@ -20,10 +25,6 @@ jobs:
         working-directory: frontend
       - run: npm test -- --run
         working-directory: frontend
-      - uses: actions/setup-python@v6.2.0
-        with:
-          python-version: '3.12'
-      - run: pip install -r requirements.txt -r requirements-dev.txt
       - run: pytest
 
   python-compatibility:

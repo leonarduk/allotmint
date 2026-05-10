@@ -240,6 +240,37 @@ def test_ui_auth_client_uses_authorization_code_flow(template):
     )
 
 
+def test_ui_auth_outputs_exist(template):
+    template.has_output("UiAuthUserPoolId", {})
+    template.has_output("UiAuthUserPoolClientId", {})
+    template.has_output("UiAuthDomain", {})
+
+
+def test_ui_auth_user_pool_destroy_by_default(template):
+    """Without the retainUserPool context key the UserPool uses DeletionPolicy: Delete."""
+    pools = template.find_resources(
+        "AWS::Cognito::UserPool",
+        {"DeletionPolicy": "Delete"},
+    )
+    assert len(pools) >= 1, "Expected UserPool DeletionPolicy to be Delete in default (dev) mode"
+
+
+def test_ui_auth_user_pool_retain_when_context_set(tmp_path):
+    """Setting retainUserPool=true context switches the UserPool to DeletionPolicy: Retain."""
+    (tmp_path / "index.html").write_text("<html></html>")
+    app = App(context={"retainUserPool": "true"})
+    stack = StaticSiteStack(
+        app,
+        "RetainStack",
+        api_base_url=_DUMMY_API_URL,
+        frontend_dist_path=str(tmp_path),
+    )
+    t = assertions.Template.from_stack(stack)
+    pools = t.find_resources(
+        "AWS::Cognito::UserPool",
+        {"DeletionPolicy": "Retain"},
+    )
+    assert len(pools) >= 1, "Expected UserPool DeletionPolicy to be Retain when retainUserPool=true"
 def test_ui_auth_user_pool_is_destroyed_by_default(tmp_path):
     template = _template_with_context(tmp_path, {})
     template.has_resource(

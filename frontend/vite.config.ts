@@ -47,7 +47,7 @@ export default defineConfig(() => {
       setupFiles: './src/setupTests.ts',
       include: ['tests/unit/**/*.test.ts?(x)'],
       coverage: {
-        provider: 'v8' as const,
+        provider: 'v8' as const, // literal required by CoverageV8Options — widened to string without explicit annotation
         reporter: ['text', 'html'],
         include: ['tests/unit/**/*.test.ts?(x)'],
         thresholds: {

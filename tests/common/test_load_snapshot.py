@@ -5,6 +5,7 @@ import types
 
 import pytest
 
+import backend.common as _backend_common
 from backend.common import portfolio_utils as pu
 
 
@@ -23,6 +24,7 @@ def test_portfolio_utils_import_does_not_call_load_snapshot(tmp_path, monkeypatc
     monkeypatch.setattr(pu.config, "prices_json", prices_file, raising=False)
     monkeypatch.setattr(pu.config, "app_env", "local", raising=False)
 
+    original_module = sys.modules.get("backend.common.portfolio_utils")
     sys.modules.pop("backend.common.portfolio_utils", None)
     try:
         import backend.common.portfolio_utils as fresh_pu  # noqa: PLC0415
@@ -33,7 +35,15 @@ def test_portfolio_utils_import_does_not_call_load_snapshot(tmp_path, monkeypatc
         )
         assert fresh_pu._PRICE_SNAPSHOT_TS is None
     finally:
+        # Restore both sys.modules and the package attribute so that subsequent
+        # monkeypatch.setattr("backend.common.portfolio_utils.*") calls land on
+        # the same module object that route files imported at startup.  Without
+        # restoring the package attribute, getattr(backend.common, "portfolio_utils")
+        # returns the fresh reimport and the patch misses the live reference.
         sys.modules.pop("backend.common.portfolio_utils", None)
+        if original_module is not None:
+            sys.modules["backend.common.portfolio_utils"] = original_module
+            _backend_common.portfolio_utils = original_module
 
 
 def test_load_snapshot_missing_local_file(tmp_path, monkeypatch, caplog):

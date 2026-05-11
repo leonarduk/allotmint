@@ -30,6 +30,7 @@ import {
   getConfig,
   logout as apiLogout,
   getStoredAuthToken,
+  getApiBase,
   setApiBase,
   setAuthToken,
 } from './api';
@@ -38,7 +39,7 @@ import { UserProvider, useUser } from './UserContext';
 import ErrorBoundary from './ErrorBoundary';
 import { loadStoredAuthUser, loadStoredUserProfile } from './authStorage';
 import { RouteProvider } from './RouteContext';
-import { ensureAwsUiAuth, UserCancelledError, type AwsUiAuthConfig } from './awsUiAuth';
+import { ensureAwsUiAuth, getStoredCognitoIdToken, UserCancelledError, type AwsUiAuthConfig } from './awsUiAuth';
 import {
   deriveBootstrapMode,
   deriveModeFromPathname,
@@ -415,6 +416,29 @@ export function Root() {
 const rootEl = document.getElementById('root');
 if (!rootEl) throw new Error('Root element not found');
 
+const exchangeCognitoForBackendToken = async (
+  awsUiAuth?: AwsUiAuthConfig | null,
+) => {
+  const idToken = getStoredCognitoIdToken();
+  const clientId = awsUiAuth?.clientId?.trim();
+  if (!idToken || !clientId) return;
+  try {
+    const res = await fetch(`${getApiBase()}/token/cognito`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id_token: idToken, client_id: clientId }),
+    });
+    if (!res.ok) {
+      console.error('Cognito backend token exchange failed', res.status);
+      return;
+    }
+    const data = (await res.json()) as { access_token: string };
+    setAuthToken(data.access_token);
+  } catch (error) {
+    console.error('Cognito backend token exchange error', error);
+  }
+};
+
 const bootstrapRuntimeConfig = async () => {
   let payload: { apiBaseUrl?: unknown; awsUiAuth?: AwsUiAuthConfig } = {};
   try {
@@ -435,7 +459,11 @@ const bootstrapRuntimeConfig = async () => {
   if (typeof payload.apiBaseUrl === 'string') {
     setApiBase(payload.apiBaseUrl);
   }
-  return ensureAwsUiAuth(payload.awsUiAuth);
+  const shouldRender = await ensureAwsUiAuth(payload.awsUiAuth);
+  if (shouldRender) {
+    await exchangeCognitoForBackendToken(payload.awsUiAuth);
+  }
+  return shouldRender;
 };
 
 void bootstrapRuntimeConfig()

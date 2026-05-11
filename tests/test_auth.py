@@ -404,11 +404,36 @@ def test_verify_cognito_token_success(monkeypatch):
             "token_use": "id",
         }
 
+    monkeypatch.setattr(auth, "_jwks_clients", {})
     monkeypatch.setattr(auth.jwt, "PyJWKClient", FakeJwksClient)
     monkeypatch.setattr(auth.jwt, "decode", fake_decode)
     monkeypatch.setattr(auth, "_allowed_emails", lambda: {"user@example.com"})
 
     assert auth.verify_cognito_token("token", "client") == "user@example.com"
+
+
+def test_get_jwks_client_caches_by_issuer(monkeypatch):
+    created: list[object] = []
+
+    class FakeClient:
+        pass
+
+    def fake_constructor(url: str) -> FakeClient:  # noqa: ARG001
+        client = FakeClient()
+        created.append(client)
+        return client
+
+    local_cache: dict[str, object] = {}
+    monkeypatch.setattr(auth, "_jwks_clients", local_cache)
+    # Patch the constructor reference used inside _get_jwks_client.
+    monkeypatch.setattr(auth.jwt, "PyJWKClient", fake_constructor, raising=False)
+
+    issuer = "https://cognito-idp.eu-west-2.amazonaws.com/pool"
+    first = auth._get_jwks_client(issuer)
+    second = auth._get_jwks_client(issuer)
+
+    assert first is second
+    assert len(created) == 1
 
 
 def test_verify_cognito_token_rejects_cognito_prefixed_non_aws_issuer(monkeypatch):

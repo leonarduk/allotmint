@@ -493,6 +493,15 @@ def _cognito_issuer_from_unverified_token(token: str) -> str:
     return issuer.rstrip("/")
 
 
+_jwks_clients: dict[str, jwt.PyJWKClient] = {}
+
+
+def _get_jwks_client(issuer: str) -> jwt.PyJWKClient:
+    if issuer not in _jwks_clients:
+        _jwks_clients[issuer] = jwt.PyJWKClient(f"{issuer}/.well-known/jwks.json")
+    return _jwks_clients[issuer]
+
+
 def verify_cognito_token(token: str, client_id: str) -> str:
     if not client_id:
         raise HTTPException(
@@ -502,7 +511,7 @@ def verify_cognito_token(token: str, client_id: str) -> str:
 
     issuer = _cognito_issuer_from_unverified_token(token)
     try:
-        jwks_client = jwt.PyJWKClient(f"{issuer}/.well-known/jwks.json")
+        jwks_client = _get_jwks_client(issuer)
         key = jwks_client.get_signing_key_from_jwt(token).key
         payload = jwt.decode(
             token,

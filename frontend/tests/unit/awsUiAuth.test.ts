@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ensureAwsUiAuth, UserCancelledError } from '@/awsUiAuth';
+import { ensureAwsUiAuth, getStoredCognitoIdToken, UserCancelledError } from '@/awsUiAuth';
 
 const assignMock = vi.fn();
 
@@ -248,5 +248,32 @@ describe('ensureAwsUiAuth', () => {
         'AWS UI authentication token exchange failed'
       );
     });
+  });
+});
+
+describe('getStoredCognitoIdToken', () => {
+  it('returns null when no session is stored', () => {
+    expect(getStoredCognitoIdToken()).toBeNull();
+  });
+
+  it('returns the id_token from a valid session', () => {
+    window.sessionStorage.setItem(
+      'awsUiAuthSession',
+      JSON.stringify({ idToken: 'my-id-token', expiresAt: Date.now() + 3600 * 1000 }),
+    );
+    expect(getStoredCognitoIdToken()).toBe('my-id-token');
+  });
+
+  it('returns null for an expired session', () => {
+    window.sessionStorage.setItem(
+      'awsUiAuthSession',
+      JSON.stringify({ idToken: 'expired-token', expiresAt: Date.now() - 1000 }),
+    );
+    expect(getStoredCognitoIdToken()).toBeNull();
+  });
+
+  it('returns null for a malformed session entry', () => {
+    window.sessionStorage.setItem('awsUiAuthSession', 'not-json');
+    expect(getStoredCognitoIdToken()).toBeNull();
   });
 });

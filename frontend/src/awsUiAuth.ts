@@ -102,6 +102,13 @@ const hasValidSession = () => {
   return true;
 };
 
+/** Returns the stored Cognito ID token if the session is still valid, else null. */
+export const getStoredCognitoIdToken = (): string | null => {
+  const session = loadSession();
+  if (!session || session.expiresAt <= Date.now()) return null;
+  return session.idToken;
+};
+
 const exchangeCode = async (config: AuthConfig) => {
   const params = new URLSearchParams(window.location.search);
   const code = params.get('code');

@@ -9,6 +9,7 @@ jobs:
     name: GPT AI code review
     runs-on: ubuntu-latest
     continue-on-error: true
+    if: ${{ github.actor != 'dependabot[bot]' }}
     permissions:
       pull-requests: write
       contents: read

@@ -1,0 +1,54 @@
+{
+  "name": "main deterministic PR gates",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "include": ["refs/heads/main"],
+      "exclude": []
+    }
+  },
+  "bypass_actors": [],
+  "rules": [
+    {
+      "type": "deletion"
+    },
+    {
+      "type": "non_fast_forward"
+    },
+    {
+      "type": "pull_request",
+      "parameters": {
+        "required_approving_review_count": 1,
+        "dismiss_stale_reviews_on_push": true,
+        "require_code_owner_review": false,
+        "require_last_push_approval": false,
+        "required_review_thread_resolution": true,
+        "allowed_merge_methods": ["merge", "squash", "rebase"]
+      }
+    },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": true,
+        "required_status_checks": [
+          {
+            "context": "CI / test"
+          },
+          {
+            "context": "Backend Integration Tests / integration-tests"
+          },
+          {
+            "context": "Frontend Tests / frontend-tests"
+          },
+          {
+            "context": "PR Body Issue Reference Check / require-issue-reference"
+          },
+          {
+            "context": "Dependency Review / dependency-review"
+          }
+        ]
+      }
+    }
+  ]
+}

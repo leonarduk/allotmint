@@ -15,7 +15,16 @@ if str(CDK_DIR) not in sys.path:
 
 from stacks.backend_lambda_stack import BackendLambdaStack
 
-BACKEND_LIST_PREFIXES = ("accounts", "alerts", "prices", "queries", "timeseries/meta", "transactions")
+BACKEND_LIST_PREFIXES = (
+    "accounts",
+    "alerts",
+    "prices",
+    "queries",
+    "timeseries/meta",
+    "transactions",
+)
+PRICE_REFRESH_LIST_PREFIXES = ("prices",)
+TRADING_AGENT_LIST_PREFIXES = ("prices",)
 
 
 def _stack_template() -> dict:
@@ -58,7 +67,11 @@ def _s3_actions_for_role(template: dict, role_logical_id: str) -> set[str]:
         if resource.get("Type") != "AWS::IAM::Policy":
             continue
         roles = resource.get("Properties", {}).get("Roles", [])
-        role_refs = {role["Ref"] for role in roles if isinstance(role, dict) and isinstance(role.get("Ref"), str)}
+        role_refs = {
+            role["Ref"]
+            for role in roles
+            if isinstance(role, dict) and isinstance(role.get("Ref"), str)
+        }
         if role_logical_id not in role_refs:
             continue
 
@@ -87,7 +100,9 @@ def _resources_for_s3_action(template: dict, role_logical_id: str, target_action
         if resource.get("Type") != "AWS::IAM::Policy":
             continue
         roles = resource.get("Properties", {}).get("Roles", [])
-        role_refs = {r["Ref"] for r in roles if isinstance(r, dict) and isinstance(r.get("Ref"), str)}
+        role_refs = {
+            r["Ref"] for r in roles if isinstance(r, dict) and isinstance(r.get("Ref"), str)
+        }
         if role_logical_id not in role_refs:
             continue
 
@@ -107,7 +122,9 @@ def _resources_for_s3_action(template: dict, role_logical_id: str, target_action
     return found
 
 
-def _conditions_for_s3_action(template: dict, role_logical_id: str, target_action: str) -> list[dict]:
+def _conditions_for_s3_action(
+    template: dict, role_logical_id: str, target_action: str
+) -> list[dict]:
     """Return IAM Condition objects for statements granting target_action."""
     found: list[dict] = []
     resources = template["Resources"]
@@ -115,7 +132,9 @@ def _conditions_for_s3_action(template: dict, role_logical_id: str, target_actio
         if resource.get("Type") != "AWS::IAM::Policy":
             continue
         roles = resource.get("Properties", {}).get("Roles", [])
-        role_refs = {r["Ref"] for r in roles if isinstance(r, dict) and isinstance(r.get("Ref"), str)}
+        role_refs = {
+            r["Ref"] for r in roles if isinstance(r, dict) and isinstance(r.get("Ref"), str)
+        }
         if role_logical_id not in role_refs:
             continue
 
@@ -133,6 +152,13 @@ def _conditions_for_s3_action(template: dict, role_logical_id: str, target_actio
     return found
 
 
+def _expected_prefix_condition(prefixes: tuple[str, ...]) -> dict:
+    expected_prefix_entries: list[str] = []
+    for prefix in prefixes:
+        expected_prefix_entries.extend([prefix, f"{prefix}/*"])
+    return {"StringLike": {"s3:prefix": expected_prefix_entries}}
+
+
 # Maximum allowed S3 action sets per Lambda role (upper bounds for least-privilege enforcement).
 # Audit evidence:
 #   BackendLambda      — full API; reads, writes, and lists portfolio/price data.
@@ -141,9 +167,9 @@ def _conditions_for_s3_action(template: dict, role_logical_id: str, target_actio
 #   TradingAgentLambda — calls load_prices_for_tickers() → load_meta_timeseries_range() which
 #                        reads parquet from S3 by known key. No writes anywhere in this path.
 #                        Pyarrow may list the timeseries/ prefix before reading cached files.
-BACKEND_MAX_S3 = {"s3:GetObject", "s3:PutObject", "s3:ListBucket"}
-REFRESH_MAX_S3 = {"s3:GetObject", "s3:PutObject", "s3:ListBucket"}
-TRADING_MAX_S3 = {"s3:GetObject", "s3:ListBucket"}
+BACKEND_MAX_S3 = {"s3:GetObject", "s3:HeadObject", "s3:PutObject", "s3:ListBucket"}
+REFRESH_MAX_S3 = {"s3:GetObject", "s3:HeadObject", "s3:PutObject", "s3:ListBucket"}
+TRADING_MAX_S3 = {"s3:GetObject", "s3:HeadObject", "s3:ListBucket"}
 
 
 def test_s3_permissions_are_scoped_per_lambda() -> None:
@@ -181,9 +207,9 @@ def test_s3_permissions_are_scoped_per_lambda() -> None:
     ), f"TradingAgentLambda has unexpected S3 actions: {trading_actions - TRADING_MAX_S3}"
 
     # Explicit absence checks (belt-and-suspenders on top of upper-bound)
-    assert "s3:PutObject" not in trading_actions, (
-        "TradingAgentLambda must not have s3:PutObject — read-only S3 access"
-    )
+    assert (
+        "s3:PutObject" not in trading_actions
+    ), "TradingAgentLambda must not have s3:PutObject — read-only S3 access"
     assert "s3:ListBucket" not in refresh_actions or all(
         _conditions_for_s3_action(template, refresh_role, "s3:ListBucket")
     ), "PriceRefreshLambda s3:ListBucket must always be conditioned (no unrestricted list)"
@@ -200,29 +226,38 @@ def test_s3_permissions_are_scoped_per_lambda() -> None:
 
     list_bucket_conditions = _conditions_for_s3_action(template, backend_role, "s3:ListBucket")
     assert list_bucket_conditions, "BackendLambda has s3:ListBucket but no associated IAM Condition"
-    expected_prefix_entries: list[str] = []
-    for prefix in BACKEND_LIST_PREFIXES:
-        expected_prefix_entries.extend([prefix, f"{prefix}/*"])
-    expected_prefix = {"StringLike": {"s3:prefix": expected_prefix_entries}}
     assert (
-        expected_prefix in list_bucket_conditions
+        _expected_prefix_condition(BACKEND_LIST_PREFIXES) in list_bucket_conditions
     ), "BackendLambda s3:ListBucket must be conditioned to all audited backend list prefixes"
+
+    refresh_conditions = _conditions_for_s3_action(template, refresh_role, "s3:ListBucket")
+    assert (
+        _expected_prefix_condition(PRICE_REFRESH_LIST_PREFIXES) in refresh_conditions
+    ), "PriceRefreshLambda s3:ListBucket must be conditioned to the prices/ prefix"
+
+    trading_conditions = _conditions_for_s3_action(template, trading_role, "s3:ListBucket")
+    assert (
+        _expected_prefix_condition(TRADING_AGENT_LIST_PREFIXES) in trading_conditions
+    ), "TradingAgentLambda s3:ListBucket must be conditioned to the prices/ prefix"
 
 
 def test_all_lambdas_have_scoped_timeseries_cache_permissions() -> None:
     template = _stack_template()
     expected_condition = {"StringLike": {"s3:prefix": ["timeseries", "timeseries/*"]}}
 
-    # All three Lambdas must be able to read from and list the timeseries/ prefix
+    # All three Lambdas must be able to read, head, and list the timeseries/ prefix
     for fragment in ("BackendLambda", "PriceRefreshLambda", "TradingAgentLambda"):
         role = _role_logical_id_for_lambda(template, fragment)
-        resources = _resources_for_s3_action(template, role, "s3:GetObject")
-        assert any(
-            "timeseries/*" in resource for resource in resources
-        ), f"{fragment} missing s3:GetObject on the timeseries/* object prefix"
+        for action in ("s3:GetObject", "s3:HeadObject"):
+            resources = _resources_for_s3_action(template, role, action)
+            assert any(
+                "timeseries/*" in resource for resource in resources
+            ), f"{fragment} missing {action} on the timeseries/* object prefix"
 
         conditions = _conditions_for_s3_action(template, role, "s3:ListBucket")
-        assert expected_condition in conditions, f"{fragment} missing ListBucket scoped to the timeseries/ prefix"
+        assert (
+            expected_condition in conditions
+        ), f"{fragment} missing ListBucket scoped to the timeseries/ prefix"
 
     # Only write-capable Lambdas may put objects under the timeseries/ prefix
     for fragment in ("BackendLambda", "PriceRefreshLambda"):
@@ -235,9 +270,9 @@ def test_all_lambdas_have_scoped_timeseries_cache_permissions() -> None:
     # TradingAgentLambda must NOT have PutObject on timeseries/ — read-only cache access
     trading_role = _role_logical_id_for_lambda(template, "TradingAgentLambda")
     trading_put_resources = _resources_for_s3_action(template, trading_role, "s3:PutObject")
-    assert not any("timeseries/*" in r for r in trading_put_resources), (
-        "TradingAgentLambda must not have s3:PutObject on timeseries/* — read-only S3 access"
-    )
+    assert not any(
+        "timeseries/*" in r for r in trading_put_resources
+    ), "TradingAgentLambda must not have s3:PutObject on timeseries/* — read-only S3 access"
 
 
 def test_grant_bucket_access_requires_list_prefix_when_allow_list_enabled() -> None:
@@ -263,7 +298,9 @@ def test_grant_bucket_access_requires_list_prefix_when_allow_list_enabled() -> N
             )
         except ValueError:
             continue
-        raise AssertionError(f"Expected ValueError for allow_list=True with list_prefix={invalid_prefix!r}")
+        raise AssertionError(
+            f"Expected ValueError for allow_list=True with list_prefix={invalid_prefix!r}"
+        )
 
 
 def test_grant_bucket_access_accepts_multiple_list_prefixes() -> None:
@@ -291,10 +328,7 @@ def test_grant_bucket_access_accepts_multiple_list_prefixes() -> None:
     conditions = _conditions_for_s3_action(template, role_logical_id, "s3:ListBucket")
     assert len(conditions) == 1, "Expected exactly one ListBucket statement"
 
-    expected_prefix_entries: list[str] = []
-    for prefix in BACKEND_LIST_PREFIXES:
-        expected_prefix_entries.extend([prefix, f"{prefix}/*"])
-    assert conditions[0] == {"StringLike": {"s3:prefix": expected_prefix_entries}}
+    assert conditions[0] == _expected_prefix_condition(BACKEND_LIST_PREFIXES)
 
 
 def test_lambda_roles_do_not_have_s3_delete_permissions() -> None:
@@ -306,7 +340,9 @@ def test_lambda_roles_do_not_have_s3_delete_permissions() -> None:
     for fragment in role_fragments:
         role = _role_logical_id_for_lambda(template, fragment)
         actions = _s3_actions_for_role(template, role)
-        assert forbidden.isdisjoint(actions), f"Found forbidden actions for {fragment}: {actions & forbidden}"
+        assert forbidden.isdisjoint(
+            actions
+        ), f"Found forbidden actions for {fragment}: {actions & forbidden}"
         # Also catch wildcard grants which implicitly include delete
         assert (
             "s3:*" not in actions and "*" not in actions
@@ -316,7 +352,9 @@ def test_lambda_roles_do_not_have_s3_delete_permissions() -> None:
 def test_grant_bucket_access_raises_on_no_permissions() -> None:
     class _MockFn:
         def add_to_role_policy(self, policy_statement: object) -> None:
-            raise AssertionError("add_to_role_policy should not be called when no permissions are enabled")
+            raise AssertionError(
+                "add_to_role_policy should not be called when no permissions are enabled"
+            )
 
     mock_fn = _MockFn()
 

@@ -3,18 +3,19 @@ import { BrowserRouter } from 'react-router-dom';
 import { describe, it, expect, vi } from 'vitest';
 import LoginPage from '@/LoginPage';
 
+vi.mock('@/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/api')>()
+  return {
+    ...actual,
+    getConfig: () =>
+      Promise.resolve({ google_auth_enabled: true, google_client_id: '' })
+  }
+})
+
 describe('Google login guard', () => {
   it('shows error when client ID missing', async () => {
-    vi.mock('@/api', async () => {
-      const actual = await vi.importActual<typeof import('@/api')>('@/api');
-      return {
-        ...actual,
-        getConfig: () =>
-          Promise.resolve({ google_auth_enabled: true, google_client_id: '' }),
-      };
-    });
-    document.body.innerHTML = '<div id="root"></div>';
-    const { Root } = await import('@/main');
+    document.body.innerHTML = '<div id="root"></div>'
+    const { Root } = await import('@/main')
     render(
       <BrowserRouter>
         <Root />

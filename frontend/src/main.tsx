@@ -27,7 +27,6 @@ import { ConfigProvider, useConfig } from './ConfigContext';
 import { PriceRefreshProvider } from './PriceRefreshContext';
 import { AuthProvider, useAuth } from './AuthContext';
 import {
-  API_BASE,
   getConfig,
   logout as apiLogout,
   getStoredAuthToken,
@@ -35,18 +34,11 @@ import {
   setAuthToken,
 } from './api';
 import LoginPage from './LoginPage';
-import {
-  consumeCognitoAuthSession,
-  exchangeCognitoCodeForTokens,
-  getRuntimeAwsUiAuth,
-  parseAwsUiAuthConfig,
-  setRuntimeAwsUiAuth,
-  type AwsUiAuthConfig,
-} from './awsUiAuth';
 import { UserProvider, useUser } from './UserContext';
 import ErrorBoundary from './ErrorBoundary';
 import { loadStoredAuthUser, loadStoredUserProfile } from './authStorage';
 import { RouteProvider } from './RouteContext';
+import { ensureAwsUiAuth, UserCancelledError, type AwsUiAuthConfig } from './awsUiAuth';
 import {
   deriveBootstrapMode,
   deriveModeFromPathname,
@@ -60,7 +52,6 @@ interface BootstrapConfig {
   disable_auth?: boolean;
   local_login_email?: string | null;
   allowed_emails?: string[] | null;
-  awsUiAuth?: unknown;
 }
 
 const storedToken = getStoredAuthToken();
@@ -137,14 +128,7 @@ export function Root() {
   const [needsAuth, setNeedsAuth] = useState(false);
   const [googleLoginEnabled, setGoogleLoginEnabled] = useState(false);
   const [clientId, setClientId] = useState('');
-  const [awsUiAuth, setAwsUiAuth] = useState<AwsUiAuthConfig | null>(() =>
-    getRuntimeAwsUiAuth()
-  );
   const [authed, setAuthed] = useState(Boolean(storedToken));
-  const [cognitoCallbackPending, setCognitoCallbackPending] = useState(false);
-  const [cognitoCallbackError, setCognitoCallbackError] = useState<
-    string | null
-  >(null);
   const { setUser } = useAuth();
   const { setProfile } = useUser();
   const navigate = useNavigate();
@@ -163,7 +147,6 @@ export function Root() {
   const activeRequest = useRef<AbortController | null>(null);
   const retryTimer = useRef<number | null>(null);
   const isMounted = useRef(true);
-  const cognitoCallbackInFlight = useRef(false);
 
   const clearRetryTimer = useCallback(() => {
     if (retryTimer.current !== null) {
@@ -239,15 +222,8 @@ export function Root() {
             : [];
           void allowedEmails;
 
-          const configuredAwsUiAuth = Object.prototype.hasOwnProperty.call(
-            cfg,
-            'awsUiAuth'
-          )
-            ? parseAwsUiAuthConfig(cfg.awsUiAuth)
-            : getRuntimeAwsUiAuth();
           setGoogleLoginEnabled(configAuthEnabled);
           setClientId(configuredClientId);
-          setAwsUiAuth(configuredAwsUiAuth);
           // Backend semantics:
           // - disable_auth controls whether login is required.
           // - allowed_emails may be null (no explicit allowlist) without
@@ -317,75 +293,6 @@ export function Root() {
     fetchConfig(0, { manual: true });
   }, [fetchConfig]);
 
-  const completeCognitoCallback = useCallback(
-    async (config: AwsUiAuthConfig, code: string, state: string | null) => {
-      const session = consumeCognitoAuthSession(state);
-      if (!session) throw new Error('Invalid Cognito sign-in state.');
-
-      const tokens = await exchangeCognitoCodeForTokens(
-        config,
-        window.location.origin,
-        code,
-        session.codeVerifier
-      );
-      if (!tokens.id_token)
-        throw new Error('Cognito did not return an ID token.');
-
-      const response = await fetch(`${API_BASE}/token/cognito`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          client_id: config.clientId,
-          id_token: tokens.id_token,
-        }),
-      });
-      if (!response.ok) throw new Error('Backend Cognito login failed.');
-
-      const data = (await response.json()) as { access_token?: string };
-      if (!data.access_token)
-        throw new Error('Backend token response missing.');
-      setAuthToken(data.access_token);
-      setAuthed(true);
-      navigate(session.returnPath, { replace: true });
-    },
-    [navigate]
-  );
-
-  useEffect(() => {
-    if (!awsUiAuth || authed || cognitoCallbackInFlight.current) return;
-    // Only intercept ?code= on the configured Cognito redirect path to avoid
-    // consuming code params that belong to other features or shareable URLs.
-    if (location.pathname !== awsUiAuth.redirectPath) return;
-
-    const params = new URLSearchParams(location.search);
-    const code = params.get('code');
-    if (!code) return;
-
-    const redirectPath = awsUiAuth.redirectPath;
-    cognitoCallbackInFlight.current = true;
-    setCognitoCallbackPending(true);
-    setCognitoCallbackError(null);
-    void completeCognitoCallback(awsUiAuth, code, params.get('state'))
-      .catch((err) => {
-        console.error('Failed to complete Cognito sign-in', err);
-        setCognitoCallbackError('Cognito sign-in failed. Please try again.');
-        // Strip ?code= from the URL so this effect doesn't re-fire when
-        // cognitoCallbackPending resets to false after a network failure.
-        navigate(redirectPath, { replace: true });
-      })
-      .finally(() => {
-        cognitoCallbackInFlight.current = false;
-        setCognitoCallbackPending(false);
-      });
-  }, [
-    awsUiAuth,
-    authed,
-    completeCognitoCallback,
-    location.pathname,
-    location.search,
-    navigate,
-  ]);
-
   const isPublicSupportRoute = location.pathname === '/support';
 
   if (configLoading && !retryScheduled) {
@@ -414,41 +321,10 @@ export function Root() {
     );
   }
 
-  if (cognitoCallbackPending) {
-    return (
-      <>
-        {renderRouteMarker(location.pathname, 'auth')}
-        <div role="status" className="app-loading">
-          Completing Cognito sign-in...
-        </div>
-      </>
-    );
-  }
-
-  if (cognitoCallbackError) {
-    return (
-      <>
-        {renderRouteMarker(location.pathname, 'auth')}
-        <div role="alert" className="app-offline">
-          {cognitoCallbackError}
-          <button
-            type="button"
-            onClick={() => {
-              setCognitoCallbackError(null);
-              navigate('/', { replace: true });
-            }}
-          >
-            Return to login
-          </button>
-        </div>
-      </>
-    );
-  }
-
   if (needsAuth && !authed && !isPublicSupportRoute) {
-    if ((!googleLoginEnabled || !clientId) && !awsUiAuth) {
+    if (!googleLoginEnabled || !clientId) {
       console.error(
-        'Authentication is enforced but no login provider is fully configured'
+        'Authentication is enforced but Google login is not fully configured'
       );
       return (
         <>
@@ -461,12 +337,7 @@ export function Root() {
     return (
       <>
         {renderRouteMarker(location.pathname, 'auth')}
-        <LoginPage
-          clientId={clientId}
-          googleLoginEnabled={googleLoginEnabled}
-          awsUiAuth={awsUiAuth}
-          onSuccess={() => setAuthed(true)}
-        />
+        <LoginPage clientId={clientId} onSuccess={() => setAuthed(true)} />
       </>
     );
   }
@@ -545,42 +416,66 @@ const rootEl = document.getElementById('root');
 if (!rootEl) throw new Error('Root element not found');
 
 const bootstrapRuntimeConfig = async () => {
+  let payload: { apiBaseUrl?: unknown; awsUiAuth?: AwsUiAuthConfig } = {};
   try {
     const response = await fetch('/config.json', { cache: 'no-store' });
-    if (!response.ok) return;
-    const payload = (await response.json()) as {
+    if (!response.ok) return true;
+    payload = (await response.json()) as {
       apiBaseUrl?: unknown;
-      awsUiAuth?: unknown;
+      awsUiAuth?: AwsUiAuthConfig;
     };
-    if (typeof payload.apiBaseUrl === 'string') {
-      setApiBase(payload.apiBaseUrl);
-    }
-    setRuntimeAwsUiAuth(parseAwsUiAuthConfig(payload.awsUiAuth));
   } catch (error) {
     console.warn(
       'Runtime config not loaded, using default API base URL',
       error
     );
+    return true;
   }
+
+  if (typeof payload.apiBaseUrl === 'string') {
+    setApiBase(payload.apiBaseUrl);
+  }
+  return ensureAwsUiAuth(payload.awsUiAuth);
 };
 
-void bootstrapRuntimeConfig().finally(() => {
-  createRoot(rootEl).render(
-    <StrictMode>
-      <HelmetProvider>
-        <ConfigProvider>
-          <PriceRefreshProvider>
-            <AuthProvider>
-              <UserProvider>
-                <BrowserRouter>
-                  <Root />
-                </BrowserRouter>
-                <ToastContainer autoClose={5000} />
-              </UserProvider>
-            </AuthProvider>
-          </PriceRefreshProvider>
-        </ConfigProvider>
-      </HelmetProvider>
-    </StrictMode>
-  );
-});
+void bootstrapRuntimeConfig()
+  .then((shouldRender) => {
+    if (!shouldRender) return;
+    createRoot(rootEl).render(
+      <StrictMode>
+        <HelmetProvider>
+          <ConfigProvider>
+            <PriceRefreshProvider>
+              <AuthProvider>
+                <UserProvider>
+                  <BrowserRouter>
+                    <Root />
+                  </BrowserRouter>
+                  <ToastContainer autoClose={5000} />
+                </UserProvider>
+              </AuthProvider>
+            </PriceRefreshProvider>
+          </ConfigProvider>
+        </HelmetProvider>
+      </StrictMode>
+    );
+  })
+  .catch((error) => {
+    console.error('AWS UI authentication bootstrap failed', error);
+    if (error instanceof UserCancelledError) {
+      createRoot(rootEl).render(
+        <div role="alert" className="app-offline">
+          <p>Login cancelled.</p>
+          <button type="button" onClick={() => window.location.reload()}>
+            Sign in
+          </button>
+        </div>
+      );
+    } else {
+      createRoot(rootEl).render(
+        <div role="alert" className="app-offline">
+          Authentication is unavailable. Please contact your administrator.
+        </div>
+      );
+    }
+  });

@@ -260,9 +260,8 @@ def _load_snapshot() -> tuple[Dict[str, Dict], datetime | None]:
         return {}, None
 
 
-_PRICE_SNAPSHOT: Dict[str, Dict]
-_PRICE_SNAPSHOT_TS: datetime | None
-_PRICE_SNAPSHOT, _PRICE_SNAPSHOT_TS = _load_snapshot()
+_PRICE_SNAPSHOT: Dict[str, Dict] = {}
+_PRICE_SNAPSHOT_TS: datetime | None = None
 
 
 def refresh_snapshot_in_memory(

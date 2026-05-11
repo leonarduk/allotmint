@@ -38,7 +38,7 @@ import { UserProvider, useUser } from './UserContext';
 import ErrorBoundary from './ErrorBoundary';
 import { loadStoredAuthUser, loadStoredUserProfile } from './authStorage';
 import { RouteProvider } from './RouteContext';
-import { ensureAwsUiAuth, type AwsUiAuthConfig } from './awsUiAuth';
+import { ensureAwsUiAuth, UserCancelledError, type AwsUiAuthConfig } from './awsUiAuth';
 import {
   deriveBootstrapMode,
   deriveModeFromPathname,
@@ -424,9 +424,6 @@ const bootstrapRuntimeConfig = async () => {
       apiBaseUrl?: unknown;
       awsUiAuth?: AwsUiAuthConfig;
     };
-    if (typeof payload.apiBaseUrl === 'string') {
-      setApiBase(payload.apiBaseUrl);
-    }
   } catch (error) {
     console.warn(
       'Runtime config not loaded, using default API base URL',
@@ -434,15 +431,11 @@ const bootstrapRuntimeConfig = async () => {
     );
     return true;
   }
-  return ensureAwsUiAuth(payload.awsUiAuth);
-};
 
-const renderBootstrapError = (message: string) => {
-  rootEl.innerHTML = '';
-  const errorEl = document.createElement('div');
-  errorEl.setAttribute('role', 'alert');
-  errorEl.textContent = message;
-  rootEl.appendChild(errorEl);
+  if (typeof payload.apiBaseUrl === 'string') {
+    setApiBase(payload.apiBaseUrl);
+  }
+  return ensureAwsUiAuth(payload.awsUiAuth);
 };
 
 void bootstrapRuntimeConfig()
@@ -467,7 +460,22 @@ void bootstrapRuntimeConfig()
       </StrictMode>
     );
   })
-  .catch((error: unknown) => {
-    console.error('Application bootstrap failed', error);
-    renderBootstrapError('Unable to start AllotMint authentication.');
+  .catch((error) => {
+    console.error('AWS UI authentication bootstrap failed', error);
+    if (error instanceof UserCancelledError) {
+      createRoot(rootEl).render(
+        <div role="alert" className="app-offline">
+          <p>Login cancelled.</p>
+          <button type="button" onClick={() => window.location.reload()}>
+            Sign in
+          </button>
+        </div>
+      );
+    } else {
+      createRoot(rootEl).render(
+        <div role="alert" className="app-offline">
+          Authentication is unavailable. Please contact your administrator.
+        </div>
+      );
+    }
   });

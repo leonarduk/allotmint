@@ -23,7 +23,10 @@ jobs:
         working-directory: frontend
       - run: npm run lint
         working-directory: frontend
-      - name: TypeScript type-check (all tsconfigs)
+      # tsc -b resolves frontend/tsconfig.json, which references
+      # tsconfig.app.json (src/) and tsconfig.node.json (vite.config.ts).
+      # Both are checked in one pass; no Vite build required.
+      - name: TypeScript type-check (tsc -b)
         run: npm run type-check
         working-directory: frontend
       - run: npm test -- --run

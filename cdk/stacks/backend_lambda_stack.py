@@ -249,6 +249,7 @@ class BackendLambdaStack(Stack):
             environment=backend_env,
             log_group=backend_log_group,
             timeout=Duration.seconds(30),
+            memory_size=512,
         )
         backend_fn.add_environment("APP_ENV", env)
 

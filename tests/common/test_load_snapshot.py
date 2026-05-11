@@ -1,11 +1,26 @@
+import importlib
 import json
 import sys
 from datetime import datetime
 import types
+from unittest.mock import patch
 
 import pytest
 
 from backend.common import portfolio_utils as pu
+
+
+def test_portfolio_utils_import_does_not_call_load_snapshot():
+    """_load_snapshot() must NOT be called at module import time.
+
+    A blocking S3 GetObject call at import time causes the Lambda init phase to
+    exceed its 10 s limit, resulting in a cold-start 503.  The ASGI lifespan
+    (startup.py AppLifecycleService._warm_snapshot) is responsible for loading
+    the snapshot before the first request is served.
+    """
+    with patch.object(pu, "_load_snapshot", wraps=pu._load_snapshot) as mock_load:
+        importlib.reload(pu)
+        mock_load.assert_not_called()
 
 
 def test_load_snapshot_missing_local_file(tmp_path, monkeypatch, caplog):

@@ -23,7 +23,10 @@ on:
         type: string
   pull_request:
     branches: [main]
-    types: [opened, synchronize, reopened]
+    # Label-triggered smoke runs execute PR code with smoke credentials, so do not
+    # rerun automatically on synchronize. Re-add the label or use manual dispatch
+    # after reviewing follow-up commits.
+    types: [labeled]
 
 permissions:
   contents: read
@@ -35,9 +38,10 @@ concurrency:
 jobs:
   smoke:
     name: Run opt-in smoke suite
-    # On PR pushes, skip unless SMOKE_URL is configured — without it the suite
-    # tries localhost:8000 and always fails. Manual dispatch always runs.
-    if: ${{ github.event_name == 'workflow_dispatch' || vars.SMOKE_URL != '' }}
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch' ||
+      (contains(github.event.pull_request.labels.*.name, 'run-smoke') &&
+      (github.event.action != 'labeled' || github.event.label.name == 'run-smoke')) }}
     runs-on: ubuntu-latest
     # Keep the opt-in suite bounded so release checks fail quickly instead of
     # occupying runners indefinitely when a deployed target is unhealthy.

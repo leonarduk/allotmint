@@ -1,26 +1,39 @@
-import importlib
 import json
 import sys
 from datetime import datetime
 import types
-from unittest.mock import patch
 
 import pytest
 
 from backend.common import portfolio_utils as pu
 
 
-def test_portfolio_utils_import_does_not_call_load_snapshot():
-    """_load_snapshot() must NOT be called at module import time.
+def test_portfolio_utils_import_does_not_call_load_snapshot(tmp_path, monkeypatch):
+    """Importing portfolio_utils must not call _load_snapshot().
 
     A blocking S3 GetObject call at import time causes the Lambda init phase to
-    exceed its 10 s limit, resulting in a cold-start 503.  The ASGI lifespan
-    (startup.py AppLifecycleService._warm_snapshot) is responsible for loading
-    the snapshot before the first request is served.
+    exceed its 10 s limit, resulting in a cold-start 503.  Verified by pointing
+    config.prices_json at a non-empty fixture file and confirming the module-level
+    globals remain empty after a fresh import — if _load_snapshot() ran at import
+    time, the sentinel ticker would appear in _PRICE_SNAPSHOT.
     """
-    with patch.object(pu, "_load_snapshot", wraps=pu._load_snapshot) as mock_load:
-        importlib.reload(pu)
-        mock_load.assert_not_called()
+    prices_file = tmp_path / "latest_prices.json"
+    prices_file.write_text('{"SENTINEL.L": {"last_price": 1.0}}')
+
+    monkeypatch.setattr(pu.config, "prices_json", prices_file, raising=False)
+    monkeypatch.setattr(pu.config, "app_env", "local", raising=False)
+
+    sys.modules.pop("backend.common.portfolio_utils", None)
+    try:
+        import backend.common.portfolio_utils as fresh_pu  # noqa: PLC0415
+
+        assert fresh_pu._PRICE_SNAPSHOT == {}, (
+            "_load_snapshot() was called at import time; this triggers a blocking "
+            "S3 call during Lambda init that exceeds the 10 s init limit (issue #2975)"
+        )
+        assert fresh_pu._PRICE_SNAPSHOT_TS is None
+    finally:
+        sys.modules.pop("backend.common.portfolio_utils", None)
 
 
 def test_load_snapshot_missing_local_file(tmp_path, monkeypatch, caplog):

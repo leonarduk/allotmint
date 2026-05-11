@@ -260,6 +260,8 @@ def _load_snapshot() -> tuple[Dict[str, Dict], datetime | None]:
         return {}, None
 
 
+# Initialise empty; AppLifecycleService._warm_snapshot() populates these inside
+# the ASGI lifespan so no S3 call is made at module-import time (see #2975).
 _PRICE_SNAPSHOT: Dict[str, Dict] = {}
 _PRICE_SNAPSHOT_TS: datetime | None = None
 

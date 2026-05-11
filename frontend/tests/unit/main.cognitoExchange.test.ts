@@ -210,4 +210,72 @@ describe('bootstrapRuntimeConfig — Cognito backend token exchange', () => {
     expect(sessionStorage.getItem('awsUiAuthSession')).toBeNull();
     consoleError.mockRestore();
   });
+
+  it('clears Cognito session and auth state when backend returns 200 but no access_token', async () => {
+    sessionStorage.setItem('awsUiAuthSession', VALID_COGNITO_SESSION);
+    document.body.innerHTML = '<div id="root"></div>';
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        if (String(url).endsWith('/config.json')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve(CONFIG_WITH_COGNITO),
+          });
+        }
+        if (String(url).endsWith('/token/cognito')) {
+          // Backend returns 200 OK but with a missing access_token field.
+          return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+        }
+        return Promise.resolve({ ok: false });
+      }),
+    );
+
+    await import('@/main');
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(consoleError).toHaveBeenCalledWith(
+      'Cognito authentication failed — clearing session:',
+      expect.any(Error),
+    );
+    expect(logout).toHaveBeenCalled();
+    expect(sessionStorage.getItem('awsUiAuthSession')).toBeNull();
+    consoleError.mockRestore();
+  });
+
+  it('treats a malformed stored JWT (not 3 segments) as expired and re-exchanges', async () => {
+    sessionStorage.setItem('awsUiAuthSession', VALID_COGNITO_SESSION);
+    getStoredAuthToken.mockReturnValue('not-a-jwt');
+    document.body.innerHTML = '<div id="root"></div>';
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        if (String(url).endsWith('/config.json')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve(CONFIG_WITH_COGNITO),
+          });
+        }
+        if (String(url).endsWith('/token/cognito')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ access_token: 'new-backend-jwt' }),
+          });
+        }
+        return Promise.resolve({ ok: false });
+      }),
+    );
+
+    await import('@/main');
+    await new Promise((r) => setTimeout(r, 0));
+
+    const cognitoFetch = (fetch as ReturnType<typeof vi.fn>).mock.calls.find(
+      ([url]: [string]) => String(url).endsWith('/token/cognito'),
+    );
+    expect(cognitoFetch).toBeDefined();
+    expect(setAuthToken).toHaveBeenCalledWith('new-backend-jwt');
+  });
 });

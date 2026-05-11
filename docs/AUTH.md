@@ -41,7 +41,7 @@ Browser                        Cognito Hosted UI          Backend
 - **`frontend/src/awsUiAuth.ts`** — handles the entire PKCE redirect/callback loop. After the Cognito code exchange it stores the Cognito session in `sessionStorage` (tab-scoped; cleared on close). `getStoredCognitoIdToken()` exposes the token to the bootstrap layer.
 - **`frontend/src/main.tsx`** — `exchangeCognitoForBackendToken()` runs after `ensureAwsUiAuth` returns. It reads the stored Cognito ID token and exchanges it for a backend JWT via `POST /token/cognito`, then calls `setAuthToken`.
 - **`backend/auth.py`** — `verify_cognito_token()` validates the Cognito ID token against the issuer's JWKS endpoint. The `PyJWKClient` is cached per issuer in `_jwks_clients` to avoid a round-trip to the JWKS URL on every request.
-- **`backend/app.py`** — `POST /token/cognito` accepts `{ id_token, client_id }`, delegates to `verify_cognito_token`, enforces the allowed-emails list, and returns a backend JWT in the same shape as the Google endpoint.
+- **`backend/app.py`** — `POST /token/cognito` accepts `{ id_token, client_id }`, delegates to `verify_cognito_token`, enforces the allowed-emails list, and returns a backend JWT in the same shape as the Google endpoint. This endpoint was added to `main` in PR #2896 (merged before this PR) and is present in the codebase; this PR wires the frontend caller.
 
 ### config.json fields
 

@@ -23,6 +23,9 @@ jobs:
         working-directory: frontend
       - run: npm run lint
         working-directory: frontend
+      - name: TypeScript type-check (all tsconfigs)
+        run: npm run type-check
+        working-directory: frontend
       - run: npm test -- --run
         working-directory: frontend
       - run: pytest

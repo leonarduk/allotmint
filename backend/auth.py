@@ -11,6 +11,7 @@ from contextvars import ContextVar
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Optional, Set, Tuple, cast
+from urllib.parse import urlparse
 
 import jwt
 from fastapi import Depends, HTTPException, Request, status
@@ -29,12 +30,7 @@ except ImportError:  # pragma: no cover - botocore is optional in tests
         """Fallback when botocore isn't installed."""
 
 
-from backend.common.data_loader import (
-    DATA_BUCKET_ENV,
-    PLOTS_PREFIX,
-    load_person_metadata,
-    resolve_paths,
-)
+from backend.common.data_loader import DATA_BUCKET_ENV, PLOTS_PREFIX, load_person_metadata, resolve_paths
 from backend.config import config, local_login_identity
 
 logger = logging.getLogger(__name__)
@@ -45,8 +41,7 @@ if not SECRET_KEY:
     if (
         config.disable_auth
         or _testing
-        or (os.getenv("APP_ENV") or (config.app_env or "")).lower()
-        not in {"production", "aws"}
+        or (os.getenv("APP_ENV") or (config.app_env or "")).lower() not in {"production", "aws"}
     ):
         logger.warning("JWT_SECRET not set; using ephemeral secret for development")
         SECRET_KEY = secrets.token_urlsafe(32)
@@ -287,9 +282,7 @@ def _iter_override_mappings(request: Request) -> list[Mapping[Any, Callable[...,
     return mappings
 
 
-def _find_override(
-    request: Request, dependency: Callable[..., Any]
-) -> Callable[..., Any] | None:
+def _find_override(request: Request, dependency: Callable[..., Any]) -> Callable[..., Any] | None:
     """Return the override callable for ``dependency`` if configured."""
 
     targets = {dependency}
@@ -346,9 +339,7 @@ def _find_override(
     return None
 
 
-async def _invoke_override(
-    override: Callable[..., Any], *, request: Request, token: str | None
-) -> Any:
+async def _invoke_override(override: Callable[..., Any], *, request: Request, token: str | None) -> Any:
     """Invoke a dependency override supporting ``request``/``token`` kwargs."""
 
     kwargs: dict[str, Any] = {}
@@ -378,9 +369,7 @@ async def _invoke_override(
     return result
 
 
-async def resolve_current_user_override(
-    request: Request, *, token: str | None = None
-) -> Tuple[bool, Any]:
+async def resolve_current_user_override(request: Request, *, token: str | None = None) -> Tuple[bool, Any]:
     """Return the configured override result for ``get_current_user`` if any."""
 
     override = _find_override(request, get_current_user)
@@ -390,9 +379,7 @@ async def resolve_current_user_override(
     return True, result
 
 
-async def get_active_user(
-    request: Request, token: str | None = Depends(oauth2_scheme)
-) -> str | None:
+async def get_active_user(request: Request, token: str | None = Depends(oauth2_scheme)) -> str | None:
     """Return the active user when authentication is enabled.
 
     When ``config.disable_auth`` is truthy the API allows unauthenticated
@@ -408,15 +395,14 @@ async def get_active_user(
     router can be exercised easily in unit tests.
     """
 
-    has_override, override_result = await resolve_current_user_override(
-        request, token=token
-    )
+    has_override, override_result = await resolve_current_user_override(request, token=token)
     if has_override:
         current_user.set(override_result)
         return override_result
 
     if config.disable_auth:
-        # When auth is disabled, try to extract identity from an app-signed JWT if present.
+        # When auth is disabled (e.g. DISABLE_AUTH=true with a Cognito JWT authorizer
+        # at API Gateway), try to extract identity from an app-signed JWT if present.
         # Non-app tokens (e.g. Cognito ID tokens signed with RS256) will not decode
         # with the HS256 app secret — decode_token returns None for those — so we fall
         # back to the local identity rather than raising 401.
@@ -438,6 +424,35 @@ async def get_active_user(
     return user
 
 
+def _email_verified(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.lower() == "true"
+    return False
+
+
+def _authorize_email(email: Any, token: str, provider: str) -> str:
+    if not isinstance(email, str) or not email:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email missing")
+
+    allowed = _allowed_emails()
+    if not allowed:
+        logger.error("No allowed emails configured; rejecting login attempt")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Unauthorized email")
+
+    if email.lower() not in allowed:
+        logger.warning(
+            "Unauthorized %s login attempt for %s (token %.8s)",
+            provider,
+            email,
+            token[:8],
+        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Unauthorized email")
+
+    return email
+
+
 def verify_google_token(token: str) -> str:
     client_id = config.google_client_id
     if not client_id:
@@ -446,41 +461,80 @@ def verify_google_token(token: str) -> str:
             detail="Google client ID not configured",
         )
     try:
-        info = id_token.verify_oauth2_token(
-            token, requests.Request(), client_id
-        )
+        info = id_token.verify_oauth2_token(token, requests.Request(), client_id)
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid Google token",
         ) from exc
 
-    if not info.get("email_verified"):
+    if not _email_verified(info.get("email_verified")):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email not verified")
+
+    return _authorize_email(info.get("email"), token, "Google")
+
+
+def _cognito_issuer_from_unverified_token(token: str) -> str:
+    try:
+        payload = jwt.decode(token, options={"verify_signature": False})
+    except jwt.PyJWTError as exc:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Email not verified"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Cognito token",
+        ) from exc
+
+    issuer = payload.get("iss")
+    if not isinstance(issuer, str):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Cognito issuer missing",
+        )
+    parsed = urlparse(issuer)
+    if parsed.scheme != "https" or not parsed.hostname:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Cognito issuer",
+        )
+    # Require both the cognito-idp. prefix and the .amazonaws.com suffix to
+    # prevent attacker-controlled JWKS endpoints at cognito-idp.attacker.com.
+    if not (parsed.hostname.startswith("cognito-idp.") and parsed.hostname.endswith(".amazonaws.com")):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unsupported Cognito issuer",
+        )
+    return issuer.rstrip("/")
+
+
+def verify_cognito_token(token: str, client_id: str) -> str:
+    if not client_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cognito client ID missing",
         )
 
-    email = info.get("email")
-    if not email:
+    issuer = _cognito_issuer_from_unverified_token(token)
+    try:
+        jwks_client = jwt.PyJWKClient(f"{issuer}/.well-known/jwks.json")
+        key = jwks_client.get_signing_key_from_jwt(token).key
+        payload = jwt.decode(
+            token,
+            key=key,
+            algorithms=["RS256"],
+            audience=client_id,
+            issuer=issuer,
+            options={"require": ["aud", "exp", "iss"]},
+        )
+    except jwt.PyJWTError as exc:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Email missing"
-        )
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Cognito token",
+        ) from exc
 
-    allowed = _allowed_emails()
-    if not allowed:
-        logger.error("No allowed emails configured; rejecting login attempt")
+    if payload.get("token_use") != "id":
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Unauthorized email"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Cognito token use",
         )
-
-    if email.lower() not in allowed:
-        logger.warning(
-            "Unauthorized login attempt for %s (token %.8s)",
-            email,
-            token[:8],
-        )
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Unauthorized email"
-        )
-
-    return email
+    if not _email_verified(payload.get("email_verified")):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email not verified")
+    return _authorize_email(payload.get("email"), token, "Cognito")

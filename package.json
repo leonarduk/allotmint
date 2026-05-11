@@ -12,7 +12,7 @@
     "@capacitor/android": "^8.3.3",
     "@capacitor/core": "^8.3.0",
     "@capacitor/ios": "^8.3.0",
-    "yaml": "^2.8.4"
+    "yaml": "^2.9.0"
   },
   "scripts": {
     "test": "cd frontend && npm test --",

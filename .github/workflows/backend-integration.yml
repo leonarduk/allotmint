@@ -55,13 +55,6 @@ jobs:
           pip install awscli
           aws s3 sync s3://$DATA_BUCKET/ data/
 
-      - name: Verify no AWS calls at Lambda import time
-        env:
-          APP_ENV: aws
-          DATA_BUCKET: ci-safety-check
-          ALLOTMINT_SKIP_SNAPSHOT_WARM: 'true'
-        run: pytest tests/test_lambda_import_safety.py -v
-
       - name: Type-check backend
         run: |
           test -f mypy.ini

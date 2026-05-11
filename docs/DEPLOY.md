@@ -17,8 +17,8 @@ Copy `.env.example` to `.env` and supply the following values:
 | `DATA_BUCKET` | S3 bucket holding account data when deploying the backend. May also be supplied via the script's `-DataBucket` parameter |
 | `METADATA_BUCKET` | Bucket containing instrument metadata |
 | `METADATA_PREFIX` | Prefix within the metadata bucket |
-| `GOOGLE_AUTH_ENABLED` | Toggle Google sign‑in |
-| `GOOGLE_CLIENT_ID` | OAuth client ID when Google sign‑in is enabled |
+| `GOOGLE_AUTH_ENABLED` | Toggle Google sign-in |
+| `GOOGLE_CLIENT_ID` | OAuth client ID when Google sign-in is enabled |
 | `JWT_SECRET` | Secret used to sign and verify JWT tokens |
 | `BUDGET_ALERT_EMAIL` | Optional email recipient for the monthly AWS budget alert |
 
@@ -26,7 +26,7 @@ Copy `.env.example` to `.env` and supply the following values:
 
 The deploy workflow (`deploy-lambda.yml`) reads the following values from
 GitHub Actions secrets at synth time and injects them as Lambda environment
-variables. Add them under **Settings → Secrets and variables → Actions →
+variables. Add them under **Settings -> Secrets and variables -> Actions ->
 New repository secret** before triggering a deploy.
 
 | Secret name | New? | How to obtain |
@@ -34,7 +34,7 @@ New repository secret** before triggering a deploy.
 | `AWS_REGION` | Pre-existing | Your target AWS region (e.g. `eu-west-1`) |
 | `AWS_ROLE_TO_ASSUME` | Pre-existing | ARN of the IAM role the workflow assumes for CDK deployment |
 | `DATA_BUCKET` | Pre-existing | Name of the S3 bucket holding account data |
-| `JWT_SECRET` | **Required since #2838** | Random string used to sign JWTs — generate with `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
+| `JWT_SECRET` | **Required since #2838** | Random string used to sign JWTs -- generate with `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
 | `GOOGLE_CLIENT_ID` | **Required since #2838** | OAuth client ID from Google Cloud Console (ends in `.apps.googleusercontent.com`) |
 
 The CDK stack (`cdk/stacks/backend_lambda_stack.py`) raises a `ValueError`
@@ -155,13 +155,17 @@ repository root that is ignored by git.
 # Deploy backend and frontend stacks
 ./scripts/deploy-to-AWS.ps1 -Backend -DataBucket my-bucket
 
+# Deploy to a live/production environment; retains the Cognito user pool on destroy
+./scripts/deploy-to-AWS.ps1 -Backend -DataBucket my-bucket -Prod
+
 # Deploy only the frontend stack
 ./scripts/deploy-to-AWS.ps1
 ```
 
 The script changes into the `cdk/` directory, installs the repo-pinned CDK CLI if
 necessary, then deploys `BackendLambdaStack` and `StaticSiteStack` when
-`-Backend` is specified.
+`-Backend` is specified. Pass `-Prod` for any live environment so the Cognito
+user pool uses `RemovalPolicy.RETAIN` and stack deletion does not delete users.
 
 Alternatively, run the commands manually. Deploy the static stack once first so
 Cognito exists, pass its outputs into the backend stack, then redeploy the static
@@ -170,7 +174,7 @@ stack with the protected API URL in `/config.json`:
 ```bash
 cd cdk
 npx cdk bootstrap   # once per account/region
-npx cdk deploy StaticSiteStack --require-approval never
+npx cdk deploy StaticSiteStack --require-approval never -c prod=true
 UI_AUTH_USER_POOL_ID=$(aws cloudformation describe-stacks --stack-name StaticSiteStack \
   --query "Stacks[0].Outputs[?OutputKey=='UiAuthUserPoolId'].OutputValue" --output text)
 UI_AUTH_USER_POOL_CLIENT_ID=$(aws cloudformation describe-stacks --stack-name StaticSiteStack \
@@ -180,11 +184,11 @@ DATA_BUCKET=my-data-bucket npx cdk deploy BackendLambdaStack --require-approval 
   --parameters BackendLambdaStack:UiAuthUserPoolClientId="$UI_AUTH_USER_POOL_CLIENT_ID"
 BACKEND_URL=$(aws cloudformation describe-stacks --stack-name BackendLambdaStack \
   --query "Stacks[0].Outputs[?OutputKey=='BackendApiUrl'].OutputValue" --output text)
-npx cdk deploy StaticSiteStack --require-approval never \
+npx cdk deploy StaticSiteStack --require-approval never -c prod=true \
   --parameters StaticSiteStack:BackendApiUrl="$BACKEND_URL"
 ```
 
-When manually validating drift before a deploy, run `npx cdk diff --all` from
+When manually validating drift before a deploy, run `npx cdk diff --all -c prod=true` from
 `cdk/`, but do **not** use `npx cdk deploy --all` for a fresh
 Cognito-enabled environment. The backend stack needs the user-pool outputs from
 the first static deploy, and the static stack needs the backend URL from the
@@ -210,7 +214,7 @@ aws cloudfront create-invalidation --distribution-id <DIST_ID> --paths "/*"
 
 If deployment fails or the live environment does not match local behavior:
 
-1. Re-run `npx cdk diff --all` and confirm intended stack changes are present.
+1. Re-run `npx cdk diff --all -c prod=true` and confirm intended stack changes are present.
 2. Re-run the static/backend/static deployment commands above and capture the
    exact failing resource from CloudFormation events. Do not substitute
    `npx cdk deploy --all` for this flow in a fresh environment because the

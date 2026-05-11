@@ -39,7 +39,7 @@ import { UserProvider, useUser } from './UserContext';
 import ErrorBoundary from './ErrorBoundary';
 import { loadStoredAuthUser, loadStoredUserProfile } from './authStorage';
 import { RouteProvider } from './RouteContext';
-import { ensureAwsUiAuth, getStoredCognitoIdToken, UserCancelledError, type AwsUiAuthConfig } from './awsUiAuth';
+import { clearCognitoSession, ensureAwsUiAuth, getStoredCognitoIdToken, UserCancelledError, type AwsUiAuthConfig } from './awsUiAuth';
 import {
   deriveBootstrapMode,
   deriveModeFromPathname,
@@ -416,14 +416,24 @@ export function Root() {
 const rootEl = document.getElementById('root');
 if (!rootEl) throw new Error('Root element not found');
 
+const isJwtExpired = (token: string): boolean => {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    return typeof payload.exp !== 'number' || payload.exp * 1000 <= Date.now();
+  } catch {
+    return true;
+  }
+};
+
 const exchangeCognitoForBackendToken = async (
   awsUiAuth?: AwsUiAuthConfig | null,
 ) => {
   const idToken = getStoredCognitoIdToken();
   const clientId = awsUiAuth?.clientId?.trim();
   if (!idToken || !clientId) return;
-  // Skip the round-trip if we already have a valid backend JWT (e.g. page refresh).
-  if (getStoredAuthToken()) return;
+  // Skip the round-trip if we already have a non-expired backend JWT (e.g. page refresh).
+  const existing = getStoredAuthToken();
+  if (existing && !isJwtExpired(existing)) return;
   const res = await fetch(`${getApiBase()}/token/cognito`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -432,7 +442,10 @@ const exchangeCognitoForBackendToken = async (
   if (!res.ok) {
     throw new Error(`Cognito backend token exchange failed: ${res.status}`);
   }
-  const data = (await res.json()) as { access_token: string };
+  const data = (await res.json()) as { access_token?: string };
+  if (typeof data.access_token !== 'string' || !data.access_token) {
+    throw new Error('Cognito backend token exchange returned no access_token');
+  }
   setAuthToken(data.access_token);
 };
 
@@ -462,7 +475,9 @@ const bootstrapRuntimeConfig = async () => {
       await exchangeCognitoForBackendToken(payload.awsUiAuth);
     } catch (error) {
       console.error('Cognito authentication failed — clearing session:', error);
-      // Clear auth state so the app renders the login page instead of a broken state.
+      // Clear both the Cognito session (prevents infinite retry loop on next load)
+      // and the backend auth state so the app renders the login page.
+      clearCognitoSession();
       apiLogout();
     }
   }

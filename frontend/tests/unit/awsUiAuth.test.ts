@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ensureAwsUiAuth, getStoredCognitoIdToken, UserCancelledError } from '@/awsUiAuth';
+import { clearCognitoSession, ensureAwsUiAuth, getStoredCognitoIdToken, UserCancelledError } from '@/awsUiAuth';
 
 const assignMock = vi.fn();
 
@@ -275,5 +275,20 @@ describe('getStoredCognitoIdToken', () => {
   it('returns null for a malformed session entry', () => {
     window.sessionStorage.setItem('awsUiAuthSession', 'not-json');
     expect(getStoredCognitoIdToken()).toBeNull();
+  });
+});
+
+describe('clearCognitoSession', () => {
+  it('removes the session from sessionStorage', () => {
+    window.sessionStorage.setItem(
+      'awsUiAuthSession',
+      JSON.stringify({ idToken: 'tok', expiresAt: Date.now() + 3600 * 1000 }),
+    );
+    clearCognitoSession();
+    expect(window.sessionStorage.getItem('awsUiAuthSession')).toBeNull();
+  });
+
+  it('is a no-op when no session is stored', () => {
+    expect(() => clearCognitoSession()).not.toThrow();
   });
 });

@@ -109,6 +109,11 @@ export const getStoredCognitoIdToken = (): string | null => {
   return session.idToken;
 };
 
+/** Removes the Cognito session from sessionStorage (e.g. after a failed backend exchange). */
+export const clearCognitoSession = (): void => {
+  window.sessionStorage.removeItem(SESSION_KEY);
+};
+
 const exchangeCode = async (config: AuthConfig) => {
   const params = new URLSearchParams(window.location.search);
   const code = params.get('code');

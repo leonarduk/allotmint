@@ -1,3 +1,10 @@
+export class UserCancelledError extends Error {
+  constructor() {
+    super('User cancelled Cognito login');
+    this.name = 'UserCancelledError';
+  }
+}
+
 export interface AwsUiAuthConfig {
   enabled?: boolean | string;
   domain?: string;
@@ -11,15 +18,20 @@ interface StoredSession {
   expiresAt: number;
 }
 
+interface AuthConfig {
+  domain: string;
+  clientId: string;
+  redirectPath: string;
+}
+
 const SESSION_KEY = 'awsUiAuthSession';
 const STATE_KEY = 'awsUiAuthState';
 const VERIFIER_KEY = 'awsUiAuthCodeVerifier';
 const DEFAULT_REDIRECT_PATH = '/';
 const SCOPE = 'openid email profile';
-const EXPIRY_BUFFER_MS = 60_000;
 
 const base64UrlEncode = (bytes: Uint8Array) =>
-  btoa(Array.from(bytes, (byte) => String.fromCharCode(byte)).join(''))
+  btoa(String.fromCharCode(...bytes))
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
     .replace(/=+$/, '');
@@ -50,6 +62,7 @@ const redirectUri = (redirectPath?: string) => {
 };
 
 const loadSession = (): StoredSession | null => {
+  // sessionStorage is cleared on tab close, limiting token exposure window.
   const raw = window.sessionStorage.getItem(SESSION_KEY);
   if (!raw) return null;
   try {
@@ -73,39 +86,51 @@ const storeSession = (payload: {
   access_token?: string;
   expires_in?: number;
 }) => {
-  const expiresInSeconds = Math.max(300, payload.expires_in ?? 3600);
+  const expiresInSeconds = Math.max(60, payload.expires_in ?? 3600);
   const session: StoredSession = {
     idToken: payload.id_token,
     accessToken: payload.access_token,
     expiresAt: Date.now() + expiresInSeconds * 1000,
   };
+  // sessionStorage scopes the token to this tab/session only.
   window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
 };
 
 const hasValidSession = () => {
   const session = loadSession();
-  if (!session || session.expiresAt <= Date.now() + EXPIRY_BUFFER_MS) {
-    return false;
-  }
+  if (!session || session.expiresAt <= Date.now() + 60000) return false;
   return true;
 };
 
-const exchangeCode = async (
-  config: Required<Pick<AwsUiAuthConfig, 'domain' | 'clientId'>> &
-    Pick<AwsUiAuthConfig, 'redirectPath'>
-) => {
+const exchangeCode = async (config: AuthConfig) => {
   const params = new URLSearchParams(window.location.search);
   const code = params.get('code');
   const state = params.get('state');
+  const errorParam = params.get('error');
+
+  // access_denied = user clicked Cancel on the Cognito hosted UI.
+  // Clean up PKCE state and URL, then throw so the caller renders a retry UI
+  // instead of falling through to redirectToHostedUi and looping indefinitely.
+  if (errorParam === 'access_denied') {
+    window.sessionStorage.removeItem(STATE_KEY);
+    window.sessionStorage.removeItem(VERIFIER_KEY);
+    window.history.replaceState({}, document.title, window.location.pathname);
+    throw new UserCancelledError();
+  }
+  if (errorParam) throw new Error(`Cognito auth error: ${errorParam}`);
   if (!code || !state) return false;
 
   const expectedState = window.sessionStorage.getItem(STATE_KEY);
   const verifier = window.sessionStorage.getItem(VERIFIER_KEY);
-  window.sessionStorage.removeItem(STATE_KEY);
-  window.sessionStorage.removeItem(VERIFIER_KEY);
   if (!expectedState || !verifier || state !== expectedState) {
+    window.sessionStorage.removeItem(STATE_KEY);
+    window.sessionStorage.removeItem(VERIFIER_KEY);
+    window.history.replaceState({}, document.title, window.location.pathname);
     throw new Error('Invalid AWS UI authentication callback state');
   }
+  // State matched — consume the one-time PKCE credentials before the fetch.
+  window.sessionStorage.removeItem(STATE_KEY);
+  window.sessionStorage.removeItem(VERIFIER_KEY);
 
   const tokenParams = new URLSearchParams({
     grant_type: 'authorization_code',
@@ -119,9 +144,8 @@ const exchangeCode = async (
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: tokenParams.toString(),
   });
-  if (!response.ok) {
+  if (!response.ok)
     throw new Error('AWS UI authentication token exchange failed');
-  }
   storeSession(
     (await response.json()) as {
       id_token: string;
@@ -137,10 +161,7 @@ const exchangeCode = async (
   return true;
 };
 
-const redirectToHostedUi = async (
-  config: Required<Pick<AwsUiAuthConfig, 'domain' | 'clientId'>> &
-    Pick<AwsUiAuthConfig, 'redirectPath'>
-) => {
+const redirectToHostedUi = async (config: AuthConfig) => {
   const verifier = randomString(64);
   const state = randomString(32);
   window.sessionStorage.setItem(STATE_KEY, state);
@@ -163,30 +184,21 @@ const isEnabled = (value: AwsUiAuthConfig['enabled']) =>
   value === true ||
   (typeof value === 'string' && value.toLowerCase() === 'true');
 
-export const getAwsUiAuthIdToken = () => {
-  const session = loadSession();
-  if (!session || session.expiresAt <= Date.now() + EXPIRY_BUFFER_MS) {
-    return null;
-  }
-  return session.idToken;
-};
-
 export const ensureAwsUiAuth = async (config?: AwsUiAuthConfig | null) => {
   if (!isEnabled(config?.enabled)) return true;
   const authConfigInput = config ?? {};
   const domain = normaliseDomain(authConfigInput.domain ?? '');
   const clientId = authConfigInput.clientId?.trim() ?? '';
-  if (!domain || !clientId) {
+  if (!domain || !clientId)
     throw new Error('AWS UI authentication is enabled but not configured');
-  }
 
-  const authConfig = {
-    domain,
-    clientId,
-    redirectPath: authConfigInput.redirectPath,
-  };
-  if (await exchangeCode(authConfig)) return true;
+  const redirectPath = authConfigInput.redirectPath ?? DEFAULT_REDIRECT_PATH;
+  const authConfig: AuthConfig = { domain, clientId, redirectPath };
+  // Session check before code exchange: if the user already has a valid session,
+  // skip exchangeCode entirely to avoid a state-mismatch error when ?code= params
+  // are present in the URL from a previous (already-consumed) callback.
   if (hasValidSession()) return true;
+  if (await exchangeCode(authConfig)) return true;
   await redirectToHostedUi(authConfig);
   return false;
 };

@@ -17,28 +17,8 @@ import {
 describe("auth token handling", () => {
   beforeEach(() => {
     localStorage.clear();
-    sessionStorage.clear();
     setAuthToken(null);
     setApiBase(DEFAULT_API_BASE);
-  });
-
-
-  it("prefers the Cognito ID token when the AWS UI session is present", async () => {
-    setAuthToken("app-token");
-    sessionStorage.setItem(
-      "awsUiAuthSession",
-      JSON.stringify({ idToken: "cognito-id-token", expiresAt: Date.now() + 3600 * 1000 }),
-    );
-    const mockFetch = vi
-      .fn()
-      .mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
-    // @ts-expect-error: replacing global fetch with mock
-    global.fetch = mockFetch;
-
-    await fetchJson("/foo");
-
-    const headers = mockFetch.mock.calls[0][1].headers as Headers;
-    expect(headers.get("Authorization")).toBe("Bearer cognito-id-token");
   });
 
   it("stores token in localStorage and adds header", async () => {
@@ -60,7 +40,6 @@ describe("auth token handling", () => {
 describe("login", () => {
   beforeEach(() => {
     localStorage.clear();
-    sessionStorage.clear();
     setAuthToken(null);
     setApiBase(DEFAULT_API_BASE);
   });

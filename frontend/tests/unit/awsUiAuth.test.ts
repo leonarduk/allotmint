@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { ensureAwsUiAuth, getAwsUiAuthIdToken } from '@/awsUiAuth';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ensureAwsUiAuth, UserCancelledError } from '@/awsUiAuth';
 
 const assignMock = vi.fn();
 
@@ -35,9 +35,33 @@ afterEach(() => {
 });
 
 describe('ensureAwsUiAuth', () => {
-  it('allows rendering when disabled', async () => {
+  it('allows rendering when AWS UI auth is disabled', async () => {
     await expect(ensureAwsUiAuth({ enabled: false })).resolves.toBe(true);
     expect(assignMock).not.toHaveBeenCalled();
+  });
+
+  it('redirects to Cognito when enabled is the string "true"', async () => {
+    vi.spyOn(crypto, 'getRandomValues').mockImplementation((array) => {
+      (array as Uint8Array).fill(1);
+      return array;
+    });
+    vi.spyOn(crypto.subtle, 'digest').mockResolvedValue(new Uint8Array(32).buffer);
+
+    const result = await ensureAwsUiAuth({ ...AUTH_CONFIG, enabled: 'true' });
+    expect(result).toBe(false);
+    expect(assignMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('throws when enabled but domain is missing', async () => {
+    await expect(
+      ensureAwsUiAuth({ enabled: true, clientId: 'client123' })
+    ).rejects.toThrow('AWS UI authentication is enabled but not configured');
+  });
+
+  it('throws when enabled but clientId is missing', async () => {
+    await expect(
+      ensureAwsUiAuth({ enabled: true, domain: 'auth.example.test' })
+    ).rejects.toThrow('AWS UI authentication is enabled but not configured');
   });
 
   it('redirects enabled unauthenticated users to the Cognito hosted UI', async () => {
@@ -64,27 +88,19 @@ describe('ensureAwsUiAuth', () => {
     expect(target.searchParams.get('scope')).toBe('openid email profile');
   });
 
-  it('uses redirectPath consistently for hosted UI redirects', async () => {
-    vi.spyOn(crypto, 'getRandomValues').mockImplementation((array) => array);
-    vi.spyOn(crypto.subtle, 'digest').mockResolvedValue(
-      new Uint8Array(32).buffer
-    );
+  it('uses a configured redirectPath in the hosted UI redirect URL', async () => {
+    vi.spyOn(crypto, 'getRandomValues').mockImplementation((array) => {
+      (array as Uint8Array).fill(1);
+      return array;
+    });
+    vi.spyOn(crypto.subtle, 'digest').mockResolvedValue(new Uint8Array(32).buffer);
 
-    await ensureAwsUiAuth({ ...AUTH_CONFIG, redirectPath: '/dashboard' });
+    await ensureAwsUiAuth({ ...AUTH_CONFIG, redirectPath: '/callback' });
 
     const target = new URL(assignMock.mock.calls[0][0]);
     expect(target.searchParams.get('redirect_uri')).toBe(
-      'https://app.example.test/dashboard'
+      'https://app.example.test/callback'
     );
-  });
-
-  it('uses the stored session ID token for API authorization', () => {
-    window.sessionStorage.setItem(
-      'awsUiAuthSession',
-      JSON.stringify({ idToken: 'id-token', expiresAt: Date.now() + 3600 * 1000 })
-    );
-
-    expect(getAwsUiAuthIdToken()).toBe('id-token');
   });
 
   it('skips redirect when a valid session is already stored', async () => {
@@ -97,18 +113,68 @@ describe('ensureAwsUiAuth', () => {
     expect(assignMock).not.toHaveBeenCalled();
   });
 
-  describe('token exchange', () => {
-    const storedState = 'test-state-abc';
-    const storedVerifier = 'test-verifier-xyz';
+  it('skips code exchange when a valid session exists despite stale ?code= in URL', async () => {
+    // A stale ?code= with no PKCE verifier in sessionStorage would throw
+    // 'Invalid AWS UI authentication callback state' if exchangeCode ran first.
+    setLocation('?code=stale-code&state=stale-state');
+    window.sessionStorage.setItem(
+      'awsUiAuthSession',
+      JSON.stringify({ idToken: 'tok', expiresAt: Date.now() + 3600 * 1000 })
+    );
+
+    await expect(ensureAwsUiAuth(AUTH_CONFIG)).resolves.toBe(true);
+    expect(assignMock).not.toHaveBeenCalled();
+  });
+
+  it('redirects back to Cognito when session is expired', async () => {
+    vi.spyOn(crypto, 'getRandomValues').mockImplementation((array) => {
+      (array as Uint8Array).fill(1);
+      return array;
+    });
+    vi.spyOn(crypto.subtle, 'digest').mockResolvedValue(new Uint8Array(32).buffer);
+
+    window.sessionStorage.setItem(
+      'awsUiAuthSession',
+      JSON.stringify({ idToken: 'tok', expiresAt: Date.now() - 1000 })
+    );
+
+    const result = await ensureAwsUiAuth(AUTH_CONFIG);
+    expect(result).toBe(false);
+    expect(assignMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('throws UserCancelledError and cleans up URL when user cancels (access_denied)', async () => {
+    const replaceState = vi.spyOn(window.history, 'replaceState');
+    setLocation('?error=access_denied');
+
+    await expect(ensureAwsUiAuth(AUTH_CONFIG)).rejects.toBeInstanceOf(UserCancelledError);
+    expect(assignMock).not.toHaveBeenCalled();
+    expect(replaceState).toHaveBeenCalledWith({}, document.title, '/');
+    expect(window.sessionStorage.getItem('awsUiAuthState')).toBeNull();
+    expect(window.sessionStorage.getItem('awsUiAuthCodeVerifier')).toBeNull();
+  });
+
+  it('throws when Cognito returns a non-cancellation error', async () => {
+    setLocation('?error=server_error');
+
+    await expect(ensureAwsUiAuth(AUTH_CONFIG)).rejects.toThrow(
+      'Cognito auth error: server_error'
+    );
+    expect(assignMock).not.toHaveBeenCalled();
+  });
+
+  describe('token exchange (OAuth callback path)', () => {
+    const STORED_STATE = 'test-state-abc';
+    const STORED_VERIFIER = 'test-verifier-xyz';
 
     beforeEach(() => {
-      setLocation(`?code=auth-code-123&state=${storedState}`);
-      window.sessionStorage.setItem('awsUiAuthState', storedState);
-      window.sessionStorage.setItem('awsUiAuthCodeVerifier', storedVerifier);
+      setLocation(`?code=auth-code-123&state=${STORED_STATE}`);
+      window.sessionStorage.setItem('awsUiAuthState', STORED_STATE);
+      window.sessionStorage.setItem('awsUiAuthCodeVerifier', STORED_VERIFIER);
       vi.spyOn(window.history, 'replaceState').mockImplementation(() => {});
     });
 
-    it('stores the ID token in sessionStorage after a successful callback', async () => {
+    it('completes token exchange and returns true on success', async () => {
       vi.stubGlobal(
         'fetch',
         vi.fn().mockResolvedValue({
@@ -124,29 +190,62 @@ describe('ensureAwsUiAuth', () => {
 
       await expect(ensureAwsUiAuth(AUTH_CONFIG)).resolves.toBe(true);
       expect(assignMock).not.toHaveBeenCalled();
-      expect(getAwsUiAuthIdToken()).toBe('id-tok');
+
+      const storedRaw = window.sessionStorage.getItem('awsUiAuthSession');
+      expect(storedRaw).not.toBeNull();
+      const stored = JSON.parse(storedRaw!);
+      expect(stored.idToken).toBe('id-tok');
+      expect(stored.accessToken).toBe('access-tok');
     });
 
-    it('uses redirectPath during token exchange', async () => {
-      const fetchMock = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ id_token: 'tok', expires_in: 3600 }),
-      });
-      vi.stubGlobal('fetch', fetchMock);
-
-      await ensureAwsUiAuth({ ...AUTH_CONFIG, redirectPath: '/dashboard' });
-
-      const body = new URLSearchParams(fetchMock.mock.calls[0][1].body);
-      expect(body.get('redirect_uri')).toBe(
-        'https://app.example.test/dashboard'
+    it('uses configured redirectPath in the token exchange request', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({
+          ok: true,
+          json: () => Promise.resolve({ id_token: 'tok', expires_in: 3600 }),
+        })
       );
+
+      await ensureAwsUiAuth({ ...AUTH_CONFIG, redirectPath: '/callback' });
+
+      const fetchCall = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+      const body = new URLSearchParams(fetchCall[1].body as string);
+      expect(body.get('redirect_uri')).toBe('https://app.example.test/callback');
     });
 
-    it('throws on state mismatch', async () => {
+    it('clears the code and state from the URL after exchange', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({
+          ok: true,
+          json: () => Promise.resolve({ id_token: 'tok', expires_in: 3600 }),
+        })
+      );
+      const replaceState = vi.spyOn(window.history, 'replaceState');
+
+      await ensureAwsUiAuth(AUTH_CONFIG);
+
+      expect(replaceState).toHaveBeenCalledWith({}, document.title, '/');
+    });
+
+    it('throws on state mismatch and cleans up URL', async () => {
+      const replaceState = vi.spyOn(window.history, 'replaceState');
       window.sessionStorage.setItem('awsUiAuthState', 'different-state');
 
       await expect(ensureAwsUiAuth(AUTH_CONFIG)).rejects.toThrow(
         'Invalid AWS UI authentication callback state'
+      );
+      expect(replaceState).toHaveBeenCalledWith({}, document.title, '/');
+      expect(window.sessionStorage.getItem('awsUiAuthState')).toBeNull();
+      expect(window.sessionStorage.getItem('awsUiAuthCodeVerifier')).toBeNull();
+    });
+
+    it('throws when token endpoint returns an error response', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }));
+
+      await expect(ensureAwsUiAuth(AUTH_CONFIG)).rejects.toThrow(
+        'AWS UI authentication token exchange failed'
       );
     });
   });

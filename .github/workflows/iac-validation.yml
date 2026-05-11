@@ -106,9 +106,9 @@ jobs:
 
       - name: Run CDK tests
         if: needs.detect-iac-changes.outputs.iac_changed == 'true'
-        # --no-cov prevents root pyproject.toml addopts (--cov=backend --cov-fail-under=90)
-        # from applying here; CDK tests don't cover backend/ so the threshold would always fail.
-        run: pytest cdk/tests -v --tb=short --no-cov
+        # Clear addopts from pytest.ini so --cov=backend --cov-fail-under=90 is not inherited;
+        # CDK tests don't cover backend/ and pytest-cov is not installed in this job.
+        run: pytest cdk/tests -v --tb=short --override-ini="addopts="
 
       - name: Synthesize CDK app
         if: needs.detect-iac-changes.outputs.iac_changed == 'true'

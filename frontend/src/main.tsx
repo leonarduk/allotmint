@@ -422,21 +422,18 @@ const exchangeCognitoForBackendToken = async (
   const idToken = getStoredCognitoIdToken();
   const clientId = awsUiAuth?.clientId?.trim();
   if (!idToken || !clientId) return;
-  try {
-    const res = await fetch(`${getApiBase()}/token/cognito`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id_token: idToken, client_id: clientId }),
-    });
-    if (!res.ok) {
-      console.error('Cognito backend token exchange failed', res.status);
-      return;
-    }
-    const data = (await res.json()) as { access_token: string };
-    setAuthToken(data.access_token);
-  } catch (error) {
-    console.error('Cognito backend token exchange error', error);
+  // Skip the round-trip if we already have a valid backend JWT (e.g. page refresh).
+  if (getStoredAuthToken()) return;
+  const res = await fetch(`${getApiBase()}/token/cognito`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id_token: idToken, client_id: clientId }),
+  });
+  if (!res.ok) {
+    throw new Error(`Cognito backend token exchange failed: ${res.status}`);
   }
+  const data = (await res.json()) as { access_token: string };
+  setAuthToken(data.access_token);
 };
 
 const bootstrapRuntimeConfig = async () => {
@@ -461,7 +458,13 @@ const bootstrapRuntimeConfig = async () => {
   }
   const shouldRender = await ensureAwsUiAuth(payload.awsUiAuth);
   if (shouldRender) {
-    await exchangeCognitoForBackendToken(payload.awsUiAuth);
+    try {
+      await exchangeCognitoForBackendToken(payload.awsUiAuth);
+    } catch (error) {
+      console.error('Cognito authentication failed — clearing session:', error);
+      // Clear auth state so the app renders the login page instead of a broken state.
+      apiLogout();
+    }
   }
   return shouldRender;
 };

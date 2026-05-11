@@ -18,8 +18,10 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Callable, Dict
 
+import boto3
 import pandas as pd
 import requests
+from botocore.exceptions import BotoCoreError, ClientError
 
 from backend.common.instruments import get_instrument_meta
 from backend.config import config
@@ -286,6 +288,57 @@ def load_stooq_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame
 _CACHE_FILE_MTIMES: Dict[str, float] = {}
 
 
+@lru_cache(maxsize=1)
+def _s3_client():
+    """Return the shared boto3 S3 client used by cache metadata checks."""
+    return boto3.client("s3")
+
+
+def _split_s3_cache_uri(cache: str) -> tuple[str, str] | None:
+    without_scheme = cache[len("s3://") :]
+    bucket, _, key = without_scheme.partition("/")
+    if not bucket or not key:
+        logger.warning("Invalid S3 timeseries cache path: %s", cache)
+        return None
+    return bucket, key
+
+
+def _s3_object_mtime(cache: str) -> float:
+    """Return the S3 object's LastModified timestamp for cache invalidation."""
+
+    parsed = _split_s3_cache_uri(cache)
+    if parsed is None:
+        return 0.0
+    bucket, key = parsed
+
+    try:
+        resp = _s3_client().head_object(Bucket=bucket, Key=key)
+    except (BotoCoreError, ClientError) as exc:  # pragma: no cover - defensive AWS path
+        logger.warning("Unable to read S3 cache metadata for %s: %s", cache, exc)
+        return 0.0
+
+    last_modified = resp.get("LastModified")
+    if not hasattr(last_modified, "timestamp"):
+        logger.warning("S3 cache metadata for %s is missing LastModified", cache)
+        return 0.0
+    return float(last_modified.timestamp())
+
+
+def _invalidate_meta_caches_if_stale(ticker: str, exchange: str) -> None:
+    """Clear both meta LRUs when the backing file's mtime has changed."""
+    cache = meta_timeseries_cache_path(ticker, exchange)
+    if cache.startswith("s3://"):
+        mtime = _s3_object_mtime(cache)
+    else:
+        p = Path(cache)
+        mtime = p.stat().st_mtime if p.exists() else 0.0
+    prev = _CACHE_FILE_MTIMES.get(cache)
+    if prev is not None and prev != mtime:
+        _load_meta_timeseries_cached.cache_clear()
+        _memoized_range_cached.cache_clear()
+    _CACHE_FILE_MTIMES[cache] = mtime
+
+
 @lru_cache(maxsize=512)
 def _load_meta_timeseries_cached(ticker: str, exchange: str, days: int) -> pd.DataFrame:
     """LRU-backed loader for Meta timeseries."""
@@ -308,19 +361,10 @@ def load_meta_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame:
     if OFFLINE_MODE != config.offline_mode:
         OFFLINE_MODE = config.offline_mode
         _load_meta_timeseries_cached.cache_clear()
+        _memoized_range_cached.cache_clear()
         _CACHE_FILE_MTIMES.clear()
 
-    cache = meta_timeseries_cache_path(ticker, exchange)
-    if cache.startswith("s3://"):
-        mtime = 0.0
-    else:
-        p = Path(cache)
-        mtime = p.stat().st_mtime if p.exists() else 0.0
-    prev = _CACHE_FILE_MTIMES.get(cache)
-    if prev is not None and prev != mtime:
-        _load_meta_timeseries_cached.cache_clear()
-    _CACHE_FILE_MTIMES[cache] = mtime
-
+    _invalidate_meta_caches_if_stale(ticker, exchange)
     return _load_meta_timeseries_cached(ticker, exchange, days).copy()
 
 
@@ -446,7 +490,6 @@ def _convert_to_base_currency(
                 return pd.DataFrame()
             fx["Date"] = pd.to_datetime(fx["Date"])
 
-
         fx["Rate"] = pd.to_numeric(fx["Rate"], errors="coerce")
         return fx
 
@@ -486,6 +529,7 @@ def load_meta_timeseries_range(
     base_currency: str = "GBP",
 ) -> pd.DataFrame:
     global OFFLINE_MODE
+    _invalidate_meta_caches_if_stale(ticker, exchange)
     for offset in range(0, 5):  # try same day, 1-day back, 2-day back...
         s = start_date - timedelta(days=offset)
         e = end_date - timedelta(days=offset)
@@ -520,10 +564,36 @@ def load_meta_timeseries_range(
     return _empty_ts()
 
 
+def _s3_cache_object_exists(cache: str) -> bool:
+    """Return whether an S3 cache object exists using a shared boto3 client.
+
+    Non-404 AWS errors are treated as cache misses after error logging so local
+    fallback paths can continue when credentials, networking, or IAM are broken.
+    """
+
+    parsed = _split_s3_cache_uri(cache)
+    if parsed is None:
+        return False
+    bucket, key = parsed
+
+    try:
+        _s3_client().head_object(Bucket=bucket, Key=key)
+    except ClientError as exc:
+        error_code = exc.response.get("Error", {}).get("Code")
+        if error_code in {"404", "NoSuchKey", "NotFound"}:
+            return False
+        logger.error("Unable to check S3 timeseries cache object %s: %s", cache, exc)
+        return False
+    except BotoCoreError as exc:
+        logger.error("AWS client error checking S3 timeseries cache object %s: %s", cache, exc)
+        return False
+    return True
+
+
 def has_cached_meta_timeseries(ticker: str, exchange: str) -> bool:
     cache = meta_timeseries_cache_path(ticker, exchange)
     if cache.startswith("s3://"):
-        return True  # S3 presence is checked lazily on read
+        return _s3_cache_object_exists(cache)
     p = Path(cache)
     return p.exists() and p.stat().st_size > 0
 

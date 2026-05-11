@@ -1,6 +1,5 @@
 import { defineConfig } from 'vitest/config'
 import type { PluginOption } from 'vite'
-import type { UserConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import path from 'node:path'
 
@@ -13,7 +12,7 @@ export default defineConfig(() => {
   // Prerender/PWA plugins were intentionally removed because this app now ships
   // as a standard SPA and infrastructure does not consume prerendered artifacts.
 
-  const config: UserConfig = {
+  const config = {
     plugins,
     resolve: {
       alias: {
@@ -25,7 +24,7 @@ export default defineConfig(() => {
         '/api': {
           target: 'http://backend:8000', // Docker internal hostname
           changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/api/, '') // Optional: strip /api prefix
+          rewrite: (p: string) => p.replace(/^\/api/, '')
         }
       }
     },
@@ -48,7 +47,7 @@ export default defineConfig(() => {
       setupFiles: './src/setupTests.ts',
       include: ['tests/unit/**/*.test.ts?(x)'],
       coverage: {
-        provider: 'v8',
+        provider: 'v8' as const, // literal required by CoverageV8Options — widened to string without explicit annotation
         reporter: ['text', 'html'],
         include: ['tests/unit/**/*.test.ts?(x)'],
         thresholds: {

@@ -30,6 +30,7 @@ import {
   getConfig,
   logout as apiLogout,
   getStoredAuthToken,
+  getApiBase,
   setApiBase,
   setAuthToken,
 } from './api';
@@ -38,7 +39,7 @@ import { UserProvider, useUser } from './UserContext';
 import ErrorBoundary from './ErrorBoundary';
 import { loadStoredAuthUser, loadStoredUserProfile } from './authStorage';
 import { RouteProvider } from './RouteContext';
-import { ensureAwsUiAuth, UserCancelledError, type AwsUiAuthConfig } from './awsUiAuth';
+import { clearCognitoSession, ensureAwsUiAuth, getStoredCognitoIdToken, UserCancelledError, type AwsUiAuthConfig } from './awsUiAuth';
 import {
   deriveBootstrapMode,
   deriveModeFromPathname,
@@ -415,6 +416,44 @@ export function Root() {
 const rootEl = document.getElementById('root');
 if (!rootEl) throw new Error('Root element not found');
 
+const isJwtExpired = (token: string): boolean => {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return true;
+    const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    // Base64url omits padding; atob requires it in some environments.
+    const padded = b64.padEnd(b64.length + (4 - (b64.length % 4)) % 4, '=');
+    const payload = JSON.parse(atob(padded));
+    return typeof payload.exp !== 'number' || payload.exp * 1000 <= Date.now();
+  } catch {
+    return true;
+  }
+};
+
+const exchangeCognitoForBackendToken = async (
+  awsUiAuth?: AwsUiAuthConfig | null,
+) => {
+  const idToken = getStoredCognitoIdToken();
+  const clientId = awsUiAuth?.clientId?.trim();
+  if (!idToken || !clientId) return;
+  // Skip the round-trip if we already have a non-expired backend JWT (e.g. page refresh).
+  const existing = getStoredAuthToken();
+  if (existing && !isJwtExpired(existing)) return;
+  const res = await fetch(`${getApiBase()}/token/cognito`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id_token: idToken, client_id: clientId }),
+  });
+  if (!res.ok) {
+    throw new Error(`Cognito backend token exchange failed: ${res.status}`);
+  }
+  const data = (await res.json()) as { access_token?: string };
+  if (typeof data.access_token !== 'string' || !data.access_token) {
+    throw new Error('Cognito backend token exchange returned no access_token');
+  }
+  setAuthToken(data.access_token);
+};
+
 const bootstrapRuntimeConfig = async () => {
   let payload: { apiBaseUrl?: unknown; awsUiAuth?: AwsUiAuthConfig } = {};
   try {
@@ -435,7 +474,19 @@ const bootstrapRuntimeConfig = async () => {
   if (typeof payload.apiBaseUrl === 'string') {
     setApiBase(payload.apiBaseUrl);
   }
-  return ensureAwsUiAuth(payload.awsUiAuth);
+  const shouldRender = await ensureAwsUiAuth(payload.awsUiAuth);
+  if (shouldRender) {
+    try {
+      await exchangeCognitoForBackendToken(payload.awsUiAuth);
+    } catch (error) {
+      console.error('Cognito authentication failed — clearing session:', error);
+      // Clear both the Cognito session (prevents infinite retry loop on next load)
+      // and the backend auth state so the app renders the login page.
+      clearCognitoSession();
+      apiLogout();
+    }
+  }
+  return shouldRender;
 };
 
 void bootstrapRuntimeConfig()

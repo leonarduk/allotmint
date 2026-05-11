@@ -1,0 +1,121 @@
+name: Opt-in Smoke Tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      smoke_target:
+        description: Smoke suite to run.
+        required: true
+        type: choice
+        default: all
+        options:
+          - all
+          - backend
+          - frontend
+          - codex-poc
+      smoke_url:
+        description: Optional deployment URL to test; falls back to the SMOKE_URL repository variable when omitted.
+        required: false
+        type: string
+      frontend_api_base:
+        description: Optional API base for frontend smoke runs; falls back to smoke_url, then VITE_ALLOTMINT_API_BASE or SMOKE_URL variables.
+        required: false
+        type: string
+  pull_request:
+    branches: [main]
+    # Label-triggered smoke runs execute PR code with smoke credentials, so do not
+    # rerun automatically on synchronize. Re-add the label or use manual dispatch
+    # after reviewing follow-up commits.
+    types: [labeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: opt-in-smoke-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Run opt-in smoke suite
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch' ||
+      (contains(github.event.pull_request.labels.*.name, 'run-smoke') &&
+      (github.event.action != 'labeled' || github.event.label.name == 'run-smoke')) }}
+    runs-on: ubuntu-latest
+    # Keep the opt-in suite bounded so release checks fail quickly instead of
+    # occupying runners indefinitely when a deployed target is unhealthy.
+    timeout-minutes: 35
+    env:
+      SMOKE_TARGET: ${{ github.event_name == 'workflow_dispatch' && inputs.smoke_target || 'all' }}
+      SMOKE_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.smoke_url || vars.SMOKE_URL }}
+      SMOKE_IDENTITY: ${{ vars.SMOKE_IDENTITY }}
+      VITE_ALLOTMINT_API_BASE: ${{ github.event_name == 'workflow_dispatch' && (inputs.frontend_api_base || inputs.smoke_url) || (vars.VITE_ALLOTMINT_API_BASE || vars.SMOKE_URL) }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Install Playwright browsers
+        if: ${{ env.SMOKE_TARGET == 'all' || env.SMOKE_TARGET == 'frontend' || env.SMOKE_TARGET == 'codex-poc' }}
+        run: npx playwright install --with-deps chromium
+        working-directory: frontend
+
+      - name: Summarize smoke target
+        run: |
+          echo "### Opt-in smoke test run" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Target: \`$SMOKE_TARGET\`" >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "${SMOKE_URL:-}" ]; then
+            echo "- Smoke URL: \`$SMOKE_URL\`" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "- Smoke URL: not set; suites will use their local defaults." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -n "${SMOKE_IDENTITY:-}" ]; then
+            echo "- Smoke identity: \`$SMOKE_IDENTITY\`" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Run backend API smoke tests
+        if: ${{ env.SMOKE_TARGET == 'all' || env.SMOKE_TARGET == 'backend' }}
+        run: npm run smoke:test
+        env:
+          TEST_ID_TOKEN: ${{ secrets.SMOKE_TEST_ID_TOKEN }}
+
+      - name: Run frontend Playwright smoke tests
+        if: ${{ env.SMOKE_TARGET == 'all' || env.SMOKE_TARGET == 'frontend' }}
+        run: npm --prefix frontend run smoke:frontend
+        env:
+          TEST_ID_TOKEN: ${{ secrets.SMOKE_TEST_ID_TOKEN }}
+          SMOKE_AUTH_TOKEN: ${{ secrets.SMOKE_AUTH_TOKEN }}
+
+      - name: Run Codex browser POC smoke test
+        if: ${{ env.SMOKE_TARGET == 'codex-poc' }}
+        run: npm run smoke:test:codex:poc
+        env:
+          TEST_ID_TOKEN: ${{ secrets.SMOKE_TEST_ID_TOKEN }}
+          SMOKE_AUTH_TOKEN: ${{ secrets.SMOKE_AUTH_TOKEN }}
+
+      - name: Upload Playwright artifacts
+        if: ${{ failure() && (env.SMOKE_TARGET == 'all' || env.SMOKE_TARGET == 'frontend' || env.SMOKE_TARGET == 'codex-poc') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-smoke-artifacts
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+          if-no-files-found: ignore

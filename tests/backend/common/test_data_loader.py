@@ -1,6 +1,7 @@
 import json
 import os
 import sys
+import time
 from contextvars import ContextVar
 from pathlib import Path
 
@@ -323,7 +324,13 @@ class TestVirtualPortfolioPersistence:
 
 
 class TestListLocalPlots:
-    def _configure(self, monkeypatch: pytest.MonkeyPatch, repo_root: Path, accounts_root: Path, disable_auth: bool | None) -> None:
+    def _configure(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        repo_root: Path,
+        accounts_root: Path,
+        disable_auth: bool | None,
+    ) -> None:
         cfg = Config()
         cfg.repo_root = repo_root
         cfg.accounts_root = accounts_root
@@ -332,7 +339,9 @@ class TestListLocalPlots:
         monkeypatch.setattr("backend.common.data_loader.config", cfg)
         monkeypatch.delenv(DATA_BUCKET_ENV, raising=False)
 
-    def test_authentication_required_skips_special_accounts(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_authentication_required_skips_special_accounts(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         data_root = tmp_path / "accounts"
         self._configure(monkeypatch, tmp_path, data_root, disable_auth=False)
 
@@ -441,7 +450,9 @@ class TestListLocalPlots:
         ]
         assert all("full_name" not in entry for entry in result)
 
-    def test_authentication_disabled_allows_anonymous_access(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_authentication_disabled_allows_anonymous_access(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         data_root = tmp_path / "accounts"
         self._configure(monkeypatch, tmp_path, data_root, disable_auth=True)
 
@@ -630,13 +641,13 @@ class TestLocalOwnerIndexCache:
         assert first[0]["full_name"] == "Alice One"
 
         person_path = data_root / "alice" / "person.json"
-        person_path.write_text(json.dumps({"full_name": "Alice Two", "viewers": []}))
+        person_path.write_text(json.dumps({"full_name": "Alice Updated", "viewers": []}))
 
         second = _list_local_plots(data_root=data_root, current_user=None)
         meta = load_person_meta("alice", data_root=data_root)
 
-        assert second[0]["full_name"] == "Alice Two"
-        assert meta["full_name"] == "Alice Two"
+        assert second[0]["full_name"] == "Alice Updated"
+        assert meta["full_name"] == "Alice Updated"
 
     def test_invalidates_cached_owner_index_when_accounts_change(
         self, tmp_path: Path
@@ -671,7 +682,10 @@ class TestLocalOwnerIndexCache:
 
     @pytest.mark.skipif(
         sys.platform == "win32",
-        reason="st_ctime_ns is file creation time on Windows; content-only changes cannot be detected without re-reading",
+        reason=(
+            "st_ctime_ns is file creation time on Windows; "
+            "content-only changes cannot be detected without re-reading"
+        ),
     )
     def test_invalidates_cached_owner_index_when_content_changes_without_stat_change(
         self, tmp_path: Path
@@ -691,8 +705,19 @@ class TestLocalOwnerIndexCache:
 
         # Write bytes directly so size is unchanged, then restore mtime/atime.
         # ctime updates to "now" on POSIX, which is what triggers re-hashing.
-        person_path.write_bytes(replacement.encode())
-        os.utime(person_path, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns))
+        # Fast filesystems can report the same ctime when the rewrite happens in
+        # the same clock tick as the original write, so retry briefly until the
+        # test has a real ctime-only signature change to exercise.
+        deadline = time.monotonic() + 1
+        updated_stat = original_stat
+        while time.monotonic() < deadline:
+            person_path.write_bytes(replacement.encode())
+            os.utime(person_path, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns))
+            updated_stat = person_path.stat()
+            if updated_stat.st_ctime_ns != original_stat.st_ctime_ns:
+                break
+            time.sleep(0.001)
+        assert updated_stat.st_ctime_ns != original_stat.st_ctime_ns
 
         second = _list_local_plots(data_root=data_root, current_user=None)
 

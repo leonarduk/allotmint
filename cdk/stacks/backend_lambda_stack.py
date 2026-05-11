@@ -422,8 +422,8 @@ class BackendLambdaStack(Stack):
         # TradingAgentLambda: read-only, no put, no general list. It has scoped
         # ListBucket on prices/ so the price-snapshot loader can distinguish missing
         # snapshots from denied access during cold start.
-        # Audited: trading_agent.py:run() -> load_prices_for_tickers()
-        # -> load_meta_timeseries_range() reads parquet from S3 by known key.
+        # Audited: trading_agent.py:run() → load_prices_for_tickers()
+        # → load_meta_timeseries_range() reads parquet from S3 by known key.
         # No S3 writes: _log_trade() writes to TRADE_LOG_PATH (local filesystem / CloudWatch).
         # The timeseries cache grant adds scoped GetObject and ListBucket so pyarrow
         # can read cached parquet files under timeseries/. allow_put=False enforces

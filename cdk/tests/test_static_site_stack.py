@@ -4,6 +4,7 @@ Run from the repo root:
     pip install aws-cdk-lib constructs pytest --quiet
     pytest cdk/tests/test_static_site_stack.py -v
 """
+
 import sys
 from pathlib import Path
 
@@ -38,6 +39,7 @@ def template(tmp_path_factory):
 # ---------------------------------------------------------------------------
 # SPA error responses
 # ---------------------------------------------------------------------------
+
 
 def test_403_redirects_to_index_html(template):
     """CloudFront must return /index.html for 403 (S3 access-denied) responses."""
@@ -87,6 +89,7 @@ def test_404_redirects_to_index_html(template):
 # config.json deployment
 # ---------------------------------------------------------------------------
 
+
 def test_runtime_config_deployment_exists(template):
     """At least one BucketDeployment resource must be present (config.json injection)."""
     # BucketDeployment is backed by Custom::CDKBucketDeployment.
@@ -122,7 +125,10 @@ def test_backend_api_url_parameter_exists(template):
     """
     template.has_parameter(
         "BackendApiUrl",
-        {"Type": "String"},
+        {
+            "AllowedPattern": "^$|^https://.+",
+            "Type": "String",
+        },
     )
 
 
@@ -145,9 +151,87 @@ def test_static_site_stack_synthesises_without_api_base_url(tmp_path):
     app.synth()
 
 
+def _response_headers_policy_csp(template: assertions.Template) -> object:
+    resources = template.find_resources("AWS::CloudFront::ResponseHeadersPolicy")
+    assert len(resources) == 1, f"Expected one response headers policy, found {len(resources)}"
+    policy = next(iter(resources.values()))
+    return policy["Properties"]["ResponseHeadersPolicyConfig"]["SecurityHeadersConfig"][
+        "ContentSecurityPolicy"
+    ]["ContentSecurityPolicy"]
+
+
+# ---------------------------------------------------------------------------
+# CloudFront security headers
+# ---------------------------------------------------------------------------
+
+
+def test_csp_connect_src_uses_backend_api_url_parameter(template):
+    """CSP connect-src must reference BackendApiUrl directly, not a static wildcard.
+
+    API Gateway URLs have the form {api-id}.execute-api.{region}.amazonaws.com.
+    No valid static CSP wildcard can match this structure while staying narrower
+    than *.amazonaws.com, so the BackendApiUrl parameter is injected directly,
+    producing a CloudFormation Fn::Join that resolves to the exact origin at
+    deploy time.
+    """
+    resources = template.find_resources("AWS::CloudFront::ResponseHeadersPolicy")
+    csp_values = [
+        security_headers["ContentSecurityPolicy"]["ContentSecurityPolicy"]
+        for resource in resources.values()
+        if (
+            security_headers := resource["Properties"]["ResponseHeadersPolicyConfig"].get(
+                "SecurityHeadersConfig", {}
+            )
+        )
+        if "ContentSecurityPolicy" in security_headers
+    ]
+
+    assert len(csp_values) == 1, "Expected exactly one ResponseHeadersPolicy with a CSP"
+    csp = csp_values[0]
+
+    # The CSP value must be a Fn::Join because it contains a parameter reference.
+    assert isinstance(csp, dict) and "Fn::Join" in csp, (
+        "CSP must be a Fn::Join (BackendApiUrl token interpolation); got a plain string, "
+        "which means the connect-src is using a static value instead of the parameter"
+    )
+    join_parts = csp["Fn::Join"][1]
+
+    # The join must include a direct Ref to BackendApiUrl for the narrowest connect-src.
+    assert {"Ref": "BackendApiUrl"} in join_parts, (
+        "CSP Fn::Join must contain a Ref to BackendApiUrl"
+    )
+
+    # No static *.amazonaws.com wildcard should appear in any string fragment.
+    static_text = "".join(p for p in join_parts if isinstance(p, str))
+    assert "amazonaws.com" not in static_text, (
+        "CSP must not contain any static amazonaws.com wildcard in its string fragments"
+    )
+    assert "connect-src 'self' " in static_text
+    assert "https://*.amazoncognito.com" in static_text
+    assert "script-src 'self' https://accounts.google.com/gsi/client" in static_text
+    assert "frame-src 'self' https://accounts.google.com/gsi/" in static_text
+    assert "frame-ancestors 'none'" in static_text
+    assert static_text.count("object-src 'none'") == 1
+    assert static_text.count("base-uri 'self'") == 1
+    assert "; ;" not in static_text
+    assert "'self'object-src" not in static_text, "Missing semicolon between base-uri and object-src"
+
+
+def test_csp_header_overrides_origin_csp(template):
+    """CloudFront must emit the managed CSP rather than preserving an origin CSP."""
+    resources = template.find_resources("AWS::CloudFront::ResponseHeadersPolicy")
+    assert len(resources) == 1, f"Expected one response headers policy, found {len(resources)}"
+    policy = next(iter(resources.values()))
+    csp_header = policy["Properties"]["ResponseHeadersPolicyConfig"]["SecurityHeadersConfig"][
+        "ContentSecurityPolicy"
+    ]
+    assert csp_header["Override"] is True
+
+
 # ---------------------------------------------------------------------------
 # CloudFront distribution outputs
 # ---------------------------------------------------------------------------
+
 
 def test_distribution_id_output_exists(template):
     template.has_output("DistributionId", {})
@@ -165,6 +249,7 @@ def test_site_bucket_output_exists(template):
 # Site bucket security
 # ---------------------------------------------------------------------------
 
+
 def test_site_bucket_blocks_public_access(template):
     template.has_resource_properties(
         "AWS::S3::Bucket",
@@ -177,6 +262,13 @@ def test_site_bucket_blocks_public_access(template):
             }
         },
     )
+
+
+def _template_with_context(tmp_path: Path, context: dict[str, object]) -> assertions.Template:
+    (tmp_path / "index.html").write_text("<html></html>")
+    app = App(context=context)
+    stack = StaticSiteStack(app, "ContextStaticSiteStack", frontend_dist_path=str(tmp_path))
+    return assertions.Template.from_stack(stack)
 
 
 def test_ui_auth_user_pool_created(template):
@@ -206,13 +298,58 @@ def test_ui_auth_client_uses_authorization_code_flow(template):
     )
 
 
-def test_ui_auth_outputs_are_exported(template):
-    template.has_output(
-        "UiAuthUserPoolId",
-        {"Export": {"Name": "StaticSiteStack-UiAuthUserPoolId"}},
+def test_ui_auth_outputs_exist(template):
+    template.has_output("UiAuthUserPoolId", {})
+    template.has_output("UiAuthUserPoolClientId", {})
+    template.has_output("UiAuthDomain", {})
+
+
+def test_ui_auth_user_pool_destroy_by_default(template):
+    """Without the retainUserPool context key the UserPool uses DeletionPolicy: Delete."""
+    pools = template.find_resources(
+        "AWS::Cognito::UserPool",
+        {"DeletionPolicy": "Delete"},
     )
-    template.has_output(
-        "UiAuthUserPoolClientId",
-        {"Export": {"Name": "StaticSiteStack-UiAuthUserPoolClientId"}},
+    assert len(pools) >= 1, "Expected UserPool DeletionPolicy to be Delete in default (dev) mode"
+
+
+def test_ui_auth_user_pool_retain_when_context_set(tmp_path):
+    """Setting retainUserPool=true context switches the UserPool to DeletionPolicy: Retain."""
+    (tmp_path / "index.html").write_text("<html></html>")
+    app = App(context={"retainUserPool": "true"})
+    stack = StaticSiteStack(
+        app,
+        "RetainStack",
+        api_base_url=_DUMMY_API_URL,
+        frontend_dist_path=str(tmp_path),
     )
-    template.has_output("UiAuthDomain", {"Export": {"Name": "StaticSiteStack-UiAuthDomain"}})
+    t = assertions.Template.from_stack(stack)
+    pools = t.find_resources(
+        "AWS::Cognito::UserPool",
+        {"DeletionPolicy": "Retain"},
+    )
+    assert len(pools) >= 1, "Expected UserPool DeletionPolicy to be Retain when retainUserPool=true"
+
+
+def test_ui_auth_user_pool_is_destroyed_by_default(tmp_path):
+    template = _template_with_context(tmp_path, {})
+    template.has_resource(
+        "AWS::Cognito::UserPool",
+        {"DeletionPolicy": "Delete", "UpdateReplacePolicy": "Delete"},
+    )
+
+
+def test_ui_auth_user_pool_is_retained_for_prod_context(tmp_path):
+    template = _template_with_context(tmp_path, {"prod": "true"})
+    template.has_resource(
+        "AWS::Cognito::UserPool",
+        {"DeletionPolicy": "Retain", "UpdateReplacePolicy": "Retain"},
+    )
+
+
+def test_ui_auth_user_pool_is_retained_for_retain_user_pool_context(tmp_path):
+    template = _template_with_context(tmp_path, {"retainUserPool": "true"})
+    template.has_resource(
+        "AWS::Cognito::UserPool",
+        {"DeletionPolicy": "Retain", "UpdateReplacePolicy": "Retain"},
+    )

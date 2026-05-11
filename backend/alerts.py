@@ -56,9 +56,11 @@ except Exception as exc:  # pragma: no cover - configuration errors
 
 # In-memory cache of settings
 _USER_THRESHOLDS: Dict[str, float] = {}
+_SETTINGS_LOADED: bool = False
 
 # In-memory cache of push subscriptions
 _PUSH_SUBSCRIPTIONS: Dict[str, Dict] = {}
+_SUBSCRIPTIONS_LOADED: bool = False
 
 
 def _s3_client():
@@ -102,10 +104,25 @@ def _parse_subscriptions(data: Dict) -> Dict[str, Dict]:
     return valid
 
 
+def _s3_error_code(exc: Exception) -> Optional[str]:
+    """Return an AWS-style error code from ``exc`` when one is present."""
+    response = getattr(exc, "response", {}) or {}
+    error = response.get("Error", {})
+    if not isinstance(error, dict):
+        return None
+    code = error.get("Code")
+    return code if isinstance(code, str) else None
+
+
+def ensure_alert_settings_loaded() -> None:
+    """Ensure the in-memory threshold cache has attempted its lazy load."""
+    _load_settings()
+
+
 def _load_settings() -> None:
     """Load threshold settings into memory from configured storage."""
-    global _USER_THRESHOLDS
-    if _USER_THRESHOLDS:
+    global _USER_THRESHOLDS, _SETTINGS_LOADED
+    if _SETTINGS_LOADED or _USER_THRESHOLDS:
         return
     bucket = _data_bucket()
     if bucket:
@@ -116,26 +133,38 @@ def _load_settings() -> None:
                 data = json.loads(obj["Body"].read().decode())
                 if isinstance(data, dict):
                     _USER_THRESHOLDS = _parse_thresholds(data)
+                _SETTINGS_LOADED = True
                 return
-            except Exception:
-                logging.getLogger("alerts").exception("Failed to load alert thresholds from S3")
+            except Exception as exc:
+                if _s3_error_code(exc) == "NoSuchKey":
+                    _SETTINGS_LOADED = True
+                    return
+                logger.exception("Failed to load alert thresholds from S3")
     try:
         data = _SETTINGS_STORAGE.load()
     except Exception as exc:  # pragma: no cover - storage backend failures
-        logger.warning('Failed to load user thresholds: %s', exc)
+        logger.warning("Failed to load user thresholds: %s", exc)
         _USER_THRESHOLDS = {}
+        _SETTINGS_LOADED = True
         return
     if not isinstance(data, dict):
-        logger.warning('User thresholds data malformed: %r', data)
+        logger.warning("User thresholds data malformed: %r", data)
         _USER_THRESHOLDS = {}
+        _SETTINGS_LOADED = True
         return
     _USER_THRESHOLDS = _parse_thresholds(data)
+    _SETTINGS_LOADED = True
+
+
+def ensure_push_subscriptions_loaded() -> None:
+    """Ensure the in-memory push subscription cache has attempted its lazy load."""
+    _load_subscriptions()
 
 
 def _load_subscriptions() -> None:
     """Load push subscription data into memory from configured storage."""
-    global _PUSH_SUBSCRIPTIONS
-    if _PUSH_SUBSCRIPTIONS:
+    global _PUSH_SUBSCRIPTIONS, _SUBSCRIPTIONS_LOADED
+    if _SUBSCRIPTIONS_LOADED or _PUSH_SUBSCRIPTIONS:
         return
     bucket = _data_bucket()
     if bucket:
@@ -146,20 +175,28 @@ def _load_subscriptions() -> None:
                 data = json.loads(obj["Body"].read().decode())
                 if isinstance(data, dict):
                     _PUSH_SUBSCRIPTIONS = _parse_subscriptions(data)
+                _SUBSCRIPTIONS_LOADED = True
                 return
-            except Exception:
-                logging.getLogger("alerts").exception("Failed to load push subscriptions from S3")
+            except Exception as exc:
+                if _s3_error_code(exc) == "NoSuchKey":
+                    _SUBSCRIPTIONS_LOADED = True
+                    return
+                logger.exception("Failed to load push subscriptions from S3")
     try:
         data = _SUBSCRIPTIONS_STORAGE.load()
     except Exception as exc:  # pragma: no cover - storage backend failures
-        logger.warning('Failed to load push subscriptions: %s', exc)
+        logger.warning("Failed to load push subscriptions: %s", exc)
         _PUSH_SUBSCRIPTIONS = {}
+        _SUBSCRIPTIONS_LOADED = True
         return
     if not isinstance(data, dict):
-        logger.warning('Push subscriptions data malformed: %r', data)
+        logger.warning("Push subscriptions data malformed: %r", data)
         _PUSH_SUBSCRIPTIONS = {}
+        _SUBSCRIPTIONS_LOADED = True
         return
     _PUSH_SUBSCRIPTIONS = _parse_subscriptions(data)
+    _SUBSCRIPTIONS_LOADED = True
+
 
 def _save_settings() -> None:
     """Persist in-memory settings to configured storage."""
@@ -187,7 +224,7 @@ def _save_settings() -> None:
         _SETTINGS_STORAGE.save(_USER_THRESHOLDS)
     except Exception as exc:  # pragma: no cover - storage backend failures
         # Persistence failure should not block alerting
-        logger.error('Failed to save user thresholds to persistent storage: %s', exc)
+        logger.error("Failed to save user thresholds to persistent storage: %s", exc)
 
 
 def _save_subscriptions() -> None:
@@ -215,11 +252,7 @@ def _save_subscriptions() -> None:
     try:
         _SUBSCRIPTIONS_STORAGE.save(_PUSH_SUBSCRIPTIONS)
     except Exception as exc:  # pragma: no cover - storage backend failures
-        logger.error('Failed to save push subscriptions to persistent storage: %s', exc)
-
-
-_load_settings()
-_load_subscriptions()
+        logger.error("Failed to save push subscriptions to persistent storage: %s", exc)
 
 
 def get_user_threshold(user: str, default: float = DEFAULT_THRESHOLD_PCT) -> float:

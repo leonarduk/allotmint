@@ -1,6 +1,7 @@
 Param(
   [switch]$Backend,
-  [string]$DataBucket
+  [string]$DataBucket,
+  [switch]$Prod
 )
 
 $ErrorActionPreference = 'Stop'
@@ -293,7 +294,8 @@ if ($Backend) {
       Write-Host 'DATA_BUCKET is required for backend deployment. Provide via -DataBucket or DATA_BUCKET env var.' -ForegroundColor Red
       exit 1
     }
-    & $cdkCmd.Path deploy StaticSiteStack -c "data_bucket=$effectiveBucket" --require-approval never
+    $prodContext = if ($Prod) { 'true' } else { 'false' }
+    & $cdkCmd.Path deploy StaticSiteStack -c "data_bucket=$effectiveBucket" -c "prod=$prodContext" --require-approval never
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     $uiAuthUserPoolId = (aws cloudformation describe-stacks --stack-name StaticSiteStack --query "Stacks[0].Outputs[?OutputKey=='UiAuthUserPoolId'].OutputValue" --output text).Trim()
     $uiAuthClientId = (aws cloudformation describe-stacks --stack-name StaticSiteStack --query "Stacks[0].Outputs[?OutputKey=='UiAuthUserPoolClientId'].OutputValue" --output text).Trim()
@@ -305,14 +307,14 @@ if ($Backend) {
       Write-Host 'UiAuthUserPoolClientId output is missing from StaticSiteStack.' -ForegroundColor Red
       exit 1
     }
-    & $cdkCmd.Path deploy BackendLambdaStack -c "data_bucket=$effectiveBucket" --require-approval never --parameters "BackendLambdaStack:UiAuthUserPoolId=$uiAuthUserPoolId" --parameters "BackendLambdaStack:UiAuthUserPoolClientId=$uiAuthClientId"
+    & $cdkCmd.Path deploy BackendLambdaStack -c "data_bucket=$effectiveBucket" -c "prod=$prodContext" --require-approval never --parameters "BackendLambdaStack:UiAuthUserPoolId=$uiAuthUserPoolId" --parameters "BackendLambdaStack:UiAuthUserPoolClientId=$uiAuthClientId"
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     $backendUrl = (aws cloudformation describe-stacks --stack-name BackendLambdaStack --query "Stacks[0].Outputs[?OutputKey=='BackendApiUrl'].OutputValue" --output text).Trim()
     if ([string]::IsNullOrWhiteSpace($backendUrl) -or $backendUrl -eq 'None') {
       Write-Host 'BackendApiUrl output is missing from BackendLambdaStack.' -ForegroundColor Red
       exit 1
     }
-    & $cdkCmd.Path deploy StaticSiteStack -c "data_bucket=$effectiveBucket" --require-approval never --parameters "StaticSiteStack:BackendApiUrl=$backendUrl"
+    & $cdkCmd.Path deploy StaticSiteStack -c "data_bucket=$effectiveBucket" -c "prod=$prodContext" --require-approval never --parameters "StaticSiteStack:BackendApiUrl=$backendUrl"
   } finally {
     Pop-Location
   }
@@ -328,7 +330,8 @@ if ($Backend) {
     }
     # Provide a context value for data_bucket so the app can instantiate BackendLambdaStack
     $effectiveBucket = if ($env:DATA_BUCKET) { $env:DATA_BUCKET } elseif ($DataBucket) { $DataBucket } else { 'placeholder-bucket' }
-    & $cdkCmd.Path deploy StaticSiteStack -c "data_bucket=$effectiveBucket"
+    $prodContext = if ($Prod) { 'true' } else { 'false' }
+    & $cdkCmd.Path deploy StaticSiteStack -c "data_bucket=$effectiveBucket" -c "prod=$prodContext"
   } finally {
     Pop-Location
   }

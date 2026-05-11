@@ -15,6 +15,7 @@ If you are onboarding, start with:
 - [`DEPLOY.md`](DEPLOY.md) — deployment workflow and operational deployment notes.
 - [`SMOKE_TESTS.md`](SMOKE_TESTS.md) — smoke test commands and expectations.
 - [`SECURITY.md`](SECURITY.md) — security guidance and controls.
+- [`BRANCH_PROTECTION.md`](BRANCH_PROTECTION.md) — required deterministic merge checks and drift detection.
 - [`OBSERVABILITY.md`](OBSERVABILITY.md) — monitoring and diagnostics guidance.
 - [`TECHNICAL_SUPPORT.md`](TECHNICAL_SUPPORT.md) — support/debug runbook.
 

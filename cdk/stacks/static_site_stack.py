@@ -54,11 +54,33 @@ class StaticSiteStack(Stack):
             "BackendApiUrl",
             type="String",
             default=api_base_url or "",
+            allowed_pattern=r"^$|^https://.+",
+            constraint_description=(
+                "BackendApiUrl must be empty for synth-only workflows or an "
+                "HTTPS URL such as https://abc123.execute-api.us-east-1.amazonaws.com."
+            ),
             description=(
                 "Backend API base URL — override at deploy time with the "
                 "BackendLambdaStack BackendApiUrl output."
             ),
         )
+
+        # CSP connect-src uses the BackendApiUrl parameter directly so that
+        # CloudFormation resolves it to the exact API origin at deploy time.
+        # A static wildcard like *.execute-api.*.amazonaws.com is invalid CSP
+        # syntax (wildcards are only permitted as the leftmost hostname label)
+        # and would be silently ignored by browsers, blocking all API calls.
+        _csp = "; ".join(
+            [
+                "default-src 'self'",
+                "script-src 'self' https://accounts.google.com/gsi/client",
+                "frame-src 'self' https://accounts.google.com/gsi/",
+                f"connect-src 'self' {backend_url_param.value_as_string} https://*.amazoncognito.com",
+                "frame-ancestors 'none'",
+                "object-src 'none'",
+                "base-uri 'self'",
+            ]
+        ) + ";"
 
         site_bucket = s3.Bucket(
             self,
@@ -75,17 +97,9 @@ class StaticSiteStack(Stack):
             "SecurityHeaders",
             comment="Security headers for static site",
             security_headers_behavior=cloudfront.ResponseSecurityHeadersBehavior(
-                # Allow Google Identity Services script and iframe, and Cognito
-                # hosted UI token exchange (amazoncognito.com != amazonaws.com).
+                # Allow Google Identity Services, API Gateway calls, and Cognito token exchange.
                 content_security_policy=cloudfront.ResponseHeadersContentSecurityPolicy(
-                    content_security_policy=(
-                        "default-src 'self'; "
-                        "script-src 'self' https://accounts.google.com/gsi/client; "
-                        f"connect-src 'self' {backend_url_param.value_as_string} "
-                        "https://*.amazoncognito.com; "
-                        "frame-src 'self' https://accounts.google.com/gsi/; "
-                        "frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
-                    ),
+                    content_security_policy=_csp,
                     override=True,
                 ),
                 strict_transport_security=cloudfront.ResponseHeadersStrictTransportSecurity(
@@ -203,9 +217,44 @@ class StaticSiteStack(Stack):
             price_class=cloudfront.PriceClass.PRICE_CLASS_100,
         )
 
-        ui_auth_pool, ui_auth_client, ui_auth_domain = self._create_ui_auth(
-            distribution=distribution,
+        ui_auth_pool = cognito.UserPool(
+            self,
+            "UiAuthUserPool",
+            account_recovery=cognito.AccountRecovery.EMAIL_ONLY,
+            self_sign_up_enabled=False,
+            sign_in_aliases=cognito.SignInAliases(email=True),
             removal_policy=ui_auth_removal_policy,
+        )
+        ui_auth_callback_url = Fn.join("", ["https://", distribution.domain_name, "/"])
+        ui_auth_client = ui_auth_pool.add_client(
+            "UiAuthClient",
+            # auth_flows gates the direct Cognito API auth endpoints (USER_SRP_AUTH,
+            # USER_PASSWORD_AUTH). The hosted UI uses browser redirects and does not
+            # go through these API flows. user_srp=True is kept to avoid enabling the
+            # weaker ALLOW_USER_PASSWORD_AUTH endpoint on this public client.
+            auth_flows=cognito.AuthFlow(user_srp=True),
+            o_auth=cognito.OAuthSettings(
+                flows=cognito.OAuthFlows(authorization_code_grant=True),
+                scopes=[
+                    cognito.OAuthScope.EMAIL,
+                    cognito.OAuthScope.OPENID,
+                    cognito.OAuthScope.PROFILE,
+                ],
+                callback_urls=[ui_auth_callback_url],
+                logout_urls=[ui_auth_callback_url],
+            ),
+            prevent_user_existence_errors=True,
+        )
+        ui_auth_domain_prefix = Fn.join("-", ["allotmint", Aws.ACCOUNT_ID, Aws.REGION])
+        ui_auth_pool.add_domain(
+            "UiAuthDomain",
+            cognito_domain=cognito.CognitoDomainOptions(
+                domain_prefix=ui_auth_domain_prefix,
+            ),
+        )
+        ui_auth_domain = Fn.join(
+            "",
+            ["https://", ui_auth_domain_prefix, ".auth.", Aws.REGION, ".amazoncognito.com"],
         )
 
         frontend_dir = (
@@ -275,46 +324,3 @@ class StaticSiteStack(Stack):
         CfnOutput(self, "UiAuthUserPoolId", value=ui_auth_pool.user_pool_id)
         CfnOutput(self, "UiAuthUserPoolClientId", value=ui_auth_client.user_pool_client_id)
         CfnOutput(self, "UiAuthDomain", value=ui_auth_domain)
-
-    def _create_ui_auth(
-        self,
-        *,
-        distribution: cloudfront.Distribution,
-        removal_policy: RemovalPolicy,
-    ) -> tuple[cognito.UserPool, cognito.UserPoolClient, str]:
-        ui_auth_pool = cognito.UserPool(
-            self,
-            "UiAuthUserPool",
-            account_recovery=cognito.AccountRecovery.EMAIL_ONLY,
-            self_sign_up_enabled=False,
-            sign_in_aliases=cognito.SignInAliases(email=True),
-            removal_policy=removal_policy,
-        )
-        ui_auth_callback_url = Fn.join("", ["https://", distribution.domain_name, "/"])
-        ui_auth_client = ui_auth_pool.add_client(
-            "UiAuthClient",
-            auth_flows=cognito.AuthFlow(user_password=True, user_srp=True),
-            o_auth=cognito.OAuthSettings(
-                flows=cognito.OAuthFlows(authorization_code_grant=True),
-                scopes=[
-                    cognito.OAuthScope.EMAIL,
-                    cognito.OAuthScope.OPENID,
-                    cognito.OAuthScope.PROFILE,
-                ],
-                callback_urls=[ui_auth_callback_url],
-                logout_urls=[ui_auth_callback_url],
-            ),
-            prevent_user_existence_errors=True,
-        )
-        ui_auth_domain_prefix = Fn.join("-", ["allotmint", Aws.ACCOUNT_ID, Aws.REGION])
-        ui_auth_pool.add_domain(
-            "UiAuthDomain",
-            cognito_domain=cognito.CognitoDomainOptions(
-                domain_prefix=ui_auth_domain_prefix,
-            ),
-        )
-        ui_auth_domain = Fn.join(
-            "",
-            ["https://", ui_auth_domain_prefix, ".auth.", Aws.REGION, ".amazoncognito.com"],
-        )
-        return ui_auth_pool, ui_auth_client, ui_auth_domain

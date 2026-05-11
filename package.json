@@ -2,17 +2,17 @@
   "name": "allotmint",
   "version": "0.0.2",
   "devDependencies": {
-    "@capacitor/cli": "^5.7.0",
+    "@capacitor/cli": "^8.3.3",
     "aws-cdk": "2.1120.0",
-    "concurrently": "^9.2.0",
+    "concurrently": "^9.2.1",
     "postcss": "^8.5.6",
-    "tsx": "^4.20.5"
+    "tsx": "^4.21.0"
   },
   "dependencies": {
-    "@capacitor/android": "^5.7.0",
-    "@capacitor/core": "^5.7.0",
-    "@capacitor/ios": "^5.7.0",
-    "yaml": "^2.8.3"
+    "@capacitor/android": "^8.3.3",
+    "@capacitor/core": "^8.3.0",
+    "@capacitor/ios": "^8.3.0",
+    "yaml": "^2.8.4"
   },
   "scripts": {
     "test": "cd frontend && npm test --",

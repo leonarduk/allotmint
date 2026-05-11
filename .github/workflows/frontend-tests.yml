@@ -18,7 +18,7 @@ jobs:
         run: python scripts/check_contract_version_sync.py
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v6.0.6
+        uses: pnpm/action-setup@v6.0.7
         with:
           version: 8
 

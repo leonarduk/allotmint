@@ -58,7 +58,6 @@ import {
   portfolioContractSchema,
   transactionsContractSchema,
 } from "./contracts/apiContracts";
-import { getAwsUiAuthIdToken } from "./awsUiAuth";
 
 const cleanOptionalString = (value: unknown): string | null => {
   if (typeof value !== "string") return null;
@@ -152,10 +151,7 @@ export function createClient(
       fullUrl = url.startsWith("/") ? `${resolvedBase}${url}` : `${resolvedBase}/${url}`;
     }
     const headers = new Headers(init.headers);
-    // Deployed HTTP API routes require the Cognito ID token at API Gateway.
-    // Local/non-AWS runs keep using the app token when AWS UI auth is absent.
-    const bearerToken = getAwsUiAuthIdToken() ?? authToken;
-    if (bearerToken) headers.set("Authorization", `Bearer ${bearerToken}`);
+    if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
     const csrf = getCsrfToken();
     if (csrf) headers.set("X-CSRFToken", csrf);
     const res = await fetchImpl(fullUrl, {

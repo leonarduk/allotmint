@@ -35,7 +35,9 @@ concurrency:
 jobs:
   smoke:
     name: Run opt-in smoke suite
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request' }}
+    # On PR pushes, skip unless SMOKE_URL is configured — without it the suite
+    # tries localhost:8000 and always fails. Manual dispatch always runs.
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.SMOKE_URL != '' }}
     runs-on: ubuntu-latest
     # Keep the opt-in suite bounded so release checks fail quickly instead of
     # occupying runners indefinitely when a deployed target is unhealthy.

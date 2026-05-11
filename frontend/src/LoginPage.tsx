@@ -2,16 +2,9 @@ import { useEffect, useState } from 'react';
 import { API_BASE, setAuthToken } from './api';
 import { useUser } from './UserContext';
 import { useAuth } from './AuthContext';
-import {
-  buildCognitoHostedUiUrl,
-  createCognitoAuthSession,
-  type AwsUiAuthConfig,
-} from './awsUiAuth';
 
 interface Props {
   clientId: string;
-  googleLoginEnabled?: boolean;
-  awsUiAuth?: AwsUiAuthConfig | null;
   onSuccess: () => void;
 }
 
@@ -27,18 +20,11 @@ function sanitize(input: string): string {
   );
 }
 
-export default function LoginPage({
-  clientId,
-  googleLoginEnabled = true,
-  awsUiAuth = null,
-  onSuccess,
-}: Props) {
+export default function LoginPage({ clientId, onSuccess }: Props) {
   const { setProfile } = useUser();
   const { setUser } = useAuth();
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
-    if (!googleLoginEnabled || !clientId) return undefined;
-
     const script = document.createElement('script');
     script.src = 'https://accounts.google.com/gsi/client';
     script.async = true;
@@ -97,23 +83,7 @@ export default function LoginPage({
     return () => {
       document.head.removeChild(script);
     };
-  }, [clientId, googleLoginEnabled, onSuccess, setProfile, setUser]);
-
-  const handleCognitoSignIn = async () => {
-    if (!awsUiAuth) return;
-
-    try {
-      const session = await createCognitoAuthSession(
-        `${window.location.pathname}${window.location.search}`
-      );
-      window.location.assign(
-        buildCognitoHostedUiUrl(awsUiAuth, window.location.origin, session)
-      );
-    } catch (signInError) {
-      console.error('Failed to start Cognito sign-in', signInError);
-      setError('Unable to start Cognito sign-in. Please try again.');
-    }
-  };
+  }, [clientId, onSuccess, setProfile, setUser]);
 
   return (
     <div
@@ -133,12 +103,7 @@ export default function LoginPage({
           Error: {error}
         </div>
       )}
-      {awsUiAuth ? (
-        <button type="button" onClick={handleCognitoSignIn}>
-          Sign in with Cognito
-        </button>
-      ) : null}
-      {googleLoginEnabled && clientId ? <div id="google-signin"></div> : null}
+      <div id="google-signin"></div>
     </div>
   );
 }

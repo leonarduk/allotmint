@@ -1,7 +1,7 @@
-import { render, screen } from '@testing-library/react';
-import { BrowserRouter } from 'react-router-dom';
-import { describe, it, expect, vi } from 'vitest';
-import LoginPage from '@/LoginPage';
+import { render, screen } from '@testing-library/react'
+import { BrowserRouter } from 'react-router-dom'
+import { describe, it, expect, vi } from 'vitest'
+import LoginPage from '@/LoginPage'
 
 vi.mock('@/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/api')>()
@@ -19,67 +19,40 @@ describe('Google login guard', () => {
     render(
       <BrowserRouter>
         <Root />
-      </BrowserRouter>
-    );
+      </BrowserRouter>,
+    )
     expect(
-      await screen.findByText(/Google login is not configured/i)
-    ).toBeInTheDocument();
-  });
-});
+      await screen.findByText(/Google login is not configured/i),
+    ).toBeInTheDocument()
+  })
+})
 
 describe('LoginPage error handling', () => {
-  it('renders a Cognito hosted UI sign-in button without loading Google', () => {
-    render(
-      <LoginPage
-        clientId=""
-        googleLoginEnabled={false}
-        awsUiAuth={{
-          enabled: true,
-          domain: 'https://example.auth.eu-west-2.amazoncognito.com',
-          clientId: 'aws-client',
-          redirectPath: '/',
-        }}
-        onSuccess={() => {}}
-      />
-    );
-
-    expect(
-      screen.getByRole('button', { name: /sign in with cognito/i })
-    ).toBeInTheDocument();
-    expect(
-      document.head.querySelector(
-        'script[src="https://accounts.google.com/gsi/client"]'
-      )
-    ).toBeNull();
-  });
-
   it('shows error message when login fails', async () => {
-    const initialize = vi.fn();
-    (window as any).google = {
-      accounts: { id: { initialize, renderButton: vi.fn() } },
-    };
-    let callback!: (resp: { credential: string }) => Promise<void> | void;
+    const initialize = vi.fn()
+    ;(window as any).google = { accounts: { id: { initialize, renderButton: vi.fn() } } }
+    let callback!: (resp: { credential: string }) => Promise<void> | void
     initialize.mockImplementation((opts: { callback: typeof callback }) => {
-      callback = opts.callback;
-      return Promise.resolve();
-    });
+      callback = opts.callback
+      return Promise.resolve()
+    })
 
-    const fetchMock = vi.spyOn(global, 'fetch').mockResolvedValue({
-      ok: false,
-      json: async () => ({ detail: 'bad' }),
-    } as any);
+    const fetchMock = vi
+      .spyOn(global, 'fetch')
+      .mockResolvedValue({
+        ok: false,
+        json: async () => ({ detail: 'bad' })
+      } as any)
 
-    render(<LoginPage clientId="cid" onSuccess={() => {}} />);
+    render(<LoginPage clientId="cid" onSuccess={() => {}} />)
 
-    const script = document.head.querySelector(
-      'script[src="https://accounts.google.com/gsi/client"]'
-    ) as HTMLScriptElement;
-    script.onload?.(new Event('load'));
-    await initialize.mock.results[0].value;
-    await callback({ credential: 'token' });
+    const script = document.head.querySelector('script[src="https://accounts.google.com/gsi/client"]') as HTMLScriptElement
+    script.onload?.(new Event('load'))
+    await initialize.mock.results[0].value
+    await callback({ credential: 'token' })
 
-    expect(await screen.findByText(/bad/)).toBeInTheDocument();
+    expect(await screen.findByText(/bad/)).toBeInTheDocument()
 
-    fetchMock.mockRestore();
-  });
-});
+    fetchMock.mockRestore()
+  })
+})

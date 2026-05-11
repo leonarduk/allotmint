@@ -71,14 +71,13 @@ jobs:
         with:
           python-version: '3.12'
           cache: 'pip'
-          cache-dependency-path: |
-            requirements.txt
-            requirements-dev.txt
-            cdk/requirements.txt
+          cache-dependency-path: cdk/requirements.txt
 
       - name: Install Python dependencies
         if: needs.detect-iac-changes.outputs.iac_changed == 'true'
-        run: python -m pip install -r requirements.txt -r requirements-dev.txt -r cdk/requirements.txt
+        # Install only CDK packages and pytest; the full app stack is not needed for synth/test
+        # and mixing requirements files causes aws-cdk-lib version conflicts.
+        run: python -m pip install pytest -r cdk/requirements.txt
 
       - name: Set up Node.js
         if: needs.detect-iac-changes.outputs.iac_changed == 'true'

@@ -24,7 +24,7 @@ export default defineConfig(() => {
         '/api': {
           target: 'http://backend:8000', // Docker internal hostname
           changeOrigin: true,
-          rewrite: (p: string) => p.replace(/^\/api/, '')
+          rewrite: (path: string) => path.replace(/^\/api/, '')
         }
       }
     },

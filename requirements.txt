@@ -32,7 +32,7 @@ platformdirs~=3.10.0
 protobuf>=6.31.1,<7  # >=6.31.1 fixes CVE-2025-4565; 6.31.0+ includes protocolbuffers/protobuf#15999 for Python 3.14 PyType_Spec compatibility
 pyarrow~=21.0.0
 reportlab~=4.4.3
-pycparser~=2.21
+pycparser~=3.0
 pyjwt~=2.12.0
 pydantic~=2.11.7
 pysocks~=1.7.1

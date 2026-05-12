@@ -264,8 +264,10 @@ describe("PensionForecast page", () => {
 
     const form = document.querySelector("form")!;
     const ownerSelect = await within(form).findByLabelText(/owner/i);
-    await vi.waitFor(() => expect(ownerSelect).toHaveValue("carol"));
-    expect(routeState.setSelectedOwner).toHaveBeenCalledWith("carol");
+    await vi.waitFor(() =>
+      expect(routeState.setSelectedOwner).toHaveBeenCalledWith("carol"),
+    );
+    expect(ownerSelect).toHaveValue("carol");
   });
 
   it("shows shortfall insight when desired income is not met", async () => {

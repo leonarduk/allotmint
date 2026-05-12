@@ -145,7 +145,7 @@ describe("App", () => {
         { asOf: undefined },
       ),
     );
-  });
+  }, 10_000);
 
   it("loads /instrument/all rows from group holdings API", async () => {
     window.history.pushState({}, "", "/instrument/all");

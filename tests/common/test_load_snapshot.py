@@ -5,7 +5,45 @@ import types
 
 import pytest
 
+import backend.common as _backend_common
 from backend.common import portfolio_utils as pu
+
+
+def test_portfolio_utils_import_does_not_call_load_snapshot(tmp_path, monkeypatch):
+    """Importing portfolio_utils must not call _load_snapshot().
+
+    A blocking S3 GetObject call at import time causes the Lambda init phase to
+    exceed its 10 s limit, resulting in a cold-start 503.  Verified by pointing
+    config.prices_json at a non-empty fixture file and confirming the module-level
+    globals remain empty after a fresh import — if _load_snapshot() ran at import
+    time, the sentinel ticker would appear in _PRICE_SNAPSHOT.
+    """
+    prices_file = tmp_path / "latest_prices.json"
+    prices_file.write_text('{"SENTINEL.L": {"last_price": 1.0}}')
+
+    monkeypatch.setattr(pu.config, "prices_json", prices_file, raising=False)
+    monkeypatch.setattr(pu.config, "app_env", "local", raising=False)
+
+    original_module = sys.modules.get("backend.common.portfolio_utils")
+    sys.modules.pop("backend.common.portfolio_utils", None)
+    try:
+        import backend.common.portfolio_utils as fresh_pu  # noqa: PLC0415
+
+        assert fresh_pu._PRICE_SNAPSHOT == {}, (
+            "_load_snapshot() was called at import time; this triggers a blocking "
+            "S3 call during Lambda init that exceeds the 10 s init limit (issue #2975)"
+        )
+        assert fresh_pu._PRICE_SNAPSHOT_TS is None
+    finally:
+        # Restore both sys.modules and the package attribute so that subsequent
+        # monkeypatch.setattr("backend.common.portfolio_utils.*") calls land on
+        # the same module object that route files imported at startup.  Without
+        # restoring the package attribute, getattr(backend.common, "portfolio_utils")
+        # returns the fresh reimport and the patch misses the live reference.
+        sys.modules.pop("backend.common.portfolio_utils", None)
+        if original_module is not None:
+            sys.modules["backend.common.portfolio_utils"] = original_module
+            _backend_common.portfolio_utils = original_module
 
 
 def test_load_snapshot_missing_local_file(tmp_path, monkeypatch, caplog):

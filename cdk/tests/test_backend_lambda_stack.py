@@ -28,9 +28,18 @@ def template():
     env_patch = {"JWT_SECRET": "test-secret", "GOOGLE_CLIENT_ID": "test-client-id"}
     for key, value in env_patch.items():
         os.environ.setdefault(key, value)
-    app = App()
-    stack = BackendLambdaStack(app, "TestBackendStack")
-    return assertions.Template.from_stack(stack)
+    # Remove optional auth env vars so CfnParameters have no Default,
+    # keeping the synthesised template deterministic regardless of local env.
+    _auth_env_vars = ("UI_AUTH_USER_POOL_ID", "UI_AUTH_USER_POOL_CLIENT_ID")
+    saved = {k: os.environ.pop(k, None) for k in _auth_env_vars}
+    try:
+        app = App()
+        stack = BackendLambdaStack(app, "TestBackendStack")
+        return assertions.Template.from_stack(stack)
+    finally:
+        for k, v in saved.items():
+            if v is not None:
+                os.environ[k] = v
 
 
 # ---------------------------------------------------------------------------

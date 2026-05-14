@@ -67,3 +67,17 @@ To update the CSP:
    ```
 
 For temporary local testing you may instead inject a `<meta http-equiv="Content-Security-Policy">` tag in `frontend/index.html`, but prefer the header-based policy in production.
+
+## Backend API authentication — trust boundary
+
+The backend Lambda sets `DISABLE_AUTH=true` in production. This means FastAPI does not independently validate the Cognito JWT; it trusts API Gateway's `HttpUserPoolAuthorizer` to reject requests that lack a valid token before they reach the Lambda.
+
+**Known risk:** This is a trust-delegation architecture. If the Lambda is invoked through any path that bypasses API Gateway — a Lambda function URL, a direct `Invoke` API call, a VPC endpoint, or a misconfigured API Gateway route — the backend will accept all requests with no authentication check.
+
+**Mitigations in place:**
+
+- The Lambda has no function URL configured.
+- IAM permissions restrict direct invocation to the API Gateway service principal only.
+- Both API Gateway routes (`/` and `/{proxy+}`) attach the Cognito JWT authorizer — there is no unprotected route.
+
+**If you need an additional layer of defense:** implement Cognito RS256 signature verification directly in FastAPI using the JWKS endpoint (`/.well-known/jwks.json`) from the Cognito user pool. Libraries such as `python-jose` or `cognitojwt` can validate the token without a network round-trip to Cognito after the first JWKS fetch. This would ensure the Lambda itself rejects requests even if API Gateway is bypassed.

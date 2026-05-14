@@ -353,3 +353,9 @@ def test_ui_auth_user_pool_is_retained_for_retain_user_pool_context(tmp_path):
         "AWS::Cognito::UserPool",
         {"DeletionPolicy": "Retain", "UpdateReplacePolicy": "Retain"},
     )
+
+
+def test_ui_auth_outputs_exist(template):
+    template.has_output("UiAuthUserPoolId", {})
+    template.has_output("UiAuthUserPoolClientId", {})
+    template.has_output("UiAuthDomain", {})

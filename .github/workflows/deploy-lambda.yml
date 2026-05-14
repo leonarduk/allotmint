@@ -109,13 +109,49 @@ jobs:
         run: npx cdk diff --all -c prod=true
         working-directory: cdk
 
+      - name: Deploy StaticSiteStack auth resources
+        env:
+          DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          CDK_OUTDIR: /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
+        run: npx cdk deploy StaticSiteStack --require-approval never
+        working-directory: cdk
+
+      - name: Get Cognito UI auth outputs
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          UI_AUTH_USER_POOL_ID="$(aws cloudformation describe-stacks \
+            --stack-name StaticSiteStack \
+            --query "Stacks[0].Outputs[?OutputKey=='UiAuthUserPoolId'].OutputValue" \
+            --output text)"
+          UI_AUTH_USER_POOL_CLIENT_ID="$(aws cloudformation describe-stacks \
+            --stack-name StaticSiteStack \
+            --query "Stacks[0].Outputs[?OutputKey=='UiAuthUserPoolClientId'].OutputValue" \
+            --output text)"
+          if [ -z "$UI_AUTH_USER_POOL_ID" ] || [ "$UI_AUTH_USER_POOL_ID" = "None" ]; then
+            echo "UiAuthUserPoolId output is missing from StaticSiteStack" >&2
+            exit 1
+          fi
+          if [ -z "$UI_AUTH_USER_POOL_CLIENT_ID" ] || [ "$UI_AUTH_USER_POOL_CLIENT_ID" = "None" ]; then
+            echo "UiAuthUserPoolClientId output is missing from StaticSiteStack" >&2
+            exit 1
+          fi
+          echo "UI_AUTH_USER_POOL_ID=$UI_AUTH_USER_POOL_ID" >> "$GITHUB_ENV"
+          echo "UI_AUTH_USER_POOL_CLIENT_ID=$UI_AUTH_USER_POOL_CLIENT_ID" >> "$GITHUB_ENV"
+
       - name: Deploy BackendLambdaStack
         env:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           CDK_OUTDIR: /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
-        run: npx cdk deploy BackendLambdaStack --require-approval never
+        run: >
+          npx cdk deploy BackendLambdaStack --require-approval never
+          --parameters BackendLambdaStack:UiAuthUserPoolId="$UI_AUTH_USER_POOL_ID"
+          --parameters BackendLambdaStack:UiAuthUserPoolClientId="$UI_AUTH_USER_POOL_CLIENT_ID"
         working-directory: cdk
 
       - name: Get backend API URL
@@ -133,7 +169,7 @@ jobs:
           fi
           echo "BACKEND_URL=$BACKEND_URL" >> "$GITHUB_ENV"
 
-      - name: Deploy StaticSiteStack
+      - name: Refresh StaticSiteStack runtime config
         env:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
@@ -165,7 +201,11 @@ jobs:
             echo "DistributionDomain output is missing from StaticSiteStack" >&2
             exit 1
           fi
-          curl --fail --show-error --silent "${backend_url%/}/docs" >/dev/null
+          status=$(curl --write-out "%{http_code}" --silent --output /dev/null "${backend_url%/}/docs")
+          if [ "$status" != "401" ]; then
+            echo "Expected HTTP 401 from protected /docs endpoint, got $status" >&2
+            exit 1
+          fi
           curl --fail --show-error --silent "https://${frontend_domain}" >/dev/null
 
       - name: Check recent BackendLambda CloudWatch errors

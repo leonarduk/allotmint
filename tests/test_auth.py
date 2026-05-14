@@ -314,6 +314,34 @@ async def test_get_current_user_returns_local_identity_when_disabled(monkeypatch
 
 
 @pytest.mark.asyncio
+async def test_get_current_user_returns_token_user_when_decode_succeeds(monkeypatch):
+    """When disable_auth=True and decode_token decodes the token (HS256 app JWT),
+    get_current_user returns the token user without falling back to local identity."""
+
+    monkeypatch.setattr(auth.config, "disable_auth", True, raising=False)
+    monkeypatch.setattr(auth, "decode_token", lambda _token: "tokenuser@example.com")
+
+    def fail_local_identity() -> str:  # pragma: no cover - safety guard
+        raise AssertionError("local_login_identity should not be called when decode_token succeeds")
+
+    monkeypatch.setattr(auth, "local_login_identity", fail_local_identity)
+
+    assert await auth.get_current_user(token="app-hs256-stub") == "tokenuser@example.com"
+
+
+@pytest.mark.asyncio
+async def test_get_current_user_falls_back_to_local_identity_when_token_not_app_jwt(monkeypatch):
+    """When disable_auth=True and decode_token returns None (e.g. Cognito RS256 token
+    forwarded by API Gateway), get_current_user falls back to local_login_identity."""
+
+    monkeypatch.setattr(auth.config, "disable_auth", True, raising=False)
+    monkeypatch.setattr(auth, "decode_token", lambda _token: None)
+    monkeypatch.setattr(auth, "local_login_identity", lambda: "local@example.com")
+
+    assert await auth.get_current_user(token="cognito-rs256-stub") == "local@example.com"
+
+
+@pytest.mark.asyncio
 async def test_get_current_user_disabled_without_identity(monkeypatch):
     monkeypatch.setattr(auth.config, "disable_auth", True, raising=False)
     monkeypatch.setattr(auth, "local_login_identity", lambda: None)

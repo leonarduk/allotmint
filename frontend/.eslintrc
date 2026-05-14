@@ -1,6 +1,0 @@
-{
-  "parserOptions": {
-    "tsconfigRootDir": __dirname,        // <- important when using workspaces
-    "project": ["./tsconfig.eslint.json"]
-  }
-}

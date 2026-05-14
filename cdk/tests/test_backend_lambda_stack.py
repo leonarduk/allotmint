@@ -367,26 +367,35 @@ def test_backend_api_has_cognito_jwt_authorizer(template):
             "AuthorizerType": "JWT",
             "IdentitySource": ["$request.header.Authorization"],
             "JwtConfiguration": {
-                "Audience": assertions.Match.any_value(),
-                "Issuer": assertions.Match.any_value(),
+                # Audience must be a non-empty list (the Cognito app client ID ref).
+                "Audience": assertions.Match.array_with([assertions.Match.any_value()]),
+                # Issuer must be a CloudFormation expression (Fn::Join/Sub), not a
+                # literal synth-time token like "${Token[...]}".
+                "Issuer": assertions.Match.object_like(
+                    {"Fn::Join": assertions.Match.any_value()}
+                ),
             },
         },
     )
 
 
 def test_backend_api_routes_require_cognito_authorizer(template):
+    """Every API Gateway route must require Cognito JWT authorization.
+
+    Asserts the full route set so that adding an unprotected route in future
+    will fail this test rather than silently bypassing the authorizer.
+    """
     routes = template.find_resources("AWS::ApiGatewayV2::Route")
-    protected_routes = {
-        resource["Properties"].get("RouteKey"): resource["Properties"]
-        for resource in routes.values()
-        if resource["Properties"].get("RouteKey") in {"ANY /", "ANY /{proxy+}"}
-    }
-    assert set(protected_routes) == {"ANY /", "ANY /{proxy+}"}
-    for route_key, properties in protected_routes.items():
+    assert routes, "Expected at least one API Gateway route"
+    for logical_id, resource in routes.items():
+        properties = resource["Properties"]
+        route_key = properties.get("RouteKey", logical_id)
         assert properties.get("AuthorizationType") == "JWT", (
             f"Route {route_key} must require Cognito JWT authorization"
         )
-        assert "AuthorizerId" in properties, f"Route {route_key} must reference the JWT authorizer"
+        assert "AuthorizerId" in properties, (
+            f"Route {route_key} must reference the JWT authorizer"
+        )
 
 
 # ---------------------------------------------------------------------------

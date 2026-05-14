@@ -367,9 +367,11 @@ def test_backend_api_has_cognito_jwt_authorizer(template):
             "AuthorizerType": "JWT",
             "IdentitySource": ["$request.header.Authorization"],
             "JwtConfiguration": {
-                # Audience must be a non-empty list (the Cognito app client ID ref).
-                "Audience": assertions.Match.array_with([assertions.Match.any_value()]),
-                # Issuer must be a CloudFormation expression (Fn::Join/Sub), not a
+                # Audience must reference the Cognito app client ID parameter.
+                "Audience": assertions.Match.array_with([
+                    assertions.Match.object_like({"Ref": "UiAuthUserPoolClientId"})
+                ]),
+                # Issuer must be a CloudFormation expression (Fn::Join), not a
                 # literal synth-time token like "${Token[...]}".
                 "Issuer": assertions.Match.object_like(
                     {"Fn::Join": assertions.Match.any_value()}

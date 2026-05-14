@@ -250,13 +250,19 @@ def _load_snapshot() -> tuple[Dict[str, Dict], datetime | None]:
                 s3_failed = True
 
     if config.prices_json is None:
-        logger.info("Price snapshot path not configured; skipping load")
+        if s3_failed:
+            logger.error(
+                "No price data available: S3 snapshot unavailable and no local fallback configured. "
+                "Portfolio prices will be unavailable for this request."
+            )
+        else:
+            logger.info("Price snapshot path not configured; skipping load")
         return {}, None
 
     if not _PRICES_PATH or not _PRICES_PATH.exists():
         if s3_failed:
             logger.error(
-                "No price data available: S3 snapshot unreachable and local fallback %s not found. "
+                "No price data available: S3 snapshot unavailable and local fallback %s not found. "
                 "Portfolio prices will be unavailable for this request.",
                 _PRICES_PATH,
             )

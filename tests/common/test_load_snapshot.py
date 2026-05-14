@@ -88,3 +88,100 @@ def test_load_snapshot_aws_failure_falls_back_to_local(tmp_path, monkeypatch, ca
     assert data == payload
     assert returned_ts == datetime.fromtimestamp(path.stat().st_mtime)
     assert "Failed to fetch price snapshot" in caplog.text
+
+
+def _make_fake_s3_modules(fail: bool):
+    """Return (fake_boto3, fake_botocore_exceptions) that raise or succeed."""
+
+    class ClientError(Exception):
+        pass
+
+    if fail:
+
+        class FakeS3:
+            def get_object(self, Bucket, Key):  # noqa: N802
+                raise ClientError("not found")
+
+    else:
+
+        class FakeS3:  # type: ignore[no-redef]
+            def get_object(self, Bucket, Key):  # noqa: N802
+                import io
+
+                body = io.BytesIO(b'{"OK": {}}')
+                return {"Body": body, "LastModified": None}
+
+    fake_boto3 = types.SimpleNamespace(client=lambda service: FakeS3())
+    fake_exc = types.SimpleNamespace(BotoCoreError=Exception, ClientError=ClientError)
+    return fake_boto3, fake_exc
+
+
+def test_load_snapshot_aws_s3_and_local_both_missing_logs_error(
+    tmp_path, monkeypatch, caplog
+):
+    """ERROR (not WARNING) when S3 fails and local fallback file is also absent."""
+    missing = tmp_path / "missing.json"
+    fake_boto3, fake_exc = _make_fake_s3_modules(fail=True)
+
+    monkeypatch.setattr(pu.config, "app_env", "aws")
+    monkeypatch.setenv(pu.DATA_BUCKET_ENV, "bucket")
+    monkeypatch.setitem(sys.modules, "boto3", fake_boto3)
+    monkeypatch.setitem(sys.modules, "botocore.exceptions", fake_exc)
+    monkeypatch.setattr(pu.config, "prices_json", missing)
+    monkeypatch.setattr(pu, "_PRICES_PATH", missing)
+
+    import logging
+
+    with caplog.at_level(logging.ERROR):
+        data, ts = pu._load_snapshot()
+
+    assert data == {}
+    assert ts is None
+    assert "No price data available" in caplog.text
+    assert "Portfolio prices will be unavailable" in caplog.text
+    assert "Price snapshot not found" not in caplog.text
+
+
+def test_load_snapshot_aws_s3_fails_no_local_path_configured_logs_error(
+    monkeypatch, caplog
+):
+    """ERROR when S3 fails and prices_json is not configured at all."""
+    fake_boto3, fake_exc = _make_fake_s3_modules(fail=True)
+
+    monkeypatch.setattr(pu.config, "app_env", "aws")
+    monkeypatch.setenv(pu.DATA_BUCKET_ENV, "bucket")
+    monkeypatch.setitem(sys.modules, "boto3", fake_boto3)
+    monkeypatch.setitem(sys.modules, "botocore.exceptions", fake_exc)
+    monkeypatch.setattr(pu.config, "prices_json", None)
+    monkeypatch.setattr(pu, "_PRICES_PATH", None)
+
+    import logging
+
+    with caplog.at_level(logging.ERROR):
+        data, ts = pu._load_snapshot()
+
+    assert data == {}
+    assert ts is None
+    assert "No price data available" in caplog.text
+    assert "no local fallback configured" in caplog.text
+
+
+def test_load_snapshot_non_aws_missing_local_logs_only_warning(
+    tmp_path, monkeypatch, caplog
+):
+    """Non-AWS env: missing local file logs WARNING, not ERROR."""
+    missing = tmp_path / "missing.json"
+
+    monkeypatch.setattr(pu.config, "app_env", "local")
+    monkeypatch.setattr(pu.config, "prices_json", missing)
+    monkeypatch.setattr(pu, "_PRICES_PATH", missing)
+
+    import logging
+
+    with caplog.at_level(logging.WARNING):
+        data, ts = pu._load_snapshot()
+
+    assert data == {}
+    assert ts is None
+    assert "Price snapshot not found" in caplog.text
+    assert "No price data available" not in caplog.text

@@ -143,15 +143,36 @@ async def test_get_active_user_invokes_token_helper_when_disabled(
 
     calls: dict[str, str | None] = {}
 
-    def fake_user_from_token(token: str | None) -> str:
+    def fake_decode_token(token: str) -> str | None:
         calls["token"] = token
         return "token-user"
 
     monkeypatch.setattr(auth.config, "disable_auth", True, raising=False)
-    monkeypatch.setattr(auth, "_user_from_token", fake_user_from_token)
+    monkeypatch.setattr(auth, "decode_token", fake_decode_token)
 
     assert await auth.get_active_user(request, token="stub") == "token-user"
     assert calls == {"token": "stub"}
+
+
+@pytest.mark.anyio
+async def test_get_active_user_falls_back_to_local_identity_when_token_not_app_jwt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """RS256 Cognito tokens cannot be decoded with the HS256 app secret.
+
+    When disable_auth is True and decode_token returns None (e.g. a Cognito
+    RS256 ID token forwarded by API Gateway), get_active_user must fall back
+    to local_login_identity rather than returning the token user or raising.
+    """
+
+    app = FastAPI()
+    request = _make_request(app)
+
+    monkeypatch.setattr(auth.config, "disable_auth", True, raising=False)
+    monkeypatch.setattr(auth, "decode_token", lambda _token: None)
+    monkeypatch.setattr(auth, "local_login_identity", lambda: "local@example.com")
+
+    assert await auth.get_active_user(request, token="cognito-rs256-stub") == "local@example.com"
 
 
 @pytest.mark.anyio

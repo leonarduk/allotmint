@@ -17,8 +17,8 @@ Copy `.env.example` to `.env` and supply the following values:
 | `DATA_BUCKET` | S3 bucket holding account data when deploying the backend. May also be supplied via the script's `-DataBucket` parameter |
 | `METADATA_BUCKET` | Bucket containing instrument metadata |
 | `METADATA_PREFIX` | Prefix within the metadata bucket |
-| `GOOGLE_AUTH_ENABLED` | Toggle Google sign‑in |
-| `GOOGLE_CLIENT_ID` | OAuth client ID when Google sign‑in is enabled |
+| `GOOGLE_AUTH_ENABLED` | Toggle Google sign-in |
+| `GOOGLE_CLIENT_ID` | OAuth client ID when Google sign-in is enabled |
 | `JWT_SECRET` | Secret used to sign and verify JWT tokens |
 | `BUDGET_ALERT_EMAIL` | Optional email recipient for the monthly AWS budget alert |
 
@@ -26,7 +26,7 @@ Copy `.env.example` to `.env` and supply the following values:
 
 The deploy workflow (`deploy-lambda.yml`) reads the following values from
 GitHub Actions secrets at synth time and injects them as Lambda environment
-variables. Add them under **Settings → Secrets and variables → Actions →
+variables. Add them under **Settings -> Secrets and variables -> Actions ->
 New repository secret** before triggering a deploy.
 
 | Secret name | New? | How to obtain |
@@ -34,7 +34,7 @@ New repository secret** before triggering a deploy.
 | `AWS_REGION` | Pre-existing | Your target AWS region (e.g. `eu-west-1`) |
 | `AWS_ROLE_TO_ASSUME` | Pre-existing | ARN of the IAM role the workflow assumes for CDK deployment |
 | `DATA_BUCKET` | Pre-existing | Name of the S3 bucket holding account data |
-| `JWT_SECRET` | **Required since #2838** | Random string used to sign JWTs — generate with `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
+| `JWT_SECRET` | **Required since #2838** | Random string used to sign JWTs -- generate with `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
 | `GOOGLE_CLIENT_ID` | **Required since #2838** | OAuth client ID from Google Cloud Console (ends in `.apps.googleusercontent.com`) |
 
 The CDK stack (`cdk/stacks/backend_lambda_stack.py`) raises a `ValueError`
@@ -167,30 +167,33 @@ necessary, then deploys `BackendLambdaStack` and `StaticSiteStack` when
 `-Backend` is specified. Pass `-Prod` for any live environment so the Cognito
 user pool uses `RemovalPolicy.RETAIN` and stack deletion does not delete users.
 
-Alternatively, run the commands manually:
+Alternatively, run the commands manually. Deploy the static stack once first so
+Cognito exists, pass its outputs into the backend stack, then redeploy the static
+stack with the protected API URL in `/config.json`:
 
 ```bash
 cd cdk
 npx cdk bootstrap   # once per account/region
-DEPLOY_BACKEND=false npx cdk deploy StaticSiteStack
-# For live/production frontend deploys, pass -c prod=true so Cognito users are retained:
-DEPLOY_BACKEND=false npx cdk deploy StaticSiteStack -c prod=true
-# or deploy backend and frontend together. Supply the name of your
-# data bucket either via environment variable:
-DATA_BUCKET=my-data-bucket DEPLOY_BACKEND=true npx cdk deploy BackendLambdaStack StaticSiteStack
-# or as CDK context parameters, including prod=true for live environments:
-DEPLOY_BACKEND=true npx cdk deploy BackendLambdaStack StaticSiteStack -c data_bucket=my-data-bucket -c prod=true
-# or deploy every stack managed by app.py for production:
-npx cdk deploy --all --require-approval never -c prod=true
+npx cdk deploy StaticSiteStack --require-approval never -c prod=true
+UI_AUTH_USER_POOL_ID=$(aws cloudformation describe-stacks --stack-name StaticSiteStack \
+  --query "Stacks[0].Outputs[?OutputKey=='UiAuthUserPoolId'].OutputValue" --output text)
+UI_AUTH_USER_POOL_CLIENT_ID=$(aws cloudformation describe-stacks --stack-name StaticSiteStack \
+  --query "Stacks[0].Outputs[?OutputKey=='UiAuthUserPoolClientId'].OutputValue" --output text)
+DATA_BUCKET=my-data-bucket npx cdk deploy BackendLambdaStack --require-approval never \
+  --parameters BackendLambdaStack:UiAuthUserPoolId="$UI_AUTH_USER_POOL_ID" \
+  --parameters BackendLambdaStack:UiAuthUserPoolClientId="$UI_AUTH_USER_POOL_CLIENT_ID"
+BACKEND_URL=$(aws cloudformation describe-stacks --stack-name BackendLambdaStack \
+  --query "Stacks[0].Outputs[?OutputKey=='BackendApiUrl'].OutputValue" --output text)
+npx cdk deploy StaticSiteStack --require-approval never -c prod=true \
+  --parameters StaticSiteStack:BackendApiUrl="$BACKEND_URL"
 ```
 
-When manually validating drift before a deploy, always run the diff with the
-same production context you will deploy with:
-
-```bash
-cd cdk
-npx cdk diff --all -c prod=true
-```
+When manually validating drift before a deploy, run `npx cdk diff --all -c prod=true` from
+`cdk/`, but do **not** use `npx cdk deploy --all` for a fresh
+Cognito-enabled environment. The backend stack needs the user-pool outputs from
+the first static deploy, and the static stack needs the backend URL from the
+backend deploy, so deployments must follow the static/backend/static sequence
+above.
 
 Omit `-c prod=true` only for disposable development stacks where `cdk destroy`
 should remove the demo Cognito user pool.
@@ -215,7 +218,10 @@ aws cloudfront create-invalidation --distribution-id <DIST_ID> --paths "/*"
 If deployment fails or the live environment does not match local behavior:
 
 1. Re-run `npx cdk diff --all -c prod=true` and confirm intended stack changes are present.
-2. Run `npx cdk deploy --all --require-approval never -c prod=true` and capture the exact failing resource from CloudFormation events.
+2. Re-run the static/backend/static deployment commands above and capture the
+   exact failing resource from CloudFormation events. Do not substitute
+   `npx cdk deploy --all` for this flow in a fresh environment because the
+   stacks exchange deploy-time parameters between phases.
 3. Inspect backend Lambda errors (CloudWatch). Lambda functions in this stack use
    explicit CDK-managed log groups, so read the deployed log group name from the
    stack outputs instead of assuming the `/aws/lambda/<function-name>` convention:
@@ -229,13 +235,20 @@ If deployment fails or the live environment does not match local behavior:
    The scheduled Lambdas expose the same discoverability outputs as
    `PriceRefreshLambdaLogGroupName` and `TradingAgentLambdaLogGroupName`.
 
-4. Validate API Gateway connectivity with the `BackendApiUrl` output:
+4. Validate API Gateway and Cognito API authorization outputs:
 
    ```bash
    aws cloudformation describe-stacks --stack-name BackendLambdaStack \
      --query "Stacks[0].Outputs[?OutputKey=='BackendApiUrl'].OutputValue" --output text
-   curl -fsSL "<BackendApiUrl>/docs" >/dev/null
+   aws cloudformation describe-stacks --stack-name StaticSiteStack \
+     --query "Stacks[0].Outputs[?starts_with(OutputKey, 'UiAuth')].[OutputKey,OutputValue]" \
+     --output table
+   curl -i "<BackendApiUrl>/docs"
    ```
+
+   The unauthenticated `curl` should return `401` from API Gateway. Browser users
+   must first authenticate through the Cognito hosted UI; the React app then
+   forwards the Cognito ID token as `Authorization: Bearer <idToken>` on API calls.
 
 5. Validate static frontend output and the Cognito UI gate outputs:
 

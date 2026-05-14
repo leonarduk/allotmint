@@ -329,6 +329,8 @@ def test_ui_auth_user_pool_retain_when_context_set(tmp_path):
         {"DeletionPolicy": "Retain"},
     )
     assert len(pools) >= 1, "Expected UserPool DeletionPolicy to be Retain when retainUserPool=true"
+
+
 def test_ui_auth_user_pool_is_destroyed_by_default(tmp_path):
     template = _template_with_context(tmp_path, {})
     template.has_resource(

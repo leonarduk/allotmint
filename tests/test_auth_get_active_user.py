@@ -143,12 +143,12 @@ async def test_get_active_user_invokes_token_helper_when_disabled(
 
     calls: dict[str, str | None] = {}
 
-    def fake_user_from_token(token: str | None) -> str:
+    def fake_decode_token(token: str) -> str | None:
         calls["token"] = token
         return "token-user"
 
     monkeypatch.setattr(auth.config, "disable_auth", True, raising=False)
-    monkeypatch.setattr(auth, "_user_from_token", fake_user_from_token)
+    monkeypatch.setattr(auth, "decode_token", fake_decode_token)
 
     assert await auth.get_active_user(request, token="stub") == "token-user"
     assert calls == {"token": "stub"}

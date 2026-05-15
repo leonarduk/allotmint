@@ -78,8 +78,8 @@ export default function RightRail({ owner }: RightRailProps) {
         )}
       </div>
       <div className="flex flex-col space-y-1 text-sm">
-        <a href="/docs" className="text-blue-600 hover:underline">
-          Docs
+        <a href="/api-console" className="text-blue-600 hover:underline">
+          API Console
         </a>
         <a href="/support" className="text-blue-600 hover:underline">
           Help

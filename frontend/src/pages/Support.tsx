@@ -435,7 +435,7 @@ export default function Support() {
                     <td className="pr-2 font-medium">{k}</td>
                     <td>
                       <a href={value}>{value}</a>{" "}
-                      <a href={`${base}/docs#/`}>swagger</a>
+                      <a href={`${base}/api-console`}>API Console</a>
                     </td>
                   </tr>
                 );

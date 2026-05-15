@@ -1,7 +1,9 @@
 from unittest.mock import patch
 
+import pytest
 from fastapi.testclient import TestClient
 
+import backend.auth as auth
 from backend.app import create_app
 from backend.config import config
 
@@ -66,54 +68,56 @@ def test_create_app_registers_rebalance_route(monkeypatch):
     assert "/rebalance" in registered_paths
 
 
-def test_docs_endpoint_returns_200(monkeypatch):
+def test_docs_url_is_removed(monkeypatch):
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
     monkeypatch.setattr(config, "snapshot_warm_days", 30)
     with patch("backend.bootstrap.startup.refresh_snapshot_async"):
         app = create_app()
         with TestClient(app) as client:
             resp = client.get("/docs")
-    assert resp.status_code == 200
+    assert resp.status_code == 404
 
 
-def test_docs_returns_200_when_prime_latest_prices_fails(monkeypatch):
-    monkeypatch.setattr(config, "skip_snapshot_warm", False)
+def test_api_console_accessible_when_auth_disabled(monkeypatch):
+    # When auth is disabled the admin check is bypassed; use dependency_overrides
+    # so get_current_user returns a user without a real JWT token.
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
     monkeypatch.setattr(config, "snapshot_warm_days", 30)
-
-    def _fail():
-        raise RuntimeError("simulated network failure on cold start")
-
-    with (
-        patch("backend.bootstrap.startup.refresh_snapshot_async"),
-        patch("backend.bootstrap.startup._load_snapshot", return_value=({}, None)),
-        patch("backend.bootstrap.startup.refresh_snapshot_in_memory"),
-        patch("backend.common.instrument_api.update_latest_prices_from_snapshot"),
-        patch("backend.common.instrument_api.prime_latest_prices", side_effect=_fail),
-    ):
+    monkeypatch.setattr(config, "disable_auth", True)
+    with patch("backend.bootstrap.startup.refresh_snapshot_async"):
         app = create_app()
+        app.dependency_overrides[auth.get_current_user] = lambda: "dev@example.com"
         with TestClient(app) as client:
-            resp = client.get("/docs")
+            resp = client.get("/api-console")
     assert resp.status_code == 200
+    assert "text/html" in resp.headers["content-type"]
 
 
-def test_docs_returns_200_when_update_latest_prices_fails(monkeypatch):
-    monkeypatch.setattr(config, "skip_snapshot_warm", False)
+@pytest.mark.parametrize("admin_emails,expected_status", [
+    ("admin@example.com", 200),
+    ("other@example.com", 403),
+    ("", 403),
+])
+def test_api_console_admin_check(monkeypatch, admin_emails, expected_status):
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
     monkeypatch.setattr(config, "snapshot_warm_days", 30)
-
-    def _fail(_snapshot):
-        raise RuntimeError("simulated update_latest_prices failure")
-
-    with (
-        patch("backend.bootstrap.startup.refresh_snapshot_async"),
-        patch("backend.bootstrap.startup._load_snapshot", return_value=({}, None)),
-        patch("backend.bootstrap.startup.refresh_snapshot_in_memory"),
-        patch(
-            "backend.common.instrument_api.update_latest_prices_from_snapshot",
-            side_effect=_fail,
-        ),
-        patch("backend.common.instrument_api.prime_latest_prices"),
-    ):
+    monkeypatch.setattr(config, "disable_auth", False)
+    monkeypatch.setenv("ADMIN_EMAILS", admin_emails)
+    with patch("backend.bootstrap.startup.refresh_snapshot_async"):
         app = create_app()
-        with TestClient(app) as client:
-            resp = client.get("/docs")
-    assert resp.status_code == 200
+        app.dependency_overrides[auth.get_current_user] = lambda: "admin@example.com"
+        with TestClient(app, raise_server_exceptions=False) as client:
+            resp = client.get("/api-console")
+    assert resp.status_code == expected_status
+
+
+def test_api_console_returns_401_when_unauthenticated(monkeypatch):
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    monkeypatch.setattr(config, "snapshot_warm_days", 30)
+    monkeypatch.setattr(config, "disable_auth", False)
+    monkeypatch.setenv("JWT_SECRET", "test-secret")
+    with patch("backend.bootstrap.startup.refresh_snapshot_async"):
+        app = create_app()
+        with TestClient(app, raise_server_exceptions=False) as client:
+            resp = client.get("/api-console")
+    assert resp.status_code == 401

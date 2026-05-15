@@ -63,10 +63,10 @@ def create_app() -> FastAPI:
         if admin_emails_raw.strip()
         else frozenset()
     )
-    if not admin_set:
+    if not admin_set and not cfg.disable_auth:
         logger.warning(
-            "ADMIN_EMAILS is not configured — /api-console will be inaccessible "
-            "in production. Set ADMIN_EMAILS to a comma-separated list of admin emails."
+            "ADMIN_EMAILS is not configured — /api-console will be inaccessible. "
+            "Set ADMIN_EMAILS to a comma-separated list of admin emails."
         )
 
     async def require_admin(current_user: str = Depends(auth.get_current_user)) -> str:

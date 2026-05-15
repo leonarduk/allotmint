@@ -101,8 +101,12 @@ def test_api_console_accessible_when_auth_disabled(monkeypatch):
     # and must NOT bypass the admin allowlist when ADMIN_EMAILS is configured.
     ("admin@example.com", True, "admin@example.com", 200),
     ("admin@example.com", True, "other@example.com", 403),
+    # case-insensitivity: both sides are lowercased before comparison
+    ("Admin@Example.COM", False, "admin@example.com", 200),
     # no allowlist in prod-like env: deny all (misconfiguration guard)
     ("", False, "anyone@example.com", 403),
+    # no allowlist + disable_auth=True → local dev bypass, allow through
+    ("", True, "anyone@example.com", 200),
 ])
 def test_api_console_admin_check(monkeypatch, admin_emails, disable_auth, email, expected_status):
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
@@ -172,3 +176,15 @@ def test_api_console_returns_401_when_unauthenticated(monkeypatch):
         with TestClient(app, raise_server_exceptions=False) as client:
             resp = client.get("/api-console")
     assert resp.status_code == 401
+
+
+def test_openapi_json_still_accessible(monkeypatch):
+    """/openapi.json must remain reachable after docs_url is set to None."""
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    monkeypatch.setattr(config, "snapshot_warm_days", 30)
+    with patch("backend.bootstrap.startup.refresh_snapshot_async"):
+        app = create_app()
+        with TestClient(app) as client:
+            resp = client.get("/openapi.json")
+    assert resp.status_code == 200
+    assert resp.json()["info"]["title"] == "Allotmint API"

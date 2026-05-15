@@ -57,17 +57,32 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    def _is_admin(email: str) -> bool:
-        admin_emails_raw = os.getenv("ADMIN_EMAILS", "")
-        if not admin_emails_raw.strip():
-            return False
-        admin_set = {e.strip().lower() for e in admin_emails_raw.split(",") if e.strip()}
-        return email.lower() in admin_set
+    admin_emails_raw = os.getenv("ADMIN_EMAILS", "")
+    admin_set: frozenset[str] = (
+        frozenset(e.strip().lower() for e in admin_emails_raw.split(",") if e.strip())
+        if admin_emails_raw.strip()
+        else frozenset()
+    )
+    if not admin_set:
+        logger.warning(
+            "ADMIN_EMAILS is not configured — /api-console will be inaccessible "
+            "in production. Set ADMIN_EMAILS to a comma-separated list of admin emails."
+        )
 
     async def require_admin(current_user: str = Depends(auth.get_current_user)) -> str:
-        if not cfg.disable_auth and not _is_admin(current_user):
+        if admin_set:
+            # Allowlist is configured: always enforce it regardless of disable_auth.
+            # DISABLE_AUTH=true is set on the Lambda because API Gateway handles Cognito
+            # auth — it must NOT be used to bypass the admin restriction here.
+            if current_user.lower() not in admin_set:
+                raise HTTPException(status_code=403, detail="Admin access required")
+        elif not cfg.disable_auth:
+            # No allowlist in a production-like environment: deny all to avoid silent
+            # misconfiguration letting everyone in.
             raise HTTPException(status_code=403, detail="Admin access required")
+        # else: no allowlist + disable_auth → local dev, allow through
         return current_user
+
     app.state.background_tasks = []
     app.state.repo_root = runtime_paths.paths.repo_root
     app.state.accounts_root = runtime_paths.accounts_root

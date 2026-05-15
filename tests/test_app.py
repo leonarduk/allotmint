@@ -93,22 +93,73 @@ def test_api_console_accessible_when_auth_disabled(monkeypatch):
     assert "text/html" in resp.headers["content-type"]
 
 
-@pytest.mark.parametrize("admin_emails,expected_status", [
-    ("admin@example.com", 200),
-    ("other@example.com", 403),
-    ("", 403),
+@pytest.mark.parametrize("admin_emails,disable_auth,email,expected_status", [
+    # allowlist configured: enforced regardless of disable_auth
+    ("admin@example.com", False, "admin@example.com", 200),
+    ("admin@example.com", False, "other@example.com", 403),
+    # DISABLE_AUTH=true is set on the production Lambda (API GW handles Cognito auth)
+    # and must NOT bypass the admin allowlist when ADMIN_EMAILS is configured.
+    ("admin@example.com", True, "admin@example.com", 200),
+    ("admin@example.com", True, "other@example.com", 403),
+    # no allowlist in prod-like env: deny all (misconfiguration guard)
+    ("", False, "anyone@example.com", 403),
 ])
-def test_api_console_admin_check(monkeypatch, admin_emails, expected_status):
+def test_api_console_admin_check(monkeypatch, admin_emails, disable_auth, email, expected_status):
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
     monkeypatch.setattr(config, "snapshot_warm_days", 30)
-    monkeypatch.setattr(config, "disable_auth", False)
+    monkeypatch.setattr(config, "disable_auth", disable_auth)
     monkeypatch.setenv("ADMIN_EMAILS", admin_emails)
     with patch("backend.bootstrap.startup.refresh_snapshot_async"):
         app = create_app()
-        app.dependency_overrides[auth.get_current_user] = lambda: "admin@example.com"
+        app.dependency_overrides[auth.get_current_user] = lambda: email
         with TestClient(app, raise_server_exceptions=False) as client:
             resp = client.get("/api-console")
     assert resp.status_code == expected_status
+
+
+def test_health_returns_200_when_prime_latest_prices_fails(monkeypatch):
+    """App must still serve /health even when optional snapshot warm-up fails."""
+    monkeypatch.setattr(config, "skip_snapshot_warm", False)
+    monkeypatch.setattr(config, "snapshot_warm_days", 30)
+
+    def _fail():
+        raise RuntimeError("simulated network failure on cold start")
+
+    with (
+        patch("backend.bootstrap.startup.refresh_snapshot_async"),
+        patch("backend.bootstrap.startup._load_snapshot", return_value=({}, None)),
+        patch("backend.bootstrap.startup.refresh_snapshot_in_memory"),
+        patch("backend.common.instrument_api.update_latest_prices_from_snapshot"),
+        patch("backend.common.instrument_api.prime_latest_prices", side_effect=_fail),
+    ):
+        app = create_app()
+        with TestClient(app) as client:
+            resp = client.get("/health")
+    assert resp.status_code == 200
+
+
+def test_health_returns_200_when_update_latest_prices_fails(monkeypatch):
+    """App must still serve /health even when update_latest_prices raises."""
+    monkeypatch.setattr(config, "skip_snapshot_warm", False)
+    monkeypatch.setattr(config, "snapshot_warm_days", 30)
+
+    def _fail(_snapshot):
+        raise RuntimeError("simulated update_latest_prices failure")
+
+    with (
+        patch("backend.bootstrap.startup.refresh_snapshot_async"),
+        patch("backend.bootstrap.startup._load_snapshot", return_value=({}, None)),
+        patch("backend.bootstrap.startup.refresh_snapshot_in_memory"),
+        patch(
+            "backend.common.instrument_api.update_latest_prices_from_snapshot",
+            side_effect=_fail,
+        ),
+        patch("backend.common.instrument_api.prime_latest_prices"),
+    ):
+        app = create_app()
+        with TestClient(app) as client:
+            resp = client.get("/health")
+    assert resp.status_code == 200
 
 
 def test_api_console_returns_401_when_unauthenticated(monkeypatch):

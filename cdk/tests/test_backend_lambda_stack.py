@@ -382,22 +382,31 @@ def test_backend_api_has_cognito_jwt_authorizer(template):
 
 
 def test_backend_api_routes_require_cognito_authorizer(template):
-    """Every API Gateway route must require Cognito JWT authorization.
+    """All API Gateway routes must require Cognito JWT authorization except /health.
 
-    Asserts the full route set so that adding an unprotected route in future
-    will fail this test rather than silently bypassing the authorizer.
+    /health is intentionally unauthenticated so that post-deploy probes and
+    smoke tests can confirm Lambda is reachable without needing a Cognito token.
+    Asserts the full route set so that adding any other unprotected route will
+    fail this test rather than silently bypassing the authorizer.
     """
+    UNAUTHENTICATED_ROUTES = {"GET /health"}
+
     routes = template.find_resources("AWS::ApiGatewayV2::Route")
     assert routes, "Expected at least one API Gateway route"
     for logical_id, resource in routes.items():
         properties = resource["Properties"]
         route_key = properties.get("RouteKey", logical_id)
-        assert properties.get("AuthorizationType") == "JWT", (
-            f"Route {route_key} must require Cognito JWT authorization"
-        )
-        assert "AuthorizerId" in properties, (
-            f"Route {route_key} must reference the JWT authorizer"
-        )
+        if route_key in UNAUTHENTICATED_ROUTES:
+            assert properties.get("AuthorizationType") == "NONE", (
+                f"Route {route_key} is expected to be unauthenticated"
+            )
+        else:
+            assert properties.get("AuthorizationType") == "JWT", (
+                f"Route {route_key} must require Cognito JWT authorization"
+            )
+            assert "AuthorizerId" in properties, (
+                f"Route {route_key} must reference the JWT authorizer"
+            )
 
 
 # ---------------------------------------------------------------------------

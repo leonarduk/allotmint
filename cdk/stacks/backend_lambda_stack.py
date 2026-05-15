@@ -336,6 +336,11 @@ class BackendLambdaStack(Stack):
             "BackendLambdaIntegration", backend_fn
         )
         backend_api.add_routes(
+            path="/health",
+            methods=[apigwv2.HttpMethod.GET],
+            integration=backend_integration,
+        )
+        backend_api.add_routes(
             path="/",
             methods=[apigwv2.HttpMethod.ANY],
             integration=backend_integration,

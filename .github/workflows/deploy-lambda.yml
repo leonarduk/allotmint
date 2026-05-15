@@ -294,6 +294,12 @@ jobs:
         with:
           node-version: '24'
 
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885 # v6.1.1
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
+
       - name: Install root dependencies
         run: npm ci
 
@@ -310,3 +316,19 @@ jobs:
 
       - name: Run frontend smoke tests
         run: npm --prefix frontend run smoke:frontend
+
+      - name: Fetch Lambda logs from smoke test
+        if: always()
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          log_group="$(aws cloudformation describe-stacks \
+            --stack-name BackendLambdaStack \
+            --query "Stacks[0].Outputs[?OutputKey=='BackendLambdaLogGroupName'].OutputValue" \
+            --output text)"
+          if [ -z "$log_group" ] || [ "$log_group" = "None" ]; then
+            echo "BackendLambdaLogGroupName output not found in BackendLambdaStack; skipping" >&2
+            exit 0
+          fi
+          echo "=== BackendLambda CloudWatch logs (last 15 minutes) ==="
+          aws logs tail "$log_group" --since 15m --format short || echo "(no log events found)"

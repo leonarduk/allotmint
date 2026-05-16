@@ -267,6 +267,11 @@ jobs:
           echo "Frontend → $cf_status OK"
 
       - name: Fetch BackendLambda CloudWatch logs (deploy)
+        # BackendLambdaLogGroupName is exported by BackendLambdaStack at
+        # cdk/stacks/backend_lambda_stack.py (CfnOutput "BackendLambdaLogGroupName").
+        # The deploy IAM role must have logs:FilterLogEvents + logs:DescribeLogStreams
+        # on the log group ARN for this step to produce output; without those
+        # permissions `aws logs tail` exits non-zero and continue-on-error absorbs it.
         if: always()
         continue-on-error: true
         env:
@@ -279,7 +284,6 @@ jobs:
             --output text 2>/dev/null || echo "")"
           if [ -z "$log_group" ] || [ "$log_group" = "None" ]; then
             echo "BackendLambdaLogGroupName not found in BackendLambdaStack outputs; skipping log dump." >&2
-            echo "Tip: add CfnOutput(self, 'BackendLambdaLogGroupName', value=log_group.log_group_name) to the CDK stack to enable this step." >&2
             exit 0
           fi
           echo "=== BackendLambda CloudWatch logs (last 10 minutes) ==="

@@ -201,9 +201,9 @@ jobs:
             echo "DistributionDomain output is missing from StaticSiteStack" >&2
             exit 1
           fi
-          status=$(curl --write-out "%{http_code}" --silent --output /dev/null "${backend_url%/}/docs")
-          if [ "$status" != "401" ]; then
-            echo "Expected HTTP 401 from protected /docs endpoint, got $status" >&2
+          status=$(curl --write-out "%{http_code}" --silent --output /dev/null "${backend_url%/}/health")
+          if [ "$status" != "200" ]; then
+            echo "Expected HTTP 200 from unauthenticated /health endpoint, got $status" >&2
             exit 1
           fi
           curl --fail --show-error --silent "https://${frontend_domain}" >/dev/null

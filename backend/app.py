@@ -14,7 +14,9 @@ import os
 from contextlib import asynccontextmanager
 from json import JSONDecodeError
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.openapi.docs import get_swagger_ui_html
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 import backend.auth as auth
@@ -51,9 +53,36 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="Allotmint API",
         version="1.0",
-        docs_url="/docs",
+        docs_url=None,
         lifespan=lifespan,
     )
+
+    admin_emails_raw = os.getenv("ADMIN_EMAILS", "")
+    admin_set: frozenset[str] = (
+        frozenset(e.strip().lower() for e in admin_emails_raw.split(",") if e.strip())
+        if admin_emails_raw.strip()
+        else frozenset()
+    )
+    if not admin_set and not cfg.disable_auth:
+        logger.warning(
+            "ADMIN_EMAILS is not configured — /api-console will be inaccessible. "
+            "Set ADMIN_EMAILS to a comma-separated list of admin emails."
+        )
+
+    async def require_admin(current_user: str = Depends(auth.get_current_user)) -> str:
+        if admin_set:
+            # Allowlist is configured: always enforce it regardless of disable_auth.
+            # DISABLE_AUTH=true is set on the Lambda because API Gateway handles Cognito
+            # auth — it must NOT be used to bypass the admin restriction here.
+            if current_user.lower() not in admin_set:
+                raise HTTPException(status_code=403, detail="Admin access required")
+        elif not cfg.disable_auth:
+            # No allowlist in a production-like environment: deny all to avoid silent
+            # misconfiguration letting everyone in.
+            raise HTTPException(status_code=403, detail="Admin access required")
+        # else: no allowlist + disable_auth → local dev, allow through
+        return current_user
+
     app.state.background_tasks = []
     app.state.repo_root = runtime_paths.paths.repo_root
     app.state.accounts_root = runtime_paths.accounts_root
@@ -192,6 +221,12 @@ def create_app() -> FastAPI:
         """Return a small payload used by tests and uptime monitors."""
 
         return {"status": "ok", "env": cfg.app_env}
+
+    @app.get("/api-console", response_class=HTMLResponse, include_in_schema=False)
+    async def api_console(_: str = Depends(require_admin)):
+        """Interactive API console — restricted to admin users."""
+
+        return get_swagger_ui_html(openapi_url="/openapi.json", title="Allotmint API Console")
 
     return app
 

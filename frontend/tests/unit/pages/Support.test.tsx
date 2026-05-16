@@ -100,9 +100,9 @@ describe("Support page", () => {
     expect(
       await screen.findByRole("link", { name: "http://localhost:8000" })
     ).toHaveAttribute("href", "http://localhost:8000");
-    expect(screen.getByRole("link", { name: "swagger" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "API Console" })).toHaveAttribute(
       "href",
-      "http://localhost:8000/docs#/"
+      "http://localhost:8000/api-console"
     );
     vi.unstubAllEnvs();
   });

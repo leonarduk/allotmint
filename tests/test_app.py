@@ -1,7 +1,9 @@
 from unittest.mock import patch
 
+import pytest
 from fastapi.testclient import TestClient
 
+import backend.auth as auth
 from backend.app import create_app
 from backend.config import config
 
@@ -66,17 +68,61 @@ def test_create_app_registers_rebalance_route(monkeypatch):
     assert "/rebalance" in registered_paths
 
 
-def test_docs_endpoint_returns_200(monkeypatch):
+def test_docs_url_is_removed(monkeypatch):
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
     monkeypatch.setattr(config, "snapshot_warm_days", 30)
     with patch("backend.bootstrap.startup.refresh_snapshot_async"):
         app = create_app()
         with TestClient(app) as client:
             resp = client.get("/docs")
+    assert resp.status_code == 404
+
+
+def test_api_console_accessible_when_auth_disabled(monkeypatch):
+    # When auth is disabled the admin check is bypassed; use dependency_overrides
+    # so get_current_user returns a user without a real JWT token.
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    monkeypatch.setattr(config, "snapshot_warm_days", 30)
+    monkeypatch.setattr(config, "disable_auth", True)
+    with patch("backend.bootstrap.startup.refresh_snapshot_async"):
+        app = create_app()
+        app.dependency_overrides[auth.get_current_user] = lambda: "dev@example.com"
+        with TestClient(app) as client:
+            resp = client.get("/api-console")
     assert resp.status_code == 200
+    assert "text/html" in resp.headers["content-type"]
 
 
-def test_docs_returns_200_when_prime_latest_prices_fails(monkeypatch):
+@pytest.mark.parametrize("admin_emails,disable_auth,email,expected_status", [
+    # allowlist configured: enforced regardless of disable_auth
+    ("admin@example.com", False, "admin@example.com", 200),
+    ("admin@example.com", False, "other@example.com", 403),
+    # DISABLE_AUTH=true is set on the production Lambda (API GW handles Cognito auth)
+    # and must NOT bypass the admin allowlist when ADMIN_EMAILS is configured.
+    ("admin@example.com", True, "admin@example.com", 200),
+    ("admin@example.com", True, "other@example.com", 403),
+    # case-insensitivity: both sides are lowercased before comparison
+    ("Admin@Example.COM", False, "admin@example.com", 200),
+    # no allowlist in prod-like env: deny all (misconfiguration guard)
+    ("", False, "anyone@example.com", 403),
+    # no allowlist + disable_auth=True → local dev bypass, allow through
+    ("", True, "anyone@example.com", 200),
+])
+def test_api_console_admin_check(monkeypatch, admin_emails, disable_auth, email, expected_status):
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    monkeypatch.setattr(config, "snapshot_warm_days", 30)
+    monkeypatch.setattr(config, "disable_auth", disable_auth)
+    monkeypatch.setenv("ADMIN_EMAILS", admin_emails)
+    with patch("backend.bootstrap.startup.refresh_snapshot_async"):
+        app = create_app()
+        app.dependency_overrides[auth.get_current_user] = lambda: email
+        with TestClient(app, raise_server_exceptions=False) as client:
+            resp = client.get("/api-console")
+    assert resp.status_code == expected_status
+
+
+def test_health_returns_200_when_prime_latest_prices_fails(monkeypatch):
+    """App must still serve /health even when optional snapshot warm-up fails."""
     monkeypatch.setattr(config, "skip_snapshot_warm", False)
     monkeypatch.setattr(config, "snapshot_warm_days", 30)
 
@@ -92,11 +138,12 @@ def test_docs_returns_200_when_prime_latest_prices_fails(monkeypatch):
     ):
         app = create_app()
         with TestClient(app) as client:
-            resp = client.get("/docs")
+            resp = client.get("/health")
     assert resp.status_code == 200
 
 
-def test_docs_returns_200_when_update_latest_prices_fails(monkeypatch):
+def test_health_returns_200_when_update_latest_prices_fails(monkeypatch):
+    """App must still serve /health even when update_latest_prices raises."""
     monkeypatch.setattr(config, "skip_snapshot_warm", False)
     monkeypatch.setattr(config, "snapshot_warm_days", 30)
 
@@ -115,5 +162,29 @@ def test_docs_returns_200_when_update_latest_prices_fails(monkeypatch):
     ):
         app = create_app()
         with TestClient(app) as client:
-            resp = client.get("/docs")
+            resp = client.get("/health")
     assert resp.status_code == 200
+
+
+def test_api_console_returns_401_when_unauthenticated(monkeypatch):
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    monkeypatch.setattr(config, "snapshot_warm_days", 30)
+    monkeypatch.setattr(config, "disable_auth", False)
+    monkeypatch.setenv("JWT_SECRET", "test-secret")
+    with patch("backend.bootstrap.startup.refresh_snapshot_async"):
+        app = create_app()
+        with TestClient(app, raise_server_exceptions=False) as client:
+            resp = client.get("/api-console")
+    assert resp.status_code == 401
+
+
+def test_openapi_json_still_accessible(monkeypatch):
+    """/openapi.json must remain reachable after docs_url is set to None."""
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    monkeypatch.setattr(config, "snapshot_warm_days", 30)
+    with patch("backend.bootstrap.startup.refresh_snapshot_async"):
+        app = create_app()
+        with TestClient(app) as client:
+            resp = client.get("/openapi.json")
+    assert resp.status_code == 200
+    assert resp.json()["info"]["title"] == "Allotmint API"

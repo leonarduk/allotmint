@@ -53,7 +53,7 @@ jobs:
         if: ${{ steps.aws-auth.outcome == 'success' && env.DATA_BUCKET != '' }}
         run: |
           pip install awscli
-          aws s3 sync s3://$DATA_BUCKET/ data/
+          aws s3 sync "s3://$DATA_BUCKET/" data/
 
       - name: Type-check backend
         run: |

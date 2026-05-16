@@ -78,7 +78,7 @@ jobs:
       - name: Sync data from S3
         env:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
-        run: aws s3 sync s3://$DATA_BUCKET/ data/
+        run: aws s3 sync "s3://$DATA_BUCKET/" data/
 
       - name: Lint frontend
         run: npm run lint
@@ -269,7 +269,7 @@ jobs:
       - name: Fetch BackendLambda CloudWatch logs (deploy)
         # BackendLambdaLogGroupName is exported by BackendLambdaStack at
         # cdk/stacks/backend_lambda_stack.py (CfnOutput "BackendLambdaLogGroupName").
-        # The deploy IAM role must have logs:FilterLogEvents + logs:DescribeLogStreams
+        # The deploy IAM role must have logs:GetLogEvents + logs:DescribeLogStreams
         # on the log group ARN for this step to produce output; without those
         # permissions `aws logs tail` exits non-zero and continue-on-error absorbs it.
         if: always()
@@ -287,7 +287,7 @@ jobs:
             exit 0
           fi
           echo "=== BackendLambda CloudWatch logs (last 10 minutes) ==="
-          aws logs tail "$log_group" --since 10m --format short || echo "(no log events found)"
+          aws logs tail "$log_group" --since 10m --format short --no-follow || echo "(no log events found)"
 
       - name: Check recent BackendLambda CloudWatch errors
         if: always()
@@ -422,4 +422,4 @@ jobs:
             exit 0
           fi
           echo "=== BackendLambda CloudWatch logs (last 15 minutes) ==="
-          aws logs tail "$log_group" --since 15m --format short || echo "(no log events found)"
+          aws logs tail "$log_group" --since 15m --format short --no-follow || echo "(no log events found)"

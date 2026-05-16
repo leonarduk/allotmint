@@ -24,9 +24,11 @@ jobs:
           git fetch origin ${{ github.base_ref }}
           DIFF=$(python3 .github/scripts/prepare_review_diff.py --base-ref "${{ github.base_ref }}")
           DELIM="EOF_$(uuidgen | tr -d '-')"
-          echo "diff<<$DELIM" >> "$GITHUB_OUTPUT"
-          echo "$DIFF" >> "$GITHUB_OUTPUT"
-          echo "$DELIM" >> "$GITHUB_OUTPUT"
+          {
+            echo "diff<<$DELIM"
+            echo "$DIFF"
+            echo "$DELIM"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Get linked issue body
         id: issue
@@ -42,9 +44,11 @@ jobs:
             ISSUE_BODY="No linked issue found. Review code on its own merits."
           fi
           DELIM="EOF_$(uuidgen | tr -d '-')"
-          echo "body<<$DELIM" >> "$GITHUB_OUTPUT"
-          echo "$ISSUE_BODY" >> "$GITHUB_OUTPUT"
-          echo "$DELIM" >> "$GITHUB_OUTPUT"
+          {
+            echo "body<<$DELIM"
+            echo "$ISSUE_BODY"
+            echo "$DELIM"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Call OpenAI API
         env:

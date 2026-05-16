@@ -33,6 +33,18 @@ jobs:
         working-directory: frontend
       - run: pytest
 
+  lint-workflows:
+    name: Lint GitHub Actions workflows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install actionlint
+        run: |
+          bash <(curl -s https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          sudo mv actionlint /usr/local/bin/actionlint
+      - name: Run actionlint (includes shellcheck on inline scripts)
+        run: actionlint
+
   python-compatibility:
     name: Python ${{ matrix.python-version }} compatibility smoke
     runs-on: ubuntu-latest

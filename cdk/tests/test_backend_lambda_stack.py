@@ -415,6 +415,10 @@ def test_backend_api_routes_require_cognito_authorizer(template):
         f"Unexpected unauthenticated routes: {actual_none_routes - UNAUTHENTICATED_ROUTES}; "
         f"Missing expected unauthenticated routes: {UNAUTHENTICATED_ROUTES - actual_none_routes}"
     )
+    assert "GET /health" in actual_none_routes, (
+        "GET /health route key not found in synthesized template — "
+        "CDK may have changed the RouteKey format; update UNAUTHENTICATED_ROUTES to match"
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -208,7 +208,9 @@ jobs:
           fi
           # /api-console is an explicitly defined route; hitting it without a token
           # exercises the API Gateway JWT authorizer on the /{proxy+} catch-all.
-          auth_status=$(curl --retry 3 --retry-delay 5 --retry-all-errors --write-out "%{http_code}" --silent --output /dev/null "${backend_url%/}/api-console")
+          # No --retry-all-errors here: 401 is the expected outcome, not an error,
+          # and retrying on it would add unnecessary delay.
+          auth_status=$(curl --retry 3 --retry-delay 5 --write-out "%{http_code}" --silent --output /dev/null "${backend_url%/}/api-console")
           if [ "$auth_status" != "401" ]; then
             echo "Expected HTTP 401 from protected /api-console endpoint, got $auth_status — Cognito authorizer may not be wired up" >&2
             exit 1

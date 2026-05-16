@@ -398,14 +398,17 @@ def test_backend_api_routes_require_cognito_authorizer(template):
     for logical_id, resource in routes.items():
         properties = resource["Properties"]
         route_key = properties.get("RouteKey", logical_id)
-        if properties.get("AuthorizationType") == "NONE":
+        auth_type = properties.get("AuthorizationType")
+        if auth_type == "NONE":
             actual_none_routes.add(route_key)
-        else:
-            assert properties.get("AuthorizationType") == "JWT", (
-                f"Route {route_key} must require Cognito JWT authorization"
-            )
+        elif auth_type == "JWT":
             assert "AuthorizerId" in properties, (
                 f"Route {route_key} must reference the JWT authorizer"
+            )
+        else:
+            raise AssertionError(
+                f"Route {route_key} has unexpected AuthorizationType {auth_type!r}; "
+                "every route must be either JWT-protected or explicitly listed in UNAUTHENTICATED_ROUTES"
             )
 
     assert actual_none_routes == UNAUTHENTICATED_ROUTES, (

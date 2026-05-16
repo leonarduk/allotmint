@@ -193,20 +193,19 @@ jobs:
           # pyarrow, yfinance, selenium). AWS kills the first container after 10 s and
           # retries with a second instance. Send a probe with generous retries so the
           # cold-start completes before the strict validation gate runs below.
-          # --retry-max-time 150 caps the total retry wall-time so this step cannot
-          # block the job for more than ~150 s regardless of per-attempt --max-time.
           # Record METRIC_START *before* the curl so the timestamp is always
           # written even if the probe exits non-zero. The error-rate check uses
           # this as its window start, keeping warm-up init-timeout errors out of
           # the gate regardless of whether the warm-up itself succeeds.
           echo "METRIC_START=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
-          echo "Sending warm-up probe to ${BACKEND_URL%/}/health (cold-start may take up to 120 s)..."
-          # --retry-max-time 150: caps total retry wall-time at 150 s.
-          # Each attempt is bounded by --max-time 120, and retries add
-          # --retry-delay 10 s between them. In practice cold-starts complete
-          # in ~24 s so the second attempt succeeds well within the budget.
+          echo "Sending warm-up probe to ${BACKEND_URL%/}/health (cold-start may take up to 40 s per attempt)..."
+          # --max-time 40: short enough that a hung first attempt (API Gateway
+          # holding the connection open while Lambda init is killed) times out
+          # quickly and leaves retry budget for the second instance.
+          # --retry-max-time 150: caps total wall-time across all attempts;
+          # with --retry-delay 10 this allows ~3 full 40 s attempts.
           curl --retry 5 --retry-delay 10 --retry-all-errors \
-            --retry-max-time 150 --max-time 120 --silent --output /dev/null \
+            --retry-max-time 150 --max-time 40 --silent --output /dev/null \
             "${BACKEND_URL%/}/health" \
             && echo "Warm-up probe succeeded." \
             || echo "Warm-up probe finished with non-zero exit (tolerated — validation step will assert)."

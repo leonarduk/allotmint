@@ -180,6 +180,22 @@ jobs:
           --parameters StaticSiteStack:BackendApiUrl="$BACKEND_URL"
         working-directory: cdk
 
+      - name: Warm up backend Lambda (absorb cold-start before validation)
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
+        continue-on-error: true
+        run: |
+          # Lambda container init takes ~24 s on a fresh deploy (heavy imports: pandas,
+          # pyarrow, yfinance, selenium). AWS kills the first container after 10 s and
+          # retries with a second instance. Send a probe with generous retries so the
+          # cold-start completes before the strict validation gate runs below.
+          echo "Sending warm-up probe to ${BACKEND_URL%/}/health (cold-start may take up to 120 s)..."
+          curl --retry 5 --retry-delay 10 --retry-all-errors \
+            --max-time 120 --silent --output /dev/null \
+            "${BACKEND_URL%/}/health" \
+            && echo "Warm-up probe succeeded." \
+            || echo "Warm-up probe finished with non-zero exit (tolerated — validation step will assert)."
+
       - name: Validate backend and frontend endpoints
         env:
           AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
@@ -201,23 +217,61 @@ jobs:
             echo "DistributionDomain output is missing from StaticSiteStack" >&2
             exit 1
           fi
-          status=$(curl --retry 3 --retry-delay 5 --retry-all-errors --write-out "%{http_code}" --silent --output /dev/null "${backend_url%/}/health")
+          echo "Checking /health → ${backend_url%/}/health"
+          status=$(curl --retry 3 --retry-delay 5 --retry-all-errors \
+            --max-time 60 --write-out "%{http_code}" --silent --output /dev/null \
+            "${backend_url%/}/health")
           if [ "$status" != "200" ]; then
             echo "Expected HTTP 200 from unauthenticated /health endpoint, got $status" >&2
             exit 1
           fi
+          echo "/health → $status OK"
           # /api-console is an explicitly defined route; hitting it without a token
           # exercises the API Gateway JWT authorizer on the /{proxy+} catch-all.
           # No --retry-all-errors here: 401 is the expected outcome, not an error,
           # and retrying on it would add unnecessary delay.
-          auth_status=$(curl --retry 3 --retry-delay 5 --write-out "%{http_code}" --silent --output /dev/null "${backend_url%/}/api-console")
+          echo "Checking auth → ${backend_url%/}/api-console"
+          auth_status=$(curl --retry 3 --retry-delay 5 \
+            --max-time 60 --write-out "%{http_code}" --silent --output /dev/null \
+            "${backend_url%/}/api-console")
           if [ "$auth_status" != "401" ]; then
             echo "Expected HTTP 401 from protected /api-console endpoint, got $auth_status — Cognito authorizer may not be wired up" >&2
             exit 1
           fi
-          curl --fail --show-error --silent "https://${frontend_domain}" >/dev/null
+          echo "/api-console → $auth_status (auth required) OK"
+          # Use curl's --output /dev/null flag (not a shell >/dev/null redirect) to
+          # avoid exit-23 write errors on HTTP/2 CloudFront connections. Capture the
+          # HTTP status so failures are self-explanatory rather than just an exit code.
+          echo "Checking frontend → https://${frontend_domain}"
+          cf_status=$(curl --location --retry 3 --retry-delay 5 \
+            --max-time 60 --write-out "%{http_code}" --silent --output /dev/null \
+            "https://${frontend_domain}")
+          if [ "$cf_status" != "200" ]; then
+            echo "Expected HTTP 200 from CloudFront frontend, got $cf_status" >&2
+            exit 1
+          fi
+          echo "Frontend → $cf_status OK"
+
+      - name: Fetch BackendLambda CloudWatch logs (deploy)
+        if: always()
+        continue-on-error: true
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          log_group="$(aws cloudformation describe-stacks \
+            --stack-name BackendLambdaStack \
+            --query "Stacks[0].Outputs[?OutputKey=='BackendLambdaLogGroupName'].OutputValue" \
+            --output text 2>/dev/null || echo "")"
+          if [ -z "$log_group" ] || [ "$log_group" = "None" ]; then
+            echo "BackendLambdaLogGroupName not found in BackendLambdaStack outputs; skipping log dump." >&2
+            exit 0
+          fi
+          echo "=== BackendLambda CloudWatch logs (last 10 minutes) ==="
+          aws logs tail "$log_group" --since 10m --format short || echo "(no log events found)"
 
       - name: Check recent BackendLambda CloudWatch errors
+        if: always()
         env:
           AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
         run: |

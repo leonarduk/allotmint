@@ -232,9 +232,14 @@ jobs:
             exit 1
           fi
           echo "Checking /health → ${backend_url%/}/health"
+          curl_exit=0
           status=$(curl --retry 3 --retry-delay 5 --retry-all-errors \
             --max-time 60 --write-out "%{http_code}" --silent --output /dev/null \
-            "${backend_url%/}/health")
+            "${backend_url%/}/health") || curl_exit=$?
+          if [ "$curl_exit" -ne 0 ]; then
+            echo "curl failed (exit ${curl_exit}) checking ${backend_url%/}/health" >&2
+            exit 1
+          fi
           if [ "$status" != "200" ]; then
             echo "Expected HTTP 200 from unauthenticated /health endpoint, got $status" >&2
             exit 1
@@ -245,9 +250,14 @@ jobs:
           # No --retry-all-errors here: 401 is the expected outcome, not an error,
           # and retrying on it would add unnecessary delay.
           echo "Checking auth → ${backend_url%/}/api-console"
+          curl_exit=0
           auth_status=$(curl --retry 3 --retry-delay 5 \
             --max-time 60 --write-out "%{http_code}" --silent --output /dev/null \
-            "${backend_url%/}/api-console")
+            "${backend_url%/}/api-console") || curl_exit=$?
+          if [ "$curl_exit" -ne 0 ]; then
+            echo "curl failed (exit ${curl_exit}) checking ${backend_url%/}/api-console" >&2
+            exit 1
+          fi
           if [ "$auth_status" != "401" ]; then
             echo "Expected HTTP 401 from protected /api-console endpoint, got $auth_status — Cognito authorizer may not be wired up" >&2
             exit 1
@@ -256,10 +266,38 @@ jobs:
           # Use curl's --output /dev/null flag (not a shell >/dev/null redirect) to
           # avoid exit-23 write errors on HTTP/2 CloudFront connections. Capture the
           # HTTP status so failures are self-explanatory rather than just an exit code.
+          # CloudFront DNS can take up to ~2 min to propagate for a newly created or
+          # recreated distribution. curl's built-in retry window (3 × 5 s = 15 s) is
+          # too short; spin here so a fresh deployment doesn't produce exit code 6.
+          # Uses getent(1) (libc resolver, always present on Linux) rather than host/nslookup
+          # (bind9-dnsutils) to avoid a dependency on a package that may not be installed.
+          # See issue #3000.
+          echo "Waiting for DNS resolution of ${frontend_domain}..."
+          dns_ok=0
+          for i in $(seq 1 12); do
+            if getent hosts "$frontend_domain" >/dev/null 2>&1; then
+              echo "DNS resolved (attempt $i/12)"
+              dns_ok=1
+              break
+            fi
+            if [ "$i" -lt 12 ]; then
+              echo "Attempt $i/12: DNS not yet resolving; retrying in 10 s..."
+              sleep 10
+            fi
+          done
+          if [ "$dns_ok" -eq 0 ]; then
+            echo "DNS for ${frontend_domain} still not resolving after 120 s" >&2
+            exit 1
+          fi
           echo "Checking frontend → https://${frontend_domain}"
+          curl_exit=0
           cf_status=$(curl --location --retry 3 --retry-delay 5 --retry-all-errors \
             --max-time 60 --write-out "%{http_code}" --silent --output /dev/null \
-            "https://${frontend_domain}")
+            "https://${frontend_domain}") || curl_exit=$?
+          if [ "$curl_exit" -ne 0 ]; then
+            echo "curl failed (exit ${curl_exit}) checking https://${frontend_domain}" >&2
+            exit 1
+          fi
           if [ "$cf_status" != "200" ]; then
             echo "Expected HTTP 200 from CloudFront frontend, got $cf_status" >&2
             exit 1
@@ -269,9 +307,9 @@ jobs:
       - name: Fetch BackendLambda CloudWatch logs (deploy)
         # BackendLambdaLogGroupName is exported by BackendLambdaStack at
         # cdk/stacks/backend_lambda_stack.py (CfnOutput "BackendLambdaLogGroupName").
-        # The deploy IAM role must have logs:GetLogEvents + logs:DescribeLogStreams
-        # on the log group ARN for this step to produce output; without those
-        # permissions `aws logs tail` exits non-zero and continue-on-error absorbs it.
+        # The deploy IAM role must have logs:FilterLogEvents on the log group ARN for
+        # this step to produce output; without it filter-log-events errors and
+        # continue-on-error absorbs it.
         if: always()
         continue-on-error: true
         env:
@@ -287,7 +325,18 @@ jobs:
             exit 0
           fi
           echo "=== BackendLambda CloudWatch logs (last 10 minutes) ==="
-          aws logs tail "$log_group" --since 10m --format short --no-follow || echo "(no log events found)"
+          # aws logs tail is CLI v2 only; use filter-log-events for CLI v1 compatibility.
+          # Shell arithmetic avoids a python3 dependency on self-hosted runners.
+          # Note: filter-log-events returns at most 10 000 events per call (no pagination);
+          # output of "None" means no events matched (AWS CLI JMESPath null → text "None").
+          start_ms=$(( ($(date +%s) - 600) * 1000 ))
+          aws logs filter-log-events \
+            --log-group-name "$log_group" \
+            --start-time "$start_ms" \
+            --query 'events[].message' \
+            --output text \
+            | grep -v '^None$' \
+            || echo "(no log events found)"
 
       - name: Check recent BackendLambda CloudWatch errors
         if: always()
@@ -424,4 +473,15 @@ jobs:
             exit 0
           fi
           echo "=== BackendLambda CloudWatch logs (last 15 minutes) ==="
-          aws logs tail "$log_group" --since 15m --format short --no-follow || echo "(no log events found)"
+          # aws logs tail is CLI v2 only; use filter-log-events for CLI v1 compatibility.
+          # Shell arithmetic avoids a python3 dependency on self-hosted runners.
+          # Note: filter-log-events returns at most 10 000 events per call (no pagination);
+          # output of "None" means no events matched (AWS CLI JMESPath null → text "None").
+          start_ms=$(( ($(date +%s) - 900) * 1000 ))
+          aws logs filter-log-events \
+            --log-group-name "$log_group" \
+            --start-time "$start_ms" \
+            --query 'events[].message' \
+            --output text \
+            | grep -v '^None$' \
+            || echo "(no log events found)"

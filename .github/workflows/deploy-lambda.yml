@@ -271,12 +271,19 @@ jobs:
           # too short; spin here so a fresh deployment doesn't produce exit code 6.
           # Uses getent(1) (libc resolver, always present on Linux) rather than host/nslookup
           # (bind9-dnsutils) to avoid a dependency on a package that may not be installed.
-          # See issue #3000.
+          # getent and curl use different DNS backends on Ubuntu 24.04 (getent → NSS/
+          # systemd-resolved stub; curl → c-ares async resolver). Capturing the IP here
+          # and passing it to curl via --resolve bypasses curl's resolver entirely so the
+          # two backends cannot disagree. See issues #3000 and #3002.
           echo "Waiting for DNS resolution of ${frontend_domain}..."
           dns_ok=0
+          frontend_ip=""
           for i in $(seq 1 12); do
-            if getent hosts "$frontend_domain" >/dev/null 2>&1; then
-              echo "DNS resolved (attempt $i/12)"
+            # ahostsv4 forces IPv4; avoids bracket-notation requirement for
+            # curl --resolve with IPv6. || true: set -e exits on getent non-zero.
+            frontend_ip="$(getent ahostsv4 "$frontend_domain" 2>/dev/null | awk '{print $1; exit}')" || true
+            if [ -n "$frontend_ip" ]; then
+              echo "DNS resolved to ${frontend_ip} (attempt $i/12)"
               dns_ok=1
               break
             fi
@@ -293,6 +300,7 @@ jobs:
           curl_exit=0
           cf_status=$(curl --location --retry 3 --retry-delay 5 --retry-all-errors \
             --max-time 60 --write-out "%{http_code}" --silent --output /dev/null \
+            --resolve "${frontend_domain}:443:${frontend_ip}" \
             "https://${frontend_domain}") || curl_exit=$?
           if [ "$curl_exit" -ne 0 ]; then
             echo "curl failed (exit ${curl_exit}) checking https://${frontend_domain}" >&2

@@ -269,37 +269,38 @@ jobs:
           # CloudFront DNS can take up to ~2 min to propagate for a newly created or
           # recreated distribution. curl's built-in retry window (3 × 5 s = 15 s) is
           # too short; spin here so a fresh deployment doesn't produce exit code 6.
-          # Uses getent(1) (libc resolver, always present on Linux) rather than host/nslookup
-          # (bind9-dnsutils) to avoid a dependency on a package that may not be installed.
-          # getent and curl use different DNS backends on Ubuntu 24.04 (getent → NSS/
-          # systemd-resolved stub; curl → c-ares async resolver). Capturing the IP here
-          # and passing it to curl via --resolve bypasses curl's resolver entirely so the
-          # two backends cannot disagree. See issues #3000, #3002, and #3004.
+          # Uses dig(1) from dnsutils (pre-installed on ubuntu-latest runners) querying
+          # 8.8.8.8 directly, bypassing systemd-resolved's NSS stub (127.0.0.53) which
+          # silently returns empty results for external names on some GH-hosted runners.
+          # getent routes through NSS/systemd-resolved and proved unreliable here; see
+          # issue #3007. Capturing the IP and pinning it via curl --resolve ensures
+          # curl's c-ares resolver and dig agree on the same address, eliminating the
+          # class of exit-6 failures documented in issues #3000, #3002, and #3004.
           # viewer-request (cdk/functions/viewer-request.js) returns 301 for the raw
           # distribution domain; curl the canonical domain directly so the function
           # passes the request to S3 and returns a real 200. See issue #3004.
           # app.allotmint.io CNAMEs to the distribution, so waiting for it to resolve
           # implicitly gates on distribution DNS propagation too (CNAME → distribution
-          # domain → CloudFront edge). Budget matches the old distribution-domain loop.
+          # domain → CloudFront edge). Budget is 24 × 10 s = 240 s.
           canonical_domain="app.allotmint.io"
           echo "Distribution domain: ${frontend_domain}"
           echo "Waiting for DNS resolution of ${canonical_domain}..."
           canonical_ip=""
-          for i in $(seq 1 12); do
-            # ahostsv4 forces IPv4; avoids bracket-notation requirement for
-            # curl --resolve with IPv6. || true: set -e exits on getent non-zero.
-            canonical_ip="$(getent ahostsv4 "${canonical_domain}" 2>/dev/null | awk '{print $1; exit}')" || true
+          for i in $(seq 1 24); do
+            # +short A with explicit nameserver returns bare IPv4 addresses, one per line.
+            # head -1 picks the first; || true prevents set -e from aborting on NXDOMAIN.
+            canonical_ip="$(dig +short @8.8.8.8 A "${canonical_domain}" 2>/dev/null | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -1)" || true
             if [ -n "${canonical_ip}" ]; then
-              echo "DNS resolved ${canonical_domain} to ${canonical_ip} (attempt $i/12)"
+              echo "DNS resolved ${canonical_domain} to ${canonical_ip} (attempt $i/24)"
               break
             fi
-            if [ "$i" -lt 12 ]; then
-              echo "Attempt $i/12: DNS not yet resolving; retrying in 10 s..."
+            if [ "$i" -lt 24 ]; then
+              echo "Attempt $i/24: DNS not yet resolving; retrying in 10 s..."
               sleep 10
             fi
           done
           if [ -z "${canonical_ip}" ]; then
-            echo "DNS for ${canonical_domain} is not resolving after 120 s" >&2
+            echo "DNS for ${canonical_domain} is not resolving after 240 s" >&2
             exit 1
           fi
           echo "Checking frontend → https://${canonical_domain}"

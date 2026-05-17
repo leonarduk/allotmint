@@ -57,6 +57,21 @@ The stack is Python/FastAPI backend + React/Vite TypeScript frontend + AWS Lambd
 Key constraints: preserve portfolio/compliance correctness, keep backend/frontend contracts aligned,
 and avoid regressions in CI/deployment workflows.
 
+## Repo-specific context (verified facts — do not raise these as issues)
+
+- **`actions/checkout@v6` and `actions/setup-node@v6` are correct.** Dependabot bumped both from
+  v4 to v6 in PRs #2954/#2953; they are the repo-wide convention. Do not flag them as
+  non-existent or wrong.
+- **`api.getVarBreakdown()` returns camelCase keys** (`varDate`, `varLossPercent`, `scenarios`,
+  `breakdown`). The function in `frontend/src/api.ts` transforms the snake_case backend response
+  before returning. Test mocks that use camelCase for this function are correct.
+- **`recomputeValueAtRisk` is fire-and-forget** in `ValueAtRisk.tsx`. After calling it, the
+  component does not re-fetch `getValueAtRisk`; a period change or page refresh triggers the next
+  fetch. Tests asserting `getValueAtRisk` is called only once after a recompute are correct.
+- **`frontend/package-lock.json` contains Linux-specific optional peer deps** (e.g.
+  `@emnapi/core`, `@emnapi/runtime`) that do not appear when the lock file is regenerated on
+  Windows. Do not suggest regenerating or normalising the lock file on a non-Linux machine.
+
 ## Linked issue / acceptance criteria
 {issue_body}
 

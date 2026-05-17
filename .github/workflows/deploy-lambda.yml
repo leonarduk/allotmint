@@ -277,13 +277,14 @@ jobs:
           # two backends cannot disagree. See issues #3000, #3002, and #3004.
           # The viewer-request CloudFront function (cdk/functions/viewer-request.js)
           # redirects any request whose Host is not app.allotmint.io to the canonical
-          # host with 301. Resolving the distribution domain (*.cloudfront.net) and then
-          # curling the canonical URL pins c-ares out of the picture entirely: the IP is
-          # known from getent, --resolve maps it for the canonical hostname, and the
-          # viewer-request function passes the request through to S3 rather than
-          # redirecting, so we get a real 200 that validates actual content delivery.
-          # app.allotmint.io is a CNAME to the same CloudFront distribution, so the
-          # IP resolved for the distribution domain is valid for the canonical domain too.
+          # host with 301. To avoid following that redirect (which requires c-ares to
+          # resolve the canonical host and fails in CI), we resolve the canonical domain
+          # independently via getent and curl it directly with --resolve. This validates
+          # actual content delivery (viewer-request passes the request through to S3 →
+          # 200) rather than just distribution reachability (a 301 pre-origin redirect).
+          # The distribution DNS wait loop below guards against a newly created
+          # distribution not yet propagating; app.allotmint.io is a stable CNAME so a
+          # single getent lookup (no retry loop) is sufficient for it.
           canonical_domain="app.allotmint.io"
           echo "Waiting for DNS resolution of ${frontend_domain}..."
           dns_ok=0
@@ -293,7 +294,7 @@ jobs:
             # curl --resolve with IPv6. || true: set -e exits on getent non-zero.
             frontend_ip="$(getent ahostsv4 "$frontend_domain" 2>/dev/null | awk '{print $1; exit}')" || true
             if [ -n "$frontend_ip" ]; then
-              echo "DNS resolved to ${frontend_ip} (attempt $i/12)"
+              echo "DNS resolved ${frontend_domain} to ${frontend_ip} (attempt $i/12)"
               dns_ok=1
               break
             fi
@@ -306,11 +307,17 @@ jobs:
             echo "DNS for ${frontend_domain} still not resolving after 120 s" >&2
             exit 1
           fi
+          canonical_ip="$(getent ahostsv4 "${canonical_domain}" 2>/dev/null | awk '{print $1; exit}')" || true
+          if [ -z "${canonical_ip}" ]; then
+            echo "DNS for ${canonical_domain} is not resolving" >&2
+            exit 1
+          fi
+          echo "DNS resolved ${canonical_domain} to ${canonical_ip}"
           echo "Checking frontend → https://${canonical_domain}"
           curl_exit=0
           cf_status=$(curl --retry 3 --retry-delay 5 --retry-all-errors \
             --max-time 60 --write-out "%{http_code}" --silent --output /dev/null \
-            --resolve "${canonical_domain}:443:${frontend_ip}" \
+            --resolve "${canonical_domain}:443:${canonical_ip}" \
             "https://${canonical_domain}") || curl_exit=$?
           if [ "$curl_exit" -ne 0 ]; then
             echo "curl failed (exit ${curl_exit}) checking https://${canonical_domain}" >&2

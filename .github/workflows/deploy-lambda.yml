@@ -193,11 +193,6 @@ jobs:
           # pyarrow, yfinance, selenium). AWS kills the first container after 10 s and
           # retries with a second instance. Send a probe with generous retries so the
           # cold-start completes before the strict validation gate runs below.
-          # Record METRIC_START *before* the curl so the timestamp is always
-          # written even if the probe exits non-zero. The error-rate check uses
-          # this as its window start, keeping warm-up init-timeout errors out of
-          # the gate regardless of whether the warm-up itself succeeds.
-          echo "METRIC_START=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
           echo "Sending warm-up probe to ${BACKEND_URL%/}/health (cold-start may take up to 40 s per attempt)..."
           # --max-time 40: short enough that a hung first attempt (API Gateway
           # holding the connection open while Lambda init is killed) times out
@@ -209,6 +204,9 @@ jobs:
             "${BACKEND_URL%/}/health" \
             && echo "Warm-up probe succeeded." \
             || echo "Warm-up probe finished with non-zero exit (tolerated — validation step will assert)."
+          # Record METRIC_START *after* the warm-up curl so cold-start init-timeout
+          # errors land before the window and are excluded from the error-rate gate.
+          echo "METRIC_START=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
 
       - name: Validate backend and frontend endpoints
         env:

@@ -10,11 +10,11 @@ vi.mock("@/api", () => ({
   getVarBreakdown: vi.fn(),
 }));
 
-afterEach(() => {
-  vi.restoreAllMocks();
-});
-
 import * as api from "@/api";
+
+afterEach(() => {
+  vi.clearAllMocks();
+});
 
 describe("ValueAtRisk component", () => {
   it("renders VaR values and selectors", async () => {
@@ -107,6 +107,9 @@ describe("ValueAtRisk component", () => {
     );
 
     await waitFor(() => expect(api.recomputeValueAtRisk).toHaveBeenCalledTimes(1));
+    // After recompute, the component should not re-fetch automatically
+    // (recompute is fire-and-forget; a page refresh or period change triggers the next fetch).
+    expect(api.getValueAtRisk).toHaveBeenCalledTimes(1);
   });
 
   it("skips state updates when unmounted", async () => {

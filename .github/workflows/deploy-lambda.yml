@@ -307,9 +307,22 @@ jobs:
             echo "DNS for ${frontend_domain} still not resolving after 120 s" >&2
             exit 1
           fi
-          canonical_ip="$(getent ahostsv4 "${canonical_domain}" 2>/dev/null | awk '{print $1; exit}')" || true
+          # app.allotmint.io is a CNAME to the same distribution, so it should resolve
+          # as soon as frontend_domain does — but a short retry guards against the
+          # same transient DNS blips that the loop above handles for frontend_domain.
+          canonical_ip=""
+          for i in $(seq 1 4); do
+            canonical_ip="$(getent ahostsv4 "${canonical_domain}" 2>/dev/null | awk '{print $1; exit}')" || true
+            if [ -n "${canonical_ip}" ]; then
+              break
+            fi
+            if [ "$i" -lt 4 ]; then
+              echo "Attempt $i/4: ${canonical_domain} DNS not yet resolving; retrying in 5 s..."
+              sleep 5
+            fi
+          done
           if [ -z "${canonical_ip}" ]; then
-            echo "DNS for ${canonical_domain} is not resolving" >&2
+            echo "DNS for ${canonical_domain} is not resolving after 4 attempts" >&2
             exit 1
           fi
           echo "DNS resolved ${canonical_domain} to ${canonical_ip}"

@@ -317,7 +317,9 @@ jobs:
             --log-group-name "$log_group" \
             --start-time "$start_ms" \
             --query 'events[].message' \
-            --output text || echo "(no log events found)"
+            --output text \
+            | grep -v '^None$' \
+            || echo "(no log events found)"
 
       - name: Check recent BackendLambda CloudWatch errors
         if: always()
@@ -463,4 +465,6 @@ jobs:
             --log-group-name "$log_group" \
             --start-time "$start_ms" \
             --query 'events[].message' \
-            --output text || echo "(no log events found)"
+            --output text \
+            | grep -v '^None$' \
+            || echo "(no log events found)"

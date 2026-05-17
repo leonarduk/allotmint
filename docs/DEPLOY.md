@@ -229,8 +229,14 @@ If deployment fails or the live environment does not match local behavior:
    ```bash
    BACKEND_LOG_GROUP=$(aws cloudformation describe-stacks --stack-name BackendLambdaStack \
      --query "Stacks[0].Outputs[?OutputKey=='BackendLambdaLogGroupName'].OutputValue" --output text)
-   aws logs tail "$BACKEND_LOG_GROUP" --since 30m --follow
+   # CLI v2: aws logs tail "$BACKEND_LOG_GROUP" --since 30m --follow
+   start_ms=$(( ($(date +%s) - 1800) * 1000 ))
+   aws logs filter-log-events --log-group-name "$BACKEND_LOG_GROUP" \
+     --start-time "$start_ms" --query 'events[].message' --output text
    ```
+
+   The deploy IAM role must have `logs:FilterLogEvents` on the log group ARN for
+   the post-deploy log-dump CI step to produce output.
 
    The scheduled Lambdas expose the same discoverability outputs as
    `PriceRefreshLambdaLogGroupName` and `TradingAgentLambdaLogGroupName`.

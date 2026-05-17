@@ -148,6 +148,7 @@ jobs:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           CDK_OUTDIR: /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
+          GITHUB_DEPLOY_ROLE_ARN: ${{ secrets.AWS_ROLE_TO_ASSUME }}
         run: >
           npx cdk deploy BackendLambdaStack --require-approval never
           --parameters BackendLambdaStack:UiAuthUserPoolId="$UI_AUTH_USER_POOL_ID"

@@ -349,6 +349,61 @@ def test_lambda_roles_do_not_have_s3_delete_permissions() -> None:
         ), f"Found wildcard grant for {fragment} which implicitly includes delete"
 
 
+def _logs_filter_actions_for_role_name(template: dict, role_name: str) -> list[str]:
+    """Return all resources granting logs:FilterLogEvents to the named role."""
+    found: list[str] = []
+    for resource in template["Resources"].values():
+        if resource.get("Type") != "AWS::IAM::Policy":
+            continue
+        roles = resource.get("Properties", {}).get("Roles", [])
+        if role_name not in roles:
+            continue
+        for statement in resource.get("Properties", {}).get("PolicyDocument", {}).get("Statement", []):
+            actions = statement.get("Action", [])
+            if isinstance(actions, str):
+                actions = [actions]
+            if "logs:FilterLogEvents" in actions:
+                stmt_resources = statement.get("Resource", [])
+                if isinstance(stmt_resources, (str, dict)):
+                    stmt_resources = [stmt_resources]
+                found.extend(stmt_resources)
+    return found
+
+
+def test_github_deploy_role_gets_filterlogevents_on_all_log_groups(monkeypatch) -> None:
+    """When GITHUB_DEPLOY_ROLE_ARN is set, CDK must attach logs:FilterLogEvents to
+    all three Lambda log groups so the CI log-dump step produces output. See #3009."""
+    role_arn = "arn:aws:iam::123456789012:role/allotmint-github-deploy"
+    monkeypatch.setenv("GITHUB_DEPLOY_ROLE_ARN", role_arn)
+    monkeypatch.setenv("JWT_SECRET", "test-secret")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-client-id")
+    app = App()
+    stack = BackendLambdaStack(app, "BackendLambdaStackLogGrantTest")
+    template = Template.from_stack(stack).to_json()
+
+    resources = _logs_filter_actions_for_role_name(template, "allotmint-github-deploy")
+    assert len(resources) == 3, (
+        f"Expected logs:FilterLogEvents on exactly 3 log groups (backend, price-refresh, "
+        f"trading-agent), got {len(resources)}: {resources}"
+    )
+
+
+def test_no_log_grant_when_github_deploy_role_arn_absent(monkeypatch) -> None:
+    """When GITHUB_DEPLOY_ROLE_ARN is unset, no extra IAM policy should be synthesised."""
+    monkeypatch.delenv("GITHUB_DEPLOY_ROLE_ARN", raising=False)
+    monkeypatch.setenv("JWT_SECRET", "test-secret")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-client-id")
+    app = App()
+    stack = BackendLambdaStack(app, "BackendLambdaStackNoLogGrantTest")
+    template = Template.from_stack(stack).to_json()
+
+    resources = _logs_filter_actions_for_role_name(template, "allotmint-github-deploy")
+    assert resources == [], (
+        f"Expected no logs:FilterLogEvents policy when GITHUB_DEPLOY_ROLE_ARN is unset, "
+        f"got: {resources}"
+    )
+
+
 def test_grant_bucket_access_raises_on_no_permissions() -> None:
     class _MockFn:
         def add_to_role_policy(self, policy_statement: object) -> None:

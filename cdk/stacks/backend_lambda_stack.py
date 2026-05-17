@@ -495,6 +495,20 @@ class BackendLambdaStack(Stack):
             notifications_with_subscribers=[budget_notification] if budget_notification else None,
         )
 
+        # Grant the GitHub Actions deploy role read access to all Lambda log groups so
+        # the CI log-dump step (filter-log-events) can produce output. The role is
+        # managed outside CDK; importing it here with mutable=True lets CDK attach a
+        # scoped IAM policy via cdk deploy without any manual console changes.
+        # Set GITHUB_DEPLOY_ROLE_ARN to secrets.AWS_ROLE_TO_ASSUME in the workflow.
+        # See issue #3009.
+        github_deploy_role_arn = os.getenv("GITHUB_DEPLOY_ROLE_ARN", "")
+        if github_deploy_role_arn:
+            github_role = iam.Role.from_role_arn(
+                self, "GithubDeployRole", github_deploy_role_arn, mutable=True
+            )
+            for log_group in (backend_log_group, refresh_log_group, agent_log_group):
+                log_group.grant(github_role, "logs:FilterLogEvents")
+
         CfnOutput(
             self,
             "BackendApiUrl",

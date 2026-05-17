@@ -279,7 +279,7 @@ jobs:
           dns_ok=0
           frontend_ip=""
           for i in $(seq 1 12); do
-            frontend_ip="$(getent hosts "$frontend_domain" | awk '{print $1; exit}')"
+            frontend_ip="$(getent hosts "$frontend_domain" 2>/dev/null | awk '{print $1; exit}')" || true
             if [ -n "$frontend_ip" ]; then
               echo "DNS resolved to ${frontend_ip} (attempt $i/12)"
               dns_ok=1

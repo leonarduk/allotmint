@@ -194,13 +194,14 @@ jobs:
           # retries with a second instance. Send a probe with generous retries so the
           # cold-start completes before the strict validation gate runs below.
           echo "Sending warm-up probe to ${BACKEND_URL%/}/health (cold-start may take up to 40 s per attempt)..."
-          # --max-time 40: short enough that a hung first attempt (API Gateway
-          # holding the connection open while Lambda init is killed) times out
-          # quickly and leaves retry budget for the second instance.
-          # --retry-max-time 150: caps total wall-time across all attempts;
-          # --retry 3 = 1 initial + 3 retries; with --retry-delay 10 this allows
-          # up to 4 full 40 s attempts (4×40 + 3×10 = 190 s worst case, capped at 150 s).
-          curl --retry 3 --retry-delay 10 --retry-all-errors \
+          # --fail: makes curl exit non-zero on HTTP 4xx/5xx so that --retry-all-errors
+          # retries on cold-start 502/504 responses (without --fail, curl exits 0 on
+          # any HTTP response and the warm-up would prematurely consider a 502 a success).
+          # --max-time 40: short enough that a hung first attempt (API Gateway holding
+          # the connection while Lambda init is killed) times out quickly.
+          # --retry-max-time 150: hard wall-clock cap across all attempts; the 4th
+          # attempt may be cut short if earlier attempts consume the budget.
+          curl --retry 3 --retry-delay 10 --retry-all-errors --fail \
             --retry-max-time 150 --max-time 40 --silent --output /dev/null \
             "${BACKEND_URL%/}/health" \
             && echo "Warm-up probe succeeded." \

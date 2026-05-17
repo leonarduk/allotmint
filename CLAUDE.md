@@ -35,6 +35,7 @@ npm run smoke:test:codex:poc
 - Python config is split: root `pyproject.toml` handles pytest/coverage, while `backend/pyproject.toml` drives Black/isort/Ruff for the backend.
 - Backend lint/format config currently targets Python 3.11 semantics even though some docs mention Python 3.12.
 - Avoid editing generated or vendored folders like `node_modules/`.
+- Never use `git commit -am`; always stage specific files explicitly. The `-a` flag will sweep in any lock file changes from local `npm ci` or `npm install` runs, which can strip platform-specific optional deps (e.g. Linux `@emnapi` entries) and break CI.
 - Be cautious around `data/`, auth toggles, and smoke-test identities; these often affect local demos and automated flows.
 - Preserve cross-platform workflow parity when touching scripts because the repo uses both bash and PowerShell helpers.
 

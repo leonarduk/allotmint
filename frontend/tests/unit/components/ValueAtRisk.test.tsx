@@ -2,20 +2,27 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import ValueAtRisk from "@/components/ValueAtRisk";
 
+// Mock the api module directly to avoid depending on globalThis.fetch
+// indirection through dynamicFetch, which can be timing-sensitive in CI.
+vi.mock("@/api", () => ({
+  getValueAtRisk: vi.fn(),
+  recomputeValueAtRisk: vi.fn(),
+  getVarBreakdown: vi.fn(),
+}));
+
+import * as api from "@/api";
+
 afterEach(() => {
-  vi.restoreAllMocks();
+  vi.clearAllMocks();
 });
 
 describe("ValueAtRisk component", () => {
   it("renders VaR values and selectors", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        owner: "alice",
-        as_of: "2024-01-01",
-        var: { "1d": 123.45, "10d": 678.9 },
-      }),
-    } as unknown as Response);
+    vi.mocked(api.getValueAtRisk).mockResolvedValue({
+      owner: "alice",
+      as_of: "2024-01-01",
+      var: { "1d": 123.45, "10d": 678.9 },
+    } as any);
 
     render(<ValueAtRisk owner="alice" />);
 
@@ -27,37 +34,30 @@ describe("ValueAtRisk component", () => {
     const periodSel = screen.getByLabelText(/Period/i);
     fireEvent.change(periodSel, { target: { value: "90" } });
 
-    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(api.getValueAtRisk).toHaveBeenCalledTimes(2)
+    );
+    expect(api.getValueAtRisk).toHaveBeenLastCalledWith("alice", { days: 90 });
   });
 
   it("opens breakdown modal when VaR value clicked", async () => {
     const onDateChange = vi.fn();
-    vi.spyOn(globalThis, "fetch").mockImplementation((input: RequestInfo) => {
-      if (typeof input === "string" && input.includes("/breakdown")) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({
-            var_date: "2024-01-02",
-            var_loss_percent: 5.0,
-            scenarios: [
-              { date: "2024-01-02", portfolio_return: -0.05, loss_percent: 5.0 },
-            ],
-            breakdown: [
-              { ticker: "AAA", name: "Alpha Plc", relative_change_percent: -12.5, scenario_amount_gbp: -75, contribution: 60 },
-              { ticker: "BBB", name: "Beta Ltd", relative_change_percent: 8.4, scenario_amount_gbp: 20, contribution: 40 },
-            ],
-          }),
-        } as unknown as Response);
-      }
-      return Promise.resolve({
-        ok: true,
-        json: async () => ({
-          owner: "alice",
-          as_of: "2024-01-01",
-          var: { "1d": 100, "10d": 200 },
-        }),
-      } as unknown as Response);
-    });
+    vi.mocked(api.getValueAtRisk).mockResolvedValue({
+      owner: "alice",
+      as_of: "2024-01-01",
+      var: { "1d": 100, "10d": 200 },
+    } as any);
+    vi.mocked(api.getVarBreakdown).mockResolvedValue({
+      varDate: "2024-01-02",
+      varLossPercent: 5.0,
+      scenarios: [
+        { date: "2024-01-02", portfolio_return: -0.05, loss_percent: 5.0 },
+      ],
+      breakdown: [
+        { ticker: "AAA", name: "Alpha Plc", relative_change_percent: -12.5, scenario_amount_gbp: -75, contribution: 60 },
+        { ticker: "BBB", name: "Beta Ltd", relative_change_percent: 8.4, scenario_amount_gbp: 20, contribution: 40 },
+      ],
+    } as any);
 
     render(<ValueAtRisk owner="alice" onDateChange={onDateChange} />);
 
@@ -88,20 +88,17 @@ describe("ValueAtRisk component", () => {
   });
 
   it("renders placeholder when data missing and triggers recomputation", async () => {
-    const fetchMock = vi
-      .spyOn(globalThis, "fetch")
+    vi.mocked(api.getValueAtRisk)
       .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          owner: "alice",
-          as_of: "2024-01-01",
-          var: { "1d": null, "10d": null },
-        }),
-      } as unknown as Response)
+        owner: "alice",
+        as_of: "2024-01-01",
+        var: { "1d": null, "10d": null },
+      } as any)
       .mockResolvedValue({
-        ok: true,
-        json: async () => ({ owner: "alice", var: { "1d": 1, "10d": 2 } }),
-      } as unknown as Response);
+        owner: "alice",
+        var: { "1d": 1, "10d": 2 },
+      } as any);
+    vi.mocked(api.recomputeValueAtRisk).mockResolvedValue(undefined as any);
 
     render(<ValueAtRisk owner="alice" />);
 
@@ -109,26 +106,22 @@ describe("ValueAtRisk component", () => {
       screen.getByText(/No VaR data available\./i)
     );
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(api.recomputeValueAtRisk).toHaveBeenCalledTimes(1));
+    // After recompute, the component should not re-fetch automatically
+    // (recompute is fire-and-forget; a page refresh or period change triggers the next fetch).
+    expect(api.getValueAtRisk).toHaveBeenCalledTimes(1);
   });
 
   it("skips state updates when unmounted", async () => {
-    let resolveFetch!: (value: Response) => void;
-    const fetchPromise = new Promise<Response>((resolve) => {
-      resolveFetch = resolve;
-    });
-    const fetchMock = vi
-      .spyOn(globalThis, "fetch")
-      .mockImplementation(() => fetchPromise as unknown as Promise<Response>);
+    let resolve!: (value: any) => void;
+    const pending = new Promise<any>((res) => { resolve = res; });
+    vi.mocked(api.getValueAtRisk).mockImplementation(() => pending);
 
     const { unmount } = render(<ValueAtRisk owner="alice" />);
     unmount();
-    resolveFetch({
-      ok: true,
-      json: async () => ({ owner: "alice", var: { "1d": 1, "10d": 2 } }),
-    } as unknown as Response);
+    resolve({ owner: "alice", var: { "1d": 1, "10d": 2 } });
 
-    await fetchPromise;
-    expect(fetchMock).toHaveBeenCalled();
+    await pending;
+    expect(api.getValueAtRisk).toHaveBeenCalled();
   });
 });

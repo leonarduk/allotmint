@@ -279,7 +279,9 @@ jobs:
           dns_ok=0
           frontend_ip=""
           for i in $(seq 1 12); do
-            frontend_ip="$(getent hosts "$frontend_domain" 2>/dev/null | awk '{print $1; exit}')" || true
+            # ahostsv4 forces IPv4; avoids bracket-notation requirement for
+            # curl --resolve with IPv6. || true: set -e exits on getent non-zero.
+            frontend_ip="$(getent ahostsv4 "$frontend_domain" 2>/dev/null | awk '{print $1; exit}')" || true
             if [ -n "$frontend_ip" ]; then
               echo "DNS resolved to ${frontend_ip} (attempt $i/12)"
               dns_ok=1

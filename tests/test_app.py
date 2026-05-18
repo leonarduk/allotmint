@@ -12,7 +12,7 @@ def test_health_env_variable(monkeypatch):
     monkeypatch.setattr(config, "app_env", "staging")
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
     monkeypatch.setattr(config, "snapshot_warm_days", 30)
-    with patch("backend.bootstrap.startup.refresh_snapshot_async") as mock_refresh:
+    with patch("backend.common.portfolio_utils.refresh_snapshot_async") as mock_refresh:
         app = create_app()
         with TestClient(app) as client:
             resp = client.get("/health")
@@ -25,9 +25,9 @@ def test_startup_warms_snapshot(monkeypatch):
     monkeypatch.setattr(config, "skip_snapshot_warm", False)
     monkeypatch.setattr(config, "snapshot_warm_days", 30)
     with (
-        patch("backend.bootstrap.startup.refresh_snapshot_async") as mock_refresh,
-        patch("backend.bootstrap.startup._load_snapshot", return_value=({}, None)) as mock_load,
-        patch("backend.bootstrap.startup.refresh_snapshot_in_memory") as mock_mem,
+        patch("backend.common.portfolio_utils.refresh_snapshot_async") as mock_refresh,
+        patch("backend.common.portfolio_utils._load_snapshot", return_value=({}, None)) as mock_load,
+        patch("backend.common.portfolio_utils.refresh_snapshot_in_memory") as mock_mem,
         patch("backend.common.instrument_api.update_latest_prices_from_snapshot") as mock_update,
         patch("backend.common.instrument_api.prime_latest_prices") as mock_prime,
     ):
@@ -45,8 +45,8 @@ def test_skip_snapshot_warm(monkeypatch):
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
     monkeypatch.setattr(config, "snapshot_warm_days", 30)
     with (
-        patch("backend.bootstrap.startup.refresh_snapshot_async") as mock_refresh,
-        patch("backend.bootstrap.startup._load_snapshot") as mock_load,
+        patch("backend.common.portfolio_utils.refresh_snapshot_async") as mock_refresh,
+        patch("backend.common.portfolio_utils._load_snapshot") as mock_load,
         patch("backend.common.instrument_api.update_latest_prices_from_snapshot") as mock_update,
         patch("backend.common.instrument_api.prime_latest_prices") as mock_prime,
     ):
@@ -71,7 +71,7 @@ def test_create_app_registers_rebalance_route(monkeypatch):
 def test_docs_url_is_removed(monkeypatch):
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
     monkeypatch.setattr(config, "snapshot_warm_days", 30)
-    with patch("backend.bootstrap.startup.refresh_snapshot_async"):
+    with patch("backend.common.portfolio_utils.refresh_snapshot_async"):
         app = create_app()
         with TestClient(app) as client:
             resp = client.get("/docs")
@@ -84,7 +84,7 @@ def test_api_console_accessible_when_auth_disabled(monkeypatch):
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
     monkeypatch.setattr(config, "snapshot_warm_days", 30)
     monkeypatch.setattr(config, "disable_auth", True)
-    with patch("backend.bootstrap.startup.refresh_snapshot_async"):
+    with patch("backend.common.portfolio_utils.refresh_snapshot_async"):
         app = create_app()
         app.dependency_overrides[auth.get_current_user] = lambda: "dev@example.com"
         with TestClient(app) as client:
@@ -113,7 +113,7 @@ def test_api_console_admin_check(monkeypatch, admin_emails, disable_auth, email,
     monkeypatch.setattr(config, "snapshot_warm_days", 30)
     monkeypatch.setattr(config, "disable_auth", disable_auth)
     monkeypatch.setenv("ADMIN_EMAILS", admin_emails)
-    with patch("backend.bootstrap.startup.refresh_snapshot_async"):
+    with patch("backend.common.portfolio_utils.refresh_snapshot_async"):
         app = create_app()
         app.dependency_overrides[auth.get_current_user] = lambda: email
         with TestClient(app, raise_server_exceptions=False) as client:
@@ -130,9 +130,9 @@ def test_health_returns_200_when_prime_latest_prices_fails(monkeypatch):
         raise RuntimeError("simulated network failure on cold start")
 
     with (
-        patch("backend.bootstrap.startup.refresh_snapshot_async"),
-        patch("backend.bootstrap.startup._load_snapshot", return_value=({}, None)),
-        patch("backend.bootstrap.startup.refresh_snapshot_in_memory"),
+        patch("backend.common.portfolio_utils.refresh_snapshot_async"),
+        patch("backend.common.portfolio_utils._load_snapshot", return_value=({}, None)),
+        patch("backend.common.portfolio_utils.refresh_snapshot_in_memory"),
         patch("backend.common.instrument_api.update_latest_prices_from_snapshot"),
         patch("backend.common.instrument_api.prime_latest_prices", side_effect=_fail),
     ):
@@ -151,9 +151,9 @@ def test_health_returns_200_when_update_latest_prices_fails(monkeypatch):
         raise RuntimeError("simulated update_latest_prices failure")
 
     with (
-        patch("backend.bootstrap.startup.refresh_snapshot_async"),
-        patch("backend.bootstrap.startup._load_snapshot", return_value=({}, None)),
-        patch("backend.bootstrap.startup.refresh_snapshot_in_memory"),
+        patch("backend.common.portfolio_utils.refresh_snapshot_async"),
+        patch("backend.common.portfolio_utils._load_snapshot", return_value=({}, None)),
+        patch("backend.common.portfolio_utils.refresh_snapshot_in_memory"),
         patch(
             "backend.common.instrument_api.update_latest_prices_from_snapshot",
             side_effect=_fail,
@@ -171,7 +171,7 @@ def test_api_console_returns_401_when_unauthenticated(monkeypatch):
     monkeypatch.setattr(config, "snapshot_warm_days", 30)
     monkeypatch.setattr(config, "disable_auth", False)
     monkeypatch.setenv("JWT_SECRET", "test-secret")
-    with patch("backend.bootstrap.startup.refresh_snapshot_async"):
+    with patch("backend.common.portfolio_utils.refresh_snapshot_async"):
         app = create_app()
         with TestClient(app, raise_server_exceptions=False) as client:
             resp = client.get("/api-console")
@@ -182,7 +182,7 @@ def test_openapi_json_still_accessible(monkeypatch):
     """/openapi.json must remain reachable after docs_url is set to None."""
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
     monkeypatch.setattr(config, "snapshot_warm_days", 30)
-    with patch("backend.bootstrap.startup.refresh_snapshot_async"):
+    with patch("backend.common.portfolio_utils.refresh_snapshot_async"):
         app = create_app()
         with TestClient(app) as client:
             resp = client.get("/openapi.json")

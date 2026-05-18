@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from aws_cdk import App
 from aws_cdk import aws_lambda as _lambda
-from aws_cdk.assertions import Template
+from aws_cdk.assertions import Match, Template
 
 CDK_DIR = Path(__file__).resolve().parents[1]
 if str(CDK_DIR) not in sys.path:
@@ -349,25 +349,27 @@ def test_lambda_roles_do_not_have_s3_delete_permissions() -> None:
         ), f"Found wildcard grant for {fragment} which implicitly includes delete"
 
 
-def _logs_filter_actions_for_role_name(template: dict, role_name: str) -> list[str]:
-    """Return all resources granting logs:FilterLogEvents to the named role."""
-    found: list[str] = []
-    for resource in template["Resources"].values():
-        if resource.get("Type") != "AWS::IAM::Policy":
+def _count_filterlogevents_stmts(raw_template: dict, role_name: str) -> int:
+    """Count logs:FilterLogEvents statements in policies attached to role_name.
+
+    CDK places the role name as a plain string (not a {"Ref": ...} dict) in the
+    Roles list of synthesised AWS::IAM::Policy resources when the role is imported
+    via iam.Role.from_role_arn(). This distinguishes imported roles from in-template
+    roles, which use {"Ref": "<LogicalId>"}.
+    """
+    count = 0
+    for res in raw_template["Resources"].values():
+        if res.get("Type") != "AWS::IAM::Policy":
             continue
-        roles = resource.get("Properties", {}).get("Roles", [])
-        if role_name not in roles:
+        if role_name not in res.get("Properties", {}).get("Roles", []):
             continue
-        for statement in resource.get("Properties", {}).get("PolicyDocument", {}).get("Statement", []):
-            actions = statement.get("Action", [])
+        for stmt in res["Properties"]["PolicyDocument"].get("Statement", []):
+            actions = stmt.get("Action", [])
             if isinstance(actions, str):
                 actions = [actions]
             if "logs:FilterLogEvents" in actions:
-                stmt_resources = statement.get("Resource", [])
-                if isinstance(stmt_resources, (str, dict)):
-                    stmt_resources = [stmt_resources]
-                found.extend(stmt_resources)
-    return found
+                count += 1
+    return count
 
 
 def test_github_deploy_role_gets_filterlogevents_on_all_log_groups(monkeypatch) -> None:
@@ -379,12 +381,26 @@ def test_github_deploy_role_gets_filterlogevents_on_all_log_groups(monkeypatch) 
     monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-client-id")
     app = App()
     stack = BackendLambdaStack(app, "BackendLambdaStackLogGrantTest")
-    template = Template.from_stack(stack).to_json()
+    template = Template.from_stack(stack)
 
-    resources = _logs_filter_actions_for_role_name(template, "allotmint-github-deploy")
-    assert len(resources) == 3, (
+    # Structural assertion: an AWS::IAM::Policy exists for the deploy role with the grant.
+    # CDK merges all three log-group grants into one policy resource, one statement each.
+    template.has_resource_properties(
+        "AWS::IAM::Policy",
+        {
+            "Roles": ["allotmint-github-deploy"],
+            "PolicyDocument": {
+                "Statement": Match.array_with(
+                    [Match.object_like({"Action": "logs:FilterLogEvents", "Effect": "Allow"})]
+                )
+            },
+        },
+    )
+    # Count check: exactly 3 statements — one per log group (backend, price-refresh, trading-agent).
+    count = _count_filterlogevents_stmts(template.to_json(), "allotmint-github-deploy")
+    assert count == 3, (
         f"Expected logs:FilterLogEvents on exactly 3 log groups (backend, price-refresh, "
-        f"trading-agent), got {len(resources)}: {resources}"
+        f"trading-agent), got {count}"
     )
 
 
@@ -395,12 +411,10 @@ def test_no_log_grant_when_github_deploy_role_arn_absent(monkeypatch) -> None:
     monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-client-id")
     app = App()
     stack = BackendLambdaStack(app, "BackendLambdaStackNoLogGrantTest")
-    template = Template.from_stack(stack).to_json()
-
-    resources = _logs_filter_actions_for_role_name(template, "allotmint-github-deploy")
-    assert resources == [], (
+    count = _count_filterlogevents_stmts(Template.from_stack(stack).to_json(), "allotmint-github-deploy")
+    assert count == 0, (
         f"Expected no logs:FilterLogEvents policy when GITHUB_DEPLOY_ROLE_ARN is unset, "
-        f"got: {resources}"
+        f"got {count}"
     )
 
 

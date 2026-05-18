@@ -9,11 +9,6 @@ from pathlib import Path
 
 from fastapi import FastAPI
 
-from backend.common.portfolio_utils import (
-    _load_snapshot,
-    refresh_snapshot_async,
-    refresh_snapshot_in_memory,
-)
 from backend.config import Config
 from backend.utils import page_cache
 
@@ -31,6 +26,16 @@ class AppLifecycleService:
         if not self.cfg.skip_snapshot_warm:
             await self._warm_snapshot()
 
+        # Deferred import: portfolio_utils pulls in pandas; loading it here
+        # (inside the lifespan startup hook) rather than at module level keeps
+        # the Lambda INIT phase import chain lean.
+        #
+        # Pre-existing behaviour (not changed by this PR): refresh_snapshot_async
+        # fires unconditionally — it is the background cache-refresh task that
+        # keeps the snapshot up-to-date between warm-path invocations.  Only the
+        # *blocking* _warm_snapshot() call is guarded by skip_snapshot_warm.
+        from backend.common.portfolio_utils import refresh_snapshot_async
+
         task = refresh_snapshot_async(days=self.cfg.snapshot_warm_days)
         if isinstance(task, (asyncio.Task, asyncio.Future)):
             app.state.background_tasks.append(task)
@@ -47,6 +52,12 @@ class AppLifecycleService:
             shutil.rmtree(temp_dir, ignore_errors=True)
 
     async def _warm_snapshot(self) -> None:
+        # Deferred imports: both pull in pandas transitively.
+        from backend.common.portfolio_utils import (
+            _load_snapshot,
+            refresh_snapshot_in_memory,
+        )
+
         try:
             result = _load_snapshot()
             if not isinstance(result, tuple) or len(result) != 2 or not isinstance(result[0], dict):

@@ -1981,9 +1981,18 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
 
     try:
         if _PRICES_PATH:
-            _PRICES_PATH.parent.mkdir(parents=True, exist_ok=True)
-            _PRICES_PATH.write_text(json.dumps(snapshot, indent=2))
-            logger.info("Wrote %d prices to %s", len(snapshot), _PRICES_PATH)
+            has_valid = any(
+                v.get("last_price") is not None for v in snapshot.values()
+            )
+            if has_valid:
+                _PRICES_PATH.parent.mkdir(parents=True, exist_ok=True)
+                _PRICES_PATH.write_text(json.dumps(snapshot, indent=2))
+                logger.info("Wrote %d prices to %s", len(snapshot), _PRICES_PATH)
+            else:
+                logger.info(
+                    "Skipping price snapshot write — no valid prices fetched"
+                    " (offline mode or no timeseries data)"
+                )
         else:
             logger.info(
                 "Price snapshot path not configured; skipping write (expected when config.prices_json is unset)"

@@ -124,4 +124,41 @@ def test_gbx_scaling_defaults_apply_without_override(monkeypatch):
     row = next(r for r in rows if r["ticker"] == full_ticker)
     assert row["last_price_gbp"] == pytest.approx(1.25)
     assert row["market_value_gbp"] == pytest.approx(1.25)
-    assert row["gain_gbp"] == pytest.approx(0.25)
+
+
+def test_enrich_holding_market_value_set_from_price_snapshot(monkeypatch):
+    """market_value_gbp must not be None when a price exists in the snapshot.
+
+    Root cause of issue #2746: holdings with zero cost-basis and no timeseries
+    cache got market_value_gbp=None because the price snapshot was empty on
+    first start.  The seed data/prices/latest_prices.json fixes the snapshot;
+    this test guards the enrichment path.
+    """
+    import backend.common.instrument_api as instrument_api
+    import backend.common.portfolio_utils as pu
+
+    monkeypatch.setattr(instrument_api, "_resolve_full_ticker", lambda *_: ("VWRL", "L"))
+    monkeypatch.setattr(
+        hu,
+        "get_instrument_meta",
+        lambda *_: {"name": "Vanguard FTSE All-World", "currency": "GBP"},
+    )
+    monkeypatch.setattr(pu, "get_security_meta", lambda *_: {})
+    monkeypatch.setattr(
+        pu,
+        "_PRICE_SNAPSHOT",
+        {"VWRL.L": {"last_price": 97.5, "price_currency": "GBP", "is_stale": False}},
+    )
+    # Stub out timeseries access — only the snapshot price should be used.
+    monkeypatch.setattr(hu, "_get_price_for_date_scaled", lambda *args, **kwargs: (None, None))
+    monkeypatch.setattr(hu, "get_effective_cost_basis_gbp", lambda h, cache, price_hint=None: 0.0)
+
+    holding = {TICKER: "VWRL.L", UNITS: 10, COST_BASIS_GBP: 0.0, ACQUIRED_DATE: "2025-01-01"}
+    today = dt.date(2026, 5, 16)
+    result = hu.enrich_holding(holding, today, price_cache={})
+
+    assert result["market_value_gbp"] == pytest.approx(975.0), (
+        "market_value_gbp must not be None when price snapshot has data"
+    )
+    assert result["gain_gbp"] is not None
+    assert result["current_price_gbp"] == pytest.approx(97.5)

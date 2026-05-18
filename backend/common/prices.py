@@ -240,7 +240,14 @@ def refresh_prices() -> Dict:
         raise RuntimeError("config.prices_json not configured")
     path = Path(config.prices_json)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(snapshot, indent=2))
+    # Skip the write when every fetched price is None — this happens in offline
+    # mode or when the market data source is unavailable.  Writing an all-null
+    # snapshot would trash valid seed/cached data without adding any value.
+    has_valid_price = any(
+        v.get("last_price") is not None for v in snapshot.values()
+    )
+    if has_valid_price:
+        path.write_text(json.dumps(snapshot, indent=2))
 
     # ---- persist to S3 (primary store read by all Lambda instances) -------
     if config.app_env == "aws":

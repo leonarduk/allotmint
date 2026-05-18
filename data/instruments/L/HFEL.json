@@ -1,6 +1,8 @@
 {
-  "symbol": "HFEL",
+  "name": "Henderson Far East Income",
+  "ticker": "HFEL.L",
   "exchange": "L",
+  "asset_class": "Equity",
   "sector": "Equity",
-  "region": "UK"
+  "region": "Asia Pacific"
 }

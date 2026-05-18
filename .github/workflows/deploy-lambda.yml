@@ -18,6 +18,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       SMOKE_TEST_URL: ${{ vars.SMOKE_TEST_URL }}
+    outputs:
+      backend_url: ${{ steps.get_backend_url.outputs.backend_url }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -156,6 +158,7 @@ jobs:
         working-directory: cdk
 
       - name: Get backend API URL
+        id: get_backend_url
         env:
           AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
         run: |
@@ -169,6 +172,7 @@ jobs:
             exit 1
           fi
           echo "BACKEND_URL=$BACKEND_URL" >> "$GITHUB_ENV"
+          echo "backend_url=$BACKEND_URL" >> "$GITHUB_OUTPUT"
 
       - name: Refresh StaticSiteStack runtime config
         env:
@@ -406,7 +410,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: deploy
     env:
-      SMOKE_URL: ${{ vars.SMOKE_URL }}
+      SMOKE_URL: ${{ needs.deploy.outputs.backend_url || vars.SMOKE_URL }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2

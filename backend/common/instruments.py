@@ -16,7 +16,15 @@ logger = logging.getLogger(__name__)
 
 
 def _resolve_instruments_dir() -> Path:
-    """Return the configured instruments directory or fall back to bundled data."""
+    """Return the configured instruments directory or fall back to bundled data.
+
+    On Lambda cold-start ``config.data_root/instruments`` (typically
+    ``/tmp/data/instruments``) is absent until an S3 sync populates it.
+    Falling back to the bundled copy is expected behaviour, so the log is at
+    DEBUG rather than WARNING. Detecting a sustained S3-sync failure requires a
+    dedicated metric alarm — a single log line cannot distinguish a fresh
+    cold-start from a sync that has been broken for days.
+    """
 
     configured_dir = config.data_root / "instruments"
     if configured_dir.is_dir():
@@ -24,10 +32,6 @@ def _resolve_instruments_dir() -> Path:
 
     fallback_dir = Path(__file__).resolve().parents[2] / "data" / "instruments"
     if fallback_dir.is_dir():
-        # DEBUG not WARNING: on Lambda cold-start /tmp/data/instruments is absent until
-        # an S3 sync populates it; falling back to the bundled copy is expected behaviour.
-        # Detecting a *sustained* S3-sync failure requires a dedicated metric alarm —
-        # a single log line cannot distinguish "just cold-started" from "broken for days".
         logger.debug(
             "Configured instruments directory %s missing; falling back to %s", configured_dir, fallback_dir
         )

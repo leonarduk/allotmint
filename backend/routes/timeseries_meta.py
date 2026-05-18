@@ -2,9 +2,9 @@ import logging
 from datetime import date, timedelta
 
 import pandas as pd
-from pandas.api import types as pd_types
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
+from pandas.api import types as pd_types
 
 from backend.common import instrument_api
 from backend.timeseries import fetch_timeseries
@@ -55,14 +55,27 @@ async def get_meta_timeseries(
     days: int = Query(365, ge=0, le=36500),
     format: str = Query("html", pattern="^(html|json|csv)$"),
     scaling: float = Query(1.0, ge=0.00001, le=1_000_000),
+    start_date: date | None = Query(None, description="Start date (YYYY-MM-DD). Overrides days when provided."),
+    end_date: date | None = Query(None, description="End date (YYYY-MM-DD). Defaults to yesterday when omitted."),
 ):
     ticker, exchange = _resolve_ticker_exchange(ticker, exchange)
 
-    if days <= 0:
-        start_date = date(1900, 1, 1)
+    resolved_end = end_date if end_date is not None else date.today() - timedelta(days=1)
+    if start_date is not None:
+        resolved_start = start_date
+    elif days <= 0:
+        resolved_start = date(1900, 1, 1)
     else:
-        start_date = date.today() - timedelta(days=days)
-    end_date = date.today() - timedelta(days=1)
+        resolved_start = resolved_end - timedelta(days=days)
+
+    if resolved_start > resolved_end:
+        raise HTTPException(
+            status_code=422,
+            detail=f"start_date ({resolved_start}) must not be after end_date ({resolved_end})",
+        )
+
+    start_date = resolved_start
+    end_date = resolved_end
 
     try:
         df = load_meta_timeseries_range(

@@ -4,7 +4,6 @@ from fastapi.testclient import TestClient
 
 from backend.config import config
 
-
 # ---- Helper utilities -----------------------------------------------------
 
 def _client_with_df(monkeypatch, df):
@@ -50,16 +49,18 @@ def test_resolve_with_inferred_exchange(monkeypatch):
 
 
 def test_resolve_missing_ticker_error():
-    import backend.routes.timeseries_meta as ts_meta
     from fastapi import HTTPException
+
+    import backend.routes.timeseries_meta as ts_meta
 
     with pytest.raises(HTTPException):
         ts_meta._resolve_ticker_exchange("", "L")
 
 
 def test_resolve_cannot_infer_exchange(monkeypatch):
-    import backend.routes.timeseries_meta as ts_meta
     from fastapi import HTTPException
+
+    import backend.routes.timeseries_meta as ts_meta
 
     monkeypatch.setattr(
         ts_meta.instrument_api, "_resolve_full_ticker", lambda t, latest: None
@@ -160,4 +161,77 @@ def test_timeseries_html_fallback(monkeypatch):
     assert resp.status_code == 200
     assert "ABC Price History" in resp.text
     assert "0.00" in resp.text
+
+
+# ---- /timeseries/meta date-range parameter tests --------------------------
+
+
+def _multi_day_df():
+    rows = [
+        {"Date": "2024-01-01", "Open": 1.0, "High": 2.0, "Low": 0.5, "Close": 1.5, "Volume": 100},
+        {"Date": "2024-01-02", "Open": 2.0, "High": 3.0, "Low": 1.0, "Close": 2.5, "Volume": 200},
+        {"Date": "2024-01-03", "Open": 3.0, "High": 4.0, "Low": 2.0, "Close": 3.5, "Volume": 300},
+    ]
+    return pd.DataFrame(rows)
+
+
+def test_explicit_start_and_end_date(monkeypatch):
+    """Both dates supplied: response reflects the provided bounds."""
+    client = _client_with_df(monkeypatch, _multi_day_df())
+    resp = client.get(
+        "/timeseries/meta?ticker=ABC&exchange=L&format=json"
+        "&start_date=2024-01-01&end_date=2024-01-03"
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["from"] == "2024-01-01"
+    assert data["to"] == "2024-01-03"
+
+
+def test_open_start_only_end_date(monkeypatch):
+    """Only end_date supplied: response uses end_date and days-derived start."""
+    client = _client_with_df(monkeypatch, _multi_day_df())
+    resp = client.get(
+        "/timeseries/meta?ticker=ABC&exchange=L&format=json&end_date=2024-01-03"
+    )
+    assert resp.status_code == 200
+    assert resp.json()["to"] == "2024-01-03"
+
+
+def test_open_end_only_start_date(monkeypatch):
+    """Only start_date supplied: response uses start_date and yesterday as end."""
+    client = _client_with_df(monkeypatch, _multi_day_df())
+    resp = client.get(
+        "/timeseries/meta?ticker=ABC&exchange=L&format=json&start_date=2024-01-01"
+    )
+    assert resp.status_code == 200
+    assert resp.json()["from"] == "2024-01-01"
+
+
+def test_neither_date_param_uses_days(monkeypatch):
+    """No date params: existing days-based behaviour is preserved (regression guard)."""
+    client = _client_with_df(monkeypatch, _multi_day_df())
+    resp = client.get("/timeseries/meta?ticker=ABC&exchange=L&format=json&days=365")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "from" in data and "to" in data
+
+
+def test_invalid_range_returns_422(monkeypatch):
+    """start_date after end_date must return HTTP 422."""
+    client = _client_with_df(monkeypatch, _multi_day_df())
+    resp = client.get(
+        "/timeseries/meta?ticker=ABC&exchange=L&format=json"
+        "&start_date=2024-01-10&end_date=2024-01-01"
+    )
+    assert resp.status_code == 422
+
+
+def test_malformed_date_returns_4xx(monkeypatch):
+    """A non-ISO date string must be rejected (400 or 422)."""
+    client = _client_with_df(monkeypatch, _multi_day_df())
+    resp = client.get(
+        "/timeseries/meta?ticker=ABC&exchange=L&format=json&start_date=not-a-date"
+    )
+    assert resp.status_code in (400, 422)
 

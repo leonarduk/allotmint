@@ -157,21 +157,40 @@ async def test_lifecycle_service_startup_survives_prime_latest_prices_failure(
 
 
 def test_create_app_skips_snapshot_warm_when_disabled(monkeypatch: pytest.MonkeyPatch):
+    """_warm_snapshot is skipped when skip_snapshot_warm=True.
+
+    refresh_snapshot_async is intentionally still called — it is an async
+    background refresh that always runs regardless of the warm path.  Only the
+    blocking _warm_snapshot() is gated by skip_snapshot_warm.  This assertion
+    documents that pre-existing behaviour so future changes don't regress it.
+    """
     monkeypatch.setattr(config, "skip_snapshot_warm", True, raising=False)
 
     warm_called = False
+    refresh_called_with: list = []
 
     async def unexpected_warm(*_args, **_kwargs):
         nonlocal warm_called
         warm_called = True
 
+    def track_refresh(days):
+        refresh_called_with.append(days)
+
     monkeypatch.setattr(
         "backend.bootstrap.startup.AppLifecycleService._warm_snapshot", unexpected_warm
     )
-    monkeypatch.setattr("backend.common.portfolio_utils.refresh_snapshot_async", lambda days: None)
+    monkeypatch.setattr(
+        "backend.common.portfolio_utils.refresh_snapshot_async", track_refresh
+    )
 
+    monkeypatch.setattr(config, "snapshot_warm_days", 7, raising=False)
     app = app_module.create_app()
     with TestClient(app):
         pass
 
+    # The blocking warm-up must NOT have run.
     assert warm_called is False
+    # The background async refresh MUST still fire unconditionally.
+    assert refresh_called_with == [7], (
+        "refresh_snapshot_async should always be called even when skip_snapshot_warm=True"
+    )

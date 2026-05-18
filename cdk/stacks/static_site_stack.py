@@ -47,7 +47,7 @@ class StaticSiteStack(Stack):
         ui_auth_removal_policy = _ui_auth_removal_policy(self)
 
         # BucketDeployment.Source.json_data() only accepts intra-stack tokens
-        # (Ref / Fn::GetAtt / Fn::Select) — Fn::ImportValue is explicitly rejected
+        # (Ref / Fn::GetAtt / Fn::Select) - Fn::ImportValue is explicitly rejected
         # by CDK's renderData validator. A CfnParameter produces a Ref token and
         # therefore works. The real URL is supplied at deploy time via
         # `--parameters StaticSiteStack:BackendApiUrl=<url>`.
@@ -63,7 +63,7 @@ class StaticSiteStack(Stack):
                 "HTTPS URL such as https://abc123.execute-api.us-east-1.amazonaws.com."
             ),
             description=(
-                "Backend API base URL — override at deploy time with the "
+                "Backend API base URL - override at deploy time with the "
                 "BackendLambdaStack BackendApiUrl output."
             ),
         )
@@ -120,7 +120,7 @@ class StaticSiteStack(Stack):
         )
 
         # Origin selection: prefer OAC (CDK >= 2.116), fall back to OAI,
-        # then to legacy S3Origin — each path grants CloudFront bucket read.
+        # then to legacy S3Origin - each path grants CloudFront bucket read.
         if hasattr(origins, "S3BucketOrigin") and hasattr(
             origins.S3BucketOrigin, "with_origin_access_control"
         ):

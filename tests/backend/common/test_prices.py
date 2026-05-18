@@ -11,7 +11,7 @@ import pandas as pd
 import pytest
 
 from backend.common import portfolio_utils, prices
-from backend.common.portfolio_utils import PRICES_S3_KEY
+from backend.common.portfolio_utils import DATA_BUCKET_ENV, PRICES_S3_KEY
 
 
 def test_close_on_falls_back_to_close_column(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -161,6 +161,15 @@ def test_get_price_snapshot_handles_stale_and_missing_data(monkeypatch: pytest.M
     assert info_ghi["change_7d_pct"] == pytest.approx((40.0 / 39.0 - 1.0) * 100.0)
     assert info_ghi["change_30d_pct"] == pytest.approx((40.0 / 38.0 - 1.0) * 100.0)
 
+    assert requested == [
+        ("ABC", "L", seven_day),
+        ("ABC", "L", thirty_day),
+        ("DEF", "N", seven_day),
+        ("DEF", "N", thirty_day),
+        ("GHI", "L", seven_day),
+        ("GHI", "L", thirty_day),
+    ]
+
 
 # ---------------------------------------------------------------------------
 # refresh_prices() S3 upload behaviour
@@ -183,7 +192,7 @@ def test_refresh_prices_uploads_to_s3_in_aws_env(
     """refresh_prices() must call s3.put_object with PRICES_S3_KEY when app_env==aws."""
     _stub_refresh_prices(tmp_path, monkeypatch)
     monkeypatch.setattr(prices.config, "app_env", "aws", raising=False)
-    monkeypatch.setenv("DATA_BUCKET", "test-bucket")
+    monkeypatch.setenv(DATA_BUCKET_ENV, "test-bucket")
 
     put_calls: list[dict] = []
 
@@ -211,7 +220,7 @@ def test_refresh_prices_s3_upload_failure_logs_warning_not_error(
     """If the S3 upload fails, refresh_prices() must log WARNING and not re-raise."""
     _stub_refresh_prices(tmp_path, monkeypatch)
     monkeypatch.setattr(prices.config, "app_env", "aws", raising=False)
-    monkeypatch.setenv("DATA_BUCKET", "test-bucket")
+    monkeypatch.setenv(DATA_BUCKET_ENV, "test-bucket")
 
     class FakeS3:
         def put_object(self, **kwargs):
@@ -239,7 +248,7 @@ def test_refresh_prices_skips_s3_when_data_bucket_not_set(
     """refresh_prices() must log a WARNING and skip S3 when DATA_BUCKET env var is absent."""
     _stub_refresh_prices(tmp_path, monkeypatch)
     monkeypatch.setattr(prices.config, "app_env", "aws", raising=False)
-    monkeypatch.delenv("DATA_BUCKET", raising=False)
+    monkeypatch.delenv(DATA_BUCKET_ENV, raising=False)
 
     import logging
 

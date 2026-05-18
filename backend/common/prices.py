@@ -41,6 +41,7 @@ from backend.common.holding_utils import load_latest_prices as _load_latest_pric
 from backend.common.holding_utils import load_live_prices
 from backend.common.portfolio_loader import list_portfolios
 from backend.common.portfolio_utils import (
+    DATA_BUCKET_ENV,
     PRICES_S3_KEY,
     check_price_alerts,
     list_all_unique_tickers,
@@ -243,7 +244,7 @@ def refresh_prices() -> Dict:
 
     # ---- persist to S3 (primary store read by all Lambda instances) -------
     if config.app_env == "aws":
-        _s3_bucket = os.getenv("DATA_BUCKET")
+        _s3_bucket = os.getenv(DATA_BUCKET_ENV)
         if _s3_bucket:
             try:
                 import boto3  # type: ignore

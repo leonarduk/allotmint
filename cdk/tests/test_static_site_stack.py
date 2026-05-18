@@ -26,8 +26,6 @@ _CUSTOM_DOMAIN_CONTEXT = {
     "customDomain": "true",
     "hostedZoneId": _TEST_HOSTED_ZONE_ID,
 }
-# CloudFront's fixed hosted zone ID used by Route53 alias targets.
-_CLOUDFRONT_HOSTED_ZONE_ID = "Z2FDTNDATAQYW2"
 
 _DUMMY_API_URL = "https://abc123.execute-api.eu-west-1.amazonaws.com"
 
@@ -504,3 +502,38 @@ def test_custom_domain_wrong_region_raises(tmp_path):
             frontend_dist_path=str(tmp_path),
             env=cdk.Environment(account=_TEST_ACCOUNT, region="eu-west-1"),
         )
+
+
+def test_custom_domain_missing_hosted_zone_id_raises(tmp_path):
+    """customDomain=true without hostedZoneId context must raise ValueError."""
+    (tmp_path / "index.html").write_text("<html></html>")
+    app = App(context={"customDomain": "true"})
+    with pytest.raises(ValueError, match="hostedZoneId"):
+        StaticSiteStack(
+            app,
+            "MissingZoneStack",
+            frontend_dist_path=str(tmp_path),
+            env=cdk.Environment(account=_TEST_ACCOUNT, region=_TEST_REGION),
+        )
+
+
+def test_custom_domain_bool_true_context(tmp_path):
+    """customDomain=True (Python bool, not string) must also enable the custom domain.
+
+    _is_truthy_context handles isinstance(value, bool) before the str branch,
+    so a bool True from cdk.json or programmatic context must work identically
+    to the string "true" passed via --context.
+    """
+    (tmp_path / "index.html").write_text("<html></html>")
+    app = App(context={"customDomain": True, "hostedZoneId": _TEST_HOSTED_ZONE_ID})
+    stack = StaticSiteStack(
+        app,
+        "BoolTrueStack",
+        frontend_dist_path=str(tmp_path),
+        env=cdk.Environment(account=_TEST_ACCOUNT, region=_TEST_REGION),
+    )
+    t = assertions.Template.from_stack(stack)
+    resources = t.find_resources("AWS::CertificateManager::Certificate")
+    assert len(resources) == 1, (
+        f"Expected one ACM certificate when customDomain=True (bool); found {len(resources)}"
+    )

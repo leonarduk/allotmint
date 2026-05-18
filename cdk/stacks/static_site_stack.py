@@ -184,6 +184,10 @@ class StaticSiteStack(Stack):
         if _enable_custom_domain:
             # ACM certificates for CloudFront must be in us-east-1; fail fast at synth time
             # so a mis-deployed stack surfaces immediately rather than at CloudFormation execution.
+            # Note: when env= is omitted (environment-agnostic stack), self.region is an unresolved
+            # CDK token and Token.is_unresolved returns True, so the check is skipped. A deployment
+            # to the wrong region would then fail at CloudFormation execution time. Always pass
+            # env=cdk.Environment(region="us-east-1") when enabling customDomain.
             if not Token.is_unresolved(self.region) and self.region != "us-east-1":
                 raise ValueError(
                     f"customDomain requires deployment to us-east-1 (ACM certificates "

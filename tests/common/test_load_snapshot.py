@@ -206,7 +206,7 @@ def test_load_snapshot_access_denied_logs_error_not_warning(tmp_path, monkeypatc
     assert "not yet present" not in caplog.text
 
 
-def _make_no_such_key_s3_modules(tmp_path):
+def _make_no_such_key_s3_modules():
     """Return (fake_boto3, fake_botocore_exceptions) that raise NoSuchKey ClientError."""
 
     class ClientError(Exception):
@@ -226,7 +226,7 @@ def _make_no_such_key_s3_modules(tmp_path):
 def test_load_snapshot_nosuchkey_logs_warning_not_error(tmp_path, monkeypatch, caplog):
     """NoSuchKey S3 error must log WARNING (not ERROR) — expected on first deploy."""
     missing = tmp_path / "missing.json"
-    fake_boto3, fake_exc = _make_no_such_key_s3_modules(tmp_path)
+    fake_boto3, fake_exc = _make_no_such_key_s3_modules()
 
     monkeypatch.setattr(pu.config, "app_env", "aws")
     monkeypatch.setenv(pu.DATA_BUCKET_ENV, "bucket")
@@ -257,7 +257,7 @@ def test_load_snapshot_nosuchkey_no_local_path_logs_single_warning(
     monkeypatch, caplog
 ):
     """NoSuchKey + no local path configured: single WARNING, no ERROR."""
-    fake_boto3, fake_exc = _make_no_such_key_s3_modules(None)
+    fake_boto3, fake_exc = _make_no_such_key_s3_modules()
 
     monkeypatch.setattr(pu.config, "app_env", "aws")
     monkeypatch.setenv(pu.DATA_BUCKET_ENV, "bucket")
@@ -279,6 +279,41 @@ def test_load_snapshot_nosuchkey_no_local_path_logs_single_warning(
     assert any("not yet" in m for m in warning_texts), (
         f"Expected a 'not yet seeded' warning; got: {warning_texts}"
     )
+
+
+def test_load_snapshot_botocore_error_logs_error(tmp_path, monkeypatch, caplog):
+    """BotoCoreError (non-ClientError) must still log at ERROR level after the refactor."""
+    missing = tmp_path / "missing.json"
+
+    class BotoCoreError(Exception):
+        pass
+
+    class FakeS3:
+        def get_object(self, Bucket, Key):  # noqa: N802
+            raise BotoCoreError("connection timeout")
+
+    fake_boto3 = types.SimpleNamespace(client=lambda service: FakeS3())
+    # BotoCoreError is used as both BotoCoreError and ClientError base in the except clause
+    fake_exc = types.SimpleNamespace(BotoCoreError=BotoCoreError, ClientError=Exception)
+
+    monkeypatch.setattr(pu.config, "app_env", "aws")
+    monkeypatch.setenv(pu.DATA_BUCKET_ENV, "bucket")
+    monkeypatch.setitem(sys.modules, "boto3", fake_boto3)
+    monkeypatch.setitem(sys.modules, "botocore.exceptions", fake_exc)
+    monkeypatch.setattr(pu.config, "prices_json", missing)
+    monkeypatch.setattr(pu, "_PRICES_PATH", missing)
+
+    import logging
+
+    with caplog.at_level(logging.WARNING):
+        data, ts = pu._load_snapshot()
+
+    assert data == {}
+    assert ts is None
+    error_records = [r for r in caplog.records if r.levelno >= logging.ERROR]
+    assert error_records, "BotoCoreError must log at ERROR level"
+    assert "Failed to fetch price snapshot" in caplog.text
+    assert "not yet present" not in caplog.text
 
 
 def test_load_snapshot_non_aws_missing_local_logs_only_warning(

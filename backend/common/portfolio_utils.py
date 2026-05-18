@@ -203,7 +203,7 @@ def _normalise_snapshot_native_price(
 # Snapshot loader (last_price / deltas)
 # ──────────────────────────────────────────────────────────────
 _PRICES_PATH = Path(config.prices_json) if config.prices_json else None
-_PRICES_S3_KEY = "prices/latest_prices.json"
+PRICES_S3_KEY = "prices/latest_prices.json"
 
 
 def _load_snapshot() -> tuple[Dict[str, Dict], datetime | None]:
@@ -223,7 +223,7 @@ def _load_snapshot() -> tuple[Dict[str, Dict], datetime | None]:
                 from botocore.exceptions import BotoCoreError, ClientError
 
                 s3 = boto3.client("s3")
-                obj = s3.get_object(Bucket=bucket, Key=_PRICES_S3_KEY)
+                obj = s3.get_object(Bucket=bucket, Key=PRICES_S3_KEY)
                 body = obj.get("Body")
                 if body:
                     data = json.loads(body.read().decode("utf-8"))
@@ -231,7 +231,7 @@ def _load_snapshot() -> tuple[Dict[str, Dict], datetime | None]:
                     return data, ts if isinstance(ts, datetime) else None
                 logger.error(
                     "Empty S3 object body for price snapshot %s from bucket %s; falling back to local file",
-                    _PRICES_S3_KEY,
+                    PRICES_S3_KEY,
                     bucket,
                 )
                 s3_failed = True
@@ -245,14 +245,14 @@ def _load_snapshot() -> tuple[Dict[str, Dict], datetime | None]:
                     logger.warning(
                         "Price snapshot %s not yet present in S3 bucket %s"
                         " (expected on first deploy; run the price refresh job to populate it)",
-                        _PRICES_S3_KEY,
+                        PRICES_S3_KEY,
                         bucket,
                     )
                     s3_not_found = True
                 else:
                     logger.error(
                         "Failed to fetch price snapshot %s from bucket %s: %s; falling back to local file",
-                        _PRICES_S3_KEY,
+                        PRICES_S3_KEY,
                         bucket,
                         exc,
                     )
@@ -260,7 +260,7 @@ def _load_snapshot() -> tuple[Dict[str, Dict], datetime | None]:
             except (BotoCoreError, json.JSONDecodeError) as exc:
                 logger.error(
                     "Failed to fetch price snapshot %s from bucket %s: %s; falling back to local file",
-                    _PRICES_S3_KEY,
+                    PRICES_S3_KEY,
                     bucket,
                     exc,
                 )

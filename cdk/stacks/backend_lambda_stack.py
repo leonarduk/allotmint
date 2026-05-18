@@ -2,7 +2,14 @@ import os
 from collections.abc import Sequence
 from pathlib import Path
 
-from aws_cdk import CfnOutput, CfnParameter, Duration, RemovalPolicy, Stack
+from aws_cdk import (
+    CfnOutput,
+    CfnParameter,
+    Duration,
+    RemovalPolicy,
+    Stack,
+    triggers,
+)
 from aws_cdk import aws_apigatewayv2 as apigwv2
 from aws_cdk import aws_apigatewayv2_authorizers as apigwv2_authorizers
 from aws_cdk import aws_apigatewayv2_integrations as apigwv2_integrations
@@ -15,7 +22,6 @@ from aws_cdk import aws_iam as iam
 from aws_cdk import aws_lambda as _lambda
 from aws_cdk import aws_logs as logs
 from aws_cdk import aws_s3 as s3
-from aws_cdk import triggers
 from constructs import Construct
 
 from stacks.exports import BACKEND_API_URL_EXPORT
@@ -402,9 +408,11 @@ class BackendLambdaStack(Stack):
             targets=[targets.LambdaFunction(refresh_fn)],
         )
 
-        # Invoke PriceRefreshLambda immediately after each deploy so that
-        # latest_prices.json is seeded on the first deployment and stays fresh
-        # after any stack update, without waiting for the daily schedule.
+        # Invoke PriceRefreshLambda once after first deployment (and again
+        # whenever the Lambda code changes) so prices/latest_prices.json is
+        # seeded in S3 before the daily EventBridge schedule fires.
+        # InvocationType.EVENT is async: the deploy completes before the Lambda
+        # finishes, so a transient API failure won't block the stack update.
         triggers.Trigger(
             self,
             "PriceRefreshOnDeploy",

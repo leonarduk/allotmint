@@ -244,7 +244,7 @@ def _load_snapshot() -> tuple[Dict[str, Dict], datetime | None]:
                     # scheduled price-refresh run. Log at WARNING, not ERROR.
                     logger.warning(
                         "Price snapshot %s not yet present in S3 bucket %s"
-                        " (expected on first deploy; will be seeded by post-deploy trigger)",
+                        " (expected on first deploy; run the price refresh job to populate it)",
                         _PRICES_S3_KEY,
                         bucket,
                     )

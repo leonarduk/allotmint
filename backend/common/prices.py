@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
@@ -238,6 +239,28 @@ def refresh_prices() -> Dict:
     path = Path(config.prices_json)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(snapshot, indent=2))
+
+    # ---- persist to S3 (primary store read by all Lambda instances) -------
+    # Must stay in sync with _PRICES_S3_KEY in portfolio_utils.py.
+    if config.app_env == "aws":
+        _s3_bucket = os.getenv("DATA_BUCKET")
+        if _s3_bucket:
+            try:
+                import boto3  # type: ignore
+
+                boto3.client("s3").put_object(
+                    Bucket=_s3_bucket,
+                    Key="prices/latest_prices.json",
+                    Body=json.dumps(snapshot, indent=2).encode("utf-8"),
+                    ContentType="application/json",
+                )
+                logger.info(
+                    "Uploaded price snapshot to s3://%s/prices/latest_prices.json", _s3_bucket
+                )
+            except Exception as exc:
+                logger.warning("Failed to upload price snapshot to S3: %s", exc)
+        else:
+            logger.warning("DATA_BUCKET not set; skipping S3 upload of price snapshot")
 
     # ---- refresh in-memory cache -----------------------------------------
     _price_cache.clear()

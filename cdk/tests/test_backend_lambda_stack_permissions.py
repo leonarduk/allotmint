@@ -436,10 +436,31 @@ def _cfn_actions_for_role_name(raw_template: dict, role_name: str) -> set[str]:
     return actions
 
 
+def _cfn_changeset_resources(raw_template: dict, role_name: str) -> list[object]:
+    """Return resource entries from all cloudformation:CreateChangeSet statements for role_name."""
+    found: list[object] = []
+    for res in raw_template["Resources"].values():
+        if res.get("Type") != "AWS::IAM::Policy":
+            continue
+        if role_name not in res.get("Properties", {}).get("Roles", []):
+            continue
+        for stmt in res["Properties"]["PolicyDocument"].get("Statement", []):
+            actions = stmt.get("Action", [])
+            if isinstance(actions, str):
+                actions = [actions]
+            if "cloudformation:CreateChangeSet" not in actions:
+                continue
+            resources = stmt.get("Resource", [])
+            if isinstance(resources, (str, dict)):
+                resources = [resources]
+            found.extend(resources)
+    return found
+
+
 def test_github_deploy_role_gets_changeset_permissions_on_both_stacks(monkeypatch) -> None:
-    """When GITHUB_DEPLOY_ROLE_ARN is set, CDK must grant cloudformation:CreateChangeSet and
-    cloudformation:DeleteChangeSet on BackendLambdaStack and StaticSiteStack so that
-    `cdk diff --all` can create change sets and show replacement annotations. See #3013."""
+    """When GITHUB_DEPLOY_ROLE_ARN is set, CDK must grant CreateChangeSet,
+    DescribeChangeSet, and DeleteChangeSet on BackendLambdaStack and StaticSiteStack
+    so `cdk diff --all` can compute an accurate diff. See #3013."""
     role_arn = "arn:aws:iam::123456789012:role/allotmint-github-deploy"
     monkeypatch.setenv("GITHUB_DEPLOY_ROLE_ARN", role_arn)
     monkeypatch.setenv("JWT_SECRET", "test-secret")
@@ -450,37 +471,28 @@ def test_github_deploy_role_gets_changeset_permissions_on_both_stacks(monkeypatc
     raw = template.to_json()
 
     cfn_actions = _cfn_actions_for_role_name(raw, "allotmint-github-deploy")
-    assert "cloudformation:CreateChangeSet" in cfn_actions, (
-        f"Deploy role missing cloudformation:CreateChangeSet; got: {cfn_actions}"
-    )
-    assert "cloudformation:DeleteChangeSet" in cfn_actions, (
-        f"Deploy role missing cloudformation:DeleteChangeSet; got: {cfn_actions}"
-    )
+    for required_action in (
+        "cloudformation:CreateChangeSet",
+        "cloudformation:DescribeChangeSet",
+        "cloudformation:DeleteChangeSet",
+    ):
+        assert required_action in cfn_actions, (
+            f"Deploy role missing {required_action}; got: {cfn_actions}"
+        )
 
-    # Verify both stack names appear in the policy resource ARNs.
-    target_stacks = {"BackendLambdaStack", "StaticSiteStack"}
-    for res in raw["Resources"].values():
-        if res.get("Type") != "AWS::IAM::Policy":
-            continue
-        if "allotmint-github-deploy" not in res.get("Properties", {}).get("Roles", []):
-            continue
-        for stmt in res["Properties"]["PolicyDocument"].get("Statement", []):
-            actions = stmt.get("Action", [])
-            if isinstance(actions, str):
-                actions = [actions]
-            if "cloudformation:CreateChangeSet" not in actions:
-                continue
-            resources = stmt.get("Resource", [])
-            if isinstance(resources, dict):
-                resources = [resources]
-            stmt_str = str(resources)
-            for stack_name in list(target_stacks):
-                if stack_name in stmt_str:
-                    target_stacks.discard(stack_name)
-
-    assert not target_stacks, (
-        f"cloudformation:CreateChangeSet is not scoped to these stacks: {target_stacks}"
+    # Verify resource ARNs include the wildcard suffix (/*) and cover both stack names.
+    # Resources are CloudFormation intrinsics (Fn::Join) since the region/account are
+    # tokens at synth time; stringify for pattern matching.
+    resources = _cfn_changeset_resources(raw, "allotmint-github-deploy")
+    assert resources, "cloudformation:CreateChangeSet statement has no resource ARNs"
+    resources_str = str(resources)
+    assert "/*" in resources_str, (
+        f"Change set resource ARNs should end with /* (wildcard stack ID); got: {resources_str}"
     )
+    for stack_name in ("BackendLambdaStackCfnGrantTest", "StaticSiteStack"):
+        assert stack_name in resources_str, (
+            f"cloudformation:CreateChangeSet not scoped to {stack_name}; got: {resources_str}"
+        )
 
 
 def test_no_cfn_changeset_grant_when_github_deploy_role_arn_absent(monkeypatch) -> None:

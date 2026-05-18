@@ -15,6 +15,7 @@ from aws_cdk import aws_iam as iam
 from aws_cdk import aws_lambda as _lambda
 from aws_cdk import aws_logs as logs
 from aws_cdk import aws_s3 as s3
+from aws_cdk import triggers
 from constructs import Construct
 
 from stacks.exports import BACKEND_API_URL_EXPORT
@@ -399,6 +400,16 @@ class BackendLambdaStack(Stack):
             "DailyPriceRefresh",
             schedule=events.Schedule.cron(minute="0", hour="0"),
             targets=[targets.LambdaFunction(refresh_fn)],
+        )
+
+        # Invoke PriceRefreshLambda immediately after each deploy so that
+        # latest_prices.json is seeded on the first deployment and stays fresh
+        # after any stack update, without waiting for the daily schedule.
+        triggers.Trigger(
+            self,
+            "PriceRefreshOnDeploy",
+            handler=refresh_fn,
+            invocation_type=triggers.InvocationType.EVENT,
         )
 
         # Scheduled function to execute the trading agent

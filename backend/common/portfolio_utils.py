@@ -208,6 +208,7 @@ _PRICES_S3_KEY = "prices/latest_prices.json"
 
 def _load_snapshot() -> tuple[Dict[str, Dict], datetime | None]:
     s3_failed = False
+    s3_not_found = False  # True when the key is absent (expected on first deploy)
     if config.app_env == "aws":
         bucket = os.getenv(DATA_BUCKET_ENV)
         if not bucket:
@@ -234,7 +235,29 @@ def _load_snapshot() -> tuple[Dict[str, Dict], datetime | None]:
                     bucket,
                 )
                 s3_failed = True
-            except (ClientError, BotoCoreError, json.JSONDecodeError) as exc:
+            except ClientError as exc:
+                error_code = (
+                    getattr(exc, "response", {}).get("Error", {}).get("Code", "")
+                )
+                if error_code == "NoSuchKey":
+                    # Key absent — normal on a fresh deployment before the first
+                    # scheduled price-refresh run. Log at WARNING, not ERROR.
+                    logger.warning(
+                        "Price snapshot %s not yet present in S3 bucket %s"
+                        " (expected on first deploy; will be seeded by post-deploy trigger)",
+                        _PRICES_S3_KEY,
+                        bucket,
+                    )
+                    s3_not_found = True
+                else:
+                    logger.error(
+                        "Failed to fetch price snapshot %s from bucket %s: %s; falling back to local file",
+                        _PRICES_S3_KEY,
+                        bucket,
+                        exc,
+                    )
+                s3_failed = True
+            except (BotoCoreError, json.JSONDecodeError) as exc:
                 logger.error(
                     "Failed to fetch price snapshot %s from bucket %s: %s; falling back to local file",
                     _PRICES_S3_KEY,
@@ -250,7 +273,11 @@ def _load_snapshot() -> tuple[Dict[str, Dict], datetime | None]:
                 s3_failed = True
 
     if config.prices_json is None:
-        if s3_failed:
+        if s3_not_found:
+            logger.warning(
+                "Price snapshot not yet seeded; portfolio prices unavailable until first refresh"
+            )
+        elif s3_failed:
             logger.error(
                 "No price data available: S3 snapshot unavailable and no local fallback configured. "
                 "Portfolio prices will be unavailable for this request."
@@ -260,7 +287,13 @@ def _load_snapshot() -> tuple[Dict[str, Dict], datetime | None]:
         return {}, None
 
     if not _PRICES_PATH or not _PRICES_PATH.exists():
-        if s3_failed:
+        if s3_not_found:
+            logger.warning(
+                "Price snapshot not yet seeded and local fallback %s not found;"
+                " portfolio prices unavailable until first refresh",
+                _PRICES_PATH,
+            )
+        elif s3_failed:
             logger.error(
                 "No price data available: S3 snapshot unavailable and local fallback %s not found. "
                 "Portfolio prices will be unavailable for this request.",

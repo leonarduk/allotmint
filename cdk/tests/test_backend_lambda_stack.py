@@ -305,6 +305,20 @@ def test_backend_lambda_timeout_is_at_least_30s(template):
     )
 
 
+def test_price_refresh_trigger_on_deploy_exists(template):
+    """A CDK Trigger must invoke PriceRefreshLambda after every deployment.
+
+    This ensures latest_prices.json is seeded on first deploy and kept fresh
+    after any stack update, without waiting for the daily EventBridge schedule.
+    The Trigger construct creates a Custom::Trigger CloudFormation resource.
+    """
+    triggers = template.find_resources("Custom::Trigger")
+    assert triggers, (
+        "Expected a Custom::Trigger resource from the CDK triggers.Trigger construct "
+        "to invoke PriceRefreshLambda after each deploy"
+    )
+
+
 def test_backend_error_alarm_exists(template):
     template.has_resource_properties(
         "AWS::CloudWatch::Alarm",

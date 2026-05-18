@@ -6,7 +6,9 @@
 
 paths:
   repo_root: /var/task
-  data_root: /tmp/data              # writable; populated at runtime from S3
+  data_root: /tmp/data              # writable; populated at runtime from S3 when available.
+                                    # On cold-start /tmp is empty so instrument lookups fall
+                                    # back to the bundled /var/task/data copy (logged at DEBUG).
   accounts_root: accounts           # → /tmp/data/accounts
   prices_json: prices/latest_prices.json  # → /tmp/data/prices/latest_prices.json
   timeseries_cache_base: timeseries # → /tmp/data/timeseries

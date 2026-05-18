@@ -253,7 +253,7 @@ def test_instruments_dir_resolution(
 
     def reload_module() -> object:
         caplog.clear()
-        with caplog.at_level("WARNING"):
+        with caplog.at_level("DEBUG"):
             if patch_module_path:
                 def fake_resolve(self, *args, **kwargs):  # type: ignore[override]
                     resolved = original_resolve(self, *args, **kwargs)

@@ -19,9 +19,22 @@ class _LazyModule:
     """Proxy that loads a module on first attribute access.
 
     Attribute reads and writes both delegate to the real module once loaded,
-    so ``unittest.mock.patch`` and pytest ``monkeypatch`` work transparently:
-    patching an attribute on the proxy patches the underlying module.
+    so ``unittest.mock.patch`` and pytest ``monkeypatch`` work transparently.
+
+    ``__getattribute__`` is overridden (rather than just ``__getattr__``) so
+    that ``proxy.__dict__`` returns the *real module's* ``__dict__``.  This
+    matters for ``unittest.mock.patch`` teardown: mock inspects
+    ``target.__dict__[attr]`` to decide whether to restore via ``setattr``
+    (``is_local=True``) or ``delattr`` (``is_local=False``).  Without this,
+    the proxy's own empty ``__dict__`` makes mock think the attribute is
+    inherited and calls ``delattr(proxy, attr)``, which raises
+    ``AttributeError`` because the proxy has no ``attr`` in its own dict.
+    Exposing the real module's ``__dict__`` gives mock the correct view so it
+    always restores via ``setattr``.
     """
+
+    # Sentinel attributes that must resolve on the proxy itself, not the target.
+    _SELF_ATTRS = frozenset({"_lazy_name", "_load", "__class__", "__repr__"})
 
     def __init__(self, name: str) -> None:
         object.__setattr__(self, "_lazy_name", name)
@@ -33,14 +46,21 @@ class _LazyModule:
             module = importlib.import_module(name)
         return module
 
-    def __getattr__(self, attr: str) -> Any:
-        return getattr(self._load(), attr)
+    def __getattribute__(self, attr: str) -> Any:
+        if attr in _LazyModule._SELF_ATTRS:
+            return object.__getattribute__(self, attr)
+        if attr == "__dict__":
+            # Expose the real module's __dict__ so mock.patch is_local detection
+            # correctly identifies module attributes as local and uses setattr
+            # (not delattr) during teardown.
+            return object.__getattribute__(self, "_load")().__dict__
+        return getattr(object.__getattribute__(self, "_load")(), attr)
 
     def __setattr__(self, attr: str, value: Any) -> None:
         if attr == "_lazy_name":
             object.__setattr__(self, attr, value)
         else:
-            setattr(self._load(), attr, value)
+            setattr(object.__getattribute__(self, "_load")(), attr, value)
 
     def __repr__(self) -> str:
         name = object.__getattribute__(self, "_lazy_name")

@@ -2,7 +2,14 @@ import os
 from collections.abc import Sequence
 from pathlib import Path
 
-from aws_cdk import CfnOutput, CfnParameter, Duration, RemovalPolicy, Stack
+from aws_cdk import (
+    CfnOutput,
+    CfnParameter,
+    Duration,
+    RemovalPolicy,
+    Stack,
+    triggers,
+)
 from aws_cdk import aws_apigatewayv2 as apigwv2
 from aws_cdk import aws_apigatewayv2_authorizers as apigwv2_authorizers
 from aws_cdk import aws_apigatewayv2_integrations as apigwv2_integrations
@@ -399,6 +406,18 @@ class BackendLambdaStack(Stack):
             "DailyPriceRefresh",
             schedule=events.Schedule.cron(minute="0", hour="0"),
             targets=[targets.LambdaFunction(refresh_fn)],
+        )
+
+        # Invoke PriceRefreshLambda once after first deployment (and again
+        # whenever the Lambda code changes) so prices/latest_prices.json is
+        # seeded in S3 before the daily EventBridge schedule fires.
+        # InvocationType.EVENT is async: the deploy completes before the Lambda
+        # finishes, so a transient API failure won't block the stack update.
+        triggers.Trigger(
+            self,
+            "PriceRefreshOnDeploy",
+            handler=refresh_fn,
+            invocation_type=triggers.InvocationType.EVENT,
         )
 
         # Scheduled function to execute the trading agent

@@ -305,6 +305,38 @@ def test_backend_lambda_timeout_is_at_least_30s(template):
     )
 
 
+def test_price_refresh_trigger_on_deploy_exists(template):
+    """A CDK Trigger must invoke PriceRefreshLambda on first deploy (and code changes).
+
+    This ensures latest_prices.json is seeded in S3 on the first deployment
+    without waiting for the daily EventBridge schedule.
+    The Trigger construct creates a Custom::Trigger CloudFormation resource whose
+    HandlerArn must reference PriceRefreshLambda (not some other function).
+    """
+    trigger_resources = template.find_resources("Custom::Trigger")
+    assert trigger_resources, (
+        "Expected a Custom::Trigger resource from the CDK triggers.Trigger construct "
+        "to invoke PriceRefreshLambda after first deploy"
+    )
+
+    # The trigger's HandlerArn must reference the PriceRefreshLambda function,
+    # not an unrelated handler. CDK resolves HandlerArn as a Ref to a versioned
+    # Lambda logical ID that starts with "PriceRefreshLambda".
+    trigger_handler_arns = [
+        resource.get("Properties", {}).get("HandlerArn")
+        for resource in trigger_resources.values()
+        if resource.get("Properties", {}).get("HandlerArn")
+    ]
+    assert trigger_handler_arns, (
+        "Custom::Trigger must have a HandlerArn property referencing PriceRefreshLambda"
+    )
+    for arn in trigger_handler_arns:
+        assert "PriceRefreshLambda" in json.dumps(arn), (
+            f"Trigger HandlerArn {arn} does not reference PriceRefreshLambda; "
+            "the trigger may be wired to the wrong function"
+        )
+
+
 def test_backend_error_alarm_exists(template):
     template.has_resource_properties(
         "AWS::CloudWatch::Alarm",
@@ -408,7 +440,7 @@ def test_backend_api_routes_require_cognito_authorizer(template):
         else:
             raise AssertionError(
                 f"Route {route_key} has unexpected AuthorizationType {auth_type!r}; "
-                "every route must be either JWT-protected or explicitly listed in UNAUTHENTICATED_ROUTES"
+                "every route must be JWT-protected or listed in UNAUTHENTICATED_ROUTES"
             )
 
     assert actual_none_routes == UNAUTHENTICATED_ROUTES, (

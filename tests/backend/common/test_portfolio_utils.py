@@ -1,7 +1,7 @@
+import inspect
 import json
 import sys
 import types
-import inspect
 from datetime import UTC, datetime
 
 import numpy as np
@@ -133,7 +133,7 @@ def test_load_snapshot_from_s3(monkeypatch):
     class FakeClient:
         def get_object(self, Bucket, Key):
             assert Bucket == "test-bucket"
-            assert Key == portfolio_utils._PRICES_S3_KEY
+            assert Key == portfolio_utils.PRICES_S3_KEY
             return {"Body": FakeBody(), "LastModified": timestamp}
 
     fake_boto3 = types.ModuleType("boto3")
@@ -287,7 +287,9 @@ def test_aggregate_by_ticker_uses_shared_grouping(monkeypatch):
 
     definitions = {"shared": {"id": "shared", "name": "Shared Group"}}
     monkeypatch.setattr(ia, "list_group_definitions", lambda: definitions)
-    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda ticker, latest: (ticker.split(".")[0], "L"))
+    monkeypatch.setattr(
+        ia, "_resolve_full_ticker", lambda ticker, latest: (ticker.split(".")[0], "L")
+    )
     monkeypatch.setattr(ia, "price_change_pct", lambda *args, **kwargs: None)
 
     monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {})
@@ -312,7 +314,9 @@ def test_aggregate_by_ticker_uses_shared_grouping(monkeypatch):
 
     from backend.common import instrument_api
 
-    monkeypatch.setattr(instrument_api, "_resolve_full_ticker", lambda ticker, latest: (ticker, "L"))
+    monkeypatch.setattr(
+        instrument_api, "_resolve_full_ticker", lambda ticker, latest: (ticker, "L")
+    )
     monkeypatch.setattr(instrument_api, "price_change_pct", lambda *args, **kwargs: None)
 
     rows = portfolio_utils.aggregate_by_ticker(portfolio, base_currency="GBP")
@@ -344,7 +348,9 @@ def test_aggregate_by_ticker_prefers_cost_basis(monkeypatch):
         ]
     }
 
-    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda ticker, latest: (ticker.split(".")[0], "L"))
+    monkeypatch.setattr(
+        ia, "_resolve_full_ticker", lambda ticker, latest: (ticker.split(".")[0], "L")
+    )
     monkeypatch.setattr(ia, "price_change_pct", lambda *args, **kwargs: None)
     monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {}, raising=False)
     monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda ticker: {})
@@ -376,7 +382,9 @@ def test_aggregate_by_ticker_uses_zero_snapshot_price(monkeypatch):
         ]
     }
 
-    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda ticker, latest: (ticker.split(".")[0], "L"))
+    monkeypatch.setattr(
+        ia, "_resolve_full_ticker", lambda ticker, latest: (ticker.split(".")[0], "L")
+    )
     monkeypatch.setattr(ia, "price_change_pct", lambda *args, **kwargs: None)
     monkeypatch.setattr(
         portfolio_utils,
@@ -501,7 +509,10 @@ def test_aggregate_by_ticker_cash_gbp_ticker_normalisation(monkeypatch, ticker_v
         ia,
         "_resolve_full_ticker",
         # Simulate resolver returning the original variant uppercased
-        lambda ticker, latest: (ticker.strip().upper().split(".")[0], ticker.strip().upper().split(".")[1]),
+        lambda ticker, latest: (
+            ticker.strip().upper().split(".")[0],
+            ticker.strip().upper().split(".")[1],
+        ),
     )
     monkeypatch.setattr(ia, "price_change_pct", lambda *args, **kwargs: None)
     monkeypatch.setattr(
@@ -611,7 +622,9 @@ def test_aggregate_by_ticker_security_meta_and_default_fallback(monkeypatch):
         ]
     }
 
-    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda ticker, latest: (ticker.split(".")[0], "L"))
+    monkeypatch.setattr(
+        ia, "_resolve_full_ticker", lambda ticker, latest: (ticker.split(".")[0], "L")
+    )
     monkeypatch.setattr(ia, "price_change_pct", lambda *args, **kwargs: None)
 
     def fake_resolve_grouping_details(*sources, current=None):
@@ -642,7 +655,9 @@ def test_aggregate_by_ticker_security_meta_and_default_fallback(monkeypatch):
         "AAA.L": {},
     }
 
-    monkeypatch.setattr(portfolio_utils, "get_security_meta", lambda ticker: security_meta.get(ticker, {}))
+    monkeypatch.setattr(
+        portfolio_utils, "get_security_meta", lambda ticker: security_meta.get(ticker, {})
+    )
 
     rows = portfolio_utils.aggregate_by_ticker(portfolio, base_currency="GBP")
     rows_by_ticker = {row["ticker"]: row for row in rows}

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from aws_cdk import Aws, CfnOutput, CfnParameter, Duration, Fn, RemovalPolicy, Stack
+from aws_cdk import Aws, CfnOutput, CfnParameter, Duration, Fn, RemovalPolicy, Stack, Token
 from aws_cdk import aws_certificatemanager as acm
 from aws_cdk import aws_cloudfront as cloudfront
 from aws_cdk import aws_cloudfront_origins as origins
@@ -182,10 +182,26 @@ class StaticSiteStack(Stack):
         _certificate: acm.Certificate | None = None
         _hosted_zone: route53.IHostedZone | None = None
         if _enable_custom_domain:
-            # ACM certificates for CloudFront must reside in us-east-1.
-            # Ensure the stack is deployed to us-east-1 or use a cross-region construct.
-            _hosted_zone = route53.HostedZone.from_lookup(
-                self, "Zone", domain_name="allotmint.io"
+            # ACM certificates for CloudFront must be in us-east-1; fail fast at synth time
+            # so a mis-deployed stack surfaces immediately rather than at CloudFormation execution.
+            if not Token.is_unresolved(self.region) and self.region != "us-east-1":
+                raise ValueError(
+                    f"customDomain requires deployment to us-east-1 (ACM certificates "
+                    f"for CloudFront must reside there); got region={self.region!r}. "
+                    f"Pass env=cdk.Environment(region='us-east-1') to the stack."
+                )
+            _hosted_zone_id = self.node.try_get_context("hostedZoneId") or ""
+            if not _hosted_zone_id:
+                raise ValueError(
+                    "customDomain=true requires a 'hostedZoneId' context value "
+                    "(e.g. --context hostedZoneId=Z1234567890ABCDEFGHIJ). "
+                    "Find the ID in the Route53 console for allotmint.io."
+                )
+            _hosted_zone = route53.HostedZone.from_hosted_zone_attributes(
+                self,
+                "Zone",
+                hosted_zone_id=_hosted_zone_id,
+                zone_name="allotmint.io",
             )
             _certificate = acm.Certificate(
                 self,

@@ -537,3 +537,19 @@ def test_custom_domain_bool_true_context(tmp_path):
     assert len(resources) == 1, (
         f"Expected one ACM certificate when customDomain=True (bool); found {len(resources)}"
     )
+
+
+def test_boolean_false_context_no_certificate(tmp_path):
+    """customDomain=False (native Python bool) must not produce a certificate.
+
+    cdk.json stores JSON booleans which CDK deserialises as Python bools, so
+    _is_truthy_context must handle bool False as well as string "false".
+    """
+    (tmp_path / "index.html").write_text("<html></html>")
+    app = App(context={"customDomain": False})
+    stack = StaticSiteStack(app, "BoolFalseStack", frontend_dist_path=str(tmp_path))
+    t = assertions.Template.from_stack(stack)
+    resources = t.find_resources("AWS::CertificateManager::Certificate")
+    assert len(resources) == 0, (
+        f"customDomain=False (bool) must produce no certificate; found {len(resources)}"
+    )

@@ -9,11 +9,11 @@ import requests
 from fastapi import APIRouter, Query
 
 from backend import config_module
+from backend.routes.news import get_cached_news
 from backend.utils.lazy_import import lazy_import
 
 # yfinance is only needed when market endpoints are called, not at import time.
 yf = lazy_import("yfinance")
-from backend.routes.news import get_cached_news
 
 cfg = getattr(config_module, "settings", config_module.config)
 config = cfg

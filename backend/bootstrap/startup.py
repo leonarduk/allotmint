@@ -29,6 +29,11 @@ class AppLifecycleService:
         # Deferred import: portfolio_utils pulls in pandas; loading it here
         # (inside the lifespan startup hook) rather than at module level keeps
         # the Lambda INIT phase import chain lean.
+        #
+        # Note: this import — and the refresh call — are intentionally outside
+        # the skip_snapshot_warm guard.  The background async refresh always
+        # runs (it keeps the snapshot up-to-date); only the *blocking* warm-up
+        # in _warm_snapshot is skipped when skip_snapshot_warm=True.
         from backend.common.portfolio_utils import refresh_snapshot_async
 
         task = refresh_snapshot_async(days=self.cfg.snapshot_warm_days)

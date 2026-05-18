@@ -14,8 +14,6 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, Dict, List
 
-import numpy as np
-import pandas as pd
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -30,6 +28,10 @@ from backend.utils.fx_rates import fetch_fx_rate_range
 from backend.utils.lazy_import import lazy_import
 from backend.utils.timeseries_helpers import apply_scaling, get_scaling_override
 
+# Heavy scientific libraries — defer to first endpoint call so they are not
+# loaded during Lambda INIT or router registration.
+np = lazy_import("numpy")
+pd = lazy_import("pandas")
 # yfinance is only used by the /intraday endpoint; defer loading to first call.
 yf = lazy_import("yfinance")
 

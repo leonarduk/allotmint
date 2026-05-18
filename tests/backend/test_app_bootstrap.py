@@ -42,9 +42,9 @@ async def test_lifecycle_service_warms_snapshot_and_registers_background_task(
     warmed = {}
     snapshot_task = asyncio.Future()
 
-    monkeypatch.setattr("backend.bootstrap.startup._load_snapshot", lambda: ({"ABC": 1}, "ts"))
+    monkeypatch.setattr("backend.common.portfolio_utils._load_snapshot", lambda: ({"ABC": 1}, "ts"))
     monkeypatch.setattr(
-        "backend.bootstrap.startup.refresh_snapshot_in_memory",
+        "backend.common.portfolio_utils.refresh_snapshot_in_memory",
         lambda snapshot, ts: warmed.update({"snapshot": snapshot, "ts": ts}),
     )
 
@@ -68,7 +68,7 @@ async def test_lifecycle_service_warms_snapshot_and_registers_background_task(
         "backend.common.instrument_api.prime_latest_prices", InstrumentApi.prime_latest_prices
     )
     monkeypatch.setattr(
-        "backend.bootstrap.startup.refresh_snapshot_async", lambda days: snapshot_task
+        "backend.common.portfolio_utils.refresh_snapshot_async", lambda days: snapshot_task
     )
 
     config.skip_snapshot_warm = False
@@ -126,9 +126,9 @@ async def test_lifecycle_service_startup_survives_prime_latest_prices_failure(
     def _fail_prime():
         raise RuntimeError("simulated network failure")
 
-    monkeypatch.setattr("backend.bootstrap.startup._load_snapshot", lambda: ({}, None))
+    monkeypatch.setattr("backend.common.portfolio_utils._load_snapshot", lambda: ({}, None))
     monkeypatch.setattr(
-        "backend.bootstrap.startup.refresh_snapshot_in_memory",
+        "backend.common.portfolio_utils.refresh_snapshot_in_memory",
         lambda snapshot, ts: None,
     )
     monkeypatch.setattr(
@@ -139,7 +139,7 @@ async def test_lifecycle_service_startup_survives_prime_latest_prices_failure(
         "backend.common.instrument_api.prime_latest_prices",
         _fail_prime,
     )
-    monkeypatch.setattr("backend.bootstrap.startup.refresh_snapshot_async", lambda days: None)
+    monkeypatch.setattr("backend.common.portfolio_utils.refresh_snapshot_async", lambda days: None)
     monkeypatch.setattr(config, "skip_snapshot_warm", False, raising=False)
 
     service = AppLifecycleService(cfg=config)
@@ -168,7 +168,7 @@ def test_create_app_skips_snapshot_warm_when_disabled(monkeypatch: pytest.Monkey
     monkeypatch.setattr(
         "backend.bootstrap.startup.AppLifecycleService._warm_snapshot", unexpected_warm
     )
-    monkeypatch.setattr("backend.bootstrap.startup.refresh_snapshot_async", lambda days: None)
+    monkeypatch.setattr("backend.common.portfolio_utils.refresh_snapshot_async", lambda days: None)
 
     app = app_module.create_app()
     with TestClient(app):

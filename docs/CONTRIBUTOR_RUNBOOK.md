@@ -26,6 +26,7 @@ npm --prefix frontend install
 
 Notes:
 
+- **JWT namespace conflict**: the `jwt` package (v1.x, from PyPI) and `PyJWT` (listed in `requirements.txt` as `pyjwt`) both install into the `jwt` module namespace. If the standalone `jwt` package is present in your environment it will shadow `PyJWT`, causing `AttributeError: module 'jwt' has no attribute 'encode'` in tests. Fix by running `pip uninstall jwt` before `pip install -r requirements.txt`.
 - Python formatting/lint configuration lives in `backend/pyproject.toml`, while pytest and coverage defaults live in the root `pyproject.toml`.
 - Branch protection required-check policy lives in `docs/BRANCH_PROTECTION.md` and is validated by `python scripts/check_branch_protection_required_checks.py`.
 - The frontend already has its own `package.json`; use `npm --prefix frontend ...` from the repo root unless you intentionally `cd frontend`.

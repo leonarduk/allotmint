@@ -1,23 +1,27 @@
 """
 AWS Lambda entry-point (Python 3.12 runtime or container).
 Handler: backend.lambda_api.handler.lambda_handler
+
+Initialization is deferred to the first invocation rather than the Lambda
+INIT phase.  The INIT phase has a hard 10-second limit enforced by AWS; the
+full application startup (FastAPI app creation, router registration, snapshot
+warmup) can exceed that limit on a cold start.  Deferring to the first
+invocation moves this work into normal invocation time, which has a
+configurable and far more generous timeout.
 """
 
 import asyncio
+import logging
 
-from mangum import Mangum
+logger = logging.getLogger(__name__)
 
-from backend.app import create_app
+_handler = None
 
 
-def _create_handler() -> Mangum:
-    """Create the Mangum handler ensuring an event loop exists.
+def _create_handler():
+    from mangum import Mangum
 
-    Mangum expects an event loop to be available. On some platforms
-    (e.g. Windows) ``asyncio.get_event_loop()`` may raise a ``RuntimeError``
-    when no loop has been set. The tests run in such an environment so we
-    create and set a new loop if needed before instantiating ``Mangum``.
-    """
+    from backend.app import create_app
 
     try:  # pragma: no cover - the exception path is platform specific
         asyncio.get_running_loop()
@@ -27,4 +31,14 @@ def _create_handler() -> Mangum:
     return Mangum(create_app())
 
 
-lambda_handler = _create_handler()
+def lambda_handler(event, context):
+    """AWS Lambda handler with lazy application initialization.
+
+    The underlying Mangum/FastAPI handler is created on the first invocation
+    and cached for all subsequent calls in the same Lambda execution context.
+    """
+    global _handler
+    if _handler is None:
+        logger.info("Lambda cold start: initializing application on first invocation")
+        _handler = _create_handler()
+    return _handler(event, context)

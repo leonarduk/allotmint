@@ -207,6 +207,7 @@ _PRICES_S3_KEY = "prices/latest_prices.json"
 
 
 def _load_snapshot() -> tuple[Dict[str, Dict], datetime | None]:
+    s3_failed = False
     if config.app_env == "aws":
         bucket = os.getenv(DATA_BUCKET_ENV)
         if not bucket:
@@ -214,6 +215,7 @@ def _load_snapshot() -> tuple[Dict[str, Dict], datetime | None]:
                 "Missing %s env var for AWS price snapshot; falling back to local file",
                 DATA_BUCKET_ENV,
             )
+            s3_failed = True
         else:
             try:
                 import boto3  # type: ignore
@@ -231,6 +233,7 @@ def _load_snapshot() -> tuple[Dict[str, Dict], datetime | None]:
                     _PRICES_S3_KEY,
                     bucket,
                 )
+                s3_failed = True
             except (ClientError, BotoCoreError, json.JSONDecodeError) as exc:
                 logger.error(
                     "Failed to fetch price snapshot %s from bucket %s: %s; falling back to local file",
@@ -238,18 +241,33 @@ def _load_snapshot() -> tuple[Dict[str, Dict], datetime | None]:
                     bucket,
                     exc,
                 )
+                s3_failed = True
             except ImportError as exc:
                 logger.warning(
                     "boto3 not available for S3 price snapshot: %s; falling back to local file",
                     exc,
                 )
+                s3_failed = True
 
     if config.prices_json is None:
-        logger.info("Price snapshot path not configured; skipping load")
+        if s3_failed:
+            logger.error(
+                "No price data available: S3 snapshot unavailable and no local fallback configured. "
+                "Portfolio prices will be unavailable for this request."
+            )
+        else:
+            logger.info("Price snapshot path not configured; skipping load")
         return {}, None
 
     if not _PRICES_PATH or not _PRICES_PATH.exists():
-        logger.warning("Price snapshot not found: %s", _PRICES_PATH)
+        if s3_failed:
+            logger.error(
+                "No price data available: S3 snapshot unavailable and local fallback %s not found. "
+                "Portfolio prices will be unavailable for this request.",
+                _PRICES_PATH,
+            )
+        else:
+            logger.warning("Price snapshot not found: %s", _PRICES_PATH)
         return {}, None
     try:
         data = json.loads(_PRICES_PATH.read_text())

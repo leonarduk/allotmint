@@ -28,9 +28,18 @@ def template():
     env_patch = {"JWT_SECRET": "test-secret", "GOOGLE_CLIENT_ID": "test-client-id"}
     for key, value in env_patch.items():
         os.environ.setdefault(key, value)
-    app = App()
-    stack = BackendLambdaStack(app, "TestBackendStack")
-    return assertions.Template.from_stack(stack)
+    # Remove optional auth env vars so CfnParameters have no Default,
+    # keeping the synthesised template deterministic regardless of local env.
+    _auth_env_vars = ("UI_AUTH_USER_POOL_ID", "UI_AUTH_USER_POOL_CLIENT_ID")
+    saved = {k: os.environ.pop(k, None) for k in _auth_env_vars}
+    try:
+        app = App()
+        stack = BackendLambdaStack(app, "TestBackendStack")
+        return assertions.Template.from_stack(stack)
+    finally:
+        for k, v in saved.items():
+            if v is not None:
+                os.environ[k] = v
 
 
 # ---------------------------------------------------------------------------
@@ -316,6 +325,100 @@ def test_monthly_budget_exists(template):
     budget_limit = budget_props.get("BudgetLimit", {})
     assert float(budget_limit.get("Amount")) == 5.0
     assert budget_limit.get("Unit") == "USD"
+
+
+def test_backend_api_auth_parameters_exist(template):
+    template.has_parameter(
+        "UiAuthUserPoolId",
+        {
+            "Type": "String",
+            "AllowedPattern": ".+",
+        },
+    )
+    template.has_parameter(
+        "UiAuthUserPoolClientId",
+        {
+            "Type": "String",
+            "AllowedPattern": ".+",
+        },
+    )
+    params = template.to_json()["Parameters"]
+    assert "Default" not in params["UiAuthUserPoolId"]
+    assert "Default" not in params["UiAuthUserPoolClientId"]
+
+
+def test_backend_lambda_disables_app_jwt_decode_for_cognito_authorizer(template):
+    """Lambda trusts API Gateway for Cognito auth and does not decode ID tokens as app JWTs."""
+    template.has_resource_properties(
+        "AWS::Lambda::Function",
+        {
+            "Environment": {
+                "Variables": assertions.Match.object_like({"DISABLE_AUTH": "true"})
+            }
+        },
+    )
+
+
+def test_backend_api_has_cognito_jwt_authorizer(template):
+    """API Gateway must validate Cognito JWTs before invoking the backend Lambda."""
+    template.has_resource_properties(
+        "AWS::ApiGatewayV2::Authorizer",
+        {
+            "AuthorizerType": "JWT",
+            "IdentitySource": ["$request.header.Authorization"],
+            "JwtConfiguration": {
+                # Audience must reference the Cognito app client ID parameter.
+                "Audience": assertions.Match.array_with([
+                    assertions.Match.object_like({"Ref": "UiAuthUserPoolClientId"})
+                ]),
+                # Issuer must be a CloudFormation expression (Fn::Join), not a
+                # literal synth-time token like "${Token[...]}".
+                "Issuer": assertions.Match.object_like(
+                    {"Fn::Join": assertions.Match.any_value()}
+                ),
+            },
+        },
+    )
+
+
+def test_backend_api_routes_require_cognito_authorizer(template):
+    """All API Gateway routes must require Cognito JWT authorization except /health.
+
+    /health is intentionally unauthenticated so that post-deploy probes and
+    smoke tests can confirm Lambda is reachable without needing a Cognito token.
+    Asserts the full route set so that adding any other unprotected route will
+    fail this test rather than silently bypassing the authorizer.
+    """
+    UNAUTHENTICATED_ROUTES = {"GET /health"}
+
+    routes = template.find_resources("AWS::ApiGatewayV2::Route")
+    assert routes, "Expected at least one API Gateway route"
+
+    actual_none_routes = set()
+    for logical_id, resource in routes.items():
+        properties = resource["Properties"]
+        route_key = properties.get("RouteKey", logical_id)
+        auth_type = properties.get("AuthorizationType")
+        if auth_type == "NONE":
+            actual_none_routes.add(route_key)
+        elif auth_type == "JWT":
+            assert "AuthorizerId" in properties, (
+                f"Route {route_key} must reference the JWT authorizer"
+            )
+        else:
+            raise AssertionError(
+                f"Route {route_key} has unexpected AuthorizationType {auth_type!r}; "
+                "every route must be either JWT-protected or explicitly listed in UNAUTHENTICATED_ROUTES"
+            )
+
+    assert actual_none_routes == UNAUTHENTICATED_ROUTES, (
+        f"Unexpected unauthenticated routes: {actual_none_routes - UNAUTHENTICATED_ROUTES}; "
+        f"Missing expected unauthenticated routes: {UNAUTHENTICATED_ROUTES - actual_none_routes}"
+    )
+    assert "GET /health" in actual_none_routes, (
+        "GET /health route key not found in synthesized template — "
+        "CDK may have changed the RouteKey format; update UNAUTHENTICATED_ROUTES to match"
+    )
 
 
 # ---------------------------------------------------------------------------

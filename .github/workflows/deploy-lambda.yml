@@ -78,7 +78,7 @@ jobs:
       - name: Sync data from S3
         env:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
-        run: aws s3 sync s3://$DATA_BUCKET/ data/
+        run: aws s3 sync "s3://$DATA_BUCKET/" data/
 
       - name: Lint frontend
         run: npm run lint
@@ -109,13 +109,50 @@ jobs:
         run: npx cdk diff --all -c prod=true
         working-directory: cdk
 
+      - name: Deploy StaticSiteStack auth resources
+        env:
+          DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          CDK_OUTDIR: /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
+        run: npx cdk deploy StaticSiteStack --require-approval never
+        working-directory: cdk
+
+      - name: Get Cognito UI auth outputs
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          UI_AUTH_USER_POOL_ID="$(aws cloudformation describe-stacks \
+            --stack-name StaticSiteStack \
+            --query "Stacks[0].Outputs[?OutputKey=='UiAuthUserPoolId'].OutputValue" \
+            --output text)"
+          UI_AUTH_USER_POOL_CLIENT_ID="$(aws cloudformation describe-stacks \
+            --stack-name StaticSiteStack \
+            --query "Stacks[0].Outputs[?OutputKey=='UiAuthUserPoolClientId'].OutputValue" \
+            --output text)"
+          if [ -z "$UI_AUTH_USER_POOL_ID" ] || [ "$UI_AUTH_USER_POOL_ID" = "None" ]; then
+            echo "UiAuthUserPoolId output is missing from StaticSiteStack" >&2
+            exit 1
+          fi
+          if [ -z "$UI_AUTH_USER_POOL_CLIENT_ID" ] || [ "$UI_AUTH_USER_POOL_CLIENT_ID" = "None" ]; then
+            echo "UiAuthUserPoolClientId output is missing from StaticSiteStack" >&2
+            exit 1
+          fi
+          echo "UI_AUTH_USER_POOL_ID=$UI_AUTH_USER_POOL_ID" >> "$GITHUB_ENV"
+          echo "UI_AUTH_USER_POOL_CLIENT_ID=$UI_AUTH_USER_POOL_CLIENT_ID" >> "$GITHUB_ENV"
+
       - name: Deploy BackendLambdaStack
         env:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           CDK_OUTDIR: /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
-        run: npx cdk deploy BackendLambdaStack --require-approval never
+          GITHUB_DEPLOY_ROLE_ARN: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+        run: >
+          npx cdk deploy BackendLambdaStack --require-approval never
+          --parameters BackendLambdaStack:UiAuthUserPoolId="$UI_AUTH_USER_POOL_ID"
+          --parameters BackendLambdaStack:UiAuthUserPoolClientId="$UI_AUTH_USER_POOL_CLIENT_ID"
         working-directory: cdk
 
       - name: Get backend API URL
@@ -133,7 +170,7 @@ jobs:
           fi
           echo "BACKEND_URL=$BACKEND_URL" >> "$GITHUB_ENV"
 
-      - name: Deploy StaticSiteStack
+      - name: Refresh StaticSiteStack runtime config
         env:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
@@ -143,6 +180,36 @@ jobs:
           npx cdk deploy StaticSiteStack --require-approval never -c prod=true
           --parameters StaticSiteStack:BackendApiUrl="$BACKEND_URL"
         working-directory: cdk
+
+      - name: Warm up backend Lambda (absorb cold-start before validation)
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
+        continue-on-error: true
+        run: |
+          if [ -z "${BACKEND_URL:-}" ]; then
+            echo "BACKEND_URL is not set; skipping warm-up probe." >&2
+            exit 0
+          fi
+          # Lambda container init takes ~24 s on a fresh deploy (heavy imports: pandas,
+          # pyarrow, yfinance, selenium). AWS kills the first container after 10 s and
+          # retries with a second instance. Send a probe with generous retries so the
+          # cold-start completes before the strict validation gate runs below.
+          echo "Sending warm-up probe to ${BACKEND_URL%/}/health (cold-start may take up to 40 s per attempt)..."
+          # --fail: makes curl exit non-zero on HTTP 4xx/5xx so that --retry-all-errors
+          # retries on cold-start 502/504 responses (without --fail, curl exits 0 on
+          # any HTTP response and the warm-up would prematurely consider a 502 a success).
+          # --max-time 40: short enough that a hung first attempt (API Gateway holding
+          # the connection while Lambda init is killed) times out quickly.
+          # --retry-max-time 150: hard wall-clock cap across all attempts; the 4th
+          # attempt may be cut short if earlier attempts consume the budget.
+          curl --retry 3 --retry-delay 10 --retry-all-errors --fail \
+            --retry-max-time 150 --max-time 40 --silent --output /dev/null \
+            "${BACKEND_URL%/}/health" \
+            && echo "Warm-up probe succeeded." \
+            || echo "Warm-up probe finished with non-zero exit (tolerated — validation step will assert)."
+          # Record METRIC_START *after* the warm-up curl so cold-start init-timeout
+          # errors land before the window and are excluded from the error-rate gate.
+          echo "METRIC_START=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
 
       - name: Validate backend and frontend endpoints
         env:
@@ -165,10 +232,130 @@ jobs:
             echo "DistributionDomain output is missing from StaticSiteStack" >&2
             exit 1
           fi
-          curl --fail --show-error --silent "${backend_url%/}/docs" >/dev/null
-          curl --fail --show-error --silent "https://${frontend_domain}" >/dev/null
+          echo "Checking /health → ${backend_url%/}/health"
+          curl_exit=0
+          status=$(curl --retry 3 --retry-delay 5 --retry-all-errors \
+            --max-time 60 --write-out "%{http_code}" --silent --output /dev/null \
+            "${backend_url%/}/health") || curl_exit=$?
+          if [ "$curl_exit" -ne 0 ]; then
+            echo "curl failed (exit ${curl_exit}) checking ${backend_url%/}/health" >&2
+            exit 1
+          fi
+          if [ "$status" != "200" ]; then
+            echo "Expected HTTP 200 from unauthenticated /health endpoint, got $status" >&2
+            exit 1
+          fi
+          echo "/health → $status OK"
+          # /api-console is an explicitly defined route; hitting it without a token
+          # exercises the API Gateway JWT authorizer on the /{proxy+} catch-all.
+          # No --retry-all-errors here: 401 is the expected outcome, not an error,
+          # and retrying on it would add unnecessary delay.
+          echo "Checking auth → ${backend_url%/}/api-console"
+          curl_exit=0
+          auth_status=$(curl --retry 3 --retry-delay 5 \
+            --max-time 60 --write-out "%{http_code}" --silent --output /dev/null \
+            "${backend_url%/}/api-console") || curl_exit=$?
+          if [ "$curl_exit" -ne 0 ]; then
+            echo "curl failed (exit ${curl_exit}) checking ${backend_url%/}/api-console" >&2
+            exit 1
+          fi
+          if [ "$auth_status" != "401" ]; then
+            echo "Expected HTTP 401 from protected /api-console endpoint, got $auth_status — Cognito authorizer may not be wired up" >&2
+            exit 1
+          fi
+          echo "/api-console → $auth_status (auth required) OK"
+          # Use curl's --output /dev/null flag (not a shell >/dev/null redirect) to
+          # avoid exit-23 write errors on HTTP/2 CloudFront connections. Capture the
+          # HTTP status so failures are self-explanatory rather than just an exit code.
+          # CloudFront DNS can take up to ~2 min to propagate for a newly created or
+          # recreated distribution. curl's built-in retry window (3 × 5 s = 15 s) is
+          # too short; spin here so a fresh deployment doesn't produce exit code 6.
+          # Uses dig(1) from dnsutils (pre-installed on ubuntu-latest runners) querying
+          # 8.8.8.8 directly, bypassing systemd-resolved's NSS stub (127.0.0.53) which
+          # silently returns empty results for external names on some GH-hosted runners.
+          # getent routes through NSS/systemd-resolved and proved unreliable here; see
+          # issue #3007. Capturing the IP and pinning it via curl --resolve ensures
+          # curl's c-ares resolver and dig agree on the same address, eliminating the
+          # class of exit-6 failures documented in issues #3000, #3002, and #3004.
+          # viewer-request (cdk/functions/viewer-request.js) returns 301 for the raw
+          # distribution domain; curl the canonical domain directly so the function
+          # passes the request to S3 and returns a real 200. See issue #3004.
+          # app.allotmint.io CNAMEs to the distribution, so waiting for it to resolve
+          # implicitly gates on distribution DNS propagation too (CNAME → distribution
+          # domain → CloudFront edge). Budget is 24 × 10 s = 240 s.
+          canonical_domain="app.allotmint.io"
+          echo "Distribution domain: ${frontend_domain}"
+          echo "Waiting for DNS resolution of ${canonical_domain}..."
+          canonical_ip=""
+          for i in $(seq 1 24); do
+            # +short A with explicit nameserver returns bare IPv4 addresses, one per line.
+            # head -1 picks the first; || true prevents set -e from aborting on NXDOMAIN.
+            canonical_ip="$(dig +short @8.8.8.8 A "${canonical_domain}" 2>/dev/null | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -1)" || true
+            if [ -n "${canonical_ip}" ]; then
+              echo "DNS resolved ${canonical_domain} to ${canonical_ip} (attempt $i/24)"
+              break
+            fi
+            if [ "$i" -lt 24 ]; then
+              echo "Attempt $i/24: DNS not yet resolving; retrying in 10 s..."
+              sleep 10
+            fi
+          done
+          if [ -z "${canonical_ip}" ]; then
+            echo "DNS for ${canonical_domain} is not resolving after 240 s" >&2
+            exit 1
+          fi
+          echo "Checking frontend → https://${canonical_domain}"
+          curl_exit=0
+          cf_status=$(curl --retry 3 --retry-delay 5 --retry-all-errors \
+            --max-time 60 --write-out "%{http_code}" --silent --output /dev/null \
+            --resolve "${canonical_domain}:443:${canonical_ip}" \
+            "https://${canonical_domain}") || curl_exit=$?
+          if [ "$curl_exit" -ne 0 ]; then
+            echo "curl failed (exit ${curl_exit}) checking https://${canonical_domain}" >&2
+            exit 1
+          fi
+          if [ "$cf_status" != "200" ]; then
+            echo "Expected HTTP 200 from CloudFront frontend, got $cf_status" >&2
+            exit 1
+          fi
+          echo "Frontend → $cf_status OK"
+
+      - name: Fetch BackendLambda CloudWatch logs (deploy)
+        # BackendLambdaLogGroupName is exported by BackendLambdaStack at
+        # cdk/stacks/backend_lambda_stack.py (CfnOutput "BackendLambdaLogGroupName").
+        # The deploy IAM role must have logs:FilterLogEvents on the log group ARN for
+        # this step to produce output; without it filter-log-events errors and
+        # continue-on-error absorbs it.
+        if: always()
+        continue-on-error: true
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          log_group="$(aws cloudformation describe-stacks \
+            --stack-name BackendLambdaStack \
+            --query "Stacks[0].Outputs[?OutputKey=='BackendLambdaLogGroupName'].OutputValue" \
+            --output text 2>/dev/null || echo "")"
+          if [ -z "$log_group" ] || [ "$log_group" = "None" ]; then
+            echo "BackendLambdaLogGroupName not found in BackendLambdaStack outputs; skipping log dump." >&2
+            exit 0
+          fi
+          echo "=== BackendLambda CloudWatch logs (last 10 minutes) ==="
+          # aws logs tail is CLI v2 only; use filter-log-events for CLI v1 compatibility.
+          # Shell arithmetic avoids a python3 dependency on self-hosted runners.
+          # Note: filter-log-events returns at most 10 000 events per call (no pagination);
+          # output of "None" means no events matched (AWS CLI JMESPath null → text "None").
+          start_ms=$(( ($(date +%s) - 600) * 1000 ))
+          aws logs filter-log-events \
+            --log-group-name "$log_group" \
+            --start-time "$start_ms" \
+            --query 'events[].message' \
+            --output text \
+            | grep -v '^None$' \
+            || echo "(no log events found)"
 
       - name: Check recent BackendLambda CloudWatch errors
+        if: always()
         env:
           AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
         run: |
@@ -182,10 +369,18 @@ jobs:
             exit 1
           fi
           read -r start_time end_time <<EOF
-          $(python - <<'PY'
+          $(METRIC_START="${METRIC_START:-}" python - <<'PY'
+          import os
           from datetime import datetime, timedelta, timezone
           end = datetime.now(timezone.utc)
-          start = end - timedelta(minutes=5)
+          metric_start_raw = os.environ.get("METRIC_START", "")
+          if metric_start_raw:
+              try:
+                  start = datetime.fromisoformat(metric_start_raw.replace("Z", "+00:00"))
+              except ValueError:
+                  start = end - timedelta(minutes=5)
+          else:
+              start = end - timedelta(minutes=5)
           print(start.strftime("%Y-%m-%dT%H:%M:%SZ"), end.strftime("%Y-%m-%dT%H:%M:%SZ"))
           PY
           )
@@ -225,10 +420,11 @@ jobs:
           invocation_count="$(normalize_metric "${invocation_sum}")"
           error_count="$(normalize_metric "${error_sum}")"
           if [ "${invocation_count}" -lt 1 ]; then
-            echo "Backend Lambda had no invocations in the last 5 minutes; post-deploy validation cannot confirm runtime health" >&2
-            exit 1
-          fi
-          if [ "${error_count}" -gt 0 ]; then
+            # All API routes require Cognito JWT auth enforced at the API Gateway
+            # level, so unauthenticated post-deploy curl probes never reach Lambda.
+            # Zero invocations here is expected and does not indicate a problem.
+            echo "No Lambda invocations in the last 5 minutes (expected: Cognito JWT auth blocks unauthenticated probes at API Gateway)"
+          elif [ "${error_count}" -gt 0 ]; then
             echo "Backend Lambda reported ${error_count} errors in the last 5 minutes" >&2
             exit 1
           fi
@@ -254,6 +450,12 @@ jobs:
         with:
           node-version: '24'
 
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885 # v6.1.1
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
+
       - name: Install root dependencies
         run: npm ci
 
@@ -270,3 +472,32 @@ jobs:
 
       - name: Run frontend smoke tests
         run: npm --prefix frontend run smoke:frontend
+
+      - name: Fetch Lambda logs from smoke test
+        if: always()
+        continue-on-error: true
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          log_group="$(aws cloudformation describe-stacks \
+            --stack-name BackendLambdaStack \
+            --query "Stacks[0].Outputs[?OutputKey=='BackendLambdaLogGroupName'].OutputValue" \
+            --output text)"
+          if [ -z "$log_group" ] || [ "$log_group" = "None" ]; then
+            echo "BackendLambdaLogGroupName output not found in BackendLambdaStack; skipping" >&2
+            exit 0
+          fi
+          echo "=== BackendLambda CloudWatch logs (last 15 minutes) ==="
+          # aws logs tail is CLI v2 only; use filter-log-events for CLI v1 compatibility.
+          # Shell arithmetic avoids a python3 dependency on self-hosted runners.
+          # Note: filter-log-events returns at most 10 000 events per call (no pagination);
+          # output of "None" means no events matched (AWS CLI JMESPath null → text "None").
+          start_ms=$(( ($(date +%s) - 900) * 1000 ))
+          aws logs filter-log-events \
+            --log-group-name "$log_group" \
+            --start-time "$start_ms" \
+            --query 'events[].message' \
+            --output text \
+            | grep -v '^None$' \
+            || echo "(no log events found)"

@@ -18,8 +18,12 @@ backend_stack = BackendLambdaStack(app, "BackendLambdaStack")
 #   cdk deploy StaticSiteStack --parameters StaticSiteStack:BackendApiUrl=<url>
 # See deploy-lambda.yml for how the URL is extracted from BackendLambdaStack.
 static_stack = StaticSiteStack(app, "StaticSiteStack")
-# Guarantee BackendLambdaStack is deployed before StaticSiteStack so the
-# BackendApiUrl output is available when the workflow reads it.
-static_stack.add_dependency(backend_stack)
+# Deployment order is managed explicitly by deploy-lambda.yml:
+# 1. StaticSiteStack → creates Cognito User Pool, exposes UiAuthUserPoolId / UiAuthUserPoolClientId
+# 2. BackendLambdaStack → uses those IDs as CfnParameters, exposes BackendApiUrl
+# 3. StaticSiteStack (redeploy) → injects BackendApiUrl into the runtime config
+# A CDK add_dependency here would force BackendLambdaStack to deploy before
+# StaticSiteStack, which is the opposite of the required order and causes the
+# CfnParameters to have no value on the first run.
 
 app.synth()

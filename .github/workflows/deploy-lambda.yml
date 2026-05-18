@@ -280,8 +280,8 @@ jobs:
             echo "curl failed (exit ${curl_exit}) checking https://${frontend_domain}" >&2
             exit 1
           fi
-          if [ "$cf_status" -lt 200 ] || [ "$cf_status" -ge 500 ]; then
-            echo "Expected 2xx or 3xx from CloudFront distribution, got $cf_status" >&2
+          if [ "$cf_status" != "200" ] && [ "$cf_status" != "301" ]; then
+            echo "Expected 200 or 301 from CloudFront distribution, got $cf_status" >&2
             exit 1
           fi
           echo "CloudFront → $cf_status OK"

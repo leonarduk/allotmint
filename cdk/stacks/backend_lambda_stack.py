@@ -527,6 +527,33 @@ class BackendLambdaStack(Stack):
             )
             for log_group in (backend_log_group, refresh_log_group, agent_log_group):
                 log_group.grant(github_role, "logs:FilterLogEvents")
+            # Allow cdk diff --all to create/poll/delete CloudFormation change sets so the
+            # diff shows replacement annotations rather than falling back to template-only
+            # diff. Without these actions the diff step emits:
+            #   "Could not create a change set, will base the diff on template differences"
+            # CDK calls CreateChangeSet → DescribeChangeSet (polls until COMPLETE) →
+            # DeleteChangeSet; all three actions are required for the diff to succeed.
+            # self.stack_name is used for this stack to avoid a hardcoded literal.
+            # StaticSiteStack has no CDK reference here so its name is a string constant —
+            # it must match the ID used in cdk/app.py. Both stacks are targeted because
+            # deploy-lambda.yml runs `cdk diff --all`. See issue #3013.
+            github_role.add_to_principal_policy(
+                iam.PolicyStatement(
+                    actions=[
+                        "cloudformation:CreateChangeSet",
+                        "cloudformation:DescribeChangeSet",
+                        "cloudformation:DeleteChangeSet",
+                    ],
+                    resources=[
+                        self.format_arn(
+                            service="cloudformation",
+                            resource="stack",
+                            resource_name=f"{stack_name}/*",
+                        )
+                        for stack_name in (self.stack_name, "StaticSiteStack")
+                    ],
+                )
+            )
 
         CfnOutput(
             self,

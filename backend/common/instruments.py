@@ -29,6 +29,9 @@ def _resolve_instruments_dir() -> Path:
         logger.debug(
             "Configured instruments directory %s missing; falling back to %s", configured_dir, fallback_dir
         )
+        # INFO so CloudWatch dashboards/alarms can detect prolonged bundled-source usage
+        # (e.g. if the S3 sync is silently broken) without requiring DEBUG logging enabled.
+        logger.info("instruments_source=bundled dir=%s", fallback_dir)
         return fallback_dir
 
     logger.warning(

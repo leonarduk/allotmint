@@ -281,6 +281,13 @@ def test_instruments_dir_resolution(
                 warning_fragment in record.getMessage() and record.levelname == expected_level
                 for record in caplog.records
             )
+            if expected_source == "fallback":
+                # Bundled-source usage is also logged at INFO so CloudWatch alarms can
+                # detect prolonged fallback without DEBUG logging enabled.
+                assert any(
+                    "instruments_source=bundled" in record.getMessage() and record.levelname == "INFO"
+                    for record in caplog.records
+                )
     finally:
         if module is not None:
             module.get_instrument_meta.cache_clear()

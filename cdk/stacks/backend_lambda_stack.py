@@ -527,6 +527,25 @@ class BackendLambdaStack(Stack):
             )
             for log_group in (backend_log_group, refresh_log_group, agent_log_group):
                 log_group.grant(github_role, "logs:FilterLogEvents")
+            # Allow cdk diff --all to create/delete CloudFormation change sets so the diff
+            # shows replacement annotations rather than falling back to template-only diff.
+            # Without these actions the diff step emits:
+            #   "Could not create a change set, will base the diff on template differences"
+            # Both stacks are targeted because deploy-lambda.yml runs `cdk diff --all`.
+            # See issue #3013.
+            github_role.add_to_principal_policy(
+                iam.PolicyStatement(
+                    actions=["cloudformation:CreateChangeSet", "cloudformation:DeleteChangeSet"],
+                    resources=[
+                        self.format_arn(
+                            service="cloudformation",
+                            resource="stack",
+                            resource_name=f"{stack_name}/*",
+                        )
+                        for stack_name in ("BackendLambdaStack", "StaticSiteStack")
+                    ],
+                )
+            )
 
         CfnOutput(
             self,

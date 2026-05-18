@@ -124,6 +124,7 @@ def test_gbx_scaling_defaults_apply_without_override(monkeypatch):
     row = next(r for r in rows if r["ticker"] == full_ticker)
     assert row["last_price_gbp"] == pytest.approx(1.25)
     assert row["market_value_gbp"] == pytest.approx(1.25)
+    assert row["gain_gbp"] == pytest.approx(0.25)
 
 
 def test_enrich_holding_market_value_set_from_price_snapshot(monkeypatch):
@@ -134,10 +135,8 @@ def test_enrich_holding_market_value_set_from_price_snapshot(monkeypatch):
     first start.  The seed data/prices/latest_prices.json fixes the snapshot;
     this test guards the enrichment path.
     """
-    import backend.common.instrument_api as instrument_api
     import backend.common.portfolio_utils as pu
 
-    monkeypatch.setattr(instrument_api, "_resolve_full_ticker", lambda *_: ("VWRL", "L"))
     monkeypatch.setattr(
         hu,
         "get_instrument_meta",

@@ -391,3 +391,36 @@ def test_refresh_prices_skips_write_when_all_prices_null(
     assert json.loads(output_path.read_text()) == seed, (
         "Seed file must not be overwritten when every fetched price is None"
     )
+
+
+def test_refresh_prices_partial_null_preserves_existing_prices(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Partial-outage refresh updates valid prices and preserves existing ones for null tickers."""
+    seed = {
+        "AAA.L": {"last_price": 10.0, "price_currency": "GBP"},
+        "BBB.L": {"last_price": 20.0, "price_currency": "GBP"},
+    }
+    output_path = tmp_path / "prices.json"
+    output_path.write_text(json.dumps(seed))
+
+    partial_snapshot = {
+        "AAA.L": {"last_price": 11.5, "price_currency": "GBP", "is_stale": False},
+        "BBB.L": {"last_price": None, "price_currency": None, "is_stale": True},
+    }
+    monkeypatch.setattr(prices, "list_all_unique_tickers", lambda: ["AAA.L", "BBB.L"])
+    monkeypatch.setattr(prices, "get_price_snapshot", lambda _: partial_snapshot)
+    monkeypatch.setattr(prices, "refresh_snapshot_in_memory", Mock())
+    monkeypatch.setattr(prices, "check_price_alerts", Mock())
+    monkeypatch.setattr(prices.config, "prices_json", output_path)
+    monkeypatch.setattr(prices, "_price_cache", {})
+
+    prices.refresh_prices()
+
+    result = json.loads(output_path.read_text())
+    assert result["AAA.L"]["last_price"] == pytest.approx(11.5), (
+        "Successfully-fetched price must be updated"
+    )
+    assert result["BBB.L"]["last_price"] == pytest.approx(20.0), (
+        "Seed price for null-returning ticker must be preserved"
+    )

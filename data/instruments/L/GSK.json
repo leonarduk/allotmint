@@ -1,1 +1,8 @@
-{}
+{
+  "name": "GSK plc",
+  "ticker": "GSK.L",
+  "exchange": "L",
+  "asset_class": "Equity",
+  "sector": "Healthcare",
+  "currency": "GBP"
+}

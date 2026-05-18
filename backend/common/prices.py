@@ -240,10 +240,28 @@ def refresh_prices() -> Dict:
         raise RuntimeError("config.prices_json not configured")
     path = Path(config.prices_json)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(snapshot, indent=2))
+
+    # Merge strategy: only write entries where we successfully fetched a price.
+    # This preserves existing seed/cached prices for tickers that returned None
+    # (offline mode, market closed, data-source outage) rather than trashing them.
+    to_persist = {t: v for t, v in snapshot.items() if v.get("last_price") is not None}
+    if to_persist:
+        existing: Dict = {}
+        if path.exists():
+            try:
+                existing = json.loads(path.read_text())
+            except (json.JSONDecodeError, OSError):
+                pass
+        merged = {**existing, **to_persist}
+        path.write_text(json.dumps(merged, indent=2))
+    else:
+        logger.info(
+            "Skipping price snapshot write — no valid prices fetched"
+            " (offline mode or data-source unavailable)"
+        )
 
     # ---- persist to S3 (primary store read by all Lambda instances) -------
-    if config.app_env == "aws":
+    if config.app_env == "aws" and to_persist:
         _s3_bucket = os.getenv(DATA_BUCKET_ENV)
         if _s3_bucket:
             try:
@@ -252,7 +270,7 @@ def refresh_prices() -> Dict:
                 boto3.client("s3").put_object(
                     Bucket=_s3_bucket,
                     Key=PRICES_S3_KEY,
-                    Body=json.dumps(snapshot, indent=2).encode("utf-8"),
+                    Body=json.dumps(merged, indent=2).encode("utf-8"),
                     ContentType="application/json",
                 )
                 logger.info(

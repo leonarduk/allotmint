@@ -1980,14 +1980,24 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
     refresh_snapshot_in_memory(snapshot, datetime.now(UTC))
 
     try:
-        if _PRICES_PATH:
+        if _PRICES_PATH and snapshot:
+            existing: Dict[str, Any] = {}
+            if _PRICES_PATH.exists():
+                try:
+                    existing = json.loads(_PRICES_PATH.read_text())
+                except (json.JSONDecodeError, OSError):
+                    pass
+            merged = {**existing, **snapshot}
             _PRICES_PATH.parent.mkdir(parents=True, exist_ok=True)
-            _PRICES_PATH.write_text(json.dumps(snapshot, indent=2))
-            logger.info("Wrote %d prices to %s", len(snapshot), _PRICES_PATH)
-        else:
+            _PRICES_PATH.write_text(json.dumps(merged, indent=2))
+            logger.info("Wrote %d prices to %s", len(merged), _PRICES_PATH)
+        elif not _PRICES_PATH:
             logger.info(
-                "Price snapshot path not configured; skipping write (expected when config.prices_json is unset)"
+                "Price snapshot path not configured; skipping write"
+                " (expected when config.prices_json is unset)"
             )
+        else:
+            logger.info("Skipping price snapshot write — no timeseries data found")
     except OSError as e:
         logger.warning("Failed to write latest_prices.json: %s", e)
 

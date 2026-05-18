@@ -209,12 +209,11 @@ def test_list_group_definitions_returns_empty_when_missing(monkeypatch, tmp_path
         "expected_source",
         "warning_fragment",
         "expected_level",
-        "expect_bundled_info",
     ),
     [
-        (True, False, False, "configured", None, None, False),
-        (False, True, True, "fallback", "falling back to", "DEBUG", True),
-        (False, True, False, "configured", "not found", "WARNING", False),
+        (True, False, False, "configured", None, None),
+        (False, True, True, "fallback", "falling back to", "DEBUG"),
+        (False, True, False, "configured", "not found", "WARNING"),
     ],
     ids=[
         "configured-directory",
@@ -232,7 +231,6 @@ def test_instruments_dir_resolution(
     expected_source: str,
     warning_fragment: str | None,
     expected_level: str | None,
-    expect_bundled_info: bool,
 ) -> None:
     original_data_root = instruments.config.data_root
     module_path = Path(instruments.__file__).resolve()
@@ -283,9 +281,11 @@ def test_instruments_dir_resolution(
                 warning_fragment in record.getMessage() and record.levelname == expected_level
                 for record in caplog.records
             )
-            if expect_bundled_info:
-                assert any(
-                    "instruments_source=bundled" in record.getMessage() and record.levelname == "INFO"
+            if expected_source == "fallback":
+                # Regression guard: the bundled-fallback path must not emit WARNING
+                # (the log was intentionally downgraded to DEBUG in this fix).
+                assert not any(
+                    "falling back to" in record.getMessage() and record.levelname == "WARNING"
                     for record in caplog.records
                 )
     finally:

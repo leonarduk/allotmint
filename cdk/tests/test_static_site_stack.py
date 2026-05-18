@@ -14,9 +14,20 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 aws_cdk = pytest.importorskip("aws_cdk", reason="aws-cdk-lib not installed")
 
+import aws_cdk as cdk  # noqa: E402
 from aws_cdk import App, assertions  # noqa: E402
 
 from cdk.stacks.static_site_stack import StaticSiteStack  # noqa: E402
+
+_TEST_ACCOUNT = "123456789012"
+_TEST_REGION = "us-east-1"
+_HOSTED_ZONE_CONTEXT_KEY = (
+    f"hosted-zone:account={_TEST_ACCOUNT}:domainName=allotmint.io:region={_TEST_REGION}"
+)
+_HOSTED_ZONE_CONTEXT_VALUE = {
+    "Id": "/hostedzone/Z1234567890ABCDEFGHIJ",
+    "Name": "allotmint.io.",
+}
 
 _DUMMY_API_URL = "https://abc123.execute-api.eu-west-1.amazonaws.com"
 
@@ -359,3 +370,91 @@ def test_ui_auth_outputs_exist(template):
     template.has_output("UiAuthUserPoolId", {})
     template.has_output("UiAuthUserPoolClientId", {})
     template.has_output("UiAuthDomain", {})
+
+
+# ---------------------------------------------------------------------------
+# Custom domain (app.allotmint.io) — gated by customDomain context flag
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def custom_domain_template(tmp_path_factory):
+    """Synthesise StaticSiteStack with customDomain=true and a cached hosted zone."""
+    dist = tmp_path_factory.mktemp("dist_custom")
+    (dist / "index.html").write_text("<html></html>")
+    app = App(
+        context={
+            "customDomain": "true",
+            _HOSTED_ZONE_CONTEXT_KEY: _HOSTED_ZONE_CONTEXT_VALUE,
+        }
+    )
+    stack = StaticSiteStack(
+        app,
+        "CustomDomainStack",
+        api_base_url=_DUMMY_API_URL,
+        frontend_dist_path=str(dist),
+        env=cdk.Environment(account=_TEST_ACCOUNT, region=_TEST_REGION),
+    )
+    return assertions.Template.from_stack(stack)
+
+
+def test_custom_domain_distribution_has_domain_names(custom_domain_template):
+    """Distribution must list app.allotmint.io in Aliases when customDomain is set."""
+    custom_domain_template.has_resource_properties(
+        "AWS::CloudFront::Distribution",
+        {
+            "DistributionConfig": {
+                "Aliases": ["app.allotmint.io"],
+            }
+        },
+    )
+
+
+def test_custom_domain_acm_certificate_created(custom_domain_template):
+    """An ACM certificate for app.allotmint.io must be present."""
+    custom_domain_template.has_resource_properties(
+        "AWS::CertificateManager::Certificate",
+        {"DomainName": "app.allotmint.io"},
+    )
+
+
+def test_custom_domain_route53_alias_record_created(custom_domain_template):
+    """A Route53 A record aliasing the CloudFront distribution must be present."""
+    custom_domain_template.has_resource_properties(
+        "AWS::Route53::RecordSet",
+        {
+            "Name": "app.allotmint.io.",
+            "Type": "A",
+        },
+    )
+
+
+def test_custom_domain_cognito_callback_uses_custom_domain(custom_domain_template):
+    """Cognito callback URL must be https://app.allotmint.io/ when customDomain is set."""
+    custom_domain_template.has_resource_properties(
+        "AWS::Cognito::UserPoolClient",
+        {
+            "CallbackURLs": ["https://app.allotmint.io/"],
+            "LogoutURLs": ["https://app.allotmint.io/"],
+        },
+    )
+
+
+def test_no_custom_domain_by_default(template):
+    """Without customDomain context flag the distribution must not have Aliases."""
+    resources = template.find_resources("AWS::CloudFront::Distribution")
+    for resource in resources.values():
+        aliases = (
+            resource.get("Properties", {})
+            .get("DistributionConfig", {})
+            .get("Aliases", [])
+        )
+        assert aliases == [], f"Expected no Aliases in default mode; got {aliases}"
+
+
+def test_no_acm_certificate_by_default(template):
+    """Without customDomain context flag no ACM certificate should be synthesised."""
+    resources = template.find_resources("AWS::CertificateManager::Certificate")
+    assert len(resources) == 0, (
+        f"Expected no ACM certificate in default mode; found {len(resources)}"
+    )

@@ -1,9 +1,12 @@
 from pathlib import Path
 
 from aws_cdk import Aws, CfnOutput, CfnParameter, Duration, Fn, RemovalPolicy, Stack
+from aws_cdk import aws_certificatemanager as acm
 from aws_cdk import aws_cloudfront as cloudfront
 from aws_cdk import aws_cloudfront_origins as origins
 from aws_cdk import aws_cognito as cognito
+from aws_cdk import aws_route53 as route53
+from aws_cdk import aws_route53_targets as route53_targets
 from aws_cdk import aws_s3 as s3
 from aws_cdk import aws_s3_deployment as s3_deployment
 from constructs import Construct
@@ -173,6 +176,30 @@ class StaticSiteStack(Stack):
             ),
         )
 
+        _custom_domain = "app.allotmint.io"
+        _enable_custom_domain = _is_truthy_context(self.node.try_get_context("customDomain"))
+
+        _certificate: acm.Certificate | None = None
+        _hosted_zone: route53.IHostedZone | None = None
+        if _enable_custom_domain:
+            # ACM certificates for CloudFront must reside in us-east-1.
+            # Ensure the stack is deployed to us-east-1 or use a cross-region construct.
+            _hosted_zone = route53.HostedZone.from_lookup(
+                self, "Zone", domain_name="allotmint.io"
+            )
+            _certificate = acm.Certificate(
+                self,
+                "SiteCertificate",
+                domain_name=_custom_domain,
+                validation=acm.CertificateValidation.from_dns(_hosted_zone),
+            )
+
+        _distribution_extra: dict = (
+            {"domain_names": [_custom_domain], "certificate": _certificate}
+            if _enable_custom_domain
+            else {}
+        )
+
         distribution = cloudfront.Distribution(
             self,
             "StaticSiteDistribution",
@@ -215,7 +242,19 @@ class StaticSiteStack(Stack):
                 ),
             ],
             price_class=cloudfront.PriceClass.PRICE_CLASS_100,
+            **_distribution_extra,
         )
+
+        if _enable_custom_domain and _hosted_zone is not None:
+            route53.ARecord(
+                self,
+                "SiteARecord",
+                zone=_hosted_zone,
+                record_name="app",
+                target=route53.RecordTarget.from_alias(
+                    route53_targets.CloudFrontTarget(distribution)
+                ),
+            )
 
         ui_auth_pool = cognito.UserPool(
             self,
@@ -225,7 +264,11 @@ class StaticSiteStack(Stack):
             sign_in_aliases=cognito.SignInAliases(email=True),
             removal_policy=ui_auth_removal_policy,
         )
-        ui_auth_callback_url = Fn.join("", ["https://", distribution.domain_name, "/"])
+        ui_auth_callback_url = (
+            f"https://{_custom_domain}/"
+            if _enable_custom_domain
+            else Fn.join("", ["https://", distribution.domain_name, "/"])
+        )
         ui_auth_client = ui_auth_pool.add_client(
             "UiAuthClient",
             # auth_flows gates the direct Cognito API auth endpoints (USER_SRP_AUTH,

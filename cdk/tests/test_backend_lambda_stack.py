@@ -358,6 +358,8 @@ def test_price_refresh_lambda_has_sufficient_timeout(template):
     itself time out if PriceRefreshLambda times out, leaving the snapshot un-seeded.
     """
     functions = template.find_resources("AWS::Lambda::Function")
+    # Identify PriceRefreshLambda by its ImageConfig.Command — the CDK
+    # DockerImageCode.from_image_asset(..., cmd=[...]) call sets this property.
     refresh_timeouts = [
         resource["Properties"].get("Timeout", 3)
         for resource in functions.values()
@@ -366,12 +368,58 @@ def test_price_refresh_lambda_has_sufficient_timeout(template):
             resource.get("Properties", {}).get("ImageConfig", {}).get("Command", [])
         )
     ]
-    assert refresh_timeouts, "PriceRefreshLambda not found in synthesised template"
+    assert refresh_timeouts, (
+        "PriceRefreshLambda not found in synthesised template via ImageConfig.Command; "
+        "verify that DockerImageCode.from_image_asset uses cmd=['...price_refresh...']"
+    )
     for t in refresh_timeouts:
-        assert t >= 60, (
-            f"PriceRefreshLambda timeout is {t}s — must be >= 60s to complete a price fetch. "
-            "Set timeout=Duration.minutes(10) (or higher) in the CDK stack."
+        assert t >= 600, (
+            f"PriceRefreshLambda timeout is {t}s — must be >= 600s (10 min) to complete "
+            "a full price fetch for all portfolio tickers. "
+            "Set timeout=Duration.minutes(10) in the CDK stack."
         )
+
+
+def test_price_refresh_trigger_timeout_exceeds_lambda_timeout(template):
+    """The CDK Trigger timeout must be strictly greater than PriceRefreshLambda's timeout.
+
+    The Trigger custom resource provider invokes the Lambda with REQUEST_RESPONSE and
+    waits for the response. If the provider's own timeout equals the Lambda's timeout,
+    a race condition occurs: the Lambda may finish just as the provider times out,
+    causing CloudFormation to receive a failure response even though the snapshot was
+    written. The Trigger timeout must have meaningful headroom over the Lambda timeout.
+    """
+    functions = template.find_resources("AWS::Lambda::Function")
+    refresh_timeout = next(
+        (
+            resource["Properties"].get("Timeout", 3)
+            for resource in functions.values()
+            if resource.get("Properties", {}).get("PackageType") == "Image"
+            and "price_refresh" in json.dumps(
+                resource.get("Properties", {}).get("ImageConfig", {}).get("Command", [])
+            )
+        ),
+        None,
+    )
+    assert refresh_timeout is not None, "PriceRefreshLambda not found in synthesised template"
+
+    trigger_resources = template.find_resources("Custom::Trigger")
+    trigger_timeouts_ms = [
+        int(resource.get("Properties", {}).get("Timeout", 0))
+        for resource in trigger_resources.values()
+        if resource.get("Properties", {}).get("HandlerArn")
+        and "PriceRefreshLambda" in json.dumps(resource.get("Properties", {}).get("HandlerArn"))
+    ]
+    assert trigger_timeouts_ms, "No PriceRefreshOnDeploy Custom::Trigger timeout found"
+
+    # CDK serialises the Trigger timeout in milliseconds.
+    trigger_timeout_s = trigger_timeouts_ms[0] / 1000
+    assert trigger_timeout_s > refresh_timeout, (
+        f"Trigger timeout ({trigger_timeout_s}s) must be strictly greater than "
+        f"PriceRefreshLambda timeout ({refresh_timeout}s) to avoid a race where the "
+        "provider times out just as the Lambda finishes. "
+        "Increase timeout=Duration.minutes(N) on the triggers.Trigger construct."
+    )
 
 
 def test_backend_error_alarm_exists(template):

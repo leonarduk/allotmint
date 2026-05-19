@@ -199,7 +199,11 @@ class BackendLambdaStack(Stack):
                 "timeseries/meta",
                 "transactions",
             ),
-            "price_refresh": ("prices",),
+            # price_refresh needs accounts/ to call list_objects_v2 via
+            # S3DataProvider.list_plots() → list_all_unique_tickers() → list_portfolios().
+            # Without this ListBucket on accounts/, list_objects_v2 returns AccessDenied,
+            # refresh_prices() finds no tickers, and the snapshot is never written.
+            "price_refresh": ("accounts", "prices"),
             "trading_agent": ("prices",),
         }
 
@@ -414,13 +418,15 @@ class BackendLambdaStack(Stack):
         # prices/latest_prices.json is seeded in S3 before the smoke tests run.
         # REQUEST_RESPONSE blocks the CDK deploy until the Lambda finishes,
         # guaranteeing the snapshot is present by the time the smoke-test job
-        # starts. The Trigger timeout must be >= refresh_fn.timeout (10 min).
+        # starts. The Trigger timeout (15 min) must be strictly greater than
+        # refresh_fn.timeout (10 min) so the custom resource provider can wait
+        # for the Lambda response before CloudFormation signals completion.
         triggers.Trigger(
             self,
             "PriceRefreshOnDeploy",
             handler=refresh_fn,
             invocation_type=triggers.InvocationType.REQUEST_RESPONSE,
-            timeout=Duration.minutes(10),
+            timeout=Duration.minutes(15),
         )
 
         # Scheduled function to execute the trading agent

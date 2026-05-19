@@ -1,9 +1,12 @@
 from pathlib import Path
 
-from aws_cdk import Aws, CfnOutput, CfnParameter, Duration, Fn, RemovalPolicy, Stack
+from aws_cdk import Aws, CfnOutput, CfnParameter, Duration, Fn, RemovalPolicy, Stack, Token
+from aws_cdk import aws_certificatemanager as acm
 from aws_cdk import aws_cloudfront as cloudfront
 from aws_cdk import aws_cloudfront_origins as origins
 from aws_cdk import aws_cognito as cognito
+from aws_cdk import aws_route53 as route53
+from aws_cdk import aws_route53_targets as route53_targets
 from aws_cdk import aws_s3 as s3
 from aws_cdk import aws_s3_deployment as s3_deployment
 from constructs import Construct
@@ -173,6 +176,50 @@ class StaticSiteStack(Stack):
             ),
         )
 
+        _custom_domain = "app.allotmint.io"
+        _enable_custom_domain = _is_truthy_context(self.node.try_get_context("customDomain"))
+
+        _certificate: acm.Certificate | None = None
+        _hosted_zone: route53.IHostedZone | None = None
+        if _enable_custom_domain:
+            # ACM certificates for CloudFront must be in us-east-1; fail fast at synth time
+            # so a mis-deployed stack surfaces immediately rather than at CloudFormation execution.
+            # Note: when env= is omitted (environment-agnostic stack), self.region is an unresolved
+            # CDK token and Token.is_unresolved returns True, so the check is skipped. A deployment
+            # to the wrong region would then fail at CloudFormation execution time. Always pass
+            # env=cdk.Environment(region="us-east-1") when enabling customDomain.
+            if not Token.is_unresolved(self.region) and self.region != "us-east-1":
+                raise ValueError(
+                    f"customDomain requires deployment to us-east-1 (ACM certificates "
+                    f"for CloudFront must reside there); got region={self.region!r}. "
+                    f"Pass env=cdk.Environment(region='us-east-1') to the stack."
+                )
+            _hosted_zone_id = self.node.try_get_context("hostedZoneId") or ""
+            if not _hosted_zone_id:
+                raise ValueError(
+                    "customDomain=true requires a 'hostedZoneId' context value "
+                    "(e.g. --context hostedZoneId=Z1234567890ABCDEFGHIJ). "
+                    "Find the ID in the Route53 console for allotmint.io."
+                )
+            _hosted_zone = route53.HostedZone.from_hosted_zone_attributes(
+                self,
+                "Zone",
+                hosted_zone_id=_hosted_zone_id,
+                zone_name="allotmint.io",
+            )
+            _certificate = acm.Certificate(
+                self,
+                "SiteCertificate",
+                domain_name=_custom_domain,
+                validation=acm.CertificateValidation.from_dns(_hosted_zone),
+            )
+
+        _distribution_extra: dict = (
+            {"domain_names": [_custom_domain], "certificate": _certificate}
+            if _enable_custom_domain
+            else {}
+        )
+
         distribution = cloudfront.Distribution(
             self,
             "StaticSiteDistribution",
@@ -215,7 +262,19 @@ class StaticSiteStack(Stack):
                 ),
             ],
             price_class=cloudfront.PriceClass.PRICE_CLASS_100,
+            **_distribution_extra,
         )
+
+        if _enable_custom_domain and _hosted_zone is not None:
+            route53.ARecord(
+                self,
+                "SiteARecord",
+                zone=_hosted_zone,
+                record_name="app",
+                target=route53.RecordTarget.from_alias(
+                    route53_targets.CloudFrontTarget(distribution)
+                ),
+            )
 
         ui_auth_pool = cognito.UserPool(
             self,
@@ -225,7 +284,11 @@ class StaticSiteStack(Stack):
             sign_in_aliases=cognito.SignInAliases(email=True),
             removal_policy=ui_auth_removal_policy,
         )
-        ui_auth_callback_url = Fn.join("", ["https://", distribution.domain_name, "/"])
+        ui_auth_callback_url = (
+            f"https://{_custom_domain}/"
+            if _enable_custom_domain
+            else Fn.join("", ["https://", distribution.domain_name, "/"])
+        )
         ui_auth_client = ui_auth_pool.add_client(
             "UiAuthClient",
             # auth_flows gates the direct Cognito API auth endpoints (USER_SRP_AUTH,

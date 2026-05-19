@@ -286,11 +286,14 @@ def refresh_prices() -> Dict:
     # the existing in-memory state intact when no prices were fetched so a
     # null-producing offline refresh does not trash valid cached entries.
     if to_persist:
-        effective = merged
+        # merged = existing (disk) overwritten by to_persist (fresh, non-null).
+        # existing entries come from our own prior writes so are already non-null;
+        # any manually-corrupted null in existing is harmless — it will be
+        # overwritten on the next successful refresh for that ticker.
         _price_cache.clear()
-        for tkr, info in effective.items():
+        for tkr, info in merged.items():
             _price_cache[tkr.upper()] = info["last_price"]
-        refresh_snapshot_in_memory(effective)
+        refresh_snapshot_in_memory(merged)
     check_price_alerts()
 
     logger.debug(f"Snapshot written to {path}")

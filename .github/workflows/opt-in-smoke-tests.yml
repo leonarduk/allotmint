@@ -100,9 +100,12 @@ jobs:
         # (success() || failure()) ensures this step runs even when the backend
         # smoke step failed, so frontend results are always visible in CI logs
         # regardless of backend health (fixes issue #3055).
+        # Note: the if: field evaluates as an expression context already;
+        # ${{ }} wrappers are intentionally omitted here so that the
+        # status-check functions (success, failure) are resolved correctly.
         if: >-
-          ${{ (success() || failure()) &&
-          (env.SMOKE_TARGET == 'all' || env.SMOKE_TARGET == 'frontend') }}
+          (success() || failure()) &&
+          (env.SMOKE_TARGET == 'all' || env.SMOKE_TARGET == 'frontend')
         run: npm --prefix frontend run smoke:frontend
         env:
           TEST_ID_TOKEN: ${{ secrets.SMOKE_TEST_ID_TOKEN }}

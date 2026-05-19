@@ -464,6 +464,29 @@ jobs:
         run: npx playwright install --with-deps
         working-directory: frontend
 
+      - name: Resolve backend URL for smoke tests
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          # Resolve directly from CloudFormation rather than relying on the cross-job
+          # output from the deploy job. Cross-job outputs containing masked secret
+          # substrings (AWS_REGION appears in the API Gateway URL) arrive empty in
+          # the downstream job, causing the smoke script to fall back to localhost.
+          if [ -n "${SMOKE_URL:-}" ]; then
+            echo "SMOKE_URL already set via vars.SMOKE_URL; skipping CloudFormation lookup."
+            exit 0
+          fi
+          BACKEND_URL="$(aws cloudformation describe-stacks \
+            --stack-name BackendLambdaStack \
+            --query "Stacks[0].Outputs[?OutputKey=='BackendApiUrl'].OutputValue" \
+            --output text)"
+          if [ -z "$BACKEND_URL" ] || [ "$BACKEND_URL" = "None" ]; then
+            echo "BackendApiUrl output is missing from BackendLambdaStack" >&2
+            exit 1
+          fi
+          echo "SMOKE_URL=$BACKEND_URL" >> "$GITHUB_ENV"
+
       - name: Run backend smoke tests
         run: npm run smoke:test
 

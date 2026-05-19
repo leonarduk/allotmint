@@ -490,6 +490,8 @@ jobs:
 
       - name: Run backend smoke tests
         run: npm run smoke:test
+        env:
+          TEST_ID_TOKEN: ${{ secrets.SMOKE_TEST_ID_TOKEN }}
 
       - name: Run frontend smoke tests
         # Run even if the backend smoke step failed so frontend results are

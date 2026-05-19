@@ -23,7 +23,9 @@ BACKEND_LIST_PREFIXES = (
     "timeseries/meta",
     "transactions",
 )
-PRICE_REFRESH_LIST_PREFIXES = ("prices",)
+# accounts/ is required because refresh_prices() → list_all_unique_tickers() →
+# list_portfolios() → S3DataProvider.list_plots() calls list_objects_v2 on that prefix.
+PRICE_REFRESH_LIST_PREFIXES = ("accounts", "prices")
 TRADING_AGENT_LIST_PREFIXES = ("prices",)
 
 
@@ -162,7 +164,9 @@ def _expected_prefix_condition(prefixes: tuple[str, ...]) -> dict:
 # Maximum allowed S3 action sets per Lambda role (upper bounds for least-privilege enforcement).
 # Audit evidence:
 #   BackendLambda      — full API; reads, writes, and lists portfolio/price data.
-#   PriceRefreshLambda — calls _rolling_cache() → _save_parquet() which writes parquet to S3
+#   PriceRefreshLambda — calls list_all_unique_tickers() → list_portfolios() →
+#                        S3DataProvider.list_plots() which calls list_objects_v2 on accounts/.
+#                        Also calls _rolling_cache() → _save_parquet() writing parquet to S3
 #                        and may need to list the timeseries/ prefix via pyarrow.
 #   TradingAgentLambda — calls load_prices_for_tickers() → load_meta_timeseries_range() which
 #                        reads parquet from S3 by known key. No writes anywhere in this path.
@@ -233,7 +237,7 @@ def test_s3_permissions_are_scoped_per_lambda() -> None:
     refresh_conditions = _conditions_for_s3_action(template, refresh_role, "s3:ListBucket")
     assert (
         _expected_prefix_condition(PRICE_REFRESH_LIST_PREFIXES) in refresh_conditions
-    ), "PriceRefreshLambda s3:ListBucket must be conditioned to the prices/ prefix"
+    ), "PriceRefreshLambda s3:ListBucket must be conditioned to the accounts/ and prices/ prefixes"
 
     trading_conditions = _conditions_for_s3_action(template, trading_role, "s3:ListBucket")
     assert (

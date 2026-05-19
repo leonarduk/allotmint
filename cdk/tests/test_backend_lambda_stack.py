@@ -414,6 +414,13 @@ def test_price_refresh_trigger_timeout_exceeds_lambda_timeout(template):
 
     # CDK serialises the Trigger timeout in milliseconds.
     trigger_timeout_ms_raw = trigger_timeouts_ms[0]
+    # Assert raw value is clearly milliseconds (> 60 000) so that if CDK ever
+    # changes serialization units the error is obvious rather than the / 1000
+    # conversion silently producing a plausible-looking but wrong seconds value.
+    assert trigger_timeout_ms_raw > 60_000, (
+        f"Trigger Timeout raw value {trigger_timeout_ms_raw} looks like seconds, not milliseconds; "
+        "verify CDK is still serializing Duration.minutes() as milliseconds in Custom::Trigger"
+    )
     trigger_timeout_s = trigger_timeout_ms_raw / 1000
     # Sanity-range check so a future CDK serialization-unit change is caught
     # immediately rather than producing a silent wrong comparison.

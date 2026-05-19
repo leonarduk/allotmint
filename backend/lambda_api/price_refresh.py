@@ -18,7 +18,6 @@ scheduled EventBridge invocation.
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 from datetime import UTC, datetime
@@ -43,6 +42,8 @@ def _seed_empty_snapshot() -> None:
     "Price snapshot not yet present" warning on every Lambda invocation.
     The next successful scheduled refresh will overwrite this stub with real data.
     """
+    # Skip in non-AWS environments (local, staging) where the data bucket may
+    # not exist.  Only the AWS deployment has a real S3 bucket to write to.
     if config.app_env != "aws":
         return
     bucket = os.getenv(DATA_BUCKET_ENV)
@@ -70,6 +71,7 @@ def lambda_handler(event, context):
     stub is written to S3 on failure to suppress cold-start warnings until the
     next successful scheduled refresh.
     """
+    _refresh_failed = False
     try:
         result = refresh_prices()
     except Exception as exc:
@@ -81,10 +83,13 @@ def lambda_handler(event, context):
         _seed_empty_snapshot()
         ts = datetime.now(UTC).isoformat().replace("+00:00", "Z")
         result = {"error": str(exc), "tickers": [], "snapshot": {}, "timestamp": ts}
+        _refresh_failed = True
 
-    # honour environment flag so trading agent can be toggled per deployment
+    # Skip the trading agent when prices are unavailable — running it against an
+    # empty or stale snapshot could produce incorrect trade signals.
     if (
-        os.getenv("ALLOTMINT_ENABLE_TRADING_AGENT", "").lower() in {"1", "true", "yes"}
+        not _refresh_failed
+        and os.getenv("ALLOTMINT_ENABLE_TRADING_AGENT", "").lower() in {"1", "true", "yes"}
         and trading_agent is not None
     ):
         trading_agent.run()

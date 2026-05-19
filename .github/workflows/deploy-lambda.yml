@@ -194,7 +194,7 @@ jobs:
         continue-on-error: true
         env:
           AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
-          DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
+          DATA_BUCKET: ${{ secrets.DATA_BUCKET || vars.DATA_BUCKET }}
         run: |
           set -euo pipefail
           if [ -z "${DATA_BUCKET:-}" ]; then

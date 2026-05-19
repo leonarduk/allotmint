@@ -464,7 +464,28 @@ jobs:
         run: npm run smoke:test
 
       - name: Run frontend smoke tests
+        # Run even if the backend smoke step failed so frontend results are
+        # always visible in CI logs (fixes issue #3055).  SMOKE_URL at job
+        # level is the backend API URL; override it to localhost so Playwright
+        # navigates to the local preview server, and expose the backend URL via
+        # VITE_ALLOTMINT_API_BASE so the built app calls the real deployed API.
+        if: success() || failure()
         run: npm --prefix frontend run smoke:frontend
+        env:
+          VITE_ALLOTMINT_API_BASE: ${{ env.SMOKE_URL }}
+          SMOKE_URL: 'http://localhost:5173'
+          TEST_ID_TOKEN: ${{ secrets.SMOKE_TEST_ID_TOKEN }}
+          SMOKE_AUTH_TOKEN: ${{ secrets.SMOKE_AUTH_TOKEN }}
+
+      - name: Upload Playwright deploy-smoke artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-deploy-smoke-artifacts
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+          if-no-files-found: ignore
 
       - name: Fetch Lambda logs from smoke test
         if: always()

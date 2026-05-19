@@ -254,32 +254,32 @@ def refresh_prices() -> Dict:
                 pass
         merged = {**existing, **to_persist}
         path.write_text(json.dumps(merged, indent=2))
+
+        # ---- persist to S3 (primary store read by all Lambda instances) -----
+        if config.app_env == "aws":
+            _s3_bucket = os.getenv(DATA_BUCKET_ENV)
+            if _s3_bucket:
+                try:
+                    import boto3  # type: ignore
+
+                    boto3.client("s3").put_object(
+                        Bucket=_s3_bucket,
+                        Key=PRICES_S3_KEY,
+                        Body=json.dumps(merged, indent=2).encode("utf-8"),
+                        ContentType="application/json",
+                    )
+                    logger.info(
+                        "Uploaded price snapshot to s3://%s/%s", _s3_bucket, PRICES_S3_KEY
+                    )
+                except Exception as exc:
+                    logger.warning("Failed to upload price snapshot to S3: %s", exc)
+            else:
+                logger.warning("DATA_BUCKET not set; skipping S3 upload of price snapshot")
     else:
         logger.info(
             "Skipping price snapshot write — no valid prices fetched"
             " (offline mode or data-source unavailable)"
         )
-
-    # ---- persist to S3 (primary store read by all Lambda instances) -------
-    if config.app_env == "aws" and to_persist:
-        _s3_bucket = os.getenv(DATA_BUCKET_ENV)
-        if _s3_bucket:
-            try:
-                import boto3  # type: ignore
-
-                boto3.client("s3").put_object(
-                    Bucket=_s3_bucket,
-                    Key=PRICES_S3_KEY,
-                    Body=json.dumps(merged, indent=2).encode("utf-8"),
-                    ContentType="application/json",
-                )
-                logger.info(
-                    "Uploaded price snapshot to s3://%s/%s", _s3_bucket, PRICES_S3_KEY
-                )
-            except Exception as exc:
-                logger.warning("Failed to upload price snapshot to S3: %s", exc)
-        else:
-            logger.warning("DATA_BUCKET not set; skipping S3 upload of price snapshot")
 
     # ---- refresh in-memory cache -----------------------------------------
     _price_cache.clear()

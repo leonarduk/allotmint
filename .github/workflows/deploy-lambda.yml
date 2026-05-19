@@ -185,6 +185,34 @@ jobs:
           --parameters StaticSiteStack:BackendApiUrl="$BACKEND_URL"
         working-directory: cdk
 
+      - name: Verify price snapshot seeded in S3
+        # Belt-and-suspenders check after the CDK Trigger (REQUEST_RESPONSE) has
+        # already blocked the deploy until PriceRefreshLambda finishes.  If the
+        # snapshot is still absent here it means the Trigger Lambda failed or timed
+        # out; print a clear, actionable warning so operators know exactly what
+        # to do rather than hunting through CloudWatch logs.
+        continue-on-error: true
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
+          DATA_BUCKET: ${{ secrets.DATA_BUCKET || vars.DATA_BUCKET }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DATA_BUCKET:-}" ]; then
+            echo "DATA_BUCKET not set; skipping price snapshot verification." >&2
+            exit 0
+          fi
+          head_output="$(aws s3api head-object \
+              --bucket "$DATA_BUCKET" \
+              --key "prices/latest_prices.json" \
+              --no-cli-pager 2>&1)" && head_exit=0 || head_exit=$?
+          if [ "$head_exit" -eq 0 ]; then
+            echo "Price snapshot prices/latest_prices.json is present in s3://${DATA_BUCKET} — OK"
+          elif echo "$head_output" | grep -qi "NoSuchKey\|Not Found\|404"; then
+            echo "::warning::Price snapshot prices/latest_prices.json is NOT present in s3://${DATA_BUCKET}. Portfolio prices will be unavailable until the price-refresh job runs. Trigger it manually: aws lambda invoke --function-name <PriceRefreshLambda-physical-name> /dev/null"
+          else
+            echo "::warning::Could not verify price snapshot — s3api head-object returned exit ${head_exit}: ${head_output}"
+          fi
+
       - name: Warm up backend Lambda (absorb cold-start before validation)
         env:
           AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}

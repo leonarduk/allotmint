@@ -308,6 +308,14 @@ class StaticSiteStack(Stack):
             ),
             prevent_user_existence_errors=True,
         )
+        # Backend-only client for CI smoke tests. USER_PASSWORD_AUTH is intentionally
+        # enabled here so the deploy workflow can fetch a fresh token without SRP.
+        # This client is never referenced in config.json or exposed to the browser.
+        smoke_test_client = ui_auth_pool.add_client(
+            "SmokeTestClient",
+            auth_flows=cognito.AuthFlow(user_password=True),
+            prevent_user_existence_errors=True,
+        )
         ui_auth_domain_prefix = Fn.join("-", ["allotmint", Aws.ACCOUNT_ID, Aws.REGION])
         ui_auth_pool.add_domain(
             "UiAuthDomain",
@@ -386,4 +394,5 @@ class StaticSiteStack(Stack):
         CfnOutput(self, "DistributionDomain", value=distribution.domain_name)
         CfnOutput(self, "UiAuthUserPoolId", value=ui_auth_pool.user_pool_id)
         CfnOutput(self, "UiAuthUserPoolClientId", value=ui_auth_client.user_pool_client_id)
+        CfnOutput(self, "SmokeTestUserPoolClientId", value=smoke_test_client.user_pool_client_id)
         CfnOutput(self, "UiAuthDomain", value=ui_auth_domain)

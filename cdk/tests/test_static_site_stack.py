@@ -313,6 +313,35 @@ def test_ui_auth_outputs_exist(template):
     template.has_output("UiAuthDomain", {})
 
 
+def test_smoke_test_client_has_user_password_auth(template):
+    """CI smoke-test client must enable USER_PASSWORD_AUTH for non-interactive token fetches."""
+    template.has_resource_properties(
+        "AWS::Cognito::UserPoolClient",
+        {
+            "ExplicitAuthFlows": assertions.Match.array_with(["ALLOW_USER_PASSWORD_AUTH"]),
+        },
+    )
+
+
+def test_smoke_test_client_output_exists(template):
+    """SmokeTestUserPoolClientId must be exported so the deploy workflow can look it up."""
+    template.has_output("SmokeTestUserPoolClientId", {})
+
+
+def test_ui_auth_client_does_not_have_user_password_auth(template):
+    """The public UI client must NOT have USER_PASSWORD_AUTH — only the smoke-test client should."""
+    clients = template.find_resources(
+        "AWS::Cognito::UserPoolClient",
+        {"Properties": {"AllowedOAuthFlows": ["code"]}},
+    )
+    assert len(clients) == 1, "Expected exactly one OAuth code-flow client (UiAuthClient)"
+    ui_client = next(iter(clients.values()))
+    auth_flows = ui_client["Properties"].get("ExplicitAuthFlows", [])
+    assert "ALLOW_USER_PASSWORD_AUTH" not in auth_flows, (
+        "UiAuthClient must not have USER_PASSWORD_AUTH enabled"
+    )
+
+
 def test_ui_auth_user_pool_destroy_by_default(template):
     """Without the retainUserPool context key the UserPool uses DeletionPolicy: Delete."""
     pools = template.find_resources(

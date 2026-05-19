@@ -306,10 +306,12 @@ def test_backend_lambda_timeout_is_at_least_30s(template):
 
 
 def test_price_refresh_trigger_on_deploy_exists(template):
-    """A CDK Trigger must invoke PriceRefreshLambda on first deploy (and code changes).
+    """A CDK Trigger must invoke PriceRefreshLambda synchronously on deploy.
 
     This ensures latest_prices.json is seeded in S3 on the first deployment
     without waiting for the daily EventBridge schedule.
+    REQUEST_RESPONSE invocation blocks the CDK deploy until the Lambda finishes,
+    guaranteeing the snapshot is present before the smoke-test job starts.
     The Trigger construct creates a Custom::Trigger CloudFormation resource whose
     HandlerArn must reference PriceRefreshLambda (not some other function).
     """
@@ -334,6 +336,41 @@ def test_price_refresh_trigger_on_deploy_exists(template):
         assert "PriceRefreshLambda" in json.dumps(arn), (
             f"Trigger HandlerArn {arn} does not reference PriceRefreshLambda; "
             "the trigger may be wired to the wrong function"
+        )
+
+    # The trigger must use REQUEST_RESPONSE (synchronous) so the CDK deploy blocks
+    # until the price snapshot is written to S3. EVENT (async) allows the deploy to
+    # complete before the Lambda finishes, leaving the smoke-test job with no snapshot.
+    for resource in trigger_resources.values():
+        invocation_type = resource.get("Properties", {}).get("InvocationType")
+        assert invocation_type == "RequestResponse", (
+            f"Custom::Trigger InvocationType must be 'RequestResponse' to block the deploy "
+            f"until the price snapshot is seeded; found '{invocation_type}'. "
+            "Change invocation_type=triggers.InvocationType.REQUEST_RESPONSE in the CDK stack."
+        )
+
+
+def test_price_refresh_lambda_has_sufficient_timeout(template):
+    """PriceRefreshLambda must have a timeout long enough to fetch all portfolio prices.
+
+    The default Lambda timeout is 3 seconds, which is far too short to call market
+    data APIs for every ticker. The synchronous deploy Trigger (REQUEST_RESPONSE) will
+    itself time out if PriceRefreshLambda times out, leaving the snapshot un-seeded.
+    """
+    functions = template.find_resources("AWS::Lambda::Function")
+    refresh_timeouts = [
+        resource["Properties"].get("Timeout", 3)
+        for resource in functions.values()
+        if resource.get("Properties", {}).get("PackageType") == "Image"
+        and "price_refresh" in json.dumps(
+            resource.get("Properties", {}).get("ImageConfig", {}).get("Command", [])
+        )
+    ]
+    assert refresh_timeouts, "PriceRefreshLambda not found in synthesised template"
+    for t in refresh_timeouts:
+        assert t >= 60, (
+            f"PriceRefreshLambda timeout is {t}s — must be >= 60s to complete a price fetch. "
+            "Set timeout=Duration.minutes(10) (or higher) in the CDK stack."
         )
 
 

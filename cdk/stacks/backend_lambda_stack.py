@@ -383,6 +383,8 @@ class BackendLambdaStack(Stack):
             code=refresh_code,
             environment=refresh_env,
             log_group=refresh_log_group,
+            timeout=Duration.minutes(10),
+            memory_size=512,
         )
 
         # PriceRefreshLambda: read + put by known data keys, plus scoped ListBucket
@@ -408,16 +410,17 @@ class BackendLambdaStack(Stack):
             targets=[targets.LambdaFunction(refresh_fn)],
         )
 
-        # Invoke PriceRefreshLambda once after first deployment (and again
-        # whenever the Lambda code changes) so prices/latest_prices.json is
-        # seeded in S3 before the daily EventBridge schedule fires.
-        # InvocationType.EVENT is async: the deploy completes before the Lambda
-        # finishes, so a transient API failure won't block the stack update.
+        # Invoke PriceRefreshLambda synchronously after each deployment so
+        # prices/latest_prices.json is seeded in S3 before the smoke tests run.
+        # REQUEST_RESPONSE blocks the CDK deploy until the Lambda finishes,
+        # guaranteeing the snapshot is present by the time the smoke-test job
+        # starts. The Trigger timeout must be >= refresh_fn.timeout (10 min).
         triggers.Trigger(
             self,
             "PriceRefreshOnDeploy",
             handler=refresh_fn,
-            invocation_type=triggers.InvocationType.EVENT,
+            invocation_type=triggers.InvocationType.REQUEST_RESPONSE,
+            timeout=Duration.minutes(10),
         )
 
         # Scheduled function to execute the trading agent

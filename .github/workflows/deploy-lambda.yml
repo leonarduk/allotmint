@@ -488,6 +488,43 @@ jobs:
           fi
           echo "SMOKE_URL=$BACKEND_URL" >> "$GITHUB_ENV"
 
+      - name: Fetch Cognito smoke-test token
+        # Looks up the dedicated SmokeTestClient from StaticSiteStack (created by CDK with
+        # ALLOW_USER_PASSWORD_AUTH) and exchanges credentials for a fresh ID token.
+        # Writing to $GITHUB_ENV makes SMOKE_AUTH_TOKEN and TEST_ID_TOKEN available to all
+        # subsequent steps without needing explicit env: blocks on each one.
+        # Uses continue-on-error so a missing secret or unconfigured client degrades
+        # gracefully (smoke tests run unauthenticated) rather than blocking the job.
+        continue-on-error: true
+        env:
+          SMOKE_TEST_USERNAME: ${{ secrets.SMOKE_TEST_USERNAME }}
+          SMOKE_TEST_PASSWORD: ${{ secrets.SMOKE_TEST_PASSWORD }}
+          AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SMOKE_TEST_USERNAME:-}" ] || [ -z "${SMOKE_TEST_PASSWORD:-}" ]; then
+            echo "SMOKE_TEST_USERNAME or SMOKE_TEST_PASSWORD not configured; smoke tests will run unauthenticated."
+            exit 0
+          fi
+          client_id="$(aws cloudformation describe-stacks \
+            --stack-name StaticSiteStack \
+            --query "Stacks[0].Outputs[?OutputKey=='SmokeTestUserPoolClientId'].OutputValue" \
+            --output text 2>/dev/null || echo "")"
+          if [ -z "$client_id" ] || [ "$client_id" = "None" ]; then
+            echo "SmokeTestUserPoolClientId not found in StaticSiteStack outputs; smoke tests will run unauthenticated."
+            exit 0
+          fi
+          TOKEN="$(aws cognito-idp initiate-auth \
+            --auth-flow USER_PASSWORD_AUTH \
+            --client-id "$client_id" \
+            --auth-parameters "USERNAME=${SMOKE_TEST_USERNAME},PASSWORD=${SMOKE_TEST_PASSWORD}" \
+            --query 'AuthenticationResult.IdToken' \
+            --output text)"
+          echo "::add-mask::${TOKEN}"
+          printf 'SMOKE_AUTH_TOKEN=%s\n' "${TOKEN}" >> "$GITHUB_ENV"
+          printf 'TEST_ID_TOKEN=%s\n' "${TOKEN}" >> "$GITHUB_ENV"
+          echo "Smoke-test Cognito token fetched and masked."
+
       - name: Run backend smoke tests
         run: npm run smoke:test
 
@@ -497,13 +534,13 @@ jobs:
         # level is the backend API URL; override it to localhost so Playwright
         # navigates to the local preview server, and expose the backend URL via
         # VITE_ALLOTMINT_API_BASE so the built app calls the real deployed API.
+        # SMOKE_AUTH_TOKEN and TEST_ID_TOKEN arrive via $GITHUB_ENV set by the
+        # token-fetch step above; no explicit env: entries needed here.
         if: success() || failure()
         run: npm --prefix frontend run smoke:frontend
         env:
           VITE_ALLOTMINT_API_BASE: ${{ env.SMOKE_URL }}
           SMOKE_URL: 'http://localhost:5173'
-          TEST_ID_TOKEN: ${{ secrets.SMOKE_TEST_ID_TOKEN }}
-          SMOKE_AUTH_TOKEN: ${{ secrets.SMOKE_AUTH_TOKEN }}
 
       - name: Upload Playwright deploy-smoke artifacts
         if: failure()

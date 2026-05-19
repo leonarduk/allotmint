@@ -75,6 +75,22 @@ def test_lambda_handler_exception_calls_seed(monkeypatch):
     assert seeded, "_seed_empty_snapshot must be called when refresh_prices() raises"
 
 
+def test_lambda_handler_returns_error_shape_even_if_seed_raises(monkeypatch):
+    """lambda_handler must never propagate to CloudFormation even if _seed_empty_snapshot raises."""
+    mod = _import_lambda_raising(monkeypatch)
+
+    def _explode():
+        raise RuntimeError("S3 unreachable")
+
+    monkeypatch.setattr(mod, "_seed_empty_snapshot", _explode)
+
+    result = mod.lambda_handler({}, {})
+
+    assert result["error"] == "quota exceeded"
+    assert result["tickers"] == []
+    assert "timestamp" in result
+
+
 def test_trading_agent_not_called_when_refresh_fails(monkeypatch):
     mod = _import_lambda_raising(monkeypatch, trading_agent_env="true")
     monkeypatch.setattr(mod, "_seed_empty_snapshot", lambda: None)

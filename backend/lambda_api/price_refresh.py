@@ -80,7 +80,10 @@ def lambda_handler(event, context):
             exc,
             exc_info=True,
         )
-        _seed_empty_snapshot()
+        try:
+            _seed_empty_snapshot()
+        except Exception as seed_exc:  # pragma: no cover - defensive; function is designed not to raise
+            logger.warning("_seed_empty_snapshot raised unexpectedly: %s", seed_exc)
         ts = datetime.now(UTC).isoformat().replace("+00:00", "Z")
         result = {"error": str(exc), "tickers": [], "snapshot": {}, "timestamp": ts}
         _refresh_failed = True

@@ -410,23 +410,9 @@ test.describe('timeseries edit resilience', () => {
 
     await page.goto(target.href);
 
-    const loadButton = page.getByRole('button', { name: 'Load' });
-    // The 'Load' button may not always be rendered as a role=button in preview builds;
-    // try a fallback selector (by text) before failing the test.
-    try {
-      await expect(loadButton).toBeEnabled();
-      await loadButton.click();
-    } catch {
-      const fallback = page.locator("text=Load");
-      if (await fallback.count() > 0) {
-        await expect(fallback.first()).toBeVisible();
-        await fallback.first().click();
-      } else {
-        // If no clickable element is available, proceed to assert that the route marker
-        // remains visible as the main resilience check.
-        console.warn('Load button not found; skipping explicit click and asserting marker state.');
-      }
-    }
+    const loadButton = page.getByTestId('load-button');
+    await expect(loadButton).toBeEnabled();
+    await loadButton.click();
 
     await expect.poll(() => requested).toBeTruthy();
 

@@ -282,12 +282,15 @@ def refresh_prices() -> Dict:
         )
 
     # ---- refresh in-memory cache -----------------------------------------
-    _price_cache.clear()
-    for tkr, info in snapshot.items():
-        _price_cache[tkr.upper()] = info["last_price"]
-
-    # keep portfolio_utils in sync and run alert checks
-    refresh_snapshot_in_memory(snapshot)
+    # Use merged (which includes preserved seed prices) when available; leave
+    # the existing in-memory state intact when no prices were fetched so a
+    # null-producing offline refresh does not trash valid cached entries.
+    if to_persist:
+        effective = merged
+        _price_cache.clear()
+        for tkr, info in effective.items():
+            _price_cache[tkr.upper()] = info["last_price"]
+        refresh_snapshot_in_memory(effective)
     check_price_alerts()
 
     logger.debug(f"Snapshot written to {path}")

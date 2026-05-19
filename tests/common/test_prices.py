@@ -408,12 +408,19 @@ def test_refresh_prices_partial_null_preserves_existing_prices(
         "AAA.L": {"last_price": 11.5, "price_currency": "GBP", "is_stale": False},
         "BBB.L": {"last_price": None, "price_currency": None, "is_stale": True},
     }
+    in_memory_calls: list = []
+    price_cache: dict = {}
+
     monkeypatch.setattr(prices, "list_all_unique_tickers", lambda: ["AAA.L", "BBB.L"])
     monkeypatch.setattr(prices, "get_price_snapshot", lambda _: partial_snapshot)
-    monkeypatch.setattr(prices, "refresh_snapshot_in_memory", Mock())
+    monkeypatch.setattr(
+        prices,
+        "refresh_snapshot_in_memory",
+        lambda s: in_memory_calls.append(s),
+    )
     monkeypatch.setattr(prices, "check_price_alerts", Mock())
     monkeypatch.setattr(prices.config, "prices_json", output_path)
-    monkeypatch.setattr(prices, "_price_cache", {})
+    monkeypatch.setattr(prices, "_price_cache", price_cache)
 
     prices.refresh_prices()
 
@@ -423,4 +430,16 @@ def test_refresh_prices_partial_null_preserves_existing_prices(
     )
     assert result["BBB.L"]["last_price"] == pytest.approx(20.0), (
         "Seed price for null-returning ticker must be preserved"
+    )
+
+    assert len(in_memory_calls) == 1, "refresh_snapshot_in_memory must be called once"
+    in_mem = in_memory_calls[0]
+    assert in_mem["AAA.L"]["last_price"] == pytest.approx(11.5), (
+        "In-memory snapshot must contain updated price"
+    )
+    assert in_mem["BBB.L"]["last_price"] == pytest.approx(20.0), (
+        "In-memory snapshot must contain preserved seed price, not None"
+    )
+    assert price_cache.get("BBB.L") == pytest.approx(20.0), (
+        "_price_cache must contain preserved seed price for null-returning ticker"
     )

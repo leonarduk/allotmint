@@ -421,6 +421,12 @@ class BackendLambdaStack(Stack):
         # starts. The Trigger timeout (15 min) must be strictly greater than
         # refresh_fn.timeout (10 min) so the custom resource provider can wait
         # for the Lambda response before CloudFormation signals completion.
+        #
+        # NOTE: the Lambda handler catches all exceptions and writes an empty stub
+        # snapshot on failure rather than raising, so a transient API outage does
+        # not roll back the entire CloudFormation stack (which would happen if the
+        # Lambda returned an error to the REQUEST_RESPONSE Trigger). The stub is
+        # overwritten by the next successful scheduled EventBridge invocation.
         triggers.Trigger(
             self,
             "PriceRefreshOnDeploy",

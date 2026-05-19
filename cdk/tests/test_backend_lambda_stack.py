@@ -413,12 +413,62 @@ def test_price_refresh_trigger_timeout_exceeds_lambda_timeout(template):
     assert trigger_timeouts_ms, "No PriceRefreshOnDeploy Custom::Trigger timeout found"
 
     # CDK serialises the Trigger timeout in milliseconds.
-    trigger_timeout_s = trigger_timeouts_ms[0] / 1000
+    trigger_timeout_ms_raw = trigger_timeouts_ms[0]
+    trigger_timeout_s = trigger_timeout_ms_raw / 1000
+    # Sanity-range check so a future CDK serialization-unit change is caught
+    # immediately rather than producing a silent wrong comparison.
+    assert 60 < trigger_timeout_s < 3600, (
+        f"Trigger timeout {trigger_timeout_s}s (raw: {trigger_timeout_ms_raw}) looks wrong; "
+        "verify CDK is still serializing Duration.minutes() as milliseconds in Custom::Trigger"
+    )
     assert trigger_timeout_s > refresh_timeout, (
         f"Trigger timeout ({trigger_timeout_s}s) must be strictly greater than "
         f"PriceRefreshLambda timeout ({refresh_timeout}s) to avoid a race where the "
         "provider times out just as the Lambda finishes. "
         "Increase timeout=Duration.minutes(N) on the triggers.Trigger construct."
+    )
+
+
+def test_price_refresh_lambda_can_list_accounts_prefix(template):
+    """PriceRefreshLambda's IAM policy must include s3:ListBucket on the accounts/ prefix.
+
+    refresh_prices() → list_all_unique_tickers() → list_portfolios() → S3DataProvider.list_plots()
+    calls list_objects_v2 on the accounts/ S3 prefix.  Without this, AWS returns
+    AccessDenied (not 404), list_plots() raises ProviderUnavailable, and no tickers
+    are discovered — so the price snapshot is never written.
+    """
+    policies = template.find_resources("AWS::IAM::Policy")
+
+    # Identify IAM policies attached to PriceRefreshLambda's execution role
+    # by looking for policies whose Roles reference the PriceRefreshLambda role.
+    refresh_list_prefixes: list[str] = []
+    for resource in policies.values():
+        roles = json.dumps(resource.get("Properties", {}).get("Roles", []))
+        if "PriceRefreshLambda" not in roles:
+            continue
+        stmts = resource.get("Properties", {}).get("PolicyDocument", {}).get("Statement", [])
+        for stmt in stmts:
+            actions = stmt.get("Action", [])
+            if isinstance(actions, str):
+                actions = [actions]
+            if "s3:ListBucket" not in actions:
+                continue
+            prefixes = (
+                stmt.get("Condition", {})
+                .get("StringLike", {})
+                .get("s3:prefix", [])
+            )
+            refresh_list_prefixes.extend(prefixes)
+
+    assert refresh_list_prefixes, (
+        "No s3:ListBucket statement found in PriceRefreshLambda's IAM policy. "
+        "Add 'accounts' to lambda_list_prefixes['price_refresh'] in the CDK stack."
+    )
+    assert any("accounts" in p for p in refresh_list_prefixes), (
+        f"PriceRefreshLambda's s3:ListBucket conditions do not include 'accounts' prefix; "
+        f"found: {refresh_list_prefixes}. "
+        "S3DataProvider.list_plots() calls list_objects_v2 on accounts/ and needs "
+        "s3:ListBucket on that prefix to distinguish AccessDenied from NoSuchKey."
     )
 
 

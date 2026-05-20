@@ -197,10 +197,16 @@ async def get_current_user(token: str | None = Depends(oauth2_scheme)) -> str:
     """Return the authenticated user extracted from the bearer token."""
 
     if config.disable_auth:
+        # When auth is disabled (e.g. DISABLE_AUTH=true with a Cognito JWT authorizer
+        # at API Gateway), try to extract identity from an app-signed JWT if present.
+        # Non-app tokens (e.g. Cognito ID tokens signed with RS256) will not decode
+        # with the HS256 app secret — decode_token returns None for those — so we fall
+        # back to the local identity rather than raising 401.
         if isinstance(token, str) and token:
-            user = _user_from_token(token)
-            current_user.set(user)
-            return user
+            user = decode_token(token)
+            if user:
+                current_user.set(user)
+                return user
         fallback = local_login_identity()
         if fallback:
             current_user.set(fallback)
@@ -395,10 +401,16 @@ async def get_active_user(request: Request, token: str | None = Depends(oauth2_s
         return override_result
 
     if config.disable_auth:
+        # When auth is disabled (e.g. DISABLE_AUTH=true with a Cognito JWT authorizer
+        # at API Gateway), try to extract identity from an app-signed JWT if present.
+        # Non-app tokens (e.g. Cognito ID tokens signed with RS256) will not decode
+        # with the HS256 app secret — decode_token returns None for those — so we fall
+        # back to the local identity rather than raising 401.
         if isinstance(token, str) and token:
-            user = _user_from_token(token)
-            current_user.set(user)
-            return user
+            user = decode_token(token)
+            if user:
+                current_user.set(user)
+                return user
         fallback = local_login_identity()
         if fallback:
             current_user.set(fallback)

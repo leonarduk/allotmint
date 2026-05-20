@@ -208,11 +208,12 @@ def test_list_group_definitions_returns_empty_when_missing(monkeypatch, tmp_path
         "fallback_exists",
         "expected_source",
         "warning_fragment",
+        "expected_level",
     ),
     [
-        (True, False, False, "configured", None),
-        (False, True, True, "fallback", "falling back to"),
-        (False, True, False, "configured", "not found"),
+        (True, False, False, "configured", None, None),
+        (False, True, True, "fallback", "falling back to", "DEBUG"),
+        (False, True, False, "configured", "not found", "WARNING"),
     ],
     ids=[
         "configured-directory",
@@ -229,6 +230,7 @@ def test_instruments_dir_resolution(
     fallback_exists: bool,
     expected_source: str,
     warning_fragment: str | None,
+    expected_level: str | None,
 ) -> None:
     original_data_root = instruments.config.data_root
     module_path = Path(instruments.__file__).resolve()
@@ -253,7 +255,7 @@ def test_instruments_dir_resolution(
 
     def reload_module() -> object:
         caplog.clear()
-        with caplog.at_level("WARNING"):
+        with caplog.at_level("DEBUG"):
             if patch_module_path:
                 def fake_resolve(self, *args, **kwargs):  # type: ignore[override]
                     resolved = original_resolve(self, *args, **kwargs)
@@ -275,8 +277,17 @@ def test_instruments_dir_resolution(
         if warning_fragment is None:
             assert not caplog.records
         else:
-            messages = [record.getMessage() for record in caplog.records]
-            assert any(warning_fragment in message for message in messages)
+            assert any(
+                warning_fragment in record.getMessage() and record.levelname == expected_level
+                for record in caplog.records
+            )
+            if expected_source == "fallback":
+                # Regression guard: the bundled-fallback path must not emit WARNING
+                # (the log was intentionally downgraded to DEBUG in this fix).
+                assert not any(
+                    "falling back to" in record.getMessage() and record.levelname == "WARNING"
+                    for record in caplog.records
+                )
     finally:
         if module is not None:
             module.get_instrument_meta.cache_clear()

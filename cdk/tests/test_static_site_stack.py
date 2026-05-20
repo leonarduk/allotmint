@@ -14,9 +14,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 aws_cdk = pytest.importorskip("aws_cdk", reason="aws-cdk-lib not installed")
 
+import aws_cdk as cdk  # noqa: E402
 from aws_cdk import App, assertions  # noqa: E402
 
 from cdk.stacks.static_site_stack import StaticSiteStack  # noqa: E402
+
+_TEST_ACCOUNT = "123456789012"
+_TEST_REGION = "us-east-1"
+_TEST_HOSTED_ZONE_ID = "Z1234567890ABCDEFGHIJ"
+_CUSTOM_DOMAIN_CONTEXT = {
+    "customDomain": "true",
+    "hostedZoneId": _TEST_HOSTED_ZONE_ID,
+}
 
 _DUMMY_API_URL = "https://abc123.execute-api.eu-west-1.amazonaws.com"
 
@@ -304,6 +313,35 @@ def test_ui_auth_outputs_exist(template):
     template.has_output("UiAuthDomain", {})
 
 
+def test_smoke_test_client_has_user_password_auth(template):
+    """CI smoke-test client must enable USER_PASSWORD_AUTH for non-interactive token fetches."""
+    template.has_resource_properties(
+        "AWS::Cognito::UserPoolClient",
+        {
+            "ExplicitAuthFlows": assertions.Match.array_with(["ALLOW_USER_PASSWORD_AUTH"]),
+        },
+    )
+
+
+def test_smoke_test_client_output_exists(template):
+    """SmokeTestUserPoolClientId must be exported so the deploy workflow can look it up."""
+    template.has_output("SmokeTestUserPoolClientId", {})
+
+
+def test_ui_auth_client_does_not_have_user_password_auth(template):
+    """The public UI client must NOT have USER_PASSWORD_AUTH — only the smoke-test client should."""
+    clients = template.find_resources(
+        "AWS::Cognito::UserPoolClient",
+        {"Properties": {"AllowedOAuthFlows": ["code"]}},
+    )
+    assert len(clients) == 1, "Expected exactly one OAuth code-flow client (UiAuthClient)"
+    ui_client = next(iter(clients.values()))
+    auth_flows = ui_client["Properties"].get("ExplicitAuthFlows", [])
+    assert "ALLOW_USER_PASSWORD_AUTH" not in auth_flows, (
+        "UiAuthClient must not have USER_PASSWORD_AUTH enabled"
+    )
+
+
 def test_ui_auth_user_pool_destroy_by_default(template):
     """Without the retainUserPool context key the UserPool uses DeletionPolicy: Delete."""
     pools = template.find_resources(
@@ -329,6 +367,8 @@ def test_ui_auth_user_pool_retain_when_context_set(tmp_path):
         {"DeletionPolicy": "Retain"},
     )
     assert len(pools) >= 1, "Expected UserPool DeletionPolicy to be Retain when retainUserPool=true"
+
+
 def test_ui_auth_user_pool_is_destroyed_by_default(tmp_path):
     template = _template_with_context(tmp_path, {})
     template.has_resource(
@@ -357,3 +397,188 @@ def test_ui_auth_outputs_exist(template):
     template.has_output("UiAuthUserPoolId", {})
     template.has_output("UiAuthUserPoolClientId", {})
     template.has_output("UiAuthDomain", {})
+
+
+# ---------------------------------------------------------------------------
+# Custom domain (app.allotmint.io) — gated by customDomain context flag
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def custom_domain_template(tmp_path_factory):
+    """Synthesise StaticSiteStack with customDomain=true.
+
+    Uses from_hosted_zone_attributes (not from_lookup) so no AWS credentials are
+    needed at synth time — only the hosted zone ID context value is required.
+    """
+    dist = tmp_path_factory.mktemp("dist_custom")
+    (dist / "index.html").write_text("<html></html>")
+    app = App(context=_CUSTOM_DOMAIN_CONTEXT)
+    stack = StaticSiteStack(
+        app,
+        "CustomDomainStack",
+        api_base_url=_DUMMY_API_URL,
+        frontend_dist_path=str(dist),
+        env=cdk.Environment(account=_TEST_ACCOUNT, region=_TEST_REGION),
+    )
+    return assertions.Template.from_stack(stack)
+
+
+def test_custom_domain_distribution_has_domain_names(custom_domain_template):
+    """Distribution must list app.allotmint.io in Aliases when customDomain is set."""
+    custom_domain_template.has_resource_properties(
+        "AWS::CloudFront::Distribution",
+        {
+            "DistributionConfig": {
+                "Aliases": ["app.allotmint.io"],
+            }
+        },
+    )
+
+
+def test_custom_domain_acm_certificate_created(custom_domain_template):
+    """An ACM certificate for app.allotmint.io must be present."""
+    custom_domain_template.has_resource_properties(
+        "AWS::CertificateManager::Certificate",
+        {"DomainName": "app.allotmint.io"},
+    )
+
+
+def test_custom_domain_certificate_uses_dns_validation(custom_domain_template):
+    """Certificate validation must use DNS (not email) so it can be automated."""
+    custom_domain_template.has_resource_properties(
+        "AWS::CertificateManager::Certificate",
+        {"ValidationMethod": "DNS"},
+    )
+
+
+def test_custom_domain_route53_alias_record_targets_cloudfront(custom_domain_template):
+    """Route53 A record AliasTarget.DNSName must reference the CloudFront distribution.
+
+    CDK resolves the CloudFront hosted zone ID via Fn::FindInMap (partition mapping),
+    so we verify the DNSName is a Fn::GetAtt pointing at the distribution's DomainName
+    rather than checking the literal HostedZoneId string.
+    """
+    resources = custom_domain_template.find_resources(
+        "AWS::Route53::RecordSet",
+        {"Properties": {"Name": "app.allotmint.io.", "Type": "A"}},
+    )
+    assert len(resources) == 1, (
+        f"Expected exactly one A record for app.allotmint.io.; found {len(resources)}"
+    )
+    alias_target = next(iter(resources.values()))["Properties"]["AliasTarget"]
+    dns_name = alias_target.get("DNSName", {})
+    assert isinstance(dns_name, dict) and "Fn::GetAtt" in dns_name, (
+        f"AliasTarget.DNSName must be Fn::GetAtt referencing the distribution; got {dns_name!r}"
+    )
+    get_att_args = dns_name["Fn::GetAtt"]
+    assert len(get_att_args) == 2 and get_att_args[1] == "DomainName", (
+        f"Fn::GetAtt must reference DomainName; got {get_att_args!r}"
+    )
+
+
+def test_custom_domain_cognito_callback_uses_custom_domain(custom_domain_template):
+    """Cognito callback URL must be https://app.allotmint.io/ when customDomain is set."""
+    custom_domain_template.has_resource_properties(
+        "AWS::Cognito::UserPoolClient",
+        {
+            "CallbackURLs": ["https://app.allotmint.io/"],
+            "LogoutURLs": ["https://app.allotmint.io/"],
+        },
+    )
+
+
+def test_no_custom_domain_by_default(template):
+    """Without customDomain context flag the distribution must not have Aliases."""
+    resources = template.find_resources("AWS::CloudFront::Distribution")
+    for resource in resources.values():
+        aliases = (
+            resource.get("Properties", {})
+            .get("DistributionConfig", {})
+            .get("Aliases", [])
+        )
+        assert aliases == [], f"Expected no Aliases in default mode; got {aliases}"
+
+
+def test_no_acm_certificate_by_default(template):
+    """Without customDomain context flag no ACM certificate should be synthesised."""
+    resources = template.find_resources("AWS::CertificateManager::Certificate")
+    assert len(resources) == 0, (
+        f"Expected no ACM certificate in default mode; found {len(resources)}"
+    )
+
+
+def test_explicit_false_custom_domain_no_certificate(tmp_path):
+    """Explicitly setting customDomain=false must also produce no certificate."""
+    (tmp_path / "index.html").write_text("<html></html>")
+    app = App(context={"customDomain": "false"})
+    stack = StaticSiteStack(app, "FalseCustomDomainStack", frontend_dist_path=str(tmp_path))
+    t = assertions.Template.from_stack(stack)
+    resources = t.find_resources("AWS::CertificateManager::Certificate")
+    assert len(resources) == 0, (
+        f"customDomain=false must produce no certificate; found {len(resources)}"
+    )
+
+
+def test_custom_domain_wrong_region_raises(tmp_path):
+    """Instantiating the stack with customDomain=true outside us-east-1 must raise."""
+    (tmp_path / "index.html").write_text("<html></html>")
+    app = App(context=_CUSTOM_DOMAIN_CONTEXT)
+    with pytest.raises(ValueError, match="us-east-1"):
+        StaticSiteStack(
+            app,
+            "WrongRegionStack",
+            frontend_dist_path=str(tmp_path),
+            env=cdk.Environment(account=_TEST_ACCOUNT, region="eu-west-1"),
+        )
+
+
+def test_custom_domain_missing_hosted_zone_id_raises(tmp_path):
+    """customDomain=true without hostedZoneId context must raise ValueError."""
+    (tmp_path / "index.html").write_text("<html></html>")
+    app = App(context={"customDomain": "true"})
+    with pytest.raises(ValueError, match="hostedZoneId"):
+        StaticSiteStack(
+            app,
+            "MissingZoneStack",
+            frontend_dist_path=str(tmp_path),
+            env=cdk.Environment(account=_TEST_ACCOUNT, region=_TEST_REGION),
+        )
+
+
+def test_custom_domain_bool_true_context(tmp_path):
+    """customDomain=True (Python bool, not string) must also enable the custom domain.
+
+    _is_truthy_context handles isinstance(value, bool) before the str branch,
+    so a bool True from cdk.json or programmatic context must work identically
+    to the string "true" passed via --context.
+    """
+    (tmp_path / "index.html").write_text("<html></html>")
+    app = App(context={"customDomain": True, "hostedZoneId": _TEST_HOSTED_ZONE_ID})
+    stack = StaticSiteStack(
+        app,
+        "BoolTrueStack",
+        frontend_dist_path=str(tmp_path),
+        env=cdk.Environment(account=_TEST_ACCOUNT, region=_TEST_REGION),
+    )
+    t = assertions.Template.from_stack(stack)
+    resources = t.find_resources("AWS::CertificateManager::Certificate")
+    assert len(resources) == 1, (
+        f"Expected one ACM certificate when customDomain=True (bool); found {len(resources)}"
+    )
+
+
+def test_boolean_false_context_no_certificate(tmp_path):
+    """customDomain=False (native Python bool) must not produce a certificate.
+
+    cdk.json stores JSON booleans which CDK deserialises as Python bools, so
+    _is_truthy_context must handle bool False as well as string "false".
+    """
+    (tmp_path / "index.html").write_text("<html></html>")
+    app = App(context={"customDomain": False})
+    stack = StaticSiteStack(app, "BoolFalseStack", frontend_dist_path=str(tmp_path))
+    t = assertions.Template.from_stack(stack)
+    resources = t.find_resources("AWS::CertificateManager::Certificate")
+    assert len(resources) == 0, (
+        f"customDomain=False (bool) must produce no certificate; found {len(resources)}"
+    )

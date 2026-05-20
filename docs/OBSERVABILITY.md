@@ -8,6 +8,10 @@
   Discover the deployed names from the `BackendLambdaStack` outputs:
   `BackendLambdaLogGroupName`, `PriceRefreshLambdaLogGroupName`, and
   `TradingAgentLambdaLogGroupName`.
+- The deploy workflow fetches recent log events from `BackendLambdaLogGroupName` automatically
+  after each deploy.  The deploy IAM role must have `logs:FilterLogEvents` and
+  `logs:DescribeLogStreams` on the log group ARNs; see `docs/DEPLOY.md` for the
+  required inline policy.
 - Local runs print logs to the console.
 
 ## Dashboards

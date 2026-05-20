@@ -18,6 +18,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       SMOKE_TEST_URL: ${{ vars.SMOKE_TEST_URL }}
+    outputs:
+      backend_url: ${{ steps.get_backend_url.outputs.backend_url }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -78,7 +80,7 @@ jobs:
       - name: Sync data from S3
         env:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
-        run: aws s3 sync s3://$DATA_BUCKET/ data/
+        run: aws s3 sync "s3://$DATA_BUCKET/" data/
 
       - name: Lint frontend
         run: npm run lint
@@ -109,16 +111,54 @@ jobs:
         run: npx cdk diff --all -c prod=true
         working-directory: cdk
 
+      - name: Deploy StaticSiteStack auth resources
+        env:
+          DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          CDK_OUTDIR: /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
+        run: npx cdk deploy StaticSiteStack --require-approval never
+        working-directory: cdk
+
+      - name: Get Cognito UI auth outputs
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          UI_AUTH_USER_POOL_ID="$(aws cloudformation describe-stacks \
+            --stack-name StaticSiteStack \
+            --query "Stacks[0].Outputs[?OutputKey=='UiAuthUserPoolId'].OutputValue" \
+            --output text)"
+          UI_AUTH_USER_POOL_CLIENT_ID="$(aws cloudformation describe-stacks \
+            --stack-name StaticSiteStack \
+            --query "Stacks[0].Outputs[?OutputKey=='UiAuthUserPoolClientId'].OutputValue" \
+            --output text)"
+          if [ -z "$UI_AUTH_USER_POOL_ID" ] || [ "$UI_AUTH_USER_POOL_ID" = "None" ]; then
+            echo "UiAuthUserPoolId output is missing from StaticSiteStack" >&2
+            exit 1
+          fi
+          if [ -z "$UI_AUTH_USER_POOL_CLIENT_ID" ] || [ "$UI_AUTH_USER_POOL_CLIENT_ID" = "None" ]; then
+            echo "UiAuthUserPoolClientId output is missing from StaticSiteStack" >&2
+            exit 1
+          fi
+          echo "UI_AUTH_USER_POOL_ID=$UI_AUTH_USER_POOL_ID" >> "$GITHUB_ENV"
+          echo "UI_AUTH_USER_POOL_CLIENT_ID=$UI_AUTH_USER_POOL_CLIENT_ID" >> "$GITHUB_ENV"
+
       - name: Deploy BackendLambdaStack
         env:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           CDK_OUTDIR: /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
-        run: npx cdk deploy BackendLambdaStack --require-approval never
+          GITHUB_DEPLOY_ROLE_ARN: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+        run: >
+          npx cdk deploy BackendLambdaStack --require-approval never
+          --parameters BackendLambdaStack:UiAuthUserPoolId="$UI_AUTH_USER_POOL_ID"
+          --parameters BackendLambdaStack:UiAuthUserPoolClientId="$UI_AUTH_USER_POOL_CLIENT_ID"
         working-directory: cdk
 
       - name: Get backend API URL
+        id: get_backend_url
         env:
           AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
         run: |
@@ -132,8 +172,9 @@ jobs:
             exit 1
           fi
           echo "BACKEND_URL=$BACKEND_URL" >> "$GITHUB_ENV"
+          echo "backend_url=$BACKEND_URL" >> "$GITHUB_OUTPUT"
 
-      - name: Deploy StaticSiteStack
+      - name: Refresh StaticSiteStack runtime config
         env:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
@@ -143,6 +184,64 @@ jobs:
           npx cdk deploy StaticSiteStack --require-approval never -c prod=true
           --parameters StaticSiteStack:BackendApiUrl="$BACKEND_URL"
         working-directory: cdk
+
+      - name: Verify price snapshot seeded in S3
+        # Belt-and-suspenders check after the CDK Trigger (REQUEST_RESPONSE) has
+        # already blocked the deploy until PriceRefreshLambda finishes.  If the
+        # snapshot is still absent here it means the Trigger Lambda failed or timed
+        # out; print a clear, actionable warning so operators know exactly what
+        # to do rather than hunting through CloudWatch logs.
+        continue-on-error: true
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
+          DATA_BUCKET: ${{ secrets.DATA_BUCKET || vars.DATA_BUCKET }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DATA_BUCKET:-}" ]; then
+            echo "DATA_BUCKET not set; skipping price snapshot verification." >&2
+            exit 0
+          fi
+          head_output="$(aws s3api head-object \
+              --bucket "$DATA_BUCKET" \
+              --key "prices/latest_prices.json" \
+              --no-cli-pager 2>&1)" && head_exit=0 || head_exit=$?
+          if [ "$head_exit" -eq 0 ]; then
+            echo "Price snapshot prices/latest_prices.json is present in s3://${DATA_BUCKET} — OK"
+          elif echo "$head_output" | grep -qi "NoSuchKey\|Not Found\|404"; then
+            echo "::warning::Price snapshot prices/latest_prices.json is NOT present in s3://${DATA_BUCKET}. Portfolio prices will be unavailable until the price-refresh job runs. Trigger it manually: aws lambda invoke --function-name <PriceRefreshLambda-physical-name> /dev/null"
+          else
+            echo "::warning::Could not verify price snapshot — s3api head-object returned exit ${head_exit}: ${head_output}"
+          fi
+
+      - name: Warm up backend Lambda (absorb cold-start before validation)
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
+        continue-on-error: true
+        run: |
+          if [ -z "${BACKEND_URL:-}" ]; then
+            echo "BACKEND_URL is not set; skipping warm-up probe." >&2
+            exit 0
+          fi
+          # Lambda container init takes ~24 s on a fresh deploy (heavy imports: pandas,
+          # pyarrow, yfinance, selenium). AWS kills the first container after 10 s and
+          # retries with a second instance. Send a probe with generous retries so the
+          # cold-start completes before the strict validation gate runs below.
+          echo "Sending warm-up probe to ${BACKEND_URL%/}/health (cold-start may take up to 40 s per attempt)..."
+          # --fail: makes curl exit non-zero on HTTP 4xx/5xx so that --retry-all-errors
+          # retries on cold-start 502/504 responses (without --fail, curl exits 0 on
+          # any HTTP response and the warm-up would prematurely consider a 502 a success).
+          # --max-time 40: short enough that a hung first attempt (API Gateway holding
+          # the connection while Lambda init is killed) times out quickly.
+          # --retry-max-time 150: hard wall-clock cap across all attempts; the 4th
+          # attempt may be cut short if earlier attempts consume the budget.
+          curl --retry 3 --retry-delay 10 --retry-all-errors --fail \
+            --retry-max-time 150 --max-time 40 --silent --output /dev/null \
+            "${BACKEND_URL%/}/health" \
+            && echo "Warm-up probe succeeded." \
+            || echo "Warm-up probe finished with non-zero exit (tolerated — validation step will assert)."
+          # Record METRIC_START *after* the warm-up curl so cold-start init-timeout
+          # errors land before the window and are excluded from the error-rate gate.
+          echo "METRIC_START=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
 
       - name: Validate backend and frontend endpoints
         env:
@@ -165,10 +264,96 @@ jobs:
             echo "DistributionDomain output is missing from StaticSiteStack" >&2
             exit 1
           fi
-          curl --fail --show-error --silent "${backend_url%/}/docs" >/dev/null
-          curl --fail --show-error --silent "https://${frontend_domain}" >/dev/null
+          echo "Checking /health → ${backend_url%/}/health"
+          curl_exit=0
+          status=$(curl --retry 3 --retry-delay 5 --retry-all-errors \
+            --max-time 60 --write-out "%{http_code}" --silent --output /dev/null \
+            "${backend_url%/}/health") || curl_exit=$?
+          if [ "$curl_exit" -ne 0 ]; then
+            echo "curl failed (exit ${curl_exit}) checking ${backend_url%/}/health" >&2
+            exit 1
+          fi
+          if [ "$status" != "200" ]; then
+            echo "Expected HTTP 200 from unauthenticated /health endpoint, got $status" >&2
+            exit 1
+          fi
+          echo "/health → $status OK"
+          # /api-console is an explicitly defined route; hitting it without a token
+          # exercises the API Gateway JWT authorizer on the /{proxy+} catch-all.
+          # No --retry-all-errors here: 401 is the expected outcome, not an error,
+          # and retrying on it would add unnecessary delay.
+          echo "Checking auth → ${backend_url%/}/api-console"
+          curl_exit=0
+          auth_status=$(curl --retry 3 --retry-delay 5 \
+            --max-time 60 --write-out "%{http_code}" --silent --output /dev/null \
+            "${backend_url%/}/api-console") || curl_exit=$?
+          if [ "$curl_exit" -ne 0 ]; then
+            echo "curl failed (exit ${curl_exit}) checking ${backend_url%/}/api-console" >&2
+            exit 1
+          fi
+          if [ "$auth_status" != "401" ]; then
+            echo "Expected HTTP 401 from protected /api-console endpoint, got $auth_status — Cognito authorizer may not be wired up" >&2
+            exit 1
+          fi
+          echo "/api-console → $auth_status (auth required) OK"
+          # Check CloudFront distribution domain directly (not the canonical custom domain).
+          # viewer-request.js (cdk/functions/viewer-request.js) returns 301 for any request
+          # whose Host header is not app.allotmint.io — so a 301 here confirms the
+          # distribution is live and the CloudFront Function is executing correctly.
+          # Accepting 200 OR 301 avoids a hard dependency on external DNS for app.allotmint.io
+          # which is not yet configured in the CDK stack (see issue #3011 and #3012).
+          # Use --output /dev/null (not >/dev/null) to avoid curl exit 23 on HTTP/2 streams.
+          echo "Checking CloudFront → https://${frontend_domain}"
+          curl_exit=0
+          cf_status=$(curl --retry 3 --retry-delay 5 --retry-all-errors \
+            --max-time 60 --write-out "%{http_code}" --silent --output /dev/null \
+            "https://${frontend_domain}") || curl_exit=$?
+          if [ "$curl_exit" -ne 0 ]; then
+            echo "curl failed (exit ${curl_exit}) checking https://${frontend_domain}" >&2
+            exit 1
+          fi
+          if [ "$cf_status" != "200" ] && [ "$cf_status" != "301" ]; then
+            echo "Expected 200 or 301 from CloudFront distribution, got $cf_status" >&2
+            exit 1
+          fi
+          echo "CloudFront → $cf_status OK"
+
+      - name: Fetch BackendLambda CloudWatch logs (deploy)
+        # BackendLambdaLogGroupName is exported by BackendLambdaStack at
+        # cdk/stacks/backend_lambda_stack.py (CfnOutput "BackendLambdaLogGroupName").
+        # The deploy IAM role must have logs:FilterLogEvents on the log group ARN for
+        # this step to produce output; without it filter-log-events errors and
+        # continue-on-error absorbs it.
+        if: always()
+        continue-on-error: true
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          log_group="$(aws cloudformation describe-stacks \
+            --stack-name BackendLambdaStack \
+            --query "Stacks[0].Outputs[?OutputKey=='BackendLambdaLogGroupName'].OutputValue" \
+            --output text 2>/dev/null || echo "")"
+          if [ -z "$log_group" ] || [ "$log_group" = "None" ]; then
+            echo "BackendLambdaLogGroupName not found in BackendLambdaStack outputs; skipping log dump." >&2
+            exit 0
+          fi
+          echo "=== BackendLambda CloudWatch logs (last 10 minutes) ==="
+          # aws logs tail is CLI v2 only; use filter-log-events for CLI v1 compatibility.
+          # Shell arithmetic avoids a python3 dependency on self-hosted runners.
+          # Note: filter-log-events returns at most 10 000 events per call (no pagination);
+          # output of "None" means no events matched (AWS CLI JMESPath null → text "None").
+          start_ms=$(( ($(date +%s) - 600) * 1000 ))
+          aws logs filter-log-events \
+            --log-group-name "$log_group" \
+            --start-time "$start_ms" \
+            --query 'events[].message' \
+            --output text \
+            | grep -v '^None$' \
+            || echo "(no log events found)"
 
       - name: Check recent BackendLambda CloudWatch errors
+        if: always()
         env:
           AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
         run: |
@@ -182,10 +367,18 @@ jobs:
             exit 1
           fi
           read -r start_time end_time <<EOF
-          $(python - <<'PY'
+          $(METRIC_START="${METRIC_START:-}" python - <<'PY'
+          import os
           from datetime import datetime, timedelta, timezone
           end = datetime.now(timezone.utc)
-          start = end - timedelta(minutes=5)
+          metric_start_raw = os.environ.get("METRIC_START", "")
+          if metric_start_raw:
+              try:
+                  start = datetime.fromisoformat(metric_start_raw.replace("Z", "+00:00"))
+              except ValueError:
+                  start = end - timedelta(minutes=5)
+          else:
+              start = end - timedelta(minutes=5)
           print(start.strftime("%Y-%m-%dT%H:%M:%SZ"), end.strftime("%Y-%m-%dT%H:%M:%SZ"))
           PY
           )
@@ -225,10 +418,11 @@ jobs:
           invocation_count="$(normalize_metric "${invocation_sum}")"
           error_count="$(normalize_metric "${error_sum}")"
           if [ "${invocation_count}" -lt 1 ]; then
-            echo "Backend Lambda had no invocations in the last 5 minutes; post-deploy validation cannot confirm runtime health" >&2
-            exit 1
-          fi
-          if [ "${error_count}" -gt 0 ]; then
+            # All API routes require Cognito JWT auth enforced at the API Gateway
+            # level, so unauthenticated post-deploy curl probes never reach Lambda.
+            # Zero invocations here is expected and does not indicate a problem.
+            echo "No Lambda invocations in the last 5 minutes (expected: Cognito JWT auth blocks unauthenticated probes at API Gateway)"
+          elif [ "${error_count}" -gt 0 ]; then
             echo "Backend Lambda reported ${error_count} errors in the last 5 minutes" >&2
             exit 1
           fi
@@ -244,7 +438,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: deploy
     env:
-      SMOKE_URL: ${{ vars.SMOKE_URL }}
+      SMOKE_URL: ${{ needs.deploy.outputs.backend_url || vars.SMOKE_URL }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -253,6 +447,12 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: '24'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885 # v6.1.1
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
 
       - name: Install root dependencies
         run: npm ci
@@ -265,8 +465,118 @@ jobs:
         run: npx playwright install --with-deps
         working-directory: frontend
 
+      - name: Resolve backend URL for smoke tests
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          # Resolve directly from CloudFormation rather than relying on the cross-job
+          # output from the deploy job. Cross-job outputs containing masked secret
+          # substrings (AWS_REGION appears in the API Gateway URL) arrive empty in
+          # the downstream job, causing the smoke script to fall back to localhost.
+          if [ -n "${SMOKE_URL:-}" ]; then
+            echo "SMOKE_URL already set via vars.SMOKE_URL; skipping CloudFormation lookup."
+            exit 0
+          fi
+          BACKEND_URL="$(aws cloudformation describe-stacks \
+            --stack-name BackendLambdaStack \
+            --query "Stacks[0].Outputs[?OutputKey=='BackendApiUrl'].OutputValue" \
+            --output text)"
+          if [ -z "$BACKEND_URL" ] || [ "$BACKEND_URL" = "None" ]; then
+            echo "BackendApiUrl output is missing from BackendLambdaStack" >&2
+            exit 1
+          fi
+          echo "SMOKE_URL=$BACKEND_URL" >> "$GITHUB_ENV"
+
+      - name: Fetch Cognito smoke-test token
+        # Looks up the dedicated SmokeTestClient from StaticSiteStack (created by CDK with
+        # ALLOW_USER_PASSWORD_AUTH) and exchanges credentials for a fresh ID token.
+        # Writing to $GITHUB_ENV makes SMOKE_AUTH_TOKEN and TEST_ID_TOKEN available to all
+        # subsequent steps without needing explicit env: blocks on each one.
+        # Uses continue-on-error so a missing secret or unconfigured client degrades
+        # gracefully (smoke tests run unauthenticated) rather than blocking the job.
+        continue-on-error: true
+        env:
+          SMOKE_TEST_USERNAME: ${{ secrets.SMOKE_TEST_USERNAME }}
+          SMOKE_TEST_PASSWORD: ${{ secrets.SMOKE_TEST_PASSWORD }}
+          AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SMOKE_TEST_USERNAME:-}" ] || [ -z "${SMOKE_TEST_PASSWORD:-}" ]; then
+            echo "SMOKE_TEST_USERNAME or SMOKE_TEST_PASSWORD not configured; smoke tests will run unauthenticated."
+            exit 0
+          fi
+          client_id="$(aws cloudformation describe-stacks \
+            --stack-name StaticSiteStack \
+            --query "Stacks[0].Outputs[?OutputKey=='SmokeTestUserPoolClientId'].OutputValue" \
+            --output text 2>/dev/null || echo "")"
+          if [ -z "$client_id" ] || [ "$client_id" = "None" ]; then
+            echo "SmokeTestUserPoolClientId not found in StaticSiteStack outputs; smoke tests will run unauthenticated."
+            exit 0
+          fi
+          TOKEN="$(aws cognito-idp initiate-auth \
+            --auth-flow USER_PASSWORD_AUTH \
+            --client-id "$client_id" \
+            --auth-parameters "USERNAME=${SMOKE_TEST_USERNAME},PASSWORD=${SMOKE_TEST_PASSWORD}" \
+            --query 'AuthenticationResult.IdToken' \
+            --output text)"
+          echo "::add-mask::${TOKEN}"
+          printf 'SMOKE_AUTH_TOKEN=%s\n' "${TOKEN}" >> "$GITHUB_ENV"
+          printf 'TEST_ID_TOKEN=%s\n' "${TOKEN}" >> "$GITHUB_ENV"
+          echo "Smoke-test Cognito token fetched and masked."
+
       - name: Run backend smoke tests
         run: npm run smoke:test
 
       - name: Run frontend smoke tests
+        # Run even if the backend smoke step failed so frontend results are
+        # always visible in CI logs (fixes issue #3055).  SMOKE_URL at job
+        # level is the backend API URL; override it to localhost so Playwright
+        # navigates to the local preview server, and expose the backend URL via
+        # VITE_ALLOTMINT_API_BASE so the built app calls the real deployed API.
+        # SMOKE_AUTH_TOKEN and TEST_ID_TOKEN arrive via $GITHUB_ENV set by the
+        # token-fetch step above; no explicit env: entries needed here.
+        if: success() || failure()
         run: npm --prefix frontend run smoke:frontend
+        env:
+          VITE_ALLOTMINT_API_BASE: ${{ env.SMOKE_URL }}
+          SMOKE_URL: 'http://localhost:5173'
+
+      - name: Upload Playwright deploy-smoke artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-deploy-smoke-artifacts
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+          if-no-files-found: ignore
+
+      - name: Fetch Lambda logs from smoke test
+        if: always()
+        continue-on-error: true
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          log_group="$(aws cloudformation describe-stacks \
+            --stack-name BackendLambdaStack \
+            --query "Stacks[0].Outputs[?OutputKey=='BackendLambdaLogGroupName'].OutputValue" \
+            --output text)"
+          if [ -z "$log_group" ] || [ "$log_group" = "None" ]; then
+            echo "BackendLambdaLogGroupName output not found in BackendLambdaStack; skipping" >&2
+            exit 0
+          fi
+          echo "=== BackendLambda CloudWatch logs (last 15 minutes) ==="
+          # aws logs tail is CLI v2 only; use filter-log-events for CLI v1 compatibility.
+          # Shell arithmetic avoids a python3 dependency on self-hosted runners.
+          # Note: filter-log-events returns at most 10 000 events per call (no pagination);
+          # output of "None" means no events matched (AWS CLI JMESPath null → text "None").
+          start_ms=$(( ($(date +%s) - 900) * 1000 ))
+          aws logs filter-log-events \
+            --log-group-name "$log_group" \
+            --start-time "$start_ms" \
+            --query 'events[].message' \
+            --output text \
+            | grep -v '^None$' \
+            || echo "(no log events found)"

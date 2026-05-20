@@ -2,11 +2,20 @@ import os
 from collections.abc import Sequence
 from pathlib import Path
 
-from aws_cdk import CfnOutput, Duration, RemovalPolicy, Stack
+from aws_cdk import (
+    CfnOutput,
+    CfnParameter,
+    Duration,
+    RemovalPolicy,
+    Stack,
+    triggers,
+)
 from aws_cdk import aws_apigatewayv2 as apigwv2
+from aws_cdk import aws_apigatewayv2_authorizers as apigwv2_authorizers
 from aws_cdk import aws_apigatewayv2_integrations as apigwv2_integrations
 from aws_cdk import aws_budgets as budgets
 from aws_cdk import aws_cloudwatch as cloudwatch
+from aws_cdk import aws_cognito as cognito
 from aws_cdk import aws_events as events
 from aws_cdk import aws_events_targets as targets
 from aws_cdk import aws_iam as iam
@@ -190,7 +199,11 @@ class BackendLambdaStack(Stack):
                 "timeseries/meta",
                 "transactions",
             ),
-            "price_refresh": ("prices",),
+            # price_refresh needs accounts/ to call list_objects_v2 via
+            # S3DataProvider.list_plots() → list_all_unique_tickers() → list_portfolios().
+            # Without this ListBucket on accounts/, list_objects_v2 returns AccessDenied,
+            # refresh_prices() finds no tickers, and the snapshot is never written.
+            "price_refresh": ("accounts", "prices"),
             "trading_agent": ("prices",),
         }
 
@@ -222,7 +235,10 @@ class BackendLambdaStack(Stack):
 
         backend_env = {
             "GOOGLE_AUTH_ENABLED": "true",
-            "DISABLE_AUTH": "false",
+            # API Gateway enforces Cognito JWT auth before Lambda is invoked. DISABLE_AUTH
+            # is intentionally "true" so FastAPI does not also try to decode the Cognito ID
+            # token with the app JWT secret, which would reject every authenticated request.
+            "DISABLE_AUTH": "true",
             "DATA_BUCKET": bucket_name,
             "DATA_BRANCH": data_branch,
             # APP_REGION is used instead of AWS_REGION because AWS_REGION is a reserved
@@ -253,6 +269,8 @@ class BackendLambdaStack(Stack):
         # pyarrow's S3 parquet read/write/list behavior at timeseries/*.
         # Audited S3 list prefixes used by backend code paths:
         # - accounts/        (auth + portfolio enumeration)
+        # - alerts/          (alert fallback path)
+        # - prices/          (price snapshot loader)
         # - queries/         (saved query listing)
         # - timeseries/meta/ (timeseries admin listing)
         # - transactions/    (report transaction exports)
@@ -266,20 +284,85 @@ class BackendLambdaStack(Stack):
         )
         self._grant_timeseries_cache_access(backend_fn, bucket=data_bucket, allow_put=True)
 
-        backend_api = apigwv2.HttpApi(self, "BackendApi")
+        ui_auth_user_pool_id_default = self.node.try_get_context(
+            "ui_auth_user_pool_id"
+        ) or os.getenv("UI_AUTH_USER_POOL_ID")
+        ui_auth_user_pool_id_param_kwargs = {
+            "type": "String",
+            "allowed_pattern": ".+",
+            "description": (
+                "Cognito user pool ID exported by StaticSiteStack for API JWT authorization."
+            ),
+        }
+        if ui_auth_user_pool_id_default:
+            ui_auth_user_pool_id_param_kwargs["default"] = ui_auth_user_pool_id_default
+        ui_auth_user_pool_id_param = CfnParameter(
+            self,
+            "UiAuthUserPoolId",
+            **ui_auth_user_pool_id_param_kwargs,
+        )
+
+        ui_auth_client_id_default = self.node.try_get_context(
+            "ui_auth_user_pool_client_id"
+        ) or os.getenv("UI_AUTH_USER_POOL_CLIENT_ID")
+        ui_auth_client_id_param_kwargs = {
+            "type": "String",
+            "allowed_pattern": ".+",
+            "description": (
+                "Cognito app client ID exported by StaticSiteStack for API JWT authorization."
+            ),
+        }
+        if ui_auth_client_id_default:
+            ui_auth_client_id_param_kwargs["default"] = ui_auth_client_id_default
+        ui_auth_client_id_param = CfnParameter(
+            self,
+            "UiAuthUserPoolClientId",
+            **ui_auth_client_id_param_kwargs,
+        )
+        ui_auth_user_pool = cognito.UserPool.from_user_pool_id(
+            self, "ImportedUiAuthUserPool", ui_auth_user_pool_id_param.value_as_string
+        )
+        backend_authorizer = apigwv2_authorizers.HttpUserPoolAuthorizer(
+            "BackendCognitoAuthorizer",
+            ui_auth_user_pool,
+            user_pool_clients=[
+                cognito.UserPoolClient.from_user_pool_client_id(
+                    self, "ImportedUiAuthUserPoolClient", ui_auth_client_id_param.value_as_string
+                )
+            ],
+            identity_source=["$request.header.Authorization"],
+        )
+        backend_api = apigwv2.HttpApi(
+            self,
+            "BackendApi",
+            cors_preflight=apigwv2.CorsPreflightOptions(
+                allow_headers=["Authorization", "Content-Type", "X-CSRFToken"],
+                allow_methods=[apigwv2.CorsHttpMethod.ANY],
+                allow_origins=cors_origins,
+                allow_credentials=True,
+            ),
+        )
         self.backend_api_url = backend_api.api_endpoint
         backend_integration = apigwv2_integrations.HttpLambdaIntegration(
             "BackendLambdaIntegration", backend_fn
         )
         backend_api.add_routes(
+            path="/health",
+            methods=[apigwv2.HttpMethod.GET],
+            integration=backend_integration,
+            authorizer=apigwv2.HttpNoneAuthorizer(),
+        )
+        backend_api.add_routes(
             path="/",
             methods=[apigwv2.HttpMethod.ANY],
             integration=backend_integration,
+            authorizer=backend_authorizer,
         )
         backend_api.add_routes(
             path="/{proxy+}",
             methods=[apigwv2.HttpMethod.ANY],
             integration=backend_integration,
+            authorizer=backend_authorizer,
         )
 
         # Scheduled function to refresh prices daily
@@ -304,6 +387,8 @@ class BackendLambdaStack(Stack):
             code=refresh_code,
             environment=refresh_env,
             log_group=refresh_log_group,
+            timeout=Duration.minutes(10),
+            memory_size=512,
         )
 
         # PriceRefreshLambda: read + put by known data keys, plus scoped ListBucket
@@ -327,6 +412,27 @@ class BackendLambdaStack(Stack):
             "DailyPriceRefresh",
             schedule=events.Schedule.cron(minute="0", hour="0"),
             targets=[targets.LambdaFunction(refresh_fn)],
+        )
+
+        # Invoke PriceRefreshLambda synchronously after each deployment so
+        # prices/latest_prices.json is seeded in S3 before the smoke tests run.
+        # REQUEST_RESPONSE blocks the CDK deploy until the Lambda finishes,
+        # guaranteeing the snapshot is present by the time the smoke-test job
+        # starts. The Trigger timeout (15 min) must be strictly greater than
+        # refresh_fn.timeout (10 min) so the custom resource provider can wait
+        # for the Lambda response before CloudFormation signals completion.
+        #
+        # NOTE: the Lambda handler catches all exceptions and writes an empty stub
+        # snapshot on failure rather than raising, so a transient API outage does
+        # not roll back the entire CloudFormation stack (which would happen if the
+        # Lambda returned an error to the REQUEST_RESPONSE Trigger). The stub is
+        # overwritten by the next successful scheduled EventBridge invocation.
+        triggers.Trigger(
+            self,
+            "PriceRefreshOnDeploy",
+            handler=refresh_fn,
+            invocation_type=triggers.InvocationType.REQUEST_RESPONSE,
+            timeout=Duration.minutes(15),
         )
 
         # Scheduled function to execute the trading agent
@@ -422,6 +528,47 @@ class BackendLambdaStack(Stack):
             ),
             notifications_with_subscribers=[budget_notification] if budget_notification else None,
         )
+
+        # Grant the GitHub Actions deploy role read access to all Lambda log groups so
+        # the CI log-dump step (filter-log-events) can produce output. The role is
+        # managed outside CDK; importing it here with mutable=True lets CDK attach a
+        # scoped IAM policy via cdk deploy without any manual console changes.
+        # Set GITHUB_DEPLOY_ROLE_ARN to secrets.AWS_ROLE_TO_ASSUME in the workflow.
+        # See issue #3009.
+        github_deploy_role_arn = os.getenv("GITHUB_DEPLOY_ROLE_ARN", "")
+        if github_deploy_role_arn:
+            github_role = iam.Role.from_role_arn(
+                self, "GithubDeployRole", github_deploy_role_arn, mutable=True
+            )
+            for log_group in (backend_log_group, refresh_log_group, agent_log_group):
+                log_group.grant(github_role, "logs:FilterLogEvents")
+            # Allow cdk diff --all to create/poll/delete CloudFormation change sets so the
+            # diff shows replacement annotations rather than falling back to template-only
+            # diff. Without these actions the diff step emits:
+            #   "Could not create a change set, will base the diff on template differences"
+            # CDK calls CreateChangeSet → DescribeChangeSet (polls until COMPLETE) →
+            # DeleteChangeSet; all three actions are required for the diff to succeed.
+            # self.stack_name is used for this stack to avoid a hardcoded literal.
+            # StaticSiteStack has no CDK reference here so its name is a string constant —
+            # it must match the ID used in cdk/app.py. Both stacks are targeted because
+            # deploy-lambda.yml runs `cdk diff --all`. See issue #3013.
+            github_role.add_to_principal_policy(
+                iam.PolicyStatement(
+                    actions=[
+                        "cloudformation:CreateChangeSet",
+                        "cloudformation:DescribeChangeSet",
+                        "cloudformation:DeleteChangeSet",
+                    ],
+                    resources=[
+                        self.format_arn(
+                            service="cloudformation",
+                            resource="stack",
+                            resource_name=f"{stack_name}/*",
+                        )
+                        for stack_name in (self.stack_name, "StaticSiteStack")
+                    ],
+                )
+            )
 
         CfnOutput(
             self,

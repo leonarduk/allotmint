@@ -8,6 +8,10 @@ import { cleanup } from '@testing-library/react';
 import { toHaveNoViolations } from 'jest-axe';
 expect.extend(toHaveNoViolations);
 
+// React 19 checks this flag before allowing React Testing Library's act()
+// wrapper to flush updates without noisy environment warnings.
+(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
 // Vitest does not serve public/config.json, so intercept only the runtime
 // config asset request and let all API requests continue through the real fetch.
 const nativeFetch = globalThis.fetch.bind(globalThis);

@@ -508,7 +508,9 @@ describe("GroupPortfolioView", () => {
     );
     expect(screen.queryByRole("tab", { name: "All accounts" })).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("tab", { name: "Alice Example" }));
+    await userEvent.click(
+      await screen.findByRole("tab", { name: "Alice Example" }),
+    );
 
     await waitFor(() =>
       expect(
@@ -532,7 +534,9 @@ describe("GroupPortfolioView", () => {
     );
     expect(screen.getByRole("tab", { name: "isa" })).toHaveAttribute("aria-selected", "true");
 
-    await userEvent.click(screen.getByRole("tab", { name: "Bob Example" }));
+    await userEvent.click(
+      await screen.findByRole("tab", { name: "Bob Example" }),
+    );
     await waitFor(() =>
       expect(
         fetchMock.mock.calls.some(([input]) =>

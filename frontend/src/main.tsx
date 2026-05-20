@@ -296,18 +296,18 @@ export function Root() {
 
   const isPublicSupportRoute = location.pathname === '/support';
 
-  if (configLoading && !retryScheduled) {
+  if (configLoading) {
     return (
       <>
         {renderRouteMarker(location.pathname, 'loading')}
         <div role="status" className="app-loading">
-          Loading configuration...
+          {retryScheduled ? 'Retrying configuration...' : 'Loading configuration...'}
         </div>
       </>
     );
   }
 
-  if (configError && !retryScheduled) {
+  if (configError) {
     return (
       <>
         {renderRouteMarker(location.pathname, 'config-error')}

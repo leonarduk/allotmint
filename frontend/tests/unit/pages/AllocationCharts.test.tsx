@@ -195,12 +195,14 @@ describe("AllocationCharts page", () => {
     render(<AllocationCharts />);
     await screen.findByText(/Instrument Types/);
 
-    expect(warnSpy).toHaveBeenCalledWith("Dropped invalid holding value", {
-      ticker: "NAN",
-      originalValue: Number.NaN,
-      coercedValue: 0,
-      originalInvalid: true,
-      dropReason: "invalid-numeric-input",
+    await waitFor(() => {
+      expect(warnSpy).toHaveBeenCalledWith("Dropped invalid holding value", {
+        ticker: "NAN",
+        originalValue: Number.NaN,
+        coercedValue: 0,
+        originalInvalid: true,
+        dropReason: "invalid-numeric-input",
+      });
     });
   });
 
@@ -217,12 +219,14 @@ describe("AllocationCharts page", () => {
     render(<AllocationCharts />);
     await screen.findByText(/Instrument Types/);
 
-    expect(warnSpy).toHaveBeenCalledWith("Dropped invalid holding value", {
-      ticker: "INF",
-      originalValue: Number.POSITIVE_INFINITY,
-      coercedValue: 0,
-      originalInvalid: true,
-      dropReason: "invalid-numeric-input",
+    await waitFor(() => {
+      expect(warnSpy).toHaveBeenCalledWith("Dropped invalid holding value", {
+        ticker: "INF",
+        originalValue: Number.POSITIVE_INFINITY,
+        coercedValue: 0,
+        originalInvalid: true,
+        dropReason: "invalid-numeric-input",
+      });
     });
   });
 

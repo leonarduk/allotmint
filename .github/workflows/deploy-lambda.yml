@@ -157,6 +157,49 @@ jobs:
           --parameters BackendLambdaStack:UiAuthUserPoolClientId="$UI_AUTH_USER_POOL_CLIENT_ID"
         working-directory: cdk
 
+      - name: Warm price snapshot
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          refresh_fn="$(aws cloudformation list-stack-resources \
+            --stack-name BackendLambdaStack \
+            --query "StackResourceSummaries[?ResourceType=='AWS::Lambda::Function' && starts_with(LogicalResourceId, 'PriceRefreshLambda')].PhysicalResourceId | [0]" \
+            --output text)"
+          if [ -z "$refresh_fn" ] || [ "$refresh_fn" = "None" ]; then
+            echo "Unable to resolve PriceRefreshLambda physical function name from BackendLambdaStack resources" >&2
+            exit 1
+          fi
+          data_bucket="$(aws cloudformation list-stack-resources \
+            --stack-name BackendLambdaStack \
+            --query "StackResourceSummaries[?ResourceType=='AWS::S3::Bucket' && starts_with(LogicalResourceId, 'PortfolioDataBucket')].PhysicalResourceId | [0]" \
+            --output text)"
+          if [ -z "$data_bucket" ] || [ "$data_bucket" = "None" ]; then
+            echo "Unable to resolve PortfolioDataBucket physical bucket name from BackendLambdaStack resources" >&2
+            exit 1
+          fi
+          response_file="$(mktemp)"
+          invoke_meta="$(aws lambda invoke \
+            --function-name "$refresh_fn" \
+            --cli-binary-format raw-in-base64-out \
+            "$response_file")"
+          python - "$invoke_meta" "$response_file" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          meta = json.loads(sys.argv[1])
+          payload_text = pathlib.Path(sys.argv[2]).read_text(encoding="utf-8").strip()
+          if meta.get("FunctionError"):
+              raise SystemExit(
+                  f"PriceRefreshLambda returned {meta['FunctionError']}: {payload_text or '<empty>'}"
+              )
+          payload = json.loads(payload_text or "{}")
+          if not isinstance(payload, dict) or "snapshot" not in payload or "timestamp" not in payload:
+              raise SystemExit(f"Unexpected PriceRefreshLambda response: {payload!r}")
+          PY
+          aws s3api head-object --bucket "$data_bucket" --key prices/latest_prices.json >/dev/null
+
       - name: Get backend API URL
         id: get_backend_url
         env:

@@ -440,7 +440,7 @@ class BackendLambdaStack(Stack):
         triggers.Trigger(
             self,
             "PriceRefreshOnDeploy",
-            handler=refresh_alias,
+            handler=refresh_fn,
             invocation_type=triggers.InvocationType.REQUEST_RESPONSE,
             timeout=Duration.minutes(15),
         )

@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="860" viewBox="0 0 860 960" font-family="ui-sans-serif,system-ui,sans-serif" font-size="13">
+<svg xmlns="http://www.w3.org/2000/svg" width="860" viewBox="0 0 860 850" font-family="ui-sans-serif,system-ui,sans-serif" font-size="13">
 
   <!-- ─── Background ─────────────────────────────────────────── -->
-  <rect width="860" height="960" fill="#f8f9fa" rx="12"/>
+  <rect width="860" height="850" fill="#f8f9fa" rx="12"/>
 
   <!-- ─── Title ────────────────────────────────────────────────── -->
   <text x="430" y="36" text-anchor="middle" font-size="17" font-weight="600" fill="#1a1a2e">AllotMint — AWS deployed architecture</text>
@@ -57,7 +57,7 @@
   <!-- ═══════════════════════════════════════════════════════════ -->
   <!-- BackendLambdaStack container -->
   <!-- ═══════════════════════════════════════════════════════════ -->
-  <rect x="20" y="378" width="820" height="556" rx="14" fill="#fff4ec" stroke="#d4622a" stroke-width="1.5" stroke-dasharray="6 3"/>
+  <rect x="20" y="378" width="820" height="400" rx="14" fill="#fff4ec" stroke="#d4622a" stroke-width="1.5" stroke-dasharray="6 3"/>
   <text x="34" y="398" font-size="12" font-weight="600" fill="#8b3a14">BackendLambdaStack</text>
 
   <!-- API Gateway -->
@@ -106,7 +106,7 @@
   <!-- CW alarm -->
   <rect x="36" y="700" width="230" height="52" rx="8" fill="#e8e8e8" stroke="#888" stroke-width="1"/>
   <text x="151" y="722" text-anchor="middle" font-weight="600" fill="#2c2c2c">CloudWatch alarm</text>
-  <text x="151" y="740" text-anchor="middle" font-size="11" fill="#444">BackendLambda error rate ≥1</text>
+  <text x="151" y="740" text-anchor="middle" font-size="11" fill="#444">BackendLambda error rate &#x2265;1</text>
 
   <!-- AWS Budgets -->
   <rect x="286" y="700" width="228" height="52" rx="8" fill="#fff0c0" stroke="#c07a00" stroke-width="1"/>
@@ -118,24 +118,20 @@
   <text x="679" y="722" text-anchor="middle" font-weight="600" fill="#2c2c2c">GitHub Actions (CI/CD)</text>
   <text x="679" y="740" text-anchor="middle" font-size="11" fill="#444">cdk deploy · smoke tests · log-dump</text>
 
-  <!-- ECR -->  
-  <rect x="36" y="784" width="788" height="42" rx="8" fill="#e8e8e8" stroke="#888" stroke-width="1"/>
-  <text x="430" y="808" text-anchor="middle" font-weight="600" fill="#2c2c2c">ECR — Docker image (shared by Backend / PriceRefresh / TradingAgent, differentiated by cmd override)</text>
-
   <!-- ─── Legend ─────────────────────────────────────────────── -->
-  <rect x="36" y="846" width="788" height="90" rx="8" fill="#ffffff" stroke="#dee2e6" stroke-width="1"/>
-  <text x="54" y="866" font-size="11" font-weight="600" fill="#343a40">Legend</text>
-  <rect x="54" y="874" width="14" height="14" rx="3" fill="#d0e8ff" stroke="#4a90d9" stroke-width="1"/>
-  <text x="74" y="885" font-size="11" fill="#343a40">StaticSiteStack (frontend infra)</text>
-  <rect x="54" y="896" width="14" height="14" rx="3" fill="#ece0ff" stroke="#7b5ea7" stroke-width="1"/>
-  <text x="74" y="907" font-size="11" fill="#343a40">Cognito (auth)</text>
-  <rect x="260" y="874" width="14" height="14" rx="3" fill="#ffd8c0" stroke="#d4622a" stroke-width="1"/>
-  <text x="280" y="885" font-size="11" fill="#343a40">BackendLambdaStack (backend infra)</text>
-  <rect x="260" y="896" width="14" height="14" rx="3" fill="#fff0c0" stroke="#c07a00" stroke-width="1"/>
-  <text x="280" y="907" font-size="11" fill="#343a40">S3 / Budgets (data &amp; cost)</text>
-  <rect x="500" y="874" width="14" height="14" rx="3" fill="#e8e8e8" stroke="#888" stroke-width="1"/>
-  <text x="520" y="885" font-size="11" fill="#343a40">Shared / IAM / observability</text>
-  <text x="520" y="907" font-size="11" fill="#6c757d">--- dashed border = CDK stack boundary</text>
+  <rect x="36" y="762" width="788" height="72" rx="8" fill="#ffffff" stroke="#dee2e6" stroke-width="1"/>
+  <text x="54" y="782" font-size="11" font-weight="600" fill="#343a40">Legend</text>
+  <rect x="54" y="790" width="14" height="14" rx="3" fill="#d0e8ff" stroke="#4a90d9" stroke-width="1"/>
+  <text x="74" y="801" font-size="11" fill="#343a40">StaticSiteStack (frontend infra)</text>
+  <rect x="54" y="810" width="14" height="14" rx="3" fill="#ece0ff" stroke="#7b5ea7" stroke-width="1"/>
+  <text x="74" y="821" font-size="11" fill="#343a40">Cognito (auth)</text>
+  <rect x="260" y="790" width="14" height="14" rx="3" fill="#ffd8c0" stroke="#d4622a" stroke-width="1"/>
+  <text x="280" y="801" font-size="11" fill="#343a40">BackendLambdaStack (backend infra)</text>
+  <rect x="260" y="810" width="14" height="14" rx="3" fill="#fff0c0" stroke="#c07a00" stroke-width="1"/>
+  <text x="280" y="821" font-size="11" fill="#343a40">S3 / Budgets (data &amp; cost)</text>
+  <rect x="500" y="790" width="14" height="14" rx="3" fill="#e8e8e8" stroke="#888" stroke-width="1"/>
+  <text x="520" y="801" font-size="11" fill="#343a40">Shared / IAM / observability</text>
+  <text x="520" y="821" font-size="11" fill="#6c757d">--- dashed border = CDK stack boundary</text>
 
   <!-- ─── Arrows ─────────────────────────────────────────────── -->
   <defs>

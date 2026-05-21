@@ -195,6 +195,9 @@ describe("AllocationCharts page", () => {
     render(<AllocationCharts />);
     await screen.findByText(/Instrument Types/);
 
+    // The chart-data useEffect emits the warning asynchronously after the
+    // loading guard drops (which makes "Instrument Types" visible). Use
+    // waitFor so the assertion retries until the effect has actually run.
     await waitFor(() => {
       expect(warnSpy).toHaveBeenCalledWith("Dropped invalid holding value", {
         ticker: "NAN",
@@ -219,6 +222,9 @@ describe("AllocationCharts page", () => {
     render(<AllocationCharts />);
     await screen.findByText(/Instrument Types/);
 
+    // The chart-data useEffect emits the warning asynchronously after the
+    // loading guard drops (which makes "Instrument Types" visible). Use
+    // waitFor so the assertion retries until the effect has actually run.
     await waitFor(() => {
       expect(warnSpy).toHaveBeenCalledWith("Dropped invalid holding value", {
         ticker: "INF",

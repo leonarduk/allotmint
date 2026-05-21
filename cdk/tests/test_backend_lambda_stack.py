@@ -649,14 +649,21 @@ def test_price_refresh_lambda_live_alias_exists(template):
     AWS Lambda started requiring qualified ARNs for AddPermission calls.
     """
     aliases = template.find_resources("AWS::Lambda::Alias")
-    live_aliases = {
+    # Filter by the CDK logical ID prefix so that a 'live' alias on any other
+    # Lambda (a common deployment pattern) does not cause a false failure here.
+    price_refresh_aliases = {
         lid: res for lid, res in aliases.items()
-        if res.get("Properties", {}).get("Name") == "live"
+        if lid.startswith("PriceRefreshLambdaLiveAlias")
     }
-    assert live_aliases, "Expected an AWS::Lambda::Alias resource with Name='live'"
+    assert price_refresh_aliases, (
+        "Expected an AWS::Lambda::Alias with logical ID starting 'PriceRefreshLambdaLiveAlias'"
+    )
 
-    for logical_id, resource in live_aliases.items():
+    for logical_id, resource in price_refresh_aliases.items():
         props = resource.get("Properties", {})
+        assert props.get("Name") == "live", (
+            f"Alias {logical_id} Name is '{props.get('Name')}'; expected 'live'"
+        )
         function_name = json.dumps(props.get("FunctionName", {}))
         assert "PriceRefreshLambda" in function_name, (
             f"Alias {logical_id} FunctionName does not reference PriceRefreshLambda; "
@@ -676,13 +683,14 @@ def test_daily_price_refresh_rule_targets_alias_arn(template):
     issue #3073; only a qualified ARN (alias or version) avoids it.
     """
     rules = template.find_resources("AWS::Events::Rule")
-    # Identify the midnight daily cron rule
+    # Match by CDK logical ID prefix so this test is not affected by schedule
+    # changes or other midnight rules added to the stack.
     daily_refresh_rules = {
         lid: res for lid, res in rules.items()
-        if "cron(0 0" in json.dumps(res.get("Properties", {}).get("ScheduleExpression", ""))
+        if lid.startswith("DailyPriceRefresh")
     }
     assert daily_refresh_rules, (
-        "Expected a DailyPriceRefresh AWS::Events::Rule with a midnight cron schedule"
+        "Expected an AWS::Events::Rule with logical ID starting 'DailyPriceRefresh'"
     )
 
     for logical_id, resource in daily_refresh_rules.items():

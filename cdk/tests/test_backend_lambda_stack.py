@@ -656,7 +656,9 @@ def test_price_refresh_lambda_live_alias_exists(template):
                 {"Ref": assertions.Match.string_like_regexp("PriceRefreshLambda")}
             ),
             "FunctionVersion": assertions.Match.object_like(
-                {"Ref": assertions.Match.string_like_regexp("PriceRefreshLambda")}
+                {"Fn::GetAtt": assertions.Match.array_with([
+                    assertions.Match.string_like_regexp("PriceRefreshLambda")
+                ])}
             ),
         },
     )

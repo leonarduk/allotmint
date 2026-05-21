@@ -407,11 +407,21 @@ class BackendLambdaStack(Stack):
         )
         self._grant_timeseries_cache_access(refresh_fn, bucket=data_bucket, allow_put=True)
 
+        # Route all managed invocations through an explicit alias so Lambda
+        # invoke permissions are qualified and remain compatible with AWS
+        # authorization changes around Qualifier-based invocation.
+        refresh_alias = _lambda.Alias(
+            self,
+            "PriceRefreshLambdaLiveAlias",
+            alias_name="live",
+            version=refresh_fn.current_version,
+        )
+
         events.Rule(
             self,
             "DailyPriceRefresh",
             schedule=events.Schedule.cron(minute="0", hour="0"),
-            targets=[targets.LambdaFunction(refresh_fn)],
+            targets=[targets.LambdaFunction(refresh_alias)],
         )
 
         # Invoke PriceRefreshLambda synchronously after each deployment so

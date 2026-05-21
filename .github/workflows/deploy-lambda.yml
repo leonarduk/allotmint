@@ -180,7 +180,8 @@ jobs:
           fi
           response_file="$(mktemp)"
           invoke_meta="$(aws lambda invoke \
-            --function-name "$refresh_fn" \
+            --function-name "${refresh_fn}:live" \
+            --cli-binary-format raw-in-base64-out \
             "$response_file")"
           python - "$invoke_meta" "$response_file" <<'PY'
           import json
@@ -250,7 +251,7 @@ jobs:
           if [ "$head_exit" -eq 0 ]; then
             echo "Price snapshot prices/latest_prices.json is present in s3://${DATA_BUCKET} — OK"
           elif echo "$head_output" | grep -qi "NoSuchKey\|Not Found\|404"; then
-            echo "::warning::Price snapshot prices/latest_prices.json is NOT present in s3://${DATA_BUCKET}. Portfolio prices will be unavailable until the price-refresh job runs. Trigger it manually: aws lambda invoke --function-name <PriceRefreshLambda-physical-name> /dev/null"
+            echo "::warning::Price snapshot prices/latest_prices.json is NOT present in s3://${DATA_BUCKET}. Portfolio prices will be unavailable until the price-refresh job runs. Trigger it manually: aws lambda invoke --function-name <PriceRefreshLambda-physical-name>:live /dev/null"
           else
             echo "::warning::Could not verify price snapshot — s3api head-object returned exit ${head_exit}: ${head_output}"
           fi

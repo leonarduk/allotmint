@@ -634,3 +634,90 @@ def test_lambda_log_group_name_outputs_exist(template):
 
 def test_backend_lambda_error_alarm_output_exists(template):
     template.has_output("BackendLambdaErrorAlarmName", {})
+
+
+# ---------------------------------------------------------------------------
+# PriceRefreshLambda alias and qualified EventBridge target
+# ---------------------------------------------------------------------------
+
+
+def test_price_refresh_lambda_live_alias_exists(template):
+    """AWS::Lambda::Alias with Name='live' must point at a PriceRefreshLambda version.
+
+    Without the alias, EventBridge and the deploy Trigger invoke the unqualified
+    function ARN, which triggers a CDK authorization warning (issue #3073) because
+    AWS Lambda started requiring qualified ARNs for AddPermission calls.
+    """
+    aliases = template.find_resources("AWS::Lambda::Alias")
+    live_aliases = {
+        lid: res for lid, res in aliases.items()
+        if res.get("Properties", {}).get("Name") == "live"
+    }
+    assert live_aliases, "Expected an AWS::Lambda::Alias resource with Name='live'"
+
+    for logical_id, resource in live_aliases.items():
+        props = resource.get("Properties", {})
+        function_name = json.dumps(props.get("FunctionName", {}))
+        assert "PriceRefreshLambda" in function_name, (
+            f"Alias {logical_id} FunctionName does not reference PriceRefreshLambda; "
+            f"found: {function_name}"
+        )
+        function_version = json.dumps(props.get("FunctionVersion", {}))
+        assert "PriceRefreshLambda" in function_version, (
+            f"Alias {logical_id} FunctionVersion does not reference a PriceRefreshLambda "
+            f"version resource; found: {function_version}"
+        )
+
+
+def test_daily_price_refresh_rule_targets_alias_arn(template):
+    """DailyPriceRefresh EventBridge rule must target the alias ARN, not the bare function ARN.
+
+    Targeting the bare function ARN re-introduces the CDK authorization warning from
+    issue #3073; only a qualified ARN (alias or version) avoids it.
+    """
+    rules = template.find_resources("AWS::Events::Rule")
+    # Identify the midnight daily cron rule
+    daily_refresh_rules = {
+        lid: res for lid, res in rules.items()
+        if "cron(0 0" in json.dumps(res.get("Properties", {}).get("ScheduleExpression", ""))
+    }
+    assert daily_refresh_rules, (
+        "Expected a DailyPriceRefresh AWS::Events::Rule with a midnight cron schedule"
+    )
+
+    for logical_id, resource in daily_refresh_rules.items():
+        targets = resource.get("Properties", {}).get("Targets", [])
+        assert targets, f"EventBridge rule {logical_id} has no targets"
+        for target in targets:
+            target_arn = json.dumps(target.get("Arn", {}))
+            assert "PriceRefreshLambdaLiveAlias" in target_arn, (
+                f"EventBridge rule {logical_id} target Arn {target_arn} does not reference "
+                "PriceRefreshLambdaLiveAlias — the rule is targeting the bare function ARN "
+                "instead of the alias, re-introducing the CDK authorization warning"
+            )
+
+
+def test_daily_price_refresh_lambda_permission_scoped_to_alias(template):
+    """The Lambda invocation permission for EventBridge must be scoped to the alias ARN.
+
+    A permission on the unqualified function ARN cannot authorize invocations of a
+    qualified ARN (alias/version), so the permission must reference the alias.
+    """
+    permissions = template.find_resources("AWS::Lambda::Permission")
+    events_refresh_permissions = {
+        lid: res for lid, res in permissions.items()
+        if res.get("Properties", {}).get("Principal") == "events.amazonaws.com"
+        and "PriceRefreshLambda" in json.dumps(res.get("Properties", {}).get("FunctionName", {}))
+    }
+    assert events_refresh_permissions, (
+        "Expected an AWS::Lambda::Permission for events.amazonaws.com "
+        "referencing PriceRefreshLambda"
+    )
+
+    for logical_id, resource in events_refresh_permissions.items():
+        function_name = json.dumps(resource.get("Properties", {}).get("FunctionName", {}))
+        assert "PriceRefreshLambdaLiveAlias" in function_name, (
+            f"Lambda::Permission {logical_id} FunctionName is '{function_name}' — "
+            "the permission must be scoped to the alias ARN, not the bare function ARN, "
+            "so EventBridge can invoke the qualified target"
+        )

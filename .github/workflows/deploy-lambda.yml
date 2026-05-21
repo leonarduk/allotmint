@@ -181,7 +181,6 @@ jobs:
           response_file="$(mktemp)"
           invoke_meta="$(aws lambda invoke \
             --function-name "$refresh_fn" \
-            --cli-binary-format raw-in-base64-out \
             "$response_file")"
           python - "$invoke_meta" "$response_file" <<'PY'
           import json

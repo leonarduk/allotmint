@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6.2.0
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
       - run: pip install -r requirements.txt -r requirements-dev.txt
@@ -63,7 +63,7 @@ jobs:
       # Python 3.12 remains covered by the primary CI/backend integration job;
       # this lightweight smoke keeps Python 3.11 support honest without
       # duplicating the full backend integration and coverage workflow.
-      - uses: actions/setup-python@v6.2.0
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install --upgrade pip

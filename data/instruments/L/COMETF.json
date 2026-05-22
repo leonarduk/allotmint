@@ -1,6 +1,7 @@
 {
-  "symbol": "COMETF",
+  "name": "Commodity ETF",
+  "ticker": "COMETF.L",
   "exchange": "L",
   "asset_class": "Commodity",
-  "name": "Commodity ETF"
+  "sector": "Commodity"
 }

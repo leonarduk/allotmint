@@ -231,3 +231,49 @@ async def test_refresh_snapshot_async_invokes_to_thread(monkeypatch):
     assert calls["refresh"] == [3]
     assert calls["to_thread"]["func"] is fake_refresh
     assert calls["to_thread"]["kwargs"] == {"days": 3}
+
+
+def test_refresh_snapshot_merges_with_existing_prices_file(tmp_path, monkeypatch):
+    """Timeseries refresh merges new prices with existing ones — not a full overwrite.
+
+    Tickers not found in the timeseries (no parquet data) keep their existing
+    seed/cached prices.  Only tickers that successfully returned data are updated.
+    """
+    seed = {
+        "OLD.L": {"last_price": 50.0, "price_currency": "GBP", "last_price_date": "2024-01-01"},
+        "NEW.L": {"last_price": 10.0, "price_currency": "GBP", "last_price_date": "2024-01-01"},
+    }
+    prices_path = tmp_path / "latest_prices.json"
+    prices_path.write_text(json.dumps(seed))
+
+    tickers = ["OLD.L", "NEW.L"]
+    monkeypatch.setattr(pu, "_PRICE_SNAPSHOT", {t: {} for t in tickers})
+    monkeypatch.setattr(pu, "list_all_unique_tickers", lambda: tickers)
+
+    new_df = pd.DataFrame(
+        {
+            "Date": pd.to_datetime(["2024-01-03"]),
+            "Close": [15.0],
+        }
+    )
+
+    def fake_load(*, ticker, exchange, start_date, end_date):
+        if ticker == "NEW":
+            return new_df
+        return pd.DataFrame()
+
+    monkeypatch.setattr(pu, "load_meta_timeseries_range", fake_load)
+    monkeypatch.setattr(pu, "get_scaling_override", lambda *_, **__: 1)
+    monkeypatch.setattr(pu, "apply_scaling", lambda df, scale: df)
+    monkeypatch.setattr(pu, "refresh_snapshot_in_memory", lambda s, ts: None)
+    monkeypatch.setattr(pu, "_PRICES_PATH", prices_path)
+
+    pu.refresh_snapshot_in_memory_from_timeseries(days=7)
+
+    result = json.loads(prices_path.read_text())
+    assert result["NEW.L"]["last_price"] == pytest.approx(15.0), (
+        "Ticker with fresh timeseries data must be updated"
+    )
+    assert result["OLD.L"]["last_price"] == pytest.approx(50.0), (
+        "Ticker with no timeseries data must retain its existing price"
+    )

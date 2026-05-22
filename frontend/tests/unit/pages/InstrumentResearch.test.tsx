@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 vi.mock("@/hooks/useInstrumentHistory", () => ({
   useInstrumentHistory: vi.fn(),
   getCachedInstrumentHistory: vi.fn(() => null),
@@ -90,6 +90,24 @@ function renderPage(config?: Partial<ConfigContextValue>) {
 
 describe("InstrumentResearch page", () => {
   beforeEach(() => {
+    // Safety net: return an empty-array JSON response for any fetch call that
+    // escapes the @/api mocks (e.g. in CI environments). All intentional API
+    // calls go through the vi.mock("@/api") module above and never reach the
+    // global fetch. Using mockImplementation (not mockResolvedValue) so that
+    // each intercepted call receives its own fresh Response instance — a
+    // single Response body can only be consumed once.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        ),
+      ),
+    );
+
     mockUseInstrumentHistory.mockReset();
     mockUseInstrumentHistory.mockReturnValue({
       data: {
@@ -198,6 +216,10 @@ describe("InstrumentResearch page", () => {
     ];
     mockListInstrumentMetadata.mockResolvedValue(catalogue);
     mockUpdateInstrumentMetadata.mockResolvedValue({} as any);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it("renders overview summary and defers chart to timeseries tab", async () => {
@@ -411,11 +433,16 @@ describe("InstrumentResearch page", () => {
     expect(await screen.findByText("Watchlist Page")).toBeInTheDocument();
   });
 
-  it("hides navigation links when corresponding tab is disabled", () => {
+  it("hides navigation links when corresponding tab is disabled", async () => {
     renderPage({
       tabs: { screener: false, watchlist: false },
       disabledTabs: ["screener", "watchlist"],
     });
+    // Wait for the h1 that contains the catalogue name: this element is absent
+    // on initial render (displayName is null until listInstrumentMetadata
+    // resolves) and only appears once the async state update has flushed,
+    // making it a reliable post-fetch sentinel.
+    await screen.findByRole("heading", { level: 1, name: /Acme Corp/ });
     expect(
       screen.queryByRole("link", { name: /View Screener/i }),
     ).not.toBeInTheDocument();

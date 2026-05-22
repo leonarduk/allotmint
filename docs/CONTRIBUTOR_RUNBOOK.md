@@ -286,6 +286,7 @@ Only run the deploy commands when you intentionally want to deploy; they are lis
 - **Missing data or empty portfolio**: confirm the active `DATA_ROOT` and whether your dataset includes the expected owner under `accounts/`.
 - **Smoke preflight fails**: start the local backend/frontend or set `SMOKE_URL` to a reachable deployment.
 - **Google auth errors locally**: verify `GOOGLE_AUTH_ENABLED=true`, `DISABLE_AUTH=false`, and a non-empty `GOOGLE_CLIENT_ID`.
+- **Price snapshot absent after deploy (`[WARNING] Price snapshot not yet seeded`)**: the CDK Trigger automatically invokes `PriceRefreshLambda` synchronously during `cdk deploy BackendLambdaStack`, blocking until the snapshot is written. If the warning still appears, the Trigger Lambda likely timed out or the price-refresh Lambda failed. Check `PriceRefreshLambdaLogGroup` in CloudWatch and re-trigger manually: `aws lambda invoke --function-name <PriceRefreshLambda-physical-name> /dev/null`.
 
 ## 11. Canonical command index by task
 

@@ -8,11 +8,15 @@ AllotMint is a family investing platform with a FastAPI backend, React frontend,
 - Local setup and contributor workflow: [docs/CONTRIBUTOR_RUNBOOK.md](docs/CONTRIBUTOR_RUNBOOK.md)
 - User-oriented setup/readme: [docs/USER_README.md](docs/USER_README.md)
 
+## AWS architecture
+
+![AWS architecture](docs/aws-architecture.svg)
+
+> StaticSiteStack (CloudFront, S3, Cognito) and BackendLambdaStack (API Gateway, Lambda, EventBridge, S3 data bucket, CloudWatch, Budgets, ECR).
+
 ## Coverage reporting
 
 GitHub Actions uploads both backend (`coverage.xml`) and frontend (`frontend/coverage/lcov.info`) coverage reports to Codecov on pull requests and pushes to `main`.
-
-
 
 ## Local Docker development
 

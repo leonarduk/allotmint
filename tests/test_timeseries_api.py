@@ -48,35 +48,35 @@ def sample_df():
 
 
 def test_timeseries_json(monkeypatch):
-    client = _client(monkeypatch, sample_df())
-    resp = client.get("/timeseries/TEST?fmt=json")
-    assert resp.status_code == 200
-    data = resp.json()
-    assert isinstance(data, list)
-    assert data[0]["Ticker"] == "TEST"
-    assert "Date" in data[0]
+    with _client(monkeypatch, sample_df()) as client:
+        resp = client.get("/timeseries/TEST?fmt=json")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert isinstance(data, list)
+        assert data[0]["Ticker"] == "TEST"
+        assert "Date" in data[0]
 
 
 def test_timeseries_html(monkeypatch):
-    client = _client(monkeypatch, sample_df())
-    resp = client.get("/timeseries/TEST?fmt=html")
-    assert resp.status_code == 200
-    assert "<table" in resp.text
-    assert "TEST" in resp.text
+    with _client(monkeypatch, sample_df()) as client:
+        resp = client.get("/timeseries/TEST?fmt=html")
+        assert resp.status_code == 200
+        assert "<table" in resp.text
+        assert "TEST" in resp.text
 
 
 def test_timeseries_csv(monkeypatch):
-    client = _client(monkeypatch, sample_df())
-    resp = client.get("/timeseries/TEST")
-    assert resp.status_code == 200
-    assert "attachment; filename=" in resp.headers.get("Content-Disposition", "")
-    body = resp.text
-    assert "Ticker,Date,Open,High,Low,Close,Volume" in body
-    assert "TEST" in body
+    with _client(monkeypatch, sample_df()) as client:
+        resp = client.get("/timeseries/TEST")
+        assert resp.status_code == 200
+        assert "attachment; filename=" in resp.headers.get("Content-Disposition", "")
+        body = resp.text
+        assert "Ticker,Date,Open,High,Low,Close,Volume" in body
+        assert "TEST" in body
 
 
 def test_timeseries_not_found(monkeypatch):
     empty_df = pd.DataFrame()
-    client = _client(monkeypatch, empty_df)
-    resp = client.get("/timeseries/TEST")
-    assert resp.status_code == 404
+    with _client(monkeypatch, empty_df) as client:
+        resp = client.get("/timeseries/TEST")
+        assert resp.status_code == 404

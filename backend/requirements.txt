@@ -46,5 +46,5 @@ pyarrow~=21.0.0
 reportlab~=4.5.0
 PyJWT~=2.12.0
 python-multipart~=0.0.28
-google-auth~=2.36.0
+google-auth~=2.53.0
 redis~=7.4.0

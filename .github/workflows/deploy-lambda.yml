@@ -41,7 +41,7 @@ jobs:
         working-directory: frontend
 
       - name: Setup Python
-        uses: actions/setup-python@v6.2.0
+        uses: actions/setup-python@v6
         with:
           python-version: '3.12'
 
@@ -157,6 +157,48 @@ jobs:
           --parameters BackendLambdaStack:UiAuthUserPoolClientId="$UI_AUTH_USER_POOL_CLIENT_ID"
         working-directory: cdk
 
+      - name: Warm price snapshot
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          refresh_fn="$(aws cloudformation list-stack-resources \
+            --stack-name BackendLambdaStack \
+            --query "StackResourceSummaries[?ResourceType=='AWS::Lambda::Function' && starts_with(LogicalResourceId, 'PriceRefreshLambda')].PhysicalResourceId | [0]" \
+            --output text)"
+          if [ -z "$refresh_fn" ] || [ "$refresh_fn" = "None" ]; then
+            echo "Unable to resolve PriceRefreshLambda physical function name from BackendLambdaStack resources" >&2
+            exit 1
+          fi
+          data_bucket="$(aws cloudformation list-stack-resources \
+            --stack-name BackendLambdaStack \
+            --query "StackResourceSummaries[?ResourceType=='AWS::S3::Bucket' && starts_with(LogicalResourceId, 'PortfolioDataBucket')].PhysicalResourceId | [0]" \
+            --output text)"
+          if [ -z "$data_bucket" ] || [ "$data_bucket" = "None" ]; then
+            echo "Unable to resolve PortfolioDataBucket physical bucket name from BackendLambdaStack resources" >&2
+            exit 1
+          fi
+          response_file="$(mktemp)"
+          invoke_meta="$(aws lambda invoke \
+            --function-name "${refresh_fn}:live" \
+            "$response_file")"
+          python - "$invoke_meta" "$response_file" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          meta = json.loads(sys.argv[1])
+          payload_text = pathlib.Path(sys.argv[2]).read_text(encoding="utf-8").strip()
+          if meta.get("FunctionError"):
+              raise SystemExit(
+                  f"PriceRefreshLambda returned {meta['FunctionError']}: {payload_text or '<empty>'}"
+              )
+          payload = json.loads(payload_text or "{}")
+          if not isinstance(payload, dict) or "snapshot" not in payload or "timestamp" not in payload:
+              raise SystemExit(f"Unexpected PriceRefreshLambda response: {payload!r}")
+          PY
+          aws s3api head-object --bucket "$data_bucket" --key prices/latest_prices.json >/dev/null
+
       - name: Get backend API URL
         id: get_backend_url
         env:
@@ -184,6 +226,34 @@ jobs:
           npx cdk deploy StaticSiteStack --require-approval never -c prod=true
           --parameters StaticSiteStack:BackendApiUrl="$BACKEND_URL"
         working-directory: cdk
+
+      - name: Verify price snapshot seeded in S3
+        # Belt-and-suspenders check after the CDK Trigger (REQUEST_RESPONSE) has
+        # already blocked the deploy until PriceRefreshLambda finishes.  If the
+        # snapshot is still absent here it means the Trigger Lambda failed or timed
+        # out; print a clear, actionable warning so operators know exactly what
+        # to do rather than hunting through CloudWatch logs.
+        continue-on-error: true
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
+          DATA_BUCKET: ${{ secrets.DATA_BUCKET || vars.DATA_BUCKET }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DATA_BUCKET:-}" ]; then
+            echo "DATA_BUCKET not set; skipping price snapshot verification." >&2
+            exit 0
+          fi
+          head_output="$(aws s3api head-object \
+              --bucket "$DATA_BUCKET" \
+              --key "prices/latest_prices.json" \
+              --no-cli-pager 2>&1)" && head_exit=0 || head_exit=$?
+          if [ "$head_exit" -eq 0 ]; then
+            echo "Price snapshot prices/latest_prices.json is present in s3://${DATA_BUCKET} — OK"
+          elif echo "$head_output" | grep -qi "NoSuchKey\|Not Found\|404"; then
+            echo "::warning::Price snapshot prices/latest_prices.json is NOT present in s3://${DATA_BUCKET}. Portfolio prices will be unavailable until the price-refresh job runs. Trigger it manually: aws lambda invoke --function-name <PriceRefreshLambda-physical-name>:live /dev/null"
+          else
+            echo "::warning::Could not verify price snapshot — s3api head-object returned exit ${head_exit}: ${head_output}"
+          fi
 
       - name: Warm up backend Lambda (absorb cold-start before validation)
         env:
@@ -437,11 +507,92 @@ jobs:
         run: npx playwright install --with-deps
         working-directory: frontend
 
+      - name: Resolve backend URL for smoke tests
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          # Resolve directly from CloudFormation rather than relying on the cross-job
+          # output from the deploy job. Cross-job outputs containing masked secret
+          # substrings (AWS_REGION appears in the API Gateway URL) arrive empty in
+          # the downstream job, causing the smoke script to fall back to localhost.
+          if [ -n "${SMOKE_URL:-}" ]; then
+            echo "SMOKE_URL already set via vars.SMOKE_URL; skipping CloudFormation lookup."
+            exit 0
+          fi
+          BACKEND_URL="$(aws cloudformation describe-stacks \
+            --stack-name BackendLambdaStack \
+            --query "Stacks[0].Outputs[?OutputKey=='BackendApiUrl'].OutputValue" \
+            --output text)"
+          if [ -z "$BACKEND_URL" ] || [ "$BACKEND_URL" = "None" ]; then
+            echo "BackendApiUrl output is missing from BackendLambdaStack" >&2
+            exit 1
+          fi
+          echo "SMOKE_URL=$BACKEND_URL" >> "$GITHUB_ENV"
+
+      - name: Fetch Cognito smoke-test token
+        # Looks up the dedicated SmokeTestClient from StaticSiteStack (created by CDK with
+        # ALLOW_USER_PASSWORD_AUTH) and exchanges credentials for a fresh ID token.
+        # Writing to $GITHUB_ENV makes SMOKE_AUTH_TOKEN and TEST_ID_TOKEN available to all
+        # subsequent steps without needing explicit env: blocks on each one.
+        # Uses continue-on-error so a missing secret or unconfigured client degrades
+        # gracefully (smoke tests run unauthenticated) rather than blocking the job.
+        continue-on-error: true
+        env:
+          SMOKE_TEST_USERNAME: ${{ secrets.SMOKE_TEST_USERNAME }}
+          SMOKE_TEST_PASSWORD: ${{ secrets.SMOKE_TEST_PASSWORD }}
+          AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SMOKE_TEST_USERNAME:-}" ] || [ -z "${SMOKE_TEST_PASSWORD:-}" ]; then
+            echo "SMOKE_TEST_USERNAME or SMOKE_TEST_PASSWORD not configured; smoke tests will run unauthenticated."
+            exit 0
+          fi
+          client_id="$(aws cloudformation describe-stacks \
+            --stack-name StaticSiteStack \
+            --query "Stacks[0].Outputs[?OutputKey=='SmokeTestUserPoolClientId'].OutputValue" \
+            --output text 2>/dev/null || echo "")"
+          if [ -z "$client_id" ] || [ "$client_id" = "None" ]; then
+            echo "SmokeTestUserPoolClientId not found in StaticSiteStack outputs; smoke tests will run unauthenticated."
+            exit 0
+          fi
+          TOKEN="$(aws cognito-idp initiate-auth \
+            --auth-flow USER_PASSWORD_AUTH \
+            --client-id "$client_id" \
+            --auth-parameters "USERNAME=${SMOKE_TEST_USERNAME},PASSWORD=${SMOKE_TEST_PASSWORD}" \
+            --query 'AuthenticationResult.IdToken' \
+            --output text)"
+          echo "::add-mask::${TOKEN}"
+          printf 'SMOKE_AUTH_TOKEN=%s\n' "${TOKEN}" >> "$GITHUB_ENV"
+          printf 'TEST_ID_TOKEN=%s\n' "${TOKEN}" >> "$GITHUB_ENV"
+          echo "Smoke-test Cognito token fetched and masked."
+
       - name: Run backend smoke tests
         run: npm run smoke:test
 
       - name: Run frontend smoke tests
+        # Run even if the backend smoke step failed so frontend results are
+        # always visible in CI logs (fixes issue #3055).  SMOKE_URL at job
+        # level is the backend API URL; override it to localhost so Playwright
+        # navigates to the local preview server, and expose the backend URL via
+        # VITE_ALLOTMINT_API_BASE so the built app calls the real deployed API.
+        # SMOKE_AUTH_TOKEN and TEST_ID_TOKEN arrive via $GITHUB_ENV set by the
+        # token-fetch step above; no explicit env: entries needed here.
+        if: success() || failure()
         run: npm --prefix frontend run smoke:frontend
+        env:
+          VITE_ALLOTMINT_API_BASE: ${{ env.SMOKE_URL }}
+          SMOKE_URL: 'http://localhost:5173'
+
+      - name: Upload Playwright deploy-smoke artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-deploy-smoke-artifacts
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+          if-no-files-found: ignore
 
       - name: Fetch Lambda logs from smoke test
         if: always()

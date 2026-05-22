@@ -176,12 +176,15 @@ def test_get_price_snapshot_handles_stale_and_missing_data(monkeypatch: pytest.M
 # ---------------------------------------------------------------------------
 
 
+_STUB_SNAPSHOT = {"STUB.L": {"last_price": 1.0, "price_currency": "GBP", "is_stale": False}}
+
+
 def _stub_refresh_prices(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """Wire up minimal mocks so refresh_prices() can run without real data."""
     prices_file = tmp_path / "latest_prices.json"
     monkeypatch.setattr(prices.config, "prices_json", prices_file, raising=False)
-    monkeypatch.setattr(prices, "list_all_unique_tickers", lambda: [])
-    monkeypatch.setattr(prices, "get_price_snapshot", lambda tickers: {})
+    monkeypatch.setattr(prices, "list_all_unique_tickers", lambda: ["STUB.L"])
+    monkeypatch.setattr(prices, "get_price_snapshot", lambda tickers: _STUB_SNAPSHOT)
     monkeypatch.setattr(prices, "refresh_snapshot_in_memory", lambda s: None)
     monkeypatch.setattr(prices, "check_price_alerts", lambda: None)
 

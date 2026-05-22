@@ -430,8 +430,11 @@ describe("InstrumentResearch page", () => {
       tabs: { screener: false, watchlist: false },
       disabledTabs: ["screener", "watchlist"],
     });
-    // Await catalogue load so async state updates settle before assertions
-    await screen.findByRole("heading", { level: 1 });
+    // Wait for the h1 that contains the catalogue name: this element is absent
+    // on initial render (displayName is null until listInstrumentMetadata
+    // resolves) and only appears once the async state update has flushed,
+    // making it a reliable post-fetch sentinel.
+    await screen.findByRole("heading", { level: 1, name: /Acme Corp/ });
     expect(
       screen.queryByRole("link", { name: /View Screener/i }),
     ).not.toBeInTheDocument();

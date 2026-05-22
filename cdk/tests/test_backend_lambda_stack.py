@@ -669,12 +669,15 @@ def test_daily_price_refresh_rule_targets_alias_arn(template):
 
     Targeting the bare function ARN re-introduces the CDK authorization warning from
     issue #3073; only a qualified ARN (alias or version) avoids it.
-    Match.array_with asserts at least one target matches — unrelated targets on the
-    same rule (e.g. SNS) do not cause false failures.
+    ScheduleExpression pins this assertion to the midnight price-refresh rule
+    (not the 1 AM trading-agent rule or any future rule).
+    Match.array_with on Targets means unrelated targets on the same rule (e.g. SNS)
+    do not cause false failures.
     """
     template.has_resource_properties(
         "AWS::Events::Rule",
         {
+            "ScheduleExpression": "cron(0 0 * * ? *)",
             "Targets": assertions.Match.array_with([
                 assertions.Match.object_like({
                     "Arn": assertions.Match.object_like(

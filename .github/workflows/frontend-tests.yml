@@ -18,7 +18,7 @@ jobs:
         run: python scripts/check_contract_version_sync.py
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v6.0.7
+        uses: pnpm/action-setup@v6.0.8
         with:
           version: 8
 
@@ -44,7 +44,7 @@ jobs:
         run: pnpm test -- --run --coverage
 
       - name: Upload frontend coverage reports to Codecov
-        uses: codecov/codecov-action@v6.0.0
+        uses: codecov/codecov-action@v6.0.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           slug: leonarduk/allotmint

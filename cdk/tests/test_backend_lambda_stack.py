@@ -306,10 +306,12 @@ def test_backend_lambda_timeout_is_at_least_30s(template):
 
 
 def test_price_refresh_trigger_on_deploy_exists(template):
-    """A CDK Trigger must invoke PriceRefreshLambda on first deploy (and code changes).
+    """A CDK Trigger must invoke PriceRefreshLambda synchronously on deploy.
 
     This ensures latest_prices.json is seeded in S3 on the first deployment
     without waiting for the daily EventBridge schedule.
+    REQUEST_RESPONSE invocation blocks the CDK deploy until the Lambda finishes,
+    guaranteeing the snapshot is present before the smoke-test job starts.
     The Trigger construct creates a Custom::Trigger CloudFormation resource whose
     HandlerArn must reference PriceRefreshLambda (not some other function).
     """
@@ -335,6 +337,146 @@ def test_price_refresh_trigger_on_deploy_exists(template):
             f"Trigger HandlerArn {arn} does not reference PriceRefreshLambda; "
             "the trigger may be wired to the wrong function"
         )
+
+    # The trigger must use REQUEST_RESPONSE (synchronous) so the CDK deploy blocks
+    # until the price snapshot is written to S3. EVENT (async) allows the deploy to
+    # complete before the Lambda finishes, leaving the smoke-test job with no snapshot.
+    for resource in trigger_resources.values():
+        invocation_type = resource.get("Properties", {}).get("InvocationType")
+        assert invocation_type == "RequestResponse", (
+            f"Custom::Trigger InvocationType must be 'RequestResponse' to block the deploy "
+            f"until the price snapshot is seeded; found '{invocation_type}'. "
+            "Change invocation_type=triggers.InvocationType.REQUEST_RESPONSE in the CDK stack."
+        )
+
+
+def test_price_refresh_lambda_has_sufficient_timeout(template):
+    """PriceRefreshLambda must have a timeout long enough to fetch all portfolio prices.
+
+    The default Lambda timeout is 3 seconds, which is far too short to call market
+    data APIs for every ticker. The synchronous deploy Trigger (REQUEST_RESPONSE) will
+    itself time out if PriceRefreshLambda times out, leaving the snapshot un-seeded.
+    """
+    functions = template.find_resources("AWS::Lambda::Function")
+    # Identify PriceRefreshLambda by its ImageConfig.Command — the CDK
+    # DockerImageCode.from_image_asset(..., cmd=[...]) call sets this property.
+    refresh_timeouts = [
+        resource["Properties"].get("Timeout", 3)
+        for resource in functions.values()
+        if resource.get("Properties", {}).get("PackageType") == "Image"
+        and "price_refresh" in json.dumps(
+            resource.get("Properties", {}).get("ImageConfig", {}).get("Command", [])
+        )
+    ]
+    assert refresh_timeouts, (
+        "PriceRefreshLambda not found in synthesised template via ImageConfig.Command; "
+        "verify that DockerImageCode.from_image_asset uses cmd=['...price_refresh...']"
+    )
+    for t in refresh_timeouts:
+        assert t >= 600, (
+            f"PriceRefreshLambda timeout is {t}s — must be >= 600s (10 min) to complete "
+            "a full price fetch for all portfolio tickers. "
+            "Set timeout=Duration.minutes(10) in the CDK stack."
+        )
+
+
+def test_price_refresh_trigger_timeout_exceeds_lambda_timeout(template):
+    """The CDK Trigger timeout must be strictly greater than PriceRefreshLambda's timeout.
+
+    The Trigger custom resource provider invokes the Lambda with REQUEST_RESPONSE and
+    waits for the response. If the provider's own timeout equals the Lambda's timeout,
+    a race condition occurs: the Lambda may finish just as the provider times out,
+    causing CloudFormation to receive a failure response even though the snapshot was
+    written. The Trigger timeout must have meaningful headroom over the Lambda timeout.
+    """
+    functions = template.find_resources("AWS::Lambda::Function")
+    refresh_timeout = next(
+        (
+            resource["Properties"].get("Timeout", 3)
+            for resource in functions.values()
+            if resource.get("Properties", {}).get("PackageType") == "Image"
+            and "price_refresh" in json.dumps(
+                resource.get("Properties", {}).get("ImageConfig", {}).get("Command", [])
+            )
+        ),
+        None,
+    )
+    assert refresh_timeout is not None, "PriceRefreshLambda not found in synthesised template"
+
+    trigger_resources = template.find_resources("Custom::Trigger")
+    trigger_timeouts_ms = [
+        int(resource.get("Properties", {}).get("Timeout", 0))
+        for resource in trigger_resources.values()
+        if resource.get("Properties", {}).get("HandlerArn")
+        and "PriceRefreshLambda" in json.dumps(resource.get("Properties", {}).get("HandlerArn"))
+    ]
+    assert trigger_timeouts_ms, "No PriceRefreshOnDeploy Custom::Trigger timeout found"
+
+    # CDK serialises the Trigger timeout in milliseconds.
+    trigger_timeout_ms_raw = trigger_timeouts_ms[0]
+    # Assert raw value is clearly milliseconds (> 60 000) so that if CDK ever
+    # changes serialization units the error is obvious rather than the / 1000
+    # conversion silently producing a plausible-looking but wrong seconds value.
+    assert trigger_timeout_ms_raw > 60_000, (
+        f"Trigger Timeout raw value {trigger_timeout_ms_raw} looks like seconds, not milliseconds; "
+        "verify CDK is still serializing Duration.minutes() as milliseconds in Custom::Trigger"
+    )
+    trigger_timeout_s = trigger_timeout_ms_raw / 1000
+    # Sanity-range check so a future CDK serialization-unit change is caught
+    # immediately rather than producing a silent wrong comparison.
+    assert 60 < trigger_timeout_s < 3600, (
+        f"Trigger timeout {trigger_timeout_s}s (raw: {trigger_timeout_ms_raw}) looks wrong; "
+        "verify CDK is still serializing Duration.minutes() as milliseconds in Custom::Trigger"
+    )
+    assert trigger_timeout_s > refresh_timeout, (
+        f"Trigger timeout ({trigger_timeout_s}s) must be strictly greater than "
+        f"PriceRefreshLambda timeout ({refresh_timeout}s) to avoid a race where the "
+        "provider times out just as the Lambda finishes. "
+        "Increase timeout=Duration.minutes(N) on the triggers.Trigger construct."
+    )
+
+
+def test_price_refresh_lambda_can_list_accounts_prefix(template):
+    """PriceRefreshLambda's IAM policy must include s3:ListBucket on the accounts/ prefix.
+
+    refresh_prices() → list_all_unique_tickers() → list_portfolios() → S3DataProvider.list_plots()
+    calls list_objects_v2 on the accounts/ S3 prefix.  Without this, AWS returns
+    AccessDenied (not 404), list_plots() raises ProviderUnavailable, and no tickers
+    are discovered — so the price snapshot is never written.
+    """
+    policies = template.find_resources("AWS::IAM::Policy")
+
+    # Identify IAM policies attached to PriceRefreshLambda's execution role
+    # by looking for policies whose Roles reference the PriceRefreshLambda role.
+    refresh_list_prefixes: list[str] = []
+    for resource in policies.values():
+        roles = json.dumps(resource.get("Properties", {}).get("Roles", []))
+        if "PriceRefreshLambda" not in roles:
+            continue
+        stmts = resource.get("Properties", {}).get("PolicyDocument", {}).get("Statement", [])
+        for stmt in stmts:
+            actions = stmt.get("Action", [])
+            if isinstance(actions, str):
+                actions = [actions]
+            if "s3:ListBucket" not in actions:
+                continue
+            prefixes = (
+                stmt.get("Condition", {})
+                .get("StringLike", {})
+                .get("s3:prefix", [])
+            )
+            refresh_list_prefixes.extend(prefixes)
+
+    assert refresh_list_prefixes, (
+        "No s3:ListBucket statement found in PriceRefreshLambda's IAM policy. "
+        "Add 'accounts' to lambda_list_prefixes['price_refresh'] in the CDK stack."
+    )
+    assert any("accounts" in p for p in refresh_list_prefixes), (
+        f"PriceRefreshLambda's s3:ListBucket conditions do not include 'accounts' prefix; "
+        f"found: {refresh_list_prefixes}. "
+        "S3DataProvider.list_plots() calls list_objects_v2 on accounts/ and needs "
+        "s3:ListBucket on that prefix to distinguish AccessDenied from NoSuchKey."
+    )
 
 
 def test_backend_error_alarm_exists(template):

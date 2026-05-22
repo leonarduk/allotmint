@@ -23,7 +23,9 @@ BACKEND_LIST_PREFIXES = (
     "timeseries/meta",
     "transactions",
 )
-PRICE_REFRESH_LIST_PREFIXES = ("prices",)
+# accounts/ is required because refresh_prices() → list_all_unique_tickers() →
+# list_portfolios() → S3DataProvider.list_plots() calls list_objects_v2 on that prefix.
+PRICE_REFRESH_LIST_PREFIXES = ("accounts", "prices")
 TRADING_AGENT_LIST_PREFIXES = ("prices",)
 
 
@@ -162,7 +164,9 @@ def _expected_prefix_condition(prefixes: tuple[str, ...]) -> dict:
 # Maximum allowed S3 action sets per Lambda role (upper bounds for least-privilege enforcement).
 # Audit evidence:
 #   BackendLambda      — full API; reads, writes, and lists portfolio/price data.
-#   PriceRefreshLambda — calls _rolling_cache() → _save_parquet() which writes parquet to S3
+#   PriceRefreshLambda — calls list_all_unique_tickers() → list_portfolios() →
+#                        S3DataProvider.list_plots() which calls list_objects_v2 on accounts/.
+#                        Also calls _rolling_cache() → _save_parquet() writing parquet to S3
 #                        and may need to list the timeseries/ prefix via pyarrow.
 #   TradingAgentLambda — calls load_prices_for_tickers() → load_meta_timeseries_range() which
 #                        reads parquet from S3 by known key. No writes anywhere in this path.
@@ -233,7 +237,7 @@ def test_s3_permissions_are_scoped_per_lambda() -> None:
     refresh_conditions = _conditions_for_s3_action(template, refresh_role, "s3:ListBucket")
     assert (
         _expected_prefix_condition(PRICE_REFRESH_LIST_PREFIXES) in refresh_conditions
-    ), "PriceRefreshLambda s3:ListBucket must be conditioned to the prices/ prefix"
+    ), "PriceRefreshLambda s3:ListBucket must be conditioned to the accounts/ and prices/ prefixes"
 
     trading_conditions = _conditions_for_s3_action(template, trading_role, "s3:ListBucket")
     assert (
@@ -415,6 +419,98 @@ def test_no_log_grant_when_github_deploy_role_arn_absent(monkeypatch) -> None:
     assert count == 0, (
         f"Expected no logs:FilterLogEvents policy when GITHUB_DEPLOY_ROLE_ARN is unset, "
         f"got {count}"
+    )
+
+
+def _cfn_actions_for_role_name(raw_template: dict, role_name: str) -> set[str]:
+    """Return cloudformation:* actions from policies attached to an imported role by name."""
+    actions: set[str] = set()
+    for res in raw_template["Resources"].values():
+        if res.get("Type") != "AWS::IAM::Policy":
+            continue
+        if role_name not in res.get("Properties", {}).get("Roles", []):
+            continue
+        for stmt in res["Properties"]["PolicyDocument"].get("Statement", []):
+            action = stmt.get("Action", [])
+            if isinstance(action, str):
+                action = [action]
+            for a in action:
+                if a.startswith("cloudformation:") or a == "*":
+                    actions.add(a)
+    return actions
+
+
+def _cfn_changeset_resources(raw_template: dict, role_name: str) -> list[object]:
+    """Return resource entries from all cloudformation:CreateChangeSet statements for role_name."""
+    found: list[object] = []
+    for res in raw_template["Resources"].values():
+        if res.get("Type") != "AWS::IAM::Policy":
+            continue
+        if role_name not in res.get("Properties", {}).get("Roles", []):
+            continue
+        for stmt in res["Properties"]["PolicyDocument"].get("Statement", []):
+            actions = stmt.get("Action", [])
+            if isinstance(actions, str):
+                actions = [actions]
+            if "cloudformation:CreateChangeSet" not in actions:
+                continue
+            resources = stmt.get("Resource", [])
+            if isinstance(resources, (str, dict)):
+                resources = [resources]
+            found.extend(resources)
+    return found
+
+
+def test_github_deploy_role_gets_changeset_permissions_on_both_stacks(monkeypatch) -> None:
+    """When GITHUB_DEPLOY_ROLE_ARN is set, CDK must grant CreateChangeSet,
+    DescribeChangeSet, and DeleteChangeSet on BackendLambdaStack and StaticSiteStack
+    so `cdk diff --all` can compute an accurate diff. See #3013."""
+    role_arn = "arn:aws:iam::123456789012:role/allotmint-github-deploy"
+    monkeypatch.setenv("GITHUB_DEPLOY_ROLE_ARN", role_arn)
+    monkeypatch.setenv("JWT_SECRET", "test-secret")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-client-id")
+    app = App()
+    stack = BackendLambdaStack(app, "BackendLambdaStackCfnGrantTest")
+    template = Template.from_stack(stack)
+    raw = template.to_json()
+
+    cfn_actions = _cfn_actions_for_role_name(raw, "allotmint-github-deploy")
+    for required_action in (
+        "cloudformation:CreateChangeSet",
+        "cloudformation:DescribeChangeSet",
+        "cloudformation:DeleteChangeSet",
+    ):
+        assert required_action in cfn_actions, (
+            f"Deploy role missing {required_action}; got: {cfn_actions}"
+        )
+
+    # Verify resource ARNs include the wildcard suffix (/*) and cover both stack names.
+    # Resources are CloudFormation intrinsics (Fn::Join) since the region/account are
+    # tokens at synth time; stringify for pattern matching.
+    resources = _cfn_changeset_resources(raw, "allotmint-github-deploy")
+    assert resources, "cloudformation:CreateChangeSet statement has no resource ARNs"
+    resources_str = str(resources)
+    assert "/*" in resources_str, (
+        f"Change set resource ARNs should end with /* (wildcard stack ID); got: {resources_str}"
+    )
+    for stack_name in ("BackendLambdaStackCfnGrantTest", "StaticSiteStack"):
+        assert stack_name in resources_str, (
+            f"cloudformation:CreateChangeSet not scoped to {stack_name}; got: {resources_str}"
+        )
+
+
+def test_no_cfn_changeset_grant_when_github_deploy_role_arn_absent(monkeypatch) -> None:
+    """When GITHUB_DEPLOY_ROLE_ARN is unset, no cloudformation change set policy is synthesised."""
+    monkeypatch.delenv("GITHUB_DEPLOY_ROLE_ARN", raising=False)
+    monkeypatch.setenv("JWT_SECRET", "test-secret")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-client-id")
+    app = App()
+    stack = BackendLambdaStack(app, "BackendLambdaStackNoCfnGrantTest")
+    cfn_actions = _cfn_actions_for_role_name(
+        Template.from_stack(stack).to_json(), "allotmint-github-deploy"
+    )
+    assert "cloudformation:CreateChangeSet" not in cfn_actions, (
+        "Expected no cloudformation:CreateChangeSet when GITHUB_DEPLOY_ROLE_ARN is unset"
     )
 
 

@@ -89,18 +89,22 @@ function renderPage(config?: Partial<ConfigContextValue>) {
 }
 
 describe("InstrumentResearch page", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
   beforeEach(() => {
+    // Safety net: return an empty-array JSON response for any fetch call that
+    // escapes the @/api mocks (e.g. in CI environments). All intentional API
+    // calls go through the vi.mock("@/api") module above and never reach the
+    // global fetch. Using mockImplementation (not mockResolvedValue) so that
+    // each intercepted call receives its own fresh Response instance — a
+    // single Response body can only be consumed once.
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(
-        new Response(JSON.stringify([]), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
+      vi.fn().mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        ),
       ),
     );
 
@@ -212,6 +216,10 @@ describe("InstrumentResearch page", () => {
     ];
     mockListInstrumentMetadata.mockResolvedValue(catalogue);
     mockUpdateInstrumentMetadata.mockResolvedValue({} as any);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it("renders overview summary and defers chart to timeseries tab", async () => {

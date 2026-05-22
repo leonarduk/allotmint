@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 vi.mock("@/hooks/useInstrumentHistory", () => ({
   useInstrumentHistory: vi.fn(),
   getCachedInstrumentHistory: vi.fn(() => null),
@@ -89,7 +89,21 @@ function renderPage(config?: Partial<ConfigContextValue>) {
 }
 
 describe("InstrumentResearch page", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+
     mockUseInstrumentHistory.mockReset();
     mockUseInstrumentHistory.mockReturnValue({
       data: {
@@ -411,11 +425,13 @@ describe("InstrumentResearch page", () => {
     expect(await screen.findByText("Watchlist Page")).toBeInTheDocument();
   });
 
-  it("hides navigation links when corresponding tab is disabled", () => {
+  it("hides navigation links when corresponding tab is disabled", async () => {
     renderPage({
       tabs: { screener: false, watchlist: false },
       disabledTabs: ["screener", "watchlist"],
     });
+    // Await catalogue load so async state updates settle before assertions
+    await screen.findByRole("heading", { level: 1 });
     expect(
       screen.queryByRole("link", { name: /View Screener/i }),
     ).not.toBeInTheDocument();

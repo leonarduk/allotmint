@@ -634,3 +634,74 @@ def test_lambda_log_group_name_outputs_exist(template):
 
 def test_backend_lambda_error_alarm_output_exists(template):
     template.has_output("BackendLambdaErrorAlarmName", {})
+
+
+# ---------------------------------------------------------------------------
+# PriceRefreshLambda alias and qualified EventBridge target
+# ---------------------------------------------------------------------------
+
+
+def test_price_refresh_lambda_live_alias_exists(template):
+    """AWS::Lambda::Alias with Name='live' must point at a PriceRefreshLambda version.
+
+    Without the alias, EventBridge and the deploy Trigger invoke the unqualified
+    function ARN, which triggers a CDK authorization warning (issue #3073) because
+    AWS Lambda started requiring qualified ARNs for AddPermission calls.
+    """
+    template.has_resource_properties(
+        "AWS::Lambda::Alias",
+        {
+            "Name": "live",
+            "FunctionName": assertions.Match.object_like(
+                {"Ref": assertions.Match.string_like_regexp("PriceRefreshLambda")}
+            ),
+            "FunctionVersion": assertions.Match.object_like(
+                {"Fn::GetAtt": assertions.Match.array_with([
+                    assertions.Match.string_like_regexp("PriceRefreshLambda")
+                ])}
+            ),
+        },
+    )
+
+
+def test_daily_price_refresh_rule_targets_alias_arn(template):
+    """DailyPriceRefresh EventBridge rule must target the alias ARN, not the bare function ARN.
+
+    Targeting the bare function ARN re-introduces the CDK authorization warning from
+    issue #3073; only a qualified ARN (alias or version) avoids it.
+    ScheduleExpression pins this assertion to the midnight price-refresh rule
+    (not the 1 AM trading-agent rule or any future rule).
+    Match.array_with on Targets means unrelated targets on the same rule (e.g. SNS)
+    do not cause false failures.
+    """
+    template.has_resource_properties(
+        "AWS::Events::Rule",
+        {
+            "ScheduleExpression": "cron(0 0 * * ? *)",
+            "Targets": assertions.Match.array_with([
+                assertions.Match.object_like({
+                    "Arn": assertions.Match.object_like(
+                        {"Ref": assertions.Match.string_like_regexp("PriceRefreshLambdaLiveAlias")}
+                    )
+                })
+            ]),
+        },
+    )
+
+
+def test_daily_price_refresh_lambda_permission_scoped_to_alias(template):
+    """The Lambda invocation permission for EventBridge must be scoped to the alias ARN.
+
+    A permission on the unqualified function ARN cannot authorize invocations of a
+    qualified ARN (alias/version), so the permission must reference the alias.
+    """
+    template.has_resource_properties(
+        "AWS::Lambda::Permission",
+        {
+            "Action": "lambda:InvokeFunction",
+            "Principal": "events.amazonaws.com",
+            "FunctionName": assertions.Match.object_like(
+                {"Ref": assertions.Match.string_like_regexp("PriceRefreshLambdaLiveAlias")}
+            ),
+        },
+    )

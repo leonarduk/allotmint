@@ -168,6 +168,11 @@ export const apiContractSchemas = {
   transactions: transactionsContractSchema,
 } as const;
 
-export const apiContractJsonSchemas = Object.fromEntries(
-  Object.entries(apiContractSchemas).map(([name, schema]) => [name, toJSONSchema(schema)]),
-) as Record<keyof typeof apiContractSchemas, ReturnType<typeof toJSONSchema>>;
+export const apiContractJsonSchemas = {
+  config: toJSONSchema(configContractSchema),
+  owners: toJSONSchema(ownersContractSchema),
+  groups: toJSONSchema(groupsContractSchema),
+  groupPortfolio: toJSONSchema(groupPortfolioContractSchema),
+  portfolio: toJSONSchema(portfolioContractSchema),
+  transactions: toJSONSchema(transactionsContractSchema),
+} as const;

@@ -408,7 +408,7 @@ export function TimeseriesEdit() {
             ))}
           </select>
         </label>{" "}
-        <button onClick={handleLoad} disabled={!ticker}>
+        <button data-testid="load-button" onClick={handleLoad} disabled={!ticker}>
           {t("timeseriesEdit.load")}
         </button>
       </div>

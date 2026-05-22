@@ -199,7 +199,11 @@ class BackendLambdaStack(Stack):
                 "timeseries/meta",
                 "transactions",
             ),
-            "price_refresh": ("prices",),
+            # price_refresh needs accounts/ to call list_objects_v2 via
+            # S3DataProvider.list_plots() → list_all_unique_tickers() → list_portfolios().
+            # Without this ListBucket on accounts/, list_objects_v2 returns AccessDenied,
+            # refresh_prices() finds no tickers, and the snapshot is never written.
+            "price_refresh": ("accounts", "prices"),
             "trading_agent": ("prices",),
         }
 
@@ -383,6 +387,8 @@ class BackendLambdaStack(Stack):
             code=refresh_code,
             environment=refresh_env,
             log_group=refresh_log_group,
+            timeout=Duration.minutes(10),
+            memory_size=512,
         )
 
         # PriceRefreshLambda: read + put by known data keys, plus scoped ListBucket
@@ -401,23 +407,42 @@ class BackendLambdaStack(Stack):
         )
         self._grant_timeseries_cache_access(refresh_fn, bucket=data_bucket, allow_put=True)
 
+        # Route all managed invocations through an explicit alias so Lambda
+        # invoke permissions are qualified and remain compatible with AWS
+        # authorization changes around Qualifier-based invocation.
+        refresh_alias = _lambda.Alias(
+            self,
+            "PriceRefreshLambdaLiveAlias",
+            alias_name="live",
+            version=refresh_fn.current_version,
+        )
+
         events.Rule(
             self,
             "DailyPriceRefresh",
             schedule=events.Schedule.cron(minute="0", hour="0"),
-            targets=[targets.LambdaFunction(refresh_fn)],
+            targets=[targets.LambdaFunction(refresh_alias)],
         )
 
-        # Invoke PriceRefreshLambda once after first deployment (and again
-        # whenever the Lambda code changes) so prices/latest_prices.json is
-        # seeded in S3 before the daily EventBridge schedule fires.
-        # InvocationType.EVENT is async: the deploy completes before the Lambda
-        # finishes, so a transient API failure won't block the stack update.
+        # Invoke PriceRefreshLambda synchronously after each deployment so
+        # prices/latest_prices.json is seeded in S3 before the smoke tests run.
+        # REQUEST_RESPONSE blocks the CDK deploy until the Lambda finishes,
+        # guaranteeing the snapshot is present by the time the smoke-test job
+        # starts. The Trigger timeout (15 min) must be strictly greater than
+        # refresh_fn.timeout (10 min) so the custom resource provider can wait
+        # for the Lambda response before CloudFormation signals completion.
+        #
+        # NOTE: the Lambda handler catches all exceptions and writes an empty stub
+        # snapshot on failure rather than raising, so a transient API outage does
+        # not roll back the entire CloudFormation stack (which would happen if the
+        # Lambda returned an error to the REQUEST_RESPONSE Trigger). The stub is
+        # overwritten by the next successful scheduled EventBridge invocation.
         triggers.Trigger(
             self,
             "PriceRefreshOnDeploy",
             handler=refresh_fn,
-            invocation_type=triggers.InvocationType.EVENT,
+            invocation_type=triggers.InvocationType.REQUEST_RESPONSE,
+            timeout=Duration.minutes(15),
         )
 
         # Scheduled function to execute the trading agent
@@ -527,6 +552,33 @@ class BackendLambdaStack(Stack):
             )
             for log_group in (backend_log_group, refresh_log_group, agent_log_group):
                 log_group.grant(github_role, "logs:FilterLogEvents")
+            # Allow cdk diff --all to create/poll/delete CloudFormation change sets so the
+            # diff shows replacement annotations rather than falling back to template-only
+            # diff. Without these actions the diff step emits:
+            #   "Could not create a change set, will base the diff on template differences"
+            # CDK calls CreateChangeSet → DescribeChangeSet (polls until COMPLETE) →
+            # DeleteChangeSet; all three actions are required for the diff to succeed.
+            # self.stack_name is used for this stack to avoid a hardcoded literal.
+            # StaticSiteStack has no CDK reference here so its name is a string constant —
+            # it must match the ID used in cdk/app.py. Both stacks are targeted because
+            # deploy-lambda.yml runs `cdk diff --all`. See issue #3013.
+            github_role.add_to_principal_policy(
+                iam.PolicyStatement(
+                    actions=[
+                        "cloudformation:CreateChangeSet",
+                        "cloudformation:DescribeChangeSet",
+                        "cloudformation:DeleteChangeSet",
+                    ],
+                    resources=[
+                        self.format_arn(
+                            service="cloudformation",
+                            resource="stack",
+                            resource_name=f"{stack_name}/*",
+                        )
+                        for stack_name in (self.stack_name, "StaticSiteStack")
+                    ],
+                )
+            )
 
         CfnOutput(
             self,

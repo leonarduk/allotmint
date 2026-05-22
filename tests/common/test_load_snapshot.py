@@ -335,3 +335,29 @@ def test_load_snapshot_non_aws_missing_local_logs_only_warning(
     assert ts is None
     assert "Price snapshot not found" in caplog.text
     assert "No price data available" not in caplog.text
+
+
+def test_seed_prices_file_loads_demo_holdings(tmp_path, monkeypatch):
+    """data/prices/latest_prices.json seed file must load prices for demo holdings.
+
+    Regression guard for issue #2746: missing seed data caused all non-cash
+    positions to have market_value_gbp=None on a fresh install.
+    """
+    from pathlib import Path
+
+    seed_path = Path(__file__).resolve().parents[2] / "data" / "prices" / "latest_prices.json"
+
+    monkeypatch.setattr(pu.config, "app_env", "local")
+    monkeypatch.setattr(pu.config, "prices_json", seed_path)
+    monkeypatch.setattr(pu, "_PRICES_PATH", seed_path)
+
+    data, ts = pu._load_snapshot()
+
+    assert data, "Seed prices file must not be empty"
+    for ticker in ("VWRL.L", "ERNS.L", "PFE.N"):
+        assert ticker in data, f"Seed prices must include demo holding {ticker}"
+        entry = data[ticker]
+        assert entry.get("last_price") is not None and entry["last_price"] > 0, (
+            f"{ticker} must have a positive last_price"
+        )
+        assert entry.get("price_currency") == "GBP", f"{ticker} price must be in GBP"

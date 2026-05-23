@@ -276,14 +276,14 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
                 ))}
               </Pie>
               <Tooltip
-                formatter={(v: number | undefined, _n?: string, item?: any) =>
+                formatter={(v, _n, item) =>
                   relativeViewEnabled
                     ? `${
                         total
-                          ? ((item?.payload?.value / total) * 100).toFixed(2)
+                          ? (((item as any)?.payload?.value / total) * 100).toFixed(2)
                           : "0.00"
                       }%`
-                    : money(v, baseCurrency)
+                    : money(v as number | undefined, baseCurrency)
                 }
               />
               <Legend

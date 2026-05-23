@@ -102,8 +102,12 @@ jobs:
             exit 1
           fi
 
+      # Run in a clean venv so root requirements.txt (installed above) cannot
+      # mask a genuine conflict in backend/requirements.txt.
       - name: Validate backend/requirements.txt installability
-        run: pip install --dry-run -r backend/requirements.txt
+        run: |
+          python -m venv .venv-lambda-check
+          .venv-lambda-check/bin/pip install --dry-run -r backend/requirements.txt
 
       - name: CDK diff
         env:

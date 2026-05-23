@@ -59,8 +59,13 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
+      # Use a clean venv so runner pre-installs cannot mask genuine conflicts.
+      # --dry-run performs dependency resolution without downloading packages;
+      # it catches ResolutionImpossible errors at review time, not deploy time.
       - name: Check backend/requirements.txt resolves without conflicts
-        run: pip install --dry-run -r backend/requirements.txt
+        run: |
+          python -m venv .venv-lambda-check
+          .venv-lambda-check/bin/pip install --dry-run -r backend/requirements.txt
 
   python-compatibility:
     name: Python ${{ matrix.python-version }} compatibility smoke

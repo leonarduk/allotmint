@@ -51,6 +51,17 @@ jobs:
       - name: Run actionlint (includes shellcheck on inline scripts)
         run: actionlint
 
+  validate-backend-requirements:
+    name: Validate backend/requirements.txt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Check backend/requirements.txt resolves without conflicts
+        run: pip install --dry-run -r backend/requirements.txt
+
   python-compatibility:
     name: Python ${{ matrix.python-version }} compatibility smoke
     runs-on: ubuntu-latest

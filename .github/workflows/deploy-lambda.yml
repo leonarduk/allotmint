@@ -102,6 +102,9 @@ jobs:
             exit 1
           fi
 
+      - name: Validate backend/requirements.txt installability
+        run: pip install --dry-run -r backend/requirements.txt
+
       - name: CDK diff
         env:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}

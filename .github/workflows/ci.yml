@@ -15,6 +15,8 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r requirements.txt -r requirements-dev.txt
+      - name: Validate backend/requirements.txt is resolvable
+        run: pip install --dry-run -r backend/requirements.txt
       - run: python scripts/check_branch_protection_required_checks.py
       - uses: actions/setup-node@v6
         with:

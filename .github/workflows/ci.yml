@@ -59,6 +59,29 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
+      - name: Assert no duplicate package names in backend/requirements.txt
+        run: |
+          python - << 'PY'
+          import re, sys
+          from pathlib import Path
+          lines = Path("backend/requirements.txt").read_text(encoding="utf-8").splitlines()
+          pkgs = [
+              re.split(r"[~>=<!;\s#]", line)[0].strip().lower()
+              for line in lines
+              if line.strip() and not line.strip().startswith("#")
+          ]
+          seen: set[str] = set()
+          dups: list[str] = []
+          for pkg in pkgs:
+              if pkg in seen:
+                  dups.append(pkg)
+              else:
+                  seen.add(pkg)
+          if dups:
+              print(f"Duplicate package names in backend/requirements.txt: {dups}", file=sys.stderr)
+              sys.exit(1)
+          print(f"No duplicate package names ({len(pkgs)} packages checked).")
+          PY
       # Use a clean venv so runner pre-installs cannot mask genuine conflicts.
       # Upgrade pip first: --dry-run was added in pip 23.1 and is silently
       # ignored on older versions, which would let a broken file pass.
@@ -68,6 +91,7 @@ jobs:
         run: |
           python -m venv .venv-lambda-check
           .venv-lambda-check/bin/pip install --upgrade pip
+          .venv-lambda-check/bin/pip --version
           .venv-lambda-check/bin/pip install --dry-run -r backend/requirements.txt
 
   python-compatibility:

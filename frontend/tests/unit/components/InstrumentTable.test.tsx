@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, within, waitFor } from "@testing-library/react";
+import { act, render, screen, fireEvent, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { useState } from "react";
@@ -231,8 +231,9 @@ describe("InstrumentTable", () => {
             );
     };
 
-    it("renders groups collapsed by default with aggregated totals", () => {
+    it("renders groups collapsed by default with aggregated totals", async () => {
         renderWithConfig(<InstrumentTable rows={rows} />);
+        await act(async () => {}); // flush listInstrumentGroups + listInstrumentGroupingDefinitions effects
         const table = screen.getByRole("table");
         expect(table).toBeInTheDocument();
 
@@ -251,8 +252,9 @@ describe("InstrumentTable", () => {
         expect(screen.getByText("ABC")).toBeInTheDocument();
     });
 
-    it("hides group totals when showGroupTotals is false", () => {
+    it("hides group totals when showGroupTotals is false", async () => {
         render(<InstrumentTable rows={rows} showGroupTotals={false} />);
+        await act(async () => {}); // flush listInstrumentGroups + listInstrumentGroupingDefinitions effects
 
         const groupASummary = getSummaryRow("Group A");
         expect(within(groupASummary).queryByText("£1,500.00")).toBeNull();
@@ -306,8 +308,9 @@ describe("InstrumentTable", () => {
         await waitFor(() => expect(screen.getByText("ABC")).toBeInTheDocument());
     });
 
-    it("navigates to research for a ticker when clicked", () => {
+    it("navigates to research for a ticker when clicked", async () => {
         renderWithConfig(<InstrumentTable rows={rows} />);
+        await act(async () => {}); // flush listInstrumentGroups + listInstrumentGroupingDefinitions effects
         openGroup("Group A");
         expect(screen.getByText("GBP")).toBeInTheDocument();
         fireEvent.click(screen.getByText("ABC"));
@@ -315,9 +318,10 @@ describe("InstrumentTable", () => {
         expect(navigateMock).toHaveBeenCalledWith("/research/ABC");
     });
 
-    it("creates FX pair ticker buttons and skips GBX", () => {
+    it("creates FX pair ticker buttons and skips GBX", async () => {
         navigateMock.mockClear();
         renderWithConfig(<InstrumentTable rows={rows} />);
+        await act(async () => {}); // flush listInstrumentGroups + listInstrumentGroupingDefinitions effects
         openGroup("Group A");
         openGroup("Group B");
         openGroup("Ungrouped");
@@ -327,8 +331,9 @@ describe("InstrumentTable", () => {
         expect(screen.getByRole('button', { name: 'CAD' })).toBeInTheDocument();
     });
 
-    it("sorts by ticker when header clicked", () => {
+    it("sorts by ticker when header clicked", async () => {
         renderWithConfig(<InstrumentTable rows={rows} />);
+        await act(async () => {}); // flush listInstrumentGroups + listInstrumentGroupingDefinitions effects
         openGroup("Group A");
         // initial sort is ticker ascending => ABC first
         let tickers = getGroupTickers("Group A");
@@ -340,7 +345,7 @@ describe("InstrumentTable", () => {
     });
 
 
-    it("keeps cash instruments ahead of others across sort orders", () => {
+    it("keeps cash instruments ahead of others across sort orders", async () => {
         const mixedRows: InstrumentSummary[] = [
             {
                 ticker: "BETA",
@@ -381,6 +386,7 @@ describe("InstrumentTable", () => {
         ];
 
         renderWithConfig(<InstrumentTable rows={mixedRows} />);
+        await act(async () => {}); // flush listInstrumentGroups + listInstrumentGroupingDefinitions effects
         openGroup("Ungrouped");
 
         const table = screen.getByRole("table");
@@ -395,8 +401,9 @@ describe("InstrumentTable", () => {
         expect(tickers).toEqual(["CASHGBP", "CASHALT", "BETA", "ALPHA"]);
     });
 
-    it("allows toggling columns", () => {
+    it("allows toggling columns", async () => {
         renderWithConfig(<InstrumentTable rows={rows} />);
+        await act(async () => {}); // flush listInstrumentGroups + listInstrumentGroupingDefinitions effects
         openGroup("Group A");
         const table = screen.getByRole('table');
         expect(within(table).getByRole('columnheader', {name: /Gain %/})).toBeInTheDocument();
@@ -405,8 +412,9 @@ describe("InstrumentTable", () => {
         expect(within(screen.getByRole('table')).queryByRole('columnheader', {name: /Gain %/})).toBeNull();
     });
 
-    it("shows absolute columns when relative view disabled", () => {
+    it("shows absolute columns when relative view disabled", async () => {
         renderWithConfig(<InstrumentTable rows={rows} />);
+        await act(async () => {}); // flush listInstrumentGroups + listInstrumentGroupingDefinitions effects
         openGroup("Group A");
         const table = screen.getByRole('table');
         expect(within(table).getByRole('columnheader', { name: 'Units' })).toBeInTheDocument();

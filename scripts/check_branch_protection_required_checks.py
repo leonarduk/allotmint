@@ -19,7 +19,7 @@ WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
 
 EXPECTED_REQUIRED_CHECKS = {
     "CI / test",
-    "CI / Validate backend/requirements.txt",
+    "CI / Validate backend/requirements.txt (dry-run)",
     "Backend Integration Tests / integration-tests",
     "Frontend Tests / frontend-tests",
     "PR Body Issue Reference Check / require-issue-reference",

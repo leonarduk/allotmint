@@ -1,3 +1,4 @@
+import html
 import logging
 from datetime import date, timedelta
 
@@ -65,8 +66,12 @@ async def get_meta_timeseries(
         resolved_start = start_date
     elif days <= 0:
         resolved_start = date(1900, 1, 1)
+    elif end_date is not None:
+        # end_date explicitly supplied: compute start relative to it
+        resolved_start = end_date - timedelta(days=days)
     else:
-        resolved_start = resolved_end - timedelta(days=days)
+        # Neither date supplied: anchor to today to preserve original window
+        resolved_start = date.today() - timedelta(days=days)
 
     if resolved_start > resolved_end:
         raise HTTPException(
@@ -126,11 +131,12 @@ async def get_meta_timeseries(
 
     # ── HTML output (default) ─────────────────────────────────
     html_table = df.to_html(index=False)
+    ticker_label = html.escape(f"{ticker}.{exchange}")
     html_doc = f"""
     <html>
-        <head><title>{ticker}.{exchange} Price History</title></head>
+        <head><title>{ticker_label} Price History</title></head>
         <body>
-            <h1>{ticker}.{exchange} - {start_date} to {end_date}</h1>
+            <h1>{ticker_label} - {start_date} to {end_date}</h1>
             <p><strong>Scaling:</strong> {scaling}x</p>
             {html_table}
         </body>

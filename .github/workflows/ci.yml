@@ -44,7 +44,10 @@ jobs:
       - name: Dry-run install to catch dependency conflicts before they reach Docker
         run: |
           pip install --upgrade pip
-          pip install --dry-run -r backend/requirements.txt
+          if ! pip install --dry-run -r backend/requirements.txt; then
+            echo "::error file=backend/requirements.txt::Dependency conflict detected — Docker build will fail. Check pip output above for the conflicting packages."
+            exit 1
+          fi
 
   lint-workflows:
     name: Lint GitHub Actions workflows

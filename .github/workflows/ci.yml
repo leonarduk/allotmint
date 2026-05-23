@@ -33,6 +33,22 @@ jobs:
         working-directory: frontend
       - run: pytest
 
+  validate-backend-deps:
+    name: Validate backend/requirements.txt (dry-run)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Dry-run install to catch dependency conflicts before they reach Docker
+        run: |
+          pip install --upgrade pip
+          if ! pip install --dry-run -r backend/requirements.txt; then
+            echo "::error file=backend/requirements.txt::Dependency conflict detected — Docker build will fail. Check pip output above for the conflicting packages."
+            exit 1
+          fi
+
   lint-workflows:
     name: Lint GitHub Actions workflows
     runs-on: ubuntu-latest

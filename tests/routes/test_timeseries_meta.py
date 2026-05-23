@@ -217,14 +217,14 @@ def test_neither_date_param_uses_days(monkeypatch):
     assert "from" in data and "to" in data
 
 
-def test_invalid_range_returns_422(monkeypatch):
-    """start_date after end_date must return HTTP 422."""
+def test_invalid_range_returns_400(monkeypatch):
+    """start_date after end_date must return HTTP 400."""
     client = _client_with_df(monkeypatch, _multi_day_df())
     resp = client.get(
         "/timeseries/meta?ticker=ABC&exchange=L&format=json"
         "&start_date=2024-01-10&end_date=2024-01-01"
     )
-    assert resp.status_code == 422
+    assert resp.status_code == 400
 
 
 def test_malformed_date_returns_4xx(monkeypatch):
@@ -235,3 +235,83 @@ def test_malformed_date_returns_4xx(monkeypatch):
     )
     assert resp.status_code in (400, 422)
 
+
+
+# ---- /timeseries/meta call-argument and branch-coverage tests -------------
+
+
+def _client_with_spy(monkeypatch, loader_fn):
+    """Return TestClient with a custom ``load_meta_timeseries_range`` loader."""
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    monkeypatch.setattr(config, "offline_mode", True)
+    monkeypatch.setattr(config, "disable_auth", True)
+
+    import backend.routes.timeseries_meta as ts_meta
+
+    monkeypatch.setattr(ts_meta, "load_meta_timeseries_range", loader_fn)
+    monkeypatch.setattr(ts_meta.pd, "to_datetime", lambda x: x)
+
+    from backend.app import create_app
+
+    app = create_app()
+    return TestClient(app)
+
+
+def test_load_called_with_resolved_dates(monkeypatch):
+    """Route passes the resolved start_date/end_date to load_meta_timeseries_range."""
+    from datetime import date
+
+    captured: dict = {}
+
+    def _spy(ticker, exchange, start_date, end_date, **_):
+        captured["start_date"] = start_date
+        captured["end_date"] = end_date
+        return _multi_day_df().copy()
+
+    client = _client_with_spy(monkeypatch, _spy)
+    client.get(
+        "/timeseries/meta?ticker=ABC&exchange=L&format=json"
+        "&start_date=2024-01-01&end_date=2024-01-03"
+    )
+    assert captured["start_date"] == date(2024, 1, 1)
+    assert captured["end_date"] == date(2024, 1, 3)
+
+
+def test_end_date_with_days_derives_start(monkeypatch):
+    """end_date supplied without start_date: start is end_date minus days."""
+    from datetime import date, timedelta
+
+    captured: dict = {}
+
+    def _spy(ticker, exchange, start_date, end_date, **_):
+        captured["start_date"] = start_date
+        captured["end_date"] = end_date
+        return _multi_day_df().copy()
+
+    client = _client_with_spy(monkeypatch, _spy)
+    client.get(
+        "/timeseries/meta?ticker=ABC&exchange=L&format=json"
+        "&end_date=2024-01-03&days=2"
+    )
+    assert captured["end_date"] == date(2024, 1, 3)
+    assert captured["start_date"] == date(2024, 1, 3) - timedelta(days=2)
+
+
+def test_days_zero_with_end_date_means_all_history(monkeypatch):
+    """days=0 with explicit end_date selects all history up to end_date."""
+    from datetime import date
+
+    captured: dict = {}
+
+    def _spy(ticker, exchange, start_date, end_date, **_):
+        captured["start_date"] = start_date
+        captured["end_date"] = end_date
+        return _multi_day_df().copy()
+
+    client = _client_with_spy(monkeypatch, _spy)
+    client.get(
+        "/timeseries/meta?ticker=ABC&exchange=L&format=json"
+        "&end_date=2024-01-03&days=0"
+    )
+    assert captured["end_date"] == date(2024, 1, 3)
+    assert captured["start_date"] == date(1900, 1, 1)  # "all history" sentinel

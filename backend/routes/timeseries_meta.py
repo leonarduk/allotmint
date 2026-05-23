@@ -75,7 +75,7 @@ async def get_meta_timeseries(
 
     if resolved_start > resolved_end:
         raise HTTPException(
-            status_code=422,
+            status_code=400,
             detail=f"start_date ({resolved_start}) must not be after end_date ({resolved_end})",
         )
 

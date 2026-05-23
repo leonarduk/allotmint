@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
@@ -40,6 +41,8 @@ from backend.common.holding_utils import load_latest_prices as _load_latest_pric
 from backend.common.holding_utils import load_live_prices
 from backend.common.portfolio_loader import list_portfolios
 from backend.common.portfolio_utils import (
+    DATA_BUCKET_ENV,
+    PRICES_S3_KEY,
     check_price_alerts,
     list_all_unique_tickers,
     refresh_snapshot_in_memory,
@@ -237,15 +240,60 @@ def refresh_prices() -> Dict:
         raise RuntimeError("config.prices_json not configured")
     path = Path(config.prices_json)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(snapshot, indent=2))
+
+    # Merge strategy: only write entries where we successfully fetched a price.
+    # This preserves existing seed/cached prices for tickers that returned None
+    # (offline mode, market closed, data-source outage) rather than trashing them.
+    to_persist = {t: v for t, v in snapshot.items() if v.get("last_price") is not None}
+    if to_persist:
+        existing: Dict = {}
+        if path.exists():
+            try:
+                existing = json.loads(path.read_text())
+            except (json.JSONDecodeError, OSError):
+                pass
+        merged = {**existing, **to_persist}
+        path.write_text(json.dumps(merged, indent=2))
+
+        # ---- persist to S3 (primary store read by all Lambda instances) -----
+        if config.app_env == "aws":
+            _s3_bucket = os.getenv(DATA_BUCKET_ENV)
+            if _s3_bucket:
+                try:
+                    import boto3  # type: ignore
+
+                    boto3.client("s3").put_object(
+                        Bucket=_s3_bucket,
+                        Key=PRICES_S3_KEY,
+                        Body=json.dumps(merged, indent=2).encode("utf-8"),
+                        ContentType="application/json",
+                    )
+                    logger.info(
+                        "Uploaded price snapshot to s3://%s/%s", _s3_bucket, PRICES_S3_KEY
+                    )
+                except Exception as exc:
+                    logger.warning("Failed to upload price snapshot to S3: %s", exc)
+            else:
+                logger.warning("DATA_BUCKET not set; skipping S3 upload of price snapshot")
+    else:
+        logger.info(
+            "Skipping price snapshot write — no valid prices fetched"
+            " (offline mode or data-source unavailable)"
+        )
 
     # ---- refresh in-memory cache -----------------------------------------
-    _price_cache.clear()
-    for tkr, info in snapshot.items():
-        _price_cache[tkr.upper()] = info["last_price"]
-
-    # keep portfolio_utils in sync and run alert checks
-    refresh_snapshot_in_memory(snapshot)
+    # Use merged (which includes preserved seed prices) when available; leave
+    # the existing in-memory state intact when no prices were fetched so a
+    # null-producing offline refresh does not trash valid cached entries.
+    if to_persist:
+        # merged = existing (disk) overwritten by to_persist (fresh, non-null).
+        # existing entries come from our own prior writes so are already non-null;
+        # any manually-corrupted null in existing is harmless — it will be
+        # overwritten on the next successful refresh for that ticker.
+        _price_cache.clear()
+        for tkr, info in merged.items():
+            _price_cache[tkr.upper()] = info["last_price"]
+        refresh_snapshot_in_memory(merged)
     check_price_alerts()
 
     logger.debug(f"Snapshot written to {path}")

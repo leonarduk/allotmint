@@ -195,12 +195,17 @@ describe("AllocationCharts page", () => {
     render(<AllocationCharts />);
     await screen.findByText(/Instrument Types/);
 
-    expect(warnSpy).toHaveBeenCalledWith("Dropped invalid holding value", {
-      ticker: "NAN",
-      originalValue: Number.NaN,
-      coercedValue: 0,
-      originalInvalid: true,
-      dropReason: "invalid-numeric-input",
+    // The chart-data useEffect emits the warning asynchronously after the
+    // loading guard drops (which makes "Instrument Types" visible). Use
+    // waitFor so the assertion retries until the effect has actually run.
+    await waitFor(() => {
+      expect(warnSpy).toHaveBeenCalledWith("Dropped invalid holding value", {
+        ticker: "NAN",
+        originalValue: Number.NaN,
+        coercedValue: 0,
+        originalInvalid: true,
+        dropReason: "invalid-numeric-input",
+      });
     });
   });
 
@@ -217,12 +222,17 @@ describe("AllocationCharts page", () => {
     render(<AllocationCharts />);
     await screen.findByText(/Instrument Types/);
 
-    expect(warnSpy).toHaveBeenCalledWith("Dropped invalid holding value", {
-      ticker: "INF",
-      originalValue: Number.POSITIVE_INFINITY,
-      coercedValue: 0,
-      originalInvalid: true,
-      dropReason: "invalid-numeric-input",
+    // The chart-data useEffect emits the warning asynchronously after the
+    // loading guard drops (which makes "Instrument Types" visible). Use
+    // waitFor so the assertion retries until the effect has actually run.
+    await waitFor(() => {
+      expect(warnSpy).toHaveBeenCalledWith("Dropped invalid holding value", {
+        ticker: "INF",
+        originalValue: Number.POSITIVE_INFINITY,
+        coercedValue: 0,
+        originalInvalid: true,
+        dropReason: "invalid-numeric-input",
+      });
     });
   });
 
@@ -244,12 +254,17 @@ describe("AllocationCharts page", () => {
     render(<AllocationCharts />);
     await screen.findByText(/Instrument Types/);
 
-    expect(warnSpy).toHaveBeenCalledWith("Dropped invalid holding value", {
-      ticker: "STR",
-      originalValue: "N/A",
-      coercedValue: 0,
-      originalInvalid: true,
-      dropReason: "invalid-numeric-input",
+    // The chart-data useEffect emits the warning asynchronously after the
+    // loading guard drops (which makes "Instrument Types" visible). Use
+    // waitFor so the assertion retries until the effect has actually run.
+    await waitFor(() => {
+      expect(warnSpy).toHaveBeenCalledWith("Dropped invalid holding value", {
+        ticker: "STR",
+        originalValue: "N/A",
+        coercedValue: 0,
+        originalInvalid: true,
+        dropReason: "invalid-numeric-input",
+      });
     });
   });
 

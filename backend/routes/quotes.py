@@ -3,22 +3,23 @@ from __future__ import annotations
 """Quotes API backed by `yfinance`.
 
 This module exposes a single endpoint that fetches the latest quotes for the
-requested symbols using ``yfinance``.  It intentionally registers the imported
-``yfinance`` module as ``backend.routes.quotes.yf`` in ``sys.modules`` so that
-tests can monkeypatch ``yf.Tickers`` using a dotted import path.
+requested symbols using ``yfinance``.  ``yf`` is a lazy proxy so that the
+heavy yfinance import is deferred until the endpoint is first called.  Test
+monkeypatching via ``monkeypatch.setattr("backend.routes.quotes.yf.Tickers",
+...)`` works transparently because the proxy delegates attribute
+reads/writes to the real module once loaded.
 """
 
 import logging
-import sys
 from typing import Any, Dict, List
 
-import yfinance as yf
 from fastapi import APIRouter, Query
 
 from backend.common.errors import ProviderFailure
+from backend.utils.lazy_import import lazy_import
 
-# Expose ``yf`` as a submodule for monkeypatching in tests
-sys.modules[__name__ + ".yf"] = yf
+# yfinance is only needed when /api/quotes is called; defer loading to first call.
+yf = lazy_import("yfinance")
 
 
 router = APIRouter(prefix="/api")

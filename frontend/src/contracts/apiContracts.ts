@@ -168,6 +168,17 @@ export const apiContractSchemas = {
   transactions: transactionsContractSchema,
 } as const;
 
-export const apiContractJsonSchemas = Object.fromEntries(
-  Object.entries(apiContractSchemas).map(([name, schema]) => [name, toJSONSchema(schema)]),
-) as Record<keyof typeof apiContractSchemas, ReturnType<typeof toJSONSchema>>;
+// satisfies Record<keyof typeof apiContractSchemas, object> enforces that every
+// key present in apiContractSchemas also appears here, so adding a new schema
+// to one without updating the other is a compile-time error.  We use `object`
+// rather than `ReturnType<typeof toJSONSchema>` because zod 4.4.x exposes
+// toJSONSchema as an overloaded function whose union return type includes a
+// `{ schemas: ... }` variant that doesn't match the single-schema call site.
+export const apiContractJsonSchemas = {
+  config: toJSONSchema(configContractSchema),
+  owners: toJSONSchema(ownersContractSchema),
+  groups: toJSONSchema(groupsContractSchema),
+  groupPortfolio: toJSONSchema(groupPortfolioContractSchema),
+  portfolio: toJSONSchema(portfolioContractSchema),
+  transactions: toJSONSchema(transactionsContractSchema),
+} satisfies Record<keyof typeof apiContractSchemas, object>;

@@ -106,8 +106,19 @@ def test_sends_messages_after_ttl(monkeypatch):
     monkeypatch.setattr(telegram_utils.config.config, "telegram_bot_token", "T")
     monkeypatch.setattr(telegram_utils.config.config, "telegram_chat_id", "C")
 
-    times = iter([1000.0] * 3 + [1000.0 + telegram_utils.MESSAGE_TTL_SECONDS + 1] * 3)
-    monkeypatch.setattr(telegram_utils.time, "time", lambda: next(times))
+    # Use a state-based function rather than an exhaustible iterator so that
+    # background threads from the `limits` library (which also call time.time
+    # via the same global patch) cannot raise StopIteration in a daemon thread
+    # and corrupt a later test's result.
+    call_count = [0]
+
+    def fake_time() -> float:
+        call_count[0] += 1
+        if call_count[0] <= 3:
+            return 1000.0
+        return 1000.0 + telegram_utils.MESSAGE_TTL_SECONDS + 1
+
+    monkeypatch.setattr(telegram_utils.time, "time", fake_time)
     monkeypatch.setattr(telegram_utils.time, "sleep", lambda s: None)
 
     calls = []

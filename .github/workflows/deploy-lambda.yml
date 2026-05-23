@@ -104,9 +104,12 @@ jobs:
 
       # Run in a clean venv so root requirements.txt (installed above) cannot
       # mask a genuine conflict in backend/requirements.txt.
+      # Upgrade pip first: --dry-run was added in pip 23.1 and is silently
+      # ignored on older versions, which would let a broken file pass.
       - name: Validate backend/requirements.txt installability
         run: |
           python -m venv .venv-lambda-check
+          .venv-lambda-check/bin/pip install --upgrade pip
           .venv-lambda-check/bin/pip install --dry-run -r backend/requirements.txt
 
       - name: CDK diff

@@ -60,11 +60,14 @@ jobs:
         with:
           python-version: '3.12'
       # Use a clean venv so runner pre-installs cannot mask genuine conflicts.
-      # --dry-run performs dependency resolution without downloading packages;
-      # it catches ResolutionImpossible errors at review time, not deploy time.
+      # Upgrade pip first: --dry-run was added in pip 23.1 and is silently
+      # ignored on older versions, which would let a broken file pass.
+      # --dry-run performs resolution without downloading packages; it catches
+      # ResolutionImpossible errors at review time, not deploy time.
       - name: Check backend/requirements.txt resolves without conflicts
         run: |
           python -m venv .venv-lambda-check
+          .venv-lambda-check/bin/pip install --upgrade pip
           .venv-lambda-check/bin/pip install --dry-run -r backend/requirements.txt
 
   python-compatibility:

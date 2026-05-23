@@ -175,4 +175,4 @@ export const apiContractJsonSchemas = {
   groupPortfolio: toJSONSchema(groupPortfolioContractSchema),
   portfolio: toJSONSchema(portfolioContractSchema),
   transactions: toJSONSchema(transactionsContractSchema),
-} as const;
+} satisfies Record<keyof typeof apiContractSchemas, ReturnType<typeof toJSONSchema>>;

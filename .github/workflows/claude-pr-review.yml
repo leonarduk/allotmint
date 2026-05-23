@@ -84,13 +84,12 @@ jobs:
 
       - name: Post Claude failure notice
         if: failure()
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          gh pr comment "$PR_NUMBER" --body \
-            "## Claude AI Code Review - Skipped
-
-            The Claude review step failed (likely an API key or quota issue). This is advisory only and does not affect CI status.
-
-            Check [Actions](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details."
+          printf '## Claude AI Code Review - Skipped\n\nThe Claude review step failed (likely an API key or quota issue). This is advisory only and does not affect CI status.\n\nCheck [Actions](%s) for details.\n' \
+            "$RUN_URL" > /tmp/claude_fail_notice.md
+          gh pr comment "$PR_NUMBER" --body-file /tmp/claude_fail_notice.md

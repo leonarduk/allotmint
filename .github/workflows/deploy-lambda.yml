@@ -110,6 +110,7 @@ jobs:
         run: |
           python -m venv .venv-lambda-check
           .venv-lambda-check/bin/pip install --upgrade pip
+          .venv-lambda-check/bin/pip --version
           .venv-lambda-check/bin/pip install --dry-run -r backend/requirements.txt
 
       - name: CDK diff

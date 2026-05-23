@@ -65,12 +65,15 @@ jobs:
           import re, sys
           from pathlib import Path
           lines = Path("backend/requirements.txt").read_text(encoding="utf-8").splitlines()
-          # Skip blank lines, comments, and option directives (-r, -c, -e, --).
-          _SKIP = ("#", "-r ", "-c ", "-e ", "--")
+          # Skip blank lines, comments (#), and any pip option line (-r, -c,
+          # -e, --index-url, etc.).  All pip options start with "-", so a
+          # single startswith check covers them regardless of spacing.
+          # Normalise per PEP 503: treat "-", "_", "." as equivalent so
+          # "typing_extensions" and "typing-extensions" are the same package.
           pkgs = [
-              re.split(r"[~>=<!;\s#]", line)[0].strip().lower()
+              re.sub(r"[-_.]+", "-", re.split(r"[~>=<!;\s#]", line)[0].strip()).lower()
               for line in lines
-              if line.strip() and not line.strip().startswith(_SKIP)
+              if line.strip() and not line.strip().startswith(("#", "-"))
           ]
           seen: set[str] = set()
           dups: list[str] = []

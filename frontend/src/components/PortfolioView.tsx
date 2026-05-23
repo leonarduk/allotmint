@@ -403,7 +403,7 @@ export function PortfolioView({ data, loading, error, onDateChange }: Props) {
                         <BarChart data={sectorContrib}>
                           <XAxis dataKey="sector" interval={0} angle={-35} textAnchor="end" height={70} />
                           <YAxis />
-                          <Tooltip formatter={(v: number | undefined) => money(v, baseCurrency)} />
+                          <Tooltip formatter={(v) => money(v as number | undefined, baseCurrency)} />
                           <Bar dataKey="gain_gbp">
                             {sectorContrib.map((row, idx) => (
                               <Cell

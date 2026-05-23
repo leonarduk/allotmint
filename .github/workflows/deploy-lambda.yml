@@ -53,6 +53,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
+      - name: Validate backend/requirements.txt is resolvable (pre-deploy)
+        run: |
+          pip install --upgrade pip
+          if ! pip install --dry-run -r backend/requirements.txt; then
+            echo "::error file=backend/requirements.txt::Dependency conflict detected — Docker build will fail. Check pip output above for the conflicting packages."
+            exit 1
+          fi
+
       - name: Install backend dependencies
         run: |
           pip install -r requirements.txt

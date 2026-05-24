@@ -15,14 +15,13 @@ import datetime as dt
 import inspect
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Annotated, Any, Dict, List, Optional, Sequence, Tuple
 
-from fastapi import APIRouter, HTTPException, Query, Request, Depends
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel, Field
 
 from backend.auth import get_current_user
-from backend.common.account_models import OwnerSummaryRecord, PersonMetadata
 from backend.common import (
     constants,
     data_loader,
@@ -33,6 +32,7 @@ from backend.common import (
     risk,
 )
 from backend.common import portfolio as portfolio_mod
+from backend.common.account_models import OwnerSummaryRecord, PersonMetadata
 from backend.config import config, demo_identity
 from backend.routes._accounts import resolve_accounts_root, resolve_owner_directory
 from backend.utils.pricing_dates import PricingDateCalculator
@@ -55,11 +55,25 @@ def _coerce_owner_summary_entry(entry: OwnerSummaryRecord | Dict[str, Any] | Non
     if isinstance(entry, OwnerSummaryRecord):
         return entry
     payload = dict(entry or {})
+    raw_full_name = payload.get("full_name")
+    raw_email = payload.get("email")
     return OwnerSummaryRecord.model_construct(
         owner=str(payload.get("owner", "")),
-        accounts=list(payload.get("accounts", [])) if isinstance(payload.get("accounts", []), list) else [],
-        full_name=payload.get("full_name").strip() if isinstance(payload.get("full_name"), str) and payload.get("full_name").strip() else None,
-        email=payload.get("email").strip() if isinstance(payload.get("email"), str) and payload.get("email").strip() else None,
+        accounts=(
+            list(payload.get("accounts", []))
+            if isinstance(payload.get("accounts", []), list)
+            else []
+        ),
+        full_name=(
+            raw_full_name.strip()
+            if isinstance(raw_full_name, str) and raw_full_name.strip()
+            else None
+        ),
+        email=(
+            raw_email.strip()
+            if isinstance(raw_email, str) and raw_email.strip()
+            else None
+        ),
         has_transactions_artifact=bool(payload.get("has_transactions_artifact", False)),
     )
 
@@ -468,8 +482,6 @@ def _list_owner_summaries(
         normalised = _normalise_owner_entry(entry, accounts_root)
         if normalised:
             summaries.append(normalised)
-
-    identity = demo_identity()
 
     def _append_demo_summary() -> None:
         summaries.append(_build_demo_summary(accounts_root))
@@ -911,9 +923,18 @@ async def get_account(owner: str, account: str, request: Request):
 
 
 @router.get("/portfolio-group/{slug}/instrument/{ticker}")
-async def instrument_detail(slug: str, ticker: str):
+async def instrument_detail(
+    slug: str,
+    ticker: str,
+    start_date: Annotated[Optional[dt.date], Query(description="Inclusive start date (YYYY-MM-DD)")] = None,
+    end_date: Annotated[Optional[dt.date], Query(description="Inclusive end date (YYYY-MM-DD)")] = None,
+):
+    if start_date is not None and end_date is not None and start_date > end_date:
+        raise HTTPException(status_code=400, detail="start_date must not be after end_date")
     try:
-        series = instrument_api.timeseries_for_ticker(ticker)
+        series = instrument_api.timeseries_for_ticker(
+            ticker, start_date=start_date, end_date=end_date
+        )
         prices_list = series.get("prices", [])
         positions_list = instrument_api.positions_for_ticker(slug, ticker)
     except Exception:

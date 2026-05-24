@@ -1,5 +1,6 @@
 import logging
 from datetime import date
+from typing import Annotated, Optional
 
 import pandas as pd
 from fastapi import APIRouter, HTTPException, Query
@@ -54,15 +55,19 @@ async def get_meta_timeseries(
     ticker: str = Query(...),
     exchange: str | None = Query(None),
     days: int = Query(365, ge=0, le=36500),
+    start_date: Annotated[Optional[date], Query(description="Start date YYYY-MM-DD; overrides days")] = None,
+    end_date: Annotated[Optional[date], Query(description="End date YYYY-MM-DD; overrides yesterday")] = None,
     format: str = Query("html", pattern="^(html|json|csv)$"),
     scaling: float = Query(1.0, ge=0.00001, le=1_000_000),
 ):
     ticker, exchange = _resolve_ticker_exchange(ticker, exchange)
-    start_date, end_date = resolve_date_range(days)
+    resolved_start, resolved_end = resolve_date_range(days, start_date=start_date, end_date=end_date)
+    if resolved_start > resolved_end:
+        raise HTTPException(status_code=400, detail="start_date must not be after end_date")
 
     try:
         df = load_meta_timeseries_range(
-            ticker, exchange, start_date=start_date, end_date=end_date
+            ticker, exchange, start_date=resolved_start, end_date=resolved_end
         )
     except Exception as exc:
         logger.debug(
@@ -95,8 +100,8 @@ async def get_meta_timeseries(
         return JSONResponse(
             content={
                 "ticker": f"{ticker}.{exchange}",
-                "from": start_date.isoformat(),
-                "to": end_date.isoformat(),
+                "from": resolved_start.isoformat(),
+                "to": resolved_end.isoformat(),
                 "scaling": scaling,
                 "prices": df.to_dict(orient="records"),
             }
@@ -113,7 +118,7 @@ async def get_meta_timeseries(
     <html>
         <head><title>{ticker}.{exchange} Price History</title></head>
         <body>
-            <h1>{ticker}.{exchange} - {start_date} to {end_date}</h1>
+            <h1>{ticker}.{exchange} - {resolved_start} to {resolved_end}</h1>
             <p><strong>Scaling:</strong> {scaling}x</p>
             {html_table}
         </body>

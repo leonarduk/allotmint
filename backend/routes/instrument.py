@@ -10,9 +10,9 @@ GET /instrument?ticker=XDEV.L&days=365&format=json
 GET /instrument?ticker=XDEV.L&days=365&format=html
 """
 
-from datetime import date, timedelta
+from datetime import date
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Annotated, Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.encoders import jsonable_encoder
@@ -26,7 +26,7 @@ from backend.config import config
 from backend.timeseries.cache import load_meta_timeseries_range
 from backend.utils.fx_rates import fetch_fx_rate_range
 from backend.utils.lazy_import import lazy_import
-from backend.utils.timeseries_helpers import apply_scaling, get_scaling_override
+from backend.utils.timeseries_helpers import apply_scaling, get_scaling_override, resolve_date_range
 
 # Heavy scientific libraries — defer to first endpoint call so they are not
 # loaded during Lambda INIT or router registration.
@@ -200,6 +200,8 @@ def _render_html(
 async def instrument(
     ticker: str = Query(..., description="Full ticker, e.g. VWRL.L"),
     days: int = Query(365, ge=0, le=36500),
+    start_date: Annotated[Optional[date], Query(description="Start date YYYY-MM-DD; overrides days")] = None,
+    end_date: Annotated[Optional[date], Query(description="End date YYYY-MM-DD; overrides today")] = None,
     format: str = Query("html", pattern="^(html|json)$"),
     base_currency: str | None = Query(
         None, description="Reporting currency for prices"
@@ -214,14 +216,21 @@ async def instrument(
 
     _validate_ticker(ticker)
 
-    if days <= 0:
-        start = date(1900, 1, 1)
-    else:
-        start = date.today() - timedelta(days=days)
+    # Resolve start/end: explicit dates override the days-based defaults.
+    # The instrument route historically used date.today() as the end anchor,
+    # so we preserve that default when end_date is not supplied.
+    resolved_start, resolved_end = resolve_date_range(
+        days,
+        start_date=start_date,
+        end_date=end_date if end_date is not None else date.today(),
+    )
+    if resolved_start > resolved_end:
+        raise HTTPException(status_code=400, detail="start_date must not be after end_date")
+    start = resolved_start
     tkr, exch = (ticker.split(".", 1) + ["L"])[:2]
 
     # ── history ────────────────────────────────────────────────
-    df = load_meta_timeseries_range(tkr, exch, start_date=start, end_date=date.today())
+    df = load_meta_timeseries_range(tkr, exch, start_date=start, end_date=resolved_end)
 
     meta = get_security_meta(ticker) or {}
     name = meta.get("name")
@@ -446,7 +455,7 @@ async def instrument(
         payload = {
             "ticker": ticker,
             "from": start.isoformat(),
-            "to": date.today().isoformat(),
+            "to": resolved_end.isoformat(),
             "rows": len(prices),
             "positions": positions,
             "prices": prices,

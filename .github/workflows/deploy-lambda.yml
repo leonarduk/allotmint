@@ -53,10 +53,15 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
+      # Use a clean venv so runner pre-installs cannot mask genuine conflicts.
+      # Upgrade pip first: --dry-run was added in pip 23.1 and is silently
+      # ignored on older versions, which would let a broken file pass.
       - name: Validate backend/requirements.txt is resolvable (pre-deploy)
         run: |
-          pip install --upgrade pip
-          if ! pip install --dry-run -r backend/requirements.txt; then
+          python -m venv /tmp/validate-venv
+          /tmp/validate-venv/bin/pip install --upgrade pip
+          /tmp/validate-venv/bin/pip --version
+          if ! /tmp/validate-venv/bin/pip install --dry-run -r backend/requirements.txt; then
             echo "::error file=backend/requirements.txt::Dependency conflict detected — Docker build will fail. Check pip output above for the conflicting packages."
             exit 1
           fi
@@ -65,14 +70,6 @@ jobs:
         run: |
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
-
-      - name: Validate backend/requirements.txt is resolvable
-        run: |
-          python -m venv /tmp/validate-venv
-          if ! /tmp/validate-venv/bin/pip install --dry-run -r backend/requirements.txt; then
-            echo "::error::Dependency conflict in backend/requirements.txt — Docker build will fail. See pip output above for the conflicting packages."
-            exit 1
-          fi
 
       - name: Verify required AWS secrets
         run: |

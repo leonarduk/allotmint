@@ -18,6 +18,7 @@ mobile/ios/
 __pycache__/
 *.py[cod]
 .venv/
+.venv-lambda-check/
 venv/
 .env/
 .pytest_cache/

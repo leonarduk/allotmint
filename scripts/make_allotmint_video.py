@@ -10,7 +10,7 @@ try:
     from gtts import gTTS
     from moviepy.editor import AudioFileClip, ImageClip
 except ImportError:  # pragma: no cover - installation hint
-    print("Missing dependencies. Install with: pip install gTTS moviepy")
+    print("Missing dependencies. Install with: pip install -r requirements-video.txt")
     raise SystemExit(1)
 
 SCRIPT = (

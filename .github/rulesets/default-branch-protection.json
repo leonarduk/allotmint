@@ -36,6 +36,9 @@
             "context": "CI / test"
           },
           {
+            "context": "CI / Validate backend/requirements.txt (dry-run)"
+          },
+          {
             "context": "Backend Integration Tests / integration-tests"
           },
           {

@@ -53,6 +53,19 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
+      # Use a clean venv so runner pre-installs cannot mask genuine conflicts.
+      # Upgrade pip first: --dry-run was added in pip 23.1 and is silently
+      # ignored on older versions, which would let a broken file pass.
+      - name: Validate backend/requirements.txt is resolvable (pre-deploy)
+        run: |
+          python -m venv /tmp/validate-venv
+          /tmp/validate-venv/bin/pip install --upgrade pip
+          /tmp/validate-venv/bin/pip --version
+          if ! /tmp/validate-venv/bin/pip install --dry-run -r backend/requirements.txt; then
+            echo "::error file=backend/requirements.txt::Dependency conflict detected — Docker build will fail. Check pip output above for the conflicting packages."
+            exit 1
+          fi
+
       - name: Install backend dependencies
         run: |
           pip install -r requirements.txt
@@ -107,6 +120,7 @@ jobs:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GITHUB_DEPLOY_ROLE_ARN: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           CDK_OUTDIR: /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
         run: npx cdk diff --all -c prod=true
         working-directory: cdk

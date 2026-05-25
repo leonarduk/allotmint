@@ -514,6 +514,56 @@ def test_no_cfn_changeset_grant_when_github_deploy_role_arn_absent(monkeypatch) 
     )
 
 
+def _lambda_actions_for_role_name(raw_template: dict, role_name: str) -> set[str]:
+    """Return lambda:* actions from policies attached to an imported role by name."""
+    actions: set[str] = set()
+    for res in raw_template["Resources"].values():
+        if res.get("Type") != "AWS::IAM::Policy":
+            continue
+        if role_name not in res.get("Properties", {}).get("Roles", []):
+            continue
+        for stmt in res["Properties"]["PolicyDocument"].get("Statement", []):
+            action = stmt.get("Action", [])
+            if isinstance(action, str):
+                action = [action]
+            for a in action:
+                if a.startswith("lambda:") or a == "*":
+                    actions.add(a)
+    return actions
+
+
+def test_github_deploy_role_can_invoke_price_refresh_lambda_alias(monkeypatch) -> None:
+    """When GITHUB_DEPLOY_ROLE_ARN is set, CDK must grant lambda:InvokeFunction on the
+    PriceRefreshLambda:live alias so the 'Warm price snapshot' CI step can run."""
+    role_arn = "arn:aws:iam::123456789012:role/allotmint-github-deploy"
+    monkeypatch.setenv("GITHUB_DEPLOY_ROLE_ARN", role_arn)
+    monkeypatch.setenv("JWT_SECRET", "test-secret")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-client-id")
+    app = App()
+    stack = BackendLambdaStack(app, "BackendLambdaStackLambdaInvokeTest")
+    raw = Template.from_stack(stack).to_json()
+
+    lambda_actions = _lambda_actions_for_role_name(raw, "allotmint-github-deploy")
+    assert "lambda:InvokeFunction" in lambda_actions, (
+        f"Deploy role missing lambda:InvokeFunction; got: {lambda_actions}"
+    )
+
+
+def test_no_lambda_invoke_grant_when_github_deploy_role_arn_absent(monkeypatch) -> None:
+    """When GITHUB_DEPLOY_ROLE_ARN is unset, no lambda:InvokeFunction policy is synthesised."""
+    monkeypatch.delenv("GITHUB_DEPLOY_ROLE_ARN", raising=False)
+    monkeypatch.setenv("JWT_SECRET", "test-secret")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-client-id")
+    app = App()
+    stack = BackendLambdaStack(app, "BackendLambdaStackNoLambdaInvokeTest")
+    lambda_actions = _lambda_actions_for_role_name(
+        Template.from_stack(stack).to_json(), "allotmint-github-deploy"
+    )
+    assert "lambda:InvokeFunction" not in lambda_actions, (
+        "Expected no lambda:InvokeFunction when GITHUB_DEPLOY_ROLE_ARN is unset"
+    )
+
+
 def test_grant_bucket_access_raises_on_no_permissions() -> None:
     class _MockFn:
         def add_to_role_policy(self, policy_statement: object) -> None:

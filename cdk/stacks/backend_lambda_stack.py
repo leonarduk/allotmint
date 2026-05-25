@@ -579,6 +579,11 @@ class BackendLambdaStack(Stack):
                     ],
                 )
             )
+            # Allow the CI "Warm price snapshot" step to invoke PriceRefreshLambda:live
+            # directly so prices/latest_prices.json is seeded in S3 before smoke tests
+            # run. The grant targets the alias ARN (function:live) to match the qualified
+            # invocation in the workflow. See issue #3111.
+            refresh_alias.grant_invoke(github_role)
 
         CfnOutput(
             self,

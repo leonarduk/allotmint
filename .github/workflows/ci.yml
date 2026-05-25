@@ -15,13 +15,6 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r requirements.txt -r requirements-dev.txt
-      - name: Validate backend/requirements.txt is resolvable
-        run: |
-          python -m venv /tmp/validate-venv
-          if ! /tmp/validate-venv/bin/pip install --dry-run -r backend/requirements.txt; then
-            echo "::error::Dependency conflict in backend/requirements.txt — Docker build will fail. See pip output above for the conflicting packages."
-            exit 1
-          fi
       - run: python scripts/check_branch_protection_required_checks.py
       - uses: actions/setup-node@v6
         with:
@@ -48,10 +41,45 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
+      - name: Assert no duplicate package names in backend/requirements.txt
+        run: |
+          python - << 'PY'
+          import re, sys
+          from pathlib import Path
+          lines = Path("backend/requirements.txt").read_text(encoding="utf-8").splitlines()
+          # Skip blank lines, comments (#), and any pip option line (-r, -c,
+          # -e, --index-url, etc.).  All pip options start with "-", so a
+          # single startswith check covers them regardless of spacing.
+          # Normalise per PEP 503: treat "-", "_", "." as equivalent so
+          # "typing_extensions" and "typing-extensions" are the same package.
+          pkgs = [
+              re.sub(r"[-_.]+", "-",
+                     re.sub(r"\[.*?\]", "",
+                            re.split(r"[~>=<!;\s#]", line)[0].strip())).lower()
+              for line in lines
+              if line.strip() and not line.strip().startswith(("#", "-"))
+          ]
+          seen: set[str] = set()
+          dups: list[str] = []
+          for pkg in pkgs:
+              if pkg in seen:
+                  dups.append(pkg)
+              else:
+                  seen.add(pkg)
+          if dups:
+              print(f"Duplicate package names in backend/requirements.txt: {dups}", file=sys.stderr)
+              sys.exit(1)
+          print(f"No duplicate package names ({len(pkgs)} packages checked).")
+          PY
+      # Use a clean venv so runner pre-installs cannot mask genuine conflicts.
+      # Upgrade pip first: --dry-run was added in pip 23.1 and is silently
+      # ignored on older versions, which would let a broken file pass.
       - name: Dry-run install to catch dependency conflicts before they reach Docker
         run: |
-          pip install --upgrade pip
-          if ! pip install --dry-run -r backend/requirements.txt; then
+          python -m venv .venv-lambda-check
+          .venv-lambda-check/bin/pip install --upgrade pip
+          .venv-lambda-check/bin/pip --version
+          if ! .venv-lambda-check/bin/pip install --dry-run -r backend/requirements.txt; then
             echo "::error file=backend/requirements.txt::Dependency conflict detected — Docker build will fail. Check pip output above for the conflicting packages."
             exit 1
           fi
@@ -73,54 +101,6 @@ jobs:
           rm actionlint.tar.gz
       - name: Run actionlint (includes shellcheck on inline scripts)
         run: actionlint
-
-  validate-backend-requirements:
-    name: Validate backend/requirements.txt
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
-        with:
-          python-version: '3.12'
-      - name: Assert no duplicate package names in backend/requirements.txt
-        run: |
-          python - << 'PY'
-          import re, sys
-          from pathlib import Path
-          lines = Path("backend/requirements.txt").read_text(encoding="utf-8").splitlines()
-          # Skip blank lines, comments (#), and any pip option line (-r, -c,
-          # -e, --index-url, etc.).  All pip options start with "-", so a
-          # single startswith check covers them regardless of spacing.
-          # Normalise per PEP 503: treat "-", "_", "." as equivalent so
-          # "typing_extensions" and "typing-extensions" are the same package.
-          pkgs = [
-              re.sub(r"[-_.]+", "-", re.split(r"[~>=<!;\s#]", line)[0].strip()).lower()
-              for line in lines
-              if line.strip() and not line.strip().startswith(("#", "-"))
-          ]
-          seen: set[str] = set()
-          dups: list[str] = []
-          for pkg in pkgs:
-              if pkg in seen:
-                  dups.append(pkg)
-              else:
-                  seen.add(pkg)
-          if dups:
-              print(f"Duplicate package names in backend/requirements.txt: {dups}", file=sys.stderr)
-              sys.exit(1)
-          print(f"No duplicate package names ({len(pkgs)} packages checked).")
-          PY
-      # Use a clean venv so runner pre-installs cannot mask genuine conflicts.
-      # Upgrade pip first: --dry-run was added in pip 23.1 and is silently
-      # ignored on older versions, which would let a broken file pass.
-      # --dry-run performs resolution without downloading packages; it catches
-      # ResolutionImpossible errors at review time, not deploy time.
-      - name: Check backend/requirements.txt resolves without conflicts
-        run: |
-          python -m venv .venv-lambda-check
-          .venv-lambda-check/bin/pip install --upgrade pip
-          .venv-lambda-check/bin/pip --version
-          .venv-lambda-check/bin/pip install --dry-run -r backend/requirements.txt
 
   python-compatibility:
     name: Python ${{ matrix.python-version }} compatibility smoke

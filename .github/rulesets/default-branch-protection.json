@@ -49,9 +49,6 @@
           },
           {
             "context": "Dependency Review / dependency-review"
-          },
-          {
-            "context": "CI / Validate backend/requirements.txt"
           }
         ]
       }

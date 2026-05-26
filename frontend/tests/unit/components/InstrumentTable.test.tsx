@@ -1,4 +1,4 @@
-import { act, render, screen, fireEvent, within, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { useState } from "react";
@@ -233,7 +233,7 @@ describe("InstrumentTable", () => {
 
     it("renders groups collapsed by default with aggregated totals", async () => {
         renderWithConfig(<InstrumentTable rows={rows} />);
-        await act(async () => {}); // flush listInstrumentGroups + listInstrumentGroupingDefinitions effects
+        await screen.findByRole("button", { name: /Toggle Group A/i });
         const table = screen.getByRole("table");
         expect(table).toBeInTheDocument();
 
@@ -254,7 +254,7 @@ describe("InstrumentTable", () => {
 
     it("hides group totals when showGroupTotals is false", async () => {
         render(<InstrumentTable rows={rows} showGroupTotals={false} />);
-        await act(async () => {}); // flush listInstrumentGroups + listInstrumentGroupingDefinitions effects
+        await screen.findByRole("button", { name: /Toggle Group A/i });
 
         const groupASummary = getSummaryRow("Group A");
         expect(within(groupASummary).queryByText("£1,500.00")).toBeNull();
@@ -310,7 +310,7 @@ describe("InstrumentTable", () => {
 
     it("navigates to research for a ticker when clicked", async () => {
         renderWithConfig(<InstrumentTable rows={rows} />);
-        await act(async () => {}); // flush listInstrumentGroups + listInstrumentGroupingDefinitions effects
+        await screen.findByRole("button", { name: /Toggle Group A/i });
         openGroup("Group A");
         expect(screen.getByText("GBP")).toBeInTheDocument();
         fireEvent.click(screen.getByText("ABC"));
@@ -321,7 +321,7 @@ describe("InstrumentTable", () => {
     it("creates FX pair ticker buttons and skips GBX", async () => {
         navigateMock.mockClear();
         renderWithConfig(<InstrumentTable rows={rows} />);
-        await act(async () => {}); // flush listInstrumentGroups + listInstrumentGroupingDefinitions effects
+        await screen.findByRole("button", { name: /Toggle Group A/i });
         openGroup("Group A");
         openGroup("Group B");
         openGroup("Ungrouped");
@@ -333,7 +333,7 @@ describe("InstrumentTable", () => {
 
     it("sorts by ticker when header clicked", async () => {
         renderWithConfig(<InstrumentTable rows={rows} />);
-        await act(async () => {}); // flush listInstrumentGroups + listInstrumentGroupingDefinitions effects
+        await screen.findByRole("button", { name: /Toggle Group A/i });
         openGroup("Group A");
         // initial sort is ticker ascending => ABC first
         let tickers = getGroupTickers("Group A");
@@ -386,7 +386,7 @@ describe("InstrumentTable", () => {
         ];
 
         renderWithConfig(<InstrumentTable rows={mixedRows} />);
-        await act(async () => {}); // flush listInstrumentGroups + listInstrumentGroupingDefinitions effects
+        await screen.findByRole("button", { name: /Toggle Ungrouped/i });
         openGroup("Ungrouped");
 
         const table = screen.getByRole("table");
@@ -403,7 +403,7 @@ describe("InstrumentTable", () => {
 
     it("allows toggling columns", async () => {
         renderWithConfig(<InstrumentTable rows={rows} />);
-        await act(async () => {}); // flush listInstrumentGroups + listInstrumentGroupingDefinitions effects
+        await screen.findByRole("button", { name: /Toggle Group A/i });
         openGroup("Group A");
         const table = screen.getByRole('table');
         expect(within(table).getByRole('columnheader', {name: /Gain %/})).toBeInTheDocument();
@@ -414,7 +414,7 @@ describe("InstrumentTable", () => {
 
     it("shows absolute columns when relative view disabled", async () => {
         renderWithConfig(<InstrumentTable rows={rows} />);
-        await act(async () => {}); // flush listInstrumentGroups + listInstrumentGroupingDefinitions effects
+        await screen.findByRole("button", { name: /Toggle Group A/i });
         openGroup("Group A");
         const table = screen.getByRole('table');
         expect(within(table).getByRole('columnheader', { name: 'Units' })).toBeInTheDocument();

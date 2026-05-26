@@ -99,7 +99,9 @@ jobs:
       - name: Run backend pytest suite against Lambda deps
         env:
           ALLOTMINT_SKIP_SNAPSHOT_WARM: 'true'
-        run: pytest
+        # cdk/tests/ requires aws_cdk which is an infrastructure dep, not a
+        # Lambda runtime dep; exclude it from the Lambda-compat run.
+        run: pytest --ignore=cdk/tests
 
   lint-workflows:
     name: Lint GitHub Actions workflows

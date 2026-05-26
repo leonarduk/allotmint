@@ -150,7 +150,6 @@ describe('Root bootstrap integration coverage', () => {
     })
 
     vi.doMock('@/App.tsx', async () => {
-      const React = await import('react')
       const { useAuth } = await import('@/AuthContext')
       const { useUser } = await import('@/UserContext')
       function RestoredSessionApp() {

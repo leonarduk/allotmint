@@ -1,6 +1,6 @@
 import html
 import logging
-from datetime import date, timedelta
+from datetime import date
 
 import pandas as pd
 from fastapi import APIRouter, HTTPException, Query
@@ -14,6 +14,7 @@ from backend.utils.html_render import render_timeseries_html
 from backend.utils.timeseries_helpers import (
     apply_scaling,
     get_scaling_override,
+    resolve_date_range,
 )
 
 router = APIRouter(prefix="/timeseries", tags=["timeseries"])
@@ -60,27 +61,7 @@ async def get_meta_timeseries(
     end_date: date | None = Query(None, description="End date (YYYY-MM-DD). Defaults to yesterday when omitted."),
 ):
     ticker, exchange = _resolve_ticker_exchange(ticker, exchange)
-
-    resolved_end = end_date if end_date is not None else date.today() - timedelta(days=1)
-    if start_date is not None:
-        resolved_start = start_date
-    elif days <= 0:
-        resolved_start = date(1900, 1, 1)
-    elif end_date is not None:
-        # end_date explicitly supplied: compute start relative to it
-        resolved_start = end_date - timedelta(days=days)
-    else:
-        # Neither date supplied: anchor to today to preserve original window
-        resolved_start = date.today() - timedelta(days=days)
-
-    if resolved_start > resolved_end:
-        raise HTTPException(
-            status_code=400,
-            detail=f"start_date ({resolved_start}) must not be after end_date ({resolved_end})",
-        )
-
-    start_date = resolved_start
-    end_date = resolved_end
+    start_date, end_date = resolve_date_range(days)
 
     try:
         df = load_meta_timeseries_range(

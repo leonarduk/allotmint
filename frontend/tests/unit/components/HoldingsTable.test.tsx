@@ -57,11 +57,6 @@ const defaultConfig: AppConfig = {
 };
 import type { Holding } from "@/types";
 
-beforeEach(() => {
-    // Ensure React act environment is enabled for explicit act() calls
-    (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
-});
-
 describe("HoldingsTable", () => {
     beforeEach(() => {
         localStorage.clear();
@@ -202,9 +197,7 @@ describe("HoldingsTable", () => {
         const onSelect = vi.fn();
         render(<HoldingsTable holdings={holdings} onSelectInstrument={onSelect}/>);
         await screen.findByRole('button', { name: 'USD' });
-        await act(async () => {
-            await userEvent.click(screen.getByRole('button', { name: 'USD' }));
-        });
+        await userEvent.click(screen.getByRole('button', { name: 'USD' }));
         expect(onSelect).toHaveBeenCalledWith('USDGBP.FX', 'USD');
         expect(screen.queryByRole('button', { name: 'GBX' })).toBeNull();
         expect(screen.getByRole('button', { name: 'CAD' })).toBeInTheDocument();
@@ -217,9 +210,7 @@ describe("HoldingsTable", () => {
         let rows = screen.getAllByRole("row");
         expect(within(rows[2]).getByText("AAA")).toBeInTheDocument();
 
-        await act(async () => {
-            await userEvent.click(screen.getByText(/^Ticker/));
-        });
+        await userEvent.click(screen.getByText(/^Ticker/));
         rows = screen.getAllByRole("row");
         expect(within(rows[2]).getByText("XYZ")).toBeInTheDocument();
     });
@@ -227,9 +218,7 @@ describe("HoldingsTable", () => {
     it("filters by ticker", async () => {
         render(<HoldingsTable holdings={holdings}/>);
         const input = await screen.findByPlaceholderText("Ticker");
-        await act(async () => {
-            await userEvent.type(input, "AA");
-        });
+        await userEvent.type(input, "AA");
         expect(screen.getByText("AAA")).toBeInTheDocument();
         expect(screen.queryByText("XYZ")).toBeNull();
     });
@@ -237,9 +226,7 @@ describe("HoldingsTable", () => {
     it("filters by eligibility", async () => {
         render(<HoldingsTable holdings={holdings}/>);
         const select = await screen.findByLabelText("Sell eligible");
-        await act(async () => {
-            await userEvent.selectOptions(select, "true");
-        });
+        await userEvent.selectOptions(select, "true");
         expect(screen.getByText("AAA")).toBeInTheDocument();
         expect(screen.queryByText("Test Holding")).toBeNull();
     });
@@ -256,9 +243,7 @@ describe("HoldingsTable", () => {
         await screen.findByText("AAA");
         expect(screen.getByRole('columnheader', {name: 'Units'})).toBeInTheDocument();
         const checkbox = screen.getByLabelText("Units");
-        await act(async () => {
-            await userEvent.click(checkbox);
-        });
+        await userEvent.click(checkbox);
         await waitFor(() =>
             expect(screen.queryByRole('columnheader', {name: 'Units'})).toBeNull(),
         );
@@ -273,9 +258,7 @@ describe("HoldingsTable", () => {
       it("applies sell-eligible quick filter", async () => {
         render(<HoldingsTable holdings={holdings} />);
         await screen.findByText('AAA');
-        await act(async () => {
-            await userEvent.click(screen.getByRole('button', { name: 'Sell-eligible' }));
-        });
+        await userEvent.click(screen.getByRole('button', { name: 'Sell-eligible' }));
         expect(screen.getByLabelText('Sell eligible')).toHaveValue('true');
         expect(screen.getByText('AAA')).toBeInTheDocument();
         expect(screen.queryByText('Test Holding')).toBeNull();
@@ -284,9 +267,7 @@ describe("HoldingsTable", () => {
     it("applies gain percentage quick filter", async () => {
         render(<HoldingsTable holdings={holdings} />);
         const input = await screen.findByPlaceholderText('Min Gain %');
-        await act(async () => {
-            await userEvent.type(input, '10');
-        });
+        await userEvent.type(input, '10');
         expect(screen.getByPlaceholderText('Gain %')).toHaveValue('10');
         expect(screen.getByText('AAA')).toBeInTheDocument();
         expect(screen.queryByText('XYZ')).toBeNull();
@@ -313,9 +294,7 @@ describe("HoldingsTable", () => {
         ];
         const { unmount } = render(<HoldingsTable holdings={mixedHoldings} />);
         await screen.findByText('AAA');
-        await act(async () => {
-            await userEvent.click(screen.getByRole('button', { name: 'Bond' }));
-        });
+        await userEvent.click(screen.getByRole('button', { name: 'Bond' }));
         expect(screen.getByText('BND1')).toBeInTheDocument();
         expect(screen.queryByText('AAA')).toBeNull();
         unmount();
@@ -333,9 +312,7 @@ describe("HoldingsTable", () => {
           expect(screen.getByText('No holdings match the current filters.')).toBeInTheDocument();
           expect(screen.getByRole('button', { name: 'Clear filters' })).toBeInTheDocument();
           expect(screen.getByRole('button', { name: 'Open Screener' })).toBeInTheDocument();
-          await act(async () => {
-              await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
-          });
+          await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
           expect(screen.getByText('AAA')).toBeInTheDocument();
       });
 

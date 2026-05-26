@@ -162,6 +162,14 @@ def resolve_date_range(
     - ``start_date`` → ``today - days``; ``date(1900, 1, 1)`` when
       ``days <= 0`` (meaning "all available history").
 
+    When *end_date* is supplied but *start_date* is not, *start_date* is
+    anchored relative to *end_date* (i.e. ``end_date - days``) rather than
+    to today.  This lets callers specify a window ending at a historical date
+    without having to compute both bounds themselves.
+
+    ``days <= 0`` always maps to the "all history" sentinel
+    ``date(1900, 1, 1)`` regardless of whether *end_date* is supplied.
+
     Parameters
     ----------
     days:
@@ -178,11 +186,17 @@ def resolve_date_range(
         A ``(start_date, end_date)`` pair ready to pass to
         ``load_meta_timeseries_range`` or any other range-aware loader.
     """
+    explicit_end = end_date is not None
     if end_date is None:
         end_date = datetime.date.today() - datetime.timedelta(days=1)
     if start_date is None:
         if days <= 0:
+            # days=0/negative means "all available history" regardless of end_date
             start_date = datetime.date(1900, 1, 1)
+        elif explicit_end:
+            # end_date was explicitly supplied: anchor start relative to it
+            start_date = end_date - datetime.timedelta(days=days)
         else:
+            # Neither date supplied: anchor to today to preserve original window
             start_date = datetime.date.today() - datetime.timedelta(days=days)
     return start_date, end_date

@@ -114,3 +114,67 @@ def test_nearest_weekday():
 def test_is_isin():
     assert th._is_isin("US0378331005")
     assert not th._is_isin("PFE")
+
+
+# ── resolve_date_range ──────────────────────────────────────────────────────
+
+class TestResolveDateRange:
+    """Tests for the resolve_date_range service helper."""
+
+    def test_positive_days_sets_start_relative_to_today(self, monkeypatch):
+        today = dt.date(2024, 6, 15)
+        monkeypatch.setattr(dt, "date", _make_frozen_date(today))
+        start, end = th.resolve_date_range(30)
+        assert start == dt.date(2024, 5, 16)
+        assert end == dt.date(2024, 6, 14)
+
+    def test_zero_days_returns_epoch_start(self, monkeypatch):
+        today = dt.date(2024, 6, 15)
+        monkeypatch.setattr(dt, "date", _make_frozen_date(today))
+        start, end = th.resolve_date_range(0)
+        assert start == dt.date(1900, 1, 1)
+        assert end == dt.date(2024, 6, 14)
+
+    def test_negative_days_returns_epoch_start(self, monkeypatch):
+        today = dt.date(2024, 6, 15)
+        monkeypatch.setattr(dt, "date", _make_frozen_date(today))
+        start, end = th.resolve_date_range(-1)
+        assert start == dt.date(1900, 1, 1)
+
+    def test_explicit_start_date_overrides_days(self, monkeypatch):
+        today = dt.date(2024, 6, 15)
+        monkeypatch.setattr(dt, "date", _make_frozen_date(today))
+        explicit_start = dt.date(2024, 1, 1)
+        start, end = th.resolve_date_range(365, start_date=explicit_start)
+        assert start == explicit_start
+        assert end == dt.date(2024, 6, 14)
+
+    def test_explicit_end_date_overrides_yesterday(self, monkeypatch):
+        today = dt.date(2024, 6, 15)
+        monkeypatch.setattr(dt, "date", _make_frozen_date(today))
+        explicit_end = dt.date(2024, 3, 31)
+        start, end = th.resolve_date_range(90, end_date=explicit_end)
+        assert end == explicit_end
+
+    def test_both_explicit_dates_ignore_days_entirely(self):
+        explicit_start = dt.date(2023, 1, 1)
+        explicit_end = dt.date(2023, 12, 31)
+        start, end = th.resolve_date_range(999, start_date=explicit_start, end_date=explicit_end)
+        assert start == explicit_start
+        assert end == explicit_end
+
+    def test_returns_tuple_of_date_objects(self):
+        start, end = th.resolve_date_range(10)
+        assert isinstance(start, dt.date)
+        assert isinstance(end, dt.date)
+
+
+def _make_frozen_date(frozen_today: dt.date):
+    """Return a drop-in replacement for ``datetime.date`` that freezes ``today()``."""
+
+    class _FrozenDate(dt.date):
+        @classmethod
+        def today(cls):  # type: ignore[override]
+            return frozen_today
+
+    return _FrozenDate

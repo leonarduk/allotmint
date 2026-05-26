@@ -1,10 +1,10 @@
 import logging
-from datetime import date, timedelta
+from datetime import date
 
 import pandas as pd
-from pandas.api import types as pd_types
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
+from pandas.api import types as pd_types
 
 from backend.common import instrument_api
 from backend.timeseries import fetch_timeseries
@@ -13,6 +13,7 @@ from backend.utils.html_render import render_timeseries_html
 from backend.utils.timeseries_helpers import (
     apply_scaling,
     get_scaling_override,
+    resolve_date_range,
 )
 
 router = APIRouter(prefix="/timeseries", tags=["timeseries"])
@@ -57,12 +58,7 @@ async def get_meta_timeseries(
     scaling: float = Query(1.0, ge=0.00001, le=1_000_000),
 ):
     ticker, exchange = _resolve_ticker_exchange(ticker, exchange)
-
-    if days <= 0:
-        start_date = date(1900, 1, 1)
-    else:
-        start_date = date.today() - timedelta(days=days)
-    end_date = date.today() - timedelta(days=1)
+    start_date, end_date = resolve_date_range(days)
 
     try:
         df = load_meta_timeseries_range(

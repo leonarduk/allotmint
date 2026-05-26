@@ -2,7 +2,7 @@ import datetime
 import json
 import re
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 
 import pandas as pd
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
@@ -144,3 +144,45 @@ def _nearest_weekday(d: datetime.date, forward: bool) -> datetime.date:
 def _is_isin(ticker: str) -> bool:
     base = re.split(r"[.:]", ticker)[0].upper()
     return len(base) == 12 and base.isalnum()
+
+
+def resolve_date_range(
+    days: int,
+    *,
+    start_date: Optional[datetime.date] = None,
+    end_date: Optional[datetime.date] = None,
+) -> Tuple[datetime.date, datetime.date]:
+    """Resolve a ``(start_date, end_date)`` window for timeseries queries.
+
+    If *start_date* and/or *end_date* are supplied explicitly they take
+    precedence over the computed value for that bound.  When only *days* is
+    given the defaults are:
+
+    - ``end_date``   → yesterday (``today - 1 day``)
+    - ``start_date`` → ``today - days``; ``date(1900, 1, 1)`` when
+      ``days <= 0`` (meaning "all available history").
+
+    Parameters
+    ----------
+    days:
+        Lookback window in calendar days.  Only used when the corresponding
+        explicit date is ``None``.
+    start_date:
+        Optional explicit start bound.  Overrides the ``days`` calculation.
+    end_date:
+        Optional explicit end bound.  Overrides the default yesterday anchor.
+
+    Returns
+    -------
+    tuple[date, date]
+        A ``(start_date, end_date)`` pair ready to pass to
+        ``load_meta_timeseries_range`` or any other range-aware loader.
+    """
+    if end_date is None:
+        end_date = datetime.date.today() - datetime.timedelta(days=1)
+    if start_date is None:
+        if days <= 0:
+            start_date = datetime.date(1900, 1, 1)
+        else:
+            start_date = datetime.date.today() - datetime.timedelta(days=days)
+    return start_date, end_date

@@ -22,7 +22,7 @@
   "dependencies": {
     "@radix-ui/react-collapsible": "^1.1.12",
     "@tanstack/react-virtual": "^3.13.24",
-    "i18next": "^25.6.3",
+    "i18next": "^26.2.0",
     "lucide-react": "^0.562.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",

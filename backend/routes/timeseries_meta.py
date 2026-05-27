@@ -114,18 +114,24 @@ async def get_meta_timeseries(
         return PlainTextResponse(content=csv_text, media_type="text/csv")
 
     # ── HTML output (default) ─────────────────────────────────
-    # ticker and exchange are user-supplied strings; escape them before
-    # embedding in the HTMLResponse to prevent reflected XSS.
-    # df.to_html(escape=True) is the pandas default and escapes cell values too.
+    # All user-supplied values are escaped before embedding in the HTML
+    # response to prevent reflected XSS.  resolved_start/resolved_end are
+    # datetime.date objects (always YYYY-MM-DD) and scaling is a
+    # FastAPI-validated float, but we escape them anyway so static analysis
+    # tools can trace the full sanitisation chain.
+    # df.to_html(escape=True) escapes all cell values (pandas default).
     safe_ticker = html.escape(ticker)
     safe_exchange = html.escape(exchange)
+    safe_start = html.escape(resolved_start.isoformat())
+    safe_end = html.escape(resolved_end.isoformat())
+    safe_scaling = html.escape(str(scaling))
     html_table = df.to_html(index=False, escape=True)
     html_doc = f"""
     <html>
         <head><title>{safe_ticker}.{safe_exchange} Price History</title></head>
         <body>
-            <h1>{safe_ticker}.{safe_exchange} - {resolved_start} to {resolved_end}</h1>
-            <p><strong>Scaling:</strong> {scaling}x</p>
+            <h1>{safe_ticker}.{safe_exchange} - {safe_start} to {safe_end}</h1>
+            <p><strong>Scaling:</strong> {safe_scaling}x</p>
             {html_table}
         </body>
     </html>

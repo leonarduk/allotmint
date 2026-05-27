@@ -568,10 +568,12 @@ def test_github_deploy_role_can_invoke_price_refresh_lambda_alias(monkeypatch) -
     )
     # The grant must target the alias ARN (containing 'live'), not a bare wildcard or
     # the unqualified function ARN — this prevents future refactors from accidentally
-    # broadening the scope. CDK emits the ARN as an Fn::Join intrinsic whose str()
-    # representation contains the alias name when targeting a Lambda Alias construct.
+    # broadening the scope.
+    # CDK represents the resource as a CloudFormation Ref whose logical ID is derived
+    # from the alias name (e.g. 'PriceRefreshLambdaLiveAliasXXXXXXXX'); compare
+    # case-insensitively so both Fn::Join and Ref forms are accepted.
     resources_str = str(resources)
-    assert "live" in resources_str, (
+    assert "live" in resources_str.lower(), (
         f"lambda:InvokeFunction grant must target the :live alias ARN, got: {resources_str}"
     )
 

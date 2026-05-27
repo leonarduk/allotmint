@@ -106,7 +106,8 @@ def test_timeseries_meta_formats_with_scaling(fmt, monkeypatch):
         assert "3.0" in resp.text
     else:  # html
         assert "<table" in resp.text
-        assert "Scaling:</strong> 2.0x" in resp.text
+        # Scaling is shown in the Bootstrap subtitle produced by render_timeseries_html
+        assert "scaling: 2.0x" in resp.text
         assert "3.0" in resp.text
 
 

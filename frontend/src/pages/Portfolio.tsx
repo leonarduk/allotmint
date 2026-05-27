@@ -23,7 +23,7 @@ export function Portfolio() {
   const { owner: ownerParam } = useParams<{ owner?: string }>();
   const ownerSlug = ownerParam?.trim() ?? "";
 
-  let routeContext: ReturnType<typeof useRoute> | null = null;
+  let routeContext: ReturnType<typeof useRoute> | null;
   try {
     // eslint-disable-next-line react-hooks/rules-of-hooks
     routeContext = useRoute();

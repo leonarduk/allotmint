@@ -122,7 +122,7 @@ jobs:
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GITHUB_DEPLOY_ROLE_ARN: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           CDK_OUTDIR: /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
-        run: npx cdk diff --all -c prod=true
+        run: npx cdk diff BackendLambdaStack StaticSiteStack -c prod=true
         working-directory: cdk
 
       - name: Deploy StaticSiteStack auth resources

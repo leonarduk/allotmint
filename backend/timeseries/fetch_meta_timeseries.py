@@ -93,10 +93,23 @@ def _instrument_dirs() -> list[Path]:
     return resolved
 
 
+_METADATA_SYMBOL_RE = re.compile(r"^[A-Z0-9._-]+$")
+
+
+def _sanitize_metadata_symbol(symbol: str) -> str:
+    """Return a safe symbol for metadata filename lookups, or empty when invalid."""
+    cleaned = (symbol or "").strip().upper()
+    if not cleaned or not _METADATA_SYMBOL_RE.fullmatch(cleaned):
+        return ""
+    return cleaned
+
+
 def _resolve_exchange_from_metadata(symbol: str) -> str:
     """Return exchange code for *symbol* using instrument metadata if possible."""
 
-    symbol = symbol.upper()
+    symbol = _sanitize_metadata_symbol(symbol)
+    if not symbol:
+        return ""
     dirs = tuple(str(path) for path in _instrument_dirs())
     exchange, source_dir = _resolve_exchange_from_metadata_cached(symbol, dirs)
 
@@ -122,6 +135,10 @@ def _resolve_exchange_from_metadata_cached(
 ) -> tuple[str, str]:
     """Cached helper that scopes lookups to the active instrument directories."""
 
+    symbol = _sanitize_metadata_symbol(symbol)
+    if not symbol:
+        return "", ""
+
     for root_str in directories:
         root = Path(root_str)
         try:
@@ -146,6 +163,10 @@ def _metadata_entry_exists_in_directory(symbol: str, directory: Path) -> bool:
     if not symbol:
         return False
 
+    symbol = _sanitize_metadata_symbol(symbol)
+    if not symbol:
+        return False
+
     try:
         if not directory.is_dir():
             return False
@@ -163,8 +184,8 @@ def _metadata_entry_exists(
 ) -> bool:
     """Return ``True`` when metadata for *symbol* exists under *exchange*."""
 
-    symbol = symbol.upper()
-    exchange = exchange.upper()
+    symbol = _sanitize_metadata_symbol(symbol)
+    exchange = _sanitize_metadata_symbol(exchange)
     if not symbol or not exchange:
         return False
 
@@ -535,4 +556,3 @@ if __name__ == "__main__":  # pragma: no cover
 
     df = fetch_meta_timeseries("1", "", start_date=cutoff, end_date=today)
     print("Returned: %s", df.head())
-

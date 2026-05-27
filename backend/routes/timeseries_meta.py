@@ -1,3 +1,4 @@
+import html
 import logging
 from datetime import date
 from typing import Annotated, Optional
@@ -10,7 +11,7 @@ from pandas.api import types as pd_types
 from backend.common import instrument_api
 from backend.timeseries import fetch_timeseries
 from backend.timeseries.cache import load_meta_timeseries_range
-from backend.utils.html_render import render_meta_timeseries_html, render_timeseries_html
+from backend.utils.html_render import render_timeseries_html
 from backend.utils.timeseries_helpers import (
     apply_scaling,
     get_scaling_override,
@@ -113,12 +114,23 @@ async def get_meta_timeseries(
         return PlainTextResponse(content=csv_text, media_type="text/csv")
 
     # ── HTML output (default) ─────────────────────────────────
-    # Delegate to the dedicated helper in html_render, which applies
-    # html.escape() to ticker/exchange and df.to_html(escape=True) for
-    # cell values — keeping all HTML-building out of the route function.
-    return render_meta_timeseries_html(
-        df, ticker, exchange, resolved_start, resolved_end, scaling
-    )
+    # ticker and exchange are user-supplied strings; escape them before
+    # embedding in the HTMLResponse to prevent reflected XSS.
+    # df.to_html(escape=True) is the pandas default and escapes cell values too.
+    safe_ticker = html.escape(ticker)
+    safe_exchange = html.escape(exchange)
+    html_table = df.to_html(index=False, escape=True)
+    html_doc = f"""
+    <html>
+        <head><title>{safe_ticker}.{safe_exchange} Price History</title></head>
+        <body>
+            <h1>{safe_ticker}.{safe_exchange} - {resolved_start} to {resolved_end}</h1>
+            <p><strong>Scaling:</strong> {scaling}x</p>
+            {html_table}
+        </body>
+    </html>
+    """
+    return HTMLResponse(content=html_doc)
 
 
 @router.get("/html", response_class=HTMLResponse)

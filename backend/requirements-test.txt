@@ -1,0 +1,11 @@
+# Test-only tooling for the lambda-compat CI job.
+# These packages mirror the test extras in pyproject.toml and are NOT part of
+# the Lambda runtime — they exist only to run pytest inside a venv that isolates
+# backend/requirements.txt from the root requirements.txt pins.
+pytest~=9.0.3
+pytest-cov~=7.1.0
+pytest-asyncio~=1.3.0
+# jsonschema is used by tests/contracts/test_api_response_contracts.py for API
+# contract validation; it is not a Lambda runtime dep but is needed to run the
+# full backend test suite in the lambda-compat job.
+jsonschema~=4.23.0

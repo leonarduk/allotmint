@@ -13,10 +13,12 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from datetime import date, datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
 from typing import Callable, Dict
+from urllib.parse import quote
 
 import boto3
 import pandas as pd
@@ -65,6 +67,11 @@ EXCHANGE_TO_CCY = {
 }
 
 
+def _sanitize_for_log(value: object) -> str:
+    """Return a single-line representation safe for plain-text logs."""
+    return str(value).replace("\r", "").replace("\n", "")
+
+
 def _empty_ts() -> pd.DataFrame:
     """Guaranteed-schema empty frame."""
     return pd.DataFrame(columns=EXPECTED_COLS)
@@ -73,7 +80,12 @@ def _empty_ts() -> pd.DataFrame:
 def _ensure_schema(df: pd.DataFrame) -> pd.DataFrame:
     """
     Make sure DF has the expected columns; if not, return an empty DF with schema.
-    Also normalizes 'Date' to datetime64[ns] (not date) here.
+    Normalises 'Date' to datetime64[ms] for consistent resolution across pandas
+    versions: pandas 3.x infers datetime64[s] when converting Python date objects
+    via pd.to_datetime, while pandas 2.x infers datetime64[ns]. Pinning to ms
+    matches the resolution pyarrow writes to parquet by default and keeps
+    assert_frame_equal comparisons stable regardless of the code path that
+    produced the Date values.
     """
     if df is None or df.empty:
         return _empty_ts()
@@ -85,7 +97,21 @@ def _ensure_schema(df: pd.DataFrame) -> pd.DataFrame:
     for col in EXPECTED_COLS:
         if col not in df.columns:
             df[col] = pd.NA
-    df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+    dates = pd.to_datetime(df["Date"], errors="coerce")
+    # Strip timezone info before casting: .astype("datetime64[ms]") raises
+    # TypeError on tz-aware Series. All callers in this module produce tz-naive
+    # timestamps, but this guard future-proofs against upstream tz-aware feeds.
+    # Use tz_convert(None) not tz_localize(None): since pandas 2.0 calling
+    # tz_localize(None) on tz-aware data raises TypeError; tz_convert(None)
+    # converts to UTC then removes the timezone label.
+    if dates.dt.tz is not None:
+        logger.warning(
+            "Timeseries 'Date' column is tz-aware (%s); converting to UTC and "
+            "stripping timezone before casting to datetime64[ms].",
+            dates.dt.tz,
+        )
+        dates = dates.dt.tz_convert(None)
+    df["Date"] = dates.astype("datetime64[ms]")
     df = df.dropna(subset=["Date"])
     # Return only expected columns in expected order (stable)
     return df[EXPECTED_COLS]
@@ -449,7 +475,11 @@ def _convert_to_base_currency(
         return df
 
     def _load_rates(curr: str) -> pd.DataFrame:
-        curr = curr.upper()
+        curr = (curr or "").strip().upper()
+        if not re.fullmatch(r"[A-Z]{3}", curr):
+            logger.warning("Invalid/unsupported FX currency code: %s", _sanitize_for_log(curr))
+            return pd.DataFrame(columns=["Date", "Rate"])
+
         if OFFLINE_MODE:
             path = _cache_path("fx", f"{curr}.parquet")
             try:
@@ -461,7 +491,8 @@ def _convert_to_base_currency(
 
             if fx.empty and getattr(config, "fx_proxy_url", None):
                 try:
-                    url = f"{config.fx_proxy_url.rstrip('/')}/{curr}"
+                    safe_curr = quote(curr, safe="")
+                    url = f"{config.fx_proxy_url.rstrip('/')}/{safe_curr}"
                     params = {"start": start.isoformat(), "end": end.isoformat()}
                     resp = requests.get(url, params=params, timeout=5)
                     if resp.ok:

@@ -131,6 +131,15 @@ async def get_meta_timeseries(
         <head><title>{safe_ticker}.{safe_exchange} Price History</title></head>
         <body>
             <h1>{safe_ticker}.{safe_exchange} - {safe_start} to {safe_end}</h1>
+    html_table = df.to_html(index=False)
+    safe_symbol = html.escape(f"{ticker}.{exchange}")
+    safe_date_range = html.escape(f"{start_date} to {end_date}")
+    safe_scaling = html.escape(str(scaling))
+    html_doc = f"""
+    <html>
+        <head><title>{safe_symbol} Price History</title></head>
+        <body>
+            <h1>{safe_symbol} - {safe_date_range}</h1>
             <p><strong>Scaling:</strong> {safe_scaling}x</p>
             {html_table}
         </body>

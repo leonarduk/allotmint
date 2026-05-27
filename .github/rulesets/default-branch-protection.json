@@ -49,6 +49,9 @@
           },
           {
             "context": "Dependency Review / dependency-review"
+          },
+          {
+            "context": "CI / Lambda-compat pytest (backend/requirements.txt)"
           }
         ]
       }

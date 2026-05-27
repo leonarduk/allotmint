@@ -514,6 +514,86 @@ def test_no_cfn_changeset_grant_when_github_deploy_role_arn_absent(monkeypatch) 
     )
 
 
+def _lambda_invoke_resources_for_role_name(raw_template: dict, role_name: str) -> list[str]:
+    """Return Resource ARNs from lambda:InvokeFunction statements for an imported role.
+
+    CDK's grant_invoke on a Lambda alias calls addToPrincipalPolicy on mutable imported
+    roles (created via iam.Role.from_role_arn(..., mutable=True)), which emits an
+    AWS::IAM::Policy resource with the role *name* as a plain string in the Roles list
+    (not a {"Ref": ...} token — that form is only used for in-stack roles).
+
+    This is the same mechanism used for logs:FilterLogEvents and CloudFormation changeset
+    grants on the same imported role, both of which are verified by existing tests.
+    The plain-string role name match is intentional and correct for imported roles.
+
+    Returns the Resource field values from lambda:InvokeFunction statements so callers
+    can assert both presence and ARN scoping.
+    """
+    found: list[str] = []
+    for res in raw_template["Resources"].values():
+        if res.get("Type") != "AWS::IAM::Policy":
+            continue
+        if role_name not in res.get("Properties", {}).get("Roles", []):
+            continue
+        for stmt in res["Properties"]["PolicyDocument"].get("Statement", []):
+            actions = stmt.get("Action", [])
+            if isinstance(actions, str):
+                actions = [actions]
+            if "lambda:InvokeFunction" not in actions:
+                continue
+            resources = stmt.get("Resource", [])
+            if isinstance(resources, (str, dict)):
+                resources = [resources]
+            for r in resources:
+                found.append(r if isinstance(r, str) else str(r))
+    return found
+
+
+def test_github_deploy_role_can_invoke_price_refresh_lambda_alias(monkeypatch) -> None:
+    """When GITHUB_DEPLOY_ROLE_ARN is set, CDK must grant lambda:InvokeFunction on the
+    PriceRefreshLambda:live alias so the 'Warm price snapshot' CI step can run.
+    See issue #3137."""
+    role_arn = "arn:aws:iam::123456789012:role/allotmint-github-deploy"
+    monkeypatch.setenv("GITHUB_DEPLOY_ROLE_ARN", role_arn)
+    monkeypatch.setenv("JWT_SECRET", "test-secret")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-client-id")
+    app = App()
+    stack = BackendLambdaStack(app, "BackendLambdaStackLambdaInvokeTest")
+    raw = Template.from_stack(stack).to_json()
+
+    resources = _lambda_invoke_resources_for_role_name(raw, "allotmint-github-deploy")
+    assert resources, (
+        "Deploy role has no lambda:InvokeFunction policy statement; "
+        "grant_invoke(github_role) must not have been called"
+    )
+    # The grant must target the alias ARN (containing 'live'), not a bare wildcard or
+    # the unqualified function ARN — this prevents future refactors from accidentally
+    # broadening the scope.
+    # CDK represents the resource as a CloudFormation Ref whose logical ID is derived
+    # from the alias name (e.g. 'PriceRefreshLambdaLiveAliasXXXXXXXX'); compare
+    # case-insensitively so both Fn::Join and Ref forms are accepted.
+    resources_str = str(resources)
+    assert "live" in resources_str.lower(), (
+        f"lambda:InvokeFunction grant must target the :live alias ARN, got: {resources_str}"
+    )
+
+
+def test_no_lambda_invoke_grant_when_github_deploy_role_arn_absent(monkeypatch) -> None:
+    """When GITHUB_DEPLOY_ROLE_ARN is unset, no lambda:InvokeFunction policy is synthesised."""
+    monkeypatch.delenv("GITHUB_DEPLOY_ROLE_ARN", raising=False)
+    monkeypatch.setenv("JWT_SECRET", "test-secret")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-client-id")
+    app = App()
+    stack = BackendLambdaStack(app, "BackendLambdaStackNoLambdaInvokeTest")
+    resources = _lambda_invoke_resources_for_role_name(
+        Template.from_stack(stack).to_json(), "allotmint-github-deploy"
+    )
+    assert not resources, (
+        f"Expected no lambda:InvokeFunction when GITHUB_DEPLOY_ROLE_ARN is unset; "
+        f"found: {resources}"
+    )
+
+
 def test_grant_bucket_access_raises_on_no_permissions() -> None:
     class _MockFn:
         def add_to_role_policy(self, policy_statement: object) -> None:

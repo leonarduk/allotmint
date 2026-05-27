@@ -1,9 +1,10 @@
 import importlib
 import sys
 import warnings
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 import pandas as pd
+import pytest
 from pandas.api.types import is_integer_dtype
 from pandas.testing import assert_frame_equal
 
@@ -97,6 +98,45 @@ def test_ensure_schema_missing_date(caplog):
     assert result.empty
     assert list(result.columns) == cache.EXPECTED_COLS
     assert "Timeseries missing 'Date' column" in caplog.text
+
+@pytest.mark.parametrize(
+    "date_input,input_id",
+    [
+        (pd.to_datetime(["2024-01-01", "2024-01-02"]).astype("datetime64[ns]"), "ns"),
+        (pd.to_datetime(["2024-01-01", "2024-01-02"]).astype("datetime64[ms]"), "ms"),
+        (pd.to_datetime(["2024-01-01", "2024-01-02"]).astype("datetime64[s]"), "s"),
+        ([date(2024, 1, 1), date(2024, 1, 2)], "date_objects"),
+    ],
+    ids=["ns", "ms", "s", "date_objects"],
+)
+def test_ensure_schema_normalises_date_to_ms(date_input, input_id):
+    """_ensure_schema must always return datetime64[ms] for the Date column.
+
+    Regression test for the pandas 2→3 datetime resolution change: pandas 3.x
+    infers datetime64[s] from Python date objects while 2.x infers datetime64[ns].
+    Regardless of the input resolution, _ensure_schema must pin Date to
+    datetime64[ms] so that code paths involving .dt.date round-trips compare
+    equal to paths reading directly from pyarrow parquet files (which default
+    to ms precision).
+    """
+    cache = import_cache()
+    df = pd.DataFrame(
+        {
+            "Date": date_input,
+            "Open": [1.0, 2.0],
+            "High": [1.5, 2.5],
+            "Low": [0.5, 1.5],
+            "Close": [1.2, 2.2],
+            "Volume": [100, 200],
+            "Ticker": ["ABC", "ABC"],
+            "Source": ["SRC", "SRC"],
+        }
+    )
+    result = cache._ensure_schema(df)
+    assert result["Date"].dtype == "datetime64[ms]", (
+        f"input_id={input_id}: expected datetime64[ms], got {result['Date'].dtype}"
+    )
+
 
 def test_rolling_cache_serves_cached_slice_on_fetch_failure(monkeypatch, tmp_path):
     monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))

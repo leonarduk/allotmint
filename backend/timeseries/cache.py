@@ -90,7 +90,13 @@ def _ensure_schema(df: pd.DataFrame) -> pd.DataFrame:
     for col in EXPECTED_COLS:
         if col not in df.columns:
             df[col] = pd.NA
-    df["Date"] = pd.to_datetime(df["Date"], errors="coerce").astype("datetime64[ms]")
+    dates = pd.to_datetime(df["Date"], errors="coerce")
+    # Strip timezone info before casting: .astype("datetime64[ms]") raises
+    # TypeError on tz-aware Series. All callers in this module produce tz-naive
+    # timestamps, but this guard future-proofs against upstream tz-aware feeds.
+    if dates.dt.tz is not None:
+        dates = dates.dt.tz_localize(None)
+    df["Date"] = dates.astype("datetime64[ms]")
     df = df.dropna(subset=["Date"])
     # Return only expected columns in expected order (stable)
     return df[EXPECTED_COLS]

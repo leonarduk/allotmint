@@ -73,7 +73,12 @@ def _empty_ts() -> pd.DataFrame:
 def _ensure_schema(df: pd.DataFrame) -> pd.DataFrame:
     """
     Make sure DF has the expected columns; if not, return an empty DF with schema.
-    Also normalizes 'Date' to datetime64[ns] (not date) here.
+    Normalises 'Date' to datetime64[ms] for consistent resolution across pandas
+    versions: pandas 3.x infers datetime64[s] when converting Python date objects
+    via pd.to_datetime, while pandas 2.x infers datetime64[ns]. Pinning to ms
+    matches the resolution pyarrow writes to parquet by default and keeps
+    assert_frame_equal comparisons stable regardless of the code path that
+    produced the Date values.
     """
     if df is None or df.empty:
         return _empty_ts()
@@ -85,7 +90,7 @@ def _ensure_schema(df: pd.DataFrame) -> pd.DataFrame:
     for col in EXPECTED_COLS:
         if col not in df.columns:
             df[col] = pd.NA
-    df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+    df["Date"] = pd.to_datetime(df["Date"], errors="coerce").astype("datetime64[ms]")
     df = df.dropna(subset=["Date"])
     # Return only expected columns in expected order (stable)
     return df[EXPECTED_COLS]

@@ -67,6 +67,11 @@ EXCHANGE_TO_CCY = {
 }
 
 
+def _sanitize_for_log(value: object) -> str:
+    """Return a single-line representation safe for plain-text logs."""
+    return str(value).replace("\r", "").replace("\n", "")
+
+
 def _empty_ts() -> pd.DataFrame:
     """Guaranteed-schema empty frame."""
     return pd.DataFrame(columns=EXPECTED_COLS)
@@ -471,10 +476,8 @@ def _convert_to_base_currency(
 
     def _load_rates(curr: str) -> pd.DataFrame:
         curr = (curr or "").strip().upper()
-        allowed_currencies = {ccy.upper() for ccy in EXCHANGE_TO_CCY.values()}
-        allowed_currencies.add("GBP")
-        if not re.fullmatch(r"[A-Z]{3}", curr) or curr not in allowed_currencies:
-            logger.warning("Invalid/unsupported FX currency code: %r", curr)
+        if not re.fullmatch(r"[A-Z]{3}", curr):
+            logger.warning("Invalid/unsupported FX currency code: %s", _sanitize_for_log(curr))
             return pd.DataFrame(columns=["Date", "Rate"])
 
         if OFFLINE_MODE:

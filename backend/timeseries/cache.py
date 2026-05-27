@@ -18,6 +18,7 @@ from datetime import date, datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
 from typing import Callable, Dict
+from urllib.parse import quote
 
 import boto3
 import pandas as pd
@@ -40,11 +41,6 @@ from backend.utils.timeseries_helpers import _nearest_weekday, apply_scaling, ge
 OFFLINE_MODE = config.offline_mode
 
 logger = logging.getLogger("timeseries_cache")
-
-# ISO 4217 currency codes are 3 uppercase letters; a small number of
-# pseudo-codes (e.g. "GBX" for pence) have 3 letters too.  Reject
-# anything that doesn't match before constructing URLs or file paths.
-_CURRENCY_CODE_RE = re.compile(r"^[A-Z]{3,4}$")
 
 # Simple counter for fetch failures – useful for lightweight monitoring.
 _FAILED_FETCH_COUNT = 0
@@ -69,6 +65,11 @@ EXCHANGE_TO_CCY = {
     "CA": "CAD",
     "TO": "CAD",
 }
+
+
+def _sanitize_for_log(value: object) -> str:
+    """Return a single-line representation safe for plain-text logs."""
+    return str(value).replace("\r", "").replace("\n", "")
 
 
 def _empty_ts() -> pd.DataFrame:
@@ -474,12 +475,11 @@ def _convert_to_base_currency(
         return df
 
     def _load_rates(curr: str) -> pd.DataFrame:
-        curr = curr.upper()
-        # Reject non-currency values (e.g. path-traversal payloads) before
-        # they reach the fx_proxy_url construction or cache file path.
-        if not _CURRENCY_CODE_RE.match(curr):
-            logger.warning("Skipping FX lookup for invalid currency code: %r", curr)
+        curr = (curr or "").strip().upper()
+        if not re.fullmatch(r"[A-Z]{3}", curr):
+            logger.warning("Invalid/unsupported FX currency code: %s", _sanitize_for_log(curr))
             return pd.DataFrame(columns=["Date", "Rate"])
+
         if OFFLINE_MODE:
             path = _cache_path("fx", f"{curr}.parquet")
             try:
@@ -491,7 +491,8 @@ def _convert_to_base_currency(
 
             if fx.empty and getattr(config, "fx_proxy_url", None):
                 try:
-                    url = f"{config.fx_proxy_url.rstrip('/')}/{curr}"
+                    safe_curr = quote(curr, safe="")
+                    url = f"{config.fx_proxy_url.rstrip('/')}/{safe_curr}"
                     params = {"start": start.isoformat(), "end": end.isoformat()}
                     resp = requests.get(url, params=params, timeout=5)
                     if resp.ok:

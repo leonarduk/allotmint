@@ -1,3 +1,4 @@
+
 # backend/common/instrument_api.py
 """
 Instrument-level helpers for AllotMint
@@ -274,11 +275,18 @@ def timeseries_for_ticker(
     if {"date", "close"} - set(df.columns):
         return empty_payload
 
+    ts_start_iso = ts_start.isoformat()
+    ts_end_iso = ts_end.isoformat()
     out: List[Dict[str, Any]] = []
     for _, r in df.iterrows():
         rd = r["date"]
         if isinstance(rd, (dt.datetime, dt.date)):
             rd = rd.date().isoformat() if isinstance(rd, dt.datetime) else rd.isoformat()
+        # Enforce the explicit date contract: load_meta_timeseries_range may
+        # shift the window backward by up to 4 days to find data across
+        # weekends/holidays, so we re-apply the originally-requested bounds here.
+        if rd < ts_start_iso or rd > ts_end_iso:
+            continue
         close_val = float(r["close"])
         close_gbp_val = float(r.get("close_gbp", close_val))
         out.append({"date": rd, "close": close_val, "close_gbp": close_gbp_val})

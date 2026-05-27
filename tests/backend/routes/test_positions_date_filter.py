@@ -311,16 +311,26 @@ def test_portfolio_instrument_start_date_only(monkeypatch):
 
 
 def test_portfolio_instrument_end_date_only(monkeypatch):
-    """Category 3: end_date passed through to timeseries_for_ticker."""
+    """Category 3: end_date passed through to timeseries_for_ticker.
+
+    We pick an end_date within the last 365 days so the computed start
+    (today - 365) remains before end — matching the pattern used in
+    test_meta_end_date_only and test_instrument_end_date_only.
+    A date more than 365 days in the past would cause resolve_date_range
+    to compute start > end and return HTTP 400, which is correct behaviour
+    but not what Category 3 is testing.
+    """
     cap: dict = {}
     client = _portfolio_instrument_client(monkeypatch, _PRICES, cap)
+    # Use a date well within the last 365 days so start (today-365) stays before end.
+    end = dt.date.today() - dt.timedelta(days=30)
 
     resp = client.get(
-        "/portfolio-group/demo/instrument/VWRL.L?end_date=2024-01-02"
+        f"/portfolio-group/demo/instrument/VWRL.L?end_date={end}"
     )
 
     assert resp.status_code == 200
-    assert cap["end_date"] == dt.date(2024, 1, 2)
+    assert cap["end_date"] == end
 
 
 def test_portfolio_instrument_both_dates(monkeypatch):

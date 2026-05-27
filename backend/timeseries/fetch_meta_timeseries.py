@@ -136,6 +136,10 @@ def _resolve_exchange_from_metadata_cached(
     """Cached helper that scopes lookups to the active instrument directories."""
 
     symbol = _sanitize_metadata_symbol(symbol)
+    # os.path.basename is a CodeQL-recognised path-traversal sanitizer; apply it
+    # after the regex check so the taint chain is provably broken before any
+    # Path / f-string construction below.
+    symbol = os.path.basename(symbol)
     if not symbol:
         return "", ""
 

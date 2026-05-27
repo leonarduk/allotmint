@@ -170,6 +170,11 @@ def resolve_date_range(
     ``days <= 0`` always maps to the "all history" sentinel
     ``date(1900, 1, 1)`` regardless of whether *end_date* is supplied.
 
+    **Window-size semantics**: ``days`` means "calendar days back", so
+    the resulting window spans ``days + 1`` inclusive days
+    (e.g. ``days=2, end_date=2024-01-03`` → ``[2024-01-01, 2024-01-03]``).
+    This is consistent with the original today-anchored path.
+
     Parameters
     ----------
     days:
@@ -194,7 +199,9 @@ def resolve_date_range(
             # days=0/negative means "all available history" regardless of end_date
             start_date = datetime.date(1900, 1, 1)
         elif explicit_end:
-            # end_date was explicitly supplied: anchor start relative to it
+            # end_date was explicitly supplied: anchor start relative to it.
+            # Semantics: days=N means "N calendar days back", giving an inclusive
+            # window of N+1 days — the same as the today-anchored path below.
             start_date = end_date - datetime.timedelta(days=days)
         else:
             # Neither date supplied: anchor to today to preserve original window

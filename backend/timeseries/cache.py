@@ -13,10 +13,12 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from datetime import date, datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
 from typing import Callable, Dict
+from urllib.parse import quote
 
 import boto3
 import pandas as pd
@@ -468,7 +470,13 @@ def _convert_to_base_currency(
         return df
 
     def _load_rates(curr: str) -> pd.DataFrame:
-        curr = curr.upper()
+        curr = (curr or "").strip().upper()
+        allowed_currencies = {ccy.upper() for ccy in EXCHANGE_TO_CCY.values()}
+        allowed_currencies.add("GBP")
+        if not re.fullmatch(r"[A-Z]{3}", curr) or curr not in allowed_currencies:
+            logger.warning("Invalid/unsupported FX currency code: %r", curr)
+            return pd.DataFrame(columns=["Date", "Rate"])
+
         if OFFLINE_MODE:
             path = _cache_path("fx", f"{curr}.parquet")
             try:
@@ -480,7 +488,8 @@ def _convert_to_base_currency(
 
             if fx.empty and getattr(config, "fx_proxy_url", None):
                 try:
-                    url = f"{config.fx_proxy_url.rstrip('/')}/{curr}"
+                    safe_curr = quote(curr, safe="")
+                    url = f"{config.fx_proxy_url.rstrip('/')}/{safe_curr}"
                     params = {"start": start.isoformat(), "end": end.isoformat()}
                     resp = requests.get(url, params=params, timeout=5)
                     if resp.ok:

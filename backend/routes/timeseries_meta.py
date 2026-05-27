@@ -1,3 +1,4 @@
+import html as html_lib
 import logging
 from datetime import date
 from typing import Annotated, Optional
@@ -113,12 +114,16 @@ async def get_meta_timeseries(
         return PlainTextResponse(content=csv_text, media_type="text/csv")
 
     # ── HTML output (default) ─────────────────────────────────
+    # ticker and exchange come from user-supplied query params; escape them to
+    # prevent reflected XSS before embedding in the HTMLResponse template.
+    safe_ticker = html_lib.escape(ticker)
+    safe_exchange = html_lib.escape(exchange)
     html_table = df.to_html(index=False)
     html_doc = f"""
     <html>
-        <head><title>{ticker}.{exchange} Price History</title></head>
+        <head><title>{safe_ticker}.{safe_exchange} Price History</title></head>
         <body>
-            <h1>{ticker}.{exchange} - {resolved_start} to {resolved_end}</h1>
+            <h1>{safe_ticker}.{safe_exchange} - {resolved_start} to {resolved_end}</h1>
             <p><strong>Scaling:</strong> {scaling}x</p>
             {html_table}
         </body>

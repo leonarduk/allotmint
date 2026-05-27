@@ -69,9 +69,10 @@ async def get_meta_timeseries(
         days, start_date=start_date, end_date=end_date
     )
 
+    # 422 matches FastAPI's convention for parameter validation errors (issue #2747 AC).
     if start_date > end_date:
         raise HTTPException(
-            status_code=400,
+            status_code=422,
             detail=f"start_date ({start_date}) must not be after end_date ({end_date})",
         )
 
@@ -94,11 +95,13 @@ async def get_meta_timeseries(
     df["Date"] = pd.to_datetime(df["Date"])
     df = df.sort_values("Date")
 
+    # ── Apply scaling if requested ─────────────────────────────
     if scaling != 1.0:
         for col in ("Open", "High", "Low", "Close"):
             if col in df.columns:
                 df[col] = df[col] * scaling
 
+    # ── JSON output ───────────────────────────────────────────
     if format == "json":
         datetime_columns = [
             col for col in df.columns if pd_types.is_datetime64_any_dtype(df[col])
@@ -115,9 +118,11 @@ async def get_meta_timeseries(
             }
         )
 
+    # ── CSV output (plain `if`, not `elif` — JSON path returns above) ─────
     if format == "csv":
         return PlainTextResponse(content=df.to_csv(index=False), media_type="text/csv")
 
+    # ── HTML output (default) ─────────────────────────────────
     return _render_meta_html(df, ticker, exchange, start_date, end_date, scaling)
 
 

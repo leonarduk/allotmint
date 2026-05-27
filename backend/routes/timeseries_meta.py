@@ -1,6 +1,6 @@
+import html
 import logging
 from datetime import date
-from html import escape as html_escape
 from typing import Annotated, Optional
 
 import pandas as pd
@@ -117,8 +117,8 @@ async def get_meta_timeseries(
     # ticker and exchange are user-supplied strings; escape them before
     # embedding in the HTMLResponse to prevent reflected XSS.
     # df.to_html(escape=True) is the pandas default and escapes cell values too.
-    safe_ticker = html_escape(ticker)
-    safe_exchange = html_escape(exchange)
+    safe_ticker = html.escape(ticker)
+    safe_exchange = html.escape(exchange)
     html_table = df.to_html(index=False, escape=True)
     html_doc = f"""
     <html>

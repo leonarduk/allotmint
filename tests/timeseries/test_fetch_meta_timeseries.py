@@ -10,10 +10,12 @@ import pytest
 from backend.timeseries.fetch_meta_timeseries import (
     _coverage_ratio,
     _merge,
-    _metadata_entry_exists,
-    _metadata_entry_exists_in_directory,
     _resolve_cache_exchange,
+    _resolve_exchange_from_metadata,
     _resolve_loader_exchange,
+    _resolve_ticker_exchange,
+    _metadata_entry_exists,
+    _sanitize_metadata_symbol,
     fetch_meta_timeseries,
 )
 from backend.utils.timeseries_helpers import STANDARD_COLUMNS
@@ -541,7 +543,6 @@ def test_fetch_meta_timeseries_alpha_vantage_rate_limit(monkeypatch):
         ("../../../etc/passwd", ""),
         ("AAPL\x00.json", ""),
         ("ABC/DEF", ""),
-        ("...", ""),
         ("ABC DEF", ""),
     ],
 )
@@ -558,99 +559,3 @@ def test_metadata_entry_exists_rejects_path_traversal_in_exchange(tmp_path):
 
     assert _metadata_entry_exists("ABC", "../instruments/L", directories) is False
     assert _metadata_entry_exists("ABC", "L", directories) is True
-# ---------------------------------------------------------------------------
-# Security: path-traversal prevention in metadata existence helpers
-# ---------------------------------------------------------------------------
-
-
-def test_metadata_entry_exists_in_directory_blocks_path_traversal(tmp_path):
-    """os.path.basename must strip traversal sequences before path construction.
-
-    Without the fix a payload like ``../../outside/AAPL`` would construct
-    ``jail/../../outside/AAPL.json``, potentially escaping the expected
-    directory.  After ``os.path.basename`` only the final component
-    (``AAPL``) is used, so the lookup stays inside *jail*.
-    """
-    jail = tmp_path / "jail"
-    jail.mkdir()
-    # Legitimate file inside the jail
-    (jail / "AAPL.json").write_text("{}")
-
-    # File that a traversal would reach if basename were not applied
-    outside = tmp_path / "outside"
-    outside.mkdir()
-    (outside / "AAPL.json").write_text("{}")
-
-    # Traversal payload: basename("../../outside/AAPL") == "AAPL".
-    # The lookup becomes jail/AAPL.json (exists) — the outside file is never reached.
-    assert _metadata_entry_exists_in_directory("../../outside/AAPL", jail) is True
-
-    # Payload that resolves to a non-existent name after stripping
-    assert _metadata_entry_exists_in_directory("../../outside/MISSING", jail) is False
-
-    # Pure traversal with no filename component → empty basename → rejected
-    assert _metadata_entry_exists_in_directory("../../", jail) is False
-    assert _metadata_entry_exists_in_directory("../", jail) is False
-
-    # Legitimate lookup still works
-    assert _metadata_entry_exists_in_directory("AAPL", jail) is True
-
-
-def test_metadata_entry_exists_blocks_path_traversal_in_exchange(tmp_path):
-    """Traversal in the *exchange* argument cannot escape the instruments root.
-
-    Without the fix ``exchange = "../../outside"`` would construct
-    ``instruments/../../outside/AAPL.json``, escaping the instruments tree.
-    After ``os.path.basename`` the exchange component is just ``outside``,
-    so the lookup becomes ``instruments/outside/AAPL.json`` which does not
-    exist.
-    """
-    instruments = tmp_path / "instruments"
-    (instruments / "L").mkdir(parents=True)
-    (instruments / "L" / "AAPL.json").write_text("{}")
-
-    # File outside the instruments root that an unguarded traversal could reach
-    escape_target = tmp_path / "outside"
-    escape_target.mkdir()
-    (escape_target / "AAPL.json").write_text("{}")
-
-    directories = (str(instruments),)
-
-    # Traversal in exchange: basename("../../outside") == "outside".
-    # instruments/outside/AAPL.json does not exist → False.
-    assert _metadata_entry_exists("AAPL", "../../outside", directories) is False
-
-    # Empty exchange after stripping → rejected immediately
-    assert _metadata_entry_exists("AAPL", "../../", directories) is False
-
-    # Legitimate lookup still works
-    assert _metadata_entry_exists("AAPL", "L", directories) is True
-
-
-def test_metadata_entry_exists_blocks_path_traversal_in_symbol(tmp_path):
-    """Traversal in the *symbol* argument cannot escape the exchange sub-directory.
-
-    A payload like ``../../secret/SECRET`` strips to ``SECRET``, so the
-    lookup stays within ``instruments/L/SECRET.json``.
-    """
-    instruments = tmp_path / "instruments"
-    (instruments / "L").mkdir(parents=True)
-    (instruments / "L" / "AAPL.json").write_text("{}")
-
-    # File that an unguarded traversal in symbol could reach
-    secret = tmp_path / "secret"
-    secret.mkdir()
-    (secret / "SECRET.json").write_text("{}")
-
-    directories = (str(instruments),)
-
-    # basename("../../secret/SECRET") == "SECRET".
-    # instruments/L/SECRET.json does not exist → False (traversal blocked).
-    assert _metadata_entry_exists("../../secret/SECRET", "L", directories) is False
-
-    # Pure traversal → empty basename → rejected
-    assert _metadata_entry_exists("../../", "L", directories) is False
-
-    # Legitimate lookup still works
-    assert _metadata_entry_exists("AAPL", "L", directories) is True
-

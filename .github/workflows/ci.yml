@@ -84,6 +84,30 @@ jobs:
             exit 1
           fi
 
+  lambda-compat:
+    name: Lambda-compat pytest (backend/requirements.txt)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Create isolated venv for Lambda-compat test
+        # Use an explicit venv so that runner pre-installs cannot mask missing
+        # pins, matching the isolation pattern used by validate-backend-deps.
+        run: python -m venv .venv-lambda
+      - name: Install Lambda-compatible deps + test tooling
+        run: |
+          .venv-lambda/bin/pip install --upgrade pip
+          .venv-lambda/bin/pip install -r backend/requirements.txt -r backend/requirements-test.txt
+      - name: Run backend pytest suite against Lambda deps
+        env:
+          ALLOTMINT_SKIP_SNAPSHOT_WARM: 'true'
+        # Pass tests/ explicitly so pytest ignores the testpaths = tests cdk/tests
+        # entry in pytest.ini. cdk/tests/ requires aws_cdk which is an
+        # infrastructure dep, not a Lambda runtime dep.
+        run: .venv-lambda/bin/pytest tests/
+
   lint-workflows:
     name: Lint GitHub Actions workflows
     runs-on: ubuntu-latest

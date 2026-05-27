@@ -6,6 +6,7 @@ from backend.config import config
 
 # ---- Helper utilities -----------------------------------------------------
 
+
 def _client_with_df(monkeypatch, df):
     """Return TestClient with ``load_meta_timeseries_range`` patched."""
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
@@ -218,24 +219,49 @@ def test_neither_date_param_uses_days(monkeypatch):
     assert "from" in data and "to" in data
 
 
-def test_invalid_range_returns_400(monkeypatch):
-    """start_date after end_date must return HTTP 400."""
+def test_invalid_range_returns_422(monkeypatch):
+    """start_date after end_date must return HTTP 422 (FastAPI validation convention)."""
     client = _client_with_df(monkeypatch, _multi_day_df())
     resp = client.get(
         "/timeseries/meta?ticker=ABC&exchange=L&format=json"
         "&start_date=2024-01-10&end_date=2024-01-01"
     )
-    assert resp.status_code == 400
+    assert resp.status_code == 422
 
 
-def test_malformed_date_returns_4xx(monkeypatch):
-    """A non-ISO date string must be rejected (400 or 422)."""
+def test_single_day_range(monkeypatch):
+    """start_date == end_date is a valid single-day window; must not raise."""
+    client = _client_with_df(monkeypatch, _multi_day_df())
+    resp = client.get(
+        "/timeseries/meta?ticker=ABC&exchange=L&format=json"
+        "&start_date=2024-01-02&end_date=2024-01-02"
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["from"] == "2024-01-02"
+    assert data["to"] == "2024-01-02"
+
+
+def test_malformed_date_returns_422(monkeypatch):
+    """A non-ISO date string must be rejected with 422 (FastAPI's parse error)."""
     client = _client_with_df(monkeypatch, _multi_day_df())
     resp = client.get(
         "/timeseries/meta?ticker=ABC&exchange=L&format=json&start_date=not-a-date"
     )
-    assert resp.status_code in (400, 422)
+    assert resp.status_code == 422
 
+
+def test_html_shows_date_range(monkeypatch):
+    """HTML output subtitle must contain the resolved date range."""
+    client = _client_with_df(monkeypatch, _multi_day_df())
+    resp = client.get(
+        "/timeseries/meta?ticker=ABC&exchange=L&format=html"
+        "&start_date=2024-01-01&end_date=2024-01-03"
+    )
+    assert resp.status_code == 200
+    assert "2024-01-01" in resp.text
+    assert "2024-01-03" in resp.text
+    assert "<table" in resp.text
 
 
 # ---- /timeseries/meta call-argument and branch-coverage tests -------------

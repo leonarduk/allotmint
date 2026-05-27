@@ -179,7 +179,7 @@ def _metadata_entry_exists(
     """Return ``True`` when metadata for *symbol* exists under *exchange*."""
 
     symbol = _sanitize_metadata_symbol(symbol)
-    exchange = exchange.upper()
+    exchange = _sanitize_metadata_symbol(exchange)
     if not symbol or not exchange:
         return False
 
@@ -543,4 +543,3 @@ if __name__ == "__main__":  # pragma: no cover
 
     df = fetch_meta_timeseries("1", "", start_date=cutoff, end_date=today)
     print("Returned: %s", df.head())
-

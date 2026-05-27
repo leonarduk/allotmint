@@ -1,4 +1,3 @@
-import html
 import logging
 from datetime import date
 
@@ -95,13 +94,11 @@ async def get_meta_timeseries(
     df["Date"] = pd.to_datetime(df["Date"])
     df = df.sort_values("Date")
 
-    # ── Apply scaling if requested ─────────────────────────────
     if scaling != 1.0:
         for col in ("Open", "High", "Low", "Close"):
             if col in df.columns:
                 df[col] = df[col] * scaling
 
-    # ── JSON output ───────────────────────────────────────────
     if format == "json":
         datetime_columns = [
             col for col in df.columns if pd_types.is_datetime64_any_dtype(df[col])
@@ -118,25 +115,45 @@ async def get_meta_timeseries(
             }
         )
 
-    # ── CSV output ────────────────────────────────────────────
-    elif format == "csv":
-        csv_text = df.to_csv(index=False)
-        return PlainTextResponse(content=csv_text, media_type="text/csv")
+    if format == "csv":
+        return PlainTextResponse(content=df.to_csv(index=False), media_type="text/csv")
 
-    # ── HTML output (default) ─────────────────────────────────
-    html_table = df.to_html(index=False)
-    ticker_label = html.escape(f"{ticker}.{exchange}")
-    html_doc = f"""
-    <html>
-        <head><title>{ticker_label} Price History</title></head>
-        <body>
-            <h1>{ticker_label} - {start_date} to {end_date}</h1>
-            <p><strong>Scaling:</strong> {scaling}x</p>
-            {html_table}
-        </body>
-    </html>
+    return _render_meta_html(df, ticker, exchange, start_date, end_date, scaling)
+
+
+def _render_meta_html(
+    df: pd.DataFrame,
+    ticker: str,
+    exchange: str,
+    start_date: date,
+    end_date: date,
+    scaling: float,
+) -> HTMLResponse:
+    """Render the meta timeseries as HTML using the shared render helper.
+
+    Pads any missing standard columns with safe defaults so
+    render_timeseries_html never raises KeyError on this DataFrame.
     """
-    return HTMLResponse(content=html_doc)
+    render_df = df.copy()
+    for col in ("Open", "High", "Low", "Close"):
+        if col not in render_df.columns:
+            render_df[col] = float("nan")
+    if "Volume" not in render_df.columns:
+        render_df["Volume"] = 0
+    if "Ticker" not in render_df.columns:
+        render_df["Ticker"] = f"{ticker}.{exchange}"
+    if "Source" not in render_df.columns:
+        render_df["Source"] = "meta"
+
+    subtitle = f"{start_date} to {end_date}"
+    if scaling != 1.0:
+        subtitle = f"{subtitle} (scaling: {scaling}x)"
+
+    return render_timeseries_html(
+        render_df,
+        f"{ticker}.{exchange} Price History",
+        subtitle,
+    )
 
 
 @router.get("/html", response_class=HTMLResponse)

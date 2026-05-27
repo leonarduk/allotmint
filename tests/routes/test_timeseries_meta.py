@@ -264,6 +264,60 @@ def test_html_shows_date_range(monkeypatch):
     assert "<table" in resp.text
 
 
+def test_csv_with_date_range(monkeypatch):
+    """CSV output must work correctly when explicit date params are supplied.
+
+    Regression guard for the elif→if refactor on the CSV branch: the JSON
+    path returns early, so the CSV `if` must still be reached independently.
+    """
+    client = _client_with_df(monkeypatch, _multi_day_df())
+    resp = client.get(
+        "/timeseries/meta?ticker=ABC&exchange=L&format=csv"
+        "&start_date=2024-01-01&end_date=2024-01-03"
+    )
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/csv")
+    assert "Date,Open,High,Low,Close,Volume" in resp.text
+    assert "2024-01-01" in resp.text
+
+
+def test_explicit_start_date_ignores_days(monkeypatch):
+    """When start_date is explicit, the days param is bypassed entirely.
+
+    Verifies that resolve_date_range skips the days-sentinel path when
+    start_date is not None — including when days=0, which would otherwise
+    set start_date to date(1900, 1, 1).
+    """
+    from datetime import date
+
+    captured: dict = {}
+
+    def _spy(ticker, exchange, start_date, end_date, **_):
+        captured["start_date"] = start_date
+        captured["end_date"] = end_date
+        return _multi_day_df().copy()
+
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    monkeypatch.setattr(config, "offline_mode", True)
+    monkeypatch.setattr(config, "disable_auth", True)
+
+    import backend.routes.timeseries_meta as ts_meta
+
+    monkeypatch.setattr(ts_meta, "load_meta_timeseries_range", _spy)
+    monkeypatch.setattr(ts_meta.pd, "to_datetime", lambda x: x)
+
+    from backend.app import create_app
+
+    client = TestClient(create_app())
+    resp = client.get(
+        "/timeseries/meta?ticker=ABC&exchange=L&format=json"
+        "&start_date=2024-01-02&days=0"
+    )
+    assert resp.status_code == 200
+    # days=0 must NOT override the explicit start_date with the 1900 sentinel
+    assert captured["start_date"] == date(2024, 1, 2)
+
+
 # ---- /timeseries/meta call-argument and branch-coverage tests -------------
 
 

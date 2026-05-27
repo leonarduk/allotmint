@@ -7,6 +7,15 @@ import yfinance as yf
 
 logger = logging.getLogger(__name__)
 
+
+def _safe_for_log(value: object) -> str:
+    """Return a single-line, printable representation safe for plain-text logs."""
+
+    text = str(value)
+    text = text.replace("\r", "").replace("\n", "")
+    return "".join(ch if ch.isprintable() else "?" for ch in text)
+
+
 # Map of base -> quote -> ticker used by yfinance.  When a pair is missing we
 # fall back to the generic "BASEQUOTE=X" symbol which Yahoo Finance supports for
 # most combinations.
@@ -58,7 +67,12 @@ def fetch_fx_rate_range(base: str, quote: str, start_date: date, end_date: date)
             df["Date"] = pd.to_datetime(df["Date"]).dt.date
             return df[["Date", "Close"]].rename(columns={"Close": "Rate"}).copy()
     except Exception as exc:
-        logger.info("FX fetch failed for %s/%s: %s", base, quote, exc)
+        logger.info(
+            "FX fetch failed for %s/%s: %s",
+            _safe_for_log(base),
+            _safe_for_log(quote),
+            _safe_for_log(exc),
+        )
 
     dates = pd.bdate_range(start_date, end_date).date
     const = FALLBACK_RATES.get((base, quote))

@@ -98,6 +98,11 @@ def _ensure_schema(df: pd.DataFrame) -> pd.DataFrame:
     # tz_localize(None) on tz-aware data raises TypeError; tz_convert(None)
     # converts to UTC then removes the timezone label.
     if dates.dt.tz is not None:
+        logger.warning(
+            "Timeseries 'Date' column is tz-aware (%s); converting to UTC and "
+            "stripping timezone before casting to datetime64[ms].",
+            dates.dt.tz,
+        )
         dates = dates.dt.tz_convert(None)
     df["Date"] = dates.astype("datetime64[ms]")
     df = df.dropna(subset=["Date"])

@@ -57,11 +57,24 @@ async def get_meta_timeseries(
     days: int = Query(365, ge=0, le=36500),
     format: str = Query("html", pattern="^(html|json|csv)$"),
     scaling: float = Query(1.0, ge=0.00001, le=1_000_000),
-    start_date: date | None = Query(None, description="Start date (YYYY-MM-DD). Overrides days when provided."),
-    end_date: date | None = Query(None, description="End date (YYYY-MM-DD). Defaults to yesterday when omitted."),
+    start_date: date | None = Query(
+        None, description="Start date (YYYY-MM-DD). Overrides days when provided."
+    ),
+    end_date: date | None = Query(
+        None, description="End date (YYYY-MM-DD). Defaults to yesterday when omitted."
+    ),
 ):
     ticker, exchange = _resolve_ticker_exchange(ticker, exchange)
-    start_date, end_date = resolve_date_range(days)
+
+    start_date, end_date = resolve_date_range(
+        days, start_date=start_date, end_date=end_date
+    )
+
+    if start_date > end_date:
+        raise HTTPException(
+            status_code=400,
+            detail=f"start_date ({start_date}) must not be after end_date ({end_date})",
+        )
 
     try:
         df = load_meta_timeseries_range(

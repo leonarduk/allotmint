@@ -94,8 +94,11 @@ def _ensure_schema(df: pd.DataFrame) -> pd.DataFrame:
     # Strip timezone info before casting: .astype("datetime64[ms]") raises
     # TypeError on tz-aware Series. All callers in this module produce tz-naive
     # timestamps, but this guard future-proofs against upstream tz-aware feeds.
+    # Use tz_convert(None) not tz_localize(None): since pandas 2.0 calling
+    # tz_localize(None) on tz-aware data raises TypeError; tz_convert(None)
+    # converts to UTC then removes the timezone label.
     if dates.dt.tz is not None:
-        dates = dates.dt.tz_localize(None)
+        dates = dates.dt.tz_convert(None)
     df["Date"] = dates.astype("datetime64[ms]")
     df = df.dropna(subset=["Date"])
     # Return only expected columns in expected order (stable)

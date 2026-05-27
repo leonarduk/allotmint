@@ -99,6 +99,7 @@ def test_ensure_schema_missing_date(caplog):
     assert list(result.columns) == cache.EXPECTED_COLS
     assert "Timeseries missing 'Date' column" in caplog.text
 
+
 @pytest.mark.parametrize(
     "date_input,input_id",
     [
@@ -106,8 +107,9 @@ def test_ensure_schema_missing_date(caplog):
         (pd.to_datetime(["2024-01-01", "2024-01-02"]).astype("datetime64[ms]"), "ms"),
         (pd.to_datetime(["2024-01-01", "2024-01-02"]).astype("datetime64[s]"), "s"),
         ([date(2024, 1, 1), date(2024, 1, 2)], "date_objects"),
+        (pd.to_datetime(["2024-01-01", "2024-01-02"]).tz_localize("UTC"), "tz_aware_utc"),
     ],
-    ids=["ns", "ms", "s", "date_objects"],
+    ids=["ns", "ms", "s", "date_objects", "tz_aware_utc"],
 )
 def test_ensure_schema_normalises_date_to_ms(date_input, input_id):
     """_ensure_schema must always return datetime64[ms] for the Date column.

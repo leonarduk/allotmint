@@ -36,6 +36,7 @@ from backend.common.account_models import OwnerSummaryRecord, PersonMetadata
 from backend.config import config, demo_identity
 from backend.routes._accounts import resolve_accounts_root, resolve_owner_directory
 from backend.utils.pricing_dates import PricingDateCalculator
+from backend.utils.timeseries_helpers import resolve_date_range
 
 log = logging.getLogger("routes.portfolio")
 router = APIRouter(tags=["portfolio"])
@@ -929,7 +930,10 @@ async def instrument_detail(
     start_date: Annotated[Optional[dt.date], Query(description="Inclusive start date (YYYY-MM-DD)")] = None,
     end_date: Annotated[Optional[dt.date], Query(description="Inclusive end date (YYYY-MM-DD)")] = None,
 ):
-    if start_date is not None and end_date is not None and start_date > end_date:
+    resolved_start, resolved_end = resolve_date_range(
+        365, start_date=start_date, end_date=end_date
+    )
+    if resolved_start > resolved_end:
         raise HTTPException(status_code=400, detail="start_date must not be after end_date")
     try:
         series = instrument_api.timeseries_for_ticker(

@@ -1,3 +1,4 @@
+
 # backend/common/instrument_api.py
 """
 Instrument-level helpers for AllotMint
@@ -6,7 +7,7 @@ Instrument-level helpers for AllotMint
 Public API
 ----------
 
-- timeseries_for_ticker(ticker, days=365)
+- timeseries_for_ticker(ticker, days=365, start_date=None, end_date=None)
 - positions_for_ticker(group_slug, ticker)
 - instrument_summaries_for_group(group_slug)   - used by InstrumentTable
 """
@@ -16,7 +17,7 @@ from __future__ import annotations
 import datetime as dt
 import logging
 from functools import lru_cache
-from typing import Any, Dict, List, Optional, Mapping, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 import pandas as pd
 
@@ -33,8 +34,7 @@ from backend.timeseries.cache import (
 from backend.timeseries.fetch_meta_timeseries import run_all_tickers
 from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_period
 from backend.utils.pricing_dates import PricingDateCalculator
-from backend.utils.timeseries_helpers import _nearest_weekday
-
+from backend.utils.timeseries_helpers import _nearest_weekday, resolve_date_range
 
 logger = logging.getLogger("instrument_api")
 
@@ -217,13 +217,22 @@ def update_latest_prices_from_snapshot(snapshot: Dict[str, Dict[str, Any]]) -> N
 # ───────────────────────────────────────────────────────────────
 # Historical close series (GBP where native is GBP, e.g., LSE)
 # ───────────────────────────────────────────────────────────────
-def timeseries_for_ticker(ticker: str, days: int = 365) -> Dict[str, Any]:
+def timeseries_for_ticker(
+    ticker: str,
+    days: int = 365,
+    start_date: Optional[dt.date] = None,
+    end_date: Optional[dt.date] = None,
+) -> Dict[str, Any]:
     """Return recent price history for ``ticker``.
 
     The payload contains the full series under ``prices`` plus shorter windows
     (7/30/180 days) under ``mini``.  This keeps the original behaviour
     (callers previously only consumed the list) while exposing pre-sliced
     subsets that are convenient for sparkline charts.
+
+    When *start_date* or *end_date* are provided they override the window
+    calculated from *days*.  Filtering is pushed to the data layer via
+    :func:`load_meta_timeseries_range` so no in-Python row filtering is needed.
     """
     empty_payload: Dict[str, Any] = {
         "prices": [],
@@ -246,13 +255,10 @@ def timeseries_for_ticker(ticker: str, days: int = 365) -> Dict[str, Any]:
         except Exception:
             pass
 
-    today = dt.date.today()
-    yday = today - dt.timedelta(days=1)
-    lookback_days = max(1, days)
-    start_date = yday - dt.timedelta(days=lookback_days)
-    end_date = yday
+    ts_start, ts_end = resolve_date_range(days, start_date=start_date, end_date=end_date)
 
-    df = load_meta_timeseries_range(sym, ex, start_date=start_date, end_date=end_date)
+    # Filtering is done at the data layer — no secondary Python cutoff needed.
+    df = load_meta_timeseries_range(sym, ex, start_date=ts_start, end_date=ts_end)
     if df is None or df.empty:
         return empty_payload
 
@@ -269,17 +275,21 @@ def timeseries_for_ticker(ticker: str, days: int = 365) -> Dict[str, Any]:
     if {"date", "close"} - set(df.columns):
         return empty_payload
 
-    # Keep rows within cutoff and make sure date is ISO string
-    cutoff = end_date - dt.timedelta(days=days - 1)
+    ts_start_iso = ts_start.isoformat()
+    ts_end_iso = ts_end.isoformat()
     out: List[Dict[str, Any]] = []
     for _, r in df.iterrows():
         rd = r["date"]
         if isinstance(rd, (dt.datetime, dt.date)):
             rd = rd.date().isoformat() if isinstance(rd, dt.datetime) else rd.isoformat()
-        if rd >= cutoff.isoformat():
-            close_val = float(r["close"])
-            close_gbp_val = float(r.get("close_gbp", close_val))
-            out.append({"date": rd, "close": close_val, "close_gbp": close_gbp_val})
+        # Enforce the explicit date contract: load_meta_timeseries_range may
+        # shift the window backward by up to 4 days to find data across
+        # weekends/holidays, so we re-apply the originally-requested bounds here.
+        if rd < ts_start_iso or rd > ts_end_iso:
+            continue
+        close_val = float(r["close"])
+        close_gbp_val = float(r.get("close_gbp", close_val))
+        out.append({"date": rd, "close": close_val, "close_gbp": close_gbp_val})
     mini = {
         "7": out[-7:],
         "30": out[-30:],

@@ -1,5 +1,7 @@
+import html
 import logging
 from datetime import date
+from typing import Annotated, Optional
 
 import pandas as pd
 from fastapi import APIRouter, HTTPException, Query
@@ -54,15 +56,19 @@ async def get_meta_timeseries(
     ticker: str = Query(...),
     exchange: str | None = Query(None),
     days: int = Query(365, ge=0, le=36500),
+    start_date: Annotated[Optional[date], Query(description="Start date YYYY-MM-DD; overrides days")] = None,
+    end_date: Annotated[Optional[date], Query(description="End date YYYY-MM-DD; overrides yesterday")] = None,
     format: str = Query("html", pattern="^(html|json|csv)$"),
     scaling: float = Query(1.0, ge=0.00001, le=1_000_000),
 ):
     ticker, exchange = _resolve_ticker_exchange(ticker, exchange)
-    start_date, end_date = resolve_date_range(days)
+    resolved_start, resolved_end = resolve_date_range(days, start_date=start_date, end_date=end_date)
+    if resolved_start > resolved_end:
+        raise HTTPException(status_code=400, detail="start_date must not be after end_date")
 
     try:
         df = load_meta_timeseries_range(
-            ticker, exchange, start_date=start_date, end_date=end_date
+            ticker, exchange, start_date=resolved_start, end_date=resolved_end
         )
     except Exception as exc:
         logger.debug(
@@ -95,8 +101,8 @@ async def get_meta_timeseries(
         return JSONResponse(
             content={
                 "ticker": f"{ticker}.{exchange}",
-                "from": start_date.isoformat(),
-                "to": end_date.isoformat(),
+                "from": resolved_start.isoformat(),
+                "to": resolved_end.isoformat(),
                 "scaling": scaling,
                 "prices": df.to_dict(orient="records"),
             }
@@ -108,13 +114,24 @@ async def get_meta_timeseries(
         return PlainTextResponse(content=csv_text, media_type="text/csv")
 
     # ── HTML output (default) ─────────────────────────────────
-    html_table = df.to_html(index=False)
+    # All user-supplied values are escaped before embedding in the HTML
+    # response to prevent reflected XSS.  resolved_start/resolved_end are
+    # datetime.date objects (always YYYY-MM-DD) and scaling is a
+    # FastAPI-validated float, but we escape them anyway so static analysis
+    # tools can trace the full sanitisation chain.
+    # df.to_html(escape=True) escapes all cell values (pandas default).
+    safe_ticker = html.escape(ticker)
+    safe_exchange = html.escape(exchange)
+    safe_start = html.escape(resolved_start.isoformat())
+    safe_end = html.escape(resolved_end.isoformat())
+    safe_scaling = html.escape(str(scaling))
+    html_table = df.to_html(index=False, escape=True)
     html_doc = f"""
     <html>
-        <head><title>{ticker}.{exchange} Price History</title></head>
+        <head><title>{safe_ticker}.{safe_exchange} Price History</title></head>
         <body>
-            <h1>{ticker}.{exchange} - {start_date} to {end_date}</h1>
-            <p><strong>Scaling:</strong> {scaling}x</p>
+            <h1>{safe_ticker}.{safe_exchange} - {safe_start} to {safe_end}</h1>
+            <p><strong>Scaling:</strong> {safe_scaling}x</p>
             {html_table}
         </body>
     </html>

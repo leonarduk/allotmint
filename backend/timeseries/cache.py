@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from datetime import date, datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
@@ -39,6 +40,11 @@ from backend.utils.timeseries_helpers import _nearest_weekday, apply_scaling, ge
 OFFLINE_MODE = config.offline_mode
 
 logger = logging.getLogger("timeseries_cache")
+
+# ISO 4217 currency codes are 3 uppercase letters; a small number of
+# pseudo-codes (e.g. "GBX" for pence) have 3 letters too.  Reject
+# anything that doesn't match before constructing URLs or file paths.
+_CURRENCY_CODE_RE = re.compile(r"^[A-Z]{3,4}$")
 
 # Simple counter for fetch failures – useful for lightweight monitoring.
 _FAILED_FETCH_COUNT = 0
@@ -450,6 +456,11 @@ def _convert_to_base_currency(
 
     def _load_rates(curr: str) -> pd.DataFrame:
         curr = curr.upper()
+        # Reject non-currency values (e.g. path-traversal payloads) before
+        # they reach the fx_proxy_url construction or cache file path.
+        if not _CURRENCY_CODE_RE.match(curr):
+            logger.warning("Skipping FX lookup for invalid currency code: %r", curr)
+            return pd.DataFrame(columns=["Date", "Rate"])
         if OFFLINE_MODE:
             path = _cache_path("fx", f"{curr}.parquet")
             try:

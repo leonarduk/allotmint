@@ -455,7 +455,7 @@ const exchangeCognitoForBackendToken = async (
 };
 
 const bootstrapRuntimeConfig = async () => {
-  let payload: { apiBaseUrl?: unknown; awsUiAuth?: AwsUiAuthConfig } = {};
+  let payload: { apiBaseUrl?: unknown; awsUiAuth?: AwsUiAuthConfig } | undefined;
   try {
     const response = await fetch('/config.json', { cache: 'no-store' });
     if (!response.ok) return true;
@@ -470,6 +470,8 @@ const bootstrapRuntimeConfig = async () => {
     );
     return true;
   }
+
+  if (!payload) return true;
 
   if (typeof payload.apiBaseUrl === 'string') {
     setApiBase(payload.apiBaseUrl);

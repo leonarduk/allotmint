@@ -23,6 +23,7 @@ from backend.common.data_loader import (
 )
 from backend.common.path_utils import safe_join
 from backend.config import config
+from backend.logging_setup import sanitise_log_value
 
 log = logging.getLogger("portfolio_loader")
 
@@ -45,9 +46,12 @@ def _load_accounts_for_owner(owner: str, acct_names: list[str]) -> list[dict]:
             acct = load_account(owner, name)
             accounts.append(acct)
         except FileNotFoundError:
-            log.warning("Account file missing: %s/%s.json", owner, name)
+            log.warning("Account file missing: %s/%s.json", sanitise_log_value(owner), sanitise_log_value(name))
         except (OSError, ValueError, json.JSONDecodeError) as exc:
-            log.warning("Failed to parse %s/%s.json -> %s", owner, name, exc)
+            log.warning(
+                "Failed to parse %s/%s.json -> %s",
+                sanitise_log_value(owner), sanitise_log_value(name), sanitise_log_value(exc),
+            )
     return accounts
 
 

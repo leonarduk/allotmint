@@ -4,16 +4,17 @@ from __future__ import annotations
 
 import json
 import logging
+import xml.etree.ElementTree as ET
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 import requests
-import xml.etree.ElementTree as ET
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 
 from backend import config_module
 from backend.common.instruments import get_instrument_meta
+from backend.logging_setup import sanitise_log_value
 from backend.utils import page_cache
 
 cfg = getattr(config_module, "settings", config_module.config)
@@ -266,7 +267,7 @@ def _fetch_news(ticker: str) -> List[Dict[str, str]]:
                 return enriched
     except Exception as exc:  # pragma: no cover - defensive
         logging.getLogger(__name__).error(
-            "Failed to fetch news for %s: %s", ticker, exc
+            "Failed to fetch news for %s: %s", sanitise_log_value(ticker), sanitise_log_value(exc)
         )
 
     for fetcher in (fetch_news_yahoo, fetch_news_google):
@@ -276,7 +277,7 @@ def _fetch_news(ticker: str) -> List[Dict[str, str]]:
                 return items
         except Exception as exc:  # pragma: no cover - defensive
             logging.getLogger(__name__).error(
-                "Fallback news fetch failed for %s: %s", ticker, exc
+                "Fallback news fetch failed for %s: %s", sanitise_log_value(ticker), sanitise_log_value(exc)
             )
     return []
 

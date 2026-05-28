@@ -15,6 +15,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
 from backend import config
+from backend.logging_setup import sanitise_log_value
 from backend.utils.currency_utils import currency_from_isin
 from backend.utils.timeseries_helpers import STANDARD_COLUMNS, _is_isin
 
@@ -67,7 +68,7 @@ def fetch_ft_timeseries_range(
         or "https://markets.ft.com/data/funds/tearsheet/historical?s={ticker}"
     )
     url = template.format(ticker=ticker)
-    logger.info(f"Navigating to {url}")
+    logger.info("Navigating to %s", sanitise_log_value(url))
     driver = init_driver(headless=headless, user_agent=user_agent)
 
     try:

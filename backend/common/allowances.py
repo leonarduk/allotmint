@@ -22,7 +22,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Optional
 
-from backend.common.path_utils import safe_join, sanitize_for_log
+from backend.common.path_utils import safe_join
 from backend.config import config
 
 logger = logging.getLogger(__name__)
@@ -70,7 +70,7 @@ def load_yearly_contributions(
     try:
         path = safe_join(_data_root(root), f"{owner}.json")
     except ValueError:
-        logger.warning("Path traversal blocked in load_yearly_contributions: %s", sanitize_for_log(owner))
+        logger.warning("Path traversal blocked in load_yearly_contributions")
         return {}
     try:
         raw = json.loads(path.read_text())

@@ -67,7 +67,11 @@ def _ensure_owner_scaffold(owner: str, owner_dir: Path) -> None:
     }
 
     for filename, payload in defaults.items():
-        path = owner_dir / filename
+        try:
+            path = safe_join(owner_dir, filename)
+        except ValueError as exc:
+            logger.warning("skipping invalid scaffold filename for %s: %s", owner, exc)
+            continue
         if path.exists():
             continue
         try:

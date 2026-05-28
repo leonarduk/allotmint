@@ -26,6 +26,11 @@ from backend.config import config
 log = logging.getLogger("portfolio_loader")
 
 
+def _sanitize_for_log(value: object) -> str:
+    """Return a single-line string safe for plain-text logs (strips CR/LF)."""
+    return str(value).replace("\r", "").replace("\n", "")
+
+
 # ────────────────────────────────────────────────────────────────
 # Private helpers
 # ────────────────────────────────────────────────────────────────
@@ -210,7 +215,7 @@ def rebuild_account_holdings(
     try:
         acct_path = safe_join(owner_dir, f"{account.lower()}.json")
     except ValueError as exc:
-        log.error("Invalid account name %r: %s", account, exc)
+        log.error("Invalid account name %r: %s", _sanitize_for_log(account), exc)
         return out
     try:
         acct_path.write_text(json.dumps(out, indent=2))

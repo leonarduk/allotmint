@@ -6,6 +6,7 @@ import pandas as pd
 import requests
 
 from backend.config import config
+from backend.logging_setup import sanitise_log_value
 from backend.timeseries.ticker_validator import is_valid_ticker, record_skipped_ticker
 from backend.utils.timeseries_helpers import STANDARD_COLUMNS
 
@@ -60,8 +61,11 @@ def fetch_stooq_timeseries_range(
     suffix = get_stooq_suffix(exchange)
     full_ticker = ticker + suffix
 
-    logger.debug(f"Preparing request for ticker={ticker}, exchange={exchange}, "
-                 f"full_ticker={full_ticker}, start_date={start_date}, end_date={end_date}")
+    logger.debug(
+        "Preparing request for ticker=%s, exchange=%s, full_ticker=%s, start_date=%s, end_date=%s",
+        sanitise_log_value(ticker), sanitise_log_value(exchange),
+        sanitise_log_value(full_ticker), start_date, end_date,
+    )
 
     params = {
         "s": full_ticker,
@@ -71,7 +75,7 @@ def fetch_stooq_timeseries_range(
         "d": "d"
     }
 
-    logger.debug(f"Fetching Stooq data with URL: {BASE_URL} and params: {params}")
+    logger.debug("Fetching Stooq data with URL: %s and params: %s", BASE_URL, sanitise_log_value(params))
     try:
         response = requests.get(
             BASE_URL,
@@ -98,7 +102,7 @@ def fetch_stooq_timeseries_range(
         df['Volume'] = df.get('Volume', None)
         df['Ticker'] = ticker
 
-        logger.info(f"Fetched {len(df)} rows for {full_ticker}")
+        logger.info("Fetched %d rows for %s", len(df), sanitise_log_value(full_ticker))
 
         df["Source"] = "Stooq"
 
@@ -108,7 +112,7 @@ def fetch_stooq_timeseries_range(
         logger.warning("Stooq request timed out for %s", full_ticker)
         return pd.DataFrame(columns=STANDARD_COLUMNS)
     except Exception as e:
-        logger.error(f"Failed to fetch Stooq data for {full_ticker}: {e}")
+        logger.error("Failed to fetch Stooq data for %s: %s", sanitise_log_value(full_ticker), sanitise_log_value(e))
         raise
 
 
@@ -118,8 +122,14 @@ def fetch_stooq_timeseries(ticker: str, exchange: str, days: int = 365) -> pd.Da
     """
     today = date.today()
     start = today - timedelta(days=days)
-    logger.debug(f"Fetching trailing {days} days of data for {ticker} on {exchange}")
-    logger.debug(f"Preparing request for ticker={ticker}, exchange={exchange}, start_date={start}, end_date={today}")
+    logger.debug(
+        "Fetching trailing %d days of data for %s on %s",
+        days, sanitise_log_value(ticker), sanitise_log_value(exchange),
+    )
+    logger.debug(
+        "Preparing request for ticker=%s, exchange=%s, start_date=%s, end_date=%s",
+        sanitise_log_value(ticker), sanitise_log_value(exchange), start, today,
+    )
     return fetch_stooq_timeseries_range(ticker, exchange, start, today)
 
 

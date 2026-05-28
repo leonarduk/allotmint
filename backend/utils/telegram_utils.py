@@ -17,6 +17,7 @@ import requests
 from requests import exceptions as req_exc
 
 from backend import config
+from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +83,7 @@ def send_message(text: str) -> None:
         return
 
     if _read_config_attr("offline_mode", False):
-        logger.info(f"Offline-alert: {text}")
+        logger.info("Offline-alert: %s", sanitise_log_value(text))
         return
 
     now = time.time()
@@ -110,7 +111,7 @@ def send_message(text: str) -> None:
             logger.warning("Timeout sending Telegram message", extra={"skip_telegram": True})
             return
         except req_exc.RequestException as exc:
-            logger.warning(f"Error sending Telegram message: {exc}", extra={"skip_telegram": True})
+            logger.warning("Error sending Telegram message: %s", sanitise_log_value(exc), extra={"skip_telegram": True})
             return
 
         if resp.status_code == 429:
@@ -131,7 +132,7 @@ def send_message(text: str) -> None:
         try:
             resp.raise_for_status()
         except req_exc.RequestException as exc:
-            logger.warning(f"Error sending Telegram message: {exc}", extra={"skip_telegram": True})
+            logger.warning("Error sending Telegram message: %s", sanitise_log_value(exc), extra={"skip_telegram": True})
             return
 
         RECENT_MESSAGES[text] = time.time()

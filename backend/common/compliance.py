@@ -17,6 +17,12 @@ from backend.config import config
 logger = logging.getLogger("compliance")
 
 
+def _sanitize_for_log(value: Any) -> str:
+    """Return a single-line, log-safe string representation."""
+    text = str(value)
+    return "".join(ch for ch in text if ch >= " " and ch != "\x7f")
+
+
 def _default_settings_payload() -> Dict[str, Any]:
     """Build default settings for newly created owners."""
 
@@ -70,14 +76,23 @@ def _ensure_owner_scaffold(owner: str, owner_dir: Path) -> None:
         try:
             path = safe_join(owner_dir, filename)
         except ValueError as exc:
-            logger.warning("skipping invalid scaffold filename for %s: %s", owner, exc)
+            logger.warning(
+                "skipping invalid scaffold filename for %s: %s",
+                _sanitize_for_log(owner),
+                exc,
+            )
             continue
         if path.exists():
             continue
         try:
             path.write_text(json.dumps(payload, indent=2, sort_keys=True))
         except OSError as exc:
-            logger.warning("failed to create default %s for %s: %s", filename, owner, exc)
+            logger.warning(
+                "failed to create default %s for %s: %s",
+                filename,
+                _sanitize_for_log(owner),
+                exc,
+            )
 
 
 def _parse_date(val: str | None) -> date | None:

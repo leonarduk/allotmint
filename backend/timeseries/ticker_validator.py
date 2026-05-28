@@ -7,11 +7,16 @@ from pathlib import Path
 
 from backend.common.instruments import get_instrument_meta
 from backend.config import config
+from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger("ticker_validator")
 
 # File to record skipped tickers for auditing
-SKIPPED_TICKERS_FILE = (config.data_root / "skipped_tickers.log") if config.data_root else Path(__file__).resolve().parents[2] / "data" / "skipped_tickers.log"
+SKIPPED_TICKERS_FILE = (
+    (config.data_root / "skipped_tickers.log")
+    if config.data_root
+    else Path(__file__).resolve().parents[2] / "data" / "skipped_tickers.log"
+)
 
 
 @lru_cache(maxsize=4096)
@@ -42,4 +47,7 @@ def record_skipped_ticker(ticker: str, exchange: str, *, reason: str = "") -> No
         with SKIPPED_TICKERS_FILE.open("a", encoding="utf-8") as f:
             f.write(line)
     except Exception as exc:
-        logger.warning("Failed to record skipped ticker %s.%s: %s", ticker, exchange, exc)
+        logger.warning(
+            "Failed to record skipped ticker %s.%s: %s",
+            sanitise_log_value(ticker), sanitise_log_value(exchange), sanitise_log_value(exc),
+        )

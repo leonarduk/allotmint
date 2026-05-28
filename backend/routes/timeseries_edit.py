@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 
 from backend.common import instrument_api
 from backend.common.errors import InternalServiceError, ValidationFailure
+from backend.logging_setup import sanitise_log_value
 from backend.timeseries.cache import (
     EXPECTED_COLS,
     _ensure_schema,
@@ -28,25 +29,25 @@ def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> tuple[str, st
     if exchange:
         sym = t.split(".", 1)[0]
         ex = exchange.upper()
-        logger.debug("Resolved %s.%s (provided exchange)", sym, ex)
+        logger.debug("Resolved %s.%s (provided exchange)", sanitise_log_value(sym), sanitise_log_value(ex))
         return sym, ex
 
     if "." in t:
         sym, ex = t.split(".", 1)
-        logger.debug("Resolved %s.%s (provided exchange)", sym, ex)
+        logger.debug("Resolved %s.%s (provided exchange)", sanitise_log_value(sym), sanitise_log_value(ex))
         return sym, ex
 
     resolved = instrument_api._resolve_full_ticker(
         t, instrument_api._LATEST_PRICES
     )
     if not resolved:
-        logger.debug("Could not infer exchange for %s", t)
+        logger.debug("Could not infer exchange for %s", sanitise_log_value(t))
         raise ValidationFailure(
             f"Exchange not provided and could not be inferred for {ticker}",
             extra={"field": "exchange", "ticker": ticker},
         )
     sym, ex = resolved
-    logger.debug("Resolved %s.%s (inferred exchange)", sym, ex)
+    logger.debug("Resolved %s.%s (inferred exchange)", sanitise_log_value(sym), sanitise_log_value(ex))
     return sym, ex
 
 

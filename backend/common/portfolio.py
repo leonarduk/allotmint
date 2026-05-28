@@ -29,6 +29,7 @@ from backend.common.holding_utils import enrich_holding
 from backend.common.path_utils import safe_join
 from backend.common.user_config import load_user_config
 from backend.config import config
+from backend.logging_setup import sanitise_log_value
 from backend.utils.pricing_dates import PricingDateCalculator
 
 logger = logging.getLogger(__name__)
@@ -71,7 +72,10 @@ def _load_trades_aws(owner: str) -> List[Dict[str, Any]]:
         data = body.read().decode("utf-8").splitlines()
         return list(csv.DictReader(data))
     except (ClientError, BotoCoreError) as exc:
-        logger.warning("Failed to fetch trades %s from bucket %s: %s", key, bucket, exc)
+        logger.warning(
+            "Failed to fetch trades %s from bucket %s: %s",
+            sanitise_log_value(key), sanitise_log_value(bucket), sanitise_log_value(exc),
+        )
     except ImportError as exc:
         logger.warning("boto3 not available for S3 trades fetch: %s", exc)
     return []

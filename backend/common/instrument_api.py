@@ -27,6 +27,7 @@ from backend.common.holding_utils import load_latest_prices
 from backend.common.instruments import list_group_definitions
 from backend.common.portfolio_utils import get_security_meta, list_all_unique_tickers
 from backend.config import config
+from backend.logging_setup import sanitise_log_value
 from backend.timeseries.cache import (
     has_cached_meta_timeseries,
     load_meta_timeseries_range,
@@ -392,7 +393,7 @@ def price_change_pct(ticker: str, days: int) -> Optional[float]:
     if px_now is None or px_then is None or px_then == 0:
         return None
     if px_then < MIN_PRICE_THRESHOLD:
-        logger.warning("price_change_pct: px_then %.4f below threshold for %s", px_then, ticker)
+        logger.warning("price_change_pct: px_then %.4f below threshold for %s", px_then, sanitise_log_value(ticker))
         return None
     pct = (px_now / px_then - 1.0) * 100.0
     if abs(pct) > MAX_CHANGE_PCT:
@@ -400,7 +401,7 @@ def price_change_pct(ticker: str, days: int) -> Optional[float]:
             "price_change_pct: change %.2f%% exceeds max %.2f%% for %s",
             pct,
             MAX_CHANGE_PCT,
-            ticker,
+            sanitise_log_value(ticker),
         )
         return None
     return pct

@@ -14,10 +14,10 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence
 import pandas as pd
 
 try:
-    from reportlab.lib.pagesizes import letter
-    from reportlab.platypus import Table, TableStyle
     from reportlab.lib import colors
+    from reportlab.lib.pagesizes import letter
     from reportlab.pdfgen import canvas
+    from reportlab.platypus import Table, TableStyle
 except ModuleNotFoundError:  # pragma: no cover - exercised in tests when missing
     letter = None
     Table = None
@@ -31,6 +31,8 @@ except ModuleNotFoundError:  # pragma: no cover - exercised in tests when missin
     portfolio_mod = None
 
 from backend.common import portfolio_utils
+from backend.logging_setup import sanitise_log_value
+
 try:
     from backend.common import risk
 except ModuleNotFoundError:  # pragma: no cover - exercised in tests when missing
@@ -529,12 +531,15 @@ class DynamoTemplateStore(TemplateStore):
         try:
             payload = json.loads(raw) if isinstance(raw, str) else dict(item)
         except json.JSONDecodeError:
-            logger.warning("invalid JSON payload for template %s", template_id)
+            logger.warning("invalid JSON payload for template %s", sanitise_log_value(template_id))
             return None
         try:
             return _validate_template_payload(payload)
         except ValueError as exc:
-            logger.warning("invalid template definition for %s: %s", template_id, exc)
+            logger.warning(
+                "invalid template definition for %s: %s",
+                sanitise_log_value(template_id), sanitise_log_value(exc),
+            )
             return None
 
     def create_template(self, definition: Dict[str, Any]) -> None:
@@ -659,9 +664,16 @@ class ReportContext:
                 pricing_date=self.end,
             )
         except (FileNotFoundError, ValueError) as exc:
-            logger.warning("failed to build owner portfolio for %s: %s", self.owner, exc)
+            logger.warning(
+                "failed to build owner portfolio for %s: %s",
+                sanitise_log_value(self.owner), sanitise_log_value(exc),
+            )
             fallback_portfolio = self._portfolio
-            if fallback_portfolio is None and _DEFAULT_PORTFOLIO_SNAPSHOT is not None and _portfolio_snapshot is not _DEFAULT_PORTFOLIO_SNAPSHOT:
+            if (
+                fallback_portfolio is None
+                and _DEFAULT_PORTFOLIO_SNAPSHOT is not None
+                and _portfolio_snapshot is not _DEFAULT_PORTFOLIO_SNAPSHOT
+            ):
                 fallback_portfolio = _portfolio_snapshot(self.owner, pricing_date=self.end) or None
                 self._portfolio = fallback_portfolio or self._portfolio
             self._owner_portfolio = fallback_portfolio or None

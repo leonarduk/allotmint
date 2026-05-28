@@ -1,7 +1,6 @@
 import html
 import logging
 from datetime import date
-from typing import Annotated, Optional
 
 import pandas as pd
 from fastapi import APIRouter, HTTPException, Query
@@ -9,6 +8,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from pandas.api import types as pd_types
 
 from backend.common import instrument_api
+from backend.logging_setup import sanitise_log_value
 from backend.timeseries import fetch_timeseries
 from backend.timeseries.cache import load_meta_timeseries_range
 from backend.utils.html_render import render_timeseries_html
@@ -30,24 +30,24 @@ def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> tuple[str, st
     if exchange:
         sym = t.split(".", 1)[0]
         ex = exchange.upper()
-        logger.debug("Resolved %s.%s (provided exchange)", sym, ex)
+        logger.debug("Resolved %s.%s (provided exchange)", sanitise_log_value(sym), sanitise_log_value(ex))
         return sym, ex
 
     if "." in t:
         sym, ex = t.split(".", 1)
-        logger.debug("Resolved %s.%s (provided exchange)", sym, ex)
+        logger.debug("Resolved %s.%s (provided exchange)", sanitise_log_value(sym), sanitise_log_value(ex))
         return sym, ex
 
     resolved = instrument_api._resolve_full_ticker(
         t, instrument_api._LATEST_PRICES
     )
     if not resolved:
-        logger.debug("Could not infer exchange for %s", t)
+        logger.debug("Could not infer exchange for %s", sanitise_log_value(t))
         raise HTTPException(
             status_code=400, detail=f"Exchange not provided and could not be inferred for {ticker}"
         )
     sym, ex = resolved
-    logger.debug("Resolved %s.%s (inferred exchange)", sym, ex)
+    logger.debug("Resolved %s.%s (inferred exchange)", sanitise_log_value(sym), sanitise_log_value(ex))
     return sym, ex
 
 
@@ -56,23 +56,36 @@ async def get_meta_timeseries(
     ticker: str = Query(...),
     exchange: str | None = Query(None),
     days: int = Query(365, ge=0, le=36500),
-    start_date: Annotated[Optional[date], Query(description="Start date YYYY-MM-DD; overrides days")] = None,
-    end_date: Annotated[Optional[date], Query(description="End date YYYY-MM-DD; overrides yesterday")] = None,
     format: str = Query("html", pattern="^(html|json|csv)$"),
     scaling: float = Query(1.0, ge=0.00001, le=1_000_000),
+    start_date: date | None = Query(
+        None, description="Start date (YYYY-MM-DD). Overrides days when provided."
+    ),
+    end_date: date | None = Query(
+        None, description="End date (YYYY-MM-DD). Defaults to yesterday when omitted."
+    ),
 ):
     ticker, exchange = _resolve_ticker_exchange(ticker, exchange)
-    resolved_start, resolved_end = resolve_date_range(days, start_date=start_date, end_date=end_date)
-    if resolved_start > resolved_end:
-        raise HTTPException(status_code=400, detail="start_date must not be after end_date")
+
+    start_date, end_date = resolve_date_range(
+        days, start_date=start_date, end_date=end_date
+    )
+
+    # 422 matches FastAPI's convention for parameter validation errors (issue #2747 AC).
+    if start_date > end_date:
+        raise HTTPException(
+            status_code=422,
+            detail=f"start_date ({start_date}) must not be after end_date ({end_date})",
+        )
 
     try:
         df = load_meta_timeseries_range(
-            ticker, exchange, start_date=resolved_start, end_date=resolved_end
+            ticker, exchange, start_date=start_date, end_date=end_date
         )
     except Exception as exc:
         logger.debug(
-            "Failed to load meta timeseries for %s.%s: %s", ticker, exchange, exc
+            "Failed to load meta timeseries for %s.%s: %s",
+            sanitise_log_value(ticker), sanitise_log_value(exchange), sanitise_log_value(exc),
         )
         raise HTTPException(
             status_code=404, detail="timeseries meta not found"
@@ -101,8 +114,8 @@ async def get_meta_timeseries(
         return JSONResponse(
             content={
                 "ticker": f"{ticker}.{exchange}",
-                "from": resolved_start.isoformat(),
-                "to": resolved_end.isoformat(),
+                "from": start_date.isoformat(),
+                "to": end_date.isoformat(),
                 "scaling": scaling,
                 "prices": df.to_dict(orient="records"),
             }
@@ -115,15 +128,15 @@ async def get_meta_timeseries(
 
     # ── HTML output (default) ─────────────────────────────────
     # All user-supplied values are escaped before embedding in the HTML
-    # response to prevent reflected XSS.  resolved_start/resolved_end are
+    # response to prevent reflected XSS.  start_date/end_date are
     # datetime.date objects (always YYYY-MM-DD) and scaling is a
     # FastAPI-validated float, but we escape them anyway so static analysis
     # tools can trace the full sanitisation chain.
     # df.to_html(escape=True) escapes all cell values (pandas default).
     safe_ticker = html.escape(ticker)
     safe_exchange = html.escape(exchange)
-    safe_start = html.escape(resolved_start.isoformat())
-    safe_end = html.escape(resolved_end.isoformat())
+    safe_start = html.escape(start_date.isoformat())
+    safe_end = html.escape(end_date.isoformat())
     safe_scaling = html.escape(str(scaling))
     html_table = df.to_html(index=False, escape=True)
     html_doc = f"""

@@ -8,6 +8,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Dict, Optional
 
+from backend.common.path_utils import safe_join
 from backend.config import config
 
 logger = logging.getLogger(__name__)
@@ -21,7 +22,10 @@ def approvals_path(owner: str, accounts_root: Path | None = None) -> Path:
     """
 
     root = Path(accounts_root or config.accounts_root)
-    owner_dir = root / owner
+    try:
+        owner_dir = safe_join(root, owner)
+    except ValueError as exc:
+        raise FileNotFoundError("invalid owner") from exc
     if not owner_dir.exists():
         raise FileNotFoundError(owner_dir)
     return owner_dir / "approvals.json"

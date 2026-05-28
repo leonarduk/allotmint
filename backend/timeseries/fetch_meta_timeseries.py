@@ -21,6 +21,7 @@ from typing import Dict, List, Optional, Tuple
 import pandas as pd
 
 from backend import config
+from backend.common.path_utils import safe_join
 from backend.logging_setup import sanitise_log_value
 
 OFFLINE_MODE = config.offline_mode
@@ -148,8 +149,8 @@ def _metadata_entry_exists_in_directory(symbol: str, directory: Path) -> bool:
         return False
 
     try:
-        return (directory / f"{symbol}.json").is_file()
-    except OSError:
+        return safe_join(directory, f"{symbol}.json").is_file()
+    except (OSError, ValueError):
         return False
 
 
@@ -166,10 +167,11 @@ def _metadata_entry_exists(
     for root_str in directories:
         root = Path(root_str)
         try:
-            candidate = root / exchange / f"{symbol}.json"
+            exchange_dir = safe_join(root, exchange)
+            candidate = safe_join(exchange_dir, f"{symbol}.json")
             if candidate.is_file():
                 return True
-        except OSError:
+        except (OSError, ValueError):
             continue
     return False
 

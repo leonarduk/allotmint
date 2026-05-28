@@ -5,11 +5,12 @@ from __future__ import annotations
 import json
 from datetime import date
 from pathlib import Path
-from typing import List, Any
+from typing import Any, List
 
-from backend.config import config
 from backend import importers
 from backend.common import portfolio_loader
+from backend.common.path_utils import safe_join
+from backend.config import config
 
 
 def _to_holding(tx: Any) -> dict[str, object]:
@@ -50,9 +51,12 @@ def update_from_csv(
         "holdings": holdings,
     }
 
-    base_dir = Path(config.accounts_root) / owner
+    try:
+        base_dir = safe_join(Path(config.accounts_root), owner)
+        acct_path = safe_join(base_dir, f"{account}.json")
+    except ValueError as exc:
+        raise ValueError(f"Invalid path component: {exc}") from exc
     base_dir.mkdir(parents=True, exist_ok=True)
-    acct_path = base_dir / f"{account}.json"
     acct_path.write_text(json.dumps(payload, indent=2))
 
     try:

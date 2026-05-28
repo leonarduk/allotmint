@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 from backend.common.approvals import is_approval_valid, load_approvals
 from backend.common.data_loader import resolve_paths
 from backend.common.instruments import get_instrument_meta
+from backend.common.path_utils import safe_join
 from backend.common.user_config import UserConfig, load_user_config
 from backend.config import config
 
@@ -66,13 +67,17 @@ def _ensure_owner_scaffold(owner: str, owner_dir: Path) -> None:
     }
 
     for filename, payload in defaults.items():
-        path = owner_dir / filename
+        try:
+            path = safe_join(owner_dir, filename)
+        except ValueError:
+            logger.warning("skipping invalid scaffold filename: path traversal detected")
+            continue
         if path.exists():
             continue
         try:
             path.write_text(json.dumps(payload, indent=2, sort_keys=True))
-        except OSError as exc:
-            logger.warning("failed to create default %s for %s: %s", filename, owner, exc)
+        except OSError:
+            logger.warning("failed to create default scaffold file")
 
 
 def _parse_date(val: str | None) -> date | None:
@@ -92,7 +97,10 @@ def ensure_owner_scaffold(owner: str, accounts_root: Optional[Path] = None) -> P
     """
     paths = resolve_paths(config.repo_root, config.accounts_root)
     root = Path(accounts_root) if accounts_root else paths.accounts_root
-    owner_dir = root / owner
+    try:
+        owner_dir = safe_join(root, owner)
+    except ValueError as exc:
+        raise FileNotFoundError("invalid owner") from exc
     _ensure_owner_scaffold(owner, owner_dir)
     return owner_dir
 
@@ -112,7 +120,10 @@ def load_transactions(
     """
     paths = resolve_paths(config.repo_root, config.accounts_root)
     root = Path(accounts_root) if accounts_root else paths.accounts_root
-    owner_dir = root / owner
+    try:
+        owner_dir = safe_join(root, owner)
+    except ValueError as exc:
+        raise FileNotFoundError("invalid owner") from exc
     if not owner_dir.exists():
         if not scaffold_missing:
             raise FileNotFoundError(owner_dir)

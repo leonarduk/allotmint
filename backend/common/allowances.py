@@ -18,10 +18,16 @@ resilient to missing data and return zero contributions by default.
 
 import datetime as dt
 import json
+import logging
 from pathlib import Path
 from typing import Dict, Optional
 
+from backend.common.path_utils import safe_join
 from backend.config import config
+
+logger = logging.getLogger(__name__)
+
+
 
 # Default annual limits (GBP) for supported account types
 ALLOWANCE_LIMITS: Dict[str, float] = {
@@ -61,7 +67,11 @@ def load_yearly_contributions(
     Missing files or malformed data result in an empty mapping.
     """
 
-    path = _data_root(root) / f"{owner}.json"
+    try:
+        path = safe_join(_data_root(root), f"{owner}.json")
+    except ValueError:
+        logger.warning("Path traversal blocked in load_yearly_contributions")
+        return {}
     try:
         raw = json.loads(path.read_text())
     except (OSError, json.JSONDecodeError):

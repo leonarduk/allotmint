@@ -22,13 +22,8 @@ router = APIRouter(prefix="/timeseries", tags=["timeseries"])
 logger = logging.getLogger("routes.timeseries")
 
 # Only A-Z, 0-9, and hyphens are valid in a ticker segment or exchange code.
-# This allowlist prevents HTML/script injection from flowing into any response.
+# This allowlist prevents log injection from flowing into any log sink (CWE-117).
 _TICKER_SEGMENT_RE = re.compile(r"^[A-Z0-9-]{1,20}$")
-
-
-def _sanitize_for_log(value: str) -> str:
-    """Strip ASCII control characters to prevent log injection (CWE-117)."""
-    return re.sub(r"[\x00-\x1f\x7f]", "", value)
 
 
 def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> tuple[str, str]:
@@ -39,25 +34,23 @@ def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> tuple[str, st
     if exchange:
         sym = t.split(".", 1)[0]
         ex = exchange.upper()
-        logger.debug("Resolved %s.%s (provided exchange)", _sanitize_for_log(sym), _sanitize_for_log(ex))
     elif "." in t:
         sym, ex = t.split(".", 1)
-        logger.debug("Resolved %s.%s (inferred from ticker)", _sanitize_for_log(sym), _sanitize_for_log(ex))
     else:
         resolved = instrument_api._resolve_full_ticker(
             t, instrument_api._LATEST_PRICES
         )
         if not resolved:
-            logger.debug("Could not infer exchange for %s", _sanitize_for_log(t))
             raise HTTPException(
                 status_code=400,
                 detail=f"Exchange not provided and could not be inferred for {t}",
             )
         sym, ex = resolved
-        logger.debug("Resolved %s.%s (inferred exchange)", _sanitize_for_log(sym), _sanitize_for_log(ex))
 
+    # Validate before logging — sym/ex are [A-Z0-9-] only after this point (CWE-117).
     if not _TICKER_SEGMENT_RE.match(sym) or not _TICKER_SEGMENT_RE.match(ex):
         raise HTTPException(status_code=400, detail="Invalid ticker format")
+    logger.debug("Resolved %s.%s", sym, ex)
     return sym, ex
 
 

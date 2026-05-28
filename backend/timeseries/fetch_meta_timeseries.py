@@ -26,6 +26,10 @@ from backend.logging_setup import sanitise_log_value
 
 OFFLINE_MODE = config.offline_mode
 
+# Strict allowlist for file/directory name components used in metadata paths.
+# This prevents special/path characters from reaching filesystem path joins.
+_METADATA_PATH_COMPONENT_RE = re.compile(r"^[A-Za-z0-9._-]+$")
+
 
 def _sanitize_for_log(value: object) -> str:
     """Return a log-safe string representation with line breaks neutralized."""
@@ -213,6 +217,12 @@ def _metadata_entry_exists(
     if not symbol or not exchange:
         return False
 
+    # Final sink-side allowlist validation for path components.
+    if not _METADATA_PATH_COMPONENT_RE.fullmatch(symbol):
+        return False
+    if not _METADATA_PATH_COMPONENT_RE.fullmatch(exchange):
+        return False
+
     for root_str in directories:
         root = Path(root_str)
         try:
@@ -240,9 +250,10 @@ def _resolve_symbol_exchange_details(
     suffix = suffix.upper()
     safe_ticker = _sanitize_for_log(ticker)
     safe_sym = _sanitize_for_log(sym)
+    safe_provided = _sanitize_for_log(provided)
     if suffix and provided and suffix != provided:
         logger.debug(
-            "Exchange mismatch for %s: suffix %s vs argument %s", safe_ticker, suffix, provided
+            "Exchange mismatch for %s: suffix %s vs argument %s", safe_ticker, suffix, safe_provided
         )
     resolved = suffix or provided
 

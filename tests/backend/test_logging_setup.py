@@ -13,6 +13,9 @@ from backend.logging_setup import sanitise_log_value
         (123, "123"),
         (None, "None"),
         ("safe value", "safe value"),
+        ("\n", ""),
+        ("\r\n", ""),
+        (["AAPL", "ticker\ninjection"], "['AAPL', 'ticker\\ninjection']"),
     ],
 )
 def test_sanitise_log_value(value, expected):

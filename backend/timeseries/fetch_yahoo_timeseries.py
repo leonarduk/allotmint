@@ -4,6 +4,7 @@ from datetime import date, datetime, timedelta
 import pandas as pd
 import yfinance as yf
 
+from backend.logging_setup import sanitise_log_value
 from backend.timeseries.ticker_validator import (
     is_valid_ticker,
     record_skipped_ticker,
@@ -96,7 +97,7 @@ def fetch_yahoo_timeseries_range(ticker: str, exchange: str, start_date: date, e
         record_skipped_ticker(ticker, exchange, reason="unknown")
         return pd.DataFrame(columns=STANDARD_COLUMNS)
     full_ticker = _build_full_ticker(ticker, exchange)
-    logger.debug(f"Fetching Yahoo data for {full_ticker} from {start_date} to {end_date}")
+    logger.debug("Fetching Yahoo data for %s from %s to %s", sanitise_log_value(full_ticker), start_date, end_date)
 
     try:
         stock = yf.Ticker(full_ticker)
@@ -104,12 +105,12 @@ def fetch_yahoo_timeseries_range(ticker: str, exchange: str, start_date: date, e
         if df.empty:
             raise ValueError(f"No data returned for {full_ticker} between {start_date} and {end_date}")
 
-        logger.info(f"Fetched {len(df)} rows for {full_ticker}")
+        logger.info("Fetched %d rows for %s", len(df), sanitise_log_value(full_ticker))
 
         return normalize_history(df, full_ticker, "Yahoo")
 
     except Exception as e:
-        logger.error(f"Failed to fetch Yahoo data for {full_ticker}: {e}")
+        logger.error("Failed to fetch Yahoo data for %s: %s", sanitise_log_value(full_ticker), sanitise_log_value(e))
         raise
 
 
@@ -133,7 +134,10 @@ def fetch_yahoo_timeseries_period(
         ``False`` to keep full ``datetime`` values.
     """
     full_ticker = _build_full_ticker(ticker, exchange)
-    logger.debug(f"Fetching Yahoo data for {full_ticker} with period='{period}', interval='{interval}'")
+    logger.debug(
+        "Fetching Yahoo data for %s with period=%r, interval=%r",
+        sanitise_log_value(full_ticker), period, interval,
+    )
 
     try:
         stock = yf.Ticker(full_ticker)
@@ -151,7 +155,7 @@ def fetch_yahoo_timeseries_period(
         return df
 
     except Exception as e:
-        logger.error(f"Failed to fetch Yahoo data for {full_ticker}: {e}")
+        logger.error("Failed to fetch Yahoo data for %s: %s", sanitise_log_value(full_ticker), sanitise_log_value(e))
         raise
 
 

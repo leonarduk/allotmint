@@ -13,6 +13,15 @@ from pathlib import Path
 from backend.config import config
 
 
+def sanitise_log_value(value: object) -> str:
+    """Return a single-line string safe for plain-text logs.
+
+    Strips ``\\r`` and ``\\n`` so an attacker cannot inject fake log lines
+    via CWE-117 (log injection).
+    """
+    return str(value).replace("\r", "").replace("\n", "")
+
+
 def setup_logging() -> None:
     """Configure application logging from configuration file.
 

@@ -52,6 +52,7 @@ from backend.common.portfolio_utils import (
 # Local imports
 # ──────────────────────────────────────────────────────────────
 from backend.config import config
+from backend.logging_setup import sanitise_log_value
 from backend.timeseries.cache import load_meta_timeseries_range
 from backend.utils.pricing_dates import PricingDateCalculator
 from backend.utils.timeseries_helpers import _nearest_weekday
@@ -231,7 +232,7 @@ def refresh_prices() -> Dict:
     the current portfolios.  Writes to JSON and updates the cache.
     """
     tickers: List[str] = list_all_unique_tickers()
-    logger.info(f"Updating price snapshot for: {tickers}")
+    logger.info("Updating price snapshot for: %s", sanitise_log_value(tickers))
 
     snapshot = get_price_snapshot(tickers)
 
@@ -296,7 +297,7 @@ def refresh_prices() -> Dict:
         refresh_snapshot_in_memory(merged)
     check_price_alerts()
 
-    logger.debug(f"Snapshot written to {path}")
+    logger.debug("Snapshot written to %s", sanitise_log_value(path))
     ts = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     return {
         "tickers": tickers,
@@ -363,7 +364,7 @@ def load_prices_for_tickers(
                 df["Ticker"] = full  # restore suffix for display
                 frames.append(df)
         except Exception as exc:
-            logger.warning(f"Failed to fetch prices for {full}: {exc}")
+            logger.warning("Failed to fetch prices for %s: %s", sanitise_log_value(full), sanitise_log_value(exc))
 
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 

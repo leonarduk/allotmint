@@ -34,8 +34,10 @@ def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> tuple[str, st
     if exchange:
         sym = t.split(".", 1)[0]
         ex = exchange.upper()
+        source = "provided exchange"
     elif "." in t:
         sym, ex = t.split(".", 1)
+        source = "inferred from ticker"
     else:
         resolved = instrument_api._resolve_full_ticker(
             t, instrument_api._LATEST_PRICES
@@ -46,11 +48,12 @@ def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> tuple[str, st
                 detail=f"Exchange not provided and could not be inferred for {t}",
             )
         sym, ex = resolved
+        source = "inferred exchange"
 
     # Validate before logging — sym/ex are [A-Z0-9-] only after this point (CWE-117).
     if not _TICKER_SEGMENT_RE.match(sym) or not _TICKER_SEGMENT_RE.match(ex):
         raise HTTPException(status_code=400, detail="Invalid ticker format")
-    logger.debug("Resolved %s.%s", sym, ex)
+    logger.debug("Resolved %s.%s (%s)", sym, ex, source)
     return sym, ex
 
 

@@ -1,4 +1,3 @@
-import html
 import logging
 import re
 from datetime import date
@@ -65,9 +64,25 @@ async def get_meta_timeseries(
     days: int = Query(365, ge=0, le=36500),
     format: str = Query("html", pattern="^(html|json|csv)$"),
     scaling: float = Query(1.0, ge=0.00001, le=1_000_000),
+    start_date: date | None = Query(
+        None, description="Start date (YYYY-MM-DD). Overrides days when provided."
+    ),
+    end_date: date | None = Query(
+        None, description="End date (YYYY-MM-DD). Defaults to yesterday when omitted."
+    ),
 ):
     ticker, exchange = _resolve_ticker_exchange(ticker, exchange)
-    start_date, end_date = resolve_date_range(days)
+
+    start_date, end_date = resolve_date_range(
+        days, start_date=start_date, end_date=end_date
+    )
+
+    # 422 matches FastAPI's convention for parameter validation errors (issue #2747 AC).
+    if start_date > end_date:
+        raise HTTPException(
+            status_code=422,
+            detail=f"start_date ({start_date}) must not be after end_date ({end_date})",
+        )
 
     try:
         df = load_meta_timeseries_range(
@@ -112,27 +127,47 @@ async def get_meta_timeseries(
             }
         )
 
-    # ── CSV output ────────────────────────────────────────────
-    elif format == "csv":
-        csv_text = df.to_csv(index=False)
-        return PlainTextResponse(content=csv_text, media_type="text/csv")
+    # ── CSV output (plain `if`, not `elif` — JSON path returns above) ─────
+    if format == "csv":
+        return PlainTextResponse(content=df.to_csv(index=False), media_type="text/csv")
 
     # ── HTML output (default) ─────────────────────────────────
-    html_table = df.to_html(index=False)
-    safe_symbol = html.escape(f"{ticker}.{exchange}")
-    safe_date_range = html.escape(f"{start_date} to {end_date}")
-    safe_scaling = html.escape(str(scaling))
-    html_doc = f"""
-    <html>
-        <head><title>{safe_symbol} Price History</title></head>
-        <body>
-            <h1>{safe_symbol} - {safe_date_range}</h1>
-            <p><strong>Scaling:</strong> {safe_scaling}x</p>
-            {html_table}
-        </body>
-    </html>
+    return _render_meta_html(df, ticker, exchange, start_date, end_date, scaling)
+
+
+def _render_meta_html(
+    df: pd.DataFrame,
+    ticker: str,
+    exchange: str,
+    start_date: date,
+    end_date: date,
+    scaling: float,
+) -> HTMLResponse:
+    """Render the meta timeseries as HTML using the shared render helper.
+
+    Pads any missing standard columns with safe defaults so
+    render_timeseries_html never raises KeyError on this DataFrame.
     """
-    return HTMLResponse(content=html_doc)
+    render_df = df.copy()
+    for col in ("Open", "High", "Low", "Close"):
+        if col not in render_df.columns:
+            render_df[col] = float("nan")
+    if "Volume" not in render_df.columns:
+        render_df["Volume"] = 0
+    if "Ticker" not in render_df.columns:
+        render_df["Ticker"] = f"{ticker}.{exchange}"
+    if "Source" not in render_df.columns:
+        render_df["Source"] = "meta"
+
+    subtitle = f"{start_date} to {end_date}"
+    if scaling != 1.0:
+        subtitle = f"{subtitle} (scaling: {scaling}x)"
+
+    return render_timeseries_html(
+        render_df,
+        f"{ticker}.{exchange} Price History",
+        subtitle,
+    )
 
 
 @router.get("/html", response_class=HTMLResponse)

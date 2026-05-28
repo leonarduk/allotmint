@@ -664,7 +664,10 @@ class ReportContext:
                 pricing_date=self.end,
             )
         except (FileNotFoundError, ValueError) as exc:
-            logger.warning("failed to build owner portfolio for %s: %s", self.owner, exc)
+            logger.warning(
+                "failed to build owner portfolio for %s: %s",
+                sanitise_log_value(self.owner), sanitise_log_value(exc),
+            )
             fallback_portfolio = self._portfolio
             if (
                 fallback_portfolio is None

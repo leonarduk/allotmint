@@ -27,6 +27,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 
 from backend.common.instruments import get_instrument_meta
 from backend.config import config
+from backend.logging_setup import sanitise_log_value
 
 # ──────────────────────────────────────────────────────────────
 # Remote fetchers
@@ -67,9 +68,7 @@ EXCHANGE_TO_CCY = {
 }
 
 
-def _sanitize_for_log(value: object) -> str:
-    """Return a single-line representation safe for plain-text logs."""
-    return str(value).replace("\r", "").replace("\n", "")
+_sanitize_for_log = sanitise_log_value
 
 
 def _empty_ts() -> pd.DataFrame:

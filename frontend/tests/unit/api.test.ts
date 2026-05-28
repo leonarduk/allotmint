@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   DEFAULT_API_BASE,
   API_BASE,
@@ -202,6 +202,67 @@ describe("scenario APIs", () => {
       url,
       expect.objectContaining({ headers: expect.any(Headers) }),
     );
+  });
+});
+
+describe("client-side request forgery guard (CodeQL #218)", () => {
+  let originalFetch: typeof globalThis.fetch;
+
+  beforeEach(() => {
+    setApiBase(DEFAULT_API_BASE);
+    originalFetch = globalThis.fetch;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    setApiBase(DEFAULT_API_BASE);
+  });
+
+  it("blocks an absolute URL targeting a different host", async () => {
+    const mockFetch = vi.fn();
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+    await expect(
+      fetchJson("http://attacker.example.com/steal"),
+    ).rejects.toThrow("Blocked request to unexpected host");
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("allows an absolute URL whose origin matches the configured API base", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+    await fetchJson(`${DEFAULT_API_BASE}/health`);
+    expect(mockFetch).toHaveBeenCalledWith(
+      `${DEFAULT_API_BASE}/health`,
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    );
+  });
+
+  it("allows a relative path which resolves to the configured API host", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+    await fetchJson("/health");
+    expect(mockFetch).toHaveBeenCalledWith(
+      `${DEFAULT_API_BASE}/health`,
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    );
+  });
+
+  it("still blocks after setApiBase changes the origin", async () => {
+    setApiBase("https://api.example.com");
+    const mockFetch = vi.fn();
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+    await expect(
+      fetchJson("http://attacker.example.com/steal"),
+    ).rejects.toThrow("Blocked request to unexpected host");
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 });
 

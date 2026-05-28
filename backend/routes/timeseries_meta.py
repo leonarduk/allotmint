@@ -1,4 +1,3 @@
-import html
 import logging
 from datetime import date
 
@@ -121,35 +120,47 @@ async def get_meta_timeseries(
             }
         )
 
-    # ── CSV output ────────────────────────────────────────────
-    elif format == "csv":
-        csv_text = df.to_csv(index=False)
-        return PlainTextResponse(content=csv_text, media_type="text/csv")
+    # ── CSV output (plain `if`, not `elif` — JSON path returns above) ─────
+    if format == "csv":
+        return PlainTextResponse(content=df.to_csv(index=False), media_type="text/csv")
 
     # ── HTML output (default) ─────────────────────────────────
-    # All user-supplied values are escaped before embedding in the HTML
-    # response to prevent reflected XSS.  start_date/end_date are
-    # datetime.date objects (always YYYY-MM-DD) and scaling is a
-    # FastAPI-validated float, but we escape them anyway so static analysis
-    # tools can trace the full sanitisation chain.
-    # df.to_html(escape=True) escapes all cell values (pandas default).
-    safe_ticker = html.escape(ticker)
-    safe_exchange = html.escape(exchange)
-    safe_start = html.escape(start_date.isoformat())
-    safe_end = html.escape(end_date.isoformat())
-    safe_scaling = html.escape(str(scaling))
-    html_table = df.to_html(index=False, escape=True)
-    html_doc = f"""
-    <html>
-        <head><title>{safe_ticker}.{safe_exchange} Price History</title></head>
-        <body>
-            <h1>{safe_ticker}.{safe_exchange} - {safe_start} to {safe_end}</h1>
-            <p><strong>Scaling:</strong> {safe_scaling}x</p>
-            {html_table}
-        </body>
-    </html>
+    return _render_meta_html(df, ticker, exchange, start_date, end_date, scaling)
+
+
+def _render_meta_html(
+    df: pd.DataFrame,
+    ticker: str,
+    exchange: str,
+    start_date: date,
+    end_date: date,
+    scaling: float,
+) -> HTMLResponse:
+    """Render the meta timeseries as HTML using the shared render helper.
+
+    Pads any missing standard columns with safe defaults so
+    render_timeseries_html never raises KeyError on this DataFrame.
     """
-    return HTMLResponse(content=html_doc)
+    render_df = df.copy()
+    for col in ("Open", "High", "Low", "Close"):
+        if col not in render_df.columns:
+            render_df[col] = float("nan")
+    if "Volume" not in render_df.columns:
+        render_df["Volume"] = 0
+    if "Ticker" not in render_df.columns:
+        render_df["Ticker"] = f"{ticker}.{exchange}"
+    if "Source" not in render_df.columns:
+        render_df["Source"] = "meta"
+
+    subtitle = f"{start_date} to {end_date}"
+    if scaling != 1.0:
+        subtitle = f"{subtitle} (scaling: {scaling}x)"
+
+    return render_timeseries_html(
+        render_df,
+        f"{ticker}.{exchange} Price History",
+        subtitle,
+    )
 
 
 @router.get("/html", response_class=HTMLResponse)

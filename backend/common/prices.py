@@ -232,7 +232,7 @@ def refresh_prices() -> Dict:
     the current portfolios.  Writes to JSON and updates the cache.
     """
     tickers: List[str] = list_all_unique_tickers()
-    logger.info("Updating price snapshot for: %s", sanitise_log_value(tickers))
+    logger.info("Updating price snapshot for: %s", [sanitise_log_value(t) for t in tickers])
 
     snapshot = get_price_snapshot(tickers)
 

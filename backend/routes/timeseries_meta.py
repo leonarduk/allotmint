@@ -49,7 +49,7 @@ def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> tuple[str, st
         if not resolved:
             raise HTTPException(
                 status_code=400,
-                detail=f"Exchange not provided and could not be inferred for {t}",
+                detail="Exchange not provided and could not be inferred",
             )
         sym, ex = resolved
         source = "inferred exchange"

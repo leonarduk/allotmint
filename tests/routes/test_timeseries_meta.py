@@ -68,6 +68,30 @@ def test_resolve_cannot_infer_exchange(monkeypatch):
         ts_meta._resolve_ticker_exchange("xyz", None)
 
 
+@pytest.mark.parametrize("bad_ticker,bad_exchange", [
+    ("<script>alert(1)</script>", "L"),
+    ("ABC", "<img src=x onerror=alert(1)>"),
+    ("ABC&foo=bar", "L"),
+    ("ABC\"onload=x", "L"),
+])
+def test_resolve_rejects_unsafe_ticker_exchange(bad_ticker, bad_exchange):
+    import backend.routes.timeseries_meta as ts_meta
+    from fastapi import HTTPException
+
+    with pytest.raises(HTTPException) as exc_info:
+        ts_meta._resolve_ticker_exchange(bad_ticker, bad_exchange)
+    assert exc_info.value.status_code == 400
+
+
+def test_timeseries_meta_json_rejects_xss_ticker(monkeypatch):
+    df = _sample_df()
+    client = _client_with_df(monkeypatch, df)
+    resp = client.get(
+        "/timeseries/meta?ticker=%3Cscript%3Ealert(1)%3C%2Fscript%3E&exchange=L&format=json"
+    )
+    assert resp.status_code == 400
+
+
 # ---- /timeseries/meta route tests -----------------------------------------
 
 

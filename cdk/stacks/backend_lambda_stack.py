@@ -584,6 +584,15 @@ class BackendLambdaStack(Stack):
             # run. The grant targets the alias ARN (function:live) to match the qualified
             # invocation in the workflow. See issue #3137.
             refresh_alias.grant_invoke(github_role)
+            # Allow the same step to verify the snapshot landed in S3 via head-object.
+            # HeadObject is authorised by s3:GetObject in IAM (no separate s3:HeadObject
+            # action exists). Scoped to the single key the workflow checks. See issue #3149.
+            github_role.add_to_principal_policy(
+                iam.PolicyStatement(
+                    actions=["s3:GetObject"],
+                    resources=[data_bucket.arn_for_objects("prices/latest_prices.json")],
+                )
+            )
 
         CfnOutput(
             self,

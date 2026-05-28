@@ -1,5 +1,6 @@
 import html
 import logging
+import re
 from datetime import date
 
 import pandas as pd
@@ -20,6 +21,10 @@ from backend.utils.timeseries_helpers import (
 router = APIRouter(prefix="/timeseries", tags=["timeseries"])
 logger = logging.getLogger("routes.timeseries")
 
+# Only A-Z, 0-9, and hyphens are valid in a ticker segment or exchange code.
+# This allowlist prevents HTML/script injection from flowing into any response.
+_TICKER_SEGMENT_RE = re.compile(r"^[A-Z0-9\-]{1,20}$")
+
 
 def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> tuple[str, str]:
     t = (ticker or "").upper()
@@ -30,23 +35,24 @@ def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> tuple[str, st
         sym = t.split(".", 1)[0]
         ex = exchange.upper()
         logger.debug("Resolved %s.%s (provided exchange)", sym, ex)
-        return sym, ex
-
-    if "." in t:
+    elif "." in t:
         sym, ex = t.split(".", 1)
-        logger.debug("Resolved %s.%s (provided exchange)", sym, ex)
-        return sym, ex
-
-    resolved = instrument_api._resolve_full_ticker(
-        t, instrument_api._LATEST_PRICES
-    )
-    if not resolved:
-        logger.debug("Could not infer exchange for %s", t)
-        raise HTTPException(
-            status_code=400, detail=f"Exchange not provided and could not be inferred for {ticker}"
+        logger.debug("Resolved %s.%s (inferred from ticker)", sym, ex)
+    else:
+        resolved = instrument_api._resolve_full_ticker(
+            t, instrument_api._LATEST_PRICES
         )
-    sym, ex = resolved
-    logger.debug("Resolved %s.%s (inferred exchange)", sym, ex)
+        if not resolved:
+            logger.debug("Could not infer exchange for %s", t)
+            raise HTTPException(
+                status_code=400,
+                detail=f"Exchange not provided and could not be inferred for {t}",
+            )
+        sym, ex = resolved
+        logger.debug("Resolved %s.%s (inferred exchange)", sym, ex)
+
+    if not _TICKER_SEGMENT_RE.match(sym) or not _TICKER_SEGMENT_RE.match(ex):
+        raise HTTPException(status_code=400, detail="Invalid ticker format")
     return sym, ex
 
 

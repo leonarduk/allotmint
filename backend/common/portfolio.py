@@ -26,9 +26,10 @@ from backend.common.data_loader import (
     resolve_paths,
 )
 from backend.common.holding_utils import enrich_holding
+from backend.common.path_utils import safe_join
 from backend.common.user_config import load_user_config
-from backend.utils.pricing_dates import PricingDateCalculator
 from backend.config import config
+from backend.utils.pricing_dates import PricingDateCalculator
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +38,11 @@ logger = logging.getLogger(__name__)
 def _local_trades_path(owner: str, accounts_root: Optional[Path] = None) -> Path:
     paths = resolve_paths(config.repo_root, config.accounts_root)
     root = Path(accounts_root) if accounts_root else paths.accounts_root
-    return root / owner / "trades.csv"
+    try:
+        owner_dir = safe_join(root, owner)
+    except ValueError as exc:
+        raise FileNotFoundError(f"Invalid owner: {owner!r}") from exc
+    return owner_dir / "trades.csv"
 
 
 def _load_trades_local(owner: str, accounts_root: Optional[Path] = None) -> List[Dict[str, Any]]:

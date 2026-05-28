@@ -20,6 +20,7 @@ from backend.common.data_loader import (
     load_person_meta,  # (owner) -> {dob, ...}
     resolve_paths,
 )
+from backend.common.path_utils import safe_join
 from backend.config import config
 
 log = logging.getLogger("portfolio_loader")
@@ -116,7 +117,10 @@ def rebuild_account_holdings(
 
     paths = resolve_paths(config.repo_root, config.accounts_root)
     root = Path(accounts_root) if accounts_root else paths.accounts_root
-    owner_dir = root / owner
+    try:
+        owner_dir = safe_join(root, owner)
+    except ValueError as exc:
+        raise FileNotFoundError(f"Invalid owner: {owner!r}") from exc
 
     account_lc = account.lower()
     tx_path = None
@@ -203,7 +207,11 @@ def rebuild_account_holdings(
         "holdings": holdings,
     }
 
-    acct_path = owner_dir / f"{account.lower()}.json"
+    try:
+        acct_path = safe_join(owner_dir, f"{account.lower()}.json")
+    except ValueError as exc:
+        log.error("Invalid account name %r: %s", account, exc)
+        return out
     try:
         acct_path.write_text(json.dumps(out, indent=2))
     except OSError as exc:

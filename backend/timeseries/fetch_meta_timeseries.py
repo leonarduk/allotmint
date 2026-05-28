@@ -13,36 +13,37 @@ from __future__ import annotations
 import logging
 import re
 import time
-from datetime import date, timedelta, datetime
+from datetime import date, datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
-from typing import List, Optional, Dict, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
 
 from backend import config
+from backend.common.path_utils import safe_join
 
 OFFLINE_MODE = config.offline_mode
 
 # ──────────────────────────────────────────────────────────────
 # Local imports
 # ──────────────────────────────────────────────────────────────
+from backend.timeseries.fetch_alphavantage_timeseries import (
+    AlphaVantageRateLimitError,
+    fetch_alphavantage_timeseries_range,
+)
 from backend.timeseries.fetch_ft_timeseries import fetch_ft_timeseries
 from backend.timeseries.fetch_stooq_timeseries import (
-    fetch_stooq_timeseries_range,
     StooqRateLimitError,
+    fetch_stooq_timeseries_range,
 )
 from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_range
-from backend.timeseries.fetch_alphavantage_timeseries import (
-    fetch_alphavantage_timeseries_range,
-    AlphaVantageRateLimitError,
-)
-from backend.utils.timeseries_helpers import (
-    _nearest_weekday,
-    _is_isin,
-    STANDARD_COLUMNS,
-)
 from backend.timeseries.ticker_validator import is_valid_ticker, record_skipped_ticker
+from backend.utils.timeseries_helpers import (
+    STANDARD_COLUMNS,
+    _is_isin,
+    _nearest_weekday,
+)
 
 logger = logging.getLogger("meta_timeseries")
 
@@ -147,8 +148,8 @@ def _metadata_entry_exists_in_directory(symbol: str, directory: Path) -> bool:
         return False
 
     try:
-        return (directory / f"{symbol}.json").is_file()
-    except OSError:
+        return safe_join(directory, f"{symbol}.json").is_file()
+    except (OSError, ValueError):
         return False
 
 
@@ -165,10 +166,11 @@ def _metadata_entry_exists(
     for root_str in directories:
         root = Path(root_str)
         try:
-            candidate = root / exchange / f"{symbol}.json"
+            exchange_dir = safe_join(root, exchange)
+            candidate = safe_join(exchange_dir, f"{symbol}.json")
             if candidate.is_file():
                 return True
-        except OSError:
+        except (OSError, ValueError):
             continue
     return False
 
@@ -461,8 +463,9 @@ def run_all_tickers(
     ``exchange`` argument. If neither provides an exchange, resolve via
     instrument metadata.
     """
-    from backend.timeseries.cache import load_meta_timeseries
     import time
+
+    from backend.timeseries.cache import load_meta_timeseries
 
     ok: list[str] = []
     delay = 0.0

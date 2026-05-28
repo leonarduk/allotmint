@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from backend.common.data_loader import resolve_paths
+from backend.common.path_utils import safe_join
 from backend.config import config
 
 
@@ -42,7 +43,10 @@ class UserConfig:
 def _settings_path(owner: str, accounts_root: Path | None = None) -> Path:
     paths = resolve_paths(config.repo_root, config.accounts_root)
     root = Path(accounts_root) if accounts_root else paths.accounts_root
-    owner_dir = root / owner
+    try:
+        owner_dir = safe_join(root, owner)
+    except ValueError as exc:
+        raise FileNotFoundError(owner) from exc
     if not owner_dir.exists():
         raise FileNotFoundError(owner)
     return owner_dir / "settings.json"

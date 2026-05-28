@@ -21,6 +21,7 @@ import json
 from pathlib import Path
 from typing import Dict, Optional
 
+from backend.common.path_utils import safe_join
 from backend.config import config
 
 # Default annual limits (GBP) for supported account types
@@ -61,7 +62,10 @@ def load_yearly_contributions(
     Missing files or malformed data result in an empty mapping.
     """
 
-    path = _data_root(root) / f"{owner}.json"
+    try:
+        path = safe_join(_data_root(root), f"{owner}.json")
+    except ValueError:
+        return {}
     try:
         raw = json.loads(path.read_text())
     except (OSError, json.JSONDecodeError):

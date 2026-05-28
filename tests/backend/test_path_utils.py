@@ -73,3 +73,35 @@ def test_sanitize_for_log_keeps_printable() -> None:
 
 def test_sanitize_for_log_non_string() -> None:
     assert sanitize_for_log(42) == "42"
+
+
+def test_sanitize_for_log_strips_del() -> None:
+    assert sanitize_for_log("ab" + chr(127) + "cd") == "abcd"
+
+
+def test_null_byte_in_part_safe(tmp_path: Path) -> None:
+    # Null bytes in a path component must not escape the base directory.
+    # On POSIX, os.path.realpath raises ValueError for embedded null bytes.
+    # On Windows, the null byte truncates the path — still safe.
+    try:
+        result = safe_join(tmp_path, "alice" + chr(0) + "../../etc/passwd")
+        # If no exception, the resolved path must remain inside base
+        assert str(result).startswith(str(tmp_path))
+    except ValueError:
+        pass  # POSIX: null byte in path raises before the traversal check
+
+
+@pytest.mark.skipif(
+    not hasattr(__import__("os"), "symlink"),
+    reason="symlinks not supported on this platform",
+)
+def test_symlink_traversal_blocked(tmp_path: Path) -> None:
+    import os
+
+    outside = tmp_path.parent / "outside"
+    outside.mkdir()
+    link = tmp_path / "link"
+    os.symlink(outside, link)
+    # link resolves to outside tmp_path — must be rejected
+    with pytest.raises(ValueError, match="traversal"):
+        safe_join(tmp_path, "link")

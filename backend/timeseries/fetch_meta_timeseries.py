@@ -22,6 +22,7 @@ import pandas as pd
 
 from backend import config
 from backend.common.path_utils import safe_join
+from backend.logging_setup import sanitise_log_value
 
 OFFLINE_MODE = config.offline_mode
 
@@ -443,7 +444,7 @@ def fetch_meta_timeseries(
 
 def fetch_ft_df(ticker, end_date, start_date):
     try:
-        logger.debug(f"Falling back to FT for {ticker}")
+        logger.debug("Falling back to FT for %s", sanitise_log_value(ticker))
         days = (end_date - start_date).days or 1
         ft_df = fetch_ft_timeseries(ticker, days)
         return ft_df

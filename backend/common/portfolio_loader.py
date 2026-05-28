@@ -10,6 +10,7 @@ Build rich "portfolio" dictionaries that the rest of the backend expects.
 
 import json
 import logging
+import re
 from collections import defaultdict
 from datetime import date
 from pathlib import Path
@@ -25,10 +26,12 @@ from backend.config import config
 
 log = logging.getLogger("portfolio_loader")
 
+_LOG_CTRL_RE = re.compile(r"[\x00-\x1f\x7f]")
+
 
 def _sanitize_for_log(value: object) -> str:
-    """Return a single-line string safe for plain-text logs (strips CR/LF)."""
-    return str(value).replace("\r", "").replace("\n", "")
+    """Return a string safe for plain-text logs (strips control characters)."""
+    return _LOG_CTRL_RE.sub("", str(value))
 
 
 # ────────────────────────────────────────────────────────────────

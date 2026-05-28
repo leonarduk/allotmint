@@ -10,7 +10,6 @@ Build rich "portfolio" dictionaries that the rest of the backend expects.
 
 import json
 import logging
-import re
 from collections import defaultdict
 from datetime import date
 from pathlib import Path
@@ -26,16 +25,6 @@ from backend.config import config
 from backend.logging_setup import sanitise_log_value
 
 log = logging.getLogger("portfolio_loader")
-
-_LOG_CTRL_RE = re.compile(r"[\x00-\x1f\x7f]")
-_LOG_SAFE_RE = re.compile(r"[^A-Za-z0-9_-]")
-
-
-def _sanitize_for_log(value: object) -> str:
-    text = _LOG_CTRL_RE.sub("", str(value))
-    text = _LOG_SAFE_RE.sub("_", text)
-    return text or "<invalid>"
-
 
 # ────────────────────────────────────────────────────────────────
 # Private helpers
@@ -223,9 +212,8 @@ def rebuild_account_holdings(
 
     try:
         acct_path = safe_join(owner_dir, f"{account.lower()}.json")
-    except ValueError as exc:
-        safe_account = _sanitize_for_log(account)
-        log.error("Invalid account name %r: %s", safe_account, exc)
+    except ValueError:
+        log.error("Invalid account name: path traversal blocked")
         return out
     try:
         acct_path.write_text(json.dumps(out, indent=2))

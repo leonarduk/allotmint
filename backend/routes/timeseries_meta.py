@@ -50,10 +50,10 @@ def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> tuple[str, st
         sym, ex = resolved
         source = "inferred exchange"
 
-    # Validate before logging — sym/ex are [A-Z0-9-] only after this point (CWE-117).
+    # Validate before logging — raises if sym/ex contain chars outside [A-Z0-9-] (CWE-117).
     if not _TICKER_SEGMENT_RE.match(sym) or not _TICKER_SEGMENT_RE.match(ex):
         raise HTTPException(status_code=400, detail="Invalid ticker format")
-    logger.debug("Resolved %s.%s (%s)", sanitise_log_value(sym), sanitise_log_value(ex), source)
+    logger.debug("Ticker resolved (%s)", source)
     return sym, ex
 
 

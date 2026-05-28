@@ -29,6 +29,7 @@ from backend.common.data_providers import (
 from backend.common.virtual_portfolio import VirtualPortfolio
 from backend.config import config
 from backend.config import demo_identity as get_demo_identity
+from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
 
@@ -1013,9 +1014,9 @@ def load_account(
             except Exception as exc:
                 logger.warning(
                     "Failed to load account data from s3://%s/%s: %s; falling back to local file",
-                    bucket,
-                    key,
-                    exc,
+                    sanitise_log_value(bucket),
+                    sanitise_log_value(key),
+                    sanitise_log_value(exc),
                     exc_info=True,
                 )
                 if not local_root:
@@ -1040,9 +1041,9 @@ def load_account(
                 raise MissingData(str(exc)) from exc
             logger.warning(
                 "Failed to load account data from provider for %s/%s: %s; falling back to local file",
-                owner,
-                account,
-                exc,
+                sanitise_log_value(owner),
+                sanitise_log_value(account),
+                sanitise_log_value(exc),
                 extra={
                     "event": "data_loader.account_provider_unavailable",
                     "owner": owner,
@@ -1112,14 +1113,17 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
                 data = json.loads(txt)
                 return _extract_person_meta(data)
             except ValidationError:
-                logger.warning("Invalid person metadata for owner '%s' in s3://%s/%s", owner, bucket, key)
+                logger.warning(
+                    "Invalid person metadata for owner '%s' in s3://%s/%s",
+                    sanitise_log_value(owner), sanitise_log_value(bucket), sanitise_log_value(key),
+                )
                 return {}
             except Exception as exc:
                 logger.warning(
                     "Failed to load person metadata from s3://%s/%s: %s; falling back to local file",
-                    bucket,
-                    key,
-                    exc,
+                    sanitise_log_value(bucket),
+                    sanitise_log_value(key),
+                    sanitise_log_value(exc),
                     exc_info=True,
                 )
                 if not explicit_local_fallback:

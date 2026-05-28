@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict
 
 from backend.config import config
+from backend.logging_setup import sanitise_log_value
 
 CACHE_DIR = config.data_root / "cache"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
@@ -42,7 +43,7 @@ def load_cache(page_name: str) -> Any | None:
         with path.open("r", encoding="utf-8") as fh:
             return json.load(fh)
     except (json.JSONDecodeError, OSError):
-        logger.exception("Cache load failed for %s", page_name)
+        logger.exception("Cache load failed for %s", sanitise_log_value(page_name))
         return None
 
 
@@ -117,7 +118,7 @@ def schedule_refresh(
                         exc, asyncio.CancelledError
                     ):  # pragma: no cover - defensive
                         raise
-                    logger.exception("Cache refresh failed for %s", page_name)
+                    logger.exception("Cache refresh failed for %s", sanitise_log_value(page_name))
                     # Immediately retry on failure so the cache can still be
                     # populated without waiting for the next scheduled
                     # interval.  This makes the refresh logic resilient to
@@ -138,7 +139,7 @@ def schedule_refresh(
                         if isinstance(exc, asyncio.CancelledError):
                             cancelled = True
                         else:
-                            logger.exception("Cache persist failed for %s", page_name)
+                            logger.exception("Cache persist failed for %s", sanitise_log_value(page_name))
                         try:
                             await asyncio.sleep(0)
                         except asyncio.CancelledError:

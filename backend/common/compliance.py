@@ -100,7 +100,7 @@ def ensure_owner_scaffold(owner: str, accounts_root: Optional[Path] = None) -> P
     try:
         owner_dir = safe_join(root, owner)
     except ValueError as exc:
-        raise FileNotFoundError(f"Invalid owner: {owner!r}") from exc
+        raise FileNotFoundError("invalid owner") from exc
     _ensure_owner_scaffold(owner, owner_dir)
     return owner_dir
 
@@ -123,7 +123,7 @@ def load_transactions(
     try:
         owner_dir = safe_join(root, owner)
     except ValueError as exc:
-        raise FileNotFoundError(f"Invalid owner: {owner!r}") from exc
+        raise FileNotFoundError("invalid owner") from exc
     if not owner_dir.exists():
         if not scaffold_missing:
             raise FileNotFoundError(owner_dir)

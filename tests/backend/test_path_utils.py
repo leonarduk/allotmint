@@ -1,11 +1,11 @@
-"""Tests for the safe_join path-traversal guard."""
+"""Tests for path_utils: safe_join path-traversal guard and sanitize_for_log."""
 from __future__ import annotations
 
 from pathlib import Path
 
 import pytest
 
-from backend.common.path_utils import safe_join
+from backend.common.path_utils import safe_join, sanitize_for_log
 
 
 def test_valid_single_part(tmp_path: Path) -> None:
@@ -34,10 +34,16 @@ def test_traversal_absolute_blocked(tmp_path: Path) -> None:
         safe_join(tmp_path, "/etc/passwd")
 
 
-def test_empty_part_returns_base(tmp_path: Path) -> None:
-    # An empty string part resolves to the base itself — allowed
-    result = safe_join(tmp_path, "")
-    assert result == tmp_path.resolve()
+def test_empty_part_raises(tmp_path: Path) -> None:
+    # An empty string resolves to the base itself, which is rejected
+    with pytest.raises(ValueError, match="traversal"):
+        safe_join(tmp_path, "")
+
+
+def test_dot_part_raises(tmp_path: Path) -> None:
+    # "." also resolves to the base and must be rejected
+    with pytest.raises(ValueError, match="traversal"):
+        safe_join(tmp_path, ".")
 
 
 def test_literal_filename_with_dots(tmp_path: Path) -> None:
@@ -54,3 +60,16 @@ def test_deeply_nested_valid_path(tmp_path: Path) -> None:
 def test_returns_path_object(tmp_path: Path) -> None:
     result = safe_join(tmp_path, "x")
     assert isinstance(result, Path)
+
+
+def test_sanitize_for_log_strips_control_chars() -> None:
+    dirty = "hello" + chr(0) + "world" + chr(10) + "foo" + chr(31)
+    assert sanitize_for_log(dirty) == "helloworldfoo"
+
+
+def test_sanitize_for_log_keeps_printable() -> None:
+    assert sanitize_for_log("alice/isa.json") == "alice/isa.json"
+
+
+def test_sanitize_for_log_non_string() -> None:
+    assert sanitize_for_log(42) == "42"

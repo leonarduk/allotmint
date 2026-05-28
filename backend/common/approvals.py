@@ -25,7 +25,7 @@ def approvals_path(owner: str, accounts_root: Path | None = None) -> Path:
     try:
         owner_dir = safe_join(root, owner)
     except ValueError as exc:
-        raise FileNotFoundError(owner) from exc
+        raise FileNotFoundError("invalid owner") from exc
     if not owner_dir.exists():
         raise FileNotFoundError(owner_dir)
     return owner_dir / "approvals.json"

@@ -10,7 +10,6 @@ Build rich "portfolio" dictionaries that the rest of the backend expects.
 
 import json
 import logging
-import re
 from collections import defaultdict
 from datetime import date
 from pathlib import Path
@@ -21,17 +20,10 @@ from backend.common.data_loader import (
     load_person_meta,  # (owner) -> {dob, ...}
     resolve_paths,
 )
-from backend.common.path_utils import safe_join
+from backend.common.path_utils import safe_join, sanitize_for_log
 from backend.config import config
 
 log = logging.getLogger("portfolio_loader")
-
-_LOG_CTRL_RE = re.compile(r"[\x00-\x1f\x7f]")
-
-
-def _sanitize_for_log(value: object) -> str:
-    """Return a string safe for plain-text logs (strips control characters)."""
-    return _LOG_CTRL_RE.sub("", str(value))
 
 
 # ────────────────────────────────────────────────────────────────
@@ -128,7 +120,7 @@ def rebuild_account_holdings(
     try:
         owner_dir = safe_join(root, owner)
     except ValueError as exc:
-        raise FileNotFoundError(f"Invalid owner: {owner!r}") from exc
+        raise FileNotFoundError("invalid owner") from exc
 
     account_lc = account.lower()
     tx_path = None
@@ -218,7 +210,7 @@ def rebuild_account_holdings(
     try:
         acct_path = safe_join(owner_dir, f"{account.lower()}.json")
     except ValueError as exc:
-        log.error("Invalid account name %r: %s", _sanitize_for_log(account), exc)
+        log.error("Invalid account name %r: %s", sanitize_for_log(account), exc)
         return out
     try:
         acct_path.write_text(json.dumps(out, indent=2))

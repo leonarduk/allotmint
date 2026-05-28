@@ -46,7 +46,7 @@ def _settings_path(owner: str, accounts_root: Path | None = None) -> Path:
     try:
         owner_dir = safe_join(root, owner)
     except ValueError as exc:
-        raise FileNotFoundError(owner) from exc
+        raise FileNotFoundError("invalid owner") from exc
     if not owner_dir.exists():
         raise FileNotFoundError(owner)
     return owner_dir / "settings.json"

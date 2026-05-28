@@ -94,9 +94,8 @@ function computeSmokeDeathAge(identity: string): string {
       }
       const retirementAge = statePensionAgeUk(dob);
       return String(retirementAge + 20);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.warn(`Unable to derive smoke pension death age for identity '${slug}': ${message}`);
+    } catch {
+      console.warn(`Unable to derive smoke pension death age for identity '${slug}': person.json missing or unreadable`);
     }
   }
 

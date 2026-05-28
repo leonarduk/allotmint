@@ -27,11 +27,13 @@ from backend.config import config
 log = logging.getLogger("portfolio_loader")
 
 _LOG_CTRL_RE = re.compile(r"[\x00-\x1f\x7f]")
+_LOG_SAFE_RE = re.compile(r"[^A-Za-z0-9_-]")
 
 
 def _sanitize_for_log(value: object) -> str:
-    text = str(value)
-    return _LOG_CTRL_RE.sub("", text)
+    text = _LOG_CTRL_RE.sub("", str(value))
+    text = _LOG_SAFE_RE.sub("_", text)
+    return text or "<invalid>"
 
 
 # ────────────────────────────────────────────────────────────────

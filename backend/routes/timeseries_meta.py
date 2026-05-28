@@ -26,6 +26,10 @@ logger = logging.getLogger("routes.timeseries")
 _TICKER_SEGMENT_RE = re.compile(r"^[A-Z0-9-]{1,20}$")
 
 
+def _sanitize_for_log(value: str) -> str:
+    return value.replace("\r", "").replace("\n", "")
+
+
 def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> tuple[str, str]:
     t = (ticker or "").upper()
     if not t:
@@ -53,7 +57,10 @@ def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> tuple[str, st
     # Validate before logging — sym/ex are [A-Z0-9-] only after this point (CWE-117).
     if not _TICKER_SEGMENT_RE.match(sym) or not _TICKER_SEGMENT_RE.match(ex):
         raise HTTPException(status_code=400, detail="Invalid ticker format")
-    logger.debug("Resolved %s.%s (%s)", sym, ex, source)
+    safe_sym = _sanitize_for_log(sym)
+    safe_ex = _sanitize_for_log(ex)
+    safe_source = _sanitize_for_log(source)
+    logger.debug("Resolved %s.%s (%s)", safe_sym, safe_ex, safe_source)
     return sym, ex
 
 

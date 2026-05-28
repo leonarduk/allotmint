@@ -33,6 +33,7 @@ from backend.common.virtual_portfolio import (
     list_virtual_portfolios,
 )
 from backend.config import config
+from backend.logging_setup import sanitise_log_value
 from backend.timeseries.cache import load_meta_timeseries, load_meta_timeseries_range
 from backend.utils.fx_rates import fetch_fx_rate_range
 from backend.utils.pricing_dates import PricingDateCalculator
@@ -126,7 +127,7 @@ def _fx_to_base(currency: str | None, base_currency: str, cache: Dict[str, float
                 cache[ccy] = rate
                 return rate
         except Exception as exc:  # pragma: no cover - defensive
-            logger.warning("Failed to fetch FX rate for %s: %s", ccy, exc)
+            logger.warning("Failed to fetch FX rate for %s: %s", sanitise_log_value(ccy), sanitise_log_value(exc))
         cache[ccy] = 1.0
         return 1.0
 
@@ -411,7 +412,7 @@ def _meta_from_file(ticker: str) -> Dict[str, str] | None:
         path_str = str(path)
         if path_str not in _MISSING_META:
             _MISSING_META.add(path_str)
-            logger.warning("Instrument metadata %s not found or invalid", path_str)
+            logger.warning("Instrument metadata %s not found or invalid", sanitise_log_value(path_str))
         return None
 
     return {
@@ -580,7 +581,7 @@ def aggregate_by_ticker(
             else:
                 sym, inferred = (tkr.split(".", 1) + [None])[:2]
                 if not h.get("exchange"):
-                    logger.debug("Could not resolve exchange for %s; defaulting to L", tkr)
+                    logger.debug("Could not resolve exchange for %s; defaulting to L", sanitise_log_value(tkr))
 
             sym = (sym or "").upper()
             base_sym = sym.split(".", 1)[0]
@@ -743,7 +744,7 @@ def aggregate_by_ticker(
                         else:
                             logger.debug(
                                 "snap for %s missing price_currency; defaulting snapshot currency to GBP",
-                                full_tkr,
+                                sanitise_log_value(full_tkr),
                             )
                             native_currency = "GBP"
 
@@ -756,7 +757,7 @@ def aggregate_by_ticker(
                         gbp_price = native_price * _fx_to_base(native_currency, "GBP", fx_cache)
 
                         if native_price == 0:
-                            logger.debug("Using zero snapshot price for %s", full_tkr)
+                            logger.debug("Using zero snapshot price for %s", sanitise_log_value(full_tkr))
 
                         row["last_price_gbp"] = gbp_price
                         row["last_price_date"] = snap.get("last_price_date")
@@ -1018,11 +1019,11 @@ def compute_owner_performance(
             else:
                 sym, inferred = (tkr.split(".", 1) + [None])[:2]
                 if not h.get("exchange"):
-                    logger.debug("Could not resolve exchange for %s; defaulting to L", tkr)
+                    logger.debug("Could not resolve exchange for %s; defaulting to L", sanitise_log_value(tkr))
             exch = (h.get("exchange") or inferred or "L").upper()
             full = f"{sym}.{exch}".upper()
             if not include_flagged and full in flagged:
-                logger.debug("Skipping flagged instrument %s", full)
+                logger.debug("Skipping flagged instrument %s", sanitise_log_value(full))
                 continue
             holdings.append((sym, exch, units))
 
@@ -1176,7 +1177,7 @@ def portfolio_value_breakdown(owner: str, date: str) -> List[Dict[str, Any]]:
             else:
                 sym, inferred = (tkr.split(".", 1) + [None])[:2]
                 if not h.get("exchange"):
-                    logger.debug("Could not resolve exchange for %s; defaulting to L", tkr)
+                    logger.debug("Could not resolve exchange for %s; defaulting to L", sanitise_log_value(tkr))
             exch = (h.get("exchange") or inferred or "L").upper()
             key = f"{sym}.{exch}"
             row = holdings.setdefault(
@@ -1352,11 +1353,11 @@ def _portfolio_value_series(
             else:
                 sym, inferred = (tkr.split(".", 1) + [None])[:2]
                 if not h.get("exchange"):
-                    logger.debug("Could not resolve exchange for %s; defaulting to L", tkr)
+                    logger.debug("Could not resolve exchange for %s; defaulting to L", sanitise_log_value(tkr))
             exch = (h.get("exchange") or inferred or "L").upper()
             full = f"{sym}.{exch}".upper()
             if full in flagged:
-                logger.debug("Skipping flagged instrument %s", full)
+                logger.debug("Skipping flagged instrument %s", sanitise_log_value(full))
                 continue
             holdings.append((sym, exch, units))
 
@@ -1947,7 +1948,7 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
             else:
                 ticker_only = t.split(".", 1)[0]
                 exchange = "L"
-                logger.debug("Could not resolve exchange for %s; defaulting to L", t)
+                logger.debug("Could not resolve exchange for %s; defaulting to L", sanitise_log_value(t))
 
             df = load_meta_timeseries_range(
                 ticker=ticker_only,
@@ -1975,7 +1976,7 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
                         "last_price_date": pd.to_datetime(latest_row["Date"]).strftime("%Y-%m-%d"),
                     }
         except (OSError, ValueError, KeyError, IndexError, TypeError) as e:
-            logger.warning("Could not get timeseries for %s: %s", t, e)
+            logger.warning("Could not get timeseries for %s: %s", sanitise_log_value(t), sanitise_log_value(e))
 
     refresh_snapshot_in_memory(snapshot, datetime.now(UTC))
 

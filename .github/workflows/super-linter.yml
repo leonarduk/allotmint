@@ -12,6 +12,11 @@ on:
     types: [opened, reopened, synchronize]
   push:
     branches: [main]
+
+permissions:
+  contents: read
+  statuses: write
+
 jobs:
   run-lint:
     runs-on: ubuntu-latest

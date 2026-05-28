@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 import os
+import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from backend.config import config
+from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
 
@@ -160,9 +161,9 @@ def get_instrument_meta(ticker: str) -> Dict[str, Any]:
         except Exception as exc:
             logger.warning(
                 "S3 load failed for %s/%s: %s; falling back to local file",
-                bucket,
-                key,
-                exc,
+                sanitise_log_value(bucket),
+                sanitise_log_value(key),
+                sanitise_log_value(exc),
             )
     try:
         path = _instrument_path(ticker)
@@ -172,13 +173,13 @@ def get_instrument_meta(ticker: str) -> Dict[str, Any]:
         created = _auto_create_instrument_meta(ticker)
         return created or {}
     except json.JSONDecodeError as exc:
-        logger.warning("Invalid instrument JSON %s: %s", path, exc)
+        logger.warning("Invalid instrument JSON %s: %s", sanitise_log_value(path), sanitise_log_value(exc))
         return {}
     except ValueError:
-        logger.warning("Invalid ticker format: %s", ticker)
+        logger.warning("Invalid ticker format: %s", sanitise_log_value(ticker))
         return {}
     except Exception:
-        logger.exception("Unexpected error loading instrument metadata for %s", ticker)
+        logger.exception("Unexpected error loading instrument metadata for %s", sanitise_log_value(ticker))
         raise
 
 
@@ -235,11 +236,11 @@ def save_instrument_meta(
         except Exception as exc:  # pragma: no cover - best effort
             logger.warning(
                 "Failed to upload instrument metadata for %s.%s to s3://%s/%s: %s",
-                ticker,
-                exchange,
-                bucket,
-                key,
-                exc,
+                sanitise_log_value(ticker),
+                sanitise_log_value(exchange),
+                sanitise_log_value(bucket),
+                sanitise_log_value(key),
+                sanitise_log_value(exc),
             )
 
     get_instrument_meta.cache_clear()
@@ -325,16 +326,19 @@ def _fetch_metadata_from_yahoo(symbol: str, exchange: str) -> Optional[Dict[str,
     except Exception as exc:  # pragma: no cover - optional dependency missing
         logger.debug(
             "yfinance unavailable; cannot fetch metadata for %s.%s: %s",
-            symbol,
-            exchange,
-            exc,
+            sanitise_log_value(symbol),
+            sanitise_log_value(exchange),
+            sanitise_log_value(exc),
         )
         return None
 
     try:
         yahoo_symbol = _build_yahoo_symbol(symbol, exchange)
     except ValueError as exc:
-        logger.debug("Unsupported exchange for Yahoo metadata %s.%s: %s", symbol, exchange, exc)
+        logger.debug(
+            "Unsupported exchange for Yahoo metadata %s.%s: %s",
+            sanitise_log_value(symbol), sanitise_log_value(exchange), sanitise_log_value(exc),
+        )
         return None
 
     full_ticker = f"{symbol.upper()}.{exchange.upper()}"
@@ -342,7 +346,10 @@ def _fetch_metadata_from_yahoo(symbol: str, exchange: str) -> Optional[Dict[str,
     try:
         stock = yf.Ticker(yahoo_symbol)
     except Exception as exc:  # pragma: no cover - network/IO errors
-        logger.warning("Failed to initialise yfinance for %s: %s", yahoo_symbol, exc)
+        logger.warning(
+            "Failed to initialise yfinance for %s: %s",
+            sanitise_log_value(yahoo_symbol), sanitise_log_value(exc),
+        )
         return None
 
     info: Dict[str, Any] = {}
@@ -351,13 +358,16 @@ def _fetch_metadata_from_yahoo(symbol: str, exchange: str) -> Optional[Dict[str,
         if isinstance(fetched, dict):
             info = fetched
     except Exception as exc:  # pragma: no cover - best effort fallback
-        logger.debug("yfinance get_info failed for %s: %s", full_ticker, exc)
+        logger.debug("yfinance get_info failed for %s: %s", sanitise_log_value(full_ticker), sanitise_log_value(exc))
         try:
             fetched_attr = getattr(stock, "info", None)
             if isinstance(fetched_attr, dict):
                 info = fetched_attr
         except Exception as exc_attr:  # pragma: no cover - best effort fallback
-            logger.debug("yfinance info attribute failed for %s: %s", full_ticker, exc_attr)
+            logger.debug(
+                "yfinance info attribute failed for %s: %s",
+                sanitise_log_value(full_ticker), sanitise_log_value(exc_attr),
+            )
 
     name = _clean_str(
         info.get("shortName")
@@ -439,9 +449,12 @@ def _auto_create_instrument_meta(ticker: str) -> Optional[Dict[str, Any]]:
     try:
         save_instrument_meta(sym, exch, payload)
     except Exception as exc:  # pragma: no cover - filesystem errors are rare
-        logger.warning("Failed to persist auto-created metadata for %s: %s", full, exc)
+        logger.warning(
+            "Failed to persist auto-created metadata for %s: %s",
+            sanitise_log_value(full), sanitise_log_value(exc),
+        )
     else:
-        logger.info("Auto-created instrument metadata for %s from Yahoo Finance", full)
+        logger.info("Auto-created instrument metadata for %s from Yahoo Finance", sanitise_log_value(full))
 
     return payload
 

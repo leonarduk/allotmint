@@ -26,6 +26,12 @@ from backend.logging_setup import sanitise_log_value
 
 OFFLINE_MODE = config.offline_mode
 
+
+def _sanitize_for_log(value: object) -> str:
+    """Return a log-safe string representation with line breaks neutralized."""
+    text = str(value)
+    return text.replace("\r", "\\r").replace("\n", "\\n")
+
 # ──────────────────────────────────────────────────────────────
 # Local imports
 # ──────────────────────────────────────────────────────────────
@@ -173,13 +179,20 @@ def _metadata_entry_exists_in_directory(symbol: str, directory: Path) -> bool:
         return False
 
     try:
-        if not directory.is_dir():
+        resolved_directory = directory.resolve(strict=False)
+        if not resolved_directory.is_dir():
             return False
     except OSError:
         return False
 
     try:
-        return (directory / f"{symbol}.json").is_file()
+        candidate = resolved_directory / f"{symbol}.json"
+        resolved_candidate = candidate.resolve(strict=False)
+        try:
+            resolved_candidate.relative_to(resolved_directory)
+        except ValueError:
+            return False
+        return resolved_candidate.is_file()
     except OSError:
         return False
 
@@ -203,8 +216,14 @@ def _metadata_entry_exists(
     for root_str in directories:
         root = Path(root_str)
         try:
-            candidate = root / exchange / f"{symbol}.json"
-            if candidate.is_file():
+            resolved_root = root.resolve(strict=False)
+            candidate = resolved_root / exchange / f"{symbol}.json"
+            resolved_candidate = candidate.resolve(strict=False)
+            try:
+                resolved_candidate.relative_to(resolved_root)
+            except ValueError:
+                continue
+            if resolved_candidate.is_file():
                 return True
         except OSError:
             continue
@@ -219,9 +238,11 @@ def _resolve_symbol_exchange_details(
     sym, suffix = (re.split(r"[._]", ticker, 1) + [""])[:2]
     provided = (exchange or "").upper()
     suffix = suffix.upper()
+    safe_ticker = _sanitize_for_log(ticker)
+    safe_sym = _sanitize_for_log(sym)
     if suffix and provided and suffix != provided:
         logger.debug(
-            "Exchange mismatch for %s: suffix %s vs argument %s", ticker, suffix, provided
+            "Exchange mismatch for %s: suffix %s vs argument %s", safe_ticker, suffix, provided
         )
     resolved = suffix or provided
 
@@ -229,16 +250,16 @@ def _resolve_symbol_exchange_details(
     ex = resolved
     if not ex and meta_ex:
         ex = meta_ex
-        logger.debug("Resolved exchange for %s via metadata: %s", sym, ex)
+        logger.debug("Resolved exchange for %s via metadata: %s", safe_sym, ex)
     elif ex and meta_ex and ex != meta_ex:
         logger.debug(
             "Exchange metadata mismatch for %s: using %s but metadata %s",
-            sym,
+            safe_sym,
             ex,
             meta_ex,
         )
     elif not ex:
-        logger.debug("No exchange information for %s; continuing without exchange", sym)
+        logger.debug("No exchange information for %s; continuing without exchange", safe_sym)
 
     return sym.upper(), (ex or "").upper(), meta_ex
 
@@ -479,12 +500,14 @@ def fetch_meta_timeseries(
 
 def fetch_ft_df(ticker, end_date, start_date):
     try:
+        safe_ticker = _sanitize_for_log(ticker)
+        logger.debug("Falling back to FT for %s", safe_ticker)
         logger.debug("Falling back to FT for %s", sanitise_log_value(ticker))
         days = (end_date - start_date).days or 1
         ft_df = fetch_ft_timeseries(ticker, days)
         return ft_df
     except Exception as exc:
-        logger.debug("FT miss for %s: %s", ticker, exc)
+        logger.debug("FT miss for %s: %s", _sanitize_for_log(ticker), exc)
         return pd.DataFrame(columns=STANDARD_COLUMNS)
 
 # ──────────────────────────────────────────────────────────────
@@ -517,13 +540,15 @@ def run_all_tickers(
         if delay and idx:
             time.sleep(delay)
         sym, ex, meta_exchange = _resolve_symbol_exchange_details(t, exchange)
-        logger.debug("run_all_tickers resolved %s -> %s.%s", t, sym, ex)
+        safe_t = _sanitize_for_log(t)
+        safe_sym = _sanitize_for_log(sym)
+        logger.debug("run_all_tickers resolved %s -> %s.%s", safe_t, safe_sym, ex)
         cache_exchange = _resolve_cache_exchange(t, exchange, sym, ex, meta_exchange)
         try:
             if not load_meta_timeseries(sym, cache_exchange, days).empty:
                 ok.append(t)
         except Exception as exc:
-            logger.warning("[WARN] %s: %s", t, exc)
+            logger.warning("[WARN] %s: %s", safe_t, exc)
     logger.info(
         "Bulk warm-up complete: %d updated, %d skipped", len(ok), len(tickers) - len(ok)
     )

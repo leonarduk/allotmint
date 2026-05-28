@@ -96,7 +96,7 @@ function computeSmokeDeathAge(identity: string): string {
       return String(retirementAge + 20);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.warn(`Unable to derive smoke pension death age from ${personPath}: ${message}`);
+      console.warn(`Unable to derive smoke pension death age for identity '${slug}': ${message}`);
     }
   }
 

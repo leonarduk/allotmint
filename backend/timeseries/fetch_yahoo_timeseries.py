@@ -134,9 +134,11 @@ def fetch_yahoo_timeseries_period(
         ``False`` to keep full ``datetime`` values.
     """
     full_ticker = _build_full_ticker(ticker, exchange)
+    safe_period = sanitise_log_value(period)
+    safe_interval = sanitise_log_value(interval)
     logger.debug(
         "Fetching Yahoo data for %s with period=%r, interval=%r",
-        sanitise_log_value(full_ticker), period, interval,
+        sanitise_log_value(full_ticker), safe_period, safe_interval,
     )
 
     try:

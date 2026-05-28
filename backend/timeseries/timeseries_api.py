@@ -18,6 +18,8 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from backend.logging_setup import sanitise_log_value
+
 router = APIRouter(
     prefix="/timeseries",
     tags=["timeseries"],
@@ -31,7 +33,10 @@ router = APIRouter(
 
 def _fetch_yahoo(ticker: str, period: str, interval: str) -> pd.DataFrame:
     """Fetch OHLCV data from Yahoo Finance and return a DataFrame."""
-    logging.info("Yahoo download | ticker=%s period=%s interval=%s", ticker, period, interval)
+    logging.info(
+        "Yahoo download | ticker=%s period=%s interval=%s",
+        sanitise_log_value(ticker), sanitise_log_value(period), sanitise_log_value(interval),
+    )
     df = yf.Ticker(ticker).history(period=period, interval=interval)
     if df.empty:
         raise ValueError("No data returned from Yahoo Finance")

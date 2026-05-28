@@ -22,6 +22,7 @@ from typing import Dict, List, Optional, Tuple
 import pandas as pd
 
 from backend import config
+from backend.logging_setup import sanitise_log_value
 
 OFFLINE_MODE = config.offline_mode
 
@@ -494,6 +495,7 @@ def fetch_ft_df(ticker, end_date, start_date):
     try:
         safe_ticker = _sanitize_for_log(ticker)
         logger.debug("Falling back to FT for %s", safe_ticker)
+        logger.debug("Falling back to FT for %s", sanitise_log_value(ticker))
         days = (end_date - start_date).days or 1
         ft_df = fetch_ft_timeseries(ticker, days)
         return ft_df

@@ -34,6 +34,7 @@ from backend.common import (
 from backend.common import portfolio as portfolio_mod
 from backend.common.account_models import OwnerSummaryRecord, PersonMetadata
 from backend.config import config, demo_identity
+from backend.logging_setup import sanitise_log_value
 from backend.routes._accounts import resolve_accounts_root, resolve_owner_directory
 from backend.utils.pricing_dates import PricingDateCalculator
 from backend.utils.timeseries_helpers import resolve_date_range
@@ -659,7 +660,7 @@ async def portfolio_group(slug: str, as_of: str | None = None):
         pricing_date = _resolve_pricing_date(as_of)
         return _build_group_portfolio(slug, pricing_date)
     except Exception as e:
-        log.warning(f"Failed to load group {slug}: {e}")
+        log.warning("Failed to load group %s: %s", sanitise_log_value(slug), sanitise_log_value(e))
         raise HTTPException(status_code=404, detail="Group not found")
 
 
@@ -836,7 +837,10 @@ async def group_movers(
     try:
         summaries = instrument_api.instrument_summaries_for_group(slug)
     except Exception as e:
-        log.warning(f"Failed to load instrument summaries for group {slug}: {e}")
+        log.warning(
+            "Failed to load instrument summaries for group %s: %s",
+            sanitise_log_value(slug), sanitise_log_value(e),
+        )
         raise HTTPException(status_code=404, detail="Group not found")
 
     tickers, weight_map, market_values = _calculate_weights_and_market_values(summaries)

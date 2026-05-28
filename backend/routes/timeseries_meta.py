@@ -27,8 +27,10 @@ _TICKER_SEGMENT_RE = re.compile(r"^[A-Z0-9-]{1,20}$")
 
 
 def _sanitize_for_log(value: str) -> str:
-    """Strip ASCII control characters to prevent log injection (CWE-117)."""
-    return re.sub(r"[\x00-\x1f\x7f]", "", value)
+    """Strip control and line-separator characters to prevent log injection (CWE-117)."""
+    text = "" if value is None else str(value)
+    # Remove ASCII control chars plus Unicode line/paragraph separators.
+    return re.sub(r"[\x00-\x1f\x7f\u2028\u2029]", "", text)
 
 
 def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> tuple[str, str]:

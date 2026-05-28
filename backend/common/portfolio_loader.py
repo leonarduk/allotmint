@@ -218,7 +218,7 @@ def rebuild_account_holdings(
     try:
         acct_path = safe_join(owner_dir, f"{account.lower()}.json")
     except ValueError as exc:
-        log.error("Invalid account name %r: %s", _sanitize_for_log(account), exc)
+        log.error("Invalid account name: %s", exc)
         return out
     try:
         acct_path.write_text(json.dumps(out, indent=2))

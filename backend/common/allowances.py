@@ -27,6 +27,12 @@ from backend.config import config
 
 logger = logging.getLogger(__name__)
 
+
+def _sanitize_for_log(value: object) -> str:
+    """Return a single-line representation safe for log output."""
+    return str(value).replace("\r", "").replace("\n", "")
+
+
 # Default annual limits (GBP) for supported account types
 ALLOWANCE_LIMITS: Dict[str, float] = {
     "ISA": 20_000.0,
@@ -68,7 +74,10 @@ def load_yearly_contributions(
     try:
         path = safe_join(_data_root(root), f"{owner}.json")
     except ValueError:
-        logger.warning("Path traversal blocked in load_yearly_contributions for owner %r", owner)
+        logger.warning(
+            "Path traversal blocked in load_yearly_contributions for owner %r",
+            _sanitize_for_log(owner),
+        )
         return {}
     try:
         raw = json.loads(path.read_text())

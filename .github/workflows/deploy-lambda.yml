@@ -219,11 +219,11 @@ jobs:
             if aws s3api head-object --bucket "$data_bucket" --key prices/latest_prices.json >/dev/null 2>&1; then
               break
             fi
+            echo "head-object attempt $attempt/3 failed (IAM propagation delay); retrying in 20s..." >&2
+            sleep 20
             if [ "$attempt" -eq 3 ]; then
               aws s3api head-object --bucket "$data_bucket" --key prices/latest_prices.json >/dev/null
             fi
-            echo "head-object attempt $attempt/3 failed (IAM propagation delay); retrying in 20s..." >&2
-            sleep 20
           done
 
       - name: Get backend API URL

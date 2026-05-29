@@ -275,6 +275,23 @@ describe("client-side request forgery guard (CodeQL #218)", () => {
     );
     expect(mockFetch).not.toHaveBeenCalled();
   });
+
+  it("documents that a protocol-relative URL is prepended to the base (origin unchanged)", async () => {
+    // "//evil.com/path" is not a valid absolute URL in Node/undici so new URL() throws,
+    // landing in the catch branch which prepends the configured base.
+    // The resulting fullUrl is "http://localhost:8000//evil.com/path" — origin is still
+    // http://localhost:8000, so the SSRF guard passes.  This test pins that behaviour.
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+    await fetchJson("//evil.com/path");
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining(DEFAULT_API_BASE),
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    );
+  });
 });
 
 describe("pension forecast", () => {

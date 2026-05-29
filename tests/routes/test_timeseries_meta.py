@@ -1,5 +1,6 @@
 import pandas as pd
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from backend.config import config
@@ -50,8 +51,6 @@ def test_resolve_with_inferred_exchange(monkeypatch):
 
 
 def test_resolve_missing_ticker_error():
-    from fastapi import HTTPException
-
     import backend.routes.timeseries_meta as ts_meta
 
     with pytest.raises(HTTPException):
@@ -59,8 +58,6 @@ def test_resolve_missing_ticker_error():
 
 
 def test_resolve_cannot_infer_exchange(monkeypatch):
-    from fastapi import HTTPException
-
     import backend.routes.timeseries_meta as ts_meta
 
     monkeypatch.setattr(
@@ -68,6 +65,15 @@ def test_resolve_cannot_infer_exchange(monkeypatch):
     )
     with pytest.raises(HTTPException):
         ts_meta._resolve_ticker_exchange("xyz", None)
+
+
+def test_resolve_dotted_ticker_no_exchange():
+    """Covers the 'elif . in t' branch: ticker='ABC.L', exchange=None."""
+    import backend.routes.timeseries_meta as ts_meta
+
+    sym, ex = ts_meta._resolve_ticker_exchange("abc.l", None)
+    assert sym == "ABC"
+    assert ex == "L"
 
 
 @pytest.mark.parametrize("bad_ticker,bad_exchange", [
@@ -78,7 +84,6 @@ def test_resolve_cannot_infer_exchange(monkeypatch):
 ])
 def test_resolve_rejects_unsafe_ticker_exchange(bad_ticker, bad_exchange):
     import backend.routes.timeseries_meta as ts_meta
-    from fastapi import HTTPException
 
     with pytest.raises(HTTPException) as exc_info:
         ts_meta._resolve_ticker_exchange(bad_ticker, bad_exchange)
@@ -114,7 +119,6 @@ def test_resolve_accepts_underscore_ticker(ticker, exchange):
 def test_resolve_rejects_oversized_segments(ticker, exchange):
     """Segments longer than 50 characters are rejected."""
     import backend.routes.timeseries_meta as ts_meta
-    from fastapi import HTTPException
 
     with pytest.raises(HTTPException) as exc_info:
         ts_meta._resolve_ticker_exchange(ticker, exchange)

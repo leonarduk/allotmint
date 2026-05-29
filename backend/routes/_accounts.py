@@ -9,6 +9,7 @@ from typing import Optional
 from fastapi import Request
 
 from backend.common import data_loader
+from backend.common.path_utils import safe_join
 from backend.config import config
 
 
@@ -87,7 +88,10 @@ def resolve_owner_directory(accounts_root: Optional[Path], owner: str) -> Option
     if not root.exists():
         return None
 
-    direct = root / owner
+    try:
+        direct = safe_join(root, owner)
+    except ValueError:
+        return None
     if direct.exists():
         return direct
 

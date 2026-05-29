@@ -20,6 +20,7 @@ from backend.common.data_loader import (
     load_person_meta,  # (owner) -> {dob, ...}
     resolve_paths,
 )
+from backend.common.path_utils import safe_join
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
 
@@ -120,7 +121,10 @@ def rebuild_account_holdings(
 
     paths = resolve_paths(config.repo_root, config.accounts_root)
     root = Path(accounts_root) if accounts_root else paths.accounts_root
-    owner_dir = root / owner
+    try:
+        owner_dir = safe_join(root, owner)
+    except ValueError as exc:
+        raise FileNotFoundError("invalid owner") from exc
 
     account_lc = account.lower()
     tx_path = None
@@ -207,7 +211,11 @@ def rebuild_account_holdings(
         "holdings": holdings,
     }
 
-    acct_path = owner_dir / f"{account.lower()}.json"
+    try:
+        acct_path = safe_join(owner_dir, f"{account.lower()}.json")
+    except ValueError:
+        log.error("Invalid account name: path traversal blocked")
+        return out
     try:
         acct_path.write_text(json.dumps(out, indent=2))
     except OSError as exc:

@@ -22,6 +22,7 @@ from typing import Dict, List, Optional, Tuple
 import pandas as pd
 
 from backend import config
+from backend.common.path_utils import safe_join
 from backend.logging_setup import sanitise_log_value
 
 OFFLINE_MODE = config.offline_mode

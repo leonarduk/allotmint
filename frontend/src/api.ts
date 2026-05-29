@@ -142,13 +142,18 @@ export function createClient(
 
   async function fetchJson<T>(url: string, init: RequestInit = {}): Promise<T> {
     // Support relative paths by resolving against the provided base URL.
+    const resolvedBase = resolveBase();
     let fullUrl = url;
     try {
       // Throws for relative paths in Node/undici; succeeds for absolute URLs.
       new URL(url);
     } catch {
-      const resolvedBase = resolveBase();
       fullUrl = url.startsWith("/") ? `${resolvedBase}${url}` : `${resolvedBase}/${url}`;
+    }
+    // Guard against client-side request forgery (CodeQL js/client-side-request-forgery, CWE-918).
+    // Reject any request whose origin differs from the configured API base.
+    if (new URL(fullUrl).origin !== new URL(resolvedBase).origin) {
+      throw new Error(`Blocked request to unexpected host: ${new URL(fullUrl).origin}`);
     }
     const headers = new Headers(init.headers);
     if (authToken) headers.set("Authorization", `Bearer ${authToken}`);

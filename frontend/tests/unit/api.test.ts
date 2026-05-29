@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   DEFAULT_API_BASE,
   API_BASE,
+  createClient,
   fetchJson,
   setAuthToken,
   setApiBase,
@@ -274,6 +275,15 @@ describe("client-side request forgery guard (CodeQL #218)", () => {
       "API base is not a valid absolute URL",
     );
     expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("throws a clear error when resolveBase() returns an empty string", async () => {
+    // createClient with a static empty-string base exercises the same eager
+    // URL-validation path as the misconfigured-API_BASE case above.
+    const { fetchJson: testFetchJson } = createClient("");
+    await expect(testFetchJson("/health")).rejects.toThrow(
+      "API base is not a valid absolute URL",
+    );
   });
 
   it("documents that a protocol-relative URL is prepended to the base (origin unchanged)", async () => {

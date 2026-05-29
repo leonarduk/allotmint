@@ -159,7 +159,7 @@ export function createClient(
       fullUrl = url.startsWith("/") ? `${resolvedBase}${url}` : `${resolvedBase}/${url}`;
     }
     // Guard against client-side request forgery (CodeQL js/client-side-request-forgery, CWE-918).
-    // Origin-only check; path-prefix validation is not enforced.
+    // Origin-only check; path-prefix validation is not enforced (TODO #3170).
     const parsedFull = new URL(fullUrl);
     if (parsedFull.origin !== baseOrigin) {
       throw new Error(`Blocked request to unexpected host: ${parsedFull.origin}`);

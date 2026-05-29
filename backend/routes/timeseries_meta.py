@@ -21,11 +21,13 @@ from backend.utils.timeseries_helpers import (
 router = APIRouter(prefix="/timeseries", tags=["timeseries"])
 logger = logging.getLogger("routes.timeseries")
 
-# Only A-Z, 0-9, underscores, and hyphens are valid in a ticker segment or
-# exchange code.  Underscores are included because some data providers (e.g.
-# Yahoo Finance normalised identifiers) use them as separator characters.
-# The 50-char ceiling is generous but bounded; no known exchange code or ticker
-# exceeds this.  This allowlist prevents log injection (CWE-117).
+# Allowlist for user-supplied ticker segments and exchange codes.
+# Underscores accommodate normalised internal identifiers; hyphens cover
+# standard exchange codes (e.g. BRK-B).  The 50-char ceiling is generous but
+# bounded — no real ticker or exchange code exceeds this length.
+# This guard applies ONLY to user-controlled input paths; tickers returned by
+# the internal resolver (_resolve_full_ticker) bypass it to avoid false 400s
+# on valid portfolio entries.  Prevents log injection on user paths (CWE-117).
 _TICKER_SEGMENT_RE = re.compile(r"^[A-Z0-9_-]{1,50}$")
 
 
@@ -37,26 +39,30 @@ def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> tuple[str, st
     if exchange:
         sym = t.split(".", 1)[0]
         ex = exchange.upper()
-        source = "provided exchange"
-    elif "." in t:
-        sym, ex = t.split(".", 1)
-        source = "inferred from ticker"
-    else:
-        resolved = instrument_api._resolve_full_ticker(
-            t, instrument_api._LATEST_PRICES
-        )
-        if not resolved:
-            raise HTTPException(
-                status_code=400,
-                detail="Exchange not provided and could not be inferred",
-            )
-        sym, ex = resolved
-        source = "inferred exchange"
+        # Validate user-supplied segments before logging (CWE-117 log-injection guard).
+        if not _TICKER_SEGMENT_RE.match(sym) or not _TICKER_SEGMENT_RE.match(ex):
+            raise HTTPException(status_code=400, detail="Invalid ticker format")
+        logger.debug("Ticker resolved (provided exchange)")
+        return sym, ex
 
-    # Validate before logging — raises if sym/ex contain chars outside [A-Z0-9_-] (CWE-117).
-    if not _TICKER_SEGMENT_RE.match(sym) or not _TICKER_SEGMENT_RE.match(ex):
-        raise HTTPException(status_code=400, detail="Invalid ticker format")
-    logger.debug("Ticker resolved (%s)", source)
+    if "." in t:
+        sym, ex = t.split(".", 1)
+        # Validate user-supplied segments before logging (CWE-117 log-injection guard).
+        if not _TICKER_SEGMENT_RE.match(sym) or not _TICKER_SEGMENT_RE.match(ex):
+            raise HTTPException(status_code=400, detail="Invalid ticker format")
+        logger.debug("Ticker resolved (inferred from ticker)")
+        return sym, ex
+
+    # Exchange inferred from internal data — trust the resolver, no regex rejection.
+    resolved = instrument_api._resolve_full_ticker(t, instrument_api._LATEST_PRICES)
+    if not resolved:
+        logger.debug("Could not infer exchange for %s", sanitise_log_value(t))
+        raise HTTPException(
+            status_code=400,
+            detail=f"Exchange not provided and could not be inferred for {ticker}",
+        )
+    sym, ex = resolved
+    logger.debug("Ticker resolved (inferred exchange)")
     return sym, ex
 
 

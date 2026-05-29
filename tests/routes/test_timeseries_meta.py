@@ -67,6 +67,28 @@ def test_resolve_cannot_infer_exchange(monkeypatch):
         ts_meta._resolve_ticker_exchange("xyz", None)
 
 
+def test_resolve_inferred_path_trusts_internal_data(monkeypatch):
+    """The regex allowlist guards user-supplied paths only.
+
+    When _resolve_full_ticker returns a segment containing characters outside
+    [A-Z0-9_-] (e.g. a dot in an exchange code returned by an internal data
+    source), the route must NOT reject it with HTTP 400.  The guard applies
+    only to user-controlled input so valid portfolio entries never cause false
+    production errors.
+    """
+    import backend.routes.timeseries_meta as ts_meta
+
+    monkeypatch.setattr(
+        ts_meta.instrument_api,
+        "_resolve_full_ticker",
+        lambda t, latest: ("AAAA", "XLON.G"),  # "." is outside the user-input allowlist
+    )
+    # Must succeed — internally-resolved tickers bypass the regex.
+    sym, ex = ts_meta._resolve_ticker_exchange("aaaa", None)
+    assert sym == "AAAA"
+    assert ex == "XLON.G"
+
+
 def test_resolve_dotted_ticker_no_exchange():
     """Covers the 'elif . in t' branch: ticker='ABC.L', exchange=None."""
     import backend.routes.timeseries_meta as ts_meta

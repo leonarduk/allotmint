@@ -131,7 +131,7 @@ jobs:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           CDK_OUTDIR: /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
-        run: npx cdk deploy StaticSiteStack --require-approval never
+        run: npx cdk deploy StaticSiteStack --require-approval never -c prod=true
         working-directory: cdk
 
       - name: Get Cognito UI auth outputs

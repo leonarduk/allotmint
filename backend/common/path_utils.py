@@ -1,18 +1,26 @@
 from __future__ import annotations
 
+import os
+import re
 from pathlib import Path
+
+_LOG_CTRL_RE = re.compile(r"[\x00-\x1f\x7f]")
 
 
 def safe_join(base: Path, *parts: str) -> Path:
     """Join *parts* onto *base*, raising ValueError on path traversal.
 
-    Resolved path must remain inside *base*.  *base* is resolved with
-    strict=False so that scaffold creation for new owners (where the
-    directory does not yet exist) does not produce a spurious error.
-    Use wherever user-supplied values are concatenated to a filesystem root.
+    The resolved path must be a *strict descendant* of *base*.  Parts that
+    resolve to the base itself (empty string, ".") are also rejected because
+    callers always expect a named child, not the root directory.
     """
-    resolved_base = Path(base).resolve()
-    candidate = Path(base).joinpath(*parts).resolve()
-    if candidate != resolved_base and not candidate.is_relative_to(resolved_base):
+    resolved_base = os.path.realpath(base)
+    candidate = os.path.realpath(os.path.join(base, *parts))
+    if not candidate.startswith(resolved_base + os.sep):
         raise ValueError(f"Path traversal attempt blocked: {parts!r} escapes {base}")
-    return candidate
+    return Path(candidate)
+
+
+def sanitize_for_log(value: object) -> str:
+    """Return a string safe for plain-text logs (strips control characters)."""
+    return _LOG_CTRL_RE.sub("", str(value))

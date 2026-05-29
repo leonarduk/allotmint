@@ -26,6 +26,7 @@ from backend.logging_setup import sanitise_log_value
 
 log = logging.getLogger("portfolio_loader")
 
+
 # ────────────────────────────────────────────────────────────────
 # Private helpers
 # ────────────────────────────────────────────────────────────────
@@ -123,7 +124,7 @@ def rebuild_account_holdings(
     try:
         owner_dir = safe_join(root, owner)
     except ValueError as exc:
-        raise FileNotFoundError(f"Invalid owner: {owner!r}") from exc
+        raise FileNotFoundError("invalid owner") from exc
 
     account_lc = account.lower()
     tx_path = None

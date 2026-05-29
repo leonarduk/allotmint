@@ -42,7 +42,7 @@ def _local_trades_path(owner: str, accounts_root: Optional[Path] = None) -> Path
     try:
         owner_dir = safe_join(root, owner)
     except ValueError as exc:
-        raise FileNotFoundError(f"Invalid owner: {owner!r}") from exc
+        raise FileNotFoundError("invalid owner") from exc
     return owner_dir / "trades.csv"
 
 

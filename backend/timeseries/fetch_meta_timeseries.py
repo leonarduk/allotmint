@@ -226,16 +226,11 @@ def _metadata_entry_exists(
     for root_str in directories:
         root = Path(root_str)
         try:
-            resolved_root = root.resolve(strict=False)
-            candidate = resolved_root / exchange / f"{symbol}.json"
-            resolved_candidate = candidate.resolve(strict=False)
-            try:
-                resolved_candidate.relative_to(resolved_root)
-            except ValueError:
-                continue
-            if resolved_candidate.is_file():
+            exchange_dir = safe_join(root, exchange)
+            candidate = safe_join(exchange_dir, f"{symbol}.json")
+            if candidate.is_file():
                 return True
-        except OSError:
+        except (OSError, ValueError):
             continue
     return False
 
@@ -511,14 +506,12 @@ def fetch_meta_timeseries(
 
 def fetch_ft_df(ticker, end_date, start_date):
     try:
-        safe_ticker = _sanitize_for_log(ticker)
-        logger.debug("Falling back to FT for %s", safe_ticker)
         logger.debug("Falling back to FT for %s", sanitise_log_value(ticker))
         days = (end_date - start_date).days or 1
         ft_df = fetch_ft_timeseries(ticker, days)
         return ft_df
     except Exception as exc:
-        logger.debug("FT miss for %s: %s", _sanitize_for_log(ticker), exc)
+        logger.debug("FT miss for %s: %s", sanitise_log_value(ticker), exc)
         return pd.DataFrame(columns=STANDARD_COLUMNS)
 
 # ──────────────────────────────────────────────────────────────

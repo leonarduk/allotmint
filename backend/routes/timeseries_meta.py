@@ -21,9 +21,12 @@ from backend.utils.timeseries_helpers import (
 router = APIRouter(prefix="/timeseries", tags=["timeseries"])
 logger = logging.getLogger("routes.timeseries")
 
-# Only A-Z, 0-9, and hyphens are valid in a ticker segment or exchange code.
-# This allowlist prevents log injection from flowing into any log sink (CWE-117).
-_TICKER_SEGMENT_RE = re.compile(r"^[A-Z0-9-]{1,20}$")
+# Only A-Z, 0-9, underscores, and hyphens are valid in a ticker segment or
+# exchange code.  Underscores are included because some data providers (e.g.
+# Yahoo Finance normalised identifiers) use them as separator characters.
+# The 50-char ceiling is generous but bounded; no known exchange code or ticker
+# exceeds this.  This allowlist prevents log injection (CWE-117).
+_TICKER_SEGMENT_RE = re.compile(r"^[A-Z0-9_-]{1,50}$")
 
 
 def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> tuple[str, str]:
@@ -50,7 +53,7 @@ def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> tuple[str, st
         sym, ex = resolved
         source = "inferred exchange"
 
-    # Validate before logging — raises if sym/ex contain chars outside [A-Z0-9-] (CWE-117).
+    # Validate before logging — raises if sym/ex contain chars outside [A-Z0-9_-] (CWE-117).
     if not _TICKER_SEGMENT_RE.match(sym) or not _TICKER_SEGMENT_RE.match(ex):
         raise HTTPException(status_code=400, detail="Invalid ticker format")
     logger.debug("Ticker resolved (%s)", source)

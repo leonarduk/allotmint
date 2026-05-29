@@ -94,6 +94,33 @@ def test_timeseries_meta_json_rejects_xss_ticker(monkeypatch):
     assert resp.status_code == 400
 
 
+@pytest.mark.parametrize("ticker,exchange", [
+    ("BRK_B", "NYSE"),   # underscore in ticker symbol — allowed by widened regex
+    ("FUND_ETF", "L"),   # underscore in fund identifier — allowed
+])
+def test_resolve_accepts_underscore_ticker(ticker, exchange):
+    """Underscores are explicitly permitted (some providers use them as separators)."""
+    import backend.routes.timeseries_meta as ts_meta
+
+    sym, ex = ts_meta._resolve_ticker_exchange(ticker, exchange)
+    assert sym == ticker.upper()
+    assert ex == exchange.upper()
+
+
+@pytest.mark.parametrize("ticker,exchange", [
+    ("A" * 51, "L"),   # ticker segment exceeds 50-char limit
+    ("AAPL", "X" * 51),   # exchange code exceeds 50-char limit
+])
+def test_resolve_rejects_oversized_segments(ticker, exchange):
+    """Segments longer than 50 characters are rejected."""
+    import backend.routes.timeseries_meta as ts_meta
+    from fastapi import HTTPException
+
+    with pytest.raises(HTTPException) as exc_info:
+        ts_meta._resolve_ticker_exchange(ticker, exchange)
+    assert exc_info.value.status_code == 400
+
+
 # ---- /timeseries/meta route tests -----------------------------------------
 
 

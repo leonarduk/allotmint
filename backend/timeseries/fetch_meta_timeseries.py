@@ -183,21 +183,10 @@ def _metadata_entry_exists_in_directory(symbol: str, directory: Path) -> bool:
         return False
 
     try:
-        resolved_directory = directory.resolve(strict=False)
-        if not resolved_directory.is_dir():
+        if not directory.is_dir():
             return False
-    except OSError:
-        return False
-
-    try:
-        candidate = resolved_directory / f"{symbol}.json"
-        resolved_candidate = candidate.resolve(strict=False)
-        try:
-            resolved_candidate.relative_to(resolved_directory)
-        except ValueError:
-            return False
-        return resolved_candidate.is_file()
-    except OSError:
+        return safe_join(directory, f"{symbol}.json").is_file()
+    except (OSError, ValueError):
         return False
 
 

@@ -7,7 +7,7 @@ updated in issue #3111:
   2. ``start_date`` only       – filtered from that date forward.
   3. ``end_date`` only         – filtered up to that date.
   4. Both ``start_date`` and ``end_date`` – exact explicit range.
-  5. ``start_date`` > ``end_date`` – HTTP 400 rejected.
+  5. ``start_date`` > ``end_date`` – HTTP 422 rejected (meta) / HTTP 400 (instrument, portfolio).
   6. No data in range           – HTTP 404 returned.
 """
 from __future__ import annotations
@@ -123,8 +123,12 @@ def test_meta_both_dates(monkeypatch):
     assert cap["end"] == dt.date(2024, 1, 4)
 
 
-def test_meta_start_after_end_is_400(monkeypatch):
-    """Category 5: start_date after end_date returns HTTP 400."""
+def test_meta_start_after_end_is_422(monkeypatch):
+    """Category 5: start_date after end_date returns HTTP 422.
+
+    /timeseries/meta uses 422 (FastAPI's parameter-validation convention,
+    issue #2747 AC) rather than 400.
+    """
     client = _meta_client(monkeypatch, _SAMPLE_DF)
 
     resp = client.get(
@@ -132,7 +136,7 @@ def test_meta_start_after_end_is_400(monkeypatch):
         "&start_date=2024-06-01&end_date=2024-01-01"
     )
 
-    assert resp.status_code == 400
+    assert resp.status_code == 422
     assert "start_date" in resp.text.lower()
 
 

@@ -82,6 +82,12 @@ def test_load_person_meta_dotdot_blocked(accounts_root: Path, provider: LocalDat
         provider.load_person_meta("../evil", accounts_root)
 
 
+def test_load_person_meta_absolute_path_blocked(accounts_root: Path, provider: LocalDataProvider) -> None:
+    """An absolute path as owner is rejected by safe_join."""
+    with pytest.raises(MissingData):
+        provider.load_person_meta("/etc/passwd", accounts_root)
+
+
 def test_load_person_meta_valid_missing_file(accounts_root: Path, provider: LocalDataProvider) -> None:
     # Owner dir exists but no person.json → MissingData (not a security error)
     owner_dir = accounts_root / "bob"

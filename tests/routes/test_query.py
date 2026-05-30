@@ -495,10 +495,14 @@ def test_save_query_route_traversal_blocked(monkeypatch, tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_load_query_local_dotdot_blocked_in_repo_fallback(monkeypatch, tmp_path):
-    """Traversal in the REPO_QUERIES_DIR fallback path is also rejected."""
-    # Make QUERIES_DIR a directory that doesn't contain the slug so _load_query_local
-    # proceeds to the fallback safe_join call.
+def test_load_query_local_traversal_blocked_regardless_of_dir_config(monkeypatch, tmp_path):
+    """Traversal slug is rejected by safe_join even with a separate REPO_QUERIES_DIR.
+
+    Note: both safe_join calls in _load_query_local use the same slug logic, so a
+    traversal slug is always caught by the *first* call (QUERIES_DIR) — the second
+    (REPO_QUERIES_DIR) call is defence-in-depth that cannot be reached with a
+    traversal slug because both guards share the same slug argument.
+    """
     queries_dir = tmp_path / "user_queries"
     queries_dir.mkdir()
     repo_queries_dir = tmp_path / "repo_queries"

@@ -98,17 +98,37 @@ def test_resolve_dotted_ticker_no_exchange():
     assert ex == "L"
 
 
-@pytest.mark.parametrize("bad_ticker,bad_exchange", [
+@pytest.mark.parametrize("ticker_input,exchange_input", [
     ("<script>alert(1)</script>", "L"),
     ("ABC", "<img src=x onerror=alert(1)>"),
     ("ABC&foo=bar", "L"),
     ("ABC\"onload=x", "L"),
 ])
-def test_resolve_rejects_unsafe_ticker_exchange(bad_ticker, bad_exchange):
+def test_resolve_rejects_unsafe_ticker_exchange(ticker_input, exchange_input):
+    """User-supplied exchange path rejects payloads that fail the regex allowlist."""
     import backend.routes.timeseries_meta as ts_meta
 
     with pytest.raises(HTTPException) as exc_info:
-        ts_meta._resolve_ticker_exchange(bad_ticker, bad_exchange)
+        ts_meta._resolve_ticker_exchange(ticker_input, exchange_input)
+    assert exc_info.value.status_code == 400
+
+
+@pytest.mark.parametrize("bad_dotted_ticker", [
+    "<script>.L",      # XSS payload in the sym segment
+    "ABC.<img>",       # XSS payload in the exchange segment
+    "ABC&foo=bar.L",   # injection attempt in the sym segment
+])
+def test_resolve_rejects_unsafe_dotted_ticker_no_exchange(bad_dotted_ticker):
+    """The 'if . in t' branch validates sym/ex derived from the dotted ticker.
+
+    Covers the case where exchange=None and the ticker contains a dot so the
+    exchange is inferred by splitting — both segments are still user-controlled
+    and must be rejected if they fail _TICKER_SEGMENT_RE.
+    """
+    import backend.routes.timeseries_meta as ts_meta
+
+    with pytest.raises(HTTPException) as exc_info:
+        ts_meta._resolve_ticker_exchange(bad_dotted_ticker, None)
     assert exc_info.value.status_code == 400
 
 

@@ -63,7 +63,7 @@ class AlpacaAPI:
         params = {"after": since.isoformat()}
 
         try:
-            resp = requests.get(url, params=params, headers=self._headers(), timeout=10)
+            resp = requests.get(url, params=params, headers=self._headers(), timeout=10, allow_redirects=False)
             resp.raise_for_status()
             data = resp.json()
         except Exception as exc:  # pragma: no cover - network failure

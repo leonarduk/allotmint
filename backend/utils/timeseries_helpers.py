@@ -222,7 +222,7 @@ def apply_date_range(
     Returns a new DataFrame with reset index; the original frame is not mutated.
     """
     if df.empty or "Date" not in df.columns:
-        return df
+        return df.copy()
     dates = df["Date"]
     if hasattr(dates, "dt"):
         dates = dates.dt.date

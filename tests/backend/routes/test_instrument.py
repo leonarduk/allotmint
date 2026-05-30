@@ -515,3 +515,21 @@ def test_render_html_escapes_xss_in_position_strings():
     assert "&lt;script&gt;" in html
     assert "<table" in html
 
+
+def test_render_html_escapes_xss_in_ticker():
+    """Ticker from the URL parameter is auto-escaped by Jinja2; no |safe is used."""
+    dates = pd.date_range(date(2024, 1, 1), periods=3, freq="D")
+    df = pd.DataFrame({"Date": dates, "Close": [1.0, 2.0, 3.0]})
+    df["Date"] = pd.to_datetime(df["Date"])
+
+    xss_ticker = "<script>alert('xss')</script>"
+    html = instrument._render_html(
+        ticker=xss_ticker,
+        df=df,
+        positions=[],
+        window_days=30,
+    )
+
+    assert xss_ticker not in html
+    assert "&lt;script&gt;" in html
+

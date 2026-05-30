@@ -143,6 +143,14 @@ export function createClient(
   async function fetchJson<T>(url: string, init: RequestInit = {}): Promise<T> {
     // Support relative paths by resolving against the provided base URL.
     const resolvedBase = resolveBase();
+    // Validate the base eagerly so a mis-configured API_BASE surfaces as a clear error
+    // rather than a confusing TypeError deep in the guard below (CodeQL CWE-918 fix).
+    let baseOrigin: string;
+    try {
+      baseOrigin = new URL(resolvedBase).origin;
+    } catch {
+      throw new Error(`API base is not a valid absolute URL: ${resolvedBase}`);
+    }
     let fullUrl = url;
     try {
       // Throws for relative paths in Node/undici; succeeds for absolute URLs.
@@ -151,9 +159,10 @@ export function createClient(
       fullUrl = url.startsWith("/") ? `${resolvedBase}${url}` : `${resolvedBase}/${url}`;
     }
     // Guard against client-side request forgery (CodeQL js/client-side-request-forgery, CWE-918).
-    // Reject any request whose origin differs from the configured API base.
-    if (new URL(fullUrl).origin !== new URL(resolvedBase).origin) {
-      throw new Error(`Blocked request to unexpected host: ${new URL(fullUrl).origin}`);
+    // Origin-only check; path-prefix validation is not enforced (TODO #3170).
+    const parsedFull = new URL(fullUrl);
+    if (parsedFull.origin !== baseOrigin) {
+      throw new Error(`Blocked request to unexpected host: ${parsedFull.origin}`);
     }
     const headers = new Headers(init.headers);
     if (authToken) headers.set("Authorization", `Bearer ${authToken}`);

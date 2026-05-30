@@ -1,4 +1,5 @@
 import logging
+import re
 from datetime import date
 
 import pandas as pd
@@ -20,6 +21,15 @@ from backend.utils.timeseries_helpers import (
 router = APIRouter(prefix="/timeseries", tags=["timeseries"])
 logger = logging.getLogger("routes.timeseries")
 
+# Allowlist for user-supplied ticker segments and exchange codes.
+# Underscores accommodate normalised internal identifiers; hyphens cover
+# standard exchange codes (e.g. BRK-B).  The 50-char ceiling is generous but
+# bounded — no real ticker or exchange code exceeds this length.
+# This guard applies ONLY to user-controlled input paths; tickers returned by
+# the internal resolver (_resolve_full_ticker) bypass it to avoid false 400s
+# on valid portfolio entries.  Prevents log injection on user paths (CWE-117).
+_TICKER_SEGMENT_RE = re.compile(r"^[A-Z0-9_-]{1,50}$")
+
 
 def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> tuple[str, str]:
     t = (ticker or "").upper()
@@ -29,24 +39,30 @@ def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> tuple[str, st
     if exchange:
         sym = t.split(".", 1)[0]
         ex = exchange.upper()
-        logger.debug("Resolved %s.%s (provided exchange)", sanitise_log_value(sym), sanitise_log_value(ex))
+        # Validate user-supplied segments before logging (CWE-117 log-injection guard).
+        if not _TICKER_SEGMENT_RE.match(sym) or not _TICKER_SEGMENT_RE.match(ex):
+            raise HTTPException(status_code=400, detail="Invalid ticker format")
+        logger.debug("Ticker resolved (provided exchange)")
         return sym, ex
 
     if "." in t:
         sym, ex = t.split(".", 1)
-        logger.debug("Resolved %s.%s (provided exchange)", sanitise_log_value(sym), sanitise_log_value(ex))
+        # Validate user-supplied segments before logging (CWE-117 log-injection guard).
+        if not _TICKER_SEGMENT_RE.match(sym) or not _TICKER_SEGMENT_RE.match(ex):
+            raise HTTPException(status_code=400, detail="Invalid ticker format")
+        logger.debug("Ticker resolved (inferred from ticker)")
         return sym, ex
 
-    resolved = instrument_api._resolve_full_ticker(
-        t, instrument_api._LATEST_PRICES
-    )
+    # Exchange inferred from internal data — trust the resolver, no regex rejection.
+    resolved = instrument_api._resolve_full_ticker(t, instrument_api._LATEST_PRICES)
     if not resolved:
         logger.debug("Could not infer exchange for %s", sanitise_log_value(t))
         raise HTTPException(
-            status_code=400, detail=f"Exchange not provided and could not be inferred for {ticker}"
+            status_code=400,
+            detail=f"Exchange not provided and could not be inferred for {ticker}",
         )
     sym, ex = resolved
-    logger.debug("Resolved %s.%s (inferred exchange)", sanitise_log_value(sym), sanitise_log_value(ex))
+    logger.debug("Ticker resolved (inferred exchange)")
     return sym, ex
 
 

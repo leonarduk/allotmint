@@ -446,3 +446,47 @@ def test_save_query_route_local(monkeypatch, tmp_path):
     assert resp.status_code == 200
     assert resp.json() == {"saved": "local"}
     assert (tmp_path / "local.json").exists()
+
+
+# ---------------------------------------------------------------------------
+# Path traversal rejection tests
+# ---------------------------------------------------------------------------
+
+
+def test_load_query_local_dotdot_blocked(monkeypatch, tmp_path):
+    monkeypatch.setattr(query, "QUERIES_DIR", tmp_path)
+    with pytest.raises(Exception) as exc_info:
+        query._load_query_local("../etc/passwd")
+    from fastapi import HTTPException
+    assert isinstance(exc_info.value, HTTPException)
+    assert exc_info.value.status_code == 404
+
+
+def test_save_query_local_dotdot_blocked(monkeypatch, tmp_path):
+    monkeypatch.setattr(query, "QUERIES_DIR", tmp_path)
+    q = query.CustomQuery(start=date(2020, 1, 1), end=date(2020, 1, 2), tickers=["ABC.L"])
+    with pytest.raises(Exception) as exc_info:
+        query._save_query_local("../evil", q)
+    from fastapi import HTTPException
+    assert isinstance(exc_info.value, HTTPException)
+    assert exc_info.value.status_code == 400
+
+
+def test_load_query_route_traversal_blocked(monkeypatch, tmp_path):
+    monkeypatch.setattr(query.config, "app_env", "local")
+    monkeypatch.setattr(query, "QUERIES_DIR", tmp_path)
+    monkeypatch.setattr(query, "REPO_QUERIES_DIR", tmp_path)
+    client = make_client()
+    # The HTTP layer encodes '/' so the slug received is the literal string "../etc/passwd"
+    resp = client.get("/custom-query/..%2Fetc%2Fpasswd")
+    assert resp.status_code == 404
+
+
+def test_save_query_route_traversal_blocked(monkeypatch, tmp_path):
+    monkeypatch.setattr(query.config, "app_env", "local")
+    monkeypatch.setattr(query, "QUERIES_DIR", tmp_path)
+    client = make_client()
+    body = {"start": "2020-01-01", "end": "2020-01-02", "tickers": ["ABC.L"]}
+    # The HTTP layer encodes '/' so the slug received is the literal string "../evil"
+    resp = client.post("/custom-query/..%2Fevil", json=body)
+    assert resp.status_code in (400, 404, 422)

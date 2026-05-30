@@ -871,15 +871,13 @@ async def get_account(owner: str, account: str, request: Request):
         )
         raise HTTPException(status_code=502, detail="Account data payload is invalid") from exc
     except FileNotFoundError:
-        search_root = root
-        owner_dir = search_root / owner
+        owner_dir = resolve_owner_directory(root, owner)
 
-        if not owner_dir.exists():
+        if owner_dir is None:
             fallback_paths = data_loader.resolve_paths(None, None)
-            search_root = fallback_paths.accounts_root
-            owner_dir = search_root / owner
+            owner_dir = resolve_owner_directory(fallback_paths.accounts_root, owner)
 
-        if not owner_dir.exists():
+        if owner_dir is None:
             raise HTTPException(status_code=404, detail="Account not found")
 
         match = next(
@@ -889,7 +887,7 @@ async def get_account(owner: str, account: str, request: Request):
         if not match:
             raise HTTPException(status_code=404, detail="Account not found")
         try:
-            data = data_loader.load_account(owner, match, search_root)
+            data = data_loader.load_account(owner, match, owner_dir.parent)
         except data_loader.ProviderUnavailable as exc:
             raise HTTPException(status_code=503, detail="Account data provider unavailable") from exc
         except data_loader.InvalidPayload as exc:

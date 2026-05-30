@@ -105,3 +105,23 @@ def test_portfolio_var_bad_params(monkeypatch, tmp_path):
     monkeypatch.setattr("backend.routes.portfolio.risk.compute_portfolio_var", _raise)
     resp = client.get("/var/alice")
     assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Path traversal — /account/{owner}/{account}
+# ---------------------------------------------------------------------------
+
+
+def test_account_dotdot_owner_returns_404(monkeypatch, tmp_path):
+    """Path traversal in the owner segment must be blocked with a 404."""
+    client = _client(monkeypatch, tmp_path)
+    # '%2F' is the URL-encoded '/', so the decoded owner would be '../evil'
+    resp = client.get("/account/..%2Fevil/isa")
+    assert resp.status_code == 404
+
+
+def test_account_valid_missing_returns_404(monkeypatch, tmp_path):
+    """Non-existent but valid owner/account yields 404, not 500."""
+    client = _client(monkeypatch, tmp_path)
+    resp = client.get("/account/noowner/noaccount")
+    assert resp.status_code == 404

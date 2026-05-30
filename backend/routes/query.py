@@ -16,6 +16,7 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
+from backend.common.path_utils import safe_join
 from backend.common.portfolio_loader import list_portfolios
 from backend.common.portfolio_utils import compute_var, get_security_meta
 from backend.config import config
@@ -72,16 +73,26 @@ def _resolve_tickers(q: CustomQuery) -> List[str]:
 def _save_query_local(slug: str, q: CustomQuery) -> None:
     """Persist a query to the local filesystem."""
     QUERIES_DIR.mkdir(parents=True, exist_ok=True)
-    (QUERIES_DIR / f"{slug}.json").write_text(json.dumps(q.model_dump(), default=str))
+    try:
+        path = safe_join(QUERIES_DIR, f"{slug}.json")
+    except ValueError:
+        raise HTTPException(400, "Invalid query slug")
+    path.write_text(json.dumps(q.model_dump(), default=str))
 
 
 def _load_query_local(slug: str) -> dict:
     """Load a query from the local filesystem."""
-    path = QUERIES_DIR / f"{slug}.json"
+    try:
+        path = safe_join(QUERIES_DIR, f"{slug}.json")
+    except ValueError:
+        raise HTTPException(404, "Query not found")
     if path.exists():
         return json.loads(path.read_text())
 
-    fallback_path = REPO_QUERIES_DIR / f"{slug}.json"
+    try:
+        fallback_path = safe_join(REPO_QUERIES_DIR, f"{slug}.json")
+    except ValueError:
+        raise HTTPException(404, "Query not found")
     if fallback_path.exists():
         return json.loads(fallback_path.read_text())
 

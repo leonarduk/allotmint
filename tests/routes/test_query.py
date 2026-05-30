@@ -488,3 +488,40 @@ def test_save_query_route_traversal_blocked(monkeypatch, tmp_path):
     # both acceptable; 422 (Pydantic validation failure) must never occur here.
     resp = client.post("/custom-query/..%2Fevil", json=body)
     assert resp.status_code in (400, 404)
+
+
+# ---------------------------------------------------------------------------
+# REPO_QUERIES_DIR fallback — traversal and regression tests
+# ---------------------------------------------------------------------------
+
+
+def test_load_query_local_dotdot_blocked_in_repo_fallback(monkeypatch, tmp_path):
+    """Traversal in the REPO_QUERIES_DIR fallback path is also rejected."""
+    # Make QUERIES_DIR a directory that doesn't contain the slug so _load_query_local
+    # proceeds to the fallback safe_join call.
+    queries_dir = tmp_path / "user_queries"
+    queries_dir.mkdir()
+    repo_queries_dir = tmp_path / "repo_queries"
+    repo_queries_dir.mkdir()
+    monkeypatch.setattr(query, "QUERIES_DIR", queries_dir)
+    monkeypatch.setattr(query, "REPO_QUERIES_DIR", repo_queries_dir)
+
+    with pytest.raises(HTTPException) as exc_info:
+        query._load_query_local("../etc/passwd")
+    assert exc_info.value.status_code == 404
+
+
+def test_load_query_local_fallback_loads_from_repo_dir(monkeypatch, tmp_path):
+    """A slug absent from QUERIES_DIR but present in REPO_QUERIES_DIR is returned."""
+    queries_dir = tmp_path / "user_queries"
+    queries_dir.mkdir()
+    repo_queries_dir = tmp_path / "repo_queries"
+    repo_queries_dir.mkdir()
+    payload = {"start": "2020-01-01", "end": "2020-01-02", "tickers": ["XYZ.L"]}
+    (repo_queries_dir / "repo-query.json").write_text(json.dumps(payload))
+    monkeypatch.setattr(query, "QUERIES_DIR", queries_dir)
+    monkeypatch.setattr(query, "REPO_QUERIES_DIR", repo_queries_dir)
+
+    result = query._load_query_local("repo-query")
+
+    assert result["tickers"] == ["XYZ.L"]

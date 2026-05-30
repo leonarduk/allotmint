@@ -116,10 +116,21 @@ def test_portfolio_var_bad_params(monkeypatch, tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_account_dotdot_owner_returns_404(monkeypatch, tmp_path):
-    """Path traversal in the owner segment must be blocked with a 404."""
+def test_account_percent_encoded_slash_owner_returns_404(monkeypatch, tmp_path):
+    """A %2F-encoded slash in the owner segment returns 404.
+
+    When '%2F' is decoded by the HTTP layer the path becomes
+    '/account/../evil/isa', which routers normalise to '/account/evil/isa'.
+    This returns 404 because no such owner exists — the traversal is blocked
+    at the URL-normalisation layer, *before* safe_join is reached.
+
+    The safe_join guard for a decoded '../evil' owner is verified directly in
+    tests/backend/routes/test_accounts_helpers.py::
+        test_resolve_owner_directory_dotdot_returns_none
+    and in tests/backend/common/test_data_loader.py::
+        test_load_account_dotdot_owner_raises_missing_data.
+    """
     client = _client(monkeypatch, tmp_path)
-    # '%2F' is the URL-encoded '/', so the decoded owner would be '../evil'
     resp = client.get("/account/..%2Fevil/isa")
     assert resp.status_code == 404
 

@@ -14,6 +14,8 @@ from markupsafe import Markup
 logger = logging.getLogger(__name__)
 
 _ALLOWED_TABLE_TAGS = {"table", "thead", "tbody", "tfoot", "tr", "th", "td"}
+# "border" is retained because pandas.DataFrame.to_html() emits border="1" by default.
+# It is a presentational attribute with no scripting capability and is safe to keep.
 _ALLOWED_TABLE_ATTRS = {"class", "id", "border"}
 
 # Directory containing HTML templates
@@ -37,7 +39,13 @@ class WeeklyReport:
 
 
 def _sanitize_table_html(table_html: str) -> Markup:
-    """Return table HTML with only inert table markup preserved."""
+    """Strip all non-table tags and dangerous attributes from an HTML table string.
+
+    Returns a ``markupsafe.Markup`` instance so Jinja2 renders the table
+    structure as-is without double-escaping, while all scripting vectors have
+    been removed.  Only tags in ``_ALLOWED_TABLE_TAGS`` and attributes in
+    ``_ALLOWED_TABLE_ATTRS`` survive the pass.
+    """
 
     soup = BeautifulSoup(table_html, "html.parser")
     for comment in soup.find_all(string=lambda node: isinstance(node, Comment)):

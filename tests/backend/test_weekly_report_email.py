@@ -10,6 +10,8 @@ from backend.emails.weekly_report import (
 
 
 def test_render_weekly_report_renders_content():
+    # BeautifulSoup normalises single-quoted HTML attributes to double-quoted, so
+    # the assertions below use double quotes even though the fixture uses single quotes.
     report = WeeklyReport(
         week_number=42,
         portfolio_stats={"Return": "5%", "Value": "$1000"},
@@ -77,3 +79,24 @@ def test_render_weekly_report_strips_dangerous_table_attributes():
     assert 'id="safe"' in html
     assert "holding" in html
     assert "tx" in html
+
+
+def test_render_weekly_report_strips_nested_disallowed_tags():
+    """Disallowed tags nested inside other disallowed tags are both removed."""
+    report = WeeklyReport(
+        week_number=5,
+        portfolio_stats={},
+        holdings_table=(
+            "<table><tr><td>"
+            "<div><span onclick=\"evil()\">inner text</span></div>"
+            "</td></tr></table>"
+        ),
+        transactions_table="<table></table>",
+    )
+    html = render_weekly_report(report)
+
+    assert "<div" not in html
+    assert "<span" not in html
+    assert "onclick" not in html
+    assert "inner text" in html
+    assert "<table" in html

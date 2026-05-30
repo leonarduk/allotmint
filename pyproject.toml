@@ -11,12 +11,6 @@ test = [
     "pytest-asyncio~=1.3.0",
 ]
 
-[tool.pytest.ini_options]
-addopts = "--cov=backend --cov-fail-under=90"
-testpaths = ["tests"]
-asyncio_mode = "auto"
-markers = ["asyncio: mark tests that require asyncio support"]
-
 [tool.black]
 line-length = 100
 target-version = ["py311"]

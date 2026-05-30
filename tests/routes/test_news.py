@@ -4,11 +4,13 @@ import json
 from datetime import date
 from typing import Dict, List
 
+import defusedxml
+import pytest
 from fastapi.testclient import TestClient
 from requests import HTTPError
 
-from backend.app import create_app
 from backend import config_module
+from backend.app import create_app
 from backend.routes import news as news_module
 from backend.utils import page_cache
 
@@ -290,3 +292,29 @@ def test_get_cached_news_cold_cache_fetches_once(monkeypatch):
     assert second == first
     assert fetch_calls["count"] == 1
     assert quota_calls["count"] == 1
+
+
+def test_fetch_news_google_billion_laughs_rejected(monkeypatch):
+    bomb = (
+        '<?xml version="1.0"?>'
+        "<!DOCTYPE lolz ["
+        '  <!ENTITY lol "lol">'
+        "  <!ENTITY lol2 \"&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;\">"
+        "  <!ENTITY lol3 \"&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;\">"
+        "]>"
+        "<lolz>&lol3;</lolz>"
+    )
+
+    def fake_get(url, params, timeout=10):
+        class Response:
+            text = bomb
+
+            def raise_for_status(self):
+                return None
+
+        return Response()
+
+    monkeypatch.setattr(news_module.requests, "get", fake_get)
+
+    with pytest.raises(defusedxml.EntitiesForbidden):
+        news_module.fetch_news_google("MSFT")

@@ -557,6 +557,18 @@ def test_sanitize_metadata_symbol(value, expected):
     assert _sanitize_metadata_symbol(value) == expected
 
 
+def test_metadata_entry_exists_valid_lookup(tmp_path):
+    """Sanitizer must not break legitimate symbol+exchange lookups."""
+    instruments_root = tmp_path / "instruments"
+    (instruments_root / "L").mkdir(parents=True)
+    (instruments_root / "L" / "VOD.json").write_text("{}")
+    directories = (str(instruments_root),)
+    # Happy path: lowercase inputs are normalised and the file is found.
+    assert _metadata_entry_exists("vod", "l", directories) is True
+    # A symbol that doesn't exist returns False without errors.
+    assert _metadata_entry_exists("XYZ", "L", directories) is False
+
+
 def test_metadata_entry_exists_rejects_traversal_symbol(tmp_path):
     instruments_root = tmp_path / "instruments"
     (instruments_root / "L").mkdir(parents=True)

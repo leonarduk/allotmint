@@ -77,7 +77,12 @@ def _sanitize_metadata_symbol(value: str) -> str:
     cleaned = value.strip().upper()
     if not cleaned or len(cleaned) > _METADATA_SYMBOL_MAX_LEN:
         if cleaned:
-            logger.debug("Rejected oversized metadata identifier (len=%d)", len(cleaned))
+            # Warn rather than debug: no valid ticker or exchange MIC exceeds
+            # _METADATA_SYMBOL_MAX_LEN chars, so an oversized value is likely
+            # unexpected data in production rather than normal operation.
+            logger.warning(
+                "Rejected oversized metadata identifier (len=%d)", len(cleaned)
+            )
         return ""
     if not _METADATA_SAFE_RE.match(cleaned):
         logger.debug("Rejected unsafe metadata identifier: %r", sanitise_log_value(cleaned))

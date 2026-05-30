@@ -554,6 +554,57 @@ def test_timeseries_html_xss_not_reflected(xss_ticker, escaped_fragment, monkeyp
     assert escaped_fragment in resp.text.lower()
 
 
+def test_timeseries_meta_html_xss_exchange_from_resolver_is_escaped(monkeypatch):
+    """Exchange returned by the internal resolver is HTML-escaped in the HTML response.
+
+    _TICKER_SEGMENT_RE only validates user-supplied input; tickers returned by
+    _resolve_full_ticker bypass the regex.  This test exercises that defence-in-
+    depth path: even if an internally-resolved exchange carries HTML-special chars,
+    render_timeseries_html must neutralise them via html.escape().
+    """
+    import backend.routes.timeseries_meta as ts_meta
+
+    df = _sample_df()
+    client = _client_with_df(monkeypatch, df)
+    # Override the internal resolver to return an exchange with a raw script tag.
+    # No exchange param in the request → validation is bypassed for this path.
+    monkeypatch.setattr(
+        ts_meta.instrument_api,
+        "_resolve_full_ticker",
+        lambda t, latest: ("ABC", "<SCRIPT>EVIL</SCRIPT>"),
+    )
+    resp = client.get("/timeseries/meta", params={"ticker": "ABC", "format": "html"})
+    assert resp.status_code == 200
+    assert "<script>" not in resp.text.lower()
+    assert "&lt;script&gt;" in resp.text.lower()
+
+
+def test_timeseries_html_xss_ticker_column_in_dataframe_is_escaped(monkeypatch):
+    """XSS in the DataFrame Ticker column is escaped when rendering the HTML table.
+
+    Distinct from test_timeseries_html_xss_not_reflected (fallback path): here
+    fetch_yahoo_timeseries succeeds and returns a DataFrame whose Ticker column
+    already contains an XSS payload.  Confirms df.to_html() uses escape=True.
+    The page title is safe ('ABC Price History'); the only injection surface is
+    the table cell — deliberately isolated to test that specific layer.
+    """
+    xss = "<script>alert(1)</script>"
+    df = pd.DataFrame([{
+        "Date": "2024-01-01",
+        "Open": 1.0, "High": 2.0, "Low": 0.5, "Close": 1.5,
+        "Volume": 100, "Ticker": xss, "Source": "Yahoo",
+    }])
+    client = _html_client(monkeypatch, df)
+    # ticker param is benign; injection surface is the DataFrame Ticker column only
+    resp = client.get(
+        "/timeseries/html",
+        params={"ticker": "ABC", "period": "1y", "interval": "1d"},
+    )
+    assert resp.status_code == 200
+    assert "<script>" not in resp.text.lower()
+    assert "&lt;script&gt;" in resp.text.lower()
+
+
 def test_timeseries_meta_json_output_not_html_escaped(monkeypatch):
     """JSON output must not apply html.escape() — raw values are safe in JSON.
 
@@ -569,3 +620,21 @@ def test_timeseries_meta_json_output_not_html_escaped(monkeypatch):
     assert resp.status_code == 200
     data = resp.json()
     assert data["ticker"] == "ABC.L"  # raw ticker — no &amp; or &lt; entities
+
+
+def test_timeseries_meta_csv_output_not_html_escaped(monkeypatch):
+    """CSV output must not apply html.escape() — raw values are safe in CSV.
+
+    Verifies that the fix does not accidentally introduce HTML entities into
+    CSV responses (acceptance criterion: JSON and CSV output paths are unaffected).
+    """
+    df = _sample_df()
+    client = _client_with_df(monkeypatch, df)
+    resp = client.get(
+        "/timeseries/meta",
+        params={"ticker": "ABC", "exchange": "L", "format": "csv"},
+    )
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/csv")
+    assert "&lt;" not in resp.text   # no HTML-escaped angle brackets
+    assert "&amp;" not in resp.text  # no HTML-escaped ampersands

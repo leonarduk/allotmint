@@ -38,3 +38,25 @@ def test_send_weekly_report_email_invokes_ses():
     assert kwargs["Destination"]["ToAddresses"] == ["user@example.com"]
     assert "Week 1" in kwargs["Message"]["Subject"]["Data"]
     assert kwargs["Message"]["Body"]["Html"]["Data"] == rendered
+
+
+def test_render_weekly_report_cell_values_are_escaped():
+    """HTML in DataFrame cell values is escaped; the table structure is preserved."""
+    import pandas as pd
+
+    xss_payload = "<script>alert('xss')</script>"
+    df = pd.DataFrame({"owner": [xss_payload], "value": [100]})
+    holdings_html = df.to_html(index=False, escape=True)
+    transactions_html = df.to_html(index=False, escape=True)
+
+    report = WeeklyReport(
+        week_number=5,
+        portfolio_stats={},
+        holdings_table=holdings_html,
+        transactions_table=transactions_html,
+    )
+    html = render_weekly_report(report)
+
+    assert xss_payload not in html
+    assert "&lt;script&gt;" in html
+    assert "<table" in html

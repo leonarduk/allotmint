@@ -485,3 +485,33 @@ def test_intraday_returns_502_on_provider_error(monkeypatch):
     assert response.status_code == 502
     assert "upstream failure" in response.text
 
+
+def test_render_html_escapes_xss_in_position_strings():
+    """HTML in position owner/account fields is cell-escaped; the table renders safely."""
+    dates = pd.date_range(date(2024, 1, 1), periods=3, freq="D")
+    df = pd.DataFrame({"Date": dates, "Close": [1.0, 2.0, 3.0]})
+    df["Date"] = pd.to_datetime(df["Date"])
+
+    xss_owner = "<script>alert('xss')</script>"
+    positions = [
+        {
+            "owner": xss_owner,
+            "account": "isa",
+            "units": 10,
+            "market_value_gbp": 100.0,
+            "unrealised_gain_gbp": 5.0,
+            "gain_pct": 5.0,
+        }
+    ]
+
+    html = instrument._render_html(
+        ticker="XSS.L",
+        df=df,
+        positions=positions,
+        window_days=30,
+    )
+
+    assert xss_owner not in html
+    assert "&lt;script&gt;" in html
+    assert "<table" in html
+

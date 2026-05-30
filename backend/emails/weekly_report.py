@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import logging
 import os
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict
 
 import boto3
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+from markupsafe import Markup
 
 logger = logging.getLogger(__name__)
 
@@ -38,8 +39,8 @@ def render_weekly_report(report: WeeklyReport) -> str:
     return template.render(
         week_number=report.week_number,
         portfolio_stats=report.portfolio_stats,
-        holdings_table=report.holdings_table,
-        transactions_table=report.transactions_table,
+        holdings_table=Markup(report.holdings_table),
+        transactions_table=Markup(report.transactions_table),
     )
 
 

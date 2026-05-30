@@ -455,20 +455,16 @@ def test_save_query_route_local(monkeypatch, tmp_path):
 
 def test_load_query_local_dotdot_blocked(monkeypatch, tmp_path):
     monkeypatch.setattr(query, "QUERIES_DIR", tmp_path)
-    with pytest.raises(Exception) as exc_info:
+    with pytest.raises(HTTPException) as exc_info:
         query._load_query_local("../etc/passwd")
-    from fastapi import HTTPException
-    assert isinstance(exc_info.value, HTTPException)
     assert exc_info.value.status_code == 404
 
 
 def test_save_query_local_dotdot_blocked(monkeypatch, tmp_path):
     monkeypatch.setattr(query, "QUERIES_DIR", tmp_path)
     q = query.CustomQuery(start=date(2020, 1, 1), end=date(2020, 1, 2), tickers=["ABC.L"])
-    with pytest.raises(Exception) as exc_info:
+    with pytest.raises(HTTPException) as exc_info:
         query._save_query_local("../evil", q)
-    from fastapi import HTTPException
-    assert isinstance(exc_info.value, HTTPException)
     assert exc_info.value.status_code == 400
 
 

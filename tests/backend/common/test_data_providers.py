@@ -63,19 +63,13 @@ def test_load_account_absolute_owner_blocked(accounts_root: Path, provider: Loca
 
 
 def test_load_account_percent_encoded_owner_blocked(accounts_root: Path, provider: LocalDataProvider) -> None:
-    # Percent-encoding is URL-layer; at this layer the literal string is still blocked
-    # because it resolves to a safe path (no actual slash), but we confirm no panic.
-    # On most OS a literal '%2F' in a file name is valid — verify no traversal occurs.
-    result_or_missing = None
-    try:
-        result_or_missing = provider.load_account("..%2Fevil", "isa", accounts_root)
-    except MissingData:
-        pass  # expected: file does not exist
-    except ValueError:
-        pass  # safe_join may also raise ValueError
-    if result_or_missing is not None:
-        # If it didn't raise, the resolved path must still be inside accounts_root.
-        assert str(accounts_root) in str(result_or_missing)
+    # '..%2Fevil' is not a real path traversal — '%2F' is three literal characters at the
+    # filesystem layer, not a slash (URL-decoding happens in the HTTP layer above this).
+    # safe_join does not reject it as traversal, so the call proceeds and fails with
+    # MissingData because the directory does not exist.  The key property we verify is
+    # that no file outside accounts_root is read (confirmed by MissingData, not IOError).
+    with pytest.raises(MissingData):
+        provider.load_account("..%2Fevil", "isa", accounts_root)
 
 
 # ---------------------------------------------------------------------------

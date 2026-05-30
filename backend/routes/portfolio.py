@@ -872,6 +872,10 @@ async def get_account(owner: str, account: str, request: Request):
         )
         raise HTTPException(status_code=502, detail="Account data payload is invalid") from exc
     except FileNotFoundError:
+        # resolve_owner_directory uses safe_join internally (backend/routes/_accounts.py)
+        # and returns None for any traversal attempt (e.g. "../evil"), so a None result
+        # here means either a legitimate missing owner or a blocked traversal — both
+        # map to HTTP 404 below, avoiding information leakage.
         owner_dir = resolve_owner_directory(root, owner)
 
         if owner_dir is None:

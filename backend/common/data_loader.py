@@ -1062,6 +1062,10 @@ def load_account(
         raise MissingData(f"No account data available for owner '{owner}'")
 
     root = local_root
+    # safe_join guards against path traversal in the request-derived owner/account
+    # values before any filesystem access.  ValueError (traversal detected) is
+    # converted to MissingData so the route handler sees a consistent FileNotFoundError
+    # subclass and returns HTTP 404 without revealing that traversal was attempted.
     try:
         path = safe_join(root, owner, f"{account}.json")
     except ValueError as exc:

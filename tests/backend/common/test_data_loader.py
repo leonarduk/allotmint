@@ -809,7 +809,11 @@ def test_list_plots_aws_falls_back_to_local(monkeypatch: pytest.MonkeyPatch, tmp
 def test_load_account_dotdot_owner_raises_missing_data(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """load_account must raise MissingData (not open a file) for traversal in owner."""
+    """load_account must raise MissingData for traversal in owner.
+
+    safe_join catches the traversal and re-raises as MissingData so callers
+    see a FileNotFoundError subclass — not ValueError and not a raw open().
+    """
     from backend.common.data_loader import load_account
     from backend.common.data_providers import MissingData
 
@@ -818,14 +822,16 @@ def test_load_account_dotdot_owner_raises_missing_data(
     monkeypatch.setattr("backend.common.data_loader.config", cfg)
     monkeypatch.delenv("DATA_BUCKET", raising=False)
 
-    with pytest.raises((MissingData, FileNotFoundError)):
+    # MissingData specifically — not the broader FileNotFoundError — because the
+    # fix guarantees safe_join's ValueError is wrapped before any filesystem access.
+    with pytest.raises(MissingData):
         load_account("../evil", "isa", data_root=tmp_path)
 
 
 def test_load_account_dotdot_account_raises_missing_data(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """load_account must raise MissingData (not open a file) for traversal in account."""
+    """load_account must raise MissingData for traversal in account."""
     from backend.common.data_loader import load_account
     from backend.common.data_providers import MissingData
 
@@ -837,5 +843,5 @@ def test_load_account_dotdot_account_raises_missing_data(
     owner_dir = tmp_path / "alice"
     owner_dir.mkdir()
 
-    with pytest.raises((MissingData, FileNotFoundError)):
+    with pytest.raises(MissingData):
         load_account("alice", "../../etc/passwd", data_root=tmp_path)

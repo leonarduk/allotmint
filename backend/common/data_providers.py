@@ -55,6 +55,11 @@ class OwnerMetadata:
 
 class LocalDataProvider:
     def load_account(self, owner: str, account: str, root: Path) -> AccountObject:
+        # safe_join rejects path traversal sequences (e.g. "../", absolute paths) by
+        # resolving the candidate path and verifying it remains under *root*.  A
+        # ValueError from safe_join is re-raised as MissingData so callers receive a
+        # FileNotFoundError subclass and route handlers can translate it to HTTP 404
+        # without leaking that a traversal attempt was blocked.
         try:
             path = safe_join(root, owner, f"{account}.json")
         except ValueError as exc:
@@ -66,6 +71,8 @@ class LocalDataProvider:
         return AccountObject(owner=owner, account=account, data=data)
 
     def load_person_meta(self, owner: str, root: Path) -> OwnerMetadata:
+        # Same traversal guard as load_account: safe_join rejects "../" and absolute
+        # paths; ValueError is re-raised as MissingData for consistent caller handling.
         try:
             path = safe_join(root, owner, "person.json")
         except ValueError as exc:

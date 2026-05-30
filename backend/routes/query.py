@@ -71,8 +71,15 @@ def _resolve_tickers(q: CustomQuery) -> List[str]:
 
 
 def _save_query_local(slug: str, q: CustomQuery) -> None:
-    """Persist a query to the local filesystem."""
+    """Persist a query to the local filesystem.
+
+    *slug* is a URL path segment and is therefore request-derived.  safe_join
+    verifies the resolved path stays inside QUERIES_DIR, blocking traversal
+    sequences such as ``../``.  A traversal attempt raises HTTP 400 rather than
+    404 so callers can distinguish "bad input" from "not found".
+    """
     QUERIES_DIR.mkdir(parents=True, exist_ok=True)
+    # Guard: slug comes from a URL parameter; safe_join rejects traversal.
     try:
         path = safe_join(QUERIES_DIR, f"{slug}.json")
     except ValueError as exc:
@@ -81,7 +88,13 @@ def _save_query_local(slug: str, q: CustomQuery) -> None:
 
 
 def _load_query_local(slug: str) -> dict:
-    """Load a query from the local filesystem."""
+    """Load a query from the local filesystem.
+
+    Checks the mutable QUERIES_DIR first, then falls back to the read-only
+    REPO_QUERIES_DIR.  Both lookups go through safe_join so a traversal slug
+    (e.g. ``../etc/passwd``) is caught before any file open is attempted.
+    """
+    # Guard: slug comes from a URL parameter; safe_join rejects traversal.
     try:
         path = safe_join(QUERIES_DIR, f"{slug}.json")
     except ValueError as exc:
@@ -89,6 +102,7 @@ def _load_query_local(slug: str) -> dict:
     if path.exists():
         return json.loads(path.read_text())
 
+    # Fallback: same guard applied to the read-only repository queries directory.
     try:
         fallback_path = safe_join(REPO_QUERIES_DIR, f"{slug}.json")
     except ValueError as exc:

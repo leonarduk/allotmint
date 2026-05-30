@@ -57,7 +57,7 @@ def test_counter_helpers(monkeypatch, tmp_path):
 def test_fetch_news_yahoo(monkeypatch):
     captured: Dict[str, object] = {}
 
-    def fake_get(url, params, timeout=10):
+    def fake_get(url, params=None, timeout=10, **kwargs):
         captured["url"] = url
         captured["params"] = params
 
@@ -111,7 +111,7 @@ def test_fetch_news_google(monkeypatch):
     """
     captured: Dict[str, object] = {}
 
-    def fake_get(url, params, timeout=10):
+    def fake_get(url, params=None, timeout=10, **kwargs):
         captured["url"] = url
         captured["params"] = params
 

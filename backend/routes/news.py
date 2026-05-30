@@ -187,7 +187,7 @@ def fetch_news_yahoo(ticker: str) -> List[Dict[str, str]]:
     clean_ticker = ticker.strip().upper()
     query, instrument_name = _build_fallback_query(clean_ticker)
     params = {"q": query, "quotesCount": 0, "newsCount": 10}
-    resp = requests.get(endpoint, params=params, timeout=10)
+    resp = requests.get(endpoint, params=params, timeout=10, allow_redirects=False)
     resp.raise_for_status()
     data = resp.json()
     items = data.get("news", [])
@@ -209,7 +209,7 @@ def fetch_news_google(ticker: str) -> List[Dict[str, str]]:
     clean_ticker = ticker.strip().upper()
     query, instrument_name = _build_fallback_query(clean_ticker)
     params = {"q": query, "hl": "en-US", "gl": "US", "ceid": "US:en"}
-    resp = requests.get(endpoint, params=params, timeout=10)
+    resp = requests.get(endpoint, params=params, timeout=10, allow_redirects=False)
     resp.raise_for_status()
     root = ET.fromstring(resp.text)
     out: List[Dict[str, str]] = []

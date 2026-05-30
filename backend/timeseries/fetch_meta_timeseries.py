@@ -232,7 +232,7 @@ def _resolve_symbol_exchange_details(
     if suffix and provided and suffix != provided:
         logger.debug(
             "Exchange mismatch for %s: suffix %s vs argument %s",
-            sanitise_log_value(ticker), suffix, sanitise_log_value(provided),
+            sanitise_log_value(ticker), sanitise_log_value(suffix), sanitise_log_value(provided),
         )
     resolved = suffix or provided
 
@@ -244,7 +244,7 @@ def _resolve_symbol_exchange_details(
     elif ex and meta_ex and ex != meta_ex:
         logger.debug(
             "Exchange metadata mismatch for %s: using %s but metadata %s",
-            sanitise_log_value(sym), ex, meta_ex,
+            sanitise_log_value(sym), sanitise_log_value(ex), sanitise_log_value(meta_ex),
         )
     elif not ex:
         logger.debug("No exchange information for %s; continuing without exchange", sanitise_log_value(sym))

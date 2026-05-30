@@ -207,3 +207,22 @@ def resolve_date_range(
             # Neither date supplied: anchor to today to preserve original window
             start_date = datetime.date.today() - datetime.timedelta(days=days)
     return start_date, end_date
+
+
+def apply_date_range(
+    df: pd.DataFrame,
+    start_date: datetime.date,
+    end_date: datetime.date,
+) -> pd.DataFrame:
+    """Filter *df* to rows where the ``Date`` column falls in ``[start_date, end_date]``.
+
+    Handles both ``datetime64`` and plain ``date`` dtype in the ``Date`` column.
+    Returns a reset-index slice; the original frame is not mutated.
+    """
+    if df.empty or "Date" not in df.columns:
+        return df
+    dates = df["Date"]
+    if hasattr(dates, "dt"):
+        dates = dates.dt.date
+    mask = (dates >= start_date) & (dates <= end_date)
+    return df.loc[mask].reset_index(drop=True)

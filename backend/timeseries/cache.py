@@ -37,7 +37,12 @@ from backend.timeseries.fetch_meta_timeseries import fetch_meta_timeseries
 from backend.timeseries.fetch_stooq_timeseries import fetch_stooq_timeseries_range
 from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_range
 from backend.utils.fx_rates import fetch_fx_rate_range
-from backend.utils.timeseries_helpers import _nearest_weekday, apply_scaling, get_scaling_override
+from backend.utils.timeseries_helpers import (
+    _nearest_weekday,
+    apply_date_range,
+    apply_scaling,
+    get_scaling_override,
+)
 
 OFFLINE_MODE = config.offline_mode
 
@@ -419,10 +424,7 @@ def _memoized_range_cached(
         # and simply return an empty frame. Higher-level helpers may decide to
         # temporarily disable offline mode and retry if they want a fallback.
         if not existing.empty:
-            ex = existing.copy()
-            ex["Date"] = ex["Date"].dt.date
-            mask = (ex["Date"] >= start_date) & (ex["Date"] <= end_date)
-            return _ensure_schema(ex.loc[mask].reset_index(drop=True))
+            return _ensure_schema(apply_date_range(existing.copy(), start_date, end_date))
         logger.warning("Offline mode: no cached data for %s.%s", ticker, exchange)
 
         # Temporarily disable offline mode so the live loader can fetch data.
@@ -442,8 +444,7 @@ def _memoized_range_cached(
     if superset.empty or "Date" not in superset.columns:
         return _empty_ts()
 
-    mask = (superset["Date"].dt.date >= start_date) & (superset["Date"].dt.date <= end_date)
-    return _ensure_schema(superset.loc[mask].reset_index(drop=True))
+    return _ensure_schema(apply_date_range(superset, start_date, end_date))
 
 
 def _memoized_range(

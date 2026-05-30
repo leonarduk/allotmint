@@ -446,3 +446,86 @@ def test_save_query_route_local(monkeypatch, tmp_path):
     assert resp.status_code == 200
     assert resp.json() == {"saved": "local"}
     assert (tmp_path / "local.json").exists()
+
+
+# ---------------------------------------------------------------------------
+# Path traversal rejection tests
+# ---------------------------------------------------------------------------
+
+
+def test_load_query_local_dotdot_blocked(monkeypatch, tmp_path):
+    monkeypatch.setattr(query, "QUERIES_DIR", tmp_path)
+    with pytest.raises(HTTPException) as exc_info:
+        query._load_query_local("../etc/passwd")
+    assert exc_info.value.status_code == 404
+
+
+def test_save_query_local_dotdot_blocked(monkeypatch, tmp_path):
+    monkeypatch.setattr(query, "QUERIES_DIR", tmp_path)
+    q = query.CustomQuery(start=date(2020, 1, 1), end=date(2020, 1, 2), tickers=["ABC.L"])
+    with pytest.raises(HTTPException) as exc_info:
+        query._save_query_local("../evil", q)
+    assert exc_info.value.status_code == 400
+
+
+def test_load_query_route_traversal_blocked(monkeypatch, tmp_path):
+    monkeypatch.setattr(query.config, "app_env", "local")
+    monkeypatch.setattr(query, "QUERIES_DIR", tmp_path)
+    monkeypatch.setattr(query, "REPO_QUERIES_DIR", tmp_path)
+    client = make_client()
+    # The HTTP layer encodes '/' so the slug received is the literal string "../etc/passwd"
+    resp = client.get("/custom-query/..%2Fetc%2Fpasswd")
+    assert resp.status_code == 404
+
+
+def test_save_query_route_traversal_blocked(monkeypatch, tmp_path):
+    monkeypatch.setattr(query.config, "app_env", "local")
+    monkeypatch.setattr(query, "QUERIES_DIR", tmp_path)
+    client = make_client()
+    body = {"start": "2020-01-01", "end": "2020-01-02", "tickers": ["ABC.L"]}
+    # The HTTP layer encodes '/' so the path is normalised before reaching the route.
+    # A status of 400 (safe_join blocked) or 404 (URL-layer normalisation blocked) is
+    # both acceptable; 422 (Pydantic validation failure) must never occur here.
+    resp = client.post("/custom-query/..%2Fevil", json=body)
+    assert resp.status_code in (400, 404)
+
+
+# ---------------------------------------------------------------------------
+# REPO_QUERIES_DIR fallback — traversal and regression tests
+# ---------------------------------------------------------------------------
+
+
+def test_load_query_local_traversal_blocked_regardless_of_dir_config(monkeypatch, tmp_path):
+    """Traversal slug is rejected by safe_join even with a separate REPO_QUERIES_DIR.
+
+    Note: both safe_join calls in _load_query_local use the same slug logic, so a
+    traversal slug is always caught by the *first* call (QUERIES_DIR) — the second
+    (REPO_QUERIES_DIR) call is defence-in-depth that cannot be reached with a
+    traversal slug because both guards share the same slug argument.
+    """
+    queries_dir = tmp_path / "user_queries"
+    queries_dir.mkdir()
+    repo_queries_dir = tmp_path / "repo_queries"
+    repo_queries_dir.mkdir()
+    monkeypatch.setattr(query, "QUERIES_DIR", queries_dir)
+    monkeypatch.setattr(query, "REPO_QUERIES_DIR", repo_queries_dir)
+
+    with pytest.raises(HTTPException) as exc_info:
+        query._load_query_local("../etc/passwd")
+    assert exc_info.value.status_code == 404
+
+
+def test_load_query_local_fallback_loads_from_repo_dir(monkeypatch, tmp_path):
+    """A slug absent from QUERIES_DIR but present in REPO_QUERIES_DIR is returned."""
+    queries_dir = tmp_path / "user_queries"
+    queries_dir.mkdir()
+    repo_queries_dir = tmp_path / "repo_queries"
+    repo_queries_dir.mkdir()
+    payload = {"start": "2020-01-01", "end": "2020-01-02", "tickers": ["XYZ.L"]}
+    (repo_queries_dir / "repo-query.json").write_text(json.dumps(payload))
+    monkeypatch.setattr(query, "QUERIES_DIR", queries_dir)
+    monkeypatch.setattr(query, "REPO_QUERIES_DIR", repo_queries_dir)
+
+    result = query._load_query_local("repo-query")
+
+    assert result["tickers"] == ["XYZ.L"]

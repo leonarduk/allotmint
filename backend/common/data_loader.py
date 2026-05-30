@@ -26,6 +26,7 @@ from backend.common.data_providers import (
     S3DataProvider,
     _safe_json_load,
 )
+from backend.common.path_utils import safe_join
 from backend.common.virtual_portfolio import VirtualPortfolio
 from backend.config import config
 from backend.config import demo_identity as get_demo_identity
@@ -1061,7 +1062,14 @@ def load_account(
         raise MissingData(f"No account data available for owner '{owner}'")
 
     root = local_root
-    path = root / owner / f"{account}.json"
+    # safe_join guards against path traversal in the request-derived owner/account
+    # values before any filesystem access.  ValueError (traversal detected) is
+    # converted to MissingData so the route handler sees a consistent FileNotFoundError
+    # subclass and returns HTTP 404 without revealing that traversal was attempted.
+    try:
+        path = safe_join(root, owner, f"{account}.json")
+    except ValueError as exc:
+        raise MissingData(f"Invalid account path: owner={owner!r}, account={account!r}") from exc
     data = _safe_json_load(path)
     # Validate to catch schema drift, then return the raw dict.
     AccountRecord.model_validate(data)

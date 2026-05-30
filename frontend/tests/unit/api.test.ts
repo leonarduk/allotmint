@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   DEFAULT_API_BASE,
   API_BASE,
+  createClient,
   fetchJson,
   setAuthToken,
   setApiBase,
@@ -263,6 +264,43 @@ describe("client-side request forgery guard (CodeQL #218)", () => {
       fetchJson("http://attacker.example.com/steal"),
     ).rejects.toThrow("Blocked request to unexpected host");
     expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("throws a clear error when the configured API base is not a valid absolute URL", async () => {
+    setApiBase("not-a-valid-url");
+    const mockFetch = vi.fn();
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+    await expect(fetchJson("/health")).rejects.toThrow(
+      "API base is not a valid absolute URL",
+    );
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("throws a clear error when resolveBase() returns an empty string", async () => {
+    // createClient with a static empty-string base exercises the same eager
+    // URL-validation path as the misconfigured-API_BASE case above.
+    const { fetchJson: testFetchJson } = createClient("");
+    await expect(testFetchJson("/health")).rejects.toThrow(
+      "API base is not a valid absolute URL",
+    );
+  });
+
+  it("documents that a protocol-relative URL is prepended to the base (origin unchanged)", async () => {
+    // "//evil.com/path" is not a valid absolute URL in Node/undici so new URL() throws,
+    // landing in the catch branch which prepends the configured base.
+    // The resulting fullUrl is "http://localhost:8000//evil.com/path" — origin is still
+    // http://localhost:8000, so the SSRF guard passes.  This test pins that behaviour.
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+    await fetchJson("//evil.com/path");
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining(DEFAULT_API_BASE),
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    );
   });
 });
 

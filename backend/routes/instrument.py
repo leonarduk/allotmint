@@ -18,6 +18,7 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import HTMLResponse, JSONResponse
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+from markupsafe import Markup
 
 from backend.common.instruments import list_instruments
 from backend.common.portfolio_loader import list_portfolios
@@ -175,8 +176,12 @@ def _render_html(
     window_days: int,
 ) -> str:
     """Render a minimal HTML page summarising price and position data."""
-    prices_tbl = df[["Date", "Close"]].tail(30).to_html(index=False, classes="prices")
-    pos_tbl = pd.DataFrame(positions).to_html(index=False, classes="positions") if positions else None
+    prices_tbl = Markup(df[["Date", "Close"]].tail(30).to_html(index=False, escape=True, classes="prices"))
+    pos_tbl = (
+        Markup(pd.DataFrame(positions).to_html(index=False, escape=True, classes="positions"))
+        if positions
+        else None
+    )
 
     begin, end = _as_iso(df.iloc[0]["Date"]), _as_iso(df.iloc[-1]["Date"])
 
@@ -242,7 +247,7 @@ async def instrument(
             raise HTTPException(status_code=404, detail="No price history available")
 
         pos_tbl = (
-            pd.DataFrame(positions).to_html(index=False, classes="positions")
+            Markup(pd.DataFrame(positions).to_html(index=False, escape=True, classes="positions"))
             if positions
             else None
         )

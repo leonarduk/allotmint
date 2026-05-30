@@ -309,14 +309,14 @@ describe("path-prefix guard (issue #3170)", () => {
     const { fetchJson: testFetchJson } = createClient("http://localhost:8000/api/v1");
     await expect(
       testFetchJson("http://localhost:8000/other-app/steal"),
-    ).rejects.toThrow("Blocked request: URL does not start with configured API base");
+    ).rejects.toThrow("does not start with configured API base");
   });
 
   it("blocks a same-origin URL that shares the prefix string but is not within the prefix path", async () => {
     const { fetchJson: testFetchJson } = createClient("http://localhost:8000/api/v1");
     await expect(
       testFetchJson("http://localhost:8000/api/v1other"),
-    ).rejects.toThrow("Blocked request: URL does not start with configured API base");
+    ).rejects.toThrow("does not start with configured API base");
   });
 
   it("allows a same-origin absolute URL that starts with the configured API path prefix", async () => {
@@ -361,6 +361,39 @@ describe("path-prefix guard (issue #3170)", () => {
       mockFetch as unknown as typeof fetch,
     );
     await testFetchJson("http://localhost:8000/api/v1");
+    expect(mockFetch).toHaveBeenCalled();
+  });
+
+  it("allows a URL that equals the configured API base with query params appended", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
+    const { fetchJson: testFetchJson } = createClient(
+      "http://localhost:8000/api/v1",
+      null,
+      mockFetch as unknown as typeof fetch,
+    );
+    await testFetchJson("http://localhost:8000/api/v1?filter=x");
+    expect(mockFetch).toHaveBeenCalled();
+  });
+
+  it("normalises a trailing slash in the configured API base and still blocks wrong paths", async () => {
+    const { fetchJson: testFetchJson } = createClient("http://localhost:8000/api/v1/");
+    await expect(
+      testFetchJson("http://localhost:8000/other-app/steal"),
+    ).rejects.toThrow("does not start with configured API base");
+  });
+
+  it("normalises a trailing slash in the configured API base and still allows correct paths", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
+    const { fetchJson: testFetchJson } = createClient(
+      "http://localhost:8000/api/v1/",
+      null,
+      mockFetch as unknown as typeof fetch,
+    );
+    await testFetchJson("http://localhost:8000/api/v1/users");
     expect(mockFetch).toHaveBeenCalled();
   });
 });

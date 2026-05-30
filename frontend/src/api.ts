@@ -165,12 +165,17 @@ export function createClient(
       throw new Error(`Blocked request to unexpected host: ${parsedFull.origin}`);
     }
     // Layer 2: path-prefix check — blocks same-origin open-redirect abuse.
+    // Compare pathnames so query strings and fragments at the base URL are not falsely rejected.
     const allowedPrefix = resolvedBase.replace(/\/+$/, "");
+    const allowedPathPrefix = new URL(allowedPrefix).pathname.replace(/\/+$/, "");
+    const requestPath = parsedFull.pathname;
     if (
-      !parsedFull.href.startsWith(`${allowedPrefix}/`) &&
-      parsedFull.href !== allowedPrefix
+      !requestPath.startsWith(`${allowedPathPrefix}/`) &&
+      requestPath !== allowedPathPrefix
     ) {
-      throw new Error("Blocked request: URL does not start with configured API base");
+      throw new Error(
+        `Blocked request: ${parsedFull.href} does not start with configured API base`,
+      );
     }
     const headers = new Headers(init.headers);
     if (authToken) headers.set("Authorization", `Bearer ${authToken}`);

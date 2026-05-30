@@ -159,10 +159,23 @@ export function createClient(
       fullUrl = url.startsWith("/") ? `${resolvedBase}${url}` : `${resolvedBase}/${url}`;
     }
     // Guard against client-side request forgery (CodeQL js/client-side-request-forgery, CWE-918).
-    // Origin-only check; path-prefix validation is not enforced (TODO #3170).
+    // Layer 1: origin check.
     const parsedFull = new URL(fullUrl);
     if (parsedFull.origin !== baseOrigin) {
       throw new Error(`Blocked request to unexpected host: ${parsedFull.origin}`);
+    }
+    // Layer 2: path-prefix check — blocks same-origin open-redirect abuse.
+    // Compare pathnames so query strings and fragments at the base URL are not falsely rejected.
+    const allowedPrefix = resolvedBase.replace(/\/+$/, "");
+    const allowedPathPrefix = new URL(allowedPrefix).pathname.replace(/\/+$/, "");
+    const requestPath = parsedFull.pathname;
+    if (
+      !requestPath.startsWith(`${allowedPathPrefix}/`) &&
+      requestPath !== allowedPathPrefix
+    ) {
+      throw new Error(
+        `Blocked request: ${parsedFull.href} does not start with configured API base`,
+      );
     }
     const headers = new Headers(init.headers);
     if (authToken) headers.set("Authorization", `Bearer ${authToken}`);

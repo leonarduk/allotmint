@@ -304,6 +304,67 @@ describe("client-side request forgery guard (CodeQL #218)", () => {
   });
 });
 
+describe("path-prefix guard (issue #3170)", () => {
+  it("blocks a same-origin URL that does not match the configured API path prefix", async () => {
+    const { fetchJson: testFetchJson } = createClient("http://localhost:8000/api/v1");
+    await expect(
+      testFetchJson("http://localhost:8000/other-app/steal"),
+    ).rejects.toThrow("Blocked request: URL does not start with configured API base");
+  });
+
+  it("blocks a same-origin URL that shares the prefix string but is not within the prefix path", async () => {
+    const { fetchJson: testFetchJson } = createClient("http://localhost:8000/api/v1");
+    await expect(
+      testFetchJson("http://localhost:8000/api/v1other"),
+    ).rejects.toThrow("Blocked request: URL does not start with configured API base");
+  });
+
+  it("allows a same-origin absolute URL that starts with the configured API path prefix", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
+    const { fetchJson: testFetchJson } = createClient(
+      "http://localhost:8000/api/v1",
+      null,
+      mockFetch as unknown as typeof fetch,
+    );
+    await testFetchJson("http://localhost:8000/api/v1/users");
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://localhost:8000/api/v1/users",
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    );
+  });
+
+  it("allows a relative path that resolves under the configured API path prefix", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
+    const { fetchJson: testFetchJson } = createClient(
+      "http://localhost:8000/api/v1",
+      null,
+      mockFetch as unknown as typeof fetch,
+    );
+    await testFetchJson("/users");
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://localhost:8000/api/v1/users",
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    );
+  });
+
+  it("allows a URL that exactly equals the configured API base", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
+    const { fetchJson: testFetchJson } = createClient(
+      "http://localhost:8000/api/v1",
+      null,
+      mockFetch as unknown as typeof fetch,
+    );
+    await testFetchJson("http://localhost:8000/api/v1");
+    expect(mockFetch).toHaveBeenCalled();
+  });
+});
+
 describe("pension forecast", () => {
   it("passes investment growth pct", async () => {
     const mockFetch = vi

@@ -190,7 +190,7 @@ def test_get_news_quota_and_cache(monkeypatch, tmp_path):
 
     calls = {"alpha": 0}
 
-    def fake_get(url, params, timeout=10):
+    def fake_get(url, params=None, timeout=10, **kwargs):
         calls["alpha"] += 1
 
         class Response:
@@ -336,7 +336,7 @@ def test_fetch_news_google_billion_laughs_rejected(monkeypatch):
         "<lolz>&lol3;</lolz>"
     )
 
-    def fake_get(url, params, timeout=10):
+    def fake_get(url, params=None, timeout=10, **kwargs):
         class Response:
             text = bomb
 

@@ -80,7 +80,7 @@ def _sanitize_metadata_symbol(value: str) -> str:
             logger.debug("Rejected oversized metadata identifier (len=%d)", len(cleaned))
         return ""
     if not _METADATA_SAFE_RE.match(cleaned):
-        logger.debug("Rejected unsafe metadata identifier: %r", cleaned)
+        logger.debug("Rejected unsafe metadata identifier: %r", sanitise_log_value(cleaned))
         return ""
     return cleaned
 

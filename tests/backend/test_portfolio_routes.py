@@ -1,3 +1,5 @@
+import json
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -90,7 +92,9 @@ def test_portfolio_var_owner_missing(monkeypatch, tmp_path):
     client = _client(monkeypatch, tmp_path)
     monkeypatch.setattr(
         "backend.routes.portfolio.risk.compute_portfolio_var",
-        lambda owner, days=365, confidence=0.95, include_cash=True: (_ for _ in ()).throw(FileNotFoundError()),
+        lambda owner, days=365, confidence=0.95, include_cash=True: (_ for _ in ()).throw(
+            FileNotFoundError()
+        ),
     )
     resp = client.get("/var/alice")
     assert resp.status_code == 404
@@ -118,6 +122,23 @@ def test_account_dotdot_owner_returns_404(monkeypatch, tmp_path):
     # '%2F' is the URL-encoded '/', so the decoded owner would be '../evil'
     resp = client.get("/account/..%2Fevil/isa")
     assert resp.status_code == 404
+
+
+def test_account_case_insensitive_owner_and_account_loads_matched_directory(monkeypatch, tmp_path):
+    """Owner/account casing mismatches should load the on-disk match."""
+    owner_dir = tmp_path / "Alice"
+    owner_dir.mkdir()
+    (owner_dir / "isa.json").write_text(
+        json.dumps({"account_type": "ISA", "holdings": [{"ticker": "ABC"}]}),
+        encoding="utf-8",
+    )
+    client = _client(monkeypatch, tmp_path)
+
+    resp = client.get("/account/alice/ISA")
+
+    assert resp.status_code == 200
+    assert resp.json()["account_type"] == "ISA"
+    assert resp.json()["holdings"] == [{"ticker": "ABC"}]
 
 
 def test_account_valid_missing_returns_404(monkeypatch, tmp_path):

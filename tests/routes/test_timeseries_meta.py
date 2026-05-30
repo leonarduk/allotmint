@@ -400,3 +400,47 @@ def test_days_zero_with_end_date_means_all_history(monkeypatch):
     )
     assert captured["end_date"] == date(2024, 1, 3)
     assert captured["start_date"] == date(1900, 1, 1)  # "all history" sentinel
+
+
+# ---- XSS regression tests (issue #3145) ------------------------------------
+
+
+@pytest.mark.parametrize("ticker,exchange", [
+    ("<script>alert(1)</script>", "L"),
+    ("ABC", '"><img src=x onerror=alert(1)>'),
+])
+def test_timeseries_meta_html_xss_not_reflected(ticker, exchange, monkeypatch):
+    """XSS payloads in ticker/exchange must not appear as raw HTML tags in the response.
+
+    html.escape() in render_timeseries_html is the last line of defence; even
+    if a payload bypasses upstream validation it must be neutralised at output.
+    """
+    df = _sample_df()
+    client = _client_with_df(monkeypatch, df)
+    resp = client.get(
+        "/timeseries/meta",
+        params={"ticker": ticker, "exchange": exchange, "format": "html"},
+    )
+    assert resp.status_code in (200, 400)
+    assert "<script>" not in resp.text.lower()
+    assert "<img" not in resp.text.lower()
+
+
+@pytest.mark.parametrize("xss_ticker", [
+    "<script>alert(1)</script>",
+    '"><img src=x onerror=alert(1)>',
+])
+def test_timeseries_html_xss_not_reflected(xss_ticker, monkeypatch):
+    """/timeseries/html has no input validation; html.escape() must prevent injection.
+
+    The ticker reaches render_timeseries_html verbatim, so this test confirms
+    the output-layer escaping is sufficient on its own.
+    """
+    client = _html_client(monkeypatch, Exception("no data"))
+    resp = client.get(
+        "/timeseries/html",
+        params={"ticker": xss_ticker, "period": "1y", "interval": "1d"},
+    )
+    assert resp.status_code == 200
+    assert "<script>" not in resp.text.lower()
+    assert "<img" not in resp.text.lower()

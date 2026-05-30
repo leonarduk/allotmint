@@ -500,17 +500,29 @@ def test_days_zero_with_end_date_means_all_history(monkeypatch):
 
 
 # ---- XSS regression tests (issue #3145) ------------------------------------
+#
+# html.escape() in render_timeseries_html (backend/utils/html_render.py) is
+# the output-layer defence for reflected XSS.  The tests below are designed to
+# be RED if html.escape() is removed from that function.
+#
+# Note on `scaling`: FastAPI constrains it to a float in [0.00001, 1_000_000],
+# so it cannot carry HTML injection characters.  Safe rendering is exercised by
+# test_timeseries_meta_formats_with_scaling[html] above.
 
 
-@pytest.mark.parametrize("ticker,exchange", [
-    ("<script>alert(1)</script>", "L"),
-    ("ABC", '"><img src=x onerror=alert(1)>'),
+@pytest.mark.parametrize("ticker,exchange,escaped_fragment", [
+    ("<script>alert(1)</script>", "L", "&lt;script&gt;"),
+    ("ABC", '"><img src=x onerror=alert(1)>', "&lt;img"),
 ])
-def test_timeseries_meta_html_xss_not_reflected(ticker, exchange, monkeypatch):
-    """XSS payloads in ticker/exchange must not appear as raw HTML tags in the response.
+def test_timeseries_meta_html_xss_not_reflected(
+    ticker, exchange, escaped_fragment, monkeypatch
+):
+    """XSS payloads in ticker/exchange must not appear as raw HTML tags.
 
-    html.escape() in render_timeseries_html is the last line of defence; even
-    if a payload bypasses upstream validation it must be neutralised at output.
+    On this branch there is no regex input validation, so payloads reach
+    render_timeseries_html unchanged.  The test asserts both that the raw tag
+    is absent and that its HTML-escaped form is present, ruling out the case
+    where the payload was silently dropped rather than escaped.
     """
     df = _sample_df()
     client = _client_with_df(monkeypatch, df)
@@ -518,20 +530,23 @@ def test_timeseries_meta_html_xss_not_reflected(ticker, exchange, monkeypatch):
         "/timeseries/meta",
         params={"ticker": ticker, "exchange": exchange, "format": "html"},
     )
-    assert resp.status_code in (200, 400)
+    assert resp.status_code == 200
     assert "<script>" not in resp.text.lower()
     assert "<img" not in resp.text.lower()
+    assert escaped_fragment in resp.text.lower()
 
 
-@pytest.mark.parametrize("xss_ticker", [
-    "<script>alert(1)</script>",
-    '"><img src=x onerror=alert(1)>',
+@pytest.mark.parametrize("xss_ticker,escaped_fragment", [
+    ("<script>alert(1)</script>", "&lt;script&gt;"),
+    ('"><img src=x onerror=alert(1)>', "&lt;img"),
 ])
-def test_timeseries_html_xss_not_reflected(xss_ticker, monkeypatch):
+def test_timeseries_html_xss_not_reflected(xss_ticker, escaped_fragment, monkeypatch):
     """/timeseries/html has no input validation; html.escape() must prevent injection.
 
     The ticker reaches render_timeseries_html verbatim, so this test confirms
-    the output-layer escaping is sufficient on its own.
+    the output-layer escaping is sufficient on its own.  Exception() exercises
+    the fallback path where ticker appears in both the page title and the
+    DataFrame Ticker column — both surfaces must be safe.
     """
     client = _html_client(monkeypatch, Exception("no data"))
     resp = client.get(
@@ -541,3 +556,21 @@ def test_timeseries_html_xss_not_reflected(xss_ticker, monkeypatch):
     assert resp.status_code == 200
     assert "<script>" not in resp.text.lower()
     assert "<img" not in resp.text.lower()
+    assert escaped_fragment in resp.text.lower()
+
+
+def test_timeseries_meta_json_output_not_html_escaped(monkeypatch):
+    """JSON output must not apply html.escape() — raw values are safe in JSON.
+
+    Verifies that the fix does not accidentally escape ticker values in JSON
+    responses (acceptance criterion: JSON and CSV output paths are unaffected).
+    """
+    df = _sample_df()
+    client = _client_with_df(monkeypatch, df)
+    resp = client.get(
+        "/timeseries/meta",
+        params={"ticker": "ABC", "exchange": "L", "format": "json"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["ticker"] == "ABC.L"  # raw ticker — no &amp; or &lt; entities

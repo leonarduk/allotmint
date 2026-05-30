@@ -1,6 +1,6 @@
 import json
 import sys
-from xml.etree.ElementTree import Element
+from xml.etree.ElementTree import Element  # Element constructs test fixtures only — no parsing, safe to use stdlib here
 
 import defusedxml
 import pandas as pd

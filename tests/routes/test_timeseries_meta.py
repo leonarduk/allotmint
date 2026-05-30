@@ -664,8 +664,10 @@ def test_timeseries_meta_json_output_not_html_escaped(monkeypatch):
 def test_timeseries_meta_csv_output_not_html_escaped(monkeypatch):
     """CSV output must not apply html.escape() — raw values are safe in CSV.
 
-    Verifies that the fix does not accidentally introduce HTML entities into
-    CSV responses (acceptance criterion: JSON and CSV output paths are unaffected).
+    The CSV body contains only OHLCV columns (Date, Open, High, Low, Close,
+    Volume); ticker and exchange are not in the CSV content itself.  The test
+    verifies that the column headers are intact (no entity encoding) and that
+    html.escape() has not been accidentally applied anywhere in the response.
     """
     df = _sample_df()
     client = _client_with_df(monkeypatch, df)
@@ -675,5 +677,26 @@ def test_timeseries_meta_csv_output_not_html_escaped(monkeypatch):
     )
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("text/csv")
+    assert "Date,Open,High,Low,Close,Volume" in resp.text  # headers intact, no entity encoding
     assert "&lt;" not in resp.text   # no HTML-escaped angle brackets
     assert "&amp;" not in resp.text  # no HTML-escaped ampersands
+
+
+def test_timeseries_meta_scaling_xss_rejected(monkeypatch):
+    """A non-numeric scaling value (including XSS payloads) is rejected with 4xx.
+
+    `scaling` is a FastAPI-validated float in [0.00001, 1_000_000]; it cannot
+    carry HTML injection characters.  FastAPI's validation error echoes the
+    invalid input in a JSON body — that is safe because the response
+    Content-Type is application/json, not text/html, so browsers will not
+    interpret the payload as markup.
+    """
+    df = _sample_df()
+    client = _client_with_df(monkeypatch, df)
+    resp = client.get(
+        "/timeseries/meta",
+        params={"ticker": "ABC", "exchange": "L", "format": "html", "scaling": "<script>"},
+    )
+    assert resp.status_code in (400, 422)
+    # The validation error is JSON — not HTML — so the reflected input is safe.
+    assert "application/json" in resp.headers.get("content-type", "")

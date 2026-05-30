@@ -56,11 +56,14 @@ def _coerce_owner_summary_entry(entry: OwnerSummaryRecord | Dict[str, Any] | Non
     if isinstance(entry, OwnerSummaryRecord):
         return entry
     payload = dict(entry or {})
+    accounts = payload.get("accounts", [])
+    full_name = payload.get("full_name")
+    email = payload.get("email")
     return OwnerSummaryRecord.model_construct(
         owner=str(payload.get("owner", "")),
-        accounts=list(payload.get("accounts", [])) if isinstance(payload.get("accounts", []), list) else [],
-        full_name=payload.get("full_name").strip() if isinstance(payload.get("full_name"), str) and payload.get("full_name").strip() else None,
-        email=payload.get("email").strip() if isinstance(payload.get("email"), str) and payload.get("email").strip() else None,
+        accounts=list(accounts) if isinstance(accounts, list) else [],
+        full_name=full_name.strip() if isinstance(full_name, str) and full_name.strip() else None,
+        email=email.strip() if isinstance(email, str) and email.strip() else None,
         has_transactions_artifact=bool(payload.get("has_transactions_artifact", False)),
     )
 
@@ -470,8 +473,6 @@ def _list_owner_summaries(
         if normalised:
             summaries.append(normalised)
 
-    identity = demo_identity()
-
     def _append_demo_summary() -> None:
         summaries.append(_build_demo_summary(accounts_root))
 
@@ -871,15 +872,17 @@ async def get_account(owner: str, account: str, request: Request):
         )
         raise HTTPException(status_code=502, detail="Account data payload is invalid") from exc
     except FileNotFoundError:
-        search_root = root
-        owner_dir = search_root / owner
+        # resolve_owner_directory uses safe_join internally (backend/routes/_accounts.py)
+        # and returns None for any traversal attempt (e.g. "../evil"), so a None result
+        # here means either a legitimate missing owner or a blocked traversal — both
+        # map to HTTP 404 below, avoiding information leakage.
+        owner_dir = resolve_owner_directory(root, owner)
 
-        if not owner_dir.exists():
+        if owner_dir is None:
             fallback_paths = data_loader.resolve_paths(None, None)
-            search_root = fallback_paths.accounts_root
-            owner_dir = search_root / owner
+            owner_dir = resolve_owner_directory(fallback_paths.accounts_root, owner)
 
-        if not owner_dir.exists():
+        if owner_dir is None:
             raise HTTPException(status_code=404, detail="Account not found")
 
         match = next(
@@ -889,7 +892,7 @@ async def get_account(owner: str, account: str, request: Request):
         if not match:
             raise HTTPException(status_code=404, detail="Account not found")
         try:
-            data = data_loader.load_account(owner, match, search_root)
+            data = data_loader.load_account(owner_dir.name, match, owner_dir.parent)
         except data_loader.ProviderUnavailable as exc:
             raise HTTPException(status_code=503, detail="Account data provider unavailable") from exc
         except data_loader.InvalidPayload as exc:

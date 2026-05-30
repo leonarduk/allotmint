@@ -84,6 +84,23 @@ def test_private_ip_rejected(url: str) -> None:
         validate_external_url(url)
 
 
+@pytest.mark.parametrize(
+    "url",
+    [
+        pytest.param("https://127.1/api", id="abbreviated_two_octet"),
+        pytest.param("https://127.0.1/api", id="abbreviated_three_octet"),
+        pytest.param("https://0x7f000001/api", id="hex_loopback"),
+        pytest.param("https://2130706433/api", id="decimal_loopback"),
+    ],
+)
+def test_abbreviated_ipv4_rejected(url: str) -> None:
+    # These forms are rejected by ipaddress.ip_address() but socket.inet_aton
+    # normalises them to 127.0.0.1; an unguarded requests.get would reach the
+    # loopback interface.
+    with pytest.raises(InvalidExternalURLError, match="private or reserved"):
+        validate_external_url(url)
+
+
 # ── valid public endpoints ────────────────────────────────────────────────────
 
 @pytest.mark.parametrize(

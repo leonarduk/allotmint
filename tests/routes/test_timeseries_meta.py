@@ -510,19 +510,15 @@ def test_days_zero_with_end_date_means_all_history(monkeypatch):
 # test_timeseries_meta_formats_with_scaling[html] above.
 
 
-@pytest.mark.parametrize("ticker,exchange,escaped_fragment", [
-    ("<script>alert(1)</script>", "L", "&lt;script&gt;"),
-    ("ABC", '"><img src=x onerror=alert(1)>', "&lt;img"),
+@pytest.mark.parametrize("ticker,exchange", [
+    ("<script>alert(1)</script>", "L"),
+    ("ABC", '"><img src=x onerror=alert(1)>'),
 ])
-def test_timeseries_meta_html_xss_not_reflected(
-    ticker, exchange, escaped_fragment, monkeypatch
-):
-    """XSS payloads in ticker/exchange must not appear as raw HTML tags.
+def test_timeseries_meta_html_xss_rejected_by_validation(ticker, exchange, monkeypatch):
+    """XSS payloads in ticker/exchange are rejected before they reach the HTML renderer.
 
-    On this branch there is no regex input validation, so payloads reach
-    render_timeseries_html unchanged.  The test asserts both that the raw tag
-    is absent and that its HTML-escaped form is present, ruling out the case
-    where the payload was silently dropped rather than escaped.
+    _TICKER_SEGMENT_RE rejects non-alphanumeric input with 400.  The response
+    body (a JSON error) must not contain the raw tag regardless of format.
     """
     df = _sample_df()
     client = _client_with_df(monkeypatch, df)
@@ -530,10 +526,9 @@ def test_timeseries_meta_html_xss_not_reflected(
         "/timeseries/meta",
         params={"ticker": ticker, "exchange": exchange, "format": "html"},
     )
-    assert resp.status_code == 200
+    assert resp.status_code == 400
     assert "<script>" not in resp.text.lower()
     assert "<img" not in resp.text.lower()
-    assert escaped_fragment in resp.text.lower()
 
 
 @pytest.mark.parametrize("xss_ticker,escaped_fragment", [

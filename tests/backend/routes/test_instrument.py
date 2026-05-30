@@ -533,3 +533,44 @@ def test_render_html_escapes_xss_in_ticker():
     assert xss_ticker not in html
     assert "&lt;script&gt;" in html
 
+
+@pytest.mark.asyncio
+@pytest.mark.anyio("asyncio")
+async def test_instrument_empty_html_escapes_xss_in_positions(monkeypatch):
+    """XSS in position owner is escaped via to_html(escape=True) in the empty-data path.
+
+    This exercises the second pos_tbl call site in the route handler (line ~247),
+    which is reached when load_meta_timeseries_range returns an empty DataFrame.
+    """
+    xss_owner = "<script>alert('xss')</script>"
+
+    monkeypatch.setattr(
+        instrument,
+        "load_meta_timeseries_range",
+        lambda *_, **__: pd.DataFrame(columns=["Date", "Close"]),
+    )
+    monkeypatch.setattr(instrument, "get_security_meta", lambda _ticker: None)
+    monkeypatch.setattr(
+        instrument,
+        "list_portfolios",
+        lambda: [
+            {
+                "owner": xss_owner,
+                "accounts": [
+                    {
+                        "account_type": "isa",
+                        "holdings": [{"ticker": "NONE.L", "units": 1}],
+                    }
+                ],
+            }
+        ],
+    )
+
+    response = await instrument.instrument(
+        ticker="NONE.L", days=30, format="html", base_currency=None
+    )
+
+    html = response.body.decode()
+    assert xss_owner not in html
+    assert "&lt;script&gt;" in html
+

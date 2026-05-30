@@ -100,3 +100,26 @@ def test_render_weekly_report_strips_nested_disallowed_tags():
     assert "onclick" not in html
     assert "inner text" in html
     assert "<table" in html
+
+
+def test_render_weekly_report_strips_script_inside_allowed_tag():
+    """<script> directly inside an allowed tag is removed by the pre-decompose pass."""
+    # This verifies that the script/style decompose loop (which runs before the
+    # allowlist unwrap loop) fires even when <script> is a child of an allowed tag.
+    report = WeeklyReport(
+        week_number=5,
+        portfolio_stats={},
+        holdings_table=(
+            "<table><tr><td>"
+            "<script>evil()</script>"
+            "safe text"
+            "</td></tr></table>"
+        ),
+        transactions_table="<table></table>",
+    )
+    html = render_weekly_report(report)
+
+    assert "<script>" not in html
+    assert "evil()" not in html
+    assert "safe text" in html
+    assert "<table" in html

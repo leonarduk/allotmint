@@ -261,7 +261,6 @@ def timeseries_for_ticker(
 
     ts_start, ts_end = resolve_date_range(days, start_date=start_date, end_date=end_date)
 
-    # Filtering is done at the data layer — no secondary Python cutoff needed.
     df = load_meta_timeseries_range(sym, ex, start_date=ts_start, end_date=ts_end)
     if df is None or df.empty:
         return empty_payload

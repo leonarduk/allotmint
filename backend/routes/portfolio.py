@@ -934,6 +934,19 @@ async def instrument_detail(
     start_date: Annotated[Optional[dt.date], Query(description="Inclusive start date (YYYY-MM-DD)")] = None,
     end_date: Annotated[Optional[dt.date], Query(description="Inclusive end date (YYYY-MM-DD)")] = None,
 ):
+    """Return prices and positions for one instrument within a portfolio group.
+
+    Date-range semantics
+    --------------------
+    When neither *start_date* nor *end_date* is supplied the window defaults
+    to the 365 calendar days ending **yesterday** (``resolve_date_range``
+    defaults to yesterday, not today — this differs intentionally from the
+    ``/instrument`` endpoint which anchors to today).
+
+    *start_date* and *end_date* are always resolved to concrete dates before
+    being forwarded to ``timeseries_for_ticker`` so the guard
+    ``start > end`` and the actual data fetch use the same window.
+    """
     resolved_start, resolved_end = resolve_date_range(
         365, start_date=start_date, end_date=end_date
     )

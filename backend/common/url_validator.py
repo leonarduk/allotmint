@@ -8,7 +8,17 @@ class InvalidExternalURLError(ValueError):
     """Raised when a URL fails SSRF-safety validation."""
 
 
-_BLOCKED_HOSTNAMES: frozenset[str] = frozenset({"localhost"})
+# Hostnames that must always be rejected regardless of how they resolve.
+# "ip6-localhost" and "ip6-loopback" are common /etc/hosts aliases for ::1
+# on Debian/Ubuntu systems; they are not valid IP literals so _is_private_address
+# would not catch them.
+_BLOCKED_HOSTNAMES: frozenset[str] = frozenset(
+    {
+        "localhost",
+        "ip6-localhost",
+        "ip6-loopback",
+    }
+)
 
 
 def _is_private_address(address: str) -> bool:
@@ -31,8 +41,17 @@ def validate_external_url(url: str, *, allow_http: bool = False) -> None:
 
     Raises :class:`InvalidExternalURLError` when:
     - the scheme is not ``https`` (unless *allow_http* is ``True``);
-    - the hostname is ``localhost`` or similar blocked name; or
-    - the hostname is a literal IP in a private/loopback/link-local range.
+    - the hostname matches a blocked name (``localhost``, ``ip6-localhost``,
+      ``ip6-loopback``, and trailing-dot variants); or
+    - the hostname is a *literal* IP address in a private, loopback,
+      link-local, or reserved range.
+
+    **Known limitation — DNS resolution is not performed.**  A hostname such
+    as ``internal.corp.example.com`` that resolves to ``10.0.0.1`` will pass
+    this check.  DNS-rebinding and hostname-alias attacks via arbitrary domain
+    names are not mitigated here; the guard targets the common case of a
+    misconfigured or attacker-injected URL that uses a literal private IP or
+    a well-known loopback alias.
 
     Call this at the point each configurable URL is first used, not at
     config load time, so that values modified after startup are also caught.

@@ -48,6 +48,18 @@ def test_localhost_trailing_dot_rejected():
         validate_external_url("https://localhost./api")
 
 
+def test_ip6_localhost_rejected():
+    # ip6-localhost is a common /etc/hosts alias for ::1 on Debian/Ubuntu;
+    # it is not a valid IP literal so _is_private_address would not catch it.
+    with pytest.raises(InvalidExternalURLError, match="not permitted"):
+        validate_external_url("https://ip6-localhost/api")
+
+
+def test_ip6_loopback_rejected():
+    with pytest.raises(InvalidExternalURLError, match="not permitted"):
+        validate_external_url("https://ip6-loopback/api")
+
+
 # ── private IP ranges ─────────────────────────────────────────────────────────
 
 @pytest.mark.parametrize(

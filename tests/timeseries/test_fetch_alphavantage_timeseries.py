@@ -178,6 +178,11 @@ def test_fetch_range_disabled(monkeypatch):
     ],
 )
 def test_fetch_range_rejects_private_base_url(monkeypatch, bad_url: str) -> None:
+    # _patch_validation stubs out is_valid_ticker (-> True) and
+    # record_skipped_ticker (-> no-op) so neither early-return guard fires.
+    # Passing api_key="demo" bypasses the alpha_vantage_enabled check.
+    # The function therefore reaches validate_external_url(BASE_URL) where
+    # BASE_URL has been monkeypatched to bad_url, triggering the SSRF guard.
     _patch_validation(monkeypatch)
     monkeypatch.setattr(av, "BASE_URL", bad_url)
     with pytest.raises(InvalidExternalURLError):

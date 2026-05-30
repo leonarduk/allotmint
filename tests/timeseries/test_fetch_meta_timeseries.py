@@ -586,15 +586,13 @@ def test_metadata_entry_exists_in_directory_rejects_traversal(tmp_path):
     assert _metadata_entry_exists_in_directory("../L/ABC", tmp_path / "instruments" / "L") is False
 
 
-def test_resolve_exchange_rejects_traversal_symbol(tmp_path):
-    instruments = tmp_path / "instruments" / "L"
-    instruments.mkdir(parents=True)
-    (instruments / "ABC.json").write_text("{}")
-
+def test_resolve_exchange_rejects_traversal_symbol():
+    """Traversal symbol is rejected by the sanitizer before any filesystem access."""
     import backend.timeseries.fetch_meta_timeseries as meta
 
     meta._resolve_exchange_from_metadata_cached.cache_clear()
-    with patch.object(meta, "INSTRUMENTS_DIR", tmp_path / "instruments"):
-        assert meta._resolve_exchange_from_metadata("../L/ABC") == ""
+    # No directory fixture needed — _sanitize_metadata_symbol rejects "../L/ABC"
+    # before _instrument_dirs() or any Path operations are reached.
+    assert meta._resolve_exchange_from_metadata("../L/ABC") == ""
     meta._resolve_exchange_from_metadata_cached.cache_clear()
 

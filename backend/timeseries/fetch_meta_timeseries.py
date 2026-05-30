@@ -178,7 +178,13 @@ def _resolve_exchange_from_metadata_cached(
 
 
 def _metadata_entry_exists_in_directory(symbol: str, directory: Path) -> bool:
-    """Return ``True`` if *symbol* metadata exists in the provided directory."""
+    """Return ``True`` if *symbol* metadata exists in the provided directory.
+
+    Unlike ``_resolve_exchange_from_metadata_cached`` (which is ``@lru_cache``
+    decorated and therefore requires the caller to pre-sanitize so that the
+    cache key is the clean value), this function is not cached and may be
+    called from multiple contexts, so it sanitizes ``symbol`` independently.
+    """
 
     symbol = _sanitize_metadata_symbol(symbol)
     if not symbol:

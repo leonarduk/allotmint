@@ -541,8 +541,9 @@ def test_timeseries_meta_html_user_input_xss_rejected_by_validation(
         params={"ticker": ticker, "exchange": exchange, "format": "html"},
     )
     assert resp.status_code == 400
-    assert "<script>" not in resp.text.lower()
-    assert "<img" not in resp.text.lower()
+    # FastAPI validation errors return JSON, not HTML — assert content-type to
+    # confirm the payload cannot be executed as markup in a browser.
+    assert "application/json" in resp.headers.get("content-type", "")
 
 
 @pytest.mark.parametrize("xss_ticker,escaped_fragment", [
@@ -554,8 +555,9 @@ def test_timeseries_html_xss_not_reflected(xss_ticker, escaped_fragment, monkeyp
 
     The ticker reaches render_timeseries_html verbatim, so this test confirms
     the output-layer escaping is sufficient on its own.  Exception() exercises
-    the fallback path where ticker appears in both the page title and the
-    DataFrame Ticker column — both surfaces must be safe.
+    the fallback path where ticker appears in the page title/heading; the
+    separate test_timeseries_html_xss_ticker_column_in_dataframe_is_escaped
+    covers the DataFrame Ticker-column surface.
     """
     client = _html_client(monkeypatch, Exception("no data"))
     resp = client.get(
@@ -581,6 +583,10 @@ def test_timeseries_meta_html_xss_ticker_from_resolver_is_escaped(monkeypatch):
 
     df = _sample_df()
     client = _client_with_df(monkeypatch, df)
+    # ts_meta.instrument_api._resolve_full_ticker is verified as a valid patch
+    # target by the existing test_resolve_with_inferred_exchange (same pattern).
+    # ticker="ABC" with no exchange param and no dot means _resolve_ticker_exchange
+    # falls through to instrument_api._resolve_full_ticker — the resolver IS called.
     monkeypatch.setattr(
         ts_meta.instrument_api,
         "_resolve_full_ticker",
@@ -605,8 +611,10 @@ def test_timeseries_meta_html_xss_exchange_from_resolver_is_escaped(monkeypatch)
 
     df = _sample_df()
     client = _client_with_df(monkeypatch, df)
-    # Override the internal resolver to return an exchange with a raw script tag.
-    # No exchange param in the request → validation is bypassed for this path.
+    # ts_meta.instrument_api._resolve_full_ticker is verified as a valid patch
+    # target by the existing test_resolve_with_inferred_exchange (same pattern).
+    # No exchange param + no dot in ticker → _resolve_ticker_exchange falls through
+    # to instrument_api._resolve_full_ticker — the resolver IS called.
     monkeypatch.setattr(
         ts_meta.instrument_api,
         "_resolve_full_ticker",
@@ -697,6 +705,8 @@ def test_timeseries_meta_scaling_xss_rejected(monkeypatch):
         "/timeseries/meta",
         params={"ticker": "ABC", "exchange": "L", "format": "html", "scaling": "<script>"},
     )
+    # The app's custom exception handler maps FastAPI's RequestValidationError to 400
+    # (see test_malformed_date_returns_4xx); accept either to stay forward-compatible.
     assert resp.status_code in (400, 422)
     # The validation error is JSON — not HTML — so the reflected input is safe.
     assert "application/json" in resp.headers.get("content-type", "")

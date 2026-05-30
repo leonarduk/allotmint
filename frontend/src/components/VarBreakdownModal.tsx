@@ -38,9 +38,12 @@ export function VarBreakdownModal({
         onClose();
       }
     };
-    window.addEventListener("keydown", handleKeyDown);
+    // Listen on document so keyboard events dispatched on child elements
+    // (which bubble through document) also close the modal.  This is also
+    // more reliable in jsdom-based tests than listening directly on window.
+    document.addEventListener("keydown", handleKeyDown);
     return () => {
-      window.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("keydown", handleKeyDown);
     };
   }, [onClose]);
 

@@ -290,15 +290,24 @@ _PRICES = [{"date": "2024-01-01", "close": 1.5, "close_gbp": 1.5}]
 
 
 def test_portfolio_instrument_default_no_date_params(monkeypatch):
-    """Category 1: no date params – uses days default."""
+    """Category 1: no date params – resolved default range forwarded to timeseries_for_ticker.
+
+    The route always forwards *resolved* dates (never None) so that validation
+    and execution use the same window.  With no params the default is a 365-day
+    window ending yesterday.
+    """
     cap: dict = {}
     client = _portfolio_instrument_client(monkeypatch, _PRICES, cap)
 
     resp = client.get("/portfolio-group/demo/instrument/VWRL.L")
 
     assert resp.status_code == 200
-    assert cap["start_date"] is None
-    assert cap["end_date"] is None
+    today = dt.date.today()
+    # Both dates must be concrete (not None) — passing None was Bug 1.
+    assert cap["start_date"] is not None
+    assert cap["end_date"] is not None
+    # The resolved window must be a valid range that does not extend past today.
+    assert cap["start_date"] < cap["end_date"] <= today
 
 
 def test_portfolio_instrument_start_date_only(monkeypatch):

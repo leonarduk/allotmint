@@ -501,24 +501,38 @@ def test_days_zero_with_end_date_means_all_history(monkeypatch):
 
 # ---- XSS regression tests (issue #3145) ------------------------------------
 #
-# html.escape() in render_timeseries_html (backend/utils/html_render.py) is
-# the output-layer defence for reflected XSS.  The tests below are designed to
-# be RED if html.escape() is removed from that function.
+# There are two independent layers of defence:
+#   1. Input validation  — _TICKER_SEGMENT_RE in _resolve_ticker_exchange
+#                          rejects payloads in user-supplied ticker/exchange on
+#                          /timeseries/meta (400).  Tests named *_rejected_by_*
+#                          cover this layer.
+#   2. Output escaping   — html.escape() in render_timeseries_html neutralises
+#                          anything that reaches the renderer (e.g. values from
+#                          the internal resolver that bypass the regex, or the
+#                          unvalidated /timeseries/html endpoint).  Tests named
+#                          *_is_escaped / *_not_reflected cover this layer.
+#                          These tests are RED if html.escape() is removed.
 #
 # Note on `scaling`: FastAPI constrains it to a float in [0.00001, 1_000_000],
 # so it cannot carry HTML injection characters.  Safe rendering is exercised by
 # test_timeseries_meta_formats_with_scaling[html] above.
+#
+# Note on `exchange` in /timeseries/html: that endpoint has no `exchange` query
+# param, so there is no direct exchange injection surface there.
 
 
 @pytest.mark.parametrize("ticker,exchange", [
     ("<script>alert(1)</script>", "L"),
     ("ABC", '"><img src=x onerror=alert(1)>'),
 ])
-def test_timeseries_meta_html_xss_rejected_by_validation(ticker, exchange, monkeypatch):
-    """XSS payloads in ticker/exchange are rejected before they reach the HTML renderer.
+def test_timeseries_meta_html_user_input_xss_rejected_by_validation(
+    ticker, exchange, monkeypatch
+):
+    """Input validation rejects XSS payloads before they reach the HTML renderer.
 
-    _TICKER_SEGMENT_RE rejects non-alphanumeric input with 400.  The response
-    body (a JSON error) must not contain the raw tag regardless of format.
+    _TICKER_SEGMENT_RE returns 400 for these inputs.  This test covers Layer 1
+    (input validation) only — it does NOT exercise html.escape().  For the
+    output-escaping layer see test_timeseries_meta_html_xss_*_from_resolver_*.
     """
     df = _sample_df()
     client = _client_with_df(monkeypatch, df)
@@ -554,13 +568,38 @@ def test_timeseries_html_xss_not_reflected(xss_ticker, escaped_fragment, monkeyp
     assert escaped_fragment in resp.text.lower()
 
 
+def test_timeseries_meta_html_xss_ticker_from_resolver_is_escaped(monkeypatch):
+    """Ticker returned by the internal resolver is HTML-escaped in the HTML response.
+
+    _TICKER_SEGMENT_RE only validates user-supplied input; tickers returned by
+    _resolve_full_ticker bypass the regex.  This test exercises the output-
+    escaping layer (Layer 2) for the ticker component: even if an internally-
+    resolved ticker carries HTML-special chars, render_timeseries_html must
+    neutralise them via html.escape().
+    """
+    import backend.routes.timeseries_meta as ts_meta
+
+    df = _sample_df()
+    client = _client_with_df(monkeypatch, df)
+    monkeypatch.setattr(
+        ts_meta.instrument_api,
+        "_resolve_full_ticker",
+        lambda t, latest: ("<SCRIPT>EVIL</SCRIPT>", "L"),
+    )
+    resp = client.get("/timeseries/meta", params={"ticker": "ABC", "format": "html"})
+    assert resp.status_code == 200
+    assert "<script>" not in resp.text.lower()
+    assert "&lt;script&gt;" in resp.text.lower()
+
+
 def test_timeseries_meta_html_xss_exchange_from_resolver_is_escaped(monkeypatch):
     """Exchange returned by the internal resolver is HTML-escaped in the HTML response.
 
     _TICKER_SEGMENT_RE only validates user-supplied input; tickers returned by
-    _resolve_full_ticker bypass the regex.  This test exercises that defence-in-
-    depth path: even if an internally-resolved exchange carries HTML-special chars,
-    render_timeseries_html must neutralise them via html.escape().
+    _resolve_full_ticker bypass the regex.  This test exercises the output-
+    escaping layer (Layer 2) for the exchange component: even if an internally-
+    resolved exchange carries HTML-special chars, render_timeseries_html must
+    neutralise them via html.escape().
     """
     import backend.routes.timeseries_meta as ts_meta
 

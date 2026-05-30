@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import type { VarBreakdown } from "../types";
 import type { VarScenario } from "../types";
@@ -32,10 +32,18 @@ export function VarBreakdownModal({
     return `${value >= 0 ? "+" : ""}${value.toFixed(2)}`;
   };
 
+  // Keep a stable ref to onClose so the keydown listener is registered only
+  // once (on mount) and never needs to be removed/re-added when the parent
+  // re-renders with a new inline callback reference.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        onClose();
+        onCloseRef.current();
       }
     };
     // Listen on document so keyboard events dispatched on child elements
@@ -45,7 +53,7 @@ export function VarBreakdownModal({
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [onClose]);
+  }, []);
 
   return (
     <div

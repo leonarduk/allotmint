@@ -549,6 +549,7 @@ def test_fetch_meta_timeseries_alpha_vantage_rate_limit(monkeypatch):
         pytest.param("", "", id="empty_rejected"),
         pytest.param("   ", "", id="whitespace_only_rejected"),
         pytest.param("1234", "1234", id="numeric_only_valid"),
+        pytest.param("A" * 20, "A" * 20, id="exactly_max_length_valid"),
         pytest.param("A" * 21, "", id="over_max_length_rejected"),
     ],
 )

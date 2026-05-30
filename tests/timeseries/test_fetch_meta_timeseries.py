@@ -548,6 +548,8 @@ def test_fetch_meta_timeseries_alpha_vantage_rate_limit(monkeypatch):
         pytest.param("ABC\\DEF", "", id="backslash_rejected"),
         pytest.param("", "", id="empty_rejected"),
         pytest.param("   ", "", id="whitespace_only_rejected"),
+        pytest.param("1234", "1234", id="numeric_only_valid"),
+        pytest.param("A" * 21, "", id="over_max_length_rejected"),
     ],
 )
 def test_sanitize_metadata_symbol(value, expected):

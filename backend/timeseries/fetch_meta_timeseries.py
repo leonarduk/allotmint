@@ -59,17 +59,28 @@ _TICKER_RE = re.compile(r"^[A-Za-z0-9]{1,12}(?:[-\.][A-Z]{1,3})?$")
 _METADATA_SAFE_RE = re.compile(r"^[A-Z0-9][A-Z0-9._-]*$")
 
 
+# Real-world ticker and exchange symbols are at most ~12 characters; cap at 20
+# to close the unbounded-input vector before the regex engine runs.
+_METADATA_SYMBOL_MAX_LEN = 20
+
+
 def _sanitize_metadata_symbol(value: str) -> str:
     """Sanitize a symbol or exchange identifier before filesystem use.
 
-    Strips whitespace, uppercases, and validates against a conservative
+    Strips whitespace, uppercases, enforces a maximum length of
+    ``_METADATA_SYMBOL_MAX_LEN``, and validates against a conservative
     allowlist (^[A-Z0-9][A-Z0-9._-]*$).  The first character must be
     alphanumeric to reject leading-dot sequences such as ``..`` that could
     escape a directory boundary.  Returns ``""`` for any input that fails
     validation so callers can short-circuit without touching the filesystem.
     """
     cleaned = value.strip().upper()
-    if not cleaned or not _METADATA_SAFE_RE.match(cleaned):
+    if not cleaned or len(cleaned) > _METADATA_SYMBOL_MAX_LEN:
+        if cleaned:
+            logger.debug("Rejected oversized metadata identifier (len=%d)", len(cleaned))
+        return ""
+    if not _METADATA_SAFE_RE.match(cleaned):
+        logger.debug("Rejected unsafe metadata identifier: %r", cleaned)
         return ""
     return cleaned
 

@@ -184,49 +184,70 @@ class TestApplyDateRange:
     def test_start_date_only(self):
         dates = [self.BASE, self.MID, self.END]
         df = self._df(dates, as_datetime=True)
-        result = th.apply_date_range(df, self.MID, dt.date(9999, 12, 31))
+        result = th.apply_date_range(df, start_date=self.MID)
         assert list(result["Date"].dt.date) == [self.MID, self.END]
 
     def test_end_date_only(self):
         dates = [self.BASE, self.MID, self.END]
         df = self._df(dates, as_datetime=True)
-        result = th.apply_date_range(df, dt.date(1900, 1, 1), self.MID)
+        result = th.apply_date_range(df, end_date=self.MID)
         assert list(result["Date"].dt.date) == [self.BASE, self.MID]
 
     def test_both_bounds(self):
         dates = [self.BASE, self.MID, self.END]
         df = self._df(dates, as_datetime=True)
-        result = th.apply_date_range(df, self.BASE, self.MID)
+        result = th.apply_date_range(df, start_date=self.BASE, end_date=self.MID)
         assert list(result["Date"].dt.date) == [self.BASE, self.MID]
 
     def test_neither_bound_noop(self):
         dates = [self.BASE, self.MID, self.END]
         df = self._df(dates, as_datetime=True)
-        result = th.apply_date_range(df, dt.date(1900, 1, 1), dt.date(9999, 12, 31))
+        result = th.apply_date_range(df)
         assert len(result) == 3
 
     def test_boundary_dates_inclusive(self):
         dates = [self.BASE, self.MID, self.END]
         df = self._df(dates, as_datetime=True)
-        result = th.apply_date_range(df, self.BASE, self.END)
+        result = th.apply_date_range(df, start_date=self.BASE, end_date=self.END)
         assert len(result) == 3
 
     def test_plain_date_column(self):
+        # Date column stored as object dtype (plain date objects, no .dt accessor)
         dates = [self.BASE, self.MID, self.END]
         df = self._df(dates, as_datetime=False)
-        result = th.apply_date_range(df, self.BASE, self.MID)
+        result = th.apply_date_range(df, start_date=self.BASE, end_date=self.MID)
         assert list(result["Date"]) == [self.BASE, self.MID]
 
     def test_empty_dataframe_returns_empty(self):
         df = pd.DataFrame({"Date": pd.Series([], dtype="datetime64[ns]"), "Close": []})
-        result = th.apply_date_range(df, self.BASE, self.END)
+        result = th.apply_date_range(df, start_date=self.BASE, end_date=self.END)
         assert result.empty
+
+    def test_missing_date_column_returns_df_unchanged(self):
+        df = pd.DataFrame({"Close": [1, 2, 3]})
+        result = th.apply_date_range(df, start_date=self.BASE, end_date=self.END)
+        assert list(result["Close"]) == [1, 2, 3]
+
+    def test_nat_rows_are_dropped(self):
+        col = pd.to_datetime([self.BASE, None, self.END])
+        df = pd.DataFrame({"Date": col, "Close": [1, 2, 3]})
+        result = th.apply_date_range(df, start_date=self.BASE, end_date=self.END)
+        assert len(result) == 2
+        assert list(result["Close"]) == [1, 3]
 
     def test_index_is_reset(self):
         dates = [self.BASE, self.MID, self.END]
         df = self._df(dates, as_datetime=True)
-        result = th.apply_date_range(df, self.MID, self.END)
+        result = th.apply_date_range(df, start_date=self.MID, end_date=self.END)
         assert list(result.index) == [0, 1]
+
+    def test_original_frame_not_mutated(self):
+        dates = [self.BASE, self.MID, self.END]
+        df = self._df(dates, as_datetime=True)
+        original_index = list(df.index)
+        th.apply_date_range(df, start_date=self.MID, end_date=self.END)
+        assert list(df.index) == original_index
+        assert len(df) == 3
 
 
 def _make_frozen_date(frozen_today: dt.date):

@@ -211,18 +211,24 @@ def resolve_date_range(
 
 def apply_date_range(
     df: pd.DataFrame,
-    start_date: datetime.date,
-    end_date: datetime.date,
+    start_date: Optional[datetime.date] = None,
+    end_date: Optional[datetime.date] = None,
 ) -> pd.DataFrame:
     """Filter *df* to rows where the ``Date`` column falls in ``[start_date, end_date]``.
 
+    Either bound may be ``None`` to leave that side open (true no-op for that bound).
     Handles both ``datetime64`` and plain ``date`` dtype in the ``Date`` column.
-    Returns a reset-index slice; the original frame is not mutated.
+    NaT values in the ``Date`` column compare as False and are silently dropped.
+    Returns a new DataFrame with reset index; the original frame is not mutated.
     """
     if df.empty or "Date" not in df.columns:
         return df
     dates = df["Date"]
     if hasattr(dates, "dt"):
         dates = dates.dt.date
-    mask = (dates >= start_date) & (dates <= end_date)
-    return df.loc[mask].reset_index(drop=True)
+    mask = pd.Series([True] * len(df), index=df.index)
+    if start_date is not None:
+        mask &= dates >= start_date
+    if end_date is not None:
+        mask &= dates <= end_date
+    return df.loc[mask].reset_index(drop=True).copy()

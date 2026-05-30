@@ -424,7 +424,7 @@ def _memoized_range_cached(
         # and simply return an empty frame. Higher-level helpers may decide to
         # temporarily disable offline mode and retry if they want a fallback.
         if not existing.empty:
-            return _ensure_schema(apply_date_range(existing.copy(), start_date, end_date))
+            return _ensure_schema(apply_date_range(existing, start_date, end_date))
         logger.warning("Offline mode: no cached data for %s.%s", ticker, exchange)
 
         # Temporarily disable offline mode so the live loader can fetch data.
@@ -511,8 +511,7 @@ def _convert_to_base_currency(
                 except Exception as exc:
                     raise ValueError(f"Offline mode: no FX rates for {curr}") from exc
 
-            mask = (fx["Date"].dt.date >= start) & (fx["Date"].dt.date <= end)
-            fx = fx.loc[mask]
+            fx = apply_date_range(fx, start, end)
             if fx.empty:
                 raise ValueError(f"Offline mode: FX cache lacks range for {curr}")
         else:

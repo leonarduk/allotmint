@@ -941,7 +941,7 @@ async def instrument_detail(
         raise HTTPException(status_code=400, detail="start_date must not be after end_date")
     try:
         series = instrument_api.timeseries_for_ticker(
-            ticker, start_date=start_date, end_date=end_date
+            ticker, start_date=resolved_start, end_date=resolved_end
         )
         prices_list = series.get("prices", [])
         positions_list = instrument_api.positions_for_ticker(slug, ticker)

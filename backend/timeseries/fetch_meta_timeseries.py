@@ -32,11 +32,6 @@ OFFLINE_MODE = config.offline_mode
 _METADATA_PATH_COMPONENT_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 
 
-def _sanitize_for_log(value: object) -> str:
-    """Return a log-safe string representation with line breaks neutralized."""
-    text = str(value)
-    return text.replace("\r", "\\r").replace("\n", "\\n")
-
 # ──────────────────────────────────────────────────────────────
 # Local imports
 # ──────────────────────────────────────────────────────────────
@@ -173,13 +168,14 @@ def _resolve_exchange_from_metadata_cached(
 
 def _metadata_entry_exists_in_directory(symbol: str, directory: Path) -> bool:
     """Return ``True`` if *symbol* metadata exists in the provided directory."""
-    # os.path.basename strips path-traversal components (e.g. "../../etc") so
-    # a crafted ticker cannot escape the expected directory.
-    symbol = os.path.basename(symbol)
+    # Regex allowlist first (matches _metadata_entry_exists ordering), then
+    # os.path.basename as a CodeQL-recognised path-traversal sanitizer so the
+    # taint chain is provably broken before any Path construction below.
+    symbol = _sanitize_metadata_symbol(symbol)
     if not symbol:
         return False
 
-    symbol = _sanitize_metadata_symbol(symbol)
+    symbol = os.path.basename(symbol)
     if not symbol:
         return False
 
@@ -233,12 +229,10 @@ def _resolve_symbol_exchange_details(
     sym, suffix = (re.split(r"[._]", ticker, 1) + [""])[:2]
     provided = (exchange or "").upper()
     suffix = suffix.upper()
-    safe_ticker = _sanitize_for_log(ticker)
-    safe_sym = _sanitize_for_log(sym)
-    safe_provided = _sanitize_for_log(provided)
     if suffix and provided and suffix != provided:
         logger.debug(
-            "Exchange mismatch for %s: suffix %s vs argument %s", safe_ticker, suffix, safe_provided
+            "Exchange mismatch for %s: suffix %s vs argument %s",
+            sanitise_log_value(ticker), suffix, sanitise_log_value(provided),
         )
     resolved = suffix or provided
 
@@ -246,16 +240,14 @@ def _resolve_symbol_exchange_details(
     ex = resolved
     if not ex and meta_ex:
         ex = meta_ex
-        logger.debug("Resolved exchange for %s via metadata: %s", safe_sym, ex)
+        logger.debug("Resolved exchange for %s via metadata: %s", sanitise_log_value(sym), ex)
     elif ex and meta_ex and ex != meta_ex:
         logger.debug(
             "Exchange metadata mismatch for %s: using %s but metadata %s",
-            safe_sym,
-            ex,
-            meta_ex,
+            sanitise_log_value(sym), ex, meta_ex,
         )
     elif not ex:
-        logger.debug("No exchange information for %s; continuing without exchange", safe_sym)
+        logger.debug("No exchange information for %s; continuing without exchange", sanitise_log_value(sym))
 
     return sym.upper(), (ex or "").upper(), meta_ex
 
@@ -534,15 +526,16 @@ def run_all_tickers(
         if delay and idx:
             time.sleep(delay)
         sym, ex, meta_exchange = _resolve_symbol_exchange_details(t, exchange)
-        safe_t = _sanitize_for_log(t)
-        safe_sym = _sanitize_for_log(sym)
-        logger.debug("run_all_tickers resolved %s -> %s.%s", safe_t, safe_sym, ex)
+        logger.debug(
+            "run_all_tickers resolved %s -> %s.%s",
+            sanitise_log_value(t), sanitise_log_value(sym), ex,
+        )
         cache_exchange = _resolve_cache_exchange(t, exchange, sym, ex, meta_exchange)
         try:
             if not load_meta_timeseries(sym, cache_exchange, days).empty:
                 ok.append(t)
         except Exception as exc:
-            logger.warning("[WARN] %s: %s", safe_t, exc)
+            logger.warning("[WARN] %s: %s", sanitise_log_value(t), exc)
     logger.info(
         "Bulk warm-up complete: %d updated, %d skipped", len(ok), len(tickers) - len(ok)
     )

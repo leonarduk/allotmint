@@ -232,8 +232,11 @@ def timeseries_for_ticker(
     subsets that are convenient for sparkline charts.
 
     When *start_date* or *end_date* are provided they override the window
-    calculated from *days*.  Filtering is pushed to the data layer via
-    :func:`load_meta_timeseries_range` so no in-Python row filtering is needed.
+    calculated from *days*.  The primary filter is pushed to the data layer via
+    :func:`load_meta_timeseries_range`.  A secondary Python-level pass is still
+    applied after loading because the cache layer may shift the window backward
+    by up to four days to accommodate weekends/holidays; that pass enforces the
+    originally-requested bounds precisely.
     """
     empty_payload: Dict[str, Any] = {
         "prices": [],

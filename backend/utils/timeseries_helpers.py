@@ -226,15 +226,14 @@ def apply_date_range(
     dates = df["Date"]
     if hasattr(dates, "dt"):
         dates = dates.dt.date
-
-        # Explicitly neutralise nulls before comparison
         null_mask = dates.isna()
-
         mask = pd.Series([True] * len(df), index=df.index)
-        mask &= ~null_mask  # drop NaTs unconditionally
+        mask &= ~null_mask
+    else:
+        mask = pd.Series([True] * len(df), index=df.index)
 
-        if start_date is not None:
-            mask &= dates >= start_date
-        if end_date is not None:
-            mask &= dates <= end_date
+    if start_date is not None:
+        mask &= dates >= start_date
+    if end_date is not None:
+        mask &= dates <= end_date
     return df.loc[mask].reset_index(drop=True).copy()

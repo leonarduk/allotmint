@@ -1,5 +1,6 @@
 import pandas as pd
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from backend.config import config
@@ -50,8 +51,6 @@ def test_resolve_with_inferred_exchange(monkeypatch):
 
 
 def test_resolve_missing_ticker_error():
-    from fastapi import HTTPException
-
     import backend.routes.timeseries_meta as ts_meta
 
     with pytest.raises(HTTPException):
@@ -59,8 +58,6 @@ def test_resolve_missing_ticker_error():
 
 
 def test_resolve_cannot_infer_exchange(monkeypatch):
-    from fastapi import HTTPException
-
     import backend.routes.timeseries_meta as ts_meta
 
     monkeypatch.setattr(
@@ -68,6 +65,106 @@ def test_resolve_cannot_infer_exchange(monkeypatch):
     )
     with pytest.raises(HTTPException):
         ts_meta._resolve_ticker_exchange("xyz", None)
+
+
+def test_resolve_inferred_path_trusts_internal_data(monkeypatch):
+    """The regex allowlist guards user-supplied paths only.
+
+    When _resolve_full_ticker returns a segment containing characters outside
+    [A-Z0-9_-] (e.g. a dot in an exchange code returned by an internal data
+    source), the route must NOT reject it with HTTP 400.  The guard applies
+    only to user-controlled input so valid portfolio entries never cause false
+    production errors.
+    """
+    import backend.routes.timeseries_meta as ts_meta
+
+    monkeypatch.setattr(
+        ts_meta.instrument_api,
+        "_resolve_full_ticker",
+        lambda t, latest: ("AAAA", "XLON.G"),  # "." is outside the user-input allowlist
+    )
+    # Must succeed — internally-resolved tickers bypass the regex.
+    sym, ex = ts_meta._resolve_ticker_exchange("aaaa", None)
+    assert sym == "AAAA"
+    assert ex == "XLON.G"
+
+
+def test_resolve_dotted_ticker_no_exchange():
+    """Covers the 'elif . in t' branch: ticker='ABC.L', exchange=None."""
+    import backend.routes.timeseries_meta as ts_meta
+
+    sym, ex = ts_meta._resolve_ticker_exchange("abc.l", None)
+    assert sym == "ABC"
+    assert ex == "L"
+
+
+@pytest.mark.parametrize("ticker_input,exchange_input", [
+    ("<script>alert(1)</script>", "L"),
+    ("ABC", "<img src=x onerror=alert(1)>"),
+    ("ABC&foo=bar", "L"),
+    ("ABC\"onload=x", "L"),
+])
+def test_resolve_rejects_unsafe_ticker_exchange(ticker_input, exchange_input):
+    """User-supplied exchange path rejects payloads that fail the regex allowlist."""
+    import backend.routes.timeseries_meta as ts_meta
+
+    with pytest.raises(HTTPException) as exc_info:
+        ts_meta._resolve_ticker_exchange(ticker_input, exchange_input)
+    assert exc_info.value.status_code == 400
+
+
+@pytest.mark.parametrize("bad_dotted_ticker", [
+    "<script>.L",      # XSS payload in the sym segment
+    "ABC.<img>",       # XSS payload in the exchange segment
+    "ABC&foo=bar.L",   # injection attempt in the sym segment
+])
+def test_resolve_rejects_unsafe_dotted_ticker_no_exchange(bad_dotted_ticker):
+    """The 'if . in t' branch validates sym/ex derived from the dotted ticker.
+
+    Covers the case where exchange=None and the ticker contains a dot so the
+    exchange is inferred by splitting — both segments are still user-controlled
+    and must be rejected if they fail _TICKER_SEGMENT_RE.
+    """
+    import backend.routes.timeseries_meta as ts_meta
+
+    with pytest.raises(HTTPException) as exc_info:
+        ts_meta._resolve_ticker_exchange(bad_dotted_ticker, None)
+    assert exc_info.value.status_code == 400
+
+
+def test_timeseries_meta_json_rejects_xss_ticker(monkeypatch):
+    df = _sample_df()
+    client = _client_with_df(monkeypatch, df)
+    resp = client.get(
+        "/timeseries/meta?ticker=%3Cscript%3Ealert(1)%3C%2Fscript%3E&exchange=L&format=json"
+    )
+    assert resp.status_code == 400
+
+
+@pytest.mark.parametrize("ticker,exchange", [
+    ("BRK_B", "NYSE"),   # underscore in ticker symbol — allowed by widened regex
+    ("FUND_ETF", "L"),   # underscore in fund identifier — allowed
+])
+def test_resolve_accepts_underscore_ticker(ticker, exchange):
+    """Underscores are explicitly permitted (some providers use them as separators)."""
+    import backend.routes.timeseries_meta as ts_meta
+
+    sym, ex = ts_meta._resolve_ticker_exchange(ticker, exchange)
+    assert sym == ticker.upper()
+    assert ex == exchange.upper()
+
+
+@pytest.mark.parametrize("ticker,exchange", [
+    ("A" * 51, "L"),   # ticker segment exceeds 50-char limit
+    ("AAPL", "X" * 51),   # exchange code exceeds 50-char limit
+])
+def test_resolve_rejects_oversized_segments(ticker, exchange):
+    """Segments longer than 50 characters are rejected."""
+    import backend.routes.timeseries_meta as ts_meta
+
+    with pytest.raises(HTTPException) as exc_info:
+        ts_meta._resolve_ticker_exchange(ticker, exchange)
+    assert exc_info.value.status_code == 400
 
 
 # ---- /timeseries/meta route tests -----------------------------------------

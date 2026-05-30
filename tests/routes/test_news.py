@@ -4,11 +4,13 @@ import json
 from datetime import date
 from typing import Dict, List
 
+import pytest
 from fastapi.testclient import TestClient
 from requests import HTTPError
 
-from backend.app import create_app
 from backend import config_module
+from backend.app import create_app
+from backend.common.url_validator import InvalidExternalURLError
 from backend.routes import news as news_module
 from backend.utils import page_cache
 
@@ -290,3 +292,35 @@ def test_get_cached_news_cold_cache_fetches_once(monkeypatch):
     assert second == first
     assert fetch_calls["count"] == 1
     assert quota_calls["count"] == 1
+
+
+# ── SSRF guard wiring ─────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize(
+    "bad_endpoint",
+    [
+        pytest.param("https://169.254.169.254/latest/meta-data/", id="aws_metadata"),
+        pytest.param("https://127.0.0.1/search", id="loopback"),
+        pytest.param("https://10.0.0.1/search", id="rfc1918"),
+        pytest.param("https://localhost/search", id="localhost"),
+    ],
+)
+def test_fetch_news_yahoo_rejects_private_endpoint(monkeypatch, bad_endpoint: str) -> None:
+    monkeypatch.setattr(news_module.cfg, "yahoo_news_endpoint", bad_endpoint)
+    with pytest.raises(InvalidExternalURLError):
+        news_module.fetch_news_yahoo("AAPL")
+
+
+@pytest.mark.parametrize(
+    "bad_endpoint",
+    [
+        pytest.param("https://169.254.169.254/rss", id="aws_metadata"),
+        pytest.param("https://127.0.0.1/rss", id="loopback"),
+        pytest.param("https://192.168.1.1/rss", id="rfc1918"),
+        pytest.param("https://localhost/rss", id="localhost"),
+    ],
+)
+def test_fetch_news_google_rejects_private_endpoint(monkeypatch, bad_endpoint: str) -> None:
+    monkeypatch.setattr(news_module.cfg, "google_news_endpoint", bad_endpoint)
+    with pytest.raises(InvalidExternalURLError):
+        news_module.fetch_news_google("AAPL")

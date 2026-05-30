@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import json
 import logging
-import xml.etree.ElementTree as ET
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
+import defusedxml.ElementTree as ET
 import requests
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 

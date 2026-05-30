@@ -1,5 +1,7 @@
 from unittest.mock import MagicMock, patch
 
+import pandas as pd
+
 from backend.emails.weekly_report import (
     WeeklyReport,
     render_weekly_report,
@@ -19,8 +21,8 @@ def test_render_weekly_report_renders_content():
     for label, value in report.portfolio_stats.items():
         assert label in html
         assert value in html
-    assert report.holdings_table in html
-    assert report.transactions_table in html
+    assert '<table id="holdings"></table>' in html
+    assert '<table id="tx"></table>' in html
 
 
 def test_send_weekly_report_email_invokes_ses():
@@ -40,14 +42,12 @@ def test_send_weekly_report_email_invokes_ses():
     assert kwargs["Message"]["Body"]["Html"]["Data"] == rendered
 
 
-def test_render_weekly_report_cell_values_are_escaped():
-    """HTML in DataFrame cell values is escaped; the table structure is preserved."""
-    import pandas as pd
-
+def test_render_weekly_report_cell_values_are_sanitized_at_render_time():
+    """HTML in DataFrame cell values is sanitized; the table structure is preserved."""
     xss_payload = "<script>alert('xss')</script>"
     df = pd.DataFrame({"owner": [xss_payload], "value": [100]})
-    holdings_html = df.to_html(index=False, escape=True)
-    transactions_html = df.to_html(index=False, escape=True)
+    holdings_html = df.to_html(index=False, escape=False)
+    transactions_html = df.to_html(index=False, escape=False)
 
     report = WeeklyReport(
         week_number=5,
@@ -58,5 +58,22 @@ def test_render_weekly_report_cell_values_are_escaped():
     html = render_weekly_report(report)
 
     assert xss_payload not in html
-    assert "&lt;script&gt;" in html
+    assert "alert('xss')" not in html
     assert "<table" in html
+
+
+def test_render_weekly_report_strips_dangerous_table_attributes():
+    report = WeeklyReport(
+        week_number=5,
+        portfolio_stats={},
+        holdings_table='<table onclick="alert(1)" id="safe"><tr><td>holding</td></tr></table>',
+        transactions_table='<table><tr><td><img src=x onerror="alert(1)">tx</td></tr></table>',
+    )
+    html = render_weekly_report(report)
+
+    assert "onclick" not in html
+    assert "onerror" not in html
+    assert "<img" not in html
+    assert 'id="safe"' in html
+    assert "holding" in html
+    assert "tx" in html

@@ -7,10 +7,14 @@ from pathlib import Path
 from typing import Dict
 
 import boto3
+from bs4 import BeautifulSoup, Comment
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markupsafe import Markup
 
 logger = logging.getLogger(__name__)
+
+_ALLOWED_TABLE_TAGS = {"table", "thead", "tbody", "tfoot", "tr", "th", "td"}
+_ALLOWED_TABLE_ATTRS = {"class", "id", "border"}
 
 # Directory containing HTML templates
 _TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
@@ -32,6 +36,30 @@ class WeeklyReport:
     transactions_table: str
 
 
+def _sanitize_table_html(table_html: str) -> Markup:
+    """Return table HTML with only inert table markup preserved."""
+
+    soup = BeautifulSoup(table_html, "html.parser")
+    for comment in soup.find_all(string=lambda node: isinstance(node, Comment)):
+        comment.extract()
+
+    for tag in soup.find_all(["script", "style"]):
+        tag.decompose()
+
+    for tag in soup.find_all(True):
+        if tag.name not in _ALLOWED_TABLE_TAGS:
+            tag.unwrap()
+            continue
+
+        attrs = dict(tag.attrs)
+        tag.attrs.clear()
+        for attr, value in attrs.items():
+            if attr in _ALLOWED_TABLE_ATTRS:
+                tag.attrs[attr] = value
+
+    return Markup(str(soup))
+
+
 def render_weekly_report(report: WeeklyReport) -> str:
     """Render the weekly report email HTML from a template."""
 
@@ -39,8 +67,8 @@ def render_weekly_report(report: WeeklyReport) -> str:
     return template.render(
         week_number=report.week_number,
         portfolio_stats=report.portfolio_stats,
-        holdings_table=Markup(report.holdings_table),
-        transactions_table=Markup(report.transactions_table),
+        holdings_table=_sanitize_table_html(report.holdings_table),
+        transactions_table=_sanitize_table_html(report.transactions_table),
     )
 
 

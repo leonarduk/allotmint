@@ -14,6 +14,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 
 from backend import config_module
 from backend.common.instruments import get_instrument_meta
+from backend.common.url_validator import validate_external_url
 from backend.logging_setup import sanitise_log_value
 from backend.utils import page_cache
 
@@ -182,6 +183,7 @@ def fetch_news_yahoo(ticker: str) -> List[Dict[str, str]]:
     """Fetch headlines from Yahoo Finance search API."""
 
     endpoint = cfg.yahoo_news_endpoint or "https://query1.finance.yahoo.com/v1/finance/search"
+    validate_external_url(endpoint)
     clean_ticker = ticker.strip().upper()
     query, instrument_name = _build_fallback_query(clean_ticker)
     params = {"q": query, "quotesCount": 0, "newsCount": 10}
@@ -203,6 +205,7 @@ def fetch_news_google(ticker: str) -> List[Dict[str, str]]:
     """Fetch headlines from Google Finance via RSS search."""
 
     endpoint = cfg.google_news_endpoint or "https://news.google.com/rss/search"
+    validate_external_url(endpoint)
     clean_ticker = ticker.strip().upper()
     query, instrument_name = _build_fallback_query(clean_ticker)
     params = {"q": query, "hl": "en-US", "gl": "US", "ceid": "US:en"}

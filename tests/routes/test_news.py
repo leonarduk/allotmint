@@ -4,6 +4,7 @@ import json
 from datetime import date
 from typing import Dict, List
 
+import defusedxml
 import pytest
 from fastapi.testclient import TestClient
 from requests import HTTPError
@@ -324,3 +325,27 @@ def test_fetch_news_google_rejects_private_endpoint(monkeypatch, bad_endpoint: s
     monkeypatch.setattr(news_module.cfg, "google_news_endpoint", bad_endpoint)
     with pytest.raises(InvalidExternalURLError):
         news_module.fetch_news_google("AAPL")
+def test_fetch_news_google_billion_laughs_rejected(monkeypatch):
+    bomb = (
+        '<?xml version="1.0"?>'
+        "<!DOCTYPE lolz ["
+        '  <!ENTITY lol "lol">'
+        "  <!ENTITY lol2 \"&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;\">"
+        "  <!ENTITY lol3 \"&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;\">"
+        "]>"
+        "<lolz>&lol3;</lolz>"
+    )
+
+    def fake_get(url, params, timeout=10):
+        class Response:
+            text = bomb
+
+            def raise_for_status(self):
+                return None
+
+        return Response()
+
+    monkeypatch.setattr(news_module.requests, "get", fake_get)
+
+    with pytest.raises(defusedxml.EntitiesForbidden):
+        news_module.fetch_news_google("MSFT")

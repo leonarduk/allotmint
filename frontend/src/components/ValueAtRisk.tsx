@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -59,6 +59,24 @@ export function ValueAtRisk({ owner, onDateChange }: Props) {
     v != null
       ? `£${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
       : "–";
+
+  const clearBreakdown = useCallback(() => {
+    setScenarios([]);
+    setVarDate(null);
+    setVarLossPercent(null);
+    setBreakdown(null);
+  }, []);
+
+  const handleScenarioDate = useCallback(
+    (date: string) => {
+      onDateChange?.(date);
+      setScenarios([]);
+      setVarDate(null);
+      setVarLossPercent(null);
+      setBreakdown(null);
+    },
+    [onDateChange],
+  );
 
   return (
     <div style={{ marginBottom: "2rem" }}>
@@ -144,19 +162,8 @@ export function ValueAtRisk({ owner, onDateChange }: Props) {
           scenarios={scenarios}
           varDate={varDate}
           varLossPercent={varLossPercent}
-          onSelectScenarioDate={(date) => {
-            onDateChange?.(date);
-            setScenarios([]);
-            setVarDate(null);
-            setVarLossPercent(null);
-            setBreakdown(null);
-          }}
-          onClose={() => {
-            setScenarios([]);
-            setVarDate(null);
-            setVarLossPercent(null);
-            setBreakdown(null);
-          }}
+          onSelectScenarioDate={handleScenarioDate}
+          onClose={clearBreakdown}
         />
       )}
     </div>

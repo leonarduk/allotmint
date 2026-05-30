@@ -16,10 +16,10 @@
   <h1>{{ ticker }}</h1>
   <p>{{ rows_count }} rows - {{ begin }} -> {{ end }}</p>
 
-  <section>{{ prices_tbl|safe }}</section>
+  <section>{{ prices_tbl }}</section>
   <section>
     {% if pos_tbl %}
-      {{ pos_tbl|safe }}
+      {{ pos_tbl }}
     {% else %}
       <p>No portfolio positions</p>
     {% endif %}

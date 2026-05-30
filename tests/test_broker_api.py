@@ -27,7 +27,7 @@ def test_recent_trades_parsing_and_headers(monkeypatch):
                 }
             ]
 
-    def fake_get(url, params=None, headers=None, timeout=None):
+    def fake_get(url, params=None, headers=None, timeout=None, **kwargs):
         called["url"] = url
         called["params"] = params
         called["headers"] = headers

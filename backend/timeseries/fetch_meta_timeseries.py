@@ -52,6 +52,20 @@ logger = logging.getLogger("meta_timeseries")
 # Helpers
 # ──────────────────────────────────────────────────────────────
 _TICKER_RE = re.compile(r"^[A-Za-z0-9]{1,12}(?:[-\.][A-Z]{1,3})?$")
+_METADATA_SAFE_RE = re.compile(r"^[A-Z0-9._-]+$")
+
+
+def _sanitize_metadata_symbol(value: str) -> str:
+    """Sanitize a symbol or exchange identifier before filesystem use.
+
+    Strips whitespace, uppercases, and validates against a conservative
+    allowlist (^[A-Z0-9._-]+$).  Returns ``""`` for any input that fails
+    validation so callers can short-circuit without touching the filesystem.
+    """
+    cleaned = value.strip().upper()
+    if not cleaned or not _METADATA_SAFE_RE.match(cleaned):
+        return ""
+    return cleaned
 
 
 _DEFAULT_INSTRUMENTS_DIR = Path(__file__).resolve().parents[2] / "data" / "instruments"
@@ -97,7 +111,9 @@ def _instrument_dirs() -> list[Path]:
 def _resolve_exchange_from_metadata(symbol: str) -> str:
     """Return exchange code for *symbol* using instrument metadata if possible."""
 
-    symbol = symbol.upper()
+    symbol = _sanitize_metadata_symbol(symbol)
+    if not symbol:
+        return ""
     dirs = tuple(str(path) for path in _instrument_dirs())
     exchange, source_dir = _resolve_exchange_from_metadata_cached(symbol, dirs)
 
@@ -123,6 +139,9 @@ def _resolve_exchange_from_metadata_cached(
 ) -> tuple[str, str]:
     """Cached helper that scopes lookups to the active instrument directories."""
 
+    symbol = _sanitize_metadata_symbol(symbol)
+    if not symbol:
+        return "", ""
     for root_str in directories:
         root = Path(root_str)
         try:
@@ -142,6 +161,10 @@ def _resolve_exchange_from_metadata_cached(
 def _metadata_entry_exists_in_directory(symbol: str, directory: Path) -> bool:
     """Return ``True`` if *symbol* metadata exists in the provided directory."""
 
+    symbol = _sanitize_metadata_symbol(symbol)
+    if not symbol:
+        return False
+
     try:
         if not directory.is_dir():
             return False
@@ -159,8 +182,8 @@ def _metadata_entry_exists(
 ) -> bool:
     """Return ``True`` when metadata for *symbol* exists under *exchange*."""
 
-    symbol = symbol.upper()
-    exchange = exchange.upper()
+    symbol = _sanitize_metadata_symbol(symbol)
+    exchange = _sanitize_metadata_symbol(exchange)
     if not symbol or not exchange:
         return False
 

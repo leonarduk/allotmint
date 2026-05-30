@@ -10,11 +10,11 @@ import pytest
 from backend.timeseries.fetch_meta_timeseries import (
     _coverage_ratio,
     _merge,
-    _resolve_cache_exchange,
-    _resolve_exchange_from_metadata,
-    _resolve_loader_exchange,
-    _resolve_ticker_exchange,
     _metadata_entry_exists,
+    _metadata_entry_exists_in_directory,
+    _resolve_cache_exchange,
+    _resolve_loader_exchange,
+    _sanitize_metadata_symbol,
     fetch_meta_timeseries,
 )
 from backend.utils.timeseries_helpers import STANDARD_COLUMNS
@@ -527,4 +527,61 @@ def test_fetch_meta_timeseries_alpha_vantage_rate_limit(monkeypatch):
     stooq_mock.assert_called_once()
     av_mock.assert_called_once()
     ft_mock.assert_called_once()
+
+
+# ── _sanitize_metadata_symbol ────────────────────────────────────────────────
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        pytest.param("VOD", "VOD", id="valid_simple"),
+        pytest.param("ABC.L", "ABC.L", id="valid_dotted"),
+        pytest.param("BRK-B", "BRK-B", id="valid_hyphenated"),
+        pytest.param("abc", "ABC", id="lowercase_normalised"),
+        pytest.param("  ABC  ", "ABC", id="whitespace_stripped"),
+        pytest.param("../etc/passwd", "", id="path_traversal_rejected"),
+        pytest.param("../../secrets", "", id="double_traversal_rejected"),
+        pytest.param("ABC\x00DEF", "", id="null_byte_rejected"),
+        pytest.param("ABC/DEF", "", id="forward_slash_rejected"),
+        pytest.param("ABC\\DEF", "", id="backslash_rejected"),
+        pytest.param("", "", id="empty_rejected"),
+        pytest.param("   ", "", id="whitespace_only_rejected"),
+    ],
+)
+def test_sanitize_metadata_symbol(value, expected):
+    assert _sanitize_metadata_symbol(value) == expected
+
+
+def test_metadata_entry_exists_rejects_traversal_symbol(tmp_path):
+    instruments_root = tmp_path / "instruments"
+    (instruments_root / "L").mkdir(parents=True)
+    directories = (str(instruments_root),)
+    assert _metadata_entry_exists("../etc/passwd", "L", directories) is False
+
+
+def test_metadata_entry_exists_rejects_traversal_exchange(tmp_path):
+    instruments_root = tmp_path / "instruments"
+    instruments_root.mkdir(parents=True)
+    directories = (str(instruments_root),)
+    assert _metadata_entry_exists("ABC", "../secrets", directories) is False
+
+
+def test_metadata_entry_exists_in_directory_rejects_traversal(tmp_path):
+    safe_dir = tmp_path / "instruments" / "L"
+    safe_dir.mkdir(parents=True)
+    (safe_dir / "ABC.json").write_text("{}")
+    assert _metadata_entry_exists_in_directory("../L/ABC", tmp_path / "instruments" / "L") is False
+
+
+def test_resolve_exchange_rejects_traversal_symbol(tmp_path):
+    instruments = tmp_path / "instruments" / "L"
+    instruments.mkdir(parents=True)
+    (instruments / "ABC.json").write_text("{}")
+
+    import backend.timeseries.fetch_meta_timeseries as meta
+
+    meta._resolve_exchange_from_metadata_cached.cache_clear()
+    with patch.object(meta, "INSTRUMENTS_DIR", tmp_path / "instruments"):
+        assert meta._resolve_exchange_from_metadata("../L/ABC") == ""
+    meta._resolve_exchange_from_metadata_cached.cache_clear()
 

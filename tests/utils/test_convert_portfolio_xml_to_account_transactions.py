@@ -1,17 +1,18 @@
 import json
 import sys
-from xml.etree.ElementTree import Element
+from xml.etree.ElementTree import Element  # Element constructs test fixtures only — no parsing, safe to use stdlib here
 
+import defusedxml
 import pandas as pd
 import pytest
 
 from backend.utils.convert_portfolio_xml_to_account_transactions import (
-    _safe_int,
-    _normalise_account_name,
     _get_ref,
+    _normalise_account_name,
+    _safe_int,
     extract_transactions_by_account,
-    write_account_json,
     main,
+    write_account_json,
 )
 
 
@@ -126,6 +127,22 @@ def test_write_account_json(xml_fixture, tmp_path):
 
     assert len(isa_data["transactions"]) == 2
     assert len(gia_data["transactions"]) == 1
+
+
+def test_billion_laughs_xml_rejected(tmp_path):
+    bomb = (
+        '<?xml version="1.0"?>'
+        "<!DOCTYPE lolz ["
+        '  <!ENTITY lol "lol">'
+        "  <!ENTITY lol2 \"&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;\">"
+        "  <!ENTITY lol3 \"&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;\">"
+        "]>"
+        "<lolz>&lol3;</lolz>"
+    )
+    path = tmp_path / "bomb.xml"
+    path.write_text(bomb, encoding="utf-8")
+    with pytest.raises(defusedxml.EntitiesForbidden):
+        extract_transactions_by_account(str(path))
 
 
 def test_main_errors_when_paths_missing(monkeypatch):

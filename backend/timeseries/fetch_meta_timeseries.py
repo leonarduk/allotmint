@@ -52,14 +52,20 @@ logger = logging.getLogger("meta_timeseries")
 # Helpers
 # ──────────────────────────────────────────────────────────────
 _TICKER_RE = re.compile(r"^[A-Za-z0-9]{1,12}(?:[-\.][A-Z]{1,3})?$")
-_METADATA_SAFE_RE = re.compile(r"^[A-Z0-9._-]+$")
+# Must start with alphanumeric to rule out leading dots (e.g. ".." escapes
+# a parent directory when used as an exchange name in path construction).
+# _TICKER_RE handles full ticker strings; this regex guards raw identifiers
+# before they are embedded in filesystem paths.
+_METADATA_SAFE_RE = re.compile(r"^[A-Z0-9][A-Z0-9._-]*$")
 
 
 def _sanitize_metadata_symbol(value: str) -> str:
     """Sanitize a symbol or exchange identifier before filesystem use.
 
     Strips whitespace, uppercases, and validates against a conservative
-    allowlist (^[A-Z0-9._-]+$).  Returns ``""`` for any input that fails
+    allowlist (^[A-Z0-9][A-Z0-9._-]*$).  The first character must be
+    alphanumeric to reject leading-dot sequences such as ``..`` that could
+    escape a directory boundary.  Returns ``""`` for any input that fails
     validation so callers can short-circuit without touching the filesystem.
     """
     cleaned = value.strip().upper()

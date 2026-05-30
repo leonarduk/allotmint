@@ -541,6 +541,8 @@ def test_fetch_meta_timeseries_alpha_vantage_rate_limit(monkeypatch):
         pytest.param("  ABC  ", "ABC", id="whitespace_stripped"),
         pytest.param("../etc/passwd", "", id="path_traversal_rejected"),
         pytest.param("../../secrets", "", id="double_traversal_rejected"),
+        pytest.param("..", "", id="double_dot_rejected"),
+        pytest.param(".", "", id="single_dot_rejected"),
         pytest.param("ABC\x00DEF", "", id="null_byte_rejected"),
         pytest.param("ABC/DEF", "", id="forward_slash_rejected"),
         pytest.param("ABC\\DEF", "", id="backslash_rejected"),
@@ -564,6 +566,14 @@ def test_metadata_entry_exists_rejects_traversal_exchange(tmp_path):
     instruments_root.mkdir(parents=True)
     directories = (str(instruments_root),)
     assert _metadata_entry_exists("ABC", "../secrets", directories) is False
+
+
+def test_metadata_entry_exists_rejects_dotdot_exchange(tmp_path):
+    """Bare ``..`` exchange must be rejected — slash-free but still traverses."""
+    instruments_root = tmp_path / "instruments"
+    instruments_root.mkdir(parents=True)
+    directories = (str(instruments_root),)
+    assert _metadata_entry_exists("ABC", "..", directories) is False
 
 
 def test_metadata_entry_exists_in_directory_rejects_traversal(tmp_path):

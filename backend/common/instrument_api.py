@@ -264,7 +264,9 @@ def timeseries_for_ticker(
     if ts_start > ts_end:
         logger.warning(
             "timeseries_for_ticker: inverted date range for %s (%s > %s); returning empty",
-            sanitise_log_value(ticker), ts_start, ts_end,
+            sanitise_log_value(ticker),
+            sanitise_log_value(str(ts_start)),
+            sanitise_log_value(str(ts_end)),
         )
         return empty_payload
 

@@ -18,10 +18,26 @@ jobs:
       pull-requests: write
 
     steps:
-    - uses: actions/stale@v5
+    - uses: actions/stale@v9
       with:
         repo-token: ${{ secrets.GITHUB_TOKEN }}
-        stale-issue-message: 'Stale issue message'
-        stale-pr-message: 'Stale pull request message'
+        days-before-stale: 60
+        days-before-close: 14
         stale-issue-label: 'no-issue-activity'
         stale-pr-label: 'no-pr-activity'
+        exempt-pr-labels: 'in-review,blocked,wip'
+        exempt-all-milestones: true
+        stale-issue-message: >
+          This issue has had no activity for 60 days and has been marked stale.
+          If this is still relevant, please comment or remove the `no-issue-activity` label.
+          It will be closed in 14 days if there is no further activity.
+        stale-pr-message: >
+          This PR has had no activity for 60 days and has been marked stale.
+          If it is still in progress, please push a commit or remove the `no-pr-activity` label.
+          It will be closed in 14 days if there is no further activity.
+        close-issue-message: >
+          This issue was closed automatically after 14 days with no activity following the stale notice.
+          Feel free to reopen it if the work is still relevant.
+        close-pr-message: >
+          This PR was closed automatically after 14 days with no activity following the stale notice.
+          Feel free to reopen it or open a new PR if the work should continue.

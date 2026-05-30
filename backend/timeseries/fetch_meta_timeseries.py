@@ -178,6 +178,11 @@ def _resolve_exchange_from_metadata_cached(
 ) -> tuple[str, str]:
     """Cached helper that scopes lookups to the active instrument directories.
 
+    Callers are responsible for sanitizing ``symbol`` before calling this
+    function so that the cache key is the clean, validated identifier.
+    Sanitizing inside a cached function would cause raw inputs to be keyed
+    separately even when they map to the same sanitized value.
+    """
     symbol = _sanitize_metadata_symbol(symbol)
     # os.path.basename is a CodeQL-recognised path-traversal sanitizer; apply it
     # after the regex check so the taint chain is provably broken before any
@@ -186,11 +191,6 @@ def _resolve_exchange_from_metadata_cached(
     if not symbol:
         return "", ""
 
-    Callers are responsible for sanitizing ``symbol`` before calling this
-    function so that the cache key is the clean, validated identifier.
-    Sanitizing inside a cached function would cause raw inputs to be keyed
-    separately even when they map to the same sanitized value.
-    """
     for root_str in directories:
         root = Path(root_str)
         try:
@@ -206,13 +206,9 @@ def _resolve_exchange_from_metadata_cached(
             continue
     return "", ""
 
-
 def _metadata_entry_exists_in_directory(symbol: str, directory: Path) -> bool:
-    """Return ``True`` if *symbol* metadata exists in the provided directory."""
-    # Regex allowlist first (matches _metadata_entry_exists ordering), then
-    # os.path.basename as a CodeQL-recognised path-traversal sanitizer so the
-    # taint chain is provably broken before any Path construction below.
-
+    """Return ``True`` if *symbol* metadata exists in the provided directory.
+    
     Unlike ``_resolve_exchange_from_metadata_cached`` (which is ``@lru_cache``
     decorated and therefore requires the caller to pre-sanitize so that the
     cache key is the clean value), this function is not cached and may be

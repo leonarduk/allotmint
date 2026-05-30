@@ -483,6 +483,8 @@ def test_save_query_route_traversal_blocked(monkeypatch, tmp_path):
     monkeypatch.setattr(query, "QUERIES_DIR", tmp_path)
     client = make_client()
     body = {"start": "2020-01-01", "end": "2020-01-02", "tickers": ["ABC.L"]}
-    # The HTTP layer encodes '/' so the slug received is the literal string "../evil"
+    # The HTTP layer encodes '/' so the path is normalised before reaching the route.
+    # A status of 400 (safe_join blocked) or 404 (URL-layer normalisation blocked) is
+    # both acceptable; 422 (Pydantic validation failure) must never occur here.
     resp = client.post("/custom-query/..%2Fevil", json=body)
-    assert resp.status_code in (400, 404, 422)
+    assert resp.status_code in (400, 404)

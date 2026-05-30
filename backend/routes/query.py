@@ -75,8 +75,8 @@ def _save_query_local(slug: str, q: CustomQuery) -> None:
     QUERIES_DIR.mkdir(parents=True, exist_ok=True)
     try:
         path = safe_join(QUERIES_DIR, f"{slug}.json")
-    except ValueError:
-        raise HTTPException(400, "Invalid query slug")
+    except ValueError as exc:
+        raise HTTPException(400, "Invalid query slug") from exc
     path.write_text(json.dumps(q.model_dump(), default=str))
 
 
@@ -84,15 +84,15 @@ def _load_query_local(slug: str) -> dict:
     """Load a query from the local filesystem."""
     try:
         path = safe_join(QUERIES_DIR, f"{slug}.json")
-    except ValueError:
-        raise HTTPException(404, "Query not found")
+    except ValueError as exc:
+        raise HTTPException(404, "Query not found") from exc
     if path.exists():
         return json.loads(path.read_text())
 
     try:
         fallback_path = safe_join(REPO_QUERIES_DIR, f"{slug}.json")
-    except ValueError:
-        raise HTTPException(404, "Query not found")
+    except ValueError as exc:
+        raise HTTPException(404, "Query not found") from exc
     if fallback_path.exists():
         return json.loads(fallback_path.read_text())
 

@@ -799,3 +799,43 @@ def test_list_plots_aws_falls_back_to_local(monkeypatch: pytest.MonkeyPatch, tmp
 
     assert result == [{"owner": "local", "full_name": "local", "accounts": ["isa"]}]
     assert captured["call"] == (tmp_path, "viewer")
+
+
+# ---------------------------------------------------------------------------
+# data_loader.load_account — path traversal rejection
+# ---------------------------------------------------------------------------
+
+
+def test_load_account_dotdot_owner_raises_missing_data(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """load_account must raise MissingData (not open a file) for traversal in owner."""
+    from backend.common.data_loader import load_account
+    from backend.common.data_providers import MissingData
+
+    cfg = data_loader.config.__class__()
+    cfg.app_env = "local"
+    monkeypatch.setattr("backend.common.data_loader.config", cfg)
+    monkeypatch.delenv("DATA_BUCKET", raising=False)
+
+    with pytest.raises((MissingData, FileNotFoundError)):
+        load_account("../evil", "isa", data_root=tmp_path)
+
+
+def test_load_account_dotdot_account_raises_missing_data(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """load_account must raise MissingData (not open a file) for traversal in account."""
+    from backend.common.data_loader import load_account
+    from backend.common.data_providers import MissingData
+
+    cfg = data_loader.config.__class__()
+    cfg.app_env = "local"
+    monkeypatch.setattr("backend.common.data_loader.config", cfg)
+    monkeypatch.delenv("DATA_BUCKET", raising=False)
+
+    owner_dir = tmp_path / "alice"
+    owner_dir.mkdir()
+
+    with pytest.raises((MissingData, FileNotFoundError)):
+        load_account("alice", "../../etc/passwd", data_root=tmp_path)

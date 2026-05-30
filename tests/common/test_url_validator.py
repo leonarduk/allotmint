@@ -41,6 +41,13 @@ def test_localhost_with_port_rejected():
         validate_external_url("https://localhost:8080/api")
 
 
+def test_localhost_trailing_dot_rejected():
+    # "localhost." is valid absolute-DNS syntax; urlparse returns "localhost."
+    # as the hostname, so the blocklist check must strip the trailing dot.
+    with pytest.raises(InvalidExternalURLError, match="not permitted"):
+        validate_external_url("https://localhost./api")
+
+
 # ── private IP ranges ─────────────────────────────────────────────────────────
 
 @pytest.mark.parametrize(
@@ -79,6 +86,21 @@ def test_private_ip_rejected(url: str) -> None:
 )
 def test_public_url_passes(url: str) -> None:
     validate_external_url(url)
+
+
+# ── allow_http does not bypass IP-range check ─────────────────────────────────
+
+def test_allow_http_does_not_bypass_ip_check():
+    # allow_http=True relaxes the scheme requirement only; private IPs must
+    # still be rejected so that an attacker cannot reach internal services
+    # over plain HTTP even when the flag is set.
+    with pytest.raises(InvalidExternalURLError, match="private or reserved"):
+        validate_external_url("http://127.0.0.1/api", allow_http=True)
+
+
+def test_allow_http_does_not_bypass_localhost_check():
+    with pytest.raises(InvalidExternalURLError, match="not permitted"):
+        validate_external_url("http://localhost/api", allow_http=True)
 
 
 # ── missing hostname ──────────────────────────────────────────────────────────

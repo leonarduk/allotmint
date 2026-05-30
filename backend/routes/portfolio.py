@@ -59,6 +59,9 @@ def _coerce_owner_summary_entry(entry: OwnerSummaryRecord | Dict[str, Any] | Non
     payload = dict(entry or {})
     raw_full_name = payload.get("full_name")
     raw_email = payload.get("email")
+    
+    accounts = payload.get("accounts", [])
+
     return OwnerSummaryRecord.model_construct(
         owner=str(payload.get("owner", "")),
         accounts=(
@@ -76,6 +79,7 @@ def _coerce_owner_summary_entry(entry: OwnerSummaryRecord | Dict[str, Any] | Non
             if isinstance(raw_email, str) and raw_email.strip()
             else None
         ),
+
         has_transactions_artifact=bool(payload.get("has_transactions_artifact", False)),
     )
 
@@ -884,15 +888,17 @@ async def get_account(owner: str, account: str, request: Request):
         )
         raise HTTPException(status_code=502, detail="Account data payload is invalid") from exc
     except FileNotFoundError:
-        search_root = root
-        owner_dir = search_root / owner
+        # resolve_owner_directory uses safe_join internally (backend/routes/_accounts.py)
+        # and returns None for any traversal attempt (e.g. "../evil"), so a None result
+        # here means either a legitimate missing owner or a blocked traversal — both
+        # map to HTTP 404 below, avoiding information leakage.
+        owner_dir = resolve_owner_directory(root, owner)
 
-        if not owner_dir.exists():
+        if owner_dir is None:
             fallback_paths = data_loader.resolve_paths(None, None)
-            search_root = fallback_paths.accounts_root
-            owner_dir = search_root / owner
+            owner_dir = resolve_owner_directory(fallback_paths.accounts_root, owner)
 
-        if not owner_dir.exists():
+        if owner_dir is None:
             raise HTTPException(status_code=404, detail="Account not found")
 
         match = next(
@@ -902,7 +908,7 @@ async def get_account(owner: str, account: str, request: Request):
         if not match:
             raise HTTPException(status_code=404, detail="Account not found")
         try:
-            data = data_loader.load_account(owner, match, search_root)
+            data = data_loader.load_account(owner_dir.name, match, owner_dir.parent)
         except data_loader.ProviderUnavailable as exc:
             raise HTTPException(status_code=503, detail="Account data provider unavailable") from exc
         except data_loader.InvalidPayload as exc:

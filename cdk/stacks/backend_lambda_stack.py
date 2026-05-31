@@ -593,6 +593,17 @@ class BackendLambdaStack(Stack):
                     resources=[data_bucket.arn_for_objects("prices/latest_prices.json")],
                 )
             )
+            # Without s3:ListBucket a missing key returns HTTP 403 instead of 404,
+            # which makes it impossible to distinguish "no permission" from "file not
+            # written yet" in the retry loop. Scoped to the prices/ prefix only.
+            # See issue #3191.
+            github_role.add_to_principal_policy(
+                iam.PolicyStatement(
+                    actions=["s3:ListBucket"],
+                    resources=[data_bucket.bucket_arn],
+                    conditions={"StringLike": {"s3:prefix": ["prices", "prices/*"]}},
+                )
+            )
 
         CfnOutput(
             self,

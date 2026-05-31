@@ -664,7 +664,19 @@ def test_no_changeset_grant_when_github_deploy_role_arn_absent(monkeypatch, tmp_
 
 
 def _has_simulate_principal_policy_grant(raw_template: dict, role_name: str) -> bool:
-    """Return True if any IAM policy attached to role_name grants iam:SimulatePrincipalPolicy."""
+    """Return True if any IAM policy attached to role_name grants iam:SimulatePrincipalPolicy.
+
+    Role-name matching note: CDK calls ``iam.Role.from_role_arn(..., mutable=True)``,
+    which extracts the short role name from the ARN and stores it as a **plain string**
+    in the synthesised template's ``Roles`` list — NOT as a ``{"Ref": ...}`` object.
+    This is different from an owned CDK role, where CDK emits a Ref/GetAtt.
+
+    Verified against a live ``cdk synth`` output::
+
+        "Roles": ["allotmint-github-deploy"]  # plain string, not {"Ref": "..."}
+
+    String equality on ``role_name`` is therefore correct and will NOT pass vacuously.
+    """
     for res in raw_template["Resources"].values():
         if res.get("Type") != "AWS::IAM::Policy":
             continue

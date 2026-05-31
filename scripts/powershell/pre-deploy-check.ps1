@@ -10,7 +10,7 @@
 $ErrorActionPreference = 'Continue'
 
 # Always run from the repository root regardless of where the script is invoked from.
-Set-Location (Join-Path $PSScriptRoot '..\..')
+Set-Location (Join-Path $PSScriptRoot '..\\..')
 
 $Pass = 0
 $Fail = 0
@@ -97,7 +97,6 @@ if (-not $env:AWS_ACCESS_KEY_ID) {
             # Use & so the argument array is expanded correctly for the external aws executable.
             $RawResult  = & aws @iamArgs 2>&1
             $AwsSuccess = ($LASTEXITCODE -eq 0)
-            $Result     = ($RawResult | Select-Object -Last 1).ToString().Trim()
             # Distinguish three cases:
             # 1. The caller is not authorised to call iam:SimulatePrincipalPolicy → warn and skip
             #    so a bootstrap deploy that grants the permission can still proceed (#3209).
@@ -113,9 +112,14 @@ if (-not $env:AWS_ACCESS_KEY_ID) {
                 Write-Error "simulate-principal-policy failed for $Action with an unexpected error."
                 Write-Host "  AWS response: $RawResult" -ForegroundColor Red
                 $SimFailed = $true
-            } elseif ($Result -ne 'allowed') {
-                Write-Error "$Action not allowed on $Resource (got: $Result)"
-                $SimFailed = $true
+            } else {
+                # Parse the decision only on a clean success path — prevents a trailing AWS CLI
+                # deprecation-warning line from corrupting the EvalDecision token via Select-Object -Last 1.
+                $Result = ($RawResult | Select-Object -Last 1).ToString().Trim()
+                if ($Result -ne 'allowed') {
+                    Write-Error "$Action not allowed on $Resource (got: $Result)"
+                    $SimFailed = $true
+                }
             }
         }
         if ($SimFailed) {

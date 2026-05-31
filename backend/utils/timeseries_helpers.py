@@ -218,8 +218,19 @@ def apply_date_range(
 
     Either bound may be ``None`` to leave that side open (true no-op for that bound).
     Handles both ``datetime64`` and plain ``date`` dtype in the ``Date`` column.
-    NaT values in the ``Date`` column compare as False and are silently dropped.
+
+    Null handling: NaT (datetime64 columns) is converted to ``None`` via ``.dt.date``
+    before filtering; ``None`` values in object-dtype columns are caught by
+    ``dates.notna()``.  In both cases null rows are always dropped regardless of
+    which bounds are supplied.  Note: pandas returns ``False`` (not ``TypeError``)
+    when comparing ``None`` against a ``datetime.date`` in an object-dtype Series
+    (verified on pandas ≥ 2.x / Python ≥ 3.10), so the ``notna()`` guard is a
+    belt-and-suspenders safety measure rather than strictly necessary, but is kept
+    for explicitness and forward-compatibility.
+
     Returns a new DataFrame with reset index; the original frame is not mutated.
+    When ``df`` is empty or has no ``Date`` column a copy of ``df`` is returned
+    (index is not reset in that case).
     """
     if df.empty or "Date" not in df.columns:
         return df.copy()

@@ -243,7 +243,30 @@ SMOKE_URL=https://example.com npm --prefix frontend run smoke:frontend
 - Protected environments need `TEST_ID_TOKEN` and sometimes `SMOKE_AUTH_TOKEN`.
 - The smoke owner defaults to `auth.smoke_identity` from `config.yaml` unless you export `SMOKE_IDENTITY`.
 
-## 9. Deployment-related checks
+## 9. Before pushing a release tag
+
+Run `pre-deploy-check.sh` (or its PowerShell companion) to catch deploy-blocking issues locally before they reach CI:
+
+```bash
+bash scripts/bash/pre-deploy-check.sh
+```
+
+```powershell
+pwsh scripts/powershell/pre-deploy-check.ps1
+```
+
+The script runs each check in sequence and prints a `PASS` / `FAIL` / `SKIP` line for each one. It exits non-zero if any check fails. Checks that require AWS credentials (`AWS_ACCESS_KEY_ID`) or CDK environment variables are skipped gracefully with a warning rather than failing.
+
+Checks performed:
+
+1. **Dependency dry-run** — pip conflict detection before Docker build.
+2. **CDK synth + diff** — confirms the stacks synthesise cleanly and shows what would change (requires `AWS_ACCESS_KEY_ID`, `GITHUB_DEPLOY_ROLE_ARN`, `JWT_SECRET`, `GOOGLE_CLIENT_ID`, `DATA_BUCKET`).
+3. **IAM permission simulation** — verifies the deploy role has the S3/Lambda/CloudFormation permissions needed by the deploy workflow (requires AWS credentials and `GITHUB_DEPLOY_ROLE_ARN`).
+4. **Backend lint + tests** — `make lint` and `pytest`.
+5. **Frontend lint + tests** — `npm --prefix frontend run lint` and Vitest.
+6. **CDK tests** — `cdk/tests/` pytest suite.
+
+## 10. Deployment-related checks
 
 Before or alongside deployment work, group checks by task.
 
@@ -279,7 +302,7 @@ npm --prefix frontend run deploy:aws:linux
 
 Only run the deploy commands when you intentionally want to deploy; they are listed here so contributors know the canonical entrypoints.
 
-## 10. Quick troubleshooting
+## 11. Quick troubleshooting
 
 - **Frontend cannot reach backend**: set `VITE_ALLOTMINT_API_BASE` explicitly and confirm the backend is listening on the configured host/port.
 - **Unexpected demo user or owner**: check `LOCAL_LOGIN_EMAIL`, `DISABLE_AUTH`, `auth.demo_identity`, and `auth.smoke_identity`.
@@ -288,7 +311,7 @@ Only run the deploy commands when you intentionally want to deploy; they are lis
 - **Google auth errors locally**: verify `GOOGLE_AUTH_ENABLED=true`, `DISABLE_AUTH=false`, and a non-empty `GOOGLE_CLIENT_ID`.
 - **Price snapshot absent after deploy (`[WARNING] Price snapshot not yet seeded`)**: the CDK Trigger automatically invokes `PriceRefreshLambda` synchronously during `cdk deploy BackendLambdaStack`, blocking until the snapshot is written. If the warning still appears, the Trigger Lambda likely timed out or the price-refresh Lambda failed. Check `PriceRefreshLambdaLogGroup` in CloudWatch and re-trigger manually: `aws lambda invoke --function-name <PriceRefreshLambda-physical-name> /dev/null`.
 
-## 11. Canonical command index by task
+## 12. Canonical command index by task
 
 ### Install
 
@@ -336,6 +359,16 @@ npm run smoke:test:codex:poc
 ```
 
 For setup and exploratory Codex+MCP usage, see [docs/CODEX_PLAYWRIGHT_MCP.md](CODEX_PLAYWRIGHT_MCP.md).
+
+### Pre-deploy checks (run before pushing a release tag)
+
+```bash
+bash scripts/bash/pre-deploy-check.sh
+```
+
+```powershell
+pwsh scripts/powershell/pre-deploy-check.ps1
+```
 
 ### Deployment-oriented entrypoints
 

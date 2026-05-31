@@ -37,7 +37,12 @@ from backend.timeseries.fetch_meta_timeseries import fetch_meta_timeseries
 from backend.timeseries.fetch_stooq_timeseries import fetch_stooq_timeseries_range
 from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_range
 from backend.utils.fx_rates import fetch_fx_rate_range
-from backend.utils.timeseries_helpers import _nearest_weekday, apply_scaling, get_scaling_override
+from backend.utils.timeseries_helpers import (
+    _nearest_weekday,
+    apply_date_range,
+    apply_scaling,
+    get_scaling_override,
+)
 
 OFFLINE_MODE = config.offline_mode
 
@@ -419,10 +424,11 @@ def _memoized_range_cached(
         # and simply return an empty frame. Higher-level helpers may decide to
         # temporarily disable offline mode and retry if they want a fallback.
         if not existing.empty:
-            ex = existing.copy()
-            ex["Date"] = ex["Date"].dt.date
-            mask = (ex["Date"] >= start_date) & (ex["Date"] <= end_date)
-            return _ensure_schema(ex.loc[mask].reset_index(drop=True))
+            # apply_date_range returns rows with the original datetime64 Date dtype
+            # (it normalises internally for comparison but doesn't mutate the column).
+            # _ensure_schema always coerces Date to datetime64[ms] via pd.to_datetime,
+            # so the dtype is safe regardless of what apply_date_range returns.
+            return _ensure_schema(apply_date_range(existing, start_date, end_date))
         logger.warning("Offline mode: no cached data for %s.%s", ticker, exchange)
 
         # Temporarily disable offline mode so the live loader can fetch data.
@@ -442,8 +448,7 @@ def _memoized_range_cached(
     if superset.empty or "Date" not in superset.columns:
         return _empty_ts()
 
-    mask = (superset["Date"].dt.date >= start_date) & (superset["Date"].dt.date <= end_date)
-    return _ensure_schema(superset.loc[mask].reset_index(drop=True))
+    return _ensure_schema(apply_date_range(superset, start_date, end_date))
 
 
 def _memoized_range(
@@ -510,8 +515,7 @@ def _convert_to_base_currency(
                 except Exception as exc:
                     raise ValueError(f"Offline mode: no FX rates for {curr}") from exc
 
-            mask = (fx["Date"].dt.date >= start) & (fx["Date"].dt.date <= end)
-            fx = fx.loc[mask]
+            fx = apply_date_range(fx, start, end)
             if fx.empty:
                 raise ValueError(f"Offline mode: FX cache lacks range for {curr}")
         else:

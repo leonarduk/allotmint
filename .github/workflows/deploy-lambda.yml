@@ -228,6 +228,7 @@ jobs:
             exit 1
           fi
           echo "BACKEND_URL=$BACKEND_URL" >> "$GITHUB_ENV"
+          echo "SMOKE_TEST_URL=$BACKEND_URL" >> "$GITHUB_ENV"
           echo "backend_url=$BACKEND_URL" >> "$GITHUB_OUTPUT"
 
       - name: Refresh StaticSiteStack runtime config

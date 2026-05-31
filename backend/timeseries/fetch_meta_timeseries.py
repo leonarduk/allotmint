@@ -283,11 +283,13 @@ def _resolve_symbol_exchange_details(
     ex = resolved
     if not ex and meta_ex:
         ex = meta_ex
-        logger.debug("Resolved exchange for %s via metadata: %s", sanitise_log_value(sym), ex)
+        logger.debug("Resolved exchange for %s via metadata: %s", sanitise_log_value(sym), sanitise_log_value(ex))
     elif ex and meta_ex and ex != meta_ex:
         logger.debug(
             "Exchange metadata mismatch for %s: using %s but metadata %s",
-            sanitise_log_value(sym), sanitise_log_value(ex), sanitise_log_value(meta_ex),
+            sanitise_log_value(sym),
+            sanitise_log_value(ex),
+            sanitise_log_value(meta_ex),
         )
     elif not ex:
         logger.debug("No exchange information for %s; continuing without exchange", sanitise_log_value(sym))
@@ -343,9 +345,9 @@ def _resolve_cache_exchange(
         if loader_exchange and loader_exchange != metadata_exchange:
             logger.debug(
                 "Cache exchange mismatch for %s: loader %s vs metadata %s",
-                symbol,
-                loader_exchange,
-                metadata_exchange or "<empty>",
+                sanitise_log_value(symbol),
+                sanitise_log_value(loader_exchange),
+                sanitise_log_value(metadata_exchange) or "<empty>",
             )
 
         if (
@@ -416,12 +418,15 @@ def fetch_meta_timeseries(
         return pd.DataFrame(columns=STANDARD_COLUMNS)
 
     if not _TICKER_RE.match(ticker):
-        logger.warning("Ticker pattern looks invalid: %s", ticker)
+        logger.warning("Ticker pattern looks invalid: %s", sanitise_log_value(ticker))
         return pd.DataFrame(columns=STANDARD_COLUMNS)
 
     raw_ticker = ticker
     ticker, exchange = _resolve_ticker_exchange(ticker, exchange)
-    logger.debug("Resolved %s to %s.%s", raw_ticker, ticker, exchange)
+    logger.debug(
+        "Resolved %s to %s.%s",
+        sanitise_log_value(raw_ticker), sanitise_log_value(ticker), sanitise_log_value(exchange),
+    )
 
     if end_date is None:
         end_date = date.today() - timedelta(days=1)
@@ -449,7 +454,7 @@ def fetch_meta_timeseries(
         return df
 
     if not is_valid_ticker(ticker, exchange):
-        logger.info("Skipping unrecognized ticker %s.%s", ticker, exchange)
+        logger.info("Skipping unrecognized ticker %s.%s", sanitise_log_value(ticker), sanitise_log_value(exchange))
         record_skipped_ticker(ticker, exchange, reason="unknown")
         return pd.DataFrame(columns=STANDARD_COLUMNS)
 
@@ -473,7 +478,10 @@ def fetch_meta_timeseries(
             if _coverage_ratio(yahoo, expected_dates) >= min_coverage:
                 return yahoo
     except Exception as exc:
-        logger.debug("Yahoo miss for %s.%s: %s", ticker, exchange, exc)
+        logger.debug(
+            "Yahoo miss for %s.%s: %s",
+            sanitise_log_value(ticker), sanitise_log_value(exchange), sanitise_log_value(exc),
+        )
 
     # ── 2 · Stooq (fill gaps only if needed) ──────────────────
     try:
@@ -485,9 +493,15 @@ def fetch_meta_timeseries(
                 return combined
             data.append(stooq)
     except StooqRateLimitError as exc:
-        logger.debug("Stooq rate limit for %s.%s: %s", ticker, exchange, exc)
+        logger.debug(
+            "Stooq rate limit for %s.%s: %s",
+            sanitise_log_value(ticker), sanitise_log_value(exchange), sanitise_log_value(exc),
+        )
     except Exception as exc:
-        logger.debug("Stooq miss for %s.%s: %s", ticker, exchange, exc)
+        logger.debug(
+            "Stooq miss for %s.%s: %s",
+            sanitise_log_value(ticker), sanitise_log_value(exchange), sanitise_log_value(exc),
+        )
 
     # ── 3 · Alpha Vantage (fill gaps if still needed) ─────────
     if config.alpha_vantage_enabled:
@@ -501,13 +515,22 @@ def fetch_meta_timeseries(
                     return combined
                 data.append(av)
         except AlphaVantageRateLimitError as exc:
-            logger.debug("Alpha Vantage rate limit for %s.%s: %s", ticker, exchange, exc)
+            logger.debug(
+                "Alpha Vantage rate limit for %s.%s: %s",
+                sanitise_log_value(ticker), sanitise_log_value(exchange), sanitise_log_value(exc),
+            )
             if exc.retry_after:
                 time.sleep(exc.retry_after)
         except Exception as exc:
-            logger.debug("Alpha Vantage miss for %s.%s: %s", ticker, exchange, exc)
+            logger.debug(
+                "Alpha Vantage miss for %s.%s: %s",
+                sanitise_log_value(ticker), sanitise_log_value(exchange), sanitise_log_value(exc),
+            )
     else:
-        logger.debug("Alpha Vantage disabled; skipping for %s.%s", ticker, exchange)
+        logger.debug(
+            "Alpha Vantage disabled; skipping for %s.%s",
+            sanitise_log_value(ticker), sanitise_log_value(exchange),
+        )
 
     # ── 4 · FT fallback – last resort ─────────────────────────
     ft_df = fetch_ft_df(ticker, end_date, start_date)
@@ -517,7 +540,7 @@ def fetch_meta_timeseries(
 
     if not data:
         logger.info("No data sources succeeded for %s.%s",
-                    ticker, exchange)
+                    sanitise_log_value(ticker), sanitise_log_value(exchange))
         return pd.DataFrame(columns=STANDARD_COLUMNS)
 
     df = _merge(data)
@@ -536,7 +559,7 @@ def fetch_ft_df(ticker, end_date, start_date):
         ft_df = fetch_ft_timeseries(ticker, days)
         return ft_df
     except Exception as exc:
-        logger.debug("FT miss for %s: %s", sanitise_log_value(ticker), exc)
+        logger.debug("FT miss for %s: %s", sanitise_log_value(ticker), sanitise_log_value(exc))
         return pd.DataFrame(columns=STANDARD_COLUMNS)
 
 # ──────────────────────────────────────────────────────────────
@@ -571,14 +594,14 @@ def run_all_tickers(
         sym, ex, meta_exchange = _resolve_symbol_exchange_details(t, exchange)
         logger.debug(
             "run_all_tickers resolved %s -> %s.%s",
-            sanitise_log_value(t), sanitise_log_value(sym), ex,
+            sanitise_log_value(t), sanitise_log_value(sym), sanitise_log_value(ex),
         )
         cache_exchange = _resolve_cache_exchange(t, exchange, sym, ex, meta_exchange)
         try:
             if not load_meta_timeseries(sym, cache_exchange, days).empty:
                 ok.append(t)
         except Exception as exc:
-            logger.warning("[WARN] %s: %s", sanitise_log_value(t), exc)
+            logger.warning("[WARN] %s: %s", sanitise_log_value(t), sanitise_log_value(exc))
     logger.info(
         "Bulk warm-up complete: %d updated, %d skipped", len(ok), len(tickers) - len(ok)
     )
@@ -593,14 +616,17 @@ def load_timeseries_data(
     out: dict[str, pd.DataFrame] = {}
     for t in tickers:
         sym, ex, meta_exchange = _resolve_symbol_exchange_details(t, exchange)
-        logger.debug("load_timeseries_data resolved %s -> %s.%s", t, sym, ex)
+        logger.debug(
+            "load_timeseries_data resolved %s -> %s.%s",
+            sanitise_log_value(t), sanitise_log_value(sym), sanitise_log_value(ex),
+        )
         cache_exchange = _resolve_cache_exchange(t, exchange, sym, ex, meta_exchange)
         try:
             df = load_meta_timeseries(sym, cache_exchange, days)
             if not df.empty:
                 out[t] = df
         except Exception as exc:
-            logger.warning("Load fail %s: %s", t, exc)
+            logger.warning("Load fail %s: %s", sanitise_log_value(t), sanitise_log_value(exc))
     logger.info(
         "Bulk load complete: %d updated, %d skipped", len(out), len(tickers) - len(out)
     )

@@ -207,3 +207,44 @@ def resolve_date_range(
             # Neither date supplied: anchor to today to preserve original window
             start_date = datetime.date.today() - datetime.timedelta(days=days)
     return start_date, end_date
+
+
+def apply_date_range(
+    df: pd.DataFrame,
+    start_date: Optional[datetime.date] = None,
+    end_date: Optional[datetime.date] = None,
+) -> pd.DataFrame:
+    """Filter *df* to rows where the ``Date`` column falls in ``[start_date, end_date]``.
+
+    Either bound may be ``None`` to leave that side open (true no-op for that bound).
+    Handles both ``datetime64`` and plain ``date`` dtype in the ``Date`` column.
+
+    Null handling: NaT (datetime64 columns) is converted to ``None`` via ``.dt.date``
+    before filtering; ``None`` values in object-dtype columns are caught by
+    ``dates.notna()``.  In both cases null rows are always dropped regardless of
+    which bounds are supplied.  Note: pandas returns ``False`` (not ``TypeError``)
+    when comparing ``None`` against a ``datetime.date`` in an object-dtype Series
+    (verified on pandas ≥ 2.x / Python ≥ 3.10), so the ``notna()`` guard is a
+    belt-and-suspenders safety measure rather than strictly necessary, but is kept
+    for explicitness and forward-compatibility.
+
+    Returns a new DataFrame with reset index; the original frame is not mutated.
+    When ``df`` is empty or has no ``Date`` column a copy of ``df`` is returned
+    (index is not reset in that case).
+    """
+    if df.empty or "Date" not in df.columns:
+        return df.copy()
+    dates = df["Date"]
+    # Normalise to plain date objects for comparison so that NaT (datetime64) and
+    # None (object dtype) are both caught by isna() before the >= / <= tests.
+    # For datetime64 columns .dt.date converts NaT → None; for object-dtype columns
+    # the series is used as-is. Both cases are handled identically below.
+    if pd.api.types.is_datetime64_any_dtype(dates):
+        dates = dates.dt.date
+    # Drop NaT/None unconditionally — callers must not expect null rows to survive.
+    mask = dates.notna()
+    if start_date is not None:
+        mask &= dates >= start_date
+    if end_date is not None:
+        mask &= dates <= end_date
+    return df.loc[mask].reset_index(drop=True).copy()

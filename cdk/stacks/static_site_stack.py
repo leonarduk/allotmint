@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from aws_cdk import Aws, CfnOutput, CfnParameter, Duration, Fn, RemovalPolicy, Stack, Token
@@ -5,6 +6,7 @@ from aws_cdk import aws_certificatemanager as acm
 from aws_cdk import aws_cloudfront as cloudfront
 from aws_cdk import aws_cloudfront_origins as origins
 from aws_cdk import aws_cognito as cognito
+from aws_cdk import aws_iam as iam
 from aws_cdk import aws_route53 as route53
 from aws_cdk import aws_route53_targets as route53_targets
 from aws_cdk import aws_s3 as s3
@@ -388,6 +390,36 @@ class StaticSiteStack(Stack):
             prune=False,
         )
         config_deploy.node.add_dependency(asset_deploy)
+
+        # Grant the GitHub Actions deploy role changeset permissions so `cdk diff
+        # --method=changeset` succeeds before BackendLambdaStack is deployed.
+        # Placed in StaticSiteStack (deployed first in the workflow) rather than in
+        # BackendLambdaStack so the grant is stable: BackendLambdaStack structural
+        # changes cause CDK to regenerate inline policy names, briefly removing then
+        # recreating the policy and leaving the diff step without changeset access.
+        # Covers both stacks because `cdk diff` targets both. See #3192.
+        github_deploy_role_arn = os.getenv("GITHUB_DEPLOY_ROLE_ARN", "")
+        if github_deploy_role_arn:
+            github_role = iam.Role.from_role_arn(
+                self, "GithubDeployRole", github_deploy_role_arn, mutable=True
+            )
+            github_role.add_to_principal_policy(
+                iam.PolicyStatement(
+                    actions=[
+                        "cloudformation:CreateChangeSet",
+                        "cloudformation:DescribeChangeSet",
+                        "cloudformation:DeleteChangeSet",
+                    ],
+                    resources=[
+                        self.format_arn(
+                            service="cloudformation",
+                            resource="stack",
+                            resource_name=f"{stack_name}/*",
+                        )
+                        for stack_name in (construct_id, "BackendLambdaStack")
+                    ],
+                )
+            )
 
         CfnOutput(self, "SiteBucket", value=site_bucket.bucket_name)
         CfnOutput(self, "DistributionId", value=distribution.distribution_id)

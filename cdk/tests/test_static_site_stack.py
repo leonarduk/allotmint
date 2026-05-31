@@ -582,3 +582,76 @@ def test_boolean_false_context_no_certificate(tmp_path):
     assert len(resources) == 0, (
         f"customDomain=False (bool) must produce no certificate; found {len(resources)}"
     )
+
+
+# ---------------------------------------------------------------------------
+# GitHub deploy role — changeset permissions (issue #3192)
+# ---------------------------------------------------------------------------
+
+
+def _cfn_changeset_resources_static(raw_template: dict, role_name: str) -> list[object]:
+    """Return Resource entries from cloudformation:CreateChangeSet statements for role_name."""
+    found: list[object] = []
+    for res in raw_template["Resources"].values():
+        if res.get("Type") != "AWS::IAM::Policy":
+            continue
+        if role_name not in res.get("Properties", {}).get("Roles", []):
+            continue
+        for stmt in res["Properties"]["PolicyDocument"].get("Statement", []):
+            actions = stmt.get("Action", [])
+            if isinstance(actions, str):
+                actions = [actions]
+            if "cloudformation:CreateChangeSet" not in actions:
+                continue
+            resources = stmt.get("Resource", [])
+            if isinstance(resources, (str, dict)):
+                resources = [resources]
+            found.extend(resources)
+    return found
+
+
+def test_github_deploy_role_gets_changeset_permissions_on_both_stacks(
+    monkeypatch, tmp_path
+) -> None:
+    """StaticSiteStack must grant CreateChangeSet/DescribeChangeSet/DeleteChangeSet on both
+    StaticSiteStack and BackendLambdaStack when GITHUB_DEPLOY_ROLE_ARN is set.
+
+    The grant lives here (not in BackendLambdaStack) so it survives BackendLambdaStack
+    structural changes that would otherwise briefly remove and recreate the inline policy,
+    causing `cdk diff --method=changeset` to fail. See #3192.
+    """
+    role_arn = "arn:aws:iam::123456789012:role/allotmint-github-deploy"
+    monkeypatch.setenv("GITHUB_DEPLOY_ROLE_ARN", role_arn)
+    (tmp_path / "index.html").write_text("<html></html>")
+    app = App()
+    stack = StaticSiteStack(app, "CfnGrantStaticSiteStack", frontend_dist_path=str(tmp_path))
+    raw = assertions.Template.from_stack(stack).to_json()
+
+    resources = _cfn_changeset_resources_static(raw, "allotmint-github-deploy")
+    assert resources, (
+        "cloudformation:CreateChangeSet statement not found in StaticSiteStack template; "
+        "GITHUB_DEPLOY_ROLE_ARN was set"
+    )
+    resources_str = str(resources)
+    assert "/*" in resources_str, (
+        f"Changeset resource ARNs should end with /* (wildcard stack ID); got: {resources_str}"
+    )
+    for stack_name in ("CfnGrantStaticSiteStack", "BackendLambdaStack"):
+        assert stack_name in resources_str, (
+            f"cloudformation:CreateChangeSet not scoped to {stack_name}; got: {resources_str}"
+        )
+
+
+def test_no_changeset_grant_when_github_deploy_role_arn_absent(monkeypatch, tmp_path) -> None:
+    """When GITHUB_DEPLOY_ROLE_ARN is unset, StaticSiteStack must not synthesise a
+    cloudformation:CreateChangeSet policy."""
+    monkeypatch.delenv("GITHUB_DEPLOY_ROLE_ARN", raising=False)
+    (tmp_path / "index.html").write_text("<html></html>")
+    app = App()
+    stack = StaticSiteStack(app, "NoCfnGrantStack", frontend_dist_path=str(tmp_path))
+    raw = assertions.Template.from_stack(stack).to_json()
+    resources = _cfn_changeset_resources_static(raw, "allotmint-github-deploy")
+    assert not resources, (
+        "Expected no cloudformation:CreateChangeSet in StaticSiteStack when "
+        "GITHUB_DEPLOY_ROLE_ARN is unset"
+    )

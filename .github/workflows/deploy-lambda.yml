@@ -14,14 +14,40 @@ on:
 permissions:
   contents: read
   id-token: write
+  actions: read
 
 concurrency:
   group: production-deploy
   cancel-in-progress: false
 
 jobs:
+  check-ci:
+    name: Verify CI passed on tagged commit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check ci.yml passed for this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMIT_SHA: ${{ github.sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          echo "Checking for a successful ci.yml run on commit ${COMMIT_SHA}..."
+          # List workflow runs for ci.yml on this exact commit.
+          # The GitHub API filters by head_sha so we only see runs for the tagged commit.
+          conclusion="$(gh api \
+            "repos/${REPO}/actions/workflows/ci.yml/runs?head_sha=${COMMIT_SHA}&per_page=10" \
+            --jq '[.workflow_runs[] | select(.conclusion == "success")] | length')"
+          if [ "${conclusion}" -lt 1 ]; then
+            echo "::error::No successful ci.yml run found for commit ${COMMIT_SHA}." \
+              "Tag a commit that has a green CI run, or manually trigger ci.yml on this commit before tagging." >&2
+            exit 1
+          fi
+          echo "Found ${conclusion} successful ci.yml run(s) for ${COMMIT_SHA} — proceeding with deploy."
+
   deploy:
     runs-on: ubuntu-latest
+    needs: check-ci
     env:
       SMOKE_TEST_URL: ${{ vars.SMOKE_TEST_URL }}
     outputs:
@@ -102,17 +128,6 @@ jobs:
         env:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
         run: aws s3 sync "s3://$DATA_BUCKET/" data/
-
-      - name: Lint frontend
-        run: npm run lint
-        working-directory: frontend
-
-      - name: Run frontend tests
-        run: npm test -- --run
-        working-directory: frontend
-
-      - name: Run backend tests
-        run: pytest
 
       - name: Verify DATA_BUCKET secret
         env:

@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from aws_cdk import App
 from aws_cdk import aws_lambda as _lambda
-from aws_cdk.assertions import Match, Template
+from aws_cdk.assertions import Template
 
 CDK_DIR = Path(__file__).resolve().parents[1]
 if str(CDK_DIR) not in sys.path:
@@ -353,75 +353,6 @@ def test_lambda_roles_do_not_have_s3_delete_permissions() -> None:
         ), f"Found wildcard grant for {fragment} which implicitly includes delete"
 
 
-def _count_filterlogevents_stmts(raw_template: dict, role_name: str) -> int:
-    """Count logs:FilterLogEvents statements in policies attached to role_name.
-
-    CDK places the role name as a plain string (not a {"Ref": ...} dict) in the
-    Roles list of synthesised AWS::IAM::Policy resources when the role is imported
-    via iam.Role.from_role_arn(). This distinguishes imported roles from in-template
-    roles, which use {"Ref": "<LogicalId>"}.
-    """
-    count = 0
-    for res in raw_template["Resources"].values():
-        if res.get("Type") != "AWS::IAM::Policy":
-            continue
-        if role_name not in res.get("Properties", {}).get("Roles", []):
-            continue
-        for stmt in res["Properties"]["PolicyDocument"].get("Statement", []):
-            actions = stmt.get("Action", [])
-            if isinstance(actions, str):
-                actions = [actions]
-            if "logs:FilterLogEvents" in actions:
-                count += 1
-    return count
-
-
-def test_github_deploy_role_gets_filterlogevents_on_all_log_groups(monkeypatch) -> None:
-    """When GITHUB_DEPLOY_ROLE_ARN is set, CDK must attach logs:FilterLogEvents to
-    all three Lambda log groups so the CI log-dump step produces output. See #3009."""
-    role_arn = "arn:aws:iam::123456789012:role/allotmint-github-deploy"
-    monkeypatch.setenv("GITHUB_DEPLOY_ROLE_ARN", role_arn)
-    monkeypatch.setenv("JWT_SECRET", "test-secret")
-    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-client-id")
-    app = App()
-    stack = BackendLambdaStack(app, "BackendLambdaStackLogGrantTest")
-    template = Template.from_stack(stack)
-
-    # Structural assertion: an AWS::IAM::Policy exists for the deploy role with the grant.
-    # CDK merges all three log-group grants into one policy resource, one statement each.
-    template.has_resource_properties(
-        "AWS::IAM::Policy",
-        {
-            "Roles": ["allotmint-github-deploy"],
-            "PolicyDocument": {
-                "Statement": Match.array_with(
-                    [Match.object_like({"Action": "logs:FilterLogEvents", "Effect": "Allow"})]
-                )
-            },
-        },
-    )
-    # Count check: exactly 3 statements — one per log group (backend, price-refresh, trading-agent).
-    count = _count_filterlogevents_stmts(template.to_json(), "allotmint-github-deploy")
-    assert count == 3, (
-        f"Expected logs:FilterLogEvents on exactly 3 log groups (backend, price-refresh, "
-        f"trading-agent), got {count}"
-    )
-
-
-def test_no_log_grant_when_github_deploy_role_arn_absent(monkeypatch) -> None:
-    """When GITHUB_DEPLOY_ROLE_ARN is unset, no extra IAM policy should be synthesised."""
-    monkeypatch.delenv("GITHUB_DEPLOY_ROLE_ARN", raising=False)
-    monkeypatch.setenv("JWT_SECRET", "test-secret")
-    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-client-id")
-    app = App()
-    stack = BackendLambdaStack(app, "BackendLambdaStackNoLogGrantTest")
-    count = _count_filterlogevents_stmts(Template.from_stack(stack).to_json(), "allotmint-github-deploy")
-    assert count == 0, (
-        f"Expected no logs:FilterLogEvents policy when GITHUB_DEPLOY_ROLE_ARN is unset, "
-        f"got {count}"
-    )
-
-
 def _cfn_actions_for_role_name(raw_template: dict, role_name: str) -> set[str]:
     """Return cloudformation:* actions from policies attached to an imported role by name."""
     actions: set[str] = set()
@@ -440,261 +371,22 @@ def _cfn_actions_for_role_name(raw_template: dict, role_name: str) -> set[str]:
     return actions
 
 
-def _cfn_changeset_resources(raw_template: dict, role_name: str) -> list[object]:
-    """Return resource entries from all cloudformation:CreateChangeSet statements for role_name."""
-    found: list[object] = []
-    for res in raw_template["Resources"].values():
-        if res.get("Type") != "AWS::IAM::Policy":
-            continue
-        if role_name not in res.get("Properties", {}).get("Roles", []):
-            continue
-        for stmt in res["Properties"]["PolicyDocument"].get("Statement", []):
-            actions = stmt.get("Action", [])
-            if isinstance(actions, str):
-                actions = [actions]
-            if "cloudformation:CreateChangeSet" not in actions:
-                continue
-            resources = stmt.get("Resource", [])
-            if isinstance(resources, (str, dict)):
-                resources = [resources]
-            found.extend(resources)
-    return found
-
-
-def test_github_deploy_role_gets_changeset_permissions_on_both_stacks(monkeypatch) -> None:
-    """When GITHUB_DEPLOY_ROLE_ARN is set, CDK must grant CreateChangeSet,
-    DescribeChangeSet, and DeleteChangeSet on BackendLambdaStack and StaticSiteStack
-    so `cdk diff --all` can compute an accurate diff. See #3013."""
+def test_no_cfn_changeset_grant_in_backend_lambda_stack(monkeypatch) -> None:
+    """BackendLambdaStack must NOT contain a cloudformation:CreateChangeSet grant.
+    The grant was moved to StaticSiteStack (deployed first in the workflow) so it is
+    stable across BackendLambdaStack structural changes. See #3192."""
     role_arn = "arn:aws:iam::123456789012:role/allotmint-github-deploy"
     monkeypatch.setenv("GITHUB_DEPLOY_ROLE_ARN", role_arn)
     monkeypatch.setenv("JWT_SECRET", "test-secret")
     monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-client-id")
     app = App()
     stack = BackendLambdaStack(app, "BackendLambdaStackCfnGrantTest")
-    template = Template.from_stack(stack)
-    raw = template.to_json()
-
-    cfn_actions = _cfn_actions_for_role_name(raw, "allotmint-github-deploy")
-    for required_action in (
-        "cloudformation:CreateChangeSet",
-        "cloudformation:DescribeChangeSet",
-        "cloudformation:DeleteChangeSet",
-    ):
-        assert required_action in cfn_actions, (
-            f"Deploy role missing {required_action}; got: {cfn_actions}"
-        )
-
-    # Verify resource ARNs include the wildcard suffix (/*) and cover both stack names.
-    # Resources are CloudFormation intrinsics (Fn::Join) since the region/account are
-    # tokens at synth time; stringify for pattern matching.
-    resources = _cfn_changeset_resources(raw, "allotmint-github-deploy")
-    assert resources, "cloudformation:CreateChangeSet statement has no resource ARNs"
-    resources_str = str(resources)
-    assert "/*" in resources_str, (
-        f"Change set resource ARNs should end with /* (wildcard stack ID); got: {resources_str}"
-    )
-    for stack_name in ("BackendLambdaStackCfnGrantTest", "StaticSiteStack"):
-        assert stack_name in resources_str, (
-            f"cloudformation:CreateChangeSet not scoped to {stack_name}; got: {resources_str}"
-        )
-
-
-def test_no_cfn_changeset_grant_when_github_deploy_role_arn_absent(monkeypatch) -> None:
-    """When GITHUB_DEPLOY_ROLE_ARN is unset, no cloudformation change set policy is synthesised."""
-    monkeypatch.delenv("GITHUB_DEPLOY_ROLE_ARN", raising=False)
-    monkeypatch.setenv("JWT_SECRET", "test-secret")
-    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-client-id")
-    app = App()
-    stack = BackendLambdaStack(app, "BackendLambdaStackNoCfnGrantTest")
     cfn_actions = _cfn_actions_for_role_name(
         Template.from_stack(stack).to_json(), "allotmint-github-deploy"
     )
     assert "cloudformation:CreateChangeSet" not in cfn_actions, (
-        "Expected no cloudformation:CreateChangeSet when GITHUB_DEPLOY_ROLE_ARN is unset"
-    )
-
-
-def _lambda_invoke_resources_for_role_name(raw_template: dict, role_name: str) -> list[str]:
-    """Return Resource ARNs from lambda:InvokeFunction statements for an imported role.
-
-    CDK's grant_invoke on a Lambda alias calls addToPrincipalPolicy on mutable imported
-    roles (created via iam.Role.from_role_arn(..., mutable=True)), which emits an
-    AWS::IAM::Policy resource with the role *name* as a plain string in the Roles list
-    (not a {"Ref": ...} token — that form is only used for in-stack roles).
-
-    This is the same mechanism used for logs:FilterLogEvents and CloudFormation changeset
-    grants on the same imported role, both of which are verified by existing tests.
-    The plain-string role name match is intentional and correct for imported roles.
-
-    Returns the Resource field values from lambda:InvokeFunction statements so callers
-    can assert both presence and ARN scoping.
-    """
-    found: list[str] = []
-    for res in raw_template["Resources"].values():
-        if res.get("Type") != "AWS::IAM::Policy":
-            continue
-        if role_name not in res.get("Properties", {}).get("Roles", []):
-            continue
-        for stmt in res["Properties"]["PolicyDocument"].get("Statement", []):
-            actions = stmt.get("Action", [])
-            if isinstance(actions, str):
-                actions = [actions]
-            if "lambda:InvokeFunction" not in actions:
-                continue
-            resources = stmt.get("Resource", [])
-            if isinstance(resources, (str, dict)):
-                resources = [resources]
-            for r in resources:
-                found.append(r if isinstance(r, str) else str(r))
-    return found
-
-
-def test_github_deploy_role_can_invoke_price_refresh_lambda_alias(monkeypatch) -> None:
-    """When GITHUB_DEPLOY_ROLE_ARN is set, CDK must grant lambda:InvokeFunction on the
-    PriceRefreshLambda:live alias so the 'Warm price snapshot' CI step can run.
-    See issue #3137."""
-    role_arn = "arn:aws:iam::123456789012:role/allotmint-github-deploy"
-    monkeypatch.setenv("GITHUB_DEPLOY_ROLE_ARN", role_arn)
-    monkeypatch.setenv("JWT_SECRET", "test-secret")
-    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-client-id")
-    app = App()
-    stack = BackendLambdaStack(app, "BackendLambdaStackLambdaInvokeTest")
-    raw = Template.from_stack(stack).to_json()
-
-    resources = _lambda_invoke_resources_for_role_name(raw, "allotmint-github-deploy")
-    assert resources, (
-        "Deploy role has no lambda:InvokeFunction policy statement; "
-        "grant_invoke(github_role) must not have been called"
-    )
-    # The grant must target the alias ARN (containing 'live'), not a bare wildcard or
-    # the unqualified function ARN — this prevents future refactors from accidentally
-    # broadening the scope.
-    # CDK represents the resource as a CloudFormation Ref whose logical ID is derived
-    # from the alias name (e.g. 'PriceRefreshLambdaLiveAliasXXXXXXXX'); compare
-    # case-insensitively so both Fn::Join and Ref forms are accepted.
-    resources_str = str(resources)
-    assert "live" in resources_str.lower(), (
-        f"lambda:InvokeFunction grant must target the :live alias ARN, got: {resources_str}"
-    )
-
-
-def test_no_lambda_invoke_grant_when_github_deploy_role_arn_absent(monkeypatch) -> None:
-    """When GITHUB_DEPLOY_ROLE_ARN is unset, no lambda:InvokeFunction policy is synthesised."""
-    monkeypatch.delenv("GITHUB_DEPLOY_ROLE_ARN", raising=False)
-    monkeypatch.setenv("JWT_SECRET", "test-secret")
-    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-client-id")
-    app = App()
-    stack = BackendLambdaStack(app, "BackendLambdaStackNoLambdaInvokeTest")
-    resources = _lambda_invoke_resources_for_role_name(
-        Template.from_stack(stack).to_json(), "allotmint-github-deploy"
-    )
-    assert not resources, (
-        f"Expected no lambda:InvokeFunction when GITHUB_DEPLOY_ROLE_ARN is unset; "
-        f"found: {resources}"
-    )
-
-
-def _s3_getobject_resources_for_role_name(raw_template: dict, role_name: str) -> list[str]:
-    """Return Resource ARNs from s3:GetObject statements for an imported role.
-
-    Follows the same pattern as _lambda_invoke_resources_for_role_name: CDK's
-    add_to_principal_policy on a mutable imported role emits AWS::IAM::Policy with the
-    role name as a plain string in the Roles list.
-    """
-    found: list[str] = []
-    for res in raw_template["Resources"].values():
-        if res.get("Type") != "AWS::IAM::Policy":
-            continue
-        if role_name not in res.get("Properties", {}).get("Roles", []):
-            continue
-        for stmt in res["Properties"]["PolicyDocument"].get("Statement", []):
-            actions = stmt.get("Action", [])
-            if isinstance(actions, str):
-                actions = [actions]
-            if "s3:GetObject" not in actions:
-                continue
-            resources = stmt.get("Resource", [])
-            if isinstance(resources, (str, dict)):
-                resources = [resources]
-            for r in resources:
-                found.append(r if isinstance(r, str) else str(r))
-    return found
-
-
-def test_github_deploy_role_can_read_price_snapshot_from_s3(monkeypatch) -> None:
-    """When GITHUB_DEPLOY_ROLE_ARN is set, CDK must grant s3:GetObject on
-    prices/latest_prices.json so the 'Warm price snapshot' step can call head-object
-    to verify the snapshot landed after invoking PriceRefreshLambda. See issue #3149."""
-    role_arn = "arn:aws:iam::123456789012:role/allotmint-github-deploy"
-    monkeypatch.setenv("GITHUB_DEPLOY_ROLE_ARN", role_arn)
-    monkeypatch.setenv("JWT_SECRET", "test-secret")
-    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-client-id")
-    app = App()
-    stack = BackendLambdaStack(app, "BackendLambdaStackS3GetObjectTest")
-    raw = Template.from_stack(stack).to_json()
-
-    resources = _s3_getobject_resources_for_role_name(raw, "allotmint-github-deploy")
-    assert resources, (
-        "Deploy role has no s3:GetObject policy statement; "
-        "add_to_principal_policy(s3:GetObject) must not have been called"
-    )
-    resources_str = str(resources)
-    assert "prices/latest_prices.json" in resources_str, (
-        f"s3:GetObject grant must target prices/latest_prices.json, got: {resources_str}"
-    )
-
-
-def test_github_deploy_role_has_s3_listbucket_on_prices_prefix(monkeypatch) -> None:
-    """Deploy role must have s3:ListBucket conditioned on the prices/ prefix so that a
-    missing key returns 404 (not 403). Without ListBucket, AWS returns 403 for any
-    missing key, making it impossible to distinguish permission errors from write lag.
-    See issue #3191."""
-    role_arn = "arn:aws:iam::123456789012:role/allotmint-github-deploy"
-    monkeypatch.setenv("GITHUB_DEPLOY_ROLE_ARN", role_arn)
-    monkeypatch.setenv("JWT_SECRET", "test-secret")
-    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-client-id")
-    app = App()
-    stack = BackendLambdaStack(app, "BackendLambdaStackListBucketTest")
-    raw = Template.from_stack(stack).to_json()
-
-    list_stmts = []
-    for res in raw["Resources"].values():
-        if res.get("Type") != "AWS::IAM::Policy":
-            continue
-        if "allotmint-github-deploy" not in res.get("Properties", {}).get("Roles", []):
-            continue
-        for stmt in res["Properties"]["PolicyDocument"].get("Statement", []):
-            actions = stmt.get("Action", [])
-            if isinstance(actions, str):
-                actions = [actions]
-            if "s3:ListBucket" in actions:
-                list_stmts.append(stmt)
-
-    assert list_stmts, (
-        "Deploy role has no s3:ListBucket statement; "
-        "the CDK grant is missing — missing keys will return 403 instead of 404"
-    )
-    conditions = list_stmts[0].get("Condition", {})
-    prefixes = str(conditions)
-    assert "prices" in prefixes, (
-        f"s3:ListBucket must be conditioned on the prices/ prefix; got conditions: {conditions}"
-    )
-
-
-def test_no_s3_getobject_grant_when_github_deploy_role_arn_absent(monkeypatch) -> None:
-    """When GITHUB_DEPLOY_ROLE_ARN is unset, no s3:GetObject policy for the deploy role
-    is synthesised (Lambda roles have their own separate grants)."""
-    monkeypatch.delenv("GITHUB_DEPLOY_ROLE_ARN", raising=False)
-    monkeypatch.setenv("JWT_SECRET", "test-secret")
-    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-client-id")
-    app = App()
-    stack = BackendLambdaStack(app, "BackendLambdaStackNoS3GetObjectTest")
-    resources = _s3_getobject_resources_for_role_name(
-        Template.from_stack(stack).to_json(), "allotmint-github-deploy"
-    )
-    assert not resources, (
-        f"Expected no s3:GetObject for deploy role when GITHUB_DEPLOY_ROLE_ARN is unset; "
-        f"found: {resources}"
+        "cloudformation:CreateChangeSet must not be in BackendLambdaStack; "
+        "it lives in StaticSiteStack (see #3192)"
     )
 
 

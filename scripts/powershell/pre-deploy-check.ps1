@@ -2,6 +2,9 @@
 # Checks that require AWS credentials are skipped gracefully when AWS_ACCESS_KEY_ID is unset.
 $ErrorActionPreference = 'Continue'
 
+# Always run from the repository root regardless of where the script is invoked from.
+Set-Location (Join-Path $PSScriptRoot '..\..')
+
 $Pass = 0
 $Fail = 0
 
@@ -11,8 +14,10 @@ function Write-Skip($msg) { Write-Host "SKIP: $msg" -ForegroundColor Yellow }
 
 # 1. Dependency dry-run
 Write-Host "`n=== 1. Dependency dry-run ==="
-python -m venv "$env:TEMP\pre-deploy-venv" | Out-Null
-& "$env:TEMP\pre-deploy-venv\Scripts\pip.exe" install --dry-run -r backend/requirements.txt -q
+$venvPath = Join-Path $env:TEMP 'pre-deploy-venv'
+if (Test-Path $venvPath) { Remove-Item -Recurse -Force $venvPath }
+python -m venv $venvPath | Out-Null
+& "$venvPath\Scripts\pip.exe" install --dry-run -r backend/requirements.txt -q
 if ($LASTEXITCODE -eq 0) { Write-Pass "pip dependency dry-run" } else { Write-Fail "pip dependency dry-run" }
 
 # 2. CDK synth + diff
@@ -22,10 +27,13 @@ if (-not $env:AWS_ACCESS_KEY_ID) {
 } elseif (-not $env:GITHUB_DEPLOY_ROLE_ARN -or -not $env:JWT_SECRET -or -not $env:GOOGLE_CLIENT_ID -or -not $env:DATA_BUCKET) {
     Write-Skip "CDK diff (requires GITHUB_DEPLOY_ROLE_ARN, JWT_SECRET, GOOGLE_CLIENT_ID, DATA_BUCKET)"
 } else {
-    Push-Location cdk
-    npx cdk diff BackendLambdaStack StaticSiteStack -c prod=true
-    if ($LASTEXITCODE -eq 0) { Write-Pass "CDK diff" } else { Write-Fail "CDK diff" }
-    Pop-Location
+    try {
+        Push-Location cdk
+        npx cdk diff BackendLambdaStack StaticSiteStack -c prod=true
+        if ($LASTEXITCODE -eq 0) { Write-Pass "CDK diff" } else { Write-Fail "CDK diff" }
+    } finally {
+        Pop-Location
+    }
 }
 
 # 3. IAM permission simulation
@@ -43,15 +51,20 @@ if (-not $env:AWS_ACCESS_KEY_ID) {
         Write-Skip "IAM simulation (BackendLambdaStack not deployed or PortfolioDataBucket not found)"
     } else {
         $BucketArn = "arn:aws:s3:::$BucketId"
-        aws iam simulate-principal-policy `
+        $Denied = aws iam simulate-principal-policy `
             --policy-source-arn $env:GITHUB_DEPLOY_ROLE_ARN `
             --action-names s3:GetObject s3:ListBucket lambda:InvokeFunction `
                 cloudformation:CreateChangeSet cloudformation:DescribeChangeSet `
                 cloudformation:DeleteChangeSet `
             --resource-arns $BucketArn "$BucketArn/*" `
-            --query "EvaluationResults[?EvalDecision!='allowed'].{Action:EvalActionName,Decision:EvalDecision}" `
-            --output table
-        if ($LASTEXITCODE -eq 0) { Write-Pass "IAM permission simulation" } else { Write-Fail "IAM permission simulation" }
+            --query "EvaluationResults[?EvalDecision!='allowed'].EvalActionName" `
+            --output text 2>&1
+        if (-not $Denied -or $Denied -eq 'None') {
+            Write-Pass "IAM permission simulation"
+        } else {
+            Write-Host "  Denied actions: $Denied"
+            Write-Fail "IAM permission simulation"
+        }
     }
 }
 
@@ -73,10 +86,13 @@ if ($LASTEXITCODE -eq 0) { Write-Pass "frontend tests" } else { Write-Fail "fron
 
 # 6. CDK tests
 Write-Host "`n=== 6. CDK tests ==="
-Push-Location cdk
-python -m pytest tests/ -x -q
-if ($LASTEXITCODE -eq 0) { Write-Pass "CDK pytest" } else { Write-Fail "CDK pytest" }
-Pop-Location
+try {
+    Push-Location cdk
+    python -m pytest tests/ -x -q
+    if ($LASTEXITCODE -eq 0) { Write-Pass "CDK pytest" } else { Write-Fail "CDK pytest" }
+} finally {
+    Pop-Location
+}
 
 # Summary
 Write-Host "`n==============================="

@@ -194,6 +194,23 @@ def test_allowed_emails_loaded_lowercase():
     assert cfg.allowed_emails == expected
 
 
+def test_telegram_credentials_loaded_from_env(monkeypatch):
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "test-token-123")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "987654321")
+    cfg = reload_config()
+    assert cfg.telegram_bot_token == "test-token-123"
+    assert cfg.telegram_chat_id == "987654321"
+
+
+def test_telegram_credentials_absent_when_env_unset(monkeypatch):
+    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+    monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
+    cfg = reload_config()
+    # Config file has empty-string defaults; no token should leak in
+    assert not cfg.telegram_bot_token
+    assert not cfg.telegram_chat_id
+
+
 def test_allowed_emails_env_override(monkeypatch):
     monkeypatch.setenv("ALLOWED_EMAILS", "TEST@Example.com,Other@Example.com ,")
     cfg = reload_config()

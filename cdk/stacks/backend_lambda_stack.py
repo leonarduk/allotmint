@@ -539,45 +539,6 @@ class BackendLambdaStack(Stack):
             notifications_with_subscribers=[budget_notification] if budget_notification else None,
         )
 
-        # Grant the GitHub Actions deploy role read access to all Lambda log groups so
-        # the CI log-dump step (filter-log-events) can produce output. The role is
-        # managed outside CDK; importing it here with mutable=True lets CDK attach a
-        # scoped IAM policy via cdk deploy without any manual console changes.
-        # Set GITHUB_DEPLOY_ROLE_ARN to secrets.AWS_ROLE_TO_ASSUME in the workflow.
-        # See issue #3009.
-        github_deploy_role_arn = os.getenv("GITHUB_DEPLOY_ROLE_ARN", "")
-        if github_deploy_role_arn:
-            github_role = iam.Role.from_role_arn(
-                self, "GithubDeployRole", github_deploy_role_arn, mutable=True
-            )
-            for log_group in (backend_log_group, refresh_log_group, agent_log_group):
-                log_group.grant(github_role, "logs:FilterLogEvents")
-            # Allow the CI "Warm price snapshot" step to invoke PriceRefreshLambda:live
-            # directly so prices/latest_prices.json is seeded in S3 before smoke tests
-            # run. The grant targets the alias ARN (function:live) to match the qualified
-            # invocation in the workflow. See issue #3137.
-            refresh_alias.grant_invoke(github_role)
-            # Allow the same step to verify the snapshot landed in S3 via head-object.
-            # HeadObject is authorised by s3:GetObject in IAM (no separate s3:HeadObject
-            # action exists). Scoped to the single key the workflow checks. See issue #3149.
-            github_role.add_to_principal_policy(
-                iam.PolicyStatement(
-                    actions=["s3:GetObject"],
-                    resources=[data_bucket.arn_for_objects("prices/latest_prices.json")],
-                )
-            )
-            # Without s3:ListBucket a missing key returns HTTP 403 instead of 404,
-            # which makes it impossible to distinguish "no permission" from "file not
-            # written yet" in the retry loop. Scoped to the prices/ prefix only.
-            # See issue #3191.
-            github_role.add_to_principal_policy(
-                iam.PolicyStatement(
-                    actions=["s3:ListBucket"],
-                    resources=[data_bucket.bucket_arn],
-                    conditions={"StringLike": {"s3:prefix": ["prices", "prices/*"]}},
-                )
-            )
-
         CfnOutput(
             self,
             "BackendApiUrl",

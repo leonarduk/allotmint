@@ -7,6 +7,7 @@ import requests
 
 from backend import config_module
 from backend.common.url_validator import validate_external_url
+from backend.logging_setup import sanitise_log_value
 from backend.timeseries.ticker_validator import is_valid_ticker, record_skipped_ticker
 from backend.utils.timeseries_helpers import STANDARD_COLUMNS
 
@@ -79,7 +80,11 @@ def fetch_alphavantage_timeseries_range(
         logger.info("Alpha Vantage fetching disabled via config")
         return pd.DataFrame(columns=STANDARD_COLUMNS)
     if not is_valid_ticker(ticker, exchange):
-        logger.info("Skipping Alpha Vantage fetch for unrecognized ticker %s.%s", ticker, exchange)
+        logger.info(
+            "Skipping Alpha Vantage fetch for unrecognized ticker %s.%s",
+            sanitise_log_value(ticker),
+            sanitise_log_value(exchange),
+        )
         record_skipped_ticker(ticker, exchange, reason="unknown")
         return pd.DataFrame(columns=STANDARD_COLUMNS)
     symbol = _build_symbol(ticker, exchange)
@@ -92,7 +97,7 @@ def fetch_alphavantage_timeseries_range(
         "apikey": key,
     }
 
-    logger.debug("Fetching Alpha Vantage data for %s from %s to %s", symbol, start_date, end_date)
+    logger.debug("Fetching Alpha Vantage data for %s from %s to %s", sanitise_log_value(symbol), start_date, end_date)
     validate_external_url(BASE_URL)
     try:
         response = requests.get(BASE_URL, params=params, timeout=30, allow_redirects=False)
@@ -111,7 +116,7 @@ def fetch_alphavantage_timeseries_range(
                 or data.get("Message")
                 or "Unexpected response"
             )
-            logger.debug("Alpha Vantage raw response for %s: %s", symbol, data)
+            logger.debug("Alpha Vantage raw response for %s: %s", sanitise_log_value(symbol), data)
             lower_msg = message.lower()
             if any(k in lower_msg for k in ["frequency", "limit", "try again"]):
                 retry_after = _parse_retry_after(response, lower_msg)
@@ -147,7 +152,7 @@ def fetch_alphavantage_timeseries_range(
 
         return df[["Date", "Open", "High", "Low", "Close", "Volume", "Ticker", "Source"]]
     except Exception as e:
-        logger.error("Failed to fetch Alpha Vantage data for %s: %s", symbol, e)
+        logger.error("Failed to fetch Alpha Vantage data for %s: %s", sanitise_log_value(symbol), sanitise_log_value(e))
         raise
 
 

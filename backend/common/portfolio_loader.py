@@ -136,15 +136,16 @@ def rebuild_account_holdings(
 
     if not tx_path:
         log.error(
-            "Transaction file missing: %s",
-            owner_dir / f"{account}_transactions.json",
+            "Transaction file missing: %s/%s_transactions.json",
+            sanitise_log_value(owner_dir),
+            sanitise_log_value(account),
         )
         return {}
 
     try:
         tx_data = json.loads(tx_path.read_text())
     except (OSError, json.JSONDecodeError) as exc:
-        log.error("Failed to read %s: %s", tx_path, exc)
+        log.error("Failed to read %s: %s", sanitise_log_value(tx_path), sanitise_log_value(exc))
         return {}
 
     TYPE_SIGN = {

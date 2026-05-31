@@ -230,7 +230,10 @@ def apply_date_range(
         mask = pd.Series(True, index=df.index)
         mask &= ~null_mask
     else:
+        # Plain date-object column: isna() catches None so None comparisons never reach >=/<=
+        null_mask = dates.isna()
         mask = pd.Series(True, index=df.index)
+        mask &= ~null_mask
     if start_date is not None:
         mask &= dates >= start_date
     if end_date is not None:

@@ -90,6 +90,42 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
 
+      - name: Pre-flight IAM permission check
+        env:
+          GITHUB_DEPLOY_ROLE_ARN: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+        run: |
+          set -euo pipefail
+          data_bucket="$(aws cloudformation list-stack-resources \
+            --stack-name BackendLambdaStack \
+            --query "StackResourceSummaries[?starts_with(LogicalResourceId,'PortfolioDataBucket')].PhysicalResourceId|[0]" \
+            --output text 2>/dev/null || echo "")"
+          if [ -z "$data_bucket" ] || [ "$data_bucket" = "None" ]; then
+            echo "BackendLambdaStack not yet deployed or PortfolioDataBucket not found; skipping bucket-scoped permission checks."
+            data_bucket="*"
+          fi
+          required_checks=(
+            "cloudformation:CreateChangeSet"
+            "cloudformation:DescribeChangeSet"
+            "cloudformation:DeleteChangeSet"
+            "lambda:InvokeFunction"
+            "s3:GetObject"
+            "s3:ListBucket"
+            "logs:FilterLogEvents"
+          )
+          failed=0
+          for action in "${required_checks[@]}"; do
+            result="$(aws iam simulate-principal-policy \
+              --policy-source-arn "$GITHUB_DEPLOY_ROLE_ARN" \
+              --action-names "$action" \
+              --resource-arns "arn:aws:s3:::${data_bucket}" \
+              --query "EvaluationResults[0].EvalDecision" --output text 2>/dev/null || echo "error")"
+            if [ "$result" != "allowed" ]; then
+              echo "::error::Deploy role is missing $action (got: $result). Fix the CDK grant or base role policy before deploying." >&2
+              failed=1
+            fi
+          done
+          [ "$failed" -eq 0 ] || exit 1
+
       - name: Sync data from S3
         env:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}

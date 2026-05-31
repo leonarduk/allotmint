@@ -1,8 +1,10 @@
 import logging
 from datetime import datetime
 
+import pytest
 import requests
 
+from backend.common.url_validator import InvalidExternalURLError
 from backend.integrations.broker_api import AlpacaAPI
 
 
@@ -25,7 +27,7 @@ def test_recent_trades_parsing_and_headers(monkeypatch):
                 }
             ]
 
-    def fake_get(url, params=None, headers=None, timeout=None):
+    def fake_get(url, params=None, headers=None, timeout=None, **kwargs):
         called["url"] = url
         called["params"] = params
         called["headers"] = headers
@@ -62,3 +64,19 @@ def test_recent_trades_exception(monkeypatch, caplog):
 
     assert trades == []
     assert any("Alpaca trade fetch failed" in r.message for r in caplog.records)
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    [
+        pytest.param("https://169.254.169.254", id="aws_metadata"),
+        pytest.param("https://127.0.0.1", id="loopback"),
+        pytest.param("https://10.0.0.1", id="rfc1918"),
+        pytest.param("https://192.168.1.1", id="rfc1918_192"),
+        pytest.param("https://localhost", id="localhost"),
+    ],
+)
+def test_recent_trades_rejects_private_base_url(base_url: str) -> None:
+    api = AlpacaAPI(api_key="key", api_secret="secret", base_url=base_url)
+    with pytest.raises(InvalidExternalURLError):
+        api.recent_trades(datetime(2024, 1, 1))

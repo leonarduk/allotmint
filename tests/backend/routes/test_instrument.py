@@ -485,3 +485,92 @@ def test_intraday_returns_502_on_provider_error(monkeypatch):
     assert response.status_code == 502
     assert "upstream failure" in response.text
 
+
+def test_render_html_escapes_xss_in_position_strings():
+    """HTML in position owner/account fields is cell-escaped; the table renders safely."""
+    dates = pd.date_range(date(2024, 1, 1), periods=3, freq="D")
+    df = pd.DataFrame({"Date": dates, "Close": [1.0, 2.0, 3.0]})
+    df["Date"] = pd.to_datetime(df["Date"])
+
+    xss_owner = "<script>alert('xss')</script>"
+    positions = [
+        {
+            "owner": xss_owner,
+            "account": "isa",
+            "units": 10,
+            "market_value_gbp": 100.0,
+            "unrealised_gain_gbp": 5.0,
+            "gain_pct": 5.0,
+        }
+    ]
+
+    html = instrument._render_html(
+        ticker="XSS.L",
+        df=df,
+        positions=positions,
+        window_days=30,
+    )
+
+    assert xss_owner not in html
+    assert "&lt;script&gt;" in html
+    assert "<table" in html
+
+
+def test_render_html_escapes_xss_in_ticker():
+    """Ticker from the URL parameter is auto-escaped by Jinja2; no |safe is used."""
+    dates = pd.date_range(date(2024, 1, 1), periods=3, freq="D")
+    df = pd.DataFrame({"Date": dates, "Close": [1.0, 2.0, 3.0]})
+    df["Date"] = pd.to_datetime(df["Date"])
+
+    xss_ticker = "<script>alert('xss')</script>"
+    html = instrument._render_html(
+        ticker=xss_ticker,
+        df=df,
+        positions=[],
+        window_days=30,
+    )
+
+    assert xss_ticker not in html
+    assert "&lt;script&gt;" in html
+
+
+@pytest.mark.asyncio
+@pytest.mark.anyio("asyncio")
+async def test_instrument_empty_html_escapes_xss_in_positions(monkeypatch):
+    """XSS in position owner is escaped via to_html(escape=True) in the empty-data path.
+
+    This exercises the second pos_tbl call site in the route handler (line ~247),
+    which is reached when load_meta_timeseries_range returns an empty DataFrame.
+    """
+    xss_owner = "<script>alert('xss')</script>"
+
+    monkeypatch.setattr(
+        instrument,
+        "load_meta_timeseries_range",
+        lambda *_, **__: pd.DataFrame(columns=["Date", "Close"]),
+    )
+    monkeypatch.setattr(instrument, "get_security_meta", lambda _ticker: None)
+    monkeypatch.setattr(
+        instrument,
+        "list_portfolios",
+        lambda: [
+            {
+                "owner": xss_owner,
+                "accounts": [
+                    {
+                        "account_type": "isa",
+                        "holdings": [{"ticker": "NONE.L", "units": 1}],
+                    }
+                ],
+            }
+        ],
+    )
+
+    response = await instrument.instrument(
+        ticker="NONE.L", days=30, format="html", base_currency=None
+    )
+
+    html = response.body.decode()
+    assert xss_owner not in html
+    assert "&lt;script&gt;" in html
+

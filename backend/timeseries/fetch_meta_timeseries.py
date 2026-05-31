@@ -52,6 +52,42 @@ logger = logging.getLogger("meta_timeseries")
 # Helpers
 # ──────────────────────────────────────────────────────────────
 _TICKER_RE = re.compile(r"^[A-Za-z0-9]{1,12}(?:[-\.][A-Z]{1,3})?$")
+# Must start with alphanumeric to rule out leading dots (e.g. ".." escapes
+# a parent directory when used as an exchange name in path construction).
+# _TICKER_RE handles full ticker strings; this regex guards raw identifiers
+# before they are embedded in filesystem paths.
+_METADATA_SAFE_RE = re.compile(r"^[A-Z0-9][A-Z0-9._-]*$")
+
+
+# Real-world ticker and exchange symbols are at most ~12 characters; cap at 20
+# to close the unbounded-input vector before the regex engine runs.
+_METADATA_SYMBOL_MAX_LEN = 20
+
+
+def _sanitize_metadata_symbol(value: str) -> str:
+    """Sanitize a symbol or exchange identifier before filesystem use.
+
+    Strips whitespace, uppercases, enforces a maximum length of
+    ``_METADATA_SYMBOL_MAX_LEN``, and validates against a conservative
+    allowlist (^[A-Z0-9][A-Z0-9._-]*$).  The first character must be
+    alphanumeric to reject leading-dot sequences such as ``..`` that could
+    escape a directory boundary.  Returns ``""`` for any input that fails
+    validation so callers can short-circuit without touching the filesystem.
+    """
+    cleaned = value.strip().upper()
+    if not cleaned or len(cleaned) > _METADATA_SYMBOL_MAX_LEN:
+        if cleaned:
+            # Warn rather than debug: no valid ticker or exchange MIC exceeds
+            # _METADATA_SYMBOL_MAX_LEN chars, so an oversized value is likely
+            # unexpected data in production rather than normal operation.
+            logger.warning(
+                "Rejected oversized metadata identifier (len=%d)", len(cleaned)
+            )
+        return ""
+    if not _METADATA_SAFE_RE.match(cleaned):
+        logger.debug("Rejected unsafe metadata identifier: %r", sanitise_log_value(cleaned))
+        return ""
+    return cleaned
 
 
 _DEFAULT_INSTRUMENTS_DIR = Path(__file__).resolve().parents[2] / "data" / "instruments"
@@ -97,7 +133,9 @@ def _instrument_dirs() -> list[Path]:
 def _resolve_exchange_from_metadata(symbol: str) -> str:
     """Return exchange code for *symbol* using instrument metadata if possible."""
 
-    symbol = symbol.upper()
+    symbol = _sanitize_metadata_symbol(symbol)
+    if not symbol:
+        return ""
     dirs = tuple(str(path) for path in _instrument_dirs())
     exchange, source_dir = _resolve_exchange_from_metadata_cached(symbol, dirs)
 
@@ -121,8 +159,13 @@ def _resolve_exchange_from_metadata(symbol: str) -> str:
 def _resolve_exchange_from_metadata_cached(
     symbol: str, directories: tuple[str, ...]
 ) -> tuple[str, str]:
-    """Cached helper that scopes lookups to the active instrument directories."""
+    """Cached helper that scopes lookups to the active instrument directories.
 
+    Callers are responsible for sanitizing ``symbol`` before calling this
+    function so that the cache key is the clean, validated identifier.
+    Sanitizing inside a cached function would cause raw inputs to be keyed
+    separately even when they map to the same sanitized value.
+    """
     for root_str in directories:
         root = Path(root_str)
         try:
@@ -140,7 +183,17 @@ def _resolve_exchange_from_metadata_cached(
 
 
 def _metadata_entry_exists_in_directory(symbol: str, directory: Path) -> bool:
-    """Return ``True`` if *symbol* metadata exists in the provided directory."""
+    """Return ``True`` if *symbol* metadata exists in the provided directory.
+
+    Unlike ``_resolve_exchange_from_metadata_cached`` (which is ``@lru_cache``
+    decorated and therefore requires the caller to pre-sanitize so that the
+    cache key is the clean value), this function is not cached and may be
+    called from multiple contexts, so it sanitizes ``symbol`` independently.
+    """
+
+    symbol = _sanitize_metadata_symbol(symbol)
+    if not symbol:
+        return False
 
     try:
         if not directory.is_dir():
@@ -159,8 +212,8 @@ def _metadata_entry_exists(
 ) -> bool:
     """Return ``True`` when metadata for *symbol* exists under *exchange*."""
 
-    symbol = symbol.upper()
-    exchange = exchange.upper()
+    symbol = _sanitize_metadata_symbol(symbol)
+    exchange = _sanitize_metadata_symbol(exchange)
     if not symbol or not exchange:
         return False
 

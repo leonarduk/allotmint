@@ -870,14 +870,22 @@ async def get_account(owner: str, account: str, request: Request):
     except data_loader.ProviderUnavailable as exc:
         log.warning(
             "portfolio.account_provider_unavailable",
-            extra={"event": "portfolio.account_provider_unavailable", "owner": owner, "account": account},
+            extra={
+                "event": "portfolio.account_provider_unavailable",
+                "owner": sanitise_log_value(owner),
+                "account": sanitise_log_value(account),
+            },
             exc_info=True,
         )
         raise HTTPException(status_code=503, detail="Account data provider unavailable") from exc
     except data_loader.InvalidPayload as exc:
         log.warning(
             "portfolio.account_invalid_payload",
-            extra={"event": "portfolio.account_invalid_payload", "owner": owner, "account": account},
+            extra={
+                "event": "portfolio.account_invalid_payload",
+                "owner": sanitise_log_value(owner),
+                "account": sanitise_log_value(account),
+            },
             exc_info=True,
         )
         raise HTTPException(status_code=502, detail="Account data payload is invalid") from exc

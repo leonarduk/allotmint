@@ -507,8 +507,8 @@ def list_all_unique_tickers() -> List[str]:
                     logger.warning(
                         "Missing ticker in holding %d of %s -> %s",
                         h_idx + 1,
-                        account_type,
-                        json_path,
+                        sanitise_log_value(account_type),
+                        sanitise_log_value(json_path),
                     )
 
     logger.info(
@@ -1368,8 +1368,8 @@ def _portfolio_value_series(
             logger.warning(
                 "Discarding %d non-numeric closes for %s.%s while rebuilding portfolio series",
                 closes.shape[0] - valid_closes.shape[0],
-                ticker,
-                exchange,
+                sanitise_log_value(ticker),
+                sanitise_log_value(exchange),
             )
         values = (valid_closes * units).sort_index()
         values = values[values.index <= calc.reporting_date]

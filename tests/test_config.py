@@ -206,9 +206,24 @@ def test_telegram_credentials_absent_when_env_unset(monkeypatch):
     monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
     monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
     cfg = reload_config()
-    # Config file has empty-string defaults; no token should leak in
+    # config.yaml has empty-string defaults for both fields (server.telegram_bot_token: '')
+    # so no token should be present when the env vars are unset.
     assert not cfg.telegram_bot_token
     assert not cfg.telegram_chat_id
+
+
+# Regression guard: the compromised token from commit 30b8f36 must never appear as a
+# default value loaded from config.yaml, regardless of env-var state.
+_COMPROMISED_TOKEN = "8491288399:AAGRRuCJtctSQ2igqnW56BxQ3L_c0Jsi_nA"
+
+
+def test_compromised_token_not_loaded_as_default(monkeypatch):
+    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+    cfg = reload_config()
+    assert cfg.telegram_bot_token != _COMPROMISED_TOKEN, (
+        "Compromised Telegram token is still present as a default in config.yaml — "
+        "remove it and ensure the field defaults to an empty string."
+    )
 
 
 def test_allowed_emails_env_override(monkeypatch):

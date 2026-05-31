@@ -122,7 +122,7 @@ jobs:
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GITHUB_DEPLOY_ROLE_ARN: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           CDK_OUTDIR: /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
-        run: npx cdk diff BackendLambdaStack StaticSiteStack -c prod=true
+        run: npx cdk diff BackendLambdaStack StaticSiteStack --method=changeset -c prod=true
         working-directory: cdk
 
       - name: Deploy StaticSiteStack auth resources
@@ -246,7 +246,6 @@ jobs:
             exit 1
           fi
           echo "BACKEND_URL=$BACKEND_URL" >> "$GITHUB_ENV"
-          echo "SMOKE_TEST_URL=$BACKEND_URL" >> "$GITHUB_ENV"
           echo "backend_url=$BACKEND_URL" >> "$GITHUB_OUTPUT"
 
       - name: Refresh StaticSiteStack runtime config
@@ -259,6 +258,21 @@ jobs:
           npx cdk deploy StaticSiteStack --require-approval never -c prod=true
           --parameters StaticSiteStack:BackendApiUrl="$BACKEND_URL"
         working-directory: cdk
+
+      - name: Set SMOKE_TEST_URL from StaticSiteStack CloudFront output
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          FRONTEND_DOMAIN="$(aws cloudformation describe-stacks \
+            --stack-name StaticSiteStack \
+            --query "Stacks[0].Outputs[?OutputKey=='DistributionDomain'].OutputValue" \
+            --output text)"
+          if [ -z "$FRONTEND_DOMAIN" ] || [ "$FRONTEND_DOMAIN" = "None" ]; then
+            echo "DistributionDomain output is missing from StaticSiteStack" >&2
+            exit 1
+          fi
+          echo "SMOKE_TEST_URL=https://${FRONTEND_DOMAIN}" >> "$GITHUB_ENV"
 
       - name: Verify price snapshot seeded in S3
         # Belt-and-suspenders check after the CDK Trigger (REQUEST_RESPONSE) has

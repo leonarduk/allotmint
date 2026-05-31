@@ -86,18 +86,21 @@ if (-not $env:AWS_ACCESS_KEY_ID) {
                 '--output', 'text'
             )
             # Use & so the argument array is expanded correctly for the external aws executable.
-            $RawResult = & aws @iamArgs 2>&1
-            $Result    = ($RawResult | Select-Object -Last 1) -replace '\s',''
+            $RawResult  = & aws @iamArgs 2>&1
+            $AwsSuccess = ($LASTEXITCODE -eq 0)
+            $Result     = ($RawResult | Select-Object -Last 1) -replace '\s+',''
             # Distinguish three cases:
-            # 1. The deploy role lacks iam:SimulatePrincipalPolicy itself → warn and skip so a
-            #    bootstrap deploy that grants the permission can still proceed (see issue #3209).
-            # 2. Any other unexpected AWS error → hard-fail; masking it is dangerous.
+            # 1. The caller is not authorised to call iam:SimulatePrincipalPolicy → warn and skip
+            #    so a bootstrap deploy that grants the permission can still proceed (#3209).
+            #    Match the specific "not authorized to perform: iam:SimulatePrincipalPolicy"
+            #    message to avoid masking real permission denials on target actions.
+            # 2. Any other non-zero exit / unexpected error → hard-fail (masking is dangerous).
             # 3. Successful call returning a non-"allowed" decision → hard-fail.
-            if ($RawResult -match 'SimulatePrincipalPolicy') {
+            if ($RawResult -match 'not authorized to perform.*iam:SimulatePrincipalPolicy|iam:SimulatePrincipalPolicy.*not authorized') {
                 Write-Warning "simulate-principal-policy unavailable for $Action — deploy role lacks iam:SimulatePrincipalPolicy."
                 Write-Host "  AWS response: $RawResult" -ForegroundColor Yellow
                 $SimUnavailable = $true
-            } elseif ($Result -eq 'error' -or $RawResult -match 'Exception|[Ee]rror|AccessDenied') {
+            } elseif (-not $AwsSuccess -or $RawResult -match 'Exception|AccessDenied') {
                 Write-Error "simulate-principal-policy failed for $Action with an unexpected error."
                 Write-Host "  AWS response: $RawResult" -ForegroundColor Red
                 $SimFailed = $true

@@ -74,23 +74,28 @@ else
         sim_failed=0
         sim_unavailable=0
         for ACTION in "${ACTIONS[@]}"; do
+            # Capture stdout+stderr together; preserve exit code separately so raw_result
+            # always contains the real AWS CLI output (the || idiom would overwrite it).
             raw_result=$(aws iam simulate-principal-policy \
                 --policy-source-arn "$GITHUB_DEPLOY_ROLE_ARN" \
                 --action-names "$ACTION" \
                 --resource-arns "${BUCKET_ARN}" "${BUCKET_ARN}/*" "${LAMBDA_ARN}" "${CFN_ARN}" \
                 --query "EvaluationResults[0].EvalDecision" \
-                --output text 2>&1) || raw_result="error"
+                --output text 2>&1)
+            aws_exit=$?
             result="$(echo "$raw_result" | tail -1)"
             # Distinguish three cases:
-            # 1. The deploy role lacks iam:SimulatePrincipalPolicy itself → warn and skip so a
-            #    bootstrap deploy that grants the permission can still proceed (see issue #3209).
-            # 2. Any other unexpected AWS error → hard-fail; masking it is dangerous.
+            # 1. The caller is not authorised to call iam:SimulatePrincipalPolicy → warn and skip
+            #    so a bootstrap deploy that grants the permission can still proceed (#3209).
+            #    Match the specific "not authorized to perform: iam:SimulatePrincipalPolicy"
+            #    message to avoid masking real permission denials on target actions.
+            # 2. Any other non-zero exit / unexpected error → hard-fail (masking is dangerous).
             # 3. Successful call returning a non-"allowed" decision → hard-fail.
-            if echo "$raw_result" | grep -qi "SimulatePrincipalPolicy"; then
+            if echo "$raw_result" | grep -qi "not authorized to perform.*iam:SimulatePrincipalPolicy\|iam:SimulatePrincipalPolicy.*not authorized"; then
                 echo "  WARNING: simulate-principal-policy unavailable for $ACTION — deploy role lacks iam:SimulatePrincipalPolicy." >&2
                 echo "  AWS response: $raw_result" >&2
                 sim_unavailable=1
-            elif [ "$result" = "error" ] || echo "$result" | grep -qi "exception\|error\|AccessDenied"; then
+            elif [ "$aws_exit" -ne 0 ] || echo "$raw_result" | grep -qi "exception\|AccessDenied"; then
                 echo "  ERROR: simulate-principal-policy failed for $ACTION with an unexpected error." >&2
                 echo "  AWS response: $raw_result" >&2
                 sim_failed=1

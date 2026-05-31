@@ -71,24 +71,33 @@ if (-not $env:AWS_ACCESS_KEY_ID) {
         # Include Lambda and CloudFormation ARNs so those action simulations are meaningful.
         $LambdaArn = "arn:aws:lambda:${AwsRegion}:${AwsAccount}:function:*"
         $CfnArn    = "arn:aws:cloudformation:${AwsRegion}:${AwsAccount}:stack/BackendLambdaStack/*"
-        $Actions = @('s3:GetObject','s3:ListBucket','lambda:InvokeFunction',
-                     'cloudformation:CreateChangeSet','cloudformation:DescribeChangeSet',
-                     'cloudformation:DeleteChangeSet')
+        # Map each action to its canonical resource ARN to avoid IAM returning
+        # "notApplicable" (which is != "allowed") for mismatched action/resource pairs.
+        $ActionResources = [ordered]@{
+            's3:GetObject'                   = "$BucketArn/*"
+            's3:ListBucket'                  = $BucketArn
+            'lambda:InvokeFunction'          = $LambdaArn
+            'cloudformation:CreateChangeSet' = $CfnArn
+            'cloudformation:DescribeChangeSet' = $CfnArn
+            'cloudformation:DeleteChangeSet' = $CfnArn
+        }
         $SimFailed      = $false
         $SimUnavailable = $false
-        foreach ($Action in $Actions) {
+        foreach ($Entry in $ActionResources.GetEnumerator()) {
+            $Action   = $Entry.Key
+            $Resource = $Entry.Value
             $iamArgs = @(
                 'iam', 'simulate-principal-policy',
                 '--policy-source-arn', $env:GITHUB_DEPLOY_ROLE_ARN,
                 '--action-names', $Action,
-                '--resource-arns', $BucketArn, "$BucketArn/*", $LambdaArn, $CfnArn,
+                '--resource-arns', $Resource,
                 '--query', 'EvaluationResults[0].EvalDecision',
                 '--output', 'text'
             )
             # Use & so the argument array is expanded correctly for the external aws executable.
             $RawResult  = & aws @iamArgs 2>&1
             $AwsSuccess = ($LASTEXITCODE -eq 0)
-            $Result     = ($RawResult | Select-Object -Last 1) -replace '\s+',''
+            $Result     = ($RawResult | Select-Object -Last 1).ToString().Trim()
             # Distinguish three cases:
             # 1. The caller is not authorised to call iam:SimulatePrincipalPolicy → warn and skip
             #    so a bootstrap deploy that grants the permission can still proceed (#3209).
@@ -105,14 +114,14 @@ if (-not $env:AWS_ACCESS_KEY_ID) {
                 Write-Host "  AWS response: $RawResult" -ForegroundColor Red
                 $SimFailed = $true
             } elseif ($Result -ne 'allowed') {
-                Write-Error "$Action not allowed (got: $Result)"
+                Write-Error "$Action not allowed on $Resource (got: $Result)"
                 $SimFailed = $true
             }
         }
         if ($SimFailed) {
             Write-Fail "IAM permission simulation"
         } elseif ($SimUnavailable) {
-            Write-Host "  WARNING: IAM simulation skipped — deploy role lacks iam:SimulatePrincipalPolicy. Run scripts/bash/bootstrap-deploy-role.sh to enable full pre-flight checks." -ForegroundColor Yellow
+            Write-Host "  WARNING: IAM simulation skipped — deploy role lacks iam:SimulatePrincipalPolicy. Run scripts/bash/bootstrap-deploy-role.sh (or equivalent) to enable full pre-flight checks." -ForegroundColor Yellow
             Write-Skip "IAM permission simulation (iam:SimulatePrincipalPolicy unavailable)"
         } else {
             Write-Pass "IAM permission simulation"

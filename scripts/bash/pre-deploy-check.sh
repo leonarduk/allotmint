@@ -68,18 +68,26 @@ else
         # Include Lambda and CloudFormation ARNs so those action simulations are meaningful.
         LAMBDA_ARN="arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT}:function:*"
         CFN_ARN="arn:aws:cloudformation:${AWS_REGION}:${AWS_ACCOUNT}:stack/BackendLambdaStack/*"
-        ACTIONS=(s3:GetObject s3:ListBucket lambda:InvokeFunction
-                 cloudformation:CreateChangeSet cloudformation:DescribeChangeSet
-                 cloudformation:DeleteChangeSet)
+        # Map each action to its canonical resource ARN to avoid IAM returning
+        # "notApplicable" (which is != "allowed") for mismatched action/resource pairs.
+        declare -A ACTION_RESOURCES=(
+            ["s3:GetObject"]="${BUCKET_ARN}/*"
+            ["s3:ListBucket"]="${BUCKET_ARN}"
+            ["lambda:InvokeFunction"]="${LAMBDA_ARN}"
+            ["cloudformation:CreateChangeSet"]="${CFN_ARN}"
+            ["cloudformation:DescribeChangeSet"]="${CFN_ARN}"
+            ["cloudformation:DeleteChangeSet"]="${CFN_ARN}"
+        )
         sim_failed=0
         sim_unavailable=0
-        for ACTION in "${ACTIONS[@]}"; do
+        for ACTION in "${!ACTION_RESOURCES[@]}"; do
+            RESOURCE="${ACTION_RESOURCES[$ACTION]}"
             # Capture stdout+stderr together; preserve exit code separately so raw_result
             # always contains the real AWS CLI output (the || idiom would overwrite it).
             raw_result=$(aws iam simulate-principal-policy \
                 --policy-source-arn "$GITHUB_DEPLOY_ROLE_ARN" \
                 --action-names "$ACTION" \
-                --resource-arns "${BUCKET_ARN}" "${BUCKET_ARN}/*" "${LAMBDA_ARN}" "${CFN_ARN}" \
+                --resource-arns "$RESOURCE" \
                 --query "EvaluationResults[0].EvalDecision" \
                 --output text 2>&1)
             aws_exit=$?
@@ -100,7 +108,7 @@ else
                 echo "  AWS response: $raw_result" >&2
                 sim_failed=1
             elif [ "$result" != "allowed" ]; then
-                echo "  ERROR: $ACTION not allowed (got: $result)" >&2
+                echo "  ERROR: $ACTION not allowed on $RESOURCE (got: $result)" >&2
                 sim_failed=1
             fi
         done

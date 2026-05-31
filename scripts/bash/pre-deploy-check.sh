@@ -8,10 +8,11 @@ cd "$(dirname "$0")/../.." || exit 1
 
 PASS=0
 FAIL=0
+SKIP=0
 
 pass() { echo "PASS: $1"; PASS=$((PASS + 1)); }
 fail() { echo "FAIL: $1"; FAIL=$((FAIL + 1)); }
-skip() { echo "SKIP: $1"; }
+skip() { echo "SKIP: $1"; SKIP=$((SKIP + 1)); }
 
 # 1. Dependency dry-run
 echo ""
@@ -24,6 +25,7 @@ else
 fi
 
 # 2. CDK synth + diff
+# Uses --method=changeset to match deploy-lambda.yml so replacement annotations are visible.
 echo ""
 echo "=== 2. CDK synth + diff ==="
 if [[ -z "${AWS_ACCESS_KEY_ID:-}" ]]; then
@@ -31,7 +33,7 @@ if [[ -z "${AWS_ACCESS_KEY_ID:-}" ]]; then
 elif [[ -z "${GITHUB_DEPLOY_ROLE_ARN:-}" || -z "${JWT_SECRET:-}" || -z "${GOOGLE_CLIENT_ID:-}" || -z "${DATA_BUCKET:-}" ]]; then
     skip "CDK diff (requires GITHUB_DEPLOY_ROLE_ARN, JWT_SECRET, GOOGLE_CLIENT_ID, DATA_BUCKET)"
 else
-    if (cd cdk && npx cdk diff BackendLambdaStack StaticSiteStack -c prod=true); then
+    if (cd cdk && npx cdk diff BackendLambdaStack StaticSiteStack -c prod=true --method=changeset); then
         pass "CDK diff"
     else
         fail "CDK diff"
@@ -114,7 +116,7 @@ fi
 echo ""
 echo "==============================="
 echo "Pre-deploy check summary"
-echo "PASS: $PASS  FAIL: $FAIL"
+echo "PASS: $PASS  FAIL: $FAIL  SKIP: $SKIP"
 echo "==============================="
 
 if [[ $FAIL -gt 0 ]]; then

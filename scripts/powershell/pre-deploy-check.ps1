@@ -7,10 +7,11 @@ Set-Location (Join-Path $PSScriptRoot '..\..')
 
 $Pass = 0
 $Fail = 0
+$Skip = 0
 
 function Write-Pass($msg) { Write-Host "PASS: $msg" -ForegroundColor Green; $script:Pass++ }
 function Write-Fail($msg) { Write-Host "FAIL: $msg" -ForegroundColor Red; $script:Fail++ }
-function Write-Skip($msg) { Write-Host "SKIP: $msg" -ForegroundColor Yellow }
+function Write-Skip($msg) { Write-Host "SKIP: $msg" -ForegroundColor Yellow; $script:Skip++ }
 
 # 1. Dependency dry-run
 Write-Host "`n=== 1. Dependency dry-run ==="
@@ -21,15 +22,19 @@ python -m venv $venvPath | Out-Null
 if ($LASTEXITCODE -eq 0) { Write-Pass "pip dependency dry-run" } else { Write-Fail "pip dependency dry-run" }
 
 # 2. CDK synth + diff
+# Uses --method=changeset to match deploy-lambda.yml so replacement annotations are visible.
 Write-Host "`n=== 2. CDK synth + diff ==="
 if (-not $env:AWS_ACCESS_KEY_ID) {
     Write-Skip "CDK diff (requires AWS credentials)"
 } elseif (-not $env:GITHUB_DEPLOY_ROLE_ARN -or -not $env:JWT_SECRET -or -not $env:GOOGLE_CLIENT_ID -or -not $env:DATA_BUCKET) {
     Write-Skip "CDK diff (requires GITHUB_DEPLOY_ROLE_ARN, JWT_SECRET, GOOGLE_CLIENT_ID, DATA_BUCKET)"
+} elseif (-not (Test-Path 'cdk')) {
+    Write-Fail "CDK diff (cdk/ directory not found — run from repo root)"
 } else {
     try {
-        Push-Location cdk
-        npx cdk diff BackendLambdaStack StaticSiteStack -c prod=true
+        Push-Location cdk -ErrorAction Stop
+        $cdkArgs = @('cdk', 'diff', 'BackendLambdaStack', 'StaticSiteStack', '-c', 'prod=true', '--method=changeset')
+        npx @cdkArgs
         if ($LASTEXITCODE -eq 0) { Write-Pass "CDK diff" } else { Write-Fail "CDK diff" }
     } finally {
         Pop-Location
@@ -51,14 +56,17 @@ if (-not $env:AWS_ACCESS_KEY_ID) {
         Write-Skip "IAM simulation (BackendLambdaStack not deployed or PortfolioDataBucket not found)"
     } else {
         $BucketArn = "arn:aws:s3:::$BucketId"
-        $Denied = aws iam simulate-principal-policy `
-            --policy-source-arn $env:GITHUB_DEPLOY_ROLE_ARN `
-            --action-names s3:GetObject s3:ListBucket lambda:InvokeFunction `
-                cloudformation:CreateChangeSet cloudformation:DescribeChangeSet `
-                cloudformation:DeleteChangeSet `
-            --resource-arns $BucketArn "$BucketArn/*" `
-            --query "EvaluationResults[?EvalDecision!='allowed'].EvalActionName" `
-            --output text 2>&1
+        $iamArgs = @(
+            'iam', 'simulate-principal-policy',
+            '--policy-source-arn', $env:GITHUB_DEPLOY_ROLE_ARN,
+            '--action-names', 's3:GetObject', 's3:ListBucket', 'lambda:InvokeFunction',
+                'cloudformation:CreateChangeSet', 'cloudformation:DescribeChangeSet',
+                'cloudformation:DeleteChangeSet',
+            '--resource-arns', $BucketArn, "$BucketArn/*",
+            '--query', "EvaluationResults[?EvalDecision!='allowed'].EvalActionName",
+            '--output', 'text'
+        )
+        $Denied = aws @iamArgs 2>&1
         if (-not $Denied -or $Denied -eq 'None') {
             Write-Pass "IAM permission simulation"
         } else {
@@ -86,18 +94,22 @@ if ($LASTEXITCODE -eq 0) { Write-Pass "frontend tests" } else { Write-Fail "fron
 
 # 6. CDK tests
 Write-Host "`n=== 6. CDK tests ==="
-try {
-    Push-Location cdk
-    python -m pytest tests/ -x -q
-    if ($LASTEXITCODE -eq 0) { Write-Pass "CDK pytest" } else { Write-Fail "CDK pytest" }
-} finally {
-    Pop-Location
+if (-not (Test-Path 'cdk')) {
+    Write-Fail "CDK pytest (cdk/ directory not found — run from repo root)"
+} else {
+    try {
+        Push-Location cdk -ErrorAction Stop
+        python -m pytest tests/ -x -q
+        if ($LASTEXITCODE -eq 0) { Write-Pass "CDK pytest" } else { Write-Fail "CDK pytest" }
+    } finally {
+        Pop-Location
+    }
 }
 
 # Summary
 Write-Host "`n==============================="
 Write-Host "Pre-deploy check summary"
-Write-Host "PASS: $Pass  FAIL: $Fail"
+Write-Host "PASS: $Pass  FAIL: $Fail  SKIP: $Skip"
 Write-Host "==============================="
 
 if ($Fail -gt 0) {

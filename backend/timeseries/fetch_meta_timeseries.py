@@ -136,17 +136,6 @@ def _instrument_dirs() -> list[Path]:
     return resolved
 
 
-_METADATA_SYMBOL_RE = re.compile(r"^[A-Z0-9._-]+$")
-
-
-def _sanitize_metadata_symbol(symbol: str) -> str:
-    """Return a safe symbol for metadata filename lookups, or empty when invalid."""
-    cleaned = (symbol or "").strip().upper()
-    if not cleaned or not _METADATA_SYMBOL_RE.fullmatch(cleaned):
-        return ""
-    return cleaned
-
-
 def _resolve_exchange_from_metadata(symbol: str) -> str:
     """Return exchange code for *symbol* using instrument metadata if possible."""
 

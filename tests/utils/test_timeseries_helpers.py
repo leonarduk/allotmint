@@ -228,6 +228,12 @@ class TestApplyDateRange:
         result = th.apply_date_range(df, start_date=self.BASE, end_date=self.END)
         assert list(result["Close"]) == [1, 2, 3]
 
+    def test_missing_date_column_not_mutated(self):
+        df = pd.DataFrame({"Close": [1, 2, 3]})
+        result = th.apply_date_range(df, start_date=self.BASE)
+        result["Close"] = 99  # mutate the returned frame
+        assert list(df["Close"]) == [1, 2, 3]  # original must be untouched
+
     def test_nat_rows_are_dropped(self):
         col = pd.to_datetime([self.BASE, None, self.END])
         df = pd.DataFrame({"Date": col, "Close": [1, 2, 3]})

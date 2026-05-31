@@ -224,14 +224,13 @@ def apply_date_range(
     if df.empty or "Date" not in df.columns:
         return df.copy()
     dates = df["Date"]
-    if hasattr(dates, "dt"):
+    if pd.api.types.is_datetime64_any_dtype(dates):
         dates = dates.dt.date
         null_mask = dates.isna()
-        mask = pd.Series([True] * len(df), index=df.index)
+        mask = pd.Series(True, index=df.index)
         mask &= ~null_mask
     else:
-        mask = pd.Series([True] * len(df), index=df.index)
-
+        mask = pd.Series(True, index=df.index)
     if start_date is not None:
         mask &= dates >= start_date
     if end_date is not None:

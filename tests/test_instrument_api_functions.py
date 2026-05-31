@@ -107,3 +107,25 @@ def test_timeseries_for_ticker_mini_slices(monkeypatch):
     assert res["mini"]["30"] == res["prices"][-30:]
     assert res["mini"]["180"] == res["prices"][-180:]
 
+
+def test_timeseries_for_ticker_inverted_range_returns_empty(monkeypatch):
+    """Inverted start/end (start > end) returns the empty payload without hitting the cache."""
+    calls: list[str] = []
+
+    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda t, l: ("XYZ", "L"))
+    monkeypatch.setattr(ia, "has_cached_meta_timeseries", lambda s, e: True)
+    monkeypatch.setattr(
+        ia,
+        "load_meta_timeseries_range",
+        lambda s, e, start_date, end_date: calls.append("called") or pd.DataFrame(),
+    )
+
+    res = ia.timeseries_for_ticker(
+        "XYZ",
+        start_date=dt.date(2024, 6, 1),
+        end_date=dt.date(2024, 1, 1),   # end before start
+    )
+
+    assert res == {"prices": [], "mini": {"7": [], "30": [], "180": []}}
+    assert calls == [], "load_meta_timeseries_range must not be called for an inverted range"
+

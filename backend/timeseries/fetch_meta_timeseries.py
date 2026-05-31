@@ -11,6 +11,7 @@ and merges the first successful result. Helpers return snapshots
 from __future__ import annotations
 
 import logging
+import os
 import re
 import time
 from datetime import date, datetime, timedelta
@@ -25,6 +26,11 @@ from backend.common.path_utils import safe_join
 from backend.logging_setup import sanitise_log_value
 
 OFFLINE_MODE = config.offline_mode
+
+# Strict allowlist for file/directory name components used in metadata paths.
+# This prevents special/path characters from reaching filesystem path joins.
+_METADATA_PATH_COMPONENT_RE = re.compile(r"^[A-Za-z0-9._-]+$")
+
 
 # ──────────────────────────────────────────────────────────────
 # Local imports
@@ -136,6 +142,13 @@ def _resolve_exchange_from_metadata(symbol: str) -> str:
     symbol = _sanitize_metadata_symbol(symbol)
     if not symbol:
         return ""
+    # os.path.basename is a CodeQL-recognised path-traversal sanitizer.  Apply
+    # it here (at the call site) so the cache key is always the fully sanitized
+    # value — sanitizing inside the @lru_cache function would key raw and clean
+    # inputs separately, creating needless cache misses.
+    symbol = os.path.basename(symbol)
+    if not symbol:
+        return ""
     dirs = tuple(str(path) for path in _instrument_dirs())
     exchange, source_dir = _resolve_exchange_from_metadata_cached(symbol, dirs)
 
@@ -165,7 +178,13 @@ def _resolve_exchange_from_metadata_cached(
     function so that the cache key is the clean, validated identifier.
     Sanitizing inside a cached function would cause raw inputs to be keyed
     separately even when they map to the same sanitized value.
+
+    Precondition: ``symbol`` has already been processed by
+    ``_sanitize_metadata_symbol`` and ``os.path.basename`` at the call site.
     """
+    if not symbol:
+        return "", ""
+
     for root_str in directories:
         root = Path(root_str)
         try:
@@ -181,10 +200,9 @@ def _resolve_exchange_from_metadata_cached(
             continue
     return "", ""
 
-
 def _metadata_entry_exists_in_directory(symbol: str, directory: Path) -> bool:
     """Return ``True`` if *symbol* metadata exists in the provided directory.
-
+    
     Unlike ``_resolve_exchange_from_metadata_cached`` (which is ``@lru_cache``
     decorated and therefore requires the caller to pre-sanitize so that the
     cache key is the clean value), this function is not cached and may be
@@ -195,10 +213,15 @@ def _metadata_entry_exists_in_directory(symbol: str, directory: Path) -> bool:
     if not symbol:
         return False
 
+    symbol = os.path.basename(symbol)
+    if not symbol:
+        return False
+
     try:
         if not directory.is_dir():
             return False
-    except OSError:
+    except OSError as exc:
+        logger.debug("is_dir check failed for %s: %s", directory, exc)
         return False
 
     try:
@@ -215,6 +238,18 @@ def _metadata_entry_exists(
     symbol = _sanitize_metadata_symbol(symbol)
     exchange = _sanitize_metadata_symbol(exchange)
     if not symbol or not exchange:
+        return False
+
+    # Strip path-traversal components from both parts before building paths.
+    symbol = os.path.basename(symbol)
+    exchange = os.path.basename(exchange)
+    if not symbol or not exchange:
+        return False
+
+    # Final sink-side allowlist validation for path components.
+    if not _METADATA_PATH_COMPONENT_RE.fullmatch(symbol):
+        return False
+    if not _METADATA_PATH_COMPONENT_RE.fullmatch(exchange):
         return False
 
     for root_str in directories:
@@ -239,7 +274,8 @@ def _resolve_symbol_exchange_details(
     suffix = suffix.upper()
     if suffix and provided and suffix != provided:
         logger.debug(
-            "Exchange mismatch for %s: suffix %s vs argument %s", ticker, suffix, provided
+            "Exchange mismatch for %s: suffix %s vs argument %s",
+            sanitise_log_value(ticker), sanitise_log_value(suffix), sanitise_log_value(provided),
         )
     resolved = suffix or provided
 
@@ -247,16 +283,14 @@ def _resolve_symbol_exchange_details(
     ex = resolved
     if not ex and meta_ex:
         ex = meta_ex
-        logger.debug("Resolved exchange for %s via metadata: %s", sym, ex)
+        logger.debug("Resolved exchange for %s via metadata: %s", sanitise_log_value(sym), ex)
     elif ex and meta_ex and ex != meta_ex:
         logger.debug(
             "Exchange metadata mismatch for %s: using %s but metadata %s",
-            sym,
-            ex,
-            meta_ex,
+            sanitise_log_value(sym), sanitise_log_value(ex), sanitise_log_value(meta_ex),
         )
     elif not ex:
-        logger.debug("No exchange information for %s; continuing without exchange", sym)
+        logger.debug("No exchange information for %s; continuing without exchange", sanitise_log_value(sym))
 
     return sym.upper(), (ex or "").upper(), meta_ex
 
@@ -502,7 +536,7 @@ def fetch_ft_df(ticker, end_date, start_date):
         ft_df = fetch_ft_timeseries(ticker, days)
         return ft_df
     except Exception as exc:
-        logger.debug("FT miss for %s: %s", ticker, exc)
+        logger.debug("FT miss for %s: %s", sanitise_log_value(ticker), exc)
         return pd.DataFrame(columns=STANDARD_COLUMNS)
 
 # ──────────────────────────────────────────────────────────────
@@ -535,13 +569,16 @@ def run_all_tickers(
         if delay and idx:
             time.sleep(delay)
         sym, ex, meta_exchange = _resolve_symbol_exchange_details(t, exchange)
-        logger.debug("run_all_tickers resolved %s -> %s.%s", t, sym, ex)
+        logger.debug(
+            "run_all_tickers resolved %s -> %s.%s",
+            sanitise_log_value(t), sanitise_log_value(sym), ex,
+        )
         cache_exchange = _resolve_cache_exchange(t, exchange, sym, ex, meta_exchange)
         try:
             if not load_meta_timeseries(sym, cache_exchange, days).empty:
                 ok.append(t)
         except Exception as exc:
-            logger.warning("[WARN] %s: %s", t, exc)
+            logger.warning("[WARN] %s: %s", sanitise_log_value(t), exc)
     logger.info(
         "Bulk warm-up complete: %d updated, %d skipped", len(ok), len(tickers) - len(ok)
     )
@@ -579,4 +616,3 @@ if __name__ == "__main__":  # pragma: no cover
 
     df = fetch_meta_timeseries("1", "", start_date=cutoff, end_date=today)
     print("Returned: %s", df.head())
-

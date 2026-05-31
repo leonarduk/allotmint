@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import re
 
 from fastapi import APIRouter, HTTPException
 
@@ -11,6 +12,35 @@ from backend.common.errors import handle_owner_not_found, raise_owner_not_found
 from backend.utils.pricing_dates import PricingDateCalculator
 
 router = APIRouter(tags=["performance"])
+
+_OWNER_SLUG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+_BENCHMARK_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$")
+
+
+def _validate_owner_slug(value: str, field_name: str) -> str:
+    candidate = (value or "").strip()
+    if (
+        not candidate
+        or "/" in candidate
+        or "\\" in candidate
+        or ".." in candidate
+        or not _OWNER_SLUG_RE.fullmatch(candidate)
+    ):
+        raise HTTPException(status_code=400, detail=f"Invalid {field_name}")
+    return candidate
+
+
+def _validate_benchmark(value: str) -> str:
+    candidate = (value or "").strip().upper()
+    if (
+        not candidate
+        or "/" in candidate
+        or "\\" in candidate
+        or ".." in candidate
+        or not _BENCHMARK_RE.fullmatch(candidate)
+    ):
+        raise HTTPException(status_code=400, detail="Invalid benchmark")
+    return candidate
 
 
 def _resolve_as_of(as_of: str | None) -> dt.date | None:
@@ -35,6 +65,8 @@ async def owner_alpha(
     as_of: str | None = None,
 ):
     """Return portfolio alpha vs. benchmark for ``owner``."""
+    owner = _validate_owner_slug(owner, "owner")
+    benchmark = _validate_benchmark(benchmark)
     try:
         val, breakdown = portfolio_utils.compute_alpha_vs_benchmark(
             owner,
@@ -59,6 +91,8 @@ async def owner_tracking_error(
     as_of: str | None = None,
 ):
     """Return tracking error vs. benchmark for ``owner``."""
+    owner = _validate_owner_slug(owner, "owner")
+    benchmark = _validate_benchmark(benchmark)
     try:
         val, breakdown = portfolio_utils.compute_tracking_error(
             owner,
@@ -78,6 +112,7 @@ async def owner_tracking_error(
 @handle_owner_not_found
 async def owner_max_drawdown(owner: str, days: int = 365, as_of: str | None = None):
     """Return max drawdown for ``owner``."""
+    owner = _validate_owner_slug(owner, "owner")
     try:
         val, breakdown = portfolio_utils.compute_max_drawdown(
             owner,
@@ -96,6 +131,7 @@ async def owner_max_drawdown(owner: str, days: int = 365, as_of: str | None = No
 @handle_owner_not_found
 async def owner_twr(owner: str, days: int = 365, as_of: str | None = None):
     """Return time-weighted return for ``owner``."""
+    owner = _validate_owner_slug(owner, "owner")
     try:
         val = portfolio_utils.compute_time_weighted_return(
             owner, days, pricing_date=_resolve_as_of(as_of)
@@ -109,6 +145,7 @@ async def owner_twr(owner: str, days: int = 365, as_of: str | None = None):
 @handle_owner_not_found
 async def owner_xirr(owner: str, days: int = 365, as_of: str | None = None):
     """Return XIRR for ``owner``."""
+    owner = _validate_owner_slug(owner, "owner")
     try:
         val = portfolio_utils.compute_xirr(
             owner, days, pricing_date=_resolve_as_of(as_of)
@@ -122,6 +159,7 @@ async def owner_xirr(owner: str, days: int = 365, as_of: str | None = None):
 @handle_owner_not_found
 async def owner_holdings(owner: str, date: str):
     """Return holding values for ``owner`` on a specific date."""
+    owner = _validate_owner_slug(owner, "owner")
     try:
         rows = portfolio_utils.portfolio_value_breakdown(owner, date)
         return {"owner": owner, "date": date, "holdings": rows}
@@ -134,6 +172,8 @@ async def owner_holdings(owner: str, date: str):
 @router.get("/performance-group/{slug}/alpha")
 async def group_alpha(slug: str, benchmark: str = "VWRL.L", days: int = 365):
     """Return alpha vs. benchmark for a group portfolio."""
+    slug = _validate_owner_slug(slug, "slug")
+    benchmark = _validate_benchmark(benchmark)
     try:
         result = portfolio_utils.compute_group_alpha_vs_benchmark(
             slug, benchmark, days, include_breakdown=True
@@ -152,6 +192,8 @@ async def group_alpha(slug: str, benchmark: str = "VWRL.L", days: int = 365):
 @router.get("/performance-group/{slug}/tracking-error")
 async def group_tracking_error(slug: str, benchmark: str = "VWRL.L", days: int = 365):
     """Return tracking error vs. benchmark for a group portfolio."""
+    slug = _validate_owner_slug(slug, "slug")
+    benchmark = _validate_benchmark(benchmark)
     try:
         result = portfolio_utils.compute_group_tracking_error(
             slug, benchmark, days, include_breakdown=True
@@ -170,6 +212,7 @@ async def group_tracking_error(slug: str, benchmark: str = "VWRL.L", days: int =
 @router.get("/performance-group/{slug}/max-drawdown")
 async def group_max_drawdown(slug: str, days: int = 365):
     """Return max drawdown for a group portfolio."""
+    slug = _validate_owner_slug(slug, "slug")
     try:
         result = portfolio_utils.compute_group_max_drawdown(
             slug, days, include_breakdown=True
@@ -197,6 +240,7 @@ async def performance(
     Set ``exclude_cash`` to true to ignore cash holdings when reconstructing the
     return series.
     """
+    owner = _validate_owner_slug(owner, "owner")
     try:
         result = portfolio_utils.compute_owner_performance(
             owner,
@@ -213,6 +257,7 @@ async def performance(
 @handle_owner_not_found
 async def compare_returns(owner: str, days: int = 365):
     """Return portfolio CAGR and cash APY for ``owner``."""
+    owner = _validate_owner_slug(owner, "owner")
     try:
         cagr = portfolio_utils.compute_cagr(owner, days)
         cash_apy = portfolio_utils.compute_cash_apy(owner, days)

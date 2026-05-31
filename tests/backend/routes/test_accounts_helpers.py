@@ -156,3 +156,26 @@ def test_resolve_owner_directory_prefers_direct_match(tmp_path: Path) -> None:
 
     result = resolve_owner_directory(tmp_path, "owner")
     assert result == direct
+
+
+# ---------------------------------------------------------------------------
+# Path traversal — resolve_owner_directory must reject escape attempts
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_owner_directory_dotdot_returns_none(tmp_path: Path) -> None:
+    """A '../'-style owner must not escape the accounts root."""
+    result = resolve_owner_directory(tmp_path, "../evil")
+    assert result is None
+
+
+def test_resolve_owner_directory_absolute_path_returns_none(tmp_path: Path) -> None:
+    """An absolute path as owner must be rejected."""
+    result = resolve_owner_directory(tmp_path, "/etc/passwd")
+    assert result is None
+
+
+def test_resolve_owner_directory_nested_dotdot_returns_none(tmp_path: Path) -> None:
+    """Nested traversal sequences must not escape the root."""
+    result = resolve_owner_directory(tmp_path, "alice/../../etc/shadow")
+    assert result is None

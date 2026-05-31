@@ -1,5 +1,5 @@
-uvicorn
-jinja2
+uvicorn~=0.42.0
+jinja2~=3.1.4
 fastapi~=0.120.4
 slowapi~=0.1.9
 mangum~=0.21.0
@@ -16,6 +16,7 @@ typing_extensions>=4.14.1
 h11~=0.16.0
 PyYAML~=6.0.3
 attrs~=24.3.0
+defusedxml~=0.7.1
 distro~=1.9.0
 pysocks~=1.7.1
 protobuf>=7.35.0,<8  # >=6.31.1 fixes CVE-2025-4565; 6.31.0+ includes protocolbuffers/protobuf#15999 for Python 3.14 PyType_Spec compatibility

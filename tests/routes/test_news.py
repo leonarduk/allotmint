@@ -4,11 +4,14 @@ import json
 from datetime import date
 from typing import Dict, List
 
+import defusedxml
+import pytest
 from fastapi.testclient import TestClient
 from requests import HTTPError
 
-from backend.app import create_app
 from backend import config_module
+from backend.app import create_app
+from backend.common.url_validator import InvalidExternalURLError
 from backend.routes import news as news_module
 from backend.utils import page_cache
 
@@ -55,7 +58,7 @@ def test_counter_helpers(monkeypatch, tmp_path):
 def test_fetch_news_yahoo(monkeypatch):
     captured: Dict[str, object] = {}
 
-    def fake_get(url, params, timeout=10):
+    def fake_get(url, params=None, timeout=10, **kwargs):
         captured["url"] = url
         captured["params"] = params
 
@@ -109,7 +112,7 @@ def test_fetch_news_google(monkeypatch):
     """
     captured: Dict[str, object] = {}
 
-    def fake_get(url, params, timeout=10):
+    def fake_get(url, params=None, timeout=10, **kwargs):
         captured["url"] = url
         captured["params"] = params
 
@@ -187,7 +190,7 @@ def test_get_news_quota_and_cache(monkeypatch, tmp_path):
 
     calls = {"alpha": 0}
 
-    def fake_get(url, params, timeout=10):
+    def fake_get(url, params=None, timeout=10, **kwargs):
         calls["alpha"] += 1
 
         class Response:
@@ -290,3 +293,59 @@ def test_get_cached_news_cold_cache_fetches_once(monkeypatch):
     assert second == first
     assert fetch_calls["count"] == 1
     assert quota_calls["count"] == 1
+
+
+# ── SSRF guard wiring ─────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize(
+    "bad_endpoint",
+    [
+        pytest.param("https://169.254.169.254/latest/meta-data/", id="aws_metadata"),
+        pytest.param("https://127.0.0.1/search", id="loopback"),
+        pytest.param("https://10.0.0.1/search", id="rfc1918"),
+        pytest.param("https://localhost/search", id="localhost"),
+    ],
+)
+def test_fetch_news_yahoo_rejects_private_endpoint(monkeypatch, bad_endpoint: str) -> None:
+    monkeypatch.setattr(news_module.cfg, "yahoo_news_endpoint", bad_endpoint)
+    with pytest.raises(InvalidExternalURLError):
+        news_module.fetch_news_yahoo("AAPL")
+
+
+@pytest.mark.parametrize(
+    "bad_endpoint",
+    [
+        pytest.param("https://169.254.169.254/rss", id="aws_metadata"),
+        pytest.param("https://127.0.0.1/rss", id="loopback"),
+        pytest.param("https://192.168.1.1/rss", id="rfc1918"),
+        pytest.param("https://localhost/rss", id="localhost"),
+    ],
+)
+def test_fetch_news_google_rejects_private_endpoint(monkeypatch, bad_endpoint: str) -> None:
+    monkeypatch.setattr(news_module.cfg, "google_news_endpoint", bad_endpoint)
+    with pytest.raises(InvalidExternalURLError):
+        news_module.fetch_news_google("AAPL")
+def test_fetch_news_google_billion_laughs_rejected(monkeypatch):
+    bomb = (
+        '<?xml version="1.0"?>'
+        "<!DOCTYPE lolz ["
+        '  <!ENTITY lol "lol">'
+        "  <!ENTITY lol2 \"&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;\">"
+        "  <!ENTITY lol3 \"&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;\">"
+        "]>"
+        "<lolz>&lol3;</lolz>"
+    )
+
+    def fake_get(url, params=None, timeout=10, **kwargs):
+        class Response:
+            text = bomb
+
+            def raise_for_status(self):
+                return None
+
+        return Response()
+
+    monkeypatch.setattr(news_module.requests, "get", fake_get)
+
+    with pytest.raises(defusedxml.EntitiesForbidden):
+        news_module.fetch_news_google("MSFT")

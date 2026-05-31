@@ -946,6 +946,13 @@ async def instrument_detail(
     *start_date* and *end_date* are always resolved to concrete dates before
     being forwarded to ``timeseries_for_ticker`` so the guard
     ``start > end`` and the actual data fetch use the same window.
+
+    Positions scope
+    ---------------
+    ``positions_for_ticker`` returns current holdings (a portfolio snapshot).
+    Positions are not date-bounded by *start_date*/*end_date* — those params
+    control only the price-series window.  A position exists or it doesn't;
+    there is no historical positions API here.
     """
     resolved_start, resolved_end = resolve_date_range(
         365, start_date=start_date, end_date=end_date

@@ -142,6 +142,13 @@ def _resolve_exchange_from_metadata(symbol: str) -> str:
     symbol = _sanitize_metadata_symbol(symbol)
     if not symbol:
         return ""
+    # os.path.basename is a CodeQL-recognised path-traversal sanitizer.  Apply
+    # it here (at the call site) so the cache key is always the fully sanitized
+    # value — sanitizing inside the @lru_cache function would key raw and clean
+    # inputs separately, creating needless cache misses.
+    symbol = os.path.basename(symbol)
+    if not symbol:
+        return ""
     dirs = tuple(str(path) for path in _instrument_dirs())
     exchange, source_dir = _resolve_exchange_from_metadata_cached(symbol, dirs)
 
@@ -171,12 +178,10 @@ def _resolve_exchange_from_metadata_cached(
     function so that the cache key is the clean, validated identifier.
     Sanitizing inside a cached function would cause raw inputs to be keyed
     separately even when they map to the same sanitized value.
+
+    Precondition: ``symbol`` has already been processed by
+    ``_sanitize_metadata_symbol`` and ``os.path.basename`` at the call site.
     """
-    symbol = _sanitize_metadata_symbol(symbol)
-    # os.path.basename is a CodeQL-recognised path-traversal sanitizer; apply it
-    # after the regex check so the taint chain is provably broken before any
-    # Path / f-string construction below.
-    symbol = os.path.basename(symbol)
     if not symbol:
         return "", ""
 

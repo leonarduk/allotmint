@@ -5,6 +5,7 @@ from unittest.mock import patch
 import requests
 
 import backend.utils.telegram_utils as telegram_utils
+from backend.config import reload_config
 
 
 def test_send_message_requires_config(monkeypatch, caplog):
@@ -319,3 +320,27 @@ def test_raise_for_status(monkeypatch, caplog):
 
     with patch("backend.utils.telegram_utils.requests.post", fake_post), caplog.at_level(logging.WARNING):
         telegram_utils.send_message("hi")
+
+
+def test_send_message_skips_gracefully_when_env_vars_absent(monkeypatch, caplog):
+    """send_message must not make any HTTP call when TELEGRAM_BOT_TOKEN is unset.
+
+    This is an end-to-end regression guard: it loads credentials via the real
+    config/env-var path (reload_config → os.getenv) rather than monkeypatching
+    the config object directly, confirming that telegram_utils.py never uses a
+    hardcoded fallback token.
+    """
+    telegram_utils.RECENT_MESSAGES.clear()
+    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+    monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
+    # Reload config so the module picks up the cleared env vars.
+    cfg = reload_config()
+    monkeypatch.setattr(telegram_utils.config, "config", cfg)
+
+    with patch(
+        "backend.utils.telegram_utils.requests.post",
+        side_effect=AssertionError("requests.post must not be called without credentials"),
+    ), caplog.at_level(logging.DEBUG):
+        telegram_utils.send_message("should not be sent")
+
+    assert "Missing Telegram configuration" in caplog.text

@@ -625,6 +625,43 @@ def test_github_deploy_role_can_read_price_snapshot_from_s3(monkeypatch) -> None
     )
 
 
+def test_github_deploy_role_has_s3_listbucket_on_prices_prefix(monkeypatch) -> None:
+    """Deploy role must have s3:ListBucket conditioned on the prices/ prefix so that a
+    missing key returns 404 (not 403). Without ListBucket, AWS returns 403 for any
+    missing key, making it impossible to distinguish permission errors from write lag.
+    See issue #3191."""
+    role_arn = "arn:aws:iam::123456789012:role/allotmint-github-deploy"
+    monkeypatch.setenv("GITHUB_DEPLOY_ROLE_ARN", role_arn)
+    monkeypatch.setenv("JWT_SECRET", "test-secret")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-client-id")
+    app = App()
+    stack = BackendLambdaStack(app, "BackendLambdaStackListBucketTest")
+    raw = Template.from_stack(stack).to_json()
+
+    list_stmts = []
+    for res in raw["Resources"].values():
+        if res.get("Type") != "AWS::IAM::Policy":
+            continue
+        if "allotmint-github-deploy" not in res.get("Properties", {}).get("Roles", []):
+            continue
+        for stmt in res["Properties"]["PolicyDocument"].get("Statement", []):
+            actions = stmt.get("Action", [])
+            if isinstance(actions, str):
+                actions = [actions]
+            if "s3:ListBucket" in actions:
+                list_stmts.append(stmt)
+
+    assert list_stmts, (
+        "Deploy role has no s3:ListBucket statement; "
+        "the CDK grant is missing — missing keys will return 403 instead of 404"
+    )
+    conditions = list_stmts[0].get("Condition", {})
+    prefixes = str(conditions)
+    assert "prices" in prefixes, (
+        f"s3:ListBucket must be conditioned on the prices/ prefix; got conditions: {conditions}"
+    )
+
+
 def test_no_s3_getobject_grant_when_github_deploy_role_arn_absent(monkeypatch) -> None:
     """When GITHUB_DEPLOY_ROLE_ARN is unset, no s3:GetObject policy for the deploy role
     is synthesised (Lambda roles have their own separate grants)."""

@@ -1,12 +1,14 @@
-import pytest
 from datetime import date
 
+import pytest
+
 import backend.timeseries.fetch_alphavantage_timeseries as av
+from backend.common.url_validator import InvalidExternalURLError
 from backend.timeseries.fetch_alphavantage_timeseries import (
+    AlphaVantageRateLimitError,
     _build_symbol,
     _parse_retry_after,
     fetch_alphavantage_timeseries_range,
-    AlphaVantageRateLimitError,
 )
 
 
@@ -164,3 +166,26 @@ def test_fetch_range_disabled(monkeypatch):
         "AAA", "US", date(2024, 1, 1), date(2024, 1, 2)
     )
     assert df.empty
+
+
+@pytest.mark.parametrize(
+    "bad_url",
+    [
+        pytest.param("https://169.254.169.254/query", id="aws_metadata"),
+        pytest.param("https://127.0.0.1/query", id="loopback"),
+        pytest.param("https://10.0.0.1/query", id="rfc1918"),
+        pytest.param("https://localhost/query", id="localhost"),
+    ],
+)
+def test_fetch_range_rejects_private_base_url(monkeypatch, bad_url: str) -> None:
+    # _patch_validation stubs out is_valid_ticker (-> True) and
+    # record_skipped_ticker (-> no-op) so neither early-return guard fires.
+    # Passing api_key="demo" bypasses the alpha_vantage_enabled check.
+    # The function therefore reaches validate_external_url(BASE_URL) where
+    # BASE_URL has been monkeypatched to bad_url, triggering the SSRF guard.
+    _patch_validation(monkeypatch)
+    monkeypatch.setattr(av, "BASE_URL", bad_url)
+    with pytest.raises(InvalidExternalURLError):
+        fetch_alphavantage_timeseries_range(
+            "AAA", "US", date(2024, 1, 1), date(2024, 1, 2), api_key="demo"
+        )

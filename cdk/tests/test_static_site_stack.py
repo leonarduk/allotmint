@@ -5,6 +5,7 @@ Run from the repo root:
     pytest cdk/tests/test_static_site_stack.py -v
 """
 
+import os
 import sys
 from pathlib import Path
 

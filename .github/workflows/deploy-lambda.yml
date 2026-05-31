@@ -211,21 +211,23 @@ jobs:
           if not isinstance(payload, dict) or "snapshot" not in payload or "timestamp" not in payload:
               raise SystemExit(f"Unexpected PriceRefreshLambda response: {payload!r}")
           PY
-          # Retry with backoff: IAM policy changes are eventually consistent (~60s).
-          # On the first deploy after s3:GetObject is newly granted to the deploy role
-          # the role may get 403 for up to a minute even though CloudFormation has
-          # already reported UPDATE_COMPLETE. See issue #3166.
-          for attempt in 1 2 3; do
-            if aws s3api head-object --bucket "$data_bucket" --key prices/latest_prices.json >/dev/null 2>&1; then
-              break
+          # Retry with backoff: the Lambda write may lag the invocation response.
+          # With s3:ListBucket now granted to the deploy role (issue #3191), a
+          # missing key returns 404 (retryable) instead of 403 (hard failure).
+          # 403 means a genuine permission problem — retrying will never help.
+          for attempt in 1 2 3 4 5; do
+            head_out="$(aws s3api head-object --bucket "$data_bucket" --key prices/latest_prices.json 2>&1)" && break
+            if echo "$head_out" | grep -q "(403)"; then
+              echo "head-object returned 403 Forbidden — deploy role lacks s3:GetObject or s3:ListBucket on the data bucket. Check CDK grants for GITHUB_DEPLOY_ROLE_ARN. See issue #3191." >&2
+              echo "$head_out" >&2
+              exit 1
             fi
-            if [ "$attempt" -eq 3 ]; then
-              echo "head-object failed on attempt 3/3; waiting 20s for IAM propagation before final check..." >&2
-              sleep 20
-              aws s3api head-object --bucket "$data_bucket" --key prices/latest_prices.json >/dev/null
-              break
+            if [ "$attempt" -eq 5 ]; then
+              echo "head-object failed on attempt 5/5; giving up." >&2
+              echo "$head_out" >&2
+              exit 1
             fi
-            echo "head-object attempt $attempt/3 failed (IAM propagation delay); retrying in 20s..." >&2
+            echo "head-object attempt $attempt/5 failed (key not yet written); retrying in 20s..." >&2
             sleep 20
           done
 

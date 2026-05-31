@@ -91,7 +91,6 @@ else
                 --query "EvaluationResults[0].EvalDecision" \
                 --output text 2>&1)
             aws_exit=$?
-            result="$(echo "$raw_result" | tail -1)"
             # Distinguish three cases:
             # 1. The caller is not authorised to call iam:SimulatePrincipalPolicy → warn and skip
             #    so a bootstrap deploy that grants the permission can still proceed (#3209).
@@ -107,9 +106,14 @@ else
                 echo "  ERROR: simulate-principal-policy failed for $ACTION with an unexpected error." >&2
                 echo "  AWS response: $raw_result" >&2
                 sim_failed=1
-            elif [ "$result" != "allowed" ]; then
-                echo "  ERROR: $ACTION not allowed on $RESOURCE (got: $result)" >&2
-                sim_failed=1
+            else
+                # Parse the decision only on a clean success path — prevents a trailing AWS CLI
+                # deprecation-warning line from corrupting the EvalDecision token via tail -1.
+                result="$(echo "$raw_result" | tail -1)"
+                if [ "$result" != "allowed" ]; then
+                    echo "  ERROR: $ACTION not allowed on $RESOURCE (got: $result)" >&2
+                    sim_failed=1
+                fi
             fi
         done
         if [ "$sim_failed" -eq 1 ]; then

@@ -68,19 +68,44 @@ else
         # Include Lambda and CloudFormation ARNs so those action simulations are meaningful.
         LAMBDA_ARN="arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT}:function:*"
         CFN_ARN="arn:aws:cloudformation:${AWS_REGION}:${AWS_ACCOUNT}:stack/BackendLambdaStack/*"
-        DENIED=$(aws iam simulate-principal-policy \
-            --policy-source-arn "$GITHUB_DEPLOY_ROLE_ARN" \
-            --action-names s3:GetObject s3:ListBucket lambda:InvokeFunction \
-                cloudformation:CreateChangeSet cloudformation:DescribeChangeSet \
-                cloudformation:DeleteChangeSet \
-            --resource-arns "${BUCKET_ARN}" "${BUCKET_ARN}/*" "${LAMBDA_ARN}" "${CFN_ARN}" \
-            --query "EvaluationResults[?EvalDecision!='allowed'].EvalActionName" \
-            --output text 2>&1)
-        if [[ -z "$DENIED" || "$DENIED" == "None" ]]; then
-            pass "IAM permission simulation"
-        else
-            echo "  Denied actions: $DENIED"
+        ACTIONS=(s3:GetObject s3:ListBucket lambda:InvokeFunction
+                 cloudformation:CreateChangeSet cloudformation:DescribeChangeSet
+                 cloudformation:DeleteChangeSet)
+        sim_failed=0
+        sim_unavailable=0
+        for ACTION in "${ACTIONS[@]}"; do
+            raw_result=$(aws iam simulate-principal-policy \
+                --policy-source-arn "$GITHUB_DEPLOY_ROLE_ARN" \
+                --action-names "$ACTION" \
+                --resource-arns "${BUCKET_ARN}" "${BUCKET_ARN}/*" "${LAMBDA_ARN}" "${CFN_ARN}" \
+                --query "EvaluationResults[0].EvalDecision" \
+                --output text 2>&1) || raw_result="error"
+            result="$(echo "$raw_result" | tail -1)"
+            # Distinguish three cases:
+            # 1. The deploy role lacks iam:SimulatePrincipalPolicy itself → warn and skip so a
+            #    bootstrap deploy that grants the permission can still proceed (see issue #3209).
+            # 2. Any other unexpected AWS error → hard-fail; masking it is dangerous.
+            # 3. Successful call returning a non-"allowed" decision → hard-fail.
+            if echo "$raw_result" | grep -qi "SimulatePrincipalPolicy"; then
+                echo "  WARNING: simulate-principal-policy unavailable for $ACTION — deploy role lacks iam:SimulatePrincipalPolicy." >&2
+                echo "  AWS response: $raw_result" >&2
+                sim_unavailable=1
+            elif [ "$result" = "error" ] || echo "$result" | grep -qi "exception\|error\|AccessDenied"; then
+                echo "  ERROR: simulate-principal-policy failed for $ACTION with an unexpected error." >&2
+                echo "  AWS response: $raw_result" >&2
+                sim_failed=1
+            elif [ "$result" != "allowed" ]; then
+                echo "  ERROR: $ACTION not allowed (got: $result)" >&2
+                sim_failed=1
+            fi
+        done
+        if [ "$sim_failed" -eq 1 ]; then
             fail "IAM permission simulation"
+        elif [ "$sim_unavailable" -eq 1 ]; then
+            echo "  WARNING: IAM simulation skipped — deploy role lacks iam:SimulatePrincipalPolicy. Run scripts/bash/bootstrap-deploy-role.sh to enable full pre-flight checks." >&2
+            skip "IAM permission simulation (iam:SimulatePrincipalPolicy unavailable)"
+        else
+            pass "IAM permission simulation"
         fi
     fi
 fi

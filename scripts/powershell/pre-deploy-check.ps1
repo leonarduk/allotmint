@@ -71,23 +71,48 @@ if (-not $env:AWS_ACCESS_KEY_ID) {
         # Include Lambda and CloudFormation ARNs so those action simulations are meaningful.
         $LambdaArn = "arn:aws:lambda:${AwsRegion}:${AwsAccount}:function:*"
         $CfnArn    = "arn:aws:cloudformation:${AwsRegion}:${AwsAccount}:stack/BackendLambdaStack/*"
-        $iamArgs = @(
-            'iam', 'simulate-principal-policy',
-            '--policy-source-arn', $env:GITHUB_DEPLOY_ROLE_ARN,
-            '--action-names', 's3:GetObject', 's3:ListBucket', 'lambda:InvokeFunction',
-                'cloudformation:CreateChangeSet', 'cloudformation:DescribeChangeSet',
-                'cloudformation:DeleteChangeSet',
-            '--resource-arns', $BucketArn, "$BucketArn/*", $LambdaArn, $CfnArn,
-            '--query', "EvaluationResults[?EvalDecision!='allowed'].EvalActionName",
-            '--output', 'text'
-        )
-        # Use & so the argument array is expanded correctly for the external aws executable.
-        $Denied = & aws @iamArgs 2>&1
-        if (-not $Denied -or $Denied -eq 'None') {
-            Write-Pass "IAM permission simulation"
-        } else {
-            Write-Host "  Denied actions: $Denied"
+        $Actions = @('s3:GetObject','s3:ListBucket','lambda:InvokeFunction',
+                     'cloudformation:CreateChangeSet','cloudformation:DescribeChangeSet',
+                     'cloudformation:DeleteChangeSet')
+        $SimFailed      = $false
+        $SimUnavailable = $false
+        foreach ($Action in $Actions) {
+            $iamArgs = @(
+                'iam', 'simulate-principal-policy',
+                '--policy-source-arn', $env:GITHUB_DEPLOY_ROLE_ARN,
+                '--action-names', $Action,
+                '--resource-arns', $BucketArn, "$BucketArn/*", $LambdaArn, $CfnArn,
+                '--query', 'EvaluationResults[0].EvalDecision',
+                '--output', 'text'
+            )
+            # Use & so the argument array is expanded correctly for the external aws executable.
+            $RawResult = & aws @iamArgs 2>&1
+            $Result    = ($RawResult | Select-Object -Last 1) -replace '\s',''
+            # Distinguish three cases:
+            # 1. The deploy role lacks iam:SimulatePrincipalPolicy itself → warn and skip so a
+            #    bootstrap deploy that grants the permission can still proceed (see issue #3209).
+            # 2. Any other unexpected AWS error → hard-fail; masking it is dangerous.
+            # 3. Successful call returning a non-"allowed" decision → hard-fail.
+            if ($RawResult -match 'SimulatePrincipalPolicy') {
+                Write-Warning "simulate-principal-policy unavailable for $Action — deploy role lacks iam:SimulatePrincipalPolicy."
+                Write-Host "  AWS response: $RawResult" -ForegroundColor Yellow
+                $SimUnavailable = $true
+            } elseif ($Result -eq 'error' -or $RawResult -match 'Exception|[Ee]rror|AccessDenied') {
+                Write-Error "simulate-principal-policy failed for $Action with an unexpected error."
+                Write-Host "  AWS response: $RawResult" -ForegroundColor Red
+                $SimFailed = $true
+            } elseif ($Result -ne 'allowed') {
+                Write-Error "$Action not allowed (got: $Result)"
+                $SimFailed = $true
+            }
+        }
+        if ($SimFailed) {
             Write-Fail "IAM permission simulation"
+        } elseif ($SimUnavailable) {
+            Write-Host "  WARNING: IAM simulation skipped — deploy role lacks iam:SimulatePrincipalPolicy. Run scripts/bash/bootstrap-deploy-role.sh to enable full pre-flight checks." -ForegroundColor Yellow
+            Write-Skip "IAM permission simulation (iam:SimulatePrincipalPolicy unavailable)"
+        } else {
+            Write-Pass "IAM permission simulation"
         }
     }
 }

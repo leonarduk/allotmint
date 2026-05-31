@@ -107,11 +107,12 @@ else
                 echo "  AWS response: $raw_result" >&2
                 sim_failed=1
             else
-                # Parse the decision only on a clean success path — prevents a trailing AWS CLI
-                # deprecation-warning line from corrupting the EvalDecision token via tail -1.
-                result="$(echo "$raw_result" | tail -1)"
+                # Extract the decision by matching only the known EvalDecision token values.
+                # This is more robust than tail -1, which can pick up a trailing AWS CLI
+                # deprecation-warning line emitted to stdout after the decision token.
+                result="$(echo "$raw_result" | grep -m1 -E '^(allowed|explicitDeny|implicitDeny|notApplicable)$')"
                 if [ "$result" != "allowed" ]; then
-                    echo "  ERROR: $ACTION not allowed on $RESOURCE (got: $result)" >&2
+                    echo "  ERROR: $ACTION not allowed on $RESOURCE (got: ${result:-<no decision token found>})" >&2
                     sim_failed=1
                 fi
             fi

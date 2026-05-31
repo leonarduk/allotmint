@@ -461,42 +461,23 @@ def _cfn_changeset_resources(raw_template: dict, role_name: str) -> list[object]
     return found
 
 
-def test_github_deploy_role_gets_changeset_permissions_on_both_stacks(monkeypatch) -> None:
-    """When GITHUB_DEPLOY_ROLE_ARN is set, CDK must grant CreateChangeSet,
-    DescribeChangeSet, and DeleteChangeSet on BackendLambdaStack and StaticSiteStack
-    so `cdk diff --all` can compute an accurate diff. See #3013."""
+def test_no_cfn_changeset_grant_in_backend_lambda_stack(monkeypatch) -> None:
+    """BackendLambdaStack must NOT contain a cloudformation:CreateChangeSet grant.
+    The grant was moved to StaticSiteStack (deployed first in the workflow) so it is
+    stable across BackendLambdaStack structural changes. See #3192."""
     role_arn = "arn:aws:iam::123456789012:role/allotmint-github-deploy"
     monkeypatch.setenv("GITHUB_DEPLOY_ROLE_ARN", role_arn)
     monkeypatch.setenv("JWT_SECRET", "test-secret")
     monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-client-id")
     app = App()
     stack = BackendLambdaStack(app, "BackendLambdaStackCfnGrantTest")
-    template = Template.from_stack(stack)
-    raw = template.to_json()
-
-    cfn_actions = _cfn_actions_for_role_name(raw, "allotmint-github-deploy")
-    for required_action in (
-        "cloudformation:CreateChangeSet",
-        "cloudformation:DescribeChangeSet",
-        "cloudformation:DeleteChangeSet",
-    ):
-        assert required_action in cfn_actions, (
-            f"Deploy role missing {required_action}; got: {cfn_actions}"
-        )
-
-    # Verify resource ARNs include the wildcard suffix (/*) and cover both stack names.
-    # Resources are CloudFormation intrinsics (Fn::Join) since the region/account are
-    # tokens at synth time; stringify for pattern matching.
-    resources = _cfn_changeset_resources(raw, "allotmint-github-deploy")
-    assert resources, "cloudformation:CreateChangeSet statement has no resource ARNs"
-    resources_str = str(resources)
-    assert "/*" in resources_str, (
-        f"Change set resource ARNs should end with /* (wildcard stack ID); got: {resources_str}"
+    cfn_actions = _cfn_actions_for_role_name(
+        Template.from_stack(stack).to_json(), "allotmint-github-deploy"
     )
-    for stack_name in ("BackendLambdaStackCfnGrantTest", "StaticSiteStack"):
-        assert stack_name in resources_str, (
-            f"cloudformation:CreateChangeSet not scoped to {stack_name}; got: {resources_str}"
-        )
+    assert "cloudformation:CreateChangeSet" not in cfn_actions, (
+        "cloudformation:CreateChangeSet must not be in BackendLambdaStack; "
+        "it lives in StaticSiteStack (see #3192)"
+    )
 
 
 def test_no_cfn_changeset_grant_when_github_deploy_role_arn_absent(monkeypatch) -> None:

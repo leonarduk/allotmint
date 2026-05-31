@@ -331,11 +331,6 @@ jobs:
             exit 1
           fi
           echo "BACKEND_URL=$BACKEND_URL" >> "$GITHUB_ENV"
-          # SMOKE_TEST_URL is consumed by the Run Lighthouse CI step further below.
-          # BACKEND_URL is read from BackendLambdaStack/BackendApiUrl (describe-stacks
-          # query above) and validated non-empty, so SMOKE_TEST_URL is always the live
-          # backend API URL as required by issue #3193.
-          echo "SMOKE_TEST_URL=$BACKEND_URL" >> "$GITHUB_ENV"
           echo "backend_url=$BACKEND_URL" >> "$GITHUB_OUTPUT"
 
       - name: Refresh StaticSiteStack runtime config
@@ -348,6 +343,28 @@ jobs:
           npx cdk deploy StaticSiteStack --require-approval never -c prod=true
           --parameters StaticSiteStack:BackendApiUrl="$BACKEND_URL"
         working-directory: cdk
+
+      - name: Set SMOKE_TEST_URL for Lighthouse CI
+        # SMOKE_TEST_URL is consumed by the Run Lighthouse CI step below.
+        # Lighthouse CI audits HTML page performance — it requires the CloudFront
+        # frontend URL, not the backend API Gateway URL.  npm run smoke:test uses
+        # SMOKE_URL (the backend URL); SMOKE_TEST_URL is a separate variable only
+        # used here.  Issue #3193 mentioned BackendApiUrl but that was a mistake in
+        # the issue description: pointing Lighthouse at the API Gateway returns
+        # Cognito 401s, not auditable HTML pages.
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          FRONTEND_DOMAIN="$(aws cloudformation describe-stacks \
+            --stack-name StaticSiteStack \
+            --query "Stacks[0].Outputs[?OutputKey=='DistributionDomain'].OutputValue" \
+            --output text)"
+          if [ -z "$FRONTEND_DOMAIN" ] || [ "$FRONTEND_DOMAIN" = "None" ]; then
+            echo "DistributionDomain output is missing from StaticSiteStack" >&2
+            exit 1
+          fi
+          echo "SMOKE_TEST_URL=https://${FRONTEND_DOMAIN}" >> "$GITHUB_ENV"
 
       - name: Verify price snapshot seeded in S3
         # Belt-and-suspenders check after the CDK Trigger (REQUEST_RESPONSE) has

@@ -86,8 +86,10 @@ were not captured. In that case, review the PR based solely on the linked issue
 acceptance criteria and PR title, and note that no diff was available.
 
 Review this PR across these dimensions. Be direct and specific — cite line numbers
-or function names where relevant. If something looks fine, say so briefly.
-Spend your words on real concerns.
+or function names where relevant. Spend your words on real concerns.
+
+**Omit any section entirely if you have nothing to say about it.**
+Do not write "No issues found" or placeholder text for empty sections — just skip them.
 
 ### 1. Acceptance criteria
 Does the diff satisfy every AC in the linked issue? Call out any gaps explicitly.
@@ -95,24 +97,33 @@ If no diff is available, assess whether the PR title and issue description sugge
 the work is complete and correctly scoped.
 
 ### 2. Bugs and logic errors
-Any incorrect behaviour, edge cases that aren't handled, or off-by-one errors?
-For documentation PRs: are there factual errors, contradictions, or dangerously
-misleading statements?
+Blocking only: incorrect behaviour, unhandled edge cases, off-by-one errors, or
+security/data-loss risks. For documentation PRs: factual errors or dangerously
+misleading statements.
 
 ### 3. API, data, and workflow safety
-- Do backend/frontend payload shapes still line up?
+Blocking only:
+- Backend/frontend payload shapes misaligned?
 - Could this break local smoke tests, deployment workflows, or repo scripts?
-- Are secrets, permissions, or CI assumptions handled safely?
+- Secrets, permissions, or CI assumptions mishandled?
 
 ### 4. Test coverage
-Are the acceptance criteria actually exercised by tests or validation steps? Any obvious missing cases?
-Not applicable for documentation-only PRs, but note if validation is missing.
+Are the acceptance criteria exercised by tests or validation steps? Note obvious
+missing cases only if they represent a real regression risk.
 
-### 5. Minor issues (optional)
-Style, naming, docs — only flag if they would cause future confusion.
+### 5. Suggested follow-up issues (optional)
+For non-blocking improvements (style consistency, missing lockfile, refactor
+opportunities, test coverage gaps, etc.) that are real but should not block
+this PR: list each as a one-line suggested GitHub issue title. Do not request
+changes for these — they belong in the backlog, not this review.
 
-End with a one-line summary verdict: **APPROVE**, **REQUEST CHANGES**,
-or **COMMENT** (no blocking concerns but worth noting)."""
+End with a **verdict line** in exactly this format:
+
+- `**APPROVE**` — no blocking concerns (non-blocking items go in section 5 above)
+- `**REQUEST CHANGES**` — one or more blocking bugs, security issues, or unmet AC items (list them)
+
+Do not use COMMENT as a verdict. If there are only non-blocking observations,
+use APPROVE and put them in section 5."""
 
 
 def emit_empty_diff_notice(provider_name: str) -> int:

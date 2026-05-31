@@ -214,7 +214,9 @@ def test_telegram_credentials_absent_when_env_unset(monkeypatch):
 
 # Regression guard: the compromised token from commit 30b8f36 must never appear as a
 # default value loaded from config.yaml, regardless of env-var state.
-_COMPROMISED_TOKEN = "8491288399:AAGRRuCJtctSQ2igqnW56BxQ3L_c0Jsi_nA"
+# This token was publicly exposed on 2025-07-23 and must be treated as revoked.
+# It is stored here solely as a regression sentinel — not as a usable credential.
+_COMPROMISED_TOKEN = "8491288399:AAGRRuCJtctSQ2igqnW56BxQ3L_c0Jsi_nA"  # noqa: S105
 
 
 def test_compromised_token_not_loaded_as_default(monkeypatch):

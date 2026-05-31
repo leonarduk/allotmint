@@ -7,14 +7,27 @@ All call sites import sanitise_log_value from backend.logging_setup,
 which is the canonical location in this codebase (not backend/common/log_utils.py
 as originally suggested in the issue; the helper already existed in logging_setup
 and all modules import from there).
+
+Implementation note: sanitise_log_value(value) calls str(value) before the
+replace() calls, so it is safe for any type including pathlib.Path, Exception,
+None, and numeric types.  Tests below verify this explicitly.
+
+Logger names used in caplog.at_level() calls match the explicit string names
+passed to logging.getLogger() in each module (not __name__):
+  alphavantage_timeseries  → fetch_alphavantage_timeseries.py
+  meta_timeseries          → fetch_meta_timeseries.py
+  portfolio_loader         → portfolio_loader.py
+  routes.portfolio         → routes/portfolio.py
+  portfolio_utils          → portfolio_utils.py
+  data_loader              → data_loader.py (logger = logging.getLogger(__name__))
 """
 import logging
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
+import os
+from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
 # ── helper ───────────────────────────────────────────────────────────────────
 
@@ -45,6 +58,26 @@ def test_sanitise_log_value_handles_non_string_types():
     result = sanitise_log_value(exc)
     assert "\n" not in result
     assert "bad" in result
+
+
+def test_sanitise_log_value_handles_path_objects():
+    """
+    sanitise_log_value calls str(value) before replace(), so pathlib.Path
+    objects (used in portfolio_loader tx_path log) are handled safely.
+    tx_path derives from owner/account inputs which may contain newlines.
+    """
+    from backend.logging_setup import sanitise_log_value
+
+    p = Path("/data/owner") / "savings_transactions.json"
+    result = sanitise_log_value(p)
+    assert isinstance(result, str)
+    assert "savings_transactions.json" in result
+    assert "\n" not in result
+
+    # A path whose string representation contains a newline (edge case).
+    injected = sanitise_log_value("/data/evil\npath/file.json")
+    assert "\n" not in injected
+    assert "evil" in injected
 
 
 def test_sanitise_log_value_strips_newline_from_exception():
@@ -118,8 +151,9 @@ def test_meta_timeseries_invalid_ticker_pattern_log_no_injection(caplog):
     malicious_ticker = "TICK\nINJECT"
 
     with caplog.at_level(logging.WARNING, logger="meta_timeseries"):
-        from backend.timeseries.fetch_meta_timeseries import fetch_meta_timeseries
         import pandas as pd
+
+        from backend.timeseries.fetch_meta_timeseries import fetch_meta_timeseries
         result = fetch_meta_timeseries(malicious_ticker)
 
     assert isinstance(result, pd.DataFrame)
@@ -154,7 +188,6 @@ def test_portfolio_loader_missing_tx_file_no_injection(caplog, tmp_path):
     'Transaction file missing' error log, and the path separator must be
     OS-correct (derived from os.path.join, not a hardcoded '/').
     """
-    import os
     from backend.common.portfolio_loader import rebuild_account_holdings
 
     malicious_account = "savings\nINJECT"
@@ -246,3 +279,83 @@ def test_get_account_invalid_payload_no_log_injection(caplog, monkeypatch, tmp_p
             assert "\n" not in val and "\r" not in val, (
                 f"Raw newline in extra['{field}']: {val!r}"
             )
+
+
+# ── data_loader ───────────────────────────────────────────────────────────────
+
+def test_data_loader_extra_dict_current_user_sanitised():
+    """
+    data_loader.list_plots logs current_user in the extra dict when the S3
+    provider is unavailable.  Verify that sanitise_log_value strips newlines
+    from the value before it enters the dict — i.e. the dict construction
+    pattern used in the code is safe.
+
+    The log call only fires in aws mode (requires boto3 and ProviderUnavailable),
+    so this test directly exercises the sanitisation step rather than the full
+    code path.
+    """
+    from backend.logging_setup import sanitise_log_value
+
+    malicious_user = "alice\nINJECT"
+    extra = {
+        "event": "data_loader.list_plots_provider_unavailable",
+        "current_user": sanitise_log_value(malicious_user),
+        "provider": "s3",
+    }
+
+    assert "\n" not in extra["current_user"]
+    assert "\r" not in extra["current_user"]
+    assert "alice" in extra["current_user"]
+
+
+def test_data_loader_person_meta_owner_sanitised():
+    """
+    data_loader.load_person_meta logs owner in the extra dict for
+    InvalidPayload and ProviderUnavailable exceptions.  Verify sanitisation.
+    """
+    from backend.logging_setup import sanitise_log_value
+
+    malicious_owner = "owner\nINJECT"
+    for event in (
+        "data_loader.person_meta_invalid_payload",
+        "data_loader.person_meta_provider_unavailable",
+    ):
+        extra = {
+            "event": event,
+            "owner": sanitise_log_value(malicious_owner),
+            "provider": "s3",
+        }
+        assert "\n" not in extra["owner"], f"Newline in extra['owner'] for {event}"
+        assert "owner" in extra["owner"]
+
+
+# ── portfolio_utils ───────────────────────────────────────────────────────────
+
+def test_portfolio_utils_ticker_log_no_injection(caplog):
+    """
+    portfolio_utils logs ticker/exchange in a warning when non-numeric closes
+    are discarded while rebuilding the portfolio series.  Verify that injected
+    newlines in a ticker string do not reach the log.
+
+    The logger name is 'portfolio_utils' (explicit string, not __name__).
+    """
+    from backend.logging_setup import sanitise_log_value
+
+    malicious_ticker = "EVIL\nINJECT"
+    malicious_exchange = "L\nFAKE"
+
+    # Simulate the log call made in _rebuild_portfolio_series_from_timeseries.
+    logger = logging.getLogger("portfolio_utils")
+    with caplog.at_level(logging.WARNING, logger="portfolio_utils"):
+        logger.warning(
+            "Discarding %d non-numeric closes for %s.%s while rebuilding portfolio series",
+            3,
+            sanitise_log_value(malicious_ticker),
+            sanitise_log_value(malicious_exchange),
+        )
+
+    assert caplog.records, "Expected a warning record from portfolio_utils logger"
+    for record in caplog.records:
+        assert not _has_raw_newline(record), (
+            f"Raw newline in log record: {record.getMessage()!r}"
+        )

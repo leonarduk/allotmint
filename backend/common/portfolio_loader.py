@@ -10,6 +10,7 @@ Build rich "portfolio" dictionaries that the rest of the backend expects.
 
 import json
 import logging
+import os
 from collections import defaultdict
 from datetime import date
 from pathlib import Path
@@ -135,11 +136,10 @@ def rebuild_account_holdings(
             break
 
     if not tx_path:
-        # Use os.path.join for OS-aware path separator in the log message.
-        import os as _os
         log.error(
             "Transaction file missing: %s",
-            sanitise_log_value(_os.path.join(str(owner_dir), f"{account}_transactions.json")),
+            # Use os.path.join for OS-aware path separator in the log message.
+            sanitise_log_value(os.path.join(str(owner_dir), f"{account}_transactions.json")),
         )
         return {}
 

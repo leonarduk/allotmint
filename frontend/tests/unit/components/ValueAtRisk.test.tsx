@@ -1,4 +1,4 @@
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import ValueAtRisk from "@/components/ValueAtRisk";
 
@@ -78,6 +78,11 @@ describe("ValueAtRisk component", () => {
     expect(screen.getByRole("dialog")).toHaveTextContent("-75.00");
     expect(screen.getByRole("dialog")).toHaveTextContent("+20.00");
     expect(screen.getByRole("dialog")).toHaveTextContent("2024-01-02");
+    // Flush pending React effects (VarBreakdownModal's useEffect([], ...) registers
+    // the Escape keydown listener on mount; waitFor resolves once the DOM is updated
+    // but before effects are guaranteed to have flushed in CI, so we drain the
+    // microtask/effect queue explicitly before firing the key event.
+    await act(async () => {});
     fireEvent.keyDown(document.body, { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 

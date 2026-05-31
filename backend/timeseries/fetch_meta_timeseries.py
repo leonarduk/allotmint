@@ -347,7 +347,7 @@ def _resolve_cache_exchange(
                 "Cache exchange mismatch for %s: loader %s vs metadata %s",
                 sanitise_log_value(symbol),
                 sanitise_log_value(loader_exchange),
-                sanitise_log_value(metadata_exchange) or "<empty>",
+                sanitise_log_value(metadata_exchange or "<empty>"),
             )
 
         if (

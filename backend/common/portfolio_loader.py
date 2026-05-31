@@ -135,10 +135,11 @@ def rebuild_account_holdings(
             break
 
     if not tx_path:
+        # Use os.path.join for OS-aware path separator in the log message.
+        import os as _os
         log.error(
-            "Transaction file missing: %s/%s_transactions.json",
-            sanitise_log_value(owner_dir),
-            sanitise_log_value(account),
+            "Transaction file missing: %s",
+            sanitise_log_value(_os.path.join(str(owner_dir), f"{account}_transactions.json")),
         )
         return {}
 

@@ -215,6 +215,11 @@ def _metadata_entry_exists_in_directory(symbol: str, directory: Path) -> bool:
     try:
         if not directory.is_dir():
             return False
+    except OSError as exc:
+        logger.debug("is_dir check failed for %s: %s", directory, exc)
+        return False
+
+    try:
         return safe_join(directory, f"{symbol}.json").is_file()
     except (OSError, ValueError):
         return False

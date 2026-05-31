@@ -59,16 +59,11 @@ def _coerce_owner_summary_entry(entry: OwnerSummaryRecord | Dict[str, Any] | Non
     payload = dict(entry or {})
     raw_full_name = payload.get("full_name")
     raw_email = payload.get("email")
-    
     accounts = payload.get("accounts", [])
 
     return OwnerSummaryRecord.model_construct(
         owner=str(payload.get("owner", "")),
-        accounts=(
-            list(payload.get("accounts", []))
-            if isinstance(payload.get("accounts", []), list)
-            else []
-        ),
+        accounts=list(accounts) if isinstance(accounts, list) else [],
         full_name=(
             raw_full_name.strip()
             if isinstance(raw_full_name, str) and raw_full_name.strip()
@@ -79,7 +74,6 @@ def _coerce_owner_summary_entry(entry: OwnerSummaryRecord | Dict[str, Any] | Non
             if isinstance(raw_email, str) and raw_email.strip()
             else None
         ),
-
         has_transactions_artifact=bool(payload.get("has_transactions_artifact", False)),
     )
 

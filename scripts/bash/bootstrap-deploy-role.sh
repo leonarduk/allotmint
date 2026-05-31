@@ -77,6 +77,12 @@ policy_document="$(cat <<EOF
           "s3:prefix": ["prices", "prices/*"]
         }
       }
+    },
+    {
+      "Sid": "SimulatePrincipalPolicyForPreflightCheck",
+      "Effect": "Allow",
+      "Action": "iam:SimulatePrincipalPolicy",
+      "Resource": "*"
     }
   ]
 }

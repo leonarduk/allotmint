@@ -161,6 +161,7 @@ jobs:
           )
 
           failed=0
+          simulate_unavailable=0
           for action in "${!action_resource[@]}"; do
             resource="${action_resource[$action]}"
             raw_result="$(aws iam simulate-principal-policy \
@@ -171,13 +172,20 @@ jobs:
               || raw_result="error"
             result="$(echo "$raw_result" | tail -1)"
             if [ "$result" = "error" ] || echo "$result" | grep -qi "AccessDenied\|error"; then
-              echo "::error::simulate-principal-policy failed for $action — verify the deploy role has iam:SimulatePrincipalPolicy, then re-run." >&2
-              failed=1
+              # simulate-principal-policy itself failed — the deploy role likely lacks
+              # iam:SimulatePrincipalPolicy. Warn rather than error so the bootstrap
+              # deploy that grants this permission can still proceed. See issue #3208.
+              echo "::warning::simulate-principal-policy unavailable for $action (role may lack iam:SimulatePrincipalPolicy). Run bootstrap-deploy-role.sh to fix." >&2
+              echo "  Raw AWS response: $raw_result" >&2
+              simulate_unavailable=1
             elif [ "$result" != "allowed" ]; then
               echo "::error::Deploy role is missing $action on $resource (got: $result). Fix the CDK grant or base role policy before deploying." >&2
               failed=1
             fi
           done
+          if [ "$simulate_unavailable" -eq 1 ] && [ "$failed" -eq 0 ]; then
+            echo "::warning::Pre-flight check skipped — deploy role lacks iam:SimulatePrincipalPolicy. Run bootstrap-deploy-role.sh to enable full pre-flight checks. See issue #3208." >&2
+          fi
           [ "$failed" -eq 0 ] || exit 1
 
       - name: Sync data from S3

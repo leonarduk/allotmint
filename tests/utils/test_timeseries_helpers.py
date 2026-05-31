@@ -169,6 +169,116 @@ class TestResolveDateRange:
         assert isinstance(end, dt.date)
 
 
+class TestApplyDateRange:
+    BASE = dt.date(2024, 1, 1)
+    MID = dt.date(2024, 6, 15)
+    END = dt.date(2024, 12, 31)
+
+    def _df(self, dates: list[dt.date], *, as_datetime: bool = False) -> pd.DataFrame:
+        if as_datetime:
+            col = pd.to_datetime([dt.datetime(d.year, d.month, d.day) for d in dates])
+        else:
+            col = dates
+        return pd.DataFrame({"Date": col, "Close": range(len(dates))})
+
+    def test_start_date_only(self):
+        dates = [self.BASE, self.MID, self.END]
+        df = self._df(dates, as_datetime=True)
+        result = th.apply_date_range(df, start_date=self.MID)
+        assert list(result["Date"].dt.date) == [self.MID, self.END]
+
+    def test_end_date_only(self):
+        dates = [self.BASE, self.MID, self.END]
+        df = self._df(dates, as_datetime=True)
+        result = th.apply_date_range(df, end_date=self.MID)
+        assert list(result["Date"].dt.date) == [self.BASE, self.MID]
+
+    def test_both_bounds(self):
+        dates = [self.BASE, self.MID, self.END]
+        df = self._df(dates, as_datetime=True)
+        result = th.apply_date_range(df, start_date=self.BASE, end_date=self.MID)
+        assert list(result["Date"].dt.date) == [self.BASE, self.MID]
+
+    def test_neither_bound_noop(self):
+        dates = [self.BASE, self.MID, self.END]
+        df = self._df(dates, as_datetime=True)
+        result = th.apply_date_range(df)
+        assert len(result) == 3
+
+    def test_boundary_dates_inclusive(self):
+        dates = [self.BASE, self.MID, self.END]
+        df = self._df(dates, as_datetime=True)
+        result = th.apply_date_range(df, start_date=self.BASE, end_date=self.END)
+        assert len(result) == 3
+
+    def test_plain_date_column(self):
+        # Date column stored as object dtype (plain date objects, no .dt accessor)
+        dates = [self.BASE, self.MID, self.END]
+        df = self._df(dates, as_datetime=False)
+        result = th.apply_date_range(df, start_date=self.BASE, end_date=self.MID)
+        assert list(result["Date"]) == [self.BASE, self.MID]
+
+    def test_empty_dataframe_returns_empty(self):
+        df = pd.DataFrame({"Date": pd.Series([], dtype="datetime64[ns]"), "Close": []})
+        result = th.apply_date_range(df, start_date=self.BASE, end_date=self.END)
+        assert result.empty
+
+    def test_missing_date_column_returns_df_unchanged(self):
+        df = pd.DataFrame({"Close": [1, 2, 3]})
+        result = th.apply_date_range(df, start_date=self.BASE, end_date=self.END)
+        assert list(result["Close"]) == [1, 2, 3]
+
+    def test_missing_date_column_not_mutated(self):
+        df = pd.DataFrame({"Close": [1, 2, 3]})
+        result = th.apply_date_range(df, start_date=self.BASE)
+        result["Close"] = 99  # mutate the returned frame
+        assert list(df["Close"]) == [1, 2, 3]  # original must be untouched
+
+    def test_nat_rows_are_dropped(self):
+        # datetime64 column: NaT is silently excluded regardless of bounds
+        col = pd.to_datetime([self.BASE, None, self.END])
+        df = pd.DataFrame({"Date": col, "Close": [1, 2, 3]})
+        result = th.apply_date_range(df, start_date=self.BASE, end_date=self.END)
+        assert len(result) == 2
+        assert list(result["Close"]) == [1, 3]
+
+    def test_none_rows_dropped_plain_date_column(self):
+        # Object-dtype column: None must not reach the >= comparison (TypeError in Python >= 3.10)
+        col = [self.BASE, None, self.END]
+        df = pd.DataFrame({"Date": col, "Close": [1, 2, 3]})
+        result = th.apply_date_range(df, start_date=self.BASE, end_date=self.END)
+        assert len(result) == 2
+        assert list(result["Close"]) == [1, 3]
+
+    def test_index_is_reset(self):
+        dates = [self.BASE, self.MID, self.END]
+        df = self._df(dates, as_datetime=True)
+        result = th.apply_date_range(df, start_date=self.MID, end_date=self.END)
+        assert list(result.index) == [0, 1]
+
+    def test_datetime64_dtype_preserved_in_output(self):
+        # _ensure_schema handles either dtype, but confirm apply_date_range does not
+        # silently convert the returned Date column away from datetime64.
+        dates = [self.BASE, self.MID, self.END]
+        df = self._df(dates, as_datetime=True)
+        result = th.apply_date_range(df, start_date=self.BASE, end_date=self.MID)
+        assert pd.api.types.is_datetime64_any_dtype(result["Date"])
+
+    def test_plain_date_dtype_preserved_in_output(self):
+        dates = [self.BASE, self.MID, self.END]
+        df = self._df(dates, as_datetime=False)
+        result = th.apply_date_range(df, start_date=self.BASE, end_date=self.MID)
+        assert result["Date"].dtype == object
+
+    def test_original_frame_not_mutated(self):
+        dates = [self.BASE, self.MID, self.END]
+        df = self._df(dates, as_datetime=True)
+        original_index = list(df.index)
+        th.apply_date_range(df, start_date=self.MID, end_date=self.END)
+        assert list(df.index) == original_index
+        assert len(df) == 3
+
+
 def _make_frozen_date(frozen_today: dt.date):
     """Return a drop-in replacement for ``datetime.date`` that freezes ``today()``."""
 

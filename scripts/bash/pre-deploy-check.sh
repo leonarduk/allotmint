@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Run key pre-deploy validation checks locally before pushing a release tag.
 # Checks that require AWS credentials are skipped gracefully when AWS_ACCESS_KEY_ID is unset.
+#
 # Note: AWS_ACCESS_KEY_ID is used as a proxy for "has AWS credentials". Engineers using
 # aws sso login or ~/.aws/credentials profiles without this var set will see AWS checks
 # skipped; export AWS_ACCESS_KEY_ID manually or comment out the guard to override.

@@ -40,7 +40,7 @@ if (-not $env:AWS_ACCESS_KEY_ID) {
 } else {
     try {
         Push-Location cdk -ErrorAction Stop
-        # Use & to invoke npx as an external executable so argument arrays expand correctly.
+        # Use & to invoke npx as an external executable so arguments are passed correctly.
         & npx cdk diff BackendLambdaStack StaticSiteStack -c prod=true --method=changeset
         if ($LASTEXITCODE -eq 0) { Write-Pass "CDK diff" } else { Write-Fail "CDK diff" }
     } finally {
@@ -63,8 +63,8 @@ if (-not $env:AWS_ACCESS_KEY_ID) {
         Write-Skip "IAM simulation (BackendLambdaStack not deployed or PortfolioDataBucket not found)"
     } else {
         $AwsRegion = if ($env:AWS_REGION) { $env:AWS_REGION } else {
-            (& aws configure get region 2>$null) -replace '\s', ''
-            if (-not $AwsRegion) { $AwsRegion = 'us-east-1' }
+            $r = (& aws configure get region 2>$null) -replace '\s', ''
+            if ($r) { $r } else { 'us-east-1' }
         }
         $AwsAccount = & aws sts get-caller-identity --query Account --output text 2>$null
         $BucketArn = "arn:aws:s3:::$BucketId"
@@ -81,7 +81,7 @@ if (-not $env:AWS_ACCESS_KEY_ID) {
             '--query', "EvaluationResults[?EvalDecision!='allowed'].EvalActionName",
             '--output', 'text'
         )
-        # Use & to invoke aws as an external executable so the argument array expands correctly.
+        # Use & so the argument array is expanded correctly for the external aws executable.
         $Denied = & aws @iamArgs 2>&1
         if (-not $Denied -or $Denied -eq 'None') {
             Write-Pass "IAM permission simulation"

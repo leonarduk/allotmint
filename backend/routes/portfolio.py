@@ -15,7 +15,7 @@ import datetime as dt
 import inspect
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Annotated, Any, Dict, List, Optional, Sequence, Tuple
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.security import OAuth2PasswordBearer
@@ -37,6 +37,7 @@ from backend.config import config, demo_identity
 from backend.logging_setup import sanitise_log_value
 from backend.routes._accounts import resolve_accounts_root, resolve_owner_directory
 from backend.utils.pricing_dates import PricingDateCalculator
+from backend.utils.timeseries_helpers import resolve_date_range
 
 log = logging.getLogger("routes.portfolio")
 router = APIRouter(tags=["portfolio"])
@@ -56,14 +57,23 @@ def _coerce_owner_summary_entry(entry: OwnerSummaryRecord | Dict[str, Any] | Non
     if isinstance(entry, OwnerSummaryRecord):
         return entry
     payload = dict(entry or {})
+    raw_full_name = payload.get("full_name")
+    raw_email = payload.get("email")
     accounts = payload.get("accounts", [])
-    full_name = payload.get("full_name")
-    email = payload.get("email")
+
     return OwnerSummaryRecord.model_construct(
         owner=str(payload.get("owner", "")),
         accounts=list(accounts) if isinstance(accounts, list) else [],
-        full_name=full_name.strip() if isinstance(full_name, str) and full_name.strip() else None,
-        email=email.strip() if isinstance(email, str) and email.strip() else None,
+        full_name=(
+            raw_full_name.strip()
+            if isinstance(raw_full_name, str) and raw_full_name.strip()
+            else None
+        ),
+        email=(
+            raw_email.strip()
+            if isinstance(raw_email, str) and raw_email.strip()
+            else None
+        ),
         has_transactions_artifact=bool(payload.get("has_transactions_artifact", False)),
     )
 
@@ -918,9 +928,41 @@ async def get_account(owner: str, account: str, request: Request):
 
 
 @router.get("/portfolio-group/{slug}/instrument/{ticker}")
-async def instrument_detail(slug: str, ticker: str):
+async def instrument_detail(
+    slug: str,
+    ticker: str,
+    start_date: Annotated[Optional[dt.date], Query(description="Inclusive start date (YYYY-MM-DD)")] = None,
+    end_date: Annotated[Optional[dt.date], Query(description="Inclusive end date (YYYY-MM-DD)")] = None,
+):
+    """Return prices and positions for one instrument within a portfolio group.
+
+    Date-range semantics
+    --------------------
+    When neither *start_date* nor *end_date* is supplied the window defaults
+    to the 365 calendar days ending **yesterday** (``resolve_date_range``
+    defaults to yesterday, not today — this differs intentionally from the
+    ``/instrument`` endpoint which anchors to today).
+
+    *start_date* and *end_date* are always resolved to concrete dates before
+    being forwarded to ``timeseries_for_ticker`` so the guard
+    ``start > end`` and the actual data fetch use the same window.
+
+    Positions scope
+    ---------------
+    ``positions_for_ticker`` returns current holdings (a portfolio snapshot).
+    Positions are not date-bounded by *start_date*/*end_date* — those params
+    control only the price-series window.  A position exists or it doesn't;
+    there is no historical positions API here.
+    """
+    resolved_start, resolved_end = resolve_date_range(
+        365, start_date=start_date, end_date=end_date
+    )
+    if resolved_start > resolved_end:
+        raise HTTPException(status_code=400, detail="start_date must not be after end_date")
     try:
-        series = instrument_api.timeseries_for_ticker(ticker)
+        series = instrument_api.timeseries_for_ticker(
+            ticker, start_date=resolved_start, end_date=resolved_end
+        )
         prices_list = series.get("prices", [])
         positions_list = instrument_api.positions_for_ticker(slug, ticker)
     except Exception:

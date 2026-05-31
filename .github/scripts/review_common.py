@@ -78,7 +78,7 @@ and avoid regressions in CI/deployment workflows.
 ## PR title
 {pr_title}
 
-## Diff (Python, TypeScript, JavaScript, JSON, Markdown, config files — truncated at 30k chars)
+## Diff (Python, TypeScript, JavaScript, JSON, Markdown, config files, shell scripts (.sh), PowerShell scripts (.ps1) — truncated at 30k chars)
 {diff}
 
 If the diff is empty, this is likely a docs-only or config-only PR whose file types

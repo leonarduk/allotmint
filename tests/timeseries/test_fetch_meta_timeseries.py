@@ -14,6 +14,8 @@ from backend.timeseries.fetch_meta_timeseries import (
     _metadata_entry_exists_in_directory,
     _resolve_cache_exchange,
     _resolve_loader_exchange,
+    _resolve_ticker_exchange,
+    _metadata_entry_exists,
     _sanitize_metadata_symbol,
     fetch_meta_timeseries,
 )
@@ -529,6 +531,35 @@ def test_fetch_meta_timeseries_alpha_vantage_rate_limit(monkeypatch):
     ft_mock.assert_called_once()
 
 
+@pytest.mark.parametrize(
+    "symbol, expected",
+    [
+        ("AAPL", "AAPL"),
+        ("aapl", "AAPL"),
+        ("  aapl  ", "AAPL"),
+        ("BRK.B", "BRK.B"),
+        ("BTC-USD", "BTC-USD"),
+        ("VOD_L", "VOD_L"),
+        ("", ""),
+        ("../../../etc/passwd", ""),
+        ("AAPL\x00.json", ""),
+        ("ABC/DEF", ""),
+        ("ABC DEF", ""),
+    ],
+)
+def test_sanitize_metadata_symbol(symbol, expected):
+    assert _sanitize_metadata_symbol(symbol) == expected
+
+
+def test_metadata_entry_exists_rejects_path_traversal_in_exchange(tmp_path):
+    instruments_root = tmp_path / "instruments"
+    (instruments_root / "L").mkdir(parents=True)
+    (instruments_root / "L" / "ABC.json").write_text("{}")
+
+    directories = (str(instruments_root),)
+
+    assert _metadata_entry_exists("ABC", "../instruments/L", directories) is False
+    assert _metadata_entry_exists("ABC", "L", directories) is True
 # ── _sanitize_metadata_symbol ────────────────────────────────────────────────
 
 @pytest.mark.parametrize(

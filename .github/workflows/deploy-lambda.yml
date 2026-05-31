@@ -4,18 +4,50 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Git ref to deploy (tag, branch, or SHA). Defaults to the ref that triggered this workflow.'
+        required: false
+        default: ''
 
 permissions:
   contents: read
   id-token: write
+  actions: read
 
 concurrency:
   group: production-deploy
   cancel-in-progress: false
 
 jobs:
+  check-ci:
+    name: Verify CI passed on tagged commit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check ci.yml passed for this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMIT_SHA: ${{ github.sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          echo "Checking for a successful ci.yml run on commit ${COMMIT_SHA}..."
+          # List workflow runs for ci.yml on this exact commit.
+          # The GitHub API filters by head_sha so we only see runs for the tagged commit.
+          conclusion="$(gh api \
+            "repos/${REPO}/actions/workflows/ci.yml/runs?head_sha=${COMMIT_SHA}&per_page=10" \
+            --jq '[.workflow_runs[] | select(.conclusion == "success")] | length')"
+          if [ "${conclusion}" -lt 1 ]; then
+            echo "::error::No successful ci.yml run found for commit ${COMMIT_SHA}." \
+              "Tag a commit that has a green CI run, or manually trigger ci.yml on this commit before tagging." >&2
+            exit 1
+          fi
+          echo "Found ${conclusion} successful ci.yml run(s) for ${COMMIT_SHA} — proceeding with deploy."
+
   deploy:
     runs-on: ubuntu-latest
+    needs: check-ci
     env:
       SMOKE_TEST_URL: ${{ vars.SMOKE_TEST_URL }}
     outputs:
@@ -23,6 +55,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ inputs.ref || github.ref }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -90,21 +124,74 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
 
+      - name: Pre-flight IAM permission check
+        # Verifies that the deploy role has every permission needed by this
+        # workflow before spending ~8 minutes on CDK deploy.
+        # Each action is simulated against its correct resource ARN so that
+        # scoped grants (e.g. bucket-level s3:ListBucket vs object-level
+        # s3:GetObject) do not produce false implicitDeny results.
+        # If the role itself lacks iam:SimulatePrincipalPolicy the simulate
+        # call returns an error, which is surfaced as a distinct message so the
+        # operator knows to add that meta-permission to the base role.
+        env:
+          DEPLOY_ROLE_ARN: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+        run: |
+          set -euo pipefail
+          data_bucket="$(aws cloudformation list-stack-resources \
+            --stack-name BackendLambdaStack \
+            --query "StackResourceSummaries[?starts_with(LogicalResourceId,'PortfolioDataBucket')].PhysicalResourceId|[0]" \
+            --output text 2>/dev/null || echo "")"
+          if [ -z "$data_bucket" ] || [ "$data_bucket" = "None" ]; then
+            echo "::notice::BackendLambdaStack not yet deployed or PortfolioDataBucket not found; using wildcard resource for permission checks."
+            data_bucket="*"
+          fi
+
+          # Map each action to its correct resource ARN.
+          # s3:ListBucket acts on the bucket; s3:GetObject acts on objects.
+          # CloudFormation, Lambda, and logs actions are wildcarded because the
+          # deploy role's grants target multiple stacks/functions/log groups.
+          declare -A action_resource=(
+            ["cloudformation:CreateChangeSet"]="*"
+            ["cloudformation:DescribeChangeSet"]="*"
+            ["cloudformation:DeleteChangeSet"]="*"
+            ["lambda:InvokeFunction"]="*"
+            ["s3:ListBucket"]="arn:aws:s3:::${data_bucket}"
+            ["s3:GetObject"]="arn:aws:s3:::${data_bucket}/*"
+            ["logs:FilterLogEvents"]="*"
+          )
+
+          failed=0
+          simulate_unavailable=0
+          for action in "${!action_resource[@]}"; do
+            resource="${action_resource[$action]}"
+            raw_result="$(aws iam simulate-principal-policy \
+              --policy-source-arn "$DEPLOY_ROLE_ARN" \
+              --action-names "$action" \
+              --resource-arns "$resource" \
+              --query "EvaluationResults[0].EvalDecision" --output text 2>&1)" \
+              || raw_result="error"
+            result="$(echo "$raw_result" | tail -1)"
+            if [ "$result" = "error" ] || echo "$result" | grep -qi "AccessDenied\|error"; then
+              # simulate-principal-policy itself failed — the deploy role likely lacks
+              # iam:SimulatePrincipalPolicy. Warn rather than error so the bootstrap
+              # deploy that grants this permission can still proceed. See issue #3208.
+              echo "::warning::simulate-principal-policy unavailable for $action (role may lack iam:SimulatePrincipalPolicy). Run bootstrap-deploy-role.sh to fix." >&2
+              echo "  Raw AWS response: $raw_result" >&2
+              simulate_unavailable=1
+            elif [ "$result" != "allowed" ]; then
+              echo "::error::Deploy role is missing $action on $resource (got: $result). Fix the CDK grant or base role policy before deploying." >&2
+              failed=1
+            fi
+          done
+          if [ "$simulate_unavailable" -eq 1 ] && [ "$failed" -eq 0 ]; then
+            echo "::warning::Pre-flight check skipped — deploy role lacks iam:SimulatePrincipalPolicy. Run bootstrap-deploy-role.sh to enable full pre-flight checks. See issue #3208." >&2
+          fi
+          [ "$failed" -eq 0 ] || exit 1
+
       - name: Sync data from S3
         env:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
         run: aws s3 sync "s3://$DATA_BUCKET/" data/
-
-      - name: Lint frontend
-        run: npm run lint
-        working-directory: frontend
-
-      - name: Run frontend tests
-        run: npm test -- --run
-        working-directory: frontend
-
-      - name: Run backend tests
-        run: pytest
 
       - name: Verify DATA_BUCKET secret
         env:
@@ -120,9 +207,8 @@ jobs:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
-          GITHUB_DEPLOY_ROLE_ARN: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           CDK_OUTDIR: /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
-        run: npx cdk diff BackendLambdaStack StaticSiteStack -c prod=true
+        run: npx cdk diff BackendLambdaStack StaticSiteStack --method=changeset -c prod=true
         working-directory: cdk
 
       - name: Deploy StaticSiteStack auth resources
@@ -164,7 +250,6 @@ jobs:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           CDK_OUTDIR: /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
-          GITHUB_DEPLOY_ROLE_ARN: ${{ secrets.AWS_ROLE_TO_ASSUME }}
         run: >
           npx cdk deploy BackendLambdaStack --require-approval never
           --parameters BackendLambdaStack:UiAuthUserPoolId="$UI_AUTH_USER_POOL_ID"
@@ -261,6 +346,21 @@ jobs:
           npx cdk deploy StaticSiteStack --require-approval never -c prod=true
           --parameters StaticSiteStack:BackendApiUrl="$BACKEND_URL"
         working-directory: cdk
+
+      - name: Set SMOKE_TEST_URL from StaticSiteStack CloudFront output
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          FRONTEND_DOMAIN="$(aws cloudformation describe-stacks \
+            --stack-name StaticSiteStack \
+            --query "Stacks[0].Outputs[?OutputKey=='DistributionDomain'].OutputValue" \
+            --output text)"
+          if [ -z "$FRONTEND_DOMAIN" ] || [ "$FRONTEND_DOMAIN" = "None" ]; then
+            echo "DistributionDomain output is missing from StaticSiteStack" >&2
+            exit 1
+          fi
+          echo "SMOKE_TEST_URL=https://${FRONTEND_DOMAIN}" >> "$GITHUB_ENV"
 
       - name: Verify price snapshot seeded in S3
         # Belt-and-suspenders check after the CDK Trigger (REQUEST_RESPONSE) has

@@ -1,5 +1,12 @@
 # Run key pre-deploy validation checks locally before pushing a release tag.
 # Checks that require AWS credentials are skipped gracefully when AWS_ACCESS_KEY_ID is unset.
+#
+# Note: AWS_ACCESS_KEY_ID is used as a proxy for "has AWS credentials". Engineers using
+# aws sso login or ~/.aws/credentials profiles without this var set will see AWS checks
+# skipped; set $env:AWS_ACCESS_KEY_ID manually or comment out the guard to override.
+#
+# $ErrorActionPreference = 'Continue' is set explicitly to document intent: every check
+# must run and accumulate its own PASS/FAIL rather than aborting on the first error.
 $ErrorActionPreference = 'Continue'
 
 # Always run from the repository root regardless of where the script is invoked from.
@@ -33,8 +40,8 @@ if (-not $env:AWS_ACCESS_KEY_ID) {
 } else {
     try {
         Push-Location cdk -ErrorAction Stop
-        $cdkArgs = @('cdk', 'diff', 'BackendLambdaStack', 'StaticSiteStack', '-c', 'prod=true', '--method=changeset')
-        npx @cdkArgs
+        # Use & to invoke npx as an external executable so arguments are passed correctly.
+        & npx cdk diff BackendLambdaStack StaticSiteStack -c prod=true --method=changeset
         if ($LASTEXITCODE -eq 0) { Write-Pass "CDK diff" } else { Write-Fail "CDK diff" }
     } finally {
         Pop-Location
@@ -48,25 +55,34 @@ if (-not $env:AWS_ACCESS_KEY_ID) {
 } elseif (-not $env:GITHUB_DEPLOY_ROLE_ARN) {
     Write-Skip "IAM simulation (requires GITHUB_DEPLOY_ROLE_ARN)"
 } else {
-    $BucketId = aws cloudformation list-stack-resources `
+    $BucketId = & aws cloudformation list-stack-resources `
         --stack-name BackendLambdaStack `
         --query "StackResourceSummaries[?starts_with(LogicalResourceId,'PortfolioDataBucket')].PhysicalResourceId|[0]" `
         --output text 2>$null
     if (-not $BucketId -or $BucketId -eq 'None') {
         Write-Skip "IAM simulation (BackendLambdaStack not deployed or PortfolioDataBucket not found)"
     } else {
+        $AwsRegion = if ($env:AWS_REGION) { $env:AWS_REGION } else {
+            $r = (& aws configure get region 2>$null) -replace '\s', ''
+            if ($r) { $r } else { 'us-east-1' }
+        }
+        $AwsAccount = & aws sts get-caller-identity --query Account --output text 2>$null
         $BucketArn = "arn:aws:s3:::$BucketId"
+        # Include Lambda and CloudFormation ARNs so those action simulations are meaningful.
+        $LambdaArn = "arn:aws:lambda:${AwsRegion}:${AwsAccount}:function:*"
+        $CfnArn    = "arn:aws:cloudformation:${AwsRegion}:${AwsAccount}:stack/BackendLambdaStack/*"
         $iamArgs = @(
             'iam', 'simulate-principal-policy',
             '--policy-source-arn', $env:GITHUB_DEPLOY_ROLE_ARN,
             '--action-names', 's3:GetObject', 's3:ListBucket', 'lambda:InvokeFunction',
                 'cloudformation:CreateChangeSet', 'cloudformation:DescribeChangeSet',
                 'cloudformation:DeleteChangeSet',
-            '--resource-arns', $BucketArn, "$BucketArn/*",
+            '--resource-arns', $BucketArn, "$BucketArn/*", $LambdaArn, $CfnArn,
             '--query', "EvaluationResults[?EvalDecision!='allowed'].EvalActionName",
             '--output', 'text'
         )
-        $Denied = aws @iamArgs 2>&1
+        # Use & so the argument array is expanded correctly for the external aws executable.
+        $Denied = & aws @iamArgs 2>&1
         if (-not $Denied -or $Denied -eq 'None') {
             Write-Pass "IAM permission simulation"
         } else {
@@ -78,8 +94,13 @@ if (-not $env:AWS_ACCESS_KEY_ID) {
 
 # 4. Backend lint + tests
 Write-Host "`n=== 4. Backend lint + tests ==="
-make lint
-if ($LASTEXITCODE -eq 0) { Write-Pass "make lint" } else { Write-Fail "make lint" }
+# make is not available on Windows by default; skip with a warning if not found.
+if (-not (Get-Command make -ErrorAction SilentlyContinue)) {
+    Write-Skip "make lint (make not found — install via Chocolatey, Scoop, or use WSL)"
+} else {
+    make lint
+    if ($LASTEXITCODE -eq 0) { Write-Pass "make lint" } else { Write-Fail "make lint" }
+}
 
 python -m pytest tests/ -x -q
 if ($LASTEXITCODE -eq 0) { Write-Pass "backend pytest" } else { Write-Fail "backend pytest" }

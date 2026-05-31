@@ -1102,19 +1102,6 @@ def compute_owner_performance(
     perf["drawdown"] = perf["value"] / perf["running_max"] - 1
     max_drawdown = float(perf["drawdown"].min())
 
-    last_date = perf.index[-1]
-    if isinstance(last_date, datetime):
-        last_date = last_date.date()
-    reporting_date = calc.resolve_weekday(last_date, forward=False).isoformat()
-
-    if len(perf) >= 2:
-        prev_candidate = perf.index[-2]
-        if isinstance(prev_candidate, datetime):
-            prev_candidate = prev_candidate.date()
-        previous_date = calc.resolve_weekday(prev_candidate, forward=False).isoformat()
-    else:
-        previous_date = calc.previous_pricing_date.isoformat()
-
     perf = perf.reset_index().rename(columns={"index": "date"})
 
     out: List[Dict] = []
@@ -1566,7 +1553,6 @@ def _max_drawdown(
     include_breakdown: bool = False,
     pricing_date: date | None = None,
 ) -> tuple[float | None, dict[str, Any]]:
-    calc = PricingDateCalculator(reporting_date=pricing_date)
     total = _portfolio_value_series(name, days, group=group, pricing_date=pricing_date)
     if total.empty:
         return None, {"series": [], "peak": None, "trough": None}

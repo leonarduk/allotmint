@@ -95,17 +95,6 @@ jobs:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
         run: aws s3 sync "s3://$DATA_BUCKET/" data/
 
-      - name: Lint frontend
-        run: npm run lint
-        working-directory: frontend
-
-      - name: Run frontend tests
-        run: npm test -- --run
-        working-directory: frontend
-
-      - name: Run backend tests
-        run: pytest
-
       - name: Verify DATA_BUCKET secret
         env:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}

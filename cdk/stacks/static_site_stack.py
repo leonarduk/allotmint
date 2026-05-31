@@ -423,6 +423,15 @@ class StaticSiteStack(Stack):
                     ],
                 )
             )
+            # iam:SimulatePrincipalPolicy cannot be scoped to a specific resource;
+            # IAM requires "*". This lets the CI pre-flight check call
+            # simulate-principal-policy on the deploy role before CDK runs. #3208.
+            github_role.add_to_principal_policy(
+                iam.PolicyStatement(
+                    actions=["iam:SimulatePrincipalPolicy"],
+                    resources=["*"],
+                )
+            )
 
         CfnOutput(self, "SiteBucket", value=site_bucket.bucket_name)
         CfnOutput(self, "DistributionId", value=distribution.distribution_id)

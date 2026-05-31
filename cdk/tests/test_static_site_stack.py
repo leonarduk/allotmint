@@ -656,3 +656,67 @@ def test_no_changeset_grant_when_github_deploy_role_arn_absent(monkeypatch, tmp_
         "Expected no cloudformation:CreateChangeSet in StaticSiteStack when "
         "GITHUB_DEPLOY_ROLE_ARN is unset"
     )
+
+
+# ---------------------------------------------------------------------------
+# GitHub deploy role — iam:SimulatePrincipalPolicy (issue #3208)
+# ---------------------------------------------------------------------------
+
+
+def _has_simulate_principal_policy_grant(raw_template: dict, role_name: str) -> bool:
+    """Return True if any IAM policy attached to role_name grants iam:SimulatePrincipalPolicy.
+
+    Role-name matching note: CDK calls ``iam.Role.from_role_arn(..., mutable=True)``,
+    which extracts the short role name from the ARN and stores it as a **plain string**
+    in the synthesised template's ``Roles`` list — NOT as a ``{"Ref": ...}`` object.
+    This is different from an owned CDK role, where CDK emits a Ref/GetAtt.
+
+    Verified against a live ``cdk synth`` output::
+
+        "Roles": ["allotmint-github-deploy"]  # plain string, not {"Ref": "..."}
+
+    String equality on ``role_name`` is therefore correct and will NOT pass vacuously.
+    """
+    for res in raw_template["Resources"].values():
+        if res.get("Type") != "AWS::IAM::Policy":
+            continue
+        if role_name not in res.get("Properties", {}).get("Roles", []):
+            continue
+        for stmt in res["Properties"]["PolicyDocument"].get("Statement", []):
+            actions = stmt.get("Action", [])
+            if isinstance(actions, str):
+                actions = [actions]
+            if "iam:SimulatePrincipalPolicy" in actions:
+                return True
+    return False
+
+
+def test_github_deploy_role_gets_simulate_principal_policy(monkeypatch, tmp_path) -> None:
+    """When GITHUB_DEPLOY_ROLE_ARN is set, StaticSiteStack must grant
+    iam:SimulatePrincipalPolicy so the CI pre-flight check can call
+    simulate-principal-policy on the deploy role. See issue #3208."""
+    role_arn = "arn:aws:iam::123456789012:role/allotmint-github-deploy"
+    monkeypatch.setenv("GITHUB_DEPLOY_ROLE_ARN", role_arn)
+    (tmp_path / "index.html").write_text("<html></html>")
+    app = App()
+    stack = StaticSiteStack(app, "SimGrantStack", frontend_dist_path=str(tmp_path))
+    raw = assertions.Template.from_stack(stack).to_json()
+    assert _has_simulate_principal_policy_grant(raw, "allotmint-github-deploy"), (
+        "iam:SimulatePrincipalPolicy not found in StaticSiteStack IAM policy for the deploy role; "
+        "GITHUB_DEPLOY_ROLE_ARN was set. The pre-flight check will fail until this grant is deployed."
+    )
+
+
+def test_no_simulate_principal_policy_grant_when_role_arn_absent(
+    monkeypatch, tmp_path
+) -> None:
+    """When GITHUB_DEPLOY_ROLE_ARN is unset, no iam:SimulatePrincipalPolicy policy
+    should be synthesised."""
+    monkeypatch.delenv("GITHUB_DEPLOY_ROLE_ARN", raising=False)
+    (tmp_path / "index.html").write_text("<html></html>")
+    app = App()
+    stack = StaticSiteStack(app, "NoSimGrantStack", frontend_dist_path=str(tmp_path))
+    raw = assertions.Template.from_stack(stack).to_json()
+    assert not _has_simulate_principal_policy_grant(raw, "allotmint-github-deploy"), (
+        "Expected no iam:SimulatePrincipalPolicy in StaticSiteStack when GITHUB_DEPLOY_ROLE_ARN is unset"
+    )

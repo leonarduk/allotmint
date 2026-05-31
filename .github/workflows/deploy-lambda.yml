@@ -171,20 +171,33 @@ jobs:
               --query "EvaluationResults[0].EvalDecision" --output text 2>&1)" \
               || raw_result="error"
             result="$(echo "$raw_result" | tail -1)"
-            if [ "$result" = "error" ] || echo "$result" | grep -qi "AccessDenied\|error"; then
-              # simulate-principal-policy itself failed — the deploy role likely lacks
-              # iam:SimulatePrincipalPolicy. Warn rather than error so the bootstrap
-              # deploy that grants this permission can still proceed. See issue #3208.
-              echo "::warning::simulate-principal-policy unavailable for $action (role may lack iam:SimulatePrincipalPolicy). Run bootstrap-deploy-role.sh to fix." >&2
+            # Distinguish three cases:
+            # 1. AccessDenied specifically for iam:SimulatePrincipalPolicy itself —
+            #    role lacks the meta-permission; degrade gracefully so the bootstrap
+            #    deploy that grants it can still proceed. See issue #3208.
+            #    Require BOTH "AccessDenied" AND "SimulatePrincipalPolicy" so that
+            #    throttling errors mentioning the operation name don't silently degrade.
+            # 2. Any other AWS error (throttling, network, malformed ARN, etc.) —
+            #    hard-fail: something unexpected is wrong and masking it is dangerous.
+            # 3. Successful call returning a non-"allowed" decision —
+            #    hard-fail: the role genuinely lacks the checked permission.
+            if echo "$raw_result" | grep -qi "AccessDenied" && \
+               echo "$raw_result" | grep -qi "SimulatePrincipalPolicy"; then
+              echo "::warning::simulate-principal-policy unavailable for $action — deploy role lacks iam:SimulatePrincipalPolicy. Run scripts/bash/bootstrap-deploy-role.sh to fix. See issue #3208." >&2
               echo "  Raw AWS response: $raw_result" >&2
               simulate_unavailable=1
+            elif [ "$result" = "error" ] || echo "$raw_result" | grep -qi "exception\|error\|AccessDenied"; then
+              # Use $raw_result (full response) not $result (last line only) to catch
+              # multi-line AWS error payloads where the error type is on line 1.
+              echo "::error::simulate-principal-policy call failed unexpectedly for $action. Raw response: $raw_result" >&2
+              failed=1
             elif [ "$result" != "allowed" ]; then
               echo "::error::Deploy role is missing $action on $resource (got: $result). Fix the CDK grant or base role policy before deploying." >&2
               failed=1
             fi
           done
           if [ "$simulate_unavailable" -eq 1 ] && [ "$failed" -eq 0 ]; then
-            echo "::warning::Pre-flight check skipped — deploy role lacks iam:SimulatePrincipalPolicy. Run bootstrap-deploy-role.sh to enable full pre-flight checks. See issue #3208." >&2
+            echo "::warning::Pre-flight check skipped — deploy role lacks iam:SimulatePrincipalPolicy. Run scripts/bash/bootstrap-deploy-role.sh to enable full pre-flight checks. See issue #3208." >&2
           fi
           [ "$failed" -eq 0 ] || exit 1
 
@@ -331,6 +344,11 @@ jobs:
             exit 1
           fi
           echo "BACKEND_URL=$BACKEND_URL" >> "$GITHUB_ENV"
+          # SMOKE_TEST_URL is consumed by the Run Lighthouse CI step further below.
+          # BACKEND_URL is read from BackendLambdaStack/BackendApiUrl (describe-stacks
+          # query above) and validated non-empty, so SMOKE_TEST_URL is always the live
+          # backend API URL as required by issue #3193.
+          echo "SMOKE_TEST_URL=$BACKEND_URL" >> "$GITHUB_ENV"
           echo "backend_url=$BACKEND_URL" >> "$GITHUB_OUTPUT"
 
       - name: Refresh StaticSiteStack runtime config

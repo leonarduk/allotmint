@@ -82,7 +82,9 @@ describe("ScenarioTester page", () => {
       currency: "GBP",
     });
 
-    expect(screen.getByText("Test Owner")).toBeInTheDocument();
+    // findByText waits for React to re-render after the async runScenario
+    // response arrives; getByText would race the render and fail intermittently.
+    await screen.findByText("Test Owner");
     expect(screen.getByText(fmt.format(100))).toBeInTheDocument();
     expect(screen.getByText(fmt.format(110))).toBeInTheDocument();
     expect(screen.getByText("10.00%")).toBeInTheDocument();

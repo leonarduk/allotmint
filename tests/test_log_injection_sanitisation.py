@@ -22,7 +22,6 @@ passed to logging.getLogger() in each module (not __name__):
   data_loader              → data_loader.py (logger = logging.getLogger(__name__))
 """
 import logging
-import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -185,8 +184,10 @@ def test_meta_timeseries_cache_exchange_mismatch_sentinel():
 def test_portfolio_loader_missing_tx_file_no_injection(caplog, tmp_path):
     """
     Injected newline in account name must not appear in the
-    'Transaction file missing' error log, and the path separator must be
-    OS-correct (derived from os.path.join, not a hardcoded '/').
+    'Transaction file missing' error log.
+
+    The log path is built via pathlib Path division (owner_dir / filename),
+    which produces OS-correct separators without needing os.path.join.
     """
     from backend.common.portfolio_loader import rebuild_account_holdings
 
@@ -203,9 +204,11 @@ def test_portfolio_loader_missing_tx_file_no_injection(caplog, tmp_path):
         assert not _has_raw_newline(record), (
             f"Raw newline in log record: {record.getMessage()!r}"
         )
-    # The logged path should use the OS path separator, not a hardcoded '/'.
+    # Content is preserved (newline stripped, not content).
     logged_msg = caplog.records[0].getMessage()
-    assert os.sep in logged_msg or "/" in logged_msg  # sep is '\' on Windows, '/' on Unix
+    assert "savings" in logged_msg
+    assert "INJECT" in logged_msg
+    assert "\n" not in logged_msg
 
 
 # ── routes/portfolio — TestClient integration test ───────────────────────────

@@ -175,15 +175,20 @@ jobs:
             # 1. AccessDenied specifically for iam:SimulatePrincipalPolicy itself —
             #    role lacks the meta-permission; degrade gracefully so the bootstrap
             #    deploy that grants it can still proceed. See issue #3208.
+            #    Require BOTH "AccessDenied" AND "SimulatePrincipalPolicy" so that
+            #    throttling errors mentioning the operation name don't silently degrade.
             # 2. Any other AWS error (throttling, network, malformed ARN, etc.) —
             #    hard-fail: something unexpected is wrong and masking it is dangerous.
             # 3. Successful call returning a non-"allowed" decision —
             #    hard-fail: the role genuinely lacks the checked permission.
-            if echo "$raw_result" | grep -qi "SimulatePrincipalPolicy"; then
+            if echo "$raw_result" | grep -qi "AccessDenied" && \
+               echo "$raw_result" | grep -qi "SimulatePrincipalPolicy"; then
               echo "::warning::simulate-principal-policy unavailable for $action — deploy role lacks iam:SimulatePrincipalPolicy. Run scripts/bash/bootstrap-deploy-role.sh to fix. See issue #3208." >&2
               echo "  Raw AWS response: $raw_result" >&2
               simulate_unavailable=1
-            elif [ "$result" = "error" ] || echo "$result" | grep -qi "exception\|error\|AccessDenied"; then
+            elif [ "$result" = "error" ] || echo "$raw_result" | grep -qi "exception\|error\|AccessDenied"; then
+              # Use $raw_result (full response) not $result (last line only) to catch
+              # multi-line AWS error payloads where the error type is on line 1.
               echo "::error::simulate-principal-policy call failed unexpectedly for $action. Raw response: $raw_result" >&2
               failed=1
             elif [ "$result" != "allowed" ]; then

@@ -225,8 +225,7 @@ jobs:
             if [ "$attempt" -eq 5 ]; then
               echo "head-object failed on attempt 5/5; giving up." >&2
               echo "$head_out" >&2
-              aws s3api head-object --bucket "$data_bucket" --key prices/latest_prices.json >/dev/null
-              break
+              exit 1
             fi
             echo "head-object attempt $attempt/5 failed (key not yet written); retrying in 20s..." >&2
             sleep 20

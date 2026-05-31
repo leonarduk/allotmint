@@ -2,6 +2,13 @@
 # Run once when the deploy role is first created, and again whenever the
 # AllotmintDeployPolicy permissions need to change.
 #
+# Note on dual management: this script and cdk/stacks/static_site_stack.py
+# both grant some of the same permissions. The CDK grant keeps permissions
+# current across future cdk deploys. This script is needed to bootstrap the
+# role before the first CDK deploy (chicken-and-egg: CDK needs the role to
+# have these permissions to deploy, but deploying is what grants them via CDK).
+# Running this script after CDK deploys is safe — put-role-policy is idempotent.
+#
 # Required environment variables:
 #   DEPLOY_ROLE_NAME  — short name of the IAM role (not the full ARN)
 #   DATA_BUCKET       — physical name of the S3 data bucket

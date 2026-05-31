@@ -424,6 +424,10 @@ def _memoized_range_cached(
         # and simply return an empty frame. Higher-level helpers may decide to
         # temporarily disable offline mode and retry if they want a fallback.
         if not existing.empty:
+            # apply_date_range returns rows with the original datetime64 Date dtype
+            # (it normalises internally for comparison but doesn't mutate the column).
+            # _ensure_schema always coerces Date to datetime64[ms] via pd.to_datetime,
+            # so the dtype is safe regardless of what apply_date_range returns.
             return _ensure_schema(apply_date_range(existing, start_date, end_date))
         logger.warning("Offline mode: no cached data for %s.%s", ticker, exchange)
 

@@ -224,16 +224,14 @@ def apply_date_range(
     if df.empty or "Date" not in df.columns:
         return df.copy()
     dates = df["Date"]
+    # Normalise to plain date objects for comparison so that NaT (datetime64) and
+    # None (object dtype) are both caught by isna() before the >= / <= tests.
+    # For datetime64 columns .dt.date converts NaT → None; for object-dtype columns
+    # the series is used as-is. Both cases are handled identically below.
     if pd.api.types.is_datetime64_any_dtype(dates):
         dates = dates.dt.date
-        null_mask = dates.isna()
-        mask = pd.Series(True, index=df.index)
-        mask &= ~null_mask
-    else:
-        # Plain date-object column: isna() catches None so None comparisons never reach >=/<=
-        null_mask = dates.isna()
-        mask = pd.Series(True, index=df.index)
-        mask &= ~null_mask
+    # Drop NaT/None unconditionally — callers must not expect null rows to survive.
+    mask = dates.notna()
     if start_date is not None:
         mask &= dates >= start_date
     if end_date is not None:

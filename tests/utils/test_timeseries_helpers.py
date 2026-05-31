@@ -256,6 +256,20 @@ class TestApplyDateRange:
         result = th.apply_date_range(df, start_date=self.MID, end_date=self.END)
         assert list(result.index) == [0, 1]
 
+    def test_datetime64_dtype_preserved_in_output(self):
+        # _ensure_schema handles either dtype, but confirm apply_date_range does not
+        # silently convert the returned Date column away from datetime64.
+        dates = [self.BASE, self.MID, self.END]
+        df = self._df(dates, as_datetime=True)
+        result = th.apply_date_range(df, start_date=self.BASE, end_date=self.MID)
+        assert pd.api.types.is_datetime64_any_dtype(result["Date"])
+
+    def test_plain_date_dtype_preserved_in_output(self):
+        dates = [self.BASE, self.MID, self.END]
+        df = self._df(dates, as_datetime=False)
+        result = th.apply_date_range(df, start_date=self.BASE, end_date=self.MID)
+        assert result["Date"].dtype == object
+
     def test_original_frame_not_mutated(self):
         dates = [self.BASE, self.MID, self.END]
         df = self._df(dates, as_datetime=True)

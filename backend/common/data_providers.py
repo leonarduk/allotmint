@@ -9,6 +9,8 @@ from typing import Any, Dict, List, Optional
 
 from botocore.exceptions import BotoCoreError, ClientError
 
+from backend.common.path_utils import safe_join
+
 logger = logging.getLogger(__name__)
 
 DATA_BUCKET_ENV = "DATA_BUCKET"
@@ -53,7 +55,15 @@ class OwnerMetadata:
 
 class LocalDataProvider:
     def load_account(self, owner: str, account: str, root: Path) -> AccountObject:
-        path = root / owner / f"{account}.json"
+        # safe_join rejects path traversal sequences (e.g. "../", absolute paths) by
+        # resolving the candidate path and verifying it remains under *root*.  A
+        # ValueError from safe_join is re-raised as MissingData so callers receive a
+        # FileNotFoundError subclass and route handlers can translate it to HTTP 404
+        # without leaking that a traversal attempt was blocked.
+        try:
+            path = safe_join(root, owner, f"{account}.json")
+        except ValueError as exc:
+            raise MissingData(f"Invalid path for owner={owner!r} account={account!r}") from exc
         try:
             data = _safe_json_load(path)
         except (json.JSONDecodeError, InvalidPayload) as exc:
@@ -61,7 +71,12 @@ class LocalDataProvider:
         return AccountObject(owner=owner, account=account, data=data)
 
     def load_person_meta(self, owner: str, root: Path) -> OwnerMetadata:
-        path = root / owner / "person.json"
+        # Same traversal guard as load_account: safe_join rejects "../" and absolute
+        # paths; ValueError is re-raised as MissingData for consistent caller handling.
+        try:
+            path = safe_join(root, owner, "person.json")
+        except ValueError as exc:
+            raise MissingData(f"Invalid path for owner={owner!r}") from exc
         if not path.exists():
             raise MissingData(str(path))
         try:

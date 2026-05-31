@@ -6,6 +6,7 @@ import pandas as pd
 import requests
 
 from backend import config_module
+from backend.common.url_validator import validate_external_url
 from backend.timeseries.ticker_validator import is_valid_ticker, record_skipped_ticker
 from backend.utils.timeseries_helpers import STANDARD_COLUMNS
 
@@ -92,8 +93,9 @@ def fetch_alphavantage_timeseries_range(
     }
 
     logger.debug("Fetching Alpha Vantage data for %s from %s to %s", symbol, start_date, end_date)
+    validate_external_url(BASE_URL)
     try:
-        response = requests.get(BASE_URL, params=params, timeout=30)
+        response = requests.get(BASE_URL, params=params, timeout=30, allow_redirects=False)
 
         if response.status_code == 429:
             retry_after = _parse_retry_after(response, "")

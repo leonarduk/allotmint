@@ -131,7 +131,7 @@ jobs:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           CDK_OUTDIR: /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
-        run: npx cdk deploy StaticSiteStack --require-approval never
+        run: npx cdk deploy StaticSiteStack --require-approval never -c prod=true
         working-directory: cdk
 
       - name: Get Cognito UI auth outputs
@@ -211,7 +211,23 @@ jobs:
           if not isinstance(payload, dict) or "snapshot" not in payload or "timestamp" not in payload:
               raise SystemExit(f"Unexpected PriceRefreshLambda response: {payload!r}")
           PY
-          aws s3api head-object --bucket "$data_bucket" --key prices/latest_prices.json >/dev/null
+          # Retry with backoff: IAM policy changes are eventually consistent (~60s).
+          # On the first deploy after s3:GetObject is newly granted to the deploy role
+          # the role may get 403 for up to a minute even though CloudFormation has
+          # already reported UPDATE_COMPLETE. See issue #3166.
+          for attempt in 1 2 3; do
+            if aws s3api head-object --bucket "$data_bucket" --key prices/latest_prices.json >/dev/null 2>&1; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "head-object failed on attempt 3/3; waiting 20s for IAM propagation before final check..." >&2
+              sleep 20
+              aws s3api head-object --bucket "$data_bucket" --key prices/latest_prices.json >/dev/null
+              break
+            fi
+            echo "head-object attempt $attempt/3 failed (IAM propagation delay); retrying in 20s..." >&2
+            sleep 20
+          done
 
       - name: Get backend API URL
         id: get_backend_url

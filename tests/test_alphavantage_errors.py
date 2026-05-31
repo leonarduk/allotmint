@@ -23,7 +23,7 @@ class FakeResponse:
 
 
 def test_information_field_propagated(monkeypatch):
-    def fake_get(url, params=None, timeout=None):
+    def fake_get(url, params=None, timeout=None, **kwargs):
         return FakeResponse({"Information": "test info"})
 
     monkeypatch.setattr(av, "is_valid_ticker", lambda *a, **k: True)
@@ -38,7 +38,7 @@ def test_information_field_propagated(monkeypatch):
 
 
 def test_information_field_propagated_when_disabled(monkeypatch):
-    def fake_get(url, params=None, timeout=None):
+    def fake_get(url, params=None, timeout=None, **kwargs):
         return FakeResponse({"Information": "disabled"})
 
     monkeypatch.setattr(av, "is_valid_ticker", lambda *a, **k: True)

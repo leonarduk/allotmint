@@ -8,12 +8,14 @@ adapters are intentionally lightweight and only implement the behaviour
 required by the scheduled trade import task.
 """
 
+import logging
 from dataclasses import dataclass
 from datetime import datetime
-from typing import List, Dict, Protocol
-import logging
+from typing import Dict, List, Protocol
 
 import requests
+
+from backend.common.url_validator import validate_external_url
 
 log = logging.getLogger("integrations.broker")
 
@@ -57,10 +59,11 @@ class AlpacaAPI:
         """
 
         url = f"{self.base_url}/v2/account/activities/trades"
+        validate_external_url(url)
         params = {"after": since.isoformat()}
 
         try:
-            resp = requests.get(url, params=params, headers=self._headers(), timeout=10)
+            resp = requests.get(url, params=params, headers=self._headers(), timeout=10, allow_redirects=False)
             resp.raise_for_status()
             data = resp.json()
         except Exception as exc:  # pragma: no cover - network failure

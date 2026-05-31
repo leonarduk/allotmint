@@ -114,7 +114,7 @@ def test_parse_alpha_time_legacy_format():
 
 
 def test_fallback_helpers_filter_finance_headlines(monkeypatch):
-    def fake_yahoo(url, params, timeout=10):
+    def fake_yahoo(url, params=None, timeout=10, **kwargs):
         class Response:
             def raise_for_status(self):
                 return None
@@ -141,7 +141,7 @@ def test_fallback_helpers_filter_finance_headlines(monkeypatch):
         {"headline": "PFE stock jumps on earnings", "url": "https://example.com/finance"}
     ]
 
-    def fake_google(url, params, timeout=10):
+    def fake_google(url, params=None, timeout=10, **kwargs):
         class Response:
             text = """
                 <rss>

@@ -10,7 +10,7 @@
 $ErrorActionPreference = 'Continue'
 
 # Always run from the repository root regardless of where the script is invoked from.
-Set-Location (Join-Path $PSScriptRoot '..\\..')
+Set-Location (Join-Path $PSScriptRoot '..\..')
 
 $Pass = 0
 $Fail = 0
@@ -94,8 +94,10 @@ if (-not $env:AWS_ACCESS_KEY_ID) {
                 '--query', 'EvaluationResults[0].EvalDecision',
                 '--output', 'text'
             )
-            # Use & so the argument array is expanded correctly for the external aws executable.
-            $RawResult  = & aws @iamArgs 2>&1
+            # Pipe through Out-String to coerce the mixed [object[]] that 2>&1 can produce
+            # (strings + ErrorRecord objects) into a single plain string so that -match
+            # always behaves as a boolean rather than returning filtered array elements.
+            $RawResult  = (& aws @iamArgs 2>&1) | Out-String
             $AwsSuccess = ($LASTEXITCODE -eq 0)
             # Distinguish three cases:
             # 1. The caller is not authorised to call iam:SimulatePrincipalPolicy → warn and skip
@@ -113,9 +115,9 @@ if (-not $env:AWS_ACCESS_KEY_ID) {
                 Write-Host "  AWS response: $RawResult" -ForegroundColor Red
                 $SimFailed = $true
             } else {
-                # Parse the decision only on a clean success path — prevents a trailing AWS CLI
-                # deprecation-warning line from corrupting the EvalDecision token via Select-Object -Last 1.
-                $Result = ($RawResult | Select-Object -Last 1).ToString().Trim()
+                # Parse the decision only on a clean success path — prevents an AWS CLI
+                # deprecation-warning line from corrupting the EvalDecision token.
+                $Result = $RawResult.Trim()
                 if ($Result -ne 'allowed') {
                     Write-Error "$Action not allowed on $Resource (got: $Result)"
                     $SimFailed = $true

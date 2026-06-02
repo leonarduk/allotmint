@@ -267,14 +267,15 @@ describe("client-side request forgery guard (CodeQL #218)", () => {
   });
 
   it("throws a clear error when the configured API base is not a valid absolute URL", async () => {
-    setApiBase("not-a-valid-url");
-    const mockFetch = vi.fn();
-    // @ts-expect-error: replacing global fetch with mock
-    global.fetch = mockFetch;
-    await expect(fetchJson("/health")).rejects.toThrow(
+    // setApiBase() now validates eagerly, so the error is thrown there rather
+    // than deferred to fetchJson().  Test both that setApiBase rejects the bad
+    // value and that createClient with the same bad base also rejects fetchJson.
+    expect(() => setApiBase("not-a-valid-url")).toThrow("Invalid API base URL");
+
+    const { fetchJson: testFetchJson } = createClient("not-a-valid-url");
+    await expect(testFetchJson("/health")).rejects.toThrow(
       "API base is not a valid absolute URL",
     );
-    expect(mockFetch).not.toHaveBeenCalled();
   });
 
   it("throws a clear error when resolveBase() returns an empty string", async () => {

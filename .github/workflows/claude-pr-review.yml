@@ -66,7 +66,7 @@ jobs:
 
       - name: Check Claude approval
         run: |
-          if grep -q "**APPROVE**" /tmp/claude_review_body.md; then
+          if grep -qF "**APPROVE**" /tmp/claude_review_body.md; then
             echo "✓ Claude review: APPROVED"
           else
             echo "✗ Claude review: CHANGES REQUESTED OR NOT APPROVED"
@@ -91,7 +91,7 @@ jobs:
           gh pr comment "$PR_NUMBER" --body-file /tmp/claude_comment_body.md
 
       - name: Post Claude failure notice
-        if: failure() && !contains(github.event.pull_request.body, 'Claude review')
+        if: failure()
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

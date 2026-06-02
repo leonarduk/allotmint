@@ -65,7 +65,7 @@ jobs:
 
       - name: Check GPT approval
         run: |
-          if grep -q "**APPROVE**" /tmp/gpt_review_body.md; then
+          if grep -qF "**APPROVE**" /tmp/gpt_review_body.md; then
             echo "✓ GPT review: APPROVED"
           else
             echo "✗ GPT review: CHANGES REQUESTED OR NOT APPROVED"
@@ -90,7 +90,7 @@ jobs:
           gh pr comment "$PR_NUMBER" --body-file /tmp/gpt_comment_body.md
 
       - name: Post GPT failure notice
-        if: failure() && !contains(github.event.pull_request.body, 'GPT AI Code Review')
+        if: failure()
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

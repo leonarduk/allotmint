@@ -60,14 +60,14 @@
     "jsdom": "^29.1.1",
     "lightningcss": "^1.32.0",
     "lint-staged": "^17.0.4",
-    "postcss": "^8.5.6",
-    "prettier": "^3.6.2",
+    "postcss": "^8.5.15",
+    "prettier": "^3.8.3",
     "tailwindcss": "^4.1.12",
     "typescript": "~5.8.3",
-    "typescript-eslint": "^8.60.0",
+    "typescript-eslint": "^8.60.1",
     "vite": "^8.0.12",
     "vite-imagetools": "^10.0.0",
-    "vitest": "^4.1.7",
+    "vitest": "^4.1.8",
     "zod": "^4.4.3"
   },
   "lint-staged": {

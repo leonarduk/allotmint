@@ -65,6 +65,24 @@ const cleanOptionalString = (value: unknown): string | null => {
   return trimmed ? trimmed : null;
 };
 
+const validateApiBase = (url: string): string => {
+  const trimmed = url.trim();
+  if (!trimmed) {
+    throw new Error("API base URL cannot be empty");
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    throw new Error(`Invalid API base URL: ${trimmed}`);
+  }
+  if (!/^https?:$/.test(parsed.protocol)) {
+    throw new Error(`API base URL must use http or https protocol, got: ${parsed.protocol}`);
+  }
+  const cleaned = trimmed.replace(/\/+$/, "");
+  return cleaned;
+};
+
 /* ------------------------------------------------------------------ */
 /* Base URL – can be overridden at runtime via /config.json.          */
 /* ------------------------------------------------------------------ */
@@ -72,14 +90,25 @@ export const DEFAULT_API_BASE =
   import.meta.env.VITE_ALLOTMINT_API_BASE ??
   import.meta.env.VITE_API_URL ??
   "http://localhost:8000";
-export let API_BASE = DEFAULT_API_BASE;
+
+let API_BASE: string;
+try {
+  API_BASE = validateApiBase(DEFAULT_API_BASE);
+} catch (err) {
+  const msg = err instanceof Error ? err.message : String(err);
+  throw new Error(`Failed to initialize API base URL: ${msg}`);
+}
 
 export const getApiBase = () => API_BASE;
 
 export const setApiBase = (value: string | null | undefined) => {
-  const trimmed = value?.trim();
-  if (!trimmed) return;
-  API_BASE = trimmed.replace(/\/+$/, "");
+  if (!value) return;
+  try {
+    API_BASE = validateApiBase(value);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`Failed to set API base URL: ${msg}`);
+  }
 };
 
 export type StorageLike = {

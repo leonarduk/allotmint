@@ -57,7 +57,8 @@ def fetch_stooq_timeseries_range(
     if not is_valid_ticker(ticker, exchange):
         logger.info(
             "Skipping Stooq fetch for unrecognized ticker %s.%s",
-            sanitise_log_value(ticker), sanitise_log_value(exchange),
+sanitise_log_value(ticker),
+            sanitise_log_value(exchange),
         )
         record_skipped_ticker(ticker, exchange, reason="unknown")
         return pd.DataFrame(columns=STANDARD_COLUMNS)

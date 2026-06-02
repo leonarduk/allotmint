@@ -357,9 +357,9 @@ def _resolve_cache_exchange(
         ):
             logger.debug(
                 "Cache exchange override for %s: metadata %s vs argument %s",
-                symbol,
-                metadata_exchange or "<empty>",
-                provided_exchange or "<empty>",
+                sanitise_log_value(symbol),
+                sanitise_log_value(metadata_exchange or "<empty>"),
+                sanitise_log_value(provided_exchange or "<empty>"),
             )
             cache_exchange = provided_exchange
         else:

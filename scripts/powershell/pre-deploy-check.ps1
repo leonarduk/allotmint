@@ -104,22 +104,25 @@ if (-not $env:AWS_ACCESS_KEY_ID) {
             #    so a bootstrap deploy that grants the permission can still proceed (#3209).
             #    Match the specific "not authorized to perform: iam:SimulatePrincipalPolicy"
             #    message to avoid masking real permission denials on target actions.
-            # 2. Any other non-zero exit / unexpected error → hard-fail (masking is dangerous).
-            # 3. Successful call returning a non-"allowed" decision → hard-fail.
+            # 2. Any other non-zero exit (unexpected error) → hard-fail (masking is dangerous).
+            # 3. Successful call (exit 0) returning a non-"allowed" decision → hard-fail.
             if ($RawResult -match 'not authorized to perform.*iam:SimulatePrincipalPolicy|iam:SimulatePrincipalPolicy.*not authorized') {
                 Write-Warning "simulate-principal-policy unavailable for $Action — deploy role lacks iam:SimulatePrincipalPolicy."
                 Write-Host "  AWS response: $RawResult" -ForegroundColor Yellow
                 $SimUnavailable = $true
-            } elseif (-not $AwsSuccess -or $RawResult -match 'Exception|AccessDenied') {
+            } elseif (-not $AwsSuccess) {
                 Write-Error "simulate-principal-policy failed for $Action with an unexpected error."
                 Write-Host "  AWS response: $RawResult" -ForegroundColor Red
                 $SimFailed = $true
             } else {
-                # Parse the decision only on a clean success path — prevents an AWS CLI
-                # deprecation-warning line from corrupting the EvalDecision token.
-                $Result = $RawResult.Trim()
+                # Extract the decision by matching only the known EvalDecision token values.
+                # This is more robust than .Trim(), which includes the full multi-line output
+                # and can be corrupted by a trailing AWS CLI deprecation-warning line.
+                $Result = ($RawResult -split '\r?\n' |
+                          Where-Object { $_ -match '^(allowed|explicitDeny|implicitDeny|notApplicable)$' } |
+                          Select-Object -First 1)
                 if ($Result -ne 'allowed') {
-                    Write-Error "$Action not allowed on $Resource (got: $Result)"
+                    Write-Error "$Action not allowed on $Resource (got: ${Result:-<no decision token found>})"
                     $SimFailed = $true
                 }
             }

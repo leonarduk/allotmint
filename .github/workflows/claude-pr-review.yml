@@ -8,7 +8,6 @@ jobs:
   ai-review:
     name: Claude AI code review
     runs-on: ubuntu-latest
-    continue-on-error: true
     if: ${{ github.actor != 'dependabot[bot]' }}
     permissions:
       pull-requests: write
@@ -65,6 +64,15 @@ jobs:
             exit 1
           fi
 
+      - name: Check Claude approval
+        run: |
+          if grep -q "**APPROVE**" /tmp/claude_review_body.md; then
+            echo "✓ Claude review: APPROVED"
+          else
+            echo "✗ Claude review: CHANGES REQUESTED OR NOT APPROVED"
+            exit 1
+          fi
+
       - name: Post Claude review comment
         if: success()
         env:
@@ -83,13 +91,13 @@ jobs:
           gh pr comment "$PR_NUMBER" --body-file /tmp/claude_comment_body.md
 
       - name: Post Claude failure notice
-        if: failure()
+        if: failure() && !contains(github.event.pull_request.body, 'Claude review')
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          printf '## Claude AI Code Review - Skipped\n\nThe Claude review step failed (likely an API key or quota issue). This is advisory only and does not affect CI status.\n\nCheck [Actions](%s) for details.\n' \
+          printf '## Claude AI Code Review - Failed\n\nThe Claude review did not APPROVE this PR. Review the changes and address any concerns raised.\n\nCheck [Actions](%s) for details.\n' \
             "$RUN_URL" > /tmp/claude_fail_notice.md
           gh pr comment "$PR_NUMBER" --body-file /tmp/claude_fail_notice.md

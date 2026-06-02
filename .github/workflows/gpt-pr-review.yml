@@ -8,7 +8,6 @@ jobs:
   gpt-review:
     name: GPT AI code review
     runs-on: ubuntu-latest
-    continue-on-error: true
     if: ${{ github.actor != 'dependabot[bot]' }}
     permissions:
       pull-requests: write
@@ -64,6 +63,15 @@ jobs:
             exit 1
           fi
 
+      - name: Check GPT approval
+        run: |
+          if grep -q "**APPROVE**" /tmp/gpt_review_body.md; then
+            echo "✓ GPT review: APPROVED"
+          else
+            echo "✗ GPT review: CHANGES REQUESTED OR NOT APPROVED"
+            exit 1
+          fi
+
       - name: Post GPT review comment
         if: success()
         env:
@@ -82,14 +90,18 @@ jobs:
           gh pr comment "$PR_NUMBER" --body-file /tmp/gpt_comment_body.md
 
       - name: Post GPT failure notice
-        if: failure()
+        if: failure() && !contains(github.event.pull_request.body, 'GPT AI Code Review')
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          gh pr comment "$PR_NUMBER" --body \
-            "## GPT AI Code Review - Skipped
-
-            The GPT review step failed (likely an API key or quota issue). This is advisory only and does not affect CI status.
-
-            Check [Actions](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details."
+          {
+            echo "## GPT AI Code Review - Failed"
+            echo ""
+            echo "The GPT review did not APPROVE this PR. Review the changes and address any concerns raised."
+            echo ""
+            echo "Check [Actions]($RUN_URL) for details."
+          } > /tmp/gpt_fail_notice.md
+          gh pr comment "$PR_NUMBER" --body-file /tmp/gpt_fail_notice.md

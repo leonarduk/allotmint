@@ -32,7 +32,6 @@ except ImportError:  # pragma: no cover - botocore is optional in tests
 
 from backend.common.data_loader import DATA_BUCKET_ENV, PLOTS_PREFIX, load_person_metadata, resolve_paths
 from backend.config import config, local_login_identity
-from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
 
@@ -446,8 +445,8 @@ def _authorize_email(email: Any, token: str, provider: str) -> str:
         logger.warning(
             "Unauthorized %s login attempt for %s (token %.8s)",
             provider,
-            sanitise_log_value(email),
-            sanitise_log_value(token[:8]),
+            email,
+            token[:8],
         )
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Unauthorized email")
 

@@ -39,6 +39,11 @@ function Write-GhaError($msg) {
     }
 }
 
+# 0. Deployment environment variable validation
+Write-Host "`n=== 0. Deployment environment variable validation ==="
+& pwsh scripts/powershell/validate-deployment-env.ps1
+if ($LASTEXITCODE -eq 0) { Write-Pass "deployment environment variables" } else { Write-Fail "deployment environment variables" }
+
 # 1. Dependency dry-run
 Write-Host "`n=== 1. Dependency dry-run ==="
 $venvPath = Join-Path $env:TEMP 'pre-deploy-venv'

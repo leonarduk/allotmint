@@ -9,7 +9,7 @@ jobs:
       issues: write
       pull-requests: write
     steps:
-    - uses: actions/first-interaction@v1
+    - uses: actions/first-interaction@v3
       with:
         repo-token: ${{ secrets.GITHUB_TOKEN }}
         issue-message: ":seedling: Welcome to AllotMint! Thanks for opening your first issue. Please include steps to reproduce (for bugs) or a clear description of the feature request. We aim to respond within a few days."

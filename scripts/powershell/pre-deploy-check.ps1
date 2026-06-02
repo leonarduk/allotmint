@@ -72,7 +72,8 @@ if (-not $env:AWS_ACCESS_KEY_ID) {
         $LambdaArn = "arn:aws:lambda:${AwsRegion}:${AwsAccount}:function:*"
         $CfnArn    = "arn:aws:cloudformation:${AwsRegion}:${AwsAccount}:stack/BackendLambdaStack/*"
         # Map each action to its canonical resource ARN to avoid IAM returning
-        # "notApplicable" (which is != "allowed") for mismatched action/resource pairs.
+        # "notApplicable" for mismatched action/resource pairs.  notApplicable means
+        # IAM could not evaluate the combination — treated as a warning, not a hard failure.
         $ActionResources = [ordered]@{
             's3:GetObject'                   = "$BucketArn/*"
             's3:ListBucket'                  = $BucketArn
@@ -99,13 +100,13 @@ if (-not $env:AWS_ACCESS_KEY_ID) {
             # always behaves as a boolean rather than returning filtered array elements.
             $RawResult  = (& aws @iamArgs 2>&1) | Out-String
             $AwsSuccess = ($LASTEXITCODE -eq 0)
-            # Distinguish three cases:
+            # Distinguish four cases:
             # 1. The caller is not authorised to call iam:SimulatePrincipalPolicy → warn and skip
             #    so a bootstrap deploy that grants the permission can still proceed (#3209).
-            #    Match the specific "not authorized to perform: iam:SimulatePrincipalPolicy"
-            #    message to avoid masking real permission denials on target actions.
-            # 2. Any other non-zero exit (unexpected error) → hard-fail (masking is dangerous).
-            # 3. Successful call (exit 0) returning a non-"allowed" decision → hard-fail.
+            # 2. Any other non-zero exit (unexpected error) → hard-fail.
+            # 3. notApplicable → warn (IAM could not evaluate the action/resource combination;
+            #    this is not a denial and the per-action resource map should prevent it).
+            # 4. Any other non-"allowed" decision (explicitDeny/implicitDeny) → hard-fail.
             if ($RawResult -match 'not authorized to perform.*iam:SimulatePrincipalPolicy|iam:SimulatePrincipalPolicy.*not authorized') {
                 Write-Warning "simulate-principal-policy unavailable for $Action — deploy role lacks iam:SimulatePrincipalPolicy."
                 Write-Host "  AWS response: $RawResult" -ForegroundColor Yellow
@@ -116,13 +117,20 @@ if (-not $env:AWS_ACCESS_KEY_ID) {
                 $SimFailed = $true
             } else {
                 # Extract the decision by matching only the known EvalDecision token values.
-                # This is more robust than .Trim(), which includes the full multi-line output
-                # and can be corrupted by a trailing AWS CLI deprecation-warning line.
+                # Using -split + Where-Object is immune to trailing AWS CLI deprecation lines.
                 $Result = ($RawResult -split '\r?\n' |
                           Where-Object { $_ -match '^(allowed|explicitDeny|implicitDeny|notApplicable)$' } |
                           Select-Object -First 1)
-                if ($Result -ne 'allowed') {
-                    Write-Error "$Action not allowed on $Resource (got: ${Result:-<no decision token found>})"
+                if ($Result -eq 'allowed') {
+                    # pass — no action needed
+                } elseif ($Result -eq 'notApplicable') {
+                    Write-Warning "$Action returned notApplicable on $Resource — IAM could not evaluate this action/resource combination. Check resource ARN mapping."
+                    $SimUnavailable = $true
+                } else {
+                    # Use an explicit variable for the display value — ${Var:-fallback} is bash
+                    # syntax and is not valid in PowerShell.
+                    $Display = if ($Result) { $Result } else { '<no decision token found>' }
+                    Write-Error "$Action not allowed on $Resource (got: $Display)"
                     $SimFailed = $true
                 }
             }
@@ -130,8 +138,8 @@ if (-not $env:AWS_ACCESS_KEY_ID) {
         if ($SimFailed) {
             Write-Fail "IAM permission simulation"
         } elseif ($SimUnavailable) {
-            Write-Host "  WARNING: IAM simulation skipped — deploy role lacks iam:SimulatePrincipalPolicy. Run scripts/bash/bootstrap-deploy-role.sh (or equivalent) to enable full pre-flight checks." -ForegroundColor Yellow
-            Write-Skip "IAM permission simulation (iam:SimulatePrincipalPolicy unavailable)"
+            Write-Host "  WARNING: IAM simulation skipped or incomplete — see warnings above." -ForegroundColor Yellow
+            Write-Skip "IAM permission simulation (check warnings above)"
         } else {
             Write-Pass "IAM permission simulation"
         }

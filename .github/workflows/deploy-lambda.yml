@@ -255,7 +255,7 @@ jobs:
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           CDK_OUTDIR: /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
         run: |
-          # shellcheck disable=SC2086 - CDK_DIFF_PARAMS intentionally word-splits into --parameters flags
+          # shellcheck disable=SC2086
           npx cdk diff BackendLambdaStack StaticSiteStack \
             --method="$CDK_DIFF_METHOD" \
             -c prod=true \

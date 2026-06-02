@@ -111,7 +111,7 @@ def fetch_ft_timeseries_range(
         return df[STANDARD_COLUMNS]
 
     except Exception as e:
-        logger.warning("FT fetch failed for %s: %s", ticker, e)
+        logger.warning("FT fetch failed for %s: %s", sanitise_log_value(ticker), sanitise_log_value(e))
         return pd.DataFrame(columns=STANDARD_COLUMNS)
 
     finally:

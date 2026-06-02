@@ -239,8 +239,8 @@ def _rolling_cache(
         fetch_name = getattr(fetch_func, "__name__", repr(fetch_func))
         logger.warning(
             "Timeseries fetch failed for %s.%s via %s; serving cached data if available: %s",
-            ticker,
-            exchange,
+            _sanitize_for_log(ticker),
+            _sanitize_for_log(exchange),
             fetch_name,
             exc,
         )
@@ -253,7 +253,7 @@ def _rolling_cache(
     new = _ensure_schema(new)
 
     if new.empty:
-        logger.warning("No new timeseries data for %s.%s", ticker, exchange)
+        logger.warning("No new timeseries data for %s.%s", _sanitize_for_log(ticker), _sanitize_for_log(exchange))
         if existing.empty:
             return _empty_ts()
         # Return best-effort slice of existing
@@ -265,7 +265,7 @@ def _rolling_cache(
     # pandas concat dtype warnings and object coercion
     frames = [df for df in (existing, new) if not df.empty and df.notna().any().any()]
     if not frames:
-        logger.warning("No timeseries data for %s.%s", ticker, exchange)
+        logger.warning("No timeseries data for %s.%s", _sanitize_for_log(ticker), _sanitize_for_log(exchange))
         return _empty_ts()
     combined = (
         pd.concat(frames, ignore_index=True).drop_duplicates(subset="Date").sort_values("Date").reset_index(drop=True)
@@ -328,7 +328,7 @@ def _split_s3_cache_uri(cache: str) -> tuple[str, str] | None:
     without_scheme = cache[len("s3://") :]
     bucket, _, key = without_scheme.partition("/")
     if not bucket or not key:
-        logger.warning("Invalid S3 timeseries cache path: %s", cache)
+        logger.warning("Invalid S3 timeseries cache path: %s", _sanitize_for_log(cache))
         return None
     return bucket, key
 
@@ -344,12 +344,12 @@ def _s3_object_mtime(cache: str) -> float:
     try:
         resp = _s3_client().head_object(Bucket=bucket, Key=key)
     except (BotoCoreError, ClientError) as exc:  # pragma: no cover - defensive AWS path
-        logger.warning("Unable to read S3 cache metadata for %s: %s", cache, exc)
+        logger.warning("Unable to read S3 cache metadata for %s: %s", _sanitize_for_log(cache), exc)
         return 0.0
 
     last_modified = resp.get("LastModified")
     if not hasattr(last_modified, "timestamp"):
-        logger.warning("S3 cache metadata for %s is missing LastModified", cache)
+        logger.warning("S3 cache metadata for %s is missing LastModified", _sanitize_for_log(cache))
         return 0.0
     return float(last_modified.timestamp())
 
@@ -429,7 +429,7 @@ def _memoized_range_cached(
             # _ensure_schema always coerces Date to datetime64[ms] via pd.to_datetime,
             # so the dtype is safe regardless of what apply_date_range returns.
             return _ensure_schema(apply_date_range(existing, start_date, end_date))
-        logger.warning("Offline mode: no cached data for %s.%s", ticker, exchange)
+        logger.warning("Offline mode: no cached data for %s.%s", _sanitize_for_log(ticker), _sanitize_for_log(exchange))
 
         # Temporarily disable offline mode so the live loader can fetch data.
         prev_offline_mode = config.offline_mode
@@ -503,7 +503,7 @@ def _convert_to_base_currency(
                         fx = pd.DataFrame(resp.json())
                         fx["Date"] = pd.to_datetime(fx["Date"])
                 except Exception as exc:  # pragma: no cover - defensive
-                    logger.warning("FX proxy fetch failed for %s: %s", curr, exc)
+                    logger.warning("FX proxy fetch failed for %s: %s", _sanitize_for_log(curr), exc)
 
             if fx.empty:
                 try:
@@ -572,7 +572,7 @@ def load_meta_timeseries_range(
             try:
                 df = _convert_to_base_currency(df, ticker, exchange, s, e, base_currency)
             except ValueError as exc:
-                logger.warning("Skipping FX conversion for %s.%s: %s", ticker, exchange, exc)
+                logger.warning("Skipping FX conversion for %s.%s: %s", _sanitize_for_log(ticker), _sanitize_for_log(exchange), exc)
                 return _empty_ts()
             return df
 
@@ -616,10 +616,10 @@ def _s3_cache_object_exists(cache: str) -> bool:
         error_code = exc.response.get("Error", {}).get("Code")
         if error_code in {"404", "NoSuchKey", "NotFound"}:
             return False
-        logger.error("Unable to check S3 timeseries cache object %s: %s", cache, exc)
+        logger.error("Unable to check S3 timeseries cache object %s: %s", _sanitize_for_log(cache), exc)
         return False
     except BotoCoreError as exc:
-        logger.error("AWS client error checking S3 timeseries cache object %s: %s", cache, exc)
+        logger.error("AWS client error checking S3 timeseries cache object %s: %s", _sanitize_for_log(cache), exc)
         return False
     return True
 

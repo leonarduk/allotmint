@@ -13,6 +13,7 @@ from backend.common.instruments import get_instrument_meta
 from backend.common.path_utils import safe_join
 from backend.common.user_config import UserConfig, load_user_config
 from backend.config import config
+from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger("compliance")
 
@@ -190,8 +191,8 @@ def _check_transactions(owner: str, txs: List[Dict[str, Any]], accounts_root: Op
             logger.info(
                 "%s MAX_TRADES_PER_MONTH %s %s",
                 datetime.now(UTC).isoformat(),
-                owner,
-                month,
+                sanitise_log_value(owner),
+                sanitise_log_value(month),
             )
 
     # holding period rule
@@ -223,8 +224,8 @@ def _check_transactions(owner: str, txs: List[Dict[str, Any]], accounts_root: Op
                 logger.info(
                     "%s HOLD_DAYS_MIN %s %s",
                     datetime.now(UTC).isoformat(),
-                    owner,
-                    ticker,
+                    sanitise_log_value(owner),
+                    sanitise_log_value(ticker),
                 )
 
             meta = get_instrument_meta(ticker)
@@ -252,8 +253,8 @@ def _check_transactions(owner: str, txs: List[Dict[str, Any]], accounts_root: Op
                     logger.info(
                         "%s APPROVAL_REQUIRED %s %s",
                         datetime.now(UTC).isoformat(),
-                        owner,
-                        ticker,
+                        sanitise_log_value(owner),
+                        sanitise_log_value(ticker),
                     )
             if positions.get(ticker, 0) <= 0:
                 positions.pop(ticker, None)

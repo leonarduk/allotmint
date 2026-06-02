@@ -20,6 +20,25 @@ function Write-Pass($msg) { Write-Host "PASS: $msg" -ForegroundColor Green; $scr
 function Write-Fail($msg) { Write-Host "FAIL: $msg" -ForegroundColor Red; $script:Fail++ }
 function Write-Skip($msg) { Write-Host "SKIP: $msg" -ForegroundColor Yellow; $script:Skip++ }
 
+# Emit a GitHub Actions ::warning:: workflow command (visible as a highlighted annotation
+# in the Actions UI).  Falls back to plain Write-Warning outside of GHA runners.
+function Write-GhaWarning($msg) {
+    if ($env:GITHUB_ACTIONS -eq 'true') {
+        Write-Host "::warning::$msg"
+    } else {
+        Write-Warning $msg
+    }
+}
+
+# Emit a GitHub Actions ::error:: workflow command.
+function Write-GhaError($msg) {
+    if ($env:GITHUB_ACTIONS -eq 'true') {
+        Write-Host "::error::$msg"
+    } else {
+        Write-Error $msg
+    }
+}
+
 # 1. Dependency dry-run
 Write-Host "`n=== 1. Dependency dry-run ==="
 $venvPath = Join-Path $env:TEMP 'pre-deploy-venv'
@@ -71,23 +90,74 @@ if (-not $env:AWS_ACCESS_KEY_ID) {
         # Include Lambda and CloudFormation ARNs so those action simulations are meaningful.
         $LambdaArn = "arn:aws:lambda:${AwsRegion}:${AwsAccount}:function:*"
         $CfnArn    = "arn:aws:cloudformation:${AwsRegion}:${AwsAccount}:stack/BackendLambdaStack/*"
-        $iamArgs = @(
-            'iam', 'simulate-principal-policy',
-            '--policy-source-arn', $env:GITHUB_DEPLOY_ROLE_ARN,
-            '--action-names', 's3:GetObject', 's3:ListBucket', 'lambda:InvokeFunction',
-                'cloudformation:CreateChangeSet', 'cloudformation:DescribeChangeSet',
-                'cloudformation:DeleteChangeSet',
-            '--resource-arns', $BucketArn, "$BucketArn/*", $LambdaArn, $CfnArn,
-            '--query', "EvaluationResults[?EvalDecision!='allowed'].EvalActionName",
-            '--output', 'text'
-        )
-        # Use & so the argument array is expanded correctly for the external aws executable.
-        $Denied = & aws @iamArgs 2>&1
-        if (-not $Denied -or $Denied -eq 'None') {
-            Write-Pass "IAM permission simulation"
-        } else {
-            Write-Host "  Denied actions: $Denied"
+        # Map each action to its canonical resource ARN to avoid IAM returning
+        # "notApplicable" for mismatched action/resource pairs.  notApplicable means
+        # IAM could not evaluate the combination — treated as a warning, not a hard failure.
+        $ActionResources = [ordered]@{
+            's3:GetObject'                   = "$BucketArn/*"
+            's3:ListBucket'                  = $BucketArn
+            'lambda:InvokeFunction'          = $LambdaArn
+            'cloudformation:CreateChangeSet' = $CfnArn
+            'cloudformation:DescribeChangeSet' = $CfnArn
+            'cloudformation:DeleteChangeSet' = $CfnArn
+        }
+        $SimFailed      = $false
+        $SimUnavailable = $false
+        foreach ($Entry in $ActionResources.GetEnumerator()) {
+            $Action   = $Entry.Key
+            $Resource = $Entry.Value
+            $iamArgs = @(
+                'iam', 'simulate-principal-policy',
+                '--policy-source-arn', $env:GITHUB_DEPLOY_ROLE_ARN,
+                '--action-names', $Action,
+                '--resource-arns', $Resource,
+                '--query', 'EvaluationResults[0].EvalDecision',
+                '--output', 'text'
+            )
+            # Pipe through Out-String to coerce the mixed [object[]] that 2>&1 can produce
+            # (strings + ErrorRecord objects) into a single plain string so that -match
+            # always behaves as a boolean rather than returning filtered array elements.
+            $RawResult  = (& aws @iamArgs 2>&1) | Out-String
+            $AwsSuccess = ($LASTEXITCODE -eq 0)
+            # Distinguish four cases:
+            # 1. The caller is not authorised to call iam:SimulatePrincipalPolicy → warn and skip.
+            # 2. Any other non-zero exit (unexpected error) → hard-fail.
+            # 3. notApplicable → warn (IAM could not evaluate the action/resource combination).
+            # 4. Any other non-"allowed" decision (explicitDeny/implicitDeny) → hard-fail.
+            if ($RawResult -match 'not authorized to perform.*iam:SimulatePrincipalPolicy|iam:SimulatePrincipalPolicy.*not authorized') {
+                Write-GhaWarning "simulate-principal-policy unavailable for $Action — deploy role lacks iam:SimulatePrincipalPolicy. Run scripts/bash/bootstrap-deploy-role.sh (or equivalent) to grant it."
+                Write-Host "  AWS response: $RawResult" -ForegroundColor Yellow
+                $SimUnavailable = $true
+            } elseif (-not $AwsSuccess) {
+                Write-GhaError "simulate-principal-policy failed for $Action with an unexpected error."
+                Write-Host "  AWS response: $RawResult" -ForegroundColor Red
+                $SimFailed = $true
+            } else {
+                # Extract the decision by matching only the known EvalDecision token values.
+                # Using -split + Where-Object is immune to trailing AWS CLI deprecation lines.
+                $Result = ($RawResult -split '\r?\n' |
+                          Where-Object { $_ -match '^(allowed|explicitDeny|implicitDeny|notApplicable)$' } |
+                          Select-Object -First 1)
+                if ($Result -eq 'allowed') {
+                    # pass — no action needed
+                } elseif ($Result -eq 'notApplicable') {
+                    Write-GhaWarning "$Action returned notApplicable on $Resource — IAM could not evaluate this action/resource combination. Check resource ARN mapping."
+                    $SimUnavailable = $true
+                } else {
+                    $Display = if ($Result) { $Result } else { '<no decision token found>' }
+                    Write-GhaError "$Action not allowed on $Resource (got: $Display)"
+                    Write-Host "  AWS response: $RawResult" -ForegroundColor Red
+                    $SimFailed = $true
+                }
+            }
+        }
+        if ($SimFailed) {
             Write-Fail "IAM permission simulation"
+        } elseif ($SimUnavailable) {
+            Write-GhaWarning "IAM simulation skipped or incomplete — see warnings above."
+            Write-Skip "IAM permission simulation (check warnings above)"
+        } else {
+            Write-Pass "IAM permission simulation"
         }
     }
 }

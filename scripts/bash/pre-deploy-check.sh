@@ -68,19 +68,70 @@ else
         # Include Lambda and CloudFormation ARNs so those action simulations are meaningful.
         LAMBDA_ARN="arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT}:function:*"
         CFN_ARN="arn:aws:cloudformation:${AWS_REGION}:${AWS_ACCOUNT}:stack/BackendLambdaStack/*"
-        DENIED=$(aws iam simulate-principal-policy \
-            --policy-source-arn "$GITHUB_DEPLOY_ROLE_ARN" \
-            --action-names s3:GetObject s3:ListBucket lambda:InvokeFunction \
-                cloudformation:CreateChangeSet cloudformation:DescribeChangeSet \
-                cloudformation:DeleteChangeSet \
-            --resource-arns "${BUCKET_ARN}" "${BUCKET_ARN}/*" "${LAMBDA_ARN}" "${CFN_ARN}" \
-            --query "EvaluationResults[?EvalDecision!='allowed'].EvalActionName" \
-            --output text 2>&1)
-        if [[ -z "$DENIED" || "$DENIED" == "None" ]]; then
-            pass "IAM permission simulation"
-        else
-            echo "  Denied actions: $DENIED"
+        # Map each action to its canonical resource ARN to avoid IAM returning
+        # "notApplicable" for mismatched action/resource pairs.  notApplicable means
+        # IAM could not evaluate the combination (e.g. a wildcard ARN that doesn't match
+        # the action's resource type) — it is treated as a warning, not a hard failure,
+        # since it does not indicate the action is actually denied.
+        declare -A ACTION_RESOURCES=(
+            ["s3:GetObject"]="${BUCKET_ARN}/*"
+            ["s3:ListBucket"]="${BUCKET_ARN}"
+            ["lambda:InvokeFunction"]="${LAMBDA_ARN}"
+            ["cloudformation:CreateChangeSet"]="${CFN_ARN}"
+            ["cloudformation:DescribeChangeSet"]="${CFN_ARN}"
+            ["cloudformation:DeleteChangeSet"]="${CFN_ARN}"
+        )
+        sim_failed=0
+        sim_unavailable=0
+        for ACTION in "${!ACTION_RESOURCES[@]}"; do
+            RESOURCE="${ACTION_RESOURCES[$ACTION]}"
+            # Capture stdout+stderr together; preserve exit code separately so raw_result
+            # always contains the real AWS CLI output (the || idiom would overwrite it).
+            raw_result=$(aws iam simulate-principal-policy \
+                --policy-source-arn "$GITHUB_DEPLOY_ROLE_ARN" \
+                --action-names "$ACTION" \
+                --resource-arns "$RESOURCE" \
+                --query "EvaluationResults[0].EvalDecision" \
+                --output text 2>&1)
+            aws_exit=$?
+            # Distinguish four cases:
+            # 1. The caller is not authorised to call iam:SimulatePrincipalPolicy → warn and skip
+            #    so a bootstrap deploy that grants the permission can still proceed (#3209).
+            #    Use -E (ERE) for portable | alternation; BRE \| is not reliable on BSD grep.
+            # 2. Any other non-zero exit (unexpected error) → hard-fail.
+            # 3. notApplicable → warn (IAM could not evaluate the action/resource combination;
+            #    this is not a denial and the per-action resource map should prevent it).
+            # 4. Any other non-"allowed" decision (explicitDeny/implicitDeny) → hard-fail.
+            if echo "$raw_result" | grep -qiE "not authorized to perform.*iam:SimulatePrincipalPolicy|iam:SimulatePrincipalPolicy.*not authorized"; then
+                echo "::warning::simulate-principal-policy unavailable for $ACTION — deploy role lacks iam:SimulatePrincipalPolicy. Run scripts/bash/bootstrap-deploy-role.sh to grant it."
+                echo "  AWS response: $raw_result" >&2
+                sim_unavailable=1
+            elif [ "$aws_exit" -ne 0 ]; then
+                echo "::error::simulate-principal-policy failed for $ACTION with an unexpected error."
+                echo "  AWS response: $raw_result" >&2
+                sim_failed=1
+            else
+                # Extract the decision by matching only the known EvalDecision token values.
+                result="$(echo "$raw_result" | grep -m1 -E '^(allowed|explicitDeny|implicitDeny|notApplicable)$')"
+                if [ "$result" = "allowed" ]; then
+                    : # pass — no action needed
+                elif [ "$result" = "notApplicable" ]; then
+                    echo "::warning::$ACTION returned notApplicable on $RESOURCE — IAM could not evaluate this action/resource combination. Check resource ARN mapping."
+                    sim_unavailable=1
+                else
+                    echo "::error::$ACTION not allowed on $RESOURCE (got: ${result:-<no decision token found>})"
+                    echo "  AWS response: $raw_result" >&2
+                    sim_failed=1
+                fi
+            fi
+        done
+        if [ "$sim_failed" -eq 1 ]; then
             fail "IAM permission simulation"
+        elif [ "$sim_unavailable" -eq 1 ]; then
+            echo "::warning::IAM simulation skipped or incomplete — see warnings above."
+            skip "IAM permission simulation (check warnings above)"
+        else
+            pass "IAM permission simulation"
         fi
     fi
 fi

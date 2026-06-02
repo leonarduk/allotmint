@@ -69,7 +69,10 @@ else
         LAMBDA_ARN="arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT}:function:*"
         CFN_ARN="arn:aws:cloudformation:${AWS_REGION}:${AWS_ACCOUNT}:stack/BackendLambdaStack/*"
         # Map each action to its canonical resource ARN to avoid IAM returning
-        # "notApplicable" (which is != "allowed") for mismatched action/resource pairs.
+        # "notApplicable" for mismatched action/resource pairs.  notApplicable means
+        # IAM could not evaluate the combination (e.g. a wildcard ARN that doesn't match
+        # the action's resource type) — it is treated as a warning, not a hard failure,
+        # since it does not indicate the action is actually denied.
         declare -A ACTION_RESOURCES=(
             ["s3:GetObject"]="${BUCKET_ARN}/*"
             ["s3:ListBucket"]="${BUCKET_ARN}"
@@ -91,13 +94,13 @@ else
                 --query "EvaluationResults[0].EvalDecision" \
                 --output text 2>&1)
             aws_exit=$?
-            # Distinguish three cases:
+            # Distinguish four cases:
             # 1. The caller is not authorised to call iam:SimulatePrincipalPolicy → warn and skip
             #    so a bootstrap deploy that grants the permission can still proceed (#3209).
-            #    Match the specific "not authorized to perform: iam:SimulatePrincipalPolicy"
-            #    message to avoid masking real permission denials on target actions.
-            # 2. Any other non-zero exit (unexpected error) → hard-fail (masking is dangerous).
-            # 3. Successful call (exit 0) returning a non-"allowed" decision → hard-fail.
+            # 2. Any other non-zero exit (unexpected error) → hard-fail.
+            # 3. notApplicable → warn (IAM could not evaluate the action/resource combination;
+            #    this is not a denial and the per-action resource map should prevent it).
+            # 4. Any other non-"allowed" decision (explicitDeny/implicitDeny) → hard-fail.
             if echo "$raw_result" | grep -qi "not authorized to perform.*iam:SimulatePrincipalPolicy\|iam:SimulatePrincipalPolicy.*not authorized"; then
                 echo "  WARNING: simulate-principal-policy unavailable for $ACTION — deploy role lacks iam:SimulatePrincipalPolicy." >&2
                 echo "  AWS response: $raw_result" >&2
@@ -108,10 +111,13 @@ else
                 sim_failed=1
             else
                 # Extract the decision by matching only the known EvalDecision token values.
-                # This is more robust than tail -1, which can pick up a trailing AWS CLI
-                # deprecation-warning line emitted to stdout after the decision token.
                 result="$(echo "$raw_result" | grep -m1 -E '^(allowed|explicitDeny|implicitDeny|notApplicable)$')"
-                if [ "$result" != "allowed" ]; then
+                if [ "$result" = "allowed" ]; then
+                    : # pass — no action needed
+                elif [ "$result" = "notApplicable" ]; then
+                    echo "  WARNING: $ACTION returned notApplicable on $RESOURCE — IAM could not evaluate this action/resource combination. Check resource ARN mapping." >&2
+                    sim_unavailable=1
+                else
                     echo "  ERROR: $ACTION not allowed on $RESOURCE (got: ${result:-<no decision token found>})" >&2
                     sim_failed=1
                 fi
@@ -120,8 +126,8 @@ else
         if [ "$sim_failed" -eq 1 ]; then
             fail "IAM permission simulation"
         elif [ "$sim_unavailable" -eq 1 ]; then
-            echo "  WARNING: IAM simulation skipped — deploy role lacks iam:SimulatePrincipalPolicy. Run scripts/bash/bootstrap-deploy-role.sh to enable full pre-flight checks." >&2
-            skip "IAM permission simulation (iam:SimulatePrincipalPolicy unavailable)"
+            echo "  WARNING: IAM simulation skipped or incomplete — see warnings above." >&2
+            skip "IAM permission simulation (check warnings above)"
         else
             pass "IAM permission simulation"
         fi

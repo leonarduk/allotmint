@@ -91,13 +91,17 @@ export const DEFAULT_API_BASE =
   import.meta.env.VITE_API_URL ??
   "http://localhost:8000";
 
-let API_BASE: string;
-try {
-  API_BASE = validateApiBase(DEFAULT_API_BASE);
-} catch (err) {
-  const msg = err instanceof Error ? err.message : String(err);
-  throw new Error(`Failed to initialize API base URL: ${msg}`, { cause: err });
-}
+// Validate at startup so a misconfigured URL surfaces immediately (CWE-918 fix).
+// The inner IIFE keeps the try/catch scoped while still producing an exported binding.
+// `let` (not `const`) because setApiBase() may reassign it at runtime.
+export let API_BASE: string = (() => {
+  try {
+    return validateApiBase(DEFAULT_API_BASE);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`Failed to initialize API base URL: ${msg}`, { cause: err });
+  }
+})();
 
 export const getApiBase = () => API_BASE;
 

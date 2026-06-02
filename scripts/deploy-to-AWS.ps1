@@ -187,6 +187,41 @@ Set-Content -Path $pythonShimPath -Value $shimScript -Encoding ASCII
 $originalPath = $env:PATH
 $env:PATH = "$pythonShimDir;$originalPath"
 
+function Get-CfnOutput {
+  Param(
+    [Parameter(Mandatory=$true)]
+    [string]$StackName,
+    [Parameter(Mandatory=$true)]
+    [string]$OutputKey,
+    [int]$MaxRetries = 5,
+    [int]$InitialDelaySeconds = 2
+  )
+
+  $delay = $InitialDelaySeconds
+  for ($attempt = 1; $attempt -le $MaxRetries; $attempt++) {
+    try {
+      $output = (aws cloudformation describe-stacks --stack-name $StackName --query "Stacks[0].Outputs[?OutputKey=='$OutputKey'].OutputValue" --output text 2>$null).Trim()
+      if (-not ([string]::IsNullOrWhiteSpace($output)) -and $output -ne 'None') {
+        return $output
+      }
+      if ($attempt -lt $MaxRetries) {
+        Write-Host "Output $OutputKey not yet available from $StackName (attempt $attempt/$MaxRetries). Retrying in ${delay}s..." -ForegroundColor Yellow
+        Start-Sleep -Seconds $delay
+        $delay = [Math]::Min($delay * 2, 30)
+      }
+    } catch {
+      if ($attempt -lt $MaxRetries) {
+        Write-Host "Error querying $OutputKey from $StackName (attempt $attempt/$MaxRetries): $_. Retrying in ${delay}s..." -ForegroundColor Yellow
+        Start-Sleep -Seconds $delay
+        $delay = [Math]::Min($delay * 2, 30)
+      } else {
+        throw $_
+      }
+    }
+  }
+  return $null
+}
+
 try {
 
 # Place synthesized CDK templates outside the repository
@@ -297,23 +332,28 @@ if ($Backend) {
     $prodContext = if ($Prod) { 'true' } else { 'false' }
     & $cdkCmd.Path deploy StaticSiteStack -c "data_bucket=$effectiveBucket" -c "prod=$prodContext" --require-approval never
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    $uiAuthUserPoolId = (aws cloudformation describe-stacks --stack-name StaticSiteStack --query "Stacks[0].Outputs[?OutputKey=='UiAuthUserPoolId'].OutputValue" --output text).Trim()
-    $uiAuthClientId = (aws cloudformation describe-stacks --stack-name StaticSiteStack --query "Stacks[0].Outputs[?OutputKey=='UiAuthUserPoolClientId'].OutputValue" --output text).Trim()
-    if ([string]::IsNullOrWhiteSpace($uiAuthUserPoolId) -or $uiAuthUserPoolId -eq 'None') {
-      Write-Host 'UiAuthUserPoolId output is missing from StaticSiteStack.' -ForegroundColor Red
+    Write-Host 'Querying CloudFormation outputs from StaticSiteStack...' -ForegroundColor Cyan
+    $uiAuthUserPoolId = Get-CfnOutput -StackName 'StaticSiteStack' -OutputKey 'UiAuthUserPoolId'
+    if (-not $uiAuthUserPoolId) {
+      Write-Host 'UiAuthUserPoolId output is missing from StaticSiteStack after retries.' -ForegroundColor Red
       exit 1
     }
-    if ([string]::IsNullOrWhiteSpace($uiAuthClientId) -or $uiAuthClientId -eq 'None') {
-      Write-Host 'UiAuthUserPoolClientId output is missing from StaticSiteStack.' -ForegroundColor Red
+    $uiAuthClientId = Get-CfnOutput -StackName 'StaticSiteStack' -OutputKey 'UiAuthUserPoolClientId'
+    if (-not $uiAuthClientId) {
+      Write-Host 'UiAuthUserPoolClientId output is missing from StaticSiteStack after retries.' -ForegroundColor Red
       exit 1
     }
+    Write-Host "Retrieved UiAuthUserPoolId: $uiAuthUserPoolId" -ForegroundColor Green
+    Write-Host "Retrieved UiAuthUserPoolClientId: $uiAuthClientId" -ForegroundColor Green
     & $cdkCmd.Path deploy BackendLambdaStack -c "data_bucket=$effectiveBucket" -c "prod=$prodContext" --require-approval never --parameters "BackendLambdaStack:UiAuthUserPoolId=$uiAuthUserPoolId" --parameters "BackendLambdaStack:UiAuthUserPoolClientId=$uiAuthClientId"
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    $backendUrl = (aws cloudformation describe-stacks --stack-name BackendLambdaStack --query "Stacks[0].Outputs[?OutputKey=='BackendApiUrl'].OutputValue" --output text).Trim()
-    if ([string]::IsNullOrWhiteSpace($backendUrl) -or $backendUrl -eq 'None') {
-      Write-Host 'BackendApiUrl output is missing from BackendLambdaStack.' -ForegroundColor Red
+    Write-Host 'Querying CloudFormation outputs from BackendLambdaStack...' -ForegroundColor Cyan
+    $backendUrl = Get-CfnOutput -StackName 'BackendLambdaStack' -OutputKey 'BackendApiUrl'
+    if (-not $backendUrl) {
+      Write-Host 'BackendApiUrl output is missing from BackendLambdaStack after retries.' -ForegroundColor Red
       exit 1
     }
+    Write-Host "Retrieved BackendApiUrl: $backendUrl" -ForegroundColor Green
     & $cdkCmd.Path deploy StaticSiteStack -c "data_bucket=$effectiveBucket" -c "prod=$prodContext" --require-approval never --parameters "StaticSiteStack:BackendApiUrl=$backendUrl"
   } finally {
     Pop-Location

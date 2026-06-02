@@ -21,6 +21,15 @@ pass() { echo "PASS: $1"; PASS=$((PASS + 1)); }
 fail() { echo "FAIL: $1"; FAIL=$((FAIL + 1)); }
 skip() { echo "SKIP: $1"; SKIP=$((SKIP + 1)); }
 
+# 0. Deployment environment variable validation
+echo ""
+echo "=== 0. Deployment environment variable validation ==="
+if bash scripts/bash/validate-deployment-env.sh; then
+    pass "deployment environment variables"
+else
+    fail "deployment environment variables"
+fi
+
 # 1. Dependency dry-run
 echo ""
 echo "=== 1. Dependency dry-run ==="

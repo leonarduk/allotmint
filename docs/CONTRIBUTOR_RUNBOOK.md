@@ -76,6 +76,70 @@ Copy `.env.example` to `.env` if you want a local file-backed setup, or export t
 | `AWS_REGION` | Common for deploy scripts | `AWS_REGION=eu-west-2` | Region used by AWS CLI/CDK/frontend deploy helpers. |
 | `CDK_PYTHON` | Optional | `CDK_PYTHON=.venv/bin/python` | Forces a specific Python interpreter for CDK workflows. |
 
+### Deployment environment variables (required for AWS/GitHub Actions deployment)
+
+Before running the deployment workflow or `pre-deploy-check.sh`, ensure these variables are configured.
+
+**Required for all deployments:**
+
+| Variable | Purpose | Example |
+| --- | --- | --- |
+| `DATA_BUCKET` | S3 bucket containing account and metadata data | `DATA_BUCKET=allotmint-prod-data` |
+| `JWT_SECRET` | Secret key for JWT token signing in the backend API | `JWT_SECRET=<secure-random-string>` |
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID for frontend/backend authentication | `GOOGLE_CLIENT_ID=...apps.googleusercontent.com` |
+
+**Required when AWS credentials are present (for CDK deployment):**
+
+| Variable | Purpose | Example |
+| --- | --- | --- |
+| `AWS_REGION` | AWS region for CDK and Lambda deployment | `AWS_REGION=eu-west-2` |
+| `GITHUB_DEPLOY_ROLE_ARN` | IAM role ARN for GitHub Actions deployment (used by CI/CD) | `GITHUB_DEPLOY_ROLE_ARN=arn:aws:iam::123456789012:role/github-deploy` |
+
+**Optional but recommended:**
+
+| Variable | Purpose | Example |
+| --- | --- | --- |
+| `SMOKE_TEST_USERNAME` | Username for authenticated smoke test runs | `SMOKE_TEST_USERNAME=test-user@example.com` |
+| `SMOKE_TEST_PASSWORD` | Password for authenticated smoke test runs | `SMOKE_TEST_PASSWORD=<secure-password>` |
+
+**Validating deployment configuration:**
+
+Before deploying, run the deployment environment validator to catch missing configuration early:
+
+```bash
+# Check required variables only
+bash scripts/bash/validate-deployment-env.sh
+
+# Check required + optional variables
+bash scripts/bash/validate-deployment-env.sh --strict
+```
+
+Or on Windows:
+
+```powershell
+# Check required variables only
+pwsh scripts/powershell/validate-deployment-env.ps1
+
+# Check required + optional variables
+pwsh scripts/powershell/validate-deployment-env.ps1 -Strict
+```
+
+The validator will print clear error messages identifying which variables are missing and why they are needed. All required variables must be present before the deployment workflow can succeed.
+
+**For GitHub Actions deployment:**
+
+Set the above variables as [GitHub repository secrets](https://docs.github.com/en/actions/security-guides/using-secrets-in-github-actions) or [variables](https://docs.github.com/en/actions/learn-github-actions/variables). Secrets are encrypted and recommended for sensitive values like `JWT_SECRET`.
+
+**For local development and testing:**
+
+Export the variables in your shell or `.env` file before running local deployment commands or pre-deploy checks:
+
+```bash
+export DATA_BUCKET=allotmint-dev-data
+export JWT_SECRET=dev-secret-key-change-in-production
+export GOOGLE_CLIENT_ID=dev-client.apps.googleusercontent.com
+```
+
 ### Frontend-specific variables
 
 | Variable | Required when | Example | What it controls |
@@ -259,12 +323,13 @@ The script runs each check in sequence and prints a `PASS` / `FAIL` / `SKIP` lin
 
 Checks performed:
 
-1. **Dependency dry-run** — pip conflict detection before Docker build.
-2. **CDK synth + diff** — confirms the stacks synthesise cleanly and shows what would change (requires `AWS_ACCESS_KEY_ID`, `GITHUB_DEPLOY_ROLE_ARN`, `JWT_SECRET`, `GOOGLE_CLIENT_ID`, `DATA_BUCKET`).
-3. **IAM permission simulation** — verifies the deploy role has the S3/Lambda/CloudFormation permissions needed by the deploy workflow (requires AWS credentials and `GITHUB_DEPLOY_ROLE_ARN`).
-4. **Backend lint + tests** — `make lint` and `pytest`.
-5. **Frontend lint + tests** — `npm --prefix frontend run lint` and Vitest.
-6. **CDK tests** — `cdk/tests/` pytest suite.
+1. **Deployment environment variables** — validates that `DATA_BUCKET`, `JWT_SECRET`, and `GOOGLE_CLIENT_ID` are set. If AWS credentials are detected, also validates `AWS_REGION` and `GITHUB_DEPLOY_ROLE_ARN`. See "[Deployment environment variables](#deployment-environment-variables-required-for-awsgithub-actions-deployment)" above for details.
+2. **Dependency dry-run** — pip conflict detection before Docker build.
+3. **CDK synth + diff** — confirms the stacks synthesise cleanly and shows what would change (requires `AWS_ACCESS_KEY_ID`, `GITHUB_DEPLOY_ROLE_ARN`, `JWT_SECRET`, `GOOGLE_CLIENT_ID`, `DATA_BUCKET`).
+4. **IAM permission simulation** — verifies the deploy role has the S3/Lambda/CloudFormation permissions needed by the deploy workflow (requires AWS credentials and `GITHUB_DEPLOY_ROLE_ARN`).
+5. **Backend lint + tests** — `make lint` and `pytest`.
+6. **Frontend lint + tests** — `npm --prefix frontend run lint` and Vitest.
+7. **CDK tests** — `cdk/tests/` pytest suite.
 
 ## 10. Deployment-related checks
 

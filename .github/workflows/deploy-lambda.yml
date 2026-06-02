@@ -224,7 +224,7 @@ jobs:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           CDK_OUTDIR: /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
-        run: npx cdk diff BackendLambdaStack StaticSiteStack --method=changeset -c prod=true
+        run: npx cdk diff BackendLambdaStack StaticSiteStack --method=change-set -c prod=true
         working-directory: cdk
 
       - name: Deploy StaticSiteStack auth resources

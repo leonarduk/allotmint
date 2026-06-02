@@ -96,7 +96,7 @@ try {
   API_BASE = validateApiBase(DEFAULT_API_BASE);
 } catch (err) {
   const msg = err instanceof Error ? err.message : String(err);
-  throw new Error(`Failed to initialize API base URL: ${msg}`);
+  throw new Error(`Failed to initialize API base URL: ${msg}`, { cause: err });
 }
 
 export const getApiBase = () => API_BASE;
@@ -107,7 +107,7 @@ export const setApiBase = (value: string | null | undefined) => {
     API_BASE = validateApiBase(value);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    throw new Error(`Failed to set API base URL: ${msg}`);
+    throw new Error(`Failed to set API base URL: ${msg}`, { cause: err });
   }
 };
 

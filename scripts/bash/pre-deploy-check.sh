@@ -97,16 +97,17 @@ else
             # Distinguish four cases:
             # 1. The caller is not authorised to call iam:SimulatePrincipalPolicy → warn and skip
             #    so a bootstrap deploy that grants the permission can still proceed (#3209).
+            #    Use -E (ERE) for portable | alternation; BRE \| is not reliable on BSD grep.
             # 2. Any other non-zero exit (unexpected error) → hard-fail.
             # 3. notApplicable → warn (IAM could not evaluate the action/resource combination;
             #    this is not a denial and the per-action resource map should prevent it).
             # 4. Any other non-"allowed" decision (explicitDeny/implicitDeny) → hard-fail.
-            if echo "$raw_result" | grep -qi "not authorized to perform.*iam:SimulatePrincipalPolicy\|iam:SimulatePrincipalPolicy.*not authorized"; then
-                echo "  WARNING: simulate-principal-policy unavailable for $ACTION — deploy role lacks iam:SimulatePrincipalPolicy." >&2
+            if echo "$raw_result" | grep -qiE "not authorized to perform.*iam:SimulatePrincipalPolicy|iam:SimulatePrincipalPolicy.*not authorized"; then
+                echo "::warning::simulate-principal-policy unavailable for $ACTION — deploy role lacks iam:SimulatePrincipalPolicy. Run scripts/bash/bootstrap-deploy-role.sh to grant it."
                 echo "  AWS response: $raw_result" >&2
                 sim_unavailable=1
             elif [ "$aws_exit" -ne 0 ]; then
-                echo "  ERROR: simulate-principal-policy failed for $ACTION with an unexpected error." >&2
+                echo "::error::simulate-principal-policy failed for $ACTION with an unexpected error."
                 echo "  AWS response: $raw_result" >&2
                 sim_failed=1
             else
@@ -115,10 +116,11 @@ else
                 if [ "$result" = "allowed" ]; then
                     : # pass — no action needed
                 elif [ "$result" = "notApplicable" ]; then
-                    echo "  WARNING: $ACTION returned notApplicable on $RESOURCE — IAM could not evaluate this action/resource combination. Check resource ARN mapping." >&2
+                    echo "::warning::$ACTION returned notApplicable on $RESOURCE — IAM could not evaluate this action/resource combination. Check resource ARN mapping."
                     sim_unavailable=1
                 else
-                    echo "  ERROR: $ACTION not allowed on $RESOURCE (got: ${result:-<no decision token found>})" >&2
+                    echo "::error::$ACTION not allowed on $RESOURCE (got: ${result:-<no decision token found>})"
+                    echo "  AWS response: $raw_result" >&2
                     sim_failed=1
                 fi
             fi
@@ -126,7 +128,7 @@ else
         if [ "$sim_failed" -eq 1 ]; then
             fail "IAM permission simulation"
         elif [ "$sim_unavailable" -eq 1 ]; then
-            echo "  WARNING: IAM simulation skipped or incomplete — see warnings above." >&2
+            echo "::warning::IAM simulation skipped or incomplete — see warnings above."
             skip "IAM permission simulation (check warnings above)"
         else
             pass "IAM permission simulation"

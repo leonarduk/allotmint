@@ -10,6 +10,7 @@ from typing import Dict, Optional
 
 from backend.common.path_utils import safe_join
 from backend.config import config
+from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
 
@@ -42,12 +43,12 @@ def load_approvals(owner: str, accounts_root: Optional[Path] = None) -> Dict[str
 
     path = approvals_path(owner, accounts_root)
     if not path.exists():
-        logger.info("approvals file for '%s' not found at %s", owner, path)
+        logger.info("approvals file for '%s' not found at %s", sanitise_log_value(owner), path)
         return {}
     try:
         data = json.loads(path.read_text())
     except (OSError, json.JSONDecodeError) as exc:
-        logger.error("failed to read approvals for %s: %s", owner, exc)
+        logger.error("failed to read approvals for %s: %s", sanitise_log_value(owner), exc)
         return {}
     entries = data.get("approvals") if isinstance(data, dict) else data
     if not isinstance(entries, list):
@@ -94,7 +95,7 @@ def save_approvals(
     try:
         path.write_text(json.dumps({"approvals": entries}, indent=2, sort_keys=True))
     except OSError as exc:
-        logger.error("failed to write approvals for %s to %s: %s", owner, path, exc)
+        logger.error("failed to write approvals for %s to %s: %s", sanitise_log_value(owner), path, exc)
         raise
 
 
@@ -111,7 +112,7 @@ def upsert_approval(
     try:
         save_approvals(owner, approvals, accounts_root)
     except OSError:
-        logger.error("failed to persist approval for %s/%s", owner, ticker)
+        logger.error("failed to persist approval for %s/%s", sanitise_log_value(owner), sanitise_log_value(ticker))
         raise
     return approvals
 
@@ -126,7 +127,11 @@ def delete_approval(
     try:
         save_approvals(owner, approvals, accounts_root)
     except OSError:
-        logger.error("failed to persist approval removal for %s/%s", owner, ticker)
+        logger.error(
+            "failed to persist approval removal for %s/%s",
+            sanitise_log_value(owner),
+            sanitise_log_value(ticker),
+        )
         raise
     return approvals
 

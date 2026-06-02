@@ -5,8 +5,9 @@ from fastapi import APIRouter, HTTPException, Request
 
 from backend.common import compliance, data_loader
 from backend.common.errors import handle_owner_not_found, raise_owner_not_found
-from backend.routes._accounts import resolve_accounts_root, resolve_owner_directory
 from backend.config import demo_identity
+from backend.logging_setup import sanitise_log_value
+from backend.routes._accounts import resolve_accounts_root, resolve_owner_directory
 
 router = APIRouter(tags=["compliance"])
 logger = logging.getLogger(__name__)
@@ -144,7 +145,7 @@ async def compliance_for_owner(owner: str, request: Request):
         # forwarded directly to the client.
         return compliance.check_owner(owner, accounts_root)
     except FileNotFoundError as exc:
-        logger.warning("accounts for %s not found: %s", owner, exc)
+        logger.warning("accounts for %s not found: %s", sanitise_log_value(owner), sanitise_log_value(exc))
         raise_owner_not_found()
 
 
@@ -197,6 +198,6 @@ async def validate_trade(request: Request):
         try:
             compliance.ensure_owner_scaffold(trade["owner"], accounts_root)
         except Exception:
-            logger.warning("failed to scaffold compliance data for %s", trade.get("owner"))
+            logger.warning("failed to scaffold compliance data for %s", sanitise_log_value(trade.get("owner")))
 
     return result

@@ -55,7 +55,11 @@ def fetch_stooq_timeseries_range(
     if date.today() <= STOOQ_DISABLED_UNTIL:
         raise StooqRateLimitError("Exceeded the daily hits limit")
     if not is_valid_ticker(ticker, exchange):
-        logger.info("Skipping Stooq fetch for unrecognized ticker %s.%s", ticker, exchange)
+        logger.info(
+            "Skipping Stooq fetch for unrecognized ticker %s.%s",
+            sanitise_log_value(ticker),
+            sanitise_log_value(exchange),
+        )
         record_skipped_ticker(ticker, exchange, reason="unknown")
         return pd.DataFrame(columns=STANDARD_COLUMNS)
     suffix = get_stooq_suffix(exchange)
@@ -109,7 +113,7 @@ def fetch_stooq_timeseries_range(
         return df[["Date", "Open", "High", "Low", "Close", "Volume", "Ticker", "Source"]]
 
     except requests.exceptions.Timeout:
-        logger.warning("Stooq request timed out for %s", full_ticker)
+        logger.warning("Stooq request timed out for %s", sanitise_log_value(full_ticker))
         return pd.DataFrame(columns=STANDARD_COLUMNS)
     except Exception as e:
         logger.error("Failed to fetch Stooq data for %s: %s", sanitise_log_value(full_ticker), sanitise_log_value(e))

@@ -52,6 +52,9 @@
           },
           {
             "context": "CI / Lambda-compat pytest (backend/requirements.txt)"
+          },
+          {
+            "context": "Validate AI Reviewer Approval / Validate AI reviewer approval"
           }
         ]
       }

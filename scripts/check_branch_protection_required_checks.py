@@ -25,6 +25,7 @@ EXPECTED_REQUIRED_CHECKS = {
     "Frontend Tests / frontend-tests",
     "PR Body Issue Reference Check / require-issue-reference",
     "Dependency Review / dependency-review",
+    "Validate AI Reviewer Approval / Validate AI reviewer approval",
 }
 ADVISORY_CHECK_PREFIXES = ("Claude PR Review /", "GPT PR Review /")
 

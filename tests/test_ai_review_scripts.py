@@ -170,3 +170,75 @@ def test_review_script_reports_mocked_api_failure(
 
     assert exc.value.code == 1
     assert expected_message in capsys.readouterr().err
+
+
+def _mock_subprocess_pr_number(pr_number: int = 123):
+    """Create a mock for subprocess.run that returns PR number."""
+    def mock_run(*args, **kwargs):
+        if isinstance(args[0], list) and "view" in args[0] and "number" in args[0]:
+            result = type("ProcessResult", (), {
+                "stdout": json.dumps({"number": pr_number}),
+                "returncode": 0,
+            })()
+            return result
+        raise RuntimeError(f"Unexpected subprocess call: {args}")
+    return mock_run
+
+
+def test_validate_ai_reviewer_approval_passes_when_both_approved(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    module = load_script_module("validate_approval", "validate_ai_reviewer_approval.py")
+    comments = [
+        {"body": "## Claude AI Code Review\n\nLooks good\n**APPROVE**"},
+        {"body": "## GPT AI Code Review\n\nLooks good\n**APPROVE**"},
+    ]
+    monkeypatch.setattr(module, "get_pr_comments", lambda pr_number: comments)
+    monkeypatch.setattr(module.subprocess, "run", _mock_subprocess_pr_number())
+
+    assert module.main() == 0
+    assert "✓ AI reviewer approval check passed" in capsys.readouterr().out
+
+
+def test_validate_ai_reviewer_approval_passes_when_neither_ran(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    module = load_script_module("validate_approval_no_reviews", "validate_ai_reviewer_approval.py")
+    comments = []
+    monkeypatch.setattr(module, "get_pr_comments", lambda pr_number: comments)
+    monkeypatch.setattr(module.subprocess, "run", _mock_subprocess_pr_number())
+
+    assert module.main() == 0
+    assert "No AI reviews ran" in capsys.readouterr().out
+
+
+def test_validate_ai_reviewer_approval_fails_when_claude_ran_but_no_approve(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    module = load_script_module("validate_approval_claude_fail", "validate_ai_reviewer_approval.py")
+    comments = [
+        {"body": "## Claude AI Code Review\n\nHas concerns\n**REQUEST CHANGES**"},
+    ]
+    monkeypatch.setattr(module, "get_pr_comments", lambda pr_number: comments)
+    monkeypatch.setattr(module.subprocess, "run", _mock_subprocess_pr_number())
+
+    assert module.main() == 1
+    assert "Claude review ran but did not APPROVE" in capsys.readouterr().err
+
+
+def test_validate_ai_reviewer_approval_fails_when_gpt_ran_but_no_approve(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    module = load_script_module("validate_approval_gpt_fail", "validate_ai_reviewer_approval.py")
+    comments = [
+        {"body": "## GPT AI Code Review\n\nHas concerns\n**REQUEST CHANGES**"},
+    ]
+    monkeypatch.setattr(module, "get_pr_comments", lambda pr_number: comments)
+    monkeypatch.setattr(module.subprocess, "run", _mock_subprocess_pr_number())
+
+    assert module.main() == 1
+    assert "GPT review ran but did not APPROVE" in capsys.readouterr().err

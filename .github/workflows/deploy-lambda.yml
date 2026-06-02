@@ -218,13 +218,48 @@ jobs:
             exit 1
           fi
 
+      - name: Fetch Cognito parameters for CDK diff
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          CDK_DIFF_METHOD="change-set"
+          CDK_DIFF_PARAMS=""
+          if aws cloudformation describe-stacks --stack-name StaticSiteStack > /dev/null 2>&1; then
+            UI_AUTH_USER_POOL_ID="$(aws cloudformation describe-stacks \
+              --stack-name StaticSiteStack \
+              --query "Stacks[0].Outputs[?OutputKey=='UiAuthUserPoolId'].OutputValue" \
+              --output text)"
+            UI_AUTH_USER_POOL_CLIENT_ID="$(aws cloudformation describe-stacks \
+              --stack-name StaticSiteStack \
+              --query "Stacks[0].Outputs[?OutputKey=='UiAuthUserPoolClientId'].OutputValue" \
+              --output text)"
+            if [ -n "$UI_AUTH_USER_POOL_ID" ] && [ "$UI_AUTH_USER_POOL_ID" != "None" ] \
+               && [ -n "$UI_AUTH_USER_POOL_CLIENT_ID" ] && [ "$UI_AUTH_USER_POOL_CLIENT_ID" != "None" ]; then
+              CDK_DIFF_PARAMS="--parameters BackendLambdaStack:UiAuthUserPoolId=${UI_AUTH_USER_POOL_ID} --parameters BackendLambdaStack:UiAuthUserPoolClientId=${UI_AUTH_USER_POOL_CLIENT_ID}"
+            else
+              echo "::warning::StaticSiteStack exists but Cognito outputs are missing — falling back to --method=auto"
+              CDK_DIFF_METHOD="auto"
+            fi
+          else
+            echo "StaticSiteStack does not exist yet (first deployment) — falling back to --method=auto"
+            CDK_DIFF_METHOD="auto"
+          fi
+          echo "CDK_DIFF_METHOD=${CDK_DIFF_METHOD}" >> "$GITHUB_ENV"
+          echo "CDK_DIFF_PARAMS=${CDK_DIFF_PARAMS}" >> "$GITHUB_ENV"
+
       - name: CDK diff
         env:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           CDK_OUTDIR: /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
-        run: npx cdk diff BackendLambdaStack StaticSiteStack --method=change-set -c prod=true
+        run: |
+          # shellcheck disable=SC2086 - CDK_DIFF_PARAMS intentionally word-splits into --parameters flags
+          npx cdk diff BackendLambdaStack StaticSiteStack \
+            --method="$CDK_DIFF_METHOD" \
+            -c prod=true \
+            $CDK_DIFF_PARAMS
         working-directory: cdk
 
       - name: Deploy StaticSiteStack auth resources

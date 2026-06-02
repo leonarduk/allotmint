@@ -145,7 +145,7 @@ async def compliance_for_owner(owner: str, request: Request):
         # forwarded directly to the client.
         return compliance.check_owner(owner, accounts_root)
     except FileNotFoundError as exc:
-        logger.warning("accounts for %s not found: %s", sanitise_log_value(owner), exc)
+        logger.warning("accounts for %s not found: %s", sanitise_log_value(owner), sanitise_log_value(exc))
         raise_owner_not_found()
 
 

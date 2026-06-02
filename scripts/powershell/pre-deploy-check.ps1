@@ -20,6 +20,25 @@ function Write-Pass($msg) { Write-Host "PASS: $msg" -ForegroundColor Green; $scr
 function Write-Fail($msg) { Write-Host "FAIL: $msg" -ForegroundColor Red; $script:Fail++ }
 function Write-Skip($msg) { Write-Host "SKIP: $msg" -ForegroundColor Yellow; $script:Skip++ }
 
+# Emit a GitHub Actions ::warning:: workflow command (visible as a highlighted annotation
+# in the Actions UI).  Falls back to plain Write-Warning outside of GHA runners.
+function Write-GhaWarning($msg) {
+    if ($env:GITHUB_ACTIONS -eq 'true') {
+        Write-Host "::warning::$msg"
+    } else {
+        Write-Warning $msg
+    }
+}
+
+# Emit a GitHub Actions ::error:: workflow command.
+function Write-GhaError($msg) {
+    if ($env:GITHUB_ACTIONS -eq 'true') {
+        Write-Host "::error::$msg"
+    } else {
+        Write-Error $msg
+    }
+}
+
 # 1. Dependency dry-run
 Write-Host "`n=== 1. Dependency dry-run ==="
 $venvPath = Join-Path $env:TEMP 'pre-deploy-venv'
@@ -101,18 +120,16 @@ if (-not $env:AWS_ACCESS_KEY_ID) {
             $RawResult  = (& aws @iamArgs 2>&1) | Out-String
             $AwsSuccess = ($LASTEXITCODE -eq 0)
             # Distinguish four cases:
-            # 1. The caller is not authorised to call iam:SimulatePrincipalPolicy → warn and skip
-            #    so a bootstrap deploy that grants the permission can still proceed (#3209).
+            # 1. The caller is not authorised to call iam:SimulatePrincipalPolicy → warn and skip.
             # 2. Any other non-zero exit (unexpected error) → hard-fail.
-            # 3. notApplicable → warn (IAM could not evaluate the action/resource combination;
-            #    this is not a denial and the per-action resource map should prevent it).
+            # 3. notApplicable → warn (IAM could not evaluate the action/resource combination).
             # 4. Any other non-"allowed" decision (explicitDeny/implicitDeny) → hard-fail.
             if ($RawResult -match 'not authorized to perform.*iam:SimulatePrincipalPolicy|iam:SimulatePrincipalPolicy.*not authorized') {
-                Write-Warning "simulate-principal-policy unavailable for $Action — deploy role lacks iam:SimulatePrincipalPolicy."
+                Write-GhaWarning "simulate-principal-policy unavailable for $Action — deploy role lacks iam:SimulatePrincipalPolicy. Run scripts/bash/bootstrap-deploy-role.sh (or equivalent) to grant it."
                 Write-Host "  AWS response: $RawResult" -ForegroundColor Yellow
                 $SimUnavailable = $true
             } elseif (-not $AwsSuccess) {
-                Write-Error "simulate-principal-policy failed for $Action with an unexpected error."
+                Write-GhaError "simulate-principal-policy failed for $Action with an unexpected error."
                 Write-Host "  AWS response: $RawResult" -ForegroundColor Red
                 $SimFailed = $true
             } else {
@@ -124,13 +141,12 @@ if (-not $env:AWS_ACCESS_KEY_ID) {
                 if ($Result -eq 'allowed') {
                     # pass — no action needed
                 } elseif ($Result -eq 'notApplicable') {
-                    Write-Warning "$Action returned notApplicable on $Resource — IAM could not evaluate this action/resource combination. Check resource ARN mapping."
+                    Write-GhaWarning "$Action returned notApplicable on $Resource — IAM could not evaluate this action/resource combination. Check resource ARN mapping."
                     $SimUnavailable = $true
                 } else {
-                    # Use an explicit variable for the display value — ${Var:-fallback} is bash
-                    # syntax and is not valid in PowerShell.
                     $Display = if ($Result) { $Result } else { '<no decision token found>' }
-                    Write-Error "$Action not allowed on $Resource (got: $Display)"
+                    Write-GhaError "$Action not allowed on $Resource (got: $Display)"
+                    Write-Host "  AWS response: $RawResult" -ForegroundColor Red
                     $SimFailed = $true
                 }
             }
@@ -138,7 +154,7 @@ if (-not $env:AWS_ACCESS_KEY_ID) {
         if ($SimFailed) {
             Write-Fail "IAM permission simulation"
         } elseif ($SimUnavailable) {
-            Write-Host "  WARNING: IAM simulation skipped or incomplete — see warnings above." -ForegroundColor Yellow
+            Write-GhaWarning "IAM simulation skipped or incomplete — see warnings above."
             Write-Skip "IAM permission simulation (check warnings above)"
         } else {
             Write-Pass "IAM permission simulation"

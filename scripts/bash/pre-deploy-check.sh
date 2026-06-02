@@ -96,13 +96,13 @@ else
             #    so a bootstrap deploy that grants the permission can still proceed (#3209).
             #    Match the specific "not authorized to perform: iam:SimulatePrincipalPolicy"
             #    message to avoid masking real permission denials on target actions.
-            # 2. Any other non-zero exit / unexpected error → hard-fail (masking is dangerous).
-            # 3. Successful call returning a non-"allowed" decision → hard-fail.
+            # 2. Any other non-zero exit (unexpected error) → hard-fail (masking is dangerous).
+            # 3. Successful call (exit 0) returning a non-"allowed" decision → hard-fail.
             if echo "$raw_result" | grep -qi "not authorized to perform.*iam:SimulatePrincipalPolicy\|iam:SimulatePrincipalPolicy.*not authorized"; then
                 echo "  WARNING: simulate-principal-policy unavailable for $ACTION — deploy role lacks iam:SimulatePrincipalPolicy." >&2
                 echo "  AWS response: $raw_result" >&2
                 sim_unavailable=1
-            elif [ "$aws_exit" -ne 0 ] || echo "$raw_result" | grep -qi "exception\|AccessDenied"; then
+            elif [ "$aws_exit" -ne 0 ]; then
                 echo "  ERROR: simulate-principal-policy failed for $ACTION with an unexpected error." >&2
                 echo "  AWS response: $raw_result" >&2
                 sim_failed=1

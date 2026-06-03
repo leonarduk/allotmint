@@ -59,6 +59,10 @@ jobs:
         run: |
           python3 .github/scripts/claude_review.py > /tmp/claude_review_body.md
 
+          # Guard: `-s` returns true only if the file exists AND has size > 0.
+          # This distinguishes a successful API response (review body written to stdout)
+          # from a failure (empty output, missing file, or API error).
+          # See docs/AI_REVIEW_WORKFLOWS.md for details.
           if [ ! -s /tmp/claude_review_body.md ]; then
             echo "ERROR: Claude review output was empty" >&2
             exit 1
@@ -69,13 +73,17 @@ jobs:
           python3 .github/scripts/extract_verdict.py /tmp/claude_review_body.md Claude
 
       - name: Post Claude review comment
-        if: always() && !cancelled()
+        if: success() || failure()
         continue-on-error: true  # If posting fails (e.g. API rate limit), don't fail job; review is also in Actions summary
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
+          # Guard: `-s` distinguishes successful API responses from failures.
+          # If the file exists and is non-empty, the API call succeeded;
+          # if missing or empty, the API call failed (this is the fallback path).
+          # See docs/AI_REVIEW_WORKFLOWS.md for detailed explanation.
           if [ -s /tmp/claude_review_body.md ]; then
             # Claude API succeeded — post the full review (APPROVE or REQUEST CHANGES)
             {
@@ -95,4 +103,17 @@ jobs:
             } > /tmp/claude_comment_body.md
           fi
 
-          gh pr comment "$PR_NUMBER" --body-file /tmp/claude_comment_body.md
+          if ! gh pr comment "$PR_NUMBER" --body-file /tmp/claude_comment_body.md; then
+            echo "::warning title=Claude review comment::Failed to post the Claude review comment to PR #$PR_NUMBER — check the Actions log above for the gh error (rate limit, token scope, or network)."
+            echo "WARNING: failed to post review comment — check the Actions log" >&2
+            exit 0
+          fi
+
+          # Also write review to step summary for visibility in Actions UI
+          if [ -s /tmp/claude_review_body.md ]; then
+            {
+              echo "## Claude AI Code Review"
+              echo ""
+              cat /tmp/claude_review_body.md
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi

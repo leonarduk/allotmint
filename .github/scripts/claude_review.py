@@ -68,7 +68,13 @@ def fetch_claude_review(api_key: str, prompt: str) -> str:
 
     try:
         with urllib.request.urlopen(request, timeout=60) as response:
-            data = json.loads(response.read())
+            status = getattr(response, "status", None)
+            raw = response.read()
+            print(
+                f"INFO: Claude API responded status={status} bytes={len(raw)}",
+                file=sys.stderr,
+            )
+            data = json.loads(raw)
     except urllib.error.HTTPError as exc:
         # Keep the provider response in stderr so maintainers can distinguish auth, quota, and API failures.
         body = exc.read().decode()
@@ -76,6 +82,12 @@ def fetch_claude_review(api_key: str, prompt: str) -> str:
         raise SystemExit(1) from exc
 
     review, stop_reason = extract_claude_review(data)
+    if not review.strip():
+        print(
+            f"WARNING: Claude API returned an empty review body "
+            f"(status={status}, stop_reason={stop_reason})",
+            file=sys.stderr,
+        )
     if stop_reason == "max_tokens":
         review = (
             f"{review}\n\n"

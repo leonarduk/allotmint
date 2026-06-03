@@ -43,15 +43,18 @@ This guard is robust to cancellations, timeouts, and partial failures.
 
 The primary posting mechanism is `gh pr comment`, which posts the review as a comment visible to all PR viewers.
 
-### Actions Job Summary
+### Failure handling
 
-If the PR comment posting fails (e.g., due to GitHub API rate limits or network issues), the review is also written to the Actions job summary (`$GITHUB_STEP_SUMMARY`). Users can view the review directly in the Actions UI, ensuring the review is never entirely lost.
+If the PR comment posting fails (e.g., due to GitHub API rate limits or network issues), the error is visible in the workflow logs. The review is **not** written to `$GITHUB_STEP_SUMMARY`; if `gh pr comment` fails, the review content is only accessible in the raw workflow logs for that run.
 
 ## Workflow Step Configuration
 
 - **`if: always()`**: The "Post review comment" step runs even if the verdict is REQUEST CHANGES (which exits the preceding step with a non-zero exit code). This ensures the full review is always visible.
-- **`if: always() && !cancelled()`**: (Once #3289 is merged) The posting step is skipped if the workflow is cancelled, avoiding spurious failure notices when a workflow is superseded by a new push.
-- **`continue-on-error: true`**: If the gh pr comment call fails, the job does not fail. The review is still visible in the Actions summary, so failure to post a comment does not block the workflow.
+- **`continue-on-error: true`**: If the gh pr comment call fails, the job does not fail. The failure is recorded in the workflow logs but does not block the overall workflow.
+
+## Planned Improvements
+
+- **`if: always() && !cancelled()`**: Tracked in #3289 (not yet merged). Once that PR lands, the posting step will be skipped if the workflow is cancelled, avoiding spurious failure notices when a workflow is superseded by a new push.
 
 ## Debugging
 
@@ -59,7 +62,7 @@ When a review fails to post, check the Actions logs for:
 
 1. **API authentication errors**: Verify `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` secrets are configured
 2. **Empty responses**: Check if the AI service is returning valid output
-3. **Network/rate limit errors**: Check Actions job summary; the review may still be visible there
+3. **Network/rate limit errors**: Review the raw workflow logs for the run; the review content will appear there if `gh pr comment` failed
 4. **GitHub token issues**: Verify `GH_TOKEN` and PR permissions are correct
 
 For more information, see the workflow files in `.github/workflows/`.

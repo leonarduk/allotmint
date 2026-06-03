@@ -47,6 +47,8 @@ The primary posting mechanism is `gh pr comment`, which posts the review as a co
 
 If the PR comment posting fails (e.g., due to GitHub API rate limits or network issues), the error is visible in the workflow logs. The review is **not** written to `$GITHUB_STEP_SUMMARY`; if `gh pr comment` fails, the review content is only accessible in the raw workflow logs for that run.
 
+> **Note:** Step-summary output was never implemented for these workflows — neither `claude-pr-review.yml` nor `gpt-pr-review.yml` writes to `$GITHUB_STEP_SUMMARY` (you can confirm this by grepping the workflow files). An earlier inline comment in the posting step claimed the review was "also in Actions summary"; that claim was inaccurate and has been corrected in the workflow YAML. The only reliable fallback when posting fails is the raw run logs.
+
 ## Workflow Step Configuration
 
 - **`if: always()`**: The "Post review comment" step runs even if the verdict is REQUEST CHANGES (which exits the preceding step with a non-zero exit code). This ensures the full review is always visible.

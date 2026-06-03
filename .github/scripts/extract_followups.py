@@ -18,7 +18,7 @@ def extract_followups(review_text: str) -> list[str]:
     if not section_match:
         return []
 
-    section_start = section_match.end() - 1
+    section_start = section_match.end()
     next_heading = re.search(r'^#{1,6}\s+\S', review_text[section_start:], re.MULTILINE)
     if next_heading and next_heading.start() > 0:
         section_text = review_text[section_start : section_start + next_heading.start()]

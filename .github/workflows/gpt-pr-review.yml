@@ -69,9 +69,8 @@ jobs:
           python3 .github/scripts/extract_verdict.py /tmp/gpt_review_body.md GPT
 
       - name: Post GPT review comment
-        if: always()
-        # If posting the comment fails (e.g. permissions error), the review is still in the workflow logs.
-        continue-on-error: true
+        if: always() && !cancelled()
+        continue-on-error: true  # If posting fails (e.g. API rate limit), don't fail job; review is also in Actions summary
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}

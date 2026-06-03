@@ -11,7 +11,7 @@ jobs:
     steps:
     - uses: actions/first-interaction@v3
       with:
-        repo-token: ${{ secrets.GITHUB_TOKEN }}
-        issue-message: ":seedling: Welcome to AllotMint! Thanks for opening your first issue. Please include steps to reproduce (for bugs) or a clear description of the feature request. We aim to respond within a few days."
-        pr-message: ":sparkles: Thanks for your first contribution to AllotMint! Please ensure your PR references an issue (e.g. `Closes #NNN`), all CI checks pass, and you have read [AGENTS.md](https://github.com/leonarduk/allotmint/blob/main/AGENTS.md). We appreciate your help!"
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        issue_message: ":seedling: Welcome to AllotMint! Thanks for opening your first issue. Please include steps to reproduce (for bugs) or a clear description of the feature request. We aim to respond within a few days."
+        pr_message: ":sparkles: Thanks for your first contribution to AllotMint! Please ensure your PR references an issue (e.g. `Closes #NNN`), all CI checks pass, and you have read [AGENTS.md](https://github.com/leonarduk/allotmint/blob/main/AGENTS.md). We appreciate your help!"
         

@@ -13,6 +13,7 @@ jobs:
     permissions:
       pull-requests: write
       contents: read
+      issues: write
     steps:
       - uses: actions/checkout@v6
         with:
@@ -81,6 +82,52 @@ jobs:
           } > /tmp/claude_comment_body.md
 
           gh pr comment "$PR_NUMBER" --body-file /tmp/claude_comment_body.md
+
+      - name: Create follow-up issues from review
+        # Only runs when the review was posted successfully and the verdict is APPROVE.
+        # Parses section 5 of the review and opens one GitHub issue per follow-up title,
+        # so they are not lost if an automated process merges on APPROVE.
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          set -euo pipefail
+          # Only proceed if the review verdict is APPROVE.
+          if ! python3 .github/scripts/extract_verdict.py /tmp/claude_review_body.md Claude > /dev/null 2>&1; then
+            echo "Verdict is not APPROVE — skipping follow-up issue creation."
+            exit 0
+          fi
+          # Extract follow-up titles as a JSON array.
+          followups="$(python3 .github/scripts/extract_followups.py /tmp/claude_review_body.md)"
+          count="$(echo "$followups" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))')"
+          if [ "$count" -eq 0 ]; then
+            echo "No follow-up issues suggested — nothing to create."
+            exit 0
+          fi
+          echo "Creating $count follow-up issue(s) from Claude review of PR #${PR_NUMBER}..."
+          echo "$followups" | python3 -c "
+          import json, subprocess, sys
+          titles = json.load(sys.stdin)
+          pr_url = '${PR_URL}'
+          pr_number = '${PR_NUMBER}'
+          for title in titles:
+              body = (
+                  f'This issue was automatically created from a follow-up suggestion '
+                  f'in the Claude AI review of PR #{pr_number}.\n\n'
+                  f'Source: {pr_url}\n\n'
+                  f'> {title}'
+              )
+              subprocess.run(
+                  ['gh', 'issue', 'create',
+                   '--title', title,
+                   '--body', body,
+                   '--label', 'ai-suggested'],
+                  check=True,
+              )
+              print(f'Created issue: {title}')
+          "
 
       - name: Post Claude failure notice
         if: failure()

@@ -25,8 +25,9 @@ EXPECTED_REQUIRED_CHECKS = {
     "Frontend Tests / frontend-tests",
     "PR Body Issue Reference Check / require-issue-reference",
     "Dependency Review / dependency-review",
+    "Claude PR Review / Claude AI code review",
+    "GPT PR Review / GPT AI code review",
 }
-ADVISORY_CHECK_PREFIXES = ("Claude PR Review /", "GPT PR Review /")
 
 
 def load_ruleset_contexts() -> set[str]:
@@ -86,17 +87,6 @@ def main() -> int:
         errors.append(
             "Required checks do not match workflow/job names: "
             f"{missing_workflows}"
-        )
-
-    advisory_required = sorted(
-        context
-        for context in required_contexts
-        if context.startswith(ADVISORY_CHECK_PREFIXES)
-    )
-    if advisory_required:
-        errors.append(
-            "Advisory AI review checks must not be required: "
-            f"{advisory_required}"
         )
 
     if errors:

@@ -68,7 +68,7 @@ jobs:
           python3 .github/scripts/extract_verdict.py /tmp/gpt_review_body.md GPT
 
       - name: Post GPT review comment
-        if: always()
+        if: always() && !cancelled()
         continue-on-error: true  # If posting fails (e.g. API rate limit), don't fail job; review is also in Actions summary
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

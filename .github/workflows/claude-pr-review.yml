@@ -69,30 +69,18 @@ jobs:
           python3 .github/scripts/extract_verdict.py /tmp/claude_review_body.md Claude
 
       - name: Post Claude review comment
-        if: always()
-        continue-on-error: true
+        if: always() && !cancelled()
+        continue-on-error: true  # If posting fails (e.g. API rate limit), don't fail job; review is also in Actions summary
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          if [ -s /tmp/claude_review_body.md ]; then
-            # Claude API succeeded — post the full review (APPROVE or REQUEST CHANGES)
-            {
-              echo "## Claude AI Code Review"
-              echo ""
-              cat /tmp/claude_review_body.md
-              echo ""
-              echo "---"
-              echo "*Reviewed by Claude via [claude-pr-review.yml](.github/workflows/claude-pr-review.yml). Advisory only.*"
-            } > /tmp/claude_comment_body.md
-          else
-            # Claude API failed or produced empty output — notify user to check logs
-            {
-              echo "## Claude AI Code Review - Failed"
-              echo ""
-              echo "The Claude review failed to complete. Check [Actions]($RUN_URL) for error details."
-            } > /tmp/claude_comment_body.md
-          fi
+          bash .github/scripts/build_review_comment.sh /tmp/claude_review_body.md \
+            "Claude" "claude-pr-review.yml" "$RUN_URL" > /tmp/claude_comment_body.md
 
           gh pr comment "$PR_NUMBER" --body-file /tmp/claude_comment_body.md
+
+          # Also write to Actions job summary — same file posted as the PR comment,
+          # so the guard, content, and fallback are identical.
+          cat /tmp/claude_comment_body.md >> "$GITHUB_STEP_SUMMARY"

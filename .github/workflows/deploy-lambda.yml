@@ -224,10 +224,10 @@ jobs:
         run: |
           set -euo pipefail
           if aws cloudformation describe-stacks --stack-name BackendLambdaStack > /dev/null 2>&1; then
-            echo CDK_DIFF_METHOD=change-set >> $GITHUB_ENV
+            echo CDK_DIFF_METHOD=change-set >> "$GITHUB_ENV"
             echo 'BackendLambdaStack exists: using --method=change-set (CloudFormation reuses existing parameter values)'
           else
-            echo CDK_DIFF_METHOD=auto >> $GITHUB_ENV
+            echo CDK_DIFF_METHOD=auto >> "$GITHUB_ENV"
             echo 'BackendLambdaStack not yet deployed: falling back to --method=auto'
           fi
 

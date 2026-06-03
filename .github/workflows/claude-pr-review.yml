@@ -103,17 +103,18 @@ jobs:
             } > /tmp/claude_comment_body.md
           fi
 
-          if ! gh pr comment "$PR_NUMBER" --body-file /tmp/claude_comment_body.md; then
-            echo "::warning title=Claude review comment::Failed to post the Claude review comment to PR #$PR_NUMBER — check the Actions log above for the gh error (rate limit, token scope, or network)."
-            echo "WARNING: failed to post review comment — check the Actions log" >&2
-            exit 0
-          fi
-
-          # Also write review to step summary for visibility in Actions UI
+          # Write review to step summary first — before attempting the PR comment — so
+          # it is always recorded in the Actions UI regardless of whether gh pr comment succeeds.
           if [ -s /tmp/claude_review_body.md ]; then
             {
               echo "## Claude AI Code Review"
               echo ""
               cat /tmp/claude_review_body.md
             } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if ! gh pr comment "$PR_NUMBER" --body-file /tmp/claude_comment_body.md; then
+            echo "::warning title=Claude review comment::Failed to post the Claude review comment to PR #$PR_NUMBER — check the Actions log above for the gh error (rate limit, token scope, or network)."
+            echo "WARNING: failed to post review comment — check the Actions log" >&2
+            exit 0
           fi

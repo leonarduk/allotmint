@@ -102,17 +102,18 @@ jobs:
             } > /tmp/gpt_comment_body.md
           fi
 
-          if ! gh pr comment "$PR_NUMBER" --body-file /tmp/gpt_comment_body.md; then
-            echo "::warning title=GPT review comment::Failed to post the GPT review comment to PR #$PR_NUMBER — check the Actions log above for the gh error (rate limit, token scope, or network)."
-            echo "WARNING: failed to post review comment — check the Actions log" >&2
-            exit 0
-          fi
-
-          # Also write review to step summary for visibility in Actions UI
+          # Write review to step summary first — before attempting the PR comment — so
+          # it is always recorded in the Actions UI regardless of whether gh pr comment succeeds.
           if [ -s /tmp/gpt_review_body.md ]; then
             {
               echo "## GPT AI Code Review"
               echo ""
               cat /tmp/gpt_review_body.md
             } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if ! gh pr comment "$PR_NUMBER" --body-file /tmp/gpt_comment_body.md; then
+            echo "::warning title=GPT review comment::Failed to post the GPT review comment to PR #$PR_NUMBER — check the Actions log above for the gh error (rate limit, token scope, or network)."
+            echo "WARNING: failed to post review comment — check the Actions log" >&2
+            exit 0
           fi

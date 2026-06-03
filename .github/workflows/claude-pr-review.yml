@@ -69,7 +69,8 @@ jobs:
           python3 .github/scripts/extract_verdict.py /tmp/claude_review_body.md Claude
 
       - name: Post Claude review comment
-        if: success()
+        if: always()
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -84,15 +85,3 @@ jobs:
           } > /tmp/claude_comment_body.md
 
           gh pr comment "$PR_NUMBER" --body-file /tmp/claude_comment_body.md
-
-      - name: Post Claude failure notice
-        if: failure()
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          printf '## Claude AI Code Review - Failed\n\nThe Claude review did not APPROVE this PR. Review the changes and address any concerns raised.\n\nCheck [Actions](%s) for details.\n' \
-            "$RUN_URL" > /tmp/claude_fail_notice.md
-          gh pr comment "$PR_NUMBER" --body-file /tmp/claude_fail_notice.md

@@ -51,12 +51,8 @@ If the PR comment posting fails (e.g., due to GitHub API rate limits or network 
 
 ## Workflow Step Configuration
 
-- **`if: always()`**: The "Post review comment" step runs even if the verdict is REQUEST CHANGES (which exits the preceding step with a non-zero exit code). This ensures the full review is always visible.
+- **`if: always() && !cancelled()`**: The "Post review comment" step runs even if the verdict is REQUEST CHANGES (which exits the preceding step with a non-zero exit code), so the full review is always visible. The `!cancelled()` guard skips the step when the workflow is cancelled (e.g. superseded by a new push), avoiding spurious failure notices. This guard landed in #3299.
 - **`continue-on-error: true`**: If the gh pr comment call fails, the job does not fail. The failure is recorded in the workflow logs but does not block the overall workflow.
-
-## Planned Improvements
-
-- **`if: always() && !cancelled()`**: Tracked in #3289 (not yet merged). Once that PR lands, the posting step will be skipped if the workflow is cancelled, avoiding spurious failure notices when a workflow is superseded by a new push.
 
 ## Debugging
 

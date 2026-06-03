@@ -19,14 +19,15 @@ When the AI API successfully generates a review, the full review content is post
 
 ### Failed Review
 
-If the AI API call fails before producing a non-empty review file (e.g., missing credentials, HTTP error, empty response), a fallback notice is posted instead:
+If the AI API call fails before producing a non-empty review file (e.g., missing credentials, HTTP error, empty response), a fallback notice is posted instead. The exact text posted is generated in the `else` branch of the `-s` guard in each workflow's "Post review comment" step:
 
 ```
 ## Claude AI Code Review - Failed
-The Claude review failed to complete. Check [Actions](URL) for error details.
+
+The Claude review failed to complete. Check [Actions](<run URL>) for error details.
 ```
 
-This ensures users are aware that a review was attempted and directs them to the Actions logs for debugging.
+(`<run URL>` is replaced at runtime with the Actions run URL via `$RUN_URL`.) This ensures users are aware that a review was attempted and directs them to the Actions logs for debugging.
 
 ### File-Existence Guard
 
@@ -52,7 +53,7 @@ If the PR comment posting fails (e.g., due to GitHub API rate limits or network 
 ## Workflow Step Configuration
 
 - **`if: always() && !cancelled()`**: The "Post review comment" step runs even if the verdict is REQUEST CHANGES (which exits the preceding step with a non-zero exit code), so the full review is always visible. The `!cancelled()` guard skips the step when the workflow is cancelled (e.g. superseded by a new push), avoiding spurious failure notices. This guard landed in #3299.
-- **`continue-on-error: true`**: If the gh pr comment call fails, the job does not fail. The failure is recorded in the workflow logs but does not block the overall workflow.
+- **`continue-on-error: true`**: Set on the "Post review comment" step in both `claude-pr-review.yml` and `gpt-pr-review.yml`. If the `gh pr comment` call fails, the job does not fail. The failure is recorded in the workflow logs but does not block the overall workflow.
 
 ## Debugging
 

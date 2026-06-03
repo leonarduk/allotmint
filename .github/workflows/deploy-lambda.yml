@@ -218,17 +218,25 @@ jobs:
             exit 1
           fi
 
-      - name: Check BackendLambdaStack exists for CDK diff
+      - name: Check stacks exist for CDK diff
         env:
           AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
         run: |
           set -euo pipefail
-          if aws cloudformation describe-stacks --stack-name BackendLambdaStack > /dev/null 2>&1; then
+          # Use --method=change-set only when both stacks already exist.
+          # BackendLambdaStack must exist so CloudFormation can reuse its
+          # stored UiAuthUserPoolId/UiAuthUserPoolClientId parameter values
+          # (cdk diff has no --parameters flag; values come from the live stack).
+          # StaticSiteStack must exist as the upstream source of those values;
+          # gating on both avoids a gap in partial-deploy states where
+          # StaticSiteStack has not yet been provisioned.
+          if aws cloudformation describe-stacks --stack-name BackendLambdaStack > /dev/null 2>&1 \
+             && aws cloudformation describe-stacks --stack-name StaticSiteStack > /dev/null 2>&1; then
             echo CDK_DIFF_METHOD=change-set >> "$GITHUB_ENV"
-            echo 'BackendLambdaStack exists: using --method=change-set (CloudFormation reuses existing parameter values)'
+            echo 'Both stacks exist: using --method=change-set (CloudFormation reuses existing parameter values)'
           else
             echo CDK_DIFF_METHOD=auto >> "$GITHUB_ENV"
-            echo 'BackendLambdaStack not yet deployed: falling back to --method=auto'
+            echo 'One or more stacks not yet deployed: falling back to --method=auto'
           fi
 
       - name: CDK diff

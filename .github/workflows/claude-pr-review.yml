@@ -59,6 +59,8 @@ jobs:
         run: |
           python3 .github/scripts/claude_review.py > /tmp/claude_review_body.md
 
+          # -s is true only when the file exists AND has size > 0, distinguishing a
+          # successful API response from a missing or empty output file.
           if [ ! -s /tmp/claude_review_body.md ]; then
             echo "ERROR: Claude review output was empty" >&2
             exit 1
@@ -70,12 +72,13 @@ jobs:
 
       - name: Post Claude review comment
         if: always()
-        continue-on-error: true
+        continue-on-error: true # If posting fails (e.g. permissions error), the review survives in workflow logs rather than failing the job.
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
+          # -s guard: file exists and is non-empty means the API call succeeded; empty/missing means it failed.
           if [ -s /tmp/claude_review_body.md ]; then
             # Claude API succeeded — post the full review (APPROVE or REQUEST CHANGES)
             {

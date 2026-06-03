@@ -69,30 +69,30 @@ jobs:
           python3 .github/scripts/extract_verdict.py /tmp/claude_review_body.md Claude
 
       - name: Post Claude review comment
-        if: success()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          {
-            echo "## Claude AI Code Review"
-            echo ""
-            cat /tmp/claude_review_body.md
-            echo ""
-            echo "---"
-            echo "*Reviewed by Claude via [claude-pr-review.yml](.github/workflows/claude-pr-review.yml). Advisory only.*"
-          } > /tmp/claude_comment_body.md
-
-          gh pr comment "$PR_NUMBER" --body-file /tmp/claude_comment_body.md
-
-      - name: Post Claude failure notice
-        if: failure()
+        if: always()
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          printf '## Claude AI Code Review - Failed\n\nThe Claude review did not APPROVE this PR. Review the changes and address any concerns raised.\n\nCheck [Actions](%s) for details.\n' \
-            "$RUN_URL" > /tmp/claude_fail_notice.md
-          gh pr comment "$PR_NUMBER" --body-file /tmp/claude_fail_notice.md
+          if [ -s /tmp/claude_review_body.md ]; then
+            # Claude API succeeded — post the full review (APPROVE or REQUEST CHANGES)
+            {
+              echo "## Claude AI Code Review"
+              echo ""
+              cat /tmp/claude_review_body.md
+              echo ""
+              echo "---"
+              echo "*Reviewed by Claude via [claude-pr-review.yml](.github/workflows/claude-pr-review.yml). Advisory only.*"
+            } > /tmp/claude_comment_body.md
+          else
+            # Claude API failed or produced empty output — notify user to check logs
+            {
+              echo "## Claude AI Code Review - Failed"
+              echo ""
+              echo "The Claude review failed to complete. Check [Actions]($RUN_URL) for error details."
+            } > /tmp/claude_comment_body.md
+          fi
+
+          gh pr comment "$PR_NUMBER" --body-file /tmp/claude_comment_body.md

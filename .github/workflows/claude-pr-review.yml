@@ -100,8 +100,7 @@ jobs:
 
           gh pr comment "$PR_NUMBER" --body-file /tmp/claude_comment_body.md
 
-          # Also write to Actions job summary — same file posted as the PR comment,
-          # so the guard, content, and fallback are identical.
+          # Also write to Actions job summary — same content posted as the PR comment
           cat /tmp/claude_comment_body.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Create follow-up issues
@@ -114,13 +113,7 @@ jobs:
           gh label create "ai-suggested" --color "0075ca" --description "Suggested by AI code review" \
             2>/dev/null || true
 
+          # Extract titles to a file, then create issues via Python subprocess (no shell injection)
           python3 .github/scripts/extract_followups.py /tmp/claude_review_body.md \
-            | jq -r '.[]' \
-            | while IFS= read -r title; do
-                [ -z "$title" ] && continue
-                echo "Creating issue: $title"
-                gh issue create \
-                  --title "$title" \
-                  --body "Follow-up suggested by Claude AI review of PR #${PR_NUMBER}." \
-                  --label "ai-suggested"
-              done
+            > /tmp/followups.json
+          python3 .github/scripts/create_followup_issues.py /tmp/followups.json "${PR_NUMBER}"

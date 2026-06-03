@@ -1,0 +1,72 @@
+name: CDK Dry-Run
+
+on:
+  pull_request:
+    paths:
+      - 'cdk/**'
+      - '.github/workflows/deploy-lambda.yml'
+      - 'backend/**'
+
+permissions:
+  contents: read
+
+jobs:
+  cdk-synth:
+    name: CDK synth dry-run
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Build frontend
+        # StaticSiteStack.BucketDeployment bundles frontend/dist as an asset;
+        # the directory must exist before cdk synth or the asset bundler fails.
+        run: npm run build
+        working-directory: frontend
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Cache pip
+        uses: actions/cache@v5.0.5
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: CDK synth (dry-run)
+        # JWT_SECRET and GOOGLE_CLIENT_ID are required non-empty by backend_lambda_stack.py.
+        # Dummy placeholder values are safe here because synth only generates the
+        # CloudFormation template — no deploy or AWS call is made.
+        # CDK_OUTDIR is isolated per run to avoid cross-run cache pollution.
+        env:
+          JWT_SECRET: dry-run-placeholder
+          GOOGLE_CLIENT_ID: dry-run-placeholder.apps.googleusercontent.com
+          CDK_OUTDIR: /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
+        run: npx cdk synth BackendLambdaStack StaticSiteStack -c prod=true
+        working-directory: cdk
+
+      - name: Lint workflow YAML with actionlint
+        # Catches shell-script and expression errors in workflow files early.
+        # actionlint is installed from the upstream release; 'continue-on-error' is
+        # intentionally absent so any actionlint finding fails the job.
+        run: |
+          bash <(curl -s https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          ./actionlint .github/workflows/deploy-lambda.yml

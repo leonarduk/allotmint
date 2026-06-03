@@ -65,12 +65,7 @@ jobs:
 
       - name: Check GPT approval
         run: |
-          if grep -qF "**APPROVE**" /tmp/gpt_review_body.md; then
-            echo "✓ GPT review: APPROVED"
-          else
-            echo "✗ GPT review: CHANGES REQUESTED OR NOT APPROVED"
-            exit 1
-          fi
+          python3 .github/scripts/extract_verdict.py /tmp/gpt_review_body.md GPT
 
       - name: Post GPT review comment
         if: success()

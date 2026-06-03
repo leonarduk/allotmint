@@ -66,12 +66,7 @@ jobs:
 
       - name: Check Claude approval
         run: |
-          if grep -qF "**APPROVE**" /tmp/claude_review_body.md; then
-            echo "✓ Claude review: APPROVED"
-          else
-            echo "✗ Claude review: CHANGES REQUESTED OR NOT APPROVED"
-            exit 1
-          fi
+          python3 .github/scripts/extract_verdict.py /tmp/claude_review_body.md Claude
 
       - name: Post Claude review comment
         if: success()

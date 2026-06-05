@@ -12,6 +12,7 @@ jobs:
     permissions:
       pull-requests: write
       contents: read
+      issues: write
     steps:
       - uses: actions/checkout@v6
         with:
@@ -59,23 +60,33 @@ jobs:
         run: |
           python3 .github/scripts/claude_review.py > /tmp/claude_review_body.md
 
+          # Guard: `-s` returns true only if the file exists AND has size > 0.
+          # This distinguishes a successful API response (review body written to stdout)
+          # from a failure (empty output, missing file, or API error).
+          # See docs/AI_REVIEW_WORKFLOWS.md for details.
           if [ ! -s /tmp/claude_review_body.md ]; then
             echo "ERROR: Claude review output was empty" >&2
             exit 1
           fi
 
       - name: Check Claude approval
+        id: check_claude_approval
+        continue-on-error: true  # REQUEST CHANGES exits 1; allow later steps to still run
         run: |
           python3 .github/scripts/extract_verdict.py /tmp/claude_review_body.md Claude
 
       - name: Post Claude review comment
-        if: always()
-        continue-on-error: true
+        if: success() || failure()
+        continue-on-error: true  # If posting fails (e.g. API rate limit), don't fail job; review is also in Actions summary
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
+          # Guard: `-s` distinguishes successful API responses from failures.
+          # If the file exists and is non-empty, the API call succeeded;
+          # if missing or empty, the API call failed (this is the fallback path).
+          # See docs/AI_REVIEW_WORKFLOWS.md for detailed explanation.
           if [ -s /tmp/claude_review_body.md ]; then
             # Claude API succeeded — post the full review (APPROVE or REQUEST CHANGES)
             {
@@ -95,4 +106,33 @@ jobs:
             } > /tmp/claude_comment_body.md
           fi
 
-          gh pr comment "$PR_NUMBER" --body-file /tmp/claude_comment_body.md
+          # Write review to step summary first — before attempting the PR comment — so
+          # it is always recorded in the Actions UI regardless of whether gh pr comment succeeds.
+          if [ -s /tmp/claude_review_body.md ]; then
+            {
+              echo "## Claude AI Code Review"
+              echo ""
+              cat /tmp/claude_review_body.md
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if ! gh pr comment "$PR_NUMBER" --body-file /tmp/claude_comment_body.md; then
+            echo "::warning title=Claude review comment::Failed to post the Claude review comment to PR #$PR_NUMBER — check the Actions log above for the gh error (rate limit, token scope, or network)."
+            echo "WARNING: failed to post review comment — check the Actions log" >&2
+            exit 0
+          fi
+
+      - name: Create follow-up issues
+        if: steps.check_claude_approval.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          # Ensure the ai-suggested label exists before creating issues
+          gh label create "ai-suggested" --color "0075ca" --description "Suggested by AI code review" \
+            2>/dev/null || true
+
+          # Extract titles to a file, then create issues via Python subprocess (no shell injection)
+          python3 .github/scripts/extract_followups.py /tmp/claude_review_body.md \
+            > /tmp/followups.json
+          python3 .github/scripts/create_followup_issues.py /tmp/followups.json "${PR_NUMBER}"

@@ -36,12 +36,12 @@ jobs:
         working-directory: frontend
 
       - name: Setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
       - name: Cache pip
-        uses: actions/cache@v5.0.5
+        uses: actions/cache@v5
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
@@ -65,8 +65,9 @@ jobs:
 
       - name: Lint workflow YAML with actionlint
         # Catches shell-script and expression errors in workflow files early.
-        # actionlint is installed from the upstream release; 'continue-on-error' is
-        # intentionally absent so any actionlint finding fails the job.
-        run: |
-          bash <(curl -s https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
-          ./actionlint .github/workflows/deploy-lambda.yml
+        # Uses the official action (pinned to a major version) rather than
+        # curl | bash from main, which avoids supply-chain risk.
+        # 'continue-on-error' is intentionally absent so any finding fails the job.
+        uses: rhysd/actionlint-action@v1
+        with:
+          files: .github/workflows/deploy-lambda.yml

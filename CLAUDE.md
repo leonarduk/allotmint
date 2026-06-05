@@ -90,6 +90,19 @@ C-specific rules (no dynamic allocation, pointer restrictions, preprocessor limi
 - Add/update Vitest coverage for logic changes.
 - Capture screenshots for visible UI changes when tooling allows.
 
+### GitHub PRs
+- When reviewing PR comments, always call **both** `get_pull_request_comments` (inline review thread comments) and the issue comments endpoint (top-level PR conversation comments) in parallel — they cover different things and GitHub exposes them via separate APIs.
+- Filter comments by `created_at` vs the last commit timestamp so already-addressed threads are not re-processed.
+- If results look sparse (e.g. only stale comments on old code), treat that as a signal to check the other endpoint before assuming you have the full picture.
+
+### CI / GitHub Actions status
+- **`get_pull_request_status` does not cover GitHub Actions.** It calls the legacy Commit Status API and returns `total_count: 0` for repos that use only Actions — which looks like "no CI" but is misleading. Always use `gh run list --repo <owner>/<repo> --branch <head-branch> --limit 10` to get the real Actions run list.
+- **Never assume a failing check is a transient API error without reading the log.** Run `gh run view <run-id> --repo <owner>/<repo> --log-failed` for every failing run and read the actual output before drawing any conclusion.
+- **The Claude PR Review check exit code is meaningful.** Exit 1 from `extract_verdict.py` means one of two things — distinguish them by reading the log:
+  - `✗ Claude review: CHANGES REQUESTED` → the AI produced a real review with blocking feedback; read the review body from the PR's top-level comments and address each finding.
+  - `ERROR: Claude review output was empty` → the Anthropic API returned nothing; this is genuinely transient and a re-run is appropriate.
+- **Do not declare a PR "ready to merge" until `gh run list` shows all required checks green on the current HEAD SHA.** "Checks re-running" is not the same as "checks passing".
+
 ### Docs / scripts / workflows
 - Look for duplicate instructions in `docs/`, `scripts/README.md`, root scripts, and workflow YAML.
 - Prefer consolidating or correcting instructions rather than introducing a new conflicting variant.

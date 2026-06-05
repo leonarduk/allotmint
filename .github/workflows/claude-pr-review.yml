@@ -71,9 +71,13 @@ jobs:
 
       - name: Check Claude approval
         id: check_claude_approval
-        continue-on-error: true  # REQUEST CHANGES exits 1; allow later steps to still run
         run: |
-          python3 .github/scripts/extract_verdict.py /tmp/claude_review_body.md Claude
+          if python3 .github/scripts/extract_verdict.py /tmp/claude_review_body.md Claude; then
+            echo "approved=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "approved=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
 
       - name: Post Claude review comment
         if: success() || failure()
@@ -123,7 +127,7 @@ jobs:
           fi
 
       - name: Create follow-up issues
-        if: steps.check_claude_approval.outcome == 'success'
+        if: steps.check_claude_approval.outputs.approved == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}

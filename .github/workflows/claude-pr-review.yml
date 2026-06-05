@@ -76,8 +76,7 @@ jobs:
           python3 .github/scripts/extract_verdict.py /tmp/claude_review_body.md Claude
 
       - name: Post Claude review comment
-        if: ( always() || success() || failure() ) && !cancelled()
-        if: 
+        if: success() || failure()
         continue-on-error: true  # If posting fails (e.g. API rate limit), don't fail job; review is also in Actions summary
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -107,25 +106,6 @@ jobs:
             } > /tmp/claude_comment_body.md
           fi
 
-          gh pr comment "$PR_NUMBER" --body-file /tmp/claude_comment_body.md
-
-          # Also write to Actions job summary — same content posted as the PR comment
-          cat /tmp/claude_comment_body.md >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Create follow-up issues
-        if: steps.check_claude_approval.outcome == 'success'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          # Ensure the ai-suggested label exists before creating issues
-          gh label create "ai-suggested" --color "0075ca" --description "Suggested by AI code review" \
-            2>/dev/null || true
-
-          # Extract titles to a file, then create issues via Python subprocess (no shell injection)
-          python3 .github/scripts/extract_followups.py /tmp/claude_review_body.md \
-            > /tmp/followups.json
-          python3 .github/scripts/create_followup_issues.py /tmp/followups.json "${PR_NUMBER}"
           # Write review to step summary first — before attempting the PR comment — so
           # it is always recorded in the Actions UI regardless of whether gh pr comment succeeds.
           if [ -s /tmp/claude_review_body.md ]; then
@@ -141,3 +121,18 @@ jobs:
             echo "WARNING: failed to post review comment — check the Actions log" >&2
             exit 0
           fi
+
+      - name: Create follow-up issues
+        if: steps.check_claude_approval.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          # Ensure the ai-suggested label exists before creating issues
+          gh label create "ai-suggested" --color "0075ca" --description "Suggested by AI code review" \
+            2>/dev/null || true
+
+          # Extract titles to a file, then create issues via Python subprocess (no shell injection)
+          python3 .github/scripts/extract_followups.py /tmp/claude_review_body.md \
+            > /tmp/followups.json
+          python3 .github/scripts/create_followup_issues.py /tmp/followups.json "${PR_NUMBER}"

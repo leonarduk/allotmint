@@ -97,7 +97,7 @@ jobs:
           fi
 
       - name: Create follow-up issues
-        if: steps.check_claude_approval.outcome == 'success'
+        if: steps.check_claude_approval.conclusion == 'success'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -114,7 +114,7 @@ jobs:
       - name: Enforce Claude verdict
         if: success() || failure()
         run: |
-          if [ "${{ steps.check_claude_approval.outcome }}" != "success" ]; then
+          if [ "${{ steps.check_claude_approval.conclusion }}" != "success" ]; then
             echo "Claude review requested changes — see the review comment on this PR."
             exit 1
           fi

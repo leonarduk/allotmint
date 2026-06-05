@@ -178,3 +178,57 @@ def test_create_issues_passes_generated_body(
     assert created
     body_idx = created[0].index("--body") + 1
     assert created[0][body_idx] == "Rich body content"
+
+
+@pytest.mark.parametrize(
+    ("body", "expected_label"),
+    [
+        ("**LLM tier**\n**Haiku** — simple task", "llm: haiku"),
+        ("**LLM tier**\n**Sonnet** — moderate reasoning", "llm: sonnet"),
+        ("**LLM tier**\n**Opus** — complex design", "llm: opus"),
+        ("Use Haiku for this", "llm: haiku"),
+        ("Use Sonnet here", "llm: sonnet"),
+        ("Requires Opus", "llm: opus"),
+        ("No model mentioned", None),
+    ],
+)
+def test_extract_llm_label(body: str, expected_label: str | None) -> None:
+    mod = load_module()
+    assert mod._extract_llm_label(body) == expected_label
+
+
+def test_create_issues_applies_llm_label(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mod = load_module()
+    created: list[list[str]] = []
+
+    monkeypatch.setattr(mod, "issue_exists", lambda title: False)
+    monkeypatch.setattr(
+        mod, "_build_body", lambda *args, **kwargs: "**LLM tier**\n**Sonnet** — moderate"
+    )
+    monkeypatch.setattr(mod.subprocess, "run", lambda cmd, **kwargs: created.append(cmd))
+
+    mod.create_issues(["My title"], "10", "review text")
+    assert created
+    assert "--label" in created[0]
+    assert "llm: sonnet" in created[0]
+    assert "ai-suggested" in created[0]
+
+
+def test_create_issues_no_llm_label_when_not_mentioned(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mod = load_module()
+    created: list[list[str]] = []
+
+    monkeypatch.setattr(mod, "issue_exists", lambda title: False)
+    monkeypatch.setattr(mod, "_build_body", lambda *args, **kwargs: "No model info here.")
+    monkeypatch.setattr(mod.subprocess, "run", lambda cmd, **kwargs: created.append(cmd))
+
+    mod.create_issues(["My title"], "10", None)
+    assert created
+    assert "ai-suggested" in created[0]
+    assert "llm: haiku" not in created[0]
+    assert "llm: sonnet" not in created[0]
+    assert "llm: opus" not in created[0]

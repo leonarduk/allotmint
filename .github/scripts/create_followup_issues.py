@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import urllib.error
@@ -14,6 +15,16 @@ from pathlib import Path
 _ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
 _ANTHROPIC_MODEL = "claude-haiku-4-5-20251001"
 _FALLBACK_BODY_TEMPLATE = "Follow-up suggested by Claude AI review of PR #{pr_number}."
+
+_LLM_LABEL_MAP = {
+    "haiku": "llm: haiku",
+    "sonnet": "llm: sonnet",
+    "opus": "llm: opus",
+}
+_LLM_TIER_PATTERN = re.compile(
+    r'\*\*LLM\s+tier\*\*[^\n]*\n[^\n]*\*\*(haiku|sonnet|opus)\b',
+    re.IGNORECASE,
+)
 
 
 def _generate_body_via_claude(title: str, pr_number: str, review_text: str) -> str:
@@ -68,6 +79,17 @@ End with: _Follow-up from AI review of PR #{pr_number}._"""
         return _FALLBACK_BODY_TEMPLATE.format(pr_number=pr_number)
 
 
+def _extract_llm_label(body: str) -> str | None:
+    """Return the 'llm: <tier>' label name if the body names a tier, else None."""
+    m = _LLM_TIER_PATTERN.search(body)
+    if m:
+        return _LLM_LABEL_MAP.get(m.group(1).lower())
+    for tier, label in _LLM_LABEL_MAP.items():
+        if re.search(rf'\b{tier}\b', body, re.IGNORECASE):
+            return label
+    return None
+
+
 def _build_body(title: str, pr_number: str, review_text: str | None) -> str:
     if review_text:
         return _generate_body_via_claude(title, pr_number, review_text)
@@ -108,13 +130,13 @@ def create_issues(
             continue
         print(f"Creating issue: {title}")
         body = _build_body(title, pr_number, review_text)
+        labels = ["ai-suggested"]
+        llm_label = _extract_llm_label(body)
+        if llm_label:
+            labels.append(llm_label)
+        label_args = [arg for label in labels for arg in ("--label", label)]
         subprocess.run(
-            [
-                "gh", "issue", "create",
-                "--title", title,
-                "--body", body,
-                "--label", "ai-suggested",
-            ],
+            ["gh", "issue", "create", "--title", title, "--body", body, *label_args],
             check=True,
         )
 

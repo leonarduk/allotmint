@@ -23,6 +23,7 @@ EXPECTED_REQUIRED_CHECKS = {
     "CI / Lambda-compat pytest (backend/requirements.txt)",
     "Backend Integration Tests / integration-tests",
     "Frontend Tests / frontend-tests",
+    "Merge Conflict Check / Check for merge conflicts with main",
     "PR Body Issue Reference Check / require-issue-reference",
     "Dependency Review / dependency-review",
     "Claude PR Review / Claude AI code review",

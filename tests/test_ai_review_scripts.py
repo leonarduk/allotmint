@@ -170,6 +170,7 @@ def test_review_script_logs_api_status_to_stderr(
 
     assert module.main() == 0
     stderr = capsys.readouterr().err
+    assert "INFO:" in stderr
     assert "status=200" in stderr
     assert "bytes=" in stderr
 
@@ -212,7 +213,7 @@ def test_review_script_warns_on_empty_review_body(
     stderr = capsys.readouterr().err
     assert result == 1
     assert "WARNING" in stderr
-    assert "empty review" in stderr.lower() or "empty" in stderr.lower()
+    assert "empty review body" in stderr.lower()
 
 
 @pytest.mark.parametrize(

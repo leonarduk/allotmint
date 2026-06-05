@@ -1,0 +1,31 @@
+name: Merge Conflict Check
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  check-merge-conflicts:
+    name: Check for merge conflicts with main
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Attempt merge with main (dry run)
+        run: |
+          git config user.email "ci@github-actions"
+          git config user.name "GitHub Actions"
+          git fetch origin main
+          if ! git merge --no-commit --no-ff origin/main; then
+            echo "::error::This branch has merge conflicts with main. Resolve them before merging."
+            git merge --abort
+            exit 1
+          fi
+          git merge --abort 2>/dev/null || true
+          echo "No merge conflicts detected."

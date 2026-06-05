@@ -1,22 +1,4 @@
-"""Extract follow-up issue titles from an AI review's section 5.
-
-Reads the review markdown file passed as the first argument and prints a
-JSON array of follow-up issue title strings to stdout.  Exits 0 whether
-or not any titles are found — an empty array ``[]`` is a valid result.
-
-Usage::
-
-    python3 extract_followups.py /tmp/claude_review_body.md
-
-Section 5 is identified by a heading that matches::
-
-    ### 5. Suggested follow-up issues
-
-Each bullet item under that heading (lines starting with ``-`` or ``*``)
-is treated as one follow-up title.  Inline code backticks and leading/
-trailing whitespace are stripped.  Parsing stops at the next ``###``
-heading or the end of file.
-"""
+"""Extract follow-up issue titles from section 5 of an AI review."""
 
 from __future__ import annotations
 
@@ -26,43 +8,45 @@ import sys
 from pathlib import Path
 
 
-_SECTION_HEADING = re.compile(r"^###\s+5[.\s]", re.IGNORECASE)
-_NEXT_HEADING = re.compile(r"^###")
-_BULLET = re.compile(r"^[-*]\s+")
-
-
 def extract_followups(review_text: str) -> list[str]:
-    """Return follow-up titles from section 5 of *review_text*."""
-    lines = review_text.splitlines()
-    in_section = False
-    titles: list[str] = []
+    """Return follow-up issue titles from section 5 of the review.
 
-    for line in lines:
-        if _SECTION_HEADING.match(line):
-            in_section = True
-            continue
+    Looks for a heading matching '5. Suggested follow-up issues' and extracts
+    bullet items (- or *) until the next heading or the verdict line.
+    """
+    section_match = re.search(r'^#{1,6}\s+5\.\s+\S', review_text, re.MULTILINE)
+    if not section_match:
+        return []
 
-        if in_section:
-            if _NEXT_HEADING.match(line):
-                break
-            if _BULLET.match(line):
-                # Strip leading bullet marker, surrounding backticks, and whitespace.
-                raw = _BULLET.sub("", line).strip()
-                raw = raw.strip("`").strip()
-                if raw:
-                    titles.append(raw)
+    section_start = section_match.end()
+    next_heading = re.search(r'^#{1,6}\s+\S', review_text[section_start:], re.MULTILINE)
+    if next_heading and next_heading.start() > 0:
+        section_text = review_text[section_start : section_start + next_heading.start()]
+    else:
+        section_text = review_text[section_start:]
 
+    # Stop before the verdict line in case it falls inside the section
+    verdict_match = re.search(r'^\*\*(APPROVE|REQUEST CHANGES)\*\*', section_text, re.MULTILINE)
+    if verdict_match:
+        section_text = section_text[: verdict_match.start()]
+
+    titles = []
+    for m in re.finditer(r'^[-*]\s+(.+)', section_text, re.MULTILINE):
+        title = m.group(1).strip()
+        if title:
+            titles.append(title)
     return titles
 
 
 def main(review_file: str) -> int:
+    """Read review file, extract follow-up titles, print as JSON array."""
     try:
-        text = Path(review_file).read_text(encoding="utf-8")
+        review_text = Path(review_file).read_text()
     except FileNotFoundError:
-        print(f"ERROR: file not found: {review_file}", file=sys.stderr)
+        print(f"ERROR: Review file not found: {review_file}", file=sys.stderr)
         return 1
 
-    titles = extract_followups(text)
+    titles = extract_followups(review_text)
     print(json.dumps(titles))
     return 0
 

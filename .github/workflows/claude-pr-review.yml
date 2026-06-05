@@ -60,98 +60,61 @@ jobs:
         run: |
           python3 .github/scripts/claude_review.py > /tmp/claude_review_body.md
 
+          # Guard: `-s` returns true only if the file exists AND has size > 0.
+          # This distinguishes a successful API response (review body written to stdout)
+          # from a failure (empty output, missing file, or API error).
+          # See docs/AI_REVIEW_WORKFLOWS.md for details.
           if [ ! -s /tmp/claude_review_body.md ]; then
             echo "ERROR: Claude review output was empty" >&2
             exit 1
           fi
 
       - name: Check Claude approval
+        id: check_claude_approval
+        continue-on-error: true  # REQUEST CHANGES exits 1; allow later steps (post comment, create issues) to still run
         run: |
           python3 .github/scripts/extract_verdict.py /tmp/claude_review_body.md Claude
 
       - name: Post Claude review comment
-        if: always() && !cancelled()
+        if: success() || failure()
         continue-on-error: true  # If posting fails (e.g. API rate limit), don't fail job; review is also in Actions summary
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          if [ -s /tmp/claude_review_body.md ]; then
-            # Claude API succeeded — post the full review (APPROVE or REQUEST CHANGES)
-            {
-              echo "## Claude AI Code Review"
-              echo ""
-              cat /tmp/claude_review_body.md
-              echo ""
-              echo "---"
-              echo "*Reviewed by Claude via [claude-pr-review.yml](.github/workflows/claude-pr-review.yml). Advisory only.*"
-            } > /tmp/claude_comment_body.md
-          else
-            # Claude API failed or produced empty output — notify user to check logs
-            {
-              echo "## Claude AI Code Review - Failed"
-              echo ""
-              echo "The Claude review failed to complete. Check [Actions]($RUN_URL) for error details."
-            } > /tmp/claude_comment_body.md
+          bash .github/scripts/build_review_comment.sh /tmp/claude_review_body.md \
+            "Claude" "claude-pr-review.yml" "$RUN_URL" > /tmp/claude_comment_body.md
+
+          # Write to Actions job summary so the review is always visible in the UI,
+          # even if the gh pr comment call below fails.
+          cat /tmp/claude_comment_body.md >> "$GITHUB_STEP_SUMMARY"
+
+          if ! gh pr comment "$PR_NUMBER" --body-file /tmp/claude_comment_body.md; then
+            echo "::warning title=Claude review comment::Failed to post the Claude review comment to PR #$PR_NUMBER — check the Actions log above for the gh error (rate limit, token scope, or network)."
+            echo "WARNING: failed to post review comment — check the Actions log" >&2
+            exit 0
           fi
 
-          gh pr comment "$PR_NUMBER" --body-file /tmp/claude_comment_body.md
-
-      - name: Create follow-up issues from review
-        # Only runs when the review was posted successfully and the verdict is APPROVE.
-        # Parses section 5 of the review and opens one GitHub issue per follow-up title,
-        # so they are not lost if an automated process merges on APPROVE.
-        if: success()
+      - name: Create follow-up issues
+        if: steps.check_claude_approval.conclusion == 'success'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_URL: ${{ github.event.pull_request.html_url }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          set -euo pipefail
-          # Only proceed if the review verdict is APPROVE.
-          if ! python3 .github/scripts/extract_verdict.py /tmp/claude_review_body.md Claude > /dev/null 2>&1; then
-            echo "Verdict is not APPROVE — skipping follow-up issue creation."
-            exit 0
-          fi
-          # Extract follow-up titles as a JSON array.
-          followups="$(python3 .github/scripts/extract_followups.py /tmp/claude_review_body.md)"
-          count="$(echo "$followups" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))')"
-          if [ "$count" -eq 0 ]; then
-            echo "No follow-up issues suggested — nothing to create."
-            exit 0
-          fi
-          echo "Creating $count follow-up issue(s) from Claude review of PR #${PR_NUMBER}..."
-          echo "$followups" | python3 -c "
-          import json, subprocess, sys
-          titles = json.load(sys.stdin)
-          pr_url = '${PR_URL}'
-          pr_number = '${PR_NUMBER}'
-          for title in titles:
-              body = (
-                  f'This issue was automatically created from a follow-up suggestion '
-                  f'in the Claude AI review of PR #{pr_number}.\n\n'
-                  f'Source: {pr_url}\n\n'
-                  f'> {title}'
-              )
-              subprocess.run(
-                  ['gh', 'issue', 'create',
-                   '--title', title,
-                   '--body', body,
-                   '--label', 'ai-suggested'],
-                  check=True,
-              )
-              print(f'Created issue: {title}')
-          "
+          # Ensure required labels exist before creating issues
+          gh label create "ai-suggested" --color "0075ca" --description "Suggested by AI code review" \
+            2>/dev/null || true
+          gh label create "llm: haiku" --color "C5DEF5" --description "Suitable for Claude Haiku (simple/mechanical task)" \
+            2>/dev/null || true
+          gh label create "llm: sonnet" --color "BFD4F2" --description "Suitable for Claude Sonnet (moderate reasoning)" \
+            2>/dev/null || true
+          gh label create "llm: opus" --color "0052CC" --description "Suitable for Claude Opus (complex design/architecture)" \
+            2>/dev/null || true
 
-      - name: Post Claude failure notice
-        if: failure()
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          printf '## Claude AI Code Review - Failed\n\nThe Claude review did not APPROVE this PR. Review the changes and address any concerns raised.\n\nCheck [Actions](%s) for details.\n' \
-            "$RUN_URL" > /tmp/claude_fail_notice.md
-          gh pr comment "$PR_NUMBER" --body-file /tmp/claude_fail_notice.md
+          # Extract titles to a file, then create issues via Python subprocess (no shell injection)
+          python3 .github/scripts/extract_followups.py /tmp/claude_review_body.md \
+            > /tmp/followups.json
+          python3 .github/scripts/create_followup_issues.py \
+            /tmp/followups.json "${PR_NUMBER}" /tmp/claude_review_body.md

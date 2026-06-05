@@ -92,7 +92,7 @@ C-specific rules (no dynamic allocation, pointer restrictions, preprocessor limi
 
 ### GitHub PRs
 - When reviewing PR comments, always call **both** `get_pull_request_comments` (inline review thread comments) and the issue comments endpoint (top-level PR conversation comments) in parallel — they cover different things and GitHub exposes them via separate APIs.
-- Filter comments by `created_at` vs the last commit timestamp so already-addressed threads are not re-processed.
+- Check the `resolved` field on each review thread object to determine whether a thread has been addressed. Use `created_at` only as a fallback tiebreaker when `resolved` state is unavailable (e.g. the API endpoint does not expose it). A thread created before the latest commit is not necessarily resolved — the reviewer may not have dismissed it yet. Filtering purely on `created_at` silently skips open threads, so prefer the `resolved` state check first.
 - If results look sparse (e.g. only stale comments on old code), treat that as a signal to check the other endpoint before assuming you have the full picture.
 
 ### CI / GitHub Actions status

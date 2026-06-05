@@ -101,6 +101,16 @@ C-specific rules (no dynamic allocation, pointer restrictions, preprocessor limi
 - **The Claude PR Review check exit code is meaningful.** Exit 1 from `extract_verdict.py` means one of two things — distinguish them by reading the log:
   - `✗ Claude review: CHANGES REQUESTED` → the AI produced a real review with blocking feedback; read the review body from the PR's top-level comments and address each finding.
   - `ERROR: Claude review output was empty` → the Anthropic API returned nothing; this is genuinely transient and a re-run is appropriate.
+- **Always verify that a green run is on the current HEAD SHA, not a stale commit.** A green result on an older SHA does not satisfy the gate. Retrieve the PR head SHA and cross-check it against the run list:
+  ```bash
+  # Get the PR head SHA
+  gh pr view <number> --json headRefOid -q .headRefOid
+
+  # Filter run list to that exact SHA
+  gh run list --repo <owner>/<repo> --branch <branch> --limit 20 \
+    --json headSha,status,conclusion,name \
+    | jq --arg sha "<head-sha>" '.[] | select(.headSha == $sha)'
+  ```
 - **Do not declare a PR "ready to merge" until `gh run list` shows all required checks green on the current HEAD SHA.** "Checks re-running" is not the same as "checks passing".
 
 ### Docs / scripts / workflows

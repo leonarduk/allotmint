@@ -58,6 +58,9 @@
           },
           {
             "context": "GPT PR Review / GPT AI code review"
+          },
+          {
+            "context": "Merge Conflict Check / Check for merge conflicts with main"
           }
         ]
       }

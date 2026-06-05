@@ -101,6 +101,7 @@ C-specific rules (no dynamic allocation, pointer restrictions, preprocessor limi
 - **The Claude PR Review check exit code is meaningful.** Exit 1 from `extract_verdict.py` means one of two things — distinguish them by reading the log:
   - `✗ Claude review: CHANGES REQUESTED` → the AI produced a real review with blocking feedback; read the review body from the PR's top-level comments and address each finding.
   - `ERROR: Claude review output was empty` → the Anthropic API returned nothing; this is genuinely transient and a re-run is appropriate.
+- **`gh run list` defaults to 20 entries and caps at 100 with `--limit`.** On an active branch with many runs (e.g. after repeated force-pushes or rebases), the run for the current HEAD SHA may not appear in the default listing. Pass `--limit 50` as a first step; if the SHA still isn't found, page with the REST API: `gh api "repos/{owner}/{repo}/actions/runs?branch=<branch>&per_page=100&page=2"`. Always match the returned run to the current HEAD SHA before reading the conclusion.
 - **Do not declare a PR "ready to merge" until `gh run list` shows all required checks green on the current HEAD SHA.** "Checks re-running" is not the same as "checks passing".
 
 ### Docs / scripts / workflows

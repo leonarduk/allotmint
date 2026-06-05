@@ -76,45 +76,19 @@ jobs:
           python3 .github/scripts/extract_verdict.py /tmp/claude_review_body.md Claude
 
       - name: Post Claude review comment
-        if: success() || failure()
+        if: always() && !cancelled()
         continue-on-error: true  # If posting fails (e.g. API rate limit), don't fail job; review is also in Actions summary
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          # Guard: `-s` distinguishes successful API responses from failures.
-          # If the file exists and is non-empty, the API call succeeded;
-          # if missing or empty, the API call failed (this is the fallback path).
-          # See docs/AI_REVIEW_WORKFLOWS.md for detailed explanation.
-          if [ -s /tmp/claude_review_body.md ]; then
-            # Claude API succeeded — post the full review (APPROVE or REQUEST CHANGES)
-            {
-              echo "## Claude AI Code Review"
-              echo ""
-              cat /tmp/claude_review_body.md
-              echo ""
-              echo "---"
-              echo "*Reviewed by Claude via [claude-pr-review.yml](.github/workflows/claude-pr-review.yml). Advisory only.*"
-            } > /tmp/claude_comment_body.md
-          else
-            # Claude API failed or produced empty output — notify user to check logs
-            {
-              echo "## Claude AI Code Review - Failed"
-              echo ""
-              echo "The Claude review failed to complete. Check [Actions]($RUN_URL) for error details."
-            } > /tmp/claude_comment_body.md
-          fi
+          bash .github/scripts/build_review_comment.sh /tmp/claude_review_body.md \
+            "Claude" "claude-pr-review.yml" "$RUN_URL" > /tmp/claude_comment_body.md
 
-          # Write review to step summary first — before attempting the PR comment — so
-          # it is always recorded in the Actions UI regardless of whether gh pr comment succeeds.
-          if [ -s /tmp/claude_review_body.md ]; then
-            {
-              echo "## Claude AI Code Review"
-              echo ""
-              cat /tmp/claude_review_body.md
-            } >> "$GITHUB_STEP_SUMMARY"
-          fi
+          # Write to Actions job summary so the review is always visible in the UI,
+          # even if the gh pr comment call below fails.
+          cat /tmp/claude_comment_body.md >> "$GITHUB_STEP_SUMMARY"
 
           if ! gh pr comment "$PR_NUMBER" --body-file /tmp/claude_comment_body.md; then
             echo "::warning title=Claude review comment::Failed to post the Claude review comment to PR #$PR_NUMBER — check the Actions log above for the gh error (rate limit, token scope, or network)."

@@ -65,9 +65,9 @@ jobs:
 
       - name: Lint workflow YAML with actionlint
         # Catches shell-script and expression errors in workflow files early.
-        # Uses the official action (pinned to a major version) rather than
-        # curl | bash from main, which avoids supply-chain risk.
+        # Downloads the official binary directly — no 3rd-party action dependency,
+        # no unpinned ref, no supply-chain risk from a mutable tag.
         # 'continue-on-error' is intentionally absent so any finding fails the job.
-        uses: rhysd/actionlint-action@v1
-        with:
-          files: .github/workflows/deploy-lambda.yml
+        run: |
+          bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          ./actionlint .github/workflows/deploy-lambda.yml

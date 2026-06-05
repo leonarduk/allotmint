@@ -96,6 +96,12 @@ jobs:
             exit 0
           fi
 
+      - name: Fail if Claude did not approve
+        if: always() && steps.check_claude_approval.outcome == 'failure'
+        run: |
+          echo "::error::Claude review: CHANGES REQUESTED — address the review findings before merging."
+          exit 1
+
       - name: Create follow-up issues
         if: steps.check_claude_approval.conclusion == 'success'
         env:

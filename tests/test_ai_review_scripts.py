@@ -193,12 +193,40 @@ def test_review_script_logs_api_status_to_stderr(
     ],
 )
 def test_review_script_warns_on_empty_review_body(
+    ("module_name", "file_name", "api_env", "payload", "expected_err"),
+    [
+        (
+            "gpt_review_empty_choices",
+            "gpt_review.py",
+            "OPENAI_API_KEY",
+            {"choices": []},
+            "ERROR: OpenAI API returned an empty review",
+        ),
+        (
+            "gpt_review_empty_content",
+            "gpt_review.py",
+            "OPENAI_API_KEY",
+            {"choices": [{"message": {"content": ""}}]},
+            "ERROR: OpenAI API returned an empty review",
+        ),
+        (
+            "claude_review_empty_content",
+            "claude_review.py",
+            "ANTHROPIC_API_KEY",
+            {"content": []},
+            "ERROR: Claude API returned an empty review",
+        ),
+    ],
+)
+def test_review_script_exits_on_empty_api_response(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
     module_name: str,
     file_name: str,
     api_env: str,
     empty_payload: dict[str, object],
+    payload: dict[str, object],
+    expected_err: str,
 ) -> None:
     module = load_script_module(module_name, file_name)
     monkeypatch.setenv(api_env, "test-key")
@@ -214,6 +242,10 @@ def test_review_script_warns_on_empty_review_body(
     assert result == 1
     assert "WARNING" in stderr
     assert "empty review body" in stderr.lower()
+    monkeypatch.setattr(module.urllib.request, "urlopen", lambda *args, **kwargs: FakeResponse(payload))
+
+    assert module.main() == 1
+    assert expected_err in capsys.readouterr().err
 
 
 @pytest.mark.parametrize(

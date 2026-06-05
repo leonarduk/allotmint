@@ -58,6 +58,10 @@ jobs:
         run: |
           python3 .github/scripts/gpt_review.py > /tmp/gpt_review_body.md
 
+          # Guard: `-s` returns true only if the file exists AND has size > 0.
+          # This distinguishes a successful API response (review body written to stdout)
+          # from a failure (empty output, missing file, or API error).
+          # See docs/AI_REVIEW_WORKFLOWS.md for details.
           if [ ! -s /tmp/gpt_review_body.md ]; then
             echo "ERROR: GPT review output was empty" >&2
             exit 1
@@ -68,30 +72,22 @@ jobs:
           python3 .github/scripts/extract_verdict.py /tmp/gpt_review_body.md GPT
 
       - name: Post GPT review comment
-        if: always()
-        continue-on-error: true
+        if: always() && !cancelled()
+        continue-on-error: true  # If posting fails (e.g. API rate limit), don't fail job; review is also in Actions summary
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          if [ -s /tmp/gpt_review_body.md ]; then
-            # GPT API succeeded — post the full review (APPROVE or REQUEST CHANGES)
-            {
-              echo "## GPT AI Code Review"
-              echo ""
-              cat /tmp/gpt_review_body.md
-              echo ""
-              echo "---"
-              echo "*Reviewed by GPT via [gpt-pr-review.yml](.github/workflows/gpt-pr-review.yml). Advisory only.*"
-            } > /tmp/gpt_comment_body.md
-          else
-            # GPT API failed or produced empty output — notify user to check logs
-            {
-              echo "## GPT AI Code Review - Failed"
-              echo ""
-              echo "The GPT review failed to complete. Check [Actions]($RUN_URL) for error details."
-            } > /tmp/gpt_comment_body.md
-          fi
+          bash .github/scripts/build_review_comment.sh /tmp/gpt_review_body.md \
+            "GPT" "gpt-pr-review.yml" "$RUN_URL" > /tmp/gpt_comment_body.md
 
-          gh pr comment "$PR_NUMBER" --body-file /tmp/gpt_comment_body.md
+          # Write to Actions job summary so the review is always visible in the UI,
+          # even if the gh pr comment call below fails.
+          cat /tmp/gpt_comment_body.md >> "$GITHUB_STEP_SUMMARY"
+
+          if ! gh pr comment "$PR_NUMBER" --body-file /tmp/gpt_comment_body.md; then
+            echo "::warning title=GPT review comment::Failed to post the GPT review comment to PR #$PR_NUMBER — check the Actions log above for the gh error (rate limit, token scope, or network)."
+            echo "WARNING: failed to post review comment — check the Actions log" >&2
+            exit 0
+          fi

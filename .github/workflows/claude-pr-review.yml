@@ -110,3 +110,11 @@ jobs:
           python3 .github/scripts/extract_followups.py /tmp/claude_review_body.md \
             > /tmp/followups.json
           python3 .github/scripts/create_followup_issues.py /tmp/followups.json "${PR_NUMBER}"
+
+      - name: Enforce Claude verdict
+        if: always() && !cancelled()
+        run: |
+          if [ "${{ steps.check_claude_approval.outcome }}" != "success" ]; then
+            echo "Claude review requested changes — see the review comment on this PR."
+            exit 1
+          fi

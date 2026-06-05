@@ -4,6 +4,10 @@ This is the opinionated setup path for contributors who want to run AllotMint lo
 
 For the broader product overview, see [docs/README.md](README.md). For repo-wide agent guidance, see [AGENTS.md](../AGENTS.md).
 
+## 0. Automated code reviews
+
+Before pushing, be aware that pull requests trigger automated AI code reviews via Claude and GPT workflows. These reviews are advisory and posted as PR comments. For details on how these workflows operate, failure handling, and debugging tips, see [docs/AI_REVIEW_WORKFLOWS.md](AI_REVIEW_WORKFLOWS.md).
+
 ## 1. Supported run modes at a glance
 
 | Mode | When to use it | Backend entrypoint | Frontend entrypoint | Auth expectation | Data expectation |

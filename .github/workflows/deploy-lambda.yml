@@ -218,34 +218,24 @@ jobs:
             exit 1
           fi
 
-      - name: Check stacks exist for CDK diff
-        env:
-          AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
-        run: |
-          set -euo pipefail
-          # Use --method=change-set only when both stacks already exist.
-          # BackendLambdaStack must exist so CloudFormation can reuse its
-          # stored UiAuthUserPoolId/UiAuthUserPoolClientId parameter values
-          # (cdk diff has no --parameters flag; values come from the live stack).
-          # StaticSiteStack must exist as the upstream source of those values;
-          # gating on both avoids a gap in partial-deploy states where
-          # StaticSiteStack has not yet been provisioned.
-          if aws cloudformation describe-stacks --stack-name BackendLambdaStack > /dev/null 2>&1 \
-             && aws cloudformation describe-stacks --stack-name StaticSiteStack > /dev/null 2>&1; then
-            echo CDK_DIFF_METHOD=change-set >> "$GITHUB_ENV"
-            echo 'Both stacks exist: using --method=change-set (CloudFormation reuses existing parameter values)'
-          else
-            echo CDK_DIFF_METHOD=auto >> "$GITHUB_ENV"
-            echo 'One or more stacks not yet deployed: falling back to --method=auto'
-          fi
-
       - name: CDK diff
+        # Use --method=template: a direct template comparison that creates no
+        # CloudFormation change set. BackendLambdaStack declares UiAuthUserPoolId
+        # and UiAuthUserPoolClientId as required parameters with no default
+        # (backend_lambda_stack.py); their values are produced by StaticSiteStack
+        # and only fetched in the "Get Cognito UI auth outputs" step *below*, so
+        # they are unavailable at diff time. The "change-set"/"auto" methods try
+        # to create a change set, which fails here because cdk diff has no
+        # --parameters flag and does not send UsePreviousValue, so CloudFormation
+        # reports UiAuthUserPoolId/UiAuthUserPoolClientId as missing a value
+        # (see issue #3287). The diff is informational only; the real cdk deploy
+        # steps below still pass the actual parameter values.
         env:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           CDK_OUTDIR: /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
-        run: npx cdk diff BackendLambdaStack StaticSiteStack --method="$CDK_DIFF_METHOD" -c prod=true
+        run: npx cdk diff BackendLambdaStack StaticSiteStack --method=template -c prod=true
         working-directory: cdk
 
       - name: Deploy StaticSiteStack auth resources

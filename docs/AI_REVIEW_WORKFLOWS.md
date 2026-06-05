@@ -42,17 +42,15 @@ This guard is robust to cancellations, timeouts, and partial failures.
 
 ### PR Comment
 
-The primary posting mechanism is `gh pr comment`, which posts the review as a comment visible to all PR viewers.
+The primary posting mechanism is `gh pr comment`, which posts the review as a comment visible to all PR viewers. If this call fails (e.g., due to GitHub API rate limits or token issues), a warning is logged in the Actions run.
 
-### Failure handling
+### Step Summary
 
-If the PR comment posting fails (e.g., due to GitHub API rate limits or network issues), the error is visible in the workflow logs. The review is **not** written to `$GITHUB_STEP_SUMMARY`; if `gh pr comment` fails, the review content is only accessible in the raw workflow logs for that run.
-
-> **Note:** Step-summary output was never implemented for these workflows — neither `claude-pr-review.yml` nor `gpt-pr-review.yml` writes to `$GITHUB_STEP_SUMMARY` (you can confirm this by grepping the workflow files). An earlier inline comment in the posting step claimed the review was "also in Actions summary"; that claim was inaccurate and has been corrected in the workflow YAML. The only reliable fallback when posting fails is the raw run logs.
+As a secondary fallback for visibility, the review body is also written to `$GITHUB_STEP_SUMMARY` so it appears in the GitHub Actions run UI. If the `gh pr comment` call fails, the review content is still accessible here.
 
 ## Workflow Step Configuration
 
-- **`if: always() && !cancelled()`**: The "Post review comment" step runs even if the verdict is REQUEST CHANGES (which exits the preceding step with a non-zero exit code), so the full review is always visible. The `!cancelled()` guard skips the step when the workflow is cancelled (e.g. superseded by a new push), avoiding spurious failure notices. This guard landed in #3299.
+- **`if: success() || failure()`** (claude) / **`if: always() && !cancelled()`** (gpt): The "Post review comment" step runs even if the verdict is REQUEST CHANGES (which exits the preceding step with a non-zero exit code), so the full review is always visible. The condition excludes cancelled runs to avoid spurious failure notices when a run is superseded by a new push.
 - **`continue-on-error: true`**: Set on the "Post review comment" step in both `claude-pr-review.yml` and `gpt-pr-review.yml`. If the `gh pr comment` call fails, the job does not fail. The failure is recorded in the workflow logs but does not block the overall workflow.
 
 ## Debugging
@@ -60,8 +58,9 @@ If the PR comment posting fails (e.g., due to GitHub API rate limits or network 
 When a review fails to post, check the Actions logs for:
 
 1. **API authentication errors**: Verify `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` secrets are configured
-2. **Empty responses**: Check if the AI service is returning valid output
-3. **Network/rate limit errors**: Review the raw workflow logs for the run; the review content will appear there if `gh pr comment` failed
-4. **GitHub token issues**: Verify `GH_TOKEN` and PR permissions are correct
+2. **Empty responses**: Check the workflow logs for API response status and size; look for `WARNING: ... empty review body`
+3. **Network/rate limit errors**: Review the workflow logs for the run; structured logging shows the API status code
+4. **GitHub token issues**: Verify `GH_TOKEN` and PR comment posting permissions are correct
+5. **PR comment posting failures**: Look for `::warning title=...` annotations in the Actions summary
 
 For more information, see the workflow files in `.github/workflows/`.

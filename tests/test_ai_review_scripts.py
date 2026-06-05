@@ -134,6 +134,52 @@ def test_review_script_prints_review_on_mocked_api_success(
 
 
 @pytest.mark.parametrize(
+    ("module_name", "file_name", "api_env", "payload", "expected_err"),
+    [
+        (
+            "gpt_review_empty_choices",
+            "gpt_review.py",
+            "OPENAI_API_KEY",
+            {"choices": []},
+            "ERROR: OpenAI API returned an empty review",
+        ),
+        (
+            "gpt_review_empty_content",
+            "gpt_review.py",
+            "OPENAI_API_KEY",
+            {"choices": [{"message": {"content": ""}}]},
+            "ERROR: OpenAI API returned an empty review",
+        ),
+        (
+            "claude_review_empty_content",
+            "claude_review.py",
+            "ANTHROPIC_API_KEY",
+            {"content": []},
+            "ERROR: Claude API returned an empty review",
+        ),
+    ],
+)
+def test_review_script_exits_on_empty_api_response(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    module_name: str,
+    file_name: str,
+    api_env: str,
+    payload: dict[str, object],
+    expected_err: str,
+) -> None:
+    module = load_script_module(module_name, file_name)
+    monkeypatch.setenv(api_env, "test-key")
+    monkeypatch.setenv("PR_TITLE", "Add thing")
+    monkeypatch.setenv("ISSUE_BODY", "Do thing")
+    monkeypatch.setenv("DIFF", "diff --git a/a.py b/a.py\n+print('hi')\n")
+    monkeypatch.setattr(module.urllib.request, "urlopen", lambda *args, **kwargs: FakeResponse(payload))
+
+    assert module.main() == 1
+    assert expected_err in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
     ("module_name", "file_name", "api_env", "expected_message"),
     [
         ("gpt_review_failure", "gpt_review.py", "OPENAI_API_KEY", "ERROR: OpenAI API returned 500: upstream broke"),

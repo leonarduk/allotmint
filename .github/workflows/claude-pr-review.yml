@@ -101,6 +101,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           # Ensure the ai-suggested label exists before creating issues
           gh label create "ai-suggested" --color "0075ca" --description "Suggested by AI code review" \
@@ -109,4 +110,5 @@ jobs:
           # Extract titles to a file, then create issues via Python subprocess (no shell injection)
           python3 .github/scripts/extract_followups.py /tmp/claude_review_body.md \
             > /tmp/followups.json
-          python3 .github/scripts/create_followup_issues.py /tmp/followups.json "${PR_NUMBER}"
+          python3 .github/scripts/create_followup_issues.py \
+            /tmp/followups.json "${PR_NUMBER}" /tmp/claude_review_body.md

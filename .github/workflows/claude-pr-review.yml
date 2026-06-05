@@ -71,12 +71,12 @@ jobs:
 
       - name: Check Claude approval
         id: check_claude_approval
-        continue-on-error: true  # REQUEST CHANGES exits 1; allow later steps to still run
+        continue-on-error: true  # REQUEST CHANGES exits 1; allow later steps (post comment, create issues) to still run
         run: |
           python3 .github/scripts/extract_verdict.py /tmp/claude_review_body.md Claude
 
       - name: Post Claude review comment
-        if: always() && !cancelled()
+        if: success() || failure()
         continue-on-error: true  # If posting fails (e.g. API rate limit), don't fail job; review is also in Actions summary
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -112,7 +112,7 @@ jobs:
           python3 .github/scripts/create_followup_issues.py /tmp/followups.json "${PR_NUMBER}"
 
       - name: Enforce Claude verdict
-        if: always() && !cancelled()
+        if: success() || failure()
         run: |
           if [ "${{ steps.check_claude_approval.outcome }}" != "success" ]; then
             echo "Claude review requested changes — see the review comment on this PR."

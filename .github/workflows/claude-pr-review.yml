@@ -71,12 +71,12 @@ jobs:
 
       - name: Check Claude approval
         id: check_claude_approval
-        continue-on-error: true  # REQUEST CHANGES exits 1; allow later steps to still run
+        continue-on-error: true  # REQUEST CHANGES exits 1; allow later steps (post comment, create issues) to still run
         run: |
           python3 .github/scripts/extract_verdict.py /tmp/claude_review_body.md Claude
 
       - name: Post Claude review comment
-        if: always() && !cancelled()
+        if: success() || failure()
         continue-on-error: true  # If posting fails (e.g. API rate limit), don't fail job; review is also in Actions summary
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -97,16 +97,24 @@ jobs:
           fi
 
       - name: Create follow-up issues
-        if: steps.check_claude_approval.outcome == 'success'
+        if: steps.check_claude_approval.conclusion == 'success'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          # Ensure the ai-suggested label exists before creating issues
+          # Ensure required labels exist before creating issues
           gh label create "ai-suggested" --color "0075ca" --description "Suggested by AI code review" \
+            2>/dev/null || true
+          gh label create "llm: haiku" --color "C5DEF5" --description "Suitable for Claude Haiku (simple/mechanical task)" \
+            2>/dev/null || true
+          gh label create "llm: sonnet" --color "BFD4F2" --description "Suitable for Claude Sonnet (moderate reasoning)" \
+            2>/dev/null || true
+          gh label create "llm: opus" --color "0052CC" --description "Suitable for Claude Opus (complex design/architecture)" \
             2>/dev/null || true
 
           # Extract titles to a file, then create issues via Python subprocess (no shell injection)
           python3 .github/scripts/extract_followups.py /tmp/claude_review_body.md \
             > /tmp/followups.json
-          python3 .github/scripts/create_followup_issues.py /tmp/followups.json "${PR_NUMBER}"
+          python3 .github/scripts/create_followup_issues.py \
+            /tmp/followups.json "${PR_NUMBER}" /tmp/claude_review_body.md

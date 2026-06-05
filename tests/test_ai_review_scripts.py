@@ -25,8 +25,9 @@ def load_script_module(module_name: str, file_name: str) -> ModuleType:
 
 
 class FakeResponse:
-    def __init__(self, payload: dict[str, object]) -> None:
+    def __init__(self, payload: dict[str, object], status: int = 200) -> None:
         self._payload = json.dumps(payload).encode()
+        self.status = status
 
     def read(self) -> bytes:
         return self._payload
@@ -131,6 +132,87 @@ def test_review_script_prints_review_on_mocked_api_success(
 
     assert module.main() == 0
     assert "Looks good" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("module_name", "file_name", "api_env", "payload"),
+    [
+        (
+            "gpt_review_info_log",
+            "gpt_review.py",
+            "OPENAI_API_KEY",
+            {"choices": [{"message": {"content": "Looks good\n**APPROVE**"}}]},
+        ),
+        (
+            "claude_review_info_log",
+            "claude_review.py",
+            "ANTHROPIC_API_KEY",
+            {"content": [{"type": "text", "text": "Looks good\n**APPROVE**"}]},
+        ),
+    ],
+)
+def test_review_script_logs_api_status_to_stderr(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    module_name: str,
+    file_name: str,
+    api_env: str,
+    payload: dict[str, object],
+) -> None:
+    module = load_script_module(module_name, file_name)
+    monkeypatch.setenv(api_env, "test-key")
+    monkeypatch.setenv("PR_TITLE", "Add thing")
+    monkeypatch.setenv("ISSUE_BODY", "Do thing")
+    monkeypatch.setenv("DIFF", "diff --git a/a.py b/a.py\n+print('hi')\n")
+    monkeypatch.setattr(
+        module.urllib.request, "urlopen", lambda *args, **kwargs: FakeResponse(payload, status=200)
+    )
+
+    assert module.main() == 0
+    stderr = capsys.readouterr().err
+    assert "status=200" in stderr
+    assert "bytes=" in stderr
+
+
+@pytest.mark.parametrize(
+    ("module_name", "file_name", "api_env", "empty_payload"),
+    [
+        (
+            "gpt_review_empty_warning",
+            "gpt_review.py",
+            "OPENAI_API_KEY",
+            {"choices": []},
+        ),
+        (
+            "claude_review_empty_warning",
+            "claude_review.py",
+            "ANTHROPIC_API_KEY",
+            {"content": []},
+        ),
+    ],
+)
+def test_review_script_warns_on_empty_review_body(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    module_name: str,
+    file_name: str,
+    api_env: str,
+    empty_payload: dict[str, object],
+) -> None:
+    module = load_script_module(module_name, file_name)
+    monkeypatch.setenv(api_env, "test-key")
+    monkeypatch.setenv("PR_TITLE", "Add thing")
+    monkeypatch.setenv("ISSUE_BODY", "Do thing")
+    monkeypatch.setenv("DIFF", "diff --git a/a.py b/a.py\n+print('hi')\n")
+    monkeypatch.setattr(
+        module.urllib.request, "urlopen", lambda *args, **kwargs: FakeResponse(empty_payload, status=200)
+    )
+
+    result = module.main()
+    stderr = capsys.readouterr().err
+    assert result == 1
+    assert "WARNING" in stderr
+    assert "empty review" in stderr.lower() or "empty" in stderr.lower()
 
 
 @pytest.mark.parametrize(

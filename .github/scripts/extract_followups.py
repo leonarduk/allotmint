@@ -30,10 +30,11 @@ def extract_followups(review_text: str) -> list[str]:
     if verdict_match:
         section_text = section_text[: verdict_match.start()]
 
+    verdict_title_re = re.compile(r'^\*\*(APPROVE|REQUEST CHANGES)\*\*', re.IGNORECASE)
     titles = []
     for m in re.finditer(r'^[-*]\s+(.+)', section_text, re.MULTILINE):
         title = m.group(1).strip()
-        if title:
+        if title and not verdict_title_re.match(title):
             titles.append(title)
     return titles
 

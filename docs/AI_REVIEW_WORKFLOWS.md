@@ -11,6 +11,29 @@ Two GitHub Actions workflows provide automated code reviews on pull requests:
 
 Both workflows follow the same pattern: generate a review, extract a verdict (APPROVE or REQUEST CHANGES), and post the full review to the PR regardless of verdict.
 
+## Verdict Behavior
+
+The verdict extraction step (`extract_verdict.py`) runs the AI review output through a parser that produces one of two results:
+
+1. **APPROVE** — the review found no blocking issues. The step exits 0 and sets `outputs.approved='true'`.
+2. **REQUEST CHANGES** — the review flagged issues that should be addressed before merge. The step exits 1 (non-zero) and sets `outputs.approved='false'`.
+
+**Important:** Downstream steps MUST check `steps.check_claude_approval.outputs.approved == 'true'`, NOT the step's exit status or `outcome`. The step is configured with `continue-on-error: true`, so a REQUEST CHANGES verdict (exit 1) does not block subsequent steps — they can run and decide what to do based on the output variable.
+
+Example of correct pattern in a step:
+```yaml
+- name: Take action based on review
+  if: steps.check_claude_approval.outputs.approved == 'true'
+  run: echo "PR approved by AI"
+```
+
+Example of **incorrect** pattern (will not work as intended):
+```yaml
+- name: Take action based on review
+  if: steps.check_claude_approval.outcome == 'success'  # ❌ Wrong — continues even on REQUEST CHANGES
+  run: echo "PR approved by AI"
+```
+
 ## Review Posting Behavior
 
 ### Successful Review

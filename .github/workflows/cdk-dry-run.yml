@@ -5,6 +5,7 @@ on:
     paths:
       - 'cdk/**'
       - '.github/workflows/deploy-lambda.yml'
+      - '.github/workflows/cdk-dry-run.yml'
       - 'backend/**'
 
 permissions:
@@ -55,19 +56,19 @@ jobs:
         # JWT_SECRET and GOOGLE_CLIENT_ID are required non-empty by backend_lambda_stack.py.
         # Dummy placeholder values are safe here because synth only generates the
         # CloudFormation template — no deploy or AWS call is made.
-        # CDK_OUTDIR is isolated per run to avoid cross-run cache pollution.
+        # --output flag (not CDK_OUTDIR env var) guarantees isolation per run
+        # regardless of any output key in cdk.json.
         env:
           JWT_SECRET: dry-run-placeholder
           GOOGLE_CLIENT_ID: dry-run-placeholder.apps.googleusercontent.com
-          CDK_OUTDIR: /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
-        run: npx cdk synth BackendLambdaStack StaticSiteStack -c prod=true
+        run: npx cdk synth BackendLambdaStack StaticSiteStack -c prod=true --output /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
         working-directory: cdk
 
       - name: Lint workflow YAML with actionlint
-        # Catches shell-script and expression errors in workflow files early.
-        # Downloads the official binary directly — no 3rd-party action dependency,
-        # no unpinned ref, no supply-chain risk from a mutable tag.
+        # Pinned to v1.7.7 to avoid supply-chain risk from a mutable ref.
         # 'continue-on-error' is intentionally absent so any finding fails the job.
         run: |
-          bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
-          ./actionlint .github/workflows/deploy-lambda.yml
+          curl -fsSL -o /tmp/actionlint.tar.gz \
+            https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz
+          tar -xzf /tmp/actionlint.tar.gz -C /tmp actionlint
+          /tmp/actionlint .github/workflows/deploy-lambda.yml .github/workflows/cdk-dry-run.yml

@@ -10,8 +10,13 @@ foreach ($cmd in @('gh', 'aider')) {
     }
 }
 
-# Fetch to ensure remote refs are current before any rev-parse
+# Fetch to ensure remote refs are current before any rev-parse.
+# Warn (don't abort) on failure so offline re-runs still work, but never let a
+# silent fetch failure cause a later reset to operate on a stale ref unnoticed.
 git fetch origin 2>$null
+if ($LASTEXITCODE -ne 0) {
+    Write-Warning "git fetch origin failed; continuing with possibly stale remote refs."
+}
 
 # Derive owner/repo from the local git remote so fork contributors target their own repo
 $remote = git remote get-url origin 2>$null
@@ -44,16 +49,20 @@ $issueBody = if ($issueData.body) { $issueData.body } else { "" }
 # If it already exists, reset it to origin/$defaultBranch so stale commits from a
 # previous run are not silently included in the PR body or seen by aider.
 $branch = "issue-$number"
-$branchExists = git branch --list $branch
-if ($branchExists) {
+# Reliable existence test: rev-parse sets a non-zero exit code when the ref is
+# absent. (git branch --list returns whitespace-padded output whose truthiness is
+# fragile across Git versions and pager configs.)
+git rev-parse --verify --quiet "refs/heads/$branch" > $null 2>&1
+if ($LASTEXITCODE -eq 0) {
     Write-Warning "Branch '$branch' already exists — resetting to origin/$defaultBranch to avoid stale commits."
     git checkout $branch
     if ($LASTEXITCODE -ne 0) { exit 1 }
     git reset --hard "origin/$defaultBranch"
+    if ($LASTEXITCODE -ne 0) { exit 1 }
 } else {
     git checkout -b $branch
+    if ($LASTEXITCODE -ne 0) { exit 1 }
 }
-if ($LASTEXITCODE -ne 0) { exit 1 }
 
 # Record the tip of the base branch so the PR body only lists commits aider adds.
 # Fail fast with a clear message rather than silently passing an empty SHA to git log.
@@ -63,8 +72,10 @@ if (-not $baseSha) {
     exit 1
 }
 
-# Write the prompt to a temp file and use --message-file so the issue body never
-# touches the command line (prevents shell injection from attacker-controlled content)
+# Write the prompt to a temp file and pass it via aider's --message-file flag
+# (aider's documented "-f / --message-file FILE" option: send one message
+# non-interactively, process the reply, then exit). Routing the issue body through
+# a file keeps attacker-controlled content off the command line entirely.
 $promptFile = [System.IO.Path]::GetTempFileName()
 Set-Content -Path $promptFile -Value "GitHub issue #${number}: $title`n`n$issueBody" -Encoding UTF8
 

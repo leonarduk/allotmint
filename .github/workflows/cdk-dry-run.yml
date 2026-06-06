@@ -64,11 +64,26 @@ jobs:
         run: npx cdk synth BackendLambdaStack StaticSiteStack -c prod=true --output /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
         working-directory: cdk
 
+      - name: Validate --method=template token in deploy workflow
+        # cdk diff in deploy-lambda.yml must use --method=template (a direct template
+        # comparison that creates no CloudFormation change set). Any other value —
+        # e.g. --method=changeset or --method=change-set — fails at deploy time because
+        # cdk diff sends no --parameters flag and CloudFormation rejects the change set
+        # with "missing required parameter" (see issue #3287). This grep step catches
+        # that regression class at PR time without requiring AWS credentials.
+        run: |
+          grep -E 'cdk diff[^#]*--method=template' .github/workflows/deploy-lambda.yml || {
+            echo "::error::deploy-lambda.yml does not contain a 'cdk diff --method=template' invocation."
+            echo "This is the regression class from issue #3287. Ensure the deploy workflow uses --method=template."
+            exit 1
+          }
+
       - name: Lint workflow YAML with actionlint
-        # Pinned to v1.7.7 to avoid supply-chain risk from a mutable ref.
+        # Pinned to v1.7.7 (SHA-256 verified) to prevent supply-chain risk.
         # 'continue-on-error' is intentionally absent so any finding fails the job.
         run: |
           curl -fsSL -o /tmp/actionlint.tar.gz \
             https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz
+          echo "023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757  /tmp/actionlint.tar.gz" | sha256sum -c -
           tar -xzf /tmp/actionlint.tar.gz -C /tmp actionlint
           /tmp/actionlint .github/workflows/deploy-lambda.yml .github/workflows/cdk-dry-run.yml

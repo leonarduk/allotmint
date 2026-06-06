@@ -21,6 +21,12 @@ _LLM_LABEL_MAP = {
     "sonnet": "sonnet",
     "opus": "opus",
 }
+# Derive a fallback tier label from the model constant so issues created by this
+# script always carry a tier label even when _extract_llm_label finds nothing.
+_FALLBACK_LLM_LABEL: str = next(
+    (label for tier, label in _LLM_LABEL_MAP.items() if tier in _ANTHROPIC_MODEL.lower()),
+    "haiku",
+)
 _LLM_TIER_PATTERN = re.compile(
     r'\*\*LLM\s+tier\*\*[^\n]*\n[^\n]*\*\*(haiku|sonnet|opus)\b',
     re.IGNORECASE,
@@ -131,9 +137,8 @@ def create_issues(
         print(f"Creating issue: {title}")
         body = _build_body(title, pr_number, review_text)
         labels = ["ai-suggested"]
-        llm_label = _extract_llm_label(body)
-        if llm_label:
-            labels.append(llm_label)
+        llm_label = _extract_llm_label(body) or _FALLBACK_LLM_LABEL
+        labels.append(llm_label)
         label_args = [arg for label in labels for arg in ("--label", label)]
         subprocess.run(
             ["gh", "issue", "create", "--title", title, "--body", body, *label_args],

@@ -101,11 +101,6 @@ jobs:
             exit 0
           fi
 
-          gh pr comment "$PR_NUMBER" --body-file /tmp/claude_comment_body.md
-
-          # Also write to Actions job summary — same file posted as the PR comment,
-          # so the guard, content, and fallback are identical.
-          cat /tmp/claude_comment_body.md >> "$GITHUB_STEP_SUMMARY"
       - name: Create follow-up issues
         if: steps.check_claude_approval.outputs.approved == 'true'
         env:

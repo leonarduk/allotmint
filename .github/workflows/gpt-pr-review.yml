@@ -83,8 +83,6 @@ jobs:
           bash .github/scripts/build_review_comment.sh /tmp/gpt_review_body.md \
             "GPT" "gpt-pr-review.yml" "$RUN_URL" > /tmp/gpt_comment_body.md
 
-          gh pr comment "$PR_NUMBER" --body-file /tmp/gpt_comment_body.md
-
           # Write to Actions job summary so the review is always visible in the UI,
           # even if the gh pr comment call below fails.
           cat /tmp/gpt_comment_body.md >> "$GITHUB_STEP_SUMMARY"

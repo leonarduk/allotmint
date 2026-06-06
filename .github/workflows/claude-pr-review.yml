@@ -73,7 +73,12 @@ jobs:
         id: check_claude_approval
         continue-on-error: true  # REQUEST CHANGES exits 1; allow later steps (post comment, create issues) to still run
         run: |
-          python3 .github/scripts/extract_verdict.py /tmp/claude_review_body.md Claude
+          if python3 .github/scripts/extract_verdict.py /tmp/claude_review_body.md Claude; then
+            echo "approved=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "approved=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
 
       - name: Post Claude review comment
         if: success() || failure()
@@ -102,7 +107,7 @@ jobs:
           # so the guard, content, and fallback are identical.
           cat /tmp/claude_comment_body.md >> "$GITHUB_STEP_SUMMARY"
       - name: Create follow-up issues
-        if: steps.check_claude_approval.conclusion == 'success'
+        if: steps.check_claude_approval.outputs.approved == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -123,3 +128,9 @@ jobs:
             > /tmp/followups.json
           python3 .github/scripts/create_followup_issues.py \
             /tmp/followups.json "${PR_NUMBER}" /tmp/claude_review_body.md
+
+      - name: Fail if Claude did not approve
+        if: always() && steps.check_claude_approval.outcome == 'failure'
+        run: |
+          echo "::error::Claude review: CHANGES REQUESTED — address the review findings before merging."
+          exit 1

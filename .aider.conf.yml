@@ -3,4 +3,4 @@ model: "ollama/qwen2.5-coder:14b"
 auto-commits: true
 
 auto-test: true
-test-cmd: "pytest -q"
+test-cmd: "pytest -q && npm --prefix frontend run test -- --run"

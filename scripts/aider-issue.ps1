@@ -34,8 +34,8 @@ if ($Issue -match '(\d+)$') {
 
 # Fetch issue title + body
 $issueData = gh issue view $number --repo "$owner/$repo" --json title,body | ConvertFrom-Json
-$title = $issueData.title
-$body  = if ($issueData.body) { $issueData.body } else { "" }
+$title     = $issueData.title
+$issueBody = if ($issueData.body) { $issueData.body } else { "" }
 
 # Create and switch to a branch (safe to re-run if branch already exists)
 $branch = "issue-$number"
@@ -45,8 +45,12 @@ if ($LASTEXITCODE -ne 0) {
     if ($LASTEXITCODE -ne 0) { exit 1 }
 }
 
+# Record the tip of the base branch so we can summarise only the commits aider adds
+$baseSha = git rev-parse "origin/$defaultBranch" 2>$null
+if (-not $baseSha) { $baseSha = git merge-base HEAD "origin/$defaultBranch" }
+
 # Run aider with the issue as the prompt (auto-commits on test pass via .aider.conf.yml)
-$prompt = "GitHub issue #${number}: $title`n`n$body"
+$prompt = "GitHub issue #${number}: $title`n`n$issueBody"
 aider --message $prompt
 if ($LASTEXITCODE -ne 0) { exit 1 }
 
@@ -54,10 +58,29 @@ if ($LASTEXITCODE -ne 0) { exit 1 }
 git push -u origin $branch
 if ($LASTEXITCODE -ne 0) { exit 1 }
 
+# Build a rich PR body from the commits aider made
+$summaryBullets = git log "$baseSha..HEAD" --pretty=format:"- %s" 2>$null
+$diffStat       = (git diff "$baseSha..HEAD" --stat 2>$null | Select-Object -Last 1)
+
+$prBody = @"
+## Summary
+$summaryBullets
+
+## Why this matters
+$issueBody
+
+## Changes
+$diffStat
+
+Fixes #${number}
+
+🤖 Implemented via [aider](https://aider.chat) with local Ollama model
+"@
+
 # Open a draft PR against the repo default branch (promote to ready after review)
 gh pr create `
     --title "Fix: $title" `
-    --body "Closes #${number}`n`nImplemented via aider." `
+    --body $prBody `
     --draft `
     --base $defaultBranch `
     --repo "$owner/$repo"

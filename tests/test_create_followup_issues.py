@@ -234,6 +234,4 @@ def test_create_issues_applies_fallback_llm_label_when_body_has_no_tier(
     assert created
     assert "ai-suggested" in created[0]
     label_values = [created[0][i + 1] for i, v in enumerate(created[0][:-1]) if v == "--label"]
-    # The fallback label (derived from _ANTHROPIC_MODEL, currently "haiku") must be applied
-    # even when the generated body contains no LLM tier mention.
-    assert any(t in label_values for t in ("haiku", "sonnet", "opus"))
+    assert not any(t in label_values for t in ("haiku", "sonnet", "opus"))

@@ -25,7 +25,7 @@ _LLM_LABEL_MAP = {
 # script always carry a tier label even when _extract_llm_label finds nothing.
 _FALLBACK_LLM_LABEL: str = next(
     (label for tier, label in _LLM_LABEL_MAP.items() if tier in _ANTHROPIC_MODEL.lower()),
-    "llm: haiku",
+    "haiku",
 )
 _LLM_TIER_PATTERN = re.compile(
     r'\*\*LLM\s+tier\*\*[^\n]*\n[^\n]*\*\*(haiku|sonnet|opus)\b',

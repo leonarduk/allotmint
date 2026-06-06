@@ -1,4 +1,4 @@
-model: "ollama/qwen2.5-coder:7b"
+model: "ollama/qwen2.5-coder:14b"
 
 auto-commits: true
 auto-test: true

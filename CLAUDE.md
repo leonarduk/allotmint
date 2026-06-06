@@ -101,18 +101,24 @@ C-specific rules (no dynamic allocation, pointer restrictions, preprocessor limi
 - **The Claude PR Review check exit code is meaningful.** Exit 1 from `extract_verdict.py` means one of two things — distinguish them by reading the log:
   - `✗ Claude review: CHANGES REQUESTED` → the AI produced a real review with blocking feedback; read the review body from the PR's top-level comments and address each finding.
   - `ERROR: Claude review output was empty` → the Anthropic API returned nothing; this is genuinely transient and a re-run is appropriate.
-- **Always verify that a green run is on the current HEAD SHA, not a stale commit.** A green result on an older SHA does not satisfy the gate. Retrieve the PR head SHA and cross-check it against the run list:
+- **Always verify that a green run is on the current HEAD SHA, not a stale commit — and do not declare a PR "ready to merge" until all required checks are green on that SHA.** "Checks re-running" is not the same as "checks passing". A green result on an older SHA does not satisfy the gate. Retrieve the PR head SHA and cross-check it against the run list:
   ```bash
   # Get the PR head SHA
   gh pr view <number> --json headRefOid -q .headRefOid
 
-  # Filter run list to that exact SHA (in PowerShell, use "$sha" instead of '$sha')
+  # Filter run list to that exact SHA (bash)
   gh run list --repo <owner>/<repo> --branch <branch> --limit 50 \
     --json headSha,status,conclusion,name \
     | jq --arg sha "<head-sha>" '[.[] | select(.headSha == $sha)]'
   ```
-  If the `jq` filter returns an empty array (`[]`), the run hasn't started yet or isn't in the 50-result window. Wait and retry; don't assume "no CI."
-- **Do not declare a PR "ready to merge" until `gh run list` shows all required checks green on the current HEAD SHA.** "Checks re-running" is not the same as "checks passing". Concurrent runs on other branches can push your target SHA outside the limit; SHA-matching is the safety net.
+  ```powershell
+  # PowerShell: use double-quoted "$headSha" so the shell expands the variable before jq sees it
+  $headSha = gh pr view <number> --json headRefOid -q .headRefOid
+  gh run list --repo <owner>/<repo> --branch <branch> --limit 50 `
+    --json headSha,status,conclusion,name `
+    | jq --arg sha "$headSha" '[.[] | select(.headSha == $sha)]'
+  ```
+  If the `jq` filter returns an empty array (`[]`), first verify the branch name is correct, then wait and retry; don't assume "no CI." Concurrent runs on other branches can push your target SHA outside the limit; SHA-matching is the safety net.
 
 ### Docs / scripts / workflows
 - Look for duplicate instructions in `docs/`, `scripts/README.md`, root scripts, and workflow YAML.

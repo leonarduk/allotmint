@@ -111,11 +111,11 @@ jobs:
           # Ensure required labels exist before creating issues
           gh label create "ai-suggested" --color "0075ca" --description "Suggested by AI code review" \
             2>/dev/null || true
-          gh label create "llm: haiku" --color "C5DEF5" --description "Suitable for Claude Haiku (simple/mechanical task)" \
+          gh label create "haiku" --color "C5DEF5" --description "Suitable for Claude Haiku (simple/mechanical task)" \
             2>/dev/null || true
-          gh label create "llm: sonnet" --color "BFD4F2" --description "Suitable for Claude Sonnet (moderate reasoning)" \
+          gh label create "sonnet" --color "BFD4F2" --description "Suitable for Claude Sonnet (moderate reasoning)" \
             2>/dev/null || true
-          gh label create "llm: opus" --color "0052CC" --description "Suitable for Claude Opus (complex design/architecture)" \
+          gh label create "opus" --color "0052CC" --description "Suitable for Claude Opus (complex design/architecture)" \
             2>/dev/null || true
 
           # Extract titles to a file, then create issues via Python subprocess (no shell injection)
@@ -123,6 +123,20 @@ jobs:
             > /tmp/followups.json
           python3 .github/scripts/create_followup_issues.py \
             /tmp/followups.json "${PR_NUMBER}" /tmp/claude_review_body.md
+
+      - name: Add 'Changes Requested' label if review failed
+        if: steps.check_claude_approval.outputs.approved == 'false'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          # Create the label if it doesn't exist
+          gh label create "Changes Requested" --color "d73a49" --description "PR requested changes from code review" \
+            2>/dev/null || true
+
+          # Add the label to the PR
+          gh pr edit "$PR_NUMBER" --add-label "Changes Requested"
 
       - name: Fail if Claude did not approve
         if: always() && steps.check_claude_approval.outcome == 'failure'

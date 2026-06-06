@@ -1,0 +1,55 @@
+name: Check Empty PR
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  check-files:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get PR files count
+        id: files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          FILES_COUNT=$(gh pr view "$PR_NUMBER" --json files --jq '.files | length')
+          echo "count=$FILES_COUNT" >> "$GITHUB_OUTPUT"
+          echo "Files in PR: $FILES_COUNT"
+
+      - name: Add EMPTY label if no files
+        if: steps.files.outputs.count == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          gh pr edit "$PR_NUMBER" --add-label EMPTY || true
+
+      - name: Remove EMPTY label if files exist
+        if: steps.files.outputs.count != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          gh pr edit "$PR_NUMBER" --remove-label EMPTY || true
+
+      - name: Set check status
+        if: always()
+        env:
+          FILES_COUNT: ${{ steps.files.outputs.count }}
+        run: |
+          if [ "$FILES_COUNT" = "0" ]; then
+            echo "❌ PR is empty - no files changed"
+            exit 1
+          else
+            echo "✅ PR has $FILES_COUNT file(s)"
+            exit 0
+          fi

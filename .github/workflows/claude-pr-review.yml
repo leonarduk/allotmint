@@ -124,6 +124,20 @@ jobs:
           python3 .github/scripts/create_followup_issues.py \
             /tmp/followups.json "${PR_NUMBER}" /tmp/claude_review_body.md
 
+      - name: Add 'Changes Requested' label if review failed
+        if: steps.check_claude_approval.outputs.approved == 'false'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          # Create the label if it doesn't exist
+          gh label create "Changes Requested" --color "d73a49" --description "PR requested changes from code review" \
+            2>/dev/null || true
+
+          # Add the label to the PR
+          gh pr edit "$PR_NUMBER" --add-label "Changes Requested"
+
       - name: Fail if Claude did not approve
         if: always() && steps.check_claude_approval.outcome == 'failure'
         run: |

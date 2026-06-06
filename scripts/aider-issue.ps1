@@ -2,8 +2,16 @@ param(
     [Parameter(Mandatory)][string]$Issue
 )
 
+# Pre-flight: require gh and aider on PATH
+foreach ($cmd in @('gh', 'aider')) {
+    if (-not (Get-Command $cmd -ErrorAction SilentlyContinue)) {
+        Write-Error "Required tool '$cmd' not found on PATH. Install it and try again."
+        exit 1
+    }
+}
+
 # Derive owner/repo from the local git remote so fork contributors target their own repo
-$remote  = git remote get-url origin 2>$null
+$remote = git remote get-url origin 2>$null
 if ($remote -match 'github\.com[:/]([^/]+)/([^/]+?)(\.git)?$') {
     $owner = $Matches[1]
     $repo  = $Matches[2]
@@ -11,6 +19,10 @@ if ($remote -match 'github\.com[:/]([^/]+)/([^/]+?)(\.git)?$') {
     Write-Error "Could not parse GitHub owner/repo from git remote: $remote"
     exit 1
 }
+
+# Derive the repo default branch so --base is never hardcoded
+$defaultBranch = gh repo view "$owner/$repo" --json defaultBranchRef --jq '.defaultBranchRef.name' 2>$null
+if (-not $defaultBranch) { $defaultBranch = 'main' }
 
 # Accept either a full URL or a bare issue number
 if ($Issue -match '(\d+)$') {
@@ -23,11 +35,11 @@ if ($Issue -match '(\d+)$') {
 # Fetch issue title + body
 $issueData = gh issue view $number --repo "$owner/$repo" --json title,body | ConvertFrom-Json
 $title = $issueData.title
-$body  = $issueData.body
+$body  = if ($issueData.body) { $issueData.body } else { "" }
 
 # Create and switch to a branch (safe to re-run if branch already exists)
 $branch = "issue-$number"
-git checkout $branch 2>$null
+git checkout $branch
 if ($LASTEXITCODE -ne 0) {
     git checkout -b $branch
     if ($LASTEXITCODE -ne 0) { exit 1 }
@@ -42,10 +54,10 @@ if ($LASTEXITCODE -ne 0) { exit 1 }
 git push -u origin $branch
 if ($LASTEXITCODE -ne 0) { exit 1 }
 
-# Open a draft PR targeting main (promote to ready after review)
+# Open a draft PR against the repo default branch (promote to ready after review)
 gh pr create `
     --title "Fix: $title" `
     --body "Closes #${number}`n`nImplemented via aider." `
     --draft `
-    --base main `
+    --base $defaultBranch `
     --repo "$owner/$repo"

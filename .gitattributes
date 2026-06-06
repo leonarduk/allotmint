@@ -1,0 +1,4 @@
+# Ensure shell scripts always use LF line endings regardless of platform autocrlf
+# settings — CRLF terminators cause `set -euo pipefail` to be read as `pipefail\r`
+# which bash treats as an invalid option (breaks test_review_comment.py on Windows).
+*.sh text eol=lf

@@ -40,28 +40,31 @@ $issueData = gh issue view $number --repo "$owner/$repo" --json title,body | Con
 $title     = $issueData.title
 $issueBody = if ($issueData.body) { $issueData.body } else { "" }
 
-# Create and switch to a branch; suppress expected stderr on first-run when branch doesn't exist yet
+# Create or reuse the issue branch; warn when reusing so the developer knows
 $branch = "issue-$number"
-git checkout $branch 2>$null
-if ($LASTEXITCODE -ne 0) {
+$branchExists = git branch --list $branch
+if ($branchExists) {
+    Write-Warning "Branch '$branch' already exists locally — reusing it. Verify it is in the expected state before continuing."
+    git checkout $branch
+} else {
     git checkout -b $branch
-    if ($LASTEXITCODE -ne 0) { exit 1 }
 }
+if ($LASTEXITCODE -ne 0) { exit 1 }
 
 # Record the tip of the base branch so the PR body only lists commits aider adds.
-# Fail fast if the ref can't be resolved rather than silently dumping all history.
+# Fail fast with a clear message rather than silently passing an empty SHA to git log.
 $baseSha = git rev-parse "origin/$defaultBranch" 2>$null
 if (-not $baseSha) {
     Write-Error "Could not resolve origin/$defaultBranch. Run 'git fetch origin' and retry."
     exit 1
 }
 
-# Write the prompt to a temp file to avoid shell-injection from issue body content
-# (issue bodies are attacker-controlled; passing them as a raw CLI arg is unsafe)
+# Write the prompt to a temp file and use --message-file so the issue body never
+# touches the command line (prevents shell injection from attacker-controlled content)
 $promptFile = [System.IO.Path]::GetTempFileName()
 Set-Content -Path $promptFile -Value "GitHub issue #${number}: $title`n`n$issueBody" -Encoding UTF8
 
-aider --message (Get-Content $promptFile -Raw)
+aider --message-file $promptFile
 Remove-Item $promptFile -ErrorAction SilentlyContinue
 if ($LASTEXITCODE -ne 0) { exit 1 }
 
@@ -71,7 +74,7 @@ if ($LASTEXITCODE -ne 0) { exit 1 }
 
 # Build a rich PR body from the commits aider made
 $commitBullets = git log "$baseSha..HEAD" --pretty=format:"- %s" 2>$null
-$diffStat      = (git diff "$baseSha..HEAD" --stat 2>$null | Select-Object -Last 1)
+$diffStat      = git diff "$baseSha..HEAD" --stat 2>$null
 
 $prBody = @"
 ## Summary
@@ -92,10 +95,11 @@ $diffStat
 🤖 Implemented via [aider](https://aider.chat) with local Ollama model
 "@
 
-# Open a draft PR against the repo default branch (promote to ready after review)
+# Open a draft PR; --head is explicit so fork contributors don't get a cross-repo mismatch
 gh pr create `
     --title "Fix: $title" `
     --body $prBody `
     --draft `
+    --head $branch `
     --base $defaultBranch `
     --repo "$owner/$repo"

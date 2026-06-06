@@ -7,6 +7,7 @@ on:
       - '.github/workflows/deploy-lambda.yml'
       - '.github/workflows/cdk-dry-run.yml'
       - 'backend/**'
+      - 'frontend/**'
 
 permissions:
   contents: read
@@ -90,7 +91,10 @@ jobs:
           }
 
       - name: Lint workflow YAML with actionlint
-        # Pinned to v1.7.7 (SHA-256 verified) to prevent supply-chain risk.
+        # Pinned to v1.7.7 to prevent supply-chain risk.
+        # SHA-256 verified against the official upstream checksums file:
+        #   https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_checksums.txt
+        # Expected: 023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757
         # 'continue-on-error' is intentionally absent so any finding fails the job.
         run: |
           curl -fsSL -o /tmp/actionlint.tar.gz \

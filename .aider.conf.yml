@@ -1,18 +1,6 @@
 model: "ollama/qwen2.5-coder:14b"
 
 auto-commits: true
-auto-branch: true
-branch-prefix: "issue-"
-
-github:
-  use-api: true
-  create-pr: true
-  pr-title-prefix: "Fix:"
-  pr-draft: true
-  fetch-issue-details: true
 
 auto-test: true
 test-cmd: "pytest -q"
-
-max-changes: 200
-diff-context: 5

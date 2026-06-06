@@ -59,10 +59,11 @@ logic in `backend_lambda_stack.py` (e.g., checking secret length, format, or tru
 ensure dummy values still pass. Empty or falsy values will cause `cdk synth` to fail in
 CI and block deployment.
 
-Example: ✅ `if not jwt_secret:` passes ("dummy" is truthy so this check does not fire);
-❌ `if len(jwt_secret) < 32:` breaks CI ("dummy" is only 5 characters, so this condition
-fires and would cause a synth failure — use a longer placeholder or avoid minimum-length
-guards against these secrets).
+For example, `if not jwt_secret:` is safe with the current placeholder — `"dummy"` is truthy
+so this guard does not fire. By contrast, `if len(jwt_secret) < 32:` breaks the dry-run
+immediately: `"dummy"` is only 5 characters, so that condition is true and `cdk synth` fails.
+Any new validation guard that the current placeholder cannot satisfy will break the CI
+dry-run gate.
 
 The advisory AI review workflows run on pull request `opened`, `reopened`, and `synchronize`
 events. They require `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` to be configured as GitHub

@@ -272,6 +272,14 @@ jobs:
           echo "UI_AUTH_USER_POOL_CLIENT_ID=$UI_AUTH_USER_POOL_CLIENT_ID" >> "$GITHUB_ENV"
 
       - name: Deploy BackendLambdaStack
+        # GITHUB_DEPLOY_ROLE_ARN must be set here so CDK can read it during synthesis.
+        # backend_lambda_stack.py calls os.getenv("GITHUB_DEPLOY_ROLE_ARN") at synth time
+        # (not at deploy time) to grant lambda:InvokeFunction on the PriceRefreshLambda live
+        # alias (PR #3368). If the variable is absent during synthesis, the grant is silently
+        # omitted from the CloudFormation template and the "Warm price snapshot" step will fail.
+        # AWS_ROLE_TO_ASSUME is this workflow's GitHub Actions deploy role ARN — the same
+        # principal that invokes the Lambda in the "Warm price snapshot" step below, so it is
+        # the correct ARN to grant invoke permission to.
         env:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}

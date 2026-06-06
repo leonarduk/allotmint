@@ -104,11 +104,11 @@ jobs:
           # Ensure required labels exist before creating issues
           gh label create "ai-suggested" --color "0075ca" --description "Suggested by AI code review" \
             2>/dev/null || true
-          gh label create "llm: haiku" --color "C5DEF5" --description "Suitable for Claude Haiku (simple/mechanical task)" \
+          gh label create "haiku" --color "C5DEF5" --description "Suitable for Claude Haiku (simple/mechanical task)" \
             2>/dev/null || true
-          gh label create "llm: sonnet" --color "BFD4F2" --description "Suitable for Claude Sonnet (moderate reasoning)" \
+          gh label create "sonnet" --color "BFD4F2" --description "Suitable for Claude Sonnet (moderate reasoning)" \
             2>/dev/null || true
-          gh label create "llm: opus" --color "0052CC" --description "Suitable for Claude Opus (complex design/architecture)" \
+          gh label create "opus" --color "0052CC" --description "Suitable for Claude Opus (complex design/architecture)" \
             2>/dev/null || true
 
           # Extract titles to a file, then create issues via Python subprocess (no shell injection)

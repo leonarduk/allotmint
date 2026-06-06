@@ -118,3 +118,9 @@ jobs:
             > /tmp/followups.json
           python3 .github/scripts/create_followup_issues.py \
             /tmp/followups.json "${PR_NUMBER}" /tmp/claude_review_body.md
+
+      - name: Fail if Claude did not approve
+        if: always() && steps.check_claude_approval.outcome == 'failure'
+        run: |
+          echo "::error::Claude review: CHANGES REQUESTED — address the review findings before merging."
+          exit 1

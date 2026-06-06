@@ -442,6 +442,52 @@ def test_no_lambda_invoke_grant_when_github_deploy_role_arn_absent(monkeypatch) 
     )
 
 
+def _lambda_invoke_resources_for_role_name(raw_template: dict, role_name: str) -> list[str]:
+    """Return Resource ARNs from statements that grant lambda:InvokeFunction to the role."""
+    found: list[str] = []
+    for res in raw_template["Resources"].values():
+        if res.get("Type") != "AWS::IAM::Policy":
+            continue
+        if role_name not in str(res.get("Properties", {}).get("Roles", [])):
+            continue
+        policy_doc = res.get("Properties", {}).get("PolicyDocument", {})
+        for stmt in policy_doc.get("Statement", []):
+            actions = stmt.get("Action", [])
+            if isinstance(actions, str):
+                actions = [actions]
+            if "lambda:InvokeFunction" not in actions:
+                continue
+            stmt_resources = stmt.get("Resource", [])
+            if isinstance(stmt_resources, (str, dict)):
+                stmt_resources = [stmt_resources]
+            for r in stmt_resources:
+                found.append(r if isinstance(r, str) else str(r))
+    return found
+
+
+def test_lambda_invoke_grant_scoped_to_alias_arn(monkeypatch) -> None:
+    """Verify that lambda:InvokeFunction is scoped to the PriceRefreshLambda live alias ARN,
+    not a wildcard resource. See issue #3378."""
+    role_arn = "arn:aws:iam::123456789012:role/allotmint-github-deploy"
+    monkeypatch.setenv("GITHUB_DEPLOY_ROLE_ARN", role_arn)
+    monkeypatch.setenv("JWT_SECRET", "test-secret")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-client-id")
+    app = App()
+    stack = BackendLambdaStack(app, "BackendLambdaStackLambdaAliasTest")
+    raw = Template.from_stack(stack).to_json()
+    resources = _lambda_invoke_resources_for_role_name(raw, "allotmint-github-deploy")
+    assert resources, (
+        "Expected lambda:InvokeFunction to be granted to the deploy role, but no Resource found"
+    )
+    for resource in resources:
+        assert ":live" in resource, (
+            f"Expected lambda:InvokeFunction resource to include the ':live' alias, got: {resource}"
+        )
+        assert "*" not in resource, (
+            f"Expected lambda:InvokeFunction resource to be scoped (no wildcard), got: {resource}"
+        )
+
+
 def test_grant_bucket_access_raises_on_no_permissions() -> None:
     class _MockFn:
         def add_to_role_policy(self, policy_statement: object) -> None:

@@ -17,9 +17,9 @@ _ANTHROPIC_MODEL = "claude-haiku-4-5-20251001"
 _FALLBACK_BODY_TEMPLATE = "Follow-up suggested by Claude AI review of PR #{pr_number}."
 
 _LLM_LABEL_MAP = {
-    "haiku": "llm: haiku",
-    "sonnet": "llm: sonnet",
-    "opus": "llm: opus",
+    "haiku": "haiku",
+    "sonnet": "sonnet",
+    "opus": "opus",
 }
 # Derive a fallback tier label from the model constant so issues created by this
 # script always carry a tier label even when _extract_llm_label finds nothing.
@@ -86,7 +86,7 @@ End with: _Follow-up from AI review of PR #{pr_number}._"""
 
 
 def _extract_llm_label(body: str) -> str | None:
-    """Return the 'llm: <tier>' label name if the body names a tier, else None."""
+    """Return the tier label name (e.g. 'sonnet') if the body names a tier, else None."""
     m = _LLM_TIER_PATTERN.search(body)
     if m:
         return _LLM_LABEL_MAP.get(m.group(1).lower())

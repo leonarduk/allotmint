@@ -27,5 +27,5 @@ jobs:
             git merge --abort
             exit 1
           fi
-          git merge --abort 2>/dev/null || true
+          git reset --hard HEAD
           echo "No merge conflicts detected."

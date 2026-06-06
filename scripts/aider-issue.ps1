@@ -59,20 +59,24 @@ git push -u origin $branch
 if ($LASTEXITCODE -ne 0) { exit 1 }
 
 # Build a rich PR body from the commits aider made
-$summaryBullets = git log "$baseSha..HEAD" --pretty=format:"- %s" 2>$null
-$diffStat       = (git diff "$baseSha..HEAD" --stat 2>$null | Select-Object -Last 1)
+$commitBullets = git log "$baseSha..HEAD" --pretty=format:"- %s" 2>$null
+$diffStat      = (git diff "$baseSha..HEAD" --stat 2>$null | Select-Object -Last 1)
 
 $prBody = @"
 ## Summary
-$summaryBullets
+
+This PR resolves #${number}: $title
+
+Closes #${number}
+
+## What was implemented
+$commitBullets
 
 ## Why this matters
 $issueBody
 
 ## Changes
 $diffStat
-
-Fixes #${number}
 
 🤖 Implemented via [aider](https://aider.chat) with local Ollama model
 "@

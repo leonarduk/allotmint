@@ -102,7 +102,7 @@ jobs:
           fi
 
       - name: Create follow-up issues
-        if: steps.check_claude_approval.conclusion == 'success'
+        if: steps.check_claude_approval.outputs.approved == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}

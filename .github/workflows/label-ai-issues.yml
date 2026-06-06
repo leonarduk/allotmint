@@ -1,0 +1,62 @@
+name: Label AI-suggested issues with LLM tier
+
+on:
+  issues:
+    types: [opened, labeled]
+
+jobs:
+  apply-llm-tier-label:
+    name: Apply LLM tier label if missing
+    runs-on: ubuntu-latest
+    # Only run for issues that carry the ai-suggested label.
+    if: |
+      contains(github.event.issue.labels.*.name, 'ai-suggested')
+    permissions:
+      issues: write
+
+    steps:
+      - name: Check for existing tier label and apply fallback
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          REPO: ${{ github.repository }}
+        run: |
+          # Collect current label names on the issue.
+          labels=$(gh issue view "$ISSUE_NUMBER" \
+            --repo "$REPO" \
+            --json labels \
+            --jq '[.labels[].name]')
+
+          # If any known tier label is already present, nothing to do.
+          for tier in haiku sonnet opus; do
+            if echo "$labels" | grep -qF "\"$tier\""; then
+              echo "Tier label '$tier' already present — skipping."
+              exit 0
+            fi
+          done
+
+          # Infer tier from the issue body (written by Claude Haiku for
+          # create_followup_issues.py issues; may name a different tier for
+          # complex tasks).  Precedence: explicit **LLM tier** section first,
+          # then any bare keyword match.
+          body_lower=$(echo "$ISSUE_BODY" | tr '[:upper:]' '[:lower:]')
+          tier_label=""
+          if echo "$body_lower" | grep -qE '\*\*llm\s+tier\*\*.*opus|\bopus\b.*appropriate'; then
+            tier_label="opus"
+          elif echo "$body_lower" | grep -qE '\*\*llm\s+tier\*\*.*sonnet|\bsonnet\b.*appropriate'; then
+            tier_label="sonnet"
+          elif echo "$body_lower" | grep -qE '\bsonnet\b'; then
+            tier_label="sonnet"
+          elif echo "$body_lower" | grep -qE '\bopus\b'; then
+            tier_label="opus"
+          else
+            # Default: haiku — matches the model used by create_followup_issues.py
+            # and is the safe, cheapest fallback for simple/mechanical tasks.
+            tier_label="haiku"
+          fi
+
+          echo "Applying tier label: $tier_label"
+          gh issue edit "$ISSUE_NUMBER" \
+            --repo "$REPO" \
+            --add-label "$tier_label"

@@ -77,10 +77,14 @@ jobs:
 
       - name: Upload backend coverage reports to Codecov
         uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354  # v6.0.1
+        # fail_ci_if_error: false — Codecov v6 CLI has a GPG key verification
+        # issue on GitHub-hosted runners; treat upload failures as non-fatal
+        # so infrastructure problems don't block PR merges.
+        continue-on-error: true
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           slug: leonarduk/allotmint
           files: ./coverage.xml
           flags: backend
           name: backend-coverage
-          fail_ci_if_error: true
+          fail_ci_if_error: false

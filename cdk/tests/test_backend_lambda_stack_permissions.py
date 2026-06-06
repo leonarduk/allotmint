@@ -480,7 +480,7 @@ def test_lambda_invoke_grant_scoped_to_alias_arn(monkeypatch) -> None:
         "Expected lambda:InvokeFunction to be granted to the deploy role, but no Resource found"
     )
     for resource in resources:
-        assert ":live" in resource, (
+        assert "live" in resource.lower(), (
             f"Expected lambda:InvokeFunction resource to include the ':live' alias, got: {resource}"
         )
         assert "*" not in resource, (

@@ -183,12 +183,12 @@ def test_create_issues_passes_generated_body(
 @pytest.mark.parametrize(
     ("body", "expected_label"),
     [
-        ("**LLM tier**\n**Haiku** — simple task", "llm: haiku"),
-        ("**LLM tier**\n**Sonnet** — moderate reasoning", "llm: sonnet"),
-        ("**LLM tier**\n**Opus** — complex design", "llm: opus"),
-        ("Use Haiku for this", "llm: haiku"),
-        ("Use Sonnet here", "llm: sonnet"),
-        ("Requires Opus", "llm: opus"),
+        ("**LLM tier**\n**Haiku** — simple task", "haiku"),
+        ("**LLM tier**\n**Sonnet** — moderate reasoning", "sonnet"),
+        ("**LLM tier**\n**Opus** — complex design", "opus"),
+        ("Use Haiku for this", "haiku"),
+        ("Use Sonnet here", "sonnet"),
+        ("Requires Opus", "opus"),
         ("No model mentioned", None),
     ],
 )
@@ -212,7 +212,7 @@ def test_create_issues_applies_llm_label(
     mod.create_issues(["My title"], "10", "review text")
     assert created
     assert "--label" in created[0]
-    assert "llm: sonnet" in created[0]
+    assert "sonnet" in created[0]
     assert "ai-suggested" in created[0]
 
 
@@ -229,6 +229,5 @@ def test_create_issues_no_llm_label_when_not_mentioned(
     mod.create_issues(["My title"], "10", None)
     assert created
     assert "ai-suggested" in created[0]
-    assert "llm: haiku" not in created[0]
-    assert "llm: sonnet" not in created[0]
-    assert "llm: opus" not in created[0]
+    label_values = [created[0][i + 1] for i, v in enumerate(created[0][:-1]) if v == "--label"]
+    assert not any(t in label_values for t in ("haiku", "sonnet", "opus"))

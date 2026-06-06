@@ -1,0 +1,20 @@
+model: "ollama:qwen2.5-coder:7b"
+
+auto-commits: true
+auto-branch: true
+
+# Ensures branch names always start with the issue ID
+branch-prefix: "issue-"
+
+github:
+  use-api: true
+  create-pr: true
+  pr-title-prefix: "LocalLLM: "
+  pr-draft: false
+  fetch-issue-details: true
+
+run-tests: true
+test-cmd: "pytest -q"
+
+max-changes: 200
+diff-context: 5

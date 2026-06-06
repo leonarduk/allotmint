@@ -234,4 +234,4 @@ def test_create_issues_applies_fallback_llm_label_when_body_has_no_tier(
     assert created
     assert "ai-suggested" in created[0]
     label_values = [created[0][i + 1] for i, v in enumerate(created[0][:-1]) if v == "--label"]
-    assert not any(t in label_values for t in ("haiku", "sonnet", "opus"))
+    assert any(t in label_values for t in ("haiku", "sonnet", "opus"))

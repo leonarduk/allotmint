@@ -21,8 +21,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          FILES_COUNT=$(gh pr view $PR_NUMBER --json files --jq '.files | length')
-          echo "count=$FILES_COUNT" >> $GITHUB_OUTPUT
+          FILES_COUNT=$(gh pr view "$PR_NUMBER" --json files --jq '.files | length')
+          echo "count=$FILES_COUNT" >> "$GITHUB_OUTPUT"
           echo "Files in PR: $FILES_COUNT"
 
       - name: Add EMPTY label if no files
@@ -31,7 +31,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          gh pr edit $PR_NUMBER --add-label EMPTY || true
+          gh pr edit "$PR_NUMBER" --add-label EMPTY || true
 
       - name: Remove EMPTY label if files exist
         if: steps.files.outputs.count != '0'
@@ -39,14 +39,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          gh pr edit $PR_NUMBER --remove-label EMPTY || true
+          gh pr edit "$PR_NUMBER" --remove-label EMPTY || true
 
       - name: Set check status
         if: always()
         env:
           FILES_COUNT: ${{ steps.files.outputs.count }}
         run: |
-          if [ "$FILES_COUNT" == "0" ]; then
+          if [ "$FILES_COUNT" = "0" ]; then
             echo "❌ PR is empty - no files changed"
             exit 1
           else

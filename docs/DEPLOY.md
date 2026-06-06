@@ -47,6 +47,20 @@ and the `allotmint/app` Secrets Manager secret are no longer used. Remove
 `APP_SECRET_NAME` from any existing GitHub Actions secrets or local `.env`
 files and add `JWT_SECRET` and `GOOGLE_CLIENT_ID` directly instead.
 
+### Dummy environment variable format for CDK dry-run CI
+
+The CI dry-run workflow (`.github/workflows/cdk-dry-run.yml`) validates `cdk synth`
+using placeholder values for secrets:
+- `JWT_SECRET=dummy`
+- `GOOGLE_CLIENT_ID=dummy`
+
+These placeholders **must remain non-empty strings**. If you add or modify validation
+logic in `backend_lambda_stack.py` (e.g., checking secret length, format, or truthiness),
+ensure dummy values still pass. Empty or falsy values will cause `cdk synth` to fail in
+CI and block deployment.
+
+Example: ❌ `if not jwt_secret:` will fail; ✅ `if len(jwt_secret) < 32:` passes (dummy is non-empty).
+
 The advisory AI review workflows run on pull request `opened`, `reopened`, and `synchronize`
 events. They require `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` to be configured as GitHub
 repository secrets if you want review comments to be posted, but they remain advisory-only and

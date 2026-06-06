@@ -10,6 +10,9 @@ foreach ($cmd in @('gh', 'aider')) {
     }
 }
 
+# Fetch to ensure remote refs are current before any rev-parse
+git fetch origin 2>$null
+
 # Derive owner/repo from the local git remote so fork contributors target their own repo
 $remote = git remote get-url origin 2>$null
 if ($remote -match 'github\.com[:/]([^/]+)/([^/]+?)(\.git)?$') {
@@ -37,21 +40,29 @@ $issueData = gh issue view $number --repo "$owner/$repo" --json title,body | Con
 $title     = $issueData.title
 $issueBody = if ($issueData.body) { $issueData.body } else { "" }
 
-# Create and switch to a branch (safe to re-run if branch already exists)
+# Create and switch to a branch; suppress expected stderr on first-run when branch doesn't exist yet
 $branch = "issue-$number"
-git checkout $branch
+git checkout $branch 2>$null
 if ($LASTEXITCODE -ne 0) {
     git checkout -b $branch
     if ($LASTEXITCODE -ne 0) { exit 1 }
 }
 
-# Record the tip of the base branch so we can summarise only the commits aider adds
+# Record the tip of the base branch so the PR body only lists commits aider adds.
+# Fail fast if the ref can't be resolved rather than silently dumping all history.
 $baseSha = git rev-parse "origin/$defaultBranch" 2>$null
-if (-not $baseSha) { $baseSha = git merge-base HEAD "origin/$defaultBranch" }
+if (-not $baseSha) {
+    Write-Error "Could not resolve origin/$defaultBranch. Run 'git fetch origin' and retry."
+    exit 1
+}
 
-# Run aider with the issue as the prompt (auto-commits on test pass via .aider.conf.yml)
-$prompt = "GitHub issue #${number}: $title`n`n$issueBody"
-aider --message $prompt
+# Write the prompt to a temp file to avoid shell-injection from issue body content
+# (issue bodies are attacker-controlled; passing them as a raw CLI arg is unsafe)
+$promptFile = [System.IO.Path]::GetTempFileName()
+Set-Content -Path $promptFile -Value "GitHub issue #${number}: $title`n`n$issueBody" -Encoding UTF8
+
+aider --message (Get-Content $promptFile -Raw)
+Remove-Item $promptFile -ErrorAction SilentlyContinue
 if ($LASTEXITCODE -ne 0) { exit 1 }
 
 # Push the branch

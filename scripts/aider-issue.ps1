@@ -24,7 +24,7 @@ git checkout -b $branch
 if ($LASTEXITCODE -ne 0) { exit 1 }
 
 # Run aider with the issue as the prompt (auto-commits on test pass via .aider.conf.yml)
-$prompt = "GitHub issue #$number: $title`n`n$body"
+$prompt = "GitHub issue #${number}: $title`n`n$body"
 aider --message $prompt
 if ($LASTEXITCODE -ne 0) { exit 1 }
 

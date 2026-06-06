@@ -417,6 +417,18 @@ class BackendLambdaStack(Stack):
             version=refresh_fn.current_version,
         )
 
+        # Grant the CI deploy role permission to invoke the live alias so the
+        # "Warm price snapshot" workflow step can call it after each deploy.
+        # Dual-managed with bootstrap-deploy-role.sh (which bootstraps the role
+        # before the first CDK deploy). This CDK grant re-applies on every
+        # BackendLambdaStack deploy, keeping the permission current. See #3368.
+        github_deploy_role_arn = os.getenv("GITHUB_DEPLOY_ROLE_ARN", "")
+        if github_deploy_role_arn:
+            github_role = iam.Role.from_role_arn(
+                self, "GithubDeployRoleForLambdaInvoke", github_deploy_role_arn, mutable=True
+            )
+            refresh_alias.grant_invoke(github_role)
+
         events.Rule(
             self,
             "DailyPriceRefresh",

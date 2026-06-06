@@ -79,9 +79,11 @@ jobs:
         # that regression class at PR time without requiring AWS credentials.
         # Strip YAML comment lines first so a commented-out correct invocation cannot
         # mask an active incorrect one (prevents false-positive bypass).
+        # Pattern anchors the end of 'template' with ([[:space:]]|$) to prevent a
+        # false-positive match on '--method=template-only' or similar invalid variants.
         run: |
           grep -v '^\s*#' .github/workflows/deploy-lambda.yml \
-            | grep -E 'cdk diff.*--method=template' || {
+            | grep -E 'cdk diff.*--method=template([[:space:]]|$)' || {
             echo "::error::deploy-lambda.yml does not contain an active 'cdk diff --method=template' invocation."
             echo "This is the regression class from issue #3287. Ensure the deploy workflow uses --method=template."
             exit 1

@@ -40,12 +40,16 @@ $issueData = gh issue view $number --repo "$owner/$repo" --json title,body | Con
 $title     = $issueData.title
 $issueBody = if ($issueData.body) { $issueData.body } else { "" }
 
-# Create or reuse the issue branch; warn when reusing so the developer knows
+# Create or reset the issue branch.
+# If it already exists, reset it to origin/$defaultBranch so stale commits from a
+# previous run are not silently included in the PR body or seen by aider.
 $branch = "issue-$number"
 $branchExists = git branch --list $branch
 if ($branchExists) {
-    Write-Warning "Branch '$branch' already exists locally — reusing it. Verify it is in the expected state before continuing."
+    Write-Warning "Branch '$branch' already exists — resetting to origin/$defaultBranch to avoid stale commits."
     git checkout $branch
+    if ($LASTEXITCODE -ne 0) { exit 1 }
+    git reset --hard "origin/$defaultBranch"
 } else {
     git checkout -b $branch
 }
@@ -95,9 +99,12 @@ $diffStat
 🤖 Implemented via [aider](https://aider.chat) with local Ollama model
 "@
 
+# Build the PR title with + to avoid re-evaluating backticks or $(...) in $title
+$prTitle = "Fix: " + $title
+
 # Open a draft PR; --head is explicit so fork contributors don't get a cross-repo mismatch
 gh pr create `
-    --title "Fix: $title" `
+    --title $prTitle `
     --body $prBody `
     --draft `
     --head $branch `

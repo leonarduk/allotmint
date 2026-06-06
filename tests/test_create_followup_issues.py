@@ -219,10 +219,10 @@ def test_create_issues_applies_llm_label(
 def test_create_issues_applies_fallback_llm_label_when_body_has_no_tier(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """When the generated body contains no LLM tier mention, the fallback label
-    derived from _ANTHROPIC_MODEL must still be applied so every ai-suggested
-    issue carries a tier label (e.g. issues created by the pr-merge-checker skill
-    which bypasses this script would previously get no tier label at all)."""
+    """When the generated body contains no LLM tier mention, create_issues()
+    should apply only the generic 'ai-suggested' label and no model-tier label
+    (haiku/sonnet/opus). The tier label is derived from body content only;
+    there is no automatic fallback to a model-name-derived tier."""
     mod = load_module()
     created: list[list[str]] = []
 

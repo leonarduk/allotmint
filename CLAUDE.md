@@ -92,7 +92,7 @@ C-specific rules (no dynamic allocation, pointer restrictions, preprocessor limi
 
 ### GitHub PRs
 - When reviewing PR comments, always call **both** `get_pull_request_comments` (inline review thread comments) and the issue comments endpoint (top-level PR conversation comments) in parallel — they cover different things and GitHub exposes them via separate APIs.
-- Check the `resolved` field on each review thread object to determine whether a thread has been addressed. Use `created_at` only as a fallback tiebreaker when `resolved` state is unavailable (e.g. the API endpoint does not expose it). A thread created before the latest commit is not necessarily resolved — the reviewer may not have dismissed it yet. Filtering purely on `created_at` silently skips open threads, so prefer the `resolved` state check first.
+- Check the `resolved` field on each review thread object to determine whether a thread has been addressed. **Note:** `resolved` is only available via GraphQL; the REST API exposes `dismissed` as a proxy. Use `created_at` only as a fallback tiebreaker when `resolved` state is unavailable. A thread created before the latest commit is not necessarily resolved — the reviewer may not have dismissed it yet. Filtering purely on `created_at` silently skips open threads, so prefer the `resolved`/`dismissed` state check first.
 - If results look sparse (e.g. only stale comments on old code), treat that as a signal to check the other endpoint before assuming you have the full picture.
 
 ### CI / GitHub Actions status
@@ -101,17 +101,24 @@ C-specific rules (no dynamic allocation, pointer restrictions, preprocessor limi
 - **The Claude PR Review check exit code is meaningful.** Exit 1 from `extract_verdict.py` means one of two things — distinguish them by reading the log:
   - `✗ Claude review: CHANGES REQUESTED` → the AI produced a real review with blocking feedback; read the review body from the PR's top-level comments and address each finding.
   - `ERROR: Claude review output was empty` → the Anthropic API returned nothing; this is genuinely transient and a re-run is appropriate.
-- **Always verify that a green run is on the current HEAD SHA, not a stale commit.** A green result on an older SHA does not satisfy the gate. Retrieve the PR head SHA and cross-check it against the run list:
+- **Always verify that a green run is on the current HEAD SHA, not a stale commit — and do not declare a PR "ready to merge" until all required checks are green on that SHA.** "Checks re-running" is not the same as "checks passing". A green result on an older SHA does not satisfy the gate. Retrieve the PR head SHA and cross-check it against the run list:
   ```bash
   # Get the PR head SHA
   gh pr view <number> --json headRefOid -q .headRefOid
 
-  # Filter run list to that exact SHA
-  gh run list --repo <owner>/<repo> --branch <branch> --limit 20 \
+  # Filter run list to that exact SHA (bash)
+  gh run list --repo <owner>/<repo> --branch <branch> --limit 50 \
     --json headSha,status,conclusion,name \
-    | jq --arg sha "<head-sha>" '.[] | select(.headSha == $sha)'
+    | jq --arg sha "<head-sha>" '[.[] | select(.headSha == $sha)]'
   ```
-- **Do not declare a PR "ready to merge" until `gh run list` shows all required checks green on the current HEAD SHA.** "Checks re-running" is not the same as "checks passing".
+  ```powershell
+  # PowerShell: use double-quoted "$headSha" so the shell expands the variable before jq sees it
+  $headSha = gh pr view <number> --json headRefOid -q .headRefOid
+  gh run list --repo <owner>/<repo> --branch <branch> --limit 50 `
+    --json headSha,status,conclusion,name `
+    | jq --arg sha "$headSha" '[.[] | select(.headSha == $sha)]'
+  ```
+  If the `jq` filter returns an empty array (`[]`), first verify the branch name is correct, then wait and retry; don't assume "no CI." Concurrent runs on other branches can push your target SHA outside the limit; SHA-matching is the safety net.
 
 ### Docs / scripts / workflows
 - Look for duplicate instructions in `docs/`, `scripts/README.md`, root scripts, and workflow YAML.

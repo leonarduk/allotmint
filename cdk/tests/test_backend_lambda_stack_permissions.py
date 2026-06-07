@@ -488,6 +488,86 @@ def test_lambda_invoke_grant_scoped_to_alias_arn(monkeypatch) -> None:
         )
 
 
+def _s3_statements_for_role_name(raw_template: dict, role_name: str) -> list[dict]:
+    """Return policy statements attached to the named role that grant S3 actions."""
+    found: list[dict] = []
+    for res in raw_template["Resources"].values():
+        if res.get("Type") != "AWS::IAM::Policy":
+            continue
+        if role_name not in str(res.get("Properties", {}).get("Roles", [])):
+            continue
+        policy_doc = res.get("Properties", {}).get("PolicyDocument", {})
+        for stmt in policy_doc.get("Statement", []):
+            actions = stmt.get("Action", [])
+            if isinstance(actions, str):
+                actions = [actions]
+            if any(a.startswith("s3:") for a in actions):
+                found.append(stmt)
+    return found
+
+
+def test_deploy_role_gets_read_access_to_price_snapshot(monkeypatch) -> None:
+    """BackendLambdaStack must grant the deploy role s3:GetObject on
+    prices/latest_prices.json and a prefix-scoped s3:ListBucket so the CI
+    'Warm price snapshot' step's head-object check succeeds without a 403.
+    CDK-managed so the grant re-applies on every deploy and cannot drift out
+    of sync with the manually-run bootstrap script. See #3191, #3639."""
+    role_arn = "arn:aws:iam::123456789012:role/allotmint-github-deploy"
+    monkeypatch.setenv("GITHUB_DEPLOY_ROLE_ARN", role_arn)
+    monkeypatch.setenv("JWT_SECRET", "test-secret")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-client-id")
+    app = App()
+    stack = BackendLambdaStack(app, "BackendLambdaStackDeployRoleS3ReadTest")
+    raw = Template.from_stack(stack).to_json()
+    statements = _s3_statements_for_role_name(raw, "allotmint-github-deploy")
+
+    get_object_resources: list[str] = []
+    list_bucket_statements: list[dict] = []
+    for stmt in statements:
+        actions = stmt.get("Action", [])
+        if isinstance(actions, str):
+            actions = [actions]
+        resources = stmt.get("Resource", [])
+        if isinstance(resources, (str, dict)):
+            resources = [resources]
+        if "s3:GetObject" in actions:
+            get_object_resources.extend(r if isinstance(r, str) else str(r) for r in resources)
+        if "s3:ListBucket" in actions:
+            list_bucket_statements.append(stmt)
+
+    assert any("prices/latest_prices.json" in r for r in get_object_resources), (
+        "Expected the deploy role to be granted s3:GetObject on prices/latest_prices.json "
+        f"in BackendLambdaStack, got resources: {get_object_resources}"
+    )
+    assert list_bucket_statements, (
+        "Expected the deploy role to be granted a prefix-scoped s3:ListBucket in "
+        "BackendLambdaStack so the 'Warm price snapshot' head-object check can succeed"
+    )
+    assert any(
+        stmt.get("Condition", {}).get("StringLike", {}).get("s3:prefix") == ["prices", "prices/*"]
+        for stmt in list_bucket_statements
+    ), (
+        "Expected the deploy role's s3:ListBucket grant to be scoped to the 'prices' "
+        f"prefix, got statements: {list_bucket_statements}"
+    )
+
+
+def test_no_s3_grant_to_deploy_role_when_github_deploy_role_arn_absent(monkeypatch) -> None:
+    """When GITHUB_DEPLOY_ROLE_ARN is unset, BackendLambdaStack must not grant
+    any S3 permissions to an imported deploy role."""
+    monkeypatch.delenv("GITHUB_DEPLOY_ROLE_ARN", raising=False)
+    monkeypatch.setenv("JWT_SECRET", "test-secret")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-client-id")
+    app = App()
+    stack = BackendLambdaStack(app, "BackendLambdaStackNoDeployRoleS3Test")
+    raw = Template.from_stack(stack).to_json()
+    statements = _s3_statements_for_role_name(raw, "allotmint-github-deploy")
+    assert not statements, (
+        "Expected no S3 grants for the deploy role in BackendLambdaStack when "
+        f"GITHUB_DEPLOY_ROLE_ARN is unset, found: {statements}"
+    )
+
+
 def test_grant_bucket_access_raises_on_no_permissions() -> None:
     class _MockFn:
         def add_to_role_policy(self, policy_statement: object) -> None:

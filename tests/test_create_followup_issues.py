@@ -186,9 +186,13 @@ def test_create_issues_passes_generated_body(
         ("**LLM tier**\n**Haiku** — simple task", "haiku"),
         ("**LLM tier**\n**Sonnet** — moderate reasoning", "sonnet"),
         ("**LLM tier**\n**Opus** — complex design", "opus"),
+        ("**LLM tier**\n**local-7b** — simple mechanical change", "local-7b"),
+        ("**LLM tier**\n**local-14b** — moderate reasoning task", "local-14b"),
         ("Use Haiku for this", "haiku"),
         ("Use Sonnet here", "sonnet"),
         ("Requires Opus", "opus"),
+        ("Suitable for local-7b", "local-7b"),
+        ("Recommend local-14b for this", "local-14b"),
         ("No model mentioned", None),
     ],
 )
@@ -216,7 +220,7 @@ def test_create_issues_applies_llm_label(
     assert "ai-suggested" in created[0]
 
 
-def test_create_issues_applies_fallback_llm_label_when_body_has_no_tier(
+def test_create_issues_applies_no_llm_label_when_body_has_no_tier(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """When the generated body contains no LLM tier mention, create_issues()

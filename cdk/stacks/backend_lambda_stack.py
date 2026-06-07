@@ -429,6 +429,29 @@ class BackendLambdaStack(Stack):
             )
             refresh_alias.grant_invoke(github_role)
 
+            # Grant the CI deploy role read access to the warmed price snapshot
+            # so the "Warm price snapshot" workflow step's head-object check
+            # succeeds. Mirrors the ReadPriceSnapshot/ListPricesPrefix
+            # statements in bootstrap-deploy-role.sh (used only to bootstrap
+            # the role before the first CDK deploy); this CDK grant is the
+            # source of truth thereafter and re-applies on every
+            # BackendLambdaStack deploy, preventing drift. See #3191, #3639.
+            github_role.add_to_principal_policy(
+                iam.PolicyStatement(
+                    sid="ReadPriceSnapshot",
+                    actions=["s3:GetObject"],
+                    resources=[data_bucket.arn_for_objects("prices/latest_prices.json")],
+                )
+            )
+            github_role.add_to_principal_policy(
+                iam.PolicyStatement(
+                    sid="ListPricesPrefix",
+                    actions=["s3:ListBucket"],
+                    resources=[data_bucket.bucket_arn],
+                    conditions={"StringLike": {"s3:prefix": ["prices", "prices/*"]}},
+                )
+            )
+
         events.Rule(
             self,
             "DailyPriceRefresh",

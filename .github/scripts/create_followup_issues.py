@@ -17,12 +17,14 @@ _ANTHROPIC_MODEL = "claude-haiku-4-5-20251001"
 _FALLBACK_BODY_TEMPLATE = "Follow-up suggested by Claude AI review of PR #{pr_number}."
 
 _LLM_LABEL_MAP = {
+    "local-7b": "local-7b",
+    "local-14b": "local-14b",
     "haiku": "haiku",
     "sonnet": "sonnet",
     "opus": "opus",
 }
 _LLM_TIER_PATTERN = re.compile(
-    r'\*\*LLM\s+tier\*\*[^\n]*\n[^\n]*\*\*(haiku|sonnet|opus)\b',
+    r'\*\*LLM\s+tier\*\*[^\n]*\n[^\n]*\*\*(local-14b|local-7b|haiku|sonnet|opus)\b',
     re.IGNORECASE,
 )
 
@@ -48,7 +50,23 @@ Write a complete, actionable GitHub issue body in Markdown covering:
 2. **Why** — the motivation (correctness risk, maintainability, agent confusion, etc.)
 3. **How** — a concrete implementation approach
 4. **Constraints** — what must not break, what is out of scope
-5. **LLM tier** — which model is appropriate: Haiku (simple/mechanical), Sonnet (moderate reasoning), or Opus (complex design/architecture)
+5. **LLM tier** — which model is appropriate:
+   - local-7b: simple, mechanical changes a small local model can execute
+     reliably (formatting, renames, obvious one-line fixes, mechanical
+     refactors with no ambiguity)
+   - local-14b: moderate reasoning a mid-size local model can handle
+     (straightforward code review fixes, small well-scoped refactors,
+     adding test cases that follow an existing pattern)
+   - Haiku: simple/mechanical tasks better suited to cloud execution
+     (e.g. needing broader repo context or tool access local models lack)
+   - Sonnet: moderate design judgment (multi-file changes, non-trivial
+     heuristics, new test coverage requiring design decisions)
+   - Opus: complex design/architecture (cross-cutting changes, significant
+     ambiguity, architectural trade-offs)
+   Only recommend local-7b or local-14b when the task is genuinely simple
+   and self-contained enough for a smaller model to complete correctly
+   without broad context; default to the cloud tiers (Haiku/Sonnet/Opus)
+   when in doubt
 6. **Success looks like** — specific, verifiable criteria
 7. **Failure looks like** — what would indicate the implementation went wrong
 

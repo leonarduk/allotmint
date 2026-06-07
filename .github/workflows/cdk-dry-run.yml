@@ -1,0 +1,104 @@
+name: CDK Dry-Run
+
+on:
+  pull_request:
+    paths:
+      - 'cdk/**'
+      - '.github/workflows/deploy-lambda.yml'
+      - '.github/workflows/cdk-dry-run.yml'
+      - 'backend/**'
+      - 'frontend/**'
+
+permissions:
+  contents: read
+
+jobs:
+  cdk-synth:
+    name: CDK synth dry-run
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Build frontend
+        # StaticSiteStack.BucketDeployment bundles frontend/dist as an asset;
+        # the directory must exist before cdk synth or the asset bundler fails.
+        run: npm run build
+        working-directory: frontend
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache pip
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install Python dependencies
+        # requirements.txt and requirements-dev.txt live at the repo root
+        # (confirmed: no requirements files exist under cdk/ or backend/).
+        # No working-directory override is needed.
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: CDK synth (dry-run)
+        # aws-cdk is declared in the root package.json (installed by the root
+        # npm ci step above), so npx resolves the correct version without a
+        # separate npm ci inside cdk/. No cdk/package.json exists in this repo.
+        # JWT_SECRET and GOOGLE_CLIENT_ID are required non-empty by backend_lambda_stack.py.
+        # Dummy placeholder values are safe — synth only generates the
+        # CloudFormation template; no deploy or AWS call is made.
+        # --output flag (not CDK_OUTDIR env var) guarantees isolation per run
+        # regardless of any output key in cdk.json.
+        env:
+          JWT_SECRET: dry-run-placeholder
+          GOOGLE_CLIENT_ID: dry-run-placeholder.apps.googleusercontent.com
+        run: npx cdk synth BackendLambdaStack StaticSiteStack -c prod=true --output /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
+        working-directory: cdk
+
+      - name: Validate --method=template token in deploy workflow
+        # cdk diff in deploy-lambda.yml must use --method=template (a direct template
+        # comparison that creates no CloudFormation change set). Any other value —
+        # e.g. --method=changeset or --method=change-set — fails at deploy time because
+        # cdk diff sends no --parameters flag and CloudFormation rejects the change set
+        # with "missing required parameter" (see issue #3287). This grep step catches
+        # that regression class at PR time without requiring AWS credentials.
+        # Strip YAML comment lines first so a commented-out correct invocation cannot
+        # mask an active incorrect one (prevents false-positive bypass).
+        # Pattern anchors the end of 'template' with ([[:space:]]|$) to prevent a
+        # false-positive match on '--method=template-only' or similar invalid variants.
+        run: |
+          grep -v '^\s*#' .github/workflows/deploy-lambda.yml \
+            | grep -E 'cdk diff.*--method=template([[:space:]]|$)' || {
+            echo "::error::deploy-lambda.yml does not contain an active 'cdk diff --method=template' invocation."
+            echo "This is the regression class from issue #3287. Ensure the deploy workflow uses --method=template."
+            exit 1
+          }
+
+      - name: Lint workflow YAML with actionlint
+        # Pinned to v1.7.7 to prevent supply-chain risk.
+        # SHA-256 verified against the official upstream checksums file:
+        #   https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_checksums.txt
+        # Expected: 023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757
+        # 'continue-on-error' is intentionally absent so any finding fails the job.
+        run: |
+          curl -fsSL -o /tmp/actionlint.tar.gz \
+            https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz
+          echo "023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757  /tmp/actionlint.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/actionlint.tar.gz -C /tmp actionlint
+          /tmp/actionlint .github/workflows/deploy-lambda.yml .github/workflows/cdk-dry-run.yml

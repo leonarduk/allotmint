@@ -80,7 +80,8 @@ correctly is that the **pre-existing `AWS_ROLE_TO_ASSUME` secret is configured**
 (see the table above). New deployers and fork maintainers should:
 
 1. **Confirm `AWS_ROLE_TO_ASSUME` is set** under **Settings -> Secrets and
-   variables -> Actions**. The workflow's "Verify required AWS secrets" step
+   variables -> Actions** (`https://github.com/<owner>/<repo>/settings/secrets/actions`;
+   see also GitHub's [guide to using secrets in Actions](https://docs.github.com/en/actions/security-guides/using-secrets-in-github-actions)). The workflow's "Verify required AWS secrets" step
    fails the run immediately with "AWS_ROLE_TO_ASSUME is not configured" if it
    is empty, and "Configure AWS credentials" fails shortly after if the value
    isn't a valid role ARN -- both run before `cdk deploy`, so a missing or
@@ -89,8 +90,10 @@ correctly is that the **pre-existing `AWS_ROLE_TO_ASSUME` secret is configured**
    rest -- no additional secret needs to be created.
 
 2. **For bootstrap / first-time setup:** Refer to
-   `scripts/bash/bootstrap-deploy-role.sh` and the OIDC trust relationship
-   documentation to create and configure the deploy role before the first
+   `scripts/bash/bootstrap-deploy-role.sh` and GitHub's
+   [Configuring OpenID Connect in Amazon Web Services](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services)
+   guide (the OIDC trust relationship documentation referenced in the bootstrap
+   script's comments) to create and configure the deploy role before the first
    deploy.
 
 3. **For local CDK synth/deploy or `pre-deploy-check.sh` runs** (i.e. outside

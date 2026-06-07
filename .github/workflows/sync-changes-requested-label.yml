@@ -25,6 +25,7 @@ jobs:
     permissions:
       pull-requests: write
       contents: read
+      checks: read
     steps:
       - name: Reconcile label against both review verdicts
         env:

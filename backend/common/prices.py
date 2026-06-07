@@ -246,41 +246,49 @@ def refresh_prices() -> Dict:
     # This preserves existing seed/cached prices for tickers that returned None
     # (offline mode, market closed, data-source outage) rather than trashing them.
     to_persist = {t: v for t, v in snapshot.items() if v.get("last_price") is not None}
+    existing: Dict = {}
+    if path.exists():
+        try:
+            existing = json.loads(path.read_text())
+        except (json.JSONDecodeError, OSError):
+            pass
+
     if to_persist:
-        existing: Dict = {}
-        if path.exists():
-            try:
-                existing = json.loads(path.read_text())
-            except (json.JSONDecodeError, OSError):
-                pass
         merged = {**existing, **to_persist}
         path.write_text(json.dumps(merged, indent=2))
-
-        # ---- persist to S3 (primary store read by all Lambda instances) -----
-        if config.app_env == "aws":
-            _s3_bucket = os.getenv(DATA_BUCKET_ENV)
-            if _s3_bucket:
-                try:
-                    import boto3  # type: ignore
-
-                    boto3.client("s3").put_object(
-                        Bucket=_s3_bucket,
-                        Key=PRICES_S3_KEY,
-                        Body=json.dumps(merged, indent=2).encode("utf-8"),
-                        ContentType="application/json",
-                    )
-                    logger.info(
-                        "Uploaded price snapshot to s3://%s/%s", _s3_bucket, PRICES_S3_KEY
-                    )
-                except Exception as exc:
-                    logger.warning("Failed to upload price snapshot to S3: %s", exc)
-            else:
-                logger.warning("DATA_BUCKET not set; skipping S3 upload of price snapshot")
     else:
+        merged = existing
         logger.info(
-            "Skipping price snapshot write — no valid prices fetched"
+            "Skipping local snapshot write — no valid prices fetched"
             " (offline mode or data-source unavailable)"
         )
+
+    # ---- persist to S3 (primary store read by all Lambda instances) ---------
+    # Always upload — even when no fresh prices were fetched — so that the
+    # snapshot key always exists in S3. Without this, a refresh that runs
+    # during market-closed/offline windows (e.g. a CI deploy invocation)
+    # silently returns success without ever creating the key, and downstream
+    # consumers (and the deploy workflow's post-deploy snapshot check) wait
+    # indefinitely for a file that is never written. See issue #3685.
+    if config.app_env == "aws":
+        _s3_bucket = os.getenv(DATA_BUCKET_ENV)
+        if _s3_bucket:
+            try:
+                import boto3  # type: ignore
+
+                boto3.client("s3").put_object(
+                    Bucket=_s3_bucket,
+                    Key=PRICES_S3_KEY,
+                    Body=json.dumps(merged, indent=2).encode("utf-8"),
+                    ContentType="application/json",
+                )
+                logger.info(
+                    "Uploaded price snapshot to s3://%s/%s", _s3_bucket, PRICES_S3_KEY
+                )
+            except Exception as exc:
+                logger.warning("Failed to upload price snapshot to S3: %s", exc)
+        else:
+            logger.warning("DATA_BUCKET not set; skipping S3 upload of price snapshot")
 
     # ---- refresh in-memory cache -----------------------------------------
     # Use merged (which includes preserved seed prices) when available; leave

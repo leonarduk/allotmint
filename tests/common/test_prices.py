@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import sys
 from datetime import UTC, date, datetime, timedelta
+from types import SimpleNamespace
 from typing import Dict, List
 
 import pandas as pd
@@ -391,6 +393,49 @@ def test_refresh_prices_skips_write_when_all_prices_null(
     assert json.loads(output_path.read_text()) == seed, (
         "Seed file must not be overwritten when every fetched price is None"
     )
+
+
+def test_refresh_prices_uploads_existing_snapshot_to_s3_when_all_prices_null(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Even when no fresh prices are fetched, the S3 key must always be (re)written.
+
+    Otherwise a refresh that runs during a market-closed/offline window never
+    creates ``prices/latest_prices.json`` in S3, and consumers that wait for
+    that key (e.g. the deploy workflow's post-deploy snapshot check) hang
+    indefinitely. See issue #3685.
+    """
+    seed = {"VWRL.L": {"last_price": 97.5, "price_currency": "GBP"}}
+    output_path = tmp_path / "prices.json"
+    output_path.write_text(json.dumps(seed))
+
+    null_snapshot = {
+        "VWRL.L": {"last_price": None, "price_currency": None, "is_stale": True}
+    }
+    monkeypatch.setattr(prices, "list_all_unique_tickers", lambda: ["VWRL.L"])
+    monkeypatch.setattr(prices, "get_price_snapshot", lambda _: null_snapshot)
+    monkeypatch.setattr(prices, "refresh_snapshot_in_memory", Mock())
+    monkeypatch.setattr(prices, "check_price_alerts", Mock())
+    monkeypatch.setattr(prices.config, "prices_json", output_path)
+    monkeypatch.setattr(prices, "_price_cache", {})
+    monkeypatch.setattr(prices.config, "app_env", "aws")
+    monkeypatch.setenv("DATA_BUCKET", "test-bucket")
+
+    put_calls = []
+
+    class _FakeS3:
+        def put_object(self, **kwargs):
+            put_calls.append(kwargs)
+
+    monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=lambda svc: _FakeS3()))
+
+    prices.refresh_prices()
+
+    assert len(put_calls) == 1
+    assert put_calls[0]["Bucket"] == "test-bucket"
+    assert put_calls[0]["Key"] == prices.PRICES_S3_KEY
+    assert json.loads(put_calls[0]["Body"]) == seed
+    assert put_calls[0]["ContentType"] == "application/json"
 
 
 def test_refresh_prices_partial_null_preserves_existing_prices(

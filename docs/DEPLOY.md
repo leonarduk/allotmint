@@ -37,48 +37,67 @@ New repository secret** before triggering a deploy.
 | `JWT_SECRET` | **Required since #2838** | Random string used to sign JWTs -- generate with `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
 | `GOOGLE_CLIENT_ID` | **Required since #2838** | OAuth client ID from Google Cloud Console (ends in `.apps.googleusercontent.com`) |
 
+The CDK stack (`cdk/stacks/backend_lambda_stack.py`) raises a `ValueError`
+at synth time if `JWT_SECRET` or `GOOGLE_CLIENT_ID` is absent, failing the
+deploy step immediately with a clear message rather than deploying a broken
+Lambda.
+
 ### Critical: `GITHUB_DEPLOY_ROLE_ARN` environment variable for CDK synth
 
 The CDK stack (`cdk/stacks/backend_lambda_stack.py`) checks for the environment
-variable `GITHUB_DEPLOY_ROLE_ARN` during synthesis. **This value should be set to
-the same ARN as `AWS_ROLE_TO_ASSUME`**.
+variable `GITHUB_DEPLOY_ROLE_ARN` during synthesis. **This value must be the
+same ARN as `AWS_ROLE_TO_ASSUME`** -- the role the GitHub Actions deploy
+workflow assumes -- because that is the principal that needs permission to
+invoke the Lambda.
 
 **Purpose:** When `GITHUB_DEPLOY_ROLE_ARN` is set, the CDK stack grants the
 GitHub OIDC deploy role permission to invoke the `PriceRefreshLambda` function.
 This is used by the "Warm price snapshot" step in the deploy workflow to seed
 market prices after each deployment.
 
-**Consequence of omission:** If `GITHUB_DEPLOY_ROLE_ARN` is not configured (or
-set to an empty string), the Lambda invoke grant is silently omitted at synth
-time. The CDK deploy will succeed, but the "Warm price snapshot" workflow step
-will fail at runtime with a permission error:
+**Consequence of omission:** If `GITHUB_DEPLOY_ROLE_ARN` is not set (or
+resolves to an empty string) when CDK synthesises the stack, the Lambda invoke
+grant is silently omitted at synth time. The CDK deploy will succeed, but the
+"Warm price snapshot" workflow step will fail at runtime with a permission
+error:
 ```
 An error occurred (AccessDenied) when calling the InvokeFunction operation:
 User: arn:aws:iam::...:role/... is not authorized to perform: lambda:InvokeFunction
 ```
 
-To avoid this silent failure:
+**You do not need to add a separate `GITHUB_DEPLOY_ROLE_ARN` secret or
+variable in GitHub.** The "Deploy BackendLambdaStack" step in
+`.github/workflows/deploy-lambda.yml` maps it directly from the existing
+`AWS_ROLE_TO_ASSUME` secret before invoking `cdk deploy`:
 
-1. **For new deployments or forks:** After adding `AWS_ROLE_TO_ASSUME` to GitHub
-   Actions secrets, also add `GITHUB_DEPLOY_ROLE_ARN` with the same value in
-   **Settings -> Secrets and variables -> Actions**.
-   
-   **Note:** Unlike `AWS_ROLE_TO_ASSUME` (which GitHub Actions reads as a secret),
-   `GITHUB_DEPLOY_ROLE_ARN` must be passed as an **environment variable** to the
-   CDK synth process. Check your deployment script or workflow to ensure it
-   exports this variable: `export GITHUB_DEPLOY_ROLE_ARN=<your-role-arn>`
+```yaml
+env:
+  GITHUB_DEPLOY_ROLE_ARN: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+```
 
-2. **To find your role ARN:** Use the same value you have in `AWS_ROLE_TO_ASSUME`.
-   It typically looks like: `arn:aws:iam::123456789012:role/github-oidc-deploy-role`
+So the only thing required for CI deploys to grant the invoke permission
+correctly is that the **pre-existing `AWS_ROLE_TO_ASSUME` secret is configured**
+(see the table above). New deployers and fork maintainers should:
 
-3. **For bootstrap / first-time setup:** Refer to
+1. **Confirm `AWS_ROLE_TO_ASSUME` is set** under **Settings -> Secrets and
+   variables -> Actions**. If it is missing, the workflow fails earlier (in the
+   "Configure AWS credentials" step), but if it is present and valid the
+   `GITHUB_DEPLOY_ROLE_ARN` mapping above takes care of the rest -- no
+   additional secret needs to be created.
+
+2. **For bootstrap / first-time setup:** Refer to
    `scripts/bash/bootstrap-deploy-role.sh` and the OIDC trust relationship
-   documentation to set up the role correctly before the first deploy.
+   documentation to create and configure the deploy role before the first
+   deploy.
 
-The CDK stack (`cdk/stacks/backend_lambda_stack.py`) raises a `ValueError`
-at synth time if `JWT_SECRET` or `GOOGLE_CLIENT_ID` is absent, failing the
-deploy step immediately with a clear message rather than deploying a broken
-Lambda.
+3. **For local CDK synth/deploy or `pre-deploy-check.sh` runs** (i.e. outside
+   the GitHub Actions workflow, where the automatic mapping above does not
+   apply): export `GITHUB_DEPLOY_ROLE_ARN` yourself before running CDK, set to
+   the same ARN as your deploy role:
+   `export GITHUB_DEPLOY_ROLE_ARN=<your-role-arn>` (typically
+   `arn:aws:iam::123456789012:role/github-oidc-deploy-role`). See
+   `docs/CONTRIBUTOR_RUNBOOK.md` for the full list of variables
+   `pre-deploy-check.sh` validates.
 
 **Migrating from the Secrets Manager approach** (pre-#2838): `APP_SECRET_NAME`
 and the `allotmint/app` Secrets Manager secret are no longer used. Remove

@@ -88,13 +88,28 @@ correctly is that the **pre-existing `AWS_ROLE_TO_ASSUME` secret is configured**
 
 1. **Confirm `AWS_ROLE_TO_ASSUME` is set** under **Settings -> Secrets and
    variables -> Actions** (`https://github.com/<owner>/<repo>/settings/secrets/actions`;
-   see also GitHub's [guide to using secrets in Actions](https://docs.github.com/en/actions/security-guides/using-secrets-in-github-actions)). The workflow's "Verify required AWS secrets" step
-   fails the run immediately with "AWS_ROLE_TO_ASSUME is not configured" if it
-   is empty, and "Configure AWS credentials" fails shortly after if the value
-   isn't a valid role ARN -- both run before `cdk deploy`, so a missing or
-   malformed value cannot reach CDK synth. As long as `AWS_ROLE_TO_ASSUME`
-   is a valid ARN, the `GITHUB_DEPLOY_ROLE_ARN` mapping above takes care of the
-   rest -- no additional secret needs to be created.
+   see also GitHub's [guide to using secrets in Actions](https://docs.github.com/en/actions/security-guides/using-secrets-in-github-actions)).
+
+   The workflow guards against an empty value for you, well before
+   `cdk deploy` runs. The "Verify required AWS secrets" step
+   (`.github/workflows/deploy-lambda.yml`) explicitly checks for an
+   empty string -- not just an unset secret -- and fails the run immediately:
+
+   ```bash
+   if [ -z "${{ secrets.AWS_ROLE_TO_ASSUME }}${{ vars.AWS_ROLE_TO_ASSUME }}" ]; then
+     echo "AWS_ROLE_TO_ASSUME is not configured (set as secret or repository variable)" >&2
+     missing=1
+   fi
+   ```
+
+   A non-empty-but-malformed ARN is caught shortly after, when
+   "Configure AWS credentials" fails to assume the role. Both steps run
+   well before "Deploy BackendLambdaStack" (where the `GITHUB_DEPLOY_ROLE_ARN`
+   mapping above lives), and a failed step halts the job by default -- so a
+   missing, empty, or malformed `AWS_ROLE_TO_ASSUME` cannot reach CDK synth
+   in CI. As long as `AWS_ROLE_TO_ASSUME` is a valid ARN, the
+   `GITHUB_DEPLOY_ROLE_ARN` mapping takes care of the rest -- no additional
+   secret needs to be created.
 
 2. **For bootstrap / first-time setup:** Refer to
    `scripts/bash/bootstrap-deploy-role.sh` and GitHub's

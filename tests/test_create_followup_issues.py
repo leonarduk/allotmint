@@ -216,7 +216,7 @@ def test_create_issues_applies_llm_label(
     assert "ai-suggested" in created[0]
 
 
-def test_create_issues_applies_fallback_llm_label_when_body_has_no_tier(
+def test_create_issues_applies_no_llm_label_when_body_has_no_tier(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """When the generated body contains no LLM tier mention, create_issues()

@@ -204,6 +204,30 @@ npm run build
 cd ..
 ```
 
+## CDK dry-run CI gate
+
+A lightweight PR-triggered workflow (`.github/workflows/cdk-dry-run.yml`) runs
+`cdk synth` for both stacks on every pull request that touches `cdk/**`,
+`backend/**`, or `.github/workflows/deploy-lambda.yml`.
+
+**Purpose**: surface synth errors, invalid CDK tokens, and broken asset paths
+within ~2 minutes on the PR instead of after a production tag push.
+
+**What it does**:
+1. Builds the frontend (`npm run build`) so `frontend/dist` exists — required
+   because `StaticSiteStack.BucketDeployment` bundles it as a CDK asset at
+   synth time.
+2. Runs `npx cdk synth BackendLambdaStack StaticSiteStack -c prod=true` with
+   dummy placeholder values for `JWT_SECRET` and `GOOGLE_CLIENT_ID` (the stack
+   raises `ValueError` if either is absent, so non-empty placeholders are
+   sufficient; no AWS credentials or deploy are performed).
+3. Runs `actionlint` on `deploy-lambda.yml` to catch shell/expression mistakes
+   in the deploy workflow itself.
+
+**Tagging policy**: do not push a `v*` tag if this job is red on the commit
+you intend to tag. A red dry-run means a synth error would abort the production
+deploy at the same point.
+
 ## Deploy with AWS CDK
 
 Production deploys are automated through `.github/workflows/deploy-lambda.yml`

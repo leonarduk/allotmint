@@ -143,21 +143,25 @@ jobs:
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          # The label is shared with the GPT review workflow. Only clear it when
-          # GPT's most recent verdict on this PR also approved — otherwise Claude
-          # approving would wipe out a still-outstanding "changes requested" from
-          # GPT (and vice versa).
-          GPT_VERDICT=$(gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" --paginate \
-            --jq '[.[] | select(.body | startswith("## GPT AI Code Review"))] | sort_by(.created_at) | last | .body // ""')
+          # The label is shared with the GPT review workflow. Only clear it once
+          # GPT's check run for THIS commit also concluded successfully — keying
+          # off the check-run conclusion (pinned to HEAD_SHA) avoids the
+          # staleness problems of matching the latest PR comment, which could
+          # belong to an older push or simply not exist yet. Otherwise Claude
+          # approving would wipe out a still-outstanding "changes requested"
+          # from GPT (and vice versa).
+          GPT_CONCLUSION=$(gh api "repos/${REPO}/commits/${HEAD_SHA}/check-runs" --paginate \
+            --jq '[.check_runs[] | select(.name == "GPT AI code review")] | sort_by(.started_at) | last | .conclusion // ""')
 
-          if echo "$GPT_VERDICT" | grep -q '\*\*REQUEST CHANGES\*\*'; then
-            echo "GPT review still requests changes; leaving 'Changes Requested' label in place."
-          else
+          if [ "$GPT_CONCLUSION" = "success" ]; then
             # Errors if the label isn't on the PR; that's fine, nothing to remove.
             gh pr edit "$PR_NUMBER" --remove-label "Changes Requested" || true
+          else
+            echo "GPT review for ${HEAD_SHA} is '${GPT_CONCLUSION:-pending}', not 'success'; leaving 'Changes Requested' label in place."
           fi
 
       - name: Fail if Claude did not approve

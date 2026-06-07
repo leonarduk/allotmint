@@ -1,0 +1,6 @@
+model: "ollama/qwen2.5-coder:14b"
+
+auto-commits: true
+
+auto-test: true
+test-cmd: "pytest -q --ignore=tests/integration --ignore=tests/live"

@@ -35,6 +35,13 @@ echo "  Account : ${AWS_ACCOUNT_ID}"
 echo "  Region  : ${AWS_REGION}"
 echo "  Bucket  : ${DATA_BUCKET}"
 
+# NOTE: The InvokePriceRefreshLambdaLiveAlias statement is redundant post-#3368.
+# As of PR #3368, the BackendLambdaStack grants lambda:InvokeFunction
+# permission to this role via CDK's grant_invoke() on the price_refresh
+# Lambda alias. This inline policy is retained ONLY for first-deploy
+# bootstrapping, when the CDK stack cannot yet attach the grant.
+# Post-bootstrap, CDK grants are the source of truth.
+
 policy_document="$(cat <<EOF
 {
   "Version": "2012-10-17",

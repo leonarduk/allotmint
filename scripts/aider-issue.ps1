@@ -24,7 +24,7 @@ if ($remote -match 'github\.com[:/]([^/]+)/([^/]+?)(\.git)?$') {
     $owner = $Matches[1]
     $repo  = $Matches[2]
 } else {
-    Write-Error "Could not parse GitHub owner/repo from git remote: $remote"
+    Write-Error "Could not parse GitHub owner/repo from git remote: ${remote}"
     exit 1
 }
 
@@ -54,7 +54,7 @@ $branch = "issue-$number"
 # fragile across Git versions and pager configs.)
 git rev-parse --verify --quiet "refs/heads/$branch" > $null 2>&1
 if ($LASTEXITCODE -eq 0) {
-    Write-Warning "Branch '$branch' already exists — resetting to origin/$defaultBranch to avoid stale commits."
+    Write-Warning "Branch '$branch' already exists - resetting to origin/$defaultBranch to avoid stale commits."
     git checkout $branch
     if ($LASTEXITCODE -ne 0) { exit 1 }
     git reset --hard "origin/$defaultBranch"

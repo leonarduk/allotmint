@@ -97,7 +97,7 @@ $promptFile = [System.IO.Path]::GetTempFileName()
 Set-Content -Path $promptFile -Value "GitHub issue #${number}: $title`n`n$issueBody" -Encoding UTF8
 
 Write-Host "[4/6] Running aider on issue #$number..."
-aider --message-file $promptFile
+aider --yes --message-file $promptFile
 Remove-Item $promptFile -ErrorAction SilentlyContinue
 if ($LASTEXITCODE -ne 0) { exit 1 }
 
@@ -110,9 +110,11 @@ if (-not $newCommits -or [int]$newCommits -eq 0) {
 }
 Write-Host "    Aider produced $newCommits commit(s)."
 
-# Push the branch
+# Push the branch. Use --force-with-lease because the branch may have been
+# reset to origin/$defaultBranch earlier in this script, making a normal push
+# fail as non-fast-forward if the remote already had commits from a prior run.
 Write-Host "[5/6] Pushing branch $branch..."
-git push -u origin $branch
+git push -u --force-with-lease origin $branch
 if ($LASTEXITCODE -ne 0) { exit 1 }
 
 # Build a rich PR body from the commits aider made

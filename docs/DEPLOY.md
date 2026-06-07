@@ -65,6 +65,13 @@ An error occurred (AccessDenied) when calling the InvokeFunction operation:
 User: arn:aws:iam::...:role/... is not authorized to perform: lambda:InvokeFunction
 ```
 
+This is the underlying CDK-synth-time behaviour that makes
+`GITHUB_DEPLOY_ROLE_ARN` worth understanding -- *whichever* path synthesises
+the stack (the GitHub Actions workflow, a local `cdk deploy`, or
+`pre-deploy-check.sh`) must supply it. The numbered checklist below explains,
+for each path, whether that's handled for you or something you must do
+yourself.
+
 **You do not need to add a separate `GITHUB_DEPLOY_ROLE_ARN` secret or
 variable in GitHub.** The "Deploy BackendLambdaStack" step in
 `.github/workflows/deploy-lambda.yml` maps it directly from the existing

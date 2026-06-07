@@ -138,33 +138,6 @@ jobs:
           # Add the label to the PR
           gh pr edit "$PR_NUMBER" --add-label "Changes Requested"
 
-      - name: Remove 'Changes Requested' label if review passed
-        if: steps.check_gpt_approval.outputs.approved == 'true'
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          # The label is shared with the Claude review workflow. Only clear it once
-          # Claude's check run for THIS commit also concluded successfully — keying
-          # off the check-run conclusion (pinned to HEAD_SHA) avoids the staleness
-          # problems of matching the latest PR comment, which could belong to an
-          # older push, or simply not exist yet (treating "no verdict yet" as
-          # "approved" would wipe the label prematurely). Otherwise GPT approving
-          # would wipe out a still-outstanding "changes requested" from Claude
-          # (and vice versa).
-          CLAUDE_CONCLUSION=$(gh api "repos/${REPO}/commits/${HEAD_SHA}/check-runs" --paginate \
-            --jq '[.check_runs[] | select(.name == "Claude AI code review")] | sort_by(.started_at) | last | .conclusion // ""')
-
-          if [ "$CLAUDE_CONCLUSION" = "success" ]; then
-            # Errors if the label isn't on the PR; that's fine, nothing to remove.
-            gh pr edit "$PR_NUMBER" --remove-label "Changes Requested" || true
-          else
-            echo "Claude review for ${HEAD_SHA} is '${CLAUDE_CONCLUSION:-pending}', not 'success'; leaving 'Changes Requested' label in place."
-          fi
-
       - name: Fail if GPT did not approve
         if: always() && steps.check_gpt_approval.outcome == 'failure'
         run: |

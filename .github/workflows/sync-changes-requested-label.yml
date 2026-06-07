@@ -1,0 +1,55 @@
+name: Sync Changes Requested label
+
+# The Claude and GPT PR review workflows each add the 'Changes Requested'
+# label when their own verdict is "changes requested" (see
+# claude-pr-review.yml / gpt-pr-review.yml). Clearing it, however, can't
+# safely happen from inside either of those jobs: a job's own check-run
+# conclusion isn't finalized as 'success' until the job completes, and the
+# label step runs *inside* that same job — so neither workflow can ever
+# observe the other's conclusion as 'success' in time when both run
+# concurrently on the same push (a structural chicken-and-egg race).
+#
+# This workflow runs *after* each review workflow completes, so by the time
+# it runs for the second of the two, both conclusions are available. It only
+# removes the label once BOTH the Claude and GPT review check runs for the
+# current head SHA have concluded with 'success'.
+on:
+  workflow_run:
+    workflows: ["Claude PR Review", "GPT PR Review"]
+    types: [completed]
+
+jobs:
+  sync-label:
+    name: Remove 'Changes Requested' label once both reviews approve
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+    steps:
+      - name: Reconcile label against both review verdicts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          PR_NUMBER=$(gh api "repos/${REPO}/commits/${HEAD_SHA}/pulls" \
+            --jq '[.[] | select(.state == "open")] | first | .number // empty')
+
+          if [ -z "$PR_NUMBER" ]; then
+            echo "No open PR found for ${HEAD_SHA}; nothing to reconcile."
+            exit 0
+          fi
+
+          CLAUDE_CONCLUSION=$(gh api "repos/${REPO}/commits/${HEAD_SHA}/check-runs" --paginate \
+            --jq '[.check_runs[] | select(.name == "Claude AI code review")] | sort_by(.started_at) | last | .conclusion // "pending"')
+          GPT_CONCLUSION=$(gh api "repos/${REPO}/commits/${HEAD_SHA}/check-runs" --paginate \
+            --jq '[.check_runs[] | select(.name == "GPT AI code review")] | sort_by(.started_at) | last | .conclusion // "pending"')
+
+          echo "PR #${PR_NUMBER} @ ${HEAD_SHA}: Claude=${CLAUDE_CONCLUSION}, GPT=${GPT_CONCLUSION}"
+
+          if [ "$CLAUDE_CONCLUSION" = "success" ] && [ "$GPT_CONCLUSION" = "success" ]; then
+            # Errors if the label isn't on the PR; that's fine, nothing to remove.
+            gh pr edit "$PR_NUMBER" --remove-label "Changes Requested" || true
+          else
+            echo "At least one review hasn't approved yet; leaving 'Changes Requested' label as-is."
+          fi

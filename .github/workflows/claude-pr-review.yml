@@ -138,6 +138,16 @@ jobs:
           # Add the label to the PR
           gh pr edit "$PR_NUMBER" --add-label "Changes Requested"
 
+      - name: Remove 'Changes Requested' label if review passed
+        if: steps.check_claude_approval.outputs.approved == 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          # Errors if the label isn't on the PR; that's fine, nothing to remove.
+          gh pr edit "$PR_NUMBER" --remove-label "Changes Requested" || true
+
       - name: Fail if Claude did not approve
         if: always() && steps.check_claude_approval.outcome == 'failure'
         run: |

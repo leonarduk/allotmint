@@ -69,8 +69,15 @@ jobs:
           fi
 
       - name: Check GPT approval
+        id: check_gpt_approval
+        continue-on-error: true  # REQUEST CHANGES exits 1; allow later steps (post comment, create issues, label) to still run
         run: |
-          python3 .github/scripts/extract_verdict.py /tmp/gpt_review_body.md GPT
+          if python3 .github/scripts/extract_verdict.py /tmp/gpt_review_body.md GPT; then
+            echo "approved=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "approved=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
 
       - name: Post GPT review comment
         if: always() && !cancelled()
@@ -116,3 +123,23 @@ jobs:
             > /tmp/followups.json
           python3 .github/scripts/create_followup_issues.py \
             /tmp/followups.json "${PR_NUMBER}" /tmp/gpt_review_body.md
+
+      - name: Add 'Changes Requested' label if review failed
+        if: steps.check_gpt_approval.outputs.approved == 'false'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          # Create the label if it doesn't exist
+          gh label create "Changes Requested" --color "d73a49" --description "PR requested changes from code review" \
+            2>/dev/null || true
+
+          # Add the label to the PR
+          gh pr edit "$PR_NUMBER" --add-label "Changes Requested"
+
+      - name: Fail if GPT did not approve
+        if: always() && steps.check_gpt_approval.outcome == 'failure'
+        run: |
+          echo "::error::GPT review: CHANGES REQUESTED — address the review findings before merging."
+          exit 1

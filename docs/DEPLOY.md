@@ -80,10 +80,13 @@ correctly is that the **pre-existing `AWS_ROLE_TO_ASSUME` secret is configured**
 (see the table above). New deployers and fork maintainers should:
 
 1. **Confirm `AWS_ROLE_TO_ASSUME` is set** under **Settings -> Secrets and
-   variables -> Actions**. If it is missing, the workflow fails earlier (in the
-   "Configure AWS credentials" step), but if it is present and valid the
-   `GITHUB_DEPLOY_ROLE_ARN` mapping above takes care of the rest -- no
-   additional secret needs to be created.
+   variables -> Actions**. The workflow's "Verify required AWS secrets" step
+   fails the run immediately with "AWS_ROLE_TO_ASSUME is not configured" if it
+   is empty, and "Configure AWS credentials" fails shortly after if the value
+   isn't a valid role ARN -- both run before `cdk deploy`, so a missing or
+   malformed value cannot reach CDK synth. As long as `AWS_ROLE_TO_ASSUME`
+   is a valid ARN, the `GITHUB_DEPLOY_ROLE_ARN` mapping above takes care of the
+   rest -- no additional secret needs to be created.
 
 2. **For bootstrap / first-time setup:** Refer to
    `scripts/bash/bootstrap-deploy-role.sh` and the OIDC trust relationship

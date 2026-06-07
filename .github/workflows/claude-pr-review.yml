@@ -144,9 +144,21 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
         run: |
-          # Errors if the label isn't on the PR; that's fine, nothing to remove.
-          gh pr edit "$PR_NUMBER" --remove-label "Changes Requested" || true
+          # The label is shared with the GPT review workflow. Only clear it when
+          # GPT's most recent verdict on this PR also approved — otherwise Claude
+          # approving would wipe out a still-outstanding "changes requested" from
+          # GPT (and vice versa).
+          GPT_VERDICT=$(gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" --paginate \
+            --jq '[.[] | select(.body | startswith("## GPT AI Code Review"))] | sort_by(.created_at) | last | .body // ""')
+
+          if echo "$GPT_VERDICT" | grep -q '\*\*REQUEST CHANGES\*\*'; then
+            echo "GPT review still requests changes; leaving 'Changes Requested' label in place."
+          else
+            # Errors if the label isn't on the PR; that's fine, nothing to remove.
+            gh pr edit "$PR_NUMBER" --remove-label "Changes Requested" || true
+          fi
 
       - name: Fail if Claude did not approve
         if: always() && steps.check_claude_approval.outcome == 'failure'

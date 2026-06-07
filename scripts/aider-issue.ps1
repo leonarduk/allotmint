@@ -97,7 +97,7 @@ $promptFile = [System.IO.Path]::GetTempFileName()
 Set-Content -Path $promptFile -Value "GitHub issue #${number}: $title`n`n$issueBody" -Encoding UTF8
 
 Write-Host "[4/6] Running aider on issue #$number..."
-aider --yes --message-file $promptFile
+aider --yes-always --message-file $promptFile
 Remove-Item $promptFile -ErrorAction SilentlyContinue
 if ($LASTEXITCODE -ne 0) { exit 1 }
 

@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 
@@ -168,18 +169,29 @@ class StaticSiteStack(Stack):
             enable_accept_encoding_gzip=True,
         )
 
+        _custom_domain = "app.allotmint.io"
+        _enable_custom_domain = _is_truthy_context(self.node.try_get_context("customDomain"))
+
+        # The viewer-request Function's host-based canonical redirect must only
+        # target a domain that this deployment actually serves (alias + ACM
+        # certificate + DNS record). Substitute __CANONICAL_HOST__ at synth
+        # time with the real domain when customDomain is enabled, or with
+        # `null` otherwise so the Function skips host-based canonicalization
+        # entirely. See issue #3693 (production outage from an unconditional
+        # redirect to a non-existent custom domain).
+        _viewer_request_template = (
+            Path(__file__).resolve().parents[1] / "functions" / "viewer-request.js"
+        ).read_text(encoding="utf-8")
+        _canonical_host_literal = json.dumps(_custom_domain) if _enable_custom_domain else "null"
+        _viewer_request_source = _viewer_request_template.replace(
+            "__CANONICAL_HOST__", _canonical_host_literal
+        )
+
         redirect_fn = cloudfront.Function(
             self,
             "ViewerRequestFn",
-            code=cloudfront.FunctionCode.from_file(
-                file_path=str(
-                    Path(__file__).resolve().parents[1] / "functions" / "viewer-request.js"
-                )
-            ),
+            code=cloudfront.FunctionCode.from_inline(_viewer_request_source),
         )
-
-        _custom_domain = "app.allotmint.io"
-        _enable_custom_domain = _is_truthy_context(self.node.try_get_context("customDomain"))
 
         _certificate: acm.Certificate | None = None
         _hosted_zone: route53.IHostedZone | None = None

@@ -425,6 +425,89 @@ def custom_domain_template(tmp_path_factory):
     return assertions.Template.from_stack(stack)
 
 
+def _viewer_request_function_code(rendered_template) -> str:
+    """Return the inline FunctionCode source of the ViewerRequestFn CloudFront Function.
+
+    Asserts exactly one CloudFront Function exists so the helper fails loudly
+    if the resource is renamed/removed rather than silently returning None.
+    """
+    resources = rendered_template.find_resources("AWS::CloudFront::Function")
+    assert len(resources) == 1, f"Expected exactly one CloudFront Function; found {len(resources)}"
+    properties = next(iter(resources.values()))["Properties"]
+    return properties["FunctionCode"]
+
+
+def test_viewer_request_function_validates_target_host_before_building_redirect(
+    template, custom_domain_template
+):
+    """The Host-charset safety check must guard `targetHost` unconditionally,
+    before it is ever interpolated into a redirect Location.
+
+    Regression test for a host-header injection / open redirect: an earlier
+    revision of this Function only forced `targetHost` back to a trusted value
+    inside an `if (canonical)` branch, so when `canonical` is `null` (no custom
+    domain configured) an attacker-controlled `Host` header could flow straight
+    into the 301 `Location` header unvalidated. The fixed source must apply the
+    `/^[A-Za-z0-9.-]+$/` charset test to `targetHost` ahead of (i.e. at a lower
+    string offset than) the `'https://' + targetHost` Location construction, in
+    both the custom-domain and non-custom-domain builds, and must refuse to
+    redirect using an unsafe host when no trusted canonical host is configured.
+    """
+    host_charset_check = "/^[A-Za-z0-9.-]+$/.test(targetHost)"
+    location_construction = "'https://' + targetHost"
+    no_safe_target_fallback = "return request"
+
+    for rendered_template in (template, custom_domain_template):
+        source = _viewer_request_function_code(rendered_template)
+        check_index = source.index(host_charset_check)
+        location_index = source.index(location_construction)
+        assert check_index < location_index, (
+            "targetHost must be validated against the host charset before "
+            "being interpolated into the redirect Location header"
+        )
+        assert no_safe_target_fallback in source, (
+            "Function must pass the request through (rather than redirect to "
+            "an untrusted Host header value) when no canonical host is "
+            "configured and the incoming Host fails the safety check"
+        )
+
+
+def test_viewer_request_function_skips_redirect_target_without_custom_domain(template):
+    """When customDomain is disabled, the Function source must not hardcode a
+    redirect target host — it must substitute `null` for __CANONICAL_HOST__.
+
+    Regression test for issue #3693: the deployed Function previously redirected
+    ALL traffic to https://app.allotmint.io regardless of whether that domain had
+    an alias, ACM certificate, or DNS record for this distribution, causing a
+    production outage (NXDOMAIN on every request).
+    """
+    source = _viewer_request_function_code(template)
+    assert "__CANONICAL_HOST__" not in source, (
+        "Function source must not contain the unsubstituted template placeholder"
+    )
+    assert "app.allotmint.io" not in source, (
+        "Function source must not hardcode the custom-domain host when "
+        "customDomain is disabled for this deployment"
+    )
+    assert "var canonical = null;" in source, (
+        "Function source must substitute `null` for __CANONICAL_HOST__ so "
+        "host-based canonicalization is skipped entirely"
+    )
+
+
+def test_viewer_request_function_redirects_to_custom_domain_when_enabled(custom_domain_template):
+    """When customDomain is enabled, the Function source must canonicalize to
+    the configured custom domain (which has a matching alias/cert/DNS record)."""
+    source = _viewer_request_function_code(custom_domain_template)
+    assert "__CANONICAL_HOST__" not in source, (
+        "Function source must not contain the unsubstituted template placeholder"
+    )
+    assert 'var canonical = "app.allotmint.io";' in source, (
+        "Function source must substitute the configured custom domain literal "
+        "for __CANONICAL_HOST__ when customDomain is enabled"
+    )
+
+
 def test_custom_domain_distribution_has_domain_names(custom_domain_template):
     """Distribution must list app.allotmint.io in Aliases when customDomain is set."""
     custom_domain_template.has_resource_properties(

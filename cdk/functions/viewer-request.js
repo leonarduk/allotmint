@@ -8,7 +8,15 @@ function handler(event) {
         (protoHeader.value === 'http' || protoHeader.value === 'https')
             ? protoHeader.value
             : null;
-    var canonical = 'app.allotmint.io';
+    // __CANONICAL_HOST__ is substituted at CDK synth time (see
+    // static_site_stack.py): a JSON string holding the configured custom
+    // domain when this deployment has one (alias + ACM certificate + DNS
+    // record), or `null` when it does not. When it is `null`,
+    // host-based canonicalization is skipped entirely so the function never
+    // redirects viewers to a domain that has no DNS record for this
+    // distribution — see issue #3693 (production outage caused by an
+    // unconditional redirect to a non-existent custom domain).
+    var canonical = __CANONICAL_HOST__;
     var uri = request.uri;
     var query = request.querystring;
     var qs = '';
@@ -25,9 +33,23 @@ function handler(event) {
         }
     }
 
-    var targetHost = host === canonical ? host : canonical;
-    if (!/^[A-Za-z0-9.-]+$/.test(targetHost)) {
+    var targetHost = host;
+    if (canonical && host !== canonical) {
         targetHost = canonical;
+    }
+    if (!/^[A-Za-z0-9.-]+$/.test(targetHost)) {
+        if (canonical) {
+            targetHost = canonical;
+        } else {
+            // No canonical host is configured for this deployment and the
+            // incoming Host header fails the safety check, so there is no
+            // trustworthy value to build a redirect Location from. Returning
+            // it verbatim would be a host-header injection / open redirect
+            // (see issue #3693 review). Pass the request through unmodified;
+            // ViewerProtocolPolicy.REDIRECT_TO_HTTPS at the distribution
+            // level still enforces the HTTPS upgrade for this viewer.
+            return request;
+        }
     }
     var targetUri = uri;
     if (!/^\/[A-Za-z0-9\/._-]*$/.test(targetUri)) {
@@ -36,8 +58,16 @@ function handler(event) {
     if (targetUri.length > 1 && targetUri.endsWith('/')) {
         targetUri = targetUri.slice(0, -1);
     }
+    // The distribution's ViewerProtocolPolicy.REDIRECT_TO_HTTPS already forces
+    // an HTTPS upgrade, so `proto !== 'https'` is largely redundant here.
+    // It is intentionally kept as defense-in-depth (e.g. for the
+    // cloudfront-forwarded-proto header path, and in case the distribution
+    // policy ever changes) and folded into the same single 301 alongside
+    // host/URI canonicalization, avoiding a double redirect round-trip.
     var redirectNeeded =
-        proto !== 'https' || host !== canonical || targetUri !== uri;
+        proto !== 'https' ||
+        (canonical !== null && host !== canonical) ||
+        targetUri !== uri;
     if (redirectNeeded) {
         return {
             statusCode: 301,

@@ -10,6 +10,11 @@ on:
 jobs:
   check-merge-conflicts:
     if: github.event_name == 'pull_request'
+    # GitHub derives the check-run name from this `name:` field.
+    # The recheck-open-prs job posts a new check-run under the same name
+    # on every push to main. GitHub branch protection evaluates the most
+    # recent check-run per name+SHA, so both triggers satisfy the same
+    # required check without any additional configuration.
     name: Check for merge conflicts with main
     runs-on: ubuntu-latest
     permissions:
@@ -93,36 +98,21 @@ jobs:
             git checkout --quiet --force "$sha"
             git clean -fd --quiet
 
-            # The pull_request-triggered job (check-merge-conflicts) is named
-            # "Check for merge conflicts with main" (see the job's `name:` field
-            # above); GitHub automatically assigns that string as the check-run
-            # name. We PATCH that same check-run here rather than POSTing a new
-            # one, so both triggers converge on a single UI entry per SHA
-            # (satisfying the "exactly one indicator" requirement). POST would
-            # create an additional check-run entry each time.
-            CHECK_NAME="Check for merge conflicts with main"
-            existing_id=$(gh api "repos/$REPO/commits/$sha/check-runs" \
-              --jq ".check_runs[] | select(.name == \"$CHECK_NAME\") | .id" \
-              2>/dev/null | head -1 || true)
-
-            if [ -n "$existing_id" ]; then
-              if ! gh api "repos/$REPO/check-runs/$existing_id" -X PATCH \
-                -f status="completed" \
-                -f conclusion="$conclusion" \
-                -f "output[title]=Merge conflict check" \
-                -f "output[summary]=$summary"; then
-                echo "::warning::Failed to update check run $existing_id for PR #$number ($sha)"
-              fi
-            else
-              if ! gh api "repos/$REPO/check-runs" \
-                -f name="$CHECK_NAME" \
-                -f head_sha="$sha" \
-                -f status="completed" \
-                -f conclusion="$conclusion" \
-                -f "output[title]=Merge conflict check" \
-                -f "output[summary]=$summary"; then
-                echo "::warning::Failed to create check run for PR #$number ($sha)"
-              fi
+            # Always POST a new check-run rather than trying to PATCH the one
+            # created by the pull_request-triggered job. PATCH returns HTTP 403
+            # because the Checks API only allows a run to be updated by the
+            # GitHub App that created it, and each workflow run has its own
+            # token identity. GitHub branch protection evaluates the most-recent
+            # check-run per name+SHA, so a fresh POST reliably satisfies the
+            # required-check gate even though older entries remain in the UI.
+            if ! gh api "repos/$REPO/check-runs" \
+              -f name="Check for merge conflicts with main" \
+              -f head_sha="$sha" \
+              -f status="completed" \
+              -f conclusion="$conclusion" \
+              -f "output[title]=Merge conflict check" \
+              -f "output[summary]=$summary"; then
+              echo "::warning::Failed to post check run for PR #$number ($sha)"
             fi
 
             echo "::endgroup::"

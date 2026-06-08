@@ -151,7 +151,11 @@ $prTitle = "Fix: " + $title
 # quote all values that have spaces". A file sidesteps command-line quoting
 # entirely (the same approach already used for the aider prompt above).
 $bodyFile = [System.IO.Path]::GetTempFileName()
-Set-Content -Path $bodyFile -Value $prBody -Encoding UTF8
+# Write BOM-free UTF-8: Set-Content -Encoding UTF8 emits a BOM on Windows
+# PowerShell 5.x, and [System.Text.Encoding]::UTF8 also carries a 3-byte
+# preamble, either of which gh would copy verbatim into the PR body. A
+# UTF8Encoding constructed with $false omits the BOM on both 5.x and 7.x.
+[System.IO.File]::WriteAllText($bodyFile, $prBody, (New-Object System.Text.UTF8Encoding($false)))
 
 # Open a draft PR; --head is explicit so fork contributors don't get a cross-repo mismatch
 Write-Host "[6/6] Creating draft PR..."

@@ -39,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      statuses: write
+      checks: write
       pull-requests: read
     steps:
       - uses: actions/checkout@v6
@@ -78,12 +78,12 @@ jobs:
             # origin/main remote-tracking ref -- another push could move that
             # ref between checkout and the merge attempt.
             if git merge --no-commit --no-ff "$MAIN_SHA"; then
-              state="success"
-              description="No merge conflicts detected with the latest main."
+              conclusion="success"
+              summary="No merge conflicts detected with the latest main."
               echo "PR #$number: no merge conflicts with main."
             else
-              state="failure"
-              description="PR #$number has merge conflicts with the latest main."
+              conclusion="failure"
+              summary="PR #$number has merge conflicts with the latest main."
               echo "::error::PR #$number ($branch) now has merge conflicts with main."
             fi
 
@@ -93,11 +93,18 @@ jobs:
             git checkout --quiet --force "$sha"
             git clean -fd --quiet
 
-            if ! gh api "repos/$REPO/statuses/$sha" \
-              -f state="$state" \
-              -f context="Merge Conflict Check / recheck-against-main" \
-              -f description="$description"; then
-              echo "::warning::Failed to post commit status for PR #$number ($sha)"
+            # Post to the same check-run name used by the pull_request-triggered
+            # job below ("Check for merge conflicts with main") so both triggers
+            # converge on a single authoritative signal that branch protection
+            # can require, instead of creating a second, divergent indicator.
+            if ! gh api "repos/$REPO/check-runs" \
+              -f name="Check for merge conflicts with main" \
+              -f head_sha="$sha" \
+              -f status="completed" \
+              -f conclusion="$conclusion" \
+              -f "output[title]=Merge conflict check" \
+              -f "output[summary]=$summary"; then
+              echo "::warning::Failed to post check run for PR #$number ($sha)"
             fi
 
             echo "::endgroup::"

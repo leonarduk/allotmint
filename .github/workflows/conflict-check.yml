@@ -4,17 +4,20 @@ on:
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened, ready_for_review]
-
-permissions:
-  contents: read
+  push:
+    branches: [main]
 
 jobs:
   check-merge-conflicts:
+    if: github.event_name == 'pull_request'
     name: Check for merge conflicts with main
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
 
       - name: Attempt merge with main (dry run)
@@ -29,3 +32,73 @@ jobs:
           fi
           git reset --hard HEAD
           echo "No merge conflicts detected."
+
+  recheck-open-prs:
+    if: github.event_name == 'push'
+    name: Re-check open PRs against new main
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      statuses: write
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Re-run merge dry-run for each open PR targeting main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          MAIN_SHA: ${{ github.sha }}
+        run: |
+          set -e
+          git config user.email "ci@github-actions"
+          git config user.name "GitHub Actions"
+
+          prs=$(gh pr list --repo "$REPO" --base main --state open --json number,headRefOid,headRefName -q '.[] | "\(.number) \(.headRefOid) \(.headRefName)"')
+
+          if [ -z "$prs" ]; then
+            echo "No open PRs targeting main."
+            exit 0
+          fi
+
+          while IFS=' ' read -r number sha branch; do
+            echo "::group::PR #$number ($branch @ $sha)"
+
+            # The clone only has main's history by default; fetch this PR's
+            # head commit explicitly so the checkout below has an object to
+            # point at (it is not reachable from main).
+            git fetch --quiet origin "$sha"
+            git checkout --quiet --force "$sha"
+            git clean -fd --quiet
+
+            # Merge against the exact commit that triggered this run, not the
+            # origin/main remote-tracking ref -- another push could move that
+            # ref between checkout and the merge attempt.
+            if git merge --no-commit --no-ff "$MAIN_SHA"; then
+              state="success"
+              description="No merge conflicts detected with the latest main."
+              echo "PR #$number: no merge conflicts with main."
+            else
+              state="failure"
+              description="PR #$number has merge conflicts with the latest main."
+              echo "::error::PR #$number ($branch) now has merge conflicts with main."
+            fi
+
+            # Always return to a clean state before the next iteration,
+            # regardless of whether a merge is in progress or merely staged.
+            git merge --abort 2>/dev/null || true
+            git checkout --quiet --force "$sha"
+            git clean -fd --quiet
+
+            if ! gh api "repos/$REPO/statuses/$sha" \
+              -f state="$state" \
+              -f context="Merge Conflict Check / recheck-against-main" \
+              -f description="$description"; then
+              echo "::warning::Failed to post commit status for PR #$number ($sha)"
+            fi
+
+            echo "::endgroup::"
+          done <<< "$prs"

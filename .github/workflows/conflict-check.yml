@@ -7,16 +7,13 @@ on:
   push:
     branches: [main]
 
-permissions:
-  contents: read
-  statuses: write
-  pull-requests: read
-
 jobs:
   check-merge-conflicts:
     if: github.event_name == 'pull_request'
     name: Check for merge conflicts with main
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v6
         with:
@@ -40,15 +37,21 @@ jobs:
     if: github.event_name == 'push'
     name: Re-check open PRs against new main
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      statuses: write
+      pull-requests: read
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: ${{ github.sha }}
           fetch-depth: 0
 
       - name: Re-run merge dry-run for each open PR targeting main
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
+          MAIN_SHA: ${{ github.sha }}
         run: |
           set -e
           git config user.email "ci@github-actions"
@@ -69,8 +72,12 @@ jobs:
             # point at (it is not reachable from main).
             git fetch --quiet origin "$sha"
             git checkout --quiet --force "$sha"
+            git clean -fd --quiet
 
-            if git merge --no-commit --no-ff origin/main; then
+            # Merge against the exact commit that triggered this run, not the
+            # origin/main remote-tracking ref -- another push could move that
+            # ref between checkout and the merge attempt.
+            if git merge --no-commit --no-ff "$MAIN_SHA"; then
               state="success"
               description="No merge conflicts detected with the latest main."
               echo "PR #$number: no merge conflicts with main."
@@ -81,9 +88,10 @@ jobs:
             fi
 
             # Always return to a clean state before the next iteration,
-            # regardless of whether a merge is in progress.
-            git merge --abort 2>/dev/null
-            git reset --hard --quiet "$sha"
+            # regardless of whether a merge is in progress or merely staged.
+            git merge --abort 2>/dev/null || true
+            git checkout --quiet --force "$sha"
+            git clean -fd --quiet
 
             if ! gh api "repos/$REPO/statuses/$sha" \
               -f state="$state" \

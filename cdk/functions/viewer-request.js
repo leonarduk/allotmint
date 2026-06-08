@@ -34,10 +34,21 @@ function handler(event) {
     }
 
     var targetHost = host;
-    if (canonical) {
-        targetHost = host === canonical ? host : canonical;
-        if (!/^[A-Za-z0-9.-]+$/.test(targetHost)) {
+    if (canonical && host !== canonical) {
+        targetHost = canonical;
+    }
+    if (!/^[A-Za-z0-9.-]+$/.test(targetHost)) {
+        if (canonical) {
             targetHost = canonical;
+        } else {
+            // No canonical host is configured for this deployment and the
+            // incoming Host header fails the safety check, so there is no
+            // trustworthy value to build a redirect Location from. Returning
+            // it verbatim would be a host-header injection / open redirect
+            // (see issue #3693 review). Pass the request through unmodified;
+            // ViewerProtocolPolicy.REDIRECT_TO_HTTPS at the distribution
+            // level still enforces the HTTPS upgrade for this viewer.
+            return request;
         }
     }
     var targetUri = uri;
@@ -47,6 +58,12 @@ function handler(event) {
     if (targetUri.length > 1 && targetUri.endsWith('/')) {
         targetUri = targetUri.slice(0, -1);
     }
+    // The distribution's ViewerProtocolPolicy.REDIRECT_TO_HTTPS already forces
+    // an HTTPS upgrade, so `proto !== 'https'` is largely redundant here.
+    // It is intentionally kept as defense-in-depth (e.g. for the
+    // cloudfront-forwarded-proto header path, and in case the distribution
+    // policy ever changes) and folded into the same single 301 alongside
+    // host/URI canonicalization, avoiding a double redirect round-trip.
     var redirectNeeded =
         proto !== 'https' ||
         (canonical !== null && host !== canonical) ||

@@ -437,6 +437,41 @@ def _viewer_request_function_code(rendered_template) -> str:
     return properties["FunctionCode"]
 
 
+def test_viewer_request_function_validates_target_host_before_building_redirect(
+    template, custom_domain_template
+):
+    """The Host-charset safety check must guard `targetHost` unconditionally,
+    before it is ever interpolated into a redirect Location.
+
+    Regression test for a host-header injection / open redirect: an earlier
+    revision of this Function only forced `targetHost` back to a trusted value
+    inside an `if (canonical)` branch, so when `canonical` is `null` (no custom
+    domain configured) an attacker-controlled `Host` header could flow straight
+    into the 301 `Location` header unvalidated. The fixed source must apply the
+    `/^[A-Za-z0-9.-]+$/` charset test to `targetHost` ahead of (i.e. at a lower
+    string offset than) the `'https://' + targetHost` Location construction, in
+    both the custom-domain and non-custom-domain builds, and must refuse to
+    redirect using an unsafe host when no trusted canonical host is configured.
+    """
+    host_charset_check = "/^[A-Za-z0-9.-]+$/.test(targetHost)"
+    location_construction = "'https://' + targetHost"
+    no_safe_target_fallback = "return request"
+
+    for rendered_template in (template, custom_domain_template):
+        source = _viewer_request_function_code(rendered_template)
+        check_index = source.index(host_charset_check)
+        location_index = source.index(location_construction)
+        assert check_index < location_index, (
+            "targetHost must be validated against the host charset before "
+            "being interpolated into the redirect Location header"
+        )
+        assert no_safe_target_fallback in source, (
+            "Function must pass the request through (rather than redirect to "
+            "an untrusted Host header value) when no canonical host is "
+            "configured and the incoming Host fails the safety check"
+        )
+
+
 def test_viewer_request_function_skips_redirect_target_without_custom_domain(template):
     """When customDomain is disabled, the Function source must not hardcode a
     redirect target host — it must substitute `null` for __CANONICAL_HOST__.

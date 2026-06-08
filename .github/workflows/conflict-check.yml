@@ -4,17 +4,23 @@ on:
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main]
 
 permissions:
   contents: read
+  statuses: write
+  pull-requests: read
 
 jobs:
   check-merge-conflicts:
+    if: github.event_name == 'pull_request'
     name: Check for merge conflicts with main
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
 
       - name: Attempt merge with main (dry run)
@@ -29,3 +35,61 @@ jobs:
           fi
           git reset --hard HEAD
           echo "No merge conflicts detected."
+
+  recheck-open-prs:
+    if: github.event_name == 'push'
+    name: Re-check open PRs against new main
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Re-run merge dry-run for each open PR targeting main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -e
+          git config user.email "ci@github-actions"
+          git config user.name "GitHub Actions"
+
+          prs=$(gh pr list --repo "$REPO" --base main --state open --json number,headRefOid,headRefName -q '.[] | "\(.number) \(.headRefOid) \(.headRefName)"')
+
+          if [ -z "$prs" ]; then
+            echo "No open PRs targeting main."
+            exit 0
+          fi
+
+          any_conflict=0
+
+          while IFS=' ' read -r number sha branch; do
+            echo "::group::PR #$number ($branch @ $sha)"
+            git checkout --quiet --force "$sha"
+            git reset --hard --quiet "$sha"
+
+            if git merge --no-commit --no-ff origin/main; then
+              git merge --abort 2>/dev/null || git reset --hard --quiet "$sha"
+              state="success"
+              description="No merge conflicts detected with the latest main."
+              echo "PR #$number: no merge conflicts with main."
+            else
+              git merge --abort
+              state="failure"
+              description="PR #$number has merge conflicts with the latest main."
+              echo "::error::PR #$number ($branch) now has merge conflicts with main."
+              any_conflict=1
+            fi
+
+            gh api "repos/$REPO/statuses/$sha" \
+              -f state="$state" \
+              -f context="Merge Conflict Check / recheck-against-main" \
+              -f description="$description" \
+              --silent || true
+
+            echo "::endgroup::"
+          done <<< "$prs"
+
+          if [ "$any_conflict" -ne 0 ]; then
+            exit 1
+          fi

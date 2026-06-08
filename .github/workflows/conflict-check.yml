@@ -61,35 +61,36 @@ jobs:
             exit 0
           fi
 
-          any_conflict=0
-
           while IFS=' ' read -r number sha branch; do
             echo "::group::PR #$number ($branch @ $sha)"
+
+            # The clone only has main's history by default; fetch this PR's
+            # head commit explicitly so the checkout below has an object to
+            # point at (it is not reachable from main).
+            git fetch --quiet origin "$sha"
             git checkout --quiet --force "$sha"
-            git reset --hard --quiet "$sha"
 
             if git merge --no-commit --no-ff origin/main; then
-              git merge --abort 2>/dev/null || git reset --hard --quiet "$sha"
               state="success"
               description="No merge conflicts detected with the latest main."
               echo "PR #$number: no merge conflicts with main."
             else
-              git merge --abort
               state="failure"
               description="PR #$number has merge conflicts with the latest main."
               echo "::error::PR #$number ($branch) now has merge conflicts with main."
-              any_conflict=1
             fi
 
-            gh api "repos/$REPO/statuses/$sha" \
+            # Always return to a clean state before the next iteration,
+            # regardless of whether a merge is in progress.
+            git merge --abort 2>/dev/null
+            git reset --hard --quiet "$sha"
+
+            if ! gh api "repos/$REPO/statuses/$sha" \
               -f state="$state" \
               -f context="Merge Conflict Check / recheck-against-main" \
-              -f description="$description" \
-              --silent || true
+              -f description="$description"; then
+              echo "::warning::Failed to post commit status for PR #$number ($sha)"
+            fi
 
             echo "::endgroup::"
           done <<< "$prs"
-
-          if [ "$any_conflict" -ne 0 ]; then
-            exit 1
-          fi

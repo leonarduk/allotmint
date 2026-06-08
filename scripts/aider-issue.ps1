@@ -104,21 +104,37 @@ Set-Content -Path $promptFile -Value "GitHub issue #${number}: $title`n`n$issueB
 # the guard below. The regex matches path-like tokens (optional dir segments +
 # filename.ext); Test-Path then keeps only the ones that exist, so over-broad
 # matches (version numbers, "e.g", URLs) are harmlessly discarded.
+#
+# Security: $issueBody is attacker-controllable (anyone who can open an issue),
+# so reject parent-dir traversal ('..') and absolute/rooted paths before the
+# existence check. Otherwise a crafted issue could reference a file outside the
+# repo (e.g. ../../.aws/credentials) that exists on disk and pull it into
+# aider's editable context, where it could be modified or leaked into a commit.
+# With those rejected and the relative path resolved from the repo root, every
+# kept match is confined to the repo subtree.
 $pathPattern = '(?:[\w.-]+[\\/])*[\w.-]+\.[A-Za-z0-9]+'
 $referencedFiles = @(
     [regex]::Matches("$title`n$issueBody", $pathPattern) |
         ForEach-Object { $_.Value } |
         Sort-Object -Unique |
+        Where-Object { $_ -notmatch '\.\.' -and -not [System.IO.Path]::IsPathRooted($_) } |
         Where-Object { Test-Path -LiteralPath $_ -PathType Leaf }
 )
 if ($referencedFiles.Count -gt 0) {
     Write-Host "    Adding referenced files to aider context: $($referencedFiles -join ', ')"
 } else {
+    # Not fatal: aider can still create a new file or work from its repo-map, so
+    # let the run proceed. The no-commits guard below catches a true no-op.
     Write-Warning "Issue text referenced no existing repo files; aider has no explicit edit targets and may make no changes. If the issue names files that do not exist, correct the issue text first."
 }
 
+# Pass each file via aider's repeatable --file flag. Aider also accepts bare
+# positional [FILE ...], but --file is unambiguous if a name ever looks like an
+# option. An empty array splats to nothing, leaving aider to work from repo-map.
+$fileArgs = @($referencedFiles | ForEach-Object { '--file', $_ })
+
 Write-Host "[4/6] Running aider on issue #$number..."
-aider @referencedFiles --yes-always --message-file $promptFile
+aider @fileArgs --yes-always --message-file $promptFile
 Remove-Item $promptFile -ErrorAction SilentlyContinue
 if ($LASTEXITCODE -ne 0) { exit 1 }
 

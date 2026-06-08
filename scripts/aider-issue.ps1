@@ -143,12 +143,32 @@ $diffStat
 # Build the PR title with + to avoid re-evaluating backticks or $(...) in $title
 $prTitle = "Fix: " + $title
 
+# Write the PR body to a temp file and pass it via --body-file. Passing the
+# multi-line body straight through --body is unreliable under Windows
+# PowerShell: its native-argument quoting splits the string on the embedded
+# spaces, double quotes, and backticks that issue bodies routinely contain, so
+# gh sees dozens of stray tokens and aborts with "unknown arguments ...; please
+# quote all values that have spaces". A file sidesteps command-line quoting
+# entirely (the same approach already used for the aider prompt above).
+$bodyFile = [System.IO.Path]::GetTempFileName()
+# Write BOM-free UTF-8: Set-Content -Encoding UTF8 emits a BOM on Windows
+# PowerShell 5.x, and [System.Text.Encoding]::UTF8 also carries a 3-byte
+# preamble, either of which gh would copy verbatim into the PR body. A
+# UTF8Encoding constructed with $false omits the BOM on both 5.x and 7.x.
+[System.IO.File]::WriteAllText($bodyFile, $prBody, (New-Object System.Text.UTF8Encoding($false)))
+
 # Open a draft PR; --head is explicit so fork contributors don't get a cross-repo mismatch
 Write-Host "[6/6] Creating draft PR..."
 gh pr create `
     --title $prTitle `
-    --body $prBody `
+    --body-file $bodyFile `
     --draft `
     --head $branch `
     --base $defaultBranch `
     --repo "$owner/$repo"
+$prExit = $LASTEXITCODE
+Remove-Item $bodyFile -ErrorAction SilentlyContinue
+if ($prExit -ne 0) {
+    Write-Error "gh pr create failed (exit $prExit). The branch was pushed; create the PR manually or re-run after fixing the error above."
+    exit 1
+}

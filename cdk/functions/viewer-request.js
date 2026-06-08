@@ -8,7 +8,15 @@ function handler(event) {
         (protoHeader.value === 'http' || protoHeader.value === 'https')
             ? protoHeader.value
             : null;
-    var canonical = 'app.allotmint.io';
+    // __CANONICAL_HOST__ is substituted at CDK synth time (see
+    // static_site_stack.py): a JSON string holding the configured custom
+    // domain when this deployment has one (alias + ACM certificate + DNS
+    // record), or `null` when it does not. When it is `null`,
+    // host-based canonicalization is skipped entirely so the function never
+    // redirects viewers to a domain that has no DNS record for this
+    // distribution — see issue #3693 (production outage caused by an
+    // unconditional redirect to a non-existent custom domain).
+    var canonical = __CANONICAL_HOST__;
     var uri = request.uri;
     var query = request.querystring;
     var qs = '';
@@ -25,9 +33,12 @@ function handler(event) {
         }
     }
 
-    var targetHost = host === canonical ? host : canonical;
-    if (!/^[A-Za-z0-9.-]+$/.test(targetHost)) {
-        targetHost = canonical;
+    var targetHost = host;
+    if (canonical) {
+        targetHost = host === canonical ? host : canonical;
+        if (!/^[A-Za-z0-9.-]+$/.test(targetHost)) {
+            targetHost = canonical;
+        }
     }
     var targetUri = uri;
     if (!/^\/[A-Za-z0-9\/._-]*$/.test(targetUri)) {
@@ -37,7 +48,9 @@ function handler(event) {
         targetUri = targetUri.slice(0, -1);
     }
     var redirectNeeded =
-        proto !== 'https' || host !== canonical || targetUri !== uri;
+        proto !== 'https' ||
+        (canonical !== null && host !== canonical) ||
+        targetUri !== uri;
     if (redirectNeeded) {
         return {
             statusCode: 301,

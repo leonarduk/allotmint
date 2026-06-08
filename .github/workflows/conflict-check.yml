@@ -98,13 +98,27 @@ jobs:
             git checkout --quiet --force "$sha"
             git clean -fd --quiet
 
-            # Always POST a new check-run rather than trying to PATCH the one
-            # created by the pull_request-triggered job. PATCH returns HTTP 403
-            # because the Checks API only allows a run to be updated by the
-            # GitHub App that created it, and each workflow run has its own
-            # token identity. GitHub branch protection evaluates the most-recent
-            # check-run per name+SHA, so a fresh POST reliably satisfies the
-            # required-check gate even though older entries remain in the UI.
+            # Design decision (investigated in issue #3738, tested in PR #3731):
+            # Always POST a new check-run; do not attempt PATCH.
+            #
+            # PATCH /repos/{owner}/{repo}/check-runs/{id} returns HTTP 403 when
+            # the caller is a different workflow run than the one that created
+            # the check-run. GitHub's Checks API enforces per-App-installation
+            # ownership at the individual run level: even though both the
+            # pull_request trigger and this push trigger use the same
+            # github-actions[bot] app, they receive distinct installation tokens
+            # that GitHub treats as separate owners for update purposes.
+            #
+            # A GET-then-PATCH approach was implemented and tested (see
+            # d86479dc); it silently fell back to POST every time because the
+            # PATCH always returned 403. That confusion was worse than the
+            # known limitation it was trying to fix.
+            #
+            # Accepted trade-off: older check-run entries accumulate in the
+            # "Checks" tab of long-lived PRs, but this is purely cosmetic.
+            # GitHub branch protection evaluates the most-recent check-run per
+            # name+SHA, so the fresh POST reliably satisfies the required-check
+            # gate without extra configuration.
             if ! gh api "repos/$REPO/check-runs" \
               -f name="Check for merge conflicts with main" \
               -f head_sha="$sha" \

@@ -519,11 +519,16 @@ jobs:
           fi
           echo "/api-console → $auth_status (auth required) OK"
           # Check CloudFront distribution domain directly (not the canonical custom domain).
-          # viewer-request.js (cdk/functions/viewer-request.js) returns 301 for any request
-          # whose Host header is not app.allotmint.io — so a 301 here confirms the
-          # distribution is live and the CloudFront Function is executing correctly.
-          # Accepting 200 OR 301 avoids a hard dependency on external DNS for app.allotmint.io
-          # which is not yet configured in the CDK stack (see issue #3011 and #3012).
+          # Expected response depends on the deployment's customDomain context flag:
+          #   customDomain=false (default): viewer-request.js passes the request through →
+          #     200 from the SPA index (or appropriate HTML response).
+          #   customDomain=true (when alias/cert/DNS are configured): viewer-request.js
+          #     redirects non-canonical hosts to https://app.allotmint.io → 301.
+          # Accepting 200 OR 301 handles both cases.  A 301 from a customDomain=false
+          # deployment indicates a bug in viewer-request.js (likely the infinite proto
+          # self-redirect fixed in issue #3763); that class of fault is caught by
+          # Lighthouse CI (step "Run Lighthouse CI") which Chrome would fail with
+          # ERR_TOO_MANY_REDIRECTS / CHROME_INTERSTITIAL_ERROR.
           # Use --output /dev/null (not >/dev/null) to avoid curl exit 23 on HTTP/2 streams.
           echo "Checking CloudFront → https://${frontend_domain}"
           curl_exit=0

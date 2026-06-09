@@ -3,11 +3,16 @@ function handler(event) {
     var headers = request.headers;
     var host = headers.host.value;
     var protoHeader = headers['cloudfront-forwarded-proto'];
-    var proto =
-        protoHeader &&
-        (protoHeader.value === 'http' || protoHeader.value === 'https')
-            ? protoHeader.value
-            : null;
+    // 'cloudfront-forwarded-proto' is added by CloudFront for origin-request
+    // events; it may be absent on viewer-request events.  The distribution's
+    // ViewerProtocolPolicy.REDIRECT_TO_HTTPS guarantees that every request
+    // reaching this function is already HTTPS, so treat a missing or
+    // unrecognised value as 'https'.  Defaulting to null instead caused an
+    // infinite self-redirect loop (proto !== 'https' → 301 to the same HTTPS
+    // URL → proto still absent → 301 again) when no custom domain was
+    // configured, resulting in ERR_TOO_MANY_REDIRECTS for Chrome users.
+    // See issue #3763.
+    var proto = protoHeader && protoHeader.value === 'http' ? 'http' : 'https';
     // __CANONICAL_HOST__ is substituted at CDK synth time (see
     // static_site_stack.py): a JSON string holding the configured custom
     // domain when this deployment has one (alias + ACM certificate + DNS

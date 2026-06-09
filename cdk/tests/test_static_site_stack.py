@@ -495,6 +495,32 @@ def test_viewer_request_function_skips_redirect_target_without_custom_domain(tem
     )
 
 
+def test_viewer_request_function_defaults_proto_to_https_when_header_absent(
+    template, custom_domain_template
+):
+    """The Function must default proto to 'https' when cloudfront-forwarded-proto
+    is absent, not null.
+
+    Regression test for issue #3763: defaulting to null caused proto !== 'https'
+    to always be true when the header was missing (common in viewer-request
+    events), triggering an infinite self-redirect loop (301 → same HTTPS URL →
+    301 again) and ERR_TOO_MANY_REDIRECTS / CHROME_INTERSTITIAL_ERROR in both
+    Lighthouse CI and real browsers when customDomain is disabled.
+    """
+    safe_fallback = "? 'http' : 'https'"
+    avoid_null_fallback = ": null"
+
+    for rendered_template in (template, custom_domain_template):
+        source = _viewer_request_function_code(rendered_template)
+        assert safe_fallback in source, (
+            "cloudfront-forwarded-proto absent/unrecognised must default to "
+            "'https', not null — null causes an infinite self-redirect loop"
+        )
+        assert avoid_null_fallback not in source, (
+            "proto must never default to null; use 'https' as the safe fallback"
+        )
+
+
 def test_viewer_request_function_redirects_to_custom_domain_when_enabled(custom_domain_template):
     """When customDomain is enabled, the Function source must canonicalize to
     the configured custom domain (which has a matching alias/cert/DNS record)."""

@@ -435,6 +435,89 @@ jobs:
             exit 1
           fi
           echo "LIGHTHOUSE_URL=https://${FRONTEND_DOMAIN}" >> "$GITHUB_ENV"
+          echo "FRONTEND_DOMAIN=${FRONTEND_DOMAIN}" >> "$GITHUB_ENV"
+
+      - name: Reconcile UiAuthClient OAuth configuration
+        # cognito-idp:UpdateUserPoolClient replaces ALL writable client attributes in
+        # one call (no partial update). If the live UiAuthClient is ever edited
+        # out-of-band (console, manual CLI call) without setting every OAuth field,
+        # CallbackURLs/LogoutURLs/AllowedOAuthFlows/AllowedOAuthScopes/
+        # SupportedIdentityProviders silently get wiped to empty/false. Because the
+        # CDK template itself hasn't changed, `cdk deploy` does not detect or correct
+        # this drift, and the Cognito Hosted UI then rejects every login with
+        # redirect_mismatch (400) — which is exactly what broke Lighthouse CI in
+        # #3802. Re-apply the CDK-declared OAuth settings (must match the
+        # `o_auth=...` block on UiAuthClient in cdk/stacks/static_site_stack.py) on
+        # every deploy so this can never silently recur.
+        #
+        # CALLBACK_URL assumes the non-customDomain deployment path (the only one
+        # this workflow uses today): `https://${FRONTEND_DOMAIN}/`, matching
+        # ui_auth_callback_url's `_enable_custom_domain=False` branch. If this
+        # workflow is ever changed to deploy with `-c customDomain=true`, this step
+        # must be updated to use the custom domain URL instead.
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          USER_POOL_ID="$(aws cloudformation describe-stacks \
+            --stack-name StaticSiteStack \
+            --query "Stacks[0].Outputs[?OutputKey=='UiAuthUserPoolId'].OutputValue" \
+            --output text)"
+          CLIENT_ID="$(aws cloudformation describe-stacks \
+            --stack-name StaticSiteStack \
+            --query "Stacks[0].Outputs[?OutputKey=='UiAuthUserPoolClientId'].OutputValue" \
+            --output text)"
+          if [ -z "$USER_POOL_ID" ] || [ "$USER_POOL_ID" = "None" ] \
+            || [ -z "$CLIENT_ID" ] || [ "$CLIENT_ID" = "None" ]; then
+            echo "UiAuthUserPoolId/UiAuthUserPoolClientId outputs missing from StaticSiteStack" >&2
+            exit 1
+          fi
+          if [ -z "${FRONTEND_DOMAIN:-}" ]; then
+            echo "FRONTEND_DOMAIN is unset; refusing to write an empty CallbackURL" >&2
+            exit 1
+          fi
+          CLIENT_NAME="$(aws cognito-idp describe-user-pool-client \
+            --user-pool-id "$USER_POOL_ID" --client-id "$CLIENT_ID" \
+            --query "UserPoolClient.ClientName" --output text)"
+          CALLBACK_URL="https://${FRONTEND_DOMAIN}/"
+          UPDATE_FILE="$(mktemp)"
+          trap 'rm -f "$UPDATE_FILE"' EXIT
+          # Build the payload with jq (not a heredoc) so CLIENT_NAME is JSON-escaped;
+          # a client name containing a quote or backslash would otherwise produce
+          # malformed --cli-input-json.
+          #
+          # RefreshTokenValidity (30 days) and AuthSessionValidity (3 minutes) are
+          # the AWS API defaults, applied identically whether or not CDK specifies
+          # them; UiAuthClient's o_auth=... block in static_site_stack.py does not
+          # override either, so this matches the CDK-declared (and currently
+          # deployed) state. AccessTokenValidity/IdTokenValidity are likewise left
+          # unset here and in CDK, so they fall back to the same 1-hour API default
+          # on both sides. If UiAuthClient ever sets any of these explicitly, this
+          # payload must be updated to match.
+          jq -n \
+            --arg userPoolId "$USER_POOL_ID" \
+            --arg clientId "$CLIENT_ID" \
+            --arg clientName "$CLIENT_NAME" \
+            --arg callbackUrl "$CALLBACK_URL" \
+            '{
+              UserPoolId: $userPoolId,
+              ClientId: $clientId,
+              ClientName: $clientName,
+              RefreshTokenValidity: 30,
+              ExplicitAuthFlows: ["ALLOW_USER_SRP_AUTH", "ALLOW_REFRESH_TOKEN_AUTH"],
+              SupportedIdentityProviders: ["COGNITO"],
+              CallbackURLs: [$callbackUrl],
+              LogoutURLs: [$callbackUrl],
+              AllowedOAuthFlows: ["code"],
+              AllowedOAuthScopes: ["email", "openid", "profile"],
+              AllowedOAuthFlowsUserPoolClient: true,
+              PreventUserExistenceErrors: "ENABLED",
+              EnableTokenRevocation: true,
+              EnablePropagateAdditionalUserContextData: false,
+              AuthSessionValidity: 3
+            }' > "$UPDATE_FILE"
+          aws cognito-idp update-user-pool-client --cli-input-json "file://${UPDATE_FILE}" >/dev/null
+          echo "UiAuthClient ($CLIENT_ID) OAuth configuration reconciled to ${CALLBACK_URL}"
 
       - name: Verify price snapshot seeded in S3
         # Belt-and-suspenders check after the CDK Trigger (REQUEST_RESPONSE) has

@@ -829,3 +829,76 @@ def test_no_simulate_principal_policy_grant_when_role_arn_absent(
     assert not _has_simulate_principal_policy_grant(raw, "allotmint-github-deploy"), (
         "Expected no iam:SimulatePrincipalPolicy in StaticSiteStack when GITHUB_DEPLOY_ROLE_ARN is unset"
     )
+
+
+# ---------------------------------------------------------------------------
+# GitHub deploy role — cognito-idp:UpdateUserPoolClient (issue #3802)
+# ---------------------------------------------------------------------------
+
+
+def _cognito_user_pool_client_resources(raw_template: dict, role_name: str) -> list[object]:
+    """Return Resource entries from cognito-idp:UpdateUserPoolClient statements for role_name."""
+    found: list[object] = []
+    for res in raw_template["Resources"].values():
+        if res.get("Type") != "AWS::IAM::Policy":
+            continue
+        if role_name not in res.get("Properties", {}).get("Roles", []):
+            continue
+        for stmt in res["Properties"]["PolicyDocument"].get("Statement", []):
+            actions = stmt.get("Action", [])
+            if isinstance(actions, str):
+                actions = [actions]
+            if "cognito-idp:UpdateUserPoolClient" not in actions:
+                continue
+            assert "cognito-idp:DescribeUserPoolClient" in actions, (
+                "cognito-idp:UpdateUserPoolClient grant should be paired with "
+                "cognito-idp:DescribeUserPoolClient"
+            )
+            resources = stmt.get("Resource", [])
+            if isinstance(resources, (str, dict)):
+                resources = [resources]
+            found.extend(resources)
+    return found
+
+
+def test_github_deploy_role_gets_cognito_user_pool_client_permissions(
+    monkeypatch, tmp_path
+) -> None:
+    """StaticSiteStack must grant the deploy role cognito-idp:UpdateUserPoolClient and
+    cognito-idp:DescribeUserPoolClient, scoped to the UiAuthUserPool, when
+    GITHUB_DEPLOY_ROLE_ARN is set. This lets the deploy workflow re-apply the
+    CDK-declared UiAuthClient OAuth settings on every deploy, self-healing the
+    drift described in #3802."""
+    role_arn = "arn:aws:iam::123456789012:role/allotmint-github-deploy"
+    monkeypatch.setenv("GITHUB_DEPLOY_ROLE_ARN", role_arn)
+    (tmp_path / "index.html").write_text("<html></html>")
+    app = App()
+    stack = StaticSiteStack(app, "CognitoGrantStaticSiteStack", frontend_dist_path=str(tmp_path))
+    raw = assertions.Template.from_stack(stack).to_json()
+
+    resources = _cognito_user_pool_client_resources(raw, "allotmint-github-deploy")
+    assert resources, (
+        "cognito-idp:UpdateUserPoolClient statement not found in StaticSiteStack template; "
+        "GITHUB_DEPLOY_ROLE_ARN was set"
+    )
+    resources_str = str(resources)
+    assert "userpool/" in resources_str, (
+        f"cognito-idp grant should be scoped to a userpool/ resource ARN; got: {resources_str}"
+    )
+
+
+def test_no_cognito_user_pool_client_grant_when_github_deploy_role_arn_absent(
+    monkeypatch, tmp_path
+) -> None:
+    """When GITHUB_DEPLOY_ROLE_ARN is unset, no cognito-idp:UpdateUserPoolClient
+    policy should be synthesised."""
+    monkeypatch.delenv("GITHUB_DEPLOY_ROLE_ARN", raising=False)
+    (tmp_path / "index.html").write_text("<html></html>")
+    app = App()
+    stack = StaticSiteStack(app, "NoCognitoGrantStack", frontend_dist_path=str(tmp_path))
+    raw = assertions.Template.from_stack(stack).to_json()
+    resources = _cognito_user_pool_client_resources(raw, "allotmint-github-deploy")
+    assert not resources, (
+        "Expected no cognito-idp:UpdateUserPoolClient in StaticSiteStack when "
+        "GITHUB_DEPLOY_ROLE_ARN is unset"
+    )

@@ -444,6 +444,27 @@ class StaticSiteStack(Stack):
                     resources=["*"],
                 )
             )
+            # Lets the deploy workflow re-apply the CDK-declared UiAuthClient OAuth
+            # settings (CallbackURLs, LogoutURLs, AllowedOAuthFlows, etc.) on every
+            # deploy. UpdateUserPoolClient replaces all writable client attributes in
+            # one call, so any out-of-band edit that omits these fields silently wipes
+            # them; CloudFormation does not detect or correct this drift on its own
+            # unless the template itself changes. See #3802.
+            github_role.add_to_principal_policy(
+                iam.PolicyStatement(
+                    actions=[
+                        "cognito-idp:DescribeUserPoolClient",
+                        "cognito-idp:UpdateUserPoolClient",
+                    ],
+                    resources=[
+                        self.format_arn(
+                            service="cognito-idp",
+                            resource="userpool",
+                            resource_name=ui_auth_pool.user_pool_id,
+                        )
+                    ],
+                )
+            )
 
         CfnOutput(self, "SiteBucket", value=site_bucket.bucket_name)
         CfnOutput(self, "DistributionId", value=distribution.distribution_id)

@@ -65,10 +65,27 @@ if (-not $env:AWS_ACCESS_KEY_ID) {
     try {
         Push-Location cdk -ErrorAction Stop
         # Use & to invoke npx as an external executable so arguments are passed correctly.
-        & npx cdk diff BackendLambdaStack StaticSiteStack -c prod=true --method=changeset
-        if ($LASTEXITCODE -eq 0) { Write-Pass "CDK diff" } else { Write-Fail "CDK diff" }
+        $cdkDiffOutput = & npx cdk diff BackendLambdaStack StaticSiteStack -c prod=true --method=changeset 2>&1
+        $cdkDiffExit = $LASTEXITCODE
     } finally {
         Pop-Location
+    }
+    $cdkDiffOutput | ForEach-Object { Write-Host $_ }
+    if ($cdkDiffExit -ne 0) {
+        Write-Fail "CDK diff"
+    } else {
+        $tmpFile = New-TemporaryFile
+        try {
+            $cdkDiffOutput | Out-String | Set-Content -Path $tmpFile -Encoding utf8
+            python scripts/check_cdk_diff_iam_removals.py $tmpFile
+            if ($LASTEXITCODE -eq 0) {
+                Write-Pass "CDK diff"
+            } else {
+                Write-Fail "CDK diff (removes an IAM Allow grant for the deploy role — see #3741)"
+            }
+        } finally {
+            Remove-Item $tmpFile -Force
+        }
     }
 }
 

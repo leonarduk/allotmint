@@ -49,11 +49,17 @@ if [[ -z "${AWS_ACCESS_KEY_ID:-}" ]]; then
 elif [[ -z "${GITHUB_DEPLOY_ROLE_ARN:-}" || -z "${JWT_SECRET:-}" || -z "${GOOGLE_CLIENT_ID:-}" || -z "${DATA_BUCKET:-}" ]]; then
     skip "CDK diff (requires GITHUB_DEPLOY_ROLE_ARN, JWT_SECRET, GOOGLE_CLIENT_ID, DATA_BUCKET)"
 else
-    if (cd cdk && npx cdk diff BackendLambdaStack StaticSiteStack -c prod=true --method=changeset); then
-        pass "CDK diff"
-    else
+    cdk_diff_output=$(mktemp)
+    (cd cdk && npx cdk diff BackendLambdaStack StaticSiteStack -c prod=true --method=changeset) | tee "$cdk_diff_output"
+    cdk_diff_exit=${PIPESTATUS[0]}
+    if [[ $cdk_diff_exit -ne 0 ]]; then
         fail "CDK diff"
+    elif ! python3 scripts/check_cdk_diff_iam_removals.py "$cdk_diff_output"; then
+        fail "CDK diff (removes an IAM Allow grant for the deploy role — see #3741)"
+    else
+        pass "CDK diff"
     fi
+    rm -f "$cdk_diff_output"
 fi
 
 # 3. IAM permission simulation

@@ -472,14 +472,28 @@ jobs:
             echo "UiAuthUserPoolId/UiAuthUserPoolClientId outputs missing from StaticSiteStack" >&2
             exit 1
           fi
+          if [ -z "${FRONTEND_DOMAIN:-}" ]; then
+            echo "FRONTEND_DOMAIN is unset; refusing to write an empty CallbackURL" >&2
+            exit 1
+          fi
           CLIENT_NAME="$(aws cognito-idp describe-user-pool-client \
             --user-pool-id "$USER_POOL_ID" --client-id "$CLIENT_ID" \
             --query "UserPoolClient.ClientName" --output text)"
           CALLBACK_URL="https://${FRONTEND_DOMAIN}/"
           UPDATE_FILE="$(mktemp)"
+          trap 'rm -f "$UPDATE_FILE"' EXIT
           # Build the payload with jq (not a heredoc) so CLIENT_NAME is JSON-escaped;
           # a client name containing a quote or backslash would otherwise produce
           # malformed --cli-input-json.
+          #
+          # RefreshTokenValidity (30 days) and AuthSessionValidity (3 minutes) are
+          # the AWS API defaults, applied identically whether or not CDK specifies
+          # them; UiAuthClient's o_auth=... block in static_site_stack.py does not
+          # override either, so this matches the CDK-declared (and currently
+          # deployed) state. AccessTokenValidity/IdTokenValidity are likewise left
+          # unset here and in CDK, so they fall back to the same 1-hour API default
+          # on both sides. If UiAuthClient ever sets any of these explicitly, this
+          # payload must be updated to match.
           jq -n \
             --arg userPoolId "$USER_POOL_ID" \
             --arg clientId "$CLIENT_ID" \
@@ -503,7 +517,6 @@ jobs:
               AuthSessionValidity: 3
             }' > "$UPDATE_FILE"
           aws cognito-idp update-user-pool-client --cli-input-json "file://${UPDATE_FILE}" >/dev/null
-          rm -f "$UPDATE_FILE"
           echo "UiAuthClient ($CLIENT_ID) OAuth configuration reconciled to ${CALLBACK_URL}"
 
       - name: Verify price snapshot seeded in S3

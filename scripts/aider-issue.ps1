@@ -112,13 +112,24 @@ Set-Content -Path $promptFile -Value "GitHub issue #${number}: $title`n`n$issueB
 # aider's editable context, where it could be modified or leaked into a commit.
 # With those rejected and the relative path resolved from the repo root, every
 # kept match is confined to the repo subtree.
+#
+# Resolve candidates against the repo root, not $PWD: this script may be
+# invoked from a subdirectory (e.g. scripts/), in which case Test-Path against
+# $PWD would mis-resolve every relative path and either reject all real files
+# or accept paths relative to the wrong directory.
+$repoRoot = git rev-parse --show-toplevel 2>$null
+if (-not $repoRoot) {
+    Write-Error "Could not resolve repo root via 'git rev-parse --show-toplevel'."
+    exit 1
+}
 $pathPattern = '(?:[\w.-]+[\\/])*[\w.-]+\.[A-Za-z0-9]+'
 $referencedFiles = @(
     [regex]::Matches("$title`n$issueBody", $pathPattern) |
         ForEach-Object { $_.Value } |
         Sort-Object -Unique |
         Where-Object { $_ -notmatch '\.\.' -and -not [System.IO.Path]::IsPathRooted($_) } |
-        Where-Object { Test-Path -LiteralPath $_ -PathType Leaf }
+        Where-Object { Test-Path -LiteralPath (Join-Path $repoRoot $_) -PathType Leaf } |
+        ForEach-Object { Join-Path $repoRoot $_ }
 )
 if ($referencedFiles.Count -gt 0) {
     Write-Host "    Adding referenced files to aider context: $($referencedFiles -join ', ')"

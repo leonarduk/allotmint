@@ -32,18 +32,47 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          echo "Checking for a successful ci.yml run on commit ${COMMIT_SHA}..."
-          # List workflow runs for ci.yml on this exact commit.
-          # The GitHub API filters by head_sha so we only see runs for the tagged commit.
-          conclusion="$(gh api \
-            "repos/${REPO}/actions/workflows/ci.yml/runs?head_sha=${COMMIT_SHA}&per_page=10" \
-            --jq '[.workflow_runs[] | select(.conclusion == "success")] | length')"
-          if [ "${conclusion}" -lt 1 ]; then
-            echo "::error::No successful ci.yml run found for commit ${COMMIT_SHA}." \
-              "Tag a commit that has a green CI run, or manually trigger ci.yml on this commit before tagging." >&2
-            exit 1
-          fi
-          echo "Found ${conclusion} successful ci.yml run(s) for ${COMMIT_SHA} — proceeding with deploy."
+          echo "Checking ci.yml status for commit ${COMMIT_SHA}..."
+          # Poll for the most recent ci.yml run on this exact commit and wait for
+          # it to finish before deciding whether to proceed with the deploy.
+          timeout_seconds=1800
+          poll_interval=30
+          elapsed=0
+          while true; do
+            run_json="$(gh api \
+              "repos/${REPO}/actions/workflows/ci.yml/runs?head_sha=${COMMIT_SHA}&per_page=10" \
+              --jq '.workflow_runs | sort_by(.id) | reverse | .[0]')"
+
+            if [ "${run_json}" = "null" ]; then
+              echo "::error::No ci.yml run found for commit ${COMMIT_SHA}." \
+                "Tag a commit that has a ci.yml run, or manually trigger ci.yml on this commit before tagging." >&2
+              exit 1
+            fi
+
+            status="$(echo "${run_json}" | jq -r '.status')"
+            conclusion="$(echo "${run_json}" | jq -r '.conclusion')"
+            run_id="$(echo "${run_json}" | jq -r '.id')"
+
+            if [ "${status}" = "completed" ]; then
+              if [ "${conclusion}" = "success" ]; then
+                echo "ci.yml run ${run_id} for ${COMMIT_SHA} succeeded — proceeding with deploy."
+                break
+              fi
+              echo "::error::ci.yml run ${run_id} for commit ${COMMIT_SHA} did not succeed" \
+                "(conclusion: ${conclusion})." >&2
+              exit 1
+            fi
+
+            if [ "${elapsed}" -ge "${timeout_seconds}" ]; then
+              echo "::error::Timed out after ${timeout_seconds}s waiting for ci.yml run ${run_id}" \
+                "on commit ${COMMIT_SHA} to complete (status: ${status})." >&2
+              exit 1
+            fi
+
+            echo "ci.yml run ${run_id} for ${COMMIT_SHA} is still ${status}; waiting ${poll_interval}s..."
+            sleep "${poll_interval}"
+            elapsed=$((elapsed + poll_interval))
+          done
 
   deploy:
     runs-on: ubuntu-latest

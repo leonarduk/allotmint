@@ -41,7 +41,7 @@ jobs:
           while true; do
             run_json="$(gh api \
               "repos/${REPO}/actions/workflows/ci.yml/runs?head_sha=${COMMIT_SHA}&per_page=10" \
-              --jq '.workflow_runs | sort_by(.run_started_at) | reverse | .[0]')"
+              --jq '.workflow_runs | sort_by(.id) | reverse | .[0]')"
 
             if [ "${run_json}" = "null" ]; then
               echo "::error::No ci.yml run found for commit ${COMMIT_SHA}." \

@@ -63,8 +63,10 @@ def find_iam_statement_rows(diff_output: str) -> list[list[str]]:
             continue
         cells = _table_row_cells(line)
         if cells is None:
-            # A non-table line (other than a border) ends this table.
-            if not line.strip().startswith(("┌", "├", "└", "┬", "┼", "┴")):
+            stripped = line.strip()
+            # Blank lines and box-drawing borders don't end the table; any
+            # other non-table line (e.g. the start of the next section) does.
+            if stripped and not stripped.startswith(("┌", "├", "└", "┬", "┼", "┴")):
                 in_table = False
             continue
         if "Effect" in cells and "Action" in cells:

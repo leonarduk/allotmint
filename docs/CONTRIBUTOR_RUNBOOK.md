@@ -335,6 +335,18 @@ Checks performed:
 6. **Frontend lint + tests** — `npm --prefix frontend run lint` and Vitest.
 7. **CDK tests** — `cdk/tests/` pytest suite.
 
+### What to expect during the automated deploy job
+
+Once you push a release tag (e.g., `v1.0.0`), the `.github/workflows/deploy-lambda.yml` workflow will automatically run. The `check-ci` job waits for the upstream `ci.yml` workflow to complete before proceeding with the actual deployment.
+
+**Important:** The `deploy` job will wait up to **30 minutes (1800 seconds)** for the `ci.yml` workflow to finish. This timeout exists because CI pipelines can take time to run, and we poll rather than immediately fail. During this wait:
+
+- The job polls the CI status every 30 seconds
+- You will see messages like `ci.yml run <id> for <commit> is still in_progress; waiting 30s...`
+- This is expected behavior — **do not cancel the deploy job** unless CI is explicitly failing (conclusion: `failure` or `cancelled`)
+
+See `.github/workflows/deploy-lambda.yml` (the `check-ci` job, starting at line 24) for the implementation details. If CI is expected to take longer than 30 minutes, or if you need to adjust the timeout, refer to the `timeout_seconds` variable in that workflow.
+
 ## 10. Deployment-related checks
 
 Before or alongside deployment work, group checks by task.

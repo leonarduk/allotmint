@@ -96,16 +96,65 @@ if (-not $baseSha) {
 $promptFile = [System.IO.Path]::GetTempFileName()
 Set-Content -Path $promptFile -Value "GitHub issue #${number}: $title`n`n$issueBody" -Encoding UTF8
 
+# Discover files the issue references that actually exist on disk and add them
+# to aider's editable context. Without explicit targets, weaker local models
+# tend to reply with prose like "please add these files to the chat" and make
+# no edits; because that reply is not aider's structured file-add prompt,
+# yes-always cannot accept it, so the run produces zero commits and aborts at
+# the guard below. The regex matches path-like tokens (optional dir segments +
+# filename.ext); Test-Path then keeps only the ones that exist, so over-broad
+# matches (version numbers, "e.g", URLs) are harmlessly discarded.
+#
+# Security: $issueBody is attacker-controllable (anyone who can open an issue),
+# so reject parent-dir traversal ('..') and absolute/rooted paths before the
+# existence check. Otherwise a crafted issue could reference a file outside the
+# repo (e.g. ../../.aws/credentials) that exists on disk and pull it into
+# aider's editable context, where it could be modified or leaked into a commit.
+# With those rejected and the relative path resolved from the repo root, every
+# kept match is confined to the repo subtree.
+#
+# Resolve candidates against the repo root, not $PWD: this script may be
+# invoked from a subdirectory (e.g. scripts/), in which case Test-Path against
+# $PWD would mis-resolve every relative path and either reject all real files
+# or accept paths relative to the wrong directory.
+$repoRoot = git rev-parse --show-toplevel 2>$null
+if (-not $repoRoot) {
+    Write-Error "Could not resolve repo root via 'git rev-parse --show-toplevel'."
+    exit 1
+}
+$pathPattern = '(?:[\w.-]+[\\/])*[\w.-]+\.[A-Za-z0-9]+'
+$referencedFiles = @(
+    [regex]::Matches("$title`n$issueBody", $pathPattern) |
+        ForEach-Object { $_.Value } |
+        Sort-Object -Unique |
+        Where-Object { $_ -notmatch '\.\.' -and -not [System.IO.Path]::IsPathRooted($_) } |
+        Where-Object { Test-Path -LiteralPath (Join-Path $repoRoot $_) -PathType Leaf } |
+        ForEach-Object { Join-Path $repoRoot $_ }
+)
+if ($referencedFiles.Count -gt 0) {
+    Write-Host "    Adding referenced files to aider context: $($referencedFiles -join ', ')"
+} else {
+    # Not fatal: aider can still create a new file or work from its repo-map, so
+    # let the run proceed. The no-commits guard below catches a true no-op.
+    Write-Warning "Issue text referenced no existing repo files; aider has no explicit edit targets and may make no changes. If the issue names files that do not exist, correct the issue text first."
+}
+
+# Pass each file via aider's repeatable --file flag. Aider also accepts bare
+# positional [FILE ...], but --file is unambiguous if a name ever looks like an
+# option. An empty array splats to nothing, leaving aider to work from repo-map.
+$fileArgs = @($referencedFiles | ForEach-Object { '--file', $_ })
+
 Write-Host "[4/6] Running aider on issue #$number..."
-aider --yes-always --message-file $promptFile
+aider @fileArgs --yes-always --message-file $promptFile
 Remove-Item $promptFile -ErrorAction SilentlyContinue
 if ($LASTEXITCODE -ne 0) { exit 1 }
 
 # Abort if aider made no commits - avoids pushing an empty branch and opening
-# a content-free PR (e.g. when the issue fetch silently returned no data).
+# a content-free PR. The most common cause is the model replying with prose
+# (for example asking for files) instead of edits, so auto-commit never fired.
 $newCommits = git rev-list "$baseSha..HEAD" --count 2>$null
 if (-not $newCommits -or [int]$newCommits -eq 0) {
-    Write-Error "Aider made no commits. Aborting push and PR creation. Check that the issue prompt was non-empty and that aider connected to the model successfully."
+    Write-Error "Aider made no commits, so there is nothing to push. This usually means the model replied without edits (e.g. asking for files). Review the aider output above; if the issue references files that do not exist in the repo, correct the issue text and retry."
     exit 1
 }
 Write-Host "    Aider produced $newCommits commit(s)."

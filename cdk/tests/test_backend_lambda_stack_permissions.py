@@ -568,6 +568,81 @@ def test_no_s3_grant_to_deploy_role_when_github_deploy_role_arn_absent(monkeypat
     )
 
 
+def _logs_statements_for_role_name(raw_template: dict, role_name: str) -> list[dict]:
+    """Return policy statements attached to the named role that grant logs:* actions."""
+    found: list[dict] = []
+    for res in raw_template["Resources"].values():
+        if res.get("Type") != "AWS::IAM::Policy":
+            continue
+        if role_name not in str(res.get("Properties", {}).get("Roles", [])):
+            continue
+        policy_doc = res.get("Properties", {}).get("PolicyDocument", {})
+        for stmt in policy_doc.get("Statement", []):
+            actions = stmt.get("Action", [])
+            if isinstance(actions, str):
+                actions = [actions]
+            if any(a.startswith("logs:") for a in actions):
+                found.append(stmt)
+    return found
+
+
+def test_deploy_role_gets_filter_log_events_on_backend_log_group(monkeypatch) -> None:
+    """BackendLambdaStack must grant the deploy role logs:FilterLogEvents scoped to
+    the BackendLambda log group ARN so the 'Fetch BackendLambda CloudWatch logs'
+    deploy steps can read post-deploy logs instead of getting AccessDeniedException.
+    CDK-managed so the grant re-applies on every deploy. See #3742."""
+    role_arn = "arn:aws:iam::123456789012:role/allotmint-github-deploy"
+    monkeypatch.setenv("GITHUB_DEPLOY_ROLE_ARN", role_arn)
+    monkeypatch.setenv("JWT_SECRET", "test-secret")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-client-id")
+    app = App()
+    stack = BackendLambdaStack(app, "BackendLambdaStackDeployRoleLogsTest")
+    raw = Template.from_stack(stack).to_json()
+    statements = _logs_statements_for_role_name(raw, "allotmint-github-deploy")
+
+    filter_log_events_resources: list[str] = []
+    for stmt in statements:
+        actions = stmt.get("Action", [])
+        if isinstance(actions, str):
+            actions = [actions]
+        if "logs:FilterLogEvents" not in actions:
+            continue
+        resources = stmt.get("Resource", [])
+        if isinstance(resources, (str, dict)):
+            resources = [resources]
+        filter_log_events_resources.extend(r if isinstance(r, str) else str(r) for r in resources)
+
+    assert filter_log_events_resources, (
+        "Expected the deploy role to be granted logs:FilterLogEvents in "
+        f"BackendLambdaStack, got statements: {statements}"
+    )
+    for resource in filter_log_events_resources:
+        assert "*" not in resource, (
+            f"Expected logs:FilterLogEvents resource to be scoped to the BackendLambda "
+            f"log group ARN (no wildcard), got: {resource}"
+        )
+        assert "BackendLambdaLogGroup" in resource, (
+            f"Expected logs:FilterLogEvents resource to reference the BackendLambda "
+            f"log group, got: {resource}"
+        )
+
+
+def test_no_logs_grant_to_deploy_role_when_github_deploy_role_arn_absent(monkeypatch) -> None:
+    """When GITHUB_DEPLOY_ROLE_ARN is unset, BackendLambdaStack must not grant
+    any CloudWatch Logs permissions to an imported deploy role."""
+    monkeypatch.delenv("GITHUB_DEPLOY_ROLE_ARN", raising=False)
+    monkeypatch.setenv("JWT_SECRET", "test-secret")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-client-id")
+    app = App()
+    stack = BackendLambdaStack(app, "BackendLambdaStackNoDeployRoleLogsTest")
+    raw = Template.from_stack(stack).to_json()
+    statements = _logs_statements_for_role_name(raw, "allotmint-github-deploy")
+    assert not statements, (
+        "Expected no CloudWatch Logs grants for the deploy role in BackendLambdaStack "
+        f"when GITHUB_DEPLOY_ROLE_ARN is unset, found: {statements}"
+    )
+
+
 def test_grant_bucket_access_raises_on_no_permissions() -> None:
     class _MockFn:
         def add_to_role_policy(self, policy_statement: object) -> None:

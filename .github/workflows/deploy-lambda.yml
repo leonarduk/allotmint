@@ -577,8 +577,9 @@ jobs:
         # BackendLambdaLogGroupName is exported by BackendLambdaStack at
         # cdk/stacks/backend_lambda_stack.py (CfnOutput "BackendLambdaLogGroupName").
         # The deploy IAM role must have logs:FilterLogEvents on the log group ARN for
-        # this step to produce output; without it filter-log-events errors and
-        # continue-on-error absorbs it.
+        # this step to produce output; see the FilterBackendLambdaLogEvents grant in
+        # cdk/stacks/backend_lambda_stack.py and scripts/bash/fetch-cloudwatch-logs.sh
+        # for how an AccessDeniedException is surfaced as a `::warning::`.
         if: always()
         continue-on-error: true
         env:
@@ -594,18 +595,7 @@ jobs:
             exit 0
           fi
           echo "=== BackendLambda CloudWatch logs (last 10 minutes) ==="
-          # aws logs tail is CLI v2 only; use filter-log-events for CLI v1 compatibility.
-          # Shell arithmetic avoids a python3 dependency on self-hosted runners.
-          # Note: filter-log-events returns at most 10 000 events per call (no pagination);
-          # output of "None" means no events matched (AWS CLI JMESPath null → text "None").
-          start_ms=$(( ($(date +%s) - 600) * 1000 ))
-          aws logs filter-log-events \
-            --log-group-name "$log_group" \
-            --start-time "$start_ms" \
-            --query 'events[].message' \
-            --output text \
-            | grep -v '^None$' \
-            || echo "(no log events found)"
+          bash scripts/bash/fetch-cloudwatch-logs.sh "$log_group" 600
 
       - name: Check recent BackendLambda CloudWatch errors
         if: always()
@@ -808,6 +798,10 @@ jobs:
           if-no-files-found: ignore
 
       - name: Fetch Lambda logs from smoke test
+        # The deploy IAM role must have logs:FilterLogEvents on the log group ARN for
+        # this step to produce output; see the FilterBackendLambdaLogEvents grant in
+        # cdk/stacks/backend_lambda_stack.py and scripts/bash/fetch-cloudwatch-logs.sh
+        # for how an AccessDeniedException is surfaced as a `::warning::`.
         if: always()
         continue-on-error: true
         env:
@@ -823,15 +817,4 @@ jobs:
             exit 0
           fi
           echo "=== BackendLambda CloudWatch logs (last 15 minutes) ==="
-          # aws logs tail is CLI v2 only; use filter-log-events for CLI v1 compatibility.
-          # Shell arithmetic avoids a python3 dependency on self-hosted runners.
-          # Note: filter-log-events returns at most 10 000 events per call (no pagination);
-          # output of "None" means no events matched (AWS CLI JMESPath null → text "None").
-          start_ms=$(( ($(date +%s) - 900) * 1000 ))
-          aws logs filter-log-events \
-            --log-group-name "$log_group" \
-            --start-time "$start_ms" \
-            --query 'events[].message' \
-            --output text \
-            | grep -v '^None$' \
-            || echo "(no log events found)"
+          bash scripts/bash/fetch-cloudwatch-logs.sh "$log_group" 900

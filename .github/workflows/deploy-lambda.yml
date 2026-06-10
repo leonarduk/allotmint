@@ -477,25 +477,31 @@ jobs:
             --query "UserPoolClient.ClientName" --output text)"
           CALLBACK_URL="https://${FRONTEND_DOMAIN}/"
           UPDATE_FILE="$(mktemp)"
-          cat > "$UPDATE_FILE" <<JSON
-          {
-            "UserPoolId": "${USER_POOL_ID}",
-            "ClientId": "${CLIENT_ID}",
-            "ClientName": "${CLIENT_NAME}",
-            "RefreshTokenValidity": 30,
-            "ExplicitAuthFlows": ["ALLOW_USER_SRP_AUTH", "ALLOW_REFRESH_TOKEN_AUTH"],
-            "SupportedIdentityProviders": ["COGNITO"],
-            "CallbackURLs": ["${CALLBACK_URL}"],
-            "LogoutURLs": ["${CALLBACK_URL}"],
-            "AllowedOAuthFlows": ["code"],
-            "AllowedOAuthScopes": ["email", "openid", "profile"],
-            "AllowedOAuthFlowsUserPoolClient": true,
-            "PreventUserExistenceErrors": "ENABLED",
-            "EnableTokenRevocation": true,
-            "EnablePropagateAdditionalUserContextData": false,
-            "AuthSessionValidity": 3
-          }
-          JSON
+          # Build the payload with jq (not a heredoc) so CLIENT_NAME is JSON-escaped;
+          # a client name containing a quote or backslash would otherwise produce
+          # malformed --cli-input-json.
+          jq -n \
+            --arg userPoolId "$USER_POOL_ID" \
+            --arg clientId "$CLIENT_ID" \
+            --arg clientName "$CLIENT_NAME" \
+            --arg callbackUrl "$CALLBACK_URL" \
+            '{
+              UserPoolId: $userPoolId,
+              ClientId: $clientId,
+              ClientName: $clientName,
+              RefreshTokenValidity: 30,
+              ExplicitAuthFlows: ["ALLOW_USER_SRP_AUTH", "ALLOW_REFRESH_TOKEN_AUTH"],
+              SupportedIdentityProviders: ["COGNITO"],
+              CallbackURLs: [$callbackUrl],
+              LogoutURLs: [$callbackUrl],
+              AllowedOAuthFlows: ["code"],
+              AllowedOAuthScopes: ["email", "openid", "profile"],
+              AllowedOAuthFlowsUserPoolClient: true,
+              PreventUserExistenceErrors: "ENABLED",
+              EnableTokenRevocation: true,
+              EnablePropagateAdditionalUserContextData: false,
+              AuthSessionValidity: 3
+            }' > "$UPDATE_FILE"
           aws cognito-idp update-user-pool-client --cli-input-json "file://${UPDATE_FILE}" >/dev/null
           rm -f "$UPDATE_FILE"
           echo "UiAuthClient ($CLIENT_ID) OAuth configuration reconciled to ${CALLBACK_URL}"

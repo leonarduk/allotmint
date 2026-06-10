@@ -454,8 +454,7 @@ jobs:
           fi
           head_output="$(aws s3api head-object \
               --bucket "$DATA_BUCKET" \
-              --key "prices/latest_prices.json" \
-              --no-cli-pager 2>&1)" && head_exit=0 || head_exit=$?
+              --key "prices/latest_prices.json" 2>&1)" && head_exit=0 || head_exit=$?
           if [ "$head_exit" -eq 0 ]; then
             echo "Price snapshot prices/latest_prices.json is present in s3://${DATA_BUCKET} — OK"
           elif echo "$head_output" | grep -qi "NoSuchKey\|Not Found\|404"; then

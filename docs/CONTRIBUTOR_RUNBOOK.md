@@ -345,7 +345,7 @@ Once you push a release tag (e.g., `v1.0.0`), the `.github/workflows/deploy-lamb
 - You will see messages like `ci.yml run <id> for <commit> is still in_progress; waiting 30s...`
 - This is expected behavior — **do not cancel the deploy job** unless CI is explicitly failing (conclusion: `failure` or `cancelled`)
 
-See `.github/workflows/deploy-lambda.yml` (the `check-ci` job, starting at line 24) for the implementation details. If CI is expected to take longer than 30 minutes, or if you need to adjust the timeout, refer to the `timeout_seconds` variable in that workflow.
+See `.github/workflows/deploy-lambda.yml` (the `check-ci` job) for the implementation details. If CI is expected to take longer than 30 minutes, or if you need to adjust the timeout, refer to the `timeout_seconds` variable in that workflow.
 
 ## 10. Deployment-related checks
 

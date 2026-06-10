@@ -326,7 +326,7 @@ During this wait:
 
 **Observable behavior:** If `ci.yml` succeeds within the timeout window, the deploy proceeds immediately. If the timeout fires or `ci.yml` fails, the deploy job exits with an error.
 
-Implementation details are in `.github/workflows/deploy-lambda.yml`, the `check-ci` job (lines 24–100), specifically the `timeout_seconds=1800` variable.
+Implementation details are in `.github/workflows/deploy-lambda.yml` (the `check-ci` job), specifically the `timeout_seconds=1800` variable.
 
 ## Deploy with AWS CDK
 

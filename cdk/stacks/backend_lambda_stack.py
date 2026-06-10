@@ -452,6 +452,21 @@ class BackendLambdaStack(Stack):
                 )
             )
 
+            # Grant the CI deploy role read access to BackendLambda's CloudWatch
+            # logs so the "Fetch BackendLambda CloudWatch logs" deploy steps can
+            # surface post-deploy errors instead of silently swallowing
+            # AccessDeniedException. Mirrors the FilterLogEvents statement in
+            # bootstrap-deploy-role.sh; this CDK grant is the source of truth
+            # thereafter and re-applies on every BackendLambdaStack deploy,
+            # preventing drift. See #3742.
+            github_role.add_to_principal_policy(
+                iam.PolicyStatement(
+                    sid="FilterBackendLambdaLogEvents",
+                    actions=["logs:FilterLogEvents"],
+                    resources=[backend_log_group.log_group_arn],
+                )
+            )
+
         events.Rule(
             self,
             "DailyPriceRefresh",

@@ -352,6 +352,17 @@ class BackendLambdaStack(Stack):
             integration=backend_integration,
             authorizer=apigwv2.HttpNoneAuthorizer(),
         )
+        # GET /config is the frontend's pre-auth bootstrap endpoint (see
+        # frontend/src/main.tsx Root.fetchConfig / getConfig()): it must be
+        # reachable before the caller has a Cognito token so the app can
+        # determine whether auth is required at all. PUT /config (admin
+        # config mutation) stays JWT-protected via the /{proxy+} catch-all.
+        backend_api.add_routes(
+            path="/config",
+            methods=[apigwv2.HttpMethod.GET],
+            integration=backend_integration,
+            authorizer=apigwv2.HttpNoneAuthorizer(),
+        )
         backend_api.add_routes(
             path="/",
             methods=[apigwv2.HttpMethod.ANY],

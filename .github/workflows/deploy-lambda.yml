@@ -439,10 +439,18 @@ jobs:
           echo "backend_url=$BACKEND_URL" >> "$GITHUB_OUTPUT"
 
       - name: Refresh StaticSiteStack runtime config
+        # GITHUB_DEPLOY_ROLE_ARN must be set here too (see "Deploy StaticSiteStack
+        # auth resources" above and #3846): without it, this redeploy of
+        # StaticSiteStack synthesizes a template that omits the deploy-role IAM
+        # grants (SimulatePrincipalPolicy, changeset perms, cognito-idp Describe/
+        # UpdateUserPoolClient), and CloudFormation deletes the policy resource
+        # that the earlier step just created — right before the "Reconcile
+        # UiAuthClient OAuth configuration" step needs it.
         env:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GITHUB_DEPLOY_ROLE_ARN: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           CDK_OUTDIR: /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
         run: >
           npx cdk deploy StaticSiteStack --require-approval never -c prod=true

@@ -4,29 +4,17 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import subprocess
 import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
 
+from llm_labels import extract_tier_label
 
 _ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
 _ANTHROPIC_MODEL = "claude-haiku-4-5-20251001"
 _FALLBACK_BODY_TEMPLATE = "Follow-up suggested by Claude AI review of PR #{pr_number}."
-
-_LLM_LABEL_MAP = {
-    "local-7b": "local-7b",
-    "local-14b": "local-14b",
-    "haiku": "haiku",
-    "sonnet": "sonnet",
-    "opus": "opus",
-}
-_LLM_TIER_PATTERN = re.compile(
-    r'\*\*LLM\s+tier\*\*[^\n]*\n[^\n]*\*\*(local-14b|local-7b|haiku|sonnet|opus)\b',
-    re.IGNORECASE,
-)
 
 
 def _generate_body_via_claude(title: str, pr_number: str, review_text: str) -> str:
@@ -97,17 +85,6 @@ End with: _Follow-up from AI review of PR #{pr_number}._"""
         return _FALLBACK_BODY_TEMPLATE.format(pr_number=pr_number)
 
 
-def _extract_llm_label(body: str) -> str | None:
-    """Return the tier label name (e.g. 'sonnet') if the body names a tier, else None."""
-    m = _LLM_TIER_PATTERN.search(body)
-    if m:
-        return _LLM_LABEL_MAP.get(m.group(1).lower())
-    for tier, label in _LLM_LABEL_MAP.items():
-        if re.search(rf'\b{tier}\b', body, re.IGNORECASE):
-            return label
-    return None
-
-
 def _build_body(title: str, pr_number: str, review_text: str | None) -> str:
     if review_text:
         return _generate_body_via_claude(title, pr_number, review_text)
@@ -149,7 +126,7 @@ def create_issues(
         print(f"Creating issue: {title}")
         body = _build_body(title, pr_number, review_text)
         labels = ["ai-suggested"]
-        llm_label = _extract_llm_label(body)
+        llm_label = extract_tier_label(body)
         if llm_label:
             labels.append(llm_label)
         label_args = [arg for label in labels for arg in ("--label", label)]

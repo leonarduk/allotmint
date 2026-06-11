@@ -11,7 +11,6 @@ from types import ModuleType
 
 import pytest
 
-
 SCRIPTS_DIR = Path(__file__).resolve().parents[1] / ".github" / "scripts"
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
@@ -180,25 +179,13 @@ def test_create_issues_passes_generated_body(
     assert created[0][body_idx] == "Rich body content"
 
 
-@pytest.mark.parametrize(
-    ("body", "expected_label"),
-    [
-        ("**LLM tier**\n**Haiku** — simple task", "haiku"),
-        ("**LLM tier**\n**Sonnet** — moderate reasoning", "sonnet"),
-        ("**LLM tier**\n**Opus** — complex design", "opus"),
-        ("**LLM tier**\n**local-7b** — simple mechanical change", "local-7b"),
-        ("**LLM tier**\n**local-14b** — moderate reasoning task", "local-14b"),
-        ("Use Haiku for this", "haiku"),
-        ("Use Sonnet here", "sonnet"),
-        ("Requires Opus", "opus"),
-        ("Suitable for local-7b", "local-7b"),
-        ("Recommend local-14b for this", "local-14b"),
-        ("No model mentioned", None),
-    ],
-)
-def test_extract_llm_label(body: str, expected_label: str | None) -> None:
+def test_uses_shared_llm_labels_module() -> None:
+    """Tier label extraction is delegated to the shared llm_labels module
+    (see tests/test_llm_labels.py for tier-extraction coverage)."""
     mod = load_module()
-    assert mod._extract_llm_label(body) == expected_label
+    import llm_labels
+
+    assert mod.extract_tier_label is llm_labels.extract_tier_label
 
 
 def test_create_issues_applies_llm_label(

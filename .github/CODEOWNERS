@@ -1,0 +1,29 @@
+# CODEOWNERS file for AllotMint
+# See https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+#
+# Code owners are automatically requested for review when someone opens a PR that modifies paths they own.
+# This file maps file patterns to owners who should review changes in those areas.
+
+# Backend code and API logic
+/backend/ @leonarduk
+
+# Backend tests
+/tests/ @leonarduk
+
+# Frontend code
+/frontend/ @leonarduk
+
+# CDK infrastructure-as-code
+/cdk/ @leonarduk
+
+# Infrastructure and deployment configuration
+/infra/ @leonarduk
+
+# GitHub configuration, workflows, and CI/CD
+/.github/ @leonarduk
+
+# Scripts and automation tools
+/scripts/ @leonarduk
+
+# Data files and fixtures
+/data/ @leonarduk

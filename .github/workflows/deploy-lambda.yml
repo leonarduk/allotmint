@@ -211,8 +211,12 @@ jobs:
             --stack-name BackendLambdaStack --query "Stacks[0].StackId" --output text 2>/dev/null || echo "")"
           static_site_stack_arn="$(aws cloudformation describe-stacks \
             --stack-name StaticSiteStack --query "Stacks[0].StackId" --output text 2>/dev/null || echo "")"
-          [ -n "$backend_stack_arn" ] || backend_stack_arn="*"
-          [ -n "$static_site_stack_arn" ] || static_site_stack_arn="*"
+          if [ -z "$backend_stack_arn" ] || [ "$backend_stack_arn" = "None" ]; then
+            backend_stack_arn="*"
+          fi
+          if [ -z "$static_site_stack_arn" ] || [ "$static_site_stack_arn" = "None" ]; then
+            static_site_stack_arn="*"
+          fi
 
           price_refresh_alias_arn="$(aws cloudformation list-stack-resources \
             --stack-name BackendLambdaStack \
@@ -226,10 +230,10 @@ jobs:
             --stack-name BackendLambdaStack \
             --query "StackResourceSummaries[?starts_with(LogicalResourceId,'BackendLambdaLogGroup')].PhysicalResourceId|[0]" \
             --output text 2>/dev/null || echo "")"
-          if [ -z "$backend_log_group" ] || [ "$backend_log_group" = "None" ]; then
+          account_id="$(aws sts get-caller-identity --query Account --output text 2>/dev/null || echo "")"
+          if [ -z "$backend_log_group" ] || [ "$backend_log_group" = "None" ] || [ -z "$account_id" ]; then
             backend_log_group_arn="*"
           else
-            account_id="$(aws sts get-caller-identity --query Account --output text)"
             # aws-actions/configure-aws-credentials sets AWS_REGION/AWS_DEFAULT_REGION
             # env vars rather than writing the CLI config file, so check those first;
             # fall back to `aws configure get region` for local/manual runs.

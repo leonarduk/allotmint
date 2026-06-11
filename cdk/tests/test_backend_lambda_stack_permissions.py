@@ -627,6 +627,47 @@ def test_deploy_role_gets_filter_log_events_on_backend_log_group(monkeypatch) ->
         )
 
 
+def test_deploy_role_gets_describe_log_streams_on_backend_log_group(monkeypatch) -> None:
+    """BackendLambdaStack must grant the deploy role logs:DescribeLogStreams scoped to
+    the BackendLambda log group ARN so log inspection tooling can enumerate log
+    streams without an AccessDeniedException. CDK-managed so the grant re-applies
+    on every deploy, following the #3191 pattern. See #3768."""
+    role_arn = "arn:aws:iam::123456789012:role/allotmint-github-deploy"
+    monkeypatch.setenv("GITHUB_DEPLOY_ROLE_ARN", role_arn)
+    monkeypatch.setenv("JWT_SECRET", "test-secret")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-client-id")
+    app = App()
+    stack = BackendLambdaStack(app, "BackendLambdaStackDeployRoleDescribeLogsTest")
+    raw = Template.from_stack(stack).to_json()
+    statements = _logs_statements_for_role_name(raw, "allotmint-github-deploy")
+
+    describe_log_streams_resources: list[str] = []
+    for stmt in statements:
+        actions = stmt.get("Action", [])
+        if isinstance(actions, str):
+            actions = [actions]
+        if "logs:DescribeLogStreams" not in actions:
+            continue
+        resources = stmt.get("Resource", [])
+        if isinstance(resources, (str, dict)):
+            resources = [resources]
+        describe_log_streams_resources.extend(r if isinstance(r, str) else str(r) for r in resources)
+
+    assert describe_log_streams_resources, (
+        "Expected the deploy role to be granted logs:DescribeLogStreams in "
+        f"BackendLambdaStack, got statements: {statements}"
+    )
+    for resource in describe_log_streams_resources:
+        assert "*" not in resource, (
+            f"Expected logs:DescribeLogStreams resource to be scoped to the BackendLambda "
+            f"log group ARN (no wildcard), got: {resource}"
+        )
+        assert "BackendLambdaLogGroup" in resource, (
+            f"Expected logs:DescribeLogStreams resource to reference the BackendLambda "
+            f"log group, got: {resource}"
+        )
+
+
 def test_no_logs_grant_to_deploy_role_when_github_deploy_role_arn_absent(monkeypatch) -> None:
     """When GITHUB_DEPLOY_ROLE_ARN is unset, BackendLambdaStack must not grant
     any CloudWatch Logs permissions to an imported deploy role."""

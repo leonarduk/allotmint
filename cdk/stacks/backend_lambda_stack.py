@@ -459,10 +459,14 @@ class BackendLambdaStack(Stack):
             # bootstrap-deploy-role.sh; this CDK grant is the source of truth
             # thereafter and re-applies on every BackendLambdaStack deploy,
             # preventing drift. See #3742.
+            # logs:DescribeLogStreams is also granted, following the
+            # ReadPriceSnapshot/ListPricesPrefix pattern from #3191, so log
+            # inspection tooling can enumerate the BackendLambda log streams
+            # without an AccessDeniedException. See #3768.
             github_role.add_to_principal_policy(
                 iam.PolicyStatement(
                     sid="FilterBackendLambdaLogEvents",
-                    actions=["logs:FilterLogEvents"],
+                    actions=["logs:FilterLogEvents", "logs:DescribeLogStreams"],
                     resources=[backend_log_group.log_group_arn],
                 )
             )

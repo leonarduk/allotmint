@@ -117,3 +117,54 @@ def test_specific_title_is_kept() -> None:
     assert extract_followups(review) == [
         "Refactor `extract_followups` to split the section-search logic into a helper"
     ]
+
+
+def test_generic_more_comments_without_detailed_is_dropped() -> None:
+    """'more comments for clarity' (no detailed/descriptive) is also generic."""
+    review = """\
+## 5. Suggested follow-up issues
+
+- Consider adding more comments for clarity
+- Add unit tests for the new helper
+
+**APPROVE**
+"""
+    assert extract_followups(review) == ["Add unit tests for the new helper"]
+
+
+def test_improve_readability_without_reference_is_dropped() -> None:
+    review = """\
+## 5. Suggested follow-up issues
+
+- Consider restructuring this block to improve readability
+- Add unit tests for the new helper
+
+**APPROVE**
+"""
+    assert extract_followups(review) == ["Add unit tests for the new helper"]
+
+
+def test_add_more_context_without_reference_is_dropped() -> None:
+    review = """\
+## 5. Suggested follow-up issues
+
+- Consider adding more context to the docstring
+- Add unit tests for the new helper
+
+**APPROVE**
+"""
+    assert extract_followups(review) == ["Add unit tests for the new helper"]
+
+
+def test_trivial_backtick_token_does_not_bypass_filter() -> None:
+    """A short, meaningless backtick token (e.g. a variable name like `s`) should
+    not count as a concrete reference and bypass the specificity filter."""
+    review = """\
+## 5. Suggested follow-up issues
+
+- Consider adding more detailed comments — use `s` for clarity
+- Add unit tests for the new helper
+
+**APPROVE**
+"""
+    assert extract_followups(review) == ["Add unit tests for the new helper"]

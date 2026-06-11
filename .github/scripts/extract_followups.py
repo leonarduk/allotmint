@@ -7,18 +7,21 @@ import re
 import sys
 from pathlib import Path
 
-_REFERENCE_PATTERN = re.compile(r'`[^`]+`')
+# Require at least 3 chars so trivial backtick tokens (`` `s` ``, `` `1` ``)
+# don't masquerade as a file/function/identifier reference.
+_REFERENCE_PATTERN = re.compile(r'`[^`]{3,}`')
 
 # Generic, low-value phrasing that gives an agent nothing concrete to act on.
 # A title is only rejected if it matches one of these AND has no backtick-quoted
 # file/function/identifier reference (see _is_low_specificity).
 _GENERIC_PHRASING_PATTERNS = [
     re.compile(
-        r'\bconsider adding (?:more )?(?:detailed|descriptive)\b.*\bfor clarity\b',
+        r'\bconsider adding (?:more )?(?:detailed|descriptive)?\s*'
+        r'(?:comments?|logging|documentation|tests?)\b.*\bfor clarity\b',
         re.IGNORECASE,
     ),
     re.compile(r'\bimprove readability\b', re.IGNORECASE),
-    re.compile(r'\badd more context\b', re.IGNORECASE),
+    re.compile(r'\badd(?:ing)? more context\b', re.IGNORECASE),
 ]
 
 

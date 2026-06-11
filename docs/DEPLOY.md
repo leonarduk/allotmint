@@ -313,6 +313,21 @@ within ~2 minutes on the PR instead of after a production tag push.
 you intend to tag. A red dry-run means a synth error would abort the production
 deploy at the same point.
 
+## CI polling and deploy timeout
+
+When you push a release tag (e.g., `v1.0.0`), the automated deploy workflow (`.github/workflows/deploy-lambda.yml`) waits for the upstream `ci.yml` workflow to complete before proceeding with infrastructure deployment. This is a safety gate to ensure no code is deployed until CI passes.
+
+**The `deploy` job will wait up to 30 minutes (1800 seconds) for the `ci.yml` workflow to complete.** This timeout allows CI pipelines adequate time to finish without blocking indefinitely.
+
+During this wait:
+- The workflow polls `ci.yml` status every 30 seconds
+- You will see log output like: `ci.yml run <id> for <commit> is still in_progress; waiting 30s...`
+- This is expected behavior — **do not cancel the job** during this wait window unless `ci.yml` explicitly fails
+
+**Observable behavior:** If `ci.yml` succeeds within the timeout window, the deploy proceeds immediately. If the timeout fires or `ci.yml` fails, the deploy job exits with an error.
+
+Implementation details are in `.github/workflows/deploy-lambda.yml` (the `check-ci` job), specifically the `timeout_seconds=1800` variable.
+
 ## Deploy with AWS CDK
 
 Production deploys are automated through `.github/workflows/deploy-lambda.yml`

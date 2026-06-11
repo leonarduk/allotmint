@@ -33,13 +33,40 @@ jobs:
         run: |
           set -euo pipefail
           echo "Checking ci.yml status for commit ${COMMIT_SHA}..."
+
+          # Helper function to call gh api with retry logic for transient failures
+          gh_api_with_retry() {
+            local max_attempts=5
+            local attempt=1
+            local wait_seconds=2
+            local output
+
+            while [ $attempt -le $max_attempts ]; do
+              if output=$(gh api "$@"); then
+                echo "$output"
+                return 0
+              fi
+
+              if [ $attempt -lt $max_attempts ]; then
+                echo "::warning::gh api call failed (attempt $attempt/$max_attempts), retrying in ${wait_seconds}s..." >&2
+                sleep "$wait_seconds"
+                wait_seconds=$((wait_seconds * 2))
+              fi
+
+              attempt=$((attempt + 1))
+            done
+
+            echo "::error::gh api call failed after $max_attempts attempts" >&2
+            return 1
+          }
+
           # Poll for the most recent ci.yml run on this exact commit and wait for
           # it to finish before deciding whether to proceed with the deploy.
           timeout_seconds=1800
           poll_interval=30
           elapsed=0
           while true; do
-            run_json="$(gh api \
+            run_json="$(gh_api_with_retry \
               "repos/${REPO}/actions/workflows/ci.yml/runs?head_sha=${COMMIT_SHA}&per_page=10" \
               --jq '.workflow_runs | sort_by(.id) | reverse | .[0]')"
 

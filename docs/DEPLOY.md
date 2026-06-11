@@ -73,43 +73,56 @@ for each path, whether that's handled for you or something you must do
 yourself.
 
 **You do not need to add a separate `GITHUB_DEPLOY_ROLE_ARN` secret or
-variable in GitHub.** The "Deploy BackendLambdaStack" step in
-`.github/workflows/deploy-lambda.yml` maps it directly from the existing
-`AWS_ROLE_TO_ASSUME` secret before invoking `cdk deploy`:
+variable in GitHub.** Multiple steps in `.github/workflows/deploy-lambda.yml`
+map it directly from the existing `AWS_ROLE_TO_ASSUME` secret before invoking
+`cdk deploy`. For example, the "Deploy StaticSiteStack auth resources" and
+"Deploy BackendLambdaStack" steps both use:
 
 ```yaml
 env:
   GITHUB_DEPLOY_ROLE_ARN: ${{ secrets.AWS_ROLE_TO_ASSUME }}
 ```
 
-So the only thing required for CI deploys to grant the invoke permission
-correctly is that the **pre-existing `AWS_ROLE_TO_ASSUME` secret is configured**
-(see the table above). New deployers and fork maintainers should:
+### Repository variable shadowing
+
+If `AWS_ROLE_TO_ASSUME` is set as both a **secret** and a **repository variable**
+under **Settings -> Secrets and variables -> Actions**, the **secret takes
+precedence** in the `${{ secrets.AWS_ROLE_TO_ASSUME }}` expression. The
+repository variable is only used as a fallback in expressions like
+`${{ secrets.AWS_ROLE_TO_ASSUME || vars.AWS_ROLE_TO_ASSUME }}` (note the `||`).
+
+For new deployers: set `AWS_ROLE_TO_ASSUME` as a **secret**, not a variable,
+to ensure the workflow uses your intended value and prevent accidental shadowing.
+
+### Setup checklist
+
+New deployers and fork maintainers should:
 
 1. **Confirm `AWS_ROLE_TO_ASSUME` is set** under **Settings -> Secrets and
    variables -> Actions** (`https://github.com/<owner>/<repo>/settings/secrets/actions`;
    see also GitHub's [guide to using secrets in Actions](https://docs.github.com/en/actions/security-guides/using-secrets-in-github-actions)).
 
    The workflow guards against an empty value for you, well before
-   `cdk deploy` runs. The "Verify required AWS secrets" step
-   (`.github/workflows/deploy-lambda.yml`) explicitly checks for an
-   empty string -- not just an unset secret -- and fails the run immediately:
+   `cdk deploy` runs. The "Verify required AWS secrets" step validates that
+   `AWS_ROLE_TO_ASSUME` is non-empty by checking both the secret and variable:
 
-   ```bash
-   if [ -z "${{ secrets.AWS_ROLE_TO_ASSUME }}${{ vars.AWS_ROLE_TO_ASSUME }}" ]; then
-     echo "AWS_ROLE_TO_ASSUME is not configured (set as secret or repository variable)" >&2
-     missing=1
-   fi
+   ```yaml
+   - name: Verify required AWS secrets
+     run: |
+       if [ -z "${{ secrets.AWS_ROLE_TO_ASSUME }}${{ vars.AWS_ROLE_TO_ASSUME }}" ]; then
+         echo "AWS_ROLE_TO_ASSUME is not configured (set as secret or repository variable)" >&2
+         exit 1
+       fi
    ```
 
    A non-empty-but-malformed ARN is caught shortly after, when
-   "Configure AWS credentials" fails to assume the role. Both steps run
-   well before "Deploy BackendLambdaStack" (where the `GITHUB_DEPLOY_ROLE_ARN`
-   mapping above lives), and a failed step halts the job by default -- so a
-   missing, empty, or malformed `AWS_ROLE_TO_ASSUME` cannot reach CDK synth
-   in CI. As long as `AWS_ROLE_TO_ASSUME` is a valid ARN, the
-   `GITHUB_DEPLOY_ROLE_ARN` mapping takes care of the rest -- no additional
-   secret needs to be created.
+   "Configure AWS credentials" fails to assume the role. Both the validation
+   and credential-config steps run well before any "Deploy *Stack" step
+   (where the `GITHUB_DEPLOY_ROLE_ARN` mapping lives), and a failed step
+   halts the job by default -- so a missing, empty, or malformed
+   `AWS_ROLE_TO_ASSUME` cannot reach CDK synth in CI. As long as
+   `AWS_ROLE_TO_ASSUME` is a valid ARN, the `GITHUB_DEPLOY_ROLE_ARN` mapping
+   takes care of the rest -- no additional secret needs to be created.
 
 2. **For bootstrap / first-time setup:** Refer to
    `scripts/bash/bootstrap-deploy-role.sh` and GitHub's
@@ -144,11 +157,17 @@ logic in `backend_lambda_stack.py` (e.g., checking secret length, format, or tru
 ensure dummy values still pass. Empty or falsy values will cause `cdk synth` to fail in
 CI and block deployment.
 
-For example, `if not jwt_secret:` is safe with the current placeholder — `"dummy"` is truthy
-so this guard does not fire. By contrast, `if len(jwt_secret) < 32:` breaks the dry-run
-immediately: `"dummy"` is only 5 characters, so that condition is true and `cdk synth` fails.
+**Safe validation guards** (work with `"dummy"`):
+- ✅ `if not jwt_secret:` — `"dummy"` is truthy, guard does not fire
+- ✅ `if jwt_secret == "":` — `"dummy"` is non-empty, guard does not fire
+
+**Unsafe validation guards** (break the dry-run):
+- ❌ `if len(jwt_secret) < 32:` — `"dummy"` is only 5 characters, guard fires and `cdk synth` fails
+- ❌ `if not re.match(r'^...complex...pattern...', jwt_secret):` — `"dummy"` likely doesn't match a strict format, guard fires and `cdk synth` fails
+
 Any new validation guard that the current placeholder cannot satisfy will break the CI
-dry-run gate.
+dry-run gate, so always test validation changes with the dummy values locally before
+deploying: `JWT_SECRET=dummy GOOGLE_CLIENT_ID=dummy npx cdk synth` in the `cdk/` directory.
 
 The advisory AI review workflows run on pull request `opened`, `reopened`, and `synchronize`
 events. They require `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` to be configured as GitHub
@@ -413,6 +432,93 @@ If static files are updated without redeploying the stack, invalidate the distri
 ```bash
 aws cloudfront create-invalidation --distribution-id <DIST_ID> --paths "/*"
 ```
+
+## CI/deployment troubleshooting
+
+### Common GitHub Actions deploy failures
+
+#### `AWS_ROLE_TO_ASSUME is not configured`
+**Symptom:** "Verify required AWS secrets" step fails with this message.
+
+**Cause:** `AWS_ROLE_TO_ASSUME` is not set as a GitHub secret or repository variable.
+
+**Fix:** Add it under **Settings -> Secrets and variables -> Actions**. Preferred:
+set it as a secret, not a variable (to avoid accidental shadowing if both exist).
+
+#### `User: arn:aws:iam::...:role/... is not authorized to perform: lambda:InvokeFunction`
+**Symptom:** "Warm price snapshot" step fails with an `AccessDenied` error during
+`aws lambda invoke`.
+
+**Cause:** `GITHUB_DEPLOY_ROLE_ARN` is missing or empty during CDK synthesis. The
+lambda:InvokeFunction grant (generated in `backend_lambda_stack.py`) was silently
+omitted from the synthesized CloudFormation template.
+
+**Fix:**
+- If deploying via CI: ensure `AWS_ROLE_TO_ASSUME` is set (the workflow maps it to
+  `GITHUB_DEPLOY_ROLE_ARN` automatically).
+- If deploying locally or running `pre-deploy-check.sh`: export the variable yourself:
+  ```bash
+  export GITHUB_DEPLOY_ROLE_ARN=arn:aws:iam::123456789012:role/github-oidc-deploy-role
+  ```
+
+**Why it matters:** Unlike most environment variables, `GITHUB_DEPLOY_ROLE_ARN` is
+read during CDK *synthesis* (before deploy), not at deploy time. A missing value
+at synth time results in a silently invalid template — the deploy succeeds, but
+the "Warm price snapshot" step fails at runtime.
+
+#### `cdk synth` fails with `ValueError: JWT_SECRET is not set`
+**Symptom:** CDK dry-run or deploy workflow fails immediately with this error.
+
+**Cause:** `JWT_SECRET` GitHub secret is missing or empty. The `backend_lambda_stack.py`
+stack declares this as a required secret and raises an error at synth time.
+
+**Fix:** Add `JWT_SECRET` under **Settings -> Secrets and variables -> Actions**.
+Generate a value with:
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+#### Pre-flight IAM simulation returns `AccessDenied`
+**Symptom:** "Pre-flight IAM permission check" step fails with:
+`Deploy role is missing <action> on <resource>` or `simulate-principal-policy unavailable`.
+
+**Cause:** The IAM role assumed by `AWS_ROLE_TO_ASSUME` lacks the permissions needed
+to deploy the stacks, or it lacks `iam:SimulatePrincipalPolicy` (a meta-permission
+used to check other permissions).
+
+**Fix:**
+1. If the error names a specific action (e.g., `cloudformation:CreateChangeSet`):
+   add that action to the deploy role's inline policy. See "Required IAM permissions
+   for the deploy role" above for a reference policy.
+2. If the error says `simulate-principal-policy unavailable`: run the bootstrap
+   script to add missing meta-permissions:
+   ```bash
+   bash scripts/bash/bootstrap-deploy-role.sh <aws-account-id>
+   ```
+   (See the script comments for OIDC trust relationship setup.)
+
+#### `StaticSiteStack` deploy fails with `AccessDenied` on `cognito-idp:DescribeUserPoolClient`
+**Symptom:** "Deploy StaticSiteStack auth resources" step fails with:
+`User: arn:aws:iam::...:role/... is not authorized to perform: cognito-idp:DescribeUserPoolClient`.
+
+**Cause:** Similar to the lambda:InvokeFunction issue above — `GITHUB_DEPLOY_ROLE_ARN`
+is missing or empty during CDK synthesis, so the cognito-idp grants in
+`static_site_stack.py` were silently omitted.
+
+**Fix:** Ensure `AWS_ROLE_TO_ASSUME` is set (the workflow will map it to
+`GITHUB_DEPLOY_ROLE_ARN` and grant the necessary cognito-idp permissions).
+
+### Local deployment checks
+
+Before pushing a release tag, run:
+
+```bash
+bash scripts/bash/pre-deploy-check.sh
+```
+
+This validates environment variables, dependency resolution, CDK synthesis, and
+IAM permissions in one pass. See "Before pushing a release tag" in
+`docs/CONTRIBUTOR_RUNBOOK.md` for details.
 
 ## Deployment troubleshooting checklist
 

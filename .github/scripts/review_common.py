@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import json
 import os
 import sys
+import urllib.error
+import urllib.request
+from dataclasses import dataclass
+from typing import Any, Callable
 
 MAX_DIFF_CHARS = 30_000
 DEFAULT_ISSUE_BODY = "No linked issue found. Review code on its own merits."
@@ -228,3 +232,49 @@ def format_truncation_log(original_diff: str, truncated_diff: str) -> str:
         f"{len(original_diff)} to {len(truncated_diff)} characters across "
         f"{count_changed_files(original_diff)} file block(s) to preserve whole diff sections."
     )
+
+
+def fetch_review(
+    url: str,
+    headers: dict[str, str],
+    payload: dict[str, Any],
+    extractor: Callable[[dict[str, Any]], tuple[str, dict[str, Any]]],
+    provider_label: str,
+) -> tuple[str, dict[str, Any]]:
+    """POST `payload` to `url` and return the review text plus provider-specific extras.
+
+    Shared by the Claude and GPT review scripts: handles the HTTP POST, timeout,
+    `HTTPError` reporting, and empty-response warning so each script only has to
+    supply its endpoint, headers, payload, and an `extractor` that turns the parsed
+    JSON response into `(review_text, extra)`. `extra` carries provider-specific
+    metadata (e.g. Claude's `stop_reason`) back to the caller.
+    """
+    request = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode(),
+        headers=headers,
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:
+            status = getattr(response, "status", None)
+            raw = response.read()
+            print(
+                f"INFO: {provider_label} API responded status={status} bytes={len(raw)}",
+                file=sys.stderr,
+            )
+            data = json.loads(raw)
+    except urllib.error.HTTPError as exc:
+        # Keep the provider response in stderr so maintainers can distinguish auth, quota, and API failures.
+        body = exc.read().decode()
+        print(f"ERROR: {provider_label} API returned {exc.code}: {body}", file=sys.stderr)
+        raise SystemExit(1) from exc
+
+    review, extra = extractor(data)
+    if not review.strip():
+        print(
+            f"WARNING: {provider_label} API returned an empty review body (status={status})",
+            file=sys.stderr,
+        )
+    return review, extra

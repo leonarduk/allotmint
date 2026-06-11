@@ -6,140 +6,18 @@ on:
 
 jobs:
   ai-review:
-    name: Claude AI code review
-    runs-on: ubuntu-latest
     if: ${{ github.actor != 'dependabot[bot]' }}
     permissions:
       pull-requests: write
       contents: read
       issues: write
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
-      - name: Get PR diff
-        id: diff
-        run: |
-          git fetch origin ${{ github.base_ref }}
-          DIFF=$(python3 .github/scripts/prepare_review_diff.py --base-ref "${{ github.base_ref }}")
-          DELIM="EOF_$(uuidgen | tr -d '-')"
-          {
-            echo "diff<<$DELIM"
-            echo "$DIFF"
-            echo "$DELIM"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Get linked issue body
-        id: issue
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          ISSUE_NUM=$(gh pr view ${{ github.event.pull_request.number }} --json body,title \
-            | jq -r '[.title, .body] | join(" ")' \
-            | grep -oE '(Closes|Fixes|Refs) #[0-9]+' | head -1 | grep -oE '[0-9]+' || true)
-          if [ -n "$ISSUE_NUM" ]; then
-            ISSUE_BODY=$(gh issue view "$ISSUE_NUM" --json body -q .body 2>/dev/null || echo "Issue not found")
-          else
-            ISSUE_BODY="No linked issue found. Review code on its own merits."
-          fi
-          DELIM="EOF_$(uuidgen | tr -d '-')"
-          {
-            echo "body<<$DELIM"
-            echo "$ISSUE_BODY"
-            echo "$DELIM"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Call Claude API
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          ANTHROPIC_MAX_TOKENS: "6000"
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          DIFF: ${{ steps.diff.outputs.diff }}
-          ISSUE_BODY: ${{ steps.issue.outputs.body }}
-        run: |
-          python3 .github/scripts/claude_review.py > /tmp/claude_review_body.md
-
-          # Guard: `-s` returns true only if the file exists AND has size > 0.
-          # This distinguishes a successful API response (review body written to stdout)
-          # from a failure (empty output, missing file, or API error).
-          # See docs/AI_REVIEW_WORKFLOWS.md for details.
-          if [ ! -s /tmp/claude_review_body.md ]; then
-            echo "ERROR: Claude review output was empty" >&2
-            exit 1
-          fi
-
-      - name: Check Claude approval
-        id: check_claude_approval
-        continue-on-error: true  # REQUEST CHANGES exits 1; allow later steps (post comment, create issues) to still run
-        run: |
-          if python3 .github/scripts/extract_verdict.py /tmp/claude_review_body.md Claude; then
-            echo "approved=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "approved=false" >> "$GITHUB_OUTPUT"
-            exit 1
-          fi
-
-      - name: Post Claude review comment
-        if: success() || failure()
-        continue-on-error: true  # If posting fails (e.g. API rate limit), don't fail job; review is also in Actions summary
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          bash .github/scripts/build_review_comment.sh /tmp/claude_review_body.md \
-            "Claude" "claude-pr-review.yml" "$RUN_URL" > /tmp/claude_comment_body.md
-
-          # Write to Actions job summary so the review is always visible in the UI,
-          # even if the gh pr comment call below fails.
-          cat /tmp/claude_comment_body.md >> "$GITHUB_STEP_SUMMARY"
-
-          if ! gh pr comment "$PR_NUMBER" --body-file /tmp/claude_comment_body.md; then
-            echo "::warning title=Claude review comment::Failed to post the Claude review comment to PR #$PR_NUMBER — check the Actions log above for the gh error (rate limit, token scope, or network)."
-            echo "WARNING: failed to post review comment — check the Actions log" >&2
-            exit 0
-          fi
-
-      - name: Create follow-up issues
-        if: steps.check_claude_approval.outputs.approved == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: |
-          # Ensure required labels exist before creating issues
-          gh label create "ai-suggested" --color "0075ca" --description "Suggested by AI code review" \
-            2>/dev/null || true
-          gh label create "haiku" --color "C5DEF5" --description "Suitable for Claude Haiku (simple/mechanical task)" \
-            2>/dev/null || true
-          gh label create "sonnet" --color "BFD4F2" --description "Suitable for Claude Sonnet (moderate reasoning)" \
-            2>/dev/null || true
-          gh label create "opus" --color "0052CC" --description "Suitable for Claude Opus (complex design/architecture)" \
-            2>/dev/null || true
-
-          # Extract titles to a file, then create issues via Python subprocess (no shell injection)
-          python3 .github/scripts/extract_followups.py /tmp/claude_review_body.md \
-            > /tmp/followups.json
-          python3 .github/scripts/create_followup_issues.py \
-            /tmp/followups.json "${PR_NUMBER}" /tmp/claude_review_body.md
-
-      - name: Add 'Changes Requested' label if review failed
-        if: steps.check_claude_approval.outputs.approved == 'false'
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          # Create the label if it doesn't exist
-          gh label create "Changes Requested" --color "d73a49" --description "PR requested changes from code review" \
-            2>/dev/null || true
-
-          # Add the label to the PR
-          gh pr edit "$PR_NUMBER" --add-label "Changes Requested"
-
-      - name: Fail if Claude did not approve
-        if: always() && steps.check_claude_approval.outcome == 'failure'
-        run: |
-          echo "::error::Claude review: CHANGES REQUESTED — address the review findings before merging."
-          exit 1
+    uses: ./.github/workflows/_ai-pr-review.yml
+    with:
+      provider_name: Claude
+      provider_id: claude
+      review_script: .github/scripts/claude_review.py
+      workflow_file: claude-pr-review.yml
+      anthropic_max_tokens: "6000"
+    secrets:
+      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+      gh_token: ${{ secrets.GITHUB_TOKEN }}

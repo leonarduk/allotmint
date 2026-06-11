@@ -15,6 +15,8 @@ SCRIPTS_DIR = Path(__file__).resolve().parents[1] / ".github" / "scripts"
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
+import review_common  # noqa: E402
+
 
 def load_script_module(module_name: str, file_name: str) -> ModuleType:
     spec = importlib.util.spec_from_file_location(module_name, SCRIPTS_DIR / file_name)
@@ -127,7 +129,7 @@ def test_review_script_prints_review_on_mocked_api_success(
     monkeypatch.setenv("PR_TITLE", "Add thing")
     monkeypatch.setenv("ISSUE_BODY", "Do thing")
     monkeypatch.setenv("DIFF", "diff --git a/a.py b/a.py\n+print('hi')\n")
-    monkeypatch.setattr(module.urllib.request, "urlopen", lambda *args, **kwargs: FakeResponse(payload))
+    monkeypatch.setattr(review_common.urllib.request, "urlopen", lambda *args, **kwargs: FakeResponse(payload))
 
     assert module.main() == 0
     assert "Looks good" in capsys.readouterr().out
@@ -173,7 +175,7 @@ def test_review_script_exits_on_empty_api_response(
     monkeypatch.setenv("PR_TITLE", "Add thing")
     monkeypatch.setenv("ISSUE_BODY", "Do thing")
     monkeypatch.setenv("DIFF", "diff --git a/a.py b/a.py\n+print('hi')\n")
-    monkeypatch.setattr(module.urllib.request, "urlopen", lambda *args, **kwargs: FakeResponse(payload))
+    monkeypatch.setattr(review_common.urllib.request, "urlopen", lambda *args, **kwargs: FakeResponse(payload))
 
     assert module.main() == 1
     assert expected_err in capsys.readouterr().err
@@ -209,7 +211,7 @@ def test_review_script_reports_mocked_api_failure(
             fp=io.BytesIO(b"upstream broke"),
         )
 
-    monkeypatch.setattr(module.urllib.request, "urlopen", raise_http_error)
+    monkeypatch.setattr(review_common.urllib.request, "urlopen", raise_http_error)
 
     with pytest.raises(SystemExit) as exc:
         module.main()

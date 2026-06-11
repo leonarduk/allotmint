@@ -4,12 +4,16 @@ This document describes how the Claude and GPT AI review workflows handle review
 
 ## Overview
 
-Two GitHub Actions workflows provide automated code reviews on pull requests:
+Two thin caller workflows trigger AI code reviews on pull requests by invoking a shared
+reusable workflow:
 
-- **claude-pr-review.yml**: Runs Claude AI review via the Anthropic API
-- **gpt-pr-review.yml**: Runs GPT review via the OpenAI API
+- **claude-pr-review.yml**: Calls the reusable workflow with the Anthropic provider config
+- **gpt-pr-review.yml**: Calls the reusable workflow with the OpenAI provider config
+- **_ai-pr-review.yml**: Reusable `workflow_call` workflow containing the actual review,
+  posting, verdict-checking, and follow-up-issue logic, parameterized per provider
 
-Both workflows follow the same pattern: generate a review, extract a verdict (APPROVE or REQUEST CHANGES), and post the full review to the PR regardless of verdict.
+Both providers follow the same pattern: generate a review, extract a verdict (APPROVE or
+REQUEST CHANGES), and post the full review to the PR regardless of verdict.
 
 ## Verdict Behavior
 
@@ -18,19 +22,19 @@ The verdict extraction step (`extract_verdict.py`) runs the AI review output thr
 1. **APPROVE** — the review found no blocking issues. The step exits 0 and sets `outputs.approved='true'`.
 2. **REQUEST CHANGES** — the review flagged issues that should be addressed before merge. The step exits 1 (non-zero) and sets `outputs.approved='false'`.
 
-**Important:** Downstream steps MUST check `steps.check_claude_approval.outputs.approved == 'true'`, NOT the step's exit status or `outcome`. The step is configured with `continue-on-error: true`, so a REQUEST CHANGES verdict (exit 1) does not block subsequent steps — they can run and decide what to do based on the output variable.
+**Important:** Downstream steps MUST check `steps.check_approval.outputs.approved == 'true'`, NOT the step's exit status or `outcome`. The step is configured with `continue-on-error: true`, so a REQUEST CHANGES verdict (exit 1) does not block subsequent steps — they can run and decide what to do based on the output variable.
 
 Example of correct pattern in a step:
 ```yaml
 - name: Take action based on review
-  if: steps.check_claude_approval.outputs.approved == 'true'
+  if: steps.check_approval.outputs.approved == 'true'
   run: echo "PR approved by AI"
 ```
 
 Example of **incorrect** pattern (will not work as intended):
 ```yaml
 - name: Take action based on review
-  if: steps.check_claude_approval.outcome == 'success'  # ❌ Wrong — continues even on REQUEST CHANGES
+  if: steps.check_approval.outcome == 'success'  # ❌ Wrong — continues even on REQUEST CHANGES
   run: echo "PR approved by AI"
 ```
 
@@ -42,7 +46,7 @@ When the AI API successfully generates a review, the full review content is post
 
 ### Failed Review
 
-If the AI API call fails before producing a non-empty review file (e.g., missing credentials, HTTP error, empty response), a fallback notice is posted instead. The exact text posted is generated in the `else` branch of the `-s` guard in each workflow's "Post review comment" step:
+If the AI API call fails before producing a non-empty review file (e.g., missing credentials, HTTP error, empty response), a fallback notice is posted instead. The exact text posted is generated in the `else` branch of the `-s` guard in `build_review_comment.sh`, called from the reusable workflow's "Post review comment" step:
 
 ```
 ## Claude AI Code Review - Failed
@@ -54,7 +58,7 @@ The Claude review failed to complete. Check [Actions](<run URL>) for error detai
 
 ### File-Existence Guard
 
-Both workflows use the POSIX test `[ -s /tmp/<reviewer>_review_body.md ]` to distinguish between:
+The reusable workflow uses the POSIX test `[ -s /tmp/<provider_id>_review_body.md ]` to distinguish between:
 
 1. **File exists and non-empty** (`-s` returns true): API call succeeded → post full review
 2. **File missing or empty** (`-s` returns false): API call failed → post fallback notice
@@ -74,7 +78,80 @@ As a secondary fallback for visibility, the review body is also written to `$GIT
 ## Workflow Step Configuration
 
 - **`if: success() || failure()`**: The "Post review comment" step runs even if the verdict is REQUEST CHANGES (which exits the preceding step with a non-zero exit code), so the full review is always visible. The condition excludes cancelled runs to avoid spurious failure notices when a run is superseded by a new push.
-- **`continue-on-error: true`**: Set on the "Post review comment" step in both `claude-pr-review.yml` and `gpt-pr-review.yml`. If the `gh pr comment` call fails, the job does not fail. The failure is recorded in the workflow logs but does not block the overall workflow.
+- **`continue-on-error: true`**: Set on the "Post review comment" step in `_ai-pr-review.yml`. If the `gh pr comment` call fails, the job does not fail. The failure is recorded in the workflow logs but does not block the overall workflow.
+- **`if: steps.check_approval.outputs.approved == 'true'`**: The "Create follow-up issues" step only runs when the review is an APPROVE. On REQUEST CHANGES, no follow-up issues are created — the blocking findings belong in the review itself, not the backlog. This condition is identical for both Claude and GPT.
+
+## Adding a new AI reviewer
+
+The reusable workflow `_ai-pr-review.yml` and the shared `fetch_review()` helper in
+`review_common.py` make it possible to add a third reviewer (e.g. Gemini) without copying
+the full workflow or HTTP/error-handling scaffolding. The contract:
+
+### 1. Shared prompt and verdict format
+
+Every reviewer must use:
+
+- `build_prompt(pr_title, diff, issue_body)` from `review_common.py` to construct the
+  review prompt — this keeps the review dimensions and repo-specific context identical
+  across providers.
+- The verdict markers `**APPROVE**` / `**REQUEST CHANGES**` at the end of the review, as
+  understood by `extract_verdict.py`. Do not introduce new verdict values.
+
+### 2. Review script
+
+Add `.github/scripts/<provider>_review.py` that:
+
+1. Calls `load_review_context(api_key_env)` to read `PR_TITLE`, `DIFF`, `ISSUE_BODY`, and
+   the provider's API key from the environment.
+2. Returns early via `emit_empty_diff_notice(provider_name)` if the diff is empty.
+3. Builds the prompt with `build_prompt(...)`.
+4. Calls `fetch_review(url, headers, payload, extractor, provider_label)` from
+   `review_common.py`, where `extractor(data) -> (review_text, extra)` parses the
+   provider's JSON response. `fetch_review()` handles the HTTP POST, timeout, `HTTPError`
+   reporting, and empty-response warning.
+5. Calls `finalize_review(review, empty_error_message)` to print the result or fail.
+
+### 3. Output file naming
+
+The reusable workflow writes the review to `/tmp/<provider_id>_review_body.md` and the
+posted comment to `/tmp/<provider_id>_comment_body.md`, where `<provider_id>` is the
+lowercase identifier passed via the `provider_id` input (e.g. `claude`, `gpt`, `gemini`).
+
+### 4. Registering the provider
+
+Add a new thin caller workflow, e.g. `.github/workflows/gemini-pr-review.yml`:
+
+```yaml
+name: Gemini PR Review
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+jobs:
+  ai-review:
+    if: ${{ github.actor != 'dependabot[bot]' }}
+    permissions:
+      pull-requests: write
+      contents: read
+      issues: write
+    uses: ./.github/workflows/_ai-pr-review.yml
+    with:
+      provider_name: Gemini
+      provider_id: gemini
+      review_script: .github/scripts/gemini_review.py
+      workflow_file: gemini-pr-review.yml
+    secrets:
+      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+      gh_token: ${{ secrets.GITHUB_TOKEN }}
+```
+
+`anthropic_api_key` and `gh_token` are required by the reusable workflow regardless of
+provider: `anthropic_api_key` is used for follow-up issue creation
+(`create_followup_issues.py`) on every reviewer's APPROVE verdict, and `gh_token` is used
+for `gh` CLI calls. Pass any provider-specific secret (e.g. a `GEMINI_API_KEY`) by adding
+a new optional secret to `_ai-pr-review.yml` and threading it through to the "Call API"
+step's `env:` block, following the existing `openai_api_key` pattern.
 
 ## Debugging
 

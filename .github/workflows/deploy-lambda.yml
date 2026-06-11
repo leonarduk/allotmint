@@ -183,9 +183,13 @@ jobs:
       - name: Pre-flight IAM permission check
         # Verifies that the deploy role has every permission needed by this
         # workflow before spending ~8 minutes on CDK deploy.
-        # Each action is simulated against its correct resource ARN so that
-        # scoped grants (e.g. bucket-level s3:ListBucket vs object-level
-        # s3:GetObject) do not produce false implicitDeny results.
+        # Each action is simulated against the *same* resource ARN(s) (and, where
+        # relevant, condition context) that the CDK-managed grants actually scope
+        # the permission to. The deploy role's grants are narrowly scoped per
+        # stack/function/log-group/object (see GithubDeployRolePolicy* and
+        # allotmint-deploy-permissions), so simulating against "*" produces false
+        # implicitDeny results even when the real `cdk deploy`/sync steps below
+        # would succeed. See issue #4945.
         # If the role itself lacks iam:SimulatePrincipalPolicy the simulate
         # call returns an error, which is surfaced as a distinct message so the
         # operator knows to add that meta-permission to the base role.
@@ -193,6 +197,7 @@ jobs:
           DEPLOY_ROLE_ARN: ${{ secrets.AWS_ROLE_TO_ASSUME }}
         run: |
           set -euo pipefail
+
           data_bucket="$(aws cloudformation list-stack-resources \
             --stack-name BackendLambdaStack \
             --query "StackResourceSummaries[?starts_with(LogicalResourceId,'PortfolioDataBucket')].PhysicalResourceId|[0]" \
@@ -202,24 +207,66 @@ jobs:
             data_bucket="*"
           fi
 
-          # Map each action to its correct resource ARN.
-          # s3:ListBucket acts on the bucket; s3:GetObject acts on objects.
-          # CloudFormation, Lambda, and logs actions are wildcarded because the
-          # deploy role's grants target multiple stacks/functions/log groups.
-          declare -A action_resource=(
-            ["cloudformation:CreateChangeSet"]="*"
-            ["cloudformation:DescribeChangeSet"]="*"
-            ["cloudformation:DeleteChangeSet"]="*"
-            ["lambda:InvokeFunction"]="*"
-            ["s3:ListBucket"]="arn:aws:s3:::${data_bucket}"
-            ["s3:GetObject"]="arn:aws:s3:::${data_bucket}/*"
-            ["logs:FilterLogEvents"]="*"
+          backend_stack_arn="$(aws cloudformation describe-stacks \
+            --stack-name BackendLambdaStack --query "Stacks[0].StackId" --output text 2>/dev/null || echo "")"
+          static_site_stack_arn="$(aws cloudformation describe-stacks \
+            --stack-name StaticSiteStack --query "Stacks[0].StackId" --output text 2>/dev/null || echo "")"
+          [ -n "$backend_stack_arn" ] || backend_stack_arn="*"
+          [ -n "$static_site_stack_arn" ] || static_site_stack_arn="*"
+
+          price_refresh_alias_arn="$(aws cloudformation list-stack-resources \
+            --stack-name BackendLambdaStack \
+            --query "StackResourceSummaries[?starts_with(LogicalResourceId,'PriceRefreshLambdaLiveAlias')].PhysicalResourceId|[0]" \
+            --output text 2>/dev/null || echo "")"
+          if [ -z "$price_refresh_alias_arn" ] || [ "$price_refresh_alias_arn" = "None" ]; then
+            price_refresh_alias_arn="*"
+          fi
+
+          backend_log_group="$(aws cloudformation list-stack-resources \
+            --stack-name BackendLambdaStack \
+            --query "StackResourceSummaries[?starts_with(LogicalResourceId,'BackendLambdaLogGroup')].PhysicalResourceId|[0]" \
+            --output text 2>/dev/null || echo "")"
+          if [ -z "$backend_log_group" ] || [ "$backend_log_group" = "None" ]; then
+            backend_log_group_arn="*"
+          else
+            account_id="$(aws sts get-caller-identity --query Account --output text)"
+            region="$(aws configure get region)"
+            backend_log_group_arn="arn:aws:logs:${region}:${account_id}:log-group:${backend_log_group}:*"
+          fi
+
+          if [ "$data_bucket" = "*" ]; then
+            get_object_resource="*"
+            list_bucket_resource="*"
+          else
+            get_object_resource="arn:aws:s3:::${data_bucket}/prices/latest_prices.json"
+            list_bucket_resource="arn:aws:s3:::${data_bucket}"
+          fi
+
+          # Each entry: "action|resource arns (space-separated)|context key=value (optional)"
+          # cloudformation:* and s3:ListBucket use grants that aren't visible from a
+          # single resource: the changeset perms cover both stacks, and ListBucket is
+          # conditioned on an s3:prefix. Pass both stack ARNs / the matching condition
+          # so simulate-principal-policy evaluates the grant CDK actually created.
+          checks=(
+            "cloudformation:CreateChangeSet|${backend_stack_arn} ${static_site_stack_arn}|"
+            "cloudformation:DescribeChangeSet|${backend_stack_arn} ${static_site_stack_arn}|"
+            "cloudformation:DeleteChangeSet|${backend_stack_arn} ${static_site_stack_arn}|"
+            "lambda:InvokeFunction|${price_refresh_alias_arn}|"
+            "s3:ListBucket|${list_bucket_resource}|s3:prefix=prices"
+            "s3:GetObject|${get_object_resource}|"
+            "logs:FilterLogEvents|${backend_log_group_arn}|"
           )
 
           failed=0
           simulate_unavailable=0
-          for action in "${!action_resource[@]}"; do
-            resource="${action_resource[$action]}"
+          for check in "${checks[@]}"; do
+            IFS='|' read -r action resources context <<< "$check"
+            context_args=()
+            if [ -n "$context" ]; then
+              context_key="${context%%=*}"
+              context_value="${context#*=}"
+              context_args=(--context-entries "ContextKeyName=${context_key},ContextKeyValues=${context_value},ContextKeyType=string")
+            fi
             # || true prevents set -e from aborting; 2>&1 already captures the real
             # AWS error into raw_result. Using || raw_result="error" would overwrite
             # the actual message and break the AccessDenied/SimulatePrincipalPolicy
@@ -227,9 +274,12 @@ jobs:
             raw_result="$(aws iam simulate-principal-policy \
               --policy-source-arn "$DEPLOY_ROLE_ARN" \
               --action-names "$action" \
-              --resource-arns "$resource" \
-              --query "EvaluationResults[0].EvalDecision" --output text 2>&1)" || true
-            result="$(echo "$raw_result" | tail -1)"
+              --resource-arns $resources \
+              "${context_args[@]}" \
+              --query "EvaluationResults[].EvalDecision" --output text 2>&1)" || true
+            # Multiple resource ARNs come back tab-separated on one line; every one
+            # must be "allowed" for the action to be considered granted.
+            results="$(echo "$raw_result" | tail -1 | tr '\t' '\n')"
             # Distinguish three cases:
             # 1. AccessDenied specifically for iam:SimulatePrincipalPolicy itself —
             #    role lacks the meta-permission; degrade gracefully so the bootstrap
@@ -246,12 +296,12 @@ jobs:
               echo "  Raw AWS response: $raw_result" >&2
               simulate_unavailable=1
             elif echo "$raw_result" | grep -qi "exception\|error\|AccessDenied"; then
-              # Use $raw_result (full response) not $result (last line only) to catch
+              # Use $raw_result (full response) not $results (last line only) to catch
               # multi-line AWS error payloads where the error type is on line 1.
               echo "::error::simulate-principal-policy call failed unexpectedly for $action. Raw response: $raw_result" >&2
               failed=1
-            elif [ "$result" != "allowed" ]; then
-              echo "::error::Deploy role is missing $action on $resource (got: $result). Fix the CDK grant or base role policy before deploying." >&2
+            elif echo "$results" | grep -qv "^allowed$"; then
+              echo "::error::Deploy role is missing $action on $resources (got: $(echo "$results" | tr '\n' ' ')). Fix the CDK grant or base role policy before deploying." >&2
               failed=1
             fi
           done

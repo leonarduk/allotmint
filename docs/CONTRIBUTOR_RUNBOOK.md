@@ -97,7 +97,21 @@ Before running the deployment workflow or `pre-deploy-check.sh`, ensure these va
 | Variable | Purpose | Example |
 | --- | --- | --- |
 | `AWS_REGION` | AWS region for CDK and Lambda deployment | `AWS_REGION=eu-west-2` |
-| `GITHUB_DEPLOY_ROLE_ARN` | IAM role ARN for GitHub Actions deployment (used by CI/CD) | `GITHUB_DEPLOY_ROLE_ARN=arn:aws:iam::123456789012:role/github-deploy` |
+| `GITHUB_DEPLOY_ROLE_ARN` | IAM role ARN that CDK grants permissions to at synthesis time (must match the role that will execute the deploy in GitHub Actions) | `GITHUB_DEPLOY_ROLE_ARN=arn:aws:iam::123456789012:role/github-oidc-deploy-role` |
+
+**⚠️ Important: `GITHUB_DEPLOY_ROLE_ARN` vs. `AWS_ROLE_TO_ASSUME`**
+
+For CI/GitHub Actions deploys:
+- `AWS_ROLE_TO_ASSUME`: the GitHub Actions secret that the `configure-aws-credentials` action assumes
+- `GITHUB_DEPLOY_ROLE_ARN`: the same ARN, set as an environment variable during CDK synthesis so the stacks grant permissions to the deploy role
+
+For local `cdk deploy` or `pre-deploy-check.sh` runs:
+- Export `GITHUB_DEPLOY_ROLE_ARN` to the same value as your deploy role ARN
+- This is not needed if you're using GitHub Actions — the workflow maps it for you
+
+**Why both?** `GITHUB_DEPLOY_ROLE_ARN` is read during CDK synthesis (before the deploy even starts) to generate CloudFormation grants. If it's missing at synthesis time, the grants are silently omitted from the template, causing later workflow steps to fail with permission errors.
+
+See `docs/DEPLOY.md` ("Critical: `GITHUB_DEPLOY_ROLE_ARN` environment variable for CDK synth") for detailed background and troubleshooting.
 
 **Optional but recommended:**
 
@@ -328,6 +342,7 @@ The script runs each check in sequence and prints a `PASS` / `FAIL` / `SKIP` lin
 Checks performed:
 
 1. **Deployment environment variables** — validates that `DATA_BUCKET`, `JWT_SECRET`, and `GOOGLE_CLIENT_ID` are set. If AWS credentials are detected, also validates `AWS_REGION` and `GITHUB_DEPLOY_ROLE_ARN`. See "[Deployment environment variables](#deployment-environment-variables-required-for-awsgithub-actions-deployment)" above for details.
+   - `GITHUB_DEPLOY_ROLE_ARN` is required when deploying with AWS credentials because it is read by CDK at synthesis time (not deploy time) to grant the deploy role permission to invoke Lambda functions and call Cognito APIs. If absent during synthesis, those grants are silently omitted and the deploy succeeds but subsequent workflow steps fail. See `docs/DEPLOY.md` ("Critical: `GITHUB_DEPLOY_ROLE_ARN` environment variable for CDK synth") for details.
 2. **Dependency dry-run** — pip conflict detection before Docker build.
 3. **CDK synth + diff** — confirms the stacks synthesise cleanly and shows what would change (requires `AWS_ACCESS_KEY_ID`, `GITHUB_DEPLOY_ROLE_ARN`, `JWT_SECRET`, `GOOGLE_CLIENT_ID`, `DATA_BUCKET`).
 4. **IAM permission simulation** — verifies the deploy role has the S3/Lambda/CloudFormation permissions needed by the deploy workflow (requires AWS credentials and `GITHUB_DEPLOY_ROLE_ARN`).

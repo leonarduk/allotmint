@@ -4,9 +4,11 @@
 
 AllotMint is a family investing platform with a FastAPI backend, React frontend, and AWS deployment support.
 
-- Product and architecture overview: [docs/README.md](docs/README.md)
-- Local setup and contributor workflow: [docs/CONTRIBUTOR_RUNBOOK.md](docs/CONTRIBUTOR_RUNBOOK.md)
-- User-oriented setup/readme: [docs/USER_README.md](docs/USER_README.md)
+- **Contributing**: [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) — environment variables, code quality expectations, and first PR walkthrough
+- **Product and architecture overview**: [docs/README.md](docs/README.md)
+- **Local setup and contributor workflow**: [docs/CONTRIBUTOR_RUNBOOK.md](docs/CONTRIBUTOR_RUNBOOK.md) — installation, running locally, testing, and pre-deploy checks
+- **Deployment guide**: [docs/DEPLOY.md](docs/DEPLOY.md) — AWS CDK, environment setup, troubleshooting, and IAM permissions
+- **User-oriented setup/readme**: [docs/USER_README.md](docs/USER_README.md)
 
 ## AWS architecture
 

@@ -415,6 +415,11 @@ class StaticSiteStack(Stack):
         # churn. Covers both stacks because `cdk diff` targets both. See #3192.
         github_deploy_role_arn = os.getenv("GITHUB_DEPLOY_ROLE_ARN", "")
         if github_deploy_role_arn:
+            # mutable=True is required: the role is bootstrapped externally
+            # (bootstrap-deploy-role.sh) but CDK is the source of truth for
+            # the inline policies attached below via add_to_principal_policy.
+            # With mutable=False those calls would be no-ops and the grants
+            # in this block would silently fail to apply. See #3370.
             github_role = iam.Role.from_role_arn(
                 self, "GithubDeployRole", github_deploy_role_arn, mutable=True
             )

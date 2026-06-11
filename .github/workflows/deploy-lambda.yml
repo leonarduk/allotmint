@@ -189,7 +189,7 @@ jobs:
         # stack/function/log-group/object (see GithubDeployRolePolicy* and
         # allotmint-deploy-permissions), so simulating against "*" produces false
         # implicitDeny results even when the real `cdk deploy`/sync steps below
-        # would succeed. See issue #4945.
+        # would succeed. See issue #3910.
         # If the role itself lacks iam:SimulatePrincipalPolicy the simulate
         # call returns an error, which is surfaced as a distinct message so the
         # operator knows to add that meta-permission to the base role.
@@ -230,7 +230,10 @@ jobs:
             backend_log_group_arn="*"
           else
             account_id="$(aws sts get-caller-identity --query Account --output text)"
-            region="$(aws configure get region)"
+            # aws-actions/configure-aws-credentials sets AWS_REGION/AWS_DEFAULT_REGION
+            # env vars rather than writing the CLI config file, so check those first;
+            # fall back to `aws configure get region` for local/manual runs.
+            region="${AWS_REGION:-${AWS_DEFAULT_REGION:-$(aws configure get region)}}"
             backend_log_group_arn="arn:aws:logs:${region}:${account_id}:log-group:${backend_log_group}:*"
           fi
 
@@ -238,6 +241,9 @@ jobs:
             get_object_resource="*"
             list_bucket_resource="*"
           else
+            # GithubDeployRoleForLambdaInvokePolicy's ReadPriceSnapshot statement
+            # grants s3:GetObject on this exact key only (not a prefix wildcard),
+            # so this is the only object the deploy role can read.
             get_object_resource="arn:aws:s3:::${data_bucket}/prices/latest_prices.json"
             list_bucket_resource="arn:aws:s3:::${data_bucket}"
           fi
@@ -261,6 +267,9 @@ jobs:
           simulate_unavailable=0
           for check in "${checks[@]}"; do
             IFS='|' read -r action resources context <<< "$check"
+            # Word-split intentionally: $resources is a space-separated list of one
+            # or more ARNs (e.g. both stack ARNs for the changeset checks).
+            read -r -a resource_arr <<< "$resources"
             context_args=()
             if [ -n "$context" ]; then
               context_key="${context%%=*}"
@@ -274,7 +283,7 @@ jobs:
             raw_result="$(aws iam simulate-principal-policy \
               --policy-source-arn "$DEPLOY_ROLE_ARN" \
               --action-names "$action" \
-              --resource-arns $resources \
+              --resource-arns "${resource_arr[@]}" \
               "${context_args[@]}" \
               --query "EvaluationResults[].EvalDecision" --output text 2>&1)" || true
             # Multiple resource ARNs come back tab-separated on one line; every one

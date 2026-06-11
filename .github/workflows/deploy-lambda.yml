@@ -511,7 +511,34 @@ jobs:
             echo "FRONTEND_DOMAIN is unset; refusing to write an empty CallbackURL" >&2
             exit 1
           fi
-          CLIENT_NAME="$(aws cognito-idp describe-user-pool-client \
+          # Retry on AccessDeniedException: the StaticSiteStack deploy above just
+          # created/updated the deploy role's cognito-idp:DescribeUserPoolClient /
+          # UpdateUserPoolClient grant, and IAM policy changes are eventually
+          # consistent — a freshly granted permission may not be visible to the
+          # very next API call for up to a minute or two. Any other failure, or
+          # exhausting all attempts, fails immediately. See #3858.
+          cognito_retry() {
+            local desc="$1"; shift
+            local attempt out
+            for attempt in 1 2 3 4 5; do
+              if out="$("$@" 2>&1)"; then
+                printf '%s' "$out"
+                return 0
+              fi
+              if ! echo "$out" | grep -q "AccessDeniedException"; then
+                echo "$out" >&2
+                return 1
+              fi
+              if [ "$attempt" -eq 5 ]; then
+                echo "::error::$desc failed after 5 attempts with AccessDeniedException. Check the cognito-idp:DescribeUserPoolClient/UpdateUserPoolClient grant for the deploy role in cdk/stacks/static_site_stack.py." >&2
+                echo "$out" >&2
+                return 1
+              fi
+              echo "$desc attempt $attempt/5 failed with AccessDeniedException (IAM propagation lag); retrying in 15s..." >&2
+              sleep 15
+            done
+          }
+          CLIENT_NAME="$(cognito_retry "describe-user-pool-client" aws cognito-idp describe-user-pool-client \
             --user-pool-id "$USER_POOL_ID" --client-id "$CLIENT_ID" \
             --query "UserPoolClient.ClientName" --output text)"
           CALLBACK_URL="https://${FRONTEND_DOMAIN}/"
@@ -551,7 +578,7 @@ jobs:
               EnablePropagateAdditionalUserContextData: false,
               AuthSessionValidity: 3
             }' > "$UPDATE_FILE"
-          aws cognito-idp update-user-pool-client --cli-input-json "file://${UPDATE_FILE}" >/dev/null
+          cognito_retry "update-user-pool-client" aws cognito-idp update-user-pool-client --cli-input-json "file://${UPDATE_FILE}" >/dev/null
           echo "UiAuthClient ($CLIENT_ID) OAuth configuration reconciled to ${CALLBACK_URL}"
 
       - name: Verify price snapshot seeded in S3

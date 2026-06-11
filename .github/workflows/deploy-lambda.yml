@@ -263,15 +263,23 @@ jobs:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GITHUB_DEPLOY_ROLE_ARN: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           CDK_OUTDIR: /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
         run: npx cdk diff BackendLambdaStack StaticSiteStack --method=template -c prod=true
         working-directory: cdk
 
       - name: Deploy StaticSiteStack auth resources
+        # GITHUB_DEPLOY_ROLE_ARN must be set here so CDK can synthesize the
+        # deploy-role IAM grants in static_site_stack.py (SimulatePrincipalPolicy,
+        # changeset perms, cognito-idp Describe/UpdateUserPoolClient). Without it,
+        # those grants are silently omitted from the deployed StaticSiteStack
+        # template and every dependent step (e.g. "Reconcile UiAuthClient OAuth
+        # configuration") fails with AccessDenied. See #3846.
         env:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GITHUB_DEPLOY_ROLE_ARN: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           CDK_OUTDIR: /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
         run: npx cdk deploy StaticSiteStack --require-approval never -c prod=true
         working-directory: cdk

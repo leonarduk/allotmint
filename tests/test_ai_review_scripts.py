@@ -3,13 +3,13 @@ from __future__ import annotations
 import importlib.util
 import io
 import json
+import subprocess
 import sys
+import urllib.error
 from pathlib import Path
 from types import ModuleType
-import urllib.error
 
 import pytest
-
 
 SCRIPTS_DIR = Path(__file__).resolve().parents[1] / ".github" / "scripts"
 if str(SCRIPTS_DIR) not in sys.path:
@@ -216,3 +216,33 @@ def test_review_script_reports_mocked_api_failure(
 
     assert exc.value.code == 1
     assert expected_message in capsys.readouterr().err
+
+
+def _run_git(args: list[str], cwd: Path) -> None:
+    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
+
+
+def test_default_globs_include_codeowners_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    module = load_script_module("prepare_review_diff", "prepare_review_diff.py")
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _run_git(["init", "-b", "main"], repo)
+    _run_git(["config", "user.email", "test@example.com"], repo)
+    _run_git(["config", "user.name", "Test"], repo)
+
+    (repo / "README.md").write_text("hello\n")
+    _run_git(["add", "README.md"], repo)
+    _run_git(["commit", "-m", "init"], repo)
+    _run_git(["update-ref", "refs/remotes/origin/main", "HEAD"], repo)
+
+    github_dir = repo / ".github"
+    github_dir.mkdir()
+    (github_dir / "CODEOWNERS").write_text("/backend/ @leonarduk\n")
+    _run_git(["add", ".github/CODEOWNERS"], repo)
+    _run_git(["commit", "-m", "add codeowners"], repo)
+
+    monkeypatch.chdir(repo)
+    diff = module.git_diff("main", module.DEFAULT_GLOBS)
+
+    assert ".github/CODEOWNERS" in diff

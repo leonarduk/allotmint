@@ -7,6 +7,30 @@ import re
 import sys
 from pathlib import Path
 
+# Require at least 3 chars so trivial backtick tokens (`` `s` ``, `` `1` ``)
+# don't masquerade as a file/function/identifier reference.
+_REFERENCE_PATTERN = re.compile(r'`[^`]{3,}`')
+
+# Generic, low-value phrasing that gives an agent nothing concrete to act on.
+# A title is only rejected if it matches one of these AND has no backtick-quoted
+# file/function/identifier reference (see _is_low_specificity).
+_GENERIC_PHRASING_PATTERNS = [
+    re.compile(
+        r'\bconsider adding (?:more )?(?:detailed|descriptive)?\s*'
+        r'(?:comments?|logging|documentation|tests?)\b.*\bfor clarity\b',
+        re.IGNORECASE,
+    ),
+    re.compile(r'\bimprove readability\b', re.IGNORECASE),
+    re.compile(r'\badd(?:ing)? more context\b', re.IGNORECASE),
+]
+
+
+def _is_low_specificity(title: str) -> bool:
+    """Return True if the title is too generic to act on without a reference."""
+    if _REFERENCE_PATTERN.search(title):
+        return False
+    return any(pattern.search(title) for pattern in _GENERIC_PHRASING_PATTERNS)
+
 
 def extract_followups(review_text: str) -> list[str]:
     """Return follow-up issue titles from section 5 of the review.
@@ -34,8 +58,12 @@ def extract_followups(review_text: str) -> list[str]:
     titles = []
     for m in re.finditer(r'^[-*]\s+(.+)', section_text, re.MULTILINE):
         title = m.group(1).strip()
-        if title and not verdict_title_re.match(title):
-            titles.append(title)
+        if not title or verdict_title_re.match(title):
+            continue
+        if _is_low_specificity(title):
+            print(f"Skipping low-specificity follow-up: {title}", file=sys.stderr)
+            continue
+        titles.append(title)
     return titles
 
 

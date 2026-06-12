@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import json
 import os
 import sys
+import urllib.error
+import urllib.request
+from dataclasses import dataclass
+from typing import Any, Callable
 
-MAX_DIFF_CHARS = 30_000
+MAX_DIFF_CHARS = 60_000
 DEFAULT_ISSUE_BODY = "No linked issue found. Review code on its own merits."
 TRUNCATION_NOTICE_TEMPLATE = (
     "\n\n[diff truncated after {kept_files} file(s); skipped {skipped_files} additional file(s) "
-    "to stay within the 30k-character review budget while preserving whole-file diff blocks]"
+    "to stay within the 60k-character review budget while preserving whole-file diff blocks]"
 )
 
 
@@ -78,7 +82,7 @@ and avoid regressions in CI/deployment workflows.
 ## PR title
 {pr_title}
 
-## Diff (Python, TypeScript, JavaScript, JSON, Markdown, HTML, config files, shell scripts (.sh), PowerShell scripts (.ps1) — truncated at 30k chars)
+## Diff (Python, TypeScript, JavaScript, JSON, Markdown, HTML, config files, shell scripts (.sh), PowerShell scripts (.ps1) — truncated at 60k chars)
 {diff}
 
 If the diff is empty, this is likely a docs-only or config-only PR whose file types
@@ -169,7 +173,7 @@ def split_diff_blocks(diff_text: str) -> list[str]:
 def truncate_diff(diff_text: str, limit: int = MAX_DIFF_CHARS) -> tuple[str, bool]:
     """Truncate a diff on whole-file boundaries and emit a notice when files are skipped.
 
-    The 30k-character cap exists to stay within model context and comment-size budgets. When the
+    The 60k-character cap exists to stay within model context and comment-size budgets. When the
     diff is too large, we keep only complete file blocks that fit and append a short summary rather
     than slicing through a line or partial YAML/JSON structure.
 
@@ -228,3 +232,56 @@ def format_truncation_log(original_diff: str, truncated_diff: str) -> str:
         f"{len(original_diff)} to {len(truncated_diff)} characters across "
         f"{count_changed_files(original_diff)} file block(s) to preserve whole diff sections."
     )
+
+
+def fetch_review(
+    url: str,
+    headers: dict[str, str],
+    payload: dict[str, Any],
+    extractor: Callable[[dict[str, Any]], tuple[str, dict[str, Any]]],
+    provider_label: str,
+) -> tuple[str, dict[str, Any]]:
+    """POST `payload` to `url` and return the review text plus provider-specific extras.
+
+    Shared by the Claude and GPT review scripts: handles the HTTP POST, timeout,
+    `HTTPError` reporting, and empty-response warning so each script only has to
+    supply its endpoint, headers, payload, and an `extractor` that turns the parsed
+    JSON response into `(review_text, extra)`. `extra` carries provider-specific
+    metadata (e.g. Claude's `stop_reason`) back to the caller.
+    """
+    request = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode(),
+        headers=headers,
+        method="POST",
+    )
+
+    status: int | None = None
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:
+            status = getattr(response, "status", None)
+            raw = response.read()
+            print(
+                f"INFO: {provider_label} API responded status={status} bytes={len(raw)}",
+                file=sys.stderr,
+            )
+            data = json.loads(raw)
+    except urllib.error.HTTPError as exc:
+        # Keep the provider response in stderr so maintainers can distinguish auth, quota, and API failures.
+        body = exc.read().decode()
+        print(f"ERROR: {provider_label} API returned {exc.code}: {body}", file=sys.stderr)
+        raise SystemExit(1) from exc
+    except urllib.error.URLError as exc:
+        print(f"ERROR: {provider_label} API request failed: {exc.reason}", file=sys.stderr)
+        raise SystemExit(1) from exc
+    except json.JSONDecodeError as exc:
+        print(f"ERROR: {provider_label} API returned non-JSON response: {exc}", file=sys.stderr)
+        raise SystemExit(1) from exc
+
+    review, extra = extractor(data)
+    if not review.strip():
+        print(
+            f"WARNING: {provider_label} API returned an empty review body (status={status})",
+            file=sys.stderr,
+        )
+    return review, extra

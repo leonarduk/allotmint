@@ -54,10 +54,10 @@
             "context": "CI / Lambda-compat pytest (backend/requirements.txt)"
           },
           {
-            "context": "Claude PR Review / Claude AI code review"
+            "context": "ai-review / Claude AI code review"
           },
           {
-            "context": "GPT PR Review / GPT AI code review"
+            "context": "ai-review / GPT AI code review"
           },
           {
             "context": "Merge Conflict Check / Check for merge conflicts with main"

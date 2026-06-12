@@ -387,6 +387,17 @@ jobs:
             --stack-name StaticSiteStack \
             --query "Stacks[0].Outputs[?OutputKey=='UiAuthUserPoolClientId'].OutputValue" \
             --output text)"
+          # DistributionDomain is the CloudFront domain the frontend is actually served
+          # from (customDomain is currently disabled — see cdk.json). BackendLambdaStack
+          # needs this as FRONTEND_ORIGIN so its CORS allow-list includes the live
+          # frontend origin (see #3944); without it, cors_origins defaults to
+          # localhost-only and the deployed frontend's GET /config never gets an
+          # Access-Control-Allow-Origin header, leaving it stuck on
+          # "Loading... retrying configuration."
+          DISTRIBUTION_DOMAIN="$(aws cloudformation describe-stacks \
+            --stack-name StaticSiteStack \
+            --query "Stacks[0].Outputs[?OutputKey=='DistributionDomain'].OutputValue" \
+            --output text)"
           if [ -z "$UI_AUTH_USER_POOL_ID" ] || [ "$UI_AUTH_USER_POOL_ID" = "None" ]; then
             echo "UiAuthUserPoolId output is missing from StaticSiteStack" >&2
             exit 1
@@ -395,8 +406,15 @@ jobs:
             echo "UiAuthUserPoolClientId output is missing from StaticSiteStack" >&2
             exit 1
           fi
-          echo "UI_AUTH_USER_POOL_ID=$UI_AUTH_USER_POOL_ID" >> "$GITHUB_ENV"
-          echo "UI_AUTH_USER_POOL_CLIENT_ID=$UI_AUTH_USER_POOL_CLIENT_ID" >> "$GITHUB_ENV"
+          if [ -z "$DISTRIBUTION_DOMAIN" ] || [ "$DISTRIBUTION_DOMAIN" = "None" ]; then
+            echo "DistributionDomain output is missing from StaticSiteStack" >&2
+            exit 1
+          fi
+          {
+            echo "UI_AUTH_USER_POOL_ID=$UI_AUTH_USER_POOL_ID"
+            echo "UI_AUTH_USER_POOL_CLIENT_ID=$UI_AUTH_USER_POOL_CLIENT_ID"
+            echo "FRONTEND_ORIGIN=https://${DISTRIBUTION_DOMAIN}"
+          } >> "$GITHUB_ENV"
 
       - name: Deploy BackendLambdaStack
         # GITHUB_DEPLOY_ROLE_ARN must be set here so CDK can read it during synthesis.
@@ -413,6 +431,7 @@ jobs:
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GITHUB_DEPLOY_ROLE_ARN: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           CDK_OUTDIR: /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
+          FRONTEND_ORIGIN: ${{ env.FRONTEND_ORIGIN }}
         run: >
           npx cdk deploy BackendLambdaStack --require-approval never
           --parameters BackendLambdaStack:UiAuthUserPoolId="$UI_AUTH_USER_POOL_ID"

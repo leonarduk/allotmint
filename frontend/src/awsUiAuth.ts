@@ -156,8 +156,12 @@ const exchangeCode = async (config: AuthConfig) => {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: tokenParams.toString(),
   });
-  if (!response.ok)
+  if (!response.ok) {
+    // The authorization code is single-use; strip it from the URL so a
+    // reload restarts the hosted-UI flow instead of replaying a dead code.
+    window.history.replaceState({}, document.title, window.location.pathname);
     throw new Error('AWS UI authentication token exchange failed');
+  }
   storeSession(
     (await response.json()) as {
       id_token: string;

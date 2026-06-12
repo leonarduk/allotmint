@@ -410,9 +410,11 @@ jobs:
             echo "DistributionDomain output is missing from StaticSiteStack" >&2
             exit 1
           fi
-          echo "UI_AUTH_USER_POOL_ID=$UI_AUTH_USER_POOL_ID" >> "$GITHUB_ENV"
-          echo "UI_AUTH_USER_POOL_CLIENT_ID=$UI_AUTH_USER_POOL_CLIENT_ID" >> "$GITHUB_ENV"
-          echo "FRONTEND_ORIGIN=https://${DISTRIBUTION_DOMAIN}" >> "$GITHUB_ENV"
+          {
+            echo "UI_AUTH_USER_POOL_ID=$UI_AUTH_USER_POOL_ID"
+            echo "UI_AUTH_USER_POOL_CLIENT_ID=$UI_AUTH_USER_POOL_CLIENT_ID"
+            echo "FRONTEND_ORIGIN=https://${DISTRIBUTION_DOMAIN}"
+          } >> "$GITHUB_ENV"
 
       - name: Deploy BackendLambdaStack
         # GITHUB_DEPLOY_ROLE_ARN must be set here so CDK can read it during synthesis.

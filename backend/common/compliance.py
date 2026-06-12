@@ -208,7 +208,12 @@ def _check_transactions(owner: str, txs: List[Dict[str, Any]], accounts_root: Op
         try:
             shares = float(raw_shares or 0.0)
         except (TypeError, ValueError):
-            logger.warning("invalid share count %r in transaction %s", raw_shares, t)
+            logger.warning(
+                "invalid share count %s in transaction (ticker=%s, date=%s)",
+                sanitise_log_value(raw_shares),
+                sanitise_log_value(t.get("ticker")),
+                sanitise_log_value(t.get("date")),
+            )
             shares = 0.0
         if action in {"buy", "purchase"}:
             last_buy[ticker] = d

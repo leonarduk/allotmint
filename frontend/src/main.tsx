@@ -527,7 +527,10 @@ void bootstrapRuntimeConfig()
     } else {
       createRoot(rootEl).render(
         <div role="alert" className="app-offline">
-          Authentication is unavailable. Please contact your administrator.
+          <p>Authentication is unavailable. Please contact your administrator.</p>
+          <button type="button" onClick={() => window.location.reload()}>
+            Sign in
+          </button>
         </div>
       );
     }

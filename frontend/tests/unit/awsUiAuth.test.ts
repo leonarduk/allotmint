@@ -241,12 +241,14 @@ describe('ensureAwsUiAuth', () => {
       expect(window.sessionStorage.getItem('awsUiAuthCodeVerifier')).toBeNull();
     });
 
-    it('throws when token endpoint returns an error response', async () => {
+    it('throws and cleans up URL when token endpoint returns an error response', async () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }));
+      const replaceState = vi.spyOn(window.history, 'replaceState');
 
       await expect(ensureAwsUiAuth(AUTH_CONFIG)).rejects.toThrow(
         'AWS UI authentication token exchange failed'
       );
+      expect(replaceState).toHaveBeenCalledWith({}, document.title, '/');
     });
   });
 });

@@ -157,6 +157,30 @@ for `gh` CLI calls. Pass any provider-specific secret (e.g. a `GEMINI_API_KEY`) 
 a new optional secret to `_ai-pr-review.yml` and threading it through to the "Call API"
 step's `env:` block, following the existing `openai_api_key` pattern.
 
+## 'Changes Requested' label contract
+
+`claude-pr-review.yml` and `gpt-pr-review.yml` each add the `Changes
+Requested` label to a PR when their own verdict is REQUEST CHANGES (see
+[Verdict Behavior](#verdict-behavior) above). Removing the label is handled
+separately by `.github/workflows/sync-changes-requested-label.yml`, which is
+triggered via `workflow_run` after either review workflow completes.
+
+The contract: the label is removed **only when both** the `Claude AI code
+review` and `GPT AI code review` check-runs for the current head SHA have
+concluded with `success`. This cannot be done from inside either review
+job, because a job's own check-run conclusion isn't finalized until the job
+completes — so neither workflow can observe the other's conclusion in time
+when both run concurrently on the same push.
+
+When the label is removed, `sync-changes-requested-label.yml` also posts a
+PR comment confirming both AI reviews passed. If the label was not present
+(e.g. both reviews approved on the first pass), no comment is posted.
+
+If a third reviewer is added (see [Adding a new AI reviewer](#adding-a-new-ai-reviewer)),
+update `sync-changes-requested-label.yml`'s `workflows:` trigger list and its
+conclusion checks to include the new provider's check-run name — otherwise
+the label will never be removed once the new reviewer also requests changes.
+
 ## Debugging
 
 When a review fails to post, check the Actions logs for:

@@ -47,6 +47,35 @@ the required-check ruleset:
 - `GPT PR Review / GPT AI code review`
 - `Claude PR Review / Claude AI code review`
 
+## Merge conflict check-run
+
+`.github/workflows/conflict-check.yml` produces a check-run named
+`"Check for merge conflicts with main"` (the literal value lives in the
+workflow's `env.CHECK_RUN_NAME`) from two different triggers:
+
+- `check-merge-conflicts` runs on `pull_request` and reports the result for
+  that PR's head SHA directly via the job's own check-run.
+- `recheck-open-prs` runs on `push` to `main` and re-validates every open PR
+  against the new `main`, posting a fresh check-run under the same name for
+  each PR's head SHA via `gh api repos/$REPO/check-runs`.
+
+Both triggers must keep using the exact same check-run name so that GitHub
+branch protection's "most recent check-run per name+SHA" evaluation treats
+them as the same required check. `recheck-open-prs` always **POSTs** a new
+check-run rather than attempting a GET-then-PATCH update: the GitHub Checks
+API ties `PATCH /repos/{owner}/{repo}/check-runs/{id}` to the specific
+installation token that created the check-run, and the `pull_request` and
+`push` triggers receive distinct installation tokens even though both run as
+`github-actions[bot]`. A cross-trigger PATCH therefore returns `403`. The
+accepted trade-off is that older check-run entries accumulate (cosmetically)
+in the "Checks" tab of long-lived PRs; see the inline comments in
+`conflict-check.yml` for the full investigation history (issue #3738, PR
+#3731).
+
+This check-run is currently advisory (not in the required-checks list above).
+If it is ever added to the ruleset, update this document and the ruleset in
+the same pull request.
+
 ## CodeQL
 
 CodeQL should be added to the required-check set only after a CodeQL workflow is

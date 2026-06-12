@@ -305,6 +305,37 @@ describe("client-side request forgery guard (CodeQL #218)", () => {
   });
 });
 
+describe("safe URL reconstruction (CodeQL #218 follow-up)", () => {
+  it("rebuilds the request URL from the trusted base origin and validated path/query", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
+    const { fetchJson: testFetchJson } = createClient(
+      "http://localhost:8000/api/v1",
+      null,
+      mockFetch as unknown as typeof fetch,
+    );
+    await testFetchJson("/holdings?owner=alice#section");
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://localhost:8000/api/v1/holdings?owner=alice#section",
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    );
+  });
+
+  it("still blocks a same-origin path outside the configured prefix when reconstructing", async () => {
+    const mockFetch = vi.fn();
+    const { fetchJson: testFetchJson } = createClient(
+      "http://localhost:8000/api/v1",
+      null,
+      mockFetch as unknown as typeof fetch,
+    );
+    await expect(
+      testFetchJson("http://localhost:8000/other-app/steal?x=1"),
+    ).rejects.toThrow("does not start with configured API base");
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+});
+
 describe("path-prefix guard (issue #3170)", () => {
   it("blocks a same-origin URL that does not match the configured API path prefix", async () => {
     const { fetchJson: testFetchJson } = createClient("http://localhost:8000/api/v1");

@@ -210,17 +210,23 @@ export function createClient(
         `Blocked request: ${parsedFull.href} does not start with configured API base`,
       );
     }
+    // Build the request URL from the trusted base origin plus the path/query/hash
+    // that just passed the checks above, rather than passing the raw `fullUrl`
+    // (derived directly from the `url` argument) to fetch. This keeps the value
+    // reaching fetchImpl tied to the validated `parsedFull` object so CodeQL's
+    // taint tracking can see it as guarded (js/client-side-request-forgery, CWE-918).
+    const safeUrl = `${baseOrigin}${parsedFull.pathname}${parsedFull.search}${parsedFull.hash}`;
     const headers = new Headers(init.headers);
     if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
     const csrf = getCsrfToken();
     if (csrf) headers.set("X-CSRFToken", csrf);
-    const res = await fetchImpl(fullUrl, {
+    const res = await fetchImpl(safeUrl, {
       ...init,
       headers,
       credentials: "include",
     });
     if (!res.ok) {
-      const err = new Error(`HTTP ${res.status} - ${res.statusText} (${fullUrl})`);
+      const err = new Error(`HTTP ${res.status} - ${res.statusText} (${safeUrl})`);
       (err as any).status = res.status;
       (err as any).headers = res.headers;
       throw err;

@@ -7,14 +7,24 @@ on:
   push:
     branches: [main]
 
+env:
+  # Single source of truth for the check-run name shared by both jobs
+  # below. The recheck-open-prs job reads this via `$CHECK_RUN_NAME` in
+  # its `gh api` call. GitHub Actions does NOT expose the workflow-level
+  # `env` context to `jobs.<job_id>.name`, so the literal `name:` field
+  # on check-merge-conflicts (below) cannot reference this variable and
+  # must be kept in sync with it manually.
+  CHECK_RUN_NAME: "Check for merge conflicts with main"
+
 jobs:
   check-merge-conflicts:
     if: github.event_name == 'pull_request'
-    # GitHub derives the check-run name from this `name:` field.
-    # The recheck-open-prs job posts a new check-run under the same name
-    # on every push to main. GitHub branch protection evaluates the most
-    # recent check-run per name+SHA, so both triggers satisfy the same
-    # required check without any additional configuration.
+    # GitHub derives the check-run name from this `name:` field. It must
+    # match `env.CHECK_RUN_NAME` above exactly -- the recheck-open-prs
+    # job posts a new check-run under that name on every push to main.
+    # GitHub branch protection evaluates the most recent check-run per
+    # name+SHA, so both triggers satisfy the same required check without
+    # any additional configuration.
     name: Check for merge conflicts with main
     runs-on: ubuntu-latest
     permissions:
@@ -120,7 +130,7 @@ jobs:
             # name+SHA, so the fresh POST reliably satisfies the required-check
             # gate without extra configuration.
             if ! gh api "repos/$REPO/check-runs" \
-              -f name="Check for merge conflicts with main" \
+              -f name="$CHECK_RUN_NAME" \
               -f head_sha="$sha" \
               -f status="completed" \
               -f conclusion="$conclusion" \

@@ -10,11 +10,11 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Any, Callable
 
-MAX_DIFF_CHARS = 30_000
+MAX_DIFF_CHARS = 60_000
 DEFAULT_ISSUE_BODY = "No linked issue found. Review code on its own merits."
 TRUNCATION_NOTICE_TEMPLATE = (
     "\n\n[diff truncated after {kept_files} file(s); skipped {skipped_files} additional file(s) "
-    "to stay within the 30k-character review budget while preserving whole-file diff blocks]"
+    "to stay within the 60k-character review budget while preserving whole-file diff blocks]"
 )
 
 
@@ -82,7 +82,7 @@ and avoid regressions in CI/deployment workflows.
 ## PR title
 {pr_title}
 
-## Diff (Python, TypeScript, JavaScript, JSON, Markdown, HTML, config files, shell scripts (.sh), PowerShell scripts (.ps1) — truncated at 30k chars)
+## Diff (Python, TypeScript, JavaScript, JSON, Markdown, HTML, config files, shell scripts (.sh), PowerShell scripts (.ps1) — truncated at 60k chars)
 {diff}
 
 If the diff is empty, this is likely a docs-only or config-only PR whose file types
@@ -173,7 +173,7 @@ def split_diff_blocks(diff_text: str) -> list[str]:
 def truncate_diff(diff_text: str, limit: int = MAX_DIFF_CHARS) -> tuple[str, bool]:
     """Truncate a diff on whole-file boundaries and emit a notice when files are skipped.
 
-    The 30k-character cap exists to stay within model context and comment-size budgets. When the
+    The 60k-character cap exists to stay within model context and comment-size budgets. When the
     diff is too large, we keep only complete file blocks that fit and append a short summary rather
     than slicing through a line or partial YAML/JSON structure.
 

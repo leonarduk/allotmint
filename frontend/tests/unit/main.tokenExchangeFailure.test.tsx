@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 let renderedElement: ReactElement | null = null;
@@ -68,13 +69,13 @@ describe('bootstrapRuntimeConfig — generic auth bootstrap failure', () => {
     );
 
     await import('@/main');
-    await new Promise((r) => setTimeout(r, 0));
+
+    await vi.waitFor(() => expect(renderedElement).not.toBeNull());
 
     expect(consoleError).toHaveBeenCalledWith(
       'AWS UI authentication bootstrap failed',
       expect.any(Error),
     );
-    expect(renderedElement).not.toBeNull();
 
     render(renderedElement!);
     const retryButton = screen.getByRole('button', { name: /sign in/i });
@@ -83,5 +84,14 @@ describe('bootstrapRuntimeConfig — generic auth bootstrap failure', () => {
 
     // The dead authorization code must be cleared so a reload restarts the hosted-UI flow.
     expect(window.location.search).toBe('');
+
+    const reloadSpy = vi.fn();
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { ...window.location, reload: reloadSpy },
+    });
+
+    await userEvent.click(retryButton);
+    expect(reloadSpy).toHaveBeenCalledTimes(1);
   });
 });

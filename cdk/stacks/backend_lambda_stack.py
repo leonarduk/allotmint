@@ -363,6 +363,23 @@ class BackendLambdaStack(Stack):
             integration=backend_integration,
             authorizer=apigwv2.HttpNoneAuthorizer(),
         )
+        # CORS preflight OPTIONS requests must never reach backend_authorizer:
+        # browsers send them without an Authorization header, so a JWT
+        # authorizer would reject them with 401 before CORS headers are
+        # returned. Register explicit OPTIONS routes with NONE authorization
+        # so they take precedence over the ANY-method routes below.
+        backend_api.add_routes(
+            path="/",
+            methods=[apigwv2.HttpMethod.OPTIONS],
+            integration=backend_integration,
+            authorizer=apigwv2.HttpNoneAuthorizer(),
+        )
+        backend_api.add_routes(
+            path="/{proxy+}",
+            methods=[apigwv2.HttpMethod.OPTIONS],
+            integration=backend_integration,
+            authorizer=apigwv2.HttpNoneAuthorizer(),
+        )
         backend_api.add_routes(
             path="/",
             methods=[apigwv2.HttpMethod.ANY],

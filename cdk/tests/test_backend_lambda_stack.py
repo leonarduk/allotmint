@@ -557,7 +557,7 @@ def test_backend_api_has_cognito_jwt_authorizer(template):
 
 def test_backend_api_routes_require_cognito_authorizer(template):
     """All API Gateway routes must require Cognito JWT authorization except
-    /health and GET /config.
+    /health, GET /config, and the CORS preflight OPTIONS routes.
 
     /health is intentionally unauthenticated so that post-deploy probes and
     smoke tests can confirm Lambda is reachable without needing a Cognito token.
@@ -565,10 +565,18 @@ def test_backend_api_routes_require_cognito_authorizer(template):
     pre-auth bootstrap endpoint (frontend/src/main.tsx Root.fetchConfig) used
     to determine whether auth is required at all; PUT /config remains
     JWT-protected via the /{proxy+} catch-all.
+    OPTIONS / and OPTIONS /{proxy+} are unauthenticated so that browser CORS
+    preflight requests (which never carry an Authorization header) are not
+    rejected with 401 before the real request is sent (see issue #3945).
     Asserts the full route set so that adding any other unprotected route will
     fail this test rather than silently bypassing the authorizer.
     """
-    UNAUTHENTICATED_ROUTES = {"GET /health", "GET /config"}
+    UNAUTHENTICATED_ROUTES = {
+        "GET /health",
+        "GET /config",
+        "OPTIONS /",
+        "OPTIONS /{proxy+}",
+    }
 
     routes = template.find_resources("AWS::ApiGatewayV2::Route")
     assert routes, "Expected at least one API Gateway route"

@@ -3,9 +3,11 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from aws_cdk import (
+    CfnCondition,
     CfnOutput,
     CfnParameter,
     Duration,
+    Fn,
     RemovalPolicy,
     Stack,
     triggers,
@@ -341,6 +343,18 @@ class BackendLambdaStack(Stack):
                 "run unauthenticated."
             ),
         )
+        # An empty SmokeTestUserPoolClientId (the default, and what the deploy
+        # workflow passes if StaticSiteStack has no such output) must NOT become
+        # an empty-string entry in the authorizer's JWT audience list below —
+        # that would silently accept tokens with an empty `aud` claim. Gate the
+        # smoke-test client with a condition so it's only added when non-empty.
+        has_smoke_test_client = CfnCondition(
+            self,
+            "HasSmokeTestUserPoolClientId",
+            expression=Fn.condition_not(
+                Fn.condition_equals(smoke_test_client_id_param.value_as_string, "")
+            ),
+        )
 
         ui_auth_user_pool = cognito.UserPool.from_user_pool_id(
             self, "ImportedUiAuthUserPool", ui_auth_user_pool_id_param.value_as_string
@@ -419,6 +433,28 @@ class BackendLambdaStack(Stack):
             methods=[apigwv2.HttpMethod.ANY],
             integration=backend_integration,
             authorizer=backend_authorizer,
+        )
+
+        # HttpUserPoolAuthorizer always includes every entry from
+        # user_pool_clients in JwtConfiguration.Audience, including an empty
+        # string for SmokeTestUserPoolClientId when it's left at its default.
+        # Override the synthesized audience so the smoke-test client ID is
+        # only present when the parameter is actually set (#4027 review).
+        backend_cfn_authorizer = next(
+            child
+            for child in backend_api.node.find_all()
+            if isinstance(child, apigwv2.CfnAuthorizer)
+        )
+        backend_cfn_authorizer.add_property_override(
+            "JwtConfiguration.Audience",
+            Fn.condition_if(
+                has_smoke_test_client.logical_id,
+                [
+                    ui_auth_client_id_param.value_as_string,
+                    smoke_test_client_id_param.value_as_string,
+                ],
+                [ui_auth_client_id_param.value_as_string],
+            ),
         )
 
         # Scheduled function to refresh prices daily

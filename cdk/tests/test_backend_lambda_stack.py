@@ -554,13 +554,12 @@ def test_backend_api_has_cognito_jwt_authorizer(template):
             "AuthorizerType": "JWT",
             "IdentitySource": ["$request.header.Authorization"],
             "JwtConfiguration": {
-                # Audience must reference the Cognito app client ID parameter for the
-                # browser-facing UI client, and also the smoke-test client (#4027) so
-                # post-deploy smoke test tokens aren't rejected with 401.
-                "Audience": assertions.Match.array_with([
-                    assertions.Match.object_like({"Ref": "UiAuthUserPoolClientId"}),
-                    assertions.Match.object_like({"Ref": "SmokeTestUserPoolClientId"}),
-                ]),
+                # Audience is conditionally built (Fn::If) so an empty
+                # SmokeTestUserPoolClientId never adds an empty-string audience
+                # entry — see test_backend_api_authorizer_audience_excludes_empty_smoke_test_client.
+                "Audience": assertions.Match.object_like(
+                    {"Fn::If": assertions.Match.any_value()}
+                ),
                 # Issuer must be a CloudFormation expression (Fn::Join), not a
                 # literal synth-time token like "${Token[...]}".
                 "Issuer": assertions.Match.object_like(
@@ -569,6 +568,32 @@ def test_backend_api_has_cognito_jwt_authorizer(template):
             },
         },
     )
+
+
+def test_backend_api_authorizer_audience_excludes_empty_smoke_test_client(template):
+    """When SmokeTestUserPoolClientId is empty (the default), the authorizer's
+    JWT audience must fall back to only UiAuthUserPoolClientId. Otherwise an
+    empty-string entry would be added to the audience list, which API Gateway
+    would treat as a valid (if useless) audience value (#4027 review)."""
+    json_template = template.to_json()
+
+    conditions = json_template.get("Conditions", {})
+    assert "HasSmokeTestUserPoolClientId" in conditions
+    assert conditions["HasSmokeTestUserPoolClientId"] == {
+        "Fn::Not": [{"Fn::Equals": [{"Ref": "SmokeTestUserPoolClientId"}, ""]}]
+    }
+
+    resources = template.find_resources("AWS::ApiGatewayV2::Authorizer")
+    authorizer = next(iter(resources.values()))
+    audience = authorizer["Properties"]["JwtConfiguration"]["Audience"]
+
+    condition_name, with_smoke_client, without_smoke_client = audience["Fn::If"]
+    assert condition_name == "HasSmokeTestUserPoolClientId"
+    assert with_smoke_client == [
+        {"Ref": "UiAuthUserPoolClientId"},
+        {"Ref": "SmokeTestUserPoolClientId"},
+    ]
+    assert without_smoke_client == [{"Ref": "UiAuthUserPoolClientId"}]
 
 
 def test_backend_api_routes_require_cognito_authorizer(template):

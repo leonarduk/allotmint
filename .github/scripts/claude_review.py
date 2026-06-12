@@ -2,14 +2,10 @@
 
 from __future__ import annotations
 
-import json
 import os
-import sys
-import urllib.error
-import urllib.request
 from typing import Any
 
-from review_common import build_prompt, emit_empty_diff_notice, finalize_review, load_review_context
+from review_common import build_prompt, emit_empty_diff_notice, fetch_review, finalize_review, load_review_context
 
 DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-6"
 DEFAULT_MAX_TOKENS = 2500
@@ -35,13 +31,11 @@ def get_max_tokens() -> int:
     return max(256, value)
 
 
-def extract_claude_review(data: dict[str, Any]) -> tuple[str, str | None]:
+def extract_claude_review(data: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     """Extract review text and stop reason from Anthropic messages responses."""
     content = data.get("content", [])
-    review = "\n".join(
-        block.get("text", "") for block in content if block.get("type") == "text"
-    ).strip()
-    return review, data.get("stop_reason")
+    review = "\n".join(block.get("text", "") for block in content if block.get("type") == "text").strip()
+    return review, {"stop_reason": data.get("stop_reason")}
 
 
 def fetch_claude_review(api_key: str, prompt: str) -> str:
@@ -55,40 +49,16 @@ def fetch_claude_review(api_key: str, prompt: str) -> str:
         "max_tokens": get_max_tokens(),
         "messages": [{"role": "user", "content": prompt}],
     }
-    request = urllib.request.Request(
-        "https://api.anthropic.com/v1/messages",
-        data=json.dumps(payload).encode(),
-        headers={
-            "x-api-key": api_key,
-            "anthropic-version": "2023-06-01",
-            "content-type": "application/json",
-        },
-        method="POST",
+    headers = {
+        "x-api-key": api_key,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+    }
+
+    review, extra = fetch_review(
+        "https://api.anthropic.com/v1/messages", headers, payload, extract_claude_review, "Claude"
     )
-
-    try:
-        with urllib.request.urlopen(request, timeout=60) as response:
-            status = getattr(response, "status", None)
-            raw = response.read()
-            print(
-                f"INFO: Claude API responded status={status} bytes={len(raw)}",
-                file=sys.stderr,
-            )
-            data = json.loads(raw)
-    except urllib.error.HTTPError as exc:
-        # Keep the provider response in stderr so maintainers can distinguish auth, quota, and API failures.
-        body = exc.read().decode()
-        print(f"ERROR: Claude API returned {exc.code}: {body}", file=sys.stderr)
-        raise SystemExit(1) from exc
-
-    review, stop_reason = extract_claude_review(data)
-    if not review.strip():
-        print(
-            f"WARNING: Claude API returned an empty review body "
-            f"(status={status}, stop_reason={stop_reason})",
-            file=sys.stderr,
-        )
-    if stop_reason == "max_tokens":
+    if extra.get("stop_reason") == "max_tokens":
         review = (
             f"{review}\n\n"
             "_Note: Claude hit the review token budget before finishing. "

@@ -81,6 +81,10 @@ As a secondary fallback for visibility, the review body is also written to `$GIT
 - **`continue-on-error: true`**: Set on the "Post review comment" step in `_ai-pr-review.yml`. If the `gh pr comment` call fails, the job does not fail. The failure is recorded in the workflow logs but does not block the overall workflow.
 - **`if: steps.check_approval.outputs.approved == 'true'`**: The "Create follow-up issues" step only runs when the review is an APPROVE. On REQUEST CHANGES, no follow-up issues are created — the blocking findings belong in the review itself, not the backlog. This condition is identical for both Claude and GPT. Before this consolidation, GPT created follow-up issues on every verdict; the maintainer confirmed (PR #3933) that the APPROVE-only behavior — Claude's prior behavior — is the intended one for both providers.
 
+## End-to-end validation
+
+PR #3933 itself is the end-to-end validation for this reusable-workflow refactor: every push to that PR triggers both `claude-pr-review.yml` and `gpt-pr-review.yml`, which call `_ai-pr-review.yml` via `workflow_call` with the `anthropic_api_key`/`openai_api_key`/`gh_token` secrets threaded through. Successful runs of `ai-review / Claude AI code review` and `ai-review / GPT AI code review` on that PR (posting review comments, extracting verdicts, and gating follow-up issue creation) confirm the reusable-workflow secret passing and `if:` conditions work as intended.
+
 ## Adding a new AI reviewer
 
 The reusable workflow `_ai-pr-review.yml` and the shared `fetch_review()` helper in

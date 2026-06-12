@@ -256,6 +256,7 @@ def fetch_review(
         method="POST",
     )
 
+    status: int | None = None
     try:
         with urllib.request.urlopen(request, timeout=60) as response:
             status = getattr(response, "status", None)
@@ -269,6 +270,12 @@ def fetch_review(
         # Keep the provider response in stderr so maintainers can distinguish auth, quota, and API failures.
         body = exc.read().decode()
         print(f"ERROR: {provider_label} API returned {exc.code}: {body}", file=sys.stderr)
+        raise SystemExit(1) from exc
+    except urllib.error.URLError as exc:
+        print(f"ERROR: {provider_label} API request failed: {exc.reason}", file=sys.stderr)
+        raise SystemExit(1) from exc
+    except json.JSONDecodeError as exc:
+        print(f"ERROR: {provider_label} API returned non-JSON response: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
 
     review, extra = extractor(data)

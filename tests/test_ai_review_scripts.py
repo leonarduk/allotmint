@@ -15,6 +15,8 @@ SCRIPTS_DIR = Path(__file__).resolve().parents[1] / ".github" / "scripts"
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
+import review_common  # noqa: E402
+
 
 def load_script_module(module_name: str, file_name: str) -> ModuleType:
     spec = importlib.util.spec_from_file_location(module_name, SCRIPTS_DIR / file_name)
@@ -25,8 +27,8 @@ def load_script_module(module_name: str, file_name: str) -> ModuleType:
 
 
 class FakeResponse:
-    def __init__(self, payload: dict[str, object]) -> None:
-        self._payload = json.dumps(payload).encode()
+    def __init__(self, payload: dict[str, object] | bytes, raw: bool = False) -> None:
+        self._payload = payload if raw else json.dumps(payload).encode()
 
     def read(self) -> bytes:
         return self._payload
@@ -127,7 +129,7 @@ def test_review_script_prints_review_on_mocked_api_success(
     monkeypatch.setenv("PR_TITLE", "Add thing")
     monkeypatch.setenv("ISSUE_BODY", "Do thing")
     monkeypatch.setenv("DIFF", "diff --git a/a.py b/a.py\n+print('hi')\n")
-    monkeypatch.setattr(module.urllib.request, "urlopen", lambda *args, **kwargs: FakeResponse(payload))
+    monkeypatch.setattr(review_common.urllib.request, "urlopen", lambda *args, **kwargs: FakeResponse(payload))
 
     assert module.main() == 0
     assert "Looks good" in capsys.readouterr().out
@@ -173,7 +175,7 @@ def test_review_script_exits_on_empty_api_response(
     monkeypatch.setenv("PR_TITLE", "Add thing")
     monkeypatch.setenv("ISSUE_BODY", "Do thing")
     monkeypatch.setenv("DIFF", "diff --git a/a.py b/a.py\n+print('hi')\n")
-    monkeypatch.setattr(module.urllib.request, "urlopen", lambda *args, **kwargs: FakeResponse(payload))
+    monkeypatch.setattr(review_common.urllib.request, "urlopen", lambda *args, **kwargs: FakeResponse(payload))
 
     assert module.main() == 1
     assert expected_err in capsys.readouterr().err
@@ -209,7 +211,93 @@ def test_review_script_reports_mocked_api_failure(
             fp=io.BytesIO(b"upstream broke"),
         )
 
-    monkeypatch.setattr(module.urllib.request, "urlopen", raise_http_error)
+    monkeypatch.setattr(review_common.urllib.request, "urlopen", raise_http_error)
+
+    with pytest.raises(SystemExit) as exc:
+        module.main()
+
+    assert exc.value.code == 1
+    assert expected_message in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("module_name", "file_name", "api_env", "expected_message"),
+    [
+        (
+            "gpt_review_url_error",
+            "gpt_review.py",
+            "OPENAI_API_KEY",
+            "ERROR: OpenAI API request failed: timed out",
+        ),
+        (
+            "claude_review_url_error",
+            "claude_review.py",
+            "ANTHROPIC_API_KEY",
+            "ERROR: Claude API request failed: timed out",
+        ),
+    ],
+)
+def test_review_script_reports_mocked_url_error(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    module_name: str,
+    file_name: str,
+    api_env: str,
+    expected_message: str,
+) -> None:
+    module = load_script_module(module_name, file_name)
+    monkeypatch.setenv(api_env, "test-key")
+    monkeypatch.setenv("PR_TITLE", "Add thing")
+    monkeypatch.setenv("ISSUE_BODY", "Do thing")
+    monkeypatch.setenv("DIFF", "diff --git a/a.py b/a.py\n+print('hi')\n")
+
+    def raise_url_error(*args, **kwargs):
+        raise urllib.error.URLError("timed out")
+
+    monkeypatch.setattr(review_common.urllib.request, "urlopen", raise_url_error)
+
+    with pytest.raises(SystemExit) as exc:
+        module.main()
+
+    assert exc.value.code == 1
+    assert expected_message in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("module_name", "file_name", "api_env", "expected_message"),
+    [
+        (
+            "gpt_review_bad_json",
+            "gpt_review.py",
+            "OPENAI_API_KEY",
+            "ERROR: OpenAI API returned non-JSON response",
+        ),
+        (
+            "claude_review_bad_json",
+            "claude_review.py",
+            "ANTHROPIC_API_KEY",
+            "ERROR: Claude API returned non-JSON response",
+        ),
+    ],
+)
+def test_review_script_reports_mocked_non_json_response(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    module_name: str,
+    file_name: str,
+    api_env: str,
+    expected_message: str,
+) -> None:
+    module = load_script_module(module_name, file_name)
+    monkeypatch.setenv(api_env, "test-key")
+    monkeypatch.setenv("PR_TITLE", "Add thing")
+    monkeypatch.setenv("ISSUE_BODY", "Do thing")
+    monkeypatch.setenv("DIFF", "diff --git a/a.py b/a.py\n+print('hi')\n")
+    monkeypatch.setattr(
+        review_common.urllib.request,
+        "urlopen",
+        lambda *args, **kwargs: FakeResponse(b"<html>not json</html>", raw=True),
+    )
 
     with pytest.raises(SystemExit) as exc:
         module.main()

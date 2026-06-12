@@ -49,8 +49,16 @@ jobs:
           echo "PR #${PR_NUMBER} @ ${HEAD_SHA}: Claude=${CLAUDE_CONCLUSION}, GPT=${GPT_CONCLUSION}"
 
           if [ "$CLAUDE_CONCLUSION" = "success" ] && [ "$GPT_CONCLUSION" = "success" ]; then
-            # Errors if the label isn't on the PR; that's fine, nothing to remove.
-            gh pr edit "$PR_NUMBER" --remove-label "Changes Requested" || true
+            HAS_LABEL=$(gh pr view "$PR_NUMBER" --json labels \
+              --jq '[.labels[].name] | any(. == "Changes Requested")')
+
+            if [ "$HAS_LABEL" = "true" ]; then
+              gh pr edit "$PR_NUMBER" --remove-label "Changes Requested"
+              gh pr comment "$PR_NUMBER" --body \
+                "Both Claude and GPT AI reviews have passed for the latest commit -- removing the 'Changes Requested' label."
+            else
+              echo "Label not present on PR #${PR_NUMBER}; nothing to remove."
+            fi
           else
             echo "At least one review hasn't approved yet; leaving 'Changes Requested' label as-is."
           fi

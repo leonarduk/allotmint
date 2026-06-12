@@ -82,21 +82,36 @@ jobs:
             # Merge against the exact commit that triggered this run, not the
             # origin/main remote-tracking ref -- another push could move that
             # ref between checkout and the merge attempt.
-            if git merge --no-commit --no-ff "$MAIN_SHA"; then
-              conclusion="success"
-              summary="No merge conflicts detected with the latest main."
-              echo "PR #$number: no merge conflicts with main."
-            else
-              conclusion="failure"
-              summary="PR #$number has merge conflicts with the latest main."
-              echo "::error::PR #$number ($branch) now has merge conflicts with main."
-            fi
+            #
+            # `git merge` exits 1 for both real content conflicts and other
+            # fatal errors (e.g. invalid ref, dirty worktree). Only exit code
+            # 1 with the working tree actually left mid-merge is a genuine
+            # conflict; anything else is an infrastructure problem and must
+            # not be reported as "has merge conflicts with main".
+            set +e
+            git merge --no-commit --no-ff "$MAIN_SHA"
+            merge_exit=$?
+            set -e
 
             # Always return to a clean state before the next iteration,
             # regardless of whether a merge is in progress or merely staged.
             git merge --abort 2>/dev/null || true
             git checkout --quiet --force "$sha"
             git clean -fd --quiet
+
+            if [ "$merge_exit" -eq 0 ]; then
+              conclusion="success"
+              summary="No merge conflicts detected with the latest main."
+              echo "PR #$number: no merge conflicts with main."
+            elif [ "$merge_exit" -eq 1 ]; then
+              conclusion="failure"
+              summary="PR #$number has merge conflicts with the latest main."
+              echo "::error::PR #$number ($branch) now has merge conflicts with main."
+            else
+              echo "::warning::git merge exited with unexpected code $merge_exit for PR #$number ($branch); skipping check-run update for this PR."
+              echo "::endgroup::"
+              continue
+            fi
 
             # Design decision (investigated in issue #3738, tested in PR #3731):
             # Always POST a new check-run; do not attempt PATCH.

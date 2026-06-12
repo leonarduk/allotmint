@@ -13,6 +13,13 @@ const applyAuth = async (page: Page) => {
 
   await page.addInitScript((token: string) => {
     window.localStorage.setItem('authToken', token);
+    // Seed a valid AWS UI auth (Cognito) session so ensureAwsUiAuth() finds an
+    // unexpired session and skips the hosted-UI redirect, which would navigate
+    // away from the app before it renders. See awsUiAuth.ts hasValidSession().
+    window.sessionStorage.setItem(
+      'awsUiAuthSession',
+      JSON.stringify({ idToken: token, expiresAt: Date.now() + 60 * 60 * 1000 })
+    );
   }, authToken);
 };
 

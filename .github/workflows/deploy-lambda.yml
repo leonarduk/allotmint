@@ -398,6 +398,19 @@ jobs:
             --stack-name StaticSiteStack \
             --query "Stacks[0].Outputs[?OutputKey=='DistributionDomain'].OutputValue" \
             --output text)"
+          # SmokeTestUserPoolClientId is the deploy workflow's dedicated Cognito app
+          # client for post-deploy smoke tests (see "Fetch Cognito smoke-test token"
+          # below). BackendLambdaStack must accept its tokens as a valid JWT audience,
+          # otherwise every Cognito-protected route (e.g. /groups) returns 401 for the
+          # smoke test token (#4027). Optional: the deploy still succeeds if this
+          # output is missing, but smoke tests will then see 401s on protected routes.
+          SMOKE_TEST_USER_POOL_CLIENT_ID="$(aws cloudformation describe-stacks \
+            --stack-name StaticSiteStack \
+            --query "Stacks[0].Outputs[?OutputKey=='SmokeTestUserPoolClientId'].OutputValue" \
+            --output text 2>/dev/null || echo "")"
+          if [ "$SMOKE_TEST_USER_POOL_CLIENT_ID" = "None" ]; then
+            SMOKE_TEST_USER_POOL_CLIENT_ID=""
+          fi
           if [ -z "$UI_AUTH_USER_POOL_ID" ] || [ "$UI_AUTH_USER_POOL_ID" = "None" ]; then
             echo "UiAuthUserPoolId output is missing from StaticSiteStack" >&2
             exit 1
@@ -413,6 +426,7 @@ jobs:
           {
             echo "UI_AUTH_USER_POOL_ID=$UI_AUTH_USER_POOL_ID"
             echo "UI_AUTH_USER_POOL_CLIENT_ID=$UI_AUTH_USER_POOL_CLIENT_ID"
+            echo "SMOKE_TEST_USER_POOL_CLIENT_ID=$SMOKE_TEST_USER_POOL_CLIENT_ID"
             echo "FRONTEND_ORIGIN=https://${DISTRIBUTION_DOMAIN}"
           } >> "$GITHUB_ENV"
 
@@ -436,6 +450,7 @@ jobs:
           npx cdk deploy BackendLambdaStack --require-approval never
           --parameters BackendLambdaStack:UiAuthUserPoolId="$UI_AUTH_USER_POOL_ID"
           --parameters BackendLambdaStack:UiAuthUserPoolClientId="$UI_AUTH_USER_POOL_CLIENT_ID"
+          --parameters BackendLambdaStack:SmokeTestUserPoolClientId="$SMOKE_TEST_USER_POOL_CLIENT_ID"
         working-directory: cdk
 
       - name: Warm price snapshot

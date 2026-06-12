@@ -319,6 +319,29 @@ class BackendLambdaStack(Stack):
             "UiAuthUserPoolClientId",
             **ui_auth_client_id_param_kwargs,
         )
+
+        # SmokeTestClient (static_site_stack.py) is a separate Cognito app client
+        # used only by the deploy workflow's post-deploy smoke tests. Its tokens
+        # must also pass backend_authorizer's audience check, otherwise every
+        # Cognito-protected route (e.g. /groups) returns 401 for the smoke test
+        # token even though /config and /health succeed (#4027). Optional with an
+        # empty default so synths without a configured smoke-test client still work.
+        smoke_test_client_id_default = self.node.try_get_context(
+            "smoke_test_user_pool_client_id"
+        ) or os.getenv("SMOKE_TEST_USER_POOL_CLIENT_ID")
+        smoke_test_client_id_param = CfnParameter(
+            self,
+            "SmokeTestUserPoolClientId",
+            type="String",
+            allowed_pattern=".*",
+            default=smoke_test_client_id_default or "",
+            description=(
+                "Cognito app client ID for the deploy workflow's SmokeTestClient, "
+                "exported by StaticSiteStack. Optional: leave empty if smoke tests "
+                "run unauthenticated."
+            ),
+        )
+
         ui_auth_user_pool = cognito.UserPool.from_user_pool_id(
             self, "ImportedUiAuthUserPool", ui_auth_user_pool_id_param.value_as_string
         )
@@ -328,7 +351,12 @@ class BackendLambdaStack(Stack):
             user_pool_clients=[
                 cognito.UserPoolClient.from_user_pool_client_id(
                     self, "ImportedUiAuthUserPoolClient", ui_auth_client_id_param.value_as_string
-                )
+                ),
+                cognito.UserPoolClient.from_user_pool_client_id(
+                    self,
+                    "ImportedSmokeTestUserPoolClient",
+                    smoke_test_client_id_param.value_as_string,
+                ),
             ],
             identity_source=["$request.header.Authorization"],
         )

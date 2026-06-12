@@ -521,6 +521,19 @@ def test_backend_api_auth_parameters_exist(template):
     assert "Default" not in params["UiAuthUserPoolClientId"]
 
 
+def test_smoke_test_user_pool_client_id_parameter_is_optional(template):
+    """SmokeTestUserPoolClientId must be optional so synths without a configured
+    smoke-test client (e.g. local/non-prod) still work."""
+    template.has_parameter(
+        "SmokeTestUserPoolClientId",
+        {
+            "Type": "String",
+            "AllowedPattern": ".*",
+            "Default": "",
+        },
+    )
+
+
 def test_backend_lambda_disables_app_jwt_decode_for_cognito_authorizer(template):
     """Lambda trusts API Gateway for Cognito auth and does not decode ID tokens as app JWTs."""
     template.has_resource_properties(
@@ -541,9 +554,12 @@ def test_backend_api_has_cognito_jwt_authorizer(template):
             "AuthorizerType": "JWT",
             "IdentitySource": ["$request.header.Authorization"],
             "JwtConfiguration": {
-                # Audience must reference the Cognito app client ID parameter.
+                # Audience must reference the Cognito app client ID parameter for the
+                # browser-facing UI client, and also the smoke-test client (#4027) so
+                # post-deploy smoke test tokens aren't rejected with 401.
                 "Audience": assertions.Match.array_with([
-                    assertions.Match.object_like({"Ref": "UiAuthUserPoolClientId"})
+                    assertions.Match.object_like({"Ref": "UiAuthUserPoolClientId"}),
+                    assertions.Match.object_like({"Ref": "SmokeTestUserPoolClientId"}),
                 ]),
                 # Issuer must be a CloudFormation expression (Fn::Join), not a
                 # literal synth-time token like "${Token[...]}".

@@ -1,3 +1,4 @@
+import html
 import logging
 import re
 from datetime import date
@@ -128,7 +129,10 @@ async def get_meta_timeseries(
             df[col] = df[col].map(lambda x: x.isoformat() if pd.notnull(x) else None)
         return JSONResponse(
             content={
-                "ticker": f"{ticker}.{exchange}",
+                # html.escape satisfies CodeQL's reflective-XSS check on this
+                # HTMLResponse-typed route; a no-op for valid ticker/exchange
+                # values (constrained to [A-Z0-9_-]).
+                "ticker": f"{html.escape(ticker)}.{html.escape(exchange)}",
                 "from": start_date.isoformat(),
                 "to": end_date.isoformat(),
                 "scaling": scaling,

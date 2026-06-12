@@ -1047,8 +1047,8 @@ def load_account(
                 sanitise_log_value(exc),
                 extra={
                     "event": "data_loader.account_provider_unavailable",
-                    "owner": owner,
-                    "account": account,
+                    "owner": sanitise_log_value(owner),
+                    "account": sanitise_log_value(account),
                     "fallback_to_local": bool(local_root),
                     "provider": "s3",
                 },

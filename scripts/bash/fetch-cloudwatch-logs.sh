@@ -21,11 +21,14 @@ lookback_seconds="${2:?lookback window in seconds required}"
 
 start_ms=$(( ($(date +%s) - lookback_seconds) * 1000 ))
 
+# Capture stdout (log data) separately from stderr (warnings/diagnostics).
+# Stderr from AWS CLI is allowed to flow to the workflow log; only stdout
+# is processed through grep -v to filter "None" entries.
 output="$(aws logs filter-log-events \
     --log-group-name "$log_group" \
     --start-time "$start_ms" \
     --query 'events[].message' \
-    --output text 2>&1)"
+    --output text)"
 exit_code=$?
 
 if [ "$exit_code" -ne 0 ]; then

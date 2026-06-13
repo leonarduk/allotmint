@@ -219,7 +219,11 @@ class BackendLambdaStack(Stack):
         )
         extra_cors_origins = self.node.try_get_context("cors_origins") or os.getenv("CORS_ORIGINS")
 
-        cors_origins = ["http://localhost:3000", "http://localhost:5173"]
+        cors_origins = [
+            "http://localhost:3000",
+            "http://localhost:5173",
+            "https://app.allotmint.io",
+        ]
         if frontend_origin:
             cors_origins.insert(0, frontend_origin)
         if extra_cors_origins:

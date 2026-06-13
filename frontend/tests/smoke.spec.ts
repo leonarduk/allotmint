@@ -22,10 +22,17 @@ const setupCoreMocks = async (page: Page) => {
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        enable_family_mvp: false,
-        relative_view_enabled: false,
+        app_env: 'test',
+        theme: null,
         tabs: {},
+        relative_view_enabled: false,
+        google_auth_enabled: false,
+        google_client_id: null,
+        disable_auth: true,
+        allowed_emails: null,
+        local_login_email: null,
         disabled_tabs: [],
+        enable_family_mvp: false,
       }),
     });
   });
@@ -34,7 +41,12 @@ const setupCoreMocks = async (page: Page) => {
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify([
-        { owner: 'demo-owner', full_name: 'Demo Owner', accounts: ['ISA'] },
+        {
+          owner: 'demo-owner',
+          full_name: 'Demo Owner',
+          accounts: ['ISA'],
+          has_transactions_artifact: false,
+        },
       ]),
     });
   });
@@ -42,7 +54,7 @@ const setupCoreMocks = async (page: Page) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify([{ slug: 'all', name: 'All portfolios' }]),
+      body: JSON.stringify([{ slug: 'all', name: 'All portfolios', members: ['demo-owner'] }]),
     });
   });
 };
@@ -324,7 +336,15 @@ test.describe('pension forecast routing', () => {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
+          app_env: 'test',
+          theme: null,
           tabs: { pension: null },
+          relative_view_enabled: false,
+          google_auth_enabled: false,
+          google_client_id: null,
+          disable_auth: true,
+          allowed_emails: null,
+          local_login_email: null,
           disabled_tabs: [],
         }),
       });
@@ -334,7 +354,12 @@ test.describe('pension forecast routing', () => {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify([
-          { owner: 'demo-owner', full_name: 'Demo Owner', accounts: ['ISA'] },
+          {
+            owner: 'demo-owner',
+            full_name: 'Demo Owner',
+            accounts: ['ISA'],
+            has_transactions_artifact: false,
+          },
         ]),
       });
     });
@@ -342,7 +367,7 @@ test.describe('pension forecast routing', () => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify([{ slug: 'all', name: 'All portfolios' }]),
+        body: JSON.stringify([{ slug: 'all', name: 'All portfolios', members: ['demo-owner'] }]),
       });
     });
     await page.route('**/pension/forecast?*', async (route) => {
@@ -379,6 +404,8 @@ test.describe('bootstrap to portfolio happy path', () => {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
+          app_env: 'test',
+          theme: null,
           enable_family_mvp: false,
           google_auth_enabled: false,
           google_client_id: '',
@@ -395,7 +422,12 @@ test.describe('bootstrap to portfolio happy path', () => {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify([
-          { owner: 'demo-owner', full_name: 'Demo Owner', accounts: ['ISA'] },
+          {
+            owner: 'demo-owner',
+            full_name: 'Demo Owner',
+            accounts: ['ISA'],
+            has_transactions_artifact: false,
+          },
         ]),
       });
     });
@@ -404,7 +436,7 @@ test.describe('bootstrap to portfolio happy path', () => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify([{ slug: 'all', name: 'All portfolios' }]),
+        body: JSON.stringify([{ slug: 'all', name: 'All portfolios', members: ['demo-owner'] }]),
       });
     });
 
@@ -539,7 +571,15 @@ test.describe('config bootstrap', () => {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
+          app_env: 'test',
+          theme: null,
           enable_family_mvp: false,
+          relative_view_enabled: false,
+          google_auth_enabled: false,
+          google_client_id: null,
+          disable_auth: true,
+          allowed_emails: null,
+          local_login_email: null,
           tabs: {},
           disabled_tabs: [],
         }),
@@ -552,7 +592,12 @@ test.describe('config bootstrap', () => {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify([
-          { owner: 'demo-owner', full_name: 'Demo Owner', accounts: ['ISA'] },
+          {
+            owner: 'demo-owner',
+            full_name: 'Demo Owner',
+            accounts: ['ISA'],
+            has_transactions_artifact: false,
+          },
         ]),
       });
     });
@@ -560,7 +605,7 @@ test.describe('config bootstrap', () => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify([{ slug: 'all', name: 'All portfolios' }]),
+        body: JSON.stringify([{ slug: 'all', name: 'All portfolios', members: ['demo-owner'] }]),
       });
     });
 

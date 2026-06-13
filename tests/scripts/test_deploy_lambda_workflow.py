@@ -69,7 +69,17 @@ def test_deploy_workflow_verify_price_snapshot_fails_hard_on_non_404() -> None:
     # head_output must capture stderr (where the AWS CLI writes error
     # details like "NoSuchKey"/"Access Denied"), otherwise the grep above
     # would never match and every error would hard-fail, including 404s.
-    assert "2>&1" in run_script
+    capture_line = next(
+        line for line in run_script.splitlines() if "head_output=" in line
+    )
+    # The capture spans multiple continuation lines; the redirect is on the
+    # final line that closes the command substitution.
+    capture_block = run_script[run_script.index(capture_line):]
+    capture_end = capture_block.index(")\"") + len(")\"")
+    assert "2>&1" in capture_block[:capture_end], (
+        "head_output=$(...) must redirect stderr (2>&1) so NoSuchKey/Access "
+        "Denied errors are visible to the grep below"
+    )
 
     # The step must not swallow its own exit code via continue-on-error,
     # otherwise the hard failure above would not fail the job.

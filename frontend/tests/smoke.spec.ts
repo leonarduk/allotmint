@@ -216,6 +216,11 @@ const ROUTES: RouteConfig[] = [
     assertion: { kind: 'heading', name: 'Trail progress' },
     setup: async (page) => {
       await page.route('**/trail', async (route) => {
+        // Only intercept API calls, not the page navigation to /trail itself.
+        if (route.request().resourceType() === 'document') {
+          await route.continue();
+          return;
+        }
         await route.fulfill({
           status: 200,
           contentType: 'application/json',

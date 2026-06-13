@@ -385,13 +385,15 @@ test.describe('bootstrap to portfolio happy path', () => {
         body: JSON.stringify({
           app_env: 'test',
           theme: null,
-          enable_family_mvp: false,
-          google_auth_enabled: false,
-          google_client_id: '',
-          disable_auth: true,
-          local_login_email: 'demo@example.com',
           tabs: { trail: true, taxtools: true, 'trade-compliance': true, reports: true },
+          relative_view_enabled: false,
+          google_auth_enabled: false,
+          google_client_id: null,
+          disable_auth: true,
+          allowed_emails: null,
+          local_login_email: 'demo@example.com',
           disabled_tabs: [],
+          enable_family_mvp: false,
         }),
       });
     });
@@ -426,13 +428,17 @@ test.describe('bootstrap to portfolio happy path', () => {
         body: JSON.stringify({
           owner: 'demo-owner',
           as_of: '2026-03-22',
+          trades_this_month: 0,
+          trades_remaining: 10,
+          total_value_estimate_gbp: 1000,
           accounts: [
             {
               account_type: 'ISA',
+              currency: 'GBP',
+              value_estimate_gbp: 1000,
               holdings: [],
             },
           ],
-          total_value_estimate_gbp: 1000,
         }),
       });
     });

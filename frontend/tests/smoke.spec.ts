@@ -421,7 +421,11 @@ test.describe('bootstrap to portfolio happy path', () => {
       });
     });
 
-    await page.route('**/portfolio/demo-owner', async (route) => {
+    // Use the API base URL (port 8000) so the mock only intercepts the
+    // frontend's fetch call, not the page navigation itself.
+    const apiBase = 'http://localhost:8000';
+
+    await page.route(`${apiBase}/portfolio/demo-owner`, async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',

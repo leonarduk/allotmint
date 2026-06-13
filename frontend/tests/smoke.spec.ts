@@ -422,12 +422,6 @@ test.describe('bootstrap to portfolio happy path', () => {
     });
 
     await page.route('**/portfolio/demo-owner', async (route) => {
-      // Let page navigations (document requests) pass through to Vite;
-      // only intercept the frontend's fetch/xhr API calls.
-      if (route.request().resourceType() === 'document') {
-        await route.continue();
-        return;
-      }
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -449,7 +443,14 @@ test.describe('bootstrap to portfolio happy path', () => {
       });
     });
 
-    await page.goto(new URL('/portfolio/demo-owner', baseUrl).toString());
+    // Navigate to bare /portfolio (not /portfolio/demo-owner) so the
+    // page.goto doesn't match the '**/portfolio/demo-owner' route mock.
+    // The app's renderMainContent will <Navigate> to /portfolio/demo-owner
+    // once owners are loaded, and then the selector becomes visible.
+    await page.goto(new URL('/portfolio', baseUrl).toString());
+
+    // Wait for the redirect to /portfolio/demo-owner to settle.
+    await page.waitForURL('**/portfolio/demo-owner');
 
     await expect(page.getByTestId('portfolio-owner-selector')).toBeVisible();
     await expect(getActiveRouteMarker(page)).toHaveAttribute('data-mode', 'owner');

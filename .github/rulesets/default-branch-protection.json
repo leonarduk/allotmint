@@ -54,12 +54,6 @@
             "context": "CI / Lambda-compat pytest (backend/requirements.txt)"
           },
           {
-            "context": "ai-review / Claude AI code review"
-          },
-          {
-            "context": "ai-review / GPT AI code review"
-          },
-          {
             "context": "ai-review / DeepSeek AI code review"
           },
           {

@@ -31,6 +31,9 @@ on:
       openai_api_key:
         description: "OpenAI API key, used for GPT reviews"
         required: false
+      deepseek_api_key:
+        description: "DeepSeek API key, used for DeepSeek reviews"
+        required: false
       gh_token:
         description: "Token used for gh CLI calls (PR/issue read and write)"
         required: true
@@ -85,6 +88,7 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.anthropic_api_key }}
           OPENAI_API_KEY: ${{ secrets.openai_api_key }}
+          DEEPSEEK_API_KEY: ${{ secrets.deepseek_api_key }}
           ANTHROPIC_MAX_TOKENS: ${{ inputs.anthropic_max_tokens }}
           PR_TITLE: ${{ github.event.pull_request.title }}
           DIFF: ${{ steps.diff.outputs.diff }}

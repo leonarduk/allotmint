@@ -398,6 +398,14 @@ jobs:
             --stack-name StaticSiteStack \
             --query "Stacks[0].Outputs[?OutputKey=='DistributionDomain'].OutputValue" \
             --output text)"
+          # Sanitise DISTRIBUTION_DOMAIN to guarantee bare-hostname format (no scheme, no trailing slash).
+          # This guards against future CDK output changes that might include a scheme (e.g.,
+          # https://d32n5ua14kb82t.cloudfront.net) or trailing artifacts from shell capture.
+          # Defensive strip operations ensure FRONTEND_ORIGIN is always https://<bare-hostname>.
+          DISTRIBUTION_DOMAIN="${DISTRIBUTION_DOMAIN#https://}"
+          DISTRIBUTION_DOMAIN="${DISTRIBUTION_DOMAIN#http://}"
+          DISTRIBUTION_DOMAIN="${DISTRIBUTION_DOMAIN%/}"
+          DISTRIBUTION_DOMAIN="$(echo "$DISTRIBUTION_DOMAIN" | xargs)"
           # SmokeTestUserPoolClientId is the deploy workflow's dedicated Cognito app
           # client for post-deploy smoke tests (see "Fetch Cognito smoke-test token"
           # below). BackendLambdaStack must accept its tokens as a valid JWT audience,

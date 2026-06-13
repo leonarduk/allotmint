@@ -66,6 +66,11 @@ def test_deploy_workflow_verify_price_snapshot_fails_hard_on_non_404() -> None:
     assert "NoSuchKey\\|Not Found\\|404" in run_script
     assert "::warning::Price snapshot" in run_script
 
+    # head_output must capture stderr (where the AWS CLI writes error
+    # details like "NoSuchKey"/"Access Denied"), otherwise the grep above
+    # would never match and every error would hard-fail, including 404s.
+    assert "2>&1" in run_script
+
     # The step must not swallow its own exit code via continue-on-error,
     # otherwise the hard failure above would not fail the job.
     assert "continue-on-error" not in verify_step

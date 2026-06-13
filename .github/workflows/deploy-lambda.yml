@@ -428,7 +428,6 @@ jobs:
             echo "UI_AUTH_USER_POOL_CLIENT_ID=$UI_AUTH_USER_POOL_CLIENT_ID"
             echo "SMOKE_TEST_USER_POOL_CLIENT_ID=$SMOKE_TEST_USER_POOL_CLIENT_ID"
             echo "FRONTEND_ORIGIN=https://${DISTRIBUTION_DOMAIN}"
-            echo "CORS_ORIGINS=https://${DISTRIBUTION_DOMAIN},https://app.allotmint.io"
           } >> "$GITHUB_ENV"
 
       - name: Deploy BackendLambdaStack
@@ -540,7 +539,8 @@ jobs:
         run: |
           set -eu
 
-          # Retrieve the deployed backend URL and CloudFront origin
+          # Retrieve the deployed backend URL (exported by "Get backend API URL" step)
+          # and CloudFront origin (exported by "Get Cognito UI auth outputs" step).
           BACKEND_URL="${{ env.BACKEND_URL }}"
           ORIGIN="${{ env.FRONTEND_ORIGIN }}"
 

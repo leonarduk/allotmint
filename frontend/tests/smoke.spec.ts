@@ -6,6 +6,47 @@ const authToken = process.env.SMOKE_AUTH_TOKEN ?? process.env.TEST_ID_TOKEN ?? n
 const smokePath = new URL('/smoke-test', baseUrl).toString();
 const pensionForecastPath = new URL('/pension/forecast', baseUrl).toString();
 
+/**
+ * Set up core API mocks so the app does not show BackendUnavailableCard
+ * when there is no backend (e.g. CI preview build).  These provide the
+ * minimum identity catalogue (/config, /owners, /groups) that the app
+ * shell needs before it renders any page component.
+ *
+ * Tests that need to mock additional endpoints should call setupCoreMocks
+ * first and then add their own route() calls.  Tests that intentionally
+ * override all three endpoints with their own handlers can skip this.
+ */
+const setupCoreMocks = async (page: Page) => {
+  await page.route('**/config', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        enable_family_mvp: false,
+        relative_view_enabled: false,
+        tabs: {},
+        disabled_tabs: [],
+      }),
+    });
+  });
+  await page.route('**/owners', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        { owner: 'demo-owner', full_name: 'Demo Owner', accounts: ['ISA'] },
+      ]),
+    });
+  });
+  await page.route('**/groups', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([{ slug: 'all', name: 'All portfolios' }]),
+    });
+  });
+};
+
 const applyAuth = async (page: Page) => {
   if (!authToken) {
     return;
@@ -120,7 +161,7 @@ const ROUTES: RouteConfig[] = [
   { path: '/research/AAA', assertion: { kind: 'mode', mode: 'research' } },
   {
     path: '/virtual',
-    assertion: { kind: 'heading', name: 'Virtual Portfolios' },
+    assertion: { kind: 'heading', name: 'Family Manual Portfolio Setup' },
     setup: async (page) => {
       let handled = false;
       await page.route('**/virtual-portfolios', async (route) => {
@@ -151,7 +192,7 @@ const ROUTES: RouteConfig[] = [
       const loader = page.getByTestId('virtual-portfolio-loader');
       await expect(loader).toBeVisible();
       await expect(
-        page.getByRole('heading', { name: 'Virtual Portfolios' }),
+        page.getByRole('heading', { name: 'Family Manual Portfolio Setup' }),
       ).toBeVisible();
       await expect(page.locator('select')).toHaveCount(1);
       await expect(loader).not.toBeVisible();
@@ -164,7 +205,23 @@ const ROUTES: RouteConfig[] = [
   { path: '/alerts', assertion: { kind: 'heading', name: 'Alerts' } },
   { path: '/alert-settings', assertion: { kind: 'heading', name: 'Alert Settings' } },
   { path: '/goals', assertion: { kind: 'heading', name: 'Goals' } },
-  { path: '/trail', assertion: { kind: 'heading', name: 'Trail progress' } },
+  {
+    path: '/trail',
+    assertion: { kind: 'heading', name: 'Trail progress' },
+    setup: async (page) => {
+      await page.route('**/trail', async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            tasks: [{ id: 't1', title: 'Setup profile', completed: false, type: 'once' }],
+            today: '2026-06-13',
+            daily_totals: { '2026-06-13': { completed: 0, total: 1 } },
+          }),
+        });
+      });
+    },
+  },
   { path: '/smoke-test', assertion: { kind: 'heading', name: 'Smoke test' } },
   {
     path: '/metrics-explained',
@@ -200,6 +257,15 @@ test.describe('smoke test page', () => {
   test('reports ok for every backend check', async ({ page }) => {
     await applyAuth(page);
 
+    await setupCoreMocks(page);
+    await page.route('**/health', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ status: 'ok' }),
+      });
+    });
+
     await page.goto(smokePath);
 
     const list = page.getByRole('list', { name: 'Smoke test results' });
@@ -226,6 +292,22 @@ test.describe('pension forecast page', () => {
 
     await applyAuth(page);
 
+    await setupCoreMocks(page);
+    await page.route('**/pension/forecast?*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          current_pot: 100000,
+          projected_pot: 500000,
+          annual_income: 25000,
+          monthly_income: 2083,
+          shortfall_annual: 0,
+          shortfall_monthly: 0,
+        }),
+      });
+    });
+
     await page.goto(pensionForecastPath);
 
     await expect(page.getByRole('heading', { name: 'Pension Forecast' })).toBeVisible();
@@ -244,6 +326,36 @@ test.describe('pension forecast routing', () => {
         body: JSON.stringify({
           tabs: { pension: null },
           disabled_tabs: [],
+        }),
+      });
+    });
+    await page.route('**/owners', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          { owner: 'demo-owner', full_name: 'Demo Owner', accounts: ['ISA'] },
+        ]),
+      });
+    });
+    await page.route('**/groups', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([{ slug: 'all', name: 'All portfolios' }]),
+      });
+    });
+    await page.route('**/pension/forecast?*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          current_pot: 100000,
+          projected_pot: 500000,
+          annual_income: 25000,
+          monthly_income: 2083,
+          shortfall_annual: 0,
+          shortfall_monthly: 0,
         }),
       });
     });
@@ -267,6 +379,7 @@ test.describe('bootstrap to portfolio happy path', () => {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
+          enable_family_mvp: false,
           google_auth_enabled: false,
           google_client_id: '',
           disable_auth: true,
@@ -332,6 +445,8 @@ test.describe('public route smoke coverage', () => {
       });
 
       await applyAuth(page);
+
+      await setupCoreMocks(page);
 
       if (route.setup) {
         await route.setup(page, target);
@@ -420,10 +535,34 @@ test.describe('config bootstrap', () => {
         await route.abort('failed');
         return;
       }
-      await route.continue();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          enable_family_mvp: false,
+          tabs: {},
+          disabled_tabs: [],
+        }),
+      });
     };
 
     await page.route('**/config', handler);
+    await page.route('**/owners', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          { owner: 'demo-owner', full_name: 'Demo Owner', accounts: ['ISA'] },
+        ]),
+      });
+    });
+    await page.route('**/groups', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([{ slug: 'all', name: 'All portfolios' }]),
+      });
+    });
 
     const firstFailure = page.waitForEvent('requestfailed', (request) =>
       request.url().endsWith('/config'),
@@ -451,6 +590,8 @@ test.describe('config bootstrap', () => {
 test.describe('timeseries edit resilience', () => {
   test('keeps the route marker visible when the edit load fails', async ({ page }) => {
     await applyAuth(page);
+
+    await setupCoreMocks(page);
 
     const target = new URL('/timeseries?ticker=FAIL&exchange=L', baseUrl);
     let requested = false;

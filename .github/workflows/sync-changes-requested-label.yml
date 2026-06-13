@@ -1,33 +1,29 @@
 name: Sync Changes Requested label
 
-# The Claude, GPT, and DeepSeek PR review workflows each add the 'Changes Requested'
-# label when their own verdict is "changes requested" (see
-# claude-pr-review.yml / gpt-pr-review.yml / deepseek-pr-review.yml). Clearing it, however, can't
-# safely happen from inside either of those jobs: a job's own check-run
+# The DeepSeek PR review workflow adds the 'Changes Requested' label when its
+# verdict is "changes requested" (see deepseek-pr-review.yml). Clearing it
+# can't safely happen from inside its own job: a job's own check-run
 # conclusion isn't finalized as 'success' until the job completes, and the
-# label step runs *inside* that same job — so neither workflow can ever
-# observe the other's conclusion as 'success' in time when both run
-# concurrently on the same push (a structural chicken-and-egg race).
+# label step runs *inside* that same job.
 #
-# This workflow runs *after* each review workflow completes, so by the time
-# it runs for the second of the two, both conclusions are available. It only
-# removes the label once ALL the Claude, GPT, and DeepSeek review check runs for the
-# current head SHA have concluded with 'success'.
+# This workflow runs *after* the review workflow completes, so it can
+# observe the finalized conclusion. It removes the label once the DeepSeek
+# review check run for the current head SHA has concluded with 'success'.
 on:
   workflow_run:
-    workflows: ["Claude PR Review", "GPT PR Review", "DeepSeek PR Review"]
+    workflows: ["DeepSeek PR Review"]
     types: [completed]
 
 jobs:
   sync-label:
-    name: Remove 'Changes Requested' label once all reviews approve
+    name: Remove 'Changes Requested' label once review approves
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
       contents: read
       checks: read
     steps:
-      - name: Reconcile label against all review verdicts
+      - name: Reconcile label against review verdict
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
@@ -41,26 +37,22 @@ jobs:
             exit 0
           fi
 
-          CLAUDE_CONCLUSION=$(gh api "repos/${REPO}/commits/${HEAD_SHA}/check-runs" --paginate \
-            --jq '[.check_runs[] | select(.name == "Claude AI code review")] | sort_by(.started_at) | last | .conclusion // "pending"')
-          GPT_CONCLUSION=$(gh api "repos/${REPO}/commits/${HEAD_SHA}/check-runs" --paginate \
-            --jq '[.check_runs[] | select(.name == "GPT AI code review")] | sort_by(.started_at) | last | .conclusion // "pending"')
           DEEPSEEK_CONCLUSION=$(gh api "repos/${REPO}/commits/${HEAD_SHA}/check-runs" --paginate \
             --jq '[.check_runs[] | select(.name == "DeepSeek AI code review")] | sort_by(.started_at) | last | .conclusion // "pending"')
 
-          echo "PR #${PR_NUMBER} @ ${HEAD_SHA}: Claude=${CLAUDE_CONCLUSION}, GPT=${GPT_CONCLUSION}, DeepSeek=${DEEPSEEK_CONCLUSION}"
+          echo "PR #${PR_NUMBER} @ ${HEAD_SHA}: DeepSeek=${DEEPSEEK_CONCLUSION}"
 
-          if [ "$CLAUDE_CONCLUSION" = "success" ] && [ "$GPT_CONCLUSION" = "success" ] && [ "$DEEPSEEK_CONCLUSION" = "success" ]; then
+          if [ "$DEEPSEEK_CONCLUSION" = "success" ]; then
             HAS_LABEL=$(gh pr view "$PR_NUMBER" --json labels \
               --jq '[.labels[].name] | any(. == "Changes Requested")')
 
             if [ "$HAS_LABEL" = "true" ]; then
               gh pr edit "$PR_NUMBER" --remove-label "Changes Requested"
               gh pr comment "$PR_NUMBER" --body \
-                "All Claude, GPT, and DeepSeek AI reviews have passed for the latest commit -- removing the 'Changes Requested' label."
+                "DeepSeek AI review has passed for the latest commit -- removing the 'Changes Requested' label."
             else
               echo "Label not present on PR #${PR_NUMBER}; nothing to remove."
             fi
           else
-            echo "At least one review hasn't approved yet; leaving 'Changes Requested' label as-is."
+            echo "Review hasn't approved yet; leaving 'Changes Requested' label as-is."
           fi

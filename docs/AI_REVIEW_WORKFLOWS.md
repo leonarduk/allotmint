@@ -1,20 +1,14 @@
 # AI Review Workflows
 
-This document describes how the Claude, GPT, and DeepSeek AI review workflows handle review generation, posting, and failure scenarios.
+This document describes how the DeepSeek AI review workflow handles review generation, posting, and failure scenarios.
 
 ## Overview
 
-Three thin caller workflows trigger AI code reviews on pull requests by invoking a shared
-reusable workflow:
+A single AI code review runs on pull requests via the shared reusable workflow:
 
-- **claude-pr-review.yml**: Calls the reusable workflow with the Anthropic provider config
-- **gpt-pr-review.yml**: Calls the reusable workflow with the OpenAI provider config
 - **deepseek-pr-review.yml**: Calls the reusable workflow with the DeepSeek provider config
 - **_ai-pr-review.yml**: Reusable `workflow_call` workflow containing the actual review,
   posting, verdict-checking, and follow-up-issue logic, parameterized per provider
-
-All three providers follow the same pattern: generate a review, extract a verdict (APPROVE or
-REQUEST CHANGES), and post the full review to the PR regardless of verdict.
 
 ## Verdict Behavior
 
@@ -50,9 +44,9 @@ When the AI API successfully generates a review, the full review content is post
 If the AI API call fails before producing a non-empty review file (e.g., missing credentials, HTTP error, empty response), a fallback notice is posted instead. The exact text posted is generated in the `else` branch of the `-s` guard in `build_review_comment.sh`, called from the reusable workflow's "Post review comment" step:
 
 ```
-## Claude AI Code Review - Failed
+## DeepSeek AI Code Review - Failed
 
-The Claude review failed to complete. Check [Actions](<run URL>) for error details.
+The DeepSeek review failed to complete. Check [Actions](<run URL>) for error details.
 ```
 
 (`<run URL>` is replaced at runtime with the Actions run URL via `$RUN_URL`.) This ensures users are aware that a review was attempted and directs them to the Actions logs for debugging.
@@ -80,16 +74,12 @@ As a secondary fallback for visibility, the review body is also written to `$GIT
 
 - **`if: success() || failure()`**: The "Post review comment" step runs even if the verdict is REQUEST CHANGES (which exits the preceding step with a non-zero exit code), so the full review is always visible. The condition excludes cancelled runs to avoid spurious failure notices when a run is superseded by a new push.
 - **`continue-on-error: true`**: Set on the "Post review comment" step in `_ai-pr-review.yml`. If the `gh pr comment` call fails, the job does not fail. The failure is recorded in the workflow logs but does not block the overall workflow.
-- **`if: steps.check_approval.outputs.approved == 'true'`**: The "Create follow-up issues" step only runs when the review is an APPROVE. On REQUEST CHANGES, no follow-up issues are created — the blocking findings belong in the review itself, not the backlog. This condition is identical for both Claude and GPT. Before this consolidation, GPT created follow-up issues on every verdict; the maintainer confirmed (PR #3933) that the APPROVE-only behavior — Claude's prior behavior — is the intended one for both providers.
-
-## End-to-end validation
-
-PR #3933 itself is the end-to-end validation for this reusable-workflow refactor: every push to that PR triggers both `claude-pr-review.yml` and `gpt-pr-review.yml`, which call `_ai-pr-review.yml` via `workflow_call` with the `anthropic_api_key`/`openai_api_key`/`gh_token` secrets threaded through. Successful runs of `ai-review / Claude AI code review` and `ai-review / GPT AI code review` on that PR (posting review comments, extracting verdicts, and gating follow-up issue creation) confirm the reusable-workflow secret passing and `if:` conditions work as intended.
+- **`if: steps.check_approval.outputs.approved == 'true'`**: The "Create follow-up issues" step only runs when the review is an APPROVE. On REQUEST CHANGES, no follow-up issues are created — the blocking findings belong in the review itself, not the backlog.
 
 ## Adding a new AI reviewer
 
 The reusable workflow `_ai-pr-review.yml` and the shared `fetch_review()` helper in
-`review_common.py` make it possible to add a third reviewer (e.g. Gemini) without copying
+`review_common.py` make it possible to add another reviewer (e.g. Gemini, Claude, GPT) without copying
 the full workflow or HTTP/error-handling scaffolding. The contract:
 
 ### 1. Shared prompt and verdict format
@@ -120,7 +110,7 @@ Add `.github/scripts/<provider>_review.py` that:
 
 The reusable workflow writes the review to `/tmp/<provider_id>_review_body.md` and the
 posted comment to `/tmp/<provider_id>_comment_body.md`, where `<provider_id>` is the
-lowercase identifier passed via the `provider_id` input (e.g. `claude`, `gpt`, `gemini`).
+lowercase identifier passed via the `provider_id` input (e.g. `deepseek`, `gemini`).
 
 ### 4. Registering the provider
 
@@ -156,37 +146,33 @@ provider: `anthropic_api_key` is used for follow-up issue creation
 (`create_followup_issues.py`) on every reviewer's APPROVE verdict, and `gh_token` is used
 for `gh` CLI calls. Pass any provider-specific secret (e.g. a `GEMINI_API_KEY`) by adding
 a new optional secret to `_ai-pr-review.yml` and threading it through to the "Call API"
-step's `env:` block, following the existing `openai_api_key` pattern.
+step's `env:` block, following the existing `deepseek_api_key` pattern.
 
 ## 'Changes Requested' label contract
 
-`claude-pr-review.yml`, `gpt-pr-review.yml`, and `deepseek-pr-review.yml` each add the `Changes
-Requested` label to a PR when their own verdict is REQUEST CHANGES (see
-[Verdict Behavior](#verdict-behavior) above). Removing the label is handled
-separately by `.github/workflows/sync-changes-requested-label.yml`, which is
-triggered via `workflow_run` after any review workflow completes.
+`deepseek-pr-review.yml` adds the `Changes Requested` label to a PR when its verdict
+is REQUEST CHANGES (see [Verdict Behavior](#verdict-behavior) above). Removing the label
+is handled separately by `.github/workflows/sync-changes-requested-label.yml`, which is
+triggered via `workflow_run` after the review workflow completes.
 
-The contract: the label is removed **only when all three** the `Claude AI code
-review`, `GPT AI code review`, and `DeepSeek AI code review` check-runs for the
-current head SHA have concluded with `success`. This cannot be done from inside
-any single review job, because a job's own check-run conclusion isn't finalized
-until the job completes — so no workflow can observe the other reviewers'
-conclusions in time when all run concurrently on the same push.
+The contract: the label is removed once the `DeepSeek AI code review` check-run for the
+current head SHA has concluded with `success`. This cannot be done from inside the review
+job itself, because a job's own check-run conclusion isn't finalized until the job completes.
 
-When the label is removed, `sync-changes-requested-label.yml` also posts a
-PR comment confirming all AI reviews passed. If the label was not present
-(e.g. all reviews approved on the first pass), no comment is posted.
+When the label is removed, `sync-changes-requested-label.yml` also posts a PR comment
+confirming the review passed. If the label was not present (e.g. the review approved on
+the first pass), no comment is posted.
 
-If a fourth reviewer is added (see [Adding a new AI reviewer](#adding-a-new-ai-reviewer)),
-update `sync-changes-requested-label.yml`'s `workflows:` trigger list and its
-conclusion checks to include the new provider's check-run name — otherwise
-the label will never be removed once the new reviewer also requests changes.
+If additional reviewers are added (see [Adding a new AI reviewer](#adding-a-new-ai-reviewer)),
+update `sync-changes-requested-label.yml`'s `workflows:` trigger list and its conclusion
+checks to include the new provider's check-run name — otherwise the label will never be
+removed once the new reviewer also requests changes.
 
 ## Debugging
 
 When a review fails to post, check the Actions logs for:
 
-1. **API authentication errors**: Verify `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` secrets are configured
+1. **API authentication errors**: Verify `DEEPSEEK_API_KEY` secret is configured
 2. **Empty responses**: Check the workflow logs for API response status and size; look for `WARNING: ... empty review body`
 3. **Network/rate limit errors**: Review the workflow logs for the run; structured logging shows the API status code
 4. **GitHub token issues**: Verify `GH_TOKEN` and PR comment posting permissions are correct

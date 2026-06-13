@@ -555,7 +555,7 @@ jobs:
             echo "$response" >&2
             exit 1
           fi
-          cors_header="$(echo "$response" | grep -i '^access-control-allow-origin:' | tr -d '\r' | sed 's/^[Aa]ccess-[Cc]ontrol-[Aa]llow-[Oo]rigin: *//')"
+          cors_header="$( (echo "$response" | grep -i '^access-control-allow-origin:' || true) | head -n 1 | tr -d '\r' | sed 's/^[^:]*: *//')"
           if [ -z "$cors_header" ]; then
             echo "::error::Access-Control-Allow-Origin header missing from ${BACKEND_URL%/}/config response" >&2
             echo "$response" >&2

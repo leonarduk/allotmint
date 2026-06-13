@@ -553,8 +553,9 @@ jobs:
             -H "Origin: ${ORIGIN}" \
             "${BACKEND_URL}/config")
 
-          # Assert header is present and matches (case-insensitive to handle HTTP/2 responses).
-          if echo "${RESPONSE}" | grep -qi "Access-Control-Allow-Origin: ${ORIGIN}"; then
+          # Assert header is present and matches. Use -F for fixed-string matching (ORIGIN
+          # contains `.` which is a regex metacharacter), and -i for case-insensitive matching.
+          if echo "${RESPONSE}" | grep -qFi "Access-Control-Allow-Origin: ${ORIGIN}"; then
             echo "✓ CORS header correctly set to: ${ORIGIN}"
           else
             echo "✗ CORS header missing or mismatched"

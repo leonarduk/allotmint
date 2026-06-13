@@ -29,6 +29,45 @@ const getActiveRouteMarker = (page: Page) =>
 const getBootstrapMarker = (page: Page) =>
   page.locator('[data-route-marker="bootstrap"], [data-testid="route-bootstrap-marker"]');
 
+// While enable_family_mvp is true (the current deployed default), any route
+// whose mode isn't 'transactions' or 'owner' is redirected to the MVP entry
+// flow — see FAMILY_MVP_MODES in frontend/src/familyMvp.ts. Rather than
+// hard-coding "this route redirects", the checks below wait for the route
+// marker to settle and then branch: a redirect to one of these modes is
+// accepted as the expected Family MVP behaviour, while a settled marker that
+// matches the requested route runs the full assertions. Once Family MVP is
+// disabled, redirects stop happening and the full assertions run for every
+// route without any changes needed here.
+const FAMILY_MVP_ENTRY_MODES = ['transactions', 'owner'];
+
+const waitForStableRoutePathname = async (page: Page): Promise<string> => {
+  // The Family MVP redirect effect only fires once the async /config fetch
+  // resolves, which can take over a second, and an intermediate redirect hop
+  // (e.g. bare /portfolio to /portfolio/<owner>) can briefly unmount the
+  // route marker entirely. Read the browser URL directly — it's always
+  // available, even mid-redirect. Wait out the config-fetch window first,
+  // then require the pathname to stop changing for a short window before
+  // treating it as settled.
+  const MIN_WAIT_MS = 1800;
+  const STABLE_WINDOW_MS = 450;
+  const POLL_MS = 150;
+  const readPathname = () => new URL(page.url()).pathname;
+  await page.waitForTimeout(MIN_WAIT_MS);
+  let previous = readPathname();
+  let stableFor = 0;
+  while (stableFor < STABLE_WINDOW_MS) {
+    await page.waitForTimeout(POLL_MS);
+    const current = readPathname();
+    if (current === previous) {
+      stableFor += POLL_MS;
+    } else {
+      previous = current;
+      stableFor = 0;
+    }
+  }
+  return previous;
+};
+
 type ModeAssertion = { kind: 'mode'; mode: string };
 type HeadingAssertion = {
   kind: 'heading';
@@ -299,6 +338,16 @@ test.describe('public route smoke coverage', () => {
       }
 
       await page.goto(target.href);
+
+      const settledPathname = await waitForStableRoutePathname(page);
+      if (settledPathname !== target.pathname) {
+        await expect(getActiveRouteMarker(page)).toBeVisible();
+        const redirectedMode = await getActiveRouteMarker(page).getAttribute('data-mode');
+        expect(FAMILY_MVP_ENTRY_MODES).toContain(redirectedMode);
+        expect(pageErrors).toHaveLength(0);
+        return;
+      }
+
       await expect(page).toHaveURL(target.href);
 
       if (route.assertion.kind === 'mode') {
@@ -416,6 +465,14 @@ test.describe('timeseries edit resilience', () => {
     });
 
     await page.goto(target.href);
+
+    const settledPathname = await waitForStableRoutePathname(page);
+    if (settledPathname !== target.pathname) {
+      await expect(getActiveRouteMarker(page)).toBeVisible();
+      const redirectedMode = await getActiveRouteMarker(page).getAttribute('data-mode');
+      expect(FAMILY_MVP_ENTRY_MODES).toContain(redirectedMode);
+      return;
+    }
 
     const loadButton = page.getByTestId('load-button');
     await expect(loadButton).toBeEnabled();

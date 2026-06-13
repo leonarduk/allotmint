@@ -543,6 +543,41 @@ jobs:
           echo "SMOKE_TEST_URL=$BACKEND_URL" >> "$GITHUB_ENV"
           echo "backend_url=$BACKEND_URL" >> "$GITHUB_OUTPUT"
 
+      - name: Verify CORS configuration
+        # Validates the CORS fix from PR #3954: BackendLambdaStack's /config
+        # route must echo back FRONTEND_ORIGIN (the CloudFront distribution
+        # domain) in Access-Control-Allow-Origin when called with a matching
+        # Origin header. If the CDK code path fails to pick up FRONTEND_ORIGIN,
+        # this would otherwise pass CI silently and break the deployed
+        # frontend (stuck on "Loading... retrying configuration"). See #3984.
+        run: |
+          set -euo pipefail
+          echo "Checking CORS headers on ${BACKEND_URL%/}/config for Origin: ${FRONTEND_ORIGIN}"
+          headers_file="$(mktemp)"
+          trap 'rm -f "$headers_file"' EXIT
+          status="$(curl --retry 3 --retry-delay 5 --retry-all-errors \
+            --max-time 60 --silent --output /dev/null --write-out "%{http_code}" \
+            -D "$headers_file" \
+            -H "Origin: ${FRONTEND_ORIGIN}" \
+            "${BACKEND_URL%/}/config")"
+          if [ "$status" != "200" ]; then
+            echo "::error::Expected HTTP 200 from ${BACKEND_URL%/}/config, got $status" >&2
+            cat "$headers_file" >&2
+            exit 1
+          fi
+          cors_header="$( (grep -i '^access-control-allow-origin:' "$headers_file" || true) | tail -n 1 | tr -d '\r' | sed 's/^[^:]*: *//')"
+          if [ -z "$cors_header" ]; then
+            echo "::error::Access-Control-Allow-Origin header missing from ${BACKEND_URL%/}/config response" >&2
+            cat "$headers_file" >&2
+            exit 1
+          fi
+          if [ "$cors_header" != "${FRONTEND_ORIGIN}" ]; then
+            echo "::error::Access-Control-Allow-Origin mismatch: expected ${FRONTEND_ORIGIN}, got ${cors_header}" >&2
+            cat "$headers_file" >&2
+            exit 1
+          fi
+          echo "CORS configuration OK: Access-Control-Allow-Origin: ${cors_header}"
+
       - name: Refresh StaticSiteStack runtime config
         # GITHUB_DEPLOY_ROLE_ARN must be set here too (see "Deploy StaticSiteStack
         # auth resources" above and #3846): without it, this redeploy of

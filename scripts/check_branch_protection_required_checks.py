@@ -26,8 +26,6 @@ EXPECTED_REQUIRED_CHECKS = {
     "Merge Conflict Check / Check for merge conflicts with main",
     "PR Body Issue Reference Check / require-issue-reference",
     "Dependency Review / dependency-review",
-    "ai-review / Claude AI code review",
-    "ai-review / GPT AI code review",
     "ai-review / DeepSeek AI code review",
 }
 

@@ -545,25 +545,27 @@ jobs:
         run: |
           set -euo pipefail
           echo "Checking CORS headers on ${BACKEND_URL%/}/config for Origin: ${FRONTEND_ORIGIN}"
-          response="$(curl --retry 3 --retry-delay 5 --retry-all-errors \
-            --max-time 60 --silent --include \
+          headers_file="$(mktemp)"
+          trap 'rm -f "$headers_file"' EXIT
+          status="$(curl --retry 3 --retry-delay 5 --retry-all-errors \
+            --max-time 60 --silent --output /dev/null --write-out "%{http_code}" \
+            -D "$headers_file" \
             -H "Origin: ${FRONTEND_ORIGIN}" \
             "${BACKEND_URL%/}/config")"
-          status="$(echo "$response" | head -n 1 | tr -d '\r' | awk '{print $2}')"
           if [ "$status" != "200" ]; then
             echo "::error::Expected HTTP 200 from ${BACKEND_URL%/}/config, got $status" >&2
-            echo "$response" >&2
+            cat "$headers_file" >&2
             exit 1
           fi
-          cors_header="$( (echo "$response" | grep -i '^access-control-allow-origin:' || true) | head -n 1 | tr -d '\r' | sed 's/^[^:]*: *//')"
+          cors_header="$( (grep -i '^access-control-allow-origin:' "$headers_file" || true) | tail -n 1 | tr -d '\r' | sed 's/^[^:]*: *//')"
           if [ -z "$cors_header" ]; then
             echo "::error::Access-Control-Allow-Origin header missing from ${BACKEND_URL%/}/config response" >&2
-            echo "$response" >&2
+            cat "$headers_file" >&2
             exit 1
           fi
           if [ "$cors_header" != "${FRONTEND_ORIGIN}" ]; then
             echo "::error::Access-Control-Allow-Origin mismatch: expected ${FRONTEND_ORIGIN}, got ${cors_header}" >&2
-            echo "$response" >&2
+            cat "$headers_file" >&2
             exit 1
           fi
           echo "CORS configuration OK: Access-Control-Allow-Origin: ${cors_header}"

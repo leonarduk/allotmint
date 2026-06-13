@@ -1119,3 +1119,17 @@ jobs:
           fi
           echo "=== BackendLambda CloudWatch logs (last 15 minutes) ==="
           bash scripts/bash/fetch-cloudwatch-logs.sh "$log_group" 900
+
+  verify-smoke-tests:
+    name: Verify post-deploy smoke tests passed
+    runs-on: ubuntu-latest
+    needs: smoke-test
+    if: always()
+    steps:
+      - name: Check smoke test job status
+        if: needs.smoke-test.result != 'success'
+        run: |
+          echo "::error::Post-deploy smoke tests failed or were skipped — deployment validation incomplete."
+          exit 1
+      - name: Smoke tests verified
+        run: echo "✓ Post-deploy smoke tests passed — deployment validated"

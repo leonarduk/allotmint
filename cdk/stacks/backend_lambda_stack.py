@@ -359,17 +359,19 @@ class BackendLambdaStack(Stack):
         ui_auth_user_pool = cognito.UserPool.from_user_pool_id(
             self, "ImportedUiAuthUserPool", ui_auth_user_pool_id_param.value_as_string
         )
+        # SmokeTestUserPoolClient is deliberately NOT added to user_pool_clients
+        # here: HttpUserPoolAuthorizer synthesises every entry in that list into
+        # JwtConfiguration.Audience unconditionally, which would put an
+        # empty-string audience entry into the CloudFormation template before
+        # the add_property_override below ever runs. The smoke-test client is
+        # added to the audience solely via that conditional override (#4047
+        # review).
         backend_authorizer = apigwv2_authorizers.HttpUserPoolAuthorizer(
             "BackendCognitoAuthorizer",
             ui_auth_user_pool,
             user_pool_clients=[
                 cognito.UserPoolClient.from_user_pool_client_id(
                     self, "ImportedUiAuthUserPoolClient", ui_auth_client_id_param.value_as_string
-                ),
-                cognito.UserPoolClient.from_user_pool_client_id(
-                    self,
-                    "ImportedSmokeTestUserPoolClient",
-                    smoke_test_client_id_param.value_as_string,
                 ),
             ],
             identity_source=["$request.header.Authorization"],
@@ -435,16 +437,23 @@ class BackendLambdaStack(Stack):
             authorizer=backend_authorizer,
         )
 
-        # HttpUserPoolAuthorizer always includes every entry from
-        # user_pool_clients in JwtConfiguration.Audience, including an empty
-        # string for SmokeTestUserPoolClientId when it's left at its default.
         # Override the synthesized audience so the smoke-test client ID is
-        # only present when the parameter is actually set (#4027 review).
-        backend_cfn_authorizer = next(
+        # included only when the parameter is actually set (#4027 review).
+        # HttpUserPoolAuthorizer is not a Construct (no .node), so the
+        # underlying CfnAuthorizer can only be located via backend_api's
+        # construct tree. Assert exactly one CfnAuthorizer exists so that, if
+        # a second authorizer is ever added to backend_api, synthesis fails
+        # loudly instead of silently overriding the wrong resource.
+        backend_cfn_authorizers = [
             child
             for child in backend_api.node.find_all()
             if isinstance(child, apigwv2.CfnAuthorizer)
+        ]
+        assert len(backend_cfn_authorizers) == 1, (
+            "Expected exactly one CfnAuthorizer under BackendApi, found "
+            f"{len(backend_cfn_authorizers)}"
         )
+        backend_cfn_authorizer = backend_cfn_authorizers[0]
         backend_cfn_authorizer.add_property_override(
             "JwtConfiguration.Audience",
             Fn.condition_if(

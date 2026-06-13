@@ -44,7 +44,8 @@ AI review jobs are useful review aids, but they depend on external model
 availability and API quotas. Keep these jobs non-blocking and do not add them to
 the required-check ruleset:
 
-- `DeepSeek PR Review / DeepSeek AI code review`
+- `GPT PR Review / GPT AI code review`
+- `Claude PR Review / Claude AI code review`
 
 ## Merge conflict check-run
 

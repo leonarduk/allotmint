@@ -4,11 +4,11 @@ on:
   workflow_call:
     inputs:
       provider_name:
-        description: "Display name of the reviewer (e.g. DeepSeek)"
+        description: "Display name of the reviewer (e.g. Claude, GPT)"
         required: true
         type: string
       provider_id:
-        description: "Lowercase identifier used for file/output naming (e.g. deepseek)"
+        description: "Lowercase identifier used for file/output naming (e.g. claude, gpt)"
         required: true
         type: string
       review_script:
@@ -26,10 +26,10 @@ on:
         default: ""
     secrets:
       anthropic_api_key:
-        description: "Anthropic API key, used for follow-up issue creation"
+        description: "Anthropic API key, used for Claude reviews and follow-up issue creation"
         required: true
       openai_api_key:
-        description: "OpenAI API key, available for provider scripts; currently unused by DeepSeek"
+        description: "OpenAI API key, used for GPT reviews"
         required: false
       deepseek_api_key:
         description: "DeepSeek API key, used for DeepSeek reviews"

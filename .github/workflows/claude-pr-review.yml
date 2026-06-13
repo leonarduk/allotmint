@@ -1,0 +1,23 @@
+name: Claude PR Review
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+jobs:
+  ai-review:
+    if: ${{ github.actor != 'dependabot[bot]' && vars.ENABLE_CLAUDE_REVIEW != 'false' }}
+    permissions:
+      pull-requests: write
+      contents: read
+      issues: write
+    uses: ./.github/workflows/_ai-pr-review.yml
+    with:
+      provider_name: Claude
+      provider_id: claude
+      review_script: .github/scripts/claude_review.py
+      workflow_file: claude-pr-review.yml
+      anthropic_max_tokens: "6000"
+    secrets:
+      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+      gh_token: ${{ secrets.GITHUB_TOKEN }}

@@ -3,9 +3,11 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from aws_cdk import (
+    CfnCondition,
     CfnOutput,
     CfnParameter,
     Duration,
+    Fn,
     RemovalPolicy,
     Stack,
     triggers,
@@ -319,16 +321,58 @@ class BackendLambdaStack(Stack):
             "UiAuthUserPoolClientId",
             **ui_auth_client_id_param_kwargs,
         )
+
+        # SmokeTestClient (static_site_stack.py) is a separate Cognito app client
+        # used only by the deploy workflow's post-deploy smoke tests. Its tokens
+        # must also pass backend_authorizer's audience check, otherwise every
+        # Cognito-protected route (e.g. /groups) returns 401 for the smoke test
+        # token even though /config and /health succeed (#4027). Optional with an
+        # empty default so synths without a configured smoke-test client still work.
+        smoke_test_client_id_default = self.node.try_get_context(
+            "smoke_test_user_pool_client_id"
+        ) or os.getenv("SMOKE_TEST_USER_POOL_CLIENT_ID")
+        smoke_test_client_id_param = CfnParameter(
+            self,
+            "SmokeTestUserPoolClientId",
+            type="String",
+            allowed_pattern=".*",
+            default=smoke_test_client_id_default or "",
+            description=(
+                "Cognito app client ID for the deploy workflow's SmokeTestClient, "
+                "exported by StaticSiteStack. Optional: leave empty if smoke tests "
+                "run unauthenticated."
+            ),
+        )
+        # An empty SmokeTestUserPoolClientId (the default, and what the deploy
+        # workflow passes if StaticSiteStack has no such output) must NOT become
+        # an empty-string entry in the authorizer's JWT audience list below —
+        # that would silently accept tokens with an empty `aud` claim. Gate the
+        # smoke-test client with a condition so it's only added when non-empty.
+        has_smoke_test_client = CfnCondition(
+            self,
+            "HasSmokeTestUserPoolClientId",
+            expression=Fn.condition_not(
+                Fn.condition_equals(smoke_test_client_id_param.value_as_string, "")
+            ),
+        )
+
         ui_auth_user_pool = cognito.UserPool.from_user_pool_id(
             self, "ImportedUiAuthUserPool", ui_auth_user_pool_id_param.value_as_string
         )
+        # SmokeTestUserPoolClient is deliberately NOT added to user_pool_clients
+        # here: HttpUserPoolAuthorizer synthesises every entry in that list into
+        # JwtConfiguration.Audience unconditionally, which would put an
+        # empty-string audience entry into the CloudFormation template before
+        # the add_property_override below ever runs. The smoke-test client is
+        # added to the audience solely via that conditional override (#4047
+        # review).
         backend_authorizer = apigwv2_authorizers.HttpUserPoolAuthorizer(
             "BackendCognitoAuthorizer",
             ui_auth_user_pool,
             user_pool_clients=[
                 cognito.UserPoolClient.from_user_pool_client_id(
                     self, "ImportedUiAuthUserPoolClient", ui_auth_client_id_param.value_as_string
-                )
+                ),
             ],
             identity_source=["$request.header.Authorization"],
         )
@@ -391,6 +435,35 @@ class BackendLambdaStack(Stack):
             methods=[apigwv2.HttpMethod.ANY],
             integration=backend_integration,
             authorizer=backend_authorizer,
+        )
+
+        # Override the synthesized audience so the smoke-test client ID is
+        # included only when the parameter is actually set (#4027 review).
+        # HttpUserPoolAuthorizer is not a Construct (no .node), so the
+        # underlying CfnAuthorizer can only be located via backend_api's
+        # construct tree. Assert exactly one CfnAuthorizer exists so that, if
+        # a second authorizer is ever added to backend_api, synthesis fails
+        # loudly instead of silently overriding the wrong resource.
+        backend_cfn_authorizers = [
+            child
+            for child in backend_api.node.find_all()
+            if isinstance(child, apigwv2.CfnAuthorizer)
+        ]
+        assert len(backend_cfn_authorizers) == 1, (
+            "Expected exactly one CfnAuthorizer under BackendApi, found "
+            f"{len(backend_cfn_authorizers)}"
+        )
+        backend_cfn_authorizer = backend_cfn_authorizers[0]
+        backend_cfn_authorizer.add_property_override(
+            "JwtConfiguration.Audience",
+            Fn.condition_if(
+                has_smoke_test_client.logical_id,
+                [
+                    ui_auth_client_id_param.value_as_string,
+                    smoke_test_client_id_param.value_as_string,
+                ],
+                [ui_auth_client_id_param.value_as_string],
+            ),
         )
 
         # Scheduled function to refresh prices daily

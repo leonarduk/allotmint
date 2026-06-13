@@ -4,6 +4,7 @@ This file gives Claude-style coding agents a fast, practical overview for workin
 
 ## Quick start
 
+- Language: always respond in English only, never in Chinese or any other language.
 - Root guide of record: `AGENTS.md`
 - Contributor onboarding/run modes: `docs/CONTRIBUTOR_RUNBOOK.md`
 - Backend app factory: `backend.app:create_app`

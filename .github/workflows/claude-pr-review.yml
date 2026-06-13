@@ -6,7 +6,7 @@ on:
 
 jobs:
   ai-review:
-    if: ${{ github.actor != 'dependabot[bot]' }}
+    if: ${{ github.actor != 'dependabot[bot]' && vars.ENABLE_CLAUDE_REVIEW != 'false' }}
     permissions:
       pull-requests: write
       contents: read

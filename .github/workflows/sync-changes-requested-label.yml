@@ -10,9 +10,16 @@ name: Sync Changes Requested label
 # concurrently on the same push (a structural chicken-and-egg race).
 #
 # This workflow runs *after* each review workflow completes, so by the time
-# it runs for the second of the two, both conclusions are available. It only
-# removes the label once ALL the Claude, GPT, and DeepSeek review check runs for the
+# it runs for the last of the enabled reviewers, all conclusions are available.
+# It only removes the label once ALL enabled AI review check runs for the
 # current head SHA have concluded with 'success'.
+#
+# Individual reviewers can be disabled by setting repo variables:
+#   ENABLE_CLAUDE_REVIEW=false
+#   ENABLE_GPT_REVIEW=false
+#   ENABLE_DEEPSEEK_REVIEW=false
+# When a variable is 'false', the corresponding workflow job is skipped and
+# no check-run is created; this workflow also excludes that reviewer.
 on:
   workflow_run:
     workflows: ["Claude PR Review", "GPT PR Review", "DeepSeek PR Review"]
@@ -20,14 +27,18 @@ on:
 
 jobs:
   sync-label:
-    name: Remove 'Changes Requested' label once all reviews approve
+    name: Remove 'Changes Requested' label once all enabled reviews approve
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
       contents: read
       checks: read
+    env:
+      ENABLE_CLAUDE: ${{ vars.ENABLE_CLAUDE_REVIEW || 'true' }}
+      ENABLE_GPT: ${{ vars.ENABLE_GPT_REVIEW || 'true' }}
+      ENABLE_DEEPSEEK: ${{ vars.ENABLE_DEEPSEEK_REVIEW || 'true' }}
     steps:
-      - name: Reconcile label against all review verdicts
+      - name: Reconcile label against enabled review verdicts
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
@@ -41,26 +52,53 @@ jobs:
             exit 0
           fi
 
-          CLAUDE_CONCLUSION=$(gh api "repos/${REPO}/commits/${HEAD_SHA}/check-runs" --paginate \
-            --jq '[.check_runs[] | select(.name == "Claude AI code review")] | sort_by(.started_at) | last | .conclusion // "pending"')
-          GPT_CONCLUSION=$(gh api "repos/${REPO}/commits/${HEAD_SHA}/check-runs" --paginate \
-            --jq '[.check_runs[] | select(.name == "GPT AI code review")] | sort_by(.started_at) | last | .conclusion // "pending"')
-          DEEPSEEK_CONCLUSION=$(gh api "repos/${REPO}/commits/${HEAD_SHA}/check-runs" --paginate \
-            --jq '[.check_runs[] | select(.name == "DeepSeek AI code review")] | sort_by(.started_at) | last | .conclusion // "pending"')
+          # Build the list of enabled reviewers from their check-run names.
+          # When a reviewer is disabled (vars.ENABLE_*_REVIEW=false), its workflow
+          # job is skipped entirely, so no check-run exists. This workflow excludes
+          # disabled reviewers here so it doesn't wait forever for a check-run
+          # that will never appear.
+          ENABLED_CHECK_NAMES=""
 
-          echo "PR #${PR_NUMBER} @ ${HEAD_SHA}: Claude=${CLAUDE_CONCLUSION}, GPT=${GPT_CONCLUSION}, DeepSeek=${DEEPSEEK_CONCLUSION}"
+          if [ "$ENABLE_CLAUDE" != "false" ]; then
+            ENABLED_CHECK_NAMES="$ENABLED_CHECK_NAMES Claude AI code review"
+          fi
 
-          if [ "$CLAUDE_CONCLUSION" = "success" ] && [ "$GPT_CONCLUSION" = "success" ] && [ "$DEEPSEEK_CONCLUSION" = "success" ]; then
+          if [ "$ENABLE_GPT" != "false" ]; then
+            ENABLED_CHECK_NAMES="$ENABLED_CHECK_NAMES GPT AI code review"
+          fi
+
+          if [ "$ENABLE_DEEPSEEK" != "false" ]; then
+            ENABLED_CHECK_NAMES="$ENABLED_CHECK_NAMES DeepSeek AI code review"
+          fi
+
+          if [ -z "$ENABLED_CHECK_NAMES" ]; then
+            echo "No AI reviewers are enabled; nothing to reconcile."
+            exit 0
+          fi
+
+          echo "Enabled reviewers:${ENABLED_CHECK_NAMES}"
+
+          ALL_SUCCESS=true
+          for NAME in $ENABLED_CHECK_NAMES; do
+            CONCLUSION=$(gh api "repos/${REPO}/commits/${HEAD_SHA}/check-runs" --paginate \
+              --jq "[.check_runs[] | select(.name == \"${NAME}\")] | sort_by(.started_at) | last | .conclusion // \"pending\"")
+            echo "  ${NAME}: ${CONCLUSION}"
+            if [ "$CONCLUSION" != "success" ]; then
+              ALL_SUCCESS=false
+            fi
+          done
+
+          if [ "$ALL_SUCCESS" = "true" ]; then
             HAS_LABEL=$(gh pr view "$PR_NUMBER" --json labels \
               --jq '[.labels[].name] | any(. == "Changes Requested")')
 
             if [ "$HAS_LABEL" = "true" ]; then
               gh pr edit "$PR_NUMBER" --remove-label "Changes Requested"
               gh pr comment "$PR_NUMBER" --body \
-                "All Claude, GPT, and DeepSeek AI reviews have passed for the latest commit -- removing the 'Changes Requested' label."
+                "All enabled AI reviews have passed for the latest commit -- removing the 'Changes Requested' label."
             else
               echo "Label not present on PR #${PR_NUMBER}; nothing to remove."
             fi
           else
-            echo "At least one review hasn't approved yet; leaving 'Changes Requested' label as-is."
+            echo "At least one enabled review hasn't approved yet; leaving 'Changes Requested' label as-is."
           fi

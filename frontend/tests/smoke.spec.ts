@@ -211,7 +211,29 @@ const ROUTES: RouteConfig[] = [
   { path: '/alerts', assertion: { kind: 'heading', name: 'Alerts' } },
   { path: '/alert-settings', assertion: { kind: 'heading', name: 'Alert Settings' } },
   { path: '/goals', assertion: { kind: 'heading', name: 'Goals' } },
-  { path: '/trail', assertion: { kind: 'mode', mode: 'trail' } },
+  {
+    path: '/trail',
+    assertion: { kind: 'heading', name: 'Trail progress' },
+    setup: async (page) => {
+      await page.route('**/trail', async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            tasks: [
+              { id: '1', title: 'Review portfolio', type: 'daily', commentary: '', completed: false },
+              { id: '2', title: 'Check alerts', type: 'daily', commentary: '', completed: true },
+              { id: '3', title: 'Setup watchlist', type: 'once', commentary: 'One-time task', completed: false },
+            ],
+            xp: 10,
+            streak: 3,
+            daily_totals: { '2025-01-01': { completed: 1, total: 2 } },
+            today: '2025-01-01',
+          }),
+        });
+      });
+    },
+  },
   { path: '/smoke-test', assertion: { kind: 'heading', name: 'Smoke test' } },
   {
     path: '/metrics-explained',

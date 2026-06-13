@@ -51,11 +51,23 @@ def test_claude_review_uses_current_default_model_and_allows_override(
     assert module.get_anthropic_model() == "claude-sonnet-4-5"
 
 
+def test_deepseek_review_uses_current_default_model_and_allows_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = load_script_module("deepseek_review_model", "deepseek_review.py")
+
+    assert module.get_deepseek_model() == "deepseek-chat"
+
+    monkeypatch.setenv("DEEPSEEK_MODEL", "deepseek-reasoner")
+    assert module.get_deepseek_model() == "deepseek-reasoner"
+
+
 @pytest.mark.parametrize(
     ("module_name", "file_name", "api_env"),
     [
         ("gpt_review_test", "gpt_review.py", "OPENAI_API_KEY"),
         ("claude_review_test", "claude_review.py", "ANTHROPIC_API_KEY"),
+        ("deepseek_review_test", "deepseek_review.py", "DEEPSEEK_API_KEY"),
     ],
 )
 def test_review_script_exits_when_api_key_missing(
@@ -81,6 +93,7 @@ def test_review_script_exits_when_api_key_missing(
     [
         ("gpt_review_empty", "gpt_review.py", "OPENAI_API_KEY", "GPT"),
         ("claude_review_empty", "claude_review.py", "ANTHROPIC_API_KEY", "Claude"),
+        ("deepseek_review_empty", "deepseek_review.py", "DEEPSEEK_API_KEY", "DeepSeek"),
     ],
 )
 def test_review_script_exits_cleanly_on_empty_diff(
@@ -113,6 +126,12 @@ def test_review_script_exits_cleanly_on_empty_diff(
             "claude_review.py",
             "ANTHROPIC_API_KEY",
             {"content": [{"type": "text", "text": "Looks good\n**APPROVE**"}]},
+        ),
+        (
+            "deepseek_review_success",
+            "deepseek_review.py",
+            "DEEPSEEK_API_KEY",
+            {"choices": [{"message": {"content": "Looks good\n**APPROVE**"}}]},
         ),
     ],
 )
@@ -159,6 +178,20 @@ def test_review_script_prints_review_on_mocked_api_success(
             {"content": []},
             "ERROR: Claude API returned an empty review",
         ),
+        (
+            "deepseek_review_empty_choices",
+            "deepseek_review.py",
+            "DEEPSEEK_API_KEY",
+            {"choices": []},
+            "ERROR: DeepSeek API returned an empty review",
+        ),
+        (
+            "deepseek_review_empty_content",
+            "deepseek_review.py",
+            "DEEPSEEK_API_KEY",
+            {"choices": [{"message": {"content": ""}}]},
+            "ERROR: DeepSeek API returned an empty review",
+        ),
     ],
 )
 def test_review_script_exits_on_empty_api_response(
@@ -186,6 +219,7 @@ def test_review_script_exits_on_empty_api_response(
     [
         ("gpt_review_failure", "gpt_review.py", "OPENAI_API_KEY", "ERROR: OpenAI API returned 500: upstream broke"),
         ("claude_review_failure", "claude_review.py", "ANTHROPIC_API_KEY", "ERROR: Claude API returned 500: upstream broke"),
+        ("deepseek_review_failure", "deepseek_review.py", "DEEPSEEK_API_KEY", "ERROR: DeepSeek API returned 500: upstream broke"),
     ],
 )
 def test_review_script_reports_mocked_api_failure(
@@ -235,6 +269,12 @@ def test_review_script_reports_mocked_api_failure(
             "ANTHROPIC_API_KEY",
             "ERROR: Claude API request failed: timed out",
         ),
+        (
+            "deepseek_review_url_error",
+            "deepseek_review.py",
+            "DEEPSEEK_API_KEY",
+            "ERROR: DeepSeek API request failed: timed out",
+        ),
     ],
 )
 def test_review_script_reports_mocked_url_error(
@@ -277,6 +317,12 @@ def test_review_script_reports_mocked_url_error(
             "claude_review.py",
             "ANTHROPIC_API_KEY",
             "ERROR: Claude API returned non-JSON response",
+        ),
+        (
+            "deepseek_review_bad_json",
+            "deepseek_review.py",
+            "DEEPSEEK_API_KEY",
+            "ERROR: DeepSeek API returned non-JSON response",
         ),
     ],
 )

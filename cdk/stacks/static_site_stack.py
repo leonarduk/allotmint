@@ -47,6 +47,19 @@ class StaticSiteStack(Stack):
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
+        # Fail synthesis loudly if the GitHub deploy role grant would be
+        # silently omitted in a production deploy. A missing GITHUB_DEPLOY_ROLE_ARN
+        # previously caused CloudFormation to delete the IAM grant resource
+        # without any signal, masking the real cause of a deploy failure.
+        # See #3847 and #3866 for context.
+        github_deploy_role_arn = os.getenv("GITHUB_DEPLOY_ROLE_ARN", "")
+        if _is_truthy_context(self.node.try_get_context("prod")) and not github_deploy_role_arn:
+            raise ValueError(
+                "GITHUB_DEPLOY_ROLE_ARN is required for prod StaticSiteStack "
+                "(passed via the GITHUB_DEPLOY_ROLE_ARN env var). "
+                "See #3847 and #3866 for context."
+            )
+
         ui_auth_removal_policy = _ui_auth_removal_policy(self)
 
         # BucketDeployment.Source.json_data() only accepts intra-stack tokens
@@ -413,7 +426,6 @@ class StaticSiteStack(Stack):
         # access. Anchoring the grant in StaticSiteStack—deployed first in the
         # workflow—ensures the permissions persist regardless of BackendLambdaStack
         # churn. Covers both stacks because `cdk diff` targets both. See #3192.
-        github_deploy_role_arn = os.getenv("GITHUB_DEPLOY_ROLE_ARN", "")
         if github_deploy_role_arn:
             # mutable=True is required: the role is bootstrapped externally
             # (bootstrap-deploy-role.sh) but CDK is the source of truth for

@@ -168,6 +168,11 @@ def _render_meta_html(
     if "Volume" not in render_df.columns:
         render_df["Volume"] = 0
     if "Ticker" not in render_df.columns:
+        # Defence-in-depth: ticker/exchange are already validated by
+        # _resolve_ticker_exchange (regex-constrained to [A-Z0-9_-]), and
+        # render_timeseries_html applies df.to_html(escape=True) + html.escape()
+        # on title/subtitle.  Pre-escaping here would double-escape because
+        # to_html(escape=True) re-encodes existing &-entities.
         render_df["Ticker"] = f"{ticker}.{exchange}"
     if "Source" not in render_df.columns:
         render_df["Source"] = "meta"

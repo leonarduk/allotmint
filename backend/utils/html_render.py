@@ -12,7 +12,7 @@ def render_timeseries_html(df: DataFrame, title: str, subtitle: str = "") -> HTM
     for col in ["Open", "High", "Low", "Close"]:
         df[col] = df[col].map("{:.2f}".format)
 
-    html_table = df.to_html(index=False, classes="table table-striped text-center", border=0)
+    html_table = df.to_html(index=False, classes="table table-striped text-center", border=0, escape=True)
 
     escaped_title = html.escape(title)
     escaped_subtitle = html.escape(subtitle)

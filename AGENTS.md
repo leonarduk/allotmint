@@ -2,6 +2,8 @@
 
 This repository has a Python/FastAPI backend, a React/Vite frontend, AWS CDK infrastructure, and local/demo data used heavily by tests and smoke checks. If you are taking the project over after time away, read this file first and treat it as the primary operating guide for the whole repo.
 
+**Language:** always respond in English only, never in Chinese or any other language.
+
 ## 1. Repo map and mental model
 
 - `backend/`: FastAPI application code, domain services, importers, tasks, and Lambda/local entrypoints.

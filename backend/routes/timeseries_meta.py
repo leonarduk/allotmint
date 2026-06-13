@@ -168,11 +168,12 @@ def _render_meta_html(
     if "Volume" not in render_df.columns:
         render_df["Volume"] = 0
     if "Ticker" not in render_df.columns:
-        # XSS protection: render_timeseries_html escapes all cell values via
-        # df.to_html(escape=True), so pre-escaping here would double-escape
-        # (to_html re-encodes existing &-entities as &amp;lt; etc.).
-        # Defence-in-depth: _resolve_ticker_exchange already constrains
-        # ticker/exchange to [A-Z0-9_-]{1,50} before we reach this point.
+        # Defence-in-depth: ticker/exchange are already validated by
+        # _resolve_ticker_exchange (regex-constrained to [A-Z0-9_-]{1,50}),
+        # and render_timeseries_html applies df.to_html(escape=True) +
+        # html.escape() on title/subtitle.  Pre-escaping here would
+        # double-escape because to_html(escape=True) re-encodes existing
+        # &-entities as &amp;lt; etc.
         render_df["Ticker"] = f"{ticker}.{exchange}"
     if "Source" not in render_df.columns:
         render_df["Source"] = "meta"

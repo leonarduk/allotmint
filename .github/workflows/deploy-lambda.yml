@@ -436,6 +436,7 @@ jobs:
             echo "UI_AUTH_USER_POOL_CLIENT_ID=$UI_AUTH_USER_POOL_CLIENT_ID"
             echo "SMOKE_TEST_USER_POOL_CLIENT_ID=$SMOKE_TEST_USER_POOL_CLIENT_ID"
             echo "FRONTEND_ORIGIN=https://${DISTRIBUTION_DOMAIN}"
+            echo "CORS_ORIGINS=https://${DISTRIBUTION_DOMAIN},https://app.allotmint.io"
           } >> "$GITHUB_ENV"
 
       - name: Deploy BackendLambdaStack
@@ -454,6 +455,7 @@ jobs:
           GITHUB_DEPLOY_ROLE_ARN: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           CDK_OUTDIR: /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
           FRONTEND_ORIGIN: ${{ env.FRONTEND_ORIGIN }}
+          CORS_ORIGINS: ${{ env.CORS_ORIGINS }}
         run: >
           npx cdk deploy BackendLambdaStack --require-approval never
           --parameters BackendLambdaStack:UiAuthUserPoolId="$UI_AUTH_USER_POOL_ID"

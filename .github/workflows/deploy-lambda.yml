@@ -428,6 +428,7 @@ jobs:
             echo "UI_AUTH_USER_POOL_CLIENT_ID=$UI_AUTH_USER_POOL_CLIENT_ID"
             echo "SMOKE_TEST_USER_POOL_CLIENT_ID=$SMOKE_TEST_USER_POOL_CLIENT_ID"
             echo "FRONTEND_ORIGIN=https://${DISTRIBUTION_DOMAIN}"
+            echo "CORS_ORIGINS=https://${DISTRIBUTION_DOMAIN},https://app.allotmint.io"
           } >> "$GITHUB_ENV"
 
       - name: Deploy BackendLambdaStack
@@ -534,6 +535,31 @@ jobs:
           # backend API URL as required by issue #3193.
           echo "SMOKE_TEST_URL=$BACKEND_URL" >> "$GITHUB_ENV"
           echo "backend_url=$BACKEND_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke test — assert CORS headers on /config from CloudFront origin
+        run: |
+          set -e
+
+          # Retrieve the deployed backend URL and CloudFront origin
+          BACKEND_URL="${{ env.BACKEND_URL }}"
+          ORIGIN="${{ env.FRONTEND_ORIGIN }}"
+
+          echo "Testing CORS on ${BACKEND_URL}/config with Origin: ${ORIGIN}"
+
+          # Curl /config with Origin header, capture full response including headers
+          RESPONSE=$(curl -s -i \
+            -H "Origin: ${ORIGIN}" \
+            "${BACKEND_URL}/config")
+
+          # Assert header is present and matches
+          if echo "${RESPONSE}" | grep -q "Access-Control-Allow-Origin: ${ORIGIN}"; then
+            echo "✓ CORS header correctly set to: ${ORIGIN}"
+          else
+            echo "✗ CORS header missing or mismatched"
+            echo "Response headers:"
+            echo "${RESPONSE}" | head -20
+            exit 1
+          fi
 
       - name: Refresh StaticSiteStack runtime config
         # GITHUB_DEPLOY_ROLE_ARN must be set here too (see "Deploy StaticSiteStack

@@ -28,6 +28,7 @@ EXPECTED_REQUIRED_CHECKS = {
     "Dependency Review / dependency-review",
     "ai-review / Claude AI code review",
     "ai-review / GPT AI code review",
+    "ai-review / DeepSeek AI code review",
 }
 
 

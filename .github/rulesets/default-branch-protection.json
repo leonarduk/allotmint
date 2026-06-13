@@ -60,6 +60,9 @@
             "context": "ai-review / GPT AI code review"
           },
           {
+            "context": "ai-review / DeepSeek AI code review"
+          },
+          {
             "context": "Merge Conflict Check / Check for merge conflicts with main"
           }
         ]

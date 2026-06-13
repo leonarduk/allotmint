@@ -1,18 +1,19 @@
 # AI Review Workflows
 
-This document describes how the Claude and GPT AI review workflows handle review generation, posting, and failure scenarios.
+This document describes how the Claude, GPT, and DeepSeek AI review workflows handle review generation, posting, and failure scenarios.
 
 ## Overview
 
-Two thin caller workflows trigger AI code reviews on pull requests by invoking a shared
+Three thin caller workflows trigger AI code reviews on pull requests by invoking a shared
 reusable workflow:
 
 - **claude-pr-review.yml**: Calls the reusable workflow with the Anthropic provider config
 - **gpt-pr-review.yml**: Calls the reusable workflow with the OpenAI provider config
+- **deepseek-pr-review.yml**: Calls the reusable workflow with the DeepSeek provider config
 - **_ai-pr-review.yml**: Reusable `workflow_call` workflow containing the actual review,
   posting, verdict-checking, and follow-up-issue logic, parameterized per provider
 
-Both providers follow the same pattern: generate a review, extract a verdict (APPROVE or
+All three providers follow the same pattern: generate a review, extract a verdict (APPROVE or
 REQUEST CHANGES), and post the full review to the PR regardless of verdict.
 
 ## Verdict Behavior
@@ -159,24 +160,24 @@ step's `env:` block, following the existing `openai_api_key` pattern.
 
 ## 'Changes Requested' label contract
 
-`claude-pr-review.yml` and `gpt-pr-review.yml` each add the `Changes
+`claude-pr-review.yml`, `gpt-pr-review.yml`, and `deepseek-pr-review.yml` each add the `Changes
 Requested` label to a PR when their own verdict is REQUEST CHANGES (see
 [Verdict Behavior](#verdict-behavior) above). Removing the label is handled
 separately by `.github/workflows/sync-changes-requested-label.yml`, which is
-triggered via `workflow_run` after either review workflow completes.
+triggered via `workflow_run` after any review workflow completes.
 
-The contract: the label is removed **only when both** the `Claude AI code
-review` and `GPT AI code review` check-runs for the current head SHA have
-concluded with `success`. This cannot be done from inside either review
-job, because a job's own check-run conclusion isn't finalized until the job
-completes — so neither workflow can observe the other's conclusion in time
-when both run concurrently on the same push.
+The contract: the label is removed **only when all three** the `Claude AI code
+review`, `GPT AI code review`, and `DeepSeek AI code review` check-runs for the
+current head SHA have concluded with `success`. This cannot be done from inside
+any single review job, because a job's own check-run conclusion isn't finalized
+until the job completes — so no workflow can observe the other reviewers'
+conclusions in time when all run concurrently on the same push.
 
 When the label is removed, `sync-changes-requested-label.yml` also posts a
-PR comment confirming both AI reviews passed. If the label was not present
-(e.g. both reviews approved on the first pass), no comment is posted.
+PR comment confirming all AI reviews passed. If the label was not present
+(e.g. all reviews approved on the first pass), no comment is posted.
 
-If a third reviewer is added (see [Adding a new AI reviewer](#adding-a-new-ai-reviewer)),
+If a fourth reviewer is added (see [Adding a new AI reviewer](#adding-a-new-ai-reviewer)),
 update `sync-changes-requested-label.yml`'s `workflows:` trigger list and its
 conclusion checks to include the new provider's check-run name — otherwise
 the label will never be removed once the new reviewer also requests changes.

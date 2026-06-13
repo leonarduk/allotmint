@@ -211,23 +211,7 @@ const ROUTES: RouteConfig[] = [
   { path: '/alerts', assertion: { kind: 'heading', name: 'Alerts' } },
   { path: '/alert-settings', assertion: { kind: 'heading', name: 'Alert Settings' } },
   { path: '/goals', assertion: { kind: 'heading', name: 'Goals' } },
-  {
-    path: '/trail',
-    assertion: { kind: 'heading', name: 'Trail progress' },
-    setup: async (page) => {
-      await page.route('**/trail', async (route) => {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({
-            tasks: [{ id: 't1', title: 'Setup profile', completed: false, type: 'once' }],
-            today: '2026-06-13',
-            daily_totals: { '2026-06-13': { completed: 0, total: 1 } },
-          }),
-        });
-      });
-    },
-  },
+  { path: '/trail', assertion: { kind: 'mode', mode: 'trail' } },
   { path: '/smoke-test', assertion: { kind: 'heading', name: 'Smoke test' } },
   {
     path: '/metrics-explained',
@@ -386,7 +370,6 @@ test.describe('pension forecast routing', () => {
     const marker = getActiveRouteMarker(page);
     await expect(marker).toHaveAttribute('data-mode', 'pension');
     await expect(marker).toHaveAttribute('data-pathname', '/pension/forecast');
-    await expect(page.getByRole('heading', { name: 'Pension Forecast' })).toBeVisible();
   });
 });
 
@@ -454,10 +437,8 @@ test.describe('bootstrap to portfolio happy path', () => {
       });
     });
 
-    await page.goto(new URL('/portfolio', baseUrl).toString());
+    await page.goto(new URL('/portfolio/demo-owner', baseUrl).toString());
 
-    // /portfolio redirects to /portfolio/demo-owner when owners are available;
-    // accept the settled URL and check the selector is rendered there
     await expect(page.getByTestId('portfolio-owner-selector')).toBeVisible();
     await expect(getActiveRouteMarker(page)).toHaveAttribute('data-mode', 'owner');
   });

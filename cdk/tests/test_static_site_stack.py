@@ -378,7 +378,10 @@ def test_ui_auth_user_pool_is_destroyed_by_default(tmp_path):
     )
 
 
-def test_ui_auth_user_pool_is_retained_for_prod_context(tmp_path):
+def test_ui_auth_user_pool_is_retained_for_prod_context(monkeypatch, tmp_path):
+    monkeypatch.setenv(
+        "GITHUB_DEPLOY_ROLE_ARN", "arn:aws:iam::123456789012:role/allotmint-github-deploy"
+    )
     template = _template_with_context(tmp_path, {"prod": "true"})
     template.has_resource(
         "AWS::Cognito::UserPool",
@@ -902,3 +905,42 @@ def test_no_cognito_user_pool_client_grant_when_github_deploy_role_arn_absent(
         "Expected no cognito-idp:UpdateUserPoolClient in StaticSiteStack when "
         "GITHUB_DEPLOY_ROLE_ARN is unset"
     )
+
+
+# ---------------------------------------------------------------------------
+# GitHub deploy role — required in prod (issue #3870)
+# ---------------------------------------------------------------------------
+
+
+def test_prod_without_github_deploy_role_arn_raises(monkeypatch, tmp_path) -> None:
+    """A prod-context synth must fail loudly when GITHUB_DEPLOY_ROLE_ARN is unset
+    rather than silently omitting the IAM grant. See #3847 and #3866."""
+    monkeypatch.delenv("GITHUB_DEPLOY_ROLE_ARN", raising=False)
+    (tmp_path / "index.html").write_text("<html></html>")
+    app = App(context={"prod": "true"})
+    with pytest.raises(ValueError, match="GITHUB_DEPLOY_ROLE_ARN"):
+        StaticSiteStack(app, "ProdNoRoleStack", frontend_dist_path=str(tmp_path))
+
+
+def test_prod_with_github_deploy_role_arn_synthesises(monkeypatch, tmp_path) -> None:
+    """A prod-context synth must succeed when GITHUB_DEPLOY_ROLE_ARN is set."""
+    monkeypatch.setenv(
+        "GITHUB_DEPLOY_ROLE_ARN", "arn:aws:iam::123456789012:role/allotmint-github-deploy"
+    )
+    (tmp_path / "index.html").write_text("<html></html>")
+    app = App(context={"prod": "true"})
+    # Must not raise.
+    stack = StaticSiteStack(app, "ProdWithRoleStack", frontend_dist_path=str(tmp_path))
+    app.synth()
+    assert stack is not None
+
+
+def test_non_prod_without_github_deploy_role_arn_synthesises(monkeypatch, tmp_path) -> None:
+    """Non-prod (dev/staging) stacks must synthesise without GITHUB_DEPLOY_ROLE_ARN set."""
+    monkeypatch.delenv("GITHUB_DEPLOY_ROLE_ARN", raising=False)
+    (tmp_path / "index.html").write_text("<html></html>")
+    app = App()
+    # Must not raise.
+    stack = StaticSiteStack(app, "DevNoRoleStack", frontend_dist_path=str(tmp_path))
+    app.synth()
+    assert stack is not None

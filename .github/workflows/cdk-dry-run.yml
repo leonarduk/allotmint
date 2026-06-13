@@ -61,6 +61,8 @@ jobs:
         # npm ci step above), so npx resolves the correct version without a
         # separate npm ci inside cdk/. No cdk/package.json exists in this repo.
         # JWT_SECRET and GOOGLE_CLIENT_ID are required non-empty by backend_lambda_stack.py.
+        # GITHUB_DEPLOY_ROLE_ARN is required by static_site_stack.py when prod=true
+        # (issue #3870) so synth fails loudly if the deploy workflow ever forgets it.
         # Dummy placeholder values are safe — synth only generates the
         # CloudFormation template; no deploy or AWS call is made.
         # --output flag (not CDK_OUTDIR env var) guarantees isolation per run
@@ -68,6 +70,7 @@ jobs:
         env:
           JWT_SECRET: dry-run-placeholder
           GOOGLE_CLIENT_ID: dry-run-placeholder.apps.googleusercontent.com
+          GITHUB_DEPLOY_ROLE_ARN: arn:aws:iam::123456789012:role/dry-run-placeholder
         run: npx cdk synth BackendLambdaStack StaticSiteStack -c prod=true --output /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
         working-directory: cdk
 

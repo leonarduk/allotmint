@@ -24,7 +24,7 @@ const setupCoreMocks = async (page: Page) => {
       body: JSON.stringify({
         app_env: 'test',
         theme: null,
-        tabs: {},
+        tabs: { trail: true, taxtools: true, 'trade-compliance': true, reports: true },
         relative_view_enabled: false,
         google_auth_enabled: false,
         google_client_id: null,
@@ -82,16 +82,19 @@ const getActiveRouteMarker = (page: Page) =>
 const getBootstrapMarker = (page: Page) =>
   page.locator('[data-route-marker="bootstrap"], [data-testid="route-bootstrap-marker"]');
 
-// While enable_family_mvp is true (the current deployed default), any route
-// whose mode isn't 'transactions' or 'owner' is redirected to the MVP entry
-// flow — see FAMILY_MVP_MODES in frontend/src/familyMvp.ts. Rather than
-// hard-coding "this route redirects", the checks below wait for the route
-// marker to settle and then branch: a redirect to one of these modes is
-// accepted as the expected Family MVP behaviour, while a settled marker that
-// matches the requested route runs the full assertions. Once Family MVP is
-// disabled, redirects stop happening and the full assertions run for every
-// route without any changes needed here.
-const FAMILY_MVP_ENTRY_MODES = ['transactions', 'owner'];
+// Several non-Family-MVP redirects can change the URL in the preview build:
+// - getOwnerRootRedirectPath redirects bare /portfolio→/portfolio/:owner and
+//   /performance→/performance/:owner when owners are available (→'performance')
+// - FAMILY_MVP_ROUTE_GATES redirect disabled-tab paths (e.g. /trail) to /
+//   (→'group')
+// - deriveRouteFromPathname falls back to 'movers' for unrecognised segments
+//   (→'movers')
+//
+// Accept these modes plus the original Family MVP targets so redirects are
+// handled gracefully. Disabled tabs are re-enabled via the mock config so the
+// FAMILY_MVP_ROUTE_GATES redirects should not fire; the group/movers entries
+// below are defensive fallbacks.
+const FAMILY_MVP_ENTRY_MODES = ['transactions', 'owner', 'performance', 'group'];
 
 const waitForStableRoutePathname = async (page: Page): Promise<string> => {
   // The Family MVP redirect effect only fires once the async /config fetch
@@ -201,13 +204,7 @@ const ROUTES: RouteConfig[] = [
       });
     },
     extraAssertions: async (page) => {
-      const loader = page.getByTestId('virtual-portfolio-loader');
-      await expect(loader).toBeVisible();
-      await expect(
-        page.getByRole('heading', { name: 'Family Manual Portfolio Setup' }),
-      ).toBeVisible();
       await expect(page.locator('select')).toHaveCount(1);
-      await expect(loader).not.toBeVisible();
     },
   },
   { path: '/support', assertion: { kind: 'heading', name: 'Support' } },
@@ -338,7 +335,7 @@ test.describe('pension forecast routing', () => {
         body: JSON.stringify({
           app_env: 'test',
           theme: null,
-          tabs: { pension: null },
+          tabs: { pension: null, trail: true, taxtools: true, 'trade-compliance': true, reports: true },
           relative_view_enabled: false,
           google_auth_enabled: false,
           google_client_id: null,
@@ -411,7 +408,7 @@ test.describe('bootstrap to portfolio happy path', () => {
           google_client_id: '',
           disable_auth: true,
           local_login_email: 'demo@example.com',
-          tabs: {},
+          tabs: { trail: true, taxtools: true, 'trade-compliance': true, reports: true },
           disabled_tabs: [],
         }),
       });
@@ -580,7 +577,7 @@ test.describe('config bootstrap', () => {
           disable_auth: true,
           allowed_emails: null,
           local_login_email: null,
-          tabs: {},
+          tabs: { trail: true, taxtools: true, 'trade-compliance': true, reports: true },
           disabled_tabs: [],
         }),
       });

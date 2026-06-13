@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearCognitoSession, ensureAwsUiAuth, getStoredCognitoIdToken, UserCancelledError } from '@/awsUiAuth';
+import { clearCognitoSession, ensureAwsUiAuth, getStoredCognitoAccessToken, getStoredCognitoIdToken, UserCancelledError } from '@/awsUiAuth';
 
 const assignMock = vi.fn();
 
@@ -277,6 +277,49 @@ describe('getStoredCognitoIdToken', () => {
   it('returns null for a malformed session entry', () => {
     window.sessionStorage.setItem('awsUiAuthSession', 'not-json');
     expect(getStoredCognitoIdToken()).toBeNull();
+  });
+});
+
+describe('getStoredCognitoAccessToken', () => {
+  it('returns null when no session is stored', () => {
+    expect(getStoredCognitoAccessToken()).toBeNull();
+  });
+
+  it('returns the access_token from a valid session', () => {
+    window.sessionStorage.setItem(
+      'awsUiAuthSession',
+      JSON.stringify({
+        idToken: 'my-id-token',
+        accessToken: 'my-access-token',
+        expiresAt: Date.now() + 3600 * 1000,
+      }),
+    );
+    expect(getStoredCognitoAccessToken()).toBe('my-access-token');
+  });
+
+  it('returns null when session has no access token (only id token)', () => {
+    window.sessionStorage.setItem(
+      'awsUiAuthSession',
+      JSON.stringify({ idToken: 'my-id-token', expiresAt: Date.now() + 3600 * 1000 }),
+    );
+    expect(getStoredCognitoAccessToken()).toBeNull();
+  });
+
+  it('returns null for an expired session', () => {
+    window.sessionStorage.setItem(
+      'awsUiAuthSession',
+      JSON.stringify({
+        idToken: 'my-id-token',
+        accessToken: 'expired-access',
+        expiresAt: Date.now() - 1000,
+      }),
+    );
+    expect(getStoredCognitoAccessToken()).toBeNull();
+  });
+
+  it('returns null for a malformed session entry', () => {
+    window.sessionStorage.setItem('awsUiAuthSession', 'not-json');
+    expect(getStoredCognitoAccessToken()).toBeNull();
   });
 });
 

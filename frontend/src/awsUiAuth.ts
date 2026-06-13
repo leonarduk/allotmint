@@ -109,6 +109,13 @@ export const getStoredCognitoIdToken = (): string | null => {
   return session.idToken;
 };
 
+/** Returns the stored Cognito access token if the session is still valid, else null. */
+export const getStoredCognitoAccessToken = (): string | null => {
+  const session = loadSession();
+  if (!session || session.expiresAt <= Date.now()) return null;
+  return session.accessToken ?? null;
+};
+
 /** Removes the Cognito session from sessionStorage (e.g. after a failed backend exchange). */
 export const clearCognitoSession = (): void => {
   window.sessionStorage.removeItem(SESSION_KEY);

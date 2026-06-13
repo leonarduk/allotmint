@@ -538,7 +538,7 @@ jobs:
 
       - name: Smoke test — assert CORS headers on /config from CloudFront origin
         run: |
-          set -e
+          set -eu
 
           # Retrieve the deployed backend URL and CloudFront origin
           BACKEND_URL="${{ env.BACKEND_URL }}"
@@ -546,13 +546,15 @@ jobs:
 
           echo "Testing CORS on ${BACKEND_URL}/config with Origin: ${ORIGIN}"
 
-          # Curl /config with Origin header, capture full response including headers
-          RESPONSE=$(curl -s -i \
+          # Curl /config with Origin header, capture full response including headers.
+          # Use --http1.1 to preserve header case; HTTP/2 lowercases headers which
+          # would cause the case-sensitive grep below to fail on correctly configured CORS.
+          RESPONSE=$(curl -s -i --http1.1 \
             -H "Origin: ${ORIGIN}" \
             "${BACKEND_URL}/config")
 
-          # Assert header is present and matches
-          if echo "${RESPONSE}" | grep -q "Access-Control-Allow-Origin: ${ORIGIN}"; then
+          # Assert header is present and matches (case-insensitive to handle HTTP/2 responses).
+          if echo "${RESPONSE}" | grep -qi "Access-Control-Allow-Origin: ${ORIGIN}"; then
             echo "✓ CORS header correctly set to: ${ORIGIN}"
           else
             echo "✗ CORS header missing or mismatched"

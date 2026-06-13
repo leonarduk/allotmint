@@ -159,7 +159,15 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
+      # Root install brings in esbuild (a transitive dependency of the root
+      # tsx devDependency). Vite v8 treats esbuild as an optional peer
+      # dependency, so frontend/node_modules alone does not contain it;
+      # Node resolves it from the root node_modules instead, matching the
+      # working deploy-lambda.yml smoke-test job.
+      - run: npm ci
       - run: npm ci
         working-directory: frontend
       - name: Build preview

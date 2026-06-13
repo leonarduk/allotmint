@@ -39,7 +39,7 @@ import { UserProvider, useUser } from './UserContext';
 import ErrorBoundary from './ErrorBoundary';
 import { loadStoredAuthUser, loadStoredUserProfile } from './authStorage';
 import { RouteProvider } from './RouteContext';
-import { clearCognitoSession, ensureAwsUiAuth, getStoredCognitoIdToken, UserCancelledError, type AwsUiAuthConfig } from './awsUiAuth';
+import { clearCognitoSession, ensureAwsUiAuth, getStoredCognitoAccessToken, getStoredCognitoIdToken, UserCancelledError, type AwsUiAuthConfig } from './awsUiAuth';
 import {
   deriveBootstrapMode,
   deriveModeFromPathname,
@@ -439,9 +439,16 @@ const exchangeCognitoForBackendToken = async (
   // Skip the round-trip if we already have a non-expired backend JWT (e.g. page refresh).
   const existing = getStoredAuthToken();
   if (existing && !isJwtExpired(existing)) return;
+  // Pass the Cognito access token as Bearer so API Gateway's JWT authorizer
+  // can validate the request. Fall back to the ID token if no access token
+  // was returned by the hosted UI (some configurations may omit it).
+  const bearerToken = getStoredCognitoAccessToken() ?? idToken;
   const res = await fetch(`${getApiBase()}/token/cognito`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${bearerToken}`,
+    },
     body: JSON.stringify({ id_token: idToken, client_id: clientId }),
   });
   if (!res.ok) {

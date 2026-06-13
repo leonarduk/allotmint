@@ -20,6 +20,12 @@ vi.mock('@/api', () => ({
 
 const VALID_COGNITO_SESSION = JSON.stringify({
   idToken: 'cognito-id-token',
+  accessToken: 'cognito-access-token',
+  expiresAt: Date.now() + 3600 * 1000,
+});
+
+const VALID_COGNITO_SESSION_NO_ACCESS = JSON.stringify({
+  idToken: 'cognito-id-token',
   expiresAt: Date.now() + 3600 * 1000,
 });
 
@@ -85,7 +91,13 @@ describe('bootstrapRuntimeConfig — Cognito backend token exchange', () => {
       ([url]: [string]) => String(url).endsWith('/token/cognito'),
     );
     expect(cognitoFetch).toBeDefined();
-    const body = JSON.parse(cognitoFetch![1].body as string);
+    const [, init] = cognitoFetch!;
+    // Verify the Cognito access token is passed as Bearer so API Gateway's
+    // JWT authorizer can validate the request.
+    expect(init.headers).toMatchObject({
+      Authorization: 'Bearer cognito-access-token',
+    });
+    const body = JSON.parse(init.body as string);
     expect(body.id_token).toBe('cognito-id-token');
     expect(body.client_id).toBe('cognito-client-123');
     expect(setAuthToken).toHaveBeenCalledWith('backend-jwt');
@@ -277,5 +289,44 @@ describe('bootstrapRuntimeConfig — Cognito backend token exchange', () => {
     );
     expect(cognitoFetch).toBeDefined();
     expect(setAuthToken).toHaveBeenCalledWith('new-backend-jwt');
+  });
+
+  it('falls back to ID token as Bearer when access token is not stored', async () => {
+    sessionStorage.setItem(
+      'awsUiAuthSession',
+      VALID_COGNITO_SESSION_NO_ACCESS,
+    );
+    document.body.innerHTML = '<div id="root"></div>';
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        if (String(url).endsWith('/config.json')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve(CONFIG_WITH_COGNITO),
+          });
+        }
+        if (String(url).endsWith('/token/cognito')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ access_token: 'backend-jwt' }),
+          });
+        }
+        return Promise.resolve({ ok: false });
+      }),
+    );
+
+    await import('@/main');
+    await new Promise((r) => setTimeout(r, 0));
+
+    const cognitoFetch = (fetch as ReturnType<typeof vi.fn>).mock.calls.find(
+      ([url]: [string]) => String(url).endsWith('/token/cognito'),
+    );
+    expect(cognitoFetch).toBeDefined();
+    const [, init] = cognitoFetch!;
+    expect(init.headers).toMatchObject({
+      Authorization: 'Bearer cognito-id-token',
+    });
   });
 });

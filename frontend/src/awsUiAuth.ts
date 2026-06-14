@@ -15,6 +15,7 @@ export interface AwsUiAuthConfig {
 interface StoredSession {
   idToken: string;
   accessToken?: string;
+  refreshToken?: string;
   expiresAt: number;
 }
 
@@ -81,15 +82,22 @@ const loadSession = (): StoredSession | null => {
   }
 };
 
-const storeSession = (payload: {
-  id_token: string;
-  access_token?: string;
-  expires_in?: number;
-}) => {
+const storeSession = (
+  payload: {
+    id_token: string;
+    access_token?: string;
+    refresh_token?: string;
+    expires_in?: number;
+  },
+  // Cognito's refresh_token grant response does not echo a new refresh_token,
+  // so a caller refreshing the session passes the existing one to preserve it.
+  fallbackRefreshToken?: string,
+) => {
   const expiresInSeconds = Math.max(60, payload.expires_in ?? 3600);
   const session: StoredSession = {
     idToken: payload.id_token,
     accessToken: payload.access_token,
+    refreshToken: payload.refresh_token ?? fallbackRefreshToken,
     expiresAt: Date.now() + expiresInSeconds * 1000,
   };
   // sessionStorage scopes the token to this tab/session only.
@@ -119,6 +127,55 @@ export const getStoredCognitoAccessToken = (): string | null => {
 /** Removes the Cognito session from sessionStorage (e.g. after a failed backend exchange). */
 export const clearCognitoSession = (): void => {
   window.sessionStorage.removeItem(SESSION_KEY);
+};
+
+/** Epoch-ms expiry of the stored Cognito session, or null when none is stored. */
+export const getCognitoSessionExpiresAt = (): number | null => {
+  const session = loadSession();
+  return session ? session.expiresAt : null;
+};
+
+/**
+ * Exchanges the stored Cognito refresh token for a fresh ID/access token via the
+ * hosted UI's /oauth2/token endpoint (grant_type=refresh_token) and updates the
+ * stored session. Returns the new ID token, or null when there is no refresh
+ * token / config or the refresh fails. The refresh token is preserved because
+ * Cognito does not return a new one on refresh.
+ */
+export const refreshCognitoSession = async (
+  config?: AwsUiAuthConfig | null,
+): Promise<string | null> => {
+  const session = loadSession();
+  const domain = normaliseDomain(config?.domain ?? '');
+  const clientId = config?.clientId?.trim() ?? '';
+  if (!session?.refreshToken || !domain || !clientId) return null;
+
+  const params = new URLSearchParams({
+    grant_type: 'refresh_token',
+    client_id: clientId,
+    refresh_token: session.refreshToken,
+  });
+  const response = await fetch(`${domain}/oauth2/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params.toString(),
+  });
+  if (!response.ok) return null;
+  const data = (await response.json()) as {
+    id_token?: string;
+    access_token?: string;
+    expires_in?: number;
+  };
+  if (!data.id_token) return null;
+  storeSession(
+    {
+      id_token: data.id_token,
+      access_token: data.access_token,
+      expires_in: data.expires_in,
+    },
+    session.refreshToken,
+  );
+  return data.id_token;
 };
 
 const exchangeCode = async (config: AuthConfig) => {

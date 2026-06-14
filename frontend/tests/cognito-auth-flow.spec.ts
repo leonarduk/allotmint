@@ -9,13 +9,8 @@ const PKCE_VERIFIER = 'test-pkce-verifier';
 const AUTH_CODE = 'test-auth-code';
 const COGNITO_ID_TOKEN = 'cognito-id-token';
 const COGNITO_ACCESS_TOKEN = 'cognito-access-token';
-const BACKEND_ACCESS_TOKEN = 'backend-access-token';
 
 type TokenRequest = { url: string; body: string };
-type CognitoExchangeRequest = {
-  authorization: string | undefined;
-  body: { id_token?: string; client_id?: string };
-};
 type ConfigRequest = { authorization: string | undefined };
 
 /**
@@ -91,27 +86,22 @@ const mockCognitoTokenEndpoint = async (page: Page, tokenRequests: TokenRequest[
       body: JSON.stringify({
         id_token: COGNITO_ID_TOKEN,
         access_token: COGNITO_ACCESS_TOKEN,
+        refresh_token: 'cognito-refresh-token',
         expires_in: 3600,
       }),
     });
   });
 };
 
-const mockBackendTokenExchange = async (
-  page: Page,
-  cognitoExchangeRequests: CognitoExchangeRequest[],
-) => {
+/**
+ * Records any hit to the deprecated /token/cognito backend exchange so the test
+ * can assert it is never called — the frontend now sends the Cognito ID token
+ * directly (#4256).
+ */
+const trackBackendTokenExchange = async (page: Page, hits: string[]) => {
   await page.route('**/token/cognito', async (route) => {
-    const request = route.request();
-    cognitoExchangeRequests.push({
-      authorization: request.headers()['authorization'],
-      body: JSON.parse(request.postData() ?? '{}'),
-    });
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ access_token: BACKEND_ACCESS_TOKEN }),
-    });
+    hits.push(route.request().url());
+    await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
   });
 };
 
@@ -156,30 +146,21 @@ const assertCognitoTokenRequest = (tokenRequests: TokenRequest[]) => {
 };
 
 /**
- * The /token/cognito exchange carried the Cognito access token as a Bearer
- * header (regression coverage for #4238/#4239).
+ * The Cognito ID token is stored and reused as the Bearer credential for
+ * subsequent API calls (the API Gateway authorizer validates its `aud` claim),
+ * and the one-time authorization code/state are stripped from the URL (#4256).
  */
-const assertBackendTokenExchange = (cognitoExchangeRequests: CognitoExchangeRequest[]) => {
-  expect(cognitoExchangeRequests[0].authorization).toBe(`Bearer ${COGNITO_ACCESS_TOKEN}`);
-  expect(cognitoExchangeRequests[0].body.id_token).toBe(COGNITO_ID_TOKEN);
-  expect(cognitoExchangeRequests[0].body.client_id).toBe(CLIENT_ID);
-};
-
-/**
- * The exchanged backend token is stored and reused for subsequent API calls,
- * and the one-time authorization code/state are stripped from the URL.
- */
-const assertBackendTokenIsReused = async (page: Page, configRequests: ConfigRequest[]) => {
+const assertIdTokenIsReused = async (page: Page, configRequests: ConfigRequest[]) => {
   await expect
     .poll(() => page.evaluate(() => window.localStorage.getItem('authToken')))
-    .toBe(BACKEND_ACCESS_TOKEN);
+    .toBe(COGNITO_ID_TOKEN);
   await expect.poll(() => configRequests.length).toBeGreaterThan(0);
-  expect(configRequests[0].authorization).toBe(`Bearer ${BACKEND_ACCESS_TOKEN}`);
+  expect(configRequests[0].authorization).toBe(`Bearer ${COGNITO_ID_TOKEN}`);
   await expect.poll(() => new URL(page.url()).search).toBe('');
 };
 
-test.describe('Cognito hosted UI to backend token exchange', () => {
-  test('exchanges the hosted UI callback for a backend token and uses it for API calls', async ({
+test.describe('Cognito hosted UI authentication', () => {
+  test('uses the Cognito ID token from the hosted UI callback for API calls', async ({
     page,
   }) => {
     await seedPkceState(page);
@@ -187,19 +168,22 @@ test.describe('Cognito hosted UI to backend token exchange', () => {
     await mockAppApiEndpoints(page);
 
     const tokenRequests: TokenRequest[] = [];
-    const cognitoExchangeRequests: CognitoExchangeRequest[] = [];
+    const backendExchangeHits: string[] = [];
     const configRequests: ConfigRequest[] = [];
     await mockCognitoTokenEndpoint(page, tokenRequests);
-    await mockBackendTokenExchange(page, cognitoExchangeRequests);
+    await trackBackendTokenExchange(page, backendExchangeHits);
     await mockConfigEndpoint(page, configRequests);
 
     await navigateToCallback(page);
 
-    // Wait until the backend token exchange has completed.
-    await expect.poll(() => cognitoExchangeRequests.length).toBeGreaterThan(0);
+    // Wait until the ID token has been stored as the API auth token.
+    await expect
+      .poll(() => page.evaluate(() => window.localStorage.getItem('authToken')))
+      .toBe(COGNITO_ID_TOKEN);
 
     assertCognitoTokenRequest(tokenRequests);
-    assertBackendTokenExchange(cognitoExchangeRequests);
-    await assertBackendTokenIsReused(page, configRequests);
+    await assertIdTokenIsReused(page, configRequests);
+    // The deprecated backend HS256 exchange must never be called (#4256).
+    expect(backendExchangeHits).toHaveLength(0);
   });
 });

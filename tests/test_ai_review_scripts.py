@@ -160,6 +160,59 @@ def test_review_script_prints_review_on_mocked_api_success(
 
 
 @pytest.mark.parametrize(
+    ("module_name", "file_name", "api_env", "payload"),
+    [
+        (
+            "gpt_review_discussion",
+            "gpt_review.py",
+            "OPENAI_API_KEY",
+            {"choices": [{"message": {"content": "Looks good\n**APPROVE**"}}]},
+        ),
+        (
+            "claude_review_discussion",
+            "claude_review.py",
+            "ANTHROPIC_API_KEY",
+            {"content": [{"type": "text", "text": "Looks good\n**APPROVE**"}]},
+        ),
+        (
+            "deepseek_review_discussion",
+            "deepseek_review.py",
+            "DEEPSEEK_API_KEY",
+            {"choices": [{"message": {"content": "Looks good\n**APPROVE**"}}]},
+        ),
+    ],
+)
+def test_review_script_includes_discussion_in_prompt(
+    monkeypatch: pytest.MonkeyPatch,
+    module_name: str,
+    file_name: str,
+    api_env: str,
+    payload: dict[str, object],
+) -> None:
+    module = load_script_module(module_name, file_name)
+    monkeypatch.setenv(api_env, "test-key")
+    monkeypatch.setenv("PR_TITLE", "Add thing")
+    monkeypatch.setenv("ISSUE_BODY", "Do thing")
+    monkeypatch.setenv("DIFF", "diff --git a/a.py b/a.py\n+print('hi')\n")
+    monkeypatch.setenv(
+        "DISCUSSION", "[2024-01-01T00:00:00Z] alice (conversation): please re-check the null check"
+    )
+
+    captured_payloads: list[dict[str, object]] = []
+
+    def fake_urlopen(request, *args, **kwargs):
+        captured_payloads.append(json.loads(request.data.decode()))
+        return FakeResponse(payload)
+
+    monkeypatch.setattr(review_common.urllib.request, "urlopen", fake_urlopen)
+
+    assert module.main() == 0
+    prompt = json.dumps(captured_payloads[0])
+    assert "Discussion since your last review" in prompt
+    assert "please re-check the null check" in prompt
+
+
+@pytest.mark.parametrize(
     ("module_name", "file_name", "api_env", "payload", "expected_err"),
     [
         (
@@ -385,3 +438,122 @@ def test_default_globs_include_codeowners_file(tmp_path: Path, monkeypatch: pyte
     diff = module.git_diff("main", module.DEFAULT_GLOBS)
 
     assert ".github/CODEOWNERS" in diff
+
+
+def _comment(
+    login: str, body: str, created_at: str, user_type: str = "User", path: str | None = None
+) -> dict:
+    comment = {
+        "user": {"login": login, "type": user_type},
+        "body": body,
+        "created_at": created_at,
+    }
+    if path is not None:
+        comment["path"] = path
+    return comment
+
+
+def test_collect_discussion_returns_empty_when_no_comments(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = load_script_module("prepare_review_discussion", "prepare_review_discussion.py")
+
+    monkeypatch.setattr(module, "gh_api_list", lambda path: [])
+
+    assert module.collect_discussion("owner/repo", "1", "DeepSeek") == ""
+
+
+def test_collect_discussion_filters_to_after_last_review_and_excludes_bots(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = load_script_module("prepare_review_discussion", "prepare_review_discussion.py")
+
+    issue_comments = [
+        _comment(
+            "github-actions[bot]",
+            "## DeepSeek AI Code Review\nLooks fine\n**APPROVE**",
+            "2024-01-01T00:00:00Z",
+            user_type="Bot",
+        ),
+        _comment("alice", "Old comment before the review, ignore me", "2023-12-31T00:00:00Z"),
+        _comment("alice", "Addressed your concern about the null check", "2024-01-02T00:00:00Z"),
+        _comment("dependabot[bot]", "Bumped a dependency", "2024-01-03T00:00:00Z", user_type="Bot"),
+    ]
+    inline_comments = [
+        _comment(
+            "alice", "Fixed the off-by-one here", "2024-01-02T12:00:00Z", path="frontend/src/foo.ts"
+        ),
+        _comment("bob", "Old inline comment", "2023-12-30T00:00:00Z", path="frontend/src/foo.ts"),
+    ]
+
+    def fake_gh_api_list(path: str) -> list[dict]:
+        if path.startswith("repos/owner/repo/issues/"):
+            return issue_comments
+        return inline_comments
+
+    monkeypatch.setattr(module, "gh_api_list", fake_gh_api_list)
+
+    discussion = module.collect_discussion("owner/repo", "1", "DeepSeek")
+
+    assert "Addressed your concern about the null check" in discussion
+    assert "Fixed the off-by-one here" in discussion
+    assert "inline on frontend/src/foo.ts" in discussion
+    assert "Old comment before the review" not in discussion
+    assert "Old inline comment" not in discussion
+    assert "Bumped a dependency" not in discussion
+    assert "AI Code Review" not in discussion
+
+
+def test_collect_discussion_includes_everything_when_no_prior_review(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = load_script_module("prepare_review_discussion", "prepare_review_discussion.py")
+
+    issue_comments = [_comment("alice", "First pass discussion", "2024-01-01T00:00:00Z")]
+
+    monkeypatch.setattr(
+        module,
+        "gh_api_list",
+        lambda path: issue_comments if "issues" in path else [],
+    )
+
+    discussion = module.collect_discussion("owner/repo", "1", "DeepSeek")
+
+    assert "First pass discussion" in discussion
+
+
+def test_collect_discussion_truncates_long_discussion(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = load_script_module("prepare_review_discussion", "prepare_review_discussion.py")
+
+    issue_comments = [
+        _comment(
+            "alice", "x" * 500, f"2024-01-01T{i // 3600:02d}:{(i // 60) % 60:02d}:{i % 60:02d}Z"
+        )
+        for i in range(0, 300)
+    ]
+
+    monkeypatch.setattr(
+        module,
+        "gh_api_list",
+        lambda path: issue_comments if "issues" in path else [],
+    )
+
+    discussion = module.collect_discussion("owner/repo", "1", "DeepSeek")
+
+    assert len(discussion) <= module.MAX_DISCUSSION_CHARS
+    assert "truncated" in discussion
+
+
+def test_gh_api_list_parses_paginated_json_arrays(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = load_script_module(
+        "prepare_review_discussion_paginate", "prepare_review_discussion.py"
+    )
+
+    class FakeResult:
+        stdout = '[{"id": 1}]\n[{"id": 2}]'
+
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda *args, **kwargs: FakeResult(),
+    )
+
+    assert module.gh_api_list("repos/owner/repo/issues/1/comments") == [{"id": 1}, {"id": 2}]

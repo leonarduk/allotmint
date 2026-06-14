@@ -417,10 +417,23 @@ class BackendLambdaStack(Stack):
         # frontend/src/LoginPage.tsx sends this request with no Authorization
         # header at all — backend_authorizer (Cognito JWT) would reject it with
         # 401 before backend.auth.verify_google_token ever runs, the same class
-        # of bug fixed for GET /config in #3873. POST /token/cognito is NOT
-        # listed here: frontend/src/main.tsx exchangeCognitoForBackendToken sends
-        # a Cognito-issued access/ID token as a Bearer header, which
-        # backend_authorizer validates successfully against the same user pool.
+        # of bug fixed for GET /config in #3873.
+        #
+        # POST /token/cognito is NOT listed here: frontend/src/main.tsx
+        # exchangeCognitoForBackendToken sends a Cognito-issued access/ID token
+        # as a Bearer header, and backend_authorizer validates it successfully.
+        # This is not an assumption that the pools happen to match — it is the
+        # same pool/client by construction. ui_auth_user_pool_id_param and
+        # ui_auth_client_id_param (above) are documented as values exported by
+        # StaticSiteStack's UiAuthUserPool/UiAuthClient (see
+        # cdk/stacks/static_site_stack.py CfnOutputs UiAuthUserPoolId and
+        # UiAuthUserPoolClientId). That same UiAuthClient.user_pool_client_id is
+        # embedded in config.json's awsUiAuth.clientId (static_site_stack.py,
+        # DeployRuntimeConfig), which is what the frontend uses to sign in via
+        # Cognito before calling /token/cognito. So backend_authorizer and the
+        # frontend's Cognito sign-in resolve to the same UiAuthUserPool /
+        # UiAuthClient — there is only one Cognito user pool in this stack
+        # pairing, not two.
         backend_api.add_routes(
             path="/token/google",
             methods=[apigwv2.HttpMethod.POST],

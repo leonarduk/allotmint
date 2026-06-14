@@ -1,3 +1,4 @@
+import json
 import os
 from collections.abc import Sequence
 from pathlib import Path
@@ -391,6 +392,42 @@ class BackendLambdaStack(Stack):
             ),
         )
         self.backend_api_url = backend_api.api_endpoint
+
+        # Access logging on the default ($default) stage. The Cognito JWT
+        # authorizer rejects unauthorized requests (e.g. the /owners 401 in
+        # #4256) BEFORE they reach the Lambda, so those rejections are invisible
+        # in the Lambda's own logs. Logging $context.authorizer.error alongside
+        # the status/route makes gateway-level 401s observable in CloudWatch.
+        # The format deliberately logs claims/status only — never the raw bearer
+        # token — so no credentials land in the logs.
+        access_log_group = logs.LogGroup(
+            self,
+            "BackendApiAccessLogGroup",
+            retention=logs.RetentionDays.ONE_WEEK,
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+        access_log_format = json.dumps(
+            {
+                "requestId": "$context.requestId",
+                "routeKey": "$context.routeKey",
+                "status": "$context.status",
+                "errorMessage": "$context.error.message",
+                "authorizerError": "$context.authorizer.error",
+                "integrationStatus": "$context.integrationStatus",
+                "responseLatency": "$context.responseLatency",
+            }
+        )
+        default_stage = backend_api.default_stage
+        assert default_stage is not None, "BackendApi must expose a default stage"
+        cfn_default_stage = default_stage.node.default_child
+        assert isinstance(
+            cfn_default_stage, apigwv2.CfnStage
+        ), "Expected the default stage's default child to be a CfnStage"
+        cfn_default_stage.add_property_override(
+            "AccessLogSettings.DestinationArn", access_log_group.log_group_arn
+        )
+        cfn_default_stage.add_property_override("AccessLogSettings.Format", access_log_format)
+
         backend_integration = apigwv2_integrations.HttpLambdaIntegration(
             "BackendLambdaIntegration", backend_fn
         )

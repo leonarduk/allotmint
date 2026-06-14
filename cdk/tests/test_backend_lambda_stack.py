@@ -659,6 +659,69 @@ def test_backend_api_routes_require_cognito_authorizer(template):
 
 
 # ---------------------------------------------------------------------------
+# API Gateway access logging (auth-boundary observability — issue #4255)
+# ---------------------------------------------------------------------------
+
+
+def test_backend_api_stage_has_access_logging(template):
+    """The HTTP API default stage must have access logging configured so that
+    authorizer rejections (Cognito JWT 401s that never reach the Lambda) are
+    observable in CloudWatch.
+
+    Asserts the stage points at a CloudWatch log group and that the log format
+    includes the authorizer error, status, and route — but not the raw token.
+    """
+    stages = template.find_resources("AWS::ApiGatewayV2::Stage")
+    assert stages, "Expected an AWS::ApiGatewayV2::Stage resource"
+
+    access_log_settings = [
+        resource["Properties"].get("AccessLogSettings")
+        for resource in stages.values()
+        if resource.get("Properties", {}).get("AccessLogSettings")
+    ]
+    assert access_log_settings, (
+        "No AWS::ApiGatewayV2::Stage has AccessLogSettings configured; "
+        "the default stage must write access logs to CloudWatch so gateway "
+        "authorizer 401s are observable (issue #4255)"
+    )
+
+    settings = access_log_settings[0]
+    assert settings.get("DestinationArn"), (
+        "AccessLogSettings must reference a CloudWatch log group DestinationArn"
+    )
+    fmt = settings.get("Format", "")
+    assert "$context.authorizer.error" in fmt, (
+        "Access log format must include $context.authorizer.error so gateway "
+        "authorizer rejections record a reason"
+    )
+    assert "$context.status" in fmt, "Access log format must include $context.status"
+    assert "$context.routeKey" in fmt, "Access log format must include $context.routeKey"
+    # Guard against ever logging the raw bearer token / Authorization header.
+    assert "uthorization" not in fmt, (
+        "Access log format must not capture the Authorization header / raw token"
+    )
+
+
+def test_backend_api_access_log_group_has_one_week_retention(template):
+    """The access-log group must use the stack's standard one-week retention
+    and be destroyed with the stack, matching the Lambda log groups."""
+    resources = template.find_resources("AWS::Logs::LogGroup")
+    access_log_groups = {
+        logical_id: resource
+        for logical_id, resource in resources.items()
+        if logical_id.startswith("BackendApiAccessLogGroup")
+    }
+    assert access_log_groups, "Expected a BackendApiAccessLogGroup log group"
+    for logical_id, resource in access_log_groups.items():
+        assert resource["Properties"]["RetentionInDays"] == 7, (
+            f"{logical_id} must retain access logs for one week"
+        )
+        assert resource["DeletionPolicy"] == "Delete", (
+            f"{logical_id} must be destroyed with the stack"
+        )
+
+
+# ---------------------------------------------------------------------------
 # CfnOutputs
 # ---------------------------------------------------------------------------
 

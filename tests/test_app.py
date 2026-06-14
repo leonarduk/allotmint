@@ -121,6 +121,74 @@ def test_api_console_admin_check(monkeypatch, admin_emails, disable_auth, email,
     assert resp.status_code == expected_status
 
 
+def _whoami_app(monkeypatch, *, admin_emails="admin@example.com", disable_auth=True):
+    """Build an app configured for /whoami tests with the admin allowlist set."""
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    monkeypatch.setattr(config, "snapshot_warm_days", 30)
+    monkeypatch.setattr(config, "disable_auth", disable_auth)
+    monkeypatch.setenv("ADMIN_EMAILS", admin_emails)
+    with patch("backend.common.portfolio_utils.refresh_snapshot_async"):
+        return create_app()
+
+
+def test_whoami_requires_admin(monkeypatch):
+    """Non-admin users must never see decoded token claims."""
+    app = _whoami_app(monkeypatch)
+    app.dependency_overrides[auth.get_current_user] = lambda: "other@example.com"
+    with TestClient(app, raise_server_exceptions=False) as client:
+        resp = client.get("/whoami")
+    assert resp.status_code == 403
+
+
+def test_whoami_returns_claims_for_admin(monkeypatch):
+    """An admin sees the allowlisted claim subset and the allowed-email result."""
+    import jwt
+
+    app = _whoami_app(monkeypatch)
+    app.dependency_overrides[auth.get_current_user] = lambda: "admin@example.com"
+    monkeypatch.setattr(auth, "_allowed_emails", lambda: {"admin@example.com"})
+
+    token = jwt.encode(
+        {
+            "sub": "cognito-sub-123",
+            "email": "admin@example.com",
+            "exp": 9999999999,
+            "iss": "https://cognito-idp.eu-west-2.amazonaws.com/pool",
+            "token_use": "id",
+            "aud": "client-abc",
+            "secret_claim": "should-not-leak",
+        },
+        "unverified-signature-secret-not-checked-by-whoami",
+        algorithm="HS256",
+    )
+    with TestClient(app, raise_server_exceptions=False) as client:
+        resp = client.get("/whoami", headers={"Authorization": f"Bearer {token}"})
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["token_present"] is True
+    assert body["allowed_email_match"] is True
+    assert body["claims"]["email"] == "admin@example.com"
+    assert body["claims"]["token_use"] == "id"
+    assert body["claims"]["aud"] == "client-abc"
+    # Only the allowlisted claims are echoed; unexpected claims are dropped.
+    assert "secret_claim" not in body["claims"]
+    assert "note" in body
+
+
+def test_whoami_reports_token_absent(monkeypatch):
+    """With no bearer token the response reports token_present=False."""
+    app = _whoami_app(monkeypatch)
+    app.dependency_overrides[auth.get_current_user] = lambda: "admin@example.com"
+    with TestClient(app, raise_server_exceptions=False) as client:
+        resp = client.get("/whoami")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["token_present"] is False
+    assert body["claims"] == {}
+    assert body["allowed_email_match"] is False
+
+
 def test_health_returns_200_when_prime_latest_prices_fails(monkeypatch):
     """App must still serve /health even when optional snapshot warm-up fails."""
     monkeypatch.setattr(config, "skip_snapshot_warm", False)

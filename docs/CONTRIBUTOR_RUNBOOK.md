@@ -249,6 +249,24 @@ Use this when you need to verify sign-in, protected routes, or production-like a
 - `ALLOWED_EMAILS` is not strictly mandatory, but without it you may get broader login access than intended.
 - Smoke and test flows may still use mock or token-driven auth instead of interactive Google sign-in.
 
+### Debugging auth failures
+
+Auth fails at two boundaries; check them in this order:
+
+1. **Gateway authorizer (deployed AWS only).** A request rejected by the API
+   Gateway Cognito JWT authorizer (e.g. a `/owners` 401) never reaches the
+   Lambda, so it is invisible in the Lambda logs. Open the
+   `BackendApiAccessLogGroup` CloudWatch log group, filter by the failing
+   `routeKey`, and read `authorizerError` / `status`.
+2. **Backend token handling.** As an admin (an email in `ADMIN_EMAILS`), call
+   `GET /whoami` with `Authorization: Bearer <token>`. It returns
+   `token_present`, the decoded `claims` (`sub`, `email`, `exp`, `iss`,
+   `token_use`, `aud`), and `allowed_email_match`. It is admin-gated and never
+   echoes the raw token. Note: `/whoami` cannot see gateway rejections — those
+   are step 1.
+
+See `docs/AUTH.md` → "Diagnosing auth failures" for full details.
+
 ## 7. Test mode
 
 Use the smallest validation that matches your change.

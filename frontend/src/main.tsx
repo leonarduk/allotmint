@@ -38,7 +38,7 @@ import { UserProvider, useUser } from './UserContext';
 import ErrorBoundary from './ErrorBoundary';
 import { loadStoredAuthUser, loadStoredUserProfile } from './authStorage';
 import { RouteProvider } from './RouteContext';
-import { clearCognitoSession, ensureAwsUiAuth, getStoredCognitoIdToken, UserCancelledError, type AwsUiAuthConfig } from './awsUiAuth';
+import { clearCognitoSession, ensureAwsUiAuth, getCognitoSessionExpiresAt, getStoredCognitoIdToken, refreshCognitoSession, UserCancelledError, type AwsUiAuthConfig } from './awsUiAuth';
 import {
   deriveBootstrapMode,
   deriveModeFromPathname,
@@ -415,7 +415,7 @@ export function Root() {
 const rootEl = document.getElementById('root');
 if (!rootEl) throw new Error('Root element not found');
 
-const applyCognitoIdToken = (awsUiAuth?: AwsUiAuthConfig | null) => {
+const applyCognitoIdToken = (awsUiAuth?: AwsUiAuthConfig | null): boolean => {
   // API Gateway protects /owners and every other /{proxy+} route with a Cognito
   // JWT authorizer whose audience is the UI app client ID (see
   // cdk/stacks/backend_lambda_stack.py BackendCognitoAuthorizer). That authorizer
@@ -431,8 +431,42 @@ const applyCognitoIdToken = (awsUiAuth?: AwsUiAuthConfig | null) => {
   // disturb a backend JWT that the Google flow may have stored.
   const idToken = getStoredCognitoIdToken();
   const clientId = awsUiAuth?.clientId?.trim();
-  if (!idToken || !clientId) return;
+  if (!idToken || !clientId) return false;
   setAuthToken(idToken);
+  return true;
+};
+
+// Refresh the Cognito ID token this far ahead of expiry so the Authorization
+// header never goes stale mid-session (Cognito ID tokens last ~1h).
+const COGNITO_REFRESH_BUFFER_MS = 5 * 60 * 1000;
+
+const scheduleCognitoRefresh = (awsUiAuth?: AwsUiAuthConfig | null) => {
+  const expiresAt = getCognitoSessionExpiresAt();
+  if (expiresAt === null) return;
+  // Clamp to >= 0 so an already-near-expiry session refreshes immediately
+  // rather than scheduling a timer in the past.
+  const delay = Math.max(0, expiresAt - Date.now() - COGNITO_REFRESH_BUFFER_MS);
+  window.setTimeout(() => {
+    void refreshCognitoSession(awsUiAuth)
+      .then((idToken) => {
+        if (idToken) {
+          // Apply the fresh token and re-arm the timer for the new expiry.
+          setAuthToken(idToken);
+          scheduleCognitoRefresh(awsUiAuth);
+          return;
+        }
+        // No refresh token / refresh rejected: drop the session so the next
+        // reload restarts the hosted-UI login instead of looping on a dead token.
+        console.error('Cognito token refresh failed — clearing session');
+        clearCognitoSession();
+        apiLogout();
+      })
+      .catch((error) => {
+        console.error('Cognito token refresh failed — clearing session:', error);
+        clearCognitoSession();
+        apiLogout();
+      });
+  }, delay);
 };
 
 const bootstrapRuntimeConfig = async () => {
@@ -460,7 +494,10 @@ const bootstrapRuntimeConfig = async () => {
   const shouldRender = await ensureAwsUiAuth(payload.awsUiAuth);
   if (shouldRender) {
     try {
-      applyCognitoIdToken(payload.awsUiAuth);
+      if (applyCognitoIdToken(payload.awsUiAuth)) {
+        // Keep the ID token fresh for the lifetime of this session.
+        scheduleCognitoRefresh(payload.awsUiAuth);
+      }
     } catch (error) {
       console.error('Cognito authentication failed — clearing session:', error);
       // Clear both the Cognito session (prevents infinite retry loop on next load)

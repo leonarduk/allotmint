@@ -86,6 +86,7 @@ const mockCognitoTokenEndpoint = async (page: Page, tokenRequests: TokenRequest[
       body: JSON.stringify({
         id_token: COGNITO_ID_TOKEN,
         access_token: COGNITO_ACCESS_TOKEN,
+        refresh_token: 'cognito-refresh-token',
         expires_in: 3600,
       }),
     });

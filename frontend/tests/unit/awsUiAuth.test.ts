@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearCognitoSession, ensureAwsUiAuth, getStoredCognitoAccessToken, getStoredCognitoIdToken, UserCancelledError } from '@/awsUiAuth';
+import { clearCognitoSession, ensureAwsUiAuth, getCognitoSessionExpiresAt, getStoredCognitoAccessToken, getStoredCognitoIdToken, refreshCognitoSession, UserCancelledError } from '@/awsUiAuth';
 
 const assignMock = vi.fn();
 
@@ -183,6 +183,7 @@ describe('ensureAwsUiAuth', () => {
             Promise.resolve({
               id_token: 'id-tok',
               access_token: 'access-tok',
+              refresh_token: 'refresh-tok',
               expires_in: 3600,
             }),
         })
@@ -196,6 +197,8 @@ describe('ensureAwsUiAuth', () => {
       const stored = JSON.parse(storedRaw!);
       expect(stored.idToken).toBe('id-tok');
       expect(stored.accessToken).toBe('access-tok');
+      // The refresh token is persisted so the session can be silently renewed.
+      expect(stored.refreshToken).toBe('refresh-tok');
     });
 
     it('uses configured redirectPath in the token exchange request', async () => {
@@ -335,5 +338,88 @@ describe('clearCognitoSession', () => {
 
   it('is a no-op when no session is stored', () => {
     expect(() => clearCognitoSession()).not.toThrow();
+  });
+});
+
+describe('getCognitoSessionExpiresAt', () => {
+  it('returns null when no session is stored', () => {
+    expect(getCognitoSessionExpiresAt()).toBeNull();
+  });
+
+  it('returns the stored expiry timestamp', () => {
+    const expiresAt = Date.now() + 3600 * 1000;
+    window.sessionStorage.setItem(
+      'awsUiAuthSession',
+      JSON.stringify({ idToken: 'tok', expiresAt }),
+    );
+    expect(getCognitoSessionExpiresAt()).toBe(expiresAt);
+  });
+});
+
+describe('refreshCognitoSession', () => {
+  const storeRefreshableSession = () =>
+    window.sessionStorage.setItem(
+      'awsUiAuthSession',
+      JSON.stringify({
+        idToken: 'old-id',
+        accessToken: 'old-access',
+        refreshToken: 'refresh-tok',
+        expiresAt: Date.now() + 60 * 1000,
+      }),
+    );
+
+  it('returns null when there is no refresh token in the session', async () => {
+    window.sessionStorage.setItem(
+      'awsUiAuthSession',
+      JSON.stringify({ idToken: 'tok', expiresAt: Date.now() + 60 * 1000 }),
+    );
+    await expect(refreshCognitoSession(AUTH_CONFIG)).resolves.toBeNull();
+  });
+
+  it('returns null when config is missing domain/clientId', async () => {
+    storeRefreshableSession();
+    await expect(refreshCognitoSession({ enabled: true })).resolves.toBeNull();
+  });
+
+  it('exchanges the refresh token and updates the stored session', async () => {
+    storeRefreshableSession();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          id_token: 'new-id',
+          access_token: 'new-access',
+          expires_in: 3600,
+        }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(refreshCognitoSession(AUTH_CONFIG)).resolves.toBe('new-id');
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toBe('https://auth.example.test/oauth2/token');
+    const body = new URLSearchParams(init.body as string);
+    expect(body.get('grant_type')).toBe('refresh_token');
+    expect(body.get('refresh_token')).toBe('refresh-tok');
+    expect(body.get('client_id')).toBe('client123');
+
+    const stored = JSON.parse(
+      window.sessionStorage.getItem('awsUiAuthSession')!,
+    );
+    expect(stored.idToken).toBe('new-id');
+    expect(stored.accessToken).toBe('new-access');
+    // Cognito does not echo a new refresh token; the existing one is preserved.
+    expect(stored.refreshToken).toBe('refresh-tok');
+  });
+
+  it('returns null when the refresh request fails', async () => {
+    storeRefreshableSession();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 400 }));
+    await expect(refreshCognitoSession(AUTH_CONFIG)).resolves.toBeNull();
+    // A failed refresh leaves the existing session untouched for the caller to handle.
+    const stored = JSON.parse(
+      window.sessionStorage.getItem('awsUiAuthSession')!,
+    );
+    expect(stored.idToken).toBe('old-id');
   });
 });

@@ -57,12 +57,21 @@ Browser                        Cognito Hosted UI          API Gateway + Lambda
 
 ### Token expiry / refresh
 
-Cognito ID tokens are short-lived (~1h). `awsUiAuth.ts` treats a session as
-invalid once it is within 60s of expiry (`hasValidSession()`); on the next page
-load `ensureAwsUiAuth()` redirects back to the hosted UI to re-issue a fresh ID
-token before `applyCognitoIdToken()` re-applies it. The PKCE flow does not
-request `offline_access`, so there is no silent refresh-token rotation — refresh
-happens via the hosted-UI redirect on bootstrap.
+Cognito ID tokens are short-lived (~1h), so the Authorization header is kept
+fresh two ways:
+
+- **Silent in-session refresh.** The authorization-code grant returns a
+  `refresh_token` (stored in the session alongside the ID/access tokens).
+  `main.tsx` `scheduleCognitoRefresh()` arms a timer to fire ~5 minutes before
+  expiry; it calls `refreshCognitoSession()` (`awsUiAuth.ts`), which POSTs
+  `grant_type=refresh_token` to the hosted UI's `/oauth2/token` endpoint, stores
+  the new ID/access tokens (preserving the refresh token, which Cognito does not
+  re-issue), re-applies the fresh ID token via `setAuthToken`, and re-arms the
+  timer. If a refresh fails (e.g. the refresh token has expired), the session is
+  cleared and the app logs out so the next load restarts the hosted-UI login.
+- **Bootstrap fallback.** On page load `ensureAwsUiAuth()` treats a session
+  within 60s of expiry as invalid (`hasValidSession()`) and redirects back to the
+  hosted UI to re-issue tokens before `applyCognitoIdToken()` runs.
 
 ### Key implementation points
 
@@ -81,7 +90,7 @@ happens via the hosted-UI redirect on bootstrap.
 
 ### Security notes
 
-- The authoritative Cognito session (`id_token` + `access_token` + expiry) is held in `sessionStorage` only (tab-scoped, cleared on close).
+- The authoritative Cognito session (`id_token` + `access_token` + `refresh_token` + expiry) is held in `sessionStorage` only (tab-scoped, cleared on close). The refresh token enables silent in-session renewal but never leaves `sessionStorage` except as the body of the `/oauth2/token` refresh request.
 - `applyCognitoIdToken()` additionally mirrors the **ID token** into `localStorage` via `setAuthToken` so the API client can attach it as `Authorization: Bearer` (consistent with how the Google flow stores its backend JWT). On a fresh tab a stale `localStorage` copy is never used for an API call: with no `sessionStorage` session, `ensureAwsUiAuth()` redirects to the hosted UI to obtain a fresh token before anything renders.
 - The allowed-emails list is enforced at the gateway/Cognito layer (the authorizer only admits tokens from the configured user pool / client) on the deployed path, and server-side in `verify_cognito_token` → `_authorize_email` for the `POST /token/cognito` exchange.
 - The JWKS issuer is validated to start with `cognito-idp.` and end with `.amazonaws.com` to prevent attacker-controlled JWKS endpoints.

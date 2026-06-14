@@ -38,7 +38,7 @@ import { UserProvider, useUser } from './UserContext';
 import ErrorBoundary from './ErrorBoundary';
 import { loadStoredAuthUser, loadStoredUserProfile } from './authStorage';
 import { RouteProvider } from './RouteContext';
-import { clearCognitoSession, ensureAwsUiAuth, getCognitoSessionExpiresAt, getStoredCognitoIdToken, refreshCognitoSession, UserCancelledError, type AwsUiAuthConfig } from './awsUiAuth';
+import { clearCognitoSession, ensureAwsUiAuth, extractTokenExchangeErrorReason, getCognitoSessionExpiresAt, getStoredCognitoIdToken, refreshCognitoSession, UserCancelledError, type AwsUiAuthConfig } from './awsUiAuth';
 import {
   deriveBootstrapMode,
   deriveModeFromPathname,
@@ -543,9 +543,11 @@ void bootstrapRuntimeConfig()
         </div>
       );
     } else {
+      const reason = extractTokenExchangeErrorReason(error);
       createRoot(rootEl).render(
         <div role="alert" className="app-offline">
           <p>Authentication is unavailable. Please contact your administrator.</p>
+          {reason && <p>Sign-in failed. Reason: {reason}</p>}
           <button type="button" onClick={() => window.location.reload()}>
             Sign in
           </button>

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearCognitoSession, ensureAwsUiAuth, getCognitoSessionExpiresAt, getStoredCognitoAccessToken, getStoredCognitoIdToken, refreshCognitoSession, UserCancelledError } from '@/awsUiAuth';
+import { clearCognitoSession, ensureAwsUiAuth, extractTokenExchangeErrorReason, getCognitoSessionExpiresAt, getStoredCognitoAccessToken, getStoredCognitoIdToken, refreshCognitoSession, UserCancelledError } from '@/awsUiAuth';
 
 const assignMock = vi.fn();
 
@@ -253,6 +253,61 @@ describe('ensureAwsUiAuth', () => {
       );
       expect(replaceState).toHaveBeenCalledWith({}, document.title, '/');
     });
+
+    it('includes the OAuth error code from the response body when token exchange fails', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({
+          ok: false,
+          status: 400,
+          json: () => Promise.resolve({ error: 'invalid_grant' }),
+        })
+      );
+
+      await expect(ensureAwsUiAuth(AUTH_CONFIG)).rejects.toThrow(
+        'AWS UI authentication token exchange failed: invalid_grant'
+      );
+    });
+
+    it('falls back to the HTTP status when the error response body has no error field', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({
+          ok: false,
+          status: 401,
+          json: () => Promise.resolve({}),
+        })
+      );
+
+      await expect(ensureAwsUiAuth(AUTH_CONFIG)).rejects.toThrow(
+        'AWS UI authentication token exchange failed: HTTP 401'
+      );
+    });
+
+    it('falls back to a generic reason when the error response body is unparseable', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500 }));
+
+      await expect(ensureAwsUiAuth(AUTH_CONFIG)).rejects.toThrow(
+        'AWS UI authentication token exchange failed: HTTP 500'
+      );
+    });
+  });
+});
+
+describe('extractTokenExchangeErrorReason', () => {
+  it('extracts the OAuth error code from a token exchange failure', () => {
+    const error = new Error(
+      'AWS UI authentication token exchange failed: invalid_grant'
+    );
+    expect(extractTokenExchangeErrorReason(error)).toBe('invalid_grant');
+  });
+
+  it('returns null for unrelated errors', () => {
+    expect(extractTokenExchangeErrorReason(new Error('some other error'))).toBeNull();
+  });
+
+  it('returns null for non-Error values', () => {
+    expect(extractTokenExchangeErrorReason('oops')).toBeNull();
   });
 });
 

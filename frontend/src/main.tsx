@@ -156,6 +156,7 @@ export function Root() {
   }, []);
 
   const logout = () => {
+    clearCognitoRefreshTimer();
     apiLogout();
     setUser(null);
     setProfile(undefined);
@@ -440,13 +441,26 @@ const applyCognitoIdToken = (awsUiAuth?: AwsUiAuthConfig | null): boolean => {
 // header never goes stale mid-session (Cognito ID tokens last ~1h).
 const COGNITO_REFRESH_BUFFER_MS = 5 * 60 * 1000;
 
+let cognitoRefreshTimerId: ReturnType<typeof window.setTimeout> | null = null;
+
+// Cancels any pending Cognito refresh timer so a stale refresh callback can't
+// fire after logout or page unload. Idempotent.
+const clearCognitoRefreshTimer = () => {
+  if (cognitoRefreshTimerId !== null) {
+    window.clearTimeout(cognitoRefreshTimerId);
+    cognitoRefreshTimerId = null;
+  }
+};
+
 const scheduleCognitoRefresh = (awsUiAuth?: AwsUiAuthConfig | null) => {
+  clearCognitoRefreshTimer();
   const expiresAt = getCognitoSessionExpiresAt();
   if (expiresAt === null) return;
   // Clamp to >= 0 so an already-near-expiry session refreshes immediately
   // rather than scheduling a timer in the past.
   const delay = Math.max(0, expiresAt - Date.now() - COGNITO_REFRESH_BUFFER_MS);
-  window.setTimeout(() => {
+  cognitoRefreshTimerId = window.setTimeout(() => {
+    cognitoRefreshTimerId = null;
     void refreshCognitoSession(awsUiAuth)
       .then((idToken) => {
         if (idToken) {
@@ -468,6 +482,8 @@ const scheduleCognitoRefresh = (awsUiAuth?: AwsUiAuthConfig | null) => {
       });
   }, delay);
 };
+
+window.addEventListener('beforeunload', clearCognitoRefreshTimer);
 
 const bootstrapRuntimeConfig = async () => {
   let payload: { apiBaseUrl?: unknown; awsUiAuth?: AwsUiAuthConfig } | undefined;

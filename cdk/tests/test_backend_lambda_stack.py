@@ -598,7 +598,8 @@ def test_backend_api_authorizer_audience_excludes_empty_smoke_test_client(templa
 
 def test_backend_api_routes_require_cognito_authorizer(template):
     """All API Gateway routes must require Cognito JWT authorization except
-    /health, GET /config, and the CORS preflight OPTIONS routes.
+    /health, GET /config, POST /token/google, and the CORS preflight OPTIONS
+    routes.
 
     /health is intentionally unauthenticated so that post-deploy probes and
     smoke tests can confirm Lambda is reachable without needing a Cognito token.
@@ -606,6 +607,13 @@ def test_backend_api_routes_require_cognito_authorizer(template):
     pre-auth bootstrap endpoint (frontend/src/main.tsx Root.fetchConfig) used
     to determine whether auth is required at all; PUT /config remains
     JWT-protected via the /{proxy+} catch-all.
+    POST /token/google is intentionally unauthenticated because it exchanges a
+    Google ID token (frontend/src/LoginPage.tsx, sent with no Authorization
+    header) for an app JWT — backend_authorizer would reject it with 401 before
+    backend.auth.verify_google_token ever runs (#4240). POST /token/cognito is
+    NOT in this set: frontend/src/main.tsx exchangeCognitoForBackendToken sends
+    a Cognito-issued access/ID token as a Bearer header, which backend_authorizer
+    validates successfully against the same user pool.
     OPTIONS / and OPTIONS /{proxy+} are unauthenticated so that browser CORS
     preflight requests (which never carry an Authorization header) are not
     rejected with 401 before the real request is sent (see issue #3945).
@@ -615,6 +623,7 @@ def test_backend_api_routes_require_cognito_authorizer(template):
     UNAUTHENTICATED_ROUTES = {
         "GET /health",
         "GET /config",
+        "POST /token/google",
         "OPTIONS /",
         "OPTIONS /{proxy+}",
     }

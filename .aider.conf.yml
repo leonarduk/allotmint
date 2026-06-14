@@ -1,4 +1,4 @@
-model: "ollama/qwen2.5-coder:14b"
+model: "ollama/DeepSeek-Qwen3-8B"
 
 auto-commits: true
 yes-always: true

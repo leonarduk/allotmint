@@ -419,18 +419,22 @@ class BackendLambdaStack(Stack):
         # 401 before backend.auth.verify_google_token ever runs, the same class
         # of bug fixed for GET /config in #3873.
         #
-        # POST /token/cognito is NOT listed here: frontend/src/main.tsx
-        # exchangeCognitoForBackendToken sends a Cognito-issued access/ID token
-        # as a Bearer header, and backend_authorizer validates it successfully.
-        # This is not an assumption that the pools happen to match — it is the
-        # same pool/client by construction. ui_auth_user_pool_id_param and
+        # POST /token/cognito is NOT listed here: it stays behind the Cognito
+        # authorizer via the /{proxy+} catch-all. The deployed frontend no longer
+        # calls it — frontend/src/main.tsx applyCognitoIdToken now sends the
+        # Cognito ID token directly as the Bearer header on every protected route,
+        # which backend_authorizer validates (the ID token's `aud` matches the
+        # configured JwtConfiguration.Audience) — see issue #4256. Leaving
+        # /token/cognito authorizer-protected is correct: it requires the same
+        # valid Cognito token, and the route's pool/client match by construction.
+        # ui_auth_user_pool_id_param and
         # ui_auth_client_id_param (above) are documented as values exported by
         # StaticSiteStack's UiAuthUserPool/UiAuthClient (see
         # cdk/stacks/static_site_stack.py CfnOutputs UiAuthUserPoolId and
         # UiAuthUserPoolClientId). That same UiAuthClient.user_pool_client_id is
         # embedded in config.json's awsUiAuth.clientId (static_site_stack.py,
         # DeployRuntimeConfig), which is what the frontend uses to sign in via
-        # Cognito before calling /token/cognito. So backend_authorizer and the
+        # Cognito and is also the ID token's `aud`. So backend_authorizer and the
         # frontend's Cognito sign-in resolve to the same UiAuthUserPool /
         # UiAuthClient — there is only one Cognito user pool in this stack
         # pairing, not two.

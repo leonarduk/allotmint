@@ -596,6 +596,27 @@ def test_backend_api_authorizer_audience_excludes_empty_smoke_test_client(templa
     assert without_smoke_client == [{"Ref": "UiAuthUserPoolClientId"}]
 
 
+def test_backend_api_authorizer_accepts_cognito_id_token_contract(template):
+    """The authorizer audience is the UI app client ID, taken from the
+    Authorization header. This is the contract the deployed frontend now relies
+    on: frontend/src/main.tsx applyCognitoIdToken sends the Cognito ID token
+    (whose `aud` claim equals the UI client ID) as `Authorization: Bearer`, so
+    the gateway authorizer admits it before invoking the Lambda (#4256). If the
+    audience ever stopped including UiAuthUserPoolClientId, the ID token would be
+    rejected with 401 and this test would catch the regression."""
+    resources = template.find_resources("AWS::ApiGatewayV2::Authorizer")
+    authorizer = next(iter(resources.values()))
+    properties = authorizer["Properties"]
+
+    assert properties["IdentitySource"] == ["$request.header.Authorization"]
+
+    audience = properties["JwtConfiguration"]["Audience"]
+    _, with_smoke_client, without_smoke_client = audience["Fn::If"]
+    # The UI client ID (the ID token's `aud`) must be present in both branches.
+    assert {"Ref": "UiAuthUserPoolClientId"} in with_smoke_client
+    assert {"Ref": "UiAuthUserPoolClientId"} in without_smoke_client
+
+
 def test_backend_api_routes_require_cognito_authorizer(template):
     """All API Gateway routes must require Cognito JWT authorization except
     /health, GET /config, POST /token/google, and the CORS preflight OPTIONS
@@ -611,9 +632,10 @@ def test_backend_api_routes_require_cognito_authorizer(template):
     Google ID token (frontend/src/LoginPage.tsx, sent with no Authorization
     header) for an app JWT — backend_authorizer would reject it with 401 before
     backend.auth.verify_google_token ever runs (#4240). POST /token/cognito is
-    NOT in this set: frontend/src/main.tsx exchangeCognitoForBackendToken sends
-    a Cognito-issued access/ID token as a Bearer header, which backend_authorizer
-    validates successfully against the same user pool.
+    NOT in this set: it stays behind backend_authorizer via the /{proxy+}
+    catch-all. The deployed frontend no longer calls it — frontend/src/main.tsx
+    applyCognitoIdToken sends the Cognito ID token directly as the Bearer header,
+    which backend_authorizer validates against the same user pool (#4256).
     OPTIONS / and OPTIONS /{proxy+} are unauthenticated so that browser CORS
     preflight requests (which never carry an Authorization header) are not
     rejected with 401 before the real request is sent (see issue #3945).

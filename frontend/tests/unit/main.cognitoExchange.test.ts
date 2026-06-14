@@ -24,11 +24,6 @@ const VALID_COGNITO_SESSION = JSON.stringify({
   expiresAt: Date.now() + 3600 * 1000,
 });
 
-const VALID_COGNITO_SESSION_NO_ACCESS = JSON.stringify({
-  idToken: 'cognito-id-token',
-  expiresAt: Date.now() + 3600 * 1000,
-});
-
 const CONFIG_WITH_COGNITO = {
   awsUiAuth: {
     enabled: true,
@@ -37,15 +32,19 @@ const CONFIG_WITH_COGNITO = {
   },
 };
 
-/** Build a minimal base64url-encoded fake JWT with the given exp offset from now. */
-const makeFakeJwt = (expOffsetMs: number) => {
-  const exp = Math.floor((Date.now() + expOffsetMs) / 1000);
-  const payload = btoa(JSON.stringify({ exp }))
-    .replace(/=/g, '')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_');
-  return `eyJhbGciOiJIUzI1NiJ9.${payload}.sig`;
-};
+const stubConfigOnlyFetch = () =>
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockImplementation((url: string) => {
+      if (String(url).endsWith('/config.json')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(CONFIG_WITH_COGNITO),
+        });
+      }
+      return Promise.resolve({ ok: false });
+    }),
+  );
 
 beforeEach(() => {
   vi.resetModules();
@@ -58,275 +57,57 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
-describe('bootstrapRuntimeConfig — Cognito backend token exchange', () => {
-  it('exchanges a stored Cognito ID token for a backend JWT on bootstrap', async () => {
+describe('bootstrapRuntimeConfig — Cognito ID token wiring', () => {
+  it('sends the stored Cognito ID token as the API auth token on bootstrap', async () => {
+    // API Gateway's Cognito JWT authorizer validates the ID token's `aud` claim,
+    // so the ID token must be sent verbatim — never exchanged for a backend JWT.
     sessionStorage.setItem('awsUiAuthSession', VALID_COGNITO_SESSION);
     document.body.innerHTML = '<div id="root"></div>';
-
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockImplementation((url: string) => {
-        if (String(url).endsWith('/config.json')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve(CONFIG_WITH_COGNITO),
-          });
-        }
-        if (String(url).endsWith('/token/cognito')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ access_token: 'backend-jwt' }),
-          });
-        }
-        return Promise.resolve({ ok: false });
-      }),
-    );
+    stubConfigOnlyFetch();
 
     await import('@/main');
     await new Promise((r) => setTimeout(r, 0));
 
+    expect(setAuthToken).toHaveBeenCalledWith('cognito-id-token');
+    // The deprecated backend exchange endpoint must no longer be called.
     const cognitoFetch = (fetch as ReturnType<typeof vi.fn>).mock.calls.find(
       ([url]: [string]) => String(url).endsWith('/token/cognito'),
     );
-    expect(cognitoFetch).toBeDefined();
-    const [, init] = cognitoFetch!;
-    // Verify the Cognito access token is passed as Bearer so API Gateway's
-    // JWT authorizer can validate the request.
-    expect(init.headers).toMatchObject({
-      Authorization: 'Bearer cognito-access-token',
-    });
-    const body = JSON.parse(init.body as string);
-    expect(body.id_token).toBe('cognito-id-token');
-    expect(body.client_id).toBe('cognito-client-123');
-    expect(setAuthToken).toHaveBeenCalledWith('backend-jwt');
+    expect(cognitoFetch).toBeUndefined();
+    expect(logout).not.toHaveBeenCalled();
   });
 
-  it('skips backend exchange when no Cognito session is stored', async () => {
+  it('does not set an auth token when no Cognito session is stored', async () => {
     document.body.innerHTML = '<div id="root"></div>';
-
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockImplementation((url: string) => {
-        if (String(url).endsWith('/config.json')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve(CONFIG_WITH_COGNITO),
-          });
-        }
-        return Promise.resolve({ ok: false });
-      }),
-    );
+    stubConfigOnlyFetch();
 
     await import('@/main');
     await new Promise((r) => setTimeout(r, 0));
 
+    // Without a valid session, ensureAwsUiAuth redirects to the hosted UI before
+    // any token is applied, so setAuthToken is never invoked with an ID token.
+    expect(setAuthToken).not.toHaveBeenCalled();
     const cognitoFetch = (fetch as ReturnType<typeof vi.fn>).mock.calls.find(
       ([url]: [string]) => String(url).endsWith('/token/cognito'),
     );
     expect(cognitoFetch).toBeUndefined();
   });
 
-  it('skips exchange when a non-expired backend JWT is already stored (page refresh)', async () => {
+  it('re-applies the Cognito ID token on refresh even when a token is already stored', async () => {
+    // The ID token is the source of truth; re-applying it on every bootstrap
+    // keeps the Authorization header in sync with the (possibly refreshed)
+    // Cognito session without any network round-trip.
     sessionStorage.setItem('awsUiAuthSession', VALID_COGNITO_SESSION);
-    getStoredAuthToken.mockReturnValue(makeFakeJwt(3600 * 1000));
+    getStoredAuthToken.mockReturnValue('stale-token');
     document.body.innerHTML = '<div id="root"></div>';
-
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockImplementation((url: string) => {
-        if (String(url).endsWith('/config.json')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve(CONFIG_WITH_COGNITO),
-          });
-        }
-        return Promise.resolve({ ok: false });
-      }),
-    );
+    stubConfigOnlyFetch();
 
     await import('@/main');
     await new Promise((r) => setTimeout(r, 0));
 
-    const cognitoFetch = (fetch as ReturnType<typeof vi.fn>).mock.calls.find(
-      ([url]: [string]) => String(url).endsWith('/token/cognito'),
-    );
-    expect(cognitoFetch).toBeUndefined();
-  });
-
-  it('re-exchanges when the stored backend JWT is expired', async () => {
-    sessionStorage.setItem('awsUiAuthSession', VALID_COGNITO_SESSION);
-    getStoredAuthToken.mockReturnValue(makeFakeJwt(-1000)); // expired 1s ago
-    document.body.innerHTML = '<div id="root"></div>';
-
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockImplementation((url: string) => {
-        if (String(url).endsWith('/config.json')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve(CONFIG_WITH_COGNITO),
-          });
-        }
-        if (String(url).endsWith('/token/cognito')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ access_token: 'fresh-backend-jwt' }),
-          });
-        }
-        return Promise.resolve({ ok: false });
-      }),
-    );
-
-    await import('@/main');
-    await new Promise((r) => setTimeout(r, 0));
-
-    const cognitoFetch = (fetch as ReturnType<typeof vi.fn>).mock.calls.find(
-      ([url]: [string]) => String(url).endsWith('/token/cognito'),
-    );
-    expect(cognitoFetch).toBeDefined();
-    expect(setAuthToken).toHaveBeenCalledWith('fresh-backend-jwt');
-  });
-
-  it('clears Cognito session and auth state when backend exchange returns an error', async () => {
-    sessionStorage.setItem('awsUiAuthSession', VALID_COGNITO_SESSION);
-    document.body.innerHTML = '<div id="root"></div>';
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockImplementation((url: string) => {
-        if (String(url).endsWith('/config.json')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve(CONFIG_WITH_COGNITO),
-          });
-        }
-        if (String(url).endsWith('/token/cognito')) {
-          return Promise.resolve({ ok: false, status: 401 });
-        }
-        return Promise.resolve({ ok: false });
-      }),
-    );
-
-    await import('@/main');
-    await new Promise((r) => setTimeout(r, 0));
-
-    expect(consoleError).toHaveBeenCalledWith(
-      'Cognito authentication failed — clearing session:',
-      expect.any(Error),
-    );
-    expect(logout).toHaveBeenCalled();
-    // Cognito session must be cleared to prevent an infinite retry loop on next page load.
-    expect(sessionStorage.getItem('awsUiAuthSession')).toBeNull();
-    consoleError.mockRestore();
-  });
-
-  it('clears Cognito session and auth state when backend returns 200 but no access_token', async () => {
-    sessionStorage.setItem('awsUiAuthSession', VALID_COGNITO_SESSION);
-    document.body.innerHTML = '<div id="root"></div>';
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockImplementation((url: string) => {
-        if (String(url).endsWith('/config.json')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve(CONFIG_WITH_COGNITO),
-          });
-        }
-        if (String(url).endsWith('/token/cognito')) {
-          // Backend returns 200 OK but with a missing access_token field.
-          return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
-        }
-        return Promise.resolve({ ok: false });
-      }),
-    );
-
-    await import('@/main');
-    await new Promise((r) => setTimeout(r, 0));
-
-    expect(consoleError).toHaveBeenCalledWith(
-      'Cognito authentication failed — clearing session:',
-      expect.any(Error),
-    );
-    expect(logout).toHaveBeenCalled();
-    expect(sessionStorage.getItem('awsUiAuthSession')).toBeNull();
-    consoleError.mockRestore();
-  });
-
-  it('treats a malformed stored JWT (not 3 segments) as expired and re-exchanges', async () => {
-    sessionStorage.setItem('awsUiAuthSession', VALID_COGNITO_SESSION);
-    getStoredAuthToken.mockReturnValue('not-a-jwt');
-    document.body.innerHTML = '<div id="root"></div>';
-
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockImplementation((url: string) => {
-        if (String(url).endsWith('/config.json')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve(CONFIG_WITH_COGNITO),
-          });
-        }
-        if (String(url).endsWith('/token/cognito')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ access_token: 'new-backend-jwt' }),
-          });
-        }
-        return Promise.resolve({ ok: false });
-      }),
-    );
-
-    await import('@/main');
-    await new Promise((r) => setTimeout(r, 0));
-
-    const cognitoFetch = (fetch as ReturnType<typeof vi.fn>).mock.calls.find(
-      ([url]: [string]) => String(url).endsWith('/token/cognito'),
-    );
-    expect(cognitoFetch).toBeDefined();
-    expect(setAuthToken).toHaveBeenCalledWith('new-backend-jwt');
-  });
-
-  it('falls back to ID token as Bearer when access token is not stored', async () => {
-    sessionStorage.setItem(
-      'awsUiAuthSession',
-      VALID_COGNITO_SESSION_NO_ACCESS,
-    );
-    document.body.innerHTML = '<div id="root"></div>';
-
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockImplementation((url: string) => {
-        if (String(url).endsWith('/config.json')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve(CONFIG_WITH_COGNITO),
-          });
-        }
-        if (String(url).endsWith('/token/cognito')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ access_token: 'backend-jwt' }),
-          });
-        }
-        return Promise.resolve({ ok: false });
-      }),
-    );
-
-    await import('@/main');
-    await new Promise((r) => setTimeout(r, 0));
-
-    const cognitoFetch = (fetch as ReturnType<typeof vi.fn>).mock.calls.find(
-      ([url]: [string]) => String(url).endsWith('/token/cognito'),
-    );
-    expect(cognitoFetch).toBeDefined();
-    const [, init] = cognitoFetch!;
-    expect(init.headers).toMatchObject({
-      Authorization: 'Bearer cognito-id-token',
-    });
+    expect(setAuthToken).toHaveBeenCalledWith('cognito-id-token');
   });
 });

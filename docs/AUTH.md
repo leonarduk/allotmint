@@ -1,6 +1,14 @@
 # Authentication
 
-AllotMint supports two identity providers: Google and AWS Cognito. Both converge on the same backend JWT that protects API endpoints.
+AllotMint supports two identity providers: Google and AWS Cognito. They protect
+the API differently:
+
+- **Google** issues an ID token that the backend exchanges for a short-lived
+  **backend HS256 JWT**, which FastAPI verifies on each request. This is the
+  local / non-gateway path.
+- **AWS Cognito** (deployed path) sends the **Cognito ID token** directly as the
+  `Authorization: Bearer` header. API Gateway's Cognito JWT authorizer validates
+  it before the request ever reaches the Lambda; the backend JWT is not used.
 
 ## Google (default)
 
@@ -16,8 +24,13 @@ The Cognito flow uses PKCE to avoid exposing client secrets in the browser. It i
 
 ### Flow
 
+The Cognito ID token is sent **directly** to API Gateway. There is no backend
+JWT exchange on this path — the gateway's Cognito JWT authorizer validates the
+ID token's `aud` claim against the UI app client ID, so the token issued by
+Cognito is exactly what the authorizer expects.
+
 ```
-Browser                        Cognito Hosted UI          Backend
+Browser                        Cognito Hosted UI          API Gateway + Lambda
   │                                   │                     │
   │── bootstrapRuntimeConfig ─────────►                     │
   │   ensureAwsUiAuth()               │                     │
@@ -28,20 +41,34 @@ Browser                        Cognito Hosted UI          Backend
   │── POST /oauth2/token ─────────────►                     │
   │◄── { id_token, access_token } ────│                     │
   │   storeSession() → sessionStorage │                     │
+  │   applyCognitoIdToken()           │                     │
+  │   setAuthToken(id_token)          │                     │
   │                                   │                     │
-  │── POST /token/cognito { id_token, client_id } ─────────►│
-  │◄─────────────────── { access_token: <backend-jwt> } ────│
-  │   setAuthToken(backend-jwt)       │                     │
-  │                                   │                     │
-  │── GET /owners  Authorization: Bearer <backend-jwt> ────►│
+  │── GET /owners  Authorization: Bearer <cognito-id-token> ───────────────────►│
+  │      (gateway authorizer validates aud == UI client ID, then invokes Lambda) │
 ```
+
+> **Why the ID token, not the access token?** The HTTP API JWT authorizer matches
+> the token's `aud` claim against the configured audience
+> (`cdk/stacks/backend_lambda_stack.py` → `JwtConfiguration.Audience` =
+> `UiAuthUserPoolClientId`). Cognito sets `aud` on the **ID token**; access tokens
+> carry `client_id` instead and have no `aud`, so sending the access token here
+> would fail authorization.
+
+### Token expiry / refresh
+
+Cognito ID tokens are short-lived (~1h). `awsUiAuth.ts` treats a session as
+invalid once it is within 60s of expiry (`hasValidSession()`); on the next page
+load `ensureAwsUiAuth()` redirects back to the hosted UI to re-issue a fresh ID
+token before `applyCognitoIdToken()` re-applies it. The PKCE flow does not
+request `offline_access`, so there is no silent refresh-token rotation — refresh
+happens via the hosted-UI redirect on bootstrap.
 
 ### Key implementation points
 
 - **`frontend/src/awsUiAuth.ts`** — handles the entire PKCE redirect/callback loop. After the Cognito code exchange it stores the Cognito session in `sessionStorage` (tab-scoped; cleared on close). `getStoredCognitoIdToken()` exposes the token to the bootstrap layer.
-- **`frontend/src/main.tsx`** — `exchangeCognitoForBackendToken()` runs after `ensureAwsUiAuth` returns. It reads the stored Cognito ID token and exchanges it for a backend JWT via `POST /token/cognito`, then calls `setAuthToken`.
-- **`backend/auth.py`** — `verify_cognito_token()` validates the Cognito ID token against the issuer's JWKS endpoint. The `PyJWKClient` is cached per issuer in `_jwks_clients` to avoid a round-trip to the JWKS URL on every request.
-- **`backend/app.py`** — `POST /token/cognito` accepts `{ id_token, client_id }`, delegates to `verify_cognito_token`, enforces the allowed-emails list, and returns a backend JWT in the same shape as the Google endpoint. This endpoint was added to `main` in PR #2896 (merged before this PR) and is present in the codebase; this PR wires the frontend caller.
+- **`frontend/src/main.tsx`** — `applyCognitoIdToken()` runs after `ensureAwsUiAuth` returns. It reads the stored Cognito ID token and applies it directly as the API auth token via `setAuthToken`, which attaches it as `Authorization: Bearer` on every API call. No `POST /token/cognito` exchange happens on the deployed path.
+- **`backend/app.py` / `backend/auth.py`** — `POST /token/cognito` (which exchanges a Cognito token for a backend HS256 JWT via `verify_cognito_token`) still exists for any non-gateway use, but the deployed frontend no longer calls it: against the API Gateway authorizer the backend JWT cannot be validated. The Google path (`POST /token`) continues to use the backend HS256 JWT against the FastAPI-enforced (non-gateway) setup.
 
 ### config.json fields
 
@@ -54,7 +81,7 @@ Browser                        Cognito Hosted UI          Backend
 
 ### Security notes
 
-- Cognito tokens are stored in `sessionStorage` only (cleared on tab close).
-- The backend JWT is stored in `localStorage` via `setAuthToken` (consistent with the Google flow).
-- The allowed-emails list is enforced server-side in `verify_cognito_token` → `_authorize_email`.
+- The authoritative Cognito session (`id_token` + `access_token` + expiry) is held in `sessionStorage` only (tab-scoped, cleared on close).
+- `applyCognitoIdToken()` additionally mirrors the **ID token** into `localStorage` via `setAuthToken` so the API client can attach it as `Authorization: Bearer` (consistent with how the Google flow stores its backend JWT). On a fresh tab a stale `localStorage` copy is never used for an API call: with no `sessionStorage` session, `ensureAwsUiAuth()` redirects to the hosted UI to obtain a fresh token before anything renders.
+- The allowed-emails list is enforced at the gateway/Cognito layer (the authorizer only admits tokens from the configured user pool / client) on the deployed path, and server-side in `verify_cognito_token` → `_authorize_email` for the `POST /token/cognito` exchange.
 - The JWKS issuer is validated to start with `cognito-idp.` and end with `.amazonaws.com` to prevent attacker-controlled JWKS endpoints.

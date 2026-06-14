@@ -224,10 +224,13 @@ const exchangeCode = async (config: AuthConfig) => {
   const state = params.get('state');
   const errorParam = params.get('error');
 
-  // access_denied = user clicked Cancel on the Cognito hosted UI.
-  // Clean up PKCE state and URL, then throw so the caller renders a retry UI
-  // instead of falling through to redirectToHostedUi and looping indefinitely.
-  if (errorParam === 'access_denied') {
+  // RFC 6749 defines standard OAuth error codes. Handle the expected user-initiated
+  // error separately (access_denied = user clicked Cancel on Cognito hosted UI).
+  // Other errors are surfaced as-is from the OAuth provider.
+  const EXPECTED_USER_ERROR = 'access_denied';
+  if (errorParam === EXPECTED_USER_ERROR) {
+    // Clean up PKCE state and URL, then throw so the caller renders a retry UI
+    // instead of falling through to redirectToHostedUi and looping indefinitely.
     window.sessionStorage.removeItem(STATE_KEY);
     window.sessionStorage.removeItem(VERIFIER_KEY);
     // Also strip `error` so retrying via reload doesn't immediately

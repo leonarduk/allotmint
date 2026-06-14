@@ -72,6 +72,14 @@ const normaliseDomain = (domain: string) => {
   return trimmed.startsWith('https://') ? trimmed : `https://${trimmed}`;
 };
 
+// Strip the given OAuth callback params, preserving any other query params.
+const stripAuthCallbackParams = (keys: string[] = ['code', 'state']) => {
+  const params = new URLSearchParams(window.location.search);
+  keys.forEach((key) => params.delete(key));
+  const search = params.toString() ? `?${params.toString()}` : '';
+  window.history.replaceState({}, document.title, `${window.location.pathname}${search}`);
+};
+
 const redirectUri = (redirectPath?: string) => {
   const path = redirectPath?.startsWith('/')
     ? redirectPath
@@ -216,13 +224,18 @@ const exchangeCode = async (config: AuthConfig) => {
   const state = params.get('state');
   const errorParam = params.get('error');
 
-  // access_denied = user clicked Cancel on the Cognito hosted UI.
-  // Clean up PKCE state and URL, then throw so the caller renders a retry UI
-  // instead of falling through to redirectToHostedUi and looping indefinitely.
-  if (errorParam === 'access_denied') {
+  // RFC 6749 defines standard OAuth error codes. Handle the expected user-initiated
+  // error separately (access_denied = user clicked Cancel on Cognito hosted UI).
+  // Other errors are surfaced as-is from the OAuth provider.
+  const EXPECTED_USER_ERROR = 'access_denied';
+  if (errorParam === EXPECTED_USER_ERROR) {
+    // Clean up PKCE state and URL, then throw so the caller renders a retry UI
+    // instead of falling through to redirectToHostedUi and looping indefinitely.
     window.sessionStorage.removeItem(STATE_KEY);
     window.sessionStorage.removeItem(VERIFIER_KEY);
-    window.history.replaceState({}, document.title, window.location.pathname);
+    // Also strip `error` so retrying via reload doesn't immediately
+    // re-trigger this same access_denied error.
+    stripAuthCallbackParams(['code', 'state', 'error']);
     throw new UserCancelledError();
   }
   if (errorParam) throw new Error(`Cognito auth error: ${errorParam}`);
@@ -233,7 +246,7 @@ const exchangeCode = async (config: AuthConfig) => {
   if (!expectedState || !verifier || state !== expectedState) {
     window.sessionStorage.removeItem(STATE_KEY);
     window.sessionStorage.removeItem(VERIFIER_KEY);
-    window.history.replaceState({}, document.title, window.location.pathname);
+    stripAuthCallbackParams();
     throw new Error('Invalid AWS UI authentication callback state');
   }
   // State matched — consume the one-time PKCE credentials before the fetch.
@@ -255,7 +268,7 @@ const exchangeCode = async (config: AuthConfig) => {
   if (!response.ok) {
     // The authorization code is single-use; strip it from the URL so a
     // reload restarts the hosted-UI flow instead of replaying a dead code.
-    window.history.replaceState({}, document.title, window.location.pathname);
+    stripAuthCallbackParams();
     throw new Error(
       `${TOKEN_EXCHANGE_FAILURE_PREFIX}: ${await extractOAuthErrorCode(response)}`
     );

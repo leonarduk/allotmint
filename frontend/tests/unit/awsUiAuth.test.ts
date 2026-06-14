@@ -154,6 +154,18 @@ describe('ensureAwsUiAuth', () => {
     expect(window.sessionStorage.getItem('awsUiAuthCodeVerifier')).toBeNull();
   });
 
+  it('preserves non-auth query params when cleaning up after access_denied', async () => {
+    const replaceState = vi.spyOn(window.history, 'replaceState');
+    setLocation('?error=access_denied&redirect=/dashboard&locale=en');
+
+    await expect(ensureAwsUiAuth(AUTH_CONFIG)).rejects.toBeInstanceOf(UserCancelledError);
+    expect(replaceState).toHaveBeenCalledWith(
+      {},
+      document.title,
+      '/?redirect=%2Fdashboard&locale=en'
+    );
+  });
+
   it('throws when Cognito returns a non-cancellation error', async () => {
     setLocation('?error=server_error');
 
@@ -244,6 +256,21 @@ describe('ensureAwsUiAuth', () => {
       expect(window.sessionStorage.getItem('awsUiAuthCodeVerifier')).toBeNull();
     });
 
+    it('preserves non-auth query params when cleaning up after a state mismatch', async () => {
+      setLocation(`?code=auth-code-123&state=${STORED_STATE}&redirect=/dashboard&locale=en`);
+      const replaceState = vi.spyOn(window.history, 'replaceState');
+      window.sessionStorage.setItem('awsUiAuthState', 'different-state');
+
+      await expect(ensureAwsUiAuth(AUTH_CONFIG)).rejects.toThrow(
+        'Invalid AWS UI authentication callback state'
+      );
+      expect(replaceState).toHaveBeenCalledWith(
+        {},
+        document.title,
+        '/?redirect=%2Fdashboard&locale=en'
+      );
+    });
+
     it('throws and cleans up URL when token endpoint returns an error response', async () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }));
       const replaceState = vi.spyOn(window.history, 'replaceState');
@@ -252,6 +279,21 @@ describe('ensureAwsUiAuth', () => {
         'AWS UI authentication token exchange failed'
       );
       expect(replaceState).toHaveBeenCalledWith({}, document.title, '/');
+    });
+
+    it('preserves non-auth query params when cleaning up after a token exchange failure', async () => {
+      setLocation(`?code=auth-code-123&state=${STORED_STATE}&redirect=/dashboard&locale=en`);
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }));
+      const replaceState = vi.spyOn(window.history, 'replaceState');
+
+      await expect(ensureAwsUiAuth(AUTH_CONFIG)).rejects.toThrow(
+        'AWS UI authentication token exchange failed'
+      );
+      expect(replaceState).toHaveBeenCalledWith(
+        {},
+        document.title,
+        '/?redirect=%2Fdashboard&locale=en'
+      );
     });
 
     it('includes the OAuth error code from the response body when token exchange fails', async () => {

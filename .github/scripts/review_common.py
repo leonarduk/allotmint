@@ -142,7 +142,7 @@ opportunities, test coverage gaps, etc.) that are real but should not block
 this PR: list each as a one-line suggested GitHub issue title. Do not request
 changes for these — they belong in the backlog, not this review.
 
-End with a **verdict line** in exactly this format:
+End with a **verdict line** in exactly this format (do not add backticks around the verdict):
 
 - `**APPROVE**` — no blocking concerns (non-blocking items go in section 5 above)
 - `**REQUEST CHANGES**` — one or more blocking bugs, security issues, or unmet AC items (list them)

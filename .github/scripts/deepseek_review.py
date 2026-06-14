@@ -21,9 +21,10 @@ def get_deepseek_model() -> str:
     """Return the DeepSeek model ID to call for advisory reviews.
 
     Defaults to `deepseek-chat` (the latest DeepSeek-V3 alias). Set
-    `DEEPSEEK_MODEL` to override (e.g. for a specific version pin).
+    `DEEPSEEK_MODEL` to override (e.g. to `deepseek-reasoner` for a deeper
+    review). An unset or empty value falls back to the default.
     """
-    return os.environ.get("DEEPSEEK_MODEL", DEFAULT_DEEPSEEK_MODEL)
+    return os.environ.get("DEEPSEEK_MODEL") or DEFAULT_DEEPSEEK_MODEL
 
 
 def get_max_tokens() -> int:

@@ -411,6 +411,22 @@ class BackendLambdaStack(Stack):
             integration=backend_integration,
             authorizer=apigwv2.HttpNoneAuthorizer(),
         )
+        # POST /token/google exchanges a Google ID token (from the frontend's
+        # standalone Google Identity Services sign-in, frontend/src/LoginPage.tsx)
+        # for an app JWT. The caller authenticates with Google, not Cognito, and
+        # frontend/src/LoginPage.tsx sends this request with no Authorization
+        # header at all — backend_authorizer (Cognito JWT) would reject it with
+        # 401 before backend.auth.verify_google_token ever runs, the same class
+        # of bug fixed for GET /config in #3873. POST /token/cognito is NOT
+        # listed here: frontend/src/main.tsx exchangeCognitoForBackendToken sends
+        # a Cognito-issued access/ID token as a Bearer header, which
+        # backend_authorizer validates successfully against the same user pool.
+        backend_api.add_routes(
+            path="/token/google",
+            methods=[apigwv2.HttpMethod.POST],
+            integration=backend_integration,
+            authorizer=apigwv2.HttpNoneAuthorizer(),
+        )
         # CORS preflight OPTIONS requests must never reach backend_authorizer:
         # browsers send them without an Authorization header, so a JWT
         # authorizer would reject them with 401 before CORS headers are

@@ -26,6 +26,7 @@ class ReviewContext:
     pr_title: str
     diff: str
     issue_body: str
+    discussion: str
 
 
 def get_required_env(name: str) -> str:
@@ -49,11 +50,30 @@ def load_review_context(api_key_env: str) -> ReviewContext:
         pr_title=os.environ.get("PR_TITLE", ""),
         diff=os.environ.get("DIFF", ""),
         issue_body=os.environ.get("ISSUE_BODY", DEFAULT_ISSUE_BODY),
+        discussion=os.environ.get("DISCUSSION", ""),
     )
 
 
-def build_prompt(pr_title: str, diff: str, issue_body: str) -> str:
+def build_discussion_section(discussion: str) -> str:
+    """Return the prompt section covering discussion since the last review, if any."""
+    if not discussion.strip():
+        return ""
+    return f"""
+
+## Discussion since your last review
+The following PR comments were posted after your last review (oldest first).
+Treat them as **pointers**, not as proof: a comment claiming something is "fixed"
+or "addressed" does not by itself clear a blocking concern. Only down-rank or drop
+a concern you previously raised if the **diff above** shows it has actually been
+addressed. If a blocking concern is only verbally dismissed with no corresponding
+code change, you must still REQUEST CHANGES for it.
+
+{discussion}"""
+
+
+def build_prompt(pr_title: str, diff: str, issue_body: str, discussion: str = "") -> str:
     """Build the shared advisory review prompt used by both models."""
+    discussion_section = build_discussion_section(discussion)
     return f"""You are a senior engineer reviewing a pull request for **allotmint**,
 a family investment management app.
 
@@ -88,6 +108,7 @@ and avoid regressions in CI/deployment workflows.
 If the diff is empty, this is likely a docs-only or config-only PR whose file types
 were not captured. In that case, review the PR based solely on the linked issue
 acceptance criteria and PR title, and note that no diff was available.
+{discussion_section}
 
 Review this PR across these dimensions. Be direct and specific — cite line numbers
 or function names where relevant. Spend your words on real concerns.

@@ -9,21 +9,19 @@ import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
+from typing import Callable
 
 from llm_labels import extract_tier_label
 
-_ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
-_ANTHROPIC_MODEL = "claude-haiku-4-5-20251001"
-_FALLBACK_BODY_TEMPLATE = "Follow-up suggested by Claude AI review of PR #{pr_number}."
+_FALLBACK_BODY_TEMPLATE = "Follow-up suggested by AI review of PR #{pr_number}."
+
+# Provider used to generate rich issue bodies, selectable via FOLLOWUP_LLM_PROVIDER.
+# Defaults to deepseek, the repo's primary required PR reviewer.
+_DEFAULT_PROVIDER = "deepseek"
 
 
-def _generate_body_via_claude(title: str, pr_number: str, review_text: str) -> str:
-    """Call Claude Haiku to generate a rich issue body. Returns the generated body."""
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-    if not api_key:
-        return _FALLBACK_BODY_TEMPLATE.format(pr_number=pr_number)
-
-    prompt = f"""You are writing a GitHub issue for the allotmint repository.
+def _build_prompt(title: str, pr_number: str, review_text: str) -> str:
+    return f"""You are writing a GitHub issue for the allotmint repository.
 
 The issue title is: "{title}"
 
@@ -61,14 +59,16 @@ Write a complete, actionable GitHub issue body in Markdown covering:
 Be concise but complete. Do not pad with generic advice.
 End with: _Follow-up from AI review of PR #{pr_number}._"""
 
+
+def _call_anthropic(api_key: str, prompt: str) -> str:
+    model = os.environ.get("ANTHROPIC_FOLLOWUP_MODEL", "claude-haiku-4-5-20251001")
     payload = json.dumps({
-        "model": _ANTHROPIC_MODEL,
+        "model": model,
         "max_tokens": 1024,
         "messages": [{"role": "user", "content": prompt}],
     }).encode()
-
     req = urllib.request.Request(
-        _ANTHROPIC_API_URL,
+        "https://api.anthropic.com/v1/messages",
         data=payload,
         headers={
             "x-api-key": api_key,
@@ -76,18 +76,83 @@ End with: _Follow-up from AI review of PR #{pr_number}._"""
             "content-type": "application/json",
         },
     )
-    try:
+    with urllib.request.urlopen(req) as resp:
+        data = json.loads(resp.read())
+    return data["content"][0]["text"].strip()
+
+
+def _openai_compatible_caller(url: str, model_env: str, default_model: str) -> Callable[[str, str], str]:
+    """Return a caller for OpenAI-compatible chat-completions APIs (OpenAI, DeepSeek)."""
+
+    def _call(api_key: str, prompt: str) -> str:
+        payload = json.dumps({
+            "model": os.environ.get(model_env, default_model),
+            "max_tokens": 1024,
+            "temperature": 0.2,
+            "messages": [{"role": "user", "content": prompt}],
+        }).encode()
+        req = urllib.request.Request(
+            url,
+            data=payload,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+        )
         with urllib.request.urlopen(req) as resp:
             data = json.loads(resp.read())
-        return data["content"][0]["text"].strip()
-    except (urllib.error.HTTPError, urllib.error.URLError, KeyError, IndexError) as exc:
-        print(f"WARNING: failed to generate issue body via Claude API: {exc}", file=sys.stderr)
+        return data["choices"][0]["message"]["content"].strip()
+
+    return _call
+
+
+# Maps FOLLOWUP_LLM_PROVIDER values to (API key env var, caller).
+_PROVIDERS: dict[str, tuple[str, Callable[[str, str], str]]] = {
+    "claude": ("ANTHROPIC_API_KEY", _call_anthropic),
+    "gpt": (
+        "OPENAI_API_KEY",
+        _openai_compatible_caller("https://api.openai.com/v1/chat/completions", "OPENAI_FOLLOWUP_MODEL", "gpt-4o-mini"),
+    ),
+    "deepseek": (
+        "DEEPSEEK_API_KEY",
+        _openai_compatible_caller(
+            "https://api.deepseek.com/v1/chat/completions", "DEEPSEEK_FOLLOWUP_MODEL", "deepseek-chat"
+        ),
+    ),
+}
+
+
+def _generate_body_via_llm(title: str, pr_number: str, review_text: str) -> str:
+    """Call the configured LLM provider to generate a rich issue body.
+
+    The provider is chosen via FOLLOWUP_LLM_PROVIDER (claude, gpt, or deepseek;
+    defaults to deepseek). Falls back to a minimal template if the provider is
+    unknown, its API key is unset, or the API call fails.
+    """
+    # GitHub Actions sets unset `vars.*` to an empty string rather than omitting the
+    # env var entirely, so `os.environ.get(..., default)` would not apply the default.
+    provider = os.environ.get("FOLLOWUP_LLM_PROVIDER", "").strip().lower() or _DEFAULT_PROVIDER
+    provider_config = _PROVIDERS.get(provider)
+    if provider_config is None:
+        print(f"WARNING: unknown FOLLOWUP_LLM_PROVIDER '{provider}', using fallback body", file=sys.stderr)
+        return _FALLBACK_BODY_TEMPLATE.format(pr_number=pr_number)
+
+    api_key_env, call = provider_config
+    api_key = os.environ.get(api_key_env, "")
+    if not api_key:
+        return _FALLBACK_BODY_TEMPLATE.format(pr_number=pr_number)
+
+    prompt = _build_prompt(title, pr_number, review_text)
+    try:
+        return call(api_key, prompt)
+    except (urllib.error.HTTPError, urllib.error.URLError, KeyError, IndexError, json.JSONDecodeError) as exc:
+        print(f"WARNING: failed to generate issue body via {provider}: {exc}", file=sys.stderr)
         return _FALLBACK_BODY_TEMPLATE.format(pr_number=pr_number)
 
 
 def _build_body(title: str, pr_number: str, review_text: str | None) -> str:
     if review_text:
-        return _generate_body_via_claude(title, pr_number, review_text)
+        return _generate_body_via_llm(title, pr_number, review_text)
     return _FALLBACK_BODY_TEMPLATE.format(pr_number=pr_number)
 
 

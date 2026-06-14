@@ -154,6 +154,18 @@ describe('ensureAwsUiAuth', () => {
     expect(window.sessionStorage.getItem('awsUiAuthCodeVerifier')).toBeNull();
   });
 
+  it('preserves non-auth query params when cleaning up after access_denied', async () => {
+    const replaceState = vi.spyOn(window.history, 'replaceState');
+    setLocation('?error=access_denied&redirect=/dashboard&locale=en');
+
+    await expect(ensureAwsUiAuth(AUTH_CONFIG)).rejects.toBeInstanceOf(UserCancelledError);
+    expect(replaceState).toHaveBeenCalledWith(
+      {},
+      document.title,
+      '/?redirect=%2Fdashboard&locale=en'
+    );
+  });
+
   it('throws when Cognito returns a non-cancellation error', async () => {
     setLocation('?error=server_error');
 

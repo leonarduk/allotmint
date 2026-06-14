@@ -55,11 +55,10 @@ const normaliseDomain = (domain: string) => {
   return trimmed.startsWith('https://') ? trimmed : `https://${trimmed}`;
 };
 
-// Strip OAuth callback params (code/state) only, preserving any other query params.
-const stripAuthCallbackParams = () => {
+// Strip the given OAuth callback params, preserving any other query params.
+const stripAuthCallbackParams = (keys: string[] = ['code', 'state']) => {
   const params = new URLSearchParams(window.location.search);
-  params.delete('code');
-  params.delete('state');
+  keys.forEach((key) => params.delete(key));
   const search = params.toString() ? `?${params.toString()}` : '';
   window.history.replaceState({}, document.title, `${window.location.pathname}${search}`);
 };
@@ -199,9 +198,9 @@ const exchangeCode = async (config: AuthConfig) => {
   if (errorParam === 'access_denied') {
     window.sessionStorage.removeItem(STATE_KEY);
     window.sessionStorage.removeItem(VERIFIER_KEY);
-    // Strip the whole query string (not just code/state) so retrying via
-    // reload doesn't immediately re-trigger this same `error` param.
-    window.history.replaceState({}, document.title, window.location.pathname);
+    // Also strip `error` so retrying via reload doesn't immediately
+    // re-trigger this same access_denied error.
+    stripAuthCallbackParams(['code', 'state', 'error']);
     throw new UserCancelledError();
   }
   if (errorParam) throw new Error(`Cognito auth error: ${errorParam}`);

@@ -179,6 +179,56 @@ def decode_token(token: str) -> Optional[str]:
         return None
 
 
+# Claim names surfaced by the admin /whoami debug endpoint. Deliberately a
+# fixed allowlist so the raw token and any unexpected/sensitive claims are
+# never echoed back — see describe_token and GET /whoami in backend/app.py.
+WHOAMI_CLAIM_FIELDS: Tuple[str, ...] = ("sub", "email", "exp", "iss", "token_use", "aud")
+
+
+def _unverified_claims(token: str) -> dict[str, Any]:
+    """Return a JWT's payload WITHOUT verifying its signature.
+
+    Used only by the admin-gated /whoami diagnostic to report what the backend
+    decodes from the presented token. For Cognito tokens the API Gateway
+    authorizer has already verified the signature upstream; here we only need
+    the claim values for observability, not to establish trust. Returns an
+    empty mapping when the token is not a decodable JWT.
+    """
+
+    try:
+        payload = jwt.decode(token, options={"verify_signature": False})
+    except jwt.PyJWTError:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def describe_token(token: str | None) -> dict[str, Any]:
+    """Return an admin-only diagnostic view of the presented bearer token.
+
+    Reports whether a token was presented, a fixed allowlist of decoded claims
+    (never the raw token), and whether the token's email matches the backend
+    allowed-emails set. The email claim is preferred; app-signed backend JWTs
+    carry the email in ``sub`` instead, so that is used as a fallback.
+    """
+
+    if not isinstance(token, str) or not token:
+        return {"token_present": False, "claims": {}, "allowed_email_match": False}
+
+    payload = _unverified_claims(token)
+    claims = {field: payload.get(field) for field in WHOAMI_CLAIM_FIELDS}
+
+    email = payload.get("email") or payload.get("sub")
+    allowed_email_match = False
+    if isinstance(email, str) and email:
+        allowed_email_match = email.lower() in _allowed_emails()
+
+    return {
+        "token_present": True,
+        "claims": claims,
+        "allowed_email_match": allowed_email_match,
+    }
+
+
 def _user_from_token(token: str | None) -> str:
     if not token:
         raise HTTPException(

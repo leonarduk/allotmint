@@ -222,6 +222,31 @@ def create_app() -> FastAPI:
 
         return {"status": "ok", "env": cfg.app_env}
 
+    @app.get("/whoami")
+    async def whoami(
+        _: str = Depends(require_admin),
+        token: str | None = Depends(auth.oauth2_scheme),
+    ):
+        """Auth-boundary debug view of the bearer token the backend received.
+
+        Admin-gated (via ``require_admin`` / ``ADMIN_EMAILS``) so decoded claims
+        are never exposed to non-admins. Returns whether a token was presented,
+        an allowlisted subset of its claims (sub, email, exp, iss, token_use,
+        aud), and whether its email matches the backend allowed-emails set.
+
+        Limitation: when the API Gateway Cognito JWT authorizer rejects a
+        request it never reaches the Lambda, so this endpoint cannot diagnose
+        gateway-level 401s — those are visible in API Gateway access logs in
+        CloudWatch. See docs/AUTH.md.
+        """
+
+        result = auth.describe_token(token)
+        result["note"] = (
+            "Diagnoses backend token handling only. Gateway-rejected requests "
+            "never reach this endpoint; see API Gateway access logs in CloudWatch."
+        )
+        return result
+
     @app.get("/api-console", response_class=HTMLResponse, include_in_schema=False)
     async def api_console(_: str = Depends(require_admin)):
         """Interactive API console — restricted to admin users."""

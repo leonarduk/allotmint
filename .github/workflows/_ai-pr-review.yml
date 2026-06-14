@@ -24,6 +24,16 @@ on:
         required: false
         type: string
         default: ""
+      deepseek_model:
+        description: "DEEPSEEK_MODEL override passed to the review script, if any"
+        required: false
+        type: string
+        default: ""
+      deepseek_max_tokens:
+        description: "DEEPSEEK_MAX_TOKENS override passed to the review script, if any"
+        required: false
+        type: string
+        default: ""
     secrets:
       anthropic_api_key:
         description: "Anthropic API key, used for Claude reviews and follow-up issue creation"
@@ -90,6 +100,8 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.openai_api_key }}
           DEEPSEEK_API_KEY: ${{ secrets.deepseek_api_key }}
           ANTHROPIC_MAX_TOKENS: ${{ inputs.anthropic_max_tokens }}
+          DEEPSEEK_MODEL: ${{ inputs.deepseek_model }}
+          DEEPSEEK_MAX_TOKENS: ${{ inputs.deepseek_max_tokens }}
           PR_TITLE: ${{ github.event.pull_request.title }}
           DIFF: ${{ steps.diff.outputs.diff }}
           ISSUE_BODY: ${{ steps.issue.outputs.body }}

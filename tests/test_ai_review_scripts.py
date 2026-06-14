@@ -61,6 +61,11 @@ def test_deepseek_review_uses_current_default_model_and_allows_override(
     monkeypatch.setenv("DEEPSEEK_MODEL", "deepseek-reasoner")
     assert module.get_deepseek_model() == "deepseek-reasoner"
 
+    # An empty override (e.g. an unset workflow input) falls back to the default
+    # rather than sending an empty model string to the API.
+    monkeypatch.setenv("DEEPSEEK_MODEL", "")
+    assert module.get_deepseek_model() == "deepseek-chat"
+
 
 @pytest.mark.parametrize(
     ("module_name", "file_name", "api_env"),

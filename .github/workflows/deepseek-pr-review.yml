@@ -2,11 +2,20 @@ name: DeepSeek PR Review
 
 on:
   pull_request:
-    types: [opened, reopened, synchronize]
+    types: [opened, reopened, synchronize, labeled, unlabeled]
 
 jobs:
   ai-review:
-    if: ${{ github.actor != 'dependabot[bot]' && vars.ENABLE_DEEPSEEK_REVIEW != 'false' }}
+    # For labeled/unlabeled events, github.event.label.name is the label that
+    # was just added or removed. Gating on it here covers both directions:
+    # adding "Deep Review Required" triggers a run that picks up the stronger
+    # model below, and removing it triggers a run that reverts to the
+    # defaults (since `contains(...)` on the current labels is then false).
+    # Any other label add/remove is ignored.
+    if: >-
+      ${{ github.actor != 'dependabot[bot]' && vars.ENABLE_DEEPSEEK_REVIEW != 'false' &&
+      (github.event.action != 'labeled' && github.event.action != 'unlabeled' ||
+      github.event.label.name == 'Deep Review Required') }}
     permissions:
       pull-requests: write
       contents: read
@@ -17,6 +26,12 @@ jobs:
       provider_id: deepseek
       review_script: .github/scripts/deepseek_review.py
       workflow_file: deepseek-pr-review.yml
+      # "Deep Review Required" opts a PR into the stronger reasoning model
+      # with a larger token budget (its chain-of-thought tokens count
+      # against max_tokens). Without the label, the script falls back to
+      # its defaults (deepseek-chat, 4096 tokens).
+      deepseek_model: ${{ contains(github.event.pull_request.labels.*.name, 'Deep Review Required') && 'deepseek-reasoner' || '' }}
+      deepseek_max_tokens: ${{ contains(github.event.pull_request.labels.*.name, 'Deep Review Required') && '16000' || '' }}
     secrets:
       anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
       openai_api_key: ${{ secrets.OPENAI_API_KEY }}

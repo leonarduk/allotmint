@@ -1,7 +1,9 @@
-# GitHub Copilot Instructions for AllotMint
+# GitHub Copilot / Kun Agent Instructions for AllotMint
 
 Read `AGENTS.md` for full repository guidance. Use these short rules while generating code or PRs in this repo:
 
+- **Workspace root:** Use the repository root as the base for all file reads and writes. If you are unsure, call `ls` or `bash pwd` to determine it at the start of each session.
+- **Execution-first:** In your first response after loading a skill or receiving a clear action request, you MUST call the first relevant tool. Do not narrate your plan. Call the tool now.
 - Create or switch to a non-`main` branch before editing files; if the checkout is dirty with unrelated work, use a clean worktree from `main`.
 - For contributor setup/run-mode guidance, prefer `docs/CONTRIBUTOR_RUNBOOK.md`.
 - Backend entrypoint: `backend.app:create_app`; local app: `backend.local_api.main:app`.

@@ -6,7 +6,10 @@ on:
 
 jobs:
   ai-review:
-    if: ${{ github.actor != 'dependabot[bot]' && vars.ENABLE_DEEPSEEK_REVIEW != 'false' }}
+    if: >-
+      ${{ github.actor != 'dependabot[bot]' && vars.ENABLE_DEEPSEEK_REVIEW != 'false' &&
+      (github.event.action != 'labeled' && github.event.action != 'unlabeled' ||
+      github.event.label.name == 'Deep Review Required') }}
     permissions:
       pull-requests: write
       contents: read

@@ -224,18 +224,20 @@ const exchangeCode = async (config: AuthConfig) => {
   const state = params.get('state');
   const errorParam = params.get('error');
 
-  // access_denied = user clicked Cancel on the Cognito hosted UI.
-  // Clean up PKCE state and URL, then throw so the caller renders a retry UI
-  // instead of falling through to redirectToHostedUi and looping indefinitely.
-  if (errorParam === 'access_denied') {
+  // Any OAuth error response means the callback can't proceed: clean up PKCE
+  // state and the URL (so a reload restarts the hosted-UI flow instead of
+  // looping on the same error), then throw. The error code itself only
+  // selects which Error subclass/message is thrown below — it never decides
+  // whether the cleanup happens.
+  if (errorParam) {
     window.sessionStorage.removeItem(STATE_KEY);
     window.sessionStorage.removeItem(VERIFIER_KEY);
-    // Also strip `error` so retrying via reload doesn't immediately
-    // re-trigger this same access_denied error.
     stripAuthCallbackParams(['code', 'state', 'error']);
-    throw new UserCancelledError();
+    // access_denied = user clicked Cancel on the Cognito hosted UI; the
+    // caller renders a retry UI for this case instead of an error message.
+    if (errorParam === 'access_denied') throw new UserCancelledError();
+    throw new Error(`Cognito auth error: ${errorParam}`);
   }
-  if (errorParam) throw new Error(`Cognito auth error: ${errorParam}`);
   if (!code || !state) return false;
 
   const expectedState = window.sessionStorage.getItem(STATE_KEY);

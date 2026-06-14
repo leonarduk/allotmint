@@ -5,6 +5,23 @@ export class UserCancelledError extends Error {
   }
 }
 
+const TOKEN_EXCHANGE_FAILURE_PREFIX =
+  'AWS UI authentication token exchange failed';
+
+/**
+ * Extracts the OAuth error code (e.g. "invalid_grant") appended to a token
+ * exchange failure message, or null if `error` is not such a failure.
+ */
+export const extractTokenExchangeErrorReason = (
+  error: unknown
+): string | null => {
+  if (!(error instanceof Error)) return null;
+  const match = error.message.match(
+    new RegExp(`^${TOKEN_EXCHANGE_FAILURE_PREFIX}: (.+)$`)
+  );
+  return match ? match[1] : null;
+};
+
 export interface AwsUiAuthConfig {
   enabled?: boolean | string;
   domain?: string;
@@ -186,6 +203,21 @@ export const refreshCognitoSession = async (
   return data.id_token;
 };
 
+/**
+ * Extracts the OAuth 2.0 `error` field (RFC 6749) from a failed token
+ * endpoint response, falling back to the HTTP status when the body is
+ * missing, unparseable, or lacks an `error` field.
+ */
+const extractOAuthErrorCode = async (response: Response): Promise<string> => {
+  try {
+    const body = (await response.json()) as { error?: unknown };
+    if (typeof body?.error === 'string' && body.error) return body.error;
+  } catch {
+    // Response body was missing or not valid JSON; fall back below.
+  }
+  return response.status ? `HTTP ${response.status}` : 'unknown_error';
+};
+
 const exchangeCode = async (config: AuthConfig) => {
   const params = new URLSearchParams(window.location.search);
   const code = params.get('code');
@@ -234,7 +266,9 @@ const exchangeCode = async (config: AuthConfig) => {
     // The authorization code is single-use; strip it from the URL so a
     // reload restarts the hosted-UI flow instead of replaying a dead code.
     stripAuthCallbackParams();
-    throw new Error('AWS UI authentication token exchange failed');
+    throw new Error(
+      `${TOKEN_EXCHANGE_FAILURE_PREFIX}: ${await extractOAuthErrorCode(response)}`
+    );
   }
   storeSession(
     (await response.json()) as {

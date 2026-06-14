@@ -52,7 +52,7 @@ def main() -> int:
     if not context.diff.strip():
         return emit_empty_diff_notice("GPT")
 
-    prompt = build_prompt(context.pr_title, context.diff, context.issue_body)
+    prompt = build_prompt(context.pr_title, context.diff, context.issue_body, context.discussion)
     review = fetch_openai_review(context.api_key, prompt)
     return finalize_review(review, "ERROR: OpenAI API returned an empty review")
 

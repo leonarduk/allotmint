@@ -44,6 +44,43 @@ afterEach(() => {
 });
 
 describe('bootstrapRuntimeConfig — generic auth bootstrap failure', () => {
+  it('displays the OAuth error code from the token endpoint response', async () => {
+    document.body.innerHTML = '<div id="root"></div>';
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    window.history.replaceState({}, '', '/?code=auth-code-123&state=test-state');
+    sessionStorage.setItem('awsUiAuthState', 'test-state');
+    sessionStorage.setItem('awsUiAuthCodeVerifier', 'test-verifier');
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        if (String(url).endsWith('/config.json')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve(CONFIG_WITH_COGNITO),
+          });
+        }
+        if (String(url).endsWith('/oauth2/token')) {
+          return Promise.resolve({
+            ok: false,
+            status: 400,
+            json: () => Promise.resolve({ error: 'invalid_grant' }),
+          });
+        }
+        return Promise.resolve({ ok: false });
+      }),
+    );
+
+    await import('@/main');
+
+    await vi.waitFor(() => expect(renderedElement).not.toBeNull());
+
+    render(renderedElement!);
+    expect(screen.getByText(/Authentication is unavailable/i)).toBeInTheDocument();
+    expect(screen.getByText(/Sign-in failed\. Reason: invalid_grant/i)).toBeInTheDocument();
+  });
+
   it('renders a "Sign in" retry button when token exchange fails', async () => {
     document.body.innerHTML = '<div id="root"></div>';
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});

@@ -71,6 +71,30 @@ def test_generate_body_calls_deepseek_by_default_and_returns_content(
     assert "Follow-up" in body
 
 
+def test_generate_body_treats_empty_provider_env_as_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """GitHub Actions sets unset `vars.*` to an empty string, not an absent env var.
+
+    FOLLOWUP_LLM_PROVIDER="" must fall back to the default provider, not be
+    treated as an unrecognised provider name.
+    """
+    mod = load_module()
+    monkeypatch.setenv("FOLLOWUP_LLM_PROVIDER", "")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
+    fake_payload = {
+        "choices": [{"message": {"content": "## What\nFix the thing\n\n_Follow-up from AI review of PR #42._"}}]
+    }
+    monkeypatch.setattr(
+        mod.urllib.request,
+        "urlopen",
+        lambda *args, **kwargs: FakeResponse(fake_payload),
+    )
+    body = mod._generate_body_via_llm("Fix the thing", "42", "Review text here")
+    assert "Fix the thing" in body
+    assert "Follow-up" in body
+
+
 def test_generate_body_calls_claude_when_selected(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

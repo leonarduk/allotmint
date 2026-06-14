@@ -129,7 +129,9 @@ def _generate_body_via_llm(title: str, pr_number: str, review_text: str) -> str:
     defaults to deepseek). Falls back to a minimal template if the provider is
     unknown, its API key is unset, or the API call fails.
     """
-    provider = os.environ.get("FOLLOWUP_LLM_PROVIDER", _DEFAULT_PROVIDER).strip().lower()
+    # GitHub Actions sets unset `vars.*` to an empty string rather than omitting the
+    # env var entirely, so `os.environ.get(..., default)` would not apply the default.
+    provider = os.environ.get("FOLLOWUP_LLM_PROVIDER", "").strip().lower() or _DEFAULT_PROVIDER
     provider_config = _PROVIDERS.get(provider)
     if provider_config is None:
         print(f"WARNING: unknown FOLLOWUP_LLM_PROVIDER '{provider}', using fallback body", file=sys.stderr)

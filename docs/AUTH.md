@@ -79,6 +79,11 @@ fresh two ways:
 - **`frontend/src/main.tsx`** — `applyCognitoIdToken()` runs after `ensureAwsUiAuth` returns. It reads the stored Cognito ID token and applies it directly as the API auth token via `setAuthToken`, which attaches it as `Authorization: Bearer` on every API call. No `POST /token/cognito` exchange happens on the deployed path.
 - **`backend/app.py` / `backend/auth.py`** — `POST /token/cognito` (which exchanges a Cognito token for a backend HS256 JWT via `verify_cognito_token`) still exists for any non-gateway use, but the deployed frontend no longer calls it: against the API Gateway authorizer the backend JWT cannot be validated. The Google path (`POST /token`) continues to use the backend HS256 JWT against the FastAPI-enforced (non-gateway) setup.
 
+> **Local development note:** The ID-token-direct flow requires API Gateway's
+> Cognito JWT authorizer. Local testing of the Cognito authentication path is
+> not supported without a local API Gateway instance. For local development, use
+> the Google authentication flow instead.
+
 ### config.json fields
 
 | Field | Description |

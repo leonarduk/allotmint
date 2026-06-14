@@ -6,6 +6,12 @@ on:
 
 jobs:
   ai-review:
+    # For labeled/unlabeled events, github.event.label.name is the label that
+    # was just added or removed. Gating on it here covers both directions:
+    # adding "Deep Review Required" triggers a run that picks up the stronger
+    # model below, and removing it triggers a run that reverts to the
+    # defaults (since `contains(...)` on the current labels is then false).
+    # Any other label add/remove is ignored.
     if: >-
       ${{ github.actor != 'dependabot[bot]' && vars.ENABLE_DEEPSEEK_REVIEW != 'false' &&
       (github.event.action != 'labeled' && github.event.action != 'unlabeled' ||

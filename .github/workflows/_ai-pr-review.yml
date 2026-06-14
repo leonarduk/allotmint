@@ -94,6 +94,22 @@ jobs:
             echo "$DELIM"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Get PR discussion since last review
+        id: discussion
+        env:
+          GH_TOKEN: ${{ secrets.gh_token }}
+        run: |
+          DISCUSSION=$(python3 .github/scripts/prepare_review_discussion.py \
+            --repo "${{ github.repository }}" \
+            --pr-number "${{ github.event.pull_request.number }}" \
+            --provider-name "${{ inputs.provider_name }}")
+          DELIM="EOF_$(uuidgen | tr -d '-')"
+          {
+            echo "text<<$DELIM"
+            echo "$DISCUSSION"
+            echo "$DELIM"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Call ${{ inputs.provider_name }} API
         env:
           ANTHROPIC_API_KEY: ${{ secrets.anthropic_api_key }}
@@ -105,6 +121,7 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           DIFF: ${{ steps.diff.outputs.diff }}
           ISSUE_BODY: ${{ steps.issue.outputs.body }}
+          DISCUSSION: ${{ steps.discussion.outputs.text }}
         run: |
           python3 ${{ inputs.review_script }} > /tmp/${{ inputs.provider_id }}_review_body.md
 

@@ -55,6 +55,15 @@ const normaliseDomain = (domain: string) => {
   return trimmed.startsWith('https://') ? trimmed : `https://${trimmed}`;
 };
 
+// Strip OAuth callback params (code/state) only, preserving any other query params.
+const stripAuthCallbackParams = () => {
+  const params = new URLSearchParams(window.location.search);
+  params.delete('code');
+  params.delete('state');
+  const search = params.toString() ? `?${params.toString()}` : '';
+  window.history.replaceState({}, document.title, `${window.location.pathname}${search}`);
+};
+
 const redirectUri = (redirectPath?: string) => {
   const path = redirectPath?.startsWith('/')
     ? redirectPath
@@ -190,6 +199,8 @@ const exchangeCode = async (config: AuthConfig) => {
   if (errorParam === 'access_denied') {
     window.sessionStorage.removeItem(STATE_KEY);
     window.sessionStorage.removeItem(VERIFIER_KEY);
+    // Strip the whole query string (not just code/state) so retrying via
+    // reload doesn't immediately re-trigger this same `error` param.
     window.history.replaceState({}, document.title, window.location.pathname);
     throw new UserCancelledError();
   }
@@ -201,7 +212,7 @@ const exchangeCode = async (config: AuthConfig) => {
   if (!expectedState || !verifier || state !== expectedState) {
     window.sessionStorage.removeItem(STATE_KEY);
     window.sessionStorage.removeItem(VERIFIER_KEY);
-    window.history.replaceState({}, document.title, window.location.pathname);
+    stripAuthCallbackParams();
     throw new Error('Invalid AWS UI authentication callback state');
   }
   // State matched — consume the one-time PKCE credentials before the fetch.
@@ -223,7 +234,7 @@ const exchangeCode = async (config: AuthConfig) => {
   if (!response.ok) {
     // The authorization code is single-use; strip it from the URL so a
     // reload restarts the hosted-UI flow instead of replaying a dead code.
-    window.history.replaceState({}, document.title, window.location.pathname);
+    stripAuthCallbackParams();
     throw new Error('AWS UI authentication token exchange failed');
   }
   storeSession(

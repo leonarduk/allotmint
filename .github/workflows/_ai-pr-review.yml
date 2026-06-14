@@ -143,6 +143,9 @@ jobs:
           GH_TOKEN: ${{ secrets.gh_token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           ANTHROPIC_API_KEY: ${{ secrets.anthropic_api_key }}
+          OPENAI_API_KEY: ${{ secrets.openai_api_key }}
+          DEEPSEEK_API_KEY: ${{ secrets.deepseek_api_key }}
+          FOLLOWUP_LLM_PROVIDER: ${{ vars.FOLLOWUP_LLM_PROVIDER }}
         run: |
           # Ensure required labels exist before creating issues
           gh label create "ai-suggested" --color "0075ca" --description "Suggested by AI code review" \

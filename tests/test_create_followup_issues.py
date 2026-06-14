@@ -44,16 +44,62 @@ def test_generate_body_returns_fallback_when_no_api_key(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mod = load_module()
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("FOLLOWUP_LLM_PROVIDER", raising=False)
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
     body = mod._build_body("Fix the thing", "42", "Some review text")
     assert "PR #42" in body
     assert "Follow-up" in body
 
 
-def test_generate_body_calls_claude_and_returns_content(
+def test_generate_body_calls_deepseek_by_default_and_returns_content(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With no FOLLOWUP_LLM_PROVIDER set, the default provider is deepseek."""
+    mod = load_module()
+    monkeypatch.delenv("FOLLOWUP_LLM_PROVIDER", raising=False)
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
+    fake_payload = {
+        "choices": [{"message": {"content": "## What\nFix the thing\n\n_Follow-up from AI review of PR #42._"}}]
+    }
+    monkeypatch.setattr(
+        mod.urllib.request,
+        "urlopen",
+        lambda *args, **kwargs: FakeResponse(fake_payload),
+    )
+    body = mod._generate_body_via_llm("Fix the thing", "42", "Review text here")
+    assert "Fix the thing" in body
+    assert "Follow-up" in body
+
+
+def test_generate_body_treats_empty_provider_env_as_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """GitHub Actions sets unset `vars.*` to an empty string, not an absent env var.
+
+    FOLLOWUP_LLM_PROVIDER="" must fall back to the default provider, not be
+    treated as an unrecognised provider name.
+    """
+    mod = load_module()
+    monkeypatch.setenv("FOLLOWUP_LLM_PROVIDER", "")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
+    fake_payload = {
+        "choices": [{"message": {"content": "## What\nFix the thing\n\n_Follow-up from AI review of PR #42._"}}]
+    }
+    monkeypatch.setattr(
+        mod.urllib.request,
+        "urlopen",
+        lambda *args, **kwargs: FakeResponse(fake_payload),
+    )
+    body = mod._generate_body_via_llm("Fix the thing", "42", "Review text here")
+    assert "Fix the thing" in body
+    assert "Follow-up" in body
+
+
+def test_generate_body_calls_claude_when_selected(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mod = load_module()
+    monkeypatch.setenv("FOLLOWUP_LLM_PROVIDER", "claude")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
     fake_payload = {"content": [{"text": "## What\nFix the thing\n\n_Follow-up from AI review of PR #42._"}]}
     monkeypatch.setattr(
@@ -61,9 +107,39 @@ def test_generate_body_calls_claude_and_returns_content(
         "urlopen",
         lambda *args, **kwargs: FakeResponse(fake_payload),
     )
-    body = mod._generate_body_via_claude("Fix the thing", "42", "Review text here")
+    body = mod._generate_body_via_llm("Fix the thing", "42", "Review text here")
     assert "Fix the thing" in body
     assert "Follow-up" in body
+
+
+def test_generate_body_calls_gpt_when_selected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mod = load_module()
+    monkeypatch.setenv("FOLLOWUP_LLM_PROVIDER", "gpt")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    fake_payload = {
+        "choices": [{"message": {"content": "## What\nFix the thing\n\n_Follow-up from AI review of PR #42._"}}]
+    }
+    monkeypatch.setattr(
+        mod.urllib.request,
+        "urlopen",
+        lambda *args, **kwargs: FakeResponse(fake_payload),
+    )
+    body = mod._generate_body_via_llm("Fix the thing", "42", "Review text here")
+    assert "Fix the thing" in body
+    assert "Follow-up" in body
+
+
+def test_generate_body_falls_back_on_unknown_provider(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    mod = load_module()
+    monkeypatch.setenv("FOLLOWUP_LLM_PROVIDER", "bogus")
+    body = mod._generate_body_via_llm("Fix the thing", "42", "Review text here")
+    assert "PR #42" in body
+    assert "unknown FOLLOWUP_LLM_PROVIDER 'bogus'" in capsys.readouterr().err
 
 
 def test_generate_body_falls_back_on_api_error(
@@ -71,7 +147,8 @@ def test_generate_body_falls_back_on_api_error(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     mod = load_module()
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.delenv("FOLLOWUP_LLM_PROVIDER", raising=False)
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
 
     def raise_error(*args, **kwargs):
         raise urllib.error.HTTPError(
@@ -79,7 +156,7 @@ def test_generate_body_falls_back_on_api_error(
         )
 
     monkeypatch.setattr(mod.urllib.request, "urlopen", raise_error)
-    body = mod._generate_body_via_claude("Fix the thing", "42", "Review text here")
+    body = mod._generate_body_via_llm("Fix the thing", "42", "Review text here")
     assert "PR #42" in body
     assert "failed to generate" in capsys.readouterr().err
 
@@ -88,7 +165,7 @@ def test_build_body_uses_fallback_when_no_review_text(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mod = load_module()
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
     body = mod._build_body("Fix the thing", "99", None)
     assert "PR #99" in body
 
@@ -99,7 +176,7 @@ def test_main_missing_review_file_falls_back(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     mod = load_module()
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
 
     followups = tmp_path / "followups.json"
     followups.write_text(json.dumps([]))
@@ -139,7 +216,7 @@ def test_create_issues_skips_empty_titles(
         "run",
         lambda cmd, **kwargs: calls.append(cmd),
     )
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
 
     mod.create_issues(["", "  ", "Real title"], "5", None)
     assert len(calls) == 1

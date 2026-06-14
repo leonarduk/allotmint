@@ -30,6 +30,24 @@ and `sync-changes-requested-label.yml` automatically excludes that reviewer
 from its conclusion checks. Set these via **Settings → Secrets and variables →
 Actions → Variables**. When a variable is absent, the reviewer runs (default `true`).
 
+## Choosing the follow-up issue body provider
+
+When a review APPROVEs and suggests non-blocking follow-ups (see
+[Workflow Step Configuration](#workflow-step-configuration)), `create_followup_issues.py`
+calls an LLM to expand each suggested title into a full issue body (What/Why/How/
+Constraints/LLM tier/Success/Failure). The provider used for this is independent of
+which reviewer (Claude/GPT/DeepSeek) approved the PR.
+
+Set the repository variable `FOLLOWUP_LLM_PROVIDER` to one of `claude`, `gpt`, or
+`deepseek` to choose the provider. If unset, it defaults to `deepseek`. Set it via
+**Settings → Secrets and variables → Actions → Variables**.
+
+Each provider requires its corresponding API key secret to be configured
+(`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or `DEEPSEEK_API_KEY`). If the selected
+provider's key is missing, the call fails, or `FOLLOWUP_LLM_PROVIDER` names an
+unrecognised provider, the issue is created with a minimal fallback body
+(`Follow-up suggested by AI review of PR #<n>.`) instead of failing the workflow.
+
 ## Verdict Behavior
 
 The verdict extraction step (`extract_verdict.py`) runs the AI review output through a parser that produces one of two results:
@@ -166,9 +184,11 @@ jobs:
 ```
 
 `anthropic_api_key` and `gh_token` are required by the reusable workflow regardless of
-provider: `anthropic_api_key` is used for follow-up issue creation
-(`create_followup_issues.py`) on every reviewer's APPROVE verdict, and `gh_token` is used
-for `gh` CLI calls. Pass any provider-specific secret (e.g. a `GEMINI_API_KEY`) by adding
+provider: `gh_token` is used for `gh` CLI calls, and `anthropic_api_key` (along with the
+optional `openai_api_key`/`deepseek_api_key`) is threaded through to follow-up issue
+creation (`create_followup_issues.py`) on every reviewer's APPROVE verdict — see
+[Choosing the follow-up issue body provider](#choosing-the-follow-up-issue-body-provider).
+Pass any provider-specific secret (e.g. a `GEMINI_API_KEY`) by adding
 a new optional secret to `_ai-pr-review.yml` and threading it through to the "Call API"
 step's `env:` block, following the existing `openai_api_key` pattern.
 

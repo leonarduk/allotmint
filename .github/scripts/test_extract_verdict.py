@@ -149,20 +149,10 @@ Found one.
         review_text = "APPROVE — no issues"  # missing bold markers
         assert extract_verdict(review_text) is None
 
-    def test_malformed_backticks_single_side(self) -> None:
-        """Test that mismatched backticks don't create false positives."""
+    def test_single_backtick_malformed_format_matches(self) -> None:
+        """Test that the regex matches a single-backtick malformed format (e.g., **`APPROVE**)."""
         review_text = "**`APPROVE** — missing closing backtick"
-        # This could match if the regex is too loose, so verify it doesn't
-        # Actually, with the pattern \*\*`?(APPROVE|REQUEST CHANGES)`?\*\*,
-        # **`APPROVE** would not match because we'd have **`APPROVE** (backtick at start but not at end)
-        # Let me trace through: \*\* matches first **, then `? optionally matches `,
-        # then (APPROVE|REQUEST CHANGES) matches APPROVE, then `? optionally matches nothing
-        # (but the next character is *, so it continues), then \*\* matches the **
-        # So this would actually match. Let me verify...
         verdict = extract_verdict(review_text)
-        # The regex \*\*`?(APPROVE|REQUEST CHANGES)`?\*\* would match **`APPROVE**
-        # because `? means 0 or 1 backticks on each side
-        # So this test should expect APPROVE
         assert verdict == "APPROVE"
 
     def test_multiple_verdicts_returns_first(self) -> None:

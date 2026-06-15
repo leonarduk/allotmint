@@ -62,3 +62,4 @@ backend.log
 # Jenkins
 jenkins_home/
 .aider*
+!.aiderignore

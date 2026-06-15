@@ -18,7 +18,7 @@ import hashlib
 import json
 import logging
 import secrets
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -32,6 +32,30 @@ _MAX_NOTE_LEN = 2000
 
 class SignupValidationError(ValueError):
     """Raised when a signup request payload fails validation."""
+
+
+class SignupTokenError(Exception):
+    """Base class for failures when consuming an approval/reject token."""
+
+
+class RequestNotFound(SignupTokenError):
+    """Raised when no pending request matches the supplied id."""
+
+
+class TokenInvalid(SignupTokenError):
+    """Raised when the supplied token does not match the stored hash."""
+
+
+class RequestExpired(SignupTokenError):
+    """Raised when the request's approval window has elapsed."""
+
+
+class RequestAlreadyProcessed(SignupTokenError):
+    """Raised when the request has already been approved or rejected.
+
+    This is what makes approval single-use: a consumed token cannot
+    re-provision or change the request a second time.
+    """
 
 
 def _looks_like_email(email: str) -> bool:
@@ -145,3 +169,104 @@ def _persist(record: SignupRequest, store_dir: Path) -> None:
     path = directory / f"{record.id}.json"
     path.write_text(json.dumps(asdict(record), indent=2, sort_keys=True))
     logger.info("Recorded pending signup request %s", record.id)
+
+
+_VALID_REQUEST_ID = set("0123456789abcdef")
+
+
+def _request_path(request_id: str, store_dir: Path) -> Path | None:
+    """Return the on-disk path for ``request_id`` or ``None`` if malformed.
+
+    Request ids are 32-char lowercase hex (``secrets.token_hex(16)``); anything
+    else is rejected outright so a hostile id cannot escape ``store_dir`` via
+    path traversal.
+    """
+
+    if not request_id or len(request_id) > 64:
+        return None
+    if any(ch not in _VALID_REQUEST_ID for ch in request_id):
+        return None
+    return Path(store_dir) / f"{request_id}.json"
+
+
+def load_request(request_id: str, store_dir: Path) -> SignupRequest | None:
+    """Load the persisted request for ``request_id`` or ``None`` if absent."""
+
+    path = _request_path(request_id, store_dir)
+    if path is None or not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    try:
+        return SignupRequest(**data)
+    except TypeError:
+        # Stored shape no longer matches the dataclass; treat as unusable.
+        return None
+
+
+def _is_expired(record: SignupRequest, now: datetime) -> bool:
+    try:
+        expires = datetime.fromisoformat(record.expires_at)
+    except ValueError:
+        # A request we cannot date is treated as expired rather than usable.
+        return True
+    return now >= expires
+
+
+def validate_request(
+    request_id: str,
+    token: str,
+    store_dir: Path,
+    *,
+    now: datetime | None = None,
+) -> SignupRequest:
+    """Return the pending request for a valid token without mutating it.
+
+    The token is verified by hashing it and comparing to the stored
+    ``token_sha256`` with a constant-time comparison. The request must still be
+    ``pending`` and unexpired. Raises a :class:`SignupTokenError` subclass on
+    every failure so the caller can map each to an unambiguous response.
+
+    This performs no write, so callers can validate, do irreversible work (e.g.
+    provisioning), and only then :func:`consume_request` to burn the token.
+    """
+
+    moment = now or datetime.now(timezone.utc)
+    record = load_request(request_id, store_dir)
+    if record is None:
+        raise RequestNotFound("no such request")
+    if not token or not secrets.compare_digest(record.token_sha256, hash_token(token)):
+        raise TokenInvalid("token does not match")
+    if record.status != "pending":
+        raise RequestAlreadyProcessed(f"request already {record.status}")
+    if _is_expired(record, moment):
+        raise RequestExpired("approval window has elapsed")
+    return record
+
+
+def consume_request(
+    request_id: str,
+    token: str,
+    store_dir: Path,
+    *,
+    new_status: str,
+    now: datetime | None = None,
+) -> SignupRequest:
+    """Validate an approval token and atomically move the request to ``new_status``.
+
+    On success the request's status is rewritten so the token cannot be reused
+    (single-use); reusing it then raises :class:`RequestAlreadyProcessed`.
+    """
+
+    if new_status not in {"approved", "rejected"}:
+        raise ValueError(f"invalid status: {new_status!r}")
+
+    record = validate_request(request_id, token, store_dir, now=now)
+    updated = replace(record, status=new_status)
+    _persist(updated, store_dir)
+    logger.info("Signup request %s moved to %s", record.id, new_status)
+    return updated

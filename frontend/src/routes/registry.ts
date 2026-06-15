@@ -291,6 +291,15 @@ export const ROUTE_REGISTRY: RouteRegistryEntry[] = [
     priority: 140,
     defaultPath: () => '/research',
   },
+  {
+    mode: 'createaccount',
+    routeSegment: 'create-account',
+    section: 'standalone',
+    priority: 150,
+    defaultPath: () => '/create-account',
+    routePath: '/create-account',
+    lazyComponent: lazyPage(() => import('../pages/CreateAccountPage')),
+  },
 ];
 
 export const pageManifest = ROUTE_REGISTRY;

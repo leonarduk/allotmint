@@ -25,7 +25,8 @@ export type Mode =
   | "support"
   | "taxtools"
   | "pension"
-  | "scenario";
+  | "scenario"
+  | "createaccount";
 
 export const MODES: Mode[] = [
   "group",
@@ -55,4 +56,5 @@ export const MODES: Mode[] = [
   "taxtools",
   "pension",
   "scenario",
+  "createaccount",
 ];

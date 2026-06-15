@@ -1,4 +1,26 @@
 {
+  "addPosition": {
+    "title": "Ajouter une position",
+    "account": "Compte",
+    "ticker": "Symbole",
+    "amountMode": "Montant",
+    "unitsAndPrice": "Parts + prix",
+    "valueGbp": "Valeur (GBP)",
+    "units": "Parts",
+    "priceGbp": "Prix (GBP)",
+    "value": "Valeur (GBP)",
+    "submit": "Ajouter une position",
+    "submitting": "Ajout en cours…",
+    "success": "Position ajoutée.",
+    "errors": {
+      "tickerRequired": "Le symbole est requis.",
+      "accountRequired": "Sélectionnez un compte.",
+      "amountRequired": "Indiquez une valeur, ou des parts et un prix.",
+      "positiveNumber": "Saisissez un nombre positif.",
+      "generic": "Impossible d'ajouter la position."
+    },
+    "emptyAccountCta": "Ajouter votre première position"
+  },
   "alertSettings": {
     "description": "Configurez quand vous recevrez des alertes. Les alertes apparaissent sur la page des alertes et dans les notifications push.",
     "push": {

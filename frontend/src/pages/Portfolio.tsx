@@ -106,6 +106,16 @@ export function Portfolio() {
       .finally(() => setLoading(false));
   }, [activeOwner]);
 
+  const refreshPortfolio = useCallback(() => {
+    if (!activeOwner) return;
+    getPortfolio(activeOwner)
+      .then((d) => {
+        setData(d);
+        setError(null);
+      })
+      .catch(() => setError("Failed to load portfolio"));
+  }, [activeOwner]);
+
   return (
     <>
       <Meta
@@ -140,7 +150,7 @@ export function Portfolio() {
             <p className="mt-2 text-sm text-gray-400">{t("owner.select")}</p>
           )}
         </div>
-        <PortfolioView data={data} loading={loading} error={error} />
+        <PortfolioView data={data} loading={loading} error={error} onPositionAdded={refreshPortfolio} />
       </div>
     </>
   );

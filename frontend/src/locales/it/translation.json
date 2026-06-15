@@ -1,4 +1,26 @@
 {
+  "addPosition": {
+    "title": "Aggiungi posizione",
+    "account": "Conto",
+    "ticker": "Ticker",
+    "amountMode": "Importo",
+    "unitsAndPrice": "Quote + prezzo",
+    "valueGbp": "Valore (GBP)",
+    "units": "Quote",
+    "priceGbp": "Prezzo (GBP)",
+    "value": "Valore (GBP)",
+    "submit": "Aggiungi posizione",
+    "submitting": "Aggiunta…",
+    "success": "Posizione aggiunta.",
+    "errors": {
+      "tickerRequired": "Il ticker è obbligatorio.",
+      "accountRequired": "Seleziona un conto.",
+      "amountRequired": "Indica un valore, oppure quote e prezzo.",
+      "positiveNumber": "Inserisci un numero positivo.",
+      "generic": "Impossibile aggiungere la posizione."
+    },
+    "emptyAccountCta": "Aggiungi la tua prima posizione"
+  },
   "alertSettings": {
     "description": "Configura quando riceverai avvisi. Gli avvisi compaiono nella pagina degli avvisi e nelle notifiche push.",
     "push": {

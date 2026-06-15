@@ -1,4 +1,26 @@
 {
+  "addPosition": {
+    "title": "Position hinzufügen",
+    "account": "Konto",
+    "ticker": "Ticker",
+    "amountMode": "Betrag",
+    "unitsAndPrice": "Anteile + Preis",
+    "valueGbp": "Wert (GBP)",
+    "units": "Anteile",
+    "priceGbp": "Preis (GBP)",
+    "value": "Wert (GBP)",
+    "submit": "Position hinzufügen",
+    "submitting": "Wird hinzugefügt…",
+    "success": "Position hinzugefügt.",
+    "errors": {
+      "tickerRequired": "Ticker ist erforderlich.",
+      "accountRequired": "Konto auswählen.",
+      "amountRequired": "Geben Sie entweder einen Wert oder Anteile und Preis an.",
+      "positiveNumber": "Geben Sie eine positive Zahl ein.",
+      "generic": "Position konnte nicht hinzugefügt werden."
+    },
+    "emptyAccountCta": "Erste Position hinzufügen"
+  },
   "alertSettings": {
     "description": "Konfigurieren Sie, wann Sie Benachrichtigungen erhalten. Die Alarme erscheinen auf der Alerts-Seite und als Push-Benachrichtigungen.",
     "push": {

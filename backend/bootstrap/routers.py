@@ -36,6 +36,7 @@ from backend.routes.rebalance import router as rebalance_router
 from backend.routes.reports import router as reports_router
 from backend.routes.scenario import router as scenario_router
 from backend.routes.screener import router as screener_router
+from backend.routes.signup import router as signup_router
 from backend.routes.support import router as support_router
 from backend.routes.tax import router as tax_router
 from backend.routes.timeseries_admin import router as timeseries_admin_router
@@ -70,6 +71,7 @@ def register_routers(app: FastAPI, cfg: Config) -> None:
     app.include_router(trail_router, dependencies=protected)
     app.include_router(compliance_router)
     app.include_router(screener_router)
+    app.include_router(signup_router)
     app.include_router(support_router)
     app.include_router(query_router, dependencies=protected)
     app.include_router(virtual_portfolio_router, dependencies=protected)

@@ -14,8 +14,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Query, Request, Upload
 from pydantic import BaseModel, ConfigDict, Field
 
 from backend import importers
-from backend.common import compliance, data_loader, portfolio_loader
-from backend.common import portfolio as portfolio_mod
+from backend.common import compliance, data_loader
 from backend.common.accounts_store import (
     LocalAccountsStore,
     S3AccountsStore,
@@ -471,18 +470,12 @@ def _locked_account_holdings_data(
 
 
 def _rebuild_portfolio(owner: str, account: str, store: "AccountsStore") -> None:
-    # Portfolio rebuild is path-based; it only runs against an on-disk root.
-    # The deployed S3-backed store has no local root, so rebuild is skipped
-    # there (portfolio reads continue to resolve via the S3 data loader).
-    accounts_root = getattr(store, "local_root", None)
-    if accounts_root is None:
-        return
-    try:
-        if not config.offline_mode:
-            portfolio_loader.rebuild_account_holdings(owner, account, accounts_root)
-        portfolio_mod.build_owner_portfolio(owner, accounts_root)
-    except FileNotFoundError as exc:
-        log.warning("Portfolio rebuild failed: %s", exc)
+    """Rebuild the holdings document for *owner*/*account* from its transactions.
+
+    Delegates to the store-specific implementation so both local on-disk and
+    S3-backed stores are handled correctly.
+    """
+    store.rebuild_portfolio(owner, account)
 
 
 @router.get("/transactions/compliance")

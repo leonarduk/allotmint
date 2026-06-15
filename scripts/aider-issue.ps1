@@ -10,6 +10,33 @@ foreach ($cmd in @('gh', 'aider')) {
     }
 }
 
+# Pre-flight: self-heal a leftover unresolved `git stash pop` conflict from a
+# prior interrupted run in this (possibly shared) working tree. `git checkout
+# $branch` in step [3/6] refuses to run while the index has unmerged entries,
+# so without this the script fails with "you need to resolve your current
+# index first" regardless of which issue is being worked.
+$unmergedPaths = @(git diff --name-only --diff-filter=U 2>$null | Where-Object { $_ })
+if ($unmergedPaths.Count -gt 0) {
+    $gitDir = git rev-parse --git-dir
+    $opInProgress = @('MERGE_HEAD', 'CHERRY_PICK_HEAD', 'rebase-merge', 'rebase-apply') |
+        Where-Object { Test-Path (Join-Path $gitDir $_) }
+    if ($opInProgress) {
+        Write-Error "A git operation ($($opInProgress -join ', ')) is in progress with unresolved conflicts in: $($unmergedPaths -join ', '). Resolve or abort it manually before running this script."
+        exit 1
+    }
+    # No merge/rebase/cherry-pick in progress, so this is leftover from an
+    # interrupted `git stash pop`. Reset just these paths to HEAD to clear the
+    # conflict. Deliberately do NOT run `git stash drop` - the corresponding
+    # stash entry (if any) is left in place for manual review, since choosing
+    # which side to keep is a judgment call this script shouldn't make.
+    Write-Warning "Resetting leftover unresolved conflict in: $($unmergedPaths -join ', ') (likely from an interrupted 'git stash pop'). Any related stash entry is left in place for manual review."
+    git checkout HEAD -- $unmergedPaths
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to reset conflicted paths to HEAD. Resolve the conflict manually before running this script."
+        exit 1
+    }
+}
+
 # Fetch to ensure remote refs are current before any rev-parse.
 # Warn (don't abort) on failure so offline re-runs still work, but never let a
 # silent fetch failure cause a later reset to operate on a stale ref unnoticed.

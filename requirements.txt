@@ -54,7 +54,7 @@ trio~=0.33.0
 typing_extensions>=4.14.1
 tzdata~=2025.2
 urllib3~=2.7.0
-uvicorn~=0.42.0
+uvicorn~=0.49.0
 websocket-client~=1.8.0
 websockets~=15.0.1
 win_inet_pton~=1.1.0; sys_platform == "win32"

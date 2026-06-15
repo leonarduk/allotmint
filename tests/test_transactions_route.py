@@ -140,9 +140,7 @@ def test_load_all_transactions_normalises_names(tmp_path, monkeypatch):
     alice_payload = {
         "owner": "ALICE",
         "account_type": "ISA",
-        "transactions": [
-            {"date": "2024-01-02", "type": "BUY", "ticker": "PFE", "account": "SHOULD_NOT_APPEAR"}
-        ],
+        "transactions": [{"date": "2024-01-02", "type": "BUY", "ticker": "PFE", "account": "SHOULD_NOT_APPEAR"}],
     }
     (alice_dir / "ISA_transactions.json").write_text(json.dumps(alice_payload))
 
@@ -165,6 +163,103 @@ def test_load_all_transactions_normalises_names(tmp_path, monkeypatch):
     bob_tx = results[1]
     assert bob_tx.owner == "Bob"
     assert bob_tx.account == "gia"
+
+
+def test_load_all_transactions_merges_global_and_writable(tmp_path, monkeypatch):
+    """Writable store documents override global for the same (owner, account)."""
+    global_root = tmp_path / "global"
+    writable_root = tmp_path / "writable"
+
+    # -- global (read-only) data --------------------------------------------
+    (global_root / "alice").mkdir(parents=True)
+    (global_root / "alice" / "ISA_transactions.json").write_text(
+        json.dumps(
+            {
+                "owner": "alice",
+                "account_type": "ISA",
+                "transactions": [
+                    {"date": "2024-01-02", "type": "BUY", "ticker": "PFE"},
+                ],
+            }
+        )
+    )
+    (global_root / "bob").mkdir(parents=True)
+    (global_root / "bob" / "GIA_transactions.json").write_text(
+        json.dumps(
+            {
+                "owner": "bob",
+                "account_type": "GIA",
+                "transactions": [
+                    {"date": "2024-01-03", "type": "SELL", "ticker": "MSFT"},
+                ],
+            }
+        )
+    )
+
+    # -- writable data ------------------------------------------------------
+    # Overlaps alice/ISA — writable should replace global.
+    (writable_root / "alice").mkdir(parents=True)
+    (writable_root / "alice" / "ISA_transactions.json").write_text(
+        json.dumps(
+            {
+                "owner": "alice",
+                "account_type": "ISA",
+                "transactions": [
+                    {"date": "2024-01-10", "type": "SELL", "ticker": "PFE"},
+                ],
+            }
+        )
+    )
+
+    # Overlaps bob/GIA — empty writable should hide global data.
+    (writable_root / "bob").mkdir(parents=True)
+    (writable_root / "bob" / "GIA_transactions.json").write_text(
+        json.dumps(
+            {
+                "owner": "bob",
+                "account_type": "GIA",
+                "transactions": [],
+            }
+        )
+    )
+
+    # Non-overlapping — should be preserved alongside global.
+    (writable_root / "carol").mkdir(parents=True)
+    (writable_root / "carol" / "SIPP_transactions.json").write_text(
+        json.dumps(
+            {
+                "owner": "carol",
+                "account_type": "SIPP",
+                "transactions": [
+                    {"date": "2024-02-01", "type": "BUY", "ticker": "AAPL"},
+                ],
+            }
+        )
+    )
+
+    monkeypatch.setattr(config, "accounts_root", str(global_root))
+    store = LocalAccountsStore(root=writable_root)
+
+    results = sorted(
+        transactions._load_all_transactions(store),
+        key=lambda t: (t.owner, t.account, t.date or ""),
+    )
+
+    # Alice/ISA: only the writable SELL, global BUY must be hidden.
+    alice_tx = [r for r in results if r.owner == "alice"]
+    assert len(alice_tx) == 1
+    assert alice_tx[0].account == "isa"
+    assert alice_tx[0].type == "SELL"
+
+    # Bob/GIA: empty writable hides the global SELL.
+    bob_tx = [r for r in results if r.owner == "bob"]
+    assert len(bob_tx) == 0
+
+    # Carol/SIPP: non-overlapping, preserved.
+    carol_tx = [r for r in results if r.owner == "carol"]
+    assert len(carol_tx) == 1
+    assert carol_tx[0].account == "sipp"
+    assert carol_tx[0].ticker == "AAPL"
 
 
 def test_validate_component_rejects_invalid_values():
@@ -362,12 +457,14 @@ def test_import_holdings_success(tmp_path, monkeypatch):
     captured = {}
 
     def fake_update(owner, account, provider, data):
-        captured.update({
-            "owner": owner,
-            "account": account,
-            "provider": provider,
-            "data": data,
-        })
+        captured.update(
+            {
+                "owner": owner,
+                "account": account,
+                "provider": provider,
+                "data": data,
+            }
+        )
         return {"path": "some/path"}
 
     monkeypatch.setattr(transactions.update_holdings_from_csv, "update_from_csv", fake_update)

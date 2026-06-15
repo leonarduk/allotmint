@@ -618,6 +618,76 @@ def test_create_manual_holding_rejects_invalid_metric_combo(tmp_path, monkeypatc
         assert resp.json()["detail"] == "Provide either value_gbp or both units and price_gbp"
 
 
+def test_create_account_creates_empty_skeleton(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+
+    resp = client.post("/accounts", json={"owner": "alice", "account_type": "ISA"})
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data == {
+        "status": "created",
+        "owner": "alice",
+        "account": "isa",
+        "currency": "GBP",
+    }
+
+    account_path = tmp_path / "alice" / "isa.json"
+    assert account_path.exists()
+    saved = json.loads(account_path.read_text())
+    assert saved["owner"] == "alice"
+    assert saved["account_type"] == "isa"
+    assert saved["currency"] == "GBP"
+    assert saved["holdings"] == []
+    assert "last_updated" in saved
+
+
+def test_create_account_with_custom_currency(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+
+    resp = client.post("/accounts", json={"owner": "alice", "account_type": "brokerage", "currency": "usd"})
+    assert resp.status_code == 201
+    assert resp.json()["currency"] == "USD"
+
+    account_path = tmp_path / "alice" / "brokerage.json"
+    saved = json.loads(account_path.read_text())
+    assert saved["currency"] == "USD"
+
+
+def test_create_account_rejects_duplicate(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+
+    first = client.post("/accounts", json={"owner": "alice", "account_type": "isa"})
+    assert first.status_code == 201
+
+    second = client.post("/accounts", json={"owner": "alice", "account_type": "ISA"})
+    assert second.status_code == 409
+    assert second.json()["detail"] == "Account already exists"
+
+
+def test_create_account_rejects_invalid_owner_slug(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+
+    resp = client.post("/accounts", json={"owner": "../etc", "account_type": "isa"})
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "Invalid owner"
+
+
+def test_create_account_rejects_invalid_account_type_slug(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+
+    resp = client.post("/accounts", json={"owner": "alice", "account_type": "../etc"})
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "Invalid account_type"
+
+
+def test_create_account_rejects_reserved_account_type(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+
+    resp = client.post("/accounts", json={"owner": "alice", "account_type": "person"})
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "Invalid account_type"
+
+
 def test_list_manual_holdings_returns_accounts(tmp_path, monkeypatch):
     client = _make_client(tmp_path, monkeypatch)
     owner_dir = tmp_path / "alice"

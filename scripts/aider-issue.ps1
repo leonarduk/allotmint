@@ -123,14 +123,39 @@ if (-not $repoRoot) {
     exit 1
 }
 $pathPattern = '(?:[\w.-]+[\\/])*[\w.-]+\.[A-Za-z0-9]+'
-$referencedFiles = @(
+$candidates = @(
     [regex]::Matches("$title`n$issueBody", $pathPattern) |
         ForEach-Object { $_.Value } |
         Sort-Object -Unique |
-        Where-Object { $_ -notmatch '\.\.' -and -not [System.IO.Path]::IsPathRooted($_) } |
+        Where-Object { $_ -notmatch '\.\.' -and -not [System.IO.Path]::IsPathRooted($_) }
+)
+
+# Direct matches: candidate is already a valid path relative to the repo root.
+$directMatches = @(
+    $candidates |
         Where-Object { Test-Path -LiteralPath (Join-Path $repoRoot $_) -PathType Leaf } |
         ForEach-Object { Join-Path $repoRoot $_ }
 )
+
+# Basename fallback: issue text often names a bare filename (e.g.
+# "test_extract_verdict.py") without its directory, but the file actually
+# lives in a subdirectory (e.g. .github/scripts/test_extract_verdict.py).
+# Search tracked files for a matching leaf name so those still get added to
+# aider's context. Restricted to `git ls-files` output, so only files already
+# tracked in the repo can match - no path traversal outside the repo.
+$trackedFiles = @(git -C $repoRoot ls-files)
+$basenameMatches = @(
+    $candidates |
+        Where-Object { -not (Test-Path -LiteralPath (Join-Path $repoRoot $_) -PathType Leaf) } |
+        ForEach-Object {
+            $leaf = Split-Path -Leaf $_
+            $trackedFiles | Where-Object { (Split-Path -Leaf $_) -eq $leaf }
+        } |
+        Sort-Object -Unique |
+        ForEach-Object { Join-Path $repoRoot $_ }
+)
+
+$referencedFiles = @(($directMatches + $basenameMatches) | Sort-Object -Unique)
 if ($referencedFiles.Count -gt 0) {
     Write-Host "    Adding referenced files to aider context: $($referencedFiles -join ', ')"
 } else {

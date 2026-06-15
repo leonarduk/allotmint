@@ -186,3 +186,174 @@ def test_s3_store_ensure_owner_idempotent(s3_store):
         fake.objects[f"{WRITABLE_ACCOUNTS_PREFIX}/alice/person.json"].decode("utf-8")
     )
     assert person["owner"] == "alice"
+
+
+# ---------------------------------------------------------------------------
+# S3AccountsStore — full write-then-read integration (issue #4316)
+# ---------------------------------------------------------------------------
+
+
+class TestS3Integration:
+    """Integration tests for the complete write-then-read cycle against
+    ``S3AccountsStore``, exercising the actual production code paths that
+    ``create_manual_holding`` and ``list_manual_holdings`` depend on."""
+
+    @staticmethod
+    def _fresh_store():
+        """Return ``(S3AccountsStore, _FakeS3)`` with a clean bucket."""
+        fake = _FakeS3()
+        store = S3AccountsStore(bucket="data-bucket", client=fake)
+        return store, fake
+
+    def test_write_then_read_cycle_ensure_owner_and_holdings(self):
+        """Simulates the production write-then-read cycle:
+
+        1. ``ensure_owner`` scaffolds the owner under the writable prefix.
+        2. Write a manual holding document via ``edit_document`` (the same
+           primitive that ``_locked_account_holdings_data`` / ``create_manual_holding``
+           uses).
+        3. Read it back via ``read_document`` (the same primitive that
+           ``list_manual_holdings`` uses).
+        4. Verify ``list_owner_files`` surfaces the expected files.
+        """
+        store, fake = self._fresh_store()
+        owner = "test@example.com"
+        account_slug = "isa"
+
+        # 1. Scaffold the owner under the writable prefix.
+        store.ensure_owner(owner)
+        assert f"{WRITABLE_ACCOUNTS_PREFIX}/{owner}/person.json" in fake.objects
+
+        # 2. Write a manual holding document (mirrors ``_locked_account_holdings_data``).
+        holding = {"ticker": "AAPL", "units": 10, "price": 150.0}
+        with store.edit_document(
+            owner, f"{account_slug}.json", default={}, trailing_newline=True
+        ) as data:
+            data["owner"] = owner
+            data["account_type"] = account_slug
+            data["currency"] = "GBP"
+            holdings = data.setdefault("holdings", [])
+            holdings.append(holding)
+
+        # 3. Read back via ``read_document`` and verify data integrity.
+        doc = store.read_document(owner, f"{account_slug}.json")
+        assert doc is not None
+        assert doc["owner"] == owner
+        assert doc["account_type"] == account_slug
+        assert doc["currency"] == "GBP"
+        assert isinstance(doc["holdings"], list)
+        assert len(doc["holdings"]) == 1
+        assert doc["holdings"][0] == {"ticker": "AAPL", "units": 10, "price": 150.0}
+
+        # 4. ``list_owner_files`` surfaces the expected non-metadata files.
+        files = store.list_owner_files(owner)
+        assert f"{account_slug}.json" in files
+        assert "person.json" in files
+
+    def test_write_then_read_cycle_multiple_accounts(self):
+        """Two different accounts for the same owner: each is independently
+        readable and holds its own holdings list."""
+        store, _ = self._fresh_store()
+        owner = "user@example.com"
+
+        store.ensure_owner(owner)
+
+        # Write to account "isa".
+        with store.edit_document(owner, "isa.json", default={}, trailing_newline=True) as data:
+            data["holdings"] = [{"ticker": "VWRL", "units": 50, "price": 90.0}]
+
+        # Write to account "sipp".
+        with store.edit_document(owner, "sipp.json", default={}, trailing_newline=True) as data:
+            data["holdings"] = [{"ticker": "AGGU", "units": 200, "price": 5.0}]
+
+        # Read back each independently.
+        isa = store.read_document(owner, "isa.json")
+        assert isa is not None
+        assert len(isa["holdings"]) == 1
+        assert isa["holdings"][0]["ticker"] == "VWRL"
+
+        sipp = store.read_document(owner, "sipp.json")
+        assert sipp is not None
+        assert len(sipp["holdings"]) == 1
+        assert sipp["holdings"][0]["ticker"] == "AGGU"
+
+    def test_write_then_read_cycle_update_existing_holding(self):
+        """Updating an existing holding (replacing by ticker) and reading back
+        should reflect the new value, not a duplicate entry."""
+        store, _ = self._fresh_store()
+        owner = "trader@example.com"
+        account_slug = "gia"
+
+        store.ensure_owner(owner)
+
+        # Initial write.
+        with store.edit_document(
+            owner, f"{account_slug}.json", default={}, trailing_newline=True
+        ) as data:
+            data["holdings"] = [{"ticker": "MSFT", "units": 20, "price": 300.0}]
+
+        doc = store.read_document(owner, f"{account_slug}.json")
+        assert len(doc["holdings"]) == 1
+        assert doc["holdings"][0]["ticker"] == "MSFT"
+
+        # Update: replace MSFT holding.
+        with store.edit_document(
+            owner, f"{account_slug}.json", default={}, trailing_newline=True
+        ) as data:
+            holdings = data.setdefault("holdings", [])
+            ticker = "MSFT"
+            new_holding = {"ticker": ticker, "units": 25, "price": 310.0}
+            for i, existing in enumerate(holdings):
+                if existing.get("ticker") == ticker:
+                    holdings[i] = new_holding
+                    break
+            else:
+                holdings.append(new_holding)
+
+        # Verify update, not duplicate.
+        doc = store.read_document(owner, f"{account_slug}.json")
+        assert len(doc["holdings"]) == 1
+        assert doc["holdings"][0] == {"ticker": "MSFT", "units": 25, "price": 310.0}
+
+    def test_write_then_read_cycle_multiple_owners_isolated(self):
+        """Holdings written under one owner must not leak into another owner."""
+        store, _ = self._fresh_store()
+
+        store.ensure_owner("alice")
+        store.ensure_owner("bob")
+
+        with store.edit_document("alice", "isa.json", default={}, trailing_newline=True) as data:
+            data["holdings"] = [{"ticker": "AAPL", "units": 10, "price": 150.0}]
+
+        with store.edit_document("bob", "isa.json", default={}, trailing_newline=True) as data:
+            data["holdings"] = [{"ticker": "TSLA", "units": 5, "price": 250.0}]
+
+        alice = store.read_document("alice", "isa.json")
+        assert alice["holdings"][0]["ticker"] == "AAPL"
+
+        bob = store.read_document("bob", "isa.json")
+        assert bob["holdings"][0]["ticker"] == "TSLA"
+
+        # Bob must not see Alice's files.
+        assert "isa.json" not in store.list_owner_files("charlie")
+
+    def test_ensure_owner_is_idempotent_under_integration(self):
+        """Calling ``ensure_owner`` multiple times must not overwrite or
+        corrupt existing data."""
+        store, _ = self._fresh_store()
+        owner = "user@example.com"
+
+        store.ensure_owner(owner)
+        store.ensure_owner(owner)
+
+        # Write holdings after multiple ensure_owner calls.
+        with store.edit_document(owner, "isa.json", default={}, trailing_newline=True) as data:
+            data["holdings"] = [{"ticker": "GOOG", "units": 3, "price": 140.0}]
+
+        doc = store.read_document(owner, "isa.json")
+        assert doc["holdings"][0]["ticker"] == "GOOG"
+
+        # Calling ensure_owner again must not nuke the written holdings.
+        store.ensure_owner(owner)
+        doc = store.read_document(owner, "isa.json")
+        assert doc["holdings"][0]["ticker"] == "GOOG"

@@ -1611,3 +1611,22 @@ export const checkPortfolioHealth = () =>
     `${API_BASE}/support/portfolio-health`,
     { method: "POST" },
   );
+
+// ───────────── Account signup ─────────────
+export interface AccountSignupRequest {
+  name: string;
+  email: string;
+  note?: string;
+}
+
+export interface AccountSignupResponse {
+  status: string;
+}
+
+/** Submit a public account-creation request for admin approval. */
+export const requestAccountSignup = (payload: AccountSignupRequest) =>
+  fetchJson<AccountSignupResponse>(`${API_BASE}/signup/request`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });

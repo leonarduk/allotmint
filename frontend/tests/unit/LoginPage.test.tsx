@@ -44,7 +44,11 @@ describe('LoginPage error handling', () => {
         json: async () => ({ detail: 'bad' })
       } as any)
 
-    render(<LoginPage clientId="cid" onSuccess={() => {}} />)
+    render(
+      <BrowserRouter>
+        <LoginPage clientId="cid" onSuccess={() => {}} />
+      </BrowserRouter>,
+    )
 
     const script = document.head.querySelector('script[src="https://accounts.google.com/gsi/client"]') as HTMLScriptElement
     script.onload?.(new Event('load'))

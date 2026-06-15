@@ -295,6 +295,7 @@ export function Root() {
   }, [fetchConfig]);
 
   const isPublicSupportRoute = location.pathname === '/support';
+  const isPublicCreateAccountRoute = location.pathname === '/create-account';
 
   if (configLoading || retryScheduled) {
     return (
@@ -322,7 +323,7 @@ export function Root() {
     );
   }
 
-  if (needsAuth && !authed && !isPublicSupportRoute) {
+  if (needsAuth && !authed && !isPublicSupportRoute && !isPublicCreateAccountRoute) {
     if (!googleLoginEnabled || !clientId) {
       console.error(
         'Authentication is enforced but Google login is not fully configured'

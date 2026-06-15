@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { API_BASE, setAuthToken } from './api';
 import { useUser } from './UserContext';
 import { useAuth } from './AuthContext';
@@ -104,6 +105,10 @@ export default function LoginPage({ clientId, onSuccess }: Props) {
         </div>
       )}
       <div id="google-signin"></div>
+      <p style={{ marginTop: '1rem' }}>
+        Don&apos;t have an account?{' '}
+        <Link to="/create-account">Create account</Link>
+      </p>
     </div>
   );
 }

@@ -27,20 +27,21 @@ def _build_request(state: dict | None = None) -> Request:
     return Request(scope)
 
 
-def test_require_accounts_root_returns_cached_value(tmp_path):
+def test_require_writable_store_returns_cached_value(tmp_path):
     accounts_dir = tmp_path / "accounts"
     accounts_dir.mkdir()
 
     request = _build_request({"accounts_root": accounts_dir})
 
-    resolved = transactions_module._require_accounts_root(request)
+    store = transactions_module._require_writable_store(request)
 
-    assert resolved == accounts_dir.resolve()
+    assert store.is_global is False
+    assert store.local_root == accounts_dir.resolve()
     assert request.app.state.accounts_root == accounts_dir.resolve()
     assert request.app.state.accounts_root_is_global is False
 
 
-def test_require_accounts_root_rejects_matching_global_root(monkeypatch, tmp_path):
+def test_require_writable_store_rejects_matching_global_root(monkeypatch, tmp_path):
     configured_dir = tmp_path / "configured"
     configured_dir.mkdir()
 
@@ -61,13 +62,15 @@ def test_require_accounts_root_rejects_matching_global_root(monkeypatch, tmp_pat
     )
 
     with pytest.raises(HTTPException) as excinfo:
-        transactions_module._require_accounts_root(request)
+        transactions_module._require_writable_store(request)
 
     assert excinfo.value.status_code == 400
+    # Resolves to the shared/global demo root -> read-only-by-design message.
+    assert "read-only" in excinfo.value.detail
 
 
 @pytest.mark.parametrize("state_global_flag", [False, True])
-def test_require_accounts_root_rejects_invalid_resolution(
+def test_require_writable_store_rejects_invalid_resolution(
     monkeypatch, tmp_path, state_global_flag
 ):
     configured_dir = tmp_path / "configured"
@@ -104,6 +107,6 @@ def test_require_accounts_root_rejects_invalid_resolution(
         )
 
     with pytest.raises(HTTPException) as excinfo:
-        transactions_module._require_accounts_root(request)
+        transactions_module._require_writable_store(request)
 
     assert excinfo.value.status_code == 400

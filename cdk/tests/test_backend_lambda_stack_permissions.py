@@ -13,7 +13,10 @@ CDK_DIR = Path(__file__).resolve().parents[1]
 if str(CDK_DIR) not in sys.path:
     sys.path.insert(0, str(CDK_DIR))
 
-from stacks.backend_lambda_stack import BackendLambdaStack
+from stacks.backend_lambda_stack import (
+    WRITABLE_ACCOUNTS_PREFIX,
+    BackendLambdaStack,
+)
 
 BACKEND_LIST_PREFIXES = (
     "accounts",
@@ -22,6 +25,9 @@ BACKEND_LIST_PREFIXES = (
     "queries",
     "timeseries/meta",
     "transactions",
+    # Writable per-owner account documents (manual holdings / transactions);
+    # separate from the read-only accounts/ demo prefix (issue #4275).
+    WRITABLE_ACCOUNTS_PREFIX,
 )
 # accounts/ is required because refresh_prices() → list_all_unique_tickers() →
 # list_portfolios() → S3DataProvider.list_plots() calls list_objects_v2 on that prefix.

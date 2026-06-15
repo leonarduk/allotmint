@@ -5,6 +5,7 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from backend.app import create_app
+from backend.common.accounts_store import LocalAccountsStore
 from backend.config import config
 from backend.routes import transactions
 
@@ -193,15 +194,16 @@ def test_locked_transactions_data_does_not_persist_failed_update(tmp_path, monke
         )
     )
 
+    store = LocalAccountsStore(root=tmp_path)
     with pytest.raises(RuntimeError):
-        with transactions._locked_transactions_data("alice", "ISA", tmp_path) as (data, _):
+        with transactions._locked_transactions_data("alice", "ISA", store) as (data, _):
             data["transactions"].append({"ticker": "MSFT", "price_gbp": 20, "units": 2})
             raise RuntimeError("boom")
 
     saved = json.loads(file_path.read_text())
     assert saved["transactions"] == [{"ticker": "PFE", "price_gbp": 10, "units": 1}]
 
-    with transactions._locked_transactions_data("alice", "ISA", tmp_path) as (data, _):
+    with transactions._locked_transactions_data("alice", "ISA", store) as (data, _):
         data["transactions"].append({"ticker": "MSFT", "price_gbp": 20, "units": 2})
 
     saved = json.loads(file_path.read_text())
@@ -215,14 +217,15 @@ def test_locked_account_holdings_data_discards_failed_new_file(tmp_path, monkeyp
     monkeypatch.setattr(config, "accounts_root", tmp_path)
     file_path = tmp_path / "alice" / "isa.json"
 
+    store = LocalAccountsStore(root=tmp_path)
     with pytest.raises(RuntimeError):
-        with transactions._locked_account_holdings_data("alice", "isa", tmp_path) as (data, _):
+        with transactions._locked_account_holdings_data("alice", "isa", store) as (data, _):
             data["holdings"].append({"ticker": "VUSA.L", "value_gbp": 1000})
             raise RuntimeError("boom")
 
     assert not file_path.exists()
 
-    with transactions._locked_account_holdings_data("alice", "isa", tmp_path) as (data, _):
+    with transactions._locked_account_holdings_data("alice", "isa", store) as (data, _):
         data["holdings"].append({"ticker": "VUSA.L", "value_gbp": 1000})
 
     saved = json.loads(file_path.read_text())
@@ -295,7 +298,7 @@ def test_transactions_compliance_filters(tmp_path, monkeypatch):
         transactions.Transaction(owner="alice", account="gia", date="2024-01-02", ticker="MSFT"),
         transactions.Transaction(owner="bob", account="isa", date="2024-01-02", ticker="PFE"),
     ]
-    monkeypatch.setattr(transactions, "_load_all_transactions", lambda: sample)
+    monkeypatch.setattr(transactions, "_load_all_transactions", lambda *_a, **_k: sample)
 
     captured = {}
 

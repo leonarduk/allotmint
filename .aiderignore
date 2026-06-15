@@ -1,0 +1,24 @@
+# Aider context exclusions for large/non-source paths.
+# Keeps aider's repo map focused on source code in this large repo.
+# See: https://aider.chat/docs/faq.html#can-i-use-aider-in-a-large-mono-repo
+
+# Test fixtures and generated data
+tests/data/
+data/
+frontend/test-results/
+
+# Coverage / build artifacts
+cdk/.coverage
+.coverage
+htmlcov/
+cdk.out/
+cdk/cdk.out/
+cdk/cdk.out.backend/
+
+# Dependencies and build output
+node_modules/
+dist/
+build/
+
+# Logs
+*.log

@@ -441,7 +441,7 @@ const applyCognitoIdToken = (awsUiAuth?: AwsUiAuthConfig | null): boolean => {
 // header never goes stale mid-session (Cognito ID tokens last ~1h).
 const COGNITO_REFRESH_BUFFER_MS = 5 * 60 * 1000;
 
-let cognitoRefreshTimerId: ReturnType<typeof window.setTimeout> | null = null;
+let cognitoRefreshTimerId: number | null = null;
 
 // Cancels any pending Cognito refresh timer so a stale refresh callback can't
 // fire after logout or page unload. Idempotent.

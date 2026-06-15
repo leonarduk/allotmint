@@ -17,10 +17,13 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 import secrets
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+from backend.common.path_utils import safe_join
 
 logger = logging.getLogger(__name__)
 
@@ -171,30 +174,26 @@ def _persist(record: SignupRequest, store_dir: Path) -> None:
     logger.info("Recorded pending signup request %s", record.id)
 
 
-_VALID_REQUEST_ID = frozenset("0123456789abcdef")
-_REQUEST_ID_LEN = 32  # secrets.token_hex(16) -> 32 lowercase hex chars
+# secrets.token_hex(16) -> exactly 32 lowercase hex chars and nothing else.
+_REQUEST_ID_RE = re.compile(r"\A[0-9a-f]{32}\Z")
 
 
 def _request_path(request_id: str, store_dir: Path) -> Path | None:
     """Return the on-disk path for ``request_id`` or ``None`` if malformed.
 
-    Request ids are exactly 32 lowercase hex chars (``secrets.token_hex(16)``);
-    anything else is rejected. As defence in depth, the fully resolved path is
-    also confirmed to stay inside ``store_dir`` so a hostile id can never escape
-    via path traversal.
+    The id is first constrained to exactly 32 lowercase hex chars (a strict
+    allowlist — no separators or dots can survive), then joined with
+    :func:`safe_join`, which resolves both paths and rejects anything escaping
+    ``store_dir``. The two independent barriers ensure a hostile id can never be
+    used to read outside the request store.
     """
 
-    if len(request_id) != _REQUEST_ID_LEN:
+    if not _REQUEST_ID_RE.fullmatch(request_id):
         return None
-    if any(ch not in _VALID_REQUEST_ID for ch in request_id):
-        return None
-    base_dir = Path(store_dir).resolve()
-    candidate = (base_dir / f"{request_id}.json").resolve()
     try:
-        candidate.relative_to(base_dir)
+        return safe_join(Path(store_dir), f"{request_id}.json")
     except ValueError:
         return None
-    return candidate
 
 
 def load_request(request_id: str, store_dir: Path) -> SignupRequest | None:

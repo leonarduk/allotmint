@@ -4,6 +4,11 @@ This repository has a Python/FastAPI backend, a React/Vite frontend, AWS CDK inf
 
 **Language:** always respond in English only, never in Chinese or any other language.
 
+## Agent execution rules
+
+- **Workspace root:** Use the repository root as the base for all file reads and writes. If you are unsure, call `ls` or `bash pwd` to determine it at the start of each session.
+- **Execution-first:** In your first response after loading a skill or receiving a clear action request, you MUST call the first relevant tool. Do not narrate your plan, do not ask rhetorical questions, do not describe what you are about to do — call the tool. The tool output is your plan.
+
 ## 1. Repo map and mental model
 
 - `backend/`: FastAPI application code, domain services, importers, tasks, and Lambda/local entrypoints.

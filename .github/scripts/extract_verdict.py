@@ -11,13 +11,13 @@ def extract_verdict(review_text: str) -> str | None:
     """Extract the verdict from review text.
 
     Looks for verdict lines in the format:
-    - `**APPROVE**` — ...
-    - `**REQUEST CHANGES**` — ...
+    - `**APPROVE**` or `` **`APPROVE`** ``
+    - `**REQUEST CHANGES**` or `` **`REQUEST CHANGES`** ``
 
     Returns 'APPROVE' or 'REQUEST CHANGES' if found, None otherwise.
     """
-    # Look for verdict lines that match the expected format
-    match = re.search(r'\*\*(APPROVE|REQUEST CHANGES)\*\*', review_text)
+    # Look for verdict lines that match the expected format, with or without backticks inside the bold markers
+    match = re.search(r'\*\*`?(APPROVE|REQUEST CHANGES)`?\*\*', review_text)
     if match:
         return match.group(1)
     return None
@@ -55,7 +55,7 @@ def main(review_file: str, provider_name: str) -> int:
 
     print(
         f"ERROR: {provider_name} review did not include a valid verdict. "
-        "Expected '**APPROVE**' or '**REQUEST CHANGES**' in the review.",
+        "Expected '**APPROVE**' or '**REQUEST CHANGES**' (with or without backticks) in the review.",
         file=sys.stderr,
     )
     return 1

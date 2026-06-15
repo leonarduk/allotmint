@@ -77,6 +77,21 @@ def test_invalid_payload_returns_400(client, monkeypatch):
     assert resp.status_code == 400
 
 
+def test_missing_base_url_warns_but_still_notifies(client, monkeypatch, caplog):
+    test_client, _ = client
+    sent = _capture_email(monkeypatch)
+    monkeypatch.delenv("SIGNUP_APPROVAL_BASE_URL", raising=False)
+
+    with caplog.at_level("WARNING"):
+        resp = test_client.post(
+            "/signup/request", json={"name": "Jane", "email": "jane@example.com"}
+        )
+
+    assert resp.status_code == 200
+    assert sent["notification"].approve_url.startswith("/signup/approve")
+    assert any("SIGNUP_APPROVAL_BASE_URL" in r.message for r in caplog.records)
+
+
 def test_existing_and_new_emails_are_indistinguishable(client, monkeypatch):
     test_client, _ = client
     _capture_email(monkeypatch)
@@ -97,9 +112,7 @@ def test_missing_admin_email_returns_503(client, monkeypatch):
     _capture_email(monkeypatch)
     monkeypatch.delenv("SIGNUP_ADMIN_EMAIL", raising=False)
 
-    resp = test_client.post(
-        "/signup/request", json={"name": "Jane", "email": "jane@example.com"}
-    )
+    resp = test_client.post("/signup/request", json={"name": "Jane", "email": "jane@example.com"})
     assert resp.status_code == 503
 
 
@@ -111,7 +124,5 @@ def test_email_send_failure_is_not_swallowed(client, monkeypatch):
 
     monkeypatch.setattr(signup_module, "send_signup_admin_email", boom)
 
-    resp = test_client.post(
-        "/signup/request", json={"name": "Jane", "email": "jane@example.com"}
-    )
+    resp = test_client.post("/signup/request", json={"name": "Jane", "email": "jane@example.com"})
     assert resp.status_code == 502

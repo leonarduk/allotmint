@@ -29,6 +29,12 @@ def test_normalise_payload_allows_missing_note():
         {"name": "", "email": "jane@example.com"},
         {"name": "Jane", "email": "not-an-email"},
         {"name": "Jane", "email": "missing-at.example.com"},
+        {"name": "Jane", "email": "two@at@example.com"},
+        {"name": "Jane", "email": "jane@example..com"},
+        {"name": "Jane", "email": "jane@.example.com"},
+        {"name": "Jane", "email": "jane@example."},
+        {"name": "Jane", "email": "jane@nodot"},
+        {"name": "Jane", "email": "jane doe@example.com"},
         {"name": "Jane", "email": ""},
         {"name": "x" * 201, "email": "jane@example.com"},
         {"name": "Jane", "email": "jane@example.com", "note": "x" * 2001},
@@ -37,6 +43,17 @@ def test_normalise_payload_allows_missing_note():
 def test_normalise_payload_rejects_invalid(payload):
     with pytest.raises(signup_requests.SignupValidationError):
         signup_requests.normalise_payload(payload)
+
+
+def test_email_validation_is_linear_on_adversarial_input():
+    """A ReDoS-style payload must be rejected quickly, not backtrack.
+
+    The previous regex (``[^@\\s]+@[^@\\s]+\\.[^@\\s]+``) was polynomial on
+    strings like ``!@!.!.!.!.``; the string-based check is linear.
+    """
+    adversarial = "!@" + "!." * 8000
+    with pytest.raises(signup_requests.SignupValidationError):
+        signup_requests.normalise_payload({"name": "Jane", "email": adversarial})
 
 
 def test_create_signup_request_persists_record(tmp_path):
@@ -59,9 +76,7 @@ def test_create_signup_request_persists_record(tmp_path):
 
 def test_create_signup_request_stores_only_token_hash(tmp_path):
     store = signup_requests.signup_requests_dir(tmp_path)
-    record, token = signup_requests.create_signup_request(
-        "Jane", "jane@example.com", "", store
-    )
+    record, token = signup_requests.create_signup_request("Jane", "jane@example.com", "", store)
 
     raw = (store / f"{record.id}.json").read_text()
     # Plaintext token must never be persisted; only its hash.

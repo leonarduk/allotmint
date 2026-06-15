@@ -17,18 +17,12 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-import re
 import secrets
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
-
-# Deliberately permissive: we only guard against obviously malformed input.
-# RFC-complete email validation is intractable and not required here — the
-# real check is that a human at the address can act on the admin notification.
-_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 _TOKEN_TTL = timedelta(days=7)
 _MAX_NAME_LEN = 200
@@ -38,6 +32,25 @@ _MAX_NOTE_LEN = 2000
 
 class SignupValidationError(ValueError):
     """Raised when a signup request payload fails validation."""
+
+
+def _looks_like_email(email: str) -> bool:
+    """Cheap, linear-time sanity check for an email address.
+
+    Deliberately permissive: we only guard against obviously malformed input
+    (the real check is that a human at the address can act on the admin
+    notification). Implemented with string operations rather than a regex to
+    avoid catastrophic backtracking (ReDoS) on adversarial input.
+    """
+
+    if any(ch.isspace() for ch in email) or email.count("@") != 1:
+        return False
+    local, _, domain = email.partition("@")
+    if not local or not domain:
+        return False
+    if domain.startswith(".") or domain.endswith(".") or "." not in domain:
+        return False
+    return ".." not in domain
 
 
 @dataclass(frozen=True)
@@ -74,7 +87,7 @@ def normalise_payload(payload: object) -> tuple[str, str, str]:
 
     if not name or len(name) > _MAX_NAME_LEN:
         raise SignupValidationError("invalid name")
-    if len(email) > _MAX_EMAIL_LEN or not _EMAIL_RE.match(email):
+    if len(email) > _MAX_EMAIL_LEN or not _looks_like_email(email):
         raise SignupValidationError("invalid email")
     if len(note) > _MAX_NOTE_LEN:
         raise SignupValidationError("note too long")

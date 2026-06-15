@@ -49,6 +49,13 @@ def _build_links(request_id: str, token: str) -> tuple[str, str]:
     """Build the approve/reject links consumed by the approval flow (#4352)."""
 
     base = os.getenv("SIGNUP_APPROVAL_BASE_URL", "").rstrip("/")
+    if not base:
+        # Without a base URL the emailed links are relative and unusable. Warn
+        # rather than fail so the admin still receives the request id + token
+        # and can act manually, but the misconfiguration is not silent.
+        logger.warning(
+            "SIGNUP_APPROVAL_BASE_URL is not set; admin approve/reject links will be relative"
+        )
     query = f"id={request_id}&token={token}"
     return f"{base}/signup/approve?{query}", f"{base}/signup/reject?{query}"
 

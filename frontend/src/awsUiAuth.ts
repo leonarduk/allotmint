@@ -72,6 +72,14 @@ const normaliseDomain = (domain: string) => {
   return trimmed.startsWith('https://') ? trimmed : `https://${trimmed}`;
 };
 
+// Strip the given OAuth callback params, preserving any other query params.
+const stripAuthCallbackParams = (keys: string[] = ['code', 'state']) => {
+  const params = new URLSearchParams(window.location.search);
+  keys.forEach((key) => params.delete(key));
+  const search = params.toString() ? `?${params.toString()}` : '';
+  window.history.replaceState({}, document.title, `${window.location.pathname}${search}`);
+};
+
 const redirectUri = (redirectPath?: string) => {
   const path = redirectPath?.startsWith('/')
     ? redirectPath
@@ -216,29 +224,35 @@ const exchangeCode = async (config: AuthConfig) => {
   const state = params.get('state');
   const errorParam = params.get('error');
 
-  // access_denied = user clicked Cancel on the Cognito hosted UI.
-  // Clean up PKCE state and URL, then throw so the caller renders a retry UI
-  // instead of falling through to redirectToHostedUi and looping indefinitely.
-  if (errorParam === 'access_denied') {
-    window.sessionStorage.removeItem(STATE_KEY);
-    window.sessionStorage.removeItem(VERIFIER_KEY);
-    window.history.replaceState({}, document.title, window.location.pathname);
-    throw new UserCancelledError();
-  }
-  if (errorParam) throw new Error(`Cognito auth error: ${errorParam}`);
-  if (!code || !state) return false;
+  // Not an OAuth callback at all (no error and no code/state pair): fall
+  // through to redirectToHostedUi as before.
+  if (!errorParam && (!code || !state)) return false;
 
+  // This is an OAuth callback (error response, or a code/state pair):
+  // unconditionally consume the one-time PKCE credentials and strip the
+  // callback params from the URL, regardless of outcome, so a reload never
+  // replays a dead code or loops on the same error.
   const expectedState = window.sessionStorage.getItem(STATE_KEY);
   const verifier = window.sessionStorage.getItem(VERIFIER_KEY);
-  if (!expectedState || !verifier || state !== expectedState) {
-    window.sessionStorage.removeItem(STATE_KEY);
-    window.sessionStorage.removeItem(VERIFIER_KEY);
-    window.history.replaceState({}, document.title, window.location.pathname);
-    throw new Error('Invalid AWS UI authentication callback state');
-  }
-  // State matched — consume the one-time PKCE credentials before the fetch.
   window.sessionStorage.removeItem(STATE_KEY);
   window.sessionStorage.removeItem(VERIFIER_KEY);
+  stripAuthCallbackParams(['code', 'state', 'error']);
+
+  // RFC 6749 defines standard OAuth error codes. access_denied = user clicked
+  // Cancel on the Cognito hosted UI; other errors are surfaced as-is.
+  if (errorParam) {
+    if (errorParam === 'access_denied') throw new UserCancelledError();
+    throw new Error(`Cognito auth error: ${errorParam}`);
+  }
+  if (
+    !code ||
+    !state ||
+    !expectedState ||
+    !verifier ||
+    state !== expectedState
+  ) {
+    throw new Error('Invalid AWS UI authentication callback state');
+  }
 
   const tokenParams = new URLSearchParams({
     grant_type: 'authorization_code',
@@ -253,9 +267,6 @@ const exchangeCode = async (config: AuthConfig) => {
     body: tokenParams.toString(),
   });
   if (!response.ok) {
-    // The authorization code is single-use; strip it from the URL so a
-    // reload restarts the hosted-UI flow instead of replaying a dead code.
-    window.history.replaceState({}, document.title, window.location.pathname);
     throw new Error(
       `${TOKEN_EXCHANGE_FAILURE_PREFIX}: ${await extractOAuthErrorCode(response)}`
     );

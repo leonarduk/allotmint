@@ -10,6 +10,33 @@ foreach ($cmd in @('gh', 'aider')) {
     }
 }
 
+# Pre-flight: self-heal a leftover unresolved `git stash pop` conflict from a
+# prior interrupted run in this (possibly shared) working tree. `git checkout
+# $branch` in step [3/6] refuses to run while the index has unmerged entries,
+# so without this the script fails with "you need to resolve your current
+# index first" regardless of which issue is being worked.
+$unmergedPaths = @(git diff --name-only --diff-filter=U 2>$null | Where-Object { $_ })
+if ($unmergedPaths.Count -gt 0) {
+    $gitDir = git rev-parse --git-dir
+    $opInProgress = @('MERGE_HEAD', 'CHERRY_PICK_HEAD', 'rebase-merge', 'rebase-apply') |
+        Where-Object { Test-Path (Join-Path $gitDir $_) }
+    if ($opInProgress) {
+        Write-Error "A git operation ($($opInProgress -join ', ')) is in progress with unresolved conflicts in: $($unmergedPaths -join ', '). Resolve or abort it manually before running this script."
+        exit 1
+    }
+    # No merge/rebase/cherry-pick in progress, so this is leftover from an
+    # interrupted `git stash pop`. Reset just these paths to HEAD to clear the
+    # conflict. Deliberately do NOT run `git stash drop` - the corresponding
+    # stash entry (if any) is left in place for manual review, since choosing
+    # which side to keep is a judgment call this script shouldn't make.
+    Write-Warning "Resetting leftover unresolved conflict in: $($unmergedPaths -join ', ') (likely from an interrupted 'git stash pop'). Any related stash entry is left in place for manual review."
+    git checkout HEAD -- $unmergedPaths
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to reset conflicted paths to HEAD. Resolve the conflict manually before running this script."
+        exit 1
+    }
+}
+
 # Fetch to ensure remote refs are current before any rev-parse.
 # Warn (don't abort) on failure so offline re-runs still work, but never let a
 # silent fetch failure cause a later reset to operate on a stale ref unnoticed.
@@ -123,14 +150,62 @@ if (-not $repoRoot) {
     exit 1
 }
 $pathPattern = '(?:[\w.-]+[\\/])*[\w.-]+\.[A-Za-z0-9]+'
-$referencedFiles = @(
+$candidates = @(
     [regex]::Matches("$title`n$issueBody", $pathPattern) |
         ForEach-Object { $_.Value } |
         Sort-Object -Unique |
-        Where-Object { $_ -notmatch '\.\.' -and -not [System.IO.Path]::IsPathRooted($_) } |
+        Where-Object { $_ -notmatch '\.\.' -and -not [System.IO.Path]::IsPathRooted($_) }
+)
+
+# Direct matches: candidate is already a valid path relative to the repo root.
+$directMatches = @(
+    $candidates |
         Where-Object { Test-Path -LiteralPath (Join-Path $repoRoot $_) -PathType Leaf } |
         ForEach-Object { Join-Path $repoRoot $_ }
 )
+
+# Basename fallback: issue text often names a bare filename (e.g.
+# "test_extract_verdict.py") without its directory, but the file actually
+# lives in a subdirectory (e.g. .github/scripts/test_extract_verdict.py).
+# Search tracked files for a matching leaf name so those still get added to
+# aider's context. Restricted to `git ls-files` output, so only files already
+# tracked in the repo can match - no path traversal outside the repo.
+$trackedFiles = @(git -C $repoRoot ls-files)
+$basenameMatches = @(
+    $candidates |
+        Where-Object { -not (Test-Path -LiteralPath (Join-Path $repoRoot $_) -PathType Leaf) } |
+        ForEach-Object {
+            $leaf = Split-Path -Leaf $_
+            $trackedFiles | Where-Object { (Split-Path -Leaf $_) -eq $leaf }
+        } |
+        Sort-Object -Unique |
+        ForEach-Object { Join-Path $repoRoot $_ }
+)
+
+# Identifier matches: issue text often calls out a specific function/method/
+# symbol in backticks (e.g. a test method name). When multiple files share a
+# basename (see above), a weak local model can't tell
+# which one is relevant and may produce a no-op edit against the wrong file.
+# Grepping tracked files for the exact identifier pinpoints the file that
+# actually defines/uses it. `git grep -l -F` only searches tracked files, so
+# results stay inside the repo. Listed first so it's the model's primary cue.
+# Require an underscore so generic backtick-quoted words (e.g. `APPROVE`)
+# don't turn into noisy, repo-wide grep matches - snake_case identifiers
+# (function/method/variable names) are the useful signal here.
+$identifierPattern = '`([A-Za-z_][A-Za-z0-9_]*_[A-Za-z0-9_]*)`'
+$identifiers = @(
+    [regex]::Matches("$title`n$issueBody", $identifierPattern) |
+        ForEach-Object { $_.Groups[1].Value } |
+        Sort-Object -Unique
+)
+$identifierMatches = @(
+    $identifiers |
+        ForEach-Object { git -C $repoRoot grep -l -F -- $_ 2>$null } |
+        Sort-Object -Unique |
+        ForEach-Object { Join-Path $repoRoot $_ }
+)
+
+$referencedFiles = @(($identifierMatches + $directMatches + $basenameMatches) | Select-Object -Unique)
 if ($referencedFiles.Count -gt 0) {
     Write-Host "    Adding referenced files to aider context: $($referencedFiles -join ', ')"
 } else {

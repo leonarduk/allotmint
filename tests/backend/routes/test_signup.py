@@ -236,7 +236,7 @@ def test_approve_invalid_token_rejected(client, monkeypatch):
 
 
 def test_approve_unknown_request_rejected(client, monkeypatch):
-    test_client, tmp_path = client
+    test_client, _ = client
     _capture_user_email(monkeypatch)
     _stub_store(monkeypatch)
 
@@ -285,14 +285,38 @@ def test_approve_user_email_failure_is_not_swallowed(client, monkeypatch):
     assert resp.status_code == 502
 
 
-def test_approve_link_works_via_get(client, monkeypatch):
-    """The approve/reject links in the admin email are clicked (GET)."""
+def test_get_approve_is_a_safe_confirmation_page(client, monkeypatch):
+    """GET (e.g. a clicked/prefetched email link) must not consume the token."""
 
     test_client, tmp_path = client
-    _capture_user_email(monkeypatch)
+    sent = _capture_user_email(monkeypatch)
     _stub_store(monkeypatch)
 
     request_id, token = _pending_request(tmp_path)
     resp = test_client.get(f"/signup/approve?id={request_id}&token={token}")
+
     assert resp.status_code == 200
-    assert resp.json()["status"] == "approved"
+    assert "text/html" in resp.headers["content-type"]
+    # A confirmation form that POSTs the real action — no side effects yet.
+    assert "<form" in resp.text and 'method="post"' in resp.text
+    assert "jane@example.com" in resp.text
+    # The request is still pending and nothing was provisioned or emailed.
+    store_dir = signup_requests.signup_requests_dir(tmp_path)
+    assert json.loads((store_dir / f"{request_id}.json").read_text())["status"] == "pending"
+    assert not (tmp_path / "accounts" / "jane").exists()
+    assert sent == {}
+
+    # The POSTed action still works after the confirmation page.
+    posted = test_client.post(f"/signup/approve?id={request_id}&token={token}")
+    assert posted.status_code == 200
+    assert posted.json()["status"] == "approved"
+
+
+def test_get_approve_invalid_token_renders_error_page(client, monkeypatch):
+    test_client, tmp_path = client
+    _stub_store(monkeypatch)
+
+    request_id, _ = _pending_request(tmp_path)
+    resp = test_client.get(f"/signup/approve?id={request_id}&token=wrong")
+    assert resp.status_code == 400
+    assert "text/html" in resp.headers["content-type"]

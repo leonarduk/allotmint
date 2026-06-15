@@ -47,37 +47,54 @@ def derive_owner_slug(email: str) -> str:
 
 
 def _read_person_email(owner_dir: Path) -> str:
-    """Return the lowercased email stored in ``owner_dir/person.json`` (or "")."""
+    """Return the lowercased email stored in ``owner_dir/person.json`` (or "").
+
+    A malformed ``person.json`` is logged and treated as having no email so a
+    corrupt file never silently masks an existing account owner.
+    """
 
     person_path = owner_dir / "person.json"
     if not person_path.exists():
         return ""
     try:
         data = json.loads(person_path.read_text())
-    except (OSError, json.JSONDecodeError):
+    except OSError as exc:
+        logger.warning("Could not read %s: %s", person_path, exc)
+        return ""
+    except json.JSONDecodeError as exc:
+        logger.warning("Malformed person.json at %s: %s", person_path, exc)
         return ""
     if not isinstance(data, dict):
+        logger.warning("person.json at %s is not an object", person_path)
         return ""
     email = data.get("email")
     return email.strip().lower() if isinstance(email, str) else ""
 
 
 def _resolve_owner_slug(email: str, accounts_root: Path) -> str:
-    """Pick an owner slug for ``email`` under ``accounts_root``.
+    """Atomically claim an owner slug for ``email`` under ``accounts_root``.
 
-    Reuses an existing directory already owned by this email (idempotency) and
-    otherwise returns the first free ``base``/``base-2``/``base-3`` ... slug so
-    we never clobber a different user's data.
+    The candidate directory is created with ``mkdir`` (no ``exist_ok``) so two
+    concurrent approvals can never both believe the same slug is free. An
+    existing directory owned by this same email is reused (idempotent
+    re-provision); one owned by a different email is skipped so we never clobber
+    another user's data. ``email`` is lowercased to match the normalised form
+    stored in ``person.json``.
     """
 
+    email = email.strip().lower()
     base = derive_owner_slug(email)
     for suffix in range(1, _MAX_SLUG_CANDIDATES + 1):
         candidate = base if suffix == 1 else f"{base}-{suffix}"
         owner_dir = accounts_root / candidate
-        if not owner_dir.exists():
-            return candidate
-        if _read_person_email(owner_dir) == email:
-            return candidate
+        try:
+            owner_dir.mkdir(parents=True)
+        except FileExistsError:
+            # Lost the race or pre-existing: reuse only if it is this email's.
+            if _read_person_email(owner_dir) == email:
+                return candidate
+            continue
+        return candidate
     raise RuntimeError(f"could not allocate an owner slug for base {base!r}")
 
 
@@ -119,9 +136,10 @@ def provision_owner(
     """
 
     accounts_root = Path(accounts_root)
-    owner = _resolve_owner_slug(record.email, accounts_root)
+    email = record.email.strip().lower()
+    owner = _resolve_owner_slug(email, accounts_root)
     owner_dir = ensure_owner_scaffold(owner, accounts_root)
-    _write_person_identity(owner_dir, record.email, record.name)
+    _write_person_identity(owner_dir, email, record.name)
 
     if store is not None:
         ensure = getattr(store, "ensure_owner", None)

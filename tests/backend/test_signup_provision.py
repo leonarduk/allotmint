@@ -85,3 +85,59 @@ def test_provision_owner_calls_store_ensure_owner(tmp_path):
 
     signup_provision.provision_owner(_record("jane@example.com"), accounts_root, store=FakeStore())
     assert calls == ["jane"]
+
+
+def test_provision_owner_reuses_slug_for_mixed_case_email(tmp_path):
+    """A re-request with different email casing must not split into a new slug."""
+
+    accounts_root = tmp_path / "accounts"
+    accounts_root.mkdir()
+
+    first = signup_provision.provision_owner(_record("jane@example.com"), accounts_root)
+    # record.email is normalised at creation, but provisioning must also be
+    # case-insensitive defensively.
+    second = signup_provision.provision_owner(_record("JANE@example.com"), accounts_root)
+
+    assert first == second == "jane"
+
+
+def test_provision_owner_preserves_existing_full_name(tmp_path):
+    accounts_root = tmp_path / "accounts"
+    (accounts_root / "jane").mkdir(parents=True)
+    (accounts_root / "jane" / "person.json").write_text(
+        json.dumps({"owner": "jane", "email": "jane@example.com", "full_name": "Existing Name"})
+    )
+
+    signup_provision.provision_owner(_record("jane@example.com", name="New Name"), accounts_root)
+
+    person = json.loads((accounts_root / "jane" / "person.json").read_text())
+    assert person["full_name"] == "Existing Name"
+
+
+def test_provision_owner_skips_slug_with_corrupted_person_json(tmp_path):
+    """A corrupt person.json must not be treated as this email's account."""
+
+    accounts_root = tmp_path / "accounts"
+    (accounts_root / "jane").mkdir(parents=True)
+    (accounts_root / "jane" / "person.json").write_text("{ not json")
+
+    owner = signup_provision.provision_owner(_record("jane@example.com"), accounts_root)
+
+    # The corrupt directory is not reused; a fresh slug is allocated.
+    assert owner == "jane-2"
+    # The corrupt file is left untouched.
+    assert (accounts_root / "jane" / "person.json").read_text() == "{ not json"
+
+
+def test_resolve_owner_slug_raises_when_exhausted(tmp_path, monkeypatch):
+    accounts_root = tmp_path / "accounts"
+    accounts_root.mkdir()
+    monkeypatch.setattr(signup_provision, "_MAX_SLUG_CANDIDATES", 2)
+
+    # Occupy both candidate slugs with a different email so none can be reused.
+    for name in ("jane", "jane-2"):
+        (accounts_root / name).mkdir()
+        (accounts_root / name / "person.json").write_text(json.dumps({"email": "other@example.com"}))
+
+    with pytest.raises(RuntimeError):
+        signup_provision.provision_owner(_record("jane@example.com"), accounts_root)

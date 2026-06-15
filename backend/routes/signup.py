@@ -4,12 +4,13 @@ Exposes:
 
 * ``POST /signup/request`` — an unauthenticated endpoint that records a
   visitor's interest in an account and emails the admin an approve/reject link.
-* ``POST``/``GET`` ``/signup/approve`` and ``/signup/reject`` — the admin
-  approval flow (#4352). The unguessable, single-use token from the admin email
-  authorises the action, so these need no session auth. Approving provisions
+* ``/signup/approve`` and ``/signup/reject`` — the admin approval flow
+  (#4352). The unguessable, single-use token from the admin email authorises
+  the action, so these need no session auth. ``GET`` (a clicked email link)
+  renders a side-effect-free confirmation page; the state change happens only
+  on ``POST`` so link prefetchers cannot consume a token. Approving provisions
   the owner (adds their email to the login allowlist via ``person.json``) and
-  emails the user that their login is ready. ``GET`` is supported so the links
-  embedded in the admin email work when clicked.
+  emails the user that their login is ready.
 
 Anti-enumeration: the request handler performs no lookup against existing
 accounts and always returns the same generic success body, so a caller cannot
@@ -26,6 +27,8 @@ from json import JSONDecodeError
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import HTMLResponse
+from markupsafe import escape
 
 from backend.common import signup_provision, signup_requests
 from backend.common.signup_requests import (
@@ -134,7 +137,43 @@ def _token_error_to_http(exc: SignupTokenError) -> HTTPException:
     return HTTPException(status_code=400, detail="invalid or expired approval token")
 
 
-@router.get("/approve")
+def _confirmation_page(action: str, request: Request, id: str, token: str) -> HTMLResponse:
+    """Render a side-effect-free confirmation page for a clicked email link.
+
+    ``GET`` must not mutate state: email clients and link scanners routinely
+    prefetch links, which would otherwise consume a single-use token before the
+    admin acts. The page validates the token read-only and presents a form that
+    POSTs the actual action, so only a deliberate human click takes effect.
+    """
+
+    store_dir = _store_dir(request)
+    try:
+        record = signup_requests.validate_request(id, token, store_dir)
+    except SignupTokenError as exc:
+        body = f"<p>This request cannot be {action}d: {escape(_token_error_to_http(exc).detail)}.</p>"
+        return HTMLResponse(f"<html><body>{body}</body></html>", status_code=400)
+
+    verb = action.capitalize()
+    page = (
+        "<html><body>"
+        f"<h2>{verb} access request</h2>"
+        f"<p>Request from <strong>{escape(record.name)}</strong> "
+        f"(<strong>{escape(record.email)}</strong>).</p>"
+        f'<form method="post" action="/signup/{action}?id={escape(id)}&amp;token={escape(token)}">'
+        f'<button type="submit">Confirm {action}</button>'
+        "</form>"
+        "</body></html>"
+    )
+    return HTMLResponse(page)
+
+
+@router.get("/approve", response_class=HTMLResponse)
+async def approve_signup_confirm(request: Request, id: str = "", token: str = "") -> HTMLResponse:
+    """Show a confirmation page; the approval itself is performed by ``POST``."""
+
+    return _confirmation_page("approve", request, id, token)
+
+
 @router.post("/approve")
 async def approve_signup_request(request: Request, id: str = "", token: str = "") -> dict[str, str]:
     """Provision the requesting user and notify them their login is ready.
@@ -155,9 +194,10 @@ async def approve_signup_request(request: Request, id: str = "", token: str = ""
     store = resolve_writable_store(request)
     owner = signup_provision.provision_owner(record, accounts_root, store=store)
 
-    # Burn the token only after provisioning succeeded.
+    # Burn the token only after provisioning succeeded. The returned record is
+    # not needed here — the status flip is the side effect we want.
     try:
-        signup_requests.consume_request(id, token, store_dir, new_status="approved")
+        _ = signup_requests.consume_request(id, token, store_dir, new_status="approved")
     except SignupTokenError as exc:  # pragma: no cover - lost race with another approver
         raise _token_error_to_http(exc) from exc
 
@@ -170,14 +210,21 @@ async def approve_signup_request(request: Request, id: str = "", token: str = ""
     return {"status": "approved", "owner": owner}
 
 
-@router.get("/reject")
+@router.get("/reject", response_class=HTMLResponse)
+async def reject_signup_confirm(request: Request, id: str = "", token: str = "") -> HTMLResponse:
+    """Show a confirmation page; the rejection itself is performed by ``POST``."""
+
+    return _confirmation_page("reject", request, id, token)
+
+
 @router.post("/reject")
 async def reject_signup_request(request: Request, id: str = "", token: str = "") -> dict[str, str]:
     """Mark a pending request rejected so its token can no longer be used."""
 
     store_dir = _store_dir(request)
+    # The status flip is the side effect we want; the record is not needed.
     try:
-        signup_requests.consume_request(id, token, store_dir, new_status="rejected")
+        _ = signup_requests.consume_request(id, token, store_dir, new_status="rejected")
     except SignupTokenError as exc:
         raise _token_error_to_http(exc) from exc
 

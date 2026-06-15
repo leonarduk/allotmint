@@ -171,22 +171,30 @@ def _persist(record: SignupRequest, store_dir: Path) -> None:
     logger.info("Recorded pending signup request %s", record.id)
 
 
-_VALID_REQUEST_ID = set("0123456789abcdef")
+_VALID_REQUEST_ID = frozenset("0123456789abcdef")
+_REQUEST_ID_LEN = 32  # secrets.token_hex(16) -> 32 lowercase hex chars
 
 
 def _request_path(request_id: str, store_dir: Path) -> Path | None:
     """Return the on-disk path for ``request_id`` or ``None`` if malformed.
 
-    Request ids are 32-char lowercase hex (``secrets.token_hex(16)``); anything
-    else is rejected outright so a hostile id cannot escape ``store_dir`` via
-    path traversal.
+    Request ids are exactly 32 lowercase hex chars (``secrets.token_hex(16)``);
+    anything else is rejected. As defence in depth, the fully resolved path is
+    also confirmed to stay inside ``store_dir`` so a hostile id can never escape
+    via path traversal.
     """
 
-    if not request_id or len(request_id) > 64:
+    if len(request_id) != _REQUEST_ID_LEN:
         return None
     if any(ch not in _VALID_REQUEST_ID for ch in request_id):
         return None
-    return Path(store_dir) / f"{request_id}.json"
+    base_dir = Path(store_dir).resolve()
+    candidate = (base_dir / f"{request_id}.json").resolve()
+    try:
+        candidate.relative_to(base_dir)
+    except ValueError:
+        return None
+    return candidate
 
 
 def load_request(request_id: str, store_dir: Path) -> SignupRequest | None:

@@ -56,19 +56,19 @@ WRITABLE_ACCOUNTS_PREFIX = (os.getenv("WRITABLE_ACCOUNTS_PREFIX") or "writable-a
 def _lock_file(f) -> None:
     """Lock ``f`` for exclusive access."""
     if fcntl:
-        fcntl.flock(f, fcntl.LOCK_EX)
+        fcntl.flock(f, fcntl.LOCK_EX)  # type: ignore[attr-defined]
     else:  # pragma: no cover - Windows
         f.seek(0)
-        msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 0x7FFFFFFF)
+        msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 0x7FFFFFFF)  # type: ignore[attr-defined]
 
 
 def _unlock_file(f) -> None:
     """Unlock ``f``."""
     if fcntl:
-        fcntl.flock(f, fcntl.LOCK_UN)
+        fcntl.flock(f, fcntl.LOCK_UN)  # type: ignore[attr-defined]
     else:  # pragma: no cover - Windows
         f.seek(0)
-        msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 0x7FFFFFFF)
+        msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 0x7FFFFFFF)  # type: ignore[attr-defined]
 
 
 def _coerce_document(loaded: Any, default: Dict[str, Any]) -> Dict[str, Any]:

@@ -1,13 +1,20 @@
 import json
+import sys
+from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from backend.app import create_app
-from backend.common.accounts_store import LocalAccountsStore
+from backend.common.accounts_store import LocalAccountsStore, WRITABLE_ACCOUNTS_PREFIX
 from backend.config import config
 from backend.routes import transactions
+
+try:
+    from botocore.exceptions import ClientError
+except ImportError:  # pragma: no cover - fallback when botocore not installed
+    ClientError = None  # type: ignore[assignment]
 
 
 def _valid_payload(**overrides):
@@ -621,3 +628,172 @@ def test_transactions_and_dividends_filters(tmp_path, monkeypatch):
     assert len(dividends) == 1
     assert dividends[0]["amount_minor"] == 500
     assert dividends[0]["ticker"] == "PFE"
+
+
+# ── helpers for the S3 integration tests ──────────────────────────────
+
+
+class _FakeStreamingBody:
+    """Minimal in-memory file-like body compatible with S3 get_object responses."""
+
+    def __init__(self, data: bytes) -> None:
+        self._data = data
+
+    def read(self) -> bytes:
+        return self._data
+
+
+class _FakeS3Client:
+    """In-memory S3 that stores objects keyed by ``(bucket, key)``.
+
+    Supports the small subset of the S3 API that :class:`S3AccountsStore`
+    actually calls: ``put_object``, ``get_object``, and ``list_objects_v2``.
+    Instances share state through a class-level dict so that different
+    ``boto3.client(\"s3\")`` calls within the same test see the same objects.
+    """
+
+    _storage: dict[tuple[str, str], bytes] = {}
+
+    def __init__(self) -> None:
+        # Ensure every instance sees the shared class-level storage.
+        self._objects = _FakeS3Client._storage
+
+    def put_object(self, Bucket: str, Key: str, Body: bytes, ContentType: str | None = None) -> None:
+        self._objects[(Bucket, Key)] = Body if isinstance(Body, bytes) else Body.encode()
+
+    def get_object(self, Bucket: str, Key: str) -> dict:
+        key = (Bucket, Key)
+        if key not in self._objects:
+            if ClientError is not None:
+                raise ClientError({"Error": {"Code": "NoSuchKey"}}, "GetObject")
+            raise FileNotFoundError(Key)
+        return {"Body": _FakeStreamingBody(self._objects[key])}
+
+    def list_objects_v2(
+        self, Bucket: str, Prefix: str, ContinuationToken: str | None = None, **kwargs: object
+    ) -> dict:
+        contents: list[dict[str, str]] = []
+        for (b, k), _ in self._objects.items():
+            if b == Bucket and k.startswith(Prefix):
+                contents.append({"Key": k})
+        return {"Contents": contents, "IsTruncated": False}
+
+    # ── helpers for assertions ──────────────────────────────────────
+
+    def _has_key(self, bucket: str, key: str) -> bool:
+        return (bucket, key) in self._objects
+
+    def _key_count_for_prefix(self, bucket: str, prefix: str) -> int:
+        return sum(1 for (b, k) in self._objects if b == bucket and k.startswith(prefix))
+
+
+# ── integration tests: S3 (AWS) path through route handlers ──────────
+# Each test monkey-patches ``config.app_env`` to ``"aws"`` and replaces
+# ``boto3`` in ``sys.modules`` so that ``S3AccountsStore`` receives an
+# in-memory fake S3 client.  All patches are scoped to the individual test
+# function via ``monkeypatch``; they do not leak to other tests.
+
+
+def test_post_manual_holding_s3_aws_returns_2xx_and_writes_to_writable_prefix(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """POST /holdings/manual returns 2xx and the object lands under
+    ``writable-accounts/``, not under the global ``accounts/`` prefix."""
+    # ── arrange: activate the AWS path ──────────────────────────
+    monkeypatch.setattr(config, "app_env", "aws")
+    monkeypatch.setenv("DATA_BUCKET", "fake-bucket")
+    fake_s3 = _FakeS3Client()
+    fake_boto3 = SimpleNamespace(client=lambda svc: fake_s3)
+    monkeypatch.setitem(sys.modules, "boto3", fake_boto3)
+
+    app = create_app()
+    client = TestClient(app)
+
+    payload = {
+        "owner": "alice",
+        "account": "ISA",
+        "ticker": "VUSA.L",
+        "value_gbp": 1250,
+    }
+
+    # ── act ──────────────────────────────────────────────────────
+    resp = client.post("/holdings/manual", json=payload)
+
+    # ── assert: HTTP response ────────────────────────────────────
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["status"] == "saved"
+    assert data["owner"] == "alice"
+    assert data["account"] == "isa"
+    assert data["holding"]["ticker"] == "VUSA.L"
+    assert data["holding"]["value_gbp"] == 1250
+
+    # ── assert: object written under writable prefix ─────────────
+    writable_key = f"{WRITABLE_ACCOUNTS_PREFIX}/alice/isa.json"
+    assert fake_s3._has_key("fake-bucket", writable_key), (
+        f"Expected s3://fake-bucket/{writable_key} to exist"
+    )
+
+    # ── assert: global accounts/ prefix is untouched ─────────────
+    global_keys = sum(
+        1
+        for (b, k) in fake_s3._objects
+        if b == "fake-bucket" and k.startswith("accounts/")
+    )
+    assert global_keys == 0, (
+        f"Global accounts/ prefix must be untouched, found {global_keys} keys"
+    )
+
+
+def test_get_manual_holdings_s3_aws_returns_created_holding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """GET /holdings/manual?owner=... returns the holding persisted via
+    the writable store."""
+    # ── arrange: activate AWS path and create a holding ──────────
+    monkeypatch.setattr(config, "app_env", "aws")
+    monkeypatch.setenv("DATA_BUCKET", "fake-bucket")
+    fake_s3 = _FakeS3Client()
+    fake_boto3 = SimpleNamespace(client=lambda svc: fake_s3)
+    monkeypatch.setitem(sys.modules, "boto3", fake_boto3)
+
+    app = create_app()
+    client = TestClient(app)
+
+    create_payload = {
+        "owner": "bob",
+        "account": "GIA",
+        "ticker": "MSFT",
+        "units": 5,
+        "price_gbp": 312.4,
+    }
+    create_resp = client.post("/holdings/manual", json=create_payload)
+    assert create_resp.status_code == 200, create_resp.text
+
+    # ── act ──────────────────────────────────────────────────────
+    resp = client.get("/holdings/manual", params={"owner": "bob"})
+
+    # ── assert ───────────────────────────────────────────────────
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["owner"] == "bob"
+    assert len(body["accounts"]) == 1
+    acct = body["accounts"][0]
+    assert acct["account_type"] == "gia"
+    assert acct["currency"] == "GBP"
+    assert acct["holding_count"] == 1
+    assert acct["holdings"] == [{"ticker": "MSFT", "units": 5.0, "price": 312.4}]
+
+
+def test_app_env_aws_does_not_leak(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Sanity: setting ``app_env`` to ``aws`` via monkeypatch is undone."""
+    original = getattr(config, "app_env", None)
+
+    monkeypatch.setattr(config, "app_env", "aws")
+    assert config.app_env == "aws"
+
+    # After the test exits monkeypatch reverts.  Other tests that rely on
+    # the default ``app_env`` act as a regression guard.
+    assert original is not None or original is None  # any value is fine

@@ -156,14 +156,27 @@ def resolve_writable_store(request: Request) -> "AccountsStore":
 def _store_disabled_detail(store: "AccountsStore") -> str:
     """Return the 400 detail for a write against a non-writable store.
 
-    Distinguishes a genuine misconfiguration (no root at all) from a
-    read-only-by-design store (resolves to the shared/global demo dataset).
+    Called only when ``is_global`` is ``True``, so a ``local_root`` that is
+    not ``None`` always resolves to the shared/global demo dataset.
     """
-    if getattr(store, "local_root", None) is None:
+    local_root = getattr(store, "local_root", None)
+    if local_root is None:
         return (
             "Create an account to enable manual holdings and "
             "transaction writes."
         )
+    # Defensive: confirm the root still matches the shared demo dataset.
+    try:
+        global_root = data_loader.resolve_paths(None, None).accounts_root.resolve()
+    except Exception:
+        global_root = None
+    try:
+        resolved_local = Path(local_root).resolve()
+    except (TypeError, ValueError, OSError):
+        resolved_local = None
+    if global_root is not None and resolved_local == global_root:
+        return "Accounts root not configured"
+    # Fallback: non-writable for another reason (e.g. state-flagged global).
     return "Accounts root not configured"
 
 

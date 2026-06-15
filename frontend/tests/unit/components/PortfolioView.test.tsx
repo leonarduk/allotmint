@@ -10,6 +10,7 @@ vi.mock("@/api", () => ({
   getValueAtRisk: vi.fn().mockResolvedValue({ var: { "1d": 0, "10d": 0 } }),
   recomputeValueAtRisk: vi.fn().mockResolvedValue(undefined),
   getVarBreakdown: vi.fn().mockResolvedValue([]),
+  createAccount: vi.fn(),
 }));
 
 vi.mock("@/components/PerformanceDashboard", () => ({
@@ -69,6 +70,32 @@ describe("PortfolioView", () => {
         fireEvent.click(sippCheckbox);
 
         expect(total).toHaveTextContent("£0.00");
+    });
+
+    it("shows an 'Add account' button for an owner with accounts", () => {
+        render(<PortfolioView data={mockOwner} />);
+
+        expect(screen.getByRole("button", { name: /add account/i })).toBeInTheDocument();
+    });
+
+    it("opens the add-account form when 'Add account' is clicked", () => {
+        render(<PortfolioView data={mockOwner} />);
+
+        fireEvent.click(screen.getByRole("button", { name: /add account/i }));
+
+        expect(screen.getByLabelText(/account type/i)).toBeInTheDocument();
+    });
+
+    it("shows a guided empty state when the owner has no accounts", () => {
+        const emptyOwner: Portfolio = { ...mockOwner, accounts: [] };
+
+        render(<PortfolioView data={emptyOwner} />);
+
+        expect(screen.getByText(/get started/i)).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole("button", { name: /add account/i }));
+
+        expect(screen.getByLabelText(/account type/i)).toBeInTheDocument();
     });
 
     it("hides advanced analytics panels when feature flag is disabled", () => {

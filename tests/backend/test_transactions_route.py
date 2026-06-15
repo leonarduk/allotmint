@@ -5,14 +5,21 @@ import pytest
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
+from backend.common import accounts_store
 from backend.routes import transactions
 
 
 def _client(monkeypatch, tmp_path):
     app = FastAPI()
     app.include_router(transactions.router)
+    # Pin the writable accounts root to the temp dir so writes never fall through
+    # to the real repo data directory via resolve_accounts_root().
+    app.state.accounts_root = tmp_path
+    app.state.accounts_root_is_global = False
     monkeypatch.setattr(
-        transactions, "config", SimpleNamespace(accounts_root=tmp_path, offline_mode=False)
+        transactions,
+        "config",
+        SimpleNamespace(accounts_root=tmp_path, offline_mode=False, app_env="local"),
     )
     monkeypatch.setattr(
         transactions,
@@ -24,8 +31,9 @@ def _client(monkeypatch, tmp_path):
         "portfolio_mod",
         SimpleNamespace(build_owner_portfolio=lambda *a, **k: None),
     )
-    monkeypatch.setattr(transactions, "_lock_file", lambda f: None)
-    monkeypatch.setattr(transactions, "_unlock_file", lambda f: None)
+    # File locking now lives in the accounts_store module.
+    monkeypatch.setattr(accounts_store, "_lock_file", lambda f: None)
+    monkeypatch.setattr(accounts_store, "_unlock_file", lambda f: None)
     transactions._PORTFOLIO_IMPACT.clear()
     transactions._POSTED_TRANSACTIONS.clear()
     return TestClient(app)
@@ -37,7 +45,6 @@ def test_validate_component():
     assert transactions._validate_component("good_name-1", "owner") == "good_name-1"
 
 
-@pytest.mark.xfail(reason="File operations mocking needs investigation")
 def test_create_transaction_success(monkeypatch, tmp_path):
     client = _client(monkeypatch, tmp_path)
     data = {
@@ -63,7 +70,6 @@ def test_create_transaction_success(monkeypatch, tmp_path):
     assert transactions._PORTFOLIO_IMPACT["bob"] == pytest.approx(3.0)
 
 
-@pytest.mark.xfail(reason="File operations mocking needs investigation")
 def test_transaction_instrument_name(monkeypatch, tmp_path):
     client = _client(monkeypatch, tmp_path)
     data = {
@@ -101,7 +107,6 @@ def test_create_transaction_missing_reason(monkeypatch, tmp_path):
     assert resp.status_code == 400
 
 
-@pytest.mark.xfail(reason="File operations mocking needs investigation")
 def test_update_transaction_same_location(monkeypatch, tmp_path):
     client = _client(monkeypatch, tmp_path)
     create_data = {
@@ -137,7 +142,6 @@ def test_update_transaction_same_location(monkeypatch, tmp_path):
     assert transactions._PORTFOLIO_IMPACT["bob"] == pytest.approx(4.0)
 
 
-@pytest.mark.xfail(reason="File operations mocking needs investigation")
 def test_update_transaction_move_account(monkeypatch, tmp_path):
     client = _client(monkeypatch, tmp_path)
     create_data = {
@@ -178,7 +182,6 @@ def test_update_transaction_move_account(monkeypatch, tmp_path):
     assert transactions._PORTFOLIO_IMPACT["bob"] == pytest.approx(5.0)
 
 
-@pytest.mark.xfail(reason="File operations mocking needs investigation")
 def test_delete_transaction(monkeypatch, tmp_path):
     client = _client(monkeypatch, tmp_path)
     create_data = {
@@ -232,7 +235,7 @@ def test_list_transactions_filter(monkeypatch):
         transactions.Transaction(owner="a", account="sipp", date="2024-02-01"),
         transactions.Transaction(owner="b", account="isa", date="2024-01-01"),
     ]
-    monkeypatch.setattr(transactions, "_load_all_transactions", lambda: sample)
+    monkeypatch.setattr(transactions, "_load_all_transactions", lambda *_a, **_k: sample)
     resp = client.get(
         "/transactions",
         params={
@@ -254,7 +257,7 @@ def test_transactions_with_compliance_account_case(monkeypatch, tmp_path):
     app.state.accounts_root = tmp_path
     client = TestClient(app)
     sample = [transactions.Transaction(owner="a", account="isa", date="2024-01-01")]
-    monkeypatch.setattr(transactions, "_load_all_transactions", lambda: sample)
+    monkeypatch.setattr(transactions, "_load_all_transactions", lambda *_a, **_k: sample)
     monkeypatch.setattr(
         transactions,
         "compliance",
@@ -281,7 +284,7 @@ def test_list_dividends_account_case(monkeypatch):
             date="2024-01-01",
         )
     ]
-    monkeypatch.setattr(transactions, "_load_all_transactions", lambda: sample)
+    monkeypatch.setattr(transactions, "_load_all_transactions", lambda *_a, **_k: sample)
     resp = client.get(
         "/dividends",
         params={"owner": "a", "account": "ISA"},

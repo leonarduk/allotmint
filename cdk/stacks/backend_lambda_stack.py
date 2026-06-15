@@ -29,6 +29,13 @@ from constructs import Construct
 
 from stacks.exports import BACKEND_API_URL_EXPORT
 
+# S3 prefix (relative to the data bucket) under which per-owner writable account
+# documents are persisted. Kept in sync with
+# ``backend.common.accounts_store.WRITABLE_ACCOUNTS_PREFIX`` via the
+# ``WRITABLE_ACCOUNTS_PREFIX`` Lambda environment variable below. Deliberately
+# distinct from the read-only ``accounts/`` demo prefix (issue #4275).
+WRITABLE_ACCOUNTS_PREFIX = "writable-accounts"
+
 
 class BackendLambdaStack(Stack):
     """CDK stack that builds and deploys the backend Lambda."""
@@ -201,6 +208,13 @@ class BackendLambdaStack(Stack):
                 "queries",
                 "timeseries/meta",
                 "transactions",
+                # Writable, per-owner account documents (manual holdings and
+                # transaction writes) live under a dedicated prefix that is
+                # separate from the read-only ``accounts/`` demo dataset so
+                # writes never mutate shared data (issue #4275). ListBucket on
+                # this prefix is required by AccountsStore list/iter paths;
+                # object-level Get/Put are already granted bucket-wide below.
+                WRITABLE_ACCOUNTS_PREFIX,
             ),
             # price_refresh needs accounts/ to call list_objects_v2 via
             # S3DataProvider.list_plots() → list_all_unique_tickers() → list_portfolios().
@@ -248,6 +262,9 @@ class BackendLambdaStack(Stack):
             "DISABLE_AUTH": "true",
             "DATA_BUCKET": bucket_name,
             "DATA_BRANCH": data_branch,
+            # Writable per-owner account documents are persisted under this S3
+            # prefix, separate from the read-only accounts/ demo data (#4275).
+            "WRITABLE_ACCOUNTS_PREFIX": WRITABLE_ACCOUNTS_PREFIX,
             # APP_REGION is used instead of AWS_REGION because AWS_REGION is a reserved
             # Lambda runtime variable and cannot be set as a custom environment variable.
             "APP_REGION": self.region,

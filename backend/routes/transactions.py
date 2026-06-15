@@ -3,36 +3,26 @@ from __future__ import annotations
 import json
 import logging
 import os
-import platform
 import re
 from collections import defaultdict
-from contextlib import contextmanager, suppress
+from contextlib import contextmanager
 from datetime import date, datetime
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Mapping, Optional, Tuple, TextIO
+from typing import Any, Dict, Iterator, List, Mapping, Optional, Tuple
 
-try:  # Unix-like systems
-    import fcntl  # type: ignore
-except ModuleNotFoundError:  # pragma: no cover - Windows
-    fcntl = None  # type: ignore[assignment]
-    if platform.system() == "Windows":
-        import msvcrt  # type: ignore
-    else:  # pragma: no cover - unsupported platform
-        raise
-else:  # pragma: no cover - Unix
-    msvcrt = None  # type: ignore[assignment]
-
-from fastapi import APIRouter, HTTPException, Query
-from fastapi import Request, UploadFile, File, Form
+from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel, ConfigDict, Field
 
-from backend.common import data_loader, portfolio as portfolio_mod
-from backend.common import portfolio_loader
-from backend.common.ticker_utils import normalise_filter_ticker
-from backend.common import compliance
-from backend.common.instruments import get_instrument_meta
-from backend.config import config
 from backend import importers
+from backend.common import compliance, data_loader, portfolio_loader
+from backend.common import portfolio as portfolio_mod
+from backend.common.accounts_store import (
+    LocalAccountsStore,
+    S3AccountsStore,
+)
+from backend.common.instruments import get_instrument_meta
+from backend.common.ticker_utils import normalise_filter_ticker
+from backend.config import config
 from backend.routes._accounts import resolve_accounts_root
 from backend.utils import update_holdings_from_csv
 
@@ -71,30 +61,20 @@ _POSTED_TRANSACTIONS: List[dict] = []
 _PORTFOLIO_IMPACT: defaultdict[str, float] = defaultdict(float)
 
 _SAFE_NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
-_ID_RE = re.compile(
-    r"^(?P<owner>[A-Za-z0-9_-]+):(?P<account>[A-Za-z0-9_-]+):(?P<index>\d+)$"
-)
+_ID_RE = re.compile(r"^(?P<owner>[A-Za-z0-9_-]+):(?P<account>[A-Za-z0-9_-]+):(?P<index>\d+)$")
 
 
-def _lock_file(f) -> None:
-    """Lock ``f`` for exclusive access."""
-    if fcntl:
-        fcntl.flock(f, fcntl.LOCK_EX)
-    else:  # pragma: no cover - Windows
-        f.seek(0)
-        msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 0x7FFFFFFF)
+AccountsStore = "LocalAccountsStore | S3AccountsStore"
 
 
-def _unlock_file(f) -> None:
-    """Unlock ``f``."""
-    if fcntl:
-        fcntl.flock(f, fcntl.LOCK_UN)
-    else:  # pragma: no cover - Windows
-        f.seek(0)
-        msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 0x7FFFFFFF)
+def _resolve_local_root(request: Request) -> Tuple[Optional[Path], bool]:
+    """Resolve the on-disk accounts root for ``request``.
 
-
-def _require_accounts_root(request: Request) -> Path:
+    Returns ``(root, is_global)``.  ``root`` is ``None`` when no accounts root is
+    configured at all (a genuine misconfiguration).  ``is_global`` is ``True``
+    when the resolved root is the read-only shared/global demo dataset that
+    writes must not mutate.
+    """
     state_value = getattr(request.app.state, "accounts_root", None)
     state_is_global = getattr(request.app.state, "accounts_root_is_global", False)
     if state_value:
@@ -107,19 +87,19 @@ def _require_accounts_root(request: Request) -> Path:
                 resolved_state = state_path.resolve()
                 request.app.state.accounts_root = resolved_state
                 request.app.state.accounts_root_is_global = False
-                return resolved_state
+                return resolved_state, False
 
     configured_root = getattr(config, "accounts_root", None)
     if not configured_root:
-        raise HTTPException(status_code=400, detail="Accounts root not configured")
+        return None, True
 
     try:
         configured_path = Path(configured_root).expanduser()
-    except (TypeError, ValueError, OSError) as exc:
-        raise HTTPException(status_code=400, detail="Accounts root not configured") from exc
+    except (TypeError, ValueError, OSError):
+        return None, True
 
     if not configured_path.exists():
-        raise HTTPException(status_code=400, detail="Accounts root not configured")
+        return None, True
 
     try:
         global_root = data_loader.resolve_paths(None, None).accounts_root.resolve()
@@ -131,20 +111,81 @@ def _require_accounts_root(request: Request) -> Path:
         except FileNotFoundError:
             configured_resolved = configured_path
         if global_root is not None and configured_resolved == global_root:
-            raise HTTPException(status_code=400, detail="Accounts root not configured")
+            return configured_resolved, True
 
     try:
         resolved = resolve_accounts_root(request)
-    except FileNotFoundError as exc:  # pragma: no cover - defensive
-        raise HTTPException(status_code=400, detail="Accounts root not configured") from exc
+    except FileNotFoundError:  # pragma: no cover - defensive
+        return None, True
 
     if state_is_global or getattr(request.app.state, "accounts_root_is_global", False):
-        raise HTTPException(status_code=400, detail="Accounts root not configured")
+        return resolved, True
 
     if not resolved.exists():
-        raise HTTPException(status_code=400, detail="Accounts root not configured")
+        return resolved, True
 
-    return resolved
+    return resolved, False
+
+
+def resolve_writable_store(request: Request) -> "AccountsStore":
+    """Return the writable account-document store for ``request``.
+
+    In the deployed AWS environment writes target a dedicated, non-global S3
+    prefix (separate from the read-only ``accounts/`` demo data).  Locally the
+    on-disk accounts root is used, flagged ``is_global`` when it resolves to the
+    shared demo dataset so write handlers refuse to mutate it.
+    """
+    if getattr(config, "app_env", None) == "aws":
+        bucket = os.getenv(data_loader.DATA_BUCKET_ENV)
+        if bucket:
+            return S3AccountsStore(bucket=bucket)
+    root, is_global = _resolve_local_root(request)
+    return LocalAccountsStore(root=root, is_global=is_global)
+
+
+def _store_disabled_detail(store: "AccountsStore") -> str:
+    """Return the 400 detail for a write against a non-writable store.
+
+    Distinguishes a read-only-by-design store (resolves to the shared/global
+    demo dataset) from a genuine misconfiguration (no real writable root).
+    """
+    local_root = getattr(store, "local_root", None)
+    if local_root is not None:
+        try:
+            global_root = data_loader.resolve_paths(None, None).accounts_root.resolve()
+        except Exception:
+            global_root = None
+        try:
+            resolved_local = Path(local_root).resolve()
+        except (TypeError, ValueError, OSError):
+            resolved_local = None
+        if global_root is not None and resolved_local == global_root:
+            return (
+                "Accounts store is read-only: it resolves to the shared demo "
+                "dataset. Create an account to enable manual holdings and "
+                "transaction writes."
+            )
+    return "Accounts root not configured"
+
+
+def _require_writable_store(request: Request) -> "AccountsStore":
+    """Resolve the writable store, raising a clear 400 when writes are disabled."""
+    store = resolve_writable_store(request)
+    if getattr(store, "is_global", False):
+        raise HTTPException(status_code=400, detail=_store_disabled_detail(store))
+    return store
+
+
+def _global_accounts_root() -> Optional[Path]:
+    """Return the read-only global/demo accounts root for read merges, if any."""
+    for args in ((config.repo_root, config.accounts_root), (None, None)):
+        try:
+            root = data_loader.resolve_paths(*args).accounts_root
+        except Exception:
+            continue
+        if root and root.exists():
+            return root.resolve()
+    return None
 
 
 class TransactionCreate(BaseModel):
@@ -175,6 +216,15 @@ class ManualHoldingCreate(BaseModel):
 
 def _normalise_account_file_name(account: str) -> str:
     return account.strip().lower()
+
+
+# Metadata/scaffold files that live alongside account holdings JSON but are not
+# themselves holdings accounts.
+_NON_HOLDINGS_FILES = frozenset({"person.json", "settings.json", "approvals.json"})
+
+
+def _is_non_holdings_file(name: str) -> bool:
+    return name.endswith("_transactions.json") or name in _NON_HOLDINGS_FILES
 
 
 def _load_account_holdings_file(path: Path, owner: str, account: str) -> dict[str, Any]:
@@ -308,157 +358,119 @@ def _prepare_updated_transaction(existing: Mapping[str, object], update: Mapping
     return updated
 
 
-def _load_all_transactions() -> List[Transaction]:
+def _transactions_from_doc(owner: str, account_raw: str, data: Mapping[str, Any]) -> List[Transaction]:
     results: List[Transaction] = []
-    if not config.accounts_root:
-        return results
-
-    data_root = Path(config.accounts_root)
-    if not data_root.exists():
-        return results
-
-    # files look like data/accounts/<owner>/<ACCOUNT>_transactions.json
-    for path in data_root.glob("*/*_transactions.json"):
-        try:
-            data = json.loads(path.read_text())
-        except (OSError, json.JSONDecodeError):
-            continue
-        owner = data.get("owner", path.parent.name)
-        account_raw = data.get("account_type") or path.stem.replace("_transactions", "")
-        account = account_raw.lower()
-        transactions = data.get("transactions", []) or []
-        for idx, t in enumerate(transactions):
-            t = dict(t)
-            t.pop("account", None)
-            instrument_name = _instrument_name_from_entry(t)
-            if instrument_name:
-                t["instrument_name"] = instrument_name
-            results.append(
-                Transaction(
-                    owner=owner,
-                    account=account,
-                    id=_build_transaction_id(owner, account_raw, idx),
-                    **t,
-                )
+    account = account_raw.lower()
+    transactions = data.get("transactions", []) or []
+    for idx, t in enumerate(transactions):
+        t = dict(t)
+        t.pop("account", None)
+        instrument_name = _instrument_name_from_entry(t)
+        if instrument_name:
+            t["instrument_name"] = instrument_name
+        results.append(
+            Transaction(
+                owner=owner,
+                account=account,
+                id=_build_transaction_id(owner, account_raw, idx),
+                **t,
             )
+        )
     return results
 
 
-def _find_transaction_file(owner: str, account: str, accounts_root: Path) -> Tuple[Path, str]:
-    owner_dir = accounts_root / owner
-    if not owner_dir.exists():
-        raise HTTPException(status_code=404, detail="Transaction not found")
+def _load_all_transactions(store: Optional["AccountsStore"] = None) -> List[Transaction]:
+    """Load transactions from the global demo dataset, overlaid by writable store.
 
+    Writable documents take precedence over the read-only global dataset for the
+    same ``(owner, account)`` so freshly written transactions are reflected in
+    deployed read endpoints.
+    """
+    # files look like data/accounts/<owner>/<ACCOUNT>_transactions.json
+    merged: Dict[Tuple[str, str], List[Transaction]] = {}
+
+    if config.accounts_root:
+        data_root = Path(config.accounts_root)
+        if data_root.exists():
+            for path in data_root.glob("*/*_transactions.json"):
+                try:
+                    data = json.loads(path.read_text())
+                except (OSError, json.JSONDecodeError):
+                    continue
+                if not isinstance(data, dict):
+                    continue
+                owner = str(data.get("owner") or path.parent.name)
+                account_raw = str(data.get("account_type") or path.stem.replace("_transactions", ""))
+                merged[(owner.lower(), account_raw.lower())] = _transactions_from_doc(owner, account_raw, data)
+
+    if store is not None:
+        for owner, account_raw, data in store.iter_transaction_documents():
+            merged[(owner.lower(), account_raw.lower())] = _transactions_from_doc(owner, account_raw, data)
+
+    results: List[Transaction] = []
+    for txs in merged.values():
+        results.extend(txs)
+    return results
+
+
+def _find_transaction_account(owner: str, account: str, store: "AccountsStore") -> str:
+    """Return the canonical account name for ``owner``'s transactions file.
+
+    Looks in the writable store first, then falls back to the read-only global
+    dataset.  Raises ``404`` when no matching transactions file exists.
+    """
     account_lower = account.lower()
-    for candidate in owner_dir.glob("*_transactions.json"):
-        candidate_account = candidate.stem.replace("_transactions", "")
+    suffix = "_transactions.json"
+    for name in store.list_owner_files(owner):
+        if not name.endswith(suffix):
+            continue
+        candidate_account = name[: -len(suffix)]
         if candidate_account.lower() == account_lower:
-            return candidate, candidate_account
+            return candidate_account
+
+    global_root = _global_accounts_root()
+    if global_root is not None:
+        owner_dir = global_root / owner
+        if owner_dir.exists():
+            for candidate in owner_dir.glob("*_transactions.json"):
+                candidate_account = candidate.stem.replace("_transactions", "")
+                if candidate_account.lower() == account_lower:
+                    return candidate_account
+
     raise HTTPException(status_code=404, detail="Transaction not found")
 
 
 @contextmanager
-def _locked_transactions_data(
-    owner: str, account: str, accounts_root: Path
-) -> Iterator[Tuple[dict, TextIO]]:
-    owner_dir = accounts_root / owner
-    owner_dir.mkdir(parents=True, exist_ok=True)
-    file_path = owner_dir / f"{account}_transactions.json"
-    file_existed = file_path.exists()
-    mode = "r+" if file_existed else "w+"
-    committed = False
-    pending_error: BaseException | None = None
-    pending_traceback = None
-    with file_path.open(mode, encoding="utf-8") as f:
-        _lock_file(f)
-        try:
-            f.seek(0)
-            try:
-                data = json.load(f)
-            except (json.JSONDecodeError, OSError):
-                data = {"owner": owner, "account_type": account, "transactions": []}
-            else:
-                data.setdefault("owner", owner)
-                data.setdefault("account_type", account)
-                data.setdefault("transactions", [])
-
-            try:
-                yield data, f
-            except BaseException as exc:
-                pending_error = exc
-                pending_traceback = exc.__traceback__
-            else:
-                f.seek(0)
-                f.truncate()
-                json.dump(data, f, indent=2)
-                f.flush()
-                os.fsync(f.fileno())
-                committed = True
-        finally:
-            _unlock_file(f)
-
-    if not committed and not file_existed:
-        with suppress(FileNotFoundError):
-            file_path.unlink()
-    if pending_error is not None:
-        raise pending_error.with_traceback(pending_traceback)
+def _locked_transactions_data(owner: str, account: str, store: "AccountsStore") -> Iterator[Tuple[dict, None]]:
+    default = {"owner": owner, "account_type": account, "transactions": []}
+    with store.edit_document(owner, f"{account}_transactions.json", default=default) as data:
+        data.setdefault("owner", owner)
+        data.setdefault("account_type", account)
+        if not isinstance(data.get("transactions"), list):
+            data["transactions"] = []
+        yield data, None
 
 
 @contextmanager
 def _locked_account_holdings_data(
-    owner: str, account: str, accounts_root: Path
-) -> Iterator[Tuple[dict[str, Any], TextIO]]:
-    owner_dir = accounts_root / owner
-    owner_dir.mkdir(parents=True, exist_ok=True)
-    file_path = owner_dir / f"{account}.json"
-    file_existed = file_path.exists()
-    mode = "r+" if file_existed else "w+"
-    committed = False
-    pending_error: BaseException | None = None
-    pending_traceback = None
-    with file_path.open(mode, encoding="utf-8") as f:
-        _lock_file(f)
-        try:
-            f.seek(0)
-            try:
-                data = json.load(f)
-            except (json.JSONDecodeError, OSError):
-                data = {}
-
-            if not isinstance(data, dict):
-                data = {}
-
-            data.setdefault("owner", owner)
-            data.setdefault("account_type", account)
-            data.setdefault("currency", "GBP")
-            holdings = data.get("holdings")
-            if not isinstance(holdings, list):
-                data["holdings"] = []
-
-            try:
-                yield data, f
-            except BaseException as exc:
-                pending_error = exc
-                pending_traceback = exc.__traceback__
-            else:
-                f.seek(0)
-                f.truncate()
-                json.dump(data, f, indent=2)
-                f.write("\n")
-                f.flush()
-                os.fsync(f.fileno())
-                committed = True
-        finally:
-            _unlock_file(f)
-
-    if not committed and not file_existed:
-        with suppress(FileNotFoundError):
-            file_path.unlink()
-    if pending_error is not None:
-        raise pending_error.with_traceback(pending_traceback)
+    owner: str, account: str, store: "AccountsStore"
+) -> Iterator[Tuple[dict[str, Any], None]]:
+    with store.edit_document(owner, f"{account}.json", default={}, trailing_newline=True) as data:
+        data.setdefault("owner", owner)
+        data.setdefault("account_type", account)
+        data.setdefault("currency", "GBP")
+        if not isinstance(data.get("holdings"), list):
+            data["holdings"] = []
+        yield data, None
 
 
-def _rebuild_portfolio(owner: str, account: str, accounts_root: Path) -> None:
+def _rebuild_portfolio(owner: str, account: str, store: "AccountsStore") -> None:
+    # Portfolio rebuild is path-based; it only runs against an on-disk root.
+    # The deployed S3-backed store has no local root, so rebuild is skipped
+    # there (portfolio reads continue to resolve via the S3 data loader).
+    accounts_root = getattr(store, "local_root", None)
+    if accounts_root is None:
+        return
     try:
         if not config.offline_mode:
             portfolio_loader.rebuild_account_holdings(owner, account, accounts_root)
@@ -476,13 +488,10 @@ async def transactions_with_compliance(
 ):
     """Return transactions for ``owner`` annotated with compliance warnings."""
 
-    txs = [t.model_dump() for t in _load_all_transactions() if t.owner.lower() == owner.lower()]
+    store = resolve_writable_store(request)
+    txs = [t.model_dump() for t in _load_all_transactions(store) if t.owner.lower() == owner.lower()]
     if account:
-        txs = [
-            t
-            for t in txs
-            if (t.get("account") or "").lower() == account.lower()
-        ]
+        txs = [t for t in txs if (t.get("account") or "").lower() == account.lower()]
     norm_ticker = normalise_filter_ticker(
         ticker,
         offline_mode=bool(config.offline_mode),
@@ -517,7 +526,7 @@ def _validate_component(value: str, field: str) -> str:
 async def create_transaction(request: Request, tx: TransactionCreate) -> dict:
     """Store a new transaction and return it."""
 
-    accounts_root = _require_accounts_root(request)
+    store = _require_writable_store(request)
 
     tx_data = tx.model_dump(mode="json")
     owner = _validate_component(tx_data.pop("owner"), "owner")
@@ -533,14 +542,15 @@ async def create_transaction(request: Request, tx: TransactionCreate) -> dict:
     _PORTFOLIO_IMPACT[owner] += impact
     _POSTED_TRANSACTIONS.append({"owner": owner, "account": account, **tx_data})
 
-    with _locked_transactions_data(owner, account, accounts_root) as (data, _file):
+    store.ensure_owner(owner)
+    with _locked_transactions_data(owner, account, store) as (data, _file):
         transactions = data.setdefault("transactions", [])
         transactions.append(tx_data)
         data["owner"] = owner
         data["account_type"] = account
         new_index = len(transactions) - 1
 
-    _rebuild_portfolio(owner, account, accounts_root)
+    _rebuild_portfolio(owner, account, store)
 
     tx_id = _build_transaction_id(owner, account, new_index)
     return _format_transaction_response(owner, account, tx_data, tx_id)
@@ -548,7 +558,7 @@ async def create_transaction(request: Request, tx: TransactionCreate) -> dict:
 
 @router.put("/transactions/{tx_id}")
 async def update_transaction(request: Request, tx_id: str, tx: TransactionUpdate) -> dict:
-    accounts_root = _require_accounts_root(request)
+    store = _require_writable_store(request)
 
     original_owner, original_account_raw, index = _parse_transaction_id(tx_id)
     original_owner = _validate_component(original_owner, "owner")
@@ -560,9 +570,7 @@ async def update_transaction(request: Request, tx_id: str, tx: TransactionUpdate
     if not tx_data.get("reason"):
         raise HTTPException(status_code=400, detail="reason is required")
 
-    _, original_account_canonical = _find_transaction_file(
-        original_owner, original_account, accounts_root
-    )
+    original_account_canonical = _find_transaction_account(original_owner, original_account, store)
 
     same_owner = new_owner.lower() == original_owner.lower()
     same_account = new_account.lower() == original_account_canonical.lower()
@@ -572,9 +580,8 @@ async def update_transaction(request: Request, tx_id: str, tx: TransactionUpdate
     new_entry: Dict[str, object]
     pending_entry: Optional[Dict[str, object]] = None
 
-    with _locked_transactions_data(
-        original_owner, original_account_canonical, accounts_root
-    ) as (data, _):
+    store.ensure_owner(new_owner)
+    with _locked_transactions_data(original_owner, original_account_canonical, store) as (data, _):
         transactions = data.setdefault("transactions", [])
         if index >= len(transactions) or index < 0:
             raise HTTPException(status_code=404, detail="Transaction not found")
@@ -599,7 +606,7 @@ async def update_transaction(request: Request, tx_id: str, tx: TransactionUpdate
     if not same_location:
         if pending_entry is None:
             raise HTTPException(status_code=500, detail="Failed to update transaction")
-        with _locked_transactions_data(new_owner, new_account, accounts_root) as (data, _):
+        with _locked_transactions_data(new_owner, new_account, store) as (data, _):
             transactions = data.setdefault("transactions", [])
             transactions.append(pending_entry)
             data["owner"] = new_owner
@@ -619,7 +626,7 @@ async def update_transaction(request: Request, tx_id: str, tx: TransactionUpdate
         affected.append((original_owner, original_account_canonical))
 
     for owner_val, account_val in affected:
-        _rebuild_portfolio(owner_val, account_val, accounts_root)
+        _rebuild_portfolio(owner_val, account_val, store)
 
     new_id = _build_transaction_id(new_owner, new_account, new_index)
     account_response = new_account.lower()
@@ -628,17 +635,17 @@ async def update_transaction(request: Request, tx_id: str, tx: TransactionUpdate
 
 @router.delete("/transactions/{tx_id}")
 async def delete_transaction(request: Request, tx_id: str) -> dict:
-    accounts_root = _require_accounts_root(request)
+    store = _require_writable_store(request)
 
     owner, account_raw, index = _parse_transaction_id(tx_id)
     owner = _validate_component(owner, "owner")
     account = _validate_component(account_raw, "account")
 
-    _, account_canonical = _find_transaction_file(owner, account, accounts_root)
+    account_canonical = _find_transaction_account(owner, account, store)
 
     removed_entry: Optional[Mapping[str, object]] = None
 
-    with _locked_transactions_data(owner, account_canonical, accounts_root) as (data, _):
+    with _locked_transactions_data(owner, account_canonical, store) as (data, _):
         transactions = data.setdefault("transactions", [])
         if index >= len(transactions) or index < 0:
             raise HTTPException(status_code=404, detail="Transaction not found")
@@ -652,15 +659,13 @@ async def delete_transaction(request: Request, tx_id: str) -> dict:
     impact = _calculate_portfolio_impact(removed_entry)
     _PORTFOLIO_IMPACT[owner] -= impact
 
-    _rebuild_portfolio(owner, account_canonical, accounts_root)
+    _rebuild_portfolio(owner, account_canonical, store)
 
     return {"status": "deleted"}
 
 
 @router.post("/transactions/import", response_model=List[Transaction])
-async def import_transactions(
-    provider: str = Form(...), file: UploadFile = File(...)
-) -> List[Transaction]:
+async def import_transactions(provider: str = Form(...), file: UploadFile = File(...)) -> List[Transaction]:
     """Parse a transaction export and return the contained transactions."""
 
     data = await file.read()
@@ -707,7 +712,7 @@ async def create_manual_holding(request: Request, payload: ManualHoldingCreate) 
     if not ticker:
         raise HTTPException(status_code=400, detail="ticker is required")
 
-    accounts_root = _require_accounts_root(request)
+    store = _require_writable_store(request)
     account_slug = _normalise_account_file_name(account)
 
     holding: dict[str, Any] = {"ticker": ticker}
@@ -717,7 +722,8 @@ async def create_manual_holding(request: Request, payload: ManualHoldingCreate) 
         holding["units"] = float(payload.units)
         holding["price"] = float(payload.price_gbp)
 
-    with _locked_account_holdings_data(owner, account_slug, accounts_root) as (account_payload, _):
+    store.ensure_owner(owner)
+    with _locked_account_holdings_data(owner, account_slug, store) as (account_payload, _):
         if payload.currency:
             account_payload["currency"] = payload.currency.strip().upper() or "GBP"
         account_payload["last_updated"] = date.today().isoformat()
@@ -726,11 +732,7 @@ async def create_manual_holding(request: Request, payload: ManualHoldingCreate) 
 
         holdings = account_payload.setdefault("holdings", [])
         for index, existing in enumerate(holdings):
-            existing_ticker = (
-                str(existing.get("ticker") or "").strip().upper()
-                if isinstance(existing, Mapping)
-                else ""
-            )
+            existing_ticker = str(existing.get("ticker") or "").strip().upper() if isinstance(existing, Mapping) else ""
             if existing_ticker == ticker:
                 holdings[index] = holding
                 break
@@ -751,23 +753,43 @@ async def list_manual_holdings(
     owner: str,
 ) -> dict[str, Any]:
     owner_name = _validate_component(owner, "owner")
-    accounts_root = _require_accounts_root(request)
-    owner_dir = accounts_root / owner_name
-    if not owner_dir.exists():
-        return {"owner": owner_name, "accounts": []}
+    store = resolve_writable_store(request)
 
-    accounts: list[dict[str, Any]] = []
-    for path in sorted(owner_dir.glob("*.json")):
-        if path.name.endswith("_transactions.json") or path.name == "person.json":
+    # Merge the read-only global/demo dataset with the writable store, with
+    # writable documents taking precedence per account slug.  Reads therefore
+    # still surface demo content while reflecting any manual writes.
+    summaries: dict[str, dict[str, Any]] = {}
+
+    global_root = _global_accounts_root()
+    if global_root is not None:
+        owner_dir = global_root / owner_name
+        if owner_dir.exists():
+            for path in sorted(owner_dir.glob("*.json")):
+                if _is_non_holdings_file(path.name):
+                    continue
+                payload = _load_account_holdings_file(path, owner_name, path.stem.lower())
+                summaries[path.stem.lower()] = _account_payload_summary(payload)
+
+    for name in store.list_owner_files(owner_name):
+        if _is_non_holdings_file(name):
             continue
-        payload = _load_account_holdings_file(path, owner_name, path.stem.lower())
-        accounts.append(_account_payload_summary(payload))
+        slug = name[:-5].lower() if name.endswith(".json") else name.lower()
+        doc = store.read_document(owner_name, name)
+        if doc is None:
+            continue
+        doc.setdefault("owner", owner_name)
+        doc.setdefault("account_type", slug)
+        if not isinstance(doc.get("holdings"), list):
+            doc["holdings"] = []
+        summaries[slug] = _account_payload_summary(doc)
 
+    accounts = [summaries[slug] for slug in sorted(summaries)]
     return {"owner": owner_name, "accounts": accounts}
 
 
 @router.get("/transactions", response_model=List[Transaction])
 async def list_transactions(
+    request: Request,
     owner: Optional[str] = None,
     account: Optional[str] = None,
     start: Optional[str] = None,
@@ -779,8 +801,9 @@ async def list_transactions(
     start_d = _parse_date(start)
     end_d = _parse_date(end)
 
+    store = resolve_writable_store(request)
     txs: List[Transaction] = []
-    for t in _load_all_transactions():
+    for t in _load_all_transactions(store):
         if owner and t.owner.lower() != owner.lower():
             continue
         if account and t.account.lower() != account.lower():
@@ -799,6 +822,7 @@ async def list_transactions(
 
 @router.get("/dividends", response_model=List[Transaction])
 async def list_dividends(
+    request: Request,
     owner: Optional[str] = None,
     account: Optional[str] = None,
     start: Optional[str] = None,
@@ -815,8 +839,9 @@ async def list_dividends(
         fallback=getattr(config, "offline_fundamentals_ticker", None),
     )
 
+    store = resolve_writable_store(request)
     txs: List[Transaction] = []
-    for t in _load_all_transactions():
+    for t in _load_all_transactions(store):
         ttype = (t.type or "").upper()
         if ttype not in {"DIVIDEND", "DIVIDENDS"}:
             continue

@@ -143,7 +143,7 @@ def test_target_spa_endpoints_match_contracts(monkeypatch, tmp_path):
     monkeypatch.setattr(
         transactions_routes,
         "_load_all_transactions",
-        lambda: [
+        lambda *_a, **_k: [
             transactions_routes.Transaction(
                 owner="alice",
                 account="isa",

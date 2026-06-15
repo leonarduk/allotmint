@@ -8,8 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from fastapi import FastAPI, HTTPException
-from fastapi import Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.testclient import TestClient
 
 from backend.app import create_app
@@ -57,20 +56,21 @@ def _seed_transactions_file(
     return file_path
 
 
-def test_require_accounts_root_uses_cached_value(tmp_path):
+def test_require_writable_store_uses_cached_value(tmp_path):
     accounts_dir = tmp_path / "accounts"
     accounts_dir.mkdir()
 
     request = _make_request({"accounts_root": accounts_dir})
 
-    resolved = transactions_module._require_accounts_root(request)
+    store = transactions_module._require_writable_store(request)
 
-    assert resolved == accounts_dir.resolve()
+    assert store.is_global is False
+    assert store.local_root == accounts_dir.resolve()
     assert request.app.state.accounts_root == accounts_dir.resolve()
     assert request.app.state.accounts_root_is_global is False
 
 
-def test_require_accounts_root_rejects_global_cache(monkeypatch, tmp_path):
+def test_require_writable_store_rejects_global_cache(monkeypatch, tmp_path):
     accounts_dir = tmp_path / "accounts"
     accounts_dir.mkdir()
 
@@ -96,12 +96,12 @@ def test_require_accounts_root_rejects_global_cache(monkeypatch, tmp_path):
     )
 
     with pytest.raises(HTTPException) as excinfo:
-        transactions_module._require_accounts_root(request)
+        transactions_module._require_writable_store(request)
 
     assert excinfo.value.status_code == 400
 
 
-def test_require_accounts_root_missing_resolved_path(monkeypatch, tmp_path):
+def test_require_writable_store_missing_resolved_path(monkeypatch, tmp_path):
     configured_dir = tmp_path / "configured"
     configured_dir.mkdir()
 
@@ -125,12 +125,14 @@ def test_require_accounts_root_missing_resolved_path(monkeypatch, tmp_path):
     )
 
     with pytest.raises(HTTPException) as excinfo:
-        transactions_module._require_accounts_root(request)
+        transactions_module._require_writable_store(request)
 
     assert excinfo.value.status_code == 400
+    # No existing writable root -> genuine misconfiguration message.
+    assert excinfo.value.detail == "Accounts root not configured"
 
 
-def test_require_accounts_root_rejects_matching_global_root(monkeypatch, tmp_path):
+def test_require_writable_store_rejects_matching_global_root(monkeypatch, tmp_path):
     configured_dir = tmp_path / "configured"
     configured_dir.mkdir()
 
@@ -147,7 +149,7 @@ def test_require_accounts_root_rejects_matching_global_root(monkeypatch, tmp_pat
     )
 
     with pytest.raises(HTTPException) as excinfo:
-        transactions_module._require_accounts_root(request)
+        transactions_module._require_writable_store(request)
 
     assert excinfo.value.status_code == 400
 

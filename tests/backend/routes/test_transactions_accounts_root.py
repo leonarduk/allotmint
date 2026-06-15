@@ -65,8 +65,9 @@ def test_require_writable_store_rejects_matching_global_root(monkeypatch, tmp_pa
         transactions_module._require_writable_store(request)
 
     assert excinfo.value.status_code == 400
-    # Resolves to the shared/global demo root -> read-only-by-design message.
-    assert "read-only" in excinfo.value.detail
+    # Resolves to the shared/global demo root -> accounts root not configured
+    # for writes (user is pointed at the read-only demo dataset).
+    assert excinfo.value.detail == "Accounts root not configured"
 
 
 @pytest.mark.parametrize("state_global_flag", [False, True])

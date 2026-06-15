@@ -155,7 +155,30 @@ $basenameMatches = @(
         ForEach-Object { Join-Path $repoRoot $_ }
 )
 
-$referencedFiles = @(($directMatches + $basenameMatches) | Sort-Object -Unique)
+# Identifier matches: issue text often calls out a specific function/method/
+# symbol in backticks (e.g. a test method name). When multiple files share a
+# basename (see above), a weak local model can't tell
+# which one is relevant and may produce a no-op edit against the wrong file.
+# Grepping tracked files for the exact identifier pinpoints the file that
+# actually defines/uses it. `git grep -l -F` only searches tracked files, so
+# results stay inside the repo. Listed first so it's the model's primary cue.
+# Require an underscore so generic backtick-quoted words (e.g. `APPROVE`)
+# don't turn into noisy, repo-wide grep matches - snake_case identifiers
+# (function/method/variable names) are the useful signal here.
+$identifierPattern = '`([A-Za-z_][A-Za-z0-9_]*_[A-Za-z0-9_]*)`'
+$identifiers = @(
+    [regex]::Matches("$title`n$issueBody", $identifierPattern) |
+        ForEach-Object { $_.Groups[1].Value } |
+        Sort-Object -Unique
+)
+$identifierMatches = @(
+    $identifiers |
+        ForEach-Object { git -C $repoRoot grep -l -F -- $_ 2>$null } |
+        Sort-Object -Unique |
+        ForEach-Object { Join-Path $repoRoot $_ }
+)
+
+$referencedFiles = @(($identifierMatches + $directMatches + $basenameMatches) | Select-Object -Unique)
 if ($referencedFiles.Count -gt 0) {
     Write-Host "    Adding referenced files to aider context: $($referencedFiles -join ', ')"
 } else {

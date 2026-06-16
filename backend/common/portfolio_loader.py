@@ -13,6 +13,7 @@ import logging
 from collections import defaultdict
 from datetime import date
 from pathlib import Path
+from typing import cast
 
 from backend.common.data_loader import (
     list_plots,  # owner -> ["isa", "sipp", ...]
@@ -211,7 +212,7 @@ def compute_holdings_from_transactions(
     ledger: defaultdict[str, float] = defaultdict(float)
     acquisition: dict[str, str] = {}
 
-    for t in tx_data.get("transactions", []):
+    for t in cast("list[dict[str, object]]", tx_data.get("transactions", [])):
         ttype = (t.get("type") or "").upper()
         ticker = (t.get("ticker") or "").upper()
 

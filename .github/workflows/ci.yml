@@ -31,7 +31,8 @@ jobs:
         working-directory: frontend
       - run: npm test -- --run
         working-directory: frontend
-      - run: pytest
+      - name: CDK infrastructure tests
+        run: pytest cdk/tests/
 
   validate-backend-deps:
     name: Validate backend/requirements.txt (dry-run)
@@ -103,9 +104,11 @@ jobs:
       - name: Run backend pytest suite against Lambda deps
         env:
           ALLOTMINT_SKIP_SNAPSHOT_WARM: 'true'
-        # Pass tests/ explicitly so pytest ignores the testpaths = tests cdk/tests
-        # entry in pytest.ini. cdk/tests/ requires aws_cdk which is an
-        # infrastructure dep, not a Lambda runtime dep.
+        # Run tests/ under Lambda-pinned deps to validate the backend works in
+        # the constrained Lambda runtime environment. The test job runs cdk/tests/
+        # instead, covering CDK infrastructure. This avoids duplication: tests/
+        # runs once (here), cdk/tests/ runs once (in test job), against their
+        # respective dependency sets.
         run: .venv-lambda/bin/pytest tests/
 
   lint-workflows:

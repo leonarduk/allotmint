@@ -87,7 +87,7 @@ export function Portfolio() {
     }
   }, [owners, activeOwner, handleOwnerChange]);
 
-  useEffect(() => {
+  const reloadPortfolio = useCallback(() => {
     if (!activeOwner) {
       setData(null);
       setError(null);
@@ -96,7 +96,6 @@ export function Portfolio() {
     }
     setLoading(true);
     setError(null);
-    setData(null);
     getPortfolio(activeOwner)
       .then((d) => {
         setData(d);
@@ -115,6 +114,10 @@ export function Portfolio() {
       })
       .catch(() => setError("Failed to load portfolio"));
   }, [activeOwner]);
+  useEffect(() => {
+    setData(null);
+    reloadPortfolio();
+  }, [reloadPortfolio]);
 
   return (
     <>

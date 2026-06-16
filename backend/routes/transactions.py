@@ -530,7 +530,14 @@ def _validate_component(value: str, field: str) -> str:
 
 @router.post("/transactions", status_code=201)
 async def create_transaction(request: Request, tx: TransactionCreate) -> dict:
-    """Store a new transaction and return it."""
+    """Store a new transaction and return it.
+
+    If the owner does not yet have a writable account root, one is created
+    implicitly via :meth:`~backend.common.accounts_store.AccountsStore.ensure_owner`.
+    There is no separate account-creation endpoint; see
+    :mod:`backend.common.signup_provision` for the admin-approval provisioning
+    path that runs before any user write.
+    """
 
     store = _require_writable_store(request)
 
@@ -711,6 +718,14 @@ async def import_holdings(
 
 @router.post("/holdings/manual")
 async def create_manual_holding(request: Request, payload: ManualHoldingCreate) -> dict[str, Any]:
+    """Create a manual holding for the authenticated owner.
+
+    If the owner does not yet have a writable account root, one is created
+    implicitly via :meth:`~backend.common.accounts_store.AccountsStore.ensure_owner`.
+    There is no separate account-creation endpoint; see
+    :mod:`backend.common.signup_provision` for the admin-approval provisioning
+    path that runs before any user write.
+    """
     _validate_manual_holding_payload(payload)
     owner = _validate_component(payload.owner, "owner")
     account = _validate_component(payload.account, "account")

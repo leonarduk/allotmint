@@ -14,6 +14,14 @@ user can actually authenticate:
 The owner slug is derived from the request email. If the derived slug is
 already taken by a *different* email we pick the next free suffix rather than
 overwriting someone else's account.
+
+Note: a user who somehow reaches a write endpoint (e.g. ``POST /transactions``
+or ``POST /holdings/manual``) without going through the approval flow will have
+their account created implicitly by
+:meth:`~backend.common.accounts_store.AccountsStore.ensure_owner` — a
+minimal scaffold without their email, which means
+:func:`backend.auth._allowed_emails` will not admit them until their email is
+recorded via this provisioning path.
 """
 
 from __future__ import annotations

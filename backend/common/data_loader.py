@@ -1123,11 +1123,20 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
     if not explicit_local_fallback or not local_root:
         return {}
 
-    owner_index = _get_local_owner_index(Path(local_root))
-    record = owner_index.owners.get(owner.casefold())
-    if record is None:
+    try:
+        return LocalDataProvider().load_person_meta(owner, local_root).metadata
+    except MissingData:
         return {}
-    return _extract_person_meta(record.meta)
+    except InvalidPayload:
+        logger.debug(
+            "data_loader.person_meta_invalid_payload_local",
+            extra={
+                "event": "data_loader.person_meta_invalid_payload_local",
+                "owner": sanitise_log_value(owner),
+                "provider": "local",
+            },
+        )
+        return {}
 
 
 # ------------------------------------------------------------------

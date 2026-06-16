@@ -91,7 +91,14 @@ def _parse_date(val: str | None) -> date | None:
 
 
 def ensure_owner_scaffold(owner: str, accounts_root: Optional[Path] = None) -> Path:
-    """Create the default compliance scaffold for ``owner`` if needed.
+    """Explicit account-provisioning path used by the admin signup-approval flow.
+
+    Called from :mod:`backend.common.signup_provision` when an admin approves a
+    pending signup request.  Unlike
+    :meth:`~backend.common.accounts_store.AccountsStore.ensure_owner`, this
+    path runs *before* any user write and also records the owner's email in
+    ``person.json`` so :func:`backend.auth._allowed_emails` admits them at
+    login.  Idempotent: re-provisioning the same owner is a no-op.
 
     Returns the resolved owner directory after ensuring the default files are
     present.

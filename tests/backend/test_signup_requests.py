@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -16,9 +16,7 @@ def test_normalise_payload_trims_and_lowercases_email():
 
 
 def test_normalise_payload_allows_missing_note():
-    name, email, note = signup_requests.normalise_payload(
-        {"name": "Jane", "email": "jane@example.com"}
-    )
+    name, email, note = signup_requests.normalise_payload({"name": "Jane", "email": "jane@example.com"})
     assert (name, email, note) == ("Jane", "jane@example.com", "")
 
 
@@ -60,9 +58,7 @@ def test_create_signup_request_persists_record(tmp_path):
     now = datetime(2026, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
     store = signup_requests.signup_requests_dir(tmp_path)
 
-    record, token = signup_requests.create_signup_request(
-        "Jane", "jane@example.com", "hello", store, now=now
-    )
+    record, token = signup_requests.create_signup_request("Jane", "jane@example.com", "hello", store, now=now)
 
     path = store / f"{record.id}.json"
     assert path.exists()
@@ -93,3 +89,70 @@ def test_create_signup_request_tokens_are_unique_and_high_entropy(tmp_path):
     assert token_a != token_b
     # secrets.token_urlsafe(32) yields ~43 url-safe characters.
     assert len(token_a) >= 32
+
+
+def test_load_request_round_trips(tmp_path):
+    store = signup_requests.signup_requests_dir(tmp_path)
+    record, _ = signup_requests.create_signup_request("Jane", "jane@example.com", "", store)
+
+    loaded = signup_requests.load_request(record.id, store)
+    assert loaded == record
+
+
+def test_load_request_rejects_traversal_ids(tmp_path):
+    store = signup_requests.signup_requests_dir(tmp_path)
+    assert signup_requests.load_request("../secret", store) is None
+    assert signup_requests.load_request("not-hex!!", store) is None
+    assert signup_requests.load_request("", store) is None
+
+
+def test_consume_request_marks_status_and_is_single_use(tmp_path):
+    store = signup_requests.signup_requests_dir(tmp_path)
+    record, token = signup_requests.create_signup_request("Jane", "jane@example.com", "", store)
+
+    updated = signup_requests.consume_request(record.id, token, store, new_status="approved")
+    assert updated.status == "approved"
+    saved = json.loads((store / f"{record.id}.json").read_text())
+    assert saved["status"] == "approved"
+
+    # Re-using the same token is rejected — single-use.
+    with pytest.raises(signup_requests.RequestAlreadyProcessed):
+        signup_requests.consume_request(record.id, token, store, new_status="approved")
+
+
+def test_consume_request_rejects_bad_token(tmp_path):
+    store = signup_requests.signup_requests_dir(tmp_path)
+    record, _ = signup_requests.create_signup_request("Jane", "jane@example.com", "", store)
+
+    with pytest.raises(signup_requests.TokenInvalid):
+        signup_requests.consume_request(record.id, "wrong-token", store, new_status="approved")
+    # A failed attempt must not flip the status.
+    assert json.loads((store / f"{record.id}.json").read_text())["status"] == "pending"
+
+
+def test_consume_request_rejects_unknown_id(tmp_path):
+    store = signup_requests.signup_requests_dir(tmp_path)
+    with pytest.raises(signup_requests.RequestNotFound):
+        signup_requests.consume_request("a" * 32, "tok", store, new_status="approved")
+
+
+def test_consume_request_rejects_expired_token(tmp_path):
+    store = signup_requests.signup_requests_dir(tmp_path)
+    created = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    record, token = signup_requests.create_signup_request("Jane", "jane@example.com", "", store, now=created)
+
+    later = created + timedelta(days=365)
+    with pytest.raises(signup_requests.RequestExpired):
+        signup_requests.consume_request(record.id, token, store, new_status="approved", now=later)
+
+
+def test_validate_request_does_not_mutate(tmp_path):
+    store = signup_requests.signup_requests_dir(tmp_path)
+    record, token = signup_requests.create_signup_request("Jane", "jane@example.com", "", store)
+
+    validated = signup_requests.validate_request(record.id, token, store)
+    assert validated.status == "pending"
+    # No write occurred, so the token can still be consumed afterwards.
+    assert json.loads((store / f"{record.id}.json").read_text())["status"] == "pending"
+    consumed = signup_requests.consume_request(record.id, token, store, new_status="approved")
+    assert consumed.status == "approved"

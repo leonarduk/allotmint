@@ -1630,3 +1630,71 @@ export const requestAccountSignup = (payload: AccountSignupRequest) =>
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
+
+// ───────────── Portfolio accounts ─────────────
+export interface AccountCreateRequest {
+  owner: string;
+  account_type: string;
+  currency?: string;
+}
+
+export interface AccountCreateResponse {
+  status: string;
+  owner: string;
+  account: string;
+  currency: string;
+}
+
+/** Create a new, empty portfolio account (e.g. ISA, SIPP) for an owner. */
+export const createAccount = (payload: AccountCreateRequest) =>
+  fetchJson<AccountCreateResponse>(`${API_BASE}/accounts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+// ───────────── Holdings CSV import ─────────────
+export interface ImportHoldingsCsvResponse {
+  path: string;
+}
+
+/**
+ * Upload a CSV export of holdings/transactions for `owner`/`account` and have
+ * the backend parse it with the given `provider` and persist the result.
+ */
+export const importHoldingsCsv = async (
+  owner: string,
+  account: string,
+  provider: string,
+  file: File,
+): Promise<ImportHoldingsCsvResponse> => {
+  const formData = new FormData();
+  formData.append("owner", owner);
+  formData.append("account", account);
+  formData.append("provider", provider);
+  formData.append("file", file);
+
+  const headers = new Headers();
+  const token = getStoredAuthToken();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  const csrf = defaultGetCsrfToken();
+  if (csrf) headers.set("X-CSRFToken", csrf);
+
+  const res = await dynamicFetch(`${API_BASE}/holdings/import`, {
+    method: "POST",
+    headers,
+    credentials: "include",
+    body: formData,
+  });
+  if (!res.ok) {
+    let detail = `HTTP ${res.status} - ${res.statusText}`;
+    try {
+      const body = await res.json();
+      if (typeof body?.detail === "string") detail = body.detail;
+    } catch {
+      // response body was not JSON; fall back to the status text above
+    }
+    throw new Error(detail);
+  }
+  return res.json() as Promise<ImportHoldingsCsvResponse>;
+};

@@ -163,7 +163,7 @@ export default function MainApp() {
   ]);
 
   // data fetching based on route
-  useEffect(() => {
+  const reloadPortfolio = useCallback(() => {
     if (mode === "owner" && selectedOwner) {
       setLoading(true);
       setErr(null);
@@ -195,6 +195,10 @@ export default function MainApp() {
         .finally(() => setLoading(false));
     }
   }, [mode, selectedOwner]);
+
+  useEffect(() => {
+    reloadPortfolio();
+  }, [reloadPortfolio]);
 
   useEffect(() => {
     if (mode === "group") {
@@ -283,7 +287,7 @@ export default function MainApp() {
             onSelect={handleOwnerSelect}
           />
           <ComplianceWarnings owners={selectedOwner ? [selectedOwner] : []} />
-          <PortfolioView data={portfolio} loading={loading} error={err} />
+          <PortfolioView data={portfolio} loading={loading} error={err} onAccountAdded={reloadPortfolio} />
         </>
       )}
 

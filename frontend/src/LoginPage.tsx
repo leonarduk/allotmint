@@ -3,9 +3,11 @@ import { Link } from 'react-router-dom';
 import { API_BASE, setAuthToken } from './api';
 import { useUser } from './UserContext';
 import { useAuth } from './AuthContext';
+import { signInWithCognito, type AwsUiAuthConfig } from './awsUiAuth';
 
 interface Props {
   clientId: string;
+  awsUiAuth?: AwsUiAuthConfig;
   onSuccess: () => void;
 }
 
@@ -21,10 +23,13 @@ function sanitize(input: string): string {
   );
 }
 
-export default function LoginPage({ clientId, onSuccess }: Props) {
+export default function LoginPage({ clientId, awsUiAuth, onSuccess }: Props) {
   const { setProfile } = useUser();
   const { setUser } = useAuth();
   const [error, setError] = useState<string | null>(null);
+  const [cognitoError, setCognitoError] = useState<string | null>(null);
+  const awsUiAuthEnabled =
+    awsUiAuth?.enabled === true || awsUiAuth?.enabled === 'true';
   useEffect(() => {
     const script = document.createElement('script');
     script.src = 'https://accounts.google.com/gsi/client';
@@ -105,6 +110,31 @@ export default function LoginPage({ clientId, onSuccess }: Props) {
         </div>
       )}
       <div id="google-signin"></div>
+      {awsUiAuthEnabled && (
+        <div style={{ marginTop: '1rem' }}>
+          {cognitoError && (
+            <div
+              role="alert"
+              aria-live="assertive"
+              style={{ color: 'red', marginBottom: '0.5rem' }}
+            >
+              {cognitoError}
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setCognitoError(null);
+              signInWithCognito(awsUiAuth).catch((err: unknown) => {
+                console.error('Cognito sign-in initiation failed:', err);
+                setCognitoError('Failed to start sign-in. Please try again.');
+              });
+            }}
+          >
+            Sign in
+          </button>
+        </div>
+      )}
       <p style={{ marginTop: '1rem' }}>
         Don&apos;t have an account?{' '}
         <Link to="/create-account">Create account</Link>

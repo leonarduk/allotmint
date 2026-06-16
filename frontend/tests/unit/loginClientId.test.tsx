@@ -169,6 +169,55 @@ describe('Root login behaviour', () => {
     expect(loginRender).not.toHaveBeenCalled();
   });
 
+  it('shows login page when awsUiAuth is configured without Google', async () => {
+    vi.doMock('react-dom/client', () => ({
+      createRoot: () => ({ render: vi.fn() }),
+    }));
+
+    vi.doMock('@/api', async (importOriginal) => {
+      const mod = await importOriginal<typeof import('@/api')>();
+      return {
+        ...mod,
+        getConfig: vi.fn().mockResolvedValue({
+          disable_auth: false,
+          google_auth_enabled: false,
+          google_client_id: '',
+        }),
+        getStoredAuthToken: vi.fn(() => null),
+      };
+    });
+
+    vi.doMock('@/awsUiAuth', async (importOriginal) => {
+      const mod = await importOriginal<typeof import('@/awsUiAuth')>();
+      return { ...mod, getStoredCognitoIdToken: vi.fn(() => null) };
+    });
+
+    const loginRender = vi.fn(() => <div data-testid="login-page">login</div>);
+    vi.doMock('@/LoginPage', () => ({ default: loginRender }));
+
+    vi.doMock('@/App.tsx', () => ({
+      default: () => <div data-testid="app-shell">app-shell</div>,
+    }));
+
+    document.body.innerHTML = '<div id="root"></div>';
+    const { Root } = await import('@/main');
+
+    const awsUiAuth = {
+      enabled: true as const,
+      domain: 'https://auth.example.amazoncognito.com',
+      clientId: 'mock-cognito-client',
+    };
+
+    render(
+      <BrowserRouter>
+        <Root awsUiAuth={awsUiAuth} />
+      </BrowserRouter>
+    );
+
+    expect(await screen.findByTestId('login-page')).toBeInTheDocument();
+    expect(screen.queryByText(/google login is not configured/i)).toBeNull();
+  });
+
   it('keeps the support route reachable when auth is enforced but Google sign-in is unavailable', async () => {
     vi.doMock('react-dom/client', () => ({
       createRoot: () => ({ render: vi.fn() }),

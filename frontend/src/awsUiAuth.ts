@@ -323,7 +323,32 @@ export const ensureAwsUiAuth = async (config?: AwsUiAuthConfig | null) => {
   // skip exchangeCode entirely to avoid a state-mismatch error when ?code= params
   // are present in the URL from a previous (already-consumed) callback.
   if (hasValidSession()) return true;
-  if (await exchangeCode(authConfig)) return true;
-  await redirectToHostedUi(authConfig);
-  return false;
+  // exchangeCode() return value intentionally unused.
+  //   true  — OAuth callback present and code exchange succeeded; session stored.
+  //   false — no OAuth callback in the URL at all (normal fresh visit).
+  // Either way we return true and let React mount the login page.
+  // NOTE: exchangeCode() never returns false for *failures* — every error path
+  // (state mismatch, expired code, token endpoint error, OAuth error param)
+  // throws. Those exceptions propagate to bootstrapRuntimeConfig's .catch(),
+  // which renders an error screen with a "Sign in" reload button (recovery path).
+  void (await exchangeCode(authConfig));
+  return true;
+};
+
+/**
+ * Initiates a Cognito hosted-UI sign-in by redirecting the browser to the
+ * PKCE authorisation endpoint. Call this in response to an explicit user
+ * action (e.g. a "Sign in" button click) rather than automatically on page
+ * load, so new visitors can reach the create-account page first.
+ */
+export const signInWithCognito = async (
+  config?: AwsUiAuthConfig | null,
+): Promise<void> => {
+  if (!isEnabled(config?.enabled)) return;
+  const domain = normaliseDomain(config?.domain ?? '');
+  const clientId = config?.clientId?.trim() ?? '';
+  if (!domain || !clientId)
+    throw new Error('AWS UI authentication is enabled but not configured');
+  const redirectPath = config?.redirectPath ?? DEFAULT_REDIRECT_PATH;
+  await redirectToHostedUi({ domain, clientId, redirectPath });
 };

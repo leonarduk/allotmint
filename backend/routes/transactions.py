@@ -153,30 +153,19 @@ def resolve_writable_store(request: Request) -> "AccountsStore":
     return LocalAccountsStore(root=root, is_global=is_global)
 
 
-def _store_disabled_detail(store: "AccountsStore") -> str:
+def _store_disabled_detail(kind: _RootResolution, *, root: Optional[Path] = None) -> str:
     """Return the 400 detail for a write against a non-writable store.
 
-    Called only when ``is_global`` is ``True``, so a ``local_root`` that is
-    not ``None`` always resolves to the shared/global demo dataset.
+    Uses the ``_RootResolution`` enum as the primary discriminator, with
+    ``root`` as a secondary check: ``NONE`` with a non-``None`` root means
+    a path was resolved but doesn't exist (genuine misconfiguration), not
+    "no root configured at all".
     """
-    local_root = getattr(store, "local_root", None)
-    if local_root is None:
+    if kind is _RootResolution.NONE and root is None:
         return (
             "Create an account to enable manual holdings and "
             "transaction writes."
         )
-    # Defensive: confirm the root still matches the shared demo dataset.
-    try:
-        global_root = data_loader.resolve_paths(None, None).accounts_root.resolve()
-    except Exception:
-        global_root = None
-    try:
-        resolved_local = Path(local_root).resolve()
-    except (TypeError, ValueError, OSError):
-        resolved_local = None
-    if global_root is not None and resolved_local == global_root:
-        return "Accounts root not configured"
-    # Fallback: non-writable for another reason (e.g. state-flagged global).
     return "Accounts root not configured"
 
 
@@ -184,7 +173,11 @@ def _require_writable_store(request: Request) -> "AccountsStore":
     """Resolve the writable store, raising a clear 400 when writes are disabled."""
     store = resolve_writable_store(request)
     if getattr(store, "is_global", False):
-        raise HTTPException(status_code=400, detail=_store_disabled_detail(store))
+        _, kind = _resolve_local_root(request)
+        raise HTTPException(
+            status_code=400,
+            detail=_store_disabled_detail(kind, root=getattr(store, "local_root", None)),
+        )
     return store
 
 

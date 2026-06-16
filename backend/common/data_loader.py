@@ -1088,7 +1088,8 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
                     "provider": "s3",
                 },
             )
-            return {}
+            if not explicit_local_fallback:
+                return {}
         except InvalidPayload:
             # person.json is optional metadata — a malformed file degrades gracefully.
             logger.warning(

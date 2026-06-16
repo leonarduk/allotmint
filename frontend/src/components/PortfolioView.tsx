@@ -3,7 +3,9 @@ import type { FormEvent } from "react";
 import { Link } from "react-router-dom";
 import type { Portfolio, Account, SectorContribution } from "../types";
 import { AccountBlock } from "./AccountBlock";
+import { AddAccountForm } from "./AddAccountForm";
 import { AddPositionForm } from "./AddPositionForm";
+import { EmptyState } from "./EmptyState";
 import { CsvImportForm } from "./CsvImportForm";
 import { ValueAtRisk } from "./ValueAtRisk";
 import { money } from "../lib/money";
@@ -208,6 +210,7 @@ type Props = {
   loading?: boolean;
   error?: string | null;
   onDateChange?: (isoDate: string | null) => void;
+  onAccountAdded?: () => void;
   onPositionAdded?: () => void;
 };
 
@@ -218,10 +221,11 @@ type Props = {
  * relies on its parent for data fetching. Conditional branches early-return to
  * keep the JSX at the bottom easy to follow.
  */
-export function PortfolioView({ data, loading, error, onDateChange, onPositionAdded }: Props) {
+export function PortfolioView({ data, loading, error, onDateChange, onAccountAdded, onPositionAdded }: Props) {
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
   const [hasWarnings, setHasWarnings] = useState(false);
   const [pendingDate, setPendingDate] = useState<string>("");
+  const [showAddAccount, setShowAddAccount] = useState(false);
   const [addPositionAccount, setAddPositionAccount] = useState<string | undefined>(undefined);
   const addPositionRef = useRef<HTMLDivElement>(null);
   const { baseCurrency, familyMvpEnabled, enableAdvancedAnalytics = true } = useConfig();
@@ -315,6 +319,11 @@ export function PortfolioView({ data, loading, error, onDateChange, onPositionAd
     printPortfolioPdf(data);
   };
 
+  const handleAccountCreated = () => {
+    setShowAddAccount(false);
+    onAccountAdded?.();
+  };
+
   const handleAddPositionRequest = (accountType: string) => {
     setAddPositionAccount(accountType);
     addPositionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -381,14 +390,16 @@ export function PortfolioView({ data, loading, error, onDateChange, onPositionAd
               </div>
             </div>
           )}
-          <div ref={addPositionRef} className="mb-6">
-            <AddPositionForm
-              owner={data.owner}
-              accounts={data.accounts.map((acct) => acct.account_type)}
-              defaultAccount={addPositionAccount}
-              onAdded={onPositionAdded}
-            />
-          </div>
+          {data.accounts.length > 0 && (
+            <div ref={addPositionRef} className="mb-6">
+              <AddPositionForm
+                owner={data.owner}
+                accounts={data.accounts.map((acct) => acct.account_type)}
+                defaultAccount={addPositionAccount}
+                onAdded={onPositionAdded}
+              />
+            </div>
+          )}
           {!familyMvpEnabled && (
             <div className="mb-6">
               <CsvImportForm
@@ -486,6 +497,33 @@ export function PortfolioView({ data, loading, error, onDateChange, onPositionAd
                 </div>
               );
             })}
+          </div>
+          <div className="mb-6 mt-4">
+            {data.accounts.length === 0 ? (
+              <EmptyState
+                message="Get started by adding your first account (e.g. ISA, SIPP, brokerage or savings)."
+                actions={[
+                  { label: "Add account", onClick: () => setShowAddAccount(true) },
+                ]}
+              />
+            ) : !showAddAccount ? (
+              <button
+                type="button"
+                onClick={() => setShowAddAccount(true)}
+                className="rounded border border-gray-700 px-3 py-1 text-white hover:border-gray-500 hover:bg-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
+              >
+                Add account
+              </button>
+            ) : null}
+            {showAddAccount && (
+              <div className="mt-3">
+                <AddAccountForm
+                  owner={data.owner}
+                  onCreated={handleAccountCreated}
+                  onCancel={() => setShowAddAccount(false)}
+                />
+              </div>
+            )}
           </div>
         </section>
         <section className="rounded-lg border border-gray-800 bg-gray-900/70 p-4 md:p-6">

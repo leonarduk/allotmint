@@ -17,6 +17,11 @@ accounts and always returns the same generic success body, so a caller cannot
 tell whether an email already has an account. Only malformed payloads (bad
 shape) yield a ``400``; configuration/delivery failures yield ``5xx`` but
 reveal nothing about account existence.
+
+Rate limiting: when :func:`create_router` is given a ``slowapi.Limiter``,
+``POST /signup/request`` is decorated with a per-IP rate limit (default
+``"5/minute"``). The limiter is shared with the app-level instance so counters
+are consistent across the whole application.
 """
 
 from __future__ import annotations
@@ -25,6 +30,7 @@ import logging
 import os
 from json import JSONDecodeError
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
@@ -43,6 +49,12 @@ from backend.emails.signup_request import (
 from backend.routes._accounts import resolve_accounts_root
 from backend.routes.transactions import resolve_writable_store
 
+if TYPE_CHECKING:
+    from slowapi import Limiter
+
+# Module-level router kept for backward compatibility (tests and direct imports).
+# It is unlimited — callers should prefer :func:`create_router` when a limiter
+# is available.
 router = APIRouter(prefix="/signup", tags=["signup"])
 
 logger = logging.getLogger(__name__)
@@ -75,9 +87,8 @@ def _build_links(request_id: str, token: str) -> tuple[str, str]:
     return f"{base}/signup/approve?{query}", f"{base}/signup/reject?{query}"
 
 
-@router.post("/request")
-async def post_signup_request(request: Request) -> dict[str, str]:
-    """Record a signup request and notify the admin; return a generic success."""
+async def _post_signup_request_impl(request: Request) -> dict[str, str]:
+    """Implementation of POST /signup/request — record and notify."""
 
     try:
         payload = await request.json()
@@ -115,6 +126,12 @@ async def post_signup_request(request: Request) -> dict[str, str]:
         raise HTTPException(status_code=502, detail="failed to notify administrator") from exc
 
     return dict(_GENERIC_OK)
+
+
+@router.post("/request")
+async def post_signup_request(request: Request) -> dict[str, str]:
+    """Record a signup request and notify the admin; return a generic success."""
+    return await _post_signup_request_impl(request)
 
 
 def _login_url() -> str:
@@ -229,3 +246,36 @@ async def reject_signup_request(request: Request, id: str = "", token: str = "")
         raise _token_error_to_http(exc) from exc
 
     return {"status": "rejected"}
+
+
+def create_router(
+    limiter: "Limiter | None" = None,
+    rate_limit: str | None = None,
+) -> APIRouter:
+    """Return a signup router, optionally with per-IP rate limiting.
+
+    When ``limiter`` and ``rate_limit`` are provided, ``POST /signup/request``
+    is decorated via ``limiter.limit(rate_limit)``. The limiter must be the
+    same instance registered on ``app.state.limiter`` so rate-limit counters
+    are shared across the application.
+
+    Approve and reject endpoints are not rate-limited — they already require
+    unguessable single-use tokens.
+    """
+
+    if limiter is None or not rate_limit:
+        return router
+
+    limited = APIRouter(prefix="/signup", tags=["signup"])
+
+    # POST /request with rate limit
+    limited_request = limiter.limit(rate_limit)(_post_signup_request_impl)
+    limited.post("/request")(limited_request)
+
+    # Other routes are copied from the module-level router without rate limits
+    for route in router.routes:
+        if getattr(route, "path", None) == "/request":
+            continue  # already registered above with rate limit
+        limited.routes.append(route)
+
+    return limited

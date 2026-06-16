@@ -155,3 +155,30 @@ To investigate a gateway 401: open the `BackendApiAccessLogGroup` log group in
 CloudWatch, filter to the failing `routeKey`, and read `authorizerError`. The
 format deliberately logs claims/status only — the raw `Authorization` header /
 bearer token is never logged.
+
+## Account creation
+
+Two distinct paths can create an owner's data directory:
+
+### Admin-provisioned (signup-approval flow)
+
+A visitor submits `POST /signup/request` with their email. An admin clicks the
+approve link in the resulting notification email. The backend then:
+
+1. Calls `ensure_owner_scaffold()` (`backend/common/compliance.py`) to create
+   the default compliance scaffold under `data/accounts/<owner>/`.
+2. Writes the visitor's email into `person.json` so that `_allowed_emails()`
+   (`backend/auth.py`) admits them at login.
+3. Sends the user a "login ready" email.
+
+The account exists and the user can authenticate **before** making any write.
+
+### Implicit (first-write path)
+
+If a user reaches a write endpoint (`POST /transactions`, `POST /holdings/manual`)
+without having been provisioned via the approval flow, `ensure_owner()`
+(`backend/common/accounts_store.py`) creates a minimal `person.json` as a
+side-effect. There is no dedicated `POST /accounts` endpoint. Note that
+implicitly-created accounts contain no email, so `_allowed_emails()` will not
+admit the user until their email is recorded — typically this only applies in
+local/test environments where auth is relaxed.

@@ -22,12 +22,12 @@ def _client(monkeypatch, tmp_path):
         SimpleNamespace(accounts_root=tmp_path, offline_mode=False, app_env="local"),
     )
     monkeypatch.setattr(
-        transactions,
+        accounts_store,
         "portfolio_loader",
         SimpleNamespace(rebuild_account_holdings=lambda *a, **k: None),
     )
     monkeypatch.setattr(
-        transactions,
+        accounts_store,
         "portfolio_mod",
         SimpleNamespace(build_owner_portfolio=lambda *a, **k: None),
     )
@@ -292,4 +292,3 @@ def test_list_dividends_account_case(monkeypatch):
     assert resp.status_code == 200
     data = resp.json()
     assert len(data) == 1
-

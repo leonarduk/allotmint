@@ -83,6 +83,23 @@ def test_require_writable_store_rejects_no_accounts_root(monkeypatch):
     assert "Create an account" in excinfo.value.detail
 
 
+def test_require_writable_store_rejects_nonexistent_configured_root(monkeypatch, tmp_path):
+    """Configured root that doesn't exist yet should also prompt to create an account."""
+    request = _build_request()
+
+    monkeypatch.setattr(
+        transactions_module.config,
+        "accounts_root",
+        str(tmp_path / "nonexistent"),
+    )
+
+    with pytest.raises(HTTPException) as excinfo:
+        transactions_module._require_writable_store(request)
+
+    assert excinfo.value.status_code == 400
+    assert "Create an account" in excinfo.value.detail
+
+
 @pytest.mark.parametrize("state_global_flag", [False, True])
 def test_require_writable_store_rejects_invalid_resolution(
     monkeypatch, tmp_path, state_global_flag

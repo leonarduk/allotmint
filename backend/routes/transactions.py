@@ -155,15 +155,13 @@ def resolve_writable_store(
     return LocalAccountsStore(root=root, is_global=is_global), kind
 
 
-def _store_disabled_detail(kind: _RootResolution, *, root: Optional[Path] = None) -> str:
+def _store_disabled_detail(kind: _RootResolution) -> str:
     """Return the 400 detail for a write against a non-writable store."""
-    if kind is _RootResolution.NONE and root is None:
+    if kind is _RootResolution.NONE:
         return (
             "Create an account to enable manual holdings and "
             "transaction writes."
         )
-    if kind is _RootResolution.GLOBAL_READONLY:
-        return "Accounts root not configured"
     return "Accounts root not configured"
 
 
@@ -171,10 +169,7 @@ def _require_writable_store(request: Request) -> "AccountsStore":
     """Resolve the writable store, raising a clear 400 when writes are disabled."""
     store, kind = resolve_writable_store(request)
     if getattr(store, "is_global", False):
-        raise HTTPException(
-            status_code=400,
-            detail=_store_disabled_detail(kind, root=getattr(store, "local_root", None)),
-        )
+        raise HTTPException(status_code=400, detail=_store_disabled_detail(kind))
     return store
 
 

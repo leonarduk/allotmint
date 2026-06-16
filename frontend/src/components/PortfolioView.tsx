@@ -5,6 +5,7 @@ import type { Portfolio, Account, SectorContribution } from "../types";
 import { AccountBlock } from "./AccountBlock";
 import { AddAccountForm } from "./AddAccountForm";
 import { EmptyState } from "./EmptyState";
+import { CsvImportForm } from "./CsvImportForm";
 import { ValueAtRisk } from "./ValueAtRisk";
 import { money } from "../lib/money";
 import { formatDateISO } from "../lib/date";
@@ -378,6 +379,14 @@ export function PortfolioView({ data, loading, error, onDateChange, onAccountAdd
                   Export PDF
                 </button>
               </div>
+            </div>
+          )}
+          {!familyMvpEnabled && (
+            <div className="mb-6">
+              <CsvImportForm
+                owner={data.owner}
+                accountTypes={data.accounts.map((acct) => acct.account_type)}
+              />
             </div>
           )}
           {hasWarnings && (

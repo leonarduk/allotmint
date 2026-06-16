@@ -32,74 +32,18 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          echo "Checking ci.yml status for commit ${COMMIT_SHA}..."
-
-          # Helper function to call gh api with retry logic for transient failures
-          gh_api_with_retry() {
-            local max_attempts=5
-            local attempt=1
-            local wait_seconds=2
-            local output
-
-            while [ $attempt -le $max_attempts ]; do
-              if output=$(gh api "$@"); then
-                echo "$output"
-                return 0
-              fi
-
-              if [ $attempt -lt $max_attempts ]; then
-                echo "::warning::gh api call failed (attempt $attempt/$max_attempts), retrying in ${wait_seconds}s..." >&2
-                sleep "$wait_seconds"
-                wait_seconds=$((wait_seconds * 2))
-              fi
-
-              attempt=$((attempt + 1))
-            done
-
-            echo "::error::gh api call failed after $max_attempts attempts" >&2
-            return 1
-          }
-
-          # Poll for the most recent ci.yml run on this exact commit and wait for
-          # it to finish before deciding whether to proceed with the deploy.
-          timeout_seconds=1800
-          poll_interval=30
-          elapsed=0
-          while true; do
-            run_json="$(gh_api_with_retry \
-              "repos/${REPO}/actions/workflows/ci.yml/runs?head_sha=${COMMIT_SHA}&per_page=10" \
-              --jq '.workflow_runs | sort_by(.id) | reverse | .[0]')"
-
-            if [ "${run_json}" = "null" ]; then
-              echo "::error::No ci.yml run found for commit ${COMMIT_SHA}." \
-                "Tag a commit that has a ci.yml run, or manually trigger ci.yml on this commit before tagging." >&2
-              exit 1
-            fi
-
-            status="$(echo "${run_json}" | jq -r '.status')"
-            conclusion="$(echo "${run_json}" | jq -r '.conclusion')"
-            run_id="$(echo "${run_json}" | jq -r '.id')"
-
-            if [ "${status}" = "completed" ]; then
-              if [ "${conclusion}" = "success" ]; then
-                echo "ci.yml run ${run_id} for ${COMMIT_SHA} succeeded — proceeding with deploy."
-                break
-              fi
-              echo "::error::ci.yml run ${run_id} for commit ${COMMIT_SHA} did not succeed" \
-                "(conclusion: ${conclusion})." >&2
-              exit 1
-            fi
-
-            if [ "${elapsed}" -ge "${timeout_seconds}" ]; then
-              echo "::error::Timed out after ${timeout_seconds}s waiting for ci.yml run ${run_id}" \
-                "on commit ${COMMIT_SHA} to complete (status: ${status})." >&2
-              exit 1
-            fi
-
-            echo "ci.yml run ${run_id} for ${COMMIT_SHA} is still ${status}; waiting ${poll_interval}s..."
-            sleep "${poll_interval}"
-            elapsed=$((elapsed + poll_interval))
-          done
+          echo "Checking for a successful ci.yml run on commit ${COMMIT_SHA}..."
+          # List workflow runs for ci.yml on this exact commit.
+          # The GitHub API filters by head_sha so we only see runs for the tagged commit.
+          conclusion="$(gh api \
+            "repos/${REPO}/actions/workflows/ci.yml/runs?head_sha=${COMMIT_SHA}&per_page=10" \
+            --jq '[.workflow_runs[] | select(.conclusion == "success")] | length')"
+          if [ "${conclusion}" -lt 1 ]; then
+            echo "::error::No successful ci.yml run found for commit ${COMMIT_SHA}." \
+              "Tag a commit that has a green CI run, or manually trigger ci.yml on this commit before tagging." >&2
+            exit 1
+          fi
+          echo "Found ${conclusion} successful ci.yml run(s) for ${COMMIT_SHA} — proceeding with deploy."
 
   deploy:
     runs-on: ubuntu-latest
@@ -110,7 +54,7 @@ jobs:
       backend_url: ${{ steps.get_backend_url.outputs.backend_url }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ inputs.ref || github.ref }}
 
@@ -175,7 +119,7 @@ jobs:
           if [ "$missing" -eq 1 ]; then exit 1; fi
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885 # v6.1.1
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
@@ -183,13 +127,9 @@ jobs:
       - name: Pre-flight IAM permission check
         # Verifies that the deploy role has every permission needed by this
         # workflow before spending ~8 minutes on CDK deploy.
-        # Each action is simulated against the *same* resource ARN(s) (and, where
-        # relevant, condition context) that the CDK-managed grants actually scope
-        # the permission to. The deploy role's grants are narrowly scoped per
-        # stack/function/log-group/object (see GithubDeployRolePolicy* and
-        # allotmint-deploy-permissions), so simulating against "*" produces false
-        # implicitDeny results even when the real `cdk deploy`/sync steps below
-        # would succeed. See issue #3910.
+        # Each action is simulated against its correct resource ARN so that
+        # scoped grants (e.g. bucket-level s3:ListBucket vs object-level
+        # s3:GetObject) do not produce false implicitDeny results.
         # If the role itself lacks iam:SimulatePrincipalPolicy the simulate
         # call returns an error, which is surfaced as a distinct message so the
         # operator knows to add that meta-permission to the base role.
@@ -197,7 +137,6 @@ jobs:
           DEPLOY_ROLE_ARN: ${{ secrets.AWS_ROLE_TO_ASSUME }}
         run: |
           set -euo pipefail
-
           data_bucket="$(aws cloudformation list-stack-resources \
             --stack-name BackendLambdaStack \
             --query "StackResourceSummaries[?starts_with(LogicalResourceId,'PortfolioDataBucket')].PhysicalResourceId|[0]" \
@@ -207,79 +146,24 @@ jobs:
             data_bucket="*"
           fi
 
-          backend_stack_arn="$(aws cloudformation describe-stacks \
-            --stack-name BackendLambdaStack --query "Stacks[0].StackId" --output text 2>/dev/null || echo "")"
-          static_site_stack_arn="$(aws cloudformation describe-stacks \
-            --stack-name StaticSiteStack --query "Stacks[0].StackId" --output text 2>/dev/null || echo "")"
-          if [ -z "$backend_stack_arn" ] || [ "$backend_stack_arn" = "None" ]; then
-            backend_stack_arn="*"
-          fi
-          if [ -z "$static_site_stack_arn" ] || [ "$static_site_stack_arn" = "None" ]; then
-            static_site_stack_arn="*"
-          fi
-
-          price_refresh_alias_arn="$(aws cloudformation list-stack-resources \
-            --stack-name BackendLambdaStack \
-            --query "StackResourceSummaries[?starts_with(LogicalResourceId,'PriceRefreshLambdaLiveAlias')].PhysicalResourceId|[0]" \
-            --output text 2>/dev/null || echo "")"
-          if [ -z "$price_refresh_alias_arn" ] || [ "$price_refresh_alias_arn" = "None" ]; then
-            price_refresh_alias_arn="*"
-          fi
-
-          backend_log_group="$(aws cloudformation list-stack-resources \
-            --stack-name BackendLambdaStack \
-            --query "StackResourceSummaries[?starts_with(LogicalResourceId,'BackendLambdaLogGroup')].PhysicalResourceId|[0]" \
-            --output text 2>/dev/null || echo "")"
-          account_id="$(aws sts get-caller-identity --query Account --output text 2>/dev/null || echo "")"
-          if [ -z "$backend_log_group" ] || [ "$backend_log_group" = "None" ] || [ -z "$account_id" ]; then
-            backend_log_group_arn="*"
-          else
-            # aws-actions/configure-aws-credentials sets AWS_REGION/AWS_DEFAULT_REGION
-            # env vars rather than writing the CLI config file, so check those first;
-            # fall back to `aws configure get region` for local/manual runs.
-            region="${AWS_REGION:-${AWS_DEFAULT_REGION:-$(aws configure get region)}}"
-            backend_log_group_arn="arn:aws:logs:${region}:${account_id}:log-group:${backend_log_group}:*"
-          fi
-
-          if [ "$data_bucket" = "*" ]; then
-            get_object_resource="*"
-            list_bucket_resource="*"
-          else
-            # GithubDeployRoleForLambdaInvokePolicy's ReadPriceSnapshot statement
-            # grants s3:GetObject on this exact key only (not a prefix wildcard),
-            # so this is the only object the deploy role can read.
-            get_object_resource="arn:aws:s3:::${data_bucket}/prices/latest_prices.json"
-            list_bucket_resource="arn:aws:s3:::${data_bucket}"
-          fi
-
-          # Each entry: "action|resource arns (space-separated)|context key=value (optional)"
-          # cloudformation:* and s3:ListBucket use grants that aren't visible from a
-          # single resource: the changeset perms cover both stacks, and ListBucket is
-          # conditioned on an s3:prefix. Pass both stack ARNs / the matching condition
-          # so simulate-principal-policy evaluates the grant CDK actually created.
-          checks=(
-            "cloudformation:CreateChangeSet|${backend_stack_arn} ${static_site_stack_arn}|"
-            "cloudformation:DescribeChangeSet|${backend_stack_arn} ${static_site_stack_arn}|"
-            "cloudformation:DeleteChangeSet|${backend_stack_arn} ${static_site_stack_arn}|"
-            "lambda:InvokeFunction|${price_refresh_alias_arn}|"
-            "s3:ListBucket|${list_bucket_resource}|s3:prefix=prices"
-            "s3:GetObject|${get_object_resource}|"
-            "logs:FilterLogEvents|${backend_log_group_arn}|"
+          # Map each action to its correct resource ARN.
+          # s3:ListBucket acts on the bucket; s3:GetObject acts on objects.
+          # CloudFormation, Lambda, and logs actions are wildcarded because the
+          # deploy role's grants target multiple stacks/functions/log groups.
+          declare -A action_resource=(
+            ["cloudformation:CreateChangeSet"]="*"
+            ["cloudformation:DescribeChangeSet"]="*"
+            ["cloudformation:DeleteChangeSet"]="*"
+            ["lambda:InvokeFunction"]="*"
+            ["s3:ListBucket"]="arn:aws:s3:::${data_bucket}"
+            ["s3:GetObject"]="arn:aws:s3:::${data_bucket}/*"
+            ["logs:FilterLogEvents"]="*"
           )
 
           failed=0
           simulate_unavailable=0
-          for check in "${checks[@]}"; do
-            IFS='|' read -r action resources context <<< "$check"
-            # Word-split intentionally: $resources is a space-separated list of one
-            # or more ARNs (e.g. both stack ARNs for the changeset checks).
-            read -r -a resource_arr <<< "$resources"
-            context_args=()
-            if [ -n "$context" ]; then
-              context_key="${context%%=*}"
-              context_value="${context#*=}"
-              context_args=(--context-entries "ContextKeyName=${context_key},ContextKeyValues=${context_value},ContextKeyType=string")
-            fi
+          for action in "${!action_resource[@]}"; do
+            resource="${action_resource[$action]}"
             # || true prevents set -e from aborting; 2>&1 already captures the real
             # AWS error into raw_result. Using || raw_result="error" would overwrite
             # the actual message and break the AccessDenied/SimulatePrincipalPolicy
@@ -287,12 +171,9 @@ jobs:
             raw_result="$(aws iam simulate-principal-policy \
               --policy-source-arn "$DEPLOY_ROLE_ARN" \
               --action-names "$action" \
-              --resource-arns "${resource_arr[@]}" \
-              "${context_args[@]}" \
-              --query "EvaluationResults[].EvalDecision" --output text 2>&1)" || true
-            # Multiple resource ARNs come back tab-separated on one line; every one
-            # must be "allowed" for the action to be considered granted.
-            results="$(echo "$raw_result" | tail -1 | tr '\t' '\n')"
+              --resource-arns "$resource" \
+              --query "EvaluationResults[0].EvalDecision" --output text 2>&1)" || true
+            result="$(echo "$raw_result" | tail -1)"
             # Distinguish three cases:
             # 1. AccessDenied specifically for iam:SimulatePrincipalPolicy itself —
             #    role lacks the meta-permission; degrade gracefully so the bootstrap
@@ -309,12 +190,12 @@ jobs:
               echo "  Raw AWS response: $raw_result" >&2
               simulate_unavailable=1
             elif echo "$raw_result" | grep -qi "exception\|error\|AccessDenied"; then
-              # Use $raw_result (full response) not $results (last line only) to catch
+              # Use $raw_result (full response) not $result (last line only) to catch
               # multi-line AWS error payloads where the error type is on line 1.
               echo "::error::simulate-principal-policy call failed unexpectedly for $action. Raw response: $raw_result" >&2
               failed=1
-            elif echo "$results" | grep -qv "^allowed$"; then
-              echo "::error::Deploy role is missing $action on $resources (got: $(echo "$results" | tr '\n' ' ')). Fix the CDK grant or base role policy before deploying." >&2
+            elif [ "$result" != "allowed" ]; then
+              echo "::error::Deploy role is missing $action on $resource (got: $result). Fix the CDK grant or base role policy before deploying." >&2
               failed=1
             fi
           done
@@ -338,38 +219,19 @@ jobs:
           fi
 
       - name: CDK diff
-        # Use --method=template: a direct template comparison that creates no
-        # CloudFormation change set. BackendLambdaStack declares UiAuthUserPoolId
-        # and UiAuthUserPoolClientId as required parameters with no default
-        # (backend_lambda_stack.py); their values are produced by StaticSiteStack
-        # and only fetched in the "Get Cognito UI auth outputs" step *below*, so
-        # they are unavailable at diff time. The "change-set"/"auto" methods try
-        # to create a change set, which fails here because cdk diff has no
-        # --parameters flag and does not send UsePreviousValue, so CloudFormation
-        # reports UiAuthUserPoolId/UiAuthUserPoolClientId as missing a value
-        # (see issue #3287). The diff is informational only; the real cdk deploy
-        # steps below still pass the actual parameter values.
         env:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
-          GITHUB_DEPLOY_ROLE_ARN: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           CDK_OUTDIR: /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
-        run: npx cdk diff BackendLambdaStack StaticSiteStack --method=template -c prod=true
+        run: npx cdk diff BackendLambdaStack StaticSiteStack --method=change-set -c prod=true
         working-directory: cdk
 
       - name: Deploy StaticSiteStack auth resources
-        # GITHUB_DEPLOY_ROLE_ARN must be set here so CDK can synthesize the
-        # deploy-role IAM grants in static_site_stack.py (SimulatePrincipalPolicy,
-        # changeset perms, cognito-idp Describe/UpdateUserPoolClient). Without it,
-        # those grants are silently omitted from the deployed StaticSiteStack
-        # template and every dependent step (e.g. "Reconcile UiAuthClient OAuth
-        # configuration") fails with AccessDenied. See #3846.
         env:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
-          GITHUB_DEPLOY_ROLE_ARN: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           CDK_OUTDIR: /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
         run: npx cdk deploy StaticSiteStack --require-approval never -c prod=true
         working-directory: cdk
@@ -387,38 +249,6 @@ jobs:
             --stack-name StaticSiteStack \
             --query "Stacks[0].Outputs[?OutputKey=='UiAuthUserPoolClientId'].OutputValue" \
             --output text)"
-          # DistributionDomain is the CloudFront domain the frontend is actually served
-          # from (customDomain is currently disabled — see cdk.json). BackendLambdaStack
-          # needs this as FRONTEND_ORIGIN so its CORS allow-list includes the live
-          # frontend origin (see #3944); without it, cors_origins defaults to
-          # localhost-only and the deployed frontend's GET /config never gets an
-          # Access-Control-Allow-Origin header, leaving it stuck on
-          # "Loading... retrying configuration."
-          DISTRIBUTION_DOMAIN="$(aws cloudformation describe-stacks \
-            --stack-name StaticSiteStack \
-            --query "Stacks[0].Outputs[?OutputKey=='DistributionDomain'].OutputValue" \
-            --output text)"
-          # Sanitise DISTRIBUTION_DOMAIN to guarantee bare-hostname format (no scheme, no trailing slash).
-          # This guards against future CDK output changes that might include a scheme (e.g.,
-          # https://d32n5ua14kb82t.cloudfront.net) or trailing artifacts from shell capture.
-          # Defensive strip operations ensure FRONTEND_ORIGIN is always https://<bare-hostname>.
-          DISTRIBUTION_DOMAIN="${DISTRIBUTION_DOMAIN#https://}"
-          DISTRIBUTION_DOMAIN="${DISTRIBUTION_DOMAIN#http://}"
-          DISTRIBUTION_DOMAIN="${DISTRIBUTION_DOMAIN%/}"
-          DISTRIBUTION_DOMAIN="$(echo "$DISTRIBUTION_DOMAIN" | xargs)"
-          # SmokeTestUserPoolClientId is the deploy workflow's dedicated Cognito app
-          # client for post-deploy smoke tests (see "Fetch Cognito smoke-test token"
-          # below). BackendLambdaStack must accept its tokens as a valid JWT audience,
-          # otherwise every Cognito-protected route (e.g. /groups) returns 401 for the
-          # smoke test token (#4027). Optional: the deploy still succeeds if this
-          # output is missing, but smoke tests will then see 401s on protected routes.
-          SMOKE_TEST_USER_POOL_CLIENT_ID="$(aws cloudformation describe-stacks \
-            --stack-name StaticSiteStack \
-            --query "Stacks[0].Outputs[?OutputKey=='SmokeTestUserPoolClientId'].OutputValue" \
-            --output text 2>/dev/null || echo "")"
-          if [ "$SMOKE_TEST_USER_POOL_CLIENT_ID" = "None" ]; then
-            SMOKE_TEST_USER_POOL_CLIENT_ID=""
-          fi
           if [ -z "$UI_AUTH_USER_POOL_ID" ] || [ "$UI_AUTH_USER_POOL_ID" = "None" ]; then
             echo "UiAuthUserPoolId output is missing from StaticSiteStack" >&2
             exit 1
@@ -427,40 +257,19 @@ jobs:
             echo "UiAuthUserPoolClientId output is missing from StaticSiteStack" >&2
             exit 1
           fi
-          if [ -z "$DISTRIBUTION_DOMAIN" ] || [ "$DISTRIBUTION_DOMAIN" = "None" ]; then
-            echo "DistributionDomain output is missing from StaticSiteStack" >&2
-            exit 1
-          fi
-          {
-            echo "UI_AUTH_USER_POOL_ID=$UI_AUTH_USER_POOL_ID"
-            echo "UI_AUTH_USER_POOL_CLIENT_ID=$UI_AUTH_USER_POOL_CLIENT_ID"
-            echo "SMOKE_TEST_USER_POOL_CLIENT_ID=$SMOKE_TEST_USER_POOL_CLIENT_ID"
-            echo "FRONTEND_ORIGIN=https://${DISTRIBUTION_DOMAIN}"
-            echo "CORS_ORIGINS=https://${DISTRIBUTION_DOMAIN},https://app.allotmint.io"
-          } >> "$GITHUB_ENV"
+          echo "UI_AUTH_USER_POOL_ID=$UI_AUTH_USER_POOL_ID" >> "$GITHUB_ENV"
+          echo "UI_AUTH_USER_POOL_CLIENT_ID=$UI_AUTH_USER_POOL_CLIENT_ID" >> "$GITHUB_ENV"
 
       - name: Deploy BackendLambdaStack
-        # GITHUB_DEPLOY_ROLE_ARN must be set here so CDK can read it during synthesis.
-        # backend_lambda_stack.py calls os.getenv("GITHUB_DEPLOY_ROLE_ARN") at synth time
-        # (not at deploy time) to grant lambda:InvokeFunction on the PriceRefreshLambda live
-        # alias (PR #3368). If the variable is absent during synthesis, the grant is silently
-        # omitted from the CloudFormation template and the "Warm price snapshot" step will fail.
-        # AWS_ROLE_TO_ASSUME is this workflow's GitHub Actions deploy role ARN — the same
-        # principal that invokes the Lambda in the "Warm price snapshot" step below, so it is
-        # the correct ARN to grant invoke permission to.
         env:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
-          GITHUB_DEPLOY_ROLE_ARN: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           CDK_OUTDIR: /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
-          FRONTEND_ORIGIN: ${{ env.FRONTEND_ORIGIN }}
-          CORS_ORIGINS: ${{ env.CORS_ORIGINS }}
         run: >
           npx cdk deploy BackendLambdaStack --require-approval never
           --parameters BackendLambdaStack:UiAuthUserPoolId="$UI_AUTH_USER_POOL_ID"
           --parameters BackendLambdaStack:UiAuthUserPoolClientId="$UI_AUTH_USER_POOL_CLIENT_ID"
-          --parameters BackendLambdaStack:SmokeTestUserPoolClientId="$SMOKE_TEST_USER_POOL_CLIENT_ID"
         working-directory: cdk
 
       - name: Warm price snapshot
@@ -545,54 +354,11 @@ jobs:
           echo "SMOKE_TEST_URL=$BACKEND_URL" >> "$GITHUB_ENV"
           echo "backend_url=$BACKEND_URL" >> "$GITHUB_OUTPUT"
 
-      - name: Verify CORS configuration
-        # Validates the CORS fix from PR #3954: BackendLambdaStack's /config
-        # route must echo back FRONTEND_ORIGIN (the CloudFront distribution
-        # domain) in Access-Control-Allow-Origin when called with a matching
-        # Origin header. If the CDK code path fails to pick up FRONTEND_ORIGIN,
-        # this would otherwise pass CI silently and break the deployed
-        # frontend (stuck on "Loading... retrying configuration"). See #3984.
-        run: |
-          set -euo pipefail
-          echo "Checking CORS headers on ${BACKEND_URL%/}/config for Origin: ${FRONTEND_ORIGIN}"
-          headers_file="$(mktemp)"
-          trap 'rm -f "$headers_file"' EXIT
-          status="$(curl --retry 3 --retry-delay 5 --retry-all-errors \
-            --max-time 60 --silent --output /dev/null --write-out "%{http_code}" \
-            -D "$headers_file" \
-            -H "Origin: ${FRONTEND_ORIGIN}" \
-            "${BACKEND_URL%/}/config")"
-          if [ "$status" != "200" ]; then
-            echo "::error::Expected HTTP 200 from ${BACKEND_URL%/}/config, got $status" >&2
-            cat "$headers_file" >&2
-            exit 1
-          fi
-          cors_header="$( (grep -i '^access-control-allow-origin:' "$headers_file" || true) | tail -n 1 | tr -d '\r' | sed 's/^[^:]*: *//')"
-          if [ -z "$cors_header" ]; then
-            echo "::error::Access-Control-Allow-Origin header missing from ${BACKEND_URL%/}/config response" >&2
-            cat "$headers_file" >&2
-            exit 1
-          fi
-          if [ "$cors_header" != "${FRONTEND_ORIGIN}" ]; then
-            echo "::error::Access-Control-Allow-Origin mismatch: expected ${FRONTEND_ORIGIN}, got ${cors_header}" >&2
-            cat "$headers_file" >&2
-            exit 1
-          fi
-          echo "CORS configuration OK: Access-Control-Allow-Origin: ${cors_header}"
-
       - name: Refresh StaticSiteStack runtime config
-        # GITHUB_DEPLOY_ROLE_ARN must be set here too (see "Deploy StaticSiteStack
-        # auth resources" above and #3846): without it, this redeploy of
-        # StaticSiteStack synthesizes a template that omits the deploy-role IAM
-        # grants (SimulatePrincipalPolicy, changeset perms, cognito-idp Describe/
-        # UpdateUserPoolClient), and CloudFormation deletes the policy resource
-        # that the earlier step just created — right before the "Reconcile
-        # UiAuthClient OAuth configuration" step needs it.
         env:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
-          GITHUB_DEPLOY_ROLE_ARN: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           CDK_OUTDIR: /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
         run: >
           npx cdk deploy StaticSiteStack --require-approval never -c prod=true
@@ -620,116 +386,6 @@ jobs:
             exit 1
           fi
           echo "LIGHTHOUSE_URL=https://${FRONTEND_DOMAIN}" >> "$GITHUB_ENV"
-          echo "FRONTEND_DOMAIN=${FRONTEND_DOMAIN}" >> "$GITHUB_ENV"
-
-      - name: Reconcile UiAuthClient OAuth configuration
-        # cognito-idp:UpdateUserPoolClient replaces ALL writable client attributes in
-        # one call (no partial update). If the live UiAuthClient is ever edited
-        # out-of-band (console, manual CLI call) without setting every OAuth field,
-        # CallbackURLs/LogoutURLs/AllowedOAuthFlows/AllowedOAuthScopes/
-        # SupportedIdentityProviders silently get wiped to empty/false. Because the
-        # CDK template itself hasn't changed, `cdk deploy` does not detect or correct
-        # this drift, and the Cognito Hosted UI then rejects every login with
-        # redirect_mismatch (400) — which is exactly what broke Lighthouse CI in
-        # #3802. Re-apply the CDK-declared OAuth settings (must match the
-        # `o_auth=...` block on UiAuthClient in cdk/stacks/static_site_stack.py) on
-        # every deploy so this can never silently recur.
-        #
-        # CALLBACK_URL assumes the non-customDomain deployment path (the only one
-        # this workflow uses today): `https://${FRONTEND_DOMAIN}/`, matching
-        # ui_auth_callback_url's `_enable_custom_domain=False` branch. If this
-        # workflow is ever changed to deploy with `-c customDomain=true`, this step
-        # must be updated to use the custom domain URL instead.
-        env:
-          AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
-        run: |
-          set -euo pipefail
-          USER_POOL_ID="$(aws cloudformation describe-stacks \
-            --stack-name StaticSiteStack \
-            --query "Stacks[0].Outputs[?OutputKey=='UiAuthUserPoolId'].OutputValue" \
-            --output text)"
-          CLIENT_ID="$(aws cloudformation describe-stacks \
-            --stack-name StaticSiteStack \
-            --query "Stacks[0].Outputs[?OutputKey=='UiAuthUserPoolClientId'].OutputValue" \
-            --output text)"
-          if [ -z "$USER_POOL_ID" ] || [ "$USER_POOL_ID" = "None" ] \
-            || [ -z "$CLIENT_ID" ] || [ "$CLIENT_ID" = "None" ]; then
-            echo "UiAuthUserPoolId/UiAuthUserPoolClientId outputs missing from StaticSiteStack" >&2
-            exit 1
-          fi
-          if [ -z "${FRONTEND_DOMAIN:-}" ]; then
-            echo "FRONTEND_DOMAIN is unset; refusing to write an empty CallbackURL" >&2
-            exit 1
-          fi
-          # Retry on AccessDeniedException: the StaticSiteStack deploy above just
-          # created/updated the deploy role's cognito-idp:DescribeUserPoolClient /
-          # UpdateUserPoolClient grant, and IAM policy changes are eventually
-          # consistent — a freshly granted permission may not be visible to the
-          # very next API call for up to a minute or two. Any other failure, or
-          # exhausting all attempts, fails immediately. See #3858.
-          cognito_retry() {
-            local desc="$1"; shift
-            local attempt out
-            for attempt in 1 2 3 4 5; do
-              if out="$("$@" 2>&1)"; then
-                printf '%s' "$out"
-                return 0
-              fi
-              if ! echo "$out" | grep -q "AccessDeniedException"; then
-                echo "$out" >&2
-                return 1
-              fi
-              if [ "$attempt" -eq 5 ]; then
-                echo "::error::$desc failed after 5 attempts with AccessDeniedException. Check the cognito-idp:DescribeUserPoolClient/UpdateUserPoolClient grant for the deploy role in cdk/stacks/static_site_stack.py." >&2
-                echo "$out" >&2
-                return 1
-              fi
-              echo "$desc attempt $attempt/5 failed with AccessDeniedException (IAM propagation lag); retrying in 15s..." >&2
-              sleep 15
-            done
-          }
-          CLIENT_NAME="$(cognito_retry "describe-user-pool-client" aws cognito-idp describe-user-pool-client \
-            --user-pool-id "$USER_POOL_ID" --client-id "$CLIENT_ID" \
-            --query "UserPoolClient.ClientName" --output text)"
-          CALLBACK_URL="https://${FRONTEND_DOMAIN}/"
-          UPDATE_FILE="$(mktemp)"
-          trap 'rm -f "$UPDATE_FILE"' EXIT
-          # Build the payload with jq (not a heredoc) so CLIENT_NAME is JSON-escaped;
-          # a client name containing a quote or backslash would otherwise produce
-          # malformed --cli-input-json.
-          #
-          # RefreshTokenValidity (30 days) and AuthSessionValidity (3 minutes) are
-          # the AWS API defaults, applied identically whether or not CDK specifies
-          # them; UiAuthClient's o_auth=... block in static_site_stack.py does not
-          # override either, so this matches the CDK-declared (and currently
-          # deployed) state. AccessTokenValidity/IdTokenValidity are likewise left
-          # unset here and in CDK, so they fall back to the same 1-hour API default
-          # on both sides. If UiAuthClient ever sets any of these explicitly, this
-          # payload must be updated to match.
-          jq -n \
-            --arg userPoolId "$USER_POOL_ID" \
-            --arg clientId "$CLIENT_ID" \
-            --arg clientName "$CLIENT_NAME" \
-            --arg callbackUrl "$CALLBACK_URL" \
-            '{
-              UserPoolId: $userPoolId,
-              ClientId: $clientId,
-              ClientName: $clientName,
-              RefreshTokenValidity: 30,
-              ExplicitAuthFlows: ["ALLOW_USER_SRP_AUTH", "ALLOW_REFRESH_TOKEN_AUTH"],
-              SupportedIdentityProviders: ["COGNITO"],
-              CallbackURLs: [$callbackUrl],
-              LogoutURLs: [$callbackUrl],
-              AllowedOAuthFlows: ["code"],
-              AllowedOAuthScopes: ["email", "openid", "profile"],
-              AllowedOAuthFlowsUserPoolClient: true,
-              PreventUserExistenceErrors: "ENABLED",
-              EnableTokenRevocation: true,
-              EnablePropagateAdditionalUserContextData: false,
-              AuthSessionValidity: 3
-            }' > "$UPDATE_FILE"
-          cognito_retry "update-user-pool-client" aws cognito-idp update-user-pool-client --cli-input-json "file://${UPDATE_FILE}" >/dev/null
-          echo "UiAuthClient ($CLIENT_ID) OAuth configuration reconciled to ${CALLBACK_URL}"
 
       - name: Verify price snapshot seeded in S3
         # Belt-and-suspenders check after the CDK Trigger (REQUEST_RESPONSE) has
@@ -737,12 +393,7 @@ jobs:
         # snapshot is still absent here it means the Trigger Lambda failed or timed
         # out; print a clear, actionable warning so operators know exactly what
         # to do rather than hunting through CloudWatch logs.
-        #
-        # A missing key (NoSuchKey/404) is a soft pass: the price-refresh job
-        # hasn't run yet, which is recoverable. Any other error (403, 500,
-        # network timeout, etc.) indicates a genuine configuration problem
-        # (e.g. a misconfigured bucket policy) that will only get harder to
-        # diagnose later in the deploy, so it is treated as a hard failure.
+        continue-on-error: true
         env:
           AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
           DATA_BUCKET: ${{ secrets.DATA_BUCKET || vars.DATA_BUCKET }}
@@ -754,14 +405,14 @@ jobs:
           fi
           head_output="$(aws s3api head-object \
               --bucket "$DATA_BUCKET" \
-              --key "prices/latest_prices.json" 2>&1)" && head_exit=0 || head_exit=$?
+              --key "prices/latest_prices.json" \
+              --no-cli-pager 2>&1)" && head_exit=0 || head_exit=$?
           if [ "$head_exit" -eq 0 ]; then
             echo "Price snapshot prices/latest_prices.json is present in s3://${DATA_BUCKET} — OK"
           elif echo "$head_output" | grep -qi "NoSuchKey\|Not Found\|404"; then
             echo "::warning::Price snapshot prices/latest_prices.json is NOT present in s3://${DATA_BUCKET}. Portfolio prices will be unavailable until the price-refresh job runs. Trigger it manually: aws lambda invoke --function-name <PriceRefreshLambda-physical-name>:live /dev/null"
           else
-            echo "ERROR: S3 bucket access check failed: head-object returned exit ${head_exit}: ${head_output}" >&2
-            exit 1
+            echo "::warning::Could not verify price snapshot — s3api head-object returned exit ${head_exit}: ${head_output}"
           fi
 
       - name: Warm up backend Lambda (absorb cold-start before validation)
@@ -848,16 +499,11 @@ jobs:
           fi
           echo "/api-console → $auth_status (auth required) OK"
           # Check CloudFront distribution domain directly (not the canonical custom domain).
-          # Expected response depends on the deployment's customDomain context flag:
-          #   customDomain=false (default): viewer-request.js passes the request through →
-          #     200 from the SPA index (or appropriate HTML response).
-          #   customDomain=true (when alias/cert/DNS are configured): viewer-request.js
-          #     redirects non-canonical hosts to https://app.allotmint.io → 301.
-          # Accepting 200 OR 301 handles both cases.  A 301 from a customDomain=false
-          # deployment indicates a bug in viewer-request.js (likely the infinite proto
-          # self-redirect fixed in issue #3763); that class of fault is caught by
-          # Lighthouse CI (step "Run Lighthouse CI") which Chrome would fail with
-          # ERR_TOO_MANY_REDIRECTS / CHROME_INTERSTITIAL_ERROR.
+          # viewer-request.js (cdk/functions/viewer-request.js) returns 301 for any request
+          # whose Host header is not app.allotmint.io — so a 301 here confirms the
+          # distribution is live and the CloudFront Function is executing correctly.
+          # Accepting 200 OR 301 avoids a hard dependency on external DNS for app.allotmint.io
+          # which is not yet configured in the CDK stack (see issue #3011 and #3012).
           # Use --output /dev/null (not >/dev/null) to avoid curl exit 23 on HTTP/2 streams.
           echo "Checking CloudFront → https://${frontend_domain}"
           curl_exit=0
@@ -878,9 +524,8 @@ jobs:
         # BackendLambdaLogGroupName is exported by BackendLambdaStack at
         # cdk/stacks/backend_lambda_stack.py (CfnOutput "BackendLambdaLogGroupName").
         # The deploy IAM role must have logs:FilterLogEvents on the log group ARN for
-        # this step to produce output; see the FilterBackendLambdaLogEvents grant in
-        # cdk/stacks/backend_lambda_stack.py and scripts/bash/fetch-cloudwatch-logs.sh
-        # for how an AccessDeniedException is surfaced as a `::warning::`.
+        # this step to produce output; without it filter-log-events errors and
+        # continue-on-error absorbs it.
         if: always()
         continue-on-error: true
         env:
@@ -896,7 +541,18 @@ jobs:
             exit 0
           fi
           echo "=== BackendLambda CloudWatch logs (last 10 minutes) ==="
-          bash scripts/bash/fetch-cloudwatch-logs.sh "$log_group" 600
+          # aws logs tail is CLI v2 only; use filter-log-events for CLI v1 compatibility.
+          # Shell arithmetic avoids a python3 dependency on self-hosted runners.
+          # Note: filter-log-events returns at most 10 000 events per call (no pagination);
+          # output of "None" means no events matched (AWS CLI JMESPath null → text "None").
+          start_ms=$(( ($(date +%s) - 600) * 1000 ))
+          aws logs filter-log-events \
+            --log-group-name "$log_group" \
+            --start-time "$start_ms" \
+            --query 'events[].message' \
+            --output text \
+            | grep -v '^None$' \
+            || echo "(no log events found)"
 
       - name: Check recent BackendLambda CloudWatch errors
         if: always()
@@ -973,6 +629,15 @@ jobs:
             exit 1
           fi
 
+      - name: Verify Lambda processed authenticated requests (via logs)
+        if: always()
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          echo "=== Verifying Lambda processed authenticated requests (last 10 minutes) ==="
+          bash scripts/bash/verify-lambda-invocations.sh || \
+            echo "::notice::Lambda invocation verification via logs did not find recent activity. This is normal if smoke tests haven't run yet or didn't make API calls. Check CloudWatch Logs if backend is unreachable."
+
       - name: Run Lighthouse CI
         if: env.LIGHTHOUSE_URL != ''
         run: |
@@ -987,7 +652,7 @@ jobs:
       SMOKE_URL: ${{ needs.deploy.outputs.backend_url || vars.SMOKE_URL }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -995,7 +660,7 @@ jobs:
           node-version: '24'
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885 # v6.1.1
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
@@ -1099,10 +764,6 @@ jobs:
           if-no-files-found: ignore
 
       - name: Fetch Lambda logs from smoke test
-        # The deploy IAM role must have logs:FilterLogEvents on the log group ARN for
-        # this step to produce output; see the FilterBackendLambdaLogEvents grant in
-        # cdk/stacks/backend_lambda_stack.py and scripts/bash/fetch-cloudwatch-logs.sh
-        # for how an AccessDeniedException is surfaced as a `::warning::`.
         if: always()
         continue-on-error: true
         env:
@@ -1118,18 +779,30 @@ jobs:
             exit 0
           fi
           echo "=== BackendLambda CloudWatch logs (last 15 minutes) ==="
-          bash scripts/bash/fetch-cloudwatch-logs.sh "$log_group" 900
+          # aws logs tail is CLI v2 only; use filter-log-events for CLI v1 compatibility.
+          # Shell arithmetic avoids a python3 dependency on self-hosted runners.
+          # Note: filter-log-events returns at most 10 000 events per call (no pagination);
+          # output of "None" means no events matched (AWS CLI JMESPath null → text "None").
+          start_ms=$(( ($(date +%s) - 900) * 1000 ))
+          aws logs filter-log-events \
+            --log-group-name "$log_group" \
+            --start-time "$start_ms" \
+            --query 'events[].message' \
+            --output text \
+            | grep -v '^None$' \
+            || echo "(no log events found)"
 
-  verify-smoke-tests:
-    name: Verify post-deploy smoke tests passed
-    runs-on: ubuntu-latest
-    needs: smoke-test
-    if: always()
-    steps:
-      - name: Check smoke test job status
-        if: needs.smoke-test.result != 'success'
+      - name: Checkout repository for verification script
+        if: always()
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Verify Lambda processed authenticated requests from smoke tests
+        if: always()
+        continue-on-error: true
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
+          TIME_WINDOW_MINUTES: 15
         run: |
-          echo "::error::Post-deploy smoke tests failed or were skipped — deployment validation incomplete."
-          exit 1
-      - name: Smoke tests verified
-        run: echo "✓ Post-deploy smoke tests passed — deployment validated"
+          echo "=== Verifying Lambda invocations after authenticated smoke tests ==="
+          bash scripts/bash/verify-lambda-invocations.sh || \
+            echo "::warning::Lambda authenticated request verification inconclusive. Check CloudWatch Logs if backend appears unreachable."

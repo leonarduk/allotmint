@@ -10,10 +10,13 @@ Build rich "portfolio" dictionaries that the rest of the backend expects.
 
 import json
 import logging
+import re
 from collections import defaultdict
 from datetime import date
 from pathlib import Path
 from typing import Any, cast
+
+_ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 from backend.common.data_loader import (
     list_plots,  # owner -> ["isa", "sipp", ...]
@@ -150,6 +153,10 @@ def rebuild_account_holdings(
         log.error("Failed to read %s: %s", sanitise_log_value(tx_path), sanitise_log_value(exc))
         return {}
 
+    if not isinstance(tx_data, dict):
+        log.error("Malformed transaction file %s: expected object, got %s", sanitise_log_value(tx_path), type(tx_data).__name__)
+        return {}
+
     out = compute_holdings_from_transactions(tx_data, owner, account)
 
     try:
@@ -217,10 +224,14 @@ def compute_holdings_from_transactions(
         ticker = (t.get("ticker") or "").upper()
 
         if ttype in TYPE_SIGN and ticker:
-            raw = t.get("shares") or t.get("quantity")
+            raw = next(
+                (t[k] for k in ("shares", "quantity", "units") if k in t and t[k] is not None),
+                None,
+            )
             try:
-                qty = float(raw or 0.0)
+                qty = float(raw) if isinstance(raw, (int, float, str)) else 0.0
             except (TypeError, ValueError):
+                log.warning("Skipping unparseable quantity for ticker=%s raw=%r", sanitise_log_value(ticker), raw)
                 continue
             if abs(qty) > 1_000_000:  # detect PP's 1e8 scaling
                 qty /= SHARE_SCALE
@@ -228,16 +239,21 @@ def compute_holdings_from_transactions(
             ledger[ticker] += qty
 
             if ttype in {"BUY", "PURCHASE", "TRANSFER_IN"}:
-                d = (t.get("date") or "")[:10]
-                if d and (not acquisition.get(ticker) or d > acquisition[ticker]):
-                    acquisition[ticker] = d
+                d_raw = str(t.get("date") or "")[:10]
+                if _ISO_DATE_RE.match(d_raw):
+                    if not acquisition.get(ticker) or d_raw > acquisition[ticker]:
+                        acquisition[ticker] = d_raw
+                elif d_raw:
+                    log.warning("Skipping non-ISO date for ticker=%s date=%r", sanitise_log_value(ticker), d_raw)
 
         elif ttype in CASH_SIGNS:
+            amount_minor = t.get("amount_minor")
             try:
-                amt = float(t.get("amount_minor") or 0.0) / 100.0
+                amt = float(amount_minor) if isinstance(amount_minor, (int, float, str)) else 0.0
             except (TypeError, ValueError):
+                log.warning("Skipping unparseable amount_minor for ttype=%s raw=%r", ttype, amount_minor)
                 continue
-            ledger["CASH.GBP"] += amt * CASH_SIGNS[ttype]
+            ledger["CASH.GBP"] += (amt / 100.0) * CASH_SIGNS[ttype]
 
     holdings: list[dict[str, object]] = []
     for tick, qty in ledger.items():

@@ -144,7 +144,7 @@ export function Portfolio() {
             <p className="mt-2 text-sm text-gray-400">{t("owner.select")}</p>
           )}
         </div>
-        <PortfolioView data={data} loading={loading} error={error} onAccountAdded={reloadPortfolio} />
+        <PortfolioView data={data} loading={loading} error={error} onAccountAdded={reloadPortfolio} onPositionAdded={reloadPortfolio} />
       </div>
     </>
   );

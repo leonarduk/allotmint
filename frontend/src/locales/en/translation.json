@@ -1,4 +1,26 @@
 {
+  "addPosition": {
+    "title": "Add position",
+    "account": "Account",
+    "ticker": "Ticker",
+    "amountMode": "Amount",
+    "unitsAndPrice": "Units + price",
+    "valueGbp": "Value (GBP)",
+    "units": "Units",
+    "priceGbp": "Price (GBP)",
+    "value": "Value (GBP)",
+    "submit": "Add position",
+    "submitting": "Adding…",
+    "success": "Position added.",
+    "errors": {
+      "tickerRequired": "Ticker is required.",
+      "accountRequired": "Select an account.",
+      "amountRequired": "Provide either a value, or both units and price.",
+      "positiveNumber": "Enter a positive number.",
+      "generic": "Failed to add position."
+    },
+    "emptyAccountCta": "Add your first position"
+  },
   "alertSettings": {
     "description": "Configure when you'll receive alerts. Alerts appear on the Alerts page and in push notifications.",
     "push": {

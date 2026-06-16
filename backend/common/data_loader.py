@@ -1074,13 +1074,20 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
             local_root = None
 
     explicit_local_fallback = data_root is not None
-    has_local_fallback = local_root is not None
     bucket = os.getenv(DATA_BUCKET_ENV)
 
     if config.app_env == "aws" or bucket:
         try:
             return S3DataProvider().load_person_meta(owner).metadata
         except MissingData:
+            logger.debug(
+                "data_loader.person_meta_missing",
+                extra={
+                    "event": "data_loader.person_meta_missing",
+                    "owner": sanitise_log_value(owner),
+                    "provider": "s3",
+                },
+            )
             return {}
         except InvalidPayload:
             # person.json is optional metadata — a malformed file degrades gracefully.
@@ -1100,7 +1107,7 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
                 extra={
                     "event": "data_loader.person_meta_provider_unavailable",
                     "owner": sanitise_log_value(owner),
-                    "fallback_to_local": has_local_fallback,
+                    "fallback_to_local": explicit_local_fallback,
                     "provider": "s3",
                 },
                 exc_info=True,

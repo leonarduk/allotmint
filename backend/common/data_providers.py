@@ -205,5 +205,5 @@ def _extract_person_meta(data: Dict[str, Any]) -> Dict[str, Any]:
         if key in data:
             meta[key] = data[key]
     if "viewers" in meta and not isinstance(meta["viewers"], list):
-        return {}
+        del meta["viewers"]  # drop invalid viewers field; preserve other valid keys
     return meta

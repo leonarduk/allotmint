@@ -487,9 +487,11 @@ def test_load_person_meta_s3_unavailable_falls_back_to_local(
     assert any("person_meta_provider_unavailable" in r.getMessage() for r in caplog.records)
 
 
-def test_extract_person_meta_non_list_viewers_returns_empty(monkeypatch):
-    """_extract_person_meta in data_providers returns {} when viewers is not a list."""
+def test_extract_person_meta_non_list_viewers_drops_key_preserves_rest(monkeypatch):
+    """_extract_person_meta drops viewers when not a list but keeps other valid keys."""
     from backend.common.data_providers import _extract_person_meta
+    # Non-list viewers: key is dropped, other valid fields are preserved.
+    assert _extract_person_meta({"viewers": "bad", "dob": "1980"}) == {"dob": "1980"}
     assert _extract_person_meta({"viewers": "bad"}) == {}
     assert _extract_person_meta({"viewers": ["ok"]}) == {"viewers": ["ok"]}
     assert _extract_person_meta({"dob": "1980"}) == {"dob": "1980"}

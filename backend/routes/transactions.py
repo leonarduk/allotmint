@@ -214,6 +214,12 @@ class ManualHoldingCreate(BaseModel):
     currency: str | None = None
 
 
+class AccountCreate(BaseModel):
+    owner: str
+    account_type: str
+    currency: str | None = None
+
+
 def _normalise_account_file_name(account: str) -> str:
     return account.strip().lower()
 
@@ -524,7 +530,14 @@ def _validate_component(value: str, field: str) -> str:
 
 @router.post("/transactions", status_code=201)
 async def create_transaction(request: Request, tx: TransactionCreate) -> dict:
-    """Store a new transaction and return it."""
+    """Store a new transaction and return it.
+
+    If the owner does not yet have a writable account root, one is created
+    implicitly via :meth:`~backend.common.accounts_store.AccountsStore.ensure_owner`.
+    There is no separate account-creation endpoint; see
+    :mod:`backend.common.signup_provision` for the admin-approval provisioning
+    path that runs before any user write.
+    """
 
     store = _require_writable_store(request)
 
@@ -705,6 +718,14 @@ async def import_holdings(
 
 @router.post("/holdings/manual")
 async def create_manual_holding(request: Request, payload: ManualHoldingCreate) -> dict[str, Any]:
+    """Create a manual holding for the authenticated owner.
+
+    If the owner does not yet have a writable account root, one is created
+    implicitly via :meth:`~backend.common.accounts_store.AccountsStore.ensure_owner`.
+    There is no separate account-creation endpoint; see
+    :mod:`backend.common.signup_provision` for the admin-approval provisioning
+    path that runs before any user write.
+    """
     _validate_manual_holding_payload(payload)
     owner = _validate_component(payload.owner, "owner")
     account = _validate_component(payload.account, "account")
@@ -744,6 +765,44 @@ async def create_manual_holding(request: Request, payload: ManualHoldingCreate) 
         "owner": owner,
         "account": account_slug,
         "holding": holding,
+    }
+
+
+@router.post("/accounts", status_code=201)
+async def create_account(request: Request, payload: AccountCreate) -> dict[str, Any]:
+    """Create an empty named portfolio account for ``payload.owner``.
+
+    Produces a skeleton ``{account_type}.json`` document (owner, account_type,
+    currency, empty holdings) without requiring a holding to be added first.
+    Returns 409 if an account of that type already exists for the owner.
+    """
+
+    owner = _validate_component(payload.owner, "owner")
+    account_type = _validate_component(payload.account_type, "account_type")
+    account_slug = _normalise_account_file_name(account_type)
+    filename = f"{account_slug}.json"
+    if _is_non_holdings_file(filename):
+        raise HTTPException(status_code=400, detail="Invalid account_type")
+
+    store = _require_writable_store(request)
+
+    if store.read_document(owner, filename) is not None:
+        raise HTTPException(status_code=409, detail="Account already exists")
+
+    store.ensure_owner(owner)
+    currency = (payload.currency or "GBP").strip().upper() or "GBP"
+
+    with _locked_account_holdings_data(owner, account_slug, store) as (account_payload, _):
+        account_payload["owner"] = owner
+        account_payload["account_type"] = account_slug
+        account_payload["currency"] = currency
+        account_payload["last_updated"] = date.today().isoformat()
+
+    return {
+        "status": "created",
+        "owner": owner,
+        "account": account_slug,
+        "currency": currency,
     }
 
 

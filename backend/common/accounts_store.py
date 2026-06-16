@@ -206,6 +206,18 @@ class LocalAccountsStore:
             yield owner, account_raw, data
 
     def ensure_owner(self, owner: str) -> None:
+        """Implicit account-creation path for the local/file-backed store.
+
+        Scaffolds a minimal owner directory (person.json with holdings and
+        viewers keys) the first time a write endpoint is called for an owner
+        that does not yet exist.  This is **not** the only creation path: when
+        an admin approves a signup request,
+        :func:`backend.common.compliance.ensure_owner_scaffold` is used
+        instead, which also records the owner's email so that
+        :func:`backend.auth._allowed_emails` admits them at login — before any
+        write is made.  Do not call directly unless you understand the full
+        account-creation lifecycle.
+        """
         if self.is_global or self.root is None:
             return
         if self.read_document(owner, "person.json") is not None:
@@ -322,6 +334,18 @@ class S3AccountsStore:
             yield str(data.get("owner") or owner), account_raw, data
 
     def ensure_owner(self, owner: str) -> None:
+        """Implicit account-creation path for the S3-backed store.
+
+        Scaffolds a minimal owner directory (person.json with holdings and
+        viewers keys) the first time a write endpoint is called for an owner
+        that does not yet exist.  This is **not** the only creation path: when
+        an admin approves a signup request,
+        :func:`backend.common.compliance.ensure_owner_scaffold` is used
+        instead, which also records the owner's email so that
+        :func:`backend.auth._allowed_emails` admits them at login — before any
+        write is made.  Do not call directly unless you understand the full
+        account-creation lifecycle.
+        """
         if self.read_document(owner, "person.json") is not None:
             return
         with self.edit_document(owner, "person.json", default=_default_person_payload(owner)) as data:

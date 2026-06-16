@@ -87,7 +87,7 @@ export function Portfolio() {
     }
   }, [owners, activeOwner, handleOwnerChange]);
 
-  useEffect(() => {
+  const reloadPortfolio = useCallback(() => {
     if (!activeOwner) {
       setData(null);
       setError(null);
@@ -96,7 +96,6 @@ export function Portfolio() {
     }
     setLoading(true);
     setError(null);
-    setData(null);
     getPortfolio(activeOwner)
       .then((d) => {
         setData(d);
@@ -106,15 +105,10 @@ export function Portfolio() {
       .finally(() => setLoading(false));
   }, [activeOwner]);
 
-  const refreshPortfolio = useCallback(() => {
-    if (!activeOwner) return;
-    getPortfolio(activeOwner)
-      .then((d) => {
-        setData(d);
-        setError(null);
-      })
-      .catch(() => setError("Failed to load portfolio"));
-  }, [activeOwner]);
+  useEffect(() => {
+    setData(null);
+    reloadPortfolio();
+  }, [reloadPortfolio]);
 
   return (
     <>
@@ -150,7 +144,7 @@ export function Portfolio() {
             <p className="mt-2 text-sm text-gray-400">{t("owner.select")}</p>
           )}
         </div>
-        <PortfolioView data={data} loading={loading} error={error} onPositionAdded={refreshPortfolio} />
+        <PortfolioView data={data} loading={loading} error={error} onAccountAdded={reloadPortfolio} />
       </div>
     </>
   );

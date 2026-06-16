@@ -459,6 +459,42 @@ def test_load_person_meta_boto_failure(monkeypatch, cleanup_boto3_module):
     assert dl.load_person_meta("Alice") == {}
 
 
+def test_load_person_meta_s3_unavailable_falls_back_to_local(
+    tmp_path, monkeypatch, caplog, cleanup_boto3_module
+):
+    """When S3 is unavailable but an explicit local fallback exists, local metadata is returned."""
+    monkeypatch.setattr(dl.config, "app_env", "aws", raising=False)
+    monkeypatch.setenv(dl.DATA_BUCKET_ENV, "bucket")
+
+    owner_dir = tmp_path / "Alice"
+    owner_dir.mkdir()
+    (owner_dir / "person.json").write_text('{"full_name": "Alice Local"}')
+
+    def fake_client(name):
+        assert name == "s3"
+
+        def get_object(Bucket, Key):
+            raise RuntimeError("boom")
+
+        return SimpleNamespace(get_object=get_object)
+
+    monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=fake_client))
+
+    with caplog.at_level(logging.WARNING):
+        result = dl.load_person_meta("Alice", data_root=tmp_path)
+
+    assert result.get("full_name") == "Alice Local"
+    assert any("person_meta_provider_unavailable" in r.getMessage() for r in caplog.records)
+
+
+def test_extract_person_meta_non_list_viewers_returns_empty(monkeypatch):
+    """_extract_person_meta in data_providers returns {} when viewers is not a list."""
+    from backend.common.data_providers import _extract_person_meta
+    assert _extract_person_meta({"viewers": "bad"}) == {}
+    assert _extract_person_meta({"viewers": ["ok"]}) == {"viewers": ["ok"]}
+    assert _extract_person_meta({"dob": "1980"}) == {"dob": "1980"}
+
+
 def test_list_plots_delegates_to_aws(monkeypatch):
     monkeypatch.setattr(dl.config, "app_env", "aws", raising=False)
 

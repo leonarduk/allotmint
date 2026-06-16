@@ -70,6 +70,19 @@ def test_require_writable_store_rejects_matching_global_root(monkeypatch, tmp_pa
     assert excinfo.value.detail == "Accounts root not configured"
 
 
+def test_require_writable_store_rejects_no_accounts_root(monkeypatch):
+    """When no accounts root is configured at all, prompt the user to create an account."""
+    request = _build_request()
+
+    monkeypatch.setattr(transactions_module.config, "accounts_root", None)
+
+    with pytest.raises(HTTPException) as excinfo:
+        transactions_module._require_writable_store(request)
+
+    assert excinfo.value.status_code == 400
+    assert "Create an account" in excinfo.value.detail
+
+
 @pytest.mark.parametrize("state_global_flag", [False, True])
 def test_require_writable_store_rejects_invalid_resolution(
     monkeypatch, tmp_path, state_global_flag

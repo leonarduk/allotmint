@@ -6,8 +6,8 @@ import os
 import re
 from collections import defaultdict
 from contextlib import contextmanager
-from enum import Enum, auto
 from datetime import date, datetime
+from enum import Enum, auto
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Mapping, Optional, Tuple
 
@@ -136,8 +136,10 @@ def _resolve_local_root(request: Request) -> Tuple[Optional[Path], _RootResoluti
     return resolved, _RootResolution.WRITABLE
 
 
-def resolve_writable_store(request: Request) -> "AccountsStore":
-    """Return the writable account-document store for ``request``.
+def resolve_writable_store(
+    request: Request,
+) -> "tuple[AccountsStore, _RootResolution]":
+    """Return ``(store, kind)`` for ``request``.
 
     In the deployed AWS environment writes target a dedicated, non-global S3
     prefix (separate from the read-only ``accounts/`` demo data).  Locally the
@@ -147,33 +149,28 @@ def resolve_writable_store(request: Request) -> "AccountsStore":
     if getattr(config, "app_env", None) == "aws":
         bucket = os.getenv(data_loader.DATA_BUCKET_ENV)
         if bucket:
-            return S3AccountsStore(bucket=bucket)
+            return S3AccountsStore(bucket=bucket), _RootResolution.WRITABLE
     root, kind = _resolve_local_root(request)
     is_global = kind is not _RootResolution.WRITABLE
-    return LocalAccountsStore(root=root, is_global=is_global)
+    return LocalAccountsStore(root=root, is_global=is_global), kind
 
 
 def _store_disabled_detail(kind: _RootResolution, *, root: Optional[Path] = None) -> str:
-    """Return the 400 detail for a write against a non-writable store.
-
-    Uses the ``_RootResolution`` enum as the primary discriminator, with
-    ``root`` as a secondary check: ``NONE`` with a non-``None`` root means
-    a path was resolved but doesn't exist (genuine misconfiguration), not
-    "no root configured at all".
-    """
+    """Return the 400 detail for a write against a non-writable store."""
     if kind is _RootResolution.NONE and root is None:
         return (
             "Create an account to enable manual holdings and "
             "transaction writes."
         )
+    if kind is _RootResolution.GLOBAL_READONLY:
+        return "Accounts root not configured"
     return "Accounts root not configured"
 
 
 def _require_writable_store(request: Request) -> "AccountsStore":
     """Resolve the writable store, raising a clear 400 when writes are disabled."""
-    store = resolve_writable_store(request)
+    store, kind = resolve_writable_store(request)
     if getattr(store, "is_global", False):
-        _, kind = _resolve_local_root(request)
         raise HTTPException(
             status_code=400,
             detail=_store_disabled_detail(kind, root=getattr(store, "local_root", None)),
@@ -499,7 +496,7 @@ async def transactions_with_compliance(
 ):
     """Return transactions for ``owner`` annotated with compliance warnings."""
 
-    store = resolve_writable_store(request)
+    store, _ = resolve_writable_store(request)
     txs = [t.model_dump() for t in _load_all_transactions(store) if t.owner.lower() == owner.lower()]
     if account:
         txs = [t for t in txs if (t.get("account") or "").lower() == account.lower()]
@@ -817,7 +814,7 @@ async def list_manual_holdings(
     owner: str,
 ) -> dict[str, Any]:
     owner_name = _validate_component(owner, "owner")
-    store = resolve_writable_store(request)
+    store, _ = resolve_writable_store(request)
 
     # Merge the read-only global/demo dataset with the writable store, with
     # writable documents taking precedence per account slug.  Reads therefore
@@ -865,7 +862,7 @@ async def list_transactions(
     start_d = _parse_date(start)
     end_d = _parse_date(end)
 
-    store = resolve_writable_store(request)
+    store, _ = resolve_writable_store(request)
     txs: List[Transaction] = []
     for t in _load_all_transactions(store):
         if owner and t.owner.lower() != owner.lower():
@@ -903,7 +900,7 @@ async def list_dividends(
         fallback=getattr(config, "offline_fundamentals_ticker", None),
     )
 
-    store = resolve_writable_store(request)
+    store, _ = resolve_writable_store(request)
     txs: List[Transaction] = []
     for t in _load_all_transactions(store):
         ttype = (t.type or "").upper()

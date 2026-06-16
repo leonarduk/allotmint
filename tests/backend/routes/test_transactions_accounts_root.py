@@ -65,8 +65,39 @@ def test_require_writable_store_rejects_matching_global_root(monkeypatch, tmp_pa
         transactions_module._require_writable_store(request)
 
     assert excinfo.value.status_code == 400
-    # Resolves to the shared/global demo root -> read-only-by-design message.
-    assert "read-only" in excinfo.value.detail
+    # Resolves to the shared/global demo root -> accounts root not configured
+    # for writes (user is pointed at the read-only demo dataset).
+    assert excinfo.value.detail == "Accounts root not configured"
+
+
+def test_require_writable_store_rejects_no_accounts_root(monkeypatch):
+    """When no accounts root is configured at all, prompt the user to create an account."""
+    request = _build_request()
+
+    monkeypatch.setattr(transactions_module.config, "accounts_root", None)
+
+    with pytest.raises(HTTPException) as excinfo:
+        transactions_module._require_writable_store(request)
+
+    assert excinfo.value.status_code == 400
+    assert "Create an account" in excinfo.value.detail
+
+
+def test_require_writable_store_rejects_nonexistent_configured_root(monkeypatch, tmp_path):
+    """Configured root that doesn't exist yet should also prompt to create an account."""
+    request = _build_request()
+
+    monkeypatch.setattr(
+        transactions_module.config,
+        "accounts_root",
+        str(tmp_path / "nonexistent"),
+    )
+
+    with pytest.raises(HTTPException) as excinfo:
+        transactions_module._require_writable_store(request)
+
+    assert excinfo.value.status_code == 400
+    assert "Create an account" in excinfo.value.detail
 
 
 @pytest.mark.parametrize("state_global_flag", [False, True])

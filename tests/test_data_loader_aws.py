@@ -435,11 +435,16 @@ def test_load_person_meta_from_s3(monkeypatch):
     assert dl.load_person_meta("Bob") == {}
 
 
-def test_load_person_meta_missing_bucket(monkeypatch, cleanup_boto3_module):
+def test_load_person_meta_missing_bucket(monkeypatch, cleanup_boto3_module, caplog):
+    """AWS mode with no bucket set must silently return {} with no warning logged."""
     monkeypatch.setattr(dl.config, "app_env", "aws", raising=False)
     monkeypatch.delenv(dl.DATA_BUCKET_ENV, raising=False)
 
-    assert dl.load_person_meta("Alice") == {}
+    with caplog.at_level(logging.WARNING):
+        result = dl.load_person_meta("Alice")
+
+    assert result == {}
+    assert not any(r.levelno >= logging.WARNING for r in caplog.records)
 
 
 def test_load_person_meta_boto_failure(monkeypatch, cleanup_boto3_module):

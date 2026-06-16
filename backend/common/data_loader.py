@@ -1077,6 +1077,10 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
     bucket = os.getenv(DATA_BUCKET_ENV)
 
     if config.app_env == "aws" or bucket:
+        if not bucket and not explicit_local_fallback:
+            # AWS mode with no bucket configured and no explicit local root: nothing to load.
+            # Silently return {} to match pre-PR behaviour (no warning noise on misconfigured envs).
+            return {}
         try:
             return S3DataProvider().load_person_meta(owner).metadata
         except MissingData:

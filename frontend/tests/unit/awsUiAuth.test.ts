@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearCognitoSession, ensureAwsUiAuth, extractTokenExchangeErrorReason, getCognitoSessionExpiresAt, getStoredCognitoAccessToken, getStoredCognitoIdToken, refreshCognitoSession, UserCancelledError } from '@/awsUiAuth';
+import { clearCognitoSession, ensureAwsUiAuth, extractTokenExchangeErrorReason, getCognitoSessionExpiresAt, getStoredCognitoAccessToken, getStoredCognitoIdToken, refreshCognitoSession, signInWithCognito, UserCancelledError } from '@/awsUiAuth';
 
 const assignMock = vi.fn();
 
@@ -40,16 +40,10 @@ describe('ensureAwsUiAuth', () => {
     expect(assignMock).not.toHaveBeenCalled();
   });
 
-  it('redirects to Cognito when enabled is the string "true"', async () => {
-    vi.spyOn(crypto, 'getRandomValues').mockImplementation((array) => {
-      (array as Uint8Array).fill(1);
-      return array;
-    });
-    vi.spyOn(crypto.subtle, 'digest').mockResolvedValue(new Uint8Array(32).buffer);
-
+  it('returns true without redirecting when enabled is the string "true" and no session', async () => {
     const result = await ensureAwsUiAuth({ ...AUTH_CONFIG, enabled: 'true' });
-    expect(result).toBe(false);
-    expect(assignMock).toHaveBeenCalledTimes(1);
+    expect(result).toBe(true);
+    expect(assignMock).not.toHaveBeenCalled();
   });
 
   it('throws when enabled but domain is missing', async () => {
@@ -64,43 +58,9 @@ describe('ensureAwsUiAuth', () => {
     ).rejects.toThrow('AWS UI authentication is enabled but not configured');
   });
 
-  it('redirects enabled unauthenticated users to the Cognito hosted UI', async () => {
-    vi.spyOn(crypto, 'getRandomValues').mockImplementation((array) => {
-      const bytes = array as Uint8Array;
-      bytes.fill(1);
-      return array;
-    });
-    vi.spyOn(crypto.subtle, 'digest').mockResolvedValue(
-      new Uint8Array(32).buffer
-    );
-
-    await expect(ensureAwsUiAuth(AUTH_CONFIG)).resolves.toBe(false);
-
-    expect(assignMock).toHaveBeenCalledTimes(1);
-    const target = new URL(assignMock.mock.calls[0][0]);
-    expect(target.origin).toBe('https://auth.example.test');
-    expect(target.pathname).toBe('/oauth2/authorize');
-    expect(target.searchParams.get('response_type')).toBe('code');
-    expect(target.searchParams.get('client_id')).toBe('client123');
-    expect(target.searchParams.get('redirect_uri')).toBe(
-      'https://app.example.test/'
-    );
-    expect(target.searchParams.get('scope')).toBe('openid email profile');
-  });
-
-  it('uses a configured redirectPath in the hosted UI redirect URL', async () => {
-    vi.spyOn(crypto, 'getRandomValues').mockImplementation((array) => {
-      (array as Uint8Array).fill(1);
-      return array;
-    });
-    vi.spyOn(crypto.subtle, 'digest').mockResolvedValue(new Uint8Array(32).buffer);
-
-    await ensureAwsUiAuth({ ...AUTH_CONFIG, redirectPath: '/callback' });
-
-    const target = new URL(assignMock.mock.calls[0][0]);
-    expect(target.searchParams.get('redirect_uri')).toBe(
-      'https://app.example.test/callback'
-    );
+  it('does not auto-redirect unauthenticated users — returns true to let React mount', async () => {
+    await expect(ensureAwsUiAuth(AUTH_CONFIG)).resolves.toBe(true);
+    expect(assignMock).not.toHaveBeenCalled();
   });
 
   it('skips redirect when a valid session is already stored', async () => {
@@ -126,21 +86,15 @@ describe('ensureAwsUiAuth', () => {
     expect(assignMock).not.toHaveBeenCalled();
   });
 
-  it('redirects back to Cognito when session is expired', async () => {
-    vi.spyOn(crypto, 'getRandomValues').mockImplementation((array) => {
-      (array as Uint8Array).fill(1);
-      return array;
-    });
-    vi.spyOn(crypto.subtle, 'digest').mockResolvedValue(new Uint8Array(32).buffer);
-
+  it('returns true without redirecting when session is expired', async () => {
     window.sessionStorage.setItem(
       'awsUiAuthSession',
       JSON.stringify({ idToken: 'tok', expiresAt: Date.now() - 1000 })
     );
 
     const result = await ensureAwsUiAuth(AUTH_CONFIG);
-    expect(result).toBe(false);
-    expect(assignMock).toHaveBeenCalledTimes(1);
+    expect(result).toBe(true);
+    expect(assignMock).not.toHaveBeenCalled();
   });
 
   it('throws UserCancelledError and cleans up URL when user cancels (access_denied)', async () => {
@@ -333,6 +287,49 @@ describe('ensureAwsUiAuth', () => {
         'AWS UI authentication token exchange failed: HTTP 500'
       );
     });
+  });
+});
+
+describe('signInWithCognito', () => {
+  const setupCrypto = () => {
+    vi.spyOn(crypto, 'getRandomValues').mockImplementation((array) => {
+      (array as Uint8Array).fill(1);
+      return array;
+    });
+    vi.spyOn(crypto.subtle, 'digest').mockResolvedValue(new Uint8Array(32).buffer);
+  };
+
+  it('is a no-op when awsUiAuth is disabled', async () => {
+    await signInWithCognito({ enabled: false, domain: 'auth.example.test', clientId: 'client123' });
+    expect(assignMock).not.toHaveBeenCalled();
+  });
+
+  it('throws when enabled but config is incomplete', async () => {
+    await expect(
+      signInWithCognito({ enabled: true, domain: 'auth.example.test' })
+    ).rejects.toThrow('AWS UI authentication is enabled but not configured');
+  });
+
+  it('redirects to the Cognito hosted UI', async () => {
+    setupCrypto();
+    await signInWithCognito(AUTH_CONFIG);
+
+    expect(assignMock).toHaveBeenCalledTimes(1);
+    const target = new URL(assignMock.mock.calls[0][0]);
+    expect(target.origin).toBe('https://auth.example.test');
+    expect(target.pathname).toBe('/oauth2/authorize');
+    expect(target.searchParams.get('response_type')).toBe('code');
+    expect(target.searchParams.get('client_id')).toBe('client123');
+    expect(target.searchParams.get('redirect_uri')).toBe('https://app.example.test/');
+    expect(target.searchParams.get('scope')).toBe('openid email profile');
+  });
+
+  it('uses a configured redirectPath in the hosted UI redirect URL', async () => {
+    setupCrypto();
+    await signInWithCognito({ ...AUTH_CONFIG, redirectPath: '/callback' });
+
+    const target = new URL(assignMock.mock.calls[0][0]);
+    expect(target.searchParams.get('redirect_uri')).toBe('https://app.example.test/callback');
   });
 });
 

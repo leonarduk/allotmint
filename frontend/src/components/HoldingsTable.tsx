@@ -26,6 +26,7 @@ type Props = {
   onSelectInstrument?: (ticker: string, name: string) => void;
   showForward7d?: boolean;
   showForward30d?: boolean;
+  onAddPosition?: () => void;
 };
 
 
@@ -34,6 +35,7 @@ export function HoldingsTable({
   onSelectInstrument,
   showForward7d = false,
   showForward30d = false,
+  onAddPosition,
 }: Props) {
   const { t } = useTranslation();
   const { relativeViewEnabled, baseCurrency, familyMvpEnabled } = useConfig();
@@ -690,6 +692,9 @@ export function HoldingsTable({
         <EmptyState
           message={t("holdingsTable.noHoldings")}
           actions={[
+            ...(onAddPosition && holdings.length === 0
+              ? [{ label: t("addPosition.emptyAccountCta"), onClick: onAddPosition }]
+              : []),
             { label: t("holdingsTable.clearFilters"), onClick: clearFilters },
             { label: t("holdingsTable.openScreener"), onClick: () => navigate("/screener") },
           ]}

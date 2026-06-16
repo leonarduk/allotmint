@@ -1631,6 +1631,28 @@ export const requestAccountSignup = (payload: AccountSignupRequest) =>
     body: JSON.stringify(payload),
   });
 
+// ───────────── Portfolio accounts ─────────────
+export interface AccountCreateRequest {
+  owner: string;
+  account_type: string;
+  currency?: string;
+}
+
+export interface AccountCreateResponse {
+  status: string;
+  owner: string;
+  account: string;
+  currency: string;
+}
+
+/** Create a new, empty portfolio account (e.g. ISA, SIPP) for an owner. */
+export const createAccount = (payload: AccountCreateRequest) =>
+  fetchJson<AccountCreateResponse>(`${API_BASE}/accounts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
 // ───────────── Holdings CSV import ─────────────
 export interface ImportHoldingsCsvResponse {
   path: string;

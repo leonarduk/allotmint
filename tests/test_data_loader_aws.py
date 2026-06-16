@@ -329,6 +329,90 @@ def test_load_account_empty_payload(monkeypatch, cleanup_boto3_module):
     assert str(exc.value) == "Empty JSON file: s3://bucket/accounts/owner/acct.json"
 
 
+def test_load_account_malformed_json_from_s3(monkeypatch, cleanup_boto3_module):
+    monkeypatch.setattr(dl.config, "app_env", "aws", raising=False)
+    monkeypatch.setenv(dl.DATA_BUCKET_ENV, "bucket")
+
+    def fake_client(name):
+        assert name == "s3"
+
+        def get_object(Bucket, Key):
+            assert Key == "accounts/owner/acct.json"
+            return {"Body": io.BytesIO(b"not valid json {")}
+
+        return SimpleNamespace(get_object=get_object)
+
+    monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=fake_client))
+
+    with pytest.raises(dl.InvalidPayload):
+        dl.load_account("owner", "acct")
+
+
+def test_load_account_s3_unavailable_no_fallback(monkeypatch, cleanup_boto3_module):
+    """ProviderUnavailable propagates when S3 fails and there is no local root."""
+    monkeypatch.setattr(dl.config, "app_env", "aws", raising=False)
+    monkeypatch.setenv(dl.DATA_BUCKET_ENV, "bucket")
+
+    def fake_client(name):
+        assert name == "s3"
+
+        def get_object(Bucket, Key):
+            from botocore.exceptions import BotoCoreError
+            raise BotoCoreError()
+
+        return SimpleNamespace(get_object=get_object)
+
+    monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=fake_client))
+    # Force local_root to None so the exception is not swallowed by a local fallback.
+    def _raise(*a, **kw):
+        raise RuntimeError("no path")
+
+    monkeypatch.setattr(dl, "resolve_paths", _raise)
+
+    with pytest.raises(dl.ProviderUnavailable):
+        dl.load_account("owner", "acct")
+
+
+def test_load_person_meta_empty_payload_from_s3(monkeypatch, cleanup_boto3_module):
+    monkeypatch.setattr(dl.config, "app_env", "aws", raising=False)
+    monkeypatch.setenv(dl.DATA_BUCKET_ENV, "bucket")
+
+    def fake_client(name):
+        assert name == "s3"
+
+        def get_object(Bucket, Key):
+            assert Key == "accounts/Alice/person.json"
+            return {"Body": io.BytesIO(b"   ")}
+
+        return SimpleNamespace(get_object=get_object)
+
+    monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=fake_client))
+
+    assert dl.load_person_meta("Alice") == {}
+
+
+def test_load_person_meta_malformed_json_from_s3(monkeypatch, cleanup_boto3_module, caplog):
+    monkeypatch.setattr(dl.config, "app_env", "aws", raising=False)
+    monkeypatch.setenv(dl.DATA_BUCKET_ENV, "bucket")
+
+    def fake_client(name):
+        assert name == "s3"
+
+        def get_object(Bucket, Key):
+            assert Key == "accounts/Alice/person.json"
+            return {"Body": io.BytesIO(b"not valid json {")}
+
+        return SimpleNamespace(get_object=get_object)
+
+    monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=fake_client))
+
+    with caplog.at_level(logging.WARNING):
+        result = dl.load_person_meta("Alice")
+
+    assert result == {}
+    assert any("person_meta_invalid_payload" in r.getMessage() for r in caplog.records)
+
+
 def test_load_person_meta_from_s3(monkeypatch):
     monkeypatch.setattr(dl.config, "app_env", "aws", raising=False)
     monkeypatch.setenv(dl.DATA_BUCKET_ENV, "bucket")

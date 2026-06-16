@@ -204,6 +204,6 @@ def _extract_person_meta(data: Dict[str, Any]) -> Dict[str, Any]:
     for key in allowed_keys:
         if key in data:
             meta[key] = data[key]
-    if "viewers" not in meta:
-        meta["viewers"] = data.get("viewers", [])
+    if "viewers" in meta and not isinstance(meta["viewers"], list):
+        return {}
     return meta

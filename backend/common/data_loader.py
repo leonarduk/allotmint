@@ -13,8 +13,6 @@ from pathlib import Path, PureWindowsPath
 from threading import RLock
 from typing import Any, Dict, List, Optional, Tuple
 
-from pydantic import ValidationError
-
 from backend.common.account_models import AccountRecord, OwnerSummaryRecord, PersonMetadata
 from backend.common.data_providers import (
     DATA_BUCKET_ENV,
@@ -1005,32 +1003,6 @@ def load_account(
             local_root = None
 
     if config.app_env == "aws":
-        bucket = os.getenv(DATA_BUCKET_ENV)
-        if bucket:
-            key = f"{PLOTS_PREFIX}{owner}/{account}.json"
-            try:
-                import boto3  # type: ignore
-
-                obj = boto3.client("s3").get_object(Bucket=bucket, Key=key)
-            except Exception as exc:
-                logger.warning(
-                    "Failed to load account data from s3://%s/%s: %s; falling back to local file",
-                    sanitise_log_value(bucket),
-                    sanitise_log_value(key),
-                    sanitise_log_value(exc),
-                    exc_info=True,
-                )
-                if not local_root:
-                    raise FileNotFoundError(f"s3://{bucket}/{key}") from exc
-            else:
-                body = obj.get("Body")
-                txt = body.read().decode("utf-8-sig").strip() if body else ""
-                if not txt:
-                    raise ValueError(f"Empty JSON file: s3://{bucket}/{key}")
-                data = json.loads(txt)
-                # Validate to catch schema drift, then return the raw dict.
-                AccountRecord.model_validate(data)
-                return data
         try:
             return S3DataProvider().load_account(owner, account).data
         except MissingData:
@@ -1038,13 +1010,11 @@ def load_account(
         except InvalidPayload:
             raise
         except ProviderUnavailable as exc:
-            if str(exc) == f"Missing {DATA_BUCKET_ENV} env var for AWS account loading":
+            if not os.getenv(DATA_BUCKET_ENV):
                 raise MissingData(str(exc)) from exc
             logger.warning(
-                "Failed to load account data from provider for %s/%s: %s; falling back to local file",
-                sanitise_log_value(owner),
-                sanitise_log_value(account),
-                sanitise_log_value(exc),
+                "Failed to load account data: %s; falling back to local file",
+                sanitise_log_value(str(exc)),
                 extra={
                     "event": "data_loader.account_provider_unavailable",
                     "owner": sanitise_log_value(owner),
@@ -1108,68 +1078,35 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
     bucket = os.getenv(DATA_BUCKET_ENV)
 
     if config.app_env == "aws" or bucket:
-        if bucket:
-            key = f"{PLOTS_PREFIX}{owner}/person.json"
-            try:
-                import boto3  # type: ignore
-
-                obj = boto3.client("s3").get_object(Bucket=bucket, Key=key)
-                body = obj.get("Body")
-                txt = body.read().decode("utf-8-sig").strip() if body else ""
-                if not txt:
-                    return {}
-                data = json.loads(txt)
-                return _extract_person_meta(data)
-            except ValidationError:
-                logger.warning(
-                    "Invalid person metadata for owner '%s' in s3://%s/%s",
-                    sanitise_log_value(owner), sanitise_log_value(bucket), sanitise_log_value(key),
-                )
-                return {}
-            except Exception as exc:
-                logger.warning(
-                    "Failed to load person metadata from s3://%s/%s: %s; falling back to local file",
-                    sanitise_log_value(bucket),
-                    sanitise_log_value(key),
-                    sanitise_log_value(exc),
-                    exc_info=True,
-                )
-                if not explicit_local_fallback:
-                    return {}
-        elif config.app_env == "aws" and not explicit_local_fallback:
-            # No bucket configured and no local fallback: nothing to load.
+        try:
+            return S3DataProvider().load_person_meta(owner).metadata
+        except MissingData:
             return {}
-
-        if config.app_env == "aws":
-            try:
-                return S3DataProvider().load_person_meta(owner).metadata
-            except MissingData:
+        except InvalidPayload:
+            # person.json is optional metadata — a malformed file degrades gracefully.
+            logger.warning(
+                "data_loader.person_meta_invalid_payload",
+                extra={
+                    "event": "data_loader.person_meta_invalid_payload",
+                    "owner": sanitise_log_value(owner),
+                    "provider": "s3",
+                },
+                exc_info=True,
+            )
+            return {}
+        except ProviderUnavailable:
+            logger.warning(
+                "data_loader.person_meta_provider_unavailable",
+                extra={
+                    "event": "data_loader.person_meta_provider_unavailable",
+                    "owner": sanitise_log_value(owner),
+                    "fallback_to_local": has_local_fallback,
+                    "provider": "s3",
+                },
+                exc_info=True,
+            )
+            if not explicit_local_fallback:
                 return {}
-            except InvalidPayload:
-                # person.json is optional metadata - a malformed file degrades gracefully.
-                logger.warning(
-                    "data_loader.person_meta_invalid_payload",
-                    extra={
-                        "event": "data_loader.person_meta_invalid_payload",
-                        "owner": sanitise_log_value(owner),
-                        "provider": "s3",
-                    },
-                    exc_info=True,
-                )
-                return {}
-            except ProviderUnavailable:
-                logger.warning(
-                    "data_loader.person_meta_provider_unavailable",
-                    extra={
-                        "event": "data_loader.person_meta_provider_unavailable",
-                        "owner": sanitise_log_value(owner),
-                        "fallback_to_local": has_local_fallback,
-                        "provider": "s3",
-                    },
-                    exc_info=True,
-                )
-                if not explicit_local_fallback:
-                    return {}
 
     if not explicit_local_fallback or not local_root:
         return {}

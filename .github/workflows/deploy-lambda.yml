@@ -393,7 +393,6 @@ jobs:
         # snapshot is still absent here it means the Trigger Lambda failed or timed
         # out; print a clear, actionable warning so operators know exactly what
         # to do rather than hunting through CloudWatch logs.
-        continue-on-error: true
         env:
           AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
           DATA_BUCKET: ${{ secrets.DATA_BUCKET || vars.DATA_BUCKET }}
@@ -412,7 +411,8 @@ jobs:
           elif echo "$head_output" | grep -qi "NoSuchKey\|Not Found\|404"; then
             echo "::warning::Price snapshot prices/latest_prices.json is NOT present in s3://${DATA_BUCKET}. Portfolio prices will be unavailable until the price-refresh job runs. Trigger it manually: aws lambda invoke --function-name <PriceRefreshLambda-physical-name>:live /dev/null"
           else
-            echo "::warning::Could not verify price snapshot — s3api head-object returned exit ${head_exit}: ${head_output}"
+            echo "s3api head-object failed with exit ${head_exit}: ${head_output}" >&2
+            exit 1
           fi
 
       - name: Warm up backend Lambda (absorb cold-start before validation)

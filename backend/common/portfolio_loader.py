@@ -166,14 +166,15 @@ def rebuild_account_holdings(
     ledger: defaultdict[str, float] = defaultdict(float)
     acquisition: dict[str, str] = {}
 
-    for t in tx_data.get("transactions", []):
-        ttype = (t.get("type") or "").upper()
-        ticker = (t.get("ticker") or "").upper()
+    for _t in tx_data.get("transactions", []):
+        t: dict[str, object] = _t if isinstance(_t, dict) else {}
+        ttype = str(t.get("type") or "").upper()
+        ticker = str(t.get("ticker") or "").upper()
 
         if ttype in TYPE_SIGN and ticker:
             raw = t.get("shares") or t.get("quantity")
             try:
-                qty = float(raw or 0.0)
+                qty = float(raw) if isinstance(raw, (int, float, str)) else 0.0
             except (TypeError, ValueError):
                 continue
             if abs(qty) > 1_000_000:  # detect PP's 1e8 scaling
@@ -182,16 +183,17 @@ def rebuild_account_holdings(
             ledger[ticker] += qty
 
             if ttype in {"BUY", "PURCHASE", "TRANSFER_IN"}:
-                d = (t.get("date") or "")[:10]
+                d = str(t.get("date") or "")[:10]
                 if d and (not acquisition.get(ticker) or d > acquisition[ticker]):
                     acquisition[ticker] = d
 
         elif ttype in CASH_SIGNS:
+            amount_minor = t.get("amount_minor")
             try:
-                amt = float(t.get("amount_minor") or 0.0) / 100.0
+                amt = float(amount_minor) if isinstance(amount_minor, (int, float, str)) else 0.0
             except (TypeError, ValueError):
                 continue
-            ledger["CASH.GBP"] += amt * CASH_SIGNS[ttype]
+            ledger["CASH.GBP"] += (amt / 100.0) * CASH_SIGNS[ttype]
 
     holdings = []
     for tick, qty in ledger.items():

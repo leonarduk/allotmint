@@ -13,6 +13,7 @@ import logging
 from collections import defaultdict
 from datetime import date
 from pathlib import Path
+from typing import Any, cast
 
 from backend.common.data_loader import (
     list_plots,  # owner -> ["isa", "sipp", ...]
@@ -166,10 +167,9 @@ def rebuild_account_holdings(
     ledger: defaultdict[str, float] = defaultdict(float)
     acquisition: dict[str, str] = {}
 
-    for _t in tx_data.get("transactions", []):
-        t: dict[str, object] = _t if isinstance(_t, dict) else {}
-        ttype = str(t.get("type") or "").upper()
-        ticker = str(t.get("ticker") or "").upper()
+    for t in cast("list[dict[str, Any]]", tx_data.get("transactions", [])):
+        ttype = (t.get("type") or "").upper()
+        ticker = (t.get("ticker") or "").upper()
 
         if ttype in TYPE_SIGN and ticker:
             raw = t.get("shares") or t.get("quantity")

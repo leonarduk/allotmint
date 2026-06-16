@@ -293,6 +293,7 @@ class TestS3Integration:
             data["holdings"] = [{"ticker": "MSFT", "units": 20, "price": 300.0}]
 
         doc = store.read_document(owner, f"{account_slug}.json")
+        assert doc is not None
         assert len(doc["holdings"]) == 1
         assert doc["holdings"][0]["ticker"] == "MSFT"
 
@@ -312,6 +313,7 @@ class TestS3Integration:
 
         # Verify update, not duplicate.
         doc = store.read_document(owner, f"{account_slug}.json")
+        assert doc is not None
         assert len(doc["holdings"]) == 1
         assert doc["holdings"][0] == {"ticker": "MSFT", "units": 25, "price": 310.0}
 
@@ -329,13 +331,18 @@ class TestS3Integration:
             data["holdings"] = [{"ticker": "TSLA", "units": 5, "price": 250.0}]
 
         alice = store.read_document("alice", "isa.json")
+        assert alice is not None
         assert alice["holdings"][0]["ticker"] == "AAPL"
 
         bob = store.read_document("bob", "isa.json")
+        assert bob is not None
         assert bob["holdings"][0]["ticker"] == "TSLA"
 
-        # Bob must not see Alice's files.
-        assert "isa.json" not in store.list_owner_files("charlie")
+        # Each owner's file list is scoped to their own S3 prefix — a third
+        # owner that was never written to must have an empty file list.
+        assert store.list_owner_files("alice") != []
+        assert store.list_owner_files("bob") != []
+        assert store.list_owner_files("charlie") == []
 
     def test_ensure_owner_is_idempotent_under_integration(self):
         """Calling ``ensure_owner`` multiple times must not overwrite or
@@ -351,9 +358,11 @@ class TestS3Integration:
             data["holdings"] = [{"ticker": "GOOG", "units": 3, "price": 140.0}]
 
         doc = store.read_document(owner, "isa.json")
+        assert doc is not None
         assert doc["holdings"][0]["ticker"] == "GOOG"
 
         # Calling ensure_owner again must not nuke the written holdings.
         store.ensure_owner(owner)
         doc = store.read_document(owner, "isa.json")
+        assert doc is not None
         assert doc["holdings"][0]["ticker"] == "GOOG"

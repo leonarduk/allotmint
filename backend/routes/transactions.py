@@ -7,6 +7,7 @@ import re
 from collections import defaultdict
 from contextlib import contextmanager
 from datetime import date, datetime
+from enum import Enum, auto
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Mapping, Optional, Tuple
 
@@ -14,8 +15,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Query, Request, Upload
 from pydantic import BaseModel, ConfigDict, Field
 
 from backend import importers
-from backend.common import compliance, data_loader, portfolio_loader
-from backend.common import portfolio as portfolio_mod
+from backend.common import compliance, data_loader
 from backend.common.accounts_store import (
     LocalAccountsStore,
     S3AccountsStore,
@@ -67,13 +67,21 @@ _ID_RE = re.compile(r"^(?P<owner>[A-Za-z0-9_-]+):(?P<account>[A-Za-z0-9_-]+):(?P
 AccountsStore = "LocalAccountsStore | S3AccountsStore"
 
 
-def _resolve_local_root(request: Request) -> Tuple[Optional[Path], bool]:
+class _RootResolution(Enum):
+    """Three-state resolution of a local accounts root."""
+
+    WRITABLE = auto()
+    GLOBAL_READONLY = auto()
+    NONE = auto()
+
+
+def _resolve_local_root(request: Request) -> Tuple[Optional[Path], _RootResolution]:
     """Resolve the on-disk accounts root for ``request``.
 
-    Returns ``(root, is_global)``.  ``root`` is ``None`` when no accounts root is
-    configured at all (a genuine misconfiguration).  ``is_global`` is ``True``
-    when the resolved root is the read-only shared/global demo dataset that
-    writes must not mutate.
+    Returns ``(root, kind)`` where *kind* is one of
+    ``_RootResolution.WRITABLE`` (local writable root),
+    ``_RootResolution.GLOBAL_READONLY`` (resolves to the shared/global demo
+    dataset), or ``_RootResolution.NONE`` (no accounts root configured at all).
     """
     state_value = getattr(request.app.state, "accounts_root", None)
     state_is_global = getattr(request.app.state, "accounts_root_is_global", False)
@@ -87,19 +95,19 @@ def _resolve_local_root(request: Request) -> Tuple[Optional[Path], bool]:
                 resolved_state = state_path.resolve()
                 request.app.state.accounts_root = resolved_state
                 request.app.state.accounts_root_is_global = False
-                return resolved_state, False
+                return resolved_state, _RootResolution.WRITABLE
 
     configured_root = getattr(config, "accounts_root", None)
     if not configured_root:
-        return None, True
+        return None, _RootResolution.NONE
 
     try:
         configured_path = Path(configured_root).expanduser()
     except (TypeError, ValueError, OSError):
-        return None, True
+        return None, _RootResolution.NONE
 
     if not configured_path.exists():
-        return None, True
+        return configured_path, _RootResolution.NONE
 
     try:
         global_root = data_loader.resolve_paths(None, None).accounts_root.resolve()
@@ -111,24 +119,26 @@ def _resolve_local_root(request: Request) -> Tuple[Optional[Path], bool]:
         except FileNotFoundError:
             configured_resolved = configured_path
         if global_root is not None and configured_resolved == global_root:
-            return configured_resolved, True
+            return configured_resolved, _RootResolution.GLOBAL_READONLY
 
     try:
         resolved = resolve_accounts_root(request)
     except FileNotFoundError:  # pragma: no cover - defensive
-        return None, True
+        return None, _RootResolution.NONE
 
     if state_is_global or getattr(request.app.state, "accounts_root_is_global", False):
-        return resolved, True
+        return resolved, _RootResolution.GLOBAL_READONLY
 
     if not resolved.exists():
-        return resolved, True
+        return resolved, _RootResolution.NONE
 
-    return resolved, False
+    return resolved, _RootResolution.WRITABLE
 
 
-def resolve_writable_store(request: Request) -> "AccountsStore":
-    """Return the writable account-document store for ``request``.
+def resolve_writable_store(
+    request: Request,
+) -> "tuple[AccountsStore, _RootResolution]":
+    """Return ``(store, kind)`` for ``request``.
 
     In the deployed AWS environment writes target a dedicated, non-global S3
     prefix (separate from the read-only ``accounts/`` demo data).  Locally the
@@ -138,41 +148,27 @@ def resolve_writable_store(request: Request) -> "AccountsStore":
     if getattr(config, "app_env", None) == "aws":
         bucket = os.getenv(data_loader.DATA_BUCKET_ENV)
         if bucket:
-            return S3AccountsStore(bucket=bucket)
-    root, is_global = _resolve_local_root(request)
-    return LocalAccountsStore(root=root, is_global=is_global)
+            return S3AccountsStore(bucket=bucket), _RootResolution.WRITABLE
+    root, kind = _resolve_local_root(request)
+    is_global = kind is not _RootResolution.WRITABLE
+    return LocalAccountsStore(root=root, is_global=is_global), kind
 
 
-def _store_disabled_detail(store: "AccountsStore") -> str:
-    """Return the 400 detail for a write against a non-writable store.
-
-    Distinguishes a read-only-by-design store (resolves to the shared/global
-    demo dataset) from a genuine misconfiguration (no real writable root).
-    """
-    local_root = getattr(store, "local_root", None)
-    if local_root is not None:
-        try:
-            global_root = data_loader.resolve_paths(None, None).accounts_root.resolve()
-        except Exception:
-            global_root = None
-        try:
-            resolved_local = Path(local_root).resolve()
-        except (TypeError, ValueError, OSError):
-            resolved_local = None
-        if global_root is not None and resolved_local == global_root:
-            return (
-                "Accounts store is read-only: it resolves to the shared demo "
-                "dataset. Create an account to enable manual holdings and "
-                "transaction writes."
-            )
+def _store_disabled_detail(kind: _RootResolution) -> str:
+    """Return the 400 detail for a write against a non-writable store."""
+    if kind is _RootResolution.NONE:
+        return (
+            "Create an account to enable manual holdings and "
+            "transaction writes."
+        )
     return "Accounts root not configured"
 
 
 def _require_writable_store(request: Request) -> "AccountsStore":
     """Resolve the writable store, raising a clear 400 when writes are disabled."""
-    store = resolve_writable_store(request)
+    store, kind = resolve_writable_store(request)
     if getattr(store, "is_global", False):
-        raise HTTPException(status_code=400, detail=_store_disabled_detail(store))
+        raise HTTPException(status_code=400, detail=_store_disabled_detail(kind))
     return store
 
 
@@ -211,6 +207,12 @@ class ManualHoldingCreate(BaseModel):
     value_gbp: float | None = Field(default=None, gt=0)
     units: float | None = Field(default=None, gt=0)
     price_gbp: float | None = Field(default=None, gt=0)
+    currency: str | None = None
+
+
+class AccountCreate(BaseModel):
+    owner: str
+    account_type: str
     currency: str | None = None
 
 
@@ -465,18 +467,12 @@ def _locked_account_holdings_data(
 
 
 def _rebuild_portfolio(owner: str, account: str, store: "AccountsStore") -> None:
-    # Portfolio rebuild is path-based; it only runs against an on-disk root.
-    # The deployed S3-backed store has no local root, so rebuild is skipped
-    # there (portfolio reads continue to resolve via the S3 data loader).
-    accounts_root = getattr(store, "local_root", None)
-    if accounts_root is None:
-        return
-    try:
-        if not config.offline_mode:
-            portfolio_loader.rebuild_account_holdings(owner, account, accounts_root)
-        portfolio_mod.build_owner_portfolio(owner, accounts_root)
-    except FileNotFoundError as exc:
-        log.warning("Portfolio rebuild failed: %s", exc)
+    """Rebuild the holdings document for *owner*/*account* from its transactions.
+
+    Delegates to the store-specific implementation so both local on-disk and
+    S3-backed stores are handled correctly.
+    """
+    store.rebuild_portfolio(owner, account)
 
 
 @router.get("/transactions/compliance")
@@ -488,7 +484,7 @@ async def transactions_with_compliance(
 ):
     """Return transactions for ``owner`` annotated with compliance warnings."""
 
-    store = resolve_writable_store(request)
+    store, _ = resolve_writable_store(request)
     txs = [t.model_dump() for t in _load_all_transactions(store) if t.owner.lower() == owner.lower()]
     if account:
         txs = [t for t in txs if (t.get("account") or "").lower() == account.lower()]
@@ -524,7 +520,14 @@ def _validate_component(value: str, field: str) -> str:
 
 @router.post("/transactions", status_code=201)
 async def create_transaction(request: Request, tx: TransactionCreate) -> dict:
-    """Store a new transaction and return it."""
+    """Store a new transaction and return it.
+
+    If the owner does not yet have a writable account root, one is created
+    implicitly via :meth:`~backend.common.accounts_store.AccountsStore.ensure_owner`.
+    There is no separate account-creation endpoint; see
+    :mod:`backend.common.signup_provision` for the admin-approval provisioning
+    path that runs before any user write.
+    """
 
     store = _require_writable_store(request)
 
@@ -705,6 +708,14 @@ async def import_holdings(
 
 @router.post("/holdings/manual")
 async def create_manual_holding(request: Request, payload: ManualHoldingCreate) -> dict[str, Any]:
+    """Create a manual holding for the authenticated owner.
+
+    If the owner does not yet have a writable account root, one is created
+    implicitly via :meth:`~backend.common.accounts_store.AccountsStore.ensure_owner`.
+    There is no separate account-creation endpoint; see
+    :mod:`backend.common.signup_provision` for the admin-approval provisioning
+    path that runs before any user write.
+    """
     _validate_manual_holding_payload(payload)
     owner = _validate_component(payload.owner, "owner")
     account = _validate_component(payload.account, "account")
@@ -747,13 +758,51 @@ async def create_manual_holding(request: Request, payload: ManualHoldingCreate) 
     }
 
 
+@router.post("/accounts", status_code=201)
+async def create_account(request: Request, payload: AccountCreate) -> dict[str, Any]:
+    """Create an empty named portfolio account for ``payload.owner``.
+
+    Produces a skeleton ``{account_type}.json`` document (owner, account_type,
+    currency, empty holdings) without requiring a holding to be added first.
+    Returns 409 if an account of that type already exists for the owner.
+    """
+
+    owner = _validate_component(payload.owner, "owner")
+    account_type = _validate_component(payload.account_type, "account_type")
+    account_slug = _normalise_account_file_name(account_type)
+    filename = f"{account_slug}.json"
+    if _is_non_holdings_file(filename):
+        raise HTTPException(status_code=400, detail="Invalid account_type")
+
+    store = _require_writable_store(request)
+
+    if store.read_document(owner, filename) is not None:
+        raise HTTPException(status_code=409, detail="Account already exists")
+
+    store.ensure_owner(owner)
+    currency = (payload.currency or "GBP").strip().upper() or "GBP"
+
+    with _locked_account_holdings_data(owner, account_slug, store) as (account_payload, _):
+        account_payload["owner"] = owner
+        account_payload["account_type"] = account_slug
+        account_payload["currency"] = currency
+        account_payload["last_updated"] = date.today().isoformat()
+
+    return {
+        "status": "created",
+        "owner": owner,
+        "account": account_slug,
+        "currency": currency,
+    }
+
+
 @router.get("/holdings/manual")
 async def list_manual_holdings(
     request: Request,
     owner: str,
 ) -> dict[str, Any]:
     owner_name = _validate_component(owner, "owner")
-    store = resolve_writable_store(request)
+    store, _ = resolve_writable_store(request)
 
     # Merge the read-only global/demo dataset with the writable store, with
     # writable documents taking precedence per account slug.  Reads therefore
@@ -801,7 +850,7 @@ async def list_transactions(
     start_d = _parse_date(start)
     end_d = _parse_date(end)
 
-    store = resolve_writable_store(request)
+    store, _ = resolve_writable_store(request)
     txs: List[Transaction] = []
     for t in _load_all_transactions(store):
         if owner and t.owner.lower() != owner.lower():
@@ -839,7 +888,7 @@ async def list_dividends(
         fallback=getattr(config, "offline_fundamentals_ticker", None),
     )
 
-    store = resolve_writable_store(request)
+    store, _ = resolve_writable_store(request)
     txs: List[Transaction] = []
     for t in _load_all_transactions(store):
         ttype = (t.type or "").upper()

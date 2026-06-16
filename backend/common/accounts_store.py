@@ -32,7 +32,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
+from backend.common import portfolio as portfolio_mod
+from backend.common import portfolio_loader
 from backend.common.path_utils import safe_join
+from backend.config import config
 
 try:  # Unix-like systems
     import fcntl  # type: ignore
@@ -206,6 +209,18 @@ class LocalAccountsStore:
             yield owner, account_raw, data
 
     def ensure_owner(self, owner: str) -> None:
+        """Implicit account-creation path for the local/file-backed store.
+
+        Scaffolds a minimal owner directory (person.json with holdings and
+        viewers keys) the first time a write endpoint is called for an owner
+        that does not yet exist.  This is **not** the only creation path: when
+        an admin approves a signup request,
+        :func:`backend.common.compliance.ensure_owner_scaffold` is used
+        instead, which also records the owner's email so that
+        :func:`backend.auth._allowed_emails` admits them at login — before any
+        write is made.  Do not call directly unless you understand the full
+        account-creation lifecycle.
+        """
         if self.is_global or self.root is None:
             return
         if self.read_document(owner, "person.json") is not None:
@@ -214,6 +229,18 @@ class LocalAccountsStore:
             data.setdefault("owner", owner)
             data.setdefault("holdings", [])
             data.setdefault("viewers", [])
+
+    def rebuild_portfolio(self, owner: str, account: str) -> None:
+        """Rebuild holdings from transactions for the local on-disk store."""
+        if self.root is None:
+            logger.warning("Portfolio rebuild skipped: no local root")
+            return
+        try:
+            if not config.offline_mode:
+                portfolio_loader.rebuild_account_holdings(owner, account, self.root)
+            portfolio_mod.build_owner_portfolio(owner, self.root)
+        except FileNotFoundError as exc:
+            logger.warning("Portfolio rebuild failed: %s", exc)
 
 
 @dataclass
@@ -322,12 +349,39 @@ class S3AccountsStore:
             yield str(data.get("owner") or owner), account_raw, data
 
     def ensure_owner(self, owner: str) -> None:
+        """Implicit account-creation path for the S3-backed store.
+
+        Scaffolds a minimal owner directory (person.json with holdings and
+        viewers keys) the first time a write endpoint is called for an owner
+        that does not yet exist.  This is **not** the only creation path: when
+        an admin approves a signup request,
+        :func:`backend.common.compliance.ensure_owner_scaffold` is used
+        instead, which also records the owner's email so that
+        :func:`backend.auth._allowed_emails` admits them at login — before any
+        write is made.  Do not call directly unless you understand the full
+        account-creation lifecycle.
+        """
         if self.read_document(owner, "person.json") is not None:
             return
         with self.edit_document(owner, "person.json", default=_default_person_payload(owner)) as data:
             data.setdefault("owner", owner)
             data.setdefault("holdings", [])
             data.setdefault("viewers", [])
+
+    def rebuild_portfolio(self, owner: str, account: str) -> None:
+        """Rebuild holdings from transactions for the S3-backed store."""
+        tx_filename = f"{account.lower()}_transactions.json"
+        tx_data = self.read_document(owner, tx_filename)
+        if tx_data is None:
+            logger.warning(
+                "Portfolio rebuild skipped for %s/%s: no transaction document",
+                owner,
+                account,
+            )
+            return
+        holdings_data = portfolio_loader.compute_holdings_from_transactions(tx_data, owner, account)
+        holdings_filename = f"{account.lower()}.json"
+        self._put_document(owner, holdings_filename, holdings_data)
 
     def _iter_keys(self, prefix: str, *, limit: Optional[int] = None) -> Iterator[str]:
         from botocore.exceptions import BotoCoreError, ClientError

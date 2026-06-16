@@ -128,8 +128,8 @@ def test_require_writable_store_missing_resolved_path(monkeypatch, tmp_path):
         transactions_module._require_writable_store(request)
 
     assert excinfo.value.status_code == 400
-    # No existing writable root -> genuine misconfiguration message.
-    assert excinfo.value.detail == "Accounts root not configured"
+    # Resolved path doesn't exist -> NONE kind -> prompt to create an account.
+    assert "Create an account" in excinfo.value.detail
 
 
 def test_require_writable_store_rejects_matching_global_root(monkeypatch, tmp_path):

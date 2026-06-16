@@ -58,7 +58,7 @@ def test_resolve_writable_store_uses_s3_in_aws(monkeypatch):
     monkeypatch.setattr(transactions_module.config, "app_env", "aws")
     monkeypatch.setenv(data_loader.DATA_BUCKET_ENV, "data-bucket")
 
-    store = transactions_module.resolve_writable_store(_make_request())
+    store, _ = transactions_module.resolve_writable_store(_make_request())
 
     assert isinstance(store, S3AccountsStore)
     assert store.is_global is False
@@ -70,7 +70,7 @@ def test_resolve_writable_store_falls_back_local_without_bucket(monkeypatch, tmp
     monkeypatch.delenv(data_loader.DATA_BUCKET_ENV, raising=False)
 
     request = _make_request({"accounts_root": tmp_path})
-    store = transactions_module.resolve_writable_store(request)
+    store, _ = transactions_module.resolve_writable_store(request)
 
     assert not isinstance(store, S3AccountsStore)
     assert store.local_root == tmp_path.resolve()
@@ -85,7 +85,7 @@ async def test_create_manual_holding_persists_to_s3(monkeypatch):
     monkeypatch.setattr(
         transactions_module,
         "resolve_writable_store",
-        lambda _req: S3AccountsStore(bucket="data-bucket", client=fake),
+        lambda _req: (S3AccountsStore(bucket="data-bucket", client=fake), transactions_module._RootResolution.WRITABLE),
     )
 
     payload = transactions_module.ManualHoldingCreate(
@@ -112,7 +112,7 @@ async def test_create_transaction_persists_to_s3(monkeypatch):
     monkeypatch.setattr(
         transactions_module,
         "resolve_writable_store",
-        lambda _req: S3AccountsStore(bucket="data-bucket", client=fake),
+        lambda _req: (S3AccountsStore(bucket="data-bucket", client=fake), transactions_module._RootResolution.WRITABLE),
     )
     monkeypatch.setattr(
         transactions_module, "_rebuild_portfolio", lambda *a, **k: None

@@ -2,13 +2,28 @@ import { describe, expect, it, vi } from "vitest";
 import { money, normalizeDisplayCurrency, percentOrNa } from "@/lib/money";
 
 describe("money", () => {
+  it("formats a GBP value to the correct string for en-GB locale", () => {
+    expect(money(123.45, "GBP", "en-GB")).toBe("£123.45");
+  });
+
+  it("returns the em dash sentinel for null", () => {
+    expect(money(null, "GBP", "en-GB")).toBe("—");
+  });
+
+  it("returns the em dash sentinel for undefined", () => {
+    expect(money(undefined, "GBP", "en-GB")).toBe("—");
+  });
+
+  it("returns the em dash sentinel for non-finite values", () => {
+    expect(money(NaN, "GBP", "en-GB")).toBe("—");
+    expect(money(Infinity, "GBP", "en-GB")).toBe("—");
+    expect(money(-Infinity, "GBP", "en-GB")).toBe("—");
+  });
+
   it.each(["GBX", "GBXP", "GBPX", "GBpx", "GBp"])(
-    "formats %s values using pound units",
+    "formats pence-code %s as £123.45 (same as GBP)",
     (currency) => {
-      const value = 123.45;
-      expect(money(value, currency, "en-GB")).toBe(
-        money(value, "GBP", "en-GB"),
-      );
+      expect(money(123.45, currency, "en-GB")).toBe("£123.45");
     },
   );
 });

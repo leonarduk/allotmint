@@ -10,9 +10,13 @@ Build rich "portfolio" dictionaries that the rest of the backend expects.
 
 import json
 import logging
+import re
 from collections import defaultdict
 from datetime import date
 from pathlib import Path
+from typing import Any, cast
+
+_ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 from backend.common.data_loader import (
     list_plots,  # owner -> ["isa", "sipp", ...]
@@ -42,7 +46,9 @@ def _load_accounts_for_owner(owner: str, acct_names: list[str]) -> list[dict]:
         except (OSError, ValueError, json.JSONDecodeError) as exc:
             log.warning(
                 "Failed to parse %s/%s.json -> %s",
-                sanitise_log_value(owner), sanitise_log_value(name), sanitise_log_value(exc),
+                sanitise_log_value(owner),
+                sanitise_log_value(name),
+                sanitise_log_value(exc),
             )
     return accounts
 
@@ -147,6 +153,53 @@ def rebuild_account_holdings(
         log.error("Failed to read %s: %s", sanitise_log_value(tx_path), sanitise_log_value(exc))
         return {}
 
+    if not isinstance(tx_data, dict):
+        log.error("Malformed transaction file %s: expected object, got %s", sanitise_log_value(tx_path), type(tx_data).__name__)
+        return {}
+
+    out = compute_holdings_from_transactions(tx_data, owner, account)
+
+    try:
+        acct_path = safe_join(owner_dir, f"{account.lower()}.json")
+    except ValueError:
+        log.error("Invalid account name: path traversal blocked")
+        return out
+    try:
+        acct_path.write_text(json.dumps(out, indent=2))
+    except OSError as exc:
+        log.error("Failed to write holdings to %s: %s", acct_path, exc)
+    return out
+
+
+def compute_holdings_from_transactions(
+    tx_data: dict[str, Any],
+    owner: str,
+    account: str,
+) -> dict[str, object]:
+    """Compute holdings from a parsed transactions document.
+
+    This is the core computation shared by the path-based local store and the
+    S3-backed store.  It mirrors the logic originally in
+    :func:`rebuild_account_holdings` but accepts a pre-loaded transaction dict
+    instead of reading from disk, so callers control where the raw data comes
+    from and where the result is persisted.
+
+    Parameters
+    ----------
+    tx_data:
+        Parsed transaction document (must have a ``"transactions"`` key whose
+        value is a list of transaction dicts).
+    owner:
+        Portfolio owner slug.
+    account:
+        Account name, e.g. ``"isa"`` or ``"sipp"``.
+
+    Returns
+    -------
+    dict
+        Holdings structure with keys ``owner``, ``account_type``, ``currency``,
+        ``last_updated``, and ``holdings``.
+    """
     TYPE_SIGN = {
         "BUY": 1,
         "PURCHASE": 1,
@@ -166,15 +219,19 @@ def rebuild_account_holdings(
     ledger: defaultdict[str, float] = defaultdict(float)
     acquisition: dict[str, str] = {}
 
-    for t in tx_data.get("transactions", []):
+    for t in cast("list[dict[str, Any]]", tx_data.get("transactions", [])):
         ttype = (t.get("type") or "").upper()
         ticker = (t.get("ticker") or "").upper()
 
         if ttype in TYPE_SIGN and ticker:
-            raw = t.get("shares") or t.get("quantity")
+            raw = next(
+                (t[k] for k in ("shares", "quantity", "units") if k in t and t[k] is not None),
+                None,
+            )
             try:
-                qty = float(raw or 0.0)
+                qty = float(raw) if isinstance(raw, (int, float, str)) else 0.0
             except (TypeError, ValueError):
+                log.warning("Skipping unparseable quantity for ticker=%s raw=%r", sanitise_log_value(ticker), raw)
                 continue
             if abs(qty) > 1_000_000:  # detect PP's 1e8 scaling
                 qty /= SHARE_SCALE
@@ -182,18 +239,23 @@ def rebuild_account_holdings(
             ledger[ticker] += qty
 
             if ttype in {"BUY", "PURCHASE", "TRANSFER_IN"}:
-                d = (t.get("date") or "")[:10]
-                if d and (not acquisition.get(ticker) or d > acquisition[ticker]):
-                    acquisition[ticker] = d
+                d_raw = str(t.get("date") or "")[:10]
+                if _ISO_DATE_RE.match(d_raw):
+                    if not acquisition.get(ticker) or d_raw > acquisition[ticker]:
+                        acquisition[ticker] = d_raw
+                elif d_raw:
+                    log.warning("Skipping non-ISO date for ticker=%s date=%r", sanitise_log_value(ticker), d_raw)
 
         elif ttype in CASH_SIGNS:
+            amount_minor = t.get("amount_minor")
             try:
-                amt = float(t.get("amount_minor") or 0.0) / 100.0
+                amt = float(amount_minor) if isinstance(amount_minor, (int, float, str)) else 0.0
             except (TypeError, ValueError):
+                log.warning("Skipping unparseable amount_minor for ttype=%s raw=%r", ttype, amount_minor)
                 continue
-            ledger["CASH.GBP"] += amt * CASH_SIGNS[ttype]
+            ledger["CASH.GBP"] += (amt / 100.0) * CASH_SIGNS[ttype]
 
-    holdings = []
+    holdings: list[dict[str, object]] = []
     for tick, qty in ledger.items():
         if abs(qty) < 1e-9:
             continue
@@ -203,21 +265,10 @@ def rebuild_account_holdings(
             h["acquired_date"] = acq_date
         holdings.append(h)
 
-    out = {
+    return {
         "owner": owner,
         "account_type": account.upper(),
-        "currency": tx_data.get("currency", "GBP"),
+        "currency": str(tx_data.get("currency", "GBP")),
         "last_updated": date.today().isoformat(),
         "holdings": holdings,
     }
-
-    try:
-        acct_path = safe_join(owner_dir, f"{account.lower()}.json")
-    except ValueError:
-        log.error("Invalid account name: path traversal blocked")
-        return out
-    try:
-        acct_path.write_text(json.dumps(out, indent=2))
-    except OSError as exc:
-        log.error("Failed to write holdings to %s: %s", acct_path, exc)
-    return out

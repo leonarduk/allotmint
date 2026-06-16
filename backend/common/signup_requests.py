@@ -17,10 +17,13 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 import secrets
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+from backend.common.path_utils import safe_join
 
 logger = logging.getLogger(__name__)
 
@@ -28,10 +31,35 @@ _TOKEN_TTL = timedelta(days=7)
 _MAX_NAME_LEN = 200
 _MAX_EMAIL_LEN = 320  # RFC 5321 maximum length of a forward-path address
 _MAX_NOTE_LEN = 2000
+_MAX_PENDING_REQUESTS = 100  # hard cap to bound disk usage
 
 
 class SignupValidationError(ValueError):
     """Raised when a signup request payload fails validation."""
+
+
+class SignupTokenError(Exception):
+    """Base class for failures when consuming an approval/reject token."""
+
+
+class RequestNotFound(SignupTokenError):
+    """Raised when no pending request matches the supplied id."""
+
+
+class TokenInvalid(SignupTokenError):
+    """Raised when the supplied token does not match the stored hash."""
+
+
+class RequestExpired(SignupTokenError):
+    """Raised when the request's approval window has elapsed."""
+
+
+class RequestAlreadyProcessed(SignupTokenError):
+    """Raised when the request has already been approved or rejected.
+
+    This is what makes approval single-use: a consumed token cannot
+    re-provision or change the request a second time.
+    """
 
 
 def _looks_like_email(email: str) -> bool:
@@ -133,15 +161,200 @@ def create_signup_request(
         expires_at=(moment + _TOKEN_TTL).isoformat(),
         token_sha256=hash_token(token),
     )
-    _persist(record, store_dir)
+    _persist(record, store_dir, now=moment)
     return record, token
 
 
-def _persist(record: SignupRequest, store_dir: Path) -> None:
-    """Write ``record`` to ``store_dir`` as ``<id>.json``."""
+def _enforce_cap(store_dir: Path, max_pending: int, *, now: datetime | None = None) -> None:
+    """Remove oldest pending requests until the directory is within ``max_pending``.
+
+    Requests are ordered by ``created_at`` (oldest first). Only requests with
+    ``status == "pending"`` are counted for the cap; non-pending files are left
+    alone (they are managed by the approval flow #4352).
+    """
+
+    moment = now or datetime.now(timezone.utc)
+    directory = Path(store_dir)
+    if not directory.is_dir():
+        return
+
+    pending: list[tuple[datetime, Path]] = []
+    for path in directory.glob("*.json"):
+        try:
+            data = json.loads(path.read_text())
+        except (json.JSONDecodeError, OSError):
+            continue
+        if data.get("status") != "pending":
+            continue
+        created_str = data.get("created_at", "")
+        try:
+            created = datetime.fromisoformat(created_str)
+        except (ValueError, TypeError):
+            created = moment
+        pending.append((created, path))
+
+    if len(pending) <= max_pending:
+        return
+
+    # Oldest first
+    pending.sort(key=lambda item: item[0])
+    to_remove = pending[: len(pending) - max_pending]
+    for _, p in to_remove:
+        try:
+            p.unlink()
+            logger.info("Capped signup request %s (exceeded max pending %d)", p.stem, max_pending)
+        except OSError:
+            pass
+
+
+def _prune_stale(store_dir: Path, *, now: datetime | None = None) -> None:
+    """Remove signup requests whose ``expires_at`` has passed.
+
+    Only files with ``status == "pending"`` are pruned; approved/rejected
+    requests are left for the approval flow to manage.
+    """
+
+    moment = now or datetime.now(timezone.utc)
+    directory = Path(store_dir)
+    if not directory.is_dir():
+        return
+
+    for path in directory.glob("*.json"):
+        try:
+            data = json.loads(path.read_text())
+        except (json.JSONDecodeError, OSError):
+            continue
+        if data.get("status") != "pending":
+            continue
+        expires_str = data.get("expires_at", "")
+        try:
+            expires = datetime.fromisoformat(expires_str)
+        except (ValueError, TypeError):
+            continue
+        if expires < moment:
+            try:
+                path.unlink()
+                logger.info("Pruned expired signup request %s", path.stem)
+            except OSError:
+                pass
+
+
+def _persist(record: SignupRequest, store_dir: Path, *, now: datetime | None = None) -> None:
+    """Write ``record`` to ``store_dir`` as ``<id>.json``.
+
+    Stale requests are pruned first; if the directory still exceeds the
+    pending cap, the oldest pending requests are removed to make room.
+    """
 
     directory = Path(store_dir)
     directory.mkdir(parents=True, exist_ok=True)
+    _prune_stale(directory, now=now)
+    _enforce_cap(directory, _MAX_PENDING_REQUESTS - 1, now=now)  # leave room for this one
     path = directory / f"{record.id}.json"
     path.write_text(json.dumps(asdict(record), indent=2, sort_keys=True))
     logger.info("Recorded pending signup request %s", record.id)
+
+
+# secrets.token_hex(16) -> exactly 32 lowercase hex chars and nothing else.
+_REQUEST_ID_RE = re.compile(r"\A[0-9a-f]{32}\Z")
+
+
+def _request_path(request_id: str, store_dir: Path) -> Path | None:
+    """Return the on-disk path for ``request_id`` or ``None`` if malformed.
+
+    The id is first constrained to exactly 32 lowercase hex chars (a strict
+    allowlist — no separators or dots can survive), then joined with
+    :func:`safe_join`, which resolves both paths and rejects anything escaping
+    ``store_dir``. The two independent barriers ensure a hostile id can never be
+    used to read outside the request store.
+    """
+
+    if not _REQUEST_ID_RE.fullmatch(request_id):
+        return None
+    try:
+        return safe_join(Path(store_dir), f"{request_id}.json")
+    except ValueError:
+        return None
+
+
+def load_request(request_id: str, store_dir: Path) -> SignupRequest | None:
+    """Load the persisted request for ``request_id`` or ``None`` if absent."""
+
+    path = _request_path(request_id, store_dir)
+    if path is None or not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    try:
+        return SignupRequest(**data)
+    except TypeError:
+        # Stored shape no longer matches the dataclass; treat as unusable.
+        return None
+
+
+def _is_expired(record: SignupRequest, now: datetime) -> bool:
+    try:
+        expires = datetime.fromisoformat(record.expires_at)
+    except ValueError:
+        # A request we cannot date is treated as expired rather than usable.
+        return True
+    return now >= expires
+
+
+def validate_request(
+    request_id: str,
+    token: str,
+    store_dir: Path,
+    *,
+    now: datetime | None = None,
+) -> SignupRequest:
+    """Return the pending request for a valid token without mutating it.
+
+    The token is verified by hashing it and comparing to the stored
+    ``token_sha256`` with a constant-time comparison. The request must still be
+    ``pending`` and unexpired. Raises a :class:`SignupTokenError` subclass on
+    every failure so the caller can map each to an unambiguous response.
+
+    This performs no write, so callers can validate, do irreversible work (e.g.
+    provisioning), and only then :func:`consume_request` to burn the token.
+    """
+
+    moment = now or datetime.now(timezone.utc)
+    record = load_request(request_id, store_dir)
+    if record is None:
+        raise RequestNotFound("no such request")
+    if not token or not secrets.compare_digest(record.token_sha256, hash_token(token)):
+        raise TokenInvalid("token does not match")
+    if record.status != "pending":
+        raise RequestAlreadyProcessed(f"request already {record.status}")
+    if _is_expired(record, moment):
+        raise RequestExpired("approval window has elapsed")
+    return record
+
+
+def consume_request(
+    request_id: str,
+    token: str,
+    store_dir: Path,
+    *,
+    new_status: str,
+    now: datetime | None = None,
+) -> SignupRequest:
+    """Validate an approval token and atomically move the request to ``new_status``.
+
+    On success the request's status is rewritten so the token cannot be reused
+    (single-use); reusing it then raises :class:`RequestAlreadyProcessed`.
+    """
+
+    if new_status not in {"approved", "rejected"}:
+        raise ValueError(f"invalid status: {new_status!r}")
+
+    record = validate_request(request_id, token, store_dir, now=now)
+    updated = replace(record, status=new_status)
+    _persist(updated, store_dir)
+    logger.info("Signup request %s moved to %s", record.id, new_status)
+    return updated

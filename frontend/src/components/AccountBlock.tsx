@@ -18,6 +18,7 @@ type Props = {
   onToggle?: () => void;
   showForward7d?: boolean;
   showForward30d?: boolean;
+  onAddPosition?: () => void;
 };
 
 export function AccountBlock({
@@ -26,6 +27,7 @@ export function AccountBlock({
   onToggle,
   showForward7d = false,
   showForward30d = false,
+  onAddPosition,
 }: Props) {
   const [selectedInstrument, setSelectedInstrument] = useState<{
     ticker: string;
@@ -77,6 +79,7 @@ export function AccountBlock({
             }
             showForward7d={showForward7d}
             showForward30d={showForward30d}
+            onAddPosition={onAddPosition}
           />
 
           {selectedInstrument && (

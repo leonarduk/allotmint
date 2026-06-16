@@ -101,6 +101,7 @@ class Config:
     uvicorn_port: Optional[int] = None
     reload: Optional[bool] = None
     rate_limit_per_minute: int = 6000
+    signup_rate_limit: str = "5/minute"
     log_config: Optional[str] = None
     skip_snapshot_warm: Optional[bool] = None
     snapshot_warm_days: Optional[int] = None
@@ -304,9 +305,7 @@ def load_config() -> Config:
     if env_ts_cache:
         timeseries_cache_base = env_ts_cache
     else:
-        timeseries_cache_base = (
-            str((data_root / ts_cache_raw).resolve()) if ts_cache_raw else None
-        )
+        timeseries_cache_base = str((data_root / ts_cache_raw).resolve()) if ts_cache_raw else None
 
     portfolio_xml_raw = data.get("portfolio_xml_path")
     portfolio_xml_path = (data_root / portfolio_xml_raw).resolve() if portfolio_xml_raw else None
@@ -383,8 +382,8 @@ def load_config() -> Config:
         allowed_emails = env_allowed or []
 
     # Only validate Google auth in non-test environments
-    environment = os.getenv('ENVIRONMENT', '').lower()
-    if environment not in ('test', 'testing'):
+    environment = os.getenv("ENVIRONMENT", "").lower()
+    if environment not in ("test", "testing"):
         validate_google_auth(google_auth_enabled, google_client_id)
 
     # Optional env override for Alpha Vantage API key to avoid committing secrets
@@ -414,6 +413,7 @@ def load_config() -> Config:
         uvicorn_port=data.get("uvicorn_port"),
         reload=data.get("reload"),
         rate_limit_per_minute=data.get("rate_limit_per_minute", 60),
+        signup_rate_limit=data.get("signup_rate_limit", "5/minute"),
         log_config=data.get("log_config"),
         skip_snapshot_warm=data.get("skip_snapshot_warm"),
         snapshot_warm_days=data.get("snapshot_warm_days"),
@@ -475,6 +475,7 @@ def load_config() -> Config:
     )
 
     return cfg
+
 
 settings = load_config()
 config = settings

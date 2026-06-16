@@ -32,7 +32,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
+from backend.common import portfolio as portfolio_mod
+from backend.common import portfolio_loader
 from backend.common.path_utils import safe_join
+from backend.config import config
 
 try:  # Unix-like systems
     import fcntl  # type: ignore
@@ -227,6 +230,18 @@ class LocalAccountsStore:
             data.setdefault("holdings", [])
             data.setdefault("viewers", [])
 
+    def rebuild_portfolio(self, owner: str, account: str) -> None:
+        """Rebuild holdings from transactions for the local on-disk store."""
+        if self.root is None:
+            logger.warning("Portfolio rebuild skipped: no local root")
+            return
+        try:
+            if not config.offline_mode:
+                portfolio_loader.rebuild_account_holdings(owner, account, self.root)
+            portfolio_mod.build_owner_portfolio(owner, self.root)
+        except FileNotFoundError as exc:
+            logger.warning("Portfolio rebuild failed: %s", exc)
+
 
 @dataclass
 class S3AccountsStore:
@@ -352,6 +367,21 @@ class S3AccountsStore:
             data.setdefault("owner", owner)
             data.setdefault("holdings", [])
             data.setdefault("viewers", [])
+
+    def rebuild_portfolio(self, owner: str, account: str) -> None:
+        """Rebuild holdings from transactions for the S3-backed store."""
+        tx_filename = f"{account.lower()}_transactions.json"
+        tx_data = self.read_document(owner, tx_filename)
+        if tx_data is None:
+            logger.warning(
+                "Portfolio rebuild skipped for %s/%s: no transaction document",
+                owner,
+                account,
+            )
+            return
+        holdings_data = portfolio_loader.compute_holdings_from_transactions(tx_data, owner, account)
+        holdings_filename = f"{account.lower()}.json"
+        self._put_document(owner, holdings_filename, holdings_data)
 
     def _iter_keys(self, prefix: str, *, limit: Optional[int] = None) -> Iterator[str]:
         from botocore.exceptions import BotoCoreError, ClientError

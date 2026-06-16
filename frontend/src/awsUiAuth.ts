@@ -323,7 +323,26 @@ export const ensureAwsUiAuth = async (config?: AwsUiAuthConfig | null) => {
   // skip exchangeCode entirely to avoid a state-mismatch error when ?code= params
   // are present in the URL from a previous (already-consumed) callback.
   if (hasValidSession()) return true;
-  if (await exchangeCode(authConfig)) return true;
-  await redirectToHostedUi(authConfig);
-  return false;
+  await exchangeCode(authConfig);
+  // No auto-redirect: let the React login page mount so the user can choose to
+  // sign in via Cognito or request an account.
+  return true;
+};
+
+/**
+ * Initiates a Cognito hosted-UI sign-in by redirecting the browser to the
+ * PKCE authorisation endpoint. Call this in response to an explicit user
+ * action (e.g. a "Sign in" button click) rather than automatically on page
+ * load, so new visitors can reach the create-account page first.
+ */
+export const signInWithCognito = async (
+  config?: AwsUiAuthConfig | null,
+): Promise<void> => {
+  if (!isEnabled(config?.enabled)) return;
+  const domain = normaliseDomain(config?.domain ?? '');
+  const clientId = config?.clientId?.trim() ?? '';
+  if (!domain || !clientId)
+    throw new Error('AWS UI authentication is enabled but not configured');
+  const redirectPath = config?.redirectPath ?? DEFAULT_REDIRECT_PATH;
+  await redirectToHostedUi({ domain, clientId, redirectPath });
 };

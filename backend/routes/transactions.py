@@ -108,7 +108,7 @@ def _resolve_local_root(request: Request) -> Tuple[Optional[Path], _RootResoluti
         return None, _RootResolution.NONE
 
     if not configured_path.exists():
-        return None, _RootResolution.NONE
+        return configured_path, _RootResolution.NONE
 
     try:
         global_root = data_loader.resolve_paths(None, None).accounts_root.resolve()

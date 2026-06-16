@@ -323,9 +323,11 @@ export const ensureAwsUiAuth = async (config?: AwsUiAuthConfig | null) => {
   // skip exchangeCode entirely to avoid a state-mismatch error when ?code= params
   // are present in the URL from a previous (already-consumed) callback.
   if (hasValidSession()) return true;
-  await exchangeCode(authConfig);
-  // No auto-redirect: let the React login page mount so the user can choose to
-  // sign in via Cognito or request an account.
+  // Return value intentionally unused: true means the code exchange succeeded
+  // and a session was stored; false means no OAuth callback was present.
+  // Either way we let React mount — the login page handles the unauthenticated
+  // state, and failures throw (propagating to bootstrapRuntimeConfig's catch).
+  void (await exchangeCode(authConfig));
   return true;
 };
 

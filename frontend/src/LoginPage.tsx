@@ -125,7 +125,8 @@ export default function LoginPage({ clientId, awsUiAuth, onSuccess }: Props) {
             type="button"
             onClick={() => {
               setCognitoError(null);
-              signInWithCognito(awsUiAuth).catch(() => {
+              signInWithCognito(awsUiAuth).catch((err: unknown) => {
+                console.error('Cognito sign-in initiation failed:', err);
                 setCognitoError('Failed to start sign-in. Please try again.');
               });
             }}

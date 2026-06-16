@@ -274,7 +274,7 @@ def create_router(
 
     # Other routes are copied from the module-level router without rate limits
     for route in router.routes:
-        if route.path == "/request":
+        if getattr(route, "path", None) == "/request":
             continue  # already registered above with rate limit
         limited.routes.append(route)
 

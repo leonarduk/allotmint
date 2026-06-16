@@ -323,10 +323,14 @@ export const ensureAwsUiAuth = async (config?: AwsUiAuthConfig | null) => {
   // skip exchangeCode entirely to avoid a state-mismatch error when ?code= params
   // are present in the URL from a previous (already-consumed) callback.
   if (hasValidSession()) return true;
-  // Return value intentionally unused: true means the code exchange succeeded
-  // and a session was stored; false means no OAuth callback was present.
-  // Either way we let React mount — the login page handles the unauthenticated
-  // state, and failures throw (propagating to bootstrapRuntimeConfig's catch).
+  // exchangeCode() return value intentionally unused.
+  //   true  — OAuth callback present and code exchange succeeded; session stored.
+  //   false — no OAuth callback in the URL at all (normal fresh visit).
+  // Either way we return true and let React mount the login page.
+  // NOTE: exchangeCode() never returns false for *failures* — every error path
+  // (state mismatch, expired code, token endpoint error, OAuth error param)
+  // throws. Those exceptions propagate to bootstrapRuntimeConfig's .catch(),
+  // which renders an error screen with a "Sign in" reload button (recovery path).
   void (await exchangeCode(authConfig));
   return true;
 };

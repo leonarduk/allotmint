@@ -3,6 +3,10 @@ import json
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi.util import get_remote_address
 
 from backend.common import signup_requests
 from backend.routes import signup as signup_module
@@ -320,3 +324,235 @@ def test_get_approve_invalid_token_renders_error_page(client, monkeypatch):
     resp = test_client.get(f"/signup/approve?id={request_id}&token=wrong")
     assert resp.status_code == 400
     assert "text/html" in resp.headers["content-type"]
+
+
+# ---------------------------------------------------------------------------
+# Rate limiting (#4364)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def rate_limited_client(tmp_path, monkeypatch):
+    """A test client with per-IP rate limiting on POST /signup/request."""
+
+    accounts_root = tmp_path / "accounts"
+    monkeypatch.setattr(
+        signup_module,
+        "resolve_accounts_root",
+        lambda request, allow_missing=False: accounts_root,
+    )
+    monkeypatch.setenv("SIGNUP_ADMIN_EMAIL", "admin@example.com")
+
+    limiter = Limiter(key_func=get_remote_address, storage_uri="memory://")
+    router = signup_module.create_router(limiter, "3/minute")
+
+    app = FastAPI()
+    app.state.limiter = limiter
+    app.add_exception_handler(
+        RateLimitExceeded,
+        lambda req, exc: (  # type: ignore[arg-type]
+            __import__("starlette.responses").responses.Response(
+                content='{"detail":"Rate limit exceeded: 3 per 1 minute"}',
+                status_code=429,
+                media_type="application/json",
+            )
+        ),
+    )
+    app.add_middleware(SlowAPIMiddleware)
+    app.include_router(router)
+    return TestClient(app), tmp_path
+
+
+def _capture_for_limited(monkeypatch):
+    """Same as _capture_email but works with the rate_limited_client fixture."""
+
+    sent = {}
+
+    def fake_send(admin_email, notification):
+        sent["admin_email"] = admin_email
+        sent["notification"] = notification
+
+    monkeypatch.setattr(signup_module, "send_signup_admin_email", fake_send)
+    return sent
+
+
+def test_rate_limit_allows_up_to_limit(rate_limited_client, monkeypatch):
+    """Requests within the rate limit succeed."""
+
+    test_client, _ = rate_limited_client
+    _capture_for_limited(monkeypatch)
+
+    for i in range(3):
+        resp = test_client.post(
+            "/signup/request",
+            json={"name": f"User{i}", "email": f"user{i}@example.com"},
+        )
+        assert resp.status_code == 200, f"request {i} should succeed"
+
+
+def test_rate_limit_blocks_after_limit(rate_limited_client, monkeypatch):
+    """The fourth request from the same IP is throttled (429)."""
+
+    test_client, _ = rate_limited_client
+    _capture_for_limited(monkeypatch)
+
+    for i in range(3):
+        resp = test_client.post(
+            "/signup/request",
+            json={"name": f"User{i}", "email": f"user{i}@example.com"},
+        )
+        assert resp.status_code == 200, f"request {i} should succeed"
+
+    # Fourth request throttled
+    resp = test_client.post(
+        "/signup/request",
+        json={"name": "Flooder", "email": "flooder@example.com"},
+    )
+    assert resp.status_code == 429
+
+
+def test_rate_limited_invalid_payload_still_400(rate_limited_client, monkeypatch):
+    """Malformed payloads are rejected with 400 and still consume rate-limit quota.
+
+    slowapi checks rate limits at the middleware layer before the handler runs,
+    so even requests that fail validation count. This is acceptable for abuse
+    protection: a flooder cannot bypass the rate limit by sending garbage.
+    """
+
+    test_client, _ = rate_limited_client
+    _capture_for_limited(monkeypatch)
+
+    # Bad payloads consume rate limit quota (slowapi middleware runs first).
+    for _ in range(3):
+        resp = test_client.post("/signup/request", json={"name": "", "email": "nope"})
+        assert resp.status_code == 400
+
+    # Fourth request (even with valid payload) is now throttled.
+    resp = test_client.post(
+        "/signup/request",
+        json={"name": "User", "email": "user@example.com"},
+    )
+    assert resp.status_code == 429
+
+
+def test_throttling_response_is_identical_for_all_emails(rate_limited_client, monkeypatch):
+    """Rate-limit response must not leak whether an email has an account."""
+
+    test_client, _ = rate_limited_client
+    _capture_for_limited(monkeypatch)
+
+    # Burn through the rate limit.
+    for i in range(3):
+        test_client.post(
+            "/signup/request",
+            json={"name": f"User{i}", "email": f"user{i}@example.com"},
+        )
+
+    # Throttled responses must be identical regardless of the submitted email.
+    resp_existing = test_client.post(
+        "/signup/request",
+        json={"name": "Existing", "email": "alice@example.com"},
+    )
+    resp_new = test_client.post(
+        "/signup/request",
+        json={"name": "New", "email": "brandnew@example.com"},
+    )
+
+    assert resp_existing.status_code == resp_new.status_code == 429
+    assert resp_existing.json() == resp_new.json()
+
+
+# ---------------------------------------------------------------------------
+# Disk bounding (prune stale / cap pending)
+# ---------------------------------------------------------------------------
+
+
+def test_prune_stale_removes_expired_requests(tmp_path):
+    """Expired pending requests are removed before persisting a new one."""
+
+    from datetime import datetime, timedelta, timezone
+
+    store_dir = signup_requests.signup_requests_dir(tmp_path)
+    now = datetime(2025, 1, 15, tzinfo=timezone.utc)
+
+    # Create a fresh request first (so it survives later prunes).
+    fresh_record, _ = signup_requests.create_signup_request(
+        "Fresh",
+        "fresh@example.com",
+        "",
+        store_dir,
+        now=now,
+    )
+    # Create a request that expired 1 day ago (created 8 days before now).
+    _, _ = signup_requests.create_signup_request(
+        "Old",
+        "old@example.com",
+        "",
+        store_dir,
+        now=now - timedelta(days=8),  # TTL is 7 days, so expires at now-1day
+    )
+
+    assert len(list(store_dir.glob("*.json"))) == 2
+
+    # Persisting a third request triggers prune (now + 1 hour > stale expires).
+    signup_requests.create_signup_request(
+        "Third",
+        "third@example.com",
+        "",
+        store_dir,
+        now=now + timedelta(hours=1),
+    )
+
+    files = list(store_dir.glob("*.json"))
+    # The expired one should be gone; the fresh one and the new one remain.
+    file_ids = {json.loads(f.read_text())["id"] for f in files}
+    assert fresh_record.id in file_ids
+    assert len(files) == 2
+
+
+def test_enforce_cap_removes_oldest_when_exceeded(tmp_path):
+    """When pending requests exceed the cap, oldest are removed first."""
+
+    from datetime import datetime, timedelta, timezone
+
+    store_dir = signup_requests.signup_requests_dir(tmp_path)
+    now = datetime(2025, 1, 15, tzinfo=timezone.utc)
+
+    # Create MAX_PENDING_REQUESTS fresh requests.
+    max_pending = signup_requests._MAX_PENDING_REQUESTS
+    created = []
+    for i in range(max_pending):
+        record, _ = signup_requests.create_signup_request(
+            f"User{i}",
+            f"user{i}@example.com",
+            "",
+            store_dir,
+            now=now + timedelta(seconds=i),
+        )
+        created.append(record.id)
+
+    assert len(list(store_dir.glob("*.json"))) == max_pending
+
+    # The oldest request should be first in the list.
+    oldest_id = created[0]
+
+    # Persisting one more triggers cap enforcement.
+    new_record, _ = signup_requests.create_signup_request(
+        "New",
+        "new@example.com",
+        "",
+        store_dir,
+        now=now + timedelta(hours=1),
+    )
+
+    files = list(store_dir.glob("*.json"))
+    assert len(files) == max_pending  # capped back to max
+
+    file_ids = {json.loads(f.read_text())["id"] for f in files}
+    # Oldest was evicted.
+    assert oldest_id not in file_ids
+    # Newest is present.
+    assert new_record.id in file_ids
+    # All but the oldest remain.
+    for rid in created[1:]:
+        assert rid in file_ids

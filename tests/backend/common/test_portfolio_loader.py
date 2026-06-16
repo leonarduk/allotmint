@@ -22,9 +22,7 @@ def patched_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setattr(config, "repo_root", repo_dir)
     monkeypatch.setattr(config, "accounts_root", accounts_dir)
 
-    def _fake_resolve_paths(
-        repo_root: Path | None = None, accounts_root: Path | None = None
-    ) -> ResolvedPaths:
+    def _fake_resolve_paths(repo_root: Path | None = None, accounts_root: Path | None = None) -> ResolvedPaths:
         return resolved
 
     monkeypatch.setattr(portfolio_loader, "resolve_paths", _fake_resolve_paths)
@@ -72,9 +70,7 @@ def test_rebuild_account_holdings_scaling(
     assert cash["units"] == pytest.approx(100.0)
 
 
-def test_rebuild_account_holdings_missing_file(
-    patched_paths: Path, caplog: pytest.LogCaptureFixture
-) -> None:
+def test_rebuild_account_holdings_missing_file(patched_paths: Path, caplog: pytest.LogCaptureFixture) -> None:
     caplog.set_level(logging.ERROR, logger="portfolio_loader")
 
     result = portfolio_loader.rebuild_account_holdings("bob", "isa")
@@ -83,9 +79,7 @@ def test_rebuild_account_holdings_missing_file(
     assert "Transaction file missing" in caplog.text
 
 
-def test_rebuild_account_holdings_bad_json(
-    patched_paths: Path, caplog: pytest.LogCaptureFixture
-) -> None:
+def test_rebuild_account_holdings_bad_json(patched_paths: Path, caplog: pytest.LogCaptureFixture) -> None:
     caplog.set_level(logging.ERROR, logger="portfolio_loader")
 
     owner_dir = patched_paths / "carol"
@@ -97,3 +91,51 @@ def test_rebuild_account_holdings_bad_json(
 
     assert result == {}
     assert "Failed to read" in caplog.text
+
+
+def test_compute_holdings_from_transactions() -> None:
+    """The extracted helper produces the same output as the path-based version."""
+    tx_data = {
+        "currency": "GBP",
+        "transactions": [
+            {"type": "BUY", "ticker": "ABC", "shares": 200_000_000, "date": "2024-01-10"},
+            {"type": "BUY", "ticker": "ABC", "shares": 50_000_000, "date": "2024-03-10"},
+            {"type": "SELL", "ticker": "ABC", "shares": 25_000_000, "date": "2024-04-01"},
+            {"type": "TRANSFER_IN", "ticker": "XYZ", "shares": 150_000_000, "date": "2024-02-20"},
+            {"type": "TRANSFER_IN", "ticker": "XYZ", "shares": 50_000_000, "date": "2024-04-20"},
+            {"type": "TRANSFER_OUT", "ticker": "XYZ", "shares": 25_000_000, "date": "2024-05-01"},
+            {"type": "DEPOSIT", "amount_minor": 12_500},
+            {"type": "WITHDRAWAL", "amount_minor": 2_500},
+        ],
+    }
+
+    result = portfolio_loader.compute_holdings_from_transactions(tx_data, "alex", "isa")
+
+    assert result["owner"] == "alex"
+    assert result["account_type"] == "ISA"
+    assert result["currency"] == "GBP"
+    assert "last_updated" in result
+
+    holdings = {holding["ticker"]: holding for holding in result["holdings"]}
+
+    abc = holdings["ABC"]
+    assert abc["units"] == pytest.approx(2.25)
+    assert abc["acquired_date"] == "2024-03-10"
+
+    xyz = holdings["XYZ"]
+    assert xyz["units"] == pytest.approx(1.75)
+    assert xyz["acquired_date"] == "2024-04-20"
+
+    cash = holdings["CASH.GBP"]
+    assert cash["units"] == pytest.approx(100.0)
+
+
+def test_compute_holdings_from_transactions_empty() -> None:
+    """An empty transactions list produces an empty holdings list."""
+    tx_data: dict = {"transactions": []}
+
+    result = portfolio_loader.compute_holdings_from_transactions(tx_data, "bob", "sipp")
+
+    assert result["owner"] == "bob"
+    assert result["account_type"] == "SIPP"
+    assert result["holdings"] == []

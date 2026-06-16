@@ -13,6 +13,7 @@ import logging
 from collections import defaultdict
 from datetime import date
 from pathlib import Path
+from typing import Any, cast
 
 from backend.common.data_loader import (
     list_plots,  # owner -> ["isa", "sipp", ...]
@@ -42,7 +43,9 @@ def _load_accounts_for_owner(owner: str, acct_names: list[str]) -> list[dict]:
         except (OSError, ValueError, json.JSONDecodeError) as exc:
             log.warning(
                 "Failed to parse %s/%s.json -> %s",
-                sanitise_log_value(owner), sanitise_log_value(name), sanitise_log_value(exc),
+                sanitise_log_value(owner),
+                sanitise_log_value(name),
+                sanitise_log_value(exc),
             )
     return accounts
 
@@ -147,6 +150,49 @@ def rebuild_account_holdings(
         log.error("Failed to read %s: %s", sanitise_log_value(tx_path), sanitise_log_value(exc))
         return {}
 
+    out = compute_holdings_from_transactions(tx_data, owner, account)
+
+    try:
+        acct_path = safe_join(owner_dir, f"{account.lower()}.json")
+    except ValueError:
+        log.error("Invalid account name: path traversal blocked")
+        return out
+    try:
+        acct_path.write_text(json.dumps(out, indent=2))
+    except OSError as exc:
+        log.error("Failed to write holdings to %s: %s", acct_path, exc)
+    return out
+
+
+def compute_holdings_from_transactions(
+    tx_data: dict[str, Any],
+    owner: str,
+    account: str,
+) -> dict[str, object]:
+    """Compute holdings from a parsed transactions document.
+
+    This is the core computation shared by the path-based local store and the
+    S3-backed store.  It mirrors the logic originally in
+    :func:`rebuild_account_holdings` but accepts a pre-loaded transaction dict
+    instead of reading from disk, so callers control where the raw data comes
+    from and where the result is persisted.
+
+    Parameters
+    ----------
+    tx_data:
+        Parsed transaction document (must have a ``"transactions"`` key whose
+        value is a list of transaction dicts).
+    owner:
+        Portfolio owner slug.
+    account:
+        Account name, e.g. ``"isa"`` or ``"sipp"``.
+
+    Returns
+    -------
+    dict
+        Holdings structure with keys ``owner``, ``account_type``, ``currency``,
+        ``last_updated``, and ``holdings``.
+    """
     TYPE_SIGN = {
         "BUY": 1,
         "PURCHASE": 1,
@@ -166,7 +212,7 @@ def rebuild_account_holdings(
     ledger: defaultdict[str, float] = defaultdict(float)
     acquisition: dict[str, str] = {}
 
-    for t in tx_data.get("transactions", []):
+    for t in cast("list[dict[str, Any]]", tx_data.get("transactions", [])):
         ttype = (t.get("type") or "").upper()
         ticker = (t.get("ticker") or "").upper()
 
@@ -193,7 +239,7 @@ def rebuild_account_holdings(
                 continue
             ledger["CASH.GBP"] += amt * CASH_SIGNS[ttype]
 
-    holdings = []
+    holdings: list[dict[str, object]] = []
     for tick, qty in ledger.items():
         if abs(qty) < 1e-9:
             continue
@@ -203,21 +249,10 @@ def rebuild_account_holdings(
             h["acquired_date"] = acq_date
         holdings.append(h)
 
-    out = {
+    return {
         "owner": owner,
         "account_type": account.upper(),
-        "currency": tx_data.get("currency", "GBP"),
+        "currency": str(tx_data.get("currency", "GBP")),
         "last_updated": date.today().isoformat(),
         "holdings": holdings,
     }
-
-    try:
-        acct_path = safe_join(owner_dir, f"{account.lower()}.json")
-    except ValueError:
-        log.error("Invalid account name: path traversal blocked")
-        return out
-    try:
-        acct_path.write_text(json.dumps(out, indent=2))
-    except OSError as exc:
-        log.error("Failed to write holdings to %s: %s", acct_path, exc)
-    return out

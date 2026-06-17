@@ -145,6 +145,22 @@ python scripts/import_transactions.py degiro path/to/transactions.csv
 
 Use `--api` to point at a different backend URL. Parsed transactions are printed as JSON.
 
+## create_issue.py
+
+Automate GitHub issue checkout: create a branch, check it out locally, and save the issue body to a markdown file in one command.
+
+```bash
+python scripts/create_issue.py 4445
+```
+
+The script:
+1. Fetches the issue details from GitHub
+2. Creates a branch named `fix/issue-4445-{slug}` in the remote repo
+3. Checks out the new branch locally
+4. Writes the issue title and body to `.issue-4445.md`
+
+Optional flags:
+- `--token TOKEN`: GitHub personal access token (also reads `GITHUB_TOKEN` env var). Required for branch creation (unauthenticated requests will fail with 401/403).
 ## publish_pr.py
 
 Automate PR publishing: commit changes, push to remote, and create a PR with auto-filled body sections. Optionally uses Ollama to generate thoughtful PR descriptions.

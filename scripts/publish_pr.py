@@ -91,11 +91,21 @@ def check_working_tree_clean() -> bool:
         return False
 
 
-def get_changed_files() -> list[str]:
-    """Get list of changed files in the branch vs origin/main."""
+def get_changed_files(branch: str) -> list[str]:
+    """Get list of changed files in the current branch vs its merge base with main."""
     try:
         result = subprocess.run(
-            ["git", "diff", "--name-only", "origin/main...HEAD"],
+            ["git", "merge-base", branch, "origin/main"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            return []
+        merge_base = result.stdout.strip()
+
+        result = subprocess.run(
+            ["git", "diff", "--name-only", f"{merge_base}...HEAD"],
             capture_output=True,
             text=True,
             check=False,
@@ -107,16 +117,19 @@ def get_changed_files() -> list[str]:
     return []
 
 
-def stage_and_commit(files: Optional[list[str]], message: str) -> bool:
-    """Stage and commit the specified files (or all changed files if none specified)."""
+def stage_and_commit(files: Optional[list[str]], message: str, branch: str) -> bool:
+    """Stage and commit the specified files (or changed files in branch if none specified)."""
     try:
         if not files:
-            # Stage all changes
-            subprocess.run(["git", "add", "-A"], check=True)
-        else:
-            # Stage specific files
-            for f in files:
-                subprocess.run(["git", "add", f], check=True)
+            # Auto-detect changed files in the branch
+            files = get_changed_files(branch)
+            if not files:
+                print("No changed files found in branch. Nothing to commit.", file=sys.stderr)
+                return False
+
+        # Stage specified files
+        for f in files:
+            subprocess.run(["git", "add", f], check=True)
 
         subprocess.run(["git", "commit", "-m", message], check=True)
         return True
@@ -233,8 +246,9 @@ def create_pr(
     body: str,
 ) -> Optional[str]:
     """Create a PR and return the URL."""
+    body_file = None
     try:
-        # Write body to temp file to avoid shell quoting issues
+        # Write body to temp file to avoid command-line quoting issues
         body_file = Path.home() / f".pr-body-{os.getpid()}.txt"
         body_file.write_text(body, encoding="utf-8")
 
@@ -258,10 +272,8 @@ def create_pr(
             text=True,
             check=False,
         )
-        body_file.unlink(missing_ok=True)
 
         if result.returncode == 0:
-            # Extract PR URL from output
             match = re.search(r"https://github\.com/[^\s]+/pull/\d+", result.stdout)
             if match:
                 return match.group(0)
@@ -272,6 +284,23 @@ def create_pr(
     except Exception as exc:
         print(f"Error creating PR: {exc}", file=sys.stderr)
         return None
+    finally:
+        if body_file:
+            body_file.unlink(missing_ok=True)
+
+
+def check_gh_installed() -> bool:
+    """Check if gh CLI is installed and accessible."""
+    try:
+        subprocess.run(
+            ["gh", "--version"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return True
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return False
 
 
 def main() -> None:
@@ -300,6 +329,11 @@ def main() -> None:
         help="Ollama model name (default: OLLAMA_MODEL env var or 'mistral')",
     )
     args = parser.parse_args()
+
+    # Check prerequisites
+    if not check_gh_installed():
+        print("Error: 'gh' CLI not found. Install it from https://github.com/cli/cli", file=sys.stderr)
+        sys.exit(1)
 
     # Get repo info
     try:
@@ -343,7 +377,7 @@ def main() -> None:
         print("Working tree is already clean.")
     else:
         commit_msg = args.message or f"Work on issue #{issue_id}"
-        if not stage_and_commit(args.files, commit_msg):
+        if not stage_and_commit(args.files, commit_msg, branch):
             sys.exit(1)
         print(f"Committed: {commit_msg}")
 

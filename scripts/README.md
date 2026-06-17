@@ -161,6 +161,43 @@ The script:
 
 Optional flags:
 - `--token TOKEN`: GitHub personal access token (also reads `GITHUB_TOKEN` env var). Required for branch creation (unauthenticated requests will fail with 401/403).
+## publish_pr.py
+
+Automate PR publishing: commit changes, push to remote, and create a PR with auto-filled body sections. Optionally uses Ollama to generate thoughtful PR descriptions.
+
+```bash
+python scripts/publish_pr.py
+```
+
+The script:
+1. Extracts the issue ID from the branch name (e.g., `fix/issue-4445-slug` → `4445`)
+2. Commits changed files with a default or custom message
+3. Pushes the branch to remote
+4. Fetches the issue title and body from GitHub
+5. If Ollama is running locally, uses it to generate PR body sections
+6. If Ollama is unavailable, uses structured placeholders
+7. Creates a PR with `Closes #<issue-id>` for auto-linking
+
+Optional flags:
+- `-m/--message TEXT`: Custom commit message (default: 'Work on issue #NNNN')
+- `-f/--files FILE [FILE ...]`: Specific files to commit (default: all changed files)
+- `--no-ollama`: Skip Ollama and use placeholder PR body
+- `--model MODEL`: Ollama model name (default: env var `OLLAMA_MODEL` or `mistral`)
+
+On Windows, use the PowerShell wrapper:
+```powershell
+./scripts/publish-pr.ps1 -Message "Fix bug in auth" -NoOllama
+```
+
+Or on Linux/Mac:
+```bash
+bash scripts/bash/publish-pr.sh -m "Fix bug in auth" --no-ollama
+```
+
+**Requirements:**
+- Branch name must follow pattern: `fix/issue-NNNN-*`, `feat/issue-NNNN-*`, or `docs/issue-NNNN-*`
+- `gh` CLI must be installed and authenticated
+- Ollama is optional but recommended for better PR descriptions
 
 ## reconcile_drawdown.py
 

@@ -222,9 +222,24 @@ def prioritize_diff_blocks(diff_text: str, pr_title: str = "", issue_body: str =
                     return filename
         return ""
 
+    # Check if a block's file matches any important file
+    def is_important(block: str) -> bool:
+        block_file = get_block_filename(block)
+        if not block_file:
+            return False
+        # Check full path match
+        if block_file in important_files:
+            return True
+        # Check basename match (e.g., "review_common.py" matches "backend/review_common.py")
+        basename = os.path.basename(block_file)
+        for important in important_files:
+            if basename == os.path.basename(important) or basename == important:
+                return True
+        return False
+
     # Sort blocks: important files first, then others
-    important_blocks = [b for b in blocks if get_block_filename(b) in important_files]
-    other_blocks = [b for b in blocks if get_block_filename(b) not in important_files]
+    important_blocks = [b for b in blocks if is_important(b)]
+    other_blocks = [b for b in blocks if not is_important(b)]
 
     return important_blocks + other_blocks
 

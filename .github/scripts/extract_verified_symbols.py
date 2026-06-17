@@ -56,11 +56,14 @@ def main() -> int:
         print("")
         return 0
 
-    # Verify each symbol exists (limit to top 5 to avoid excessive output)
+    # Verify each symbol exists in the codebase
     verified = []
-    for symbol in sorted(symbols)[:5]:
+    for symbol in sorted(symbols):
         if verify_symbol_exists(symbol):
             verified.append(f"`{symbol}`")
+            # Limit output to top 5 verified symbols to avoid excessive facts
+            if len(verified) >= 5:
+                break
 
     if verified:
         facts = "**Classes/functions confirmed present in codebase:** " + ", ".join(verified) + "."

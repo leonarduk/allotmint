@@ -84,12 +84,16 @@ jobs:
 
       - name: Get PR diff
         id: diff
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          ISSUE_BODY: ${{ steps.issue.outputs.body }}
         run: |
-          git fetch origin ${{ github.base_ref }}
+          git fetch origin "$BASE_REF"
           DIFF=$(python3 .github/scripts/prepare_review_diff.py \
-            --base-ref "${{ github.base_ref }}" \
-            --pr-title "${{ github.event.pull_request.title }}" \
-            --issue-body "${{ steps.issue.outputs.body }}")
+            --base-ref "$BASE_REF" \
+            --pr-title "$PR_TITLE" \
+            --issue-body "$ISSUE_BODY")
           DELIM="EOF_$(uuidgen | tr -d '-')"
           {
             echo "diff<<$DELIM"
@@ -115,9 +119,11 @@ jobs:
 
       - name: Extract verified symbols from diff
         id: verified
+        env:
+          DIFF_OUTPUT: ${{ steps.diff.outputs.diff }}
         run: |
           VERIFIED=$(python3 .github/scripts/extract_verified_symbols.py \
-            --diff "${{ steps.diff.outputs.diff }}")
+            --diff "$DIFF_OUTPUT")
           DELIM="EOF_$(uuidgen | tr -d '-')"
           {
             echo "facts<<$DELIM"

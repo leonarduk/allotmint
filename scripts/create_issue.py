@@ -94,15 +94,15 @@ def create_branch(
     try:
         resp = requests.post(url, json=data, headers=headers, timeout=10)
         resp.raise_for_status()
-    except requests.RequestException as exc:
-        print(f"Failed to create branch: {exc}", file=sys.stderr)
-        sys.exit(1)
     except requests.HTTPError as exc:
         if resp.status_code == 422 and "Reference already exists" in resp.text:
             print(f"Branch {branch_name} already exists (will proceed with checkout)", file=sys.stderr)
         else:
             print(f"Failed to create branch: {exc}", file=sys.stderr)
             sys.exit(1)
+    except requests.RequestException as exc:
+        print(f"Failed to create branch: {exc}", file=sys.stderr)
+        sys.exit(1)
 
 
 def main() -> None:
@@ -151,13 +151,21 @@ def main() -> None:
     print("Creating branch in remote...")
     create_branch(owner, repo, branch_name, sha, args.token or os.getenv("GITHUB_TOKEN"))
 
-    # Checkout the new branch
+    # Checkout the new branch (create local tracking branch if needed)
     try:
         print(f"Checking out {branch_name}...")
-        subprocess.run(["git", "checkout", branch_name], check=True)
-    except subprocess.CalledProcessError as exc:
-        print(f"Failed to checkout branch: {exc}", file=sys.stderr)
-        sys.exit(1)
+        subprocess.run(
+            ["git", "checkout", "-b", branch_name, f"origin/{branch_name}"],
+            check=True,
+            capture_output=True,
+        )
+    except subprocess.CalledProcessError:
+        # Branch might already exist locally; try simple checkout
+        try:
+            subprocess.run(["git", "checkout", branch_name], check=True)
+        except subprocess.CalledProcessError as exc:
+            print(f"Failed to checkout branch: {exc}", file=sys.stderr)
+            sys.exit(1)
 
     # Write issue to markdown file (preserve original content without reformatting)
     issue_file = Path(f".issue-{args.issue_id}.md")

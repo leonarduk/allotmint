@@ -181,12 +181,14 @@ class TestLoadPersonMeta:
 
         assert meta["full_name"] == "Alice Example"
 
-    def test_invalid_viewers_falls_back_to_empty_meta(self, tmp_path: Path) -> None:
+    def test_invalid_viewers_drops_key_preserves_other_fields(self, tmp_path: Path) -> None:
+        # Non-list viewers is invalid: the viewers key is dropped but other valid
+        # fields are preserved. data_providers._extract_person_meta handles this.
         owner_dir = tmp_path / "alice"
         owner_dir.mkdir()
         (owner_dir / "person.json").write_text(json.dumps({"full_name": "Alice", "viewers": "bad"}))
 
-        assert load_person_meta("alice", data_root=tmp_path) == {}
+        assert load_person_meta("alice", data_root=tmp_path) == {"full_name": "Alice"}
 
     def test_load_person_metadata_returns_typed_model(self, tmp_path: Path) -> None:
         owner_dir = tmp_path / "alice"

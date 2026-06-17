@@ -10,11 +10,11 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Any, Callable
 
-MAX_DIFF_CHARS = 60_000
+MAX_DIFF_CHARS = 120_000
 DEFAULT_ISSUE_BODY = "No linked issue found. Review code on its own merits."
 TRUNCATION_NOTICE_TEMPLATE = (
     "\n\n[diff truncated after {kept_files} file(s); skipped {skipped_files} additional file(s) "
-    "to stay within the 60k-character review budget while preserving whole-file diff blocks]"
+    "to stay within the 120k-character review budget while preserving whole-file diff blocks]"
 )
 
 
@@ -27,6 +27,7 @@ class ReviewContext:
     diff: str
     issue_body: str
     discussion: str
+    verified_facts: str = ""
 
 
 def get_required_env(name: str) -> str:
@@ -51,6 +52,7 @@ def load_review_context(api_key_env: str) -> ReviewContext:
         diff=os.environ.get("DIFF", ""),
         issue_body=os.environ.get("ISSUE_BODY", DEFAULT_ISSUE_BODY),
         discussion=os.environ.get("DISCUSSION", ""),
+        verified_facts=os.environ.get("VERIFIED_FACTS", ""),
     )
 
 
@@ -62,18 +64,19 @@ def build_discussion_section(discussion: str) -> str:
 
 ## Discussion since your last review
 The following PR comments were posted after your last review (oldest first).
-Treat them as **pointers**, not as proof: a comment claiming something is "fixed"
-or "addressed" does not by itself clear a blocking concern. Only down-rank or drop
-a concern you previously raised if the **diff above** shows it has actually been
-addressed. If a blocking concern is only verbally dismissed with no corresponding
-code change, you must still REQUEST CHANGES for it.
+Treat them as **pointers**, not as proof. A comment claiming something is "fixed" or
+"addressed" does not by itself clear a blocking concern. However, a comment that points
+to a specific commit SHA or file:line reference may be treated as evidence the concern
+was addressed; verify it against the diff if the relevant block is present. If a blocking
+concern is only verbally dismissed with no code reference, you must still REQUEST CHANGES.
 
 {discussion}"""
 
 
-def build_prompt(pr_title: str, diff: str, issue_body: str, discussion: str = "") -> str:
+def build_prompt(pr_title: str, diff: str, issue_body: str, discussion: str = "", verified_facts: str = "") -> str:
     """Build the shared advisory review prompt used by both models."""
     discussion_section = build_discussion_section(discussion)
+    verified_facts_section = f"\n- {verified_facts}" if verified_facts else ""
     return f"""You are a senior engineer reviewing a pull request for **allotmint**,
 a family investment management app.
 
@@ -94,7 +97,7 @@ and avoid regressions in CI/deployment workflows.
   fetch. Tests asserting `getValueAtRisk` is called only once after a recompute are correct.
 - **`frontend/package-lock.json` contains Linux-specific optional peer deps** (e.g.
   `@emnapi/core`, `@emnapi/runtime`) that do not appear when the lock file is regenerated on
-  Windows. Do not suggest regenerating or normalising the lock file on a non-Linux machine.
+  Windows. Do not suggest regenerating or normalising the lock file on a non-Linux machine.{verified_facts_section}
 
 ## Linked issue / acceptance criteria
 {issue_body}
@@ -102,7 +105,7 @@ and avoid regressions in CI/deployment workflows.
 ## PR title
 {pr_title}
 
-## Diff (Python, TypeScript, JavaScript, JSON, Markdown, HTML, config files, shell scripts (.sh), PowerShell scripts (.ps1) — truncated at 60k chars)
+## Diff (Python, TypeScript, JavaScript, JSON, Markdown, HTML, config files, shell scripts (.sh), PowerShell scripts (.ps1) — truncated at 120k chars)
 {diff}
 
 If the diff is empty, this is likely a docs-only or config-only PR whose file types
@@ -167,6 +170,78 @@ def finalize_review(review: str, empty_error: str) -> int:
         return 1
     print(review.strip())
     return 0
+
+
+def extract_filenames_from_diff(diff_text: str) -> list[str]:
+    """Extract filenames from diff in order of appearance."""
+    filenames = []
+    for line in diff_text.splitlines():
+        if line.startswith("diff --git "):
+            # Extract filename from "diff --git a/path/to/file b/path/to/file"
+            parts = line.split()
+            if len(parts) >= 4:
+                # Get the filename (remove a/ and b/ prefixes)
+                filename = parts[3]
+                if filename.startswith("b/"):
+                    filename = filename[2:]
+                filenames.append(filename)
+    return filenames
+
+
+def extract_important_filenames(text: str) -> set[str]:
+    """Extract filenames mentioned in text (PR title or issue body)."""
+    import re
+    filenames = set()
+    for match in re.finditer(r'\b[\w\-./]+\.(?:py|ts|tsx|js|json|yml|yaml|sh|ps1)\b', text):
+        filenames.add(match.group(0))
+    return filenames
+
+
+def prioritize_diff_blocks(diff_text: str, pr_title: str = "", issue_body: str = "") -> list[str]:
+    """Split and prioritize diff blocks by importance.
+
+    Returns blocks sorted so that files mentioned in PR title/issue come first,
+    followed by other changed files.
+    """
+    blocks = split_diff_blocks(diff_text)
+    if not blocks or not (pr_title or issue_body):
+        return blocks
+
+    # Extract filenames mentioned in PR title and issue body
+    important_files = extract_important_filenames(f"{pr_title} {issue_body}")
+
+    # Extract filename for each block
+    def get_block_filename(block: str) -> str:
+        for line in block.splitlines():
+            if line.startswith("diff --git "):
+                parts = line.split()
+                if len(parts) >= 4:
+                    filename = parts[3]
+                    if filename.startswith("b/"):
+                        filename = filename[2:]
+                    return filename
+        return ""
+
+    # Check if a block's file matches any important file
+    def is_important(block: str) -> bool:
+        block_file = get_block_filename(block)
+        if not block_file:
+            return False
+        # Check full path match
+        if block_file in important_files:
+            return True
+        # Check basename match (e.g., "review_common.py" matches "backend/review_common.py")
+        basename = os.path.basename(block_file)
+        for important in important_files:
+            if basename == os.path.basename(important) or basename == important:
+                return True
+        return False
+
+    # Sort blocks: important files first, then others
+    important_blocks = [b for b in blocks if is_important(b)]
+    other_blocks = [b for b in blocks if not is_important(b)]
+
+    return important_blocks + other_blocks
 
 
 def split_diff_blocks(diff_text: str) -> list[str]:

@@ -73,7 +73,7 @@ def main() -> int:
     if not context.diff.strip():
         return emit_empty_diff_notice("Claude")
 
-    prompt = build_prompt(context.pr_title, context.diff, context.issue_body, context.discussion)
+    prompt = build_prompt(context.pr_title, context.diff, context.issue_body, context.discussion, context.verified_facts)
     review = fetch_claude_review(context.api_key, prompt)
     return finalize_review(review, "ERROR: Claude API returned an empty review")
 

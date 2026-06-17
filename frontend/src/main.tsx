@@ -57,6 +57,10 @@ interface BootstrapConfig {
 const storedToken = getStoredAuthToken();
 if (storedToken) setAuthToken(storedToken);
 
+// Populated by bootstrapRuntimeConfig before React mounts so Root can pass it
+// to LoginPage for the explicit Cognito sign-in button.
+let runtimeAwsUiAuth: AwsUiAuthConfig | undefined;
+
 const App = lazy(() => import('./App.tsx'));
 const ComplianceWarnings = lazy(() => import('./pages/ComplianceWarnings'));
 const Goals = lazy(() => import('./pages/Goals'));
@@ -121,14 +125,16 @@ const renderRouteMarker = (
   );
 };
 
-export function Root() {
+export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthConfig } = {}) {
   const [configLoading, setConfigLoading] = useState(true);
   const [configError, setConfigError] = useState<Error | null>(null);
   const [retryScheduled, setRetryScheduled] = useState(false);
   const [needsAuth, setNeedsAuth] = useState(false);
   const [googleLoginEnabled, setGoogleLoginEnabled] = useState(false);
   const [clientId, setClientId] = useState('');
-  const [authed, setAuthed] = useState(Boolean(storedToken));
+  const [authed, setAuthed] = useState(
+    Boolean(storedToken) || Boolean(getStoredCognitoIdToken()),
+  );
   const { setUser } = useAuth();
   const { setProfile } = useUser();
   const navigate = useNavigate();
@@ -324,9 +330,14 @@ export function Root() {
   }
 
   if (needsAuth && !authed && !isPublicSupportRoute && !isPublicCreateAccountRoute) {
-    if (!googleLoginEnabled || !clientId) {
+    const awsUiAuthEnabled =
+      awsUiAuth?.enabled === true || awsUiAuth?.enabled === 'true';
+    const hasAnyLoginMethod =
+      (googleLoginEnabled && Boolean(clientId)) || awsUiAuthEnabled;
+
+    if (!hasAnyLoginMethod) {
       console.error(
-        'Authentication is enforced but Google login is not fully configured'
+        'Authentication is enforced but no login method is configured'
       );
       return (
         <>
@@ -339,7 +350,11 @@ export function Root() {
     return (
       <>
         {renderRouteMarker(location.pathname, 'auth')}
-        <LoginPage clientId={clientId} onSuccess={() => setAuthed(true)} />
+        <LoginPage
+          clientId={clientId}
+          awsUiAuth={awsUiAuth}
+          onSuccess={() => setAuthed(true)}
+        />
       </>
     );
   }
@@ -508,6 +523,7 @@ const bootstrapRuntimeConfig = async () => {
   if (typeof payload.apiBaseUrl === 'string') {
     setApiBase(payload.apiBaseUrl);
   }
+  runtimeAwsUiAuth = payload.awsUiAuth;
   const shouldRender = await ensureAwsUiAuth(payload.awsUiAuth);
   if (shouldRender) {
     try {

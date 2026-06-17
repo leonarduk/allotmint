@@ -156,15 +156,16 @@ export const clearCognitoSession = (): void => {
 
 /**
  * Initiates a Cognito logout by redirecting to the Cognito logout endpoint.
- * This invalidates the user's Cognito session and redirects to the logout_uri.
+ * Clears the local session before redirecting to ensure a clean state even if
+ * the redirect fails. The logout_uri must be pre-registered in the Cognito App
+ * Client's "Allowed sign-out URLs" setting.
  */
 export const cognitoLogout = (config?: AwsUiAuthConfig | null): void => {
   const domain = normaliseDomain(config?.domain ?? '');
   const clientId = config?.clientId?.trim() ?? '';
-  if (!domain || !clientId) {
-    clearCognitoSession();
-    return;
-  }
+  // Clear local session immediately, before any redirect
+  clearCognitoSession();
+  if (!domain || !clientId) return;
   const logoutUri = window.location.origin + (config?.redirectPath ?? '/');
   const params = new URLSearchParams({
     client_id: clientId,

@@ -92,10 +92,10 @@ export default function Menu({
           if (category.tabs.length > 0) return true;
           return (
             category.id === 'preferences' &&
-            (supportEnabled || (!familyMvpEnabled && Boolean(onLogout)))
+            (supportEnabled || Boolean(onLogout))
           );
         }),
-    [availableTabs, categoryDefinitions, familyMvpEnabled, onLogout, supportEnabled]
+    [availableTabs, categoryDefinitions, onLogout, supportEnabled]
   );
 
   const [openCategory, setOpenCategory] = useState<string | null>(null);
@@ -276,7 +276,7 @@ export default function Menu({
                       </Link>
                     </li>
                   )}
-                  {category.id === 'preferences' && !familyMvpEnabled && onLogout && (
+                  {category.id === 'preferences' && onLogout && (
                     <li key="logout">
                       <button
                         ref={(element) => assignFirstFocusable(element)}

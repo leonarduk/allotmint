@@ -19,6 +19,10 @@ import json
 import logging
 import re
 import secrets
+
+from fastapi import HTTPException
+from fasteners import InterProcessLock
+
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -166,45 +170,57 @@ def create_signup_request(
 
 
 def _enforce_cap(store_dir: Path, max_pending: int, *, now: datetime | None = None) -> None:
-    """Remove oldest pending requests until the directory is within ``max_pending``.
-
-    Requests are ordered by ``created_at`` (oldest first). Only requests with
-    ``status == "pending"`` are counted for the cap; non-pending files are left
-    alone (they are managed by the approval flow #4352).
-    """
-
+    """Remove the oldest pending requests until the directory is within ``max_pending``."""
     moment = now or datetime.now(timezone.utc)
     directory = Path(store_dir)
     if not directory.is_dir():
         return
 
-    pending: list[tuple[datetime, Path]] = []
-    for path in directory.glob("*.json"):
-        try:
-            data = json.loads(path.read_text())
-        except (json.JSONDecodeError, OSError):
-            continue
-        if data.get("status") != "pending":
-            continue
-        created_str = data.get("created_at", "")
-        try:
-            created = datetime.fromisoformat(created_str)
-        except (ValueError, TypeError):
-            created = moment
-        pending.append((created, path))
+    lock = InterProcessLock('/tmp/signup_requests.lock')
 
-    if len(pending) <= max_pending:
-        return
+    try:
+        acquired = lock.acquire(timeout=1.0)
+        if not acquired:
+            raise HTTPException(503, "Server busy")
 
-    # Oldest first
-    pending.sort(key=lambda item: item[0])
-    to_remove = pending[: len(pending) - max_pending]
-    for _, p in to_remove:
-        try:
-            p.unlink()
-            logger.info("Capped signup request %s (exceeded max pending %d)", p.stem, max_pending)
-        except OSError:
-            pass
+        # critical section: read + decide + delete
+        pending: list[tuple[datetime, Path]] = []
+        for path in directory.glob("*.json"):
+            try:
+                data = json.loads(path.read_text())
+            except (json.JSONDecodeError, OSError):
+                continue
+            if data.get("status") != "pending":
+                continue
+            created_str = data.get("created_at", "")
+            try:
+                created = datetime.fromisoformat(created_str)
+            except (ValueError, TypeError):
+                created = moment
+            pending.append((created, path))
+
+        if len(pending) <= max_pending:
+            return
+
+        pending.sort(key=lambda item: item[0])
+        to_remove = pending[: len(pending) - max_pending]
+        for _, p in to_remove:
+            try:
+                p.unlink()
+                logger.info(
+                    "Capped signup request %s (exceeded max pending %d)",
+                    p.stem,
+                    max_pending,
+                )
+            except OSError:
+                pass
+
+    except TimeoutError:
+        logger.warning("Lock timeout")
+        raise HTTPException(503, "Server busy")
+    finally:
+        if lock.acquired:
+            lock.release()
 
 
 def _prune_stale(store_dir: Path, *, now: datetime | None = None) -> None:

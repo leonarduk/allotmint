@@ -92,10 +92,21 @@ def check_working_tree_clean() -> bool:
 
 
 def get_changed_files(branch: str) -> list[str]:
-    """Get list of changed files in the current branch vs its merge base with main."""
+    """Get list of changed files: either uncommitted changes or commits on the branch."""
     try:
+        # First check for uncommitted changes
         result = subprocess.run(
-            ["git", "merge-base", branch, "origin/main"],
+            ["git", "diff", "--name-only"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip().split("\n")
+
+        # If no uncommitted changes, check for commits on the branch
+        result = subprocess.run(
+            ["git", "merge-base", branch, "main"],
             capture_output=True,
             text=True,
             check=False,
@@ -329,6 +340,20 @@ def main() -> None:
         help="Ollama model name (default: OLLAMA_MODEL env var or 'mistral')",
     )
     args = parser.parse_args()
+
+    # Change to git root directory
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        git_root = result.stdout.strip()
+        os.chdir(git_root)
+    except subprocess.CalledProcessError:
+        print("Error: Could not determine git root directory", file=sys.stderr)
+        sys.exit(1)
 
     # Check prerequisites
     if not check_gh_installed():

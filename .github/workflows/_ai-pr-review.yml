@@ -62,18 +62,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Get PR diff
-        id: diff
-        run: |
-          git fetch origin ${{ github.base_ref }}
-          DIFF=$(python3 .github/scripts/prepare_review_diff.py --base-ref "${{ github.base_ref }}")
-          DELIM="EOF_$(uuidgen | tr -d '-')"
-          {
-            echo "diff<<$DELIM"
-            echo "$DIFF"
-            echo "$DELIM"
-          } >> "$GITHUB_OUTPUT"
-
       - name: Get linked issue body
         id: issue
         env:
@@ -94,6 +82,25 @@ jobs:
             echo "$DELIM"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Get PR diff
+        id: diff
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          ISSUE_BODY: ${{ steps.issue.outputs.body }}
+        run: |
+          git fetch origin "$BASE_REF"
+          DIFF=$(python3 .github/scripts/prepare_review_diff.py \
+            --base-ref "$BASE_REF" \
+            --pr-title "$PR_TITLE" \
+            --issue-body "$ISSUE_BODY")
+          DELIM="EOF_$(uuidgen | tr -d '-')"
+          {
+            echo "diff<<$DELIM"
+            echo "$DIFF"
+            echo "$DELIM"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Get PR discussion since last review
         id: discussion
         env:
@@ -110,6 +117,20 @@ jobs:
             echo "$DELIM"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Extract verified symbols from diff
+        id: verified
+        env:
+          DIFF_OUTPUT: ${{ steps.diff.outputs.diff }}
+        run: |
+          VERIFIED=$(python3 .github/scripts/extract_verified_symbols.py \
+            --diff "$DIFF_OUTPUT")
+          DELIM="EOF_$(uuidgen | tr -d '-')"
+          {
+            echo "facts<<$DELIM"
+            echo "$VERIFIED"
+            echo "$DELIM"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Call ${{ inputs.provider_name }} API
         env:
           ANTHROPIC_API_KEY: ${{ secrets.anthropic_api_key }}
@@ -122,6 +143,7 @@ jobs:
           DIFF: ${{ steps.diff.outputs.diff }}
           ISSUE_BODY: ${{ steps.issue.outputs.body }}
           DISCUSSION: ${{ steps.discussion.outputs.text }}
+          VERIFIED_FACTS: ${{ steps.verified.outputs.facts }}
         run: |
           python3 ${{ inputs.review_script }} > /tmp/${{ inputs.provider_id }}_review_body.md
 

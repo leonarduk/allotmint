@@ -30,9 +30,12 @@ def get_repo_info() -> tuple[str, str]:
             # https://github.com/owner/repo.git
             match = re.search(r"github\.com/([^/]+)/(.+?)(?:\.git)?$", url)
         if match:
-            return match.group(1), match.group(2).replace(".git", "")
-    except subprocess.CalledProcessError:
-        pass
+            repo = match.group(2)
+            if repo.endswith(".git"):
+                repo = repo[:-4]
+            return match.group(1), repo
+    except subprocess.CalledProcessError as exc:
+        raise ValueError(f"Could not determine GitHub repo from git remote origin: {exc}") from exc
     raise ValueError("Could not determine GitHub repo from git remote origin")
 
 
@@ -47,10 +50,10 @@ def slugify(text: str) -> str:
 def fetch_issue(owner: str, repo: str, issue_id: int) -> dict:
     """Fetch issue details from GitHub API."""
     url = f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_id}"
-    resp = requests.get(url, timeout=10)
     try:
+        resp = requests.get(url, timeout=10)
         resp.raise_for_status()
-    except requests.HTTPError as exc:
+    except requests.RequestException as exc:
         print(f"Failed to fetch issue #{issue_id}: {exc}", file=sys.stderr)
         sys.exit(1)
     return resp.json()
@@ -88,12 +91,14 @@ def create_branch(
     if token:
         headers["Authorization"] = f"token {token}"
     data = {"ref": f"refs/heads/{branch_name}", "sha": sha}
-    resp = requests.post(url, json=data, headers=headers, timeout=10)
     try:
+        resp = requests.post(url, json=data, headers=headers, timeout=10)
         resp.raise_for_status()
+    except requests.RequestException as exc:
+        print(f"Failed to create branch: {exc}", file=sys.stderr)
+        sys.exit(1)
     except requests.HTTPError as exc:
-        if resp.status_code == 422:
-            # Branch already exists
+        if resp.status_code == 422 and "Reference already exists" in resp.text:
             print(f"Branch {branch_name} already exists (will proceed with checkout)", file=sys.stderr)
         else:
             print(f"Failed to create branch: {exc}", file=sys.stderr)
@@ -119,6 +124,14 @@ def main() -> None:
 
     print(f"Using repository: {owner}/{repo}")
 
+    # Fetch latest refs before resolving SHAs
+    print("Fetching from origin...")
+    try:
+        subprocess.run(["git", "fetch", "origin"], check=True)
+    except subprocess.CalledProcessError as exc:
+        print(f"Failed to fetch from origin: {exc}", file=sys.stderr)
+        sys.exit(1)
+
     # Fetch issue
     print(f"Fetching issue #{args.issue_id}...")
     issue = fetch_issue(owner, repo, args.issue_id)
@@ -138,19 +151,17 @@ def main() -> None:
     print("Creating branch in remote...")
     create_branch(owner, repo, branch_name, sha, args.token or os.getenv("GITHUB_TOKEN"))
 
-    # Fetch and checkout
-    print("Fetching from origin...")
+    # Checkout the new branch
     try:
-        subprocess.run(["git", "fetch", "origin"], check=True)
         print(f"Checking out {branch_name}...")
         subprocess.run(["git", "checkout", branch_name], check=True)
     except subprocess.CalledProcessError as exc:
         print(f"Failed to checkout branch: {exc}", file=sys.stderr)
         sys.exit(1)
 
-    # Write issue to markdown file
+    # Write issue to markdown file (preserve original content without reformatting)
     issue_file = Path(f".issue-{args.issue_id}.md")
-    content = f"# {title}\n\n{body}\n"
+    content = f"{title}\n\n{body}\n"
     issue_file.write_text(content)
     print(f"Wrote issue to {issue_file}")
     print(f"\n[OK] Ready to work on issue #{args.issue_id}")

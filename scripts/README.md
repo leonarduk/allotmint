@@ -160,7 +160,7 @@ The script:
 4. Writes the issue title and body to `.issue-4445.md`
 
 Optional flags:
-- `--token TOKEN`: GitHub personal access token (also reads `GITHUB_TOKEN` env var). Required only if the remote repo is private.
+- `--token TOKEN`: GitHub personal access token (also reads `GITHUB_TOKEN` env var). Required for branch creation (unauthenticated requests will fail with 401/403).
 
 ## reconcile_drawdown.py
 

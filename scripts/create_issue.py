@@ -135,8 +135,11 @@ def main() -> None:
     # Fetch issue
     print(f"Fetching issue #{args.issue_id}...")
     issue = fetch_issue(owner, repo, args.issue_id)
-    title = issue["title"]
-    body = issue["body"] or ""
+    title = issue.get("title", "")
+    body = issue.get("body") or ""
+    if not title:
+        print(f"Error: Issue #{args.issue_id} has no title", file=sys.stderr)
+        sys.exit(1)
 
     # Create branch name
     slug = slugify(title)
@@ -150,6 +153,13 @@ def main() -> None:
     # Create branch in remote
     print("Creating branch in remote...")
     create_branch(owner, repo, branch_name, sha, args.token or os.getenv("GITHUB_TOKEN"))
+
+    # Fetch the newly created branch so the local checkout can reference it
+    try:
+        subprocess.run(["git", "fetch", "origin", branch_name], check=True, capture_output=True)
+    except subprocess.CalledProcessError:
+        # Fallback: fetch all refs if specific branch fetch fails
+        subprocess.run(["git", "fetch", "origin"], check=True)
 
     # Checkout the new branch (create local tracking branch if needed)
     try:

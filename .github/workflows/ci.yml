@@ -32,7 +32,7 @@ jobs:
       - run: npm test -- --run
         working-directory: frontend
       - name: CDK infrastructure tests
-        run: pytest cdk/tests/
+        run: pytest cdk/tests/ --no-cov
 
   validate-backend-deps:
     name: Validate backend/requirements.txt (dry-run)

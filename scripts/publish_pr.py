@@ -149,6 +149,20 @@ def stage_and_commit(files: Optional[list[str]], message: str, branch: str) -> b
         return False
 
 
+def branch_is_ahead_of_main(branch: str) -> bool:
+    """Check if branch has commits ahead of main."""
+    try:
+        result = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", "main", branch],
+            capture_output=True,
+            check=False,
+        )
+        # Return code 0 means main is an ancestor of branch (branch is ahead)
+        return result.returncode == 0
+    except subprocess.CalledProcessError:
+        return False
+
+
 def push_to_remote(branch: str) -> bool:
     """Push the branch to remote."""
     try:
@@ -396,15 +410,21 @@ def main() -> None:
     default_branch = get_default_branch(owner, repo)
     print(f"Target branch: {default_branch}")
 
+    # Check if branch is ahead of main
+    if not branch_is_ahead_of_main(default_branch):
+        print(f"Error: Branch '{branch}' is not ahead of '{default_branch}'", file=sys.stderr)
+        sys.exit(1)
+
     # Stage and commit
     print("Staging and committing changes...")
     if check_working_tree_clean():
-        print("Working tree is already clean.")
+        print("Working tree is already clean. No new changes to commit.")
     else:
         commit_msg = args.message or f"Work on issue #{issue_id}"
-        if not stage_and_commit(args.files, commit_msg, branch):
-            sys.exit(1)
-        print(f"Committed: {commit_msg}")
+        if stage_and_commit(args.files, commit_msg, branch):
+            print(f"Committed: {commit_msg}")
+        else:
+            print("No changes to commit, but continuing with PR creation...")
 
     # Push to remote
     print("Pushing to remote...")

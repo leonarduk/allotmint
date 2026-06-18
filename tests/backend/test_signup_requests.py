@@ -1,7 +1,11 @@
 import json
 from datetime import datetime, timedelta, timezone
+import time
 
+from pathlib import Path
 import pytest
+
+from concurrent.futures import ThreadPoolExecutor
 
 from backend.common import signup_requests
 
@@ -156,3 +160,40 @@ def test_validate_request_does_not_mutate(tmp_path):
     assert json.loads((store / f"{record.id}.json").read_text())["status"] == "pending"
     consumed = signup_requests.consume_request(record.id, token, store, new_status="approved")
     assert consumed.status == "approved"
+
+def test_enforce_cap_race_condition(tmp_path, monkeypatch):
+    store = signup_requests.signup_requests_dir(tmp_path)
+    store.mkdir(parents=True, exist_ok=True)
+
+    # Seed directory with too many pending files so _enforce_cap MUST run
+    for i in range(signup_requests._MAX_PENDING_REQUESTS + 5):
+        (store / f"req_{i}.json").write_text(json.dumps({
+            "status": "pending",
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }))
+
+    # Monkeypatch Path.glob to force overlap inside _enforce_cap
+    real_glob = Path.glob
+
+    def slow_glob(self, pattern):
+        time.sleep(0.01)  # force threads to overlap
+        return real_glob(self, pattern)
+
+    monkeypatch.setattr(Path, "glob", slow_glob)
+
+    # Run TWO concurrent create_signup_request calls
+    # This triggers _persist() → _enforce_cap() → write new file
+    with ThreadPoolExecutor(max_workers=2) as ex:
+        futures = [
+            ex.submit(
+                signup_requests.create_signup_request,
+                "A", "a@example.com", "", store
+            )
+            for _ in range(2)
+        ]
+        for f in futures:
+            f.result()
+
+    # Now check that the cap was respected
+    files = list(store.glob("*.json"))
+    assert len(files) <= signup_requests._MAX_PENDING_REQUESTS

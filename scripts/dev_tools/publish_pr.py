@@ -105,26 +105,24 @@ def get_changed_files(branch: str) -> list[str]:
             uncommitted_changes = result.stdout.strip().split("\n")
             changed_files.extend(uncommitted_changes)
 
-        # Check for commits on the branch
+        # Check for commits on the branch only if we have a merge base
         result = subprocess.run(
             ["git", "merge-base", branch, "origin/main"],
             capture_output=True,
             text=True,
             check=False,
         )
-        if result.returncode != 0:
-            return []
-        merge_base = result.stdout.strip()
-
-        result = subprocess.run(
-            ["git", "diff", "--name-only", f"{merge_base}...HEAD"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            committed_changes = result.stdout.strip().split("\n")
-            changed_files.extend(committed_changes)
+        if result.returncode == 0:
+            merge_base = result.stdout.strip()
+            result = subprocess.run(
+                ["git", "diff", "--name-only", f"{merge_base}...HEAD"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                committed_changes = result.stdout.strip().split("\n")
+                changed_files.extend(committed_changes)
 
     except subprocess.CalledProcessError:
         pass

@@ -19,7 +19,7 @@ def run_gh_command(args: list[str], json_output: bool = False) -> tuple[str, int
             capture_output=True,
             text=True,
             encoding="utf-8",
-            timeout=30,
+            timeout=60,
         )
         return result.stdout.strip(), result.returncode
     except FileNotFoundError:
@@ -34,7 +34,12 @@ def infer_repo() -> tuple[str, str]:
     """Infer owner/repo from git remote."""
     output, code = run_gh_command(["repo", "view", "--json", "owner,name"])
     if code != 0:
-        print("Error: Could not determine repo owner/name from git remote.", file=sys.stderr)
+        print(
+            "Error: Could not infer repo from git remote. "
+            "Check that: (1) you are in a git repository with a remote, "
+            "(2) GitHub CLI is authenticated (run 'gh auth login').",
+            file=sys.stderr,
+        )
         sys.exit(1)
     try:
         data = json.loads(output)
@@ -121,6 +126,14 @@ def fetch_reviews(owner: str, repo: str, pr: int) -> dict[int, bool]:
     endpoint = f"/repos/{owner}/{repo}/pulls/{pr}/reviews"
     reviews = fetch_paginated(owner, repo, endpoint)
     review_dismissed: dict[int, bool] = {}
+
+    if not reviews:
+        print(
+            "Warning: No reviews found. The 'resolved' field for inline comments "
+            "will default to false. This may indicate an API error.",
+            file=sys.stderr,
+        )
+        return review_dismissed
 
     for review in reviews:
         if isinstance(review, dict):

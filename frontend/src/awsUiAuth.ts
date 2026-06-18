@@ -154,6 +154,26 @@ export const clearCognitoSession = (): void => {
   window.sessionStorage.removeItem(SESSION_KEY);
 };
 
+/**
+ * Initiates a Cognito logout by redirecting to the Cognito logout endpoint.
+ * Clears the local session before redirecting to ensure a clean state even if
+ * the redirect fails. The logout_uri must be pre-registered in the Cognito App
+ * Client's "Allowed sign-out URLs" setting.
+ */
+export const cognitoLogout = (config?: AwsUiAuthConfig | null): void => {
+  const domain = normaliseDomain(config?.domain ?? '');
+  const clientId = config?.clientId?.trim() ?? '';
+  // Clear local session immediately, before any redirect
+  clearCognitoSession();
+  if (!domain || !clientId) return;
+  const logoutUri = window.location.origin + (config?.redirectPath ?? '/');
+  const params = new URLSearchParams({
+    client_id: clientId,
+    logout_uri: logoutUri,
+  });
+  window.location.assign(`${domain}/logout?${params.toString()}`);
+};
+
 /** Epoch-ms expiry of the stored Cognito session, or null when none is stored. */
 export const getCognitoSessionExpiresAt = (): number | null => {
   const session = loadSession();

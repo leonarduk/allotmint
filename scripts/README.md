@@ -166,7 +166,7 @@ Optional flags:
 Automate PR publishing: commit changes, push to remote, and create a PR with auto-filled body sections. Optionally uses Ollama to generate thoughtful PR descriptions.
 
 ```bash
-python scripts/publish_pr.py
+python scripts/dev_tools/publish_pr.py
 ```
 
 The script:

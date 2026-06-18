@@ -94,9 +94,9 @@ def get_changed_files(branch: str) -> list[str]:
     """Get list of changed files: either uncommitted changes or commits on the branch."""
     changed_files = []
     try:
-        # First check for uncommitted changes
+        # Check for both staged and unstaged changes
         result = subprocess.run(
-            ["git", "diff", "--name-only"],
+            ["git", "diff", "--name-only", "HEAD"],
             capture_output=True,
             text=True,
             check=False,
@@ -151,20 +151,33 @@ def stage_and_commit(files: Optional[list[str]], message: str, branch: str) -> b
         return True
     except subprocess.CalledProcessError as exc:
         print(f"Failed to commit: {exc}", file=sys.stderr)
-        raise exc
+        return False
 
 
 def branch_is_ahead_of_main(branch: str, default_branch: str) -> bool:
     """Check if branch has commits ahead of main."""
     try:
+        # First check if default_branch is an ancestor of branch
         result = subprocess.run(
             ["git", "merge-base", "--is-ancestor", default_branch, branch],
             capture_output=True,
             check=False,
         )
-        # Return code 0 means main is an ancestor of branch (branch is ahead)
-        return result.returncode == 0
-    except subprocess.CalledProcessError:
+        if result.returncode != 0:
+            return False
+
+        # Then verify branch actually has commits NOT in default_branch
+        result = subprocess.run(
+            ["git", "rev-list", "--count", f"{default_branch}..{branch}"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode == 0:
+            commit_count = int(result.stdout.strip())
+            return commit_count > 0
+        return False
+    except (subprocess.CalledProcessError, ValueError):
         return False
 
 

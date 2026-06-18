@@ -82,13 +82,24 @@ def fetch_paginated(owner: str, repo: str, endpoint: str) -> list[dict[str, Any]
         ]
         output, code = run_gh_command(args)
         if code != 0:
+            if items:
+                print(
+                    f"Warning: API request to {endpoint} page {page} failed after "
+                    f"collecting {len(items)} items. Returning partial results.",
+                    file=sys.stderr,
+                )
+                return items
             print(f"Error: API request to {endpoint} page {page} failed.", file=sys.stderr)
-            return items
+            return []
+
+        if not output:
+            print(f"Error: Empty response from {endpoint} page {page}.", file=sys.stderr)
+            return []
 
         try:
             data = json.loads(output)
         except json.JSONDecodeError:
-            print(f"Error: Failed to parse JSON from API response.", file=sys.stderr)
+            print(f"Error: Failed to parse JSON from {endpoint} page {page}.", file=sys.stderr)
             return items
 
         if not isinstance(data, list) or len(data) == 0:
@@ -101,7 +112,7 @@ def fetch_paginated(owner: str, repo: str, endpoint: str) -> list[dict[str, Any]
 
 
 def fetch_reviews(owner: str, repo: str, pr: int) -> dict[int, bool]:
-    """Fetch reviews and map review_id -> dismissed (resolved)."""
+    """Fetch reviews and map review_id -> is_currently_dismissed (resolved)."""
     endpoint = f"/repos/{owner}/{repo}/pulls/{pr}/reviews"
     reviews = fetch_paginated(owner, repo, endpoint)
     review_dismissed: dict[int, bool] = {}
@@ -109,9 +120,10 @@ def fetch_reviews(owner: str, repo: str, pr: int) -> dict[int, bool]:
     for review in reviews:
         if isinstance(review, dict):
             review_id = review.get("id")
-            dismissed = review.get("dismissed_at") is not None
+            state = review.get("state", "")
+            is_dismissed = state == "DISMISSED"
             if review_id is not None:
-                review_dismissed[review_id] = dismissed
+                review_dismissed[review_id] = is_dismissed
 
     return review_dismissed
 

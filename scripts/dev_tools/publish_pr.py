@@ -128,7 +128,9 @@ def get_changed_files(branch: str) -> list[str]:
 
     except subprocess.CalledProcessError:
         pass
-    return changed_files
+
+    # remove duplicates
+    return list(set(changed_files))
 
 
 def stage_and_commit(files: Optional[list[str]], message: str, branch: str) -> bool:
@@ -209,7 +211,8 @@ def get_ollama_model() -> str:
 
     # Try to get available models from Ollama
     try:
-        resp = requests.get(get_ollama_server_url(), timeout=2)
+        ollama_url = get_ollama_server_url()
+        resp = requests.get(f"{ollama_url}/api/tags", timeout=2)
         if resp.status_code == 200:
             data = resp.json()
             models = data.get("models", [])

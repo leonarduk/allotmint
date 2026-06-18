@@ -150,7 +150,7 @@ Use `--api` to point at a different backend URL. Parsed transactions are printed
 Automate GitHub issue checkout: create a branch, check it out locally, and save the issue body to a markdown file in one command.
 
 ```bash
-python scripts/work_on_issue.py 4445
+python scripts/dev_tools/work_on_issue.py 4445
 ```
 
 The script:

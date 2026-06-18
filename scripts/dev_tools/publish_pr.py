@@ -90,7 +90,7 @@ def check_working_tree_clean() -> bool:
         return False
 
 
-def get_changed_files(branch: str) -> list[str]:
+def get_changed_files(branch: str, default_branch: str = "origin/main") -> list[str]:
     """Get list of changed files: either uncommitted changes or commits on the branch."""
     changed_files = []
     try:
@@ -107,7 +107,7 @@ def get_changed_files(branch: str) -> list[str]:
 
         # Check for commits on the branch only if we have a merge base
         result = subprocess.run(
-            ["git", "merge-base", branch, "origin/main"],
+            ["git", "merge-base", branch, default_branch],
             capture_output=True,
             text=True,
             check=False,
@@ -131,12 +131,12 @@ def get_changed_files(branch: str) -> list[str]:
     return list(set(changed_files))
 
 
-def stage_and_commit(files: Optional[list[str]], message: str, branch: str) -> bool:
+def stage_and_commit(files: Optional[list[str]], message: str, branch: str, default_branch: str = "origin/main") -> bool:
     """Stage and commit the specified files (or changed files in branch if none specified)."""
     try:
         if not files:
             # Auto-detect changed files in the branch
-            files = get_changed_files(branch)
+            files = get_changed_files(branch, default_branch)
             if not files:
                 print("No changed files found in branch. Nothing to commit.", file=sys.stderr)
                 return False
@@ -153,7 +153,7 @@ def stage_and_commit(files: Optional[list[str]], message: str, branch: str) -> b
 
 
 def branch_is_ahead_of_main(branch: str, default_branch: str) -> bool:
-    """Check if branch has commits ahead of main."""
+    """Check if branch has commits ahead of the default branch."""
     try:
         # First check if default_branch is an ancestor of branch
         result = subprocess.run(
@@ -217,8 +217,9 @@ def is_ollama_running(host: str = "localhost", port: int = 11434) -> bool:
 def get_ollama_model() -> str:
     """Get Ollama model name from env, available models, or default."""
     # Check if explicitly set in env
-    if os.getenv("OLLAMA_MODEL"):
-        return os.getenv("OLLAMA_MODEL")
+    model = os.getenv("OLLAMA_MODEL")
+    if model:
+        return model
 
     # Try to get available models from Ollama
     try:
@@ -463,7 +464,7 @@ def main() -> None:
         print("Working tree is already clean. No new changes to commit.")
     else:
         commit_msg = args.message or f"Work on issue #{issue_id}"
-        if stage_and_commit(args.files, commit_msg, branch):
+        if stage_and_commit(args.files, commit_msg, branch, default_branch):
             print(f"Committed: {commit_msg}")
         else:
             print("No changes to commit, but continuing with PR creation...")

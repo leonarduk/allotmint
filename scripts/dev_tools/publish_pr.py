@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import re
 import subprocess
@@ -146,14 +145,14 @@ def stage_and_commit(files: Optional[list[str]], message: str, branch: str) -> b
         return True
     except subprocess.CalledProcessError as exc:
         print(f"Failed to commit: {exc}", file=sys.stderr)
-        return False
+        raise exc
 
 
-def branch_is_ahead_of_main(branch: str) -> bool:
+def branch_is_ahead_of_main(branch: str, default_branch: str) -> bool:
     """Check if branch has commits ahead of main."""
     try:
         result = subprocess.run(
-            ["git", "merge-base", "--is-ancestor", "main", branch],
+            ["git", "merge-base", "--is-ancestor", default_branch, branch],
             capture_output=True,
             check=False,
         )
@@ -431,7 +430,7 @@ def main() -> None:
     print(f"Target branch: {default_branch}")
 
     # Check if branch is ahead of main
-    if not branch_is_ahead_of_main(default_branch):
+    if not branch_is_ahead_of_main(branch=branch, default_branch=default_branch):
         print(f"Error: Branch '{branch}' is not ahead of '{default_branch}'", file=sys.stderr)
         sys.exit(1)
 

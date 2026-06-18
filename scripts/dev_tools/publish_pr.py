@@ -92,10 +92,21 @@ def check_working_tree_clean() -> bool:
 
 
 def get_changed_files(branch: str) -> list[str]:
-    """Get list of changed files in the current branch vs its merge base with main."""
+    """Get list of changed files: either uncommitted changes or commits on the branch."""
     try:
+        # First check for uncommitted changes
         result = subprocess.run(
-            ["git", "merge-base", branch, "origin/main"],
+            ["git", "diff", "--name-only"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip().split("\n")
+
+        # If no uncommitted changes, check for commits on the branch
+        result = subprocess.run(
+            ["git", "merge-base", branch, "main"],
             capture_output=True,
             text=True,
             check=False,
@@ -138,6 +149,20 @@ def stage_and_commit(files: Optional[list[str]], message: str, branch: str) -> b
         return False
 
 
+def branch_is_ahead_of_main(branch: str) -> bool:
+    """Check if branch has commits ahead of main."""
+    try:
+        result = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", "main", branch],
+            capture_output=True,
+            check=False,
+        )
+        # Return code 0 means main is an ancestor of branch (branch is ahead)
+        return result.returncode == 0
+    except subprocess.CalledProcessError:
+        return False
+
+
 def push_to_remote(branch: str) -> bool:
     """Push the branch to remote."""
     try:
@@ -170,8 +195,28 @@ def is_ollama_running(host: str = "localhost", port: int = 11434) -> bool:
 
 
 def get_ollama_model() -> str:
-    """Get Ollama model name from env or default."""
-    return os.getenv("OLLAMA_MODEL", "mistral")
+    """Get Ollama model name from env, available models, or default."""
+    # Check if explicitly set in env
+    if os.getenv("OLLAMA_MODEL"):
+        return os.getenv("OLLAMA_MODEL")
+
+    # Try to get available models from Ollama
+    try:
+        resp = requests.get("http://localhost:11434/api/tags", timeout=2)
+        if resp.status_code == 200:
+            data = resp.json()
+            models = data.get("models", [])
+            if models:
+                # Prefer coder models, otherwise use first available
+                for model in models:
+                    name = model.get("name", "")
+                    if "coder" in name.lower():
+                        return name
+                return models[0].get("name", "mistral")
+    except requests.RequestException:
+        pass
+
+    return "mistral"
 
 
 def generate_pr_body_with_ollama(issue_title: str, issue_body: str, model: str) -> Optional[str]:
@@ -330,6 +375,20 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    # Change to git root directory
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        git_root = result.stdout.strip()
+        os.chdir(git_root)
+    except subprocess.CalledProcessError:
+        print("Error: Could not determine git root directory", file=sys.stderr)
+        sys.exit(1)
+
     # Check prerequisites
     if not check_gh_installed():
         print("Error: 'gh' CLI not found. Install it from https://github.com/cli/cli", file=sys.stderr)
@@ -371,15 +430,21 @@ def main() -> None:
     default_branch = get_default_branch(owner, repo)
     print(f"Target branch: {default_branch}")
 
+    # Check if branch is ahead of main
+    if not branch_is_ahead_of_main(default_branch):
+        print(f"Error: Branch '{branch}' is not ahead of '{default_branch}'", file=sys.stderr)
+        sys.exit(1)
+
     # Stage and commit
     print("Staging and committing changes...")
     if check_working_tree_clean():
-        print("Working tree is already clean.")
+        print("Working tree is already clean. No new changes to commit.")
     else:
         commit_msg = args.message or f"Work on issue #{issue_id}"
-        if not stage_and_commit(args.files, commit_msg, branch):
-            sys.exit(1)
-        print(f"Committed: {commit_msg}")
+        if stage_and_commit(args.files, commit_msg, branch):
+            print(f"Committed: {commit_msg}")
+        else:
+            print("No changes to commit, but continuing with PR creation...")
 
     # Push to remote
     print("Pushing to remote...")

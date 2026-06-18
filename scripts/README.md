@@ -145,12 +145,12 @@ python scripts/import_transactions.py degiro path/to/transactions.csv
 
 Use `--api` to point at a different backend URL. Parsed transactions are printed as JSON.
 
-## create_issue.py
+## work_on_issue.py
 
 Automate GitHub issue checkout: create a branch, check it out locally, and save the issue body to a markdown file in one command.
 
 ```bash
-python scripts/create_issue.py 4445
+python scripts/work_on_issue.py 4445
 ```
 
 The script:

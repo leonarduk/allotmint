@@ -174,7 +174,11 @@ def _lock_path(store_dir: Path) -> Path:
 
 
 def _enforce_cap(store_dir: Path, max_pending: int, *, now: datetime | None = None) -> None:
-    """Remove the oldest pending requests until the directory is within ``max_pending``."""
+    """Remove the oldest pending requests until the directory is within ``max_pending``.
+
+    Only removes pending requests; approved/rejected requests are left for the
+    approval flow (#4352) to manage.
+    """
 
     moment = now or datetime.now(timezone.utc)
     directory = Path(store_dir)
@@ -202,27 +206,21 @@ def _enforce_cap(store_dir: Path, max_pending: int, *, now: datetime | None = No
                 created = moment
             pending.append((created, path))
 
-        if len(pending) <= max_pending:
-            return
-
-        pending.sort(key=lambda item: item[0])
-        to_remove = pending[: len(pending) - max_pending]
-        for _, p in to_remove:
-            try:
-                p.unlink()
-                logger.info(
-                    "Capped signup request %s (exceeded max pending %d)",
-                    p.stem,
-                    max_pending,
-                )
-            except OSError:
-                pass
+        if len(pending) > max_pending:
+            pending.sort(key=lambda item: item[0])
+            to_remove = pending[: len(pending) - max_pending]
+            for _, p in to_remove:
+                try:
+                    p.unlink()
+                    logger.info(
+                        "Capped signup request %s (exceeded max pending %d)",
+                        p.stem,
+                        max_pending,
+                    )
+                except OSError:
+                    pass
     finally:
         lock.release()
-        try:
-            _lock_path(directory).unlink()
-        except (OSError, FileNotFoundError):
-            pass
 
 
 def _prune_stale(store_dir: Path, *, now: datetime | None = None) -> None:

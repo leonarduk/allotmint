@@ -231,7 +231,7 @@ def test_enforce_cap_lock_acquisition_failure(tmp_path, monkeypatch):
     assert exc_info.value.status_code == 503
 
 
-def test_enforce_cap_lock_file_cleanup(tmp_path):
+def test_enforce_cap_respects_max_pending(tmp_path):
     store = signup_requests.signup_requests_dir(tmp_path)
     store.mkdir(parents=True, exist_ok=True)
 
@@ -245,6 +245,6 @@ def test_enforce_cap_lock_file_cleanup(tmp_path):
     # Run _enforce_cap
     signup_requests._enforce_cap(store, signup_requests._MAX_PENDING_REQUESTS)
 
-    # Lock file should be cleaned up after release
-    lock_file = signup_requests._lock_path(store)
-    assert not lock_file.exists(), "Lock file should be cleaned up after _enforce_cap completes"
+    # Verify that enforcement reduced the file count to max_pending
+    files = list(store.glob("*.json"))
+    assert len(files) <= signup_requests._MAX_PENDING_REQUESTS

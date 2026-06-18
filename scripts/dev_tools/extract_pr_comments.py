@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
 import subprocess
 import sys
@@ -12,12 +11,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-script_dir = Path(__file__).parent
-spec = importlib.util.spec_from_file_location("comment_formats", script_dir / "comment_formats.py")
-comment_formats = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(comment_formats)
-to_fixer = comment_formats.to_fixer
-to_jsonl = comment_formats.to_jsonl
+sys.path.insert(0, str(Path(__file__).parent))
+from comment_formats import to_fixer, to_jsonl
 
 
 def run_gh_command(args: list[str], json_output: bool = False) -> tuple[str, int]:

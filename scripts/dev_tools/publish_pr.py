@@ -92,6 +92,7 @@ def check_working_tree_clean() -> bool:
 
 def get_changed_files(branch: str) -> list[str]:
     """Get list of changed files: either uncommitted changes or commits on the branch."""
+    changed_files = []
     try:
         # First check for uncommitted changes
         result = subprocess.run(
@@ -101,11 +102,12 @@ def get_changed_files(branch: str) -> list[str]:
             check=False,
         )
         if result.returncode == 0 and result.stdout.strip():
-            return result.stdout.strip().split("\n")
+            uncommitted_changes = result.stdout.strip().split("\n")
+            changed_files.extend(uncommitted_changes)
 
-        # If no uncommitted changes, check for commits on the branch
+        # Check for commits on the branch
         result = subprocess.run(
-            ["git", "merge-base", branch, "main"],
+            ["git", "merge-base", branch, "origin/main"],
             capture_output=True,
             text=True,
             check=False,
@@ -121,10 +123,12 @@ def get_changed_files(branch: str) -> list[str]:
             check=False,
         )
         if result.returncode == 0 and result.stdout.strip():
-            return result.stdout.strip().split("\n")
+            committed_changes = result.stdout.strip().split("\n")
+            changed_files.extend(committed_changes)
+
     except subprocess.CalledProcessError:
         pass
-    return []
+    return changed_files
 
 
 def stage_and_commit(files: Optional[list[str]], message: str, branch: str) -> bool:
@@ -183,11 +187,15 @@ def fetch_issue(owner: str, repo: str, issue_id: int) -> Optional[dict]:
         print(f"Failed to fetch issue #{issue_id}: {exc}", file=sys.stderr)
         return None
 
+def get_ollama_server_url(host: str = "localhost", port: int = 11434) -> str:
+    """Get Ollama server url."""
+    return f"http://{host}:{port}"
 
 def is_ollama_running(host: str = "localhost", port: int = 11434) -> bool:
     """Check if Ollama is running locally."""
     try:
-        resp = requests.get(f"http://{host}:{port}/api/tags", timeout=2)
+        host_url= get_ollama_server_url(host=host, port=port)
+        resp = requests.get(f"{host_url}/api/tags", timeout=2)
         return resp.status_code == 200
     except requests.RequestException:
         return False
@@ -201,7 +209,7 @@ def get_ollama_model() -> str:
 
     # Try to get available models from Ollama
     try:
-        resp = requests.get("http://localhost:11434/api/tags", timeout=2)
+        resp = requests.get(get_ollama_server_url(), timeout=2)
         if resp.status_code == 200:
             data = resp.json()
             models = data.get("models", [])
@@ -243,9 +251,10 @@ Issue body:
 
 Generate only the sections above, no preamble."""
 
+    ollama_url = get_ollama_server_url()
     try:
         resp = requests.post(
-            "http://localhost:11434/api/generate",
+            f"{ollama_url}/api/generate",
             json={
                 "model": model,
                 "prompt": prompt,

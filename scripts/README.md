@@ -145,12 +145,12 @@ python scripts/import_transactions.py degiro path/to/transactions.csv
 
 Use `--api` to point at a different backend URL. Parsed transactions are printed as JSON.
 
-## create_issue.py
+## work_on_issue.py
 
 Automate GitHub issue checkout: create a branch, check it out locally, and save the issue body to a markdown file in one command.
 
 ```bash
-python scripts/create_issue.py 4445
+python scripts/dev_tools/work_on_issue.py 4445
 ```
 
 The script:
@@ -166,7 +166,7 @@ Optional flags:
 Automate PR publishing: commit changes, push to remote, and create a PR with auto-filled body sections. Optionally uses Ollama to generate thoughtful PR descriptions.
 
 ```bash
-python scripts/publish_pr.py
+python scripts/dev_tools/publish_pr.py
 ```
 
 The script:

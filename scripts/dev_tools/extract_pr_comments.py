@@ -32,15 +32,20 @@ def run_gh_command(args: list[str], json_output: bool = False) -> tuple[str, int
 
 def infer_repo() -> tuple[str, str]:
     """Infer owner/repo from git remote."""
-    url, code = run_gh_command(["repo", "view", "--json", "owner,name", "-q", "owner,name"])
+    output, code = run_gh_command(["repo", "view", "--json", "owner,name"])
     if code != 0:
         print("Error: Could not determine repo owner/name from git remote.", file=sys.stderr)
         sys.exit(1)
-    lines = url.split("\n")
-    if len(lines) < 2:
+    try:
+        data = json.loads(output)
+        owner = data.get("owner", {}).get("login")
+        repo = data.get("name")
+        if not owner or not repo:
+            raise ValueError("Missing owner or name in response")
+        return owner, repo
+    except (json.JSONDecodeError, ValueError):
         print("Error: Could not parse owner/name from gh repo view.", file=sys.stderr)
         sys.exit(1)
-    return lines[0].strip(), lines[1].strip()
 
 
 def get_pr_head_commit_date(owner: str, repo: str, pr: int) -> str:

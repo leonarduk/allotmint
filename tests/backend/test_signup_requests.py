@@ -197,3 +197,54 @@ def test_enforce_cap_race_condition(tmp_path, monkeypatch):
     # Now check that the cap was respected
     files = list(store.glob("*.json"))
     assert len(files) <= signup_requests._MAX_PENDING_REQUESTS
+
+
+def test_enforce_cap_lock_acquisition_failure(tmp_path, monkeypatch):
+    store = signup_requests.signup_requests_dir(tmp_path)
+    store.mkdir(parents=True, exist_ok=True)
+
+    # Create at least one pending request to trigger lock acquisition
+    (store / "req_1.json").write_text(json.dumps({
+        "status": "pending",
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }))
+
+    # Mock the lock to fail acquisition
+    class FailingLock:
+        def __init__(self, path):
+            self.path = path
+            self.acquired = False
+
+        def acquire(self, timeout=None):
+            return False  # Always fail to acquire
+
+        def release(self):
+            pass
+
+    monkeypatch.setattr("backend.common.signup_requests.InterProcessLock", FailingLock)
+
+    # Should raise HTTPException(503) when lock cannot be acquired
+    from fastapi import HTTPException
+    with pytest.raises(HTTPException) as exc_info:
+        signup_requests._enforce_cap(store, signup_requests._MAX_PENDING_REQUESTS)
+
+    assert exc_info.value.status_code == 503
+
+
+def test_enforce_cap_lock_file_cleanup(tmp_path):
+    store = signup_requests.signup_requests_dir(tmp_path)
+    store.mkdir(parents=True, exist_ok=True)
+
+    # Seed with files that will trigger cap enforcement
+    for i in range(signup_requests._MAX_PENDING_REQUESTS + 5):
+        (store / f"req_{i}.json").write_text(json.dumps({
+            "status": "pending",
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }))
+
+    # Run _enforce_cap
+    signup_requests._enforce_cap(store, signup_requests._MAX_PENDING_REQUESTS)
+
+    # Lock file should be cleaned up after release
+    lock_file = signup_requests._lock_path(store)
+    assert not lock_file.exists(), "Lock file should be cleaned up after _enforce_cap completes"

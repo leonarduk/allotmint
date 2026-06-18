@@ -170,7 +170,7 @@ def create_signup_request(
 
 def _lock_path(store_dir: Path) -> Path:
     # Hidden lock file in the same directory as the JSON files
-    return Path(store_dir) / ".lock"
+    return store_dir / ".lock"
 
 
 def _enforce_cap(store_dir: Path, max_pending: int, *, now: datetime | None = None) -> None:
@@ -183,9 +183,9 @@ def _enforce_cap(store_dir: Path, max_pending: int, *, now: datetime | None = No
 
     lock = InterProcessLock(str(_lock_path(directory)))
 
-    if not lock.acquire(timeout=1.0):
+    if not lock.acquire(timeout=5.0):
         logger.warning("Failed to acquire signup_requests lock within timeout")
-        raise RuntimeError("signup_requests cap enforcement busy")
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
     try:
         pending: list[tuple[datetime, Path]] = []
         for path in directory.glob("*.json"):
@@ -218,8 +218,11 @@ def _enforce_cap(store_dir: Path, max_pending: int, *, now: datetime | None = No
             except OSError:
                 pass
     finally:
-        if lock.acquired:
-            lock.release()
+        lock.release()
+        try:
+            _lock_path(directory).unlink()
+        except (OSError, FileNotFoundError):
+            pass
 
 
 def _prune_stale(store_dir: Path, *, now: datetime | None = None) -> None:

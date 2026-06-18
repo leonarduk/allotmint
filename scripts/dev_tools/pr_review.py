@@ -43,6 +43,8 @@ def get_repo_info() -> tuple[str, str]:
             match = re.search(r"github\.com/([^/]+)/(.+?)(?:\.git)?$", url)
         if match:
             return match.group(1), match.group(2).replace(".git", "")
+    except FileNotFoundError as exc:
+        raise ValueError(f"git command not found. Is git installed? {exc}") from exc
     except subprocess.CalledProcessError:
         pass
     raise ValueError("Could not determine GitHub repo from git remote origin")
@@ -67,6 +69,9 @@ def fetch_pr_details(owner: str, repo: str, pr_id: int) -> dict:
             check=True,
         )
         return json.loads(result.stdout)
+    except FileNotFoundError as exc:
+        print(f"ERROR: gh CLI not found. Is GitHub CLI installed? {exc}", file=sys.stderr)
+        raise SystemExit(1) from exc
     except subprocess.CalledProcessError as exc:
         print(f"ERROR: Failed to fetch PR #{pr_id}: {exc.stderr}", file=sys.stderr)
         raise SystemExit(1) from exc
@@ -82,16 +87,19 @@ def fetch_pr_diff(owner: str, repo: str, pr_id: int) -> str:
             check=True,
         )
         return result.stdout
+    except FileNotFoundError as exc:
+        print(f"ERROR: gh CLI not found. Is GitHub CLI installed? {exc}", file=sys.stderr)
+        raise SystemExit(1) from exc
     except subprocess.CalledProcessError as exc:
         print(f"ERROR: Failed to fetch diff for PR #{pr_id}: {exc.stderr}", file=sys.stderr)
         raise SystemExit(1) from exc
 
 
-def extract_issue_body(pr_body: str) -> str:
+def extract_issue_body(pr_body: str, owner: str, repo: str) -> str:
     """Extract the linked issue body from PR description if present.
 
     PR body might contain references like 'Closes #1234'. We try to fetch
-    the referenced issue if available.
+    the referenced issue if available. Uses the provided owner/repo.
     """
     if not pr_body:
         return "No linked issue found. Review code on its own merits."
@@ -102,7 +110,6 @@ def extract_issue_body(pr_body: str) -> str:
         match = re.search(pattern, pr_body)
         if match:
             issue_id = match.group(1)
-            owner, repo = get_repo_info()
             try:
                 result = subprocess.run(
                     [
@@ -121,7 +128,7 @@ def extract_issue_body(pr_body: str) -> str:
                 )
                 issue = json.loads(result.stdout)
                 return issue.get("body", pr_body)
-            except subprocess.CalledProcessError:
+            except (subprocess.CalledProcessError, FileNotFoundError):
                 pass
 
     return pr_body
@@ -169,7 +176,7 @@ def main() -> int:
     pr_details = fetch_pr_details(owner, repo, args.pr_id)
     pr_title = pr_details.get("title", "")
     pr_body = pr_details.get("body", "")
-    issue_body = extract_issue_body(pr_body)
+    issue_body = extract_issue_body(pr_body, owner, repo)
 
     # Fetch diff
     diff = fetch_pr_diff(owner, repo, args.pr_id)

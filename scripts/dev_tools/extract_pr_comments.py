@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Extract PR comments added since last commit in LLM-friendly JSONL format."""
+"""Extract PR comments added since last commit in LLM-friendly format."""
 
 from __future__ import annotations
 
@@ -8,7 +8,11 @@ import json
 import subprocess
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
+
+sys.path.insert(0, str(Path(__file__).parent))
+from comment_formats import to_fixer, to_jsonl
 
 
 def run_gh_command(args: list[str], json_output: bool = False) -> tuple[str, int]:
@@ -208,7 +212,7 @@ def format_top_level_comment(comment: dict[str, Any]) -> dict[str, Any]:
 
 def parse_args() -> argparse.Namespace:
     """Parse and return command-line arguments."""
-    parser = argparse.ArgumentParser(description="Extract PR comments in JSONL format.")
+    parser = argparse.ArgumentParser(description="Extract PR comments in LLM-friendly format.")
     parser.add_argument("--pr", type=int, required=True, help="PR number")
     parser.add_argument("--repo", help="Owner/repo (inferred from git remote if not provided)")
     parser.add_argument(
@@ -218,6 +222,12 @@ def parse_args() -> argparse.Namespace:
         "--skip-resolved",
         action="store_true",
         help="Omit resolved inline thread comments",
+    )
+    parser.add_argument(
+        "--format",
+        choices=["fixer", "jsonl"],
+        default="fixer",
+        help="Output format: fixer (compact, default) or jsonl (line-delimited JSON)",
     )
     parser.add_argument(
         "--output", help="Output file (defaults to stdout)"
@@ -273,16 +283,19 @@ def process_comments(
     return deduped
 
 
-def write_output(comments: list[dict[str, Any]], output_file: str | None) -> int:
-    """Write comments to output file or stdout."""
+def write_output(
+    comments: list[dict[str, Any]], output_file: str | None, format_type: str
+) -> int:
+    """Write comments to output file or stdout in the specified format."""
+    formatter = to_fixer if format_type == "fixer" else to_jsonl
     try:
         if output_file:
             with open(output_file, "w", encoding="utf-8") as f:
-                for comment in comments:
-                    f.write(json.dumps(comment) + "\n")
+                for line in formatter(comments):
+                    f.write(line + "\n")
         else:
-            for comment in comments:
-                print(json.dumps(comment))
+            for line in formatter(comments):
+                print(line)
     except OSError as e:
         print(f"Error writing output: {e}", file=sys.stderr)
         return 1
@@ -308,7 +321,7 @@ def main() -> int:
         )
         return 0
 
-    return write_output(deduped, args.output)
+    return write_output(deduped, args.output, args.format)
 
 
 if __name__ == "__main__":

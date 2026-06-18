@@ -53,6 +53,21 @@ def infer_repo() -> tuple[str, str]:
         sys.exit(1)
 
 
+def get_commit_date(owner: str, repo: str, sha: str) -> str:
+    """Get the committer date of a commit by SHA."""
+    args = [
+        "api",
+        f"/repos/{owner}/{repo}/commits/{sha}",
+        "--jq",
+        ".commit.committer.date",
+    ]
+    date_str, code = run_gh_command(args)
+    if code != 0:
+        print(f"Error: Could not fetch commit {sha}.", file=sys.stderr)
+        sys.exit(1)
+    return date_str.strip()
+
+
 def get_pr_head_commit_date(owner: str, repo: str, pr: int) -> str:
     """Get the committer date of the PR's head commit."""
     args = [
@@ -65,19 +80,7 @@ def get_pr_head_commit_date(owner: str, repo: str, pr: int) -> str:
     if code != 0:
         print(f"Error: Could not fetch PR {pr}.", file=sys.stderr)
         sys.exit(1)
-    sha = sha.strip()
-
-    args = [
-        "api",
-        f"/repos/{owner}/{repo}/commits/{sha}",
-        "--jq",
-        ".commit.committer.date",
-    ]
-    date_str, code = run_gh_command(args)
-    if code != 0:
-        print(f"Error: Could not fetch commit {sha}.", file=sys.stderr)
-        sys.exit(1)
-    return date_str.strip()
+    return get_commit_date(owner, repo, sha.strip())
 
 
 def fetch_paginated(owner: str, repo: str, endpoint: str) -> list[dict[str, Any]]:
@@ -102,12 +105,8 @@ def fetch_paginated(owner: str, repo: str, endpoint: str) -> list[dict[str, Any]
             print(f"Error: API request to {endpoint} page {page} failed.", file=sys.stderr)
             return []
 
-        if not output:
-            print(f"Error: Empty response from {endpoint} page {page}.", file=sys.stderr)
-            return []
-
         try:
-            data = json.loads(output)
+            data = json.loads(output) if output else []
         except json.JSONDecodeError:
             print(f"Error: Failed to parse JSON from {endpoint} page {page}.", file=sys.stderr)
             return items
@@ -182,7 +181,7 @@ def format_inline_comment(
 ) -> dict[str, Any]:
     """Format inline comment for JSONL output."""
     review_id = comment.get("pull_request_review_id")
-    resolved = review_dismissed.get(review_id, False) if review_id else False
+    resolved = review_dismissed.get(review_id, False) if review_id is not None else False
 
     return {
         "id": comment.get("id"),
@@ -227,13 +226,13 @@ def parse_args() -> argparse.Namespace:
 
 
 def determine_since_timestamp(args: argparse.Namespace, owner: str, repo: str) -> datetime:
-    """Determine the since timestamp from args or PR head commit."""
+    """Determine the since timestamp from args (SHA or ISO datetime) or PR head commit."""
     if args.since:
         try:
             return parse_iso_datetime(args.since)
         except ValueError:
-            print(f"Error: Invalid datetime format: {args.since}", file=sys.stderr)
-            sys.exit(1)
+            since_date_str = get_commit_date(owner, repo, args.since)
+            return parse_iso_datetime(since_date_str)
     since_str = get_pr_head_commit_date(owner, repo, args.pr)
     return parse_iso_datetime(since_str)
 

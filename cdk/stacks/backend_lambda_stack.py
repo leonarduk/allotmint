@@ -256,10 +256,11 @@ class BackendLambdaStack(Stack):
 
         backend_env = {
             "GOOGLE_AUTH_ENABLED": "true",
-            # API Gateway enforces Cognito JWT auth before Lambda is invoked. DISABLE_AUTH
-            # is "false" to enable Cognito authentication on protected endpoints while letting
-            # API Gateway handle JWT validation (FastAPI skips redundant validation).
-            "DISABLE_AUTH": "false",
+            # API Gateway enforces Cognito JWT auth before Lambda is invoked, so the
+            # Lambda must not attempt its own JWT decode (DISABLE_AUTH="true"). Auth is
+            # still enforced — API Gateway rejects unauthenticated requests before they
+            # reach Lambda.
+            "DISABLE_AUTH": "true",
             "DATA_BUCKET": bucket_name,
             "DATA_BRANCH": data_branch,
             # Writable per-owner account documents are persisted under this S3

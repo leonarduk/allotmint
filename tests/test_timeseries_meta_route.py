@@ -72,3 +72,26 @@ def test_timeseries_meta_bad_request(monkeypatch, tmp_path):
     )
     client = _make_client(monkeypatch, tmp_path, df)
     resp = client.get("/timeseries/meta?ticker=&exchange=L")
+    assert resp.status_code == 400
+
+
+@pytest.mark.parametrize(
+    "params",
+    [
+        # XSS in ticker with explicit exchange (case 1 in _resolve_ticker_exchange)
+        {"ticker": "<script>alert(1)</script>", "exchange": "L"},
+        # XSS via dot-separated ticker (case 2: both parts validated)
+        {"ticker": "<script>alert(1)</script>.L"},
+        # XSS attempt in exchange parameter
+        {"ticker": "ABC", "exchange": "<script>alert(1)</script>"},
+    ],
+)
+def test_timeseries_meta_xss_payload_rejected(params, monkeypatch, tmp_path):
+    """XSS payloads in ticker/exchange are rejected; never reflected verbatim (CodeQL #276)."""
+    df = pd.DataFrame(
+        [{"Date": "2024-01-01", "Open": 1.0, "High": 2.0, "Low": 0.5, "Close": 1.5, "Volume": 100}]
+    )
+    client = _make_client(monkeypatch, tmp_path, df)
+    resp = client.get("/timeseries/meta", params=params)
+    assert resp.status_code in (400, 404)
+    assert "<script>" not in resp.text.lower()

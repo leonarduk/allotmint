@@ -78,5 +78,8 @@
     "*.{json,css,md}": [
       "prettier --check"
     ]
+  },
+  "overrides": {
+    "@babel/core": "^7.29.6"
   }
 }

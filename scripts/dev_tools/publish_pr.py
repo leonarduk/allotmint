@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import re
 import subprocess
@@ -91,38 +90,53 @@ def check_working_tree_clean() -> bool:
         return False
 
 
-def get_changed_files(branch: str) -> list[str]:
-    """Get list of changed files in the current branch vs its merge base with main."""
+def get_changed_files(branch: str, default_branch: str = "origin/main") -> list[str]:
+    """Get list of changed files: either uncommitted changes or commits on the branch."""
+    changed_files = []
     try:
+        # Check for both staged and unstaged changes
         result = subprocess.run(
-            ["git", "merge-base", branch, "origin/main"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if result.returncode != 0:
-            return []
-        merge_base = result.stdout.strip()
-
-        result = subprocess.run(
-            ["git", "diff", "--name-only", f"{merge_base}...HEAD"],
+            ["git", "diff", "--name-only", "HEAD"],
             capture_output=True,
             text=True,
             check=False,
         )
         if result.returncode == 0 and result.stdout.strip():
-            return result.stdout.strip().split("\n")
+            uncommitted_changes = result.stdout.strip().split("\n")
+            changed_files.extend(uncommitted_changes)
+
+        # Check for commits on the branch only if we have a merge base
+        result = subprocess.run(
+            ["git", "merge-base", branch, default_branch],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode == 0:
+            merge_base = result.stdout.strip()
+            result = subprocess.run(
+                ["git", "diff", "--name-only", f"{merge_base}...HEAD"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                committed_changes = result.stdout.strip().split("\n")
+                changed_files.extend(committed_changes)
+
     except subprocess.CalledProcessError:
         pass
-    return []
+
+    # remove duplicates
+    return list(set(changed_files))
 
 
-def stage_and_commit(files: Optional[list[str]], message: str, branch: str) -> bool:
+def stage_and_commit(files: Optional[list[str]], message: str, branch: str, default_branch: str = "origin/main") -> bool:
     """Stage and commit the specified files (or changed files in branch if none specified)."""
     try:
         if not files:
             # Auto-detect changed files in the branch
-            files = get_changed_files(branch)
+            files = get_changed_files(branch, default_branch)
             if not files:
                 print("No changed files found in branch. Nothing to commit.", file=sys.stderr)
                 return False
@@ -135,6 +149,33 @@ def stage_and_commit(files: Optional[list[str]], message: str, branch: str) -> b
         return True
     except subprocess.CalledProcessError as exc:
         print(f"Failed to commit: {exc}", file=sys.stderr)
+        return False
+
+
+def branch_is_ahead_of_main(branch: str, default_branch: str) -> bool:
+    """Check if branch has commits ahead of the default branch."""
+    try:
+        # First check if default_branch is an ancestor of branch
+        result = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", default_branch, branch],
+            capture_output=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            return False
+
+        # Then verify branch actually has commits NOT in default_branch
+        result = subprocess.run(
+            ["git", "rev-list", "--count", f"{default_branch}..{branch}"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode == 0:
+            commit_count = int(result.stdout.strip())
+            return commit_count > 0
+        return False
+    except (subprocess.CalledProcessError, ValueError):
         return False
 
 
@@ -159,19 +200,45 @@ def fetch_issue(owner: str, repo: str, issue_id: int) -> Optional[dict]:
         print(f"Failed to fetch issue #{issue_id}: {exc}", file=sys.stderr)
         return None
 
+def get_ollama_server_url(host: str = "localhost", port: int = 11434) -> str:
+    """Get Ollama server url."""
+    return f"http://{host}:{port}"
 
 def is_ollama_running(host: str = "localhost", port: int = 11434) -> bool:
     """Check if Ollama is running locally."""
     try:
-        resp = requests.get(f"http://{host}:{port}/api/tags", timeout=2)
+        host_url= get_ollama_server_url(host=host, port=port)
+        resp = requests.get(f"{host_url}/api/tags", timeout=2)
         return resp.status_code == 200
     except requests.RequestException:
         return False
 
 
 def get_ollama_model() -> str:
-    """Get Ollama model name from env or default."""
-    return os.getenv("OLLAMA_MODEL", "mistral")
+    """Get Ollama model name from env, available models, or default."""
+    # Check if explicitly set in env
+    model = os.getenv("OLLAMA_MODEL")
+    if model:
+        return model
+
+    # Try to get available models from Ollama
+    try:
+        ollama_url = get_ollama_server_url()
+        resp = requests.get(f"{ollama_url}/api/tags", timeout=2)
+        if resp.status_code == 200:
+            data = resp.json()
+            models = data.get("models", [])
+            if models:
+                # Prefer coder models, otherwise use first available
+                for model in models:
+                    name = model.get("name", "")
+                    if "coder" in name.lower():
+                        return name
+                return models[0].get("name", "mistral")
+    except requests.RequestException:
+        pass
+
+    return "mistral"
 
 
 def generate_pr_body_with_ollama(issue_title: str, issue_body: str, model: str) -> Optional[str]:
@@ -199,9 +266,10 @@ Issue body:
 
 Generate only the sections above, no preamble."""
 
+    ollama_url = get_ollama_server_url()
     try:
         resp = requests.post(
-            "http://localhost:11434/api/generate",
+            f"{ollama_url}/api/generate",
             json={
                 "model": model,
                 "prompt": prompt,
@@ -330,6 +398,20 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    # Change to git root directory
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        git_root = result.stdout.strip()
+        os.chdir(git_root)
+    except subprocess.CalledProcessError:
+        print("Error: Could not determine git root directory", file=sys.stderr)
+        sys.exit(1)
+
     # Check prerequisites
     if not check_gh_installed():
         print("Error: 'gh' CLI not found. Install it from https://github.com/cli/cli", file=sys.stderr)
@@ -371,15 +453,21 @@ def main() -> None:
     default_branch = get_default_branch(owner, repo)
     print(f"Target branch: {default_branch}")
 
+    # Check if branch is ahead of main
+    if not branch_is_ahead_of_main(branch=branch, default_branch=default_branch):
+        print(f"Error: Branch '{branch}' is not ahead of '{default_branch}'", file=sys.stderr)
+        sys.exit(1)
+
     # Stage and commit
     print("Staging and committing changes...")
     if check_working_tree_clean():
-        print("Working tree is already clean.")
+        print("Working tree is already clean. No new changes to commit.")
     else:
         commit_msg = args.message or f"Work on issue #{issue_id}"
-        if not stage_and_commit(args.files, commit_msg, branch):
-            sys.exit(1)
-        print(f"Committed: {commit_msg}")
+        if stage_and_commit(args.files, commit_msg, branch, default_branch):
+            print(f"Committed: {commit_msg}")
+        else:
+            print("No changes to commit, but continuing with PR creation...")
 
     # Push to remote
     print("Pushing to remote...")

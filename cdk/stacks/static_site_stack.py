@@ -95,6 +95,7 @@ class StaticSiteStack(Stack):
                 "script-src 'self' https://accounts.google.com/gsi/client",
                 "frame-src 'self' https://accounts.google.com/gsi/",
                 f"connect-src 'self' {backend_url_param.value_as_string} https://*.amazoncognito.com",
+                "img-src 'self' https://raw.githubusercontent.com https://avatars.githubusercontent.com https://www.gravatar.com https://*.gravatar.com https://*.googleusercontent.com",
                 "frame-ancestors 'none'",
                 "object-src 'none'",
                 "base-uri 'self'",

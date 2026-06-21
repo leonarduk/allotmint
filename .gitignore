@@ -63,3 +63,6 @@ backend.log
 jenkins_home/
 .aider*
 !.aiderignore
+
+# Offline issue sync
+issues/

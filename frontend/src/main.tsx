@@ -38,7 +38,7 @@ import { UserProvider, useUser } from './UserContext';
 import ErrorBoundary from './ErrorBoundary';
 import { loadStoredAuthUser, loadStoredUserProfile } from './authStorage';
 import { RouteProvider } from './RouteContext';
-import { clearCognitoSession, ensureAwsUiAuth, extractTokenExchangeErrorReason, getCognitoSessionExpiresAt, getStoredCognitoIdToken, refreshCognitoSession, UserCancelledError, type AwsUiAuthConfig } from './awsUiAuth';
+import { clearCognitoSession, cognitoLogout, ensureAwsUiAuth, extractTokenExchangeErrorReason, getCognitoSessionExpiresAt, getStoredCognitoIdToken, refreshCognitoSession, UserCancelledError, type AwsUiAuthConfig } from './awsUiAuth';
 import {
   deriveBootstrapMode,
   deriveModeFromPathname,
@@ -167,7 +167,11 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
     setUser(null);
     setProfile(undefined);
     setAuthed(false);
-    navigate('/');
+    if (awsUiAuth?.enabled) {
+      cognitoLogout(awsUiAuth);
+    } else {
+      navigate('/');
+    }
   };
 
   useEffect(() => {

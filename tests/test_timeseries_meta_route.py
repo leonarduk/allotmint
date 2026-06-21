@@ -93,5 +93,6 @@ def test_timeseries_meta_xss_payload_rejected(params, monkeypatch, tmp_path):
     )
     client = _make_client(monkeypatch, tmp_path, df)
     resp = client.get("/timeseries/meta", params=params)
-    assert resp.status_code in (400, 404)
+    assert resp.status_code == 400
+    assert "application/json" in resp.headers.get("content-type", "")
     assert "<script>" not in resp.text.lower()

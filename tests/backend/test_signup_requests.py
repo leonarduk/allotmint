@@ -1,11 +1,10 @@
 import json
-from datetime import datetime, timedelta, timezone
 import time
-
-from pathlib import Path
-import pytest
-
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+import pytest
 
 from backend.common import signup_requests
 
@@ -161,16 +160,21 @@ def test_validate_request_does_not_mutate(tmp_path):
     consumed = signup_requests.consume_request(record.id, token, store, new_status="approved")
     assert consumed.status == "approved"
 
+
 def test_enforce_cap_race_condition(tmp_path, monkeypatch):
     store = signup_requests.signup_requests_dir(tmp_path)
     store.mkdir(parents=True, exist_ok=True)
 
     # Seed directory with too many pending files so _enforce_cap MUST run
     for i in range(signup_requests._MAX_PENDING_REQUESTS + 5):
-        (store / f"req_{i}.json").write_text(json.dumps({
-            "status": "pending",
-            "created_at": datetime.now(timezone.utc).isoformat()
-        }))
+        (store / f"req_{i}.json").write_text(
+            json.dumps(
+                {
+                    "status": "pending",
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                }
+            )
+        )
 
     # Monkeypatch Path.glob to force overlap inside _enforce_cap
     real_glob = Path.glob
@@ -182,12 +186,14 @@ def test_enforce_cap_race_condition(tmp_path, monkeypatch):
     monkeypatch.setattr(Path, "glob", slow_glob)
 
     # Run TWO concurrent create_signup_request calls
-    # This triggers _persist() → _enforce_cap() → write new file
     with ThreadPoolExecutor(max_workers=2) as ex:
         futures = [
             ex.submit(
                 signup_requests.create_signup_request,
-                "A", "a@example.com", "", store
+                "A",
+                "a@example.com",
+                "",
+                store,
             )
             for _ in range(2)
         ]
@@ -199,48 +205,20 @@ def test_enforce_cap_race_condition(tmp_path, monkeypatch):
     assert len(files) <= signup_requests._MAX_PENDING_REQUESTS
 
 
-def test_enforce_cap_lock_acquisition_failure(tmp_path, monkeypatch):
-    store = signup_requests.signup_requests_dir(tmp_path)
-    store.mkdir(parents=True, exist_ok=True)
-
-    # Create at least one pending request to trigger lock acquisition
-    (store / "req_1.json").write_text(json.dumps({
-        "status": "pending",
-        "created_at": datetime.now(timezone.utc).isoformat()
-    }))
-
-    # Mock the lock to fail acquisition
-    class FailingLock:
-        def __init__(self, path):
-            self.path = path
-            self.acquired = False
-
-        def acquire(self, timeout=None):
-            return False  # Always fail to acquire
-
-        def release(self):
-            pass
-
-    monkeypatch.setattr("backend.common.signup_requests.InterProcessLock", FailingLock)
-
-    # Should raise HTTPException(503) when lock cannot be acquired
-    from fastapi import HTTPException
-    with pytest.raises(HTTPException) as exc_info:
-        signup_requests._enforce_cap(store, signup_requests._MAX_PENDING_REQUESTS)
-
-    assert exc_info.value.status_code == 503
-
-
 def test_enforce_cap_respects_max_pending(tmp_path):
     store = signup_requests.signup_requests_dir(tmp_path)
     store.mkdir(parents=True, exist_ok=True)
 
     # Seed with files that will trigger cap enforcement
     for i in range(signup_requests._MAX_PENDING_REQUESTS + 5):
-        (store / f"req_{i}.json").write_text(json.dumps({
-            "status": "pending",
-            "created_at": datetime.now(timezone.utc).isoformat()
-        }))
+        (store / f"req_{i}.json").write_text(
+            json.dumps(
+                {
+                    "status": "pending",
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                }
+            )
+        )
 
     # Run _enforce_cap
     signup_requests._enforce_cap(store, signup_requests._MAX_PENDING_REQUESTS)

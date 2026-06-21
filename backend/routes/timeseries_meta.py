@@ -1,4 +1,3 @@
-import html
 import logging
 import re
 from datetime import date
@@ -67,7 +66,7 @@ def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> tuple[str, st
     return sym, ex
 
 
-@router.get("/meta", response_class=HTMLResponse)
+@router.get("/meta")
 async def get_meta_timeseries(
     ticker: str = Query(...),
     exchange: str | None = Query(None),
@@ -129,10 +128,10 @@ async def get_meta_timeseries(
             df[col] = df[col].map(lambda x: x.isoformat() if pd.notnull(x) else None)
         return JSONResponse(
             content={
-                # html.escape satisfies CodeQL's reflective-XSS check on this
-                # HTMLResponse-typed route; a no-op for valid ticker/exchange
-                # values (constrained to [A-Z0-9_-]).
-                "ticker": f"{html.escape(ticker)}.{html.escape(exchange)}",
+                # JSON serialization (via JSONResponse) handles all necessary
+                # escaping for the JSON content type; HTML escaping is neither
+                # required nor appropriate here.
+                "ticker": f"{ticker}.{exchange}",
                 "from": start_date.isoformat(),
                 "to": end_date.isoformat(),
                 "scaling": scaling,

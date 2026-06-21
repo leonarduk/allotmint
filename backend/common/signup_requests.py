@@ -21,9 +21,6 @@ import re
 import secrets
 import threading
 
-from fastapi import HTTPException
-from fasteners import InterProcessLock
-
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -38,10 +35,9 @@ _MAX_EMAIL_LEN = 320  # RFC 5321 maximum length of a forward-path address
 _MAX_NOTE_LEN = 2000
 _MAX_PENDING_REQUESTS = 100  # hard cap to bound disk usage
 
-# Guards the entire prune + cap-enforce + write sequence within a process.
-# fasteners.InterProcessLock uses OS file locks (per-process, not per-thread),
-# so a threading.Lock is needed to serialise concurrent threads in the same
-# FastAPI worker process.
+# Serialises the prune + cap-enforce + write sequence across threads.
+# OS file locks (fcntl/flock) are per-process and do not block threads within
+# the same process, so a threading.Lock is the correct primitive here.
 _PERSIST_LOCK = threading.Lock()
 
 
@@ -176,15 +172,10 @@ def create_signup_request(
     return record, token
 
 
-def _lock_path(store_dir: Path) -> Path:
-    # Hidden lock file co-located with the JSON files.
-    return store_dir / ".lock"
-
-
 def _enforce_cap_unlocked(
     directory: Path, max_pending: int, *, now: datetime | None = None
 ) -> None:
-    """Remove the oldest pending requests until the count is within ``max_pending``.
+    """Remove oldest pending requests until the count is within ``max_pending``.
 
     Must be called with ``_PERSIST_LOCK`` already held.  Only removes pending
     requests; approved/rejected requests are left for the approval flow (#4352).
@@ -224,24 +215,13 @@ def _enforce_cap_unlocked(
 def _enforce_cap(
     store_dir: Path, max_pending: int, *, now: datetime | None = None
 ) -> None:
-    """Acquire both locks and enforce the pending-request cap.
-
-    Raises :class:`fastapi.HTTPException` (503) if the inter-process lock
-    cannot be obtained within the timeout.
-    """
+    """Acquire ``_PERSIST_LOCK`` and enforce the pending-request cap."""
 
     directory = Path(store_dir)
     if not directory.is_dir():
         return
-    ipc_lock = InterProcessLock(str(_lock_path(directory)))
-    if not ipc_lock.acquire(timeout=5.0):
-        logger.warning("Failed to acquire signup_requests lock within timeout")
-        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
-    try:
-        with _PERSIST_LOCK:
-            _enforce_cap_unlocked(directory, max_pending, now=now)
-    finally:
-        ipc_lock.release()
+    with _PERSIST_LOCK:
+        _enforce_cap_unlocked(directory, max_pending, now=now)
 
 
 def _prune_stale(store_dir: Path, *, now: datetime | None = None) -> None:
@@ -279,27 +259,19 @@ def _prune_stale(store_dir: Path, *, now: datetime | None = None) -> None:
 def _persist(record: SignupRequest, store_dir: Path, *, now: datetime | None = None) -> None:
     """Write ``record`` to ``store_dir`` as ``<id>.json``.
 
-    The entire prune + cap-enforcement + write sequence is executed under both
-    ``_PERSIST_LOCK`` (thread safety) and an ``InterProcessLock`` (process
-    safety), so the directory never exceeds ``_MAX_PENDING_REQUESTS`` regardless
-    of concurrent callers.
+    The entire prune + cap-enforcement + write sequence is executed under
+    ``_PERSIST_LOCK`` so the directory never exceeds ``_MAX_PENDING_REQUESTS``
+    regardless of concurrent callers in the same process.
     """
 
     directory = Path(store_dir)
     directory.mkdir(parents=True, exist_ok=True)
-    ipc_lock = InterProcessLock(str(_lock_path(directory)))
-    if not ipc_lock.acquire(timeout=5.0):
-        logger.warning("Failed to acquire signup_requests lock within timeout")
-        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
-    try:
-        with _PERSIST_LOCK:
-            _prune_stale(directory, now=now)
-            _enforce_cap_unlocked(directory, _MAX_PENDING_REQUESTS - 1, now=now)
-            path = directory / f"{record.id}.json"
-            path.write_text(json.dumps(asdict(record), indent=2, sort_keys=True))
-            logger.info("Recorded pending signup request %s", record.id)
-    finally:
-        ipc_lock.release()
+    with _PERSIST_LOCK:
+        _prune_stale(directory, now=now)
+        _enforce_cap_unlocked(directory, _MAX_PENDING_REQUESTS - 1, now=now)
+        path = directory / f"{record.id}.json"
+        path.write_text(json.dumps(asdict(record), indent=2, sort_keys=True))
+        logger.info("Recorded pending signup request %s", record.id)
 
 
 # secrets.token_hex(16) -> exactly 32 lowercase hex chars and nothing else.

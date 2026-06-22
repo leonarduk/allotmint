@@ -10,7 +10,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
@@ -38,7 +38,7 @@ jobs:
     name: Validate backend/requirements.txt (dry-run)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
@@ -89,7 +89,7 @@ jobs:
     name: Lambda-compat pytest (backend/requirements.txt)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
@@ -115,7 +115,7 @@ jobs:
     name: Lint GitHub Actions workflows
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Install actionlint
         env:
           ACTIONLINT_VERSION: "1.7.7"
@@ -137,7 +137,7 @@ jobs:
       matrix:
         python-version: ['3.11']
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       # Python 3.12 remains covered by the primary CI/backend integration job;
       # this lightweight smoke keeps Python 3.11 support honest without
       # duplicating the full backend integration and coverage workflow.
@@ -157,7 +157,7 @@ jobs:
     name: Frontend smoke tests (preview build)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
         with:
           node-version: '24'

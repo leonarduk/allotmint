@@ -19,7 +19,7 @@ jobs:
       iac_changed: ${{ steps.changed-files.outputs.iac_changed }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -63,7 +63,7 @@ jobs:
 
       - name: Checkout repository
         if: needs.detect-iac-changes.outputs.iac_changed == 'true'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up Python
         if: needs.detect-iac-changes.outputs.iac_changed == 'true'

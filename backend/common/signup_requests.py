@@ -19,6 +19,8 @@ import json
 import logging
 import re
 import secrets
+import threading
+
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -32,6 +34,11 @@ _MAX_NAME_LEN = 200
 _MAX_EMAIL_LEN = 320  # RFC 5321 maximum length of a forward-path address
 _MAX_NOTE_LEN = 2000
 _MAX_PENDING_REQUESTS = 100  # hard cap to bound disk usage
+
+# Serialises the prune + cap-enforce + write sequence across threads.
+# OS file locks (fcntl/flock) are per-process and do not block threads within
+# the same process, so a threading.Lock is the correct primitive here.
+_PERSIST_LOCK = threading.Lock()
 
 
 class SignupValidationError(ValueError):
@@ -165,19 +172,16 @@ def create_signup_request(
     return record, token
 
 
-def _enforce_cap(store_dir: Path, max_pending: int, *, now: datetime | None = None) -> None:
-    """Remove oldest pending requests until the directory is within ``max_pending``.
+def _enforce_cap_unlocked(
+    directory: Path, max_pending: int, *, now: datetime | None = None
+) -> None:
+    """Remove oldest pending requests until the count is within ``max_pending``.
 
-    Requests are ordered by ``created_at`` (oldest first). Only requests with
-    ``status == "pending"`` are counted for the cap; non-pending files are left
-    alone (they are managed by the approval flow #4352).
+    Must be called with ``_PERSIST_LOCK`` already held.  Only removes pending
+    requests; approved/rejected requests are left for the approval flow (#4352).
     """
 
     moment = now or datetime.now(timezone.utc)
-    directory = Path(store_dir)
-    if not directory.is_dir():
-        return
-
     pending: list[tuple[datetime, Path]] = []
     for path in directory.glob("*.json"):
         try:
@@ -193,18 +197,31 @@ def _enforce_cap(store_dir: Path, max_pending: int, *, now: datetime | None = No
             created = moment
         pending.append((created, path))
 
-    if len(pending) <= max_pending:
-        return
+    if len(pending) > max_pending:
+        pending.sort(key=lambda item: item[0])
+        to_remove = pending[: len(pending) - max_pending]
+        for _, p in to_remove:
+            try:
+                p.unlink()
+                logger.info(
+                    "Capped signup request %s (exceeded max pending %d)",
+                    p.stem,
+                    max_pending,
+                )
+            except OSError:
+                pass
 
-    # Oldest first
-    pending.sort(key=lambda item: item[0])
-    to_remove = pending[: len(pending) - max_pending]
-    for _, p in to_remove:
-        try:
-            p.unlink()
-            logger.info("Capped signup request %s (exceeded max pending %d)", p.stem, max_pending)
-        except OSError:
-            pass
+
+def _enforce_cap(
+    store_dir: Path, max_pending: int, *, now: datetime | None = None
+) -> None:
+    """Acquire ``_PERSIST_LOCK`` and enforce the pending-request cap."""
+
+    directory = Path(store_dir)
+    if not directory.is_dir():
+        return
+    with _PERSIST_LOCK:
+        _enforce_cap_unlocked(directory, max_pending, now=now)
 
 
 def _prune_stale(store_dir: Path, *, now: datetime | None = None) -> None:
@@ -242,17 +259,19 @@ def _prune_stale(store_dir: Path, *, now: datetime | None = None) -> None:
 def _persist(record: SignupRequest, store_dir: Path, *, now: datetime | None = None) -> None:
     """Write ``record`` to ``store_dir`` as ``<id>.json``.
 
-    Stale requests are pruned first; if the directory still exceeds the
-    pending cap, the oldest pending requests are removed to make room.
+    The entire prune + cap-enforcement + write sequence is executed under
+    ``_PERSIST_LOCK`` so the directory never exceeds ``_MAX_PENDING_REQUESTS``
+    regardless of concurrent callers in the same process.
     """
 
     directory = Path(store_dir)
     directory.mkdir(parents=True, exist_ok=True)
-    _prune_stale(directory, now=now)
-    _enforce_cap(directory, _MAX_PENDING_REQUESTS - 1, now=now)  # leave room for this one
-    path = directory / f"{record.id}.json"
-    path.write_text(json.dumps(asdict(record), indent=2, sort_keys=True))
-    logger.info("Recorded pending signup request %s", record.id)
+    with _PERSIST_LOCK:
+        _prune_stale(directory, now=now)
+        _enforce_cap_unlocked(directory, _MAX_PENDING_REQUESTS - 1, now=now)
+        path = directory / f"{record.id}.json"
+        path.write_text(json.dumps(asdict(record), indent=2, sort_keys=True))
+        logger.info("Recorded pending signup request %s", record.id)
 
 
 # secrets.token_hex(16) -> exactly 32 lowercase hex chars and nothing else.

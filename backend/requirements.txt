@@ -19,7 +19,7 @@ attrs~=24.3.0
 defusedxml~=0.7.1
 distro~=1.9.0
 pysocks~=1.7.1
-protobuf>=7.35.0,<8  # >=6.31.1 fixes CVE-2025-4565; 6.31.0+ includes protocolbuffers/protobuf#15999 for Python 3.14 PyType_Spec compatibility
+protobuf>=7.35.1,<8  # >=6.31.1 fixes CVE-2025-4565; 6.31.0+ includes protocolbuffers/protobuf#15999 for Python 3.14 PyType_Spec compatibility
 cryptography~=48.0.0
 cffi~=2.0.0
 setuptools~=82.0.1

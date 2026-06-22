@@ -353,3 +353,24 @@ def test_update_config_merges_ui_section(monkeypatch, tmp_path):
 
     cfg = reload_config()
     assert cfg.tabs.instrument is False
+
+
+def test_aws_ui_auth_loads_from_env(monkeypatch):
+    monkeypatch.setenv("UI_AUTH_DOMAIN", "https://allotmint-123.auth.eu-west-1.amazoncognito.com")
+    monkeypatch.setenv("UI_AUTH_CLIENT_ID", "abc123")
+    cfg = reload_config()
+    try:
+        assert cfg.aws_ui_auth.enabled is True
+        assert cfg.aws_ui_auth.domain == "https://allotmint-123.auth.eu-west-1.amazoncognito.com"
+        assert cfg.aws_ui_auth.client_id == "abc123"
+    finally:
+        monkeypatch.delenv("UI_AUTH_DOMAIN")
+        monkeypatch.delenv("UI_AUTH_CLIENT_ID")
+        reload_config()
+
+
+def test_aws_ui_auth_disabled_when_env_absent(monkeypatch):
+    monkeypatch.delenv("UI_AUTH_DOMAIN", raising=False)
+    monkeypatch.delenv("UI_AUTH_CLIENT_ID", raising=False)
+    cfg = reload_config()
+    assert cfg.aws_ui_auth.enabled is False

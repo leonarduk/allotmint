@@ -30,7 +30,7 @@ def template():
         os.environ.setdefault(key, value)
     # Remove optional auth env vars so CfnParameters have no Default,
     # keeping the synthesised template deterministic regardless of local env.
-    _auth_env_vars = ("UI_AUTH_USER_POOL_ID", "UI_AUTH_USER_POOL_CLIENT_ID")
+    _auth_env_vars = ("UI_AUTH_USER_POOL_ID", "UI_AUTH_USER_POOL_CLIENT_ID", "UI_AUTH_DOMAIN")
     saved = {k: os.environ.pop(k, None) for k in _auth_env_vars}
     try:
         app = App()

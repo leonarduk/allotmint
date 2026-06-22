@@ -92,6 +92,39 @@ async def test_read_config_exposes_auth_disabled_local_login_fields(monkeypatch:
     assert result["local_login_email"] == "demo@example.com"
 
 
+async def test_read_config_includes_aws_ui_auth_when_env_set(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from backend.config import AwsUiAuthConfig
+
+    cognito_domain = "https://allotmint-123-eu-west-1.auth.eu-west-1.amazoncognito.com"
+    dummy_config = routes_config.config_module.Config(
+        disable_auth=True,
+        aws_ui_auth=AwsUiAuthConfig(enabled=True, domain=cognito_domain, client_id="abc123"),
+    )
+    monkeypatch.setattr(routes_config.config_module, "config", dummy_config)
+
+    result = await routes_config.read_config()
+
+    assert "awsUiAuth" in result
+    assert result["awsUiAuth"]["enabled"] is True
+    assert result["awsUiAuth"]["domain"] == cognito_domain
+    assert result["awsUiAuth"]["clientId"] == "abc123"
+    assert "aws_ui_auth" not in result
+
+
+async def test_read_config_omits_aws_ui_auth_when_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dummy_config = routes_config.config_module.Config(disable_auth=True)
+    monkeypatch.setattr(routes_config.config_module, "config", dummy_config)
+
+    result = await routes_config.read_config()
+
+    assert "awsUiAuth" not in result
+    assert "aws_ui_auth" not in result
+
+
 async def test_update_config_rejects_invalid_google_auth_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     config_path = tmp_path / "config.yaml"
     _write_config(config_path)

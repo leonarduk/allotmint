@@ -345,6 +345,27 @@ class BackendLambdaStack(Stack):
             **ui_auth_client_id_param_kwargs,
         )
 
+        ui_auth_domain_default = self.node.try_get_context("ui_auth_domain") or os.getenv(
+            "UI_AUTH_DOMAIN"
+        )
+        ui_auth_domain_param = CfnParameter(
+            self,
+            "UiAuthDomain",
+            type="String",
+            allowed_pattern=".*",
+            default=ui_auth_domain_default or "",
+            description=(
+                "Cognito hosted UI domain exported by StaticSiteStack, used by the frontend "
+                "Cognito login flow (awsUiAuth.domain in /config response). "
+                "Optional: leave empty to disable awsUiAuth in the backend /config response."
+            ),
+        )
+        # Surfaced in the /config response as awsUiAuth so the frontend can
+        # initiate the Cognito PKCE login flow (issue #4577). Added via
+        # add_environment so the CfnParameter tokens resolve after definition.
+        backend_fn.add_environment("UI_AUTH_DOMAIN", ui_auth_domain_param.value_as_string)
+        backend_fn.add_environment("UI_AUTH_CLIENT_ID", ui_auth_client_id_param.value_as_string)
+
         # SmokeTestClient (static_site_stack.py) is a separate Cognito app client
         # used only by the deploy workflow's post-deploy smoke tests. Its tokens
         # must also pass backend_authorizer's audience check, otherwise every

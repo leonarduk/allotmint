@@ -11,6 +11,12 @@ class SpaContractBase(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class AwsUiAuthContract(SpaContractBase):
+    enabled: bool
+    domain: str | None = None
+    client_id: str | None = Field(default=None, alias="clientId")
+
+
 class ConfigTabsContract(SpaContractBase):
     portfolio: bool
     transactions: bool
@@ -40,6 +46,7 @@ class ConfigContract(SpaContractBase):
     base_currency: str | None = None
     tabs: ConfigTabsContract
     disabled_tabs: List[str] = Field(default_factory=list)
+    aws_ui_auth: AwsUiAuthContract | None = Field(default=None, alias="awsUiAuth")
 
 
 class OwnerSummaryContract(SpaContractBase):
@@ -145,6 +152,7 @@ class ContractEnvelope(SpaContractBase):
 
 __all__ = [
     "SPA_RESPONSE_CONTRACT_VERSION",
+    "AwsUiAuthContract",
     "ConfigContract",
     "OwnerSummaryContract",
     "GroupSummaryContract",

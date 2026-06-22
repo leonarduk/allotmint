@@ -86,6 +86,13 @@ class TradingAgentConfig:
 
 
 @dataclass
+class AwsUiAuthConfig:
+    enabled: bool = False
+    domain: Optional[str] = None
+    client_id: Optional[str] = None
+
+
+@dataclass
 class Config:
     # basic app environment
     app_env: Optional[str] = None
@@ -161,6 +168,7 @@ class Config:
     tabs: TabsConfig = field(default_factory=TabsConfig)
     trading_agent: TradingAgentConfig = field(default_factory=TradingAgentConfig)
     cors_origins: Optional[List[str]] = None
+    aws_ui_auth: AwsUiAuthConfig = field(default_factory=AwsUiAuthConfig)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_allowed_emails_overridden", False)
@@ -386,6 +394,14 @@ def load_config() -> Config:
     if environment not in ("test", "testing"):
         validate_google_auth(google_auth_enabled, google_client_id)
 
+    ui_auth_domain = os.getenv("UI_AUTH_DOMAIN", "").strip() or None
+    ui_auth_client_id = os.getenv("UI_AUTH_CLIENT_ID", "").strip() or None
+    aws_ui_auth = AwsUiAuthConfig(
+        enabled=bool(ui_auth_domain and ui_auth_client_id),
+        domain=ui_auth_domain,
+        client_id=ui_auth_client_id,
+    )
+
     # Optional env override for Alpha Vantage API key to avoid committing secrets
     alpha_key_env = os.getenv("ALPHA_VANTAGE_KEY")
     if alpha_key_env:
@@ -472,6 +488,7 @@ def load_config() -> Config:
         tabs=tabs,
         trading_agent=trading_agent,
         cors_origins=cors_origins,
+        aws_ui_auth=aws_ui_auth,
     )
 
     return cfg

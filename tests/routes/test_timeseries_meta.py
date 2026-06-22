@@ -68,22 +68,20 @@ def test_resolve_cannot_infer_exchange(monkeypatch):
 
 
 def test_resolve_inferred_path_trusts_internal_data(monkeypatch):
-    """The regex allowlist guards user-supplied paths only.
+    """_RESOLVER_OUTPUT_RE permits dots so valid dotted exchange codes are accepted.
 
-    When _resolve_full_ticker returns a segment containing characters outside
-    [A-Z0-9_-] (e.g. a dot in an exchange code returned by an internal data
-    source), the route must NOT reject it with HTTP 400.  The guard applies
-    only to user-controlled input so valid portfolio entries never cause false
-    production errors.
+    When _resolve_full_ticker returns a dotted exchange code such as XLON.G the
+    wider _RESOLVER_OUTPUT_RE (which allows dots) must not reject it with HTTP
+    400.  The stricter _TICKER_SEGMENT_RE (no dots) only applies to the
+    user-supplied paths (explicit exchange or dot-separated ticker).
     """
     import backend.routes.timeseries_meta as ts_meta
 
     monkeypatch.setattr(
         ts_meta.instrument_api,
         "_resolve_full_ticker",
-        lambda t, latest: ("AAAA", "XLON.G"),  # "." is outside the user-input allowlist
+        lambda t, latest: ("AAAA", "XLON.G"),  # dot in exchange code — accepted by _RESOLVER_OUTPUT_RE
     )
-    # Must succeed — internally-resolved tickers bypass the regex.
     sym, ex = ts_meta._resolve_ticker_exchange("aaaa", None)
     assert sym == "AAAA"
     assert ex == "XLON.G"
@@ -570,21 +568,19 @@ def test_timeseries_html_xss_not_reflected(xss_ticker, escaped_fragment, monkeyp
     assert escaped_fragment in resp.text.lower()
 
 
-def test_timeseries_meta_html_xss_ticker_from_resolver_is_escaped(monkeypatch):
-    """Ticker returned by the internal resolver is HTML-escaped in the HTML response.
+def test_timeseries_meta_html_xss_ticker_from_resolver_is_rejected(monkeypatch):
+    """Ticker returned by the internal resolver is validated against _RESOLVER_OUTPUT_RE.
 
-    _TICKER_SEGMENT_RE only validates user-supplied input; tickers returned by
-    _resolve_full_ticker bypass the regex.  This test exercises the output-
-    escaping layer (Layer 2) for the ticker component: even if an internally-
-    resolved ticker carries HTML-special chars, render_timeseries_html must
-    neutralise them via html.escape().
+    _RESOLVER_OUTPUT_RE rejects HTML-unsafe characters (<, >, &, etc.) even in
+    resolver output, so a corrupt or unexpected resolver result carrying an XSS
+    payload is caught at Layer 1 (validation) with a 400 before it can reach the
+    HTML renderer.  This closes the taint flow flagged by CodeQL py/reflective-xss
+    #276 without rejecting valid exchange codes that contain dots (e.g. XLON.G).
     """
     import backend.routes.timeseries_meta as ts_meta
 
     df = _sample_df()
     client = _client_with_df(monkeypatch, df)
-    # ts_meta.instrument_api._resolve_full_ticker is verified as a valid patch
-    # target by the existing test_resolve_with_inferred_exchange (same pattern).
     # ticker="ABC" with no exchange param and no dot means _resolve_ticker_exchange
     # falls through to instrument_api._resolve_full_ticker — the resolver IS called.
     monkeypatch.setattr(
@@ -593,26 +589,24 @@ def test_timeseries_meta_html_xss_ticker_from_resolver_is_escaped(monkeypatch):
         lambda t, latest: ("<SCRIPT>EVIL</SCRIPT>", "L"),
     )
     resp = client.get("/timeseries/meta", params={"ticker": "ABC", "format": "html"})
-    assert resp.status_code == 200
+    assert resp.status_code == 400
+    assert "application/json" in resp.headers.get("content-type", "")
     assert "<script>" not in resp.text.lower()
-    assert "&lt;script&gt;" in resp.text.lower()
 
 
-def test_timeseries_meta_html_xss_exchange_from_resolver_is_escaped(monkeypatch):
-    """Exchange returned by the internal resolver is HTML-escaped in the HTML response.
+def test_timeseries_meta_html_xss_exchange_from_resolver_is_rejected(monkeypatch):
+    """Exchange returned by the internal resolver is validated against _RESOLVER_OUTPUT_RE.
 
-    _TICKER_SEGMENT_RE only validates user-supplied input; tickers returned by
-    _resolve_full_ticker bypass the regex.  This test exercises the output-
-    escaping layer (Layer 2) for the exchange component: even if an internally-
-    resolved exchange carries HTML-special chars, render_timeseries_html must
-    neutralise them via html.escape().
+    _RESOLVER_OUTPUT_RE rejects HTML-unsafe characters (<, >, &, etc.) even in
+    resolver output, so a corrupt or unexpected resolver result carrying an XSS
+    payload is caught at Layer 1 (validation) with a 400 before it can reach the
+    HTML renderer.  This closes the taint flow flagged by CodeQL py/reflective-xss
+    #276 without rejecting valid exchange codes that contain dots (e.g. XLON.G).
     """
     import backend.routes.timeseries_meta as ts_meta
 
     df = _sample_df()
     client = _client_with_df(monkeypatch, df)
-    # ts_meta.instrument_api._resolve_full_ticker is verified as a valid patch
-    # target by the existing test_resolve_with_inferred_exchange (same pattern).
     # No exchange param + no dot in ticker → _resolve_ticker_exchange falls through
     # to instrument_api._resolve_full_ticker — the resolver IS called.
     monkeypatch.setattr(
@@ -621,9 +615,9 @@ def test_timeseries_meta_html_xss_exchange_from_resolver_is_escaped(monkeypatch)
         lambda t, latest: ("ABC", "<SCRIPT>EVIL</SCRIPT>"),
     )
     resp = client.get("/timeseries/meta", params={"ticker": "ABC", "format": "html"})
-    assert resp.status_code == 200
+    assert resp.status_code == 400
+    assert "application/json" in resp.headers.get("content-type", "")
     assert "<script>" not in resp.text.lower()
-    assert "&lt;script&gt;" in resp.text.lower()
 
 
 def test_timeseries_html_xss_ticker_column_in_dataframe_is_escaped(monkeypatch):

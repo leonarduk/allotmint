@@ -26,10 +26,15 @@ logger = logging.getLogger("routes.timeseries")
 # Underscores accommodate normalised internal identifiers; hyphens cover
 # standard exchange codes (e.g. BRK-B).  The 50-char ceiling is generous but
 # bounded — no real ticker or exchange code exceeds this length.
-# This guard applies ONLY to user-controlled input paths; tickers returned by
-# the internal resolver (_resolve_full_ticker) bypass it to avoid false 400s
-# on valid portfolio entries.  Prevents log injection on user paths (CWE-117).
+# Prevents log injection on user paths (CWE-117).
 _TICKER_SEGMENT_RE = re.compile(r"^[A-Z0-9_-]{1,50}$")
+
+# Wider allowlist applied to resolver-returned values.  Permits dots so that
+# exchange codes like XLON.G are accepted, while still rejecting HTML-unsafe
+# characters (<, >, &, ", ') that could cause XSS if the resolver returns
+# corrupt or unexpected data.  Breaks the taint flow from the user-supplied
+# ticker query parameter to the HTML response (CodeQL py/reflective-xss #276).
+_RESOLVER_OUTPUT_RE = re.compile(r"^[A-Z0-9._\-]{1,100}$")
 
 
 def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> tuple[str, str]:
@@ -54,7 +59,6 @@ def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> tuple[str, st
         logger.debug("Ticker resolved (inferred from ticker)")
         return sym, ex
 
-    # Exchange inferred from internal data — trust the resolver, no regex rejection.
     resolved = instrument_api._resolve_full_ticker(t, instrument_api._LATEST_PRICES)
     if not resolved:
         logger.debug("Could not infer exchange for %s", sanitise_log_value(t))
@@ -63,6 +67,10 @@ def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> tuple[str, st
             detail=f"Exchange not provided and could not be inferred for {ticker}",
         )
     sym, ex = resolved
+    # Validate resolver output against wider allowlist: dots permitted (e.g. XLON.G)
+    # but HTML-unsafe chars are rejected to prevent XSS (CodeQL py/reflective-xss #276).
+    if not _RESOLVER_OUTPUT_RE.match(sym) or not _RESOLVER_OUTPUT_RE.match(ex):
+        raise HTTPException(status_code=400, detail="Invalid ticker format")
     logger.debug("Ticker resolved (inferred exchange)")
     return sym, ex
 

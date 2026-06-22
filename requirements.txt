@@ -32,7 +32,7 @@ pillow>=9.2.0,<12.0  # moviepy~=2.2.1 requires pillow<12.0
 platformdirs~=3.10.0
 protobuf>=7.35.0,<8  # >=6.31.1 fixes CVE-2025-4565; 6.31.0+ includes protocolbuffers/protobuf#15999 for Python 3.14 PyType_Spec compatibility
 pyarrow~=24.0.0
-reportlab~=4.5.0
+reportlab~=5.0.0
 pycparser~=3.0
 pyjwt~=2.13.0
 pydantic~=2.13.4

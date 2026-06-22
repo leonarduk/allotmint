@@ -21,14 +21,13 @@ from backend.utils.timeseries_helpers import (
 router = APIRouter(prefix="/timeseries", tags=["timeseries"])
 logger = logging.getLogger("routes.timeseries")
 
-# Allowlist for user-supplied ticker segments and exchange codes.
-# Underscores accommodate normalised internal identifiers; hyphens cover
-# standard exchange codes (e.g. BRK-B).  The 50-char ceiling is generous but
-# bounded — no real ticker or exchange code exceeds this length.
-# Applied to all three paths in _resolve_ticker_exchange: user-supplied
-# ticker/exchange (cases 1-2) and resolver-returned values (case 3).
+# Allowlist regexes for ticker symbols and exchange codes; applied in all
+# three resolution paths of _resolve_ticker_exchange.
 # Prevents reflective XSS (CWE-079) and log injection (CWE-117).
-_TICKER_SEGMENT_RE = re.compile(r"^[A-Z0-9_-]{1,50}$")
+# Exchange codes use a separate, slightly broader regex: resolver-returned
+# codes can contain dots (e.g. NYSE.US), which ticker symbols never do.
+_TICKER_SYMBOL_RE = re.compile(r"^[A-Z0-9_-]{1,50}$")
+_EXCHANGE_CODE_RE = re.compile(r"^[A-Z0-9._-]{1,50}$")
 
 
 def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> tuple[str, str]:
@@ -40,7 +39,7 @@ def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> tuple[str, st
         sym = t.split(".", 1)[0]
         ex = exchange.upper()
         # Validate user-supplied segments before logging (CWE-117 log-injection guard).
-        if not _TICKER_SEGMENT_RE.match(sym) or not _TICKER_SEGMENT_RE.match(ex):
+        if not _TICKER_SYMBOL_RE.match(sym) or not _EXCHANGE_CODE_RE.match(ex):
             raise HTTPException(status_code=400, detail="Invalid ticker format")
         logger.debug("Ticker resolved (provided exchange)")
         return sym, ex
@@ -48,7 +47,7 @@ def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> tuple[str, st
     if "." in t:
         sym, ex = t.split(".", 1)
         # Validate user-supplied segments before logging (CWE-117 log-injection guard).
-        if not _TICKER_SEGMENT_RE.match(sym) or not _TICKER_SEGMENT_RE.match(ex):
+        if not _TICKER_SYMBOL_RE.match(sym) or not _EXCHANGE_CODE_RE.match(ex):
             raise HTTPException(status_code=400, detail="Invalid ticker format")
         logger.debug("Ticker resolved (inferred from ticker)")
         return sym, ex
@@ -63,7 +62,7 @@ def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> tuple[str, st
         )
     sym, ex = resolved
     # Validate resolver-returned segments against allowlist (CodeQL #276 XSS guard).
-    if not _TICKER_SEGMENT_RE.match(sym) or not _TICKER_SEGMENT_RE.match(ex):
+    if not _TICKER_SYMBOL_RE.match(sym) or not _EXCHANGE_CODE_RE.match(ex):
         raise HTTPException(status_code=400, detail="Invalid ticker format")
     logger.debug("Ticker resolved (inferred exchange)")
     return sym, ex
@@ -171,7 +170,7 @@ def _render_meta_html(
         # df.to_html(escape=True), so pre-escaping here would double-escape
         # (to_html re-encodes existing &-entities as &amp;lt; etc.).
         # Defence-in-depth: _resolve_ticker_exchange already constrains
-        # ticker/exchange to [A-Z0-9_-]{1,50} before we reach this point.
+        # ticker to [A-Z0-9_-]{1,50} and exchange to [A-Z0-9._-]{1,50}.
         render_df["Ticker"] = f"{ticker}.{exchange}"
     if "Source" not in render_df.columns:
         render_df["Source"] = "meta"

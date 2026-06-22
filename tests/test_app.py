@@ -64,7 +64,7 @@ def test_create_app_registers_rebalance_route(monkeypatch):
     monkeypatch.setattr(config, "snapshot_warm_days", 30)
     app = create_app()
 
-    registered_paths = {route.path for route in app.routes}
+    registered_paths = {route.path for route in app.routes if hasattr(route, "path")}
     assert "/rebalance" in registered_paths
 
 

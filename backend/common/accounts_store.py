@@ -92,6 +92,11 @@ def _default_person_payload(owner: str) -> Dict[str, Any]:
     }
 
 
+def _sanitize_log(value: str) -> str:
+    """Strip CR/LF from user-controlled values before passing them to logger calls (CWE-117)."""
+    return str(value).replace("\r", "").replace("\n", "")
+
+
 @dataclass
 class LocalAccountsStore:
     """On-disk, file-locked account document store (local dev / tests).
@@ -279,10 +284,10 @@ class S3AccountsStore:
             code = exc.response.get("Error", {}).get("Code", "")
             if code in {"NoSuchKey", "404", "NotFound"}:
                 return None
-            logger.warning("S3 read failed for s3://%s/%s: %s", self.bucket, key, exc)
+            logger.warning("S3 read failed for s3://%s/%s: %s", self.bucket, _sanitize_log(key), exc)
             return None
         except BotoCoreError as exc:
-            logger.warning("S3 read failed for s3://%s/%s: %s", self.bucket, key, exc)
+            logger.warning("S3 read failed for s3://%s/%s: %s", self.bucket, _sanitize_log(key), exc)
             return None
         body = obj.get("Body")
         text = body.read().decode("utf-8-sig").strip() if body else ""
@@ -375,8 +380,8 @@ class S3AccountsStore:
         if tx_data is None:
             logger.warning(
                 "Portfolio rebuild skipped for %s/%s: no transaction document",
-                owner,
-                account,
+                _sanitize_log(owner),
+                _sanitize_log(account),
             )
             return
         holdings_data = portfolio_loader.compute_holdings_from_transactions(tx_data, owner, account)
@@ -396,7 +401,7 @@ class S3AccountsStore:
             try:
                 resp = client.list_objects_v2(**kwargs)
             except (ClientError, BotoCoreError) as exc:
-                logger.warning("S3 list failed for s3://%s/%s: %s", self.bucket, prefix, exc)
+                logger.warning("S3 list failed for s3://%s/%s: %s", self.bucket, _sanitize_log(prefix), exc)
                 return
             for entry in resp.get("Contents", []) or []:
                 key = entry.get("Key")

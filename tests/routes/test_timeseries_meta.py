@@ -562,7 +562,7 @@ def test_timeseries_html_xss_not_reflected(xss_ticker, escaped_fragment, monkeyp
     assert escaped_fragment in resp.text.lower()
 
 
-def test_timeseries_meta_html_xss_ticker_from_resolver_is_escaped(monkeypatch):
+def test_timeseries_meta_html_xss_ticker_from_resolver_rejected_by_validation(monkeypatch):
     """Resolver-returned ticker with HTML-special chars is rejected by case-3 validation.
 
     _resolve_ticker_exchange validates resolver-returned values via
@@ -584,7 +584,7 @@ def test_timeseries_meta_html_xss_ticker_from_resolver_is_escaped(monkeypatch):
     assert "<script>" not in resp.text.lower()
 
 
-def test_timeseries_meta_html_xss_exchange_from_resolver_is_escaped(monkeypatch):
+def test_timeseries_meta_html_xss_exchange_from_resolver_rejected_by_validation(monkeypatch):
     """Resolver-returned exchange with HTML-special chars is rejected by case-3 validation.
 
     _resolve_ticker_exchange validates resolver-returned values via

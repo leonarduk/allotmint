@@ -15,6 +15,7 @@ from backend.common.accounts_store import (
     WRITABLE_ACCOUNTS_PREFIX,
     LocalAccountsStore,
     S3AccountsStore,
+    _sanitize_log,
 )
 from backend.common.data_loader import ResolvedPaths
 from backend.config import config
@@ -180,7 +181,8 @@ def test_s3_store_ensure_owner_idempotent(s3_store):
     assert f"{WRITABLE_ACCOUNTS_PREFIX}/alice/person.json" in fake.objects
     # Second call must not overwrite / error.
     store.ensure_owner("alice")
-    person = json.loads(fake.objects[f"{WRITABLE_ACCOUNTS_PREFIX}/alice/person.json"].decode("utf-8"))
+    raw = fake.objects[f"{WRITABLE_ACCOUNTS_PREFIX}/alice/person.json"]
+    person = json.loads(raw.decode("utf-8"))
     assert person["owner"] == "alice"
 
 
@@ -263,7 +265,9 @@ def test_s3_store_rebuild_portfolio(s3_store) -> None:
     assert tickers == {"ABC", "CASH.GBP"}
 
 
-def test_s3_store_rebuild_portfolio_missing_transactions(s3_store, caplog: pytest.LogCaptureFixture) -> None:
+def test_s3_store_rebuild_portfolio_missing_transactions(
+    s3_store, caplog: pytest.LogCaptureFixture
+) -> None:
     """S3 rebuild warns and returns early when no transaction document exists."""
     store, _ = s3_store
     caplog.set_level(logging.WARNING, logger="accounts_store")
@@ -460,3 +464,74 @@ class TestS3Integration:
         doc = store.read_document(owner, "isa.json")
         assert doc is not None
         assert doc["holdings"][0]["ticker"] == "GOOG"
+
+
+# ---------------------------------------------------------------------------
+# Log injection sanitisation (issue #4562, CWE-117)
+# ---------------------------------------------------------------------------
+
+
+def test_sanitize_log_strips_newlines():
+    assert _sanitize_log("evil\nINJECTED") == "evilINJECTED"
+    assert _sanitize_log("evil\rINJECTED") == "evilINJECTED"
+    assert _sanitize_log("evil\r\nINJECTED") == "evilINJECTED"
+
+
+def test_sanitize_log_leaves_safe_values_unchanged():
+    assert _sanitize_log("alice") == "alice"
+    assert _sanitize_log("writable-accounts/alice/isa.json") == "writable-accounts/alice/isa.json"
+
+
+def _assert_no_injected_newlines(caplog: pytest.LogCaptureFixture) -> None:
+    """Assert that no log record's formatted message contains a bare CR or LF."""
+    for record in caplog.records:
+        msg = record.getMessage()
+        assert "\n" not in msg, f"Log injection found in record: {msg!r}"
+        assert "\r" not in msg, f"Log injection found in record: {msg!r}"
+
+
+def test_s3_read_document_log_injection_stripped(caplog: pytest.LogCaptureFixture) -> None:
+    """A malicious owner with newlines must not produce injected log lines."""
+    from botocore.exceptions import ClientError
+
+    class _ErrorS3:
+        def get_object(self, Bucket, Key):  # noqa: N803
+            raise ClientError({"Error": {"Code": "ServiceUnavailable"}}, "GetObject")
+
+    store = S3AccountsStore(bucket="b", client=_ErrorS3())
+    caplog.set_level(logging.WARNING, logger="accounts_store")
+
+    store.read_document("evil\nINJECTED", "isa.json")
+
+    # sanitisation strips the newline; "evil\nINJECTED" becomes "evilINJECTED" in the log
+    _assert_no_injected_newlines(caplog)
+    assert caplog.records  # at least one warning was emitted
+
+
+def test_s3_rebuild_portfolio_log_injection_stripped(caplog: pytest.LogCaptureFixture) -> None:
+    """Malicious owner/account values must not appear as bare newlines in the log."""
+    store = S3AccountsStore(bucket="b", client=_FakeS3())
+    caplog.set_level(logging.WARNING, logger="accounts_store")
+
+    store.rebuild_portfolio("evil\nINJECTED", "isa\nFAKE")
+
+    _assert_no_injected_newlines(caplog)
+    assert caplog.records
+
+
+def test_s3_iter_keys_log_injection_stripped(caplog: pytest.LogCaptureFixture) -> None:
+    """A malicious S3 prefix must not produce injected log lines."""
+    from botocore.exceptions import BotoCoreError
+
+    class _FailS3(_FakeS3):
+        def list_objects_v2(self, Bucket, Prefix, **_):  # noqa: N803
+            raise BotoCoreError()
+
+    store = S3AccountsStore(bucket="b", client=_FailS3())
+    caplog.set_level(logging.WARNING, logger="accounts_store")
+
+    # list_owner_files calls _iter_keys with an owner-controlled prefix
+    store.list_owner_files("evil\nINJECTED")
+
+    _assert_no_injected_newlines(caplog)
+    assert caplog.records

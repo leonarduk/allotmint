@@ -66,6 +66,12 @@ def test_create_app_registers_rebalance_route(monkeypatch):
 
     registered_paths = {route.path for route in app.routes if hasattr(route, "path")}
     assert "/rebalance" in registered_paths
+    with patch("backend.common.portfolio_utils.refresh_snapshot_async"):
+        app = create_app()
+        with TestClient(app, raise_server_exceptions=False) as client:
+            resp = client.post("/rebalance", json={"actual": {}, "target": {}})
+    # 404 means the route was never registered; any other status confirms it is wired up
+    assert resp.status_code != 404
 
 
 def test_docs_url_is_removed(monkeypatch):

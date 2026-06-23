@@ -1,7 +1,7 @@
 [project]
 requires-python = ">=3.11"
 dependencies = [
-    "reportlab>=4.4.3",
+    "reportlab>=5.0.0",
 ]
 
 [project.optional-dependencies]

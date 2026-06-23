@@ -9,6 +9,17 @@ from backend.app import create_app
 from backend.config import config
 
 
+def _collect_route_paths(routes) -> set:
+    """Recursively collect paths from APIRoute objects across included routers."""
+    paths = set()
+    for route in routes:
+        if isinstance(route, APIRoute):
+            paths.add(route.path)
+        if hasattr(route, "routes"):
+            paths.update(_collect_route_paths(route.routes))
+    return paths
+
+
 def test_health_env_variable(monkeypatch):
     monkeypatch.setattr(config, "app_env", "staging")
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
@@ -65,7 +76,7 @@ def test_create_app_registers_rebalance_route(monkeypatch):
     monkeypatch.setattr(config, "snapshot_warm_days", 30)
     app = create_app()
 
-    registered_paths = {route.path for route in app.routes if isinstance(route, APIRoute)}
+    registered_paths = _collect_route_paths(app.routes)
     assert "/rebalance" in registered_paths
 
 

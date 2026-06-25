@@ -52,6 +52,7 @@ interface BootstrapConfig {
   disable_auth?: boolean;
   local_login_email?: string | null;
   allowed_emails?: string[] | null;
+  awsUiAuth?: AwsUiAuthConfig;
 }
 
 const storedToken = getStoredAuthToken();
@@ -135,6 +136,10 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
   const [authed, setAuthed] = useState(
     Boolean(storedToken) || Boolean(getStoredCognitoIdToken()),
   );
+  // Resolved awsUiAuth: starts from the /config.json-derived prop; may be
+  // overridden by cfg.awsUiAuth from the backend GET /config response (which
+  // is authoritative and the source that #4610 was designed to enable).
+  const [resolvedAwsUiAuth, setResolvedAwsUiAuth] = useState<AwsUiAuthConfig | undefined>(awsUiAuth);
   const { setUser } = useAuth();
   const { setProfile } = useUser();
   const navigate = useNavigate();
@@ -167,8 +172,8 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
     setUser(null);
     setProfile(undefined);
     setAuthed(false);
-    if (awsUiAuth?.enabled) {
-      cognitoLogout(awsUiAuth);
+    if (resolvedAwsUiAuth?.enabled) {
+      cognitoLogout(resolvedAwsUiAuth);
     } else {
       navigate('/');
     }
@@ -181,6 +186,11 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
     const existingProfile = loadStoredUserProfile();
     if (existingProfile) setProfile(existingProfile);
   }, [setProfile, setUser]);
+
+  // Derive a stable boolean from the /config.json-sourced prop so the
+  // useCallback dep array holds a primitive, not an object reference.
+  const awsUiAuthEnabledProp =
+    awsUiAuth?.enabled === true || awsUiAuth?.enabled === 'true';
 
   const fetchConfig = useCallback(
     (attempt = 0, { manual = false }: { manual?: boolean } = {}) => {
@@ -235,18 +245,19 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
 
           setGoogleLoginEnabled(configAuthEnabled);
           setClientId(configuredClientId);
-          // Backend semantics:
-          // - disable_auth controls whether login is required.
-          // - allowed_emails may be null (no explicit allowlist) without
-          //   changing whether auth is required.
-          // awsUiAuth.enabled means API Gateway enforces Cognito JWT auth
-          // independently of disable_auth (which only tells the Lambda to skip
-          // its own auth check — API Gateway still validates the Cognito JWT
-          // before the Lambda is ever invoked). Treat awsUiAuth as requiring
-          // auth so users without a session see the login page rather than
-          // hitting 401 on protected endpoints like /groups.
+          // cfg.awsUiAuth (from the unauthenticated GET /config backend
+          // response) is the authoritative signal that API Gateway Cognito
+          // auth is required, regardless of disable_auth (which only tells
+          // the Lambda to skip its own auth check — API Gateway still
+          // validates the Cognito JWT before the Lambda is ever invoked).
+          // Fall back to awsUiAuthEnabledProp (/config.json-derived) for
+          // deployments where the backend hasn't surfaced awsUiAuth yet.
+          const cfgAwsUiAuth = cfg.awsUiAuth as AwsUiAuthConfig | undefined;
           const awsUiAuthEnabled =
-            awsUiAuth?.enabled === true || awsUiAuth?.enabled === 'true';
+            cfgAwsUiAuth?.enabled === true ||
+            cfgAwsUiAuth?.enabled === 'true' ||
+            awsUiAuthEnabledProp;
+          if (cfgAwsUiAuth) setResolvedAwsUiAuth(cfgAwsUiAuth);
           setNeedsAuth(!disableAuth || awsUiAuthEnabled);
 
           if (disableAuth && localLoginEmail) {
@@ -295,7 +306,7 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
           }
         });
     },
-    [awsUiAuth, clearRetryTimer, setProfile, setUser]
+    [awsUiAuthEnabledProp, clearRetryTimer, setProfile, setUser]
   );
 
   useEffect(() => {
@@ -343,7 +354,7 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
 
   if (needsAuth && !authed && !isPublicSupportRoute && !isPublicCreateAccountRoute) {
     const awsUiAuthEnabled =
-      awsUiAuth?.enabled === true || awsUiAuth?.enabled === 'true';
+      resolvedAwsUiAuth?.enabled === true || resolvedAwsUiAuth?.enabled === 'true';
     const hasAnyLoginMethod =
       (googleLoginEnabled && Boolean(clientId)) || awsUiAuthEnabled;
 
@@ -364,7 +375,7 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
         {renderRouteMarker(location.pathname, 'auth')}
         <LoginPage
           clientId={clientId}
-          awsUiAuth={awsUiAuth}
+          awsUiAuth={resolvedAwsUiAuth}
           onSuccess={() => setAuthed(true)}
         />
       </>

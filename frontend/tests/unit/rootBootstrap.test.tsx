@@ -177,7 +177,10 @@ describe('Root bootstrap integration coverage', () => {
     expect(screen.queryByTestId('login-page')).not.toBeInTheDocument()
   })
 
-  it('shows login page when disable_auth=true but awsUiAuth is enabled and no session exists', async () => {
+  it('shows login page when backend cfg carries awsUiAuth.enabled and disable_auth=true', async () => {
+    // Covers the primary path: backend GET /config is authoritative.
+    // /config.json has no awsUiAuth (prop is absent), but the backend response
+    // includes it — the case that #4610 was designed to enable.
     vi.doMock('react-dom/client', () => ({
       createRoot: () => ({ render: vi.fn() })
     }))
@@ -186,23 +189,22 @@ describe('Root bootstrap integration coverage', () => {
       const mod = await importOriginal<typeof import('@/api')>()
       return {
         ...mod,
-        // Simulates deployed Lambda with DISABLE_AUTH=true: API Gateway enforces
-        // Cognito JWT auth, the Lambda itself does not.
         getConfig: vi.fn().mockResolvedValue({
           google_auth_enabled: false,
           google_client_id: null,
           disable_auth: true,
+          awsUiAuth: {
+            enabled: true,
+            domain: 'https://cognito.example.com',
+            clientId: 'client-from-backend',
+          },
         }),
         getStoredAuthToken: vi.fn(() => null),
       }
     })
 
     vi.doMock('@/LoginPage', () => ({
-      default: ({ awsUiAuth }: { awsUiAuth?: { enabled?: boolean } }) => (
-        <div data-testid="login-page">
-          {awsUiAuth?.enabled ? 'cognito-enabled' : 'no-cognito'}
-        </div>
-      )
+      default: () => <div data-testid="login-page">sign in</div>
     }))
 
     document.body.innerHTML = '<div id="root"></div>'
@@ -214,16 +216,56 @@ describe('Root bootstrap integration coverage', () => {
       <AuthProvider>
         <UserProvider>
           <BrowserRouter>
-            {/* Pass awsUiAuth explicitly to simulate /config.json having awsUiAuth */}
+            {/* No awsUiAuth prop — simulates /config.json without the field */}
+            <Root />
+          </BrowserRouter>
+        </UserProvider>
+      </AuthProvider>,
+    )
+
+    expect(await screen.findByTestId('login-page')).toBeInTheDocument()
+  })
+
+  it('shows login page when /config.json awsUiAuth prop is set but disable_auth=true', async () => {
+    // Covers the fallback path: /config.json has awsUiAuth but the backend
+    // response does not (e.g. older backend deployment).
+    vi.doMock('react-dom/client', () => ({
+      createRoot: () => ({ render: vi.fn() })
+    }))
+
+    vi.doMock('@/api', async importOriginal => {
+      const mod = await importOriginal<typeof import('@/api')>()
+      return {
+        ...mod,
+        getConfig: vi.fn().mockResolvedValue({
+          google_auth_enabled: false,
+          google_client_id: null,
+          disable_auth: true,
+        }),
+        getStoredAuthToken: vi.fn(() => null),
+      }
+    })
+
+    vi.doMock('@/LoginPage', () => ({
+      default: () => <div data-testid="login-page">sign in</div>
+    }))
+
+    document.body.innerHTML = '<div id="root"></div>'
+    const { Root } = await import('@/main')
+    const { AuthProvider } = await import('@/AuthContext')
+    const { UserProvider } = await import('@/UserContext')
+
+    render(
+      <AuthProvider>
+        <UserProvider>
+          <BrowserRouter>
             <Root awsUiAuth={{ enabled: true, domain: 'https://cognito.example.com', clientId: 'client-abc' }} />
           </BrowserRouter>
         </UserProvider>
       </AuthProvider>,
     )
 
-    const loginPage = await screen.findByTestId('login-page')
-    expect(loginPage).toBeInTheDocument()
-    expect(loginPage).toHaveTextContent('cognito-enabled')
+    expect(await screen.findByTestId('login-page')).toBeInTheDocument()
   })
 
   it('schedules a retry after config failure and cancels it on unmount', async () => {

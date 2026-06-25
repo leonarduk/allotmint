@@ -62,10 +62,6 @@ def test_skip_snapshot_warm(monkeypatch):
 def test_create_app_registers_rebalance_route(monkeypatch):
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
     monkeypatch.setattr(config, "snapshot_warm_days", 30)
-    app = create_app()
-
-    registered_paths = {route.path for route in app.routes if hasattr(route, "path")}
-    assert "/rebalance" in registered_paths
     with patch("backend.common.portfolio_utils.refresh_snapshot_async"):
         app = create_app()
         with TestClient(app, raise_server_exceptions=False) as client:

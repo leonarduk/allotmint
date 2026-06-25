@@ -177,6 +177,55 @@ describe('Root bootstrap integration coverage', () => {
     expect(screen.queryByTestId('login-page')).not.toBeInTheDocument()
   })
 
+  it('shows login page when disable_auth=true but awsUiAuth is enabled and no session exists', async () => {
+    vi.doMock('react-dom/client', () => ({
+      createRoot: () => ({ render: vi.fn() })
+    }))
+
+    vi.doMock('@/api', async importOriginal => {
+      const mod = await importOriginal<typeof import('@/api')>()
+      return {
+        ...mod,
+        // Simulates deployed Lambda with DISABLE_AUTH=true: API Gateway enforces
+        // Cognito JWT auth, the Lambda itself does not.
+        getConfig: vi.fn().mockResolvedValue({
+          google_auth_enabled: false,
+          google_client_id: null,
+          disable_auth: true,
+        }),
+        getStoredAuthToken: vi.fn(() => null),
+      }
+    })
+
+    vi.doMock('@/LoginPage', () => ({
+      default: ({ awsUiAuth }: { awsUiAuth?: { enabled?: boolean } }) => (
+        <div data-testid="login-page">
+          {awsUiAuth?.enabled ? 'cognito-enabled' : 'no-cognito'}
+        </div>
+      )
+    }))
+
+    document.body.innerHTML = '<div id="root"></div>'
+    const { Root } = await import('@/main')
+    const { AuthProvider } = await import('@/AuthContext')
+    const { UserProvider } = await import('@/UserContext')
+
+    render(
+      <AuthProvider>
+        <UserProvider>
+          <BrowserRouter>
+            {/* Pass awsUiAuth explicitly to simulate /config.json having awsUiAuth */}
+            <Root awsUiAuth={{ enabled: true, domain: 'https://cognito.example.com', clientId: 'client-abc' }} />
+          </BrowserRouter>
+        </UserProvider>
+      </AuthProvider>,
+    )
+
+    const loginPage = await screen.findByTestId('login-page')
+    expect(loginPage).toBeInTheDocument()
+    expect(loginPage).toHaveTextContent('cognito-enabled')
+  })
+
   it('schedules a retry after config failure and cancels it on unmount', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
 

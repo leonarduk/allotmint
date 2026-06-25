@@ -239,7 +239,15 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
           // - disable_auth controls whether login is required.
           // - allowed_emails may be null (no explicit allowlist) without
           //   changing whether auth is required.
-          setNeedsAuth(!disableAuth);
+          // awsUiAuth.enabled means API Gateway enforces Cognito JWT auth
+          // independently of disable_auth (which only tells the Lambda to skip
+          // its own auth check — API Gateway still validates the Cognito JWT
+          // before the Lambda is ever invoked). Treat awsUiAuth as requiring
+          // auth so users without a session see the login page rather than
+          // hitting 401 on protected endpoints like /groups.
+          const awsUiAuthEnabled =
+            awsUiAuth?.enabled === true || awsUiAuth?.enabled === 'true';
+          setNeedsAuth(!disableAuth || awsUiAuthEnabled);
 
           if (disableAuth && localLoginEmail) {
             const storedUser = loadStoredAuthUser();
@@ -287,7 +295,7 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
           }
         });
     },
-    [clearRetryTimer, setProfile, setUser]
+    [awsUiAuth, clearRetryTimer, setProfile, setUser]
   );
 
   useEffect(() => {

@@ -499,24 +499,21 @@ def test_days_zero_with_end_date_means_all_history(monkeypatch):
 
 # ---- XSS regression tests (issue #3145) ------------------------------------
 #
-# There are two independent layers of defence:
-#   1. Input validation  — _TICKER_SEGMENT_RE in _resolve_ticker_exchange
-#                          rejects payloads in user-supplied ticker/exchange on
-#                          /timeseries/meta (400).  Tests named *_rejected_by_*
-#                          cover this layer.
-#   2. Output escaping   — html.escape() in render_timeseries_html neutralises
-#                          anything that reaches the renderer (e.g. values from
-#                          the internal resolver that bypass the regex, or the
-#                          unvalidated /timeseries/html endpoint).  Tests named
-#                          *_is_escaped / *_not_reflected cover this layer.
-#                          These tests are RED if html.escape() is removed.
+# Defence layers:
+#   1. Input validation  — _TICKER_SYMBOL_RE / _EXCHANGE_CODE_RE in
+#                          _resolve_ticker_exchange rejects payloads on all
+#                          three resolution paths (user-supplied cases 1-2 and
+#                          resolver-returned case 3).  Tests named
+#                          *_rejected_by_* / *_rejects_* cover this layer.
+#   2. Output escaping   — render_timeseries_html / df.to_html(escape=True)
+#                          neutralises anything that reaches the renderer on
+#                          the unvalidated /timeseries/html endpoint.  Tests
+#                          named *_not_reflected / *_is_escaped cover this
+#                          surface.
 #
 # Note on `scaling`: FastAPI constrains it to a float in [0.00001, 1_000_000],
 # so it cannot carry HTML injection characters.  Safe rendering is exercised by
 # test_timeseries_meta_formats_with_scaling[html] above.
-#
-# Note on `exchange` in /timeseries/html: that endpoint has no `exchange` query
-# param, so there is no direct exchange injection surface there.
 
 
 @pytest.mark.parametrize("ticker,exchange", [
@@ -528,9 +525,7 @@ def test_timeseries_meta_html_user_input_xss_rejected_by_validation(
 ):
     """Input validation rejects XSS payloads before they reach the HTML renderer.
 
-    _TICKER_SEGMENT_RE returns 400 for these inputs.  This test covers Layer 1
-    (input validation) only — it does NOT exercise html.escape().  For the
-    output-escaping layer see test_timeseries_meta_html_xss_*_from_resolver_*.
+    _TICKER_SYMBOL_RE / _EXCHANGE_CODE_RE return 400 for these inputs.
     """
     df = _sample_df()
     client = _client_with_df(monkeypatch, df)
@@ -549,7 +544,7 @@ def test_timeseries_meta_html_user_input_xss_rejected_by_validation(
     ('"><img src=x onerror=alert(1)>', "&lt;img"),
 ])
 def test_timeseries_html_xss_not_reflected(xss_ticker, escaped_fragment, monkeypatch):
-    """/timeseries/html has no input validation; html.escape() must prevent injection.
+    """/timeseries/html has no input validation; output escaping must prevent injection.
 
     The ticker reaches render_timeseries_html verbatim, so this test confirms
     the output-layer escaping is sufficient on its own.  Exception() exercises

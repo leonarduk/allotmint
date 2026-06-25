@@ -96,3 +96,25 @@ def test_timeseries_meta_xss_payload_rejected(params, monkeypatch, tmp_path):
     assert resp.status_code == 400
     assert "application/json" in resp.headers.get("content-type", "")
     assert "<script>" not in resp.text.lower()
+
+
+@pytest.mark.parametrize(
+    "ticker,exchange",
+    [
+        ("HFEL", "L"),
+        ("BRK-B", "US"),
+        ("ABC", "NYSE.US"),
+    ],
+)
+def test_timeseries_meta_valid_exchange_codes(ticker, exchange, monkeypatch, tmp_path):
+    """Valid exchange codes including those with dots are accepted (dot-in-exchange regression)."""
+    df = pd.DataFrame(
+        [{"Date": "2024-01-01", "Open": 1.0, "High": 2.0, "Low": 0.5, "Close": 1.5, "Volume": 100}]
+    )
+    client = _make_client(monkeypatch, tmp_path, df)
+    resp = client.get(
+        "/timeseries/meta",
+        params={"ticker": ticker, "exchange": exchange, "format": "json"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["ticker"] == f"{ticker}.{exchange}"

@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+import logging
 import os
 from copy import deepcopy
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Dict
 
-import logging
 import yaml
 from fastapi import APIRouter, HTTPException
 
@@ -14,7 +14,6 @@ from backend import config_module
 from backend.config import (
     ConfigValidationError,
     _project_config_path,
-    config,
     validate_google_auth,
 )
 
@@ -68,6 +67,13 @@ def serialise_config(cfg: config_module.Config) -> Dict[str, Any]:
         data["disabled_tabs"] = [
             "trade-compliance" if item == "trade_compliance" else item for item in disabled
         ]
+    raw = data.pop("aws_ui_auth", None)
+    if isinstance(raw, dict) and raw.get("enabled"):
+        data["awsUiAuth"] = {
+            "enabled": raw["enabled"],
+            "domain": raw.get("domain"),
+            "clientId": raw.get("client_id"),
+        }
     return data
 
 

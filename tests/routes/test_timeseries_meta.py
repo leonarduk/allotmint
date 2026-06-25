@@ -67,19 +67,20 @@ def test_resolve_cannot_infer_exchange(monkeypatch):
         ts_meta._resolve_ticker_exchange("xyz", None)
 
 
-def test_resolve_inferred_path_allows_dots_in_exchange(monkeypatch):
-    """Exchange codes containing dots (e.g. XLON.G) are accepted by _EXCHANGE_CODE_RE.
+def test_resolve_inferred_path_trusts_internal_data(monkeypatch):
+    """_RESOLVER_OUTPUT_RE permits dots so valid dotted exchange codes are accepted.
 
-    _resolve_full_ticker can return exchange codes with dots that are outside
-    the ticker-symbol allowlist [A-Z0-9_-] but valid for exchange codes.
-    _EXCHANGE_CODE_RE uses [A-Z0-9._-]{1,50} so these pass without a 400.
+    When _resolve_full_ticker returns a dotted exchange code such as XLON.G the
+    wider _RESOLVER_OUTPUT_RE (which allows dots) must not reject it with HTTP
+    400.  The stricter _TICKER_SEGMENT_RE (no dots) only applies to the
+    user-supplied paths (explicit exchange or dot-separated ticker).
     """
     import backend.routes.timeseries_meta as ts_meta
 
     monkeypatch.setattr(
         ts_meta.instrument_api,
         "_resolve_full_ticker",
-        lambda t, latest: ("AAAA", "XLON.G"),  # dot in exchange code — must be accepted
+        lambda t, latest: ("AAAA", "XLON.G"),  # dot in exchange code — accepted by _RESOLVER_OUTPUT_RE
     )
     sym, ex = ts_meta._resolve_ticker_exchange("aaaa", None)
     assert sym == "AAAA"
@@ -562,18 +563,21 @@ def test_timeseries_html_xss_not_reflected(xss_ticker, escaped_fragment, monkeyp
     assert escaped_fragment in resp.text.lower()
 
 
-def test_timeseries_meta_html_xss_ticker_from_resolver_rejected_by_validation(monkeypatch):
-    """Resolver-returned ticker with HTML-special chars is rejected by case-3 validation.
+def test_timeseries_meta_html_xss_ticker_from_resolver_is_rejected(monkeypatch):
+    """Ticker returned by the internal resolver is validated against _RESOLVER_OUTPUT_RE.
 
-    _resolve_ticker_exchange validates resolver-returned values via
-    _TICKER_SYMBOL_RE (CodeQL XSS guard #276).  A mocked resolver that returns
-    an XSS payload causes a 400 rather than letting it reach the HTML renderer.
-    The XSS payload is therefore never reflected in any response body.
+    _RESOLVER_OUTPUT_RE rejects HTML-unsafe characters (<, >, &, etc.) even in
+    resolver output, so a corrupt or unexpected resolver result carrying an XSS
+    payload is caught at Layer 1 (validation) with a 400 before it can reach the
+    HTML renderer.  This closes the taint flow flagged by CodeQL py/reflective-xss
+    #276 without rejecting valid exchange codes that contain dots (e.g. XLON.G).
     """
     import backend.routes.timeseries_meta as ts_meta
 
     df = _sample_df()
     client = _client_with_df(monkeypatch, df)
+    # ticker="ABC" with no exchange param and no dot means _resolve_ticker_exchange
+    # falls through to instrument_api._resolve_full_ticker — the resolver IS called.
     monkeypatch.setattr(
         ts_meta.instrument_api,
         "_resolve_full_ticker",
@@ -581,21 +585,25 @@ def test_timeseries_meta_html_xss_ticker_from_resolver_rejected_by_validation(mo
     )
     resp = client.get("/timeseries/meta", params={"ticker": "ABC", "format": "html"})
     assert resp.status_code == 400
+    assert "application/json" in resp.headers.get("content-type", "")
     assert "<script>" not in resp.text.lower()
 
 
-def test_timeseries_meta_html_xss_exchange_from_resolver_rejected_by_validation(monkeypatch):
-    """Resolver-returned exchange with HTML-special chars is rejected by case-3 validation.
+def test_timeseries_meta_html_xss_exchange_from_resolver_is_rejected(monkeypatch):
+    """Exchange returned by the internal resolver is validated against _RESOLVER_OUTPUT_RE.
 
-    _resolve_ticker_exchange validates resolver-returned values via
-    _EXCHANGE_CODE_RE (CodeQL XSS guard #276).  A mocked resolver that returns
-    an XSS payload causes a 400 rather than letting it reach the HTML renderer.
-    The XSS payload is therefore never reflected in any response body.
+    _RESOLVER_OUTPUT_RE rejects HTML-unsafe characters (<, >, &, etc.) even in
+    resolver output, so a corrupt or unexpected resolver result carrying an XSS
+    payload is caught at Layer 1 (validation) with a 400 before it can reach the
+    HTML renderer.  This closes the taint flow flagged by CodeQL py/reflective-xss
+    #276 without rejecting valid exchange codes that contain dots (e.g. XLON.G).
     """
     import backend.routes.timeseries_meta as ts_meta
 
     df = _sample_df()
     client = _client_with_df(monkeypatch, df)
+    # No exchange param + no dot in ticker → _resolve_ticker_exchange falls through
+    # to instrument_api._resolve_full_ticker — the resolver IS called.
     monkeypatch.setattr(
         ts_meta.instrument_api,
         "_resolve_full_ticker",
@@ -603,6 +611,7 @@ def test_timeseries_meta_html_xss_exchange_from_resolver_rejected_by_validation(
     )
     resp = client.get("/timeseries/meta", params={"ticker": "ABC", "format": "html"})
     assert resp.status_code == 400
+    assert "application/json" in resp.headers.get("content-type", "")
     assert "<script>" not in resp.text.lower()
 
 

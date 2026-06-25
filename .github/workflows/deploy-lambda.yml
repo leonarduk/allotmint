@@ -419,6 +419,17 @@ jobs:
           if [ "$SMOKE_TEST_USER_POOL_CLIENT_ID" = "None" ]; then
             SMOKE_TEST_USER_POOL_CLIENT_ID=""
           fi
+          # UiAuthDomain is the Cognito hosted-UI base URL surfaced in the backend's
+          # /config response as awsUiAuth.domain so the frontend can initiate PKCE
+          # login (issue #4577). Optional: if the output is missing the parameter
+          # defaults to empty and awsUiAuth is omitted from /config.
+          UI_AUTH_DOMAIN="$(aws cloudformation describe-stacks \
+            --stack-name StaticSiteStack \
+            --query "Stacks[0].Outputs[?OutputKey=='UiAuthDomain'].OutputValue" \
+            --output text 2>/dev/null || echo "")"
+          if [ "$UI_AUTH_DOMAIN" = "None" ]; then
+            UI_AUTH_DOMAIN=""
+          fi
           if [ -z "$UI_AUTH_USER_POOL_ID" ] || [ "$UI_AUTH_USER_POOL_ID" = "None" ]; then
             echo "UiAuthUserPoolId output is missing from StaticSiteStack" >&2
             exit 1
@@ -435,6 +446,7 @@ jobs:
             echo "UI_AUTH_USER_POOL_ID=$UI_AUTH_USER_POOL_ID"
             echo "UI_AUTH_USER_POOL_CLIENT_ID=$UI_AUTH_USER_POOL_CLIENT_ID"
             echo "SMOKE_TEST_USER_POOL_CLIENT_ID=$SMOKE_TEST_USER_POOL_CLIENT_ID"
+            echo "UI_AUTH_DOMAIN=${UI_AUTH_DOMAIN}"
             echo "FRONTEND_ORIGIN=https://${DISTRIBUTION_DOMAIN}"
             echo "CORS_ORIGINS=https://${DISTRIBUTION_DOMAIN},https://app.allotmint.io"
           } >> "$GITHUB_ENV"
@@ -461,6 +473,7 @@ jobs:
           --parameters BackendLambdaStack:UiAuthUserPoolId="$UI_AUTH_USER_POOL_ID"
           --parameters BackendLambdaStack:UiAuthUserPoolClientId="$UI_AUTH_USER_POOL_CLIENT_ID"
           --parameters BackendLambdaStack:SmokeTestUserPoolClientId="$SMOKE_TEST_USER_POOL_CLIENT_ID"
+          --parameters BackendLambdaStack:UiAuthDomain="${UI_AUTH_DOMAIN}"
         working-directory: cdk
 
       - name: Warm price snapshot

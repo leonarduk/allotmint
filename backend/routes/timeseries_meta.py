@@ -21,6 +21,12 @@ from backend.utils.timeseries_helpers import (
 router = APIRouter(prefix="/timeseries", tags=["timeseries"])
 logger = logging.getLogger("routes.timeseries")
 
+# Allowlist for user-supplied ticker segments and exchange codes.
+# Underscores accommodate normalised internal identifiers; hyphens cover
+# standard exchange codes (e.g. BRK-B).  The 50-char ceiling is generous but
+# bounded — no real ticker or exchange code exceeds this length.
+# Prevents log injection on user paths (CWE-117).
+_TICKER_SEGMENT_RE = re.compile(r"^[A-Z0-9_-]{1,50}$")
 # Allowlist regexes for ticker symbols and exchange codes; applied in all
 # three resolution paths of _resolve_ticker_exchange.
 # Prevents reflective XSS (CWE-079) and log injection (CWE-117).
@@ -28,6 +34,13 @@ logger = logging.getLogger("routes.timeseries")
 # codes can contain dots (e.g. NYSE.US), which ticker symbols never do.
 _TICKER_SYMBOL_RE = re.compile(r"^[A-Z0-9_-]{1,50}$")
 _EXCHANGE_CODE_RE = re.compile(r"^[A-Z0-9._-]{1,50}$")
+
+# Wider allowlist applied to resolver-returned values.  Permits dots so that
+# exchange codes like XLON.G are accepted, while still rejecting HTML-unsafe
+# characters (<, >, &, ", ') that could cause XSS if the resolver returns
+# corrupt or unexpected data.  Breaks the taint flow from the user-supplied
+# ticker query parameter to the HTML response (CodeQL py/reflective-xss #276).
+_RESOLVER_OUTPUT_RE = re.compile(r"^[A-Z0-9._\-]{1,100}$")
 
 
 def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> tuple[str, str]:
@@ -61,8 +74,9 @@ def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> tuple[str, st
             detail=f"Exchange not provided and could not be inferred for {ticker}",
         )
     sym, ex = resolved
-    # Validate resolver-returned segments against allowlist (CodeQL #276 XSS guard).
-    if not _TICKER_SYMBOL_RE.match(sym) or not _EXCHANGE_CODE_RE.match(ex):
+    # Validate resolver output against wider allowlist: dots permitted (e.g. XLON.G)
+    # but HTML-unsafe chars are rejected to prevent XSS (CodeQL py/reflective-xss #276).
+    if not _RESOLVER_OUTPUT_RE.match(sym) or not _RESOLVER_OUTPUT_RE.match(ex):
         raise HTTPException(status_code=400, detail="Invalid ticker format")
     logger.debug("Ticker resolved (inferred exchange)")
     return sym, ex

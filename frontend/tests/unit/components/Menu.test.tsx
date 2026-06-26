@@ -110,7 +110,10 @@ describe('Menu', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('hides support toggle when support tab disabled', () => {
+  it('hides the support link when the support tab is disabled', () => {
+    // The preferences category still renders (settings, logout) — but the
+    // Support link inside it must be absent when the support tab is disabled.
+    const onLogout = vi.fn();
     const config: ConfigContextValue = {
       relativeViewEnabled: false,
       disabledTabs: ['support'],
@@ -147,15 +150,21 @@ describe('Menu', () => {
     render(
       <configContext.Provider value={config}>
         <MemoryRouter>
-          <Menu />
+          <Menu onLogout={onLogout} />
         </MemoryRouter>
       </configContext.Provider>
     );
+    const preferencesToggle = screen.getByRole('button', {
+      name: i18n.t('app.menuCategories.preferences'),
+    });
+    fireEvent.click(preferencesToggle);
     expect(
-      screen.queryByRole('button', {
-        name: i18n.t('app.menuCategories.preferences'),
-      })
-    ).toBeNull();
+      screen.queryByRole('menuitem', { name: i18n.t('app.supportLink') })
+    ).not.toBeInTheDocument();
+    // Logout remains available in the same category.
+    expect(
+      screen.getByRole('menuitem', { name: i18n.t('app.logout') })
+    ).toBeInTheDocument();
   });
 
   it('renders logout button when callback provided', async () => {
@@ -236,11 +245,45 @@ describe('Menu', () => {
     expect(list).toHaveClass('gap-2');
   });
 
-  it('does not render non-MVP menu categories', () => {
-    // familyMvpEnabled: true is required — the context default is false ("fail open")
-    // so an explicit provider is needed for the MVP-gating assertion to hold.
+  it('renders enabled menu categories in Family MVP mode (#4641)', () => {
+    // Family MVP no longer hides categories: insights/goals tabs are enabled in
+    // familyMvpConfig, so their category toggles must appear.
     render(
       <configContext.Provider value={familyMvpConfig}>
+        <MemoryRouter>
+          <Menu />
+        </MemoryRouter>
+      </configContext.Provider>
+    );
+
+    expect(
+      screen.getByRole('button', {
+        name: i18n.t('app.menuCategories.insights'),
+      })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: i18n.t('app.menuCategories.goals') })
+    ).toBeInTheDocument();
+  });
+
+  it('hides menu categories whose tabs are all disabled, even in Family MVP mode', () => {
+    // Visibility is driven purely by config: disable every insights/goals tab and
+    // those categories disappear regardless of Family MVP being enabled.
+    const config: ConfigContextValue = {
+      ...familyMvpConfig,
+      tabs: {
+        ...familyMvpConfig.tabs,
+        instrument: false,
+        screener: false,
+        trading: false,
+        watchlist: false,
+        rebalance: false,
+        scenario: false,
+        pension: false,
+      },
+    };
+    render(
+      <configContext.Provider value={config}>
         <MemoryRouter>
           <Menu />
         </MemoryRouter>

@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react'
 import { BrowserRouter } from 'react-router-dom'
 import { describe, it, expect, vi } from 'vitest'
 import LoginPage from '@/LoginPage'
+import type { AwsUiAuthConfig } from '@/awsUiAuth'
 
 vi.mock('@/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/api')>()
@@ -58,5 +59,42 @@ describe('LoginPage error handling', () => {
     expect(await screen.findByText(/bad/)).toBeInTheDocument()
 
     fetchMock.mockRestore()
+  })
+})
+
+describe('LoginPage awsUiAuth mode', () => {
+  it('shows only the Cognito sign-in button when awsUiAuth.enabled is true', () => {
+    const awsUiAuth: AwsUiAuthConfig = { enabled: true, clientId: 'test-pool-client' }
+
+    render(
+      <BrowserRouter>
+        <LoginPage clientId="" awsUiAuth={awsUiAuth} onSuccess={() => {}} />
+      </BrowserRouter>,
+    )
+
+    // Cognito sign-in button must be present
+    expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument()
+
+    // Google GIS script must NOT be injected
+    expect(
+      document.head.querySelector('script[src="https://accounts.google.com/gsi/client"]'),
+    ).toBeNull()
+
+    // Google sign-in container must NOT be rendered
+    expect(document.getElementById('google-signin')).toBeNull()
+  })
+
+  it('shows only the Google sign-in container when awsUiAuth is not enabled', () => {
+    render(
+      <BrowserRouter>
+        <LoginPage clientId="google-cid" onSuccess={() => {}} />
+      </BrowserRouter>,
+    )
+
+    // Google sign-in container must be present
+    expect(document.getElementById('google-signin')).toBeInTheDocument()
+
+    // Cognito sign-in button must NOT be rendered
+    expect(screen.queryByRole('button', { name: /sign in/i })).toBeNull()
   })
 })

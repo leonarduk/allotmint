@@ -30,7 +30,13 @@ export default function LoginPage({ clientId, awsUiAuth, onSuccess }: Props) {
   const [cognitoError, setCognitoError] = useState<string | null>(null);
   const awsUiAuthEnabled =
     awsUiAuth?.enabled === true || awsUiAuth?.enabled === 'true';
+
+  // Only load the Google GIS script when Cognito auth is not in use.
+  // On AWS, API Gateway uses a Cognito JWT authorizer so the Google-minted
+  // HS256 token is rejected before the Lambda runs (see #4256, #4637).
   useEffect(() => {
+    if (awsUiAuthEnabled) return;
+
     const script = document.createElement('script');
     script.src = 'https://accounts.google.com/gsi/client';
     script.async = true;
@@ -89,7 +95,7 @@ export default function LoginPage({ clientId, awsUiAuth, onSuccess }: Props) {
     return () => {
       document.head.removeChild(script);
     };
-  }, [clientId, onSuccess, setProfile, setUser]);
+  }, [awsUiAuthEnabled, clientId, onSuccess, setProfile, setUser]);
 
   return (
     <div
@@ -100,18 +106,8 @@ export default function LoginPage({ clientId, awsUiAuth, onSuccess }: Props) {
         marginTop: '2rem',
       }}
     >
-      {error && (
-        <div
-          role="alert"
-          aria-live="assertive"
-          style={{ color: 'red', marginBottom: '1rem' }}
-        >
-          Error: {error}
-        </div>
-      )}
-      <div id="google-signin"></div>
-      {awsUiAuthEnabled && (
-        <div style={{ marginTop: '1rem' }}>
+      {awsUiAuthEnabled ? (
+        <div>
           {cognitoError && (
             <div
               role="alert"
@@ -134,10 +130,23 @@ export default function LoginPage({ clientId, awsUiAuth, onSuccess }: Props) {
             Sign in
           </button>
         </div>
+      ) : (
+        <>
+          {error && (
+            <div
+              role="alert"
+              aria-live="assertive"
+              style={{ color: 'red', marginBottom: '1rem' }}
+            >
+              Error: {error}
+            </div>
+          )}
+          <div id="google-signin"></div>
+        </>
       )}
       <p style={{ marginTop: '1rem' }}>
         Don&apos;t have an account?{' '}
-        <Link to="/create-account">Create account</Link>
+        <Link to="/create-account">Request access</Link>
       </p>
     </div>
   );

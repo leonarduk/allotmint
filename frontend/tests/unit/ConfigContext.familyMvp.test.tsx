@@ -78,7 +78,8 @@ describe("ConfigProvider Family MVP gating", () => {
       );
 
       expect(probe.getAttribute("data-config-loaded")).toBe("true");
-      // transactions is in FAMILY_MVP_MODES — it is an allowed MVP route, not gated
+      // transactions stays enabled — Family MVP only force-disables the optional
+      // feature tabs below; it does not gate the core transactions route.
       expect(tabs["trade-compliance"]).toBe(false);
       expect(tabs.trail).toBe(false);
       expect(tabs.taxtools).toBe(false);
@@ -127,7 +128,8 @@ describe("ConfigProvider Family MVP gating", () => {
       expect(disabledTabs.has("trade-compliance")).toBe(false);
       expect(disabledTabs.has("reports")).toBe(false);
       expect(disabledTabs.has("scenario")).toBe(false);
-      // transactions is in FAMILY_MVP_MODES — it is an allowed MVP route, not gated
+      // transactions stays enabled — Family MVP only force-disables the optional
+      // feature tabs below; it does not gate the core transactions route.
     });
   });
 

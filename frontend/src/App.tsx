@@ -63,7 +63,7 @@ import {
   downloadInstrumentsCsv,
   printInstrumentsPdf,
 } from './lib/instrumentExports';
-import { getFamilyMvpEntryPath, isFamilyMvpMode } from './familyMvp';
+import { getFamilyMvpEntryPath } from './familyMvp';
 
 const PerformanceDashboard = lazyWithDelay(
   () => import('./components/PerformanceDashboard')
@@ -131,9 +131,12 @@ export function getFamilyMvpRedirectPath(
   if (!familyMvpEnabled) {
     return null;
   }
-  // Family MVP redirect policy:
-  // - Bare root lands on the configured entry flow.
-  // - Any other non-MVP route gets sent to that same entry flow.
+  // Family MVP redirect policy (#4641):
+  // - Family MVP controls ONLY the default landing page. The single redirect we
+  //   keep sends the bare root ('/' with no query) to the configured entry flow.
+  // - Every other route is left untouched: enabled tabs (search, settings, …)
+  //   must be fully navigable. Truly disabled tabs are handled separately by the
+  //   tab gating in the route-sync effect, which redirects them to '/'.
   // - If every Family MVP tab is disabled, leave route selection to the caller.
   //
   // This is intentionally separate from getOwnerRootRedirectPath, which only
@@ -143,11 +146,6 @@ export function getFamilyMvpRedirectPath(
   }
   if (pathname === '/' && !search) {
     return entryPath;
-  }
-
-  const routeMode = deriveModeFromPathname(pathname);
-  if (!isFamilyMvpMode(routeMode)) {
-    return pathname === entryPath ? null : entryPath;
   }
   return null;
 }
@@ -265,9 +263,10 @@ export default function App({ onLogout }: AppProps) {
   );
   const selectedOwnerIsGroup = selectedOwnerGroup !== null;
 
-  // Redirect to the Family MVP entry path whenever the current route is not
-  // in FAMILY_MVP_MODES. Fires on every location change and whenever the
-  // config (and therefore familyMvpEnabled / familyMvpEntryPath) resolves.
+  // Redirect the bare root to the Family MVP entry path (the only Family MVP
+  // redirect that remains — see getFamilyMvpRedirectPath, #4641). Fires on every
+  // location change and whenever the config (and therefore familyMvpEnabled /
+  // familyMvpEntryPath) resolves.
   useEffect(() => {
     const redirectPath = getFamilyMvpRedirectPath(
       location.pathname,
@@ -614,7 +613,7 @@ export default function App({ onLogout }: AppProps) {
         )}
 
         {/* GROUP VIEW */}
-        {mode === 'group' && selectedGroup && (!familyMvpEnabled || !familyMvpEntryPath) && (
+        {mode === 'group' && selectedGroup && (
           <>
             <ComplianceWarnings owners={selectedGroupSummary?.members ?? []} />
             <GroupPortfolioView slug={selectedGroup} owners={owners} />
@@ -708,7 +707,7 @@ export default function App({ onLogout }: AppProps) {
         {mode === 'allocation' && <AllocationCharts />}
         {mode === 'rebalance' && <Rebalance />}
         {mode === 'market' && <MarketOverview />}
-        {mode === 'movers' && (!familyMvpEnabled || !familyMvpEntryPath) && <TopMovers />}
+        {mode === 'movers' && <TopMovers />}
         {mode === 'reports' &&
           (isReportCreationRoute ? <ReportTemplateCreator /> : <Reports />)}
         {mode === 'alerts' && <Alerts />}

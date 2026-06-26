@@ -9,7 +9,6 @@ import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useConfig } from '../ConfigContext';
 import type { TabPluginId } from '../tabPlugins';
-import { isFamilyMvpMode } from '../familyMvp';
 import { SUPPORT_TABS } from '../tabPlugins';
 import {
   buildPathForMode,
@@ -47,9 +46,10 @@ export default function Menu({
   const mode = deriveModeFromPathname(location.pathname) as TabPluginId;
   const isSupportMode = (SUPPORT_TABS as readonly string[]).includes(mode);
   const inSupport = mode === 'support';
-  // Support link is only shown for non-MVP users who have the support tab enabled.
-  // (Previously gated by isFamilyMvpMode('support') which always returned false
-  // because 'support' is not in FAMILY_MVP_MODES — this is equivalent but explicit.)
+  // Support link is shown whenever the support tab is enabled. It stays gated on
+  // !familyMvpEnabled because the support section is a distinct operations surface
+  // (not a normal config tab); Family MVP keeps that surface out of the simplified
+  // experience. Tab navigability itself is governed purely by config (#4641).
   const supportEnabled =
     !familyMvpEnabled &&
     tabs.support !== false &&
@@ -74,11 +74,12 @@ export default function Menu({
           return false;
         }
 
-        // In Family MVP mode, only show tabs that are in FAMILY_MVP_MODES.
-        const modeAllowed = !familyMvpEnabled || isFamilyMvpMode(entry.mode);
-        return modeAllowed && tabs[entry.mode] === true && !disabledTabs?.includes(entry.mode);
+        // Family MVP no longer restricts which tabs appear (#4641): every tab
+        // enabled in config is navigable from the menu. Visibility is driven
+        // purely by the config tab gating below.
+        return tabs[entry.mode] === true && !disabledTabs?.includes(entry.mode);
       }),
-    [disabledTabs, familyMvpEnabled, inSupport, isSupportMode, tabs]
+    [disabledTabs, inSupport, isSupportMode, tabs]
   );
 
   const categoriesToRender = useMemo<CategorizedMenu[]>(

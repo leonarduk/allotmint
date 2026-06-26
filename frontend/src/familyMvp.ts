@@ -1,22 +1,16 @@
 import type { TabsConfig } from './ConfigContext';
 import { isModeEnabled } from './pageManifest';
-import type { Mode } from './modes';
 
 /**
- * Routes that are permitted in the Family MVP experience.
- *   'owner'        — portfolio view (/portfolio/:owner)
- *   'transactions' — transaction history / input screen (/transactions)
+ * Family MVP affects exactly one thing: the default landing page.
  *
- * All other modes are redirected to the configured MVP entry path when
- * familyMvpEnabled is true. 'performance' was deliberately removed from
- * this set in #2725 — it is a non-MVP route.
- */
-export const FAMILY_MVP_MODES: ReadonlySet<Mode> = new Set<Mode>([
-  'transactions',
-  'owner',
-]);
-
-/**
+ * It does NOT restrict which routes a user may reach. Any tab that is enabled
+ * in config is fully navigable; route reachability is governed solely by the
+ * tab gating in App.tsx (isModeEnabled / tabs / disabledTabs). The previous
+ * FAMILY_MVP_MODES allowlist + isFamilyMvpMode redirect guard were removed in
+ * #4641 because they silently bounced enabled tabs (search, settings, …) back
+ * to the entry path.
+ *
  * Ordered list of entry-path candidates for the Family MVP experience.
  * The first enabled candidate wins (see getFamilyMvpEntryPath).
  *
@@ -32,10 +26,6 @@ const FAMILY_MVP_ENTRY_CANDIDATES = [
   { mode: 'owner', path: '/portfolio' },
   { mode: 'performance', path: '/performance' },
 ] as const;
-
-export function isFamilyMvpMode(mode: Mode): boolean {
-  return FAMILY_MVP_MODES.has(mode);
-}
 
 export function getFamilyMvpEntryPath(
   tabs: TabsConfig,

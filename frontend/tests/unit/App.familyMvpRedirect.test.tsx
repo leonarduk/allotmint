@@ -111,7 +111,9 @@ describe("App family MVP redirects", () => {
     await waitFor(() => expect(router.state.location.pathname).toBe("/"));
   });
 
-  it("hides movers page content when family MVP is enabled and an entry route exists", async () => {
+  it("renders movers page content when family MVP is enabled and the movers tab is enabled", async () => {
+    // #4641: Family MVP no longer hides enabled tabs. With movers enabled the
+    // page must render instead of being bounced back to the entry path.
     mockConfig({
       configLoaded: true,
       familyMvpEnabled: true,
@@ -119,6 +121,7 @@ describe("App family MVP redirects", () => {
       tabs: {
         ...baseConfig.tabs,
         owner: true,
+        movers: true,
       },
     });
 
@@ -128,11 +131,10 @@ describe("App family MVP redirects", () => {
 
     await mockCommonAppDependencies();
 
-    await renderAppAt("/movers");
+    const router = await renderAppAt("/movers");
 
-    await waitFor(() => {
-      expect(screen.queryByRole("heading", { name: /movers/i })).not.toBeInTheDocument();
-    });
+    expect(await screen.findByRole("heading", { name: /movers/i })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/movers");
   });
 
   it("renders movers page content when family MVP is disabled", async () => {
@@ -181,7 +183,9 @@ describe("App family MVP redirects", () => {
     expect(await screen.findByRole("heading", { name: /movers/i })).toBeInTheDocument();
   });
 
-  it("hides group view content when family MVP is enabled and an entry route exists", async () => {
+  it("renders group view content when family MVP is enabled and the group tab is enabled", async () => {
+    // #4641: an enabled group tab is reachable in Family MVP mode. The bare-root
+    // redirect only fires for '/' with no query, so '/?group=kids' stays put.
     mockConfig({
       configLoaded: true,
       familyMvpEnabled: true,
@@ -189,6 +193,7 @@ describe("App family MVP redirects", () => {
       tabs: {
         ...baseConfig.tabs,
         owner: true,
+        group: true,
       },
     });
 
@@ -198,10 +203,91 @@ describe("App family MVP redirects", () => {
 
     await mockCommonAppDependencies();
 
-    await renderAppAt("/?group=kids");
+    const router = await renderAppAt("/?group=kids");
+
+    expect(await screen.findByText("Group Portfolio View")).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/");
+    expect(router.state.location.search).toBe("?group=kids");
+  });
+
+  it("does not bounce /research/:ticker back to the entry path in Family MVP mode", async () => {
+    // The reported bug (#4641): the header search bar navigates to /research/:t,
+    // which Family MVP previously reverted to /input. With research enabled it
+    // must now stay on the research route.
+    mockConfig({
+      configLoaded: true,
+      familyMvpEnabled: true,
+      disabledTabs: [],
+      tabs: {
+        ...baseConfig.tabs,
+        owner: true,
+        research: true,
+      },
+    });
+
+    await mockCommonAppDependencies();
+
+    const router = await renderAppAt("/research/MSFT");
 
     await waitFor(() => {
-      expect(screen.queryByText("Group Portfolio View")).not.toBeInTheDocument();
+      const marker = screen.getByTestId("active-route-marker");
+      expect(marker).toHaveAttribute("data-mode", "research");
     });
+    expect(router.state.location.pathname).toBe("/research/MSFT");
+  });
+
+  it("does not bounce /settings back to the entry path in Family MVP mode", async () => {
+    // The avatar/user-settings link targets /settings, also previously reverted.
+    mockConfig({
+      configLoaded: true,
+      familyMvpEnabled: true,
+      disabledTabs: [],
+      tabs: {
+        ...baseConfig.tabs,
+        owner: true,
+        settings: true,
+      },
+    });
+
+    await mockCommonAppDependencies();
+
+    const router = await renderAppAt("/settings");
+
+    await waitFor(() => {
+      const marker = screen.getByTestId("active-route-marker");
+      expect(marker).toHaveAttribute("data-mode", "settings");
+    });
+    expect(router.state.location.pathname).toBe("/settings");
+  });
+
+  it("still redirects a disabled tab away in Family MVP mode", async () => {
+    // Tab gating remains the source of truth: a disabled tab is unreachable and
+    // is redirected off its route (to '/', then onward to the entry path).
+    mockConfig({
+      configLoaded: true,
+      familyMvpEnabled: true,
+      disabledTabs: ["movers"],
+      tabs: {
+        ...baseConfig.tabs,
+        owner: true,
+        movers: false,
+      },
+    });
+
+    vi.doMock("@/pages/TopMovers", () => ({
+      default: () => <h1>Movers</h1>,
+    }));
+
+    await mockCommonAppDependencies();
+
+    await renderAppAt("/movers");
+
+    // The disabled-tab guard flips the mode off 'movers' (to the default 'group'
+    // view) and the movers content never renders.
+    await waitFor(() => {
+      const marker = screen.getByTestId("active-route-marker");
+      expect(marker).not.toHaveAttribute("data-mode", "movers");
+    });
+    expect(screen.queryByRole("heading", { name: /movers/i })).not.toBeInTheDocument();
   });
 });

@@ -400,14 +400,14 @@ export function PortfolioView({ data, loading, error, onDateChange, onAccountAdd
               />
             </div>
           )}
-          {!familyMvpEnabled && (
-            <div className="mb-6">
-              <CsvImportForm
-                owner={data.owner}
-                accountTypes={data.accounts.map((acct) => acct.account_type)}
-              />
-            </div>
-          )}
+          {/* CSV import is available in all modes (#4392/#4641): setting up
+              accounts/positions is part of the Family MVP experience too. */}
+          <div className="mb-6">
+            <CsvImportForm
+              owner={data.owner}
+              accountTypes={data.accounts.map((acct) => acct.account_type)}
+            />
+          </div>
           {hasWarnings && (
             <div className="mb-4">
               <Link

@@ -99,6 +99,72 @@ describe("PortfolioView", () => {
         expect(screen.getByLabelText(/account type/i)).toBeInTheDocument();
     });
 
+    it("shows the CSV import form when accounts exist", () => {
+        render(<PortfolioView data={mockOwner} />);
+
+        expect(screen.getByText(/import csv/i)).toBeInTheDocument();
+    });
+
+    it("hides the CSV import form when no accounts exist", () => {
+        const emptyOwner: Portfolio = { ...mockOwner, accounts: [] };
+
+        render(<PortfolioView data={emptyOwner} />);
+
+        expect(screen.queryByText(/import csv/i)).not.toBeInTheDocument();
+    });
+
+    it("shows the CSV import form when accounts exist regardless of familyMvpEnabled", () => {
+        render(
+            <configContext.Provider
+                value={{
+                    relativeViewEnabled: false,
+                    tabs: {
+                        group: true,
+                        market: true,
+                        owner: true,
+                        instrument: true,
+                        performance: true,
+                        transactions: true,
+                        screener: true,
+                        trading: true,
+                        timeseries: true,
+                        watchlist: true,
+                        allocation: true,
+                        rebalance: true,
+                        movers: true,
+                        instrumentadmin: true,
+                        dataadmin: true,
+                        virtual: true,
+                        research: true,
+                        support: true,
+                        settings: true,
+                        profile: false,
+                        alerts: true,
+                        pension: true,
+                        trail: false,
+                        alertsettings: true,
+                        taxtools: false,
+                        "trade-compliance": false,
+                        reports: false,
+                        scenario: false,
+                    },
+                    theme: "system",
+                    baseCurrency: "GBP",
+                    enableAdvancedAnalytics: true,
+                    familyMvpEnabled: true,
+                    disabledTabs: [],
+                    refreshConfig: async () => {},
+                    setRelativeViewEnabled: () => {},
+                    setBaseCurrency: () => {},
+                }}
+            >
+                <PortfolioView data={mockOwner} />
+            </configContext.Provider>,
+        );
+
+        expect(screen.getByText(/import csv/i)).toBeInTheDocument();
+    });
+
     it("hides advanced analytics panels when feature flag is disabled", () => {
         render(
             <configContext.Provider

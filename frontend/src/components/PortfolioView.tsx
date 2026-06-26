@@ -400,7 +400,7 @@ export function PortfolioView({ data, loading, error, onDateChange, onAccountAdd
               />
             </div>
           )}
-          {!familyMvpEnabled && (
+          {data.accounts.length > 0 && (
             <div className="mb-6">
               <CsvImportForm
                 owner={data.owner}

@@ -2,7 +2,7 @@
 # These packages mirror the test extras in pyproject.toml and are NOT part of
 # the Lambda runtime — they exist only to run pytest inside a venv that isolates
 # backend/requirements.txt from the root requirements.txt pins.
-pytest~=9.1.0
+pytest~=9.1.1
 pytest-cov~=7.1.0
 pytest-asyncio~=1.4.0
 # jsonschema is used by tests/contracts/test_api_response_contracts.py for API

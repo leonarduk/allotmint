@@ -8,4 +8,4 @@ pytest-asyncio~=1.4.0
 # jsonschema is used by tests/contracts/test_api_response_contracts.py for API
 # contract validation; it is not a Lambda runtime dep but is needed to run the
 # full backend test suite in the lambda-compat job.
-jsonschema~=4.23.0
+jsonschema~=4.26.0

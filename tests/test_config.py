@@ -354,6 +354,52 @@ def test_update_config_merges_ui_section(monkeypatch, tmp_path):
     cfg = reload_config()
     assert cfg.tabs.instrument is False
 
+def test_aws_ui_auth_disabled_when_only_domain_set (monkeypatch):
+    """
+     #4630
+
+     Set UI_AUTH_DOMAIN to a valid domain, leave UI_AUTH_CLIENT_ID unset/empty.
+
+     Assert that enabled is False and that the serialized /config response
+     omits awsUiAuth (or includes it with enabled: false depending
+     on the serialization logic — verify against routes/config.py line 71).
+    """
+    monkeypatch.setenv("UI_AUTH_DOMAIN", "https://allotmint-123.auth.eu-west-1.amazoncognito.com")
+    monkeypatch.setenv("UI_AUTH_CLIENT_ID", "")
+    cfg = reload_config()
+    try:
+        assert cfg.aws_ui_auth.enabled is False
+        assert cfg.aws_ui_auth.domain == "https://allotmint-123.auth.eu-west-1.amazoncognito.com"
+        assert cfg.aws_ui_auth.client_id == None
+    finally:
+        monkeypatch.delenv("UI_AUTH_DOMAIN")
+        monkeypatch.delenv("UI_AUTH_CLIENT_ID")
+        reload_config()
+
+
+def test_aws_ui_auth_disabled_when_only_client_id_set (monkeypatch):
+    """
+    #4630
+
+    Set UI_AUTH_CLIENT_ID to a valid client ID, leave UI_AUTH_DOMAIN unset/empty.
+
+    Assert that enabled is False and that the serialized /config response
+    omits awsUiAuth (or includes it with enabled: false depending
+    on the serialization logic — verify against routes/config.py line 71).
+
+    """
+    monkeypatch.setenv("UI_AUTH_DOMAIN", "")
+    monkeypatch.setenv("UI_AUTH_CLIENT_ID", "abc123")
+    cfg = reload_config()
+    try:
+        assert cfg.aws_ui_auth.enabled is False
+        assert cfg.aws_ui_auth.domain == None
+        assert cfg.aws_ui_auth.client_id == "abc123"
+    finally:
+        monkeypatch.delenv("UI_AUTH_DOMAIN")
+        monkeypatch.delenv("UI_AUTH_CLIENT_ID")
+        reload_config()
+
 
 def test_aws_ui_auth_loads_from_env(monkeypatch):
     monkeypatch.setenv("UI_AUTH_DOMAIN", "https://allotmint-123.auth.eu-west-1.amazoncognito.com")

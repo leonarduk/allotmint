@@ -29,6 +29,7 @@ jobs:
   dependabot-pass:
     name: ai-review
     if: github.actor == 'dependabot[bot]'
+    permissions: {}
     runs-on: ubuntu-latest
     steps:
       - run: echo "Dependabot PR — GPT review not required, passing."

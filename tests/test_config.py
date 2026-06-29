@@ -354,7 +354,8 @@ def test_update_config_merges_ui_section(monkeypatch, tmp_path):
     cfg = reload_config()
     assert cfg.tabs.instrument is False
 
-def test_aws_ui_auth_disabled_when_only_domain_set (monkeypatch):
+
+def test_aws_ui_auth_disabled_when_only_domain_set(monkeypatch):
     """
      #4630
 
@@ -370,14 +371,15 @@ def test_aws_ui_auth_disabled_when_only_domain_set (monkeypatch):
     try:
         assert cfg.aws_ui_auth.enabled is False
         assert cfg.aws_ui_auth.domain == "https://allotmint-123.auth.eu-west-1.amazoncognito.com"
-        assert cfg.aws_ui_auth.client_id == None
+        assert cfg.aws_ui_auth.client_id is None
+        assert "awsUiAuth" not in routes_config.serialise_config(cfg)
     finally:
         monkeypatch.delenv("UI_AUTH_DOMAIN")
         monkeypatch.delenv("UI_AUTH_CLIENT_ID")
         reload_config()
 
 
-def test_aws_ui_auth_disabled_when_only_client_id_set (monkeypatch):
+def test_aws_ui_auth_disabled_when_only_client_id_set(monkeypatch):
     """
     #4630
 
@@ -393,8 +395,9 @@ def test_aws_ui_auth_disabled_when_only_client_id_set (monkeypatch):
     cfg = reload_config()
     try:
         assert cfg.aws_ui_auth.enabled is False
-        assert cfg.aws_ui_auth.domain == None
+        assert cfg.aws_ui_auth.domain is None
         assert cfg.aws_ui_auth.client_id == "abc123"
+        assert "awsUiAuth" not in routes_config.serialise_config(cfg)
     finally:
         monkeypatch.delenv("UI_AUTH_DOMAIN")
         monkeypatch.delenv("UI_AUTH_CLIENT_ID")

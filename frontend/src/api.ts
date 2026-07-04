@@ -129,6 +129,17 @@ const defaultGetCsrfToken = () =>
         .find((row) => row.startsWith("csrftoken="))
         ?.split("=")[1] || null;
 
+/**
+ * Dispatched on `window` whenever an API call receives HTTP 401. A stored
+ * auth token (Cognito ID token or backend JWT) can go stale independently of
+ * the app's in-memory auth state — e.g. localStorage persists it past the
+ * ~1h Cognito ID token lifetime, or past a Cognito session that sessionStorage
+ * already dropped on tab close. Listening for this event lets the app clear
+ * the stale credential and re-show the login screen instead of retrying the
+ * same rejected token forever.
+ */
+export const UNAUTHORIZED_EVENT = "allotmint:unauthorized";
+
 export function createClient(
   base: string | (() => string),
   token: string | null = null,
@@ -226,6 +237,9 @@ export function createClient(
       credentials: "include",
     });
     if (!res.ok) {
+      if (res.status === 401 && typeof window !== "undefined") {
+        window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
+      }
       const err = new Error(`HTTP ${res.status} - ${res.statusText} (${safeUrl})`);
       (err as any).status = res.status;
       (err as any).headers = res.headers;

@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import { BrowserRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { UNAUTHORIZED_EVENT } from '@/api'
 
 const mountRoot = async () => {
   document.body.innerHTML = '<div id="root"></div>'
@@ -175,6 +176,56 @@ describe('Root bootstrap integration coverage', () => {
       )
     )
     expect(screen.queryByTestId('login-page')).not.toBeInTheDocument()
+  })
+
+  it('returns to the login page when a stale stored token is rejected with 401 (issue #4674)', async () => {
+    // Simulates: localStorage['authToken'] outlived the Cognito session (e.g.
+    // sessionStorage was cleared on tab close, or the ID token expired), so
+    // Root seeds `authed=true` and renders the app shell — but the first API
+    // call the app shell makes 401s against the stale token. The app should
+    // clear the stale credential and fall back to the login screen instead of
+    // looping on the rejected token.
+    vi.doMock('react-dom/client', () => ({
+      createRoot: () => ({ render: vi.fn() })
+    }))
+
+    localStorage.setItem('authToken', 'stale-expired-token')
+
+    vi.doMock('@/api', async importOriginal => {
+      const mod = await importOriginal<typeof import('@/api')>()
+      return {
+        ...mod,
+        getConfig: vi.fn().mockResolvedValue({
+          google_auth_enabled: true,
+          google_client_id: 'client-123',
+          disable_auth: false
+        }),
+        getStoredAuthToken: vi.fn(() => 'stale-expired-token')
+      }
+    })
+
+    vi.doMock('@/LoginPage', () => ({
+      default: () => <div data-testid="login-page">sign in</div>
+    }))
+
+    vi.doMock('@/App.tsx', async () => {
+      const { useEffect } = await import('react')
+      // Simulates App.tsx's own data-fetching effect discovering the stale
+      // token is rejected as soon as it mounts and makes its first API call.
+      function StaleTokenApp() {
+        useEffect(() => {
+          window.dispatchEvent(new Event(UNAUTHORIZED_EVENT))
+        }, [])
+        return <div data-testid="app-shell">App ready</div>
+      }
+      return { default: StaleTokenApp }
+    })
+
+    await mountRoot()
+
+    expect(await screen.findByTestId('login-page')).toBeInTheDocument()
+    expect(screen.queryByTestId('app-shell')).not.toBeInTheDocument()
+    expect(localStorage.getItem('authToken')).toBeNull()
   })
 
   it('shows login page when backend cfg carries awsUiAuth.enabled and disable_auth=true', async () => {

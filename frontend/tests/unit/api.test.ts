@@ -13,6 +13,7 @@ import {
   getPortfolio,
   getPensionForecast,
   getConfig,
+  UNAUTHORIZED_EVENT,
 } from "@/api";
 
 describe("auth token handling", () => {
@@ -35,6 +36,46 @@ describe("auth token handling", () => {
     const args = mockFetch.mock.calls[0];
     const headers = args[1].headers as Headers;
     expect(headers.get("Authorization")).toBe("Bearer token123");
+  });
+});
+
+describe("unauthorized event (issue #4674)", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    setAuthToken(null);
+    setApiBase(DEFAULT_API_BASE);
+  });
+
+  it("dispatches UNAUTHORIZED_EVENT and still rejects on a 401 response", async () => {
+    const handler = vi.fn();
+    window.addEventListener(UNAUTHORIZED_EVENT, handler);
+    try {
+      const mockFetch = vi
+        .fn()
+        .mockResolvedValue({ ok: false, status: 401, statusText: "Unauthorized" });
+      // @ts-expect-error: replacing global fetch with mock
+      global.fetch = mockFetch;
+      await expect(fetchJson("/owners")).rejects.toThrow("HTTP 401");
+      expect(handler).toHaveBeenCalledTimes(1);
+    } finally {
+      window.removeEventListener(UNAUTHORIZED_EVENT, handler);
+    }
+  });
+
+  it("does not dispatch UNAUTHORIZED_EVENT for other error statuses", async () => {
+    const handler = vi.fn();
+    window.addEventListener(UNAUTHORIZED_EVENT, handler);
+    try {
+      const mockFetch = vi
+        .fn()
+        .mockResolvedValue({ ok: false, status: 500, statusText: "Server Error" });
+      // @ts-expect-error: replacing global fetch with mock
+      global.fetch = mockFetch;
+      await expect(fetchJson("/owners")).rejects.toThrow("HTTP 500");
+      expect(handler).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener(UNAUTHORIZED_EVENT, handler);
+    }
   });
 });
 

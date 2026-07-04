@@ -4,32 +4,23 @@ interface Props {
 
 export default function BackendUnavailableCard({ onRetry }: Props) {
   return (
-    <div
-      style={{
-        maxWidth: 400,
-        margin: "2rem auto",
-        padding: "1rem",
-        border: "1px solid #ccc",
-        borderRadius: "8px",
-        textAlign: "center",
-      }}
-    >
+    <div className="mx-auto my-8 max-w-[400px] rounded-lg border border-gray-300 p-4 text-center">
       <h2>Backend unavailable</h2>
-      <p style={{ color: "#555", marginBottom: "1rem" }}>
+      <p className="mb-4 text-gray-600">
         The backend service could not be reached. You can retry or open a
         cached read-only view.
       </p>
-      <div style={{ marginBottom: "1rem" }}>
+      <div className="mb-4">
         <button onClick={onRetry} disabled={!onRetry}>
           Retry
         </button>
       </div>
-      <div style={{ fontSize: "0.9rem" }}>
+      <div className="text-sm">
         <a
           href="/snapshots/index.html"
           target="_blank"
           rel="noopener noreferrer"
-          style={{ marginRight: "0.5rem" }}
+          className="mr-2"
         >
           Cached view
         </a>

@@ -32,6 +32,7 @@ import {
   getStoredAuthToken,
   setApiBase,
   setAuthToken,
+  UNAUTHORIZED_EVENT,
 } from './api';
 import LoginPage from './LoginPage';
 import { UserProvider, useUser } from './UserContext';
@@ -185,6 +186,26 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
     if (existingUser) setUser(existingUser);
     const existingProfile = loadStoredUserProfile();
     if (existingProfile) setProfile(existingProfile);
+  }, [setProfile, setUser]);
+
+  // A stored auth token can go stale independently of this component's state
+  // (e.g. localStorage outlives the ~1h Cognito ID token, or outlives a
+  // Cognito session sessionStorage already dropped on tab close). Without
+  // this, a stale token keeps `authed` true forever, so every protected API
+  // call 401s and the app just shows a "backend unavailable" retry loop
+  // instead of returning to the login screen. See issue #4674.
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      clearCognitoRefreshTimer();
+      clearCognitoSession();
+      apiLogout();
+      setUser(null);
+      setProfile(undefined);
+      setAuthed(false);
+    };
+    window.addEventListener(UNAUTHORIZED_EVENT, handleUnauthorized);
+    return () =>
+      window.removeEventListener(UNAUTHORIZED_EVENT, handleUnauthorized);
   }, [setProfile, setUser]);
 
   // Derive a stable boolean from the /config.json-sourced prop so the

@@ -1,0 +1,29 @@
+name: 'Setup frontend dependencies'
+description: >-
+  Set up Node.js and install root + frontend npm dependencies. Shared by
+  ci.yml's frontend-smoke job and deploy-lambda.yml's deploy and smoke-test
+  jobs. Assumes the caller has already checked out the repository.
+runs:
+  using: composite
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v6
+      with:
+        node-version: '24'
+        cache: npm
+        cache-dependency-path: |
+          package-lock.json
+          frontend/package-lock.json
+
+    # Root install brings in esbuild (a transitive dependency of the root
+    # tsx devDependency). Vite v8 treats esbuild as an optional peer
+    # dependency, so frontend/node_modules alone does not contain it;
+    # Node resolves it from the root node_modules instead.
+    - name: Install root dependencies
+      run: npm ci
+      shell: bash
+
+    - name: Install frontend dependencies
+      run: npm ci
+      working-directory: frontend
+      shell: bash

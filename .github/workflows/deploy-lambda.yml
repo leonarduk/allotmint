@@ -114,17 +114,8 @@ jobs:
         with:
           ref: ${{ inputs.ref || github.ref }}
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-
-      - name: Install root dependencies
-        run: npm ci
-
-      - name: Install frontend dependencies
-        run: npm ci
-        working-directory: frontend
+      - name: Setup frontend dependencies
+        uses: ./.github/actions/setup-frontend-deps
 
       - name: Build frontend
         run: npm run build
@@ -1012,23 +1003,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
 
-      - name: Install root dependencies
-        run: npm ci
-
-      - name: Install frontend dependencies
-        run: npm ci
-        working-directory: frontend
+      - name: Setup frontend dependencies
+        uses: ./.github/actions/setup-frontend-deps
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps

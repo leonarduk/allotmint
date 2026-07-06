@@ -158,21 +158,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-          cache: npm
-          cache-dependency-path: |
-            package-lock.json
-            frontend/package-lock.json
-      # Root install brings in esbuild (a transitive dependency of the root
-      # tsx devDependency). Vite v8 treats esbuild as an optional peer
-      # dependency, so frontend/node_modules alone does not contain it;
-      # Node resolves it from the root node_modules instead, matching the
-      # working deploy-lambda.yml smoke-test job.
-      - run: npm ci
-      - run: npm ci
-        working-directory: frontend
+      - uses: ./.github/actions/setup-frontend-deps
       - name: Build preview
         run: npm run build:preview
         working-directory: frontend
@@ -182,3 +168,12 @@ jobs:
       - name: Run frontend smoke tests
         run: npx playwright test --config playwright.config.ts tests/smoke.spec.ts
         working-directory: frontend
+      - name: Upload Playwright smoke-test artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-frontend-smoke-artifacts
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+          if-no-files-found: ignore

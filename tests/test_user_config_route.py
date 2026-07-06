@@ -87,3 +87,38 @@ def test_defaults_from_config_return_lists(client, mock_user_config):
     data = resp.json()
     assert data["approval_exempt_types"] == ["ETF"]
     assert data["approval_exempt_tickers"] == []
+
+
+def _auth_enabled_client(monkeypatch):
+    """Build a client with authentication (and thus owner scoping) enabled.
+
+    ``disable_auth`` is an override attribute preserved across ``create_app``'s
+    config reload, so setting it before app creation makes both the router-level
+    auth dependency and the per-owner authorization check active.
+    """
+
+    monkeypatch.setattr(config, "disable_auth", False)
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    return _auth_client()
+
+
+def test_owner_config_authorization_enforced(monkeypatch, mock_user_config):
+    """A logged-in user may only read/write owners they are authorized for."""
+
+    # ``user@example.com`` (the identity behind the "good" token) is mapped to
+    # owner ``alice`` only; ``alex`` belongs to someone else.
+    def fake_meta(owner, root=None):
+        return {"email": "user@example.com"} if owner == "alice" else {}
+
+    monkeypatch.setattr("backend.common.authz.load_person_meta", fake_meta)
+    client = _auth_enabled_client(monkeypatch)
+
+    assert client.get("/user-config/alice").status_code == 200
+
+    forbidden_get = client.get("/user-config/alex")
+    assert forbidden_get.status_code == 403
+
+    forbidden_post = client.post("/user-config/alex", json={"hold_days_min": 1})
+    assert forbidden_post.status_code == 403
+    # The unauthorized write must not have mutated the other owner's config.
+    assert "hold_days_min" not in mock_user_config["alex"]

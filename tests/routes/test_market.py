@@ -1,7 +1,6 @@
 """Tests for the market overview helpers and HTTP endpoint."""
 
 from types import SimpleNamespace
-from unittest.mock import patch
 
 import pandas as pd
 import pytest
@@ -332,76 +331,3 @@ def test_market_overview_uk_region_handles_fetch_errors(monkeypatch):
     assert data["sectors"] == []
     assert data["headlines"] == []
     assert calls == ["uk", "headlines"]
-
-
-# ---------------------------------------------------------------------------
-# Tests using unittest.mock.patch instead of monkeypatch
-# ---------------------------------------------------------------------------
-
-
-@patch("backend.routes.market._fetch_indexes", return_value={})
-@patch("backend.routes.market._fetch_sectors", return_value=[])
-@patch("backend.routes.market._fetch_headlines", return_value=[])
-def test_market_overview_returns_200(
-    mock_headlines,
-    mock_sectors,
-    mock_indexes,
-) -> None:
-    """All three fetchers return empty data; endpoint responds 200 with expected keys."""
-    client = _client()
-    resp = client.get("/market/overview")
-    assert resp.status_code == 200
-    assert resp.json() == {"indexes": {}, "sectors": [], "headlines": []}
-
-
-@patch(
-    "backend.routes.market._fetch_indexes",
-    return_value={"S&P 500": {"value": 5000.0, "change": 0.5}},
-)
-@patch("backend.routes.market._fetch_sectors")
-@patch(
-    "backend.routes.market._fetch_uk_sectors",
-    return_value=[{"sector": "Tech", "change": 1.2, "source": "lse"}],
-)
-@patch("backend.routes.market._fetch_headlines", return_value=[{"headline": "Markets rally"}])
-def test_market_overview_uk_region(
-    mock_headlines,
-    mock_uk_sectors,
-    mock_sectors,
-    mock_indexes,
-) -> None:
-    """Passing region=uk routes to _fetch_uk_sectors instead of _fetch_sectors."""
-    client = _client()
-    resp = client.get("/market/overview", params={"region": "uk"})
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["indexes"] == {"S&P 500": {"value": 5000.0, "change": 0.5}}
-    assert data["sectors"] == [{"sector": "Tech", "change": 1.2, "source": "lse"}]
-    assert data["headlines"] == [{"headline": "Markets rally"}]
-    mock_sectors.assert_not_called()
-    mock_uk_sectors.assert_called_once()
-
-
-@patch(
-    "backend.routes.market._fetch_indexes",
-    return_value={"S&P 500": {"value": 5000.0, "change": 0.5}},
-)
-@patch(
-    "backend.routes.market._fetch_sectors",
-    return_value=[{"sector": "Energy", "change": -0.3, "source": "lse"}],
-)
-@patch("backend.routes.market._fetch_headlines", side_effect=Exception("headlines down"))
-def test_market_overview_fetcher_exception_returns_default(
-    mock_headlines,
-    mock_sectors,
-    mock_indexes,
-) -> None:
-    """When one fetcher raises, the endpoint still returns 200 with default values
-    for the failing field and real data for the other fields (thanks to _safe)."""
-    client = _client()
-    resp = client.get("/market/overview")
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["indexes"] == {"S&P 500": {"value": 5000.0, "change": 0.5}}
-    assert data["sectors"] == [{"sector": "Energy", "change": -0.3, "source": "lse"}]
-    assert data["headlines"] == []

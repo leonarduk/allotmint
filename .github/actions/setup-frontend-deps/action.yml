@@ -3,6 +3,16 @@ description: >-
   Set up Node.js and install root + frontend npm dependencies. Shared by
   ci.yml's frontend-smoke job and deploy-lambda.yml's deploy and smoke-test
   jobs. Assumes the caller has already checked out the repository.
+inputs:
+  enable-cache:
+    description: >-
+      Whether to enable actions/setup-node's npm cache. Defaults to 'true' to
+      preserve frontend-smoke's original caching behavior. deploy-lambda.yml's
+      deploy and smoke-test jobs pass 'false' since they never had npm caching
+      before this action existed, and enabling it there would be a caching
+      behavior change outside this action's scope.
+    required: false
+    default: 'true'
 runs:
   using: composite
   steps:
@@ -10,7 +20,7 @@ runs:
       uses: actions/setup-node@v6
       with:
         node-version: '24'
-        cache: npm
+        cache: ${{ inputs.enable-cache == 'true' && 'npm' || '' }}
         cache-dependency-path: |
           package-lock.json
           frontend/package-lock.json

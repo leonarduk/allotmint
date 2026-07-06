@@ -435,6 +435,11 @@ def get_cached_news(
         return []
 
     payload = _trim_payload(payload)
+    if not payload and cached is not None:
+        _warn_if_stale(page)
+        _schedule_refresh()
+        return cached
+
     if cache_writer is not None:
         cache_writer(page, payload)
     else:

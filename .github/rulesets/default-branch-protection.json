@@ -45,6 +45,9 @@
             "context": "Frontend Tests / frontend-tests"
           },
           {
+            "context": "CI / Frontend smoke tests (preview build)"
+          },
+          {
             "context": "PR Body Issue Reference Check / require-issue-reference"
           },
           {

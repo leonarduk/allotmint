@@ -285,6 +285,7 @@ export interface NewsItem {
   url: string;
   source?: string | null;
   published_at?: string | null;
+  stale?: boolean;
 }
 
 export interface SectorPerformance {

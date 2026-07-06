@@ -89,6 +89,32 @@ describe("MarketOverview", () => {
     expect(screen.queryByText(/ago/)).not.toBeInTheDocument();
   });
 
+  it("shows a stale badge for a headline flagged as stale", async () => {
+    mockGetMarketOverview.mockResolvedValueOnce({
+      indexes: {},
+      sectors: [],
+      headlines: [
+        { headline: "Old News", url: "https://example.com/old", stale: true },
+      ],
+    });
+    render(<MarketOverview />);
+    expect(await screen.findByText("Old News")).toBeInTheDocument();
+    expect(screen.getByText("Stale")).toBeInTheDocument();
+  });
+
+  it("omits the stale badge for a fresh headline", async () => {
+    mockGetMarketOverview.mockResolvedValueOnce({
+      indexes: {},
+      sectors: [],
+      headlines: [
+        { headline: "Fresh News", url: "https://example.com/fresh", stale: false },
+      ],
+    });
+    render(<MarketOverview />);
+    expect(await screen.findByText("Fresh News")).toBeInTheDocument();
+    expect(screen.queryByText("Stale")).not.toBeInTheDocument();
+  });
+
   it("renders index tooltip values from value and change", () => {
     render(
       <IndexTooltip

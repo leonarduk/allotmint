@@ -237,6 +237,32 @@ def test_fetch_news_alpha_populates_published_at(monkeypatch):
     ]
 
 
+def test_fetch_news_alpha_omits_published_at_when_missing(monkeypatch):
+    def fake_get(url, params=None, timeout=10, **kwargs):
+        class Response:
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {
+                    "feed": [
+                        {
+                            "title": "Undated headline",
+                            "url": "https://example.com/undated",
+                        }
+                    ]
+                }
+
+        return Response()
+
+    monkeypatch.setattr(news_module.requests, "get", fake_get)
+
+    items = news_module._fetch_news("AAPL")
+    assert items == [
+        {"headline": "Undated headline", "url": "https://example.com/undated"}
+    ]
+
+
 def test_fetch_news_fallback(monkeypatch):
     alpha_calls = {"count": 0}
     yahoo_calls = {"count": 0}

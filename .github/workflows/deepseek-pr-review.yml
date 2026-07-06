@@ -14,6 +14,9 @@ on:
 # accumulating stale ones from earlier label toggles or pushes.
 concurrency:
   group: deepseek-pr-review-${{ github.event.pull_request.number }}
+  # cancel-in-progress is safe here because this workflow has only one job (ai-review).
+  # No other jobs have side effects (deployments, state mutations, cleanup) that would
+  # be dangerous to interrupt. If additional jobs are added, reassess this setting.
   cancel-in-progress: true
 
 jobs:

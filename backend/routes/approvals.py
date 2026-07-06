@@ -3,10 +3,12 @@ import os
 from datetime import date
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
+from backend.auth import get_active_user
 from backend.common import data_loader
 from backend.common.approvals import delete_approval, load_approvals, upsert_approval
+from backend.common.authz import ensure_owner_access
 from backend.common.errors import handle_owner_not_found, raise_owner_not_found
 from backend.routes._accounts import resolve_accounts_root
 
@@ -58,29 +60,29 @@ def _resolve_owner_dir(root: Path, owner: str) -> Path:
 
 @router.get("/{owner}/approvals")
 @handle_owner_not_found
-async def get_approvals(owner: str, request: Request):
+async def get_approvals(owner: str, request: Request, identity: str | None = Depends(get_active_user)):
     root = resolve_accounts_root(request)
     owner_dir = _resolve_owner_dir(root, owner)
     approvals_root = owner_dir.parent
+    ensure_owner_access(identity, owner, approvals_root)
     try:
         approvals = load_approvals(owner, approvals_root)
     except FileNotFoundError:
         approvals = {}
-    entries = [
-        {"ticker": t, "approved_on": d.isoformat()} for t, d in approvals.items()
-    ]
+    entries = [{"ticker": t, "approved_on": d.isoformat()} for t, d in approvals.items()]
     return {"approvals": entries}
 
 
 @router.post("/{owner}/approval-requests")
 @handle_owner_not_found
-async def post_approval_request(owner: str, request: Request):
+async def post_approval_request(owner: str, request: Request, identity: str | None = Depends(get_active_user)):
     data = await request.json()
     ticker = (data.get("ticker") or "").upper()
     if not ticker:
         raise HTTPException(status_code=400, detail="ticker is required")
     root = resolve_accounts_root(request)
     owner_dir = _resolve_owner_dir(root, owner)
+    ensure_owner_access(identity, owner, owner_dir.parent)
     path = owner_dir / "approval_requests.json"
     try:
         raw = json.loads(path.read_text())
@@ -100,7 +102,7 @@ async def post_approval_request(owner: str, request: Request):
 
 @router.post("/{owner}/approvals")
 @handle_owner_not_found
-async def post_approval(owner: str, request: Request):
+async def post_approval(owner: str, request: Request, identity: str | None = Depends(get_active_user)):
     data = await request.json()
     ticker = (data.get("ticker") or "").upper()
     when = data.get("approved_on")
@@ -113,23 +115,21 @@ async def post_approval(owner: str, request: Request):
     root = resolve_accounts_root(request)
     owner_dir = _resolve_owner_dir(root, owner)
     approvals_root = owner_dir.parent
+    ensure_owner_access(identity, owner, approvals_root)
     approvals = upsert_approval(owner, ticker, approved_on, approvals_root)
-    entries = [
-        {"ticker": t, "approved_on": d.isoformat()} for t, d in approvals.items()
-    ]
+    entries = [{"ticker": t, "approved_on": d.isoformat()} for t, d in approvals.items()]
     return {"approvals": entries}
 
 
 @router.delete("/{owner}/approvals")
 @handle_owner_not_found
-async def delete_approval_route(owner: str, request: Request):
+async def delete_approval_route(owner: str, request: Request, identity: str | None = Depends(get_active_user)):
     data = await request.json()
     ticker = (data.get("ticker") or "").upper()
     root = resolve_accounts_root(request)
     owner_dir = _resolve_owner_dir(root, owner)
     approvals_root = owner_dir.parent
+    ensure_owner_access(identity, owner, approvals_root)
     approvals = delete_approval(owner, ticker, approvals_root)
-    entries = [
-        {"ticker": t, "approved_on": d.isoformat()} for t, d in approvals.items()
-    ]
+    entries = [{"ticker": t, "approved_on": d.isoformat()} for t, d in approvals.items()]
     return {"approvals": entries}

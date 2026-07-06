@@ -4,6 +4,18 @@ on:
   pull_request:
     types: [opened, reopened, synchronize, labeled, unlabeled]
 
+# labeled/unlabeled events on "Deep Review Required" fire an extra run
+# alongside the synchronize-triggered run, and the two runs' check results
+# (one often "skipped" via the ai-review job's `if`, the other "successful")
+# can both remain visible for the same head SHA. Grouping by PR number and
+# cancelling in-progress runs ensures only the most recent run's job is
+# still executing when a newer event arrives, so branch protection and the
+# checks UI settle on a single up-to-date result per SHA instead of
+# accumulating stale ones from earlier label toggles or pushes.
+concurrency:
+  group: deepseek-pr-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   ai-review:
     # For labeled/unlabeled events, github.event.label.name is the label that

@@ -66,6 +66,15 @@ def is_stale(page_name: str, ttl: int) -> bool:
     return age > ttl
 
 
+def cache_age(page_name: str) -> float | None:
+    """Return the age in seconds of ``page_name``'s cache file, or ``None``."""
+
+    path = _cache_path(page_name)
+    if not path.exists():
+        return None
+    return time.time() - path.stat().st_mtime
+
+
 def time_until_stale(page_name: str, ttl: int) -> float | None:
     """Return seconds until ``page_name`` becomes stale or ``None`` if missing."""
 

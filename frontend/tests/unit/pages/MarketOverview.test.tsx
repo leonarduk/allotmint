@@ -60,6 +60,35 @@ describe("MarketOverview", () => {
     expect(await screen.findByText("Some News")).toBeInTheDocument();
   });
 
+  it("renders the published age next to a dated headline", async () => {
+    const published = new Date(Date.now() - 3 * 86400 * 1000).toISOString();
+    mockGetMarketOverview.mockResolvedValueOnce({
+      indexes: {},
+      sectors: [],
+      headlines: [
+        {
+          headline: "Dated News",
+          url: "https://example.com/dated",
+          published_at: published,
+        },
+      ],
+    });
+    render(<MarketOverview />);
+    expect(await screen.findByText("Dated News")).toBeInTheDocument();
+    expect(screen.getByText(/3 days ago/)).toBeInTheDocument();
+  });
+
+  it("omits the age when a headline has no published date", async () => {
+    mockGetMarketOverview.mockResolvedValueOnce({
+      indexes: {},
+      sectors: [],
+      headlines: [{ headline: "Undated News", url: "https://example.com/undated" }],
+    });
+    render(<MarketOverview />);
+    expect(await screen.findByText("Undated News")).toBeInTheDocument();
+    expect(screen.queryByText(/ago/)).not.toBeInTheDocument();
+  });
+
   it("renders index tooltip values from value and change", () => {
     render(
       <IndexTooltip

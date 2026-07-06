@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import date, datetime, timezone
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
@@ -24,6 +25,10 @@ config = cfg
 router = APIRouter(tags=["news"])
 
 NEWS_TTL = 900  # seconds
+# Serving cached news older than this (in seconds) is treated as a fault worth
+# surfacing: it means live fetches have not succeeded for far longer than the
+# normal refresh interval (``NEWS_TTL``) and the user is seeing stale stories.
+NEWS_MAX_STALENESS = 24 * 60 * 60  # 1 day
 BASE_URL = "https://www.alphavantage.co/query"
 COUNTER_FILE: Path = page_cache.CACHE_DIR / "news_requests.json"
 
@@ -48,14 +53,32 @@ _FINANCE_KEYWORDS = (
 
 
 
-def _make_news_item(headline: object, url: object) -> Dict[str, str] | None:
-    """Return a minimal news item when both ``headline`` and ``url`` are valid."""
+def _make_news_item(
+    headline: object,
+    url: object,
+    published_at: object = None,
+    source: object = None,
+) -> Dict[str, str] | None:
+    """Return a news item when both ``headline`` and ``url`` are valid.
+
+    ``published_at`` (an already-normalised ISO-8601 string) and ``source`` are
+    optional and only included when present, so callers that lack them still
+    produce the minimal ``{"headline", "url"}`` shape.
+    """
 
     clean_headline = _clean_str(headline)
     clean_url = _clean_str(url)
-    if clean_headline and clean_url:
-        return {"headline": clean_headline, "url": clean_url}
-    return None
+    if not (clean_headline and clean_url):
+        return None
+
+    item: Dict[str, str] = {"headline": clean_headline, "url": clean_url}
+    clean_published = _clean_str(published_at)
+    if clean_published:
+        item["published_at"] = clean_published
+    clean_source = _clean_str(source)
+    if clean_source:
+        item["source"] = clean_source
+    return item
 
 
 def _load_counter() -> Dict[str, int]:
@@ -115,7 +138,12 @@ def _trim_payload(payload: Any) -> List[Dict[str, str]]:
     for item in payload:
         if not isinstance(item, dict):
             continue
-        news_item = _make_news_item(item.get("headline"), item.get("url"))
+        news_item = _make_news_item(
+            item.get("headline"),
+            item.get("url"),
+            item.get("published_at"),
+            item.get("source"),
+        )
         if news_item is not None:
             trimmed.append(news_item)
     return trimmed
@@ -193,7 +221,12 @@ def fetch_news_yahoo(ticker: str) -> List[Dict[str, str]]:
     items = data.get("news", [])
     out: List[Dict[str, str]] = []
     for item in items:
-        news_item = _make_news_item(item.get("title"), item.get("link"))
+        news_item = _make_news_item(
+            item.get("title"),
+            item.get("link"),
+            _parse_epoch_time(item.get("providerPublishTime")),
+            item.get("publisher"),
+        )
         if news_item is not None and _is_finance_related(
             news_item["headline"], clean_ticker, instrument_name
         ):
@@ -214,7 +247,12 @@ def fetch_news_google(ticker: str) -> List[Dict[str, str]]:
     root = ET.fromstring(resp.text)
     out: List[Dict[str, str]] = []
     for item in root.findall(".//item"):
-        news_item = _make_news_item(item.findtext("title"), item.findtext("link"))
+        news_item = _make_news_item(
+            item.findtext("title"),
+            item.findtext("link"),
+            _parse_rss_time(item.findtext("pubDate")),
+            item.findtext("source"),
+        )
         if news_item is not None and _is_finance_related(
             news_item["headline"], clean_ticker, instrument_name
         ):
@@ -245,6 +283,35 @@ def _parse_alpha_time(value: Optional[str]) -> Optional[str]:
     return _isoformat(dt)
 
 
+def _parse_epoch_time(value: object) -> Optional[str]:
+    """Convert a Unix epoch timestamp (Yahoo ``providerPublishTime``) to ISO."""
+
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    try:
+        dt = datetime.fromtimestamp(float(value), tz=timezone.utc)
+    except (OverflowError, OSError, ValueError):
+        return None
+    return _isoformat(dt)
+
+
+def _parse_rss_time(value: Optional[str]) -> Optional[str]:
+    """Convert an RSS ``pubDate`` (RFC 822) string to ISO-8601."""
+
+    if not value or not isinstance(value, str):
+        return None
+    value = value.strip()
+    if not value:
+        return None
+    try:
+        dt = parsedate_to_datetime(value)
+    except (TypeError, ValueError):
+        return None
+    if dt is None:
+        return None
+    return _isoformat(dt)
+
+
 def _fetch_news(ticker: str) -> List[Dict[str, str]]:
     """Fetch news from AlphaVantage with fallbacks to Yahoo and Google."""
 
@@ -262,7 +329,12 @@ def _fetch_news(ticker: str) -> List[Dict[str, str]]:
         if feed:
             enriched: List[Dict[str, str]] = []
             for item in feed:
-                news_item = _make_news_item(item.get("title"), item.get("url"))
+                news_item = _make_news_item(
+                    item.get("title"),
+                    item.get("url"),
+                    _parse_alpha_time(item.get("time_published")),
+                    item.get("source"),
+                )
                 if news_item is None:
                     continue
                 enriched.append(news_item)
@@ -283,6 +355,26 @@ def _fetch_news(ticker: str) -> List[Dict[str, str]]:
                 "Fallback news fetch failed for %s: %s", sanitise_log_value(ticker), sanitise_log_value(exc)
             )
     return []
+
+
+def _warn_if_stale(page: str) -> None:
+    """Log a warning when the cache being served is dangerously old.
+
+    Silently re-serving a months-old payload (e.g. because live fetches keep
+    failing or the quota is perpetually exhausted) is exactly the failure mode
+    reported in issue #4708.  Surfacing it in the logs gives operators a signal
+    instead of the data ageing invisibly.
+    """
+
+    age = page_cache.cache_age(page)
+    if age is not None and age > NEWS_MAX_STALENESS:
+        logging.getLogger(__name__).warning(
+            "Serving stale cached news for %s: cache is %d seconds old "
+            "(threshold %d); live fetch has not succeeded recently",
+            sanitise_log_value(page),
+            int(age),
+            NEWS_MAX_STALENESS,
+        )
 
 
 def get_cached_news(
@@ -334,6 +426,7 @@ def get_cached_news(
         payload = _call()
     except RuntimeError:
         if cached is not None:
+            _warn_if_stale(page)
             _schedule_refresh()
             return cached
         _schedule_refresh()

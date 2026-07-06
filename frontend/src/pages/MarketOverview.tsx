@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { getMarketOverview } from '../api';
 import type { MarketOverview as MarketOverviewData } from '../types';
 import EmptyState from '../components/EmptyState';
+import { formatPublishedAt } from '../lib/date';
 import {
   ResponsiveContainer,
   BarChart,
@@ -164,18 +165,29 @@ export default function MarketOverview() {
           />
         ) : (
           <ul className="list-disc pl-4">
-            {data.headlines.map((h, idx) => (
-              <li key={idx}>
-                <a
-                  href={h.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-500 hover:underline"
-                >
-                  {h.headline}
-                </a>
-              </li>
-            ))}
+            {data.headlines.map((h, idx) => {
+              const age = formatPublishedAt(h.published_at);
+              return (
+                <li key={idx}>
+                  <a
+                    href={h.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-500 hover:underline"
+                  >
+                    {h.headline}
+                  </a>
+                  {age && (
+                    <span
+                      className="ml-2 text-sm text-gray-500"
+                      title={h.published_at ?? undefined}
+                    >
+                      — {age}
+                    </span>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>

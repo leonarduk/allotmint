@@ -912,6 +912,14 @@ jobs:
           bash scripts/bash/fetch-cloudwatch-logs.sh "$log_group" 600
 
       - name: Check recent BackendLambda CloudWatch errors
+        # This runs before the smoke-test job below, so the only traffic this
+        # window can see is the unauthenticated /health warm-up probe above —
+        # every Cognito-protected route is blocked at API Gateway before
+        # reaching Lambda (see issue #3249). Zero invocations here is therefore
+        # not proof the backend is healthy; the "Verify authenticated
+        # invocations reached BackendLambda" step in the smoke-test job below
+        # checks that with real, authenticated traffic instead. This step still
+        # catches non-zero *errors* from the warm-up probe itself.
         if: always()
         env:
           AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
@@ -980,6 +988,8 @@ jobs:
             # All API routes require Cognito JWT auth enforced at the API Gateway
             # level, so unauthenticated post-deploy curl probes never reach Lambda.
             # Zero invocations here is expected and does not indicate a problem.
+            # See the "Verify authenticated invocations reached BackendLambda" step
+            # in the smoke-test job for a check based on real authenticated traffic.
             echo "No Lambda invocations in the last 5 minutes (expected: Cognito JWT auth blocks unauthenticated probes at API Gateway)"
           elif [ "${error_count}" -gt 0 ]; then
             echo "Backend Lambda reported ${error_count} errors in the last 5 minutes" >&2
@@ -1084,6 +1094,15 @@ jobs:
           printf 'TEST_ID_TOKEN=%s\n' "${TOKEN}" >> "$GITHUB_ENV"
           echo "Smoke-test Cognito token fetched and masked."
 
+      - name: Record smoke-test metric window start
+        # Marks the start of the window checked by "Verify authenticated
+        # invocations reached BackendLambda" below, so that window covers only
+        # the smoke tests' own traffic rather than picking up unrelated
+        # invocations from earlier in the deploy. Subtracting a small buffer
+        # guards against clock skew between this runner and the CloudWatch
+        # datapoint boundary for an invocation made in the same second.
+        run: echo "METRIC_START=$(date -u -d '30 seconds ago' +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
+
       - name: Run backend smoke tests
         run: npm run smoke:test
 
@@ -1095,11 +1114,77 @@ jobs:
         # VITE_ALLOTMINT_API_BASE so the built app calls the real deployed API.
         # SMOKE_AUTH_TOKEN and TEST_ID_TOKEN arrive via $GITHUB_ENV set by the
         # token-fetch step above; no explicit env: entries needed here.
+        id: frontend_smoke
         if: success() || failure()
         run: npm --prefix frontend run smoke:frontend
         env:
           VITE_ALLOTMINT_API_BASE: ${{ env.SMOKE_URL }}
           SMOKE_URL: 'http://localhost:5173'
+
+      - name: Verify authenticated invocations reached BackendLambda
+        # Issue #3249: the deploy job's own invocation check runs before any
+        # authenticated traffic exists, so "0 invocations" there is always
+        # expected and proves nothing. The frontend smoke tests above
+        # (frontend/tests/smoke.spec.ts, config-retry.spec.ts) use the Cognito
+        # ID token from SMOKE_AUTH_TOKEN/TEST_ID_TOKEN to call
+        # Cognito-protected routes, so by this point BackendLambda should have
+        # real invocations recorded. Zero invocations here is a genuine signal
+        # that authenticated requests are not reaching the Lambda (e.g. a
+        # broken JWT authorizer or integration) and is treated as a hard
+        # failure — unlike the deploy-job check.
+        # Gated on steps.frontend_smoke.outcome == 'success' (not just
+        # always()/success()): if the frontend smoke step itself failed or
+        # never ran, we can't be sure authenticated traffic was actually sent,
+        # so asserting on invocation count would risk a misleading "JWT
+        # authorizer broken" message when the real cause is an unrelated test
+        # failure. That failure already fails the job on its own.
+        # Skipped (not failed) when no smoke-test Cognito credentials are
+        # configured, matching the graceful degradation in "Fetch Cognito
+        # smoke-test token" above: without a token, the smoke tests never hit
+        # a protected route, so an invocation count of zero would be expected
+        # rather than a signal of a problem.
+        if: always() && steps.frontend_smoke.outcome == 'success'
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SMOKE_AUTH_TOKEN:-}" ]; then
+            echo "No smoke-test Cognito token was obtained; skipping authenticated invocation check." >&2
+            exit 0
+          fi
+          if [ -z "${METRIC_START:-}" ]; then
+            echo "METRIC_START was not recorded; skipping authenticated invocation check." >&2
+            exit 0
+          fi
+          backend_fn="$(aws cloudformation list-stack-resources \
+            --stack-name BackendLambdaStack \
+            --query "StackResourceSummaries[?ResourceType=='AWS::Lambda::Function' && starts_with(LogicalResourceId, 'BackendLambda')].PhysicalResourceId | [0]" \
+            --output text)"
+          if [ -z "$backend_fn" ] || [ "$backend_fn" = "None" ]; then
+            echo "Unable to resolve BackendLambda physical function name from BackendLambdaStack resources" >&2
+            exit 1
+          fi
+          end_time="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          invocation_sum="$(aws cloudwatch get-metric-statistics \
+            --namespace AWS/Lambda \
+            --metric-name Invocations \
+            --dimensions "Name=FunctionName,Value=${backend_fn}" \
+            --start-time "${METRIC_START}" \
+            --end-time "${end_time}" \
+            --period 60 \
+            --statistics Sum \
+            --query "sum(Datapoints[].Sum)" \
+            --output text)"
+          if [ -z "${invocation_sum}" ] || [ "${invocation_sum}" = "None" ] || [ "${invocation_sum}" = "null" ]; then
+            invocation_count=0
+          else
+            invocation_count="${invocation_sum%%.*}"
+          fi
+          if [ "${invocation_count}" -lt 1 ]; then
+            echo "::error::No BackendLambda invocations recorded between ${METRIC_START} and ${end_time}, despite authenticated smoke-test traffic. The JWT authorizer or an integration may be broken." >&2
+            exit 1
+          fi
+          echo "BackendLambda recorded ${invocation_count} invocation(s) from authenticated smoke-test traffic — OK"
 
       - name: Upload Playwright deploy-smoke artifacts
         if: failure()

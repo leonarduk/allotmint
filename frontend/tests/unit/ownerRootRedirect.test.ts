@@ -24,4 +24,41 @@ describe("getOwnerRootRedirectPath", () => {
     expect(getOwnerRootRedirectPath("/portfolio/alice", "alice", owners)).toBeNull();
     expect(getOwnerRootRedirectPath("/performance/alice", "alice", owners)).toBeNull();
   });
+
+  describe("with a logged-in user", () => {
+    const multiOwners = [
+      { owner: "alice", accounts: [], email: "alice@example.com" },
+      { owner: "bob", accounts: [], email: "bob@example.com" },
+    ];
+
+    it("redirects to the owner matching the logged-in user's email", () => {
+      expect(
+        getOwnerRootRedirectPath("/portfolio", "", multiOwners, {
+          email: "bob@example.com",
+        })
+      ).toBe("/portfolio/bob");
+    });
+
+    it("matches email case-insensitively", () => {
+      expect(
+        getOwnerRootRedirectPath("/portfolio", "", multiOwners, {
+          email: "BOB@EXAMPLE.COM",
+        })
+      ).toBe("/portfolio/bob");
+    });
+
+    it("falls back to the first owner when the user has no matching owner", () => {
+      expect(
+        getOwnerRootRedirectPath("/portfolio", "", multiOwners, {
+          email: "nobody@example.com",
+        })
+      ).toBe("/portfolio/alice");
+    });
+
+    it("falls back to the first owner when there is no logged-in user", () => {
+      expect(getOwnerRootRedirectPath("/portfolio", "", multiOwners, null)).toBe(
+        "/portfolio/alice"
+      );
+    });
+  });
 });

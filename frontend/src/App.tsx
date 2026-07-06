@@ -54,7 +54,9 @@ import Rebalance from './pages/Rebalance';
 import PensionForecast from './pages/PensionForecast';
 import TaxTools from './pages/TaxTools';
 import Alerts from './pages/Alerts';
-import { sanitizeOwners } from './utils/owners';
+import { sanitizeOwners, findOwnerForUser } from './utils/owners';
+import { useAuth } from './AuthContext';
+import type { UserProfile } from './AuthContext';
 import { isDefaultGroupSlug, normaliseGroupSlug } from './utils/groups';
 import { deriveModeFromPathname } from './pageManifest';
 import { MAX_INSTRUMENT_CATALOGUE_ROWS } from './constants/renderLimits';
@@ -107,14 +109,15 @@ function sameGroupList(left: GroupSummary[], right: GroupSummary[]): boolean {
 export function getOwnerRootRedirectPath(
   pathname: string,
   selectedOwner: string,
-  owners: OwnerSummary[]
+  owners: OwnerSummary[],
+  user?: UserProfile | null
 ): string | null {
   if (selectedOwner || owners.length === 0) return null;
   const segs = pathname.split('/').filter(Boolean);
   const atPortfolioRoot = segs[0] === 'portfolio' && segs.length === 1;
   const atPerformanceRoot = segs[0] === 'performance' && segs.length === 1;
   if (!atPortfolioRoot && !atPerformanceRoot) return null;
-  const owner = owners[0].owner;
+  const owner = findOwnerForUser(owners, user)?.owner ?? owners[0].owner;
   const encodedOwner = encodePathSegment(owner);
   return atPerformanceRoot
     ? `/performance/${encodedOwner}`
@@ -156,6 +159,7 @@ export default function App({ onLogout }: AppProps) {
   const { t } = useTranslation();
   const { tabs, disabledTabs, familyMvpEnabled, configLoaded } = useConfig();
   const { lastRefresh } = usePriceRefresh();
+  const { user } = useAuth();
   const familyMvpEntryPath = useMemo(
     () => (configLoaded ? getFamilyMvpEntryPath(tabs, disabledTabs) : null),
     [configLoaded, tabs, disabledTabs]
@@ -321,7 +325,7 @@ export default function App({ onLogout }: AppProps) {
         setSelectedOwner(decodePathSegment(segs[1]));
       } else if (owners.length > 0) {
         // URL redirect is handled by the render-time <Navigate> in renderMainContent.
-        setSelectedOwner(owners[0].owner);
+        setSelectedOwner(findOwnerForUser(owners, user)?.owner ?? owners[0].owner);
       }
     } else if (newMode === 'instrument') {
       setSelectedGroup(segs[1] ?? '');
@@ -344,6 +348,7 @@ export default function App({ onLogout }: AppProps) {
     disabledTabs,
     owners,
     navigate,
+    user,
   ]);
 
   useEffect(() => {
@@ -407,7 +412,8 @@ export default function App({ onLogout }: AppProps) {
     const nextPath = getOwnerRootRedirectPath(
       location.pathname,
       selectedOwner,
-      owners
+      owners,
+      user
     );
     if (nextPath) {
       navigate(nextPath, { replace: true });
@@ -440,6 +446,7 @@ export default function App({ onLogout }: AppProps) {
     navigate,
     location.pathname,
     location.search,
+    user,
   ]);
 
   // data fetching based on route
@@ -526,7 +533,7 @@ export default function App({ onLogout }: AppProps) {
       !redirectSegs[1] &&
       owners.length > 0
     ) {
-      const owner = owners[0].owner;
+      const owner = findOwnerForUser(owners, user)?.owner ?? owners[0].owner;
       const destPath = redirectMode === 'performance'
         ? `/performance/${encodePathSegment(owner)}`
         : `/portfolio/${encodePathSegment(owner)}`;

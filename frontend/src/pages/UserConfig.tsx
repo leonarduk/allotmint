@@ -11,7 +11,7 @@ import {
 import type { Approval, OwnerSummary, UserConfig } from '../types';
 import { useAuth } from '../AuthContext';
 import { useConfig } from '../ConfigContext';
-import { sanitizeOwners } from '../utils/owners';
+import { findOwnerForUser, sanitizeOwners } from '../utils/owners';
 
 export default function UserConfigPage() {
   const { t } = useTranslation();
@@ -36,6 +36,11 @@ export default function UserConfigPage() {
         /* ignore */
       });
   }, []);
+
+  useEffect(() => {
+    if (!owners.length) return;
+    setOwner((current) => current || findOwnerForUser(owners, user)?.owner || '');
+  }, [owners, user]);
 
   useEffect(() => {
     if (owner) {

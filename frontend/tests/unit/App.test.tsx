@@ -943,6 +943,72 @@ describe("App", () => {
     await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("alice"));
   });
 
+  it("redirects /portfolio to the owner matching the logged-in user's email, not the first owner", async () => {
+    window.history.pushState({}, "", "/portfolio");
+
+    const mockGetOwners = vi.fn().mockResolvedValue([
+      { owner: "alice", accounts: [], email: "alice@example.com" },
+      { owner: "bob", accounts: [], email: "bob@example.com" },
+    ]);
+    const mockGetPortfolio = vi.fn().mockResolvedValue({
+      owner: "bob",
+      as_of: "2024-01-01T00:00:00.000Z",
+      trades_this_month: 0,
+      trades_remaining: 0,
+      total_value_estimate_gbp: 0,
+      accounts: [],
+    });
+
+    vi.doMock("@/api", async () => {
+      const actual = await vi.importActual<typeof import("@/api")>("@/api");
+      return {
+        ...actual,
+        getOwners: mockGetOwners,
+        getGroups: vi.fn().mockResolvedValue([]),
+        getPortfolio: mockGetPortfolio,
+        getGroupInstruments: vi.fn().mockResolvedValue([]),
+        getAlerts: vi.fn().mockResolvedValue([]),
+        getNudges: vi.fn().mockResolvedValue([]),
+        getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+        getCompliance: vi
+          .fn()
+          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+        complianceForOwner: vi
+          .fn()
+          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+        getTradingSignals: vi.fn().mockResolvedValue([]),
+        getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+      };
+    });
+
+    const { default: App } = await import("@/App");
+    const { configContext } = await import("@/ConfigContext");
+    const { AuthContext } = await import("@/AuthContext");
+
+    const router = createMemoryRouter(
+      [
+        {
+          path: "*",
+          element: (
+            <configContext.Provider value={makeConfigValue()}>
+              <AuthContext.Provider
+                value={{ user: { email: "bob@example.com" }, setUser: vi.fn() }}
+              >
+                <App />
+              </AuthContext.Provider>
+            </configContext.Provider>
+          ),
+        },
+      ],
+      { initialEntries: ["/portfolio"] },
+    );
+
+    render(<RouterProvider router={router} />);
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/portfolio/bob"));
+    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("bob"));
+  });
+
   it("redirects /performance to the first owner when multiple owners are available", async () => {
     window.history.pushState({}, "", "/performance");
 

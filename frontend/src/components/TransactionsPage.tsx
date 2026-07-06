@@ -12,7 +12,8 @@ import {
 import { useFetch } from '../hooks/useFetch';
 import { useConfig } from '../ConfigContext';
 import { useTranslation } from 'react-i18next';
-import { createOwnerDisplayLookup } from '../utils/owners';
+import { createOwnerDisplayLookup, findOwnerForUser } from '../utils/owners';
+import { useAuth } from '../AuthContext';
 import { TransactionEditorForm } from './transactions/TransactionEditorForm';
 import { TransactionsFilters } from './transactions/TransactionsFilters';
 import {
@@ -62,6 +63,7 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const { t } = useTranslation();
   const { baseCurrency } = useConfig();
+  const { user } = useAuth();
   const pageSizeOptions = [10, 20, 50, 100];
   const ownerLookup = useMemo(() => createOwnerDisplayLookup(owners), [owners]);
 
@@ -196,8 +198,9 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
     if (owners.length === 0) {
       return;
     }
-    setManualOwner((current) => current || owners[0].owner);
-  }, [owners]);
+    const defaultOwner = findOwnerForUser(owners, user)?.owner ?? owners[0].owner;
+    setManualOwner((current) => current || defaultOwner);
+  }, [owners, user]);
 
   useEffect(() => {
     void fetchManualAccounts(manualOwner);

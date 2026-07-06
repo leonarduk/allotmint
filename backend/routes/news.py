@@ -436,8 +436,13 @@ def get_cached_news(
 
     payload = _trim_payload(payload)
     if not payload and cached is not None:
+        # Use NEWS_TTL as the initial delay rather than an immediate retry:
+        # with no delay the background loop's first call happens right away,
+        # and since quota wasn't exhausted (we got this far) it would likely
+        # fetch empty again and overwrite the still-good cached payload with
+        # an empty one via save_cache.
         _warn_if_stale(page)
-        _schedule_refresh()
+        _schedule_refresh(NEWS_TTL)
         return cached
 
     if cache_writer is not None:

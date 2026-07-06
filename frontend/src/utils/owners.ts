@@ -37,3 +37,19 @@ export function getOwnerDisplayName(
   }
   return lookup.get(owner) ?? fallback ?? owner;
 }
+
+/**
+ * Map a logged-in user to one of the available owners by email, so the app
+ * defaults to the current user's own owner rather than an arbitrary one.
+ * Returns undefined when there's no auth user or no matching owner (e.g.
+ * demo/local/no-auth mode), in which case callers should fall back to
+ * owners[0].
+ */
+export function findOwnerForUser(
+  owners: OwnerSummary[],
+  user: { email?: string | null } | null | undefined,
+): OwnerSummary | undefined {
+  const email = user?.email?.trim().toLowerCase();
+  if (!email) return undefined;
+  return owners.find((owner) => owner.email?.trim().toLowerCase() === email);
+}

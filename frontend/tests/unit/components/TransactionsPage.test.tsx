@@ -8,6 +8,7 @@ import {
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { TransactionsPage } from '@/components/TransactionsPage';
+import { AuthContext } from '@/AuthContext';
 
 const {
   getTransactionsMock,
@@ -282,5 +283,41 @@ describe('TransactionsPage', () => {
       screen.getByText('Provide both Units and Price (GBP).')
     ).toBeInTheDocument();
     expect(createManualHoldingMock).not.toHaveBeenCalled();
+  });
+
+  it('defaults the manual owner input to the logged-in user\'s owner', async () => {
+    render(
+      <AuthContext.Provider
+        value={{ user: { email: 'sam@example.com' }, setUser: vi.fn() }}
+      >
+        <TransactionsPage
+          owners={[
+            { owner: 'alex', full_name: 'Alex Example', accounts: ['isa'], email: 'alex@example.com' },
+            { owner: 'sam', full_name: 'Sam Example', accounts: ['sipp'], email: 'sam@example.com' },
+          ]}
+          inputOnly
+        />
+      </AuthContext.Provider>
+    );
+
+    await screen.findByText('Account + Holdings Input');
+    const manualOwnerInput = screen.getByLabelText('Owner') as HTMLInputElement;
+    await waitFor(() => expect(manualOwnerInput.value).toBe('sam'));
+  });
+
+  it('falls back to the first owner for the manual owner input when there is no logged-in user', async () => {
+    render(
+      <TransactionsPage
+        owners={[
+          { owner: 'alex', full_name: 'Alex Example', accounts: ['isa'], email: 'alex@example.com' },
+          { owner: 'sam', full_name: 'Sam Example', accounts: ['sipp'], email: 'sam@example.com' },
+        ]}
+        inputOnly
+      />
+    );
+
+    await screen.findByText('Account + Holdings Input');
+    const manualOwnerInput = screen.getByLabelText('Owner') as HTMLInputElement;
+    await waitFor(() => expect(manualOwnerInput.value).toBe('alex'));
   });
 });

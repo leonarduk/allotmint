@@ -27,8 +27,9 @@ import InstallPwaPrompt from "./components/InstallPwaPrompt";
 import BackendUnavailableCard from "./components/BackendUnavailableCard";
 import lazyWithDelay from "./utils/lazyWithDelay";
 import PortfolioDashboardSkeleton from "./components/skeletons/PortfolioDashboardSkeleton";
-import { sanitizeOwners } from "./utils/owners";
+import { sanitizeOwners, findOwnerForUser } from "./utils/owners";
 import { isDefaultGroupSlug } from "./utils/groups";
+import { useAuth } from "./AuthContext";
 
 const ScreenerQuery = lazy(() => import("./pages/ScreenerQuery"));
 const TimeseriesEdit = lazy(() =>
@@ -50,6 +51,7 @@ export default function MainApp() {
   const location = useLocation();
   const { t } = useTranslation();
   const { mode, setMode, selectedOwner, setSelectedOwner, selectedGroup, setSelectedGroup } = useRoute();
+  const { user } = useAuth();
 
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
   const [groups, setGroups] = useState<GroupSummary[]>([]);
@@ -127,7 +129,7 @@ export default function MainApp() {
   // redirect to defaults if no selection provided
   useEffect(() => {
     if (mode === "owner" && !selectedOwner && owners.length) {
-      const owner = owners[0].owner;
+      const owner = findOwnerForUser(owners, user)?.owner ?? owners[0].owner;
       setSelectedOwner(owner);
       navigate(`/portfolio/${owner}`, { replace: true });
     }
@@ -160,6 +162,7 @@ export default function MainApp() {
     setSelectedOwner,
     setSelectedGroup,
     location.search,
+    user,
   ]);
 
   // data fetching based on route

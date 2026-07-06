@@ -33,7 +33,7 @@ _TICKER_SEGMENT_RE = re.compile(r"^[A-Z0-9_-]{1,50}$")
 # Exchange codes use a separate, slightly broader regex: resolver-returned
 # codes can contain dots (e.g. NYSE.US), which ticker symbols never do.
 _TICKER_SYMBOL_RE = re.compile(r"^[A-Z0-9_-]{1,50}$")
-_EXCHANGE_CODE_RE = re.compile(r"^[A-Z0-9._-]{1,50}$")
+_EXCHANGE_CODE_RE = re.compile(r"^(?=.{1,50}$)[A-Z0-9]+([._-][A-Z0-9]+)*$")
 
 # Wider allowlist applied to resolver-returned values.  Permits dots so that
 # exchange codes like XLON.G are accepted, while still rejecting HTML-unsafe

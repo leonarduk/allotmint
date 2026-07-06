@@ -153,9 +153,28 @@ jobs:
           ALLOTMINT_SKIP_SNAPSHOT_WARM: 'true'
         run: pytest --no-cov tests/test_backend_api.py::test_health tests/backend/common/test_data_provider_parity.py -q
 
+  detect-frontend-changes:
+    name: Detect frontend-relevant changes
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          filters: |
+            frontend:
+              - 'frontend/**'
+              - 'package.json'
+              - 'package-lock.json'
+
   frontend-smoke:
     name: Frontend smoke tests (preview build)
+    needs: [test, detect-frontend-changes]
+    if: needs.detect-frontend-changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6

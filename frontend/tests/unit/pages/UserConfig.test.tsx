@@ -1,4 +1,4 @@
-import { render, screen, act } from "@testing-library/react";
+import { render, screen, act, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
@@ -75,6 +75,14 @@ describe("UserConfig page", () => {
     const select = await screen.findByRole("combobox");
     await screen.findByDisplayValue("jamie");
     expect((select as HTMLSelectElement).value).toBe("jamie");
+    // The config-fetch effect must run for the mapped owner, not "" or the
+    // first owner: proves the owner-default and config-fetch effects sequence
+    // correctly (the owner change re-triggers the fetch).
+    await waitFor(() =>
+      expect(mockGetUserConfig).toHaveBeenCalledWith("jamie"),
+    );
+    expect(mockGetUserConfig).not.toHaveBeenCalledWith("");
+    expect(mockGetUserConfig).not.toHaveBeenCalledWith("alex");
   });
 
   it("leaves the owner dropdown unselected when there is no logged-in user", async () => {

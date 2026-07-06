@@ -76,6 +76,7 @@ Optional build-time environment variables:
 * `VITE_API_URL` – legacy fallback used when `VITE_ALLOTMINT_API_BASE` is unset.
 * `VITE_API_TOKEN` – optional token sent as `X-API-Token` with every request.
 * `VITE_GIT_COMMIT` / `VITE_GIT_BRANCH` – optional git metadata shown on the Support page for build provenance (set them manually or rely on `build.sh` / `scripts/deploy-to-aws.sh`).
+* `VITE_APP_BASE_URL` – public URL of the deployed frontend, substituted into `index.html`'s canonical link, Open Graph `og:url`, and JSON-LD `url` fields at build time (see `.env.example` / `.env.production`). It does not affect the `<base href>` tag, which stays `/`. Safe to omit for local dev and preview builds; only set it for a production deploy where those metadata URLs matter (e.g. SEO, social link previews).
 
 To provide the token, add it to your environment or a `.env` file in `frontend`:
 

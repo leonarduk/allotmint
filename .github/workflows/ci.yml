@@ -184,6 +184,12 @@ jobs:
             exit 1
           fi
           echo "✓ base href is relative (no absolute http:// or https:// base found)"
+      - name: Guard against absolute base href in built index.html
+        run: |
+          if grep -oE '<base [^>]*href="http[^"]*"' dist/index.html; then
+            echo "::error::dist/index.html has an absolute <base href> — this breaks relative asset/routing resolution when served from a subpath."
+            exit 1
+          fi
         working-directory: frontend
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium

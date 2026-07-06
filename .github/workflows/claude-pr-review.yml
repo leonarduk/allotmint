@@ -25,10 +25,12 @@ jobs:
       gh_token: ${{ secrets.GITHUB_TOKEN }}
 
   # Dependabot PRs skip the review job above, which GitHub records as "skipped"
-  # rather than "success". If this check is required, Dependabot PRs are blocked.
-  # This pass-through job runs instead and satisfies the required check.
+  # rather than "success". This job's name reproduces the composite check
+  # context a real reusable-workflow run would produce ("ai-review / Claude
+  # AI code review"), so any branch protection rule keyed on that exact
+  # string still gets satisfied for Dependabot PRs.
   dependabot-pass:
-    name: ai-review
+    name: ai-review / Claude AI code review
     if: github.actor == 'dependabot[bot]'
     permissions: {}
     runs-on: ubuntu-latest

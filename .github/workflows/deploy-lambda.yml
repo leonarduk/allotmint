@@ -1098,8 +1098,10 @@ jobs:
         # Marks the start of the window checked by "Verify authenticated
         # invocations reached BackendLambda" below, so that window covers only
         # the smoke tests' own traffic rather than picking up unrelated
-        # invocations from earlier in the deploy.
-        run: echo "METRIC_START=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
+        # invocations from earlier in the deploy. Subtracting a small buffer
+        # guards against clock skew between this runner and the CloudWatch
+        # datapoint boundary for an invocation made in the same second.
+        run: echo "METRIC_START=$(date -u -d '30 seconds ago' +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
 
       - name: Run backend smoke tests
         run: npm run smoke:test
@@ -1112,6 +1114,7 @@ jobs:
         # VITE_ALLOTMINT_API_BASE so the built app calls the real deployed API.
         # SMOKE_AUTH_TOKEN and TEST_ID_TOKEN arrive via $GITHUB_ENV set by the
         # token-fetch step above; no explicit env: entries needed here.
+        id: frontend_smoke
         if: success() || failure()
         run: npm --prefix frontend run smoke:frontend
         env:
@@ -1129,12 +1132,18 @@ jobs:
         # that authenticated requests are not reaching the Lambda (e.g. a
         # broken JWT authorizer or integration) and is treated as a hard
         # failure — unlike the deploy-job check.
+        # Gated on steps.frontend_smoke.outcome == 'success' (not just
+        # always()/success()): if the frontend smoke step itself failed or
+        # never ran, we can't be sure authenticated traffic was actually sent,
+        # so asserting on invocation count would risk a misleading "JWT
+        # authorizer broken" message when the real cause is an unrelated test
+        # failure. That failure already fails the job on its own.
         # Skipped (not failed) when no smoke-test Cognito credentials are
         # configured, matching the graceful degradation in "Fetch Cognito
         # smoke-test token" above: without a token, the smoke tests never hit
         # a protected route, so an invocation count of zero would be expected
         # rather than a signal of a problem.
-        if: always()
+        if: always() && steps.frontend_smoke.outcome == 'success'
         env:
           AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
         run: |

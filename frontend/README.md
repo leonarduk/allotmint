@@ -70,6 +70,8 @@ Preferred runtime setting:
 
 Optional build-time environment variables:
 
+* `VITE_APP_BASE_URL` – base URL of the deployed frontend (e.g. `https://app.allotmint.io`).
+  Controls the canonical link, Open Graph tags, Twitter card URLs, and JSON-LD `url` fields in `index.html`. The default in `.env.production` is `https://app.allotmint.io`. Local and preview builds can omit this variable — Vite will leave the `%VITE_APP_BASE_URL%` placeholders unresolved, which has no practical effect outside production because search-engine crawlers and social-media scrapers only encounter the production site.
 * `VITE_ALLOTMINT_API_BASE` – full base URL to the backend.
 * `VITE_API_URL` – legacy fallback used when `VITE_ALLOTMINT_API_BASE` is unset.
 * `VITE_API_TOKEN` – optional token sent as `X-API-Token` with every request.

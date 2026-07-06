@@ -168,7 +168,7 @@ jobs:
           fi
 
       - name: Post ${{ inputs.provider_name }} review comment
-        if: success() || failure()
+        if: (success() || failure()) && !cancelled()
         continue-on-error: true  # If posting fails (e.g. API rate limit), don't fail job; review is also in Actions summary
         env:
           GH_TOKEN: ${{ secrets.gh_token }}
@@ -229,7 +229,7 @@ jobs:
           gh pr edit "$PR_NUMBER" --add-label "Changes Requested"
 
       - name: Fail if ${{ inputs.provider_name }} did not approve
-        if: always() && steps.check_approval.outcome == 'failure'
+        if: always() && contains(fromJson('["failure","skipped"]'), steps.check_approval.outcome)
         run: |
           echo "::error::${{ inputs.provider_name }} review: CHANGES REQUESTED — address the review findings before merging."
           exit 1

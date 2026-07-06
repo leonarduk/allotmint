@@ -37,6 +37,80 @@ def test_make_news_item_requires_headline_and_url():
     assert news_module._make_news_item("   ", url) is None
 
 
+def test_make_news_item_includes_published_at_and_source():
+    item = news_module._make_news_item(
+        "Headline",
+        "https://example.com/story",
+        "2024-06-01T12:34:56Z",
+        " Reuters ",
+    )
+    assert item == {
+        "headline": "Headline",
+        "url": "https://example.com/story",
+        "published_at": "2024-06-01T12:34:56Z",
+        "source": "Reuters",
+    }
+
+
+def test_make_news_item_omits_blank_optional_fields():
+    item = news_module._make_news_item(
+        "Headline",
+        "https://example.com/story",
+        "   ",
+        None,
+    )
+    assert item == {"headline": "Headline", "url": "https://example.com/story"}
+
+
+def test_trim_payload_preserves_published_at_and_source():
+    payload = [
+        {
+            "headline": "First",
+            "url": "https://example.com/1",
+            "published_at": "2024-06-01T12:34:56Z",
+            "source": "Reuters",
+        }
+    ]
+    assert news_module._trim_payload(payload) == [
+        {
+            "headline": "First",
+            "url": "https://example.com/1",
+            "published_at": "2024-06-01T12:34:56Z",
+            "source": "Reuters",
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        (None, None),
+        (True, None),
+        ("not-a-number", None),
+        (0, "1970-01-01T00:00:00Z"),
+        (1717245296, "2024-06-01T12:34:56Z"),
+        (1717245296.0, "2024-06-01T12:34:56Z"),
+    ],
+)
+def test_parse_epoch_time_handles_values(value, expected):
+    assert news_module._parse_epoch_time(value) == expected
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        (None, None),
+        ("", None),
+        ("   ", None),
+        ("not-a-date", None),
+        ("Sat, 01 Jun 2024 12:34:56 GMT", "2024-06-01T12:34:56Z"),
+        ("Sat, 01 Jun 2024 14:34:56 +0200", "2024-06-01T12:34:56Z"),
+    ],
+)
+def test_parse_rss_time_handles_formats(value, expected):
+    assert news_module._parse_rss_time(value) == expected
+
+
 def test_trim_payload_filters_invalid_entries():
     payload: List[Dict[str, Any]] = [
         {"headline": " First ", "url": " https://example.com/1 "},
@@ -120,6 +194,50 @@ def test_get_cached_news_raises_on_quota_exhausted_without_cache(monkeypatch):
 
     assert len(scheduled) == 1
     _assert_refresh_call(scheduled[0], page="news_LIMITED", delay=None)
+
+
+def test_warn_if_stale_logs_when_cache_too_old(monkeypatch, caplog):
+    monkeypatch.setattr(
+        news_module.page_cache,
+        "cache_age",
+        lambda page: news_module.NEWS_MAX_STALENESS + 1,
+    )
+    with caplog.at_level("WARNING"):
+        news_module._warn_if_stale("news_ABC")
+    assert any("Serving stale cached news" in rec.message for rec in caplog.records)
+
+
+def test_warn_if_stale_silent_when_fresh_or_missing(monkeypatch, caplog):
+    monkeypatch.setattr(news_module.page_cache, "cache_age", lambda page: 10.0)
+    with caplog.at_level("WARNING"):
+        news_module._warn_if_stale("news_ABC")
+    assert caplog.records == []
+
+    monkeypatch.setattr(news_module.page_cache, "cache_age", lambda page: None)
+    with caplog.at_level("WARNING"):
+        news_module._warn_if_stale("news_MISSING")
+    assert caplog.records == []
+
+
+def test_get_cached_news_warns_when_serving_stale_on_quota(monkeypatch, caplog):
+    cached_payload = [{"headline": "Cached", "url": "https://example.com/cached"}]
+
+    monkeypatch.setattr(news_module.page_cache, "load_cache", lambda page: cached_payload)
+    monkeypatch.setattr(news_module.page_cache, "is_stale", lambda page, ttl: True)
+    monkeypatch.setattr(news_module.page_cache, "time_until_stale", lambda page, ttl: 0)
+    monkeypatch.setattr(news_module.page_cache, "schedule_refresh", lambda *a, **k: None)
+    monkeypatch.setattr(
+        news_module.page_cache,
+        "cache_age",
+        lambda page: news_module.NEWS_MAX_STALENESS + 1,
+    )
+    monkeypatch.setattr(news_module, "_try_consume_quota", lambda: False)
+
+    with caplog.at_level("WARNING"):
+        result = news_module.get_cached_news("cached")
+
+    assert result == cached_payload
+    assert any("Serving stale cached news" in rec.message for rec in caplog.records)
 
 
 def test_get_cached_news_reuses_fresh_cache(monkeypatch):

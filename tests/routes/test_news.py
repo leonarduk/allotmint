@@ -135,6 +135,108 @@ def test_fetch_news_google(monkeypatch):
     assert "stock" in query.lower()
 
 
+def test_fetch_news_yahoo_populates_published_at_and_source(monkeypatch):
+    def fake_get(url, params=None, timeout=10, **kwargs):
+        class Response:
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {
+                    "news": [
+                        {
+                            "title": "Stock update",
+                            "link": "https://example.com/1",
+                            "providerPublishTime": 1717245296,
+                            "publisher": "Reuters",
+                        }
+                    ]
+                }
+
+        return Response()
+
+    monkeypatch.setattr(news_module.requests, "get", fake_get)
+
+    items = news_module.fetch_news_yahoo("PFE")
+    assert items == [
+        {
+            "headline": "Stock update",
+            "url": "https://example.com/1",
+            "published_at": "2024-06-01T12:34:56Z",
+            "source": "Reuters",
+        }
+    ]
+
+
+def test_fetch_news_google_populates_published_at(monkeypatch):
+    xml = """
+        <rss>
+          <channel>
+            <item>
+              <title>Story stock update</title>
+              <link>https://example.com/story</link>
+              <pubDate>Sat, 01 Jun 2024 12:34:56 GMT</pubDate>
+              <source>Example News</source>
+            </item>
+          </channel>
+        </rss>
+    """
+
+    def fake_get(url, params=None, timeout=10, **kwargs):
+        class Response:
+            text = xml
+
+            def raise_for_status(self):
+                return None
+
+        return Response()
+
+    monkeypatch.setattr(news_module.requests, "get", fake_get)
+
+    items = news_module.fetch_news_google("MSFT")
+    assert items == [
+        {
+            "headline": "Story stock update",
+            "url": "https://example.com/story",
+            "published_at": "2024-06-01T12:34:56Z",
+            "source": "Example News",
+        }
+    ]
+
+
+def test_fetch_news_alpha_populates_published_at(monkeypatch):
+    def fake_get(url, params=None, timeout=10, **kwargs):
+        class Response:
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {
+                    "feed": [
+                        {
+                            "title": "Alpha headline",
+                            "url": "https://example.com/alpha",
+                            "time_published": "20240601T123456",
+                            "source": "AlphaWire",
+                        }
+                    ]
+                }
+
+        return Response()
+
+    monkeypatch.setattr(news_module.requests, "get", fake_get)
+
+    items = news_module._fetch_news("AAPL")
+    assert items == [
+        {
+            "headline": "Alpha headline",
+            "url": "https://example.com/alpha",
+            "published_at": "2024-06-01T12:34:56Z",
+            "source": "AlphaWire",
+        }
+    ]
+
+
 def test_fetch_news_fallback(monkeypatch):
     alpha_calls = {"count": 0}
     yahoo_calls = {"count": 0}

@@ -87,23 +87,14 @@ def test_get_news_trims_payload_and_caches(monkeypatch):
     resp = client.get("/news", params={"ticker": "AAA"})
     assert resp.status_code == 200
     payload = resp.json()
-    assert payload == [
-        {
-            "headline": "Alpha headline",
-            "url": "https://example.com/article",
-        }
-    ]
-    assert saved == [
-        (
-            "news_AAA",
-            [
-                {
-                    "headline": "Alpha headline",
-                    "url": "https://example.com/article",
-                }
-            ],
-        )
-    ]
+    expected_item = {
+        "headline": "Alpha headline",
+        "url": "https://example.com/article",
+        "published_at": "2023-08-25T16:00:00Z",
+        "source": "AlphaVantage",
+    }
+    assert payload == [expected_item]
+    assert saved == [("news_AAA", [expected_item])]
 
 
 def test_parse_alpha_time_legacy_format():

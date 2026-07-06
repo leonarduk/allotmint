@@ -84,3 +84,19 @@ def test_deploy_workflow_verify_price_snapshot_fails_hard_on_non_404() -> None:
     # The step must not swallow its own exit code via continue-on-error,
     # otherwise the hard failure above would not fail the job.
     assert "continue-on-error" not in verify_step
+
+    # head_exit must be captured on the same logical statement as the
+    # head_output subshell (via the `&& head_exit=0 || head_exit=$?` idiom),
+    # not by a later, separate `head_exit=$?` statement — any intervening
+    # command (e.g. the `grep` below) would overwrite `$?` before it is
+    # captured, leaving head_exit stale. The statement spans several
+    # continuation lines, so find the first line after the capture_block's
+    # closing `)"` and confirm head_exit is assigned before it.
+    statement_end = capture_block.index("\n", capture_end)
+    head_exit_statement = capture_block[capture_end:statement_end]
+    assert "head_exit=" in head_exit_statement, (
+        "head_exit must be captured in the same statement as the "
+        "head_output subshell (e.g. `&& head_exit=0 || head_exit=$?` "
+        "immediately after the closing `)\"`), not via a later, separate "
+        "statement that could capture a different command's exit code"
+    )

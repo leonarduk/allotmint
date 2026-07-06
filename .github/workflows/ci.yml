@@ -34,6 +34,21 @@ jobs:
       - name: CDK infrastructure tests
         run: pytest cdk/tests/ --no-cov
 
+  shell-tests:
+    name: Bash script tests (bats)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      # bats-core is fetched on demand via npx rather than assuming it's
+      # preinstalled on the runner image; all aws CLI calls in these tests
+      # are mocked (see tests/bash/fetch-cloudwatch-logs.bats), so this is a
+      # pure dry-run with no live AWS network access.
+      - name: Run bats tests for deploy shell scripts
+        run: npx --yes bats tests/bash/*.bats
+
   validate-backend-deps:
     name: Validate backend/requirements.txt (dry-run)
     runs-on: ubuntu-latest

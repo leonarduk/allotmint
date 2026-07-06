@@ -247,6 +247,11 @@ class BackendLambdaStack(Stack):
             )
         cors_origins = list(dict.fromkeys(cors_origins))
 
+        # Deliberately always-required (not routed through stacks.prod_env's
+        # assert_prod_env_vars), unlike GITHUB_DEPLOY_ROLE_ARN in
+        # StaticSiteStack: these two are needed for the Lambda to function in
+        # every environment, including local/dev synths, not just prod. See
+        # #4731.
         jwt_secret = os.getenv("JWT_SECRET", "")
         if not jwt_secret:
             raise ValueError("JWT_SECRET must be set in the environment before deploying")

@@ -14,20 +14,13 @@ from aws_cdk import aws_s3 as s3
 from aws_cdk import aws_s3_deployment as s3_deployment
 from constructs import Construct
 
-
-def _is_truthy_context(value: object) -> bool:
-    """Return true when a CDK context value explicitly opts into production."""
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        return value.strip().lower() in {"1", "true", "yes"}
-    return False
+from stacks.prod_env import assert_prod_env_vars, is_truthy_context
 
 
 def _ui_auth_removal_policy(scope: Construct) -> RemovalPolicy:
     """Retain the Cognito user pool when production retention is requested."""
-    retain_user_pool = _is_truthy_context(scope.node.try_get_context("retainUserPool"))
-    prod = _is_truthy_context(scope.node.try_get_context("prod"))
+    retain_user_pool = is_truthy_context(scope.node.try_get_context("retainUserPool"))
+    prod = is_truthy_context(scope.node.try_get_context("prod"))
     if retain_user_pool or prod:
         return RemovalPolicy.RETAIN
     return RemovalPolicy.DESTROY
@@ -51,14 +44,9 @@ class StaticSiteStack(Stack):
         # silently omitted in a production deploy. A missing GITHUB_DEPLOY_ROLE_ARN
         # previously caused CloudFormation to delete the IAM grant resource
         # without any signal, masking the real cause of a deploy failure.
-        # See #3847 and #3866 for context.
+        # See #3847, #3866, #4731 for context.
+        assert_prod_env_vars(self, {"GITHUB_DEPLOY_ROLE_ARN": "GitHub OIDC deploy role ARN"})
         github_deploy_role_arn = os.getenv("GITHUB_DEPLOY_ROLE_ARN", "")
-        if _is_truthy_context(self.node.try_get_context("prod")) and not github_deploy_role_arn:
-            raise ValueError(
-                "GITHUB_DEPLOY_ROLE_ARN is required for prod StaticSiteStack "
-                "(passed via the GITHUB_DEPLOY_ROLE_ARN env var). "
-                "See #3847 and #3866 for context."
-            )
 
         ui_auth_removal_policy = _ui_auth_removal_policy(self)
 
@@ -184,7 +172,7 @@ class StaticSiteStack(Stack):
         )
 
         _custom_domain = "app.allotmint.io"
-        _enable_custom_domain = _is_truthy_context(self.node.try_get_context("customDomain"))
+        _enable_custom_domain = is_truthy_context(self.node.try_get_context("customDomain"))
 
         # The viewer-request Function's host-based canonical redirect must only
         # target a domain that this deployment actually serves (alias + ACM

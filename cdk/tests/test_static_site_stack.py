@@ -922,6 +922,16 @@ def test_prod_without_github_deploy_role_arn_raises(monkeypatch, tmp_path) -> No
         StaticSiteStack(app, "ProdNoRoleStack", frontend_dist_path=str(tmp_path))
 
 
+def test_prod_with_empty_string_github_deploy_role_arn_raises(monkeypatch, tmp_path) -> None:
+    """An empty-string GITHUB_DEPLOY_ROLE_ARN in prod context must raise the same
+    way as an unset one — the guard treats "" and missing identically. See #4731."""
+    monkeypatch.setenv("GITHUB_DEPLOY_ROLE_ARN", "")
+    (tmp_path / "index.html").write_text("<html></html>")
+    app = App(context={"prod": "true"})
+    with pytest.raises(ValueError, match="GITHUB_DEPLOY_ROLE_ARN"):
+        StaticSiteStack(app, "ProdEmptyRoleStack", frontend_dist_path=str(tmp_path))
+
+
 def test_prod_with_github_deploy_role_arn_synthesises(monkeypatch, tmp_path) -> None:
     """A prod-context synth must succeed when GITHUB_DEPLOY_ROLE_ARN is set."""
     monkeypatch.setenv(

@@ -243,11 +243,15 @@ def test_get_cached_news_warns_when_serving_stale_on_quota(monkeypatch, caplog):
 def test_get_cached_news_warns_when_serving_stale_on_empty_result(monkeypatch, caplog):
     """When _call() succeeds but returns empty and stale cache exists, warn and serve cache."""
     cached_payload = [{"headline": "Old", "url": "https://example.com/old"}]
+    scheduled: list[dict[str, Any]] = []
+
+    def fake_schedule(page: str, ttl: int, func, *, can_refresh, initial_delay):
+        scheduled.append({"page": page, "ttl": ttl, "initial_delay": initial_delay})
 
     monkeypatch.setattr(news_module.page_cache, "load_cache", lambda page: cached_payload)
     monkeypatch.setattr(news_module.page_cache, "is_stale", lambda page, ttl: True)
     monkeypatch.setattr(news_module.page_cache, "time_until_stale", lambda page, ttl: 0)
-    monkeypatch.setattr(news_module.page_cache, "schedule_refresh", lambda *a, **k: None)
+    monkeypatch.setattr(news_module.page_cache, "schedule_refresh", fake_schedule)
     monkeypatch.setattr(
         news_module.page_cache,
         "cache_age",
@@ -260,6 +264,16 @@ def test_get_cached_news_warns_when_serving_stale_on_empty_result(monkeypatch, c
         result = news_module.get_cached_news("cached")
 
     assert result == cached_payload
+    # The refresh must be delayed by NEWS_TTL rather than fired immediately:
+    # an immediate retry would likely hit the same empty result and overwrite
+    # the still-good cached payload on disk via save_cache.
+    assert scheduled == [
+        {
+            "page": "news_CACHED",
+            "ttl": news_module.NEWS_TTL,
+            "initial_delay": news_module.NEWS_TTL,
+        }
+    ]
     assert any("Serving stale cached news" in rec.message for rec in caplog.records)
 
 

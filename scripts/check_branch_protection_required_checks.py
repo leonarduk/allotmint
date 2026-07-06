@@ -21,6 +21,7 @@ EXPECTED_REQUIRED_CHECKS = {
     "CI / test",
     "CI / Validate backend/requirements.txt (dry-run)",
     "CI / Lambda-compat pytest (backend/requirements.txt)",
+    "CI / Frontend smoke tests (preview build)",
     "Backend Integration Tests / integration-tests",
     "Frontend Tests / frontend-tests",
     "Merge Conflict Check / Check for merge conflicts with main",

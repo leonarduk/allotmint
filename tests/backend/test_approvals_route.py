@@ -7,10 +7,13 @@ from backend.common.data_loader import ResolvedPaths
 from backend.config import config
 
 
-def _write_owner(root, owner, email):
+def _write_owner(root, owner, email, viewers=None):
     owner_dir = root / owner
     owner_dir.mkdir(parents=True)
-    (owner_dir / "person.json").write_text(json.dumps({"owner": owner, "email": email}))
+    payload = {"owner": owner, "email": email}
+    if viewers is not None:
+        payload["viewers"] = viewers
+    (owner_dir / "person.json").write_text(json.dumps(payload))
     return owner_dir
 
 
@@ -23,6 +26,9 @@ def test_approvals_authorization_enforced(tmp_path, monkeypatch):
     root = tmp_path / "accounts"
     _write_owner(root, "alice", "user@example.com")
     _write_owner(root, "alex", "other@example.com")
+    # ``carol`` belongs to someone else but explicitly lists our identity as a
+    # viewer (the family/household path).
+    _write_owner(root, "carol", "carol@example.com", viewers=["user@example.com"])
 
     app = create_app()
     app.state.accounts_root = root
@@ -30,7 +36,9 @@ def test_approvals_authorization_enforced(tmp_path, monkeypatch):
     token = client.post("/token", json={"id_token": "good"}).json()["access_token"]
     client.headers.update({"Authorization": f"Bearer {token}"})
 
+    # Owner match and viewer match are both authorized.
     assert client.get("/accounts/alice/approvals").status_code == 200
+    assert client.get("/accounts/carol/approvals").status_code == 200
 
     assert client.get("/accounts/alex/approvals").status_code == 403
     forbidden_post = client.post(
@@ -42,6 +50,10 @@ def test_approvals_authorization_enforced(tmp_path, monkeypatch):
     assert forbidden_delete.status_code == 403
     # The rejected write must not have created an approvals file for ``alex``.
     assert not (root / "alex" / "approvals.json").exists()
+
+    # A non-existent owner is rejected with 403 (not 404): authorization runs
+    # before owner resolution so owner existence is not leaked.
+    assert client.get("/accounts/ghost/approvals").status_code == 403
 
 
 def test_post_approval_request_falls_back_to_default_accounts_root(tmp_path, monkeypatch):

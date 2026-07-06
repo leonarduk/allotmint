@@ -62,9 +62,9 @@ def _resolve_owner_dir(root: Path, owner: str) -> Path:
 @handle_owner_not_found
 async def get_approvals(owner: str, request: Request, identity: str | None = Depends(get_active_user)):
     root = resolve_accounts_root(request)
+    ensure_owner_access(identity, owner, root)
     owner_dir = _resolve_owner_dir(root, owner)
     approvals_root = owner_dir.parent
-    ensure_owner_access(identity, owner, approvals_root)
     try:
         approvals = load_approvals(owner, approvals_root)
     except FileNotFoundError:
@@ -81,8 +81,8 @@ async def post_approval_request(owner: str, request: Request, identity: str | No
     if not ticker:
         raise HTTPException(status_code=400, detail="ticker is required")
     root = resolve_accounts_root(request)
+    ensure_owner_access(identity, owner, root)
     owner_dir = _resolve_owner_dir(root, owner)
-    ensure_owner_access(identity, owner, owner_dir.parent)
     path = owner_dir / "approval_requests.json"
     try:
         raw = json.loads(path.read_text())
@@ -113,9 +113,9 @@ async def post_approval(owner: str, request: Request, identity: str | None = Dep
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="invalid approved_on") from exc
     root = resolve_accounts_root(request)
+    ensure_owner_access(identity, owner, root)
     owner_dir = _resolve_owner_dir(root, owner)
     approvals_root = owner_dir.parent
-    ensure_owner_access(identity, owner, approvals_root)
     approvals = upsert_approval(owner, ticker, approved_on, approvals_root)
     entries = [{"ticker": t, "approved_on": d.isoformat()} for t, d in approvals.items()]
     return {"approvals": entries}
@@ -127,9 +127,9 @@ async def delete_approval_route(owner: str, request: Request, identity: str | No
     data = await request.json()
     ticker = (data.get("ticker") or "").upper()
     root = resolve_accounts_root(request)
+    ensure_owner_access(identity, owner, root)
     owner_dir = _resolve_owner_dir(root, owner)
     approvals_root = owner_dir.parent
-    ensure_owner_access(identity, owner, approvals_root)
     approvals = delete_approval(owner, ticker, approvals_root)
     entries = [{"ticker": t, "approved_on": d.isoformat()} for t, d in approvals.items()]
     return {"approvals": entries}

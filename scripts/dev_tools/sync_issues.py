@@ -160,7 +160,13 @@ def main():
         current_name = open_ids_to_filenames.get(issue_id)
         is_outdated = current_name and current_name != filepath.name
         if is_closed or is_outdated:
-            filepath.unlink()
+            try:
+                filepath.unlink()
+            except PermissionError as e:
+                print(
+                    f"Warning: Could not delete {filepath}: {e}",
+                    file=sys.stderr,
+                )
 
     print(f"Synced {len(open_issues)} open issues to {ISSUES_DIR}")
 

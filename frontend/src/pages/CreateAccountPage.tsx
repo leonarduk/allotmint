@@ -137,7 +137,8 @@ export default function CreateAccountPage() {
         note: note.trim() || undefined,
       });
       setSubmitted(true);
-    } catch {
+    } catch (err) {
+      console.error("Failed to submit account signup request", err);
       setError("Something went wrong submitting your request. Please try again.");
     } finally {
       setSubmitting(false);

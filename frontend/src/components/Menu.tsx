@@ -8,6 +8,7 @@ import {
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useConfig } from '../ConfigContext';
+import { useAuth } from '../AuthContext';
 import type { TabPluginId } from '../tabPlugins';
 import { SUPPORT_TABS } from '../tabPlugins';
 import {
@@ -43,6 +44,11 @@ export default function Menu({
   const location = useLocation();
   const { t } = useTranslation();
   const { tabs, disabledTabs, familyMvpEnabled } = useConfig();
+  const { logout: contextLogout } = useAuth();
+  // Fall back to the app-wide logout registered in AuthContext when the
+  // caller doesn't thread one through explicitly, so the control stays
+  // reachable regardless of where Menu is mounted (#4751).
+  const effectiveLogout = onLogout ?? contextLogout ?? undefined;
   const mode = deriveModeFromPathname(location.pathname) as TabPluginId;
   const isSupportMode = (SUPPORT_TABS as readonly string[]).includes(mode);
   const inSupport = mode === 'support';
@@ -93,10 +99,10 @@ export default function Menu({
           if (category.tabs.length > 0) return true;
           return (
             category.id === 'preferences' &&
-            (supportEnabled || Boolean(onLogout))
+            (supportEnabled || Boolean(effectiveLogout))
           );
         }),
-    [availableTabs, categoryDefinitions, onLogout, supportEnabled]
+    [availableTabs, categoryDefinitions, effectiveLogout, supportEnabled]
   );
 
   const [openCategory, setOpenCategory] = useState<string | null>(null);
@@ -277,13 +283,13 @@ export default function Menu({
                       </Link>
                     </li>
                   )}
-                  {category.id === 'preferences' && onLogout && (
+                  {category.id === 'preferences' && effectiveLogout && (
                     <li key="logout">
                       <button
                         ref={(element) => assignFirstFocusable(element)}
                         type="button"
                         role="menuitem"
-                        onClick={onLogout}
+                        onClick={effectiveLogout}
                         className="block min-h-11 w-full rounded px-3 py-2 text-left text-sm text-gray-600 transition-colors duration-150 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring"
                       >
                         {t('app.logout')}

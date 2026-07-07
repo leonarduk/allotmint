@@ -1,24 +1,10 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
+import { applyAuth as applyAuthToken } from './support/smokeFixtures';
 
 const baseUrl = process.env.SMOKE_URL ?? 'http://localhost:5173';
 const authToken = process.env.SMOKE_AUTH_TOKEN ?? process.env.TEST_ID_TOKEN ?? null;
 
-const applyAuth = async (page: Page) => {
-  if (!authToken) {
-    return;
-  }
-
-  await page.addInitScript((token: string) => {
-    window.localStorage.setItem('authToken', token);
-    // Seed a valid AWS UI auth (Cognito) session so ensureAwsUiAuth() finds an
-    // unexpired session and skips the hosted-UI redirect, which would navigate
-    // away from the app before it renders. See awsUiAuth.ts hasValidSession().
-    window.sessionStorage.setItem(
-      'awsUiAuthSession',
-      JSON.stringify({ idToken: token, expiresAt: Date.now() + 60 * 60 * 1000 })
-    );
-  }, authToken);
-};
+const applyAuth = (page: Page) => applyAuthToken(page, authToken);
 
 test.describe('config bootstrap regression', () => {
   test('shows the route marker after retrying config load', async ({ page }) => {

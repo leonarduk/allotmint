@@ -114,6 +114,15 @@ describe('bootstrapRuntimeConfig — generic auth bootstrap failure', () => {
       expect.any(Error),
     );
 
+    // Set up the reload spy before render() so the assertion stays valid even
+    // if a future refactor reads window.location.reload during render/mount
+    // rather than lazily inside the click handler (#3948).
+    const reloadSpy = vi.fn();
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { ...window.location, reload: reloadSpy },
+    });
+
     render(renderedElement!);
     const retryButton = screen.getByRole('button', { name: /sign in/i });
     expect(retryButton).toBeInTheDocument();
@@ -121,12 +130,6 @@ describe('bootstrapRuntimeConfig — generic auth bootstrap failure', () => {
 
     // The dead authorization code must be cleared so a reload restarts the hosted-UI flow.
     expect(window.location.search).toBe('');
-
-    const reloadSpy = vi.fn();
-    Object.defineProperty(window, 'location', {
-      configurable: true,
-      value: { ...window.location, reload: reloadSpy },
-    });
 
     await userEvent.click(retryButton);
     expect(reloadSpy).toHaveBeenCalledTimes(1);

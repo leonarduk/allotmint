@@ -10,6 +10,7 @@ from typing import Any, Dict
 import yaml
 from fastapi import APIRouter, HTTPException
 
+from backend.contracts_spa import ConfigContract
 from backend import config_module
 from backend.config import (
     ConfigValidationError,
@@ -53,7 +54,10 @@ def deep_merge(dst: Dict[str, Any], src: Dict[str, Any]) -> None:
             dst[key] = value
 
 
-def serialise_config(cfg: config_module.Config) -> Dict[str, Any]:
+def serialise_config(cfg: config_module.Config) -> ConfigContract:
+    """
+    Save config to pydantic ConfigContract
+    """
     data = asdict(cfg)
     tabs = data.get("tabs")
     if isinstance(tabs, dict):

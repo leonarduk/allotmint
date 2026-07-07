@@ -42,21 +42,9 @@ npm run smoke:test:codex:poc
 
 ## Branch and PR policy
 
-**Never commit directly to `main`.** This applies to all changes including documentation, config, and trivial fixes.
-
-This rule exists to preserve CI gating, review history, and the ability to revert cleanly.
-A direct push to `main` bypasses all of these and cannot be undone without rewriting history.
-
-Treat branch creation as the first implementation step. Before editing files, create or switch to a non-`main` branch. If the current checkout is dirty or already contains unrelated work, create a clean worktree from `main` and do the task there.
-
-Always:
-1. Create a branch (`git checkout -b <branch-name>` or via API)
-2. Push changes to the branch
-3. Open a PR targeting `main`
-4. Wait for review/merge
-5. If implementing a GitHub issue, include an auto-closing reference in the PR body (for example: `Closes #1234`).
-
-Branch naming convention: `fix/issue-NNNN-short-description` or `feat/issue-NNNN-short-description` or `docs/short-description`.
+See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#branch-and-pr-policy) for the
+canonical branch/PR rules (never commit to `main`, worktree-first for dirty
+checkouts, required PR steps, branch naming, `Closes #NNNN` linking).
 
 ## Preferred workflow
 
@@ -70,14 +58,9 @@ Branch naming convention: `fix/issue-NNNN-short-description` or `feat/issue-NNNN
 
 ## Code quality invariants (non-negotiable)
 
-Derived from the NASA/JPL Power of Ten guidelines — applicable subset only.
-C-specific rules (no dynamic allocation, pointer restrictions, preprocessor limits, recursion ban) are omitted as inapplicable to this stack.
-
-- **Function length**: keep functions to ~60 lines or fewer. If a function no longer fits on one screen, refactor before making further changes.
-- **Zero lint warnings**: `make lint` and `npm --prefix frontend run lint` must pass clean. If a tool flags something incorrectly, rewrite the code until it doesn't — do not suppress warnings without a documented justification inline.
-- **No silent error swallowing**: every error path must be explicitly handled. No bare `except: pass`, no `catch` blocks that discard exceptions silently, no unhandled Promise rejections.
-- **No ignored return values**: check return values of functions that can fail. If you deliberately discard a return value, make it explicit (`_ =` in Python, explicit `void` comment in TS) and add a brief comment explaining why.
-- **Minimum scope**: declare variables as late as possible and as locally as possible. Avoid module-level mutable state unless genuinely necessary.
+See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#code-quality-invariants-non-negotiable)
+for the canonical rules (function length, zero lint warnings, no silent error
+swallowing, no ignored return values, minimum scope).
 
 ## If you touch specific areas
 

@@ -59,8 +59,7 @@ jobs:
         run: |
           test -f mypy.ini
           python -m mypy --version
-          python -m mypy backend --config-file mypy.ini --show-error-codes --pretty
-
+          python -m mypy backend --config-file mypy.ini --show-error-codes --pretty --explicit-package-bases
       - name: Run provider parity tests
         env:
           ALLOTMINT_SKIP_SNAPSHOT_WARM: 'true'

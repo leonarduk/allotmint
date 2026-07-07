@@ -16,6 +16,32 @@ reusable workflow:
 All three providers follow the same pattern: generate a review, extract a verdict (APPROVE or
 REQUEST CHANGES), and post the full review to the PR regardless of verdict.
 
+## Onboarding: provisioning API key secrets
+
+Each reviewer requires its provider's API key to be configured as a repository
+secret before its workflow can run successfully:
+
+| Reviewer | Secret name | Workflow |
+| --- | --- | --- |
+| Claude | `ANTHROPIC_API_KEY` | `claude-pr-review.yml` |
+| GPT | `OPENAI_API_KEY` | `gpt-pr-review.yml` |
+| DeepSeek | `DEEPSEEK_API_KEY` | `deepseek-pr-review.yml` |
+
+To provision a key, go to **Settings → Secrets and variables → Actions →
+Secrets** and add the relevant `*_API_KEY` secret. `DEEPSEEK_API_KEY` is the
+one new contributors most often need to set up first, since DeepSeek is the
+only reviewer currently required by branch protection (see
+[Why only DeepSeek is required](#why-only-deepseek-is-required)) — obtain the
+key from the [DeepSeek platform](https://platform.deepseek.com/api_keys) and
+add it under that name.
+
+If a secret is missing, the corresponding reviewer's API call fails and the
+workflow posts a failure notice on the PR instead of a review (see
+[Failed Review](#failed-review)) rather than silently skipping. A reviewer
+can also be disabled outright via its `ENABLE_*_REVIEW` variable — see
+[Disabling individual reviewers](#disabling-individual-reviewers) — which
+avoids the failure notice entirely when a key won't be provisioned.
+
 ## Disabling individual reviewers
 
 Each reviewer can be toggled individually via repository variables.
@@ -29,6 +55,68 @@ When a variable is `false`, the workflow job is skipped (no check-run is created
 and `sync-changes-requested-label.yml` automatically excludes that reviewer
 from its conclusion checks. Set these via **Settings → Secrets and variables →
 Actions → Variables**. When a variable is absent, the reviewer runs (default `true`).
+
+## Why only DeepSeek is required
+
+`.github/rulesets/default-branch-protection.json` lists `ai-review / DeepSeek
+AI code review` as the only AI reviewer in `required_status_checks`. Claude
+and GPT are **not** required checks — they still run, still post full
+reviews and non-blocking follow-up suggestions on every PR (see
+[Review Posting Behavior](#review-posting-behavior)), but a REQUEST CHANGES
+verdict from either does not block a merge. This replaced an earlier setup
+where Claude and GPT were both required (PR #3279); DeepSeek was added as a
+third reviewer and then made the sole required gate in PR #4188.
+
+Rationale:
+
+- **Fewer blocking gates, less flakiness surface.** Each required AI
+  reviewer is a blocking dependency on an external LLM API — timeouts, rate
+  limits, or transient errors from any *one* of them can stall every PR.
+  Requiring only one (with the [timeout/retry handling](#failed-review)
+  described above) narrows that surface to a single provider instead of
+  three.
+- **Redundant review value without redundant blocking.** All three
+  reviewers use the same shared prompt (`build_prompt` in
+  `review_common.py`) and verdict format, so their blocking value overlaps
+  significantly. Keeping Claude and GPT advisory-only preserves their
+  review coverage — a human can still read all three opinions — without
+  multiplying the failure points that can hold up a merge.
+- **DeepSeek was chosen as the sole gate** because it was already running
+  successfully across the existing PR set at the time of PR #4188 with no
+  reliability concerns distinct from the other two providers.
+
+### Risk of relying on a single required reviewer
+
+Making DeepSeek the only required AI gate concentrates risk: if the
+DeepSeek API has an extended outage, changes its response format in a
+breaking way, or the `DEEPSEEK_API_KEY` secret is revoked, PRs cannot merge
+until the issue is fixed or the reviewer is disabled (via
+`ENABLE_DEEPSEEK_REVIEW=false`, which requires updating both the repo
+variable **and** `.github/rulesets/default-branch-protection.json`/
+`EXPECTED_REQUIRED_CHECKS` in `scripts/check_branch_protection_required_checks.py`
+to keep them in sync — see [Adding a new AI reviewer](#adding-a-new-ai-reviewer)
+for the equivalent registration steps in reverse).
+
+Mitigations already in place:
+
+- The [retry-with-backoff mechanism](#failed-review) in `fetch_review()`
+  absorbs transient DeepSeek API failures (429/5xx, network errors) without
+  needing a human to intervene.
+- `scripts/check_branch_protection_required_checks.py` runs in CI
+  (`.github/workflows/ci.yml`) and fails the build if the ruleset's
+  `required_status_checks` entries drift from either the deterministic
+  workflow/job names it discovers or the `EXPECTED_REQUIRED_CHECKS` set
+  hardcoded in the script — this is what prevents the required-check list
+  and the actual workflows from silently diverging (e.g. a reviewer being
+  renamed in one place but not the other).
+- If DeepSeek needs to be dropped as the required gate entirely, Claude or
+  GPT can be promoted to required by adding their check-run context back to
+  both `default-branch-protection.json` and `EXPECTED_REQUIRED_CHECKS`,
+  since both already run on every PR and their check-run names are stable.
+
+No automated failover between providers exists — promoting a different
+reviewer to required is a manual config change, not something the
+workflows do automatically.
 
 ## Choosing the follow-up issue body provider
 
@@ -211,6 +299,20 @@ conclusions in time when all run concurrently on the same push.
 When the label is removed, `sync-changes-requested-label.yml` also posts a
 PR comment confirming all enabled AI reviews passed. If the label was not present
 (e.g. all reviews approved on the first pass), no comment is posted.
+
+### Stuck-label fallback
+
+The `workflow_run` trigger can miss a PR — e.g. the triggering review run is
+cancelled by a superseding push before its `completed` event fires, or the
+webhook delivery is dropped — leaving the label "stuck" even though the
+latest commit's reviews all later succeeded. To recover from this,
+`sync-changes-requested-label.yml` also runs on a `schedule` (every 30
+minutes) and via `workflow_dispatch` (for manual triggering). The scheduled
+run lists every open PR that still carries the `Changes Requested` label and
+re-runs the same reconciliation logic (shared via
+`.github/scripts/reconcile_changes_requested_label.sh`) against each one, so
+a PR whose reviews have actually passed gets its label cleared within the
+next scheduled sweep even if the triggering event was lost.
 
 If a fourth reviewer is added (see [Adding a new AI reviewer](#adding-a-new-ai-reviewer)),
 update `sync-changes-requested-label.yml`'s `workflows:` trigger list and its

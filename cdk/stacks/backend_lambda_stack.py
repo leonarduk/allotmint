@@ -36,6 +36,23 @@ from stacks.exports import BACKEND_API_URL_EXPORT
 # distinct from the read-only ``accounts/`` demo prefix (issue #4275).
 WRITABLE_ACCOUNTS_PREFIX = "writable-accounts"
 
+# API Gateway access-log format for the backend HTTP API's default stage.
+# Deliberately logs claims/status/source IP only — never the raw bearer
+# token or Authorization header — so no credentials land in the logs.
+# Applied to the default stage in BackendLambdaStack.__init__ (issue #4255, #4738).
+ACCESS_LOG_FORMAT = json.dumps(
+    {
+        "requestId": "$context.requestId",
+        "routeKey": "$context.routeKey",
+        "status": "$context.status",
+        "errorMessage": "$context.error.message",
+        "authorizerError": "$context.authorizer.error",
+        "integrationStatus": "$context.integrationStatus",
+        "responseLatency": "$context.responseLatency",
+        "sourceIp": "$context.identity.sourceIp",
+    }
+)
+
 
 class BackendLambdaStack(Stack):
     """CDK stack that builds and deploys the backend Lambda."""
@@ -229,14 +246,30 @@ class BackendLambdaStack(Stack):
         )
 
         env = self.node.try_get_context("app_env") or os.getenv("APP_ENV") or "aws"
+        # Per-deploy override (e.g. a preview environment's own frontend URL),
+        # supplied via CDK context or env var. Inserted at position 0 below so
+        # it takes priority when dict.fromkeys() dedupes the final list.
         frontend_origin = self.node.try_get_context("frontend_origin") or os.getenv(
             "FRONTEND_ORIGIN"
         )
+        # Operator-supplied additional origins (comma-separated), for cases the
+        # base list + frontend_origin don't cover — e.g. a temporary staging
+        # domain. Supplied via CDK context or the CORS_ORIGINS env var.
         extra_cors_origins = self.node.try_get_context("cors_origins") or os.getenv("CORS_ORIGINS")
 
         cors_origins = [
+            # Vite dev server default port. Always present so `npm run dev`
+            # works against a deployed backend without extra config.
             "http://localhost:3000",
+            # CRA-style / alternate local dev server port, kept for the same
+            # reason as above. Both localhost entries are dev-only convenience:
+            # they're baked in at synth time and only ever reach a deployed
+            # stack if a developer points their local frontend at it, so they
+            # are not normalised or rejected for non-local environments here
+            # (audit for #4113 — no change needed).
             "http://localhost:5173",
+            # Production frontend. Remove only if app.allotmint.io stops being
+            # the production domain.
             "https://app.allotmint.io",
         ]
         if frontend_origin:
@@ -450,17 +483,6 @@ class BackendLambdaStack(Stack):
             retention=logs.RetentionDays.ONE_WEEK,
             removal_policy=RemovalPolicy.DESTROY,
         )
-        access_log_format = json.dumps(
-            {
-                "requestId": "$context.requestId",
-                "routeKey": "$context.routeKey",
-                "status": "$context.status",
-                "errorMessage": "$context.error.message",
-                "authorizerError": "$context.authorizer.error",
-                "integrationStatus": "$context.integrationStatus",
-                "responseLatency": "$context.responseLatency",
-            }
-        )
         default_stage = backend_api.default_stage
         assert default_stage is not None, "BackendApi must expose a default stage"
         cfn_default_stage = default_stage.node.default_child
@@ -470,7 +492,7 @@ class BackendLambdaStack(Stack):
         cfn_default_stage.add_property_override(
             "AccessLogSettings.DestinationArn", access_log_group.log_group_arn
         )
-        cfn_default_stage.add_property_override("AccessLogSettings.Format", access_log_format)
+        cfn_default_stage.add_property_override("AccessLogSettings.Format", ACCESS_LOG_FORMAT)
 
         backend_integration = apigwv2_integrations.HttpLambdaIntegration(
             "BackendLambdaIntegration", backend_fn
@@ -547,11 +569,25 @@ class BackendLambdaStack(Stack):
                 integration=backend_integration,
                 authorizer=apigwv2.HttpNoneAuthorizer(),
             )
-        # CORS preflight OPTIONS requests must never reach backend_authorizer:
-        # browsers send them without an Authorization header, so a JWT
-        # authorizer would reject them with 401 before CORS headers are
-        # returned. Register explicit OPTIONS routes with NONE authorization
-        # so they take precedence over the ANY-method routes below.
+        # These explicit OPTIONS routes are NOT redundant with the HttpApi's
+        # native `cors_preflight` config above (investigated for #4826).
+        # AWS's own docs (Configure CORS for HTTP APIs -> "Configuring CORS
+        # for an HTTP API with a $default route and an authorizer") say the
+        # automatic preflight response only answers OPTIONS requests that
+        # don't otherwise match a route. HTTP API route selection picks the
+        # most specific match first: an exact "route + method" match beats a
+        # "route + method with greedy {proxy+}" match, which beats $default
+        # (see "Routing API requests" in the same guide). `ANY /` and
+        # `ANY /{proxy+}` below are registered as explicit routes, and ANY
+        # "matches all methods that you haven't defined for a route" - so
+        # without an explicit OPTIONS route, an incoming OPTIONS request
+        # would be caught by those ANY routes (not by the automatic CORS
+        # response) and sent to backend_authorizer. Browsers send preflight
+        # OPTIONS without an Authorization header, so the JWT authorizer
+        # would reject it with 401 before CORS headers are ever returned -
+        # reproducing #3945. Registering OPTIONS explicitly, with
+        # HttpNoneAuthorizer(), is what gives it priority (exact method
+        # match) over the ANY routes and keeps it off backend_authorizer.
         backend_api.add_routes(
             path="/",
             methods=[apigwv2.HttpMethod.OPTIONS],

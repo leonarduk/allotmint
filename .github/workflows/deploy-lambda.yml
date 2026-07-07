@@ -580,22 +580,29 @@ jobs:
         # Origin header. If the CDK code path fails to pick up FRONTEND_ORIGIN,
         # this would otherwise pass CI silently and break the deployed
         # frontend (stuck on "Loading... retrying configuration"). See #3984.
+        # --retry-all-errors only retries HTTP-level error responses (as opposed
+        # to transient/connection-level errors) when combined with --fail, so
+        # both flags are needed together (#4829). --retry-all-errors requires
+        # curl 7.71+; ubuntu-latest runners ship a compatible version. The
+        # `|| true` on the curl assignment keeps set -e from short-circuiting
+        # past the explicit status check below when --fail trips on a non-2xx
+        # response.
         run: |
           set -euo pipefail
           echo "Checking CORS headers on ${BACKEND_URL%/}/config for Origin: ${FRONTEND_ORIGIN}"
           headers_file="$(mktemp)"
           trap 'rm -f "$headers_file"' EXIT
-          status="$(curl --retry 3 --retry-delay 5 --retry-all-errors \
+          status="$(curl --retry 3 --retry-delay 5 --retry-all-errors --fail \
             --max-time 60 --silent --output /dev/null --write-out "%{http_code}" \
             -D "$headers_file" \
             -H "Origin: ${FRONTEND_ORIGIN}" \
-            "${BACKEND_URL%/}/config")"
+            "${BACKEND_URL%/}/config" || true)"
           if [ "$status" != "200" ]; then
             echo "::error::Expected HTTP 200 from ${BACKEND_URL%/}/config, got $status" >&2
             cat "$headers_file" >&2
             exit 1
           fi
-          cors_header="$( (grep -i '^access-control-allow-origin:' "$headers_file" || true) | tail -n 1 | tr -d '\r' | sed 's/^[^:]*: *//')"
+          cors_header="$( (grep -i '^access-control-allow-origin:' "$headers_file" || true) | tail -n 1 | tr -d '\r' | sed 's/^[^:]*: *//; s/[[:space:]]*$//')"
           if [ -z "$cors_header" ]; then
             echo "::error::Access-Control-Allow-Origin header missing from ${BACKEND_URL%/}/config response" >&2
             cat "$headers_file" >&2
@@ -607,6 +614,49 @@ jobs:
             exit 1
           fi
           echo "CORS configuration OK: Access-Control-Allow-Origin: ${cors_header}"
+
+      - name: Verify CORS preflight (OPTIONS)
+        # Complements the GET /config check above: a CORS regression that only
+        # breaks the OPTIONS preflight (e.g. a missing Access-Control-Allow-Methods
+        # header, or an authorizer wrongly rejecting OPTIONS -- the class of bug
+        # fixed for #3945) would not be caught by a GET-only smoke test. Mirrors
+        # the assertions in tests/test_cors_preflight.py. Same retry/timeout
+        # budget as the GET check above to avoid materially slowing the deploy.
+        run: |
+          set -euo pipefail
+          echo "Checking CORS preflight on ${BACKEND_URL%/}/config for Origin: ${FRONTEND_ORIGIN}"
+          headers_file="$(mktemp)"
+          trap 'rm -f "$headers_file"' EXIT
+          status="$(curl --retry 3 --retry-delay 5 --retry-all-errors --fail \
+            --max-time 60 --silent --output /dev/null --write-out "%{http_code}" \
+            -D "$headers_file" \
+            -X OPTIONS \
+            -H "Origin: ${FRONTEND_ORIGIN}" \
+            -H "Access-Control-Request-Method: GET" \
+            "${BACKEND_URL%/}/config" || true)"
+          if [ "$status" != "200" ] && [ "$status" != "204" ]; then
+            echo "::error::Expected HTTP 200/204 from OPTIONS ${BACKEND_URL%/}/config, got $status" >&2
+            cat "$headers_file" >&2
+            exit 1
+          fi
+          cors_origin="$( (grep -i '^access-control-allow-origin:' "$headers_file" || true) | tail -n 1 | tr -d '\r' | sed 's/^[^:]*: *//; s/[[:space:]]*$//')"
+          if [ -z "$cors_origin" ]; then
+            echo "::error::Access-Control-Allow-Origin header missing from OPTIONS ${BACKEND_URL%/}/config response" >&2
+            cat "$headers_file" >&2
+            exit 1
+          fi
+          if [ "$cors_origin" != "${FRONTEND_ORIGIN}" ]; then
+            echo "::error::Access-Control-Allow-Origin mismatch on preflight: expected ${FRONTEND_ORIGIN}, got ${cors_origin}" >&2
+            cat "$headers_file" >&2
+            exit 1
+          fi
+          cors_methods="$( (grep -i '^access-control-allow-methods:' "$headers_file" || true) | tail -n 1 | tr -d '\r' | sed 's/^[^:]*: *//; s/[[:space:]]*$//')"
+          if [ -z "$cors_methods" ]; then
+            echo "::error::Access-Control-Allow-Methods header missing from OPTIONS ${BACKEND_URL%/}/config response" >&2
+            cat "$headers_file" >&2
+            exit 1
+          fi
+          echo "CORS preflight OK: Access-Control-Allow-Origin: ${cors_origin}, Access-Control-Allow-Methods: ${cors_methods}"
 
       - name: Refresh StaticSiteStack runtime config
         # GITHUB_DEPLOY_ROLE_ARN must be set here too (see "Deploy StaticSiteStack

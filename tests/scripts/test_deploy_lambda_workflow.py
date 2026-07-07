@@ -78,6 +78,33 @@ def test_deploy_workflow_verify_price_snapshot_fails_hard_on_non_404() -> None:
     # otherwise the hard failure above would not fail the job.
     assert "continue-on-error" not in verify_step
 
+    # head_exit must be captured immediately after the head_output subshell
+    # runs — on the same logical statement, via the
+    # `&& head_exit=0 || head_exit=$?` idiom — not by a later, separate
+    # `head_exit=$?` statement. Any intervening command (e.g. the `grep`
+    # below) would overwrite `$?` before it is captured, leaving head_exit
+    # stale. The statement spans several continuation lines, so find the
+    # first line after the capture_block's closing `)"` and confirm
+    # head_exit is assigned there, before any other statement runs.
+    statement_end = capture_block.index("\n", capture_end)
+    head_exit_statement = capture_block[capture_end:statement_end]
+    assert "head_exit=" in head_exit_statement, (
+        "head_exit must be captured in the same statement as the "
+        "head_output subshell (e.g. `&& head_exit=0 || head_exit=$?` "
+        "immediately after the closing `)\"`), not via a later, separate "
+        "statement that could capture a different command's exit code"
+    )
+    # Explicitly verify the ordering, not just co-occurrence: head_output's
+    # assignment (start of capture_block, by construction) must precede
+    # head_exit's capture — i.e. head_exit= must not appear before the
+    # closing `)"` of the head_output subshell — so head_output is fully
+    # populated by the time head_exit is captured.
+    head_output_pos = capture_block.index("head_output=")
+    head_exit_pos = capture_block.index("head_exit=")
+    assert head_output_pos < capture_end <= head_exit_pos, (
+        "head_output must be fully assigned (subshell closed) before "
+        "head_exit is captured"
+    )
 
 def test_deploy_workflow_verify_price_snapshot_retries_transient_s3_errors() -> None:
     workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))

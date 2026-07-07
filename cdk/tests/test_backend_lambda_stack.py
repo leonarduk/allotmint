@@ -30,7 +30,15 @@ def template():
         os.environ.setdefault(key, value)
     # Remove optional auth env vars so CfnParameters have no Default,
     # keeping the synthesised template deterministic regardless of local env.
-    _auth_env_vars = ("UI_AUTH_USER_POOL_ID", "UI_AUTH_USER_POOL_CLIENT_ID", "UI_AUTH_DOMAIN")
+    # Also remove FRONTEND_ORIGIN/CORS_ORIGINS so the CORS allow_origins list
+    # synthesises to its hardcoded default (see test_backend_api_cors_allow_origins_default).
+    _auth_env_vars = (
+        "UI_AUTH_USER_POOL_ID",
+        "UI_AUTH_USER_POOL_CLIENT_ID",
+        "UI_AUTH_DOMAIN",
+        "FRONTEND_ORIGIN",
+        "CORS_ORIGINS",
+    )
     saved = {k: os.environ.pop(k, None) for k in _auth_env_vars}
     try:
         app = App()
@@ -689,6 +697,43 @@ def test_backend_api_routes_require_cognito_authorizer(template):
         "GET /health route key not found in synthesized template — "
         "CDK may have changed the RouteKey format; update UNAUTHENTICATED_ROUTES to match"
     )
+    # Explicit regression guard (#4248): POST /token/cognito is the deprecated
+    # backend HS256 exchange (#4256) and must stay behind the Cognito JWT
+    # authorizer via the /{proxy+} catch-all, unlike POST /token/google above.
+    # The set-equality assert above would already catch this if /token/cognito
+    # had its own explicit NONE route, but it says nothing about a route that
+    # doesn't exist as a distinct resource at all — this assertion documents
+    # the intent directly rather than relying on that implication.
+    assert "POST /token/cognito" not in UNAUTHENTICATED_ROUTES
+    assert "POST /token/cognito" not in actual_none_routes
+
+
+# ---------------------------------------------------------------------------
+# CORS configuration (issue #4828)
+# ---------------------------------------------------------------------------
+
+
+def test_backend_api_cors_allow_origins_default(template):
+    """With FRONTEND_ORIGIN/CORS_ORIGINS unset (the `template` fixture's default
+    env), the HttpApi's CORS preflight AllowOrigins must be exactly the
+    hardcoded base list, in order: the two local dev servers, then prod.
+
+    This pins the default list so a future edit to backend_lambda_stack.py's
+    cors_origins construction is caught here rather than only at deploy time.
+    """
+    apis = template.find_resources("AWS::ApiGatewayV2::Api")
+    assert apis, "Expected an AWS::ApiGatewayV2::Api resource"
+
+    api = next(iter(apis.values()))
+    cors = api["Properties"]["CorsConfiguration"]
+    assert cors["AllowOrigins"] == [
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "https://app.allotmint.io",
+    ]
+    assert cors["AllowCredentials"] is True
+    assert cors["AllowMethods"] == ["*"]
+    assert set(cors["AllowHeaders"]) == {"Authorization", "Content-Type", "X-CSRFToken"}
 
 
 # ---------------------------------------------------------------------------
@@ -729,9 +774,20 @@ def test_backend_api_stage_has_access_logging(template):
     )
     assert "$context.status" in fmt, "Access log format must include $context.status"
     assert "$context.routeKey" in fmt, "Access log format must include $context.routeKey"
+    assert "$context.identity.sourceIp" in fmt, (
+        "Access log format must include $context.identity.sourceIp for debugging context"
+    )
+
     # Guard against ever logging the raw bearer token / Authorization header.
-    assert "uthorization" not in fmt, (
+    # Parses the format's context-variable values instead of substring-matching
+    # the raw string, so it doesn't false-positive on unrelated fields (e.g.
+    # $context.identity.sourceIp, which legitimately contains "identity").
+    fmt_values = json.loads(fmt).values()
+    assert not any("authorization" in value.lower() for value in fmt_values), (
         "Access log format must not capture the Authorization header / raw token"
+    )
+    assert not any("request.header" in value.lower() for value in fmt_values), (
+        "Access log format must not reference raw request headers"
     )
 
 

@@ -244,24 +244,61 @@ def _user_from_token(token: str | None) -> str:
     return email
 
 
+def _identity_from_unverified_token(token: str) -> str | None:
+    """Return the ``email``/``sub`` claim from ``token`` without checking its signature.
+
+    Only called when ``config.disable_auth`` is true and ``decode_token`` (the
+    backend's own HS256 verifier) could not decode the token. In that
+    configuration the token is a Cognito ID token whose signature and
+    audience API Gateway's JWT authorizer already validated before this
+    Lambda ever ran (see docs/AUTH.md), so re-deriving the claims here without
+    re-checking the signature is safe — it is not the first check performed.
+    """
+    claims = _unverified_claims(token)
+    email = claims.get("email") or claims.get("sub")
+    return email if isinstance(email, str) and email else None
+
+
+def _resolve_identity_when_auth_disabled(token: str | None) -> str | None:
+    """Resolve the caller's identity when ``config.disable_auth`` is true.
+
+    A present token is trusted to have already been verified upstream: either
+    it is an app-signed backend JWT (Google flow), or a Cognito ID token
+    validated by API Gateway's JWT authorizer before invoking this Lambda
+    (Cognito flow). Either way its claimed email must belong to a provisioned
+    account — an unrecognized email is rejected explicitly rather than
+    silently collapsing every caller into the shared local/demo identity.
+    Only a request with no token at all (bare local dev, no client-side auth)
+    falls back to the configured local login identity.
+    """
+    if isinstance(token, str) and token:
+        user = decode_token(token)
+        if user:
+            return user
+        email = _identity_from_unverified_token(token)
+        if email is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid authentication credentials",
+            )
+        if email.lower() not in _allowed_emails():
+            logger.warning(
+                "Unauthorized identity on disable_auth path for %s",
+                sanitise_log_value(email),
+            )
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Unauthorized email")
+        return email
+    return local_login_identity()
+
+
 async def get_current_user(token: str | None = Depends(oauth2_scheme)) -> str:
     """Return the authenticated user extracted from the bearer token."""
 
     if config.disable_auth:
-        # When auth is disabled (e.g. DISABLE_AUTH=true with a Cognito JWT authorizer
-        # at API Gateway), try to extract identity from an app-signed JWT if present.
-        # Non-app tokens (e.g. Cognito ID tokens signed with RS256) will not decode
-        # with the HS256 app secret — decode_token returns None for those — so we fall
-        # back to the local identity rather than raising 401.
-        if isinstance(token, str) and token:
-            user = decode_token(token)
-            if user:
-                current_user.set(user)
-                return user
-        fallback = local_login_identity()
-        if fallback:
-            current_user.set(fallback)
-            return fallback
+        identity = _resolve_identity_when_auth_disabled(token)
+        if identity:
+            current_user.set(identity)
+            return identity
         current_user.set(None)
     token_str = token if isinstance(token, str) else None
     return _user_from_token(token_str)
@@ -452,22 +489,9 @@ async def get_active_user(request: Request, token: str | None = Depends(oauth2_s
         return override_result
 
     if config.disable_auth:
-        # When auth is disabled (e.g. DISABLE_AUTH=true with a Cognito JWT authorizer
-        # at API Gateway), try to extract identity from an app-signed JWT if present.
-        # Non-app tokens (e.g. Cognito ID tokens signed with RS256) will not decode
-        # with the HS256 app secret — decode_token returns None for those — so we fall
-        # back to the local identity rather than raising 401.
-        if isinstance(token, str) and token:
-            user = decode_token(token)
-            if user:
-                current_user.set(user)
-                return user
-        fallback = local_login_identity()
-        if fallback:
-            current_user.set(fallback)
-            return fallback
-        current_user.set(None)
-        return None
+        identity = _resolve_identity_when_auth_disabled(token)
+        current_user.set(identity)
+        return identity
 
     token_str = token if isinstance(token, str) else None
     user = _user_from_token(token_str)

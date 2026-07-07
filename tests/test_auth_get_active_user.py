@@ -8,20 +8,17 @@ from pathlib import Path
 from typing import Any, Callable, Literal
 
 import pytest
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from starlette.requests import Request
 
 from backend import auth
 from backend.auth import get_active_user, get_current_user
 
-
 _MISSING = object()
 
 
 @contextmanager
-def _provider_override(
-    app: FastAPI, override: Callable[[], Any], target: Literal["app", "router"] = "app"
-):
+def _provider_override(app: FastAPI, override: Callable[[], Any], target: Literal["app", "router"] = "app"):
     owner = app if target == "app" else app.router
     provider = type("OverrideProvider", (), {"dependency_overrides": {}})()
     previous = getattr(owner, "dependency_overrides_provider", _MISSING)
@@ -155,14 +152,16 @@ async def test_get_active_user_invokes_token_helper_when_disabled(
 
 
 @pytest.mark.anyio
-async def test_get_active_user_falls_back_to_local_identity_when_token_not_app_jwt(
+async def test_get_active_user_reads_email_claim_from_unverified_cognito_token(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """RS256 Cognito tokens cannot be decoded with the HS256 app secret.
 
     When disable_auth is True and decode_token returns None (e.g. a Cognito
-    RS256 ID token forwarded by API Gateway), get_active_user must fall back
-    to local_login_identity rather than returning the token user or raising.
+    RS256 ID token whose signature API Gateway's JWT authorizer already
+    validated), get_active_user must resolve the caller's own email from the
+    token's claims rather than collapsing every caller into the shared local
+    identity (#4750).
     """
 
     app = FastAPI()
@@ -171,8 +170,53 @@ async def test_get_active_user_falls_back_to_local_identity_when_token_not_app_j
     monkeypatch.setattr(auth.config, "disable_auth", True, raising=False)
     monkeypatch.setattr(auth, "decode_token", lambda _token: None)
     monkeypatch.setattr(auth, "local_login_identity", lambda: "local@example.com")
+    monkeypatch.setattr(auth, "_unverified_claims", lambda _token: {"email": "steve@example.com"})
+    monkeypatch.setattr(auth, "_allowed_emails", lambda: {"steve@example.com"})
 
-    assert await auth.get_active_user(request, token="cognito-rs256-stub") == "local@example.com"
+    assert await auth.get_active_user(request, token="cognito-rs256-stub") == "steve@example.com"
+
+
+@pytest.mark.anyio
+async def test_get_active_user_rejects_unrecognized_email_claim_instead_of_local_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An authenticated caller with no provisioned account must be rejected explicitly.
+
+    Before #4750 this silently mapped to local_login_identity/demo instead of
+    failing, which is exactly the data-integrity concern the issue raised.
+    """
+
+    app = FastAPI()
+    request = _make_request(app)
+
+    monkeypatch.setattr(auth.config, "disable_auth", True, raising=False)
+    monkeypatch.setattr(auth, "decode_token", lambda _token: None)
+    monkeypatch.setattr(auth, "local_login_identity", lambda: "local@example.com")
+    monkeypatch.setattr(auth, "_unverified_claims", lambda _token: {"email": "unknown@example.com"})
+    monkeypatch.setattr(auth, "_allowed_emails", lambda: {"steve@example.com"})
+
+    with pytest.raises(HTTPException) as exc_info:
+        await auth.get_active_user(request, token="cognito-rs256-stub")
+    assert exc_info.value.status_code == 403
+
+
+@pytest.mark.anyio
+async def test_get_active_user_rejects_token_with_no_email_claim(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A present-but-unreadable token must fail rather than fall back locally."""
+
+    app = FastAPI()
+    request = _make_request(app)
+
+    monkeypatch.setattr(auth.config, "disable_auth", True, raising=False)
+    monkeypatch.setattr(auth, "decode_token", lambda _token: None)
+    monkeypatch.setattr(auth, "local_login_identity", lambda: "local@example.com")
+    monkeypatch.setattr(auth, "_unverified_claims", lambda _token: {})
+
+    with pytest.raises(HTTPException) as exc_info:
+        await auth.get_active_user(request, token="opaque-stub")
+    assert exc_info.value.status_code == 401
 
 
 @pytest.mark.anyio
@@ -225,6 +269,5 @@ def test_allowed_emails_missing_accounts_root(
 
     assert auth._allowed_emails() == set()
     assert any(
-        record.levelno == logging.WARNING and "does not exist" in record.getMessage()
-        for record in caplog.records
+        record.levelno == logging.WARNING and "does not exist" in record.getMessage() for record in caplog.records
     )

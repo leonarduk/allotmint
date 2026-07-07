@@ -420,7 +420,8 @@ jobs:
           DISTRIBUTION_DOMAIN="${DISTRIBUTION_DOMAIN#https://}"
           DISTRIBUTION_DOMAIN="${DISTRIBUTION_DOMAIN#http://}"
           DISTRIBUTION_DOMAIN="${DISTRIBUTION_DOMAIN%/}"
-          DISTRIBUTION_DOMAIN="$(echo "$DISTRIBUTION_DOMAIN" | xargs)"
+          DISTRIBUTION_DOMAIN="${DISTRIBUTION_DOMAIN#"${DISTRIBUTION_DOMAIN%%[![:space:]]*}"}"
+          DISTRIBUTION_DOMAIN="${DISTRIBUTION_DOMAIN%"${DISTRIBUTION_DOMAIN##*[![:space:]]}"}"
           # SmokeTestUserPoolClientId is the deploy workflow's dedicated Cognito app
           # client for post-deploy smoke tests (see "Fetch Cognito smoke-test token"
           # below). BackendLambdaStack must accept its tokens as a valid JWT audience,

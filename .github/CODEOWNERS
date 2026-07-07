@@ -27,3 +27,6 @@
 
 # Data files and fixtures
 /data/ @leonarduk
+
+# Default owner for any path not matched above
+* @leonarduk

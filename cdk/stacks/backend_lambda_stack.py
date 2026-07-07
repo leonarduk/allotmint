@@ -563,11 +563,25 @@ class BackendLambdaStack(Stack):
                 integration=backend_integration,
                 authorizer=apigwv2.HttpNoneAuthorizer(),
             )
-        # CORS preflight OPTIONS requests must never reach backend_authorizer:
-        # browsers send them without an Authorization header, so a JWT
-        # authorizer would reject them with 401 before CORS headers are
-        # returned. Register explicit OPTIONS routes with NONE authorization
-        # so they take precedence over the ANY-method routes below.
+        # These explicit OPTIONS routes are NOT redundant with the HttpApi's
+        # native `cors_preflight` config above (investigated for #4826).
+        # AWS's own docs (Configure CORS for HTTP APIs -> "Configuring CORS
+        # for an HTTP API with a $default route and an authorizer") say the
+        # automatic preflight response only answers OPTIONS requests that
+        # don't otherwise match a route. HTTP API route selection picks the
+        # most specific match first: an exact "route + method" match beats a
+        # "route + method with greedy {proxy+}" match, which beats $default
+        # (see "Routing API requests" in the same guide). `ANY /` and
+        # `ANY /{proxy+}` below are registered as explicit routes, and ANY
+        # "matches all methods that you haven't defined for a route" - so
+        # without an explicit OPTIONS route, an incoming OPTIONS request
+        # would be caught by those ANY routes (not by the automatic CORS
+        # response) and sent to backend_authorizer. Browsers send preflight
+        # OPTIONS without an Authorization header, so the JWT authorizer
+        # would reject it with 401 before CORS headers are ever returned -
+        # reproducing #3945. Registering OPTIONS explicitly, with
+        # HttpNoneAuthorizer(), is what gives it priority (exact method
+        # match) over the ANY routes and keeps it off backend_authorizer.
         backend_api.add_routes(
             path="/",
             methods=[apigwv2.HttpMethod.OPTIONS],

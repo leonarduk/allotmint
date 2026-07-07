@@ -713,6 +713,30 @@ def test_backend_api_routes_require_cognito_authorizer(template):
 # ---------------------------------------------------------------------------
 
 
+def test_backend_api_cors_allow_origins_includes_frontend_origin(monkeypatch):
+    """When FRONTEND_ORIGIN is set, it must be included in the HttpApi's CORS
+    AllowOrigins, inserted first so it takes priority over the hardcoded base
+    list (issue #3958)."""
+    monkeypatch.setenv("JWT_SECRET", "test-secret")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-client-id")
+    monkeypatch.setenv("FRONTEND_ORIGIN", "https://preview.allotmint.io")
+    monkeypatch.delenv("CORS_ORIGINS", raising=False)
+
+    app = App()
+    stack = BackendLambdaStack(app, "FrontendOriginTestStack")
+    template = assertions.Template.from_stack(stack)
+
+    apis = template.find_resources("AWS::ApiGatewayV2::Api")
+    api = next(iter(apis.values()))
+    cors = api["Properties"]["CorsConfiguration"]
+    assert cors["AllowOrigins"] == [
+        "https://preview.allotmint.io",
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "https://app.allotmint.io",
+    ]
+
+
 def test_backend_api_cors_allow_origins_default(template):
     """With FRONTEND_ORIGIN/CORS_ORIGINS unset (the `template` fixture's default
     env), the HttpApi's CORS preflight AllowOrigins must be exactly the
@@ -808,6 +832,25 @@ def test_backend_api_access_log_group_has_one_week_retention(template):
         assert resource["DeletionPolicy"] == "Delete", (
             f"{logical_id} must be destroyed with the stack"
         )
+
+
+# ---------------------------------------------------------------------------
+# CfnAuthorizer count guard (issue #4057)
+# ---------------------------------------------------------------------------
+
+
+def test_require_single_cfn_authorizer_returns_sole_authorizer():
+    sentinel = object()
+    assert BackendLambdaStack._require_single_cfn_authorizer([sentinel]) is sentinel
+
+
+@pytest.mark.parametrize("candidates", [[], [object(), object()]])
+def test_require_single_cfn_authorizer_raises_value_error_when_not_exactly_one(candidates):
+    """A missing or duplicated CfnAuthorizer must raise an explicit ValueError
+    (not a bare assert, which is stripped under `python -O`) so a future change
+    that adds a second authorizer to backend_api fails synthesis loudly."""
+    with pytest.raises(ValueError, match="Expected exactly one CfnAuthorizer"):
+        BackendLambdaStack._require_single_cfn_authorizer(candidates)
 
 
 # ---------------------------------------------------------------------------

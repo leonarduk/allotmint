@@ -1110,6 +1110,10 @@ jobs:
           npx lhci autorun --collect.url="$LIGHTHOUSE_URL" \
             --upload.target=temporary-public-storage
 
+  # The `verify-smoke-tests` job below references this job by the exact
+  # literal name `smoke-test` (`needs: smoke-test`, `needs.smoke-test.result`).
+  # If this job is ever renamed, `verify-smoke-tests` must be updated to
+  # match or its `needs`/`if` expressions will fail to resolve. See #4222.
   smoke-test:
     runs-on: ubuntu-latest
     needs: deploy
@@ -1318,6 +1322,30 @@ jobs:
           echo "=== BackendLambda CloudWatch logs (last 15 minutes) ==="
           bash scripts/bash/fetch-cloudwatch-logs.sh "$log_group" 900
 
+  # verify-smoke-tests: gate job that fails unless `smoke-test` (see #4222 for
+  # why the exact job name matters) actually succeeded.
+  #
+  # Why `if: always()` instead of relying on branch protection alone: a
+  # required-status-check branch protection rule only blocks a *failed*
+  # `smoke-test` run — a *skipped* run is not treated as blocking by GitHub,
+  # so it would silently satisfy the rule. `if: always()` makes this job run
+  # regardless of `smoke-test`'s outcome so the `needs.smoke-test.result !=
+  # 'success'` check below can explicitly catch `failure`, `cancelled`, AND
+  # `skipped` — the three states other than a genuine `success`. The two
+  # mechanisms are complementary, not redundant: branch protection enforces
+  # that this job itself must pass; this job is what makes a skip actually
+  # count as a failure. See #4149.
+  #
+  # Documented skip paths for `smoke-test` (#4154): as of this writing,
+  # `smoke-test` has no `if:` condition of its own — it runs unconditionally
+  # whenever `deploy` completes. The only way `smoke-test` can end up
+  # `skipped` today is if an upstream job in its `needs` chain (`check-ci` or
+  # `deploy`) fails or is cancelled, which correctly should block the
+  # deployment. There is currently no dry-run/docs-only path in this workflow
+  # that intentionally skips live smoke tests. If a conditional `if:` is ever
+  # added to the `smoke-test` job to introduce one, list the condition and
+  # rationale here so this gate's `skipped` handling can be reviewed against
+  # the new intentional case.
   verify-smoke-tests:
     name: Verify post-deploy smoke tests passed
     runs-on: ubuntu-latest

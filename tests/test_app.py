@@ -191,6 +191,48 @@ def test_whoami_reports_token_absent(monkeypatch):
     assert body["allowed_email_match"] is False
 
 
+def test_whoami_malformed_token(monkeypatch):
+    """A bearer token that isn't a decodable JWT still reports token_present=True
+    but with no claims and no allowed-email match."""
+    app = _whoami_app(monkeypatch)
+    app.dependency_overrides[auth.get_current_user] = lambda: "admin@example.com"
+    with TestClient(app, raise_server_exceptions=False) as client:
+        resp = client.get("/whoami", headers={"Authorization": "Bearer not-a-real-jwt"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["token_present"] is True
+    assert body["claims"] == {}
+    assert body["allowed_email_match"] is False
+
+
+def test_whoami_email_not_in_admin_emails(monkeypatch):
+    """A validly-decoded token whose email is absent from ADMIN_EMAILS reports
+    allowed_email_match=False even though the caller passed the admin gate."""
+    import jwt
+
+    app = _whoami_app(monkeypatch)
+    app.dependency_overrides[auth.get_current_user] = lambda: "admin@example.com"
+    monkeypatch.setattr(auth, "_allowed_emails", lambda: {"admin@example.com"})
+
+    token = jwt.encode(
+        {
+            "sub": "cognito-sub-456",
+            "email": "not-allowed@example.com",
+            "exp": 9999999999,
+        },
+        "unverified-signature-secret-not-checked-by-whoami",
+        algorithm="HS256",
+    )
+    with TestClient(app, raise_server_exceptions=False) as client:
+        resp = client.get("/whoami", headers={"Authorization": f"Bearer {token}"})
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["token_present"] is True
+    assert body["claims"]["email"] == "not-allowed@example.com"
+    assert body["allowed_email_match"] is False
+
+
 def test_health_returns_200_when_prime_latest_prices_fails(monkeypatch):
     """App must still serve /health even when optional snapshot warm-up fails."""
     monkeypatch.setattr(config, "skip_snapshot_warm", False)

@@ -765,9 +765,20 @@ def test_backend_api_stage_has_access_logging(template):
     )
     assert "$context.status" in fmt, "Access log format must include $context.status"
     assert "$context.routeKey" in fmt, "Access log format must include $context.routeKey"
+    assert "$context.identity.sourceIp" in fmt, (
+        "Access log format must include $context.identity.sourceIp for debugging context"
+    )
+
     # Guard against ever logging the raw bearer token / Authorization header.
-    assert "uthorization" not in fmt, (
+    # Parses the format's context-variable values instead of substring-matching
+    # the raw string, so it doesn't false-positive on unrelated fields (e.g.
+    # $context.identity.sourceIp, which legitimately contains "identity").
+    fmt_values = json.loads(fmt).values()
+    assert not any("authorization" in value.lower() for value in fmt_values), (
         "Access log format must not capture the Authorization header / raw token"
+    )
+    assert not any("request.header" in value.lower() for value in fmt_values), (
+        "Access log format must not reference raw request headers"
     )
 
 

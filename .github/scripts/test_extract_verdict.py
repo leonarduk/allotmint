@@ -144,10 +144,15 @@ Found one.
         review_text = "**approve** — no issues"
         assert extract_verdict(review_text) is None
 
-    def test_partial_verdict_no_match(self) -> None:
-        """Test that incomplete verdict formats don't match."""
-        review_text = "APPROVE — no issues"  # missing bold markers
+    def test_verdict_embedded_in_sentence_no_match(self) -> None:
+        """Test that a verdict word embedded in a sentence (not alone on its line) doesn't match."""
+        review_text = "I think we should APPROVE — no issues"
         assert extract_verdict(review_text) is None
+
+    def test_unbolded_verdict_alone_on_line_matches(self) -> None:
+        """Test that an unbolded verdict alone on its line matches via the fallback."""
+        review_text = "APPROVE — no issues"  # missing bold markers, but alone on the line
+        assert extract_verdict(review_text) == "APPROVE"
 
     def test_single_backtick_malformed_format_matches(self) -> None:
         """Test that the regex matches a single-backtick malformed format (e.g., **`APPROVE**)."""
@@ -163,6 +168,85 @@ Initial analysis: **APPROVE** — looks good
 Wait, I found an issue: **REQUEST CHANGES** — blocking bug
 """
         assert extract_verdict(review_text) == "APPROVE"
+
+    def test_bulleted_unbolded_approve(self) -> None:
+        """Test fallback for a bulleted, unbolded verdict (observed from DeepSeek on PR #4801)."""
+        review_text = """
+## Acceptance criteria
+All criteria met.
+
+## Bugs
+None found.
+
+- APPROVE
+"""
+        assert extract_verdict(review_text) == "APPROVE"
+
+    def test_bulleted_unbolded_request_changes(self) -> None:
+        """Test fallback for a bulleted, unbolded REQUEST CHANGES verdict."""
+        review_text = """
+## Bugs
+Found a blocking issue at line 42.
+
+- REQUEST CHANGES — unhandled null case
+"""
+        assert extract_verdict(review_text) == "REQUEST CHANGES"
+
+    def test_plain_unbolded_line_approve(self) -> None:
+        """Test fallback for a plain (non-bulleted) unbolded verdict line."""
+        review_text = """
+## Review
+
+Everything checks out.
+
+APPROVE
+"""
+        assert extract_verdict(review_text) == "APPROVE"
+
+    def test_unbolded_verdict_prefers_last_occurrence(self) -> None:
+        """When multiple unbolded verdict-only lines appear, the last one wins."""
+        review_text = """
+- APPROVE
+
+Actually, on reflection:
+
+- REQUEST CHANGES — found a blocking bug
+"""
+        assert extract_verdict(review_text) == "REQUEST CHANGES"
+
+    def test_unbolded_word_in_prose_does_not_match(self) -> None:
+        """A verdict word embedded in a sentence must not trigger the fallback."""
+        review_text = """
+## Acceptance criteria
+The reviewer should APPROVE this once the tests pass.
+
+## Bugs
+None found.
+"""
+        assert extract_verdict(review_text) is None
+
+    def test_unbolded_word_in_checklist_item_does_not_match(self) -> None:
+        """A checklist item that merely mentions the verdict word must not trigger the fallback."""
+        review_text = """
+## Acceptance criteria
+- [ ] Verify APPROVE flow renders the confirmation banner
+- [ ] REQUEST CHANGES button disabled while loading
+
+## Bugs
+None found.
+"""
+        assert extract_verdict(review_text) is None
+
+    def test_bold_verdict_preferred_over_unbolded_mention(self) -> None:
+        """When both a bold verdict and a stray unbolded mention exist, the bold one wins."""
+        review_text = """
+## Acceptance criteria
+- [ ] Verify APPROVE flow renders correctly
+
+## Verdict
+**REQUEST CHANGES** — missing test coverage
+"""
+        assert extract_verdict(review_text) == "REQUEST CHANGES"
 
 
 class TestExtractVerdictScriptMain:

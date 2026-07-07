@@ -6,6 +6,22 @@ import re
 import sys
 from pathlib import Path
 
+# Primary format: bold verdict, optionally with backticks inside the bold markers, e.g.
+# `**APPROVE**` or `` **`APPROVE`** ``. Matched anywhere in the text (first occurrence wins),
+# since this is the format the prompt instructs models to use.
+_BOLD_VERDICT_RE = re.compile(r"\*\*`?(APPROVE|REQUEST CHANGES)`?\*\*")
+
+# Fallback format: some models (observed with DeepSeek) drop the bold markers and emit the
+# verdict as a plain or bulleted line instead, e.g. `- APPROVE` or `APPROVE — no concerns`.
+# Anchored to the whole line (modulo an optional leading bullet marker and a trailing
+# " - explanation") so a stray mention of APPROVE/REQUEST CHANGES inside prose or an echoed
+# acceptance-criteria checklist item doesn't false-positive. Since the prompt asks for the
+# verdict as the last line, the LAST matching line is preferred over the first.
+_LINE_VERDICT_RE = re.compile(
+    r"^[ \t]*(?:[-*•]\s+)?(APPROVE|REQUEST CHANGES)\b(?:\s*[-—:].*)?$",
+    re.MULTILINE,
+)
+
 
 def extract_verdict(review_text: str) -> str | None:
     """Extract the verdict from review text.
@@ -14,12 +30,20 @@ def extract_verdict(review_text: str) -> str | None:
     - `**APPROVE**` or `` **`APPROVE`** ``
     - `**REQUEST CHANGES**` or `` **`REQUEST CHANGES`** ``
 
+    Falls back to a plain or bulleted line consisting solely of the verdict
+    (e.g. `- APPROVE`) when no bold verdict is present, to tolerate models
+    that drop the markdown bold markers.
+
     Returns 'APPROVE' or 'REQUEST CHANGES' if found, None otherwise.
     """
-    # Look for verdict lines that match the expected format, with or without backticks inside the bold markers
-    match = re.search(r'\*\*`?(APPROVE|REQUEST CHANGES)`?\*\*', review_text)
+    match = _BOLD_VERDICT_RE.search(review_text)
     if match:
         return match.group(1)
+
+    line_matches = list(_LINE_VERDICT_RE.finditer(review_text))
+    if line_matches:
+        return line_matches[-1].group(1)
+
     return None
 
 

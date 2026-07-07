@@ -52,11 +52,9 @@ export default defineConfig(() => {
       // the runner's heap and crashed workers mid-suite (zero real test
       // failures, just "Worker exited unexpectedly") — see #4810. Capping
       // concurrency trades some wall-clock time for reliability.
-      poolOptions: {
-        forks: {
-          maxForks: 2
-        }
-      },
+      // NOTE: `poolOptions.forks.maxForks` was removed in Vitest 4 — options
+      // are now top-level (see the migration guide). Use `maxWorkers`.
+      maxWorkers: 2,
       coverage: {
         provider: 'v8' as const, // literal required by CoverageV8Options — widened to string without explicit annotation
         reporter: ['text', 'html'],

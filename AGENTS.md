@@ -74,19 +74,10 @@ This repository has a Python/FastAPI backend, a React/Vite frontend, AWS CDK inf
 
 ## 5. Branch and PR policy
 
-**Never commit directly to `main`.** This applies without exception to all changes: code, documentation, config, and trivial fixes.
-
-This rule exists to preserve CI gating, review history, and the ability to revert cleanly. A direct push to `main` bypasses all of these and cannot be undone without rewriting history.
-
-Agents must treat branch creation as a first step, not a release step at the end. Before editing files, create or switch to a non-`main` branch. If the current checkout is dirty or already tied to unrelated work, create a clean worktree from `main` first and do the task there.
-
-Required workflow for every change:
-1. Create a branch from `main`
-2. Push all changes to that branch
-3. Open a PR targeting `main`
-4. Wait for review before merging
-
-Branch naming convention: `fix/issue-NNNN-short-description`, `feat/issue-NNNN-short-description`, `docs/short-description`, or `chore/short-description`.
+See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#branch-and-pr-policy) for the
+canonical branch/PR rules (never commit to `main`, worktree-first for dirty
+checkouts, required PR steps, branch naming, `Closes #NNNN` linking). Agents
+must treat branch creation as a first step, not a release step at the end.
 
 ## 6. How to work safely in this codebase
 
@@ -145,23 +136,7 @@ When updating one of these, consider whether the same repo facts or command chan
 
 ## 10. Code quality invariants (non-negotiable)
 
-Derived from the NASA/JPL Power of Ten guidelines — applicable subset only. C-specific rules (no dynamic allocation, pointer restrictions, preprocessor limits, recursion ban) are not applicable to this stack and are intentionally omitted.
-
-### Function length (P10 Rule 4)
-Keep functions to approximately 60 lines or fewer — roughly one screen. If a function exceeds this, refactor it before making further changes. Excessively long functions are a signal of poorly structured code, not a style preference.
-
-### Zero lint warnings (P10 Rule 10)
-`make lint` (Python) and `npm --prefix frontend run lint` (TypeScript) must both pass with zero warnings. If a tool flags something incorrectly, rewrite the code until it no longer triggers — do not suppress or ignore warnings without a documented justification inline. Zero-warning compliance must hold from the first day of work on a branch, not just before merge.
-
-### No silent error swallowing (P10 Rules 5 and 7)
-Every error path must be explicitly handled:
-- No bare `except: pass` or `except Exception: pass` in Python.
-- No `catch` blocks that silently discard exceptions in TypeScript.
-- No unhandled Promise rejections.
-- No `assert False, "unreachable"` used as a substitute for real error handling in production paths.
-
-### No ignored return values (P10 Rule 7)
-Check return values of functions that can signal failure. If you deliberately discard a return value, make it explicit (`_ =` in Python; a `void`-cast comment in TypeScript) and add a brief inline comment explaining why the return value is safe to ignore in that context.
-
-### Minimum scope (P10 Rule 6)
-Declare variables as late as possible and as locally as possible. Avoid module-level or class-level mutable state unless there is a clear, documented reason. Unnecessary broad scope makes fault diagnosis harder and increases the risk of unintended mutation across call sites.
+See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#code-quality-invariants-non-negotiable)
+for the canonical rules (function length, zero lint warnings, no silent error
+swallowing, no ignored return values, minimum scope), derived from the
+NASA/JPL Power of Ten guidelines.

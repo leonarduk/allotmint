@@ -94,6 +94,25 @@ repository variable is only used as a fallback in expressions like
 For new deployers: set `AWS_ROLE_TO_ASSUME` as a **secret**, not a variable,
 to ensure the workflow uses your intended value and prevent accidental shadowing.
 
+### `DISTRIBUTION_DOMAIN` format
+
+`DISTRIBUTION_DOMAIN` is not a secret or variable you configure -- it is the
+`DistributionDomain` `CfnOutput` from `StaticSiteStack`, a bare CloudFront
+hostname with no scheme and no trailing slash (e.g. `d1234abcd.cloudfront.net`).
+The "Get Cognito UI auth outputs" step in `deploy-lambda.yml` reads it via
+`aws cloudformation describe-stacks` and strips any `https://`/`http://`
+prefix, trailing slash, or stray whitespace as a defensive guard against future
+CDK output changes, then derives:
+
+- `FRONTEND_ORIGIN=https://${DISTRIBUTION_DOMAIN}`
+- `CORS_ORIGINS=https://${DISTRIBUTION_DOMAIN},https://app.allotmint.io`
+
+`FRONTEND_ORIGIN` is passed into `BackendLambdaStack` so its CORS allow-list
+includes the live CloudFront origin (see #3944) -- without it, the deployed
+frontend's `GET /config` call never receives an
+`Access-Control-Allow-Origin` header and gets stuck on
+"Loading... retrying configuration."
+
 ### Setup checklist
 
 New deployers and fork maintainers should:
@@ -104,15 +123,23 @@ New deployers and fork maintainers should:
 
    The workflow guards against an empty value for you, well before
    `cdk deploy` runs. The "Verify required AWS secrets" step validates that
-   `AWS_ROLE_TO_ASSUME` is non-empty by checking both the secret and variable:
+   `AWS_ROLE_TO_ASSUME` (and `AWS_REGION`) are non-empty by checking both the
+   secret and variable for each -- this snippet is kept in sync with the
+   literal step in `deploy-lambda.yml`:
 
    ```yaml
    - name: Verify required AWS secrets
      run: |
+       missing=0
+       if [ -z "${{ secrets.AWS_REGION }}${{ vars.AWS_REGION }}" ]; then
+         echo "AWS_REGION is not configured (set as secret or repository variable)" >&2
+         missing=1
+       fi
        if [ -z "${{ secrets.AWS_ROLE_TO_ASSUME }}${{ vars.AWS_ROLE_TO_ASSUME }}" ]; then
          echo "AWS_ROLE_TO_ASSUME is not configured (set as secret or repository variable)" >&2
-         exit 1
+         missing=1
        fi
+       if [ "$missing" -eq 1 ]; then exit 1; fi
    ```
 
    A non-empty-but-malformed ARN is caught shortly after, when

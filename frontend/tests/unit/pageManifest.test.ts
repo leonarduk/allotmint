@@ -27,23 +27,7 @@ describe('page manifest', () => {
     expect(validation.duplicateSegments).toEqual([]);
   });
 
-  it('derives the same mode from bootstrap (main.tsx) and runtime (App.tsx) helpers for every route segment', () => {
-    for (const page of pageManifest) {
-      const pathname = page.routeSegment ? `/${page.routeSegment}/example-slug` : '/';
-      expect(deriveModeFromPathname(pathname)).toBe(page.mode);
-      expect(deriveBootstrapMode(pathname, 'auth')).toBe(page.mode);
-      expect(deriveBootstrapMode(pathname, 'config-error')).toBe(page.mode);
-    }
-    expect(deriveBootstrapMode('/support', 'loading')).toBe('loading');
-
-    expect(buildPathForMode('group', { group: 'all' })).toBe('/');
-    expect(buildPathForMode('group', { group: 'kids' })).toBe('/?group=kids');
-    expect(buildPathForMode('owner', { owner: 'alex' })).toBe('/portfolio/alex');
-    expect(buildPathForMode('transactions')).toBe('/input');
-    expect(buildPathForMode('pension')).toBe('/pension/forecast');
-  });
-
-  it('keeps route segments unique and mode derivation aligned', () => {
+  it('keeps route segments unique and derives an identical mode from the runtime (App.tsx), bootstrap (main.tsx), and route-detail helpers for every registered route', () => {
     const seenSegments = new Set<string>();
 
     for (const page of pageManifest) {
@@ -69,7 +53,15 @@ describe('page manifest', () => {
       expect(deriveBootstrapMode(pathname, 'loading')).toBe('loading');
     }
 
+    // Unknown segments still fall through to a single shared default.
     expect(deriveModeFromPathname('/totally-unknown')).toBe('movers');
+    expect(deriveRouteFromPathname('/totally-unknown').mode).toBe('movers');
+
+    expect(buildPathForMode('group', { group: 'all' })).toBe('/');
+    expect(buildPathForMode('group', { group: 'kids' })).toBe('/?group=kids');
+    expect(buildPathForMode('owner', { owner: 'alex' })).toBe('/portfolio/alex');
+    expect(buildPathForMode('transactions')).toBe('/input');
+    expect(buildPathForMode('pension')).toBe('/pension/forecast');
   });
 
   it('keeps menu metadata and default paths consistent for navigable pages', () => {

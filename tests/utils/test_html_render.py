@@ -119,9 +119,13 @@ def test_render_timeseries_html_escapes_cell_values():
     # Also confirm the cell content is still readable text (entities decoded
     # by the browser/lxml into harmless display text, not executable HTML).
     tree = html.fromstring(html_str)
+    headers = [th.text_content() for th in tree.xpath(".//th")]
     rows = tree.xpath(".//tr")
-    cells = [td.text for td in rows[1].xpath(".//td")]
-    ticker_idx = 6  # Ticker is the 7th column (0-indexed)
-    source_idx = 7  # Source is the 8th column
+    # text_content() (not .text) is used here because .text only returns the
+    # text directly inside the element, ignoring nested children, which is
+    # fragile if the row markup ever changes shape.
+    cells = [td.text_content() for td in rows[1].xpath(".//td")]
+    ticker_idx = headers.index("Ticker")
+    source_idx = headers.index("Source")
     assert 'alert("XSS")' in cells[ticker_idx]
     assert "alert(1)" in cells[source_idx]

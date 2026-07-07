@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 import backend.common.data_loader as data_loader
+from backend.common.account_models import OwnerSummaryRecord
 from backend.common.data_loader import (
     DATA_BUCKET_ENV,
     ResolvedPaths,
@@ -558,10 +559,10 @@ class TestListLocalPlots:
         result = list_plots(data_root=explicit_root, current_user=None)
 
         assert result == [
-            {"owner": "carol", "accounts": ["gamma"]},
+            OwnerSummaryRecord(owner="carol", accounts=["gamma"]),
         ]
-        assert all("full_name" not in entry for entry in result)
-        assert all(entry["owner"] not in {"demo", ".idea"} for entry in result)
+        assert all(entry.full_name is None for entry in result)
+        assert all(entry.owner not in {"demo", ".idea"} for entry in result)
 
     def test_allows_access_when_user_matches_owner_email(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -772,7 +773,7 @@ def test_list_plots_prefers_aws_results(monkeypatch: pytest.MonkeyPatch, tmp_pat
 
     result = list_plots(data_root=None, current_user="user@example.com")
 
-    assert result == expected
+    assert result == [OwnerSummaryRecord.model_validate(entry) for entry in expected]
 
 
 def test_list_plots_aws_falls_back_to_local(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -799,8 +800,36 @@ def test_list_plots_aws_falls_back_to_local(monkeypatch: pytest.MonkeyPatch, tmp
 
     result = list_plots(data_root=tmp_path, current_user="viewer")
 
-    assert result == [{"owner": "local", "full_name": "local", "accounts": ["isa"]}]
+    assert result == [OwnerSummaryRecord(owner="local", full_name="local", accounts=["isa"])]
     assert captured["call"] == (tmp_path, "viewer")
+
+
+def test_list_plots_skips_invalid_entries_without_failing_whole_batch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A single malformed owner entry must not take down the whole listing."""
+
+    cfg = Config()
+    cfg.app_env = "local"
+    cfg.disable_auth = True
+    cfg.repo_root = tmp_path
+    cfg.accounts_root = tmp_path / "accounts"
+    monkeypatch.setattr("backend.common.data_loader.config", cfg)
+
+    monkeypatch.setattr(
+        "backend.common.data_loader._list_local_plots",
+        lambda data_root, current_user=None: [
+            {"owner": "carol", "accounts": ["gamma"]},
+            {"owner": None},
+            {},
+        ],
+    )
+
+    with caplog.at_level("WARNING", logger="backend.common.data_loader"):
+        result = list_plots(data_root=tmp_path, current_user=None)
+
+    assert result == [OwnerSummaryRecord(owner="carol", accounts=["gamma"])]
+    assert "data_loader.list_plots_invalid_entry" in caplog.text
 
 
 # ---------------------------------------------------------------------------

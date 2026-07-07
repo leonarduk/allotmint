@@ -17,7 +17,7 @@ def _validate_owner(
     allow_unknown: bool = False,
 ) -> None:
     try:
-        owners = {o["owner"] for o in data_loader.list_plots(request.app.state.accounts_root)}
+        owners = {o.owner for o in data_loader.list_plots(request.app.state.accounts_root)}
     except data_loader.ProviderUnavailable as exc:
         raise HTTPException(status_code=503, detail="Account data provider unavailable") from exc
     if user not in owners and not allow_unknown:

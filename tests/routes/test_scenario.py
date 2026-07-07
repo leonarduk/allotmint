@@ -1,15 +1,16 @@
 import pytest
 from fastapi import HTTPException
 
+from backend.common.account_models import OwnerSummaryRecord
 from backend.routes import scenario
 
 
 def test_run_scenario_multiple_owners_and_missing_data(monkeypatch):
     plots = [
-        {"owner": "alice", "full_name": "Alice Example", "accounts": [{"id": 1}]},
-        {"owner": "bob", "full_name": "Bob Example", "accounts": [{"id": 2}]},
-        {"owner": "carol", "full_name": "Carol Example", "accounts": []},
-        {"owner": "dave", "full_name": "Dave Example"},
+        OwnerSummaryRecord(owner="alice", full_name="Alice Example", accounts=["acc1"]),
+        OwnerSummaryRecord(owner="bob", full_name="Bob Example", accounts=["acc2"]),
+        OwnerSummaryRecord(owner="carol", full_name="Carol Example", accounts=[]),
+        OwnerSummaryRecord(owner="dave", full_name="Dave Example"),
     ]
 
     monkeypatch.setattr(scenario, "list_plots", lambda: plots)
@@ -60,7 +61,7 @@ def test_run_historical_scenario_valid_horizons(monkeypatch):
     monkeypatch.setattr(
         scenario,
         "list_plots",
-        lambda: [{"owner": "alice", "full_name": "Alice Example", "accounts": [{"id": 1}]}],
+        lambda: [OwnerSummaryRecord(owner="alice", full_name="Alice Example", accounts=["acc1"])],
     )
 
     def fake_build_owner_portfolio(owner, *, pricing_date=None):

@@ -29,6 +29,7 @@ from backend.common.virtual_portfolio import VirtualPortfolio
 from backend.config import config
 from backend.config import demo_identity as get_demo_identity
 from backend.logging_setup import sanitise_log_value
+from pydantic import ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -839,57 +840,8 @@ def _list_aws_plots(current_user: Optional[str] = None) -> List[Dict[str, Any]]:
 # ------------------------------------------------------------------
 # Public discovery API
 # ------------------------------------------------------------------
-def list_plots(
-    data_root: Optional[Path] = None,
-    current_user: Optional[str] = None,
-) -> List[Dict[str, Any]]:
-    """Public helper to list available account plots.
-
-    Parameters
-    ----------
-    data_root:
-        Optional base directory containing account data when running locally.
-    current_user:
-        Username of the authenticated user or ``None`` if unauthenticated.
-
-    Returns
-    -------
-    List[Dict[str, Any]]
-        A list of dictionaries each containing an ``owner`` identifier, a
-        human-friendly ``full_name`` (if available) and their available
-        ``accounts``.
-    """
-
-    if config.app_env == "aws":
-        try:
-            aws_results = _list_aws_plots(current_user)
-            if data_root is None or aws_results:
-                return aws_results
-        except ProviderUnavailable:
-            logger.warning(
-                "data_loader.list_plots_provider_unavailable",
-                extra={
-                    "event": "data_loader.list_plots_provider_unavailable",
-                    "current_user": sanitise_log_value(current_user),
-                    "fallback_to_local": data_root is not None,
-                    "provider": "s3",
-                },
-                exc_info=True,
-            )
-            if data_root is None:
-                raise
-        local_loader = _list_local_plots
-        try:
-            params = inspect.signature(local_loader).parameters
-        except (TypeError, ValueError):  # pragma: no cover - defensive
-            params = {}
-        if "apply_default_full_name" in params:
-            return local_loader(
-                data_root,
-                current_user,
-                apply_default_full_name=False,
-            )
-        return local_loader(data_root, current_user)
+def _call_local_loader(data_root: Optional[Path], current_user: Optional[str]) -> List[Dict[str, Any]]:
+    """Invoke ``_list_local_plots``, tolerating simplified test doubles."""
 
     local_loader = _list_local_plots
     try:
@@ -903,6 +855,75 @@ def list_plots(
             apply_default_full_name=False,
         )
     return local_loader(data_root, current_user)
+
+
+def _validate_owner_summaries(raw_results: List[Dict[str, Any]]) -> List[OwnerSummaryRecord]:
+    """Validate raw owner-summary dicts, dropping (and logging) invalid entries.
+
+    A single malformed entry (e.g. a missing ``owner``) should not take down
+    the whole listing for every other owner, so validation failures are
+    skipped individually rather than raised.
+    """
+
+    validated: List[OwnerSummaryRecord] = []
+    for entry in raw_results:
+        try:
+            validated.append(OwnerSummaryRecord.model_validate(entry))
+        except ValidationError:
+            logger.warning(
+                "data_loader.list_plots_invalid_entry",
+                extra={"event": "data_loader.list_plots_invalid_entry"},
+                exc_info=True,
+            )
+    return validated
+
+
+def list_plots(
+    data_root: Optional[Path] = None,
+    current_user: Optional[str] = None,
+) -> List[OwnerSummaryRecord]:
+    """Public helper to list available account plots.
+
+    Parameters
+    ----------
+    data_root:
+        Optional base directory containing account data when running locally.
+    current_user:
+        Username of the authenticated user or ``None`` if unauthenticated.
+
+    Returns
+    -------
+    List[OwnerSummaryRecord]
+        A typed owner summary for each discovered plot, each containing an
+        ``owner`` identifier, a human-friendly ``full_name`` (if available)
+        and their available ``accounts``.
+    """
+
+    raw_results: List[Dict[str, Any]]
+
+    if config.app_env == "aws":
+        try:
+            aws_results = _list_aws_plots(current_user)
+            if data_root is None or aws_results:
+                return _validate_owner_summaries(aws_results)
+        except ProviderUnavailable:
+            logger.warning(
+                "data_loader.list_plots_provider_unavailable",
+                extra={
+                    "event": "data_loader.list_plots_provider_unavailable",
+                    "current_user": sanitise_log_value(current_user),
+                    "fallback_to_local": data_root is not None,
+                    "provider": "s3",
+                },
+                exc_info=True,
+            )
+            if data_root is None:
+                raise
+        raw_results = _call_local_loader(data_root, current_user)
+    else:
+        raw_results = _call_local_loader(data_root, current_user)
+
+    return _validate_owner_summaries(raw_results)
 
 
 def load_account_record(

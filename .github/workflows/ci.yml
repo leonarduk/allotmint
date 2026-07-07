@@ -43,11 +43,13 @@ jobs:
         with:
           node-version: '24'
       # bats-core is fetched on demand via npx rather than assuming it's
-      # preinstalled on the runner image; all aws CLI calls in these tests
-      # are mocked (see tests/bash/fetch-cloudwatch-logs.bats), so this is a
-      # pure dry-run with no live AWS network access.
+      # preinstalled on the runner image; pin the version so an upstream
+      # bats-core release can't silently change CI behaviour. All aws CLI
+      # calls in these tests are mocked (see
+      # tests/bash/fetch-cloudwatch-logs.bats), so this is a pure dry-run
+      # with no live AWS network access.
       - name: Run bats tests for deploy shell scripts
-        run: npx --yes bats tests/bash/*.bats
+        run: npx --yes bats@1.13.0 tests/bash/*.bats
 
   validate-backend-deps:
     name: Validate backend/requirements.txt (dry-run)

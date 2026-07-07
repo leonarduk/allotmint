@@ -46,6 +46,17 @@ export default defineConfig(() => {
       environment: 'jsdom',
       setupFiles: './src/setupTests.ts',
       include: ['tests/unit/**/*.test.ts?(x)'],
+      // CI runners have limited, variable RAM shared with other concurrent
+      // jobs. Vitest's default fork pool spawns roughly one worker per CPU
+      // with no per-worker memory cap, which has intermittently exhausted
+      // the runner's heap and crashed workers mid-suite (zero real test
+      // failures, just "Worker exited unexpectedly") — see #4810. Capping
+      // concurrency trades some wall-clock time for reliability.
+      poolOptions: {
+        forks: {
+          maxForks: 2
+        }
+      },
       coverage: {
         provider: 'v8' as const, // literal required by CoverageV8Options — widened to string without explicit annotation
         reporter: ['text', 'html'],

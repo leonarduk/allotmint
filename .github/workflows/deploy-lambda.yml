@@ -420,7 +420,8 @@ jobs:
           DISTRIBUTION_DOMAIN="${DISTRIBUTION_DOMAIN#https://}"
           DISTRIBUTION_DOMAIN="${DISTRIBUTION_DOMAIN#http://}"
           DISTRIBUTION_DOMAIN="${DISTRIBUTION_DOMAIN%/}"
-          DISTRIBUTION_DOMAIN="$(echo "$DISTRIBUTION_DOMAIN" | xargs)"
+          DISTRIBUTION_DOMAIN="${DISTRIBUTION_DOMAIN#"${DISTRIBUTION_DOMAIN%%[![:space:]]*}"}"
+          DISTRIBUTION_DOMAIN="${DISTRIBUTION_DOMAIN%"${DISTRIBUTION_DOMAIN##*[![:space:]]}"}"
           # SmokeTestUserPoolClientId is the deploy workflow's dedicated Cognito app
           # client for post-deploy smoke tests (see "Fetch Cognito smoke-test token"
           # below). BackendLambdaStack must accept its tokens as a valid JWT audience,
@@ -587,6 +588,13 @@ jobs:
         # `|| true` on the curl assignment keeps set -e from short-circuiting
         # past the explicit status check below when --fail trips on a non-2xx
         # response.
+        # HTTP/2 review (issue #4830): none of the curl calls in this workflow pass
+        # --http2/--http2-prior-knowledge, so curl negotiates HTTP/1.1 over TLS here
+        # regardless of what API Gateway/CloudFront would otherwise support. Even if
+        # that changed, the header-matching below (`grep -i` + `tr -d '\r'`) is
+        # already case-insensitive and CR-tolerant, which is exactly what HTTP/2's
+        # mandatory-lowercase header names and LF-only line endings require. No
+        # change needed; this applies to the OPTIONS preflight check below too.
         run: |
           set -euo pipefail
           echo "Checking CORS headers on ${BACKEND_URL%/}/config for Origin: ${FRONTEND_ORIGIN}"
@@ -1302,7 +1310,7 @@ jobs:
           log_group="$(aws cloudformation describe-stacks \
             --stack-name BackendLambdaStack \
             --query "Stacks[0].Outputs[?OutputKey=='BackendLambdaLogGroupName'].OutputValue" \
-            --output text)"
+            --output text 2>/dev/null || echo "")"
           if [ -z "$log_group" ] || [ "$log_group" = "None" ]; then
             echo "BackendLambdaLogGroupName output not found in BackendLambdaStack; skipping" >&2
             exit 0

@@ -5,6 +5,7 @@ Run from the repo root:
     pytest cdk/tests/test_static_site_stack.py -v
 """
 
+import json
 import os
 import sys
 from pathlib import Path
@@ -250,6 +251,29 @@ def test_distribution_id_output_exists(template):
 
 def test_distribution_domain_output_exists(template):
     template.has_output("DistributionDomain", {})
+
+
+def test_distribution_domain_output_has_no_scheme_prefix(template):
+    """DistributionDomain must be the bare CloudFront hostname, not prefixed
+    with a scheme.
+
+    The deploy workflow builds FRONTEND_ORIGIN as
+    f"https://{DISTRIBUTION_DOMAIN}" (.github/workflows/deploy-lambda.yml); if
+    this output ever gained a "https://" prefix, FRONTEND_ORIGIN would become
+    "https://https://..." and break CORS for the deployed frontend (#3990).
+    distribution.domain_name resolves to a CloudFormation intrinsic
+    (Fn::GetAtt) at synth time, so asserting that structure (rather than a
+    literal string) guards against a future edit wrapping it in a scheme
+    prefix.
+    """
+    outputs = template.to_json()["Outputs"]
+    value = outputs["DistributionDomain"]["Value"]
+    assert "Fn::GetAtt" in value, (
+        f"Expected DistributionDomain to resolve to a bare Fn::GetAtt token, got: {value}"
+    )
+    assert "https://" not in json.dumps(value), (
+        f"DistributionDomain output must not embed a scheme prefix: {value}"
+    )
 
 
 def test_site_bucket_output_exists(template):

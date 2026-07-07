@@ -34,21 +34,43 @@ jobs:
           set -euo pipefail
           echo "Checking ci.yml status for commit ${COMMIT_SHA}..."
 
-          # Helper function to call gh api with retry logic for transient failures
+          # Poll for the most recent ci.yml run on this exact commit and wait for
+          # it to finish before deciding whether to proceed with the deploy.
+          timeout_seconds=1800
+          poll_interval=30
+          start_epoch=$(date +%s)
+
+          # Helper function to call gh api with retry logic for transient failures.
+          # Retries share the same $timeout_seconds budget as the outer polling loop
+          # below (via $start_epoch) so a run of failed attempts can't silently push
+          # this step past that ~30-minute wait window before the outer loop's own
+          # elapsed check ever gets a chance to fire.
           gh_api_with_retry() {
             local max_attempts=5
             local attempt=1
             local wait_seconds=2
-            local output
+            local output stderr_file err now deadline
+
+            deadline=$((start_epoch + timeout_seconds))
 
             while [ $attempt -le $max_attempts ]; do
-              if output=$(gh api "$@"); then
+              stderr_file="$(mktemp)"
+              if output=$(gh api "$@" 2>"$stderr_file"); then
+                rm -f "$stderr_file"
                 echo "$output"
                 return 0
               fi
+              err="$(cat "$stderr_file")"
+              rm -f "$stderr_file"
+
+              now=$(date +%s)
+              if [ "$((now + wait_seconds))" -ge "$deadline" ]; then
+                echo "::error::gh api call failed and retrying would exceed the ${timeout_seconds}s CI-run-wait budget: ${err}" >&2
+                return 1
+              fi
 
               if [ $attempt -lt $max_attempts ]; then
-                echo "::warning::gh api call failed (attempt $attempt/$max_attempts), retrying in ${wait_seconds}s..." >&2
+                echo "::warning::gh api call failed (attempt $attempt/$max_attempts): ${err}; retrying in ${wait_seconds}s..." >&2
                 sleep "$wait_seconds"
                 wait_seconds=$((wait_seconds * 2))
               fi
@@ -56,19 +78,19 @@ jobs:
               attempt=$((attempt + 1))
             done
 
-            echo "::error::gh api call failed after $max_attempts attempts" >&2
+            echo "::error::gh api call failed after $max_attempts attempts: ${err}" >&2
             return 1
           }
 
-          # Poll for the most recent ci.yml run on this exact commit and wait for
-          # it to finish before deciding whether to proceed with the deploy.
-          timeout_seconds=1800
-          poll_interval=30
           elapsed=0
           while true; do
+            # per_page=1&sort=created&direction=desc asks the API to return the
+            # latest run directly, instead of fetching a page of runs and
+            # sorting them client-side (which could still miss the true latest
+            # run if more than per_page runs exist for this commit).
             run_json="$(gh_api_with_retry \
-              "repos/${REPO}/actions/workflows/ci.yml/runs?head_sha=${COMMIT_SHA}&per_page=10" \
-              --jq '.workflow_runs | sort_by(.id) | reverse | .[0]')"
+              "repos/${REPO}/actions/workflows/ci.yml/runs?head_sha=${COMMIT_SHA}&per_page=1&sort=created&direction=desc" \
+              --jq '.workflow_runs[0]')"
 
             if [ "${run_json}" = "null" ]; then
               echo "::error::No ci.yml run found for commit ${COMMIT_SHA}." \
@@ -114,17 +136,10 @@ jobs:
         with:
           ref: ${{ inputs.ref || github.ref }}
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
+      - name: Setup frontend dependencies
+        uses: ./.github/actions/setup-frontend-deps
         with:
-          node-version: '24'
-
-      - name: Install root dependencies
-        run: npm ci
-
-      - name: Install frontend dependencies
-        run: npm ci
-        working-directory: frontend
+          enable-cache: 'false'
 
       - name: Build frontend
         run: npm run build
@@ -523,13 +538,13 @@ jobs:
           for attempt in 1 2 3 4 5; do
             head_out="$(aws s3api head-object --bucket "$data_bucket" --key prices/latest_prices.json 2>&1)" && break
             if echo "$head_out" | grep -q "(403)"; then
-              echo "head-object returned 403 Forbidden — deploy role lacks s3:GetObject or s3:ListBucket on the data bucket. Check CDK grants for GITHUB_DEPLOY_ROLE_ARN. See issue #3191." >&2
-              echo "$head_out" >&2
+              echo "head-object returned 403 Forbidden for bucket=${data_bucket} key=prices/latest_prices.json — deploy role lacks s3:GetObject or s3:ListBucket on the data bucket. Check CDK grants for GITHUB_DEPLOY_ROLE_ARN. See issue #3191." >&2
+              echo "  AWS response: $head_out" >&2
               exit 1
             fi
             if [ "$attempt" -eq 5 ]; then
-              echo "head-object failed on attempt 5/5; giving up." >&2
-              echo "$head_out" >&2
+              echo "head-object failed on attempt 5/5 for bucket=${data_bucket} key=prices/latest_prices.json; giving up." >&2
+              echo "  AWS response: $head_out" >&2
               exit 1
             fi
             echo "head-object attempt $attempt/5 failed (key not yet written); retrying in 20s..." >&2
@@ -680,6 +695,16 @@ jobs:
           # consistent — a freshly granted permission may not be visible to the
           # very next API call for up to a minute or two. Any other failure, or
           # exhausting all attempts, fails immediately. See #3858.
+          #
+          # This loop is still needed (confirmed 2026-07, see #4748): the root
+          # cause is IAM's eventually-consistent policy propagation, which is an
+          # inherent AWS platform behaviour, not a bug in this repo's CDK grants
+          # or workflow ordering — there is no code change here that removes the
+          # propagation delay itself. It could only be removed if AWS started
+          # guaranteeing synchronous IAM policy propagation, or if this step were
+          # restructured to poll for grant visibility before calling
+          # update-user-pool-client (which would just move the same retry logic
+          # elsewhere). Until then, keep the retry.
           cognito_retry() {
             local desc="$1"; shift
             local attempt out
@@ -765,17 +790,41 @@ jobs:
             echo "DATA_BUCKET not set; skipping price snapshot verification." >&2
             exit 0
           fi
-          head_output="$(aws s3api head-object \
-              --bucket "$DATA_BUCKET" \
-              --key "prices/latest_prices.json" 2>&1)" && head_exit=0 || head_exit=$?
-          if [ "$head_exit" -eq 0 ]; then
-            echo "Price snapshot prices/latest_prices.json is present in s3://${DATA_BUCKET} — OK"
-          elif echo "$head_output" | grep -qi "NoSuchKey\|Not Found\|404"; then
-            echo "::warning::Price snapshot prices/latest_prices.json is NOT present in s3://${DATA_BUCKET}. Portfolio prices will be unavailable until the price-refresh job runs. Trigger it manually: aws lambda invoke --function-name <PriceRefreshLambda-physical-name>:live /dev/null"
-          else
-            echo "ERROR: S3 bucket access check failed: head-object returned exit ${head_exit}: ${head_output}" >&2
+          # Retry only transient S3 errors (throttling, 5xx, timeouts) with backoff;
+          # NoSuchKey/404 remains a soft pass and AccessDenied/other errors fail
+          # immediately since retrying them would only mask a real problem.
+          max_attempts=4
+          wait_seconds=5
+          attempt=1
+          while :; do
+            head_output="$(aws s3api head-object \
+                --bucket "$DATA_BUCKET" \
+                --key "prices/latest_prices.json" 2>&1)" && head_exit=0 || head_exit=$?
+            if [ "$head_exit" -eq 0 ]; then
+              echo "Price snapshot prices/latest_prices.json is present in s3://${DATA_BUCKET} — OK"
+              break
+            fi
+            if echo "$head_output" | grep -qi "NoSuchKey\|Not Found\|404"; then
+              echo "::warning::Price snapshot prices/latest_prices.json is NOT present in s3://${DATA_BUCKET}. Portfolio prices will be unavailable until the price-refresh job runs. Trigger it manually: aws lambda invoke --function-name <PriceRefreshLambda-physical-name>:live /dev/null"
+              break
+            fi
+            if echo "$head_output" | grep -qiE "Throttling|SlowDown|RequestTimeout|InternalError|ServiceUnavailable|\(50[0-9]\)"; then
+              if [ "$attempt" -eq "$max_attempts" ]; then
+                echo "ERROR: S3 bucket access check failed for bucket=${DATA_BUCKET} key=prices/latest_prices.json after ${max_attempts} attempts (transient error persisted, head-object exit ${head_exit})" >&2
+                echo "  AWS response: ${head_output}" >&2
+                exit 1
+              fi
+              echo "head-object attempt ${attempt}/${max_attempts} hit a transient S3 error; retrying in ${wait_seconds}s..." >&2
+              echo "$head_output" >&2
+              sleep "$wait_seconds"
+              wait_seconds=$((wait_seconds * 2))
+              attempt=$((attempt + 1))
+              continue
+            fi
+            echo "ERROR: S3 bucket access check failed for bucket=${DATA_BUCKET} key=prices/latest_prices.json (head-object exit ${head_exit})" >&2
+            echo "  AWS response: ${head_output}" >&2
             exit 1
-          fi
+          done
 
       - name: Warm up backend Lambda (absorb cold-start before validation)
         env:
@@ -1012,23 +1061,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
 
-      - name: Install root dependencies
-        run: npm ci
-
-      - name: Install frontend dependencies
-        run: npm ci
-        working-directory: frontend
+      - name: Setup frontend dependencies
+        uses: ./.github/actions/setup-frontend-deps
+        with:
+          enable-cache: 'false'
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps

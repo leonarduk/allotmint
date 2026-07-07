@@ -330,15 +330,34 @@ async def test_get_current_user_returns_token_user_when_decode_succeeds(monkeypa
 
 
 @pytest.mark.asyncio
-async def test_get_current_user_falls_back_to_local_identity_when_token_not_app_jwt(monkeypatch):
-    """When disable_auth=True and decode_token returns None (e.g. Cognito RS256 token
-    forwarded by API Gateway), get_current_user falls back to local_login_identity."""
+async def test_get_current_user_reads_email_claim_when_token_not_app_jwt(monkeypatch):
+    """When disable_auth=True and decode_token returns None (e.g. a Cognito RS256
+    token whose signature API Gateway's authorizer already validated),
+    get_current_user resolves the caller's own email from the token's claims
+    rather than collapsing every caller into the shared local identity (#4750)."""
 
     monkeypatch.setattr(auth.config, "disable_auth", True, raising=False)
     monkeypatch.setattr(auth, "decode_token", lambda _token: None)
     monkeypatch.setattr(auth, "local_login_identity", lambda: "local@example.com")
+    monkeypatch.setattr(auth, "_unverified_claims", lambda _token: {"email": "steve@example.com"})
+    monkeypatch.setattr(auth, "_allowed_emails", lambda: {"steve@example.com"})
 
-    assert await auth.get_current_user(token="cognito-rs256-stub") == "local@example.com"
+    assert await auth.get_current_user(token="cognito-rs256-stub") == "steve@example.com"
+
+
+@pytest.mark.asyncio
+async def test_get_current_user_rejects_unrecognized_email_claim(monkeypatch):
+    """An unprovisioned email must be rejected, not mapped to the local/demo identity."""
+
+    monkeypatch.setattr(auth.config, "disable_auth", True, raising=False)
+    monkeypatch.setattr(auth, "decode_token", lambda _token: None)
+    monkeypatch.setattr(auth, "local_login_identity", lambda: "local@example.com")
+    monkeypatch.setattr(auth, "_unverified_claims", lambda _token: {"email": "unknown@example.com"})
+    monkeypatch.setattr(auth, "_allowed_emails", lambda: {"steve@example.com"})
+
+    with pytest.raises(HTTPException) as exc_info:
+        await auth.get_current_user(token="cognito-rs256-stub")
+    assert exc_info.value.status_code == 403
 
 
 @pytest.mark.asyncio

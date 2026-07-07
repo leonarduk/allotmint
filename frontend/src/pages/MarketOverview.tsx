@@ -185,6 +185,17 @@ export default function MarketOverview() {
                       — {age}
                     </span>
                   )}
+                  {h.stale && (
+                    <span
+                      className="ml-2 rounded bg-yellow-100 px-1.5 py-0.5 text-xs font-medium text-yellow-800"
+                      title={t('market.staleHeadlineTooltip', {
+                        defaultValue:
+                          'This headline is from a cache that has not refreshed recently; live news fetches may be failing or rate-limited.',
+                      })}
+                    >
+                      {t('market.staleHeadline', { defaultValue: 'Stale' })}
+                    </span>
+                  )}
                 </li>
               );
             })}

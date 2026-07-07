@@ -194,34 +194,30 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-          cache: npm
-          cache-dependency-path: |
-            package-lock.json
-            frontend/package-lock.json
-      # Root install brings in esbuild (a transitive dependency of the root
-      # tsx devDependency). Vite v8 treats esbuild as an optional peer
-      # dependency, so frontend/node_modules alone does not contain it;
-      # Node resolves it from the root node_modules instead, matching the
-      # working deploy-lambda.yml smoke-test job.
-      - run: npm ci
-      - run: npm ci
-        working-directory: frontend
+      - uses: ./.github/actions/setup-frontend-deps
       - name: Build preview
         run: npm run build:preview
         working-directory: frontend
-      - name: Guard against absolute base href in built index.html
+      - name: Verify base href is relative in built index.html
         run: |
-          if grep -oE '<base [^>]*href="http[^"]*"' dist/index.html; then
-            echo "::error::dist/index.html has an absolute <base href> — this breaks relative asset/routing resolution when served from a subpath."
+          set -euo pipefail
+          if grep -q '<base href="http' frontend/dist/index.html; then
+            echo "::error file=frontend/index.html::Built index.html contains an absolute <base href=\"http...\"> which breaks routing in deployed environments (the base URL must be relative, e.g. <base href=\"/\">). Check that index.html's <base href> is hardcoded to a relative path and not dynamically set."
             exit 1
           fi
-        working-directory: frontend
+          echo "✓ base href is relative (no absolute http:// or https:// base found)"
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
         working-directory: frontend
       - name: Run frontend smoke tests
         run: npx playwright test --config playwright.config.ts tests/smoke.spec.ts
         working-directory: frontend
+      - name: Upload Playwright smoke-test artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-frontend-smoke-artifacts
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+          if-no-files-found: ignore

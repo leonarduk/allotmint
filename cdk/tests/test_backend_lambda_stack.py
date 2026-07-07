@@ -619,8 +619,8 @@ def test_backend_api_authorizer_accepts_cognito_id_token_contract(template):
 
 def test_backend_api_routes_require_cognito_authorizer(template):
     """All API Gateway routes must require Cognito JWT authorization except
-    /health, GET /config, POST /token/google, and the CORS preflight OPTIONS
-    routes.
+    /health, GET /config, POST /token/google, the public /signup/* routes, and
+    the CORS preflight OPTIONS routes.
 
     /health is intentionally unauthenticated so that post-deploy probes and
     smoke tests can confirm Lambda is reachable without needing a Cognito token.
@@ -636,6 +636,12 @@ def test_backend_api_routes_require_cognito_authorizer(template):
     catch-all. The deployed frontend no longer calls it — frontend/src/main.tsx
     applyCognitoIdToken sends the Cognito ID token directly as the Bearer header,
     which backend_authorizer validates against the same user pool (#4256).
+    POST /signup/request and the GET+POST /signup/approve and /signup/reject
+    pairs are intentionally unauthenticated: the requesting visitor has no
+    Cognito session yet, and the admin approval flow authorises via an
+    unguessable single-use token in the emailed link rather than a Bearer
+    header (see backend/routes/signup.py) — the same class of bug fixed here
+    as for GET /config and POST /token/google (#4785).
     OPTIONS / and OPTIONS /{proxy+} are unauthenticated so that browser CORS
     preflight requests (which never carry an Authorization header) are not
     rejected with 401 before the real request is sent (see issue #3945).
@@ -646,6 +652,11 @@ def test_backend_api_routes_require_cognito_authorizer(template):
         "GET /health",
         "GET /config",
         "POST /token/google",
+        "POST /signup/request",
+        "GET /signup/approve",
+        "POST /signup/approve",
+        "GET /signup/reject",
+        "POST /signup/reject",
         "OPTIONS /",
         "OPTIONS /{proxy+}",
     }

@@ -77,18 +77,27 @@ class StaticSiteStack(Stack):
         # A static wildcard like *.execute-api.*.amazonaws.com is invalid CSP
         # syntax (wildcards are only permitted as the leftmost hostname label)
         # and would be silently ignored by browsers, blocking all API calls.
-        _csp = "; ".join(
-            [
-                "default-src 'self'",
-                "script-src 'self' https://accounts.google.com/gsi/client",
-                "frame-src 'self' https://accounts.google.com/gsi/",
-                f"connect-src 'self' {backend_url_param.value_as_string} https://*.amazoncognito.com",
-                "img-src 'self' https://raw.githubusercontent.com https://avatars.githubusercontent.com https://www.gravatar.com https://*.gravatar.com https://*.googleusercontent.com",
-                "frame-ancestors 'none'",
-                "object-src 'none'",
-                "base-uri 'self'",
-            ]
-        ) + ";"
+        _csp = (
+            "; ".join(
+                [
+                    "default-src 'self'",
+                    "script-src 'self' https://accounts.google.com/gsi/client",
+                    # 'unsafe-inline' for styles only (not script) is a common, low-risk
+                    # tradeoff: it can't execute arbitrary JS, and the frontend relies
+                    # heavily on React's style={{...}} prop, which compiles to inline
+                    # style attributes. Without this, default-src's fallback blocks all
+                    # inline styles, breaking layout across the deployed site.
+                    "style-src 'self' 'unsafe-inline'",
+                    "frame-src 'self' https://accounts.google.com/gsi/",
+                    f"connect-src 'self' {backend_url_param.value_as_string} https://*.amazoncognito.com",
+                    "img-src 'self' https://raw.githubusercontent.com https://avatars.githubusercontent.com https://www.gravatar.com https://*.gravatar.com https://*.googleusercontent.com",
+                    "frame-ancestors 'none'",
+                    "object-src 'none'",
+                    "base-uri 'self'",
+                ]
+            )
+            + ";"
+        )
 
         site_bucket = s3.Bucket(
             self,

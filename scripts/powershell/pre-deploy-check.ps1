@@ -12,6 +12,18 @@ $ErrorActionPreference = 'Continue'
 # Always run from the repository root regardless of where the script is invoked from.
 Set-Location (Join-Path $PSScriptRoot '..\..')
 
+# Prefer python3 when present, falling back to python, matching the normalisation
+# applied in scripts/bash/pre-deploy-check.sh so both scripts pick the same
+# interpreter on a given machine.
+if (Get-Command python3 -ErrorAction SilentlyContinue) {
+    $PythonBin = 'python3'
+} elseif (Get-Command python -ErrorAction SilentlyContinue) {
+    $PythonBin = 'python'
+} else {
+    Write-Host "Error: neither python3 nor python found in PATH" -ForegroundColor Red
+    exit 1
+}
+
 $Pass = 0
 $Fail = 0
 $Skip = 0
@@ -48,7 +60,7 @@ if ($LASTEXITCODE -eq 0) { Write-Pass "deployment environment variables" } else 
 Write-Host "`n=== 1. Dependency dry-run ==="
 $venvPath = Join-Path $env:TEMP 'pre-deploy-venv'
 if (Test-Path $venvPath) { Remove-Item -Recurse -Force $venvPath }
-python -m venv $venvPath | Out-Null
+& $PythonBin -m venv $venvPath | Out-Null
 & "$venvPath\Scripts\pip.exe" install --dry-run -r backend/requirements.txt -q
 if ($LASTEXITCODE -eq 0) { Write-Pass "pip dependency dry-run" } else { Write-Fail "pip dependency dry-run" }
 
@@ -77,7 +89,7 @@ if (-not $env:AWS_ACCESS_KEY_ID) {
         $tmpFile = New-TemporaryFile
         try {
             $cdkDiffOutput | Out-String | Set-Content -Path $tmpFile -Encoding utf8
-            python scripts/check_cdk_diff_iam_removals.py $tmpFile
+            & $PythonBin scripts/check_cdk_diff_iam_removals.py $tmpFile
             if ($LASTEXITCODE -eq 0) {
                 Write-Pass "CDK diff"
             } else {
@@ -194,7 +206,7 @@ if (-not (Get-Command make -ErrorAction SilentlyContinue)) {
     if ($LASTEXITCODE -eq 0) { Write-Pass "make lint" } else { Write-Fail "make lint" }
 }
 
-python -m pytest tests/ -x -q
+& $PythonBin -m pytest tests/ -x -q
 if ($LASTEXITCODE -eq 0) { Write-Pass "backend pytest" } else { Write-Fail "backend pytest" }
 
 # 5. Frontend lint + tests
@@ -212,7 +224,7 @@ if (-not (Test-Path 'cdk')) {
 } else {
     try {
         Push-Location cdk -ErrorAction Stop
-        python -m pytest tests/ -x -q
+        & $PythonBin -m pytest tests/ -x -q
         if ($LASTEXITCODE -eq 0) { Write-Pass "CDK pytest" } else { Write-Fail "CDK pytest" }
     } finally {
         Pop-Location

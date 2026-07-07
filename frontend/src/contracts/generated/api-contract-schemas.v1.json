@@ -473,7 +473,14 @@
                         ]
                       },
                       "days_held": {
-                        "type": "number"
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
                       },
                       "sell_eligible": {
                         "type": "boolean"
@@ -570,9 +577,7 @@
           "as_of",
           "members",
           "total_value_estimate_gbp",
-          "accounts",
-          "members_summary",
-          "subtotals_by_account_type"
+          "accounts"
         ],
         "additionalProperties": false
       }
@@ -854,7 +859,14 @@
                         ]
                       },
                       "days_held": {
-                        "type": "number"
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
                       },
                       "sell_eligible": {
                         "type": "boolean"

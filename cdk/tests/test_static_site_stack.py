@@ -219,6 +219,7 @@ def test_csp_connect_src_uses_backend_api_url_parameter(template):
     assert "connect-src 'self' " in static_text
     assert "https://*.amazoncognito.com" in static_text
     assert "script-src 'self' https://accounts.google.com/gsi/client" in static_text
+    assert "style-src 'self' 'unsafe-inline'" in static_text
     assert "frame-src 'self' https://accounts.google.com/gsi/" in static_text
     assert "frame-ancestors 'none'" in static_text
     assert static_text.count("object-src 'none'") == 1

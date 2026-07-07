@@ -138,6 +138,16 @@ body (for example: `Closes #1234`).
 lock file changes from `npm ci` or `npm install` that strip platform-specific
 dependencies.
 
+**Frontend optional dependency handling**: `frontend/package-lock.json` pins
+platform-specific optional packages (for example the Linux-only
+`@emnapi/core`/`@emnapi/runtime` entries under `@tailwindcss/oxide-wasm32-wasi`,
+needed for CI to run `npm ci` on Linux). Regenerating the lock file with
+`npm install` on Windows or macOS can silently strip these entries or add
+incorrect `peer: true` annotations, which then makes Linux CI fail with
+`EUSAGE` even though the change looks unrelated. Before committing any
+`frontend/package-lock.json` diff, review it for removed `@emnapi/*` or other
+`optionalDependencies`/`peer` entries and restore them if present.
+
 ## Automated code reviews
 
 Pull requests trigger automated AI code reviews via Claude and GPT (advisory-only, will not block merges). See [docs/AI_REVIEW_WORKFLOWS.md](AI_REVIEW_WORKFLOWS.md) for details on these workflows and how to debug review failures.

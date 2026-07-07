@@ -103,7 +103,9 @@ describe('ensureAwsUiAuth', () => {
 
     await expect(ensureAwsUiAuth(AUTH_CONFIG)).rejects.toBeInstanceOf(UserCancelledError);
     expect(assignMock).not.toHaveBeenCalled();
-    expect(replaceState).toHaveBeenCalledWith({}, document.title, '/');
+    // Assert against the live pathname rather than a hardcoded '/' so this
+    // stays correct if the test's simulated route ever changes (#3962).
+    expect(replaceState).toHaveBeenCalledWith({}, document.title, window.location.pathname);
     expect(window.sessionStorage.getItem('awsUiAuthState')).toBeNull();
     expect(window.sessionStorage.getItem('awsUiAuthCodeVerifier')).toBeNull();
   });
@@ -195,7 +197,7 @@ describe('ensureAwsUiAuth', () => {
 
       await ensureAwsUiAuth(AUTH_CONFIG);
 
-      expect(replaceState).toHaveBeenCalledWith({}, document.title, '/');
+      expect(replaceState).toHaveBeenCalledWith({}, document.title, window.location.pathname);
     });
 
     it('throws on state mismatch and cleans up URL', async () => {
@@ -205,7 +207,7 @@ describe('ensureAwsUiAuth', () => {
       await expect(ensureAwsUiAuth(AUTH_CONFIG)).rejects.toThrow(
         'Invalid AWS UI authentication callback state'
       );
-      expect(replaceState).toHaveBeenCalledWith({}, document.title, '/');
+      expect(replaceState).toHaveBeenCalledWith({}, document.title, window.location.pathname);
       expect(window.sessionStorage.getItem('awsUiAuthState')).toBeNull();
       expect(window.sessionStorage.getItem('awsUiAuthCodeVerifier')).toBeNull();
     });
@@ -232,7 +234,7 @@ describe('ensureAwsUiAuth', () => {
       await expect(ensureAwsUiAuth(AUTH_CONFIG)).rejects.toThrow(
         'AWS UI authentication token exchange failed'
       );
-      expect(replaceState).toHaveBeenCalledWith({}, document.title, '/');
+      expect(replaceState).toHaveBeenCalledWith({}, document.title, window.location.pathname);
     });
 
     it('preserves non-auth query params when cleaning up after a token exchange failure', async () => {

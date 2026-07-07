@@ -697,6 +697,15 @@ def test_backend_api_routes_require_cognito_authorizer(template):
         "GET /health route key not found in synthesized template — "
         "CDK may have changed the RouteKey format; update UNAUTHENTICATED_ROUTES to match"
     )
+    # Explicit regression guard (#4248): POST /token/cognito is the deprecated
+    # backend HS256 exchange (#4256) and must stay behind the Cognito JWT
+    # authorizer via the /{proxy+} catch-all, unlike POST /token/google above.
+    # The set-equality assert above would already catch this if /token/cognito
+    # had its own explicit NONE route, but it says nothing about a route that
+    # doesn't exist as a distinct resource at all — this assertion documents
+    # the intent directly rather than relying on that implication.
+    assert "POST /token/cognito" not in UNAUTHENTICATED_ROUTES
+    assert "POST /token/cognito" not in actual_none_routes
 
 
 # ---------------------------------------------------------------------------

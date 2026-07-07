@@ -4,6 +4,12 @@
 
 AllotMint is a family investing platform with a FastAPI backend, React frontend, and AWS deployment support.
 
+## Language guidelines
+
+All code, comments, commit messages, documentation, and PR/issue text in this
+repository must be written in English only, regardless of the contributor's
+or AI agent's default language.
+
 - **Contributing**: [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) — environment variables, code quality expectations, and first PR walkthrough
 - **Product and architecture overview**: [docs/README.md](docs/README.md)
 - **Local setup and contributor workflow**: [docs/CONTRIBUTOR_RUNBOOK.md](docs/CONTRIBUTOR_RUNBOOK.md) — installation, running locally, testing, and pre-deploy checks

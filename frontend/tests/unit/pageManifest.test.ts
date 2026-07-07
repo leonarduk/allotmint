@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { MODES } from '@/modes';
 import {
+  buildPathForMode,
   deriveBootstrapMode,
   deriveModeFromPathname,
   deriveRouteFromPathname,
@@ -9,6 +10,7 @@ import {
   pageManifestByMode,
   pathForMode,
   standalonePageRoutes,
+  validatePageManifest,
 } from '@/pageManifest';
 
 const menuCategoryIds = new Set([
@@ -17,11 +19,15 @@ const menuCategoryIds = new Set([
 ]);
 
 describe('page manifest', () => {
-  it('defines one manifest entry for every mode', () => {
+  it('defines one manifest entry for every mode with no duplicate modes or segments', () => {
     expect(pageManifest.map((page) => page.mode).sort()).toEqual([...MODES].sort());
+
+    const validation = validatePageManifest();
+    expect(validation.duplicateModes).toEqual([]);
+    expect(validation.duplicateSegments).toEqual([]);
   });
 
-  it('keeps route segments unique and mode derivation aligned', () => {
+  it('keeps route segments unique and derives an identical mode from the runtime (App.tsx), bootstrap (main.tsx), and route-detail helpers for every registered route', () => {
     const seenSegments = new Set<string>();
 
     for (const page of pageManifest) {
@@ -47,7 +53,15 @@ describe('page manifest', () => {
       expect(deriveBootstrapMode(pathname, 'loading')).toBe('loading');
     }
 
+    // Unknown segments still fall through to a single shared default.
     expect(deriveModeFromPathname('/totally-unknown')).toBe('movers');
+    expect(deriveRouteFromPathname('/totally-unknown').mode).toBe('movers');
+
+    expect(buildPathForMode('group', { group: 'all' })).toBe('/');
+    expect(buildPathForMode('group', { group: 'kids' })).toBe('/?group=kids');
+    expect(buildPathForMode('owner', { owner: 'alex' })).toBe('/portfolio/alex');
+    expect(buildPathForMode('transactions')).toBe('/input');
+    expect(buildPathForMode('pension')).toBe('/pension/forecast');
   });
 
   it('keeps menu metadata and default paths consistent for navigable pages', () => {

@@ -30,7 +30,15 @@ def template():
         os.environ.setdefault(key, value)
     # Remove optional auth env vars so CfnParameters have no Default,
     # keeping the synthesised template deterministic regardless of local env.
-    _auth_env_vars = ("UI_AUTH_USER_POOL_ID", "UI_AUTH_USER_POOL_CLIENT_ID", "UI_AUTH_DOMAIN")
+    # Also remove FRONTEND_ORIGIN/CORS_ORIGINS so the CORS allow_origins list
+    # synthesises to its hardcoded default (see test_backend_api_cors_allow_origins_default).
+    _auth_env_vars = (
+        "UI_AUTH_USER_POOL_ID",
+        "UI_AUTH_USER_POOL_CLIENT_ID",
+        "UI_AUTH_DOMAIN",
+        "FRONTEND_ORIGIN",
+        "CORS_ORIGINS",
+    )
     saved = {k: os.environ.pop(k, None) for k in _auth_env_vars}
     try:
         app = App()
@@ -689,6 +697,34 @@ def test_backend_api_routes_require_cognito_authorizer(template):
         "GET /health route key not found in synthesized template — "
         "CDK may have changed the RouteKey format; update UNAUTHENTICATED_ROUTES to match"
     )
+
+
+# ---------------------------------------------------------------------------
+# CORS configuration (issue #4828)
+# ---------------------------------------------------------------------------
+
+
+def test_backend_api_cors_allow_origins_default(template):
+    """With FRONTEND_ORIGIN/CORS_ORIGINS unset (the `template` fixture's default
+    env), the HttpApi's CORS preflight AllowOrigins must be exactly the
+    hardcoded base list, in order: the two local dev servers, then prod.
+
+    This pins the default list so a future edit to backend_lambda_stack.py's
+    cors_origins construction is caught here rather than only at deploy time.
+    """
+    apis = template.find_resources("AWS::ApiGatewayV2::Api")
+    assert apis, "Expected an AWS::ApiGatewayV2::Api resource"
+
+    api = next(iter(apis.values()))
+    cors = api["Properties"]["CorsConfiguration"]
+    assert cors["AllowOrigins"] == [
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "https://app.allotmint.io",
+    ]
+    assert cors["AllowCredentials"] is True
+    assert cors["AllowMethods"] == ["*"]
+    assert set(cors["AllowHeaders"]) == {"Authorization", "Content-Type", "X-CSRFToken"}
 
 
 # ---------------------------------------------------------------------------

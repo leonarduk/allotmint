@@ -14,6 +14,18 @@ The backend API must be running and reachable from the browser (local, LAN IP, o
 - `npm run dev` – start the Vite development server.
 - `npm test` – execute the test suite with Vitest and Testing Library.
   Test files should be named `*.test.ts`, `*.test.tsx`, or `*.test.js` to be picked up.
+- `npm run build` – production build: runs `tsc -b` (full type-check) then
+  `vite build`. This is the build used before any real deploy or CDK synth
+  (`deploy-lambda.yml`, `cdk-dry-run.yml`, `iac-validation.yml`, and the
+  `scripts/deploy-to-AWS.ps1`/`build-and-deploy.ps1` helpers) since
+  `StaticSiteStack` bundles `frontend/dist` as a CDK asset and a type error
+  should block a deploy.
+- `npm run build:preview` – fast build: `vite build` only, skipping the
+  `tsc -b` type-check. Used where speed matters more than a full type-check
+  because type-checking already happens elsewhere in the same run: `ci.yml`
+  (a separate `npm run lint`/`type-check` job already covers it) and the
+  smoke-test scripts (`smoke:frontend`, `smoke:codex:poc`) that build a local
+  preview server to drive Playwright.
 
 ### Smoke test page
 

@@ -525,6 +525,28 @@ class BackendLambdaStack(Stack):
             integration=backend_integration,
             authorizer=apigwv2.HttpNoneAuthorizer(),
         )
+        # POST /signup/request, and the /signup/approve and /signup/reject
+        # GET+POST pairs, are the public account-request/admin-approval flow
+        # (see the module docstring in backend/routes/signup.py). None of these
+        # callers hold a Cognito token: the visitor requesting an account has no
+        # session yet, and the admin authorises via an unguessable single-use
+        # token embedded in the emailed link, not a Bearer header. Without an
+        # explicit route here they fall through to the /{proxy+} ANY catch-all
+        # below and get rejected with 401 before backend/routes/signup.py ever
+        # runs — the same class of bug already fixed for GET /config in #3873
+        # and POST /token/google above (#4785).
+        for signup_path in ("/signup/request", "/signup/approve", "/signup/reject"):
+            methods = (
+                [apigwv2.HttpMethod.POST]
+                if signup_path == "/signup/request"
+                else [apigwv2.HttpMethod.GET, apigwv2.HttpMethod.POST]
+            )
+            backend_api.add_routes(
+                path=signup_path,
+                methods=methods,
+                integration=backend_integration,
+                authorizer=apigwv2.HttpNoneAuthorizer(),
+            )
         # CORS preflight OPTIONS requests must never reach backend_authorizer:
         # browsers send them without an Authorization header, so a JWT
         # authorizer would reject them with 401 before CORS headers are

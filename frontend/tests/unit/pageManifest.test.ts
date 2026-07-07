@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { MODES } from '@/modes';
 import {
+  buildPathForMode,
   deriveBootstrapMode,
   deriveModeFromPathname,
   deriveRouteFromPathname,
@@ -9,6 +10,7 @@ import {
   pageManifestByMode,
   pathForMode,
   standalonePageRoutes,
+  validatePageManifest,
 } from '@/pageManifest';
 
 const menuCategoryIds = new Set([
@@ -17,8 +19,28 @@ const menuCategoryIds = new Set([
 ]);
 
 describe('page manifest', () => {
-  it('defines one manifest entry for every mode', () => {
+  it('defines one manifest entry for every mode with no duplicate modes or segments', () => {
     expect(pageManifest.map((page) => page.mode).sort()).toEqual([...MODES].sort());
+
+    const validation = validatePageManifest();
+    expect(validation.duplicateModes).toEqual([]);
+    expect(validation.duplicateSegments).toEqual([]);
+  });
+
+  it('derives the same mode from bootstrap (main.tsx) and runtime (App.tsx) helpers for every route segment', () => {
+    for (const page of pageManifest) {
+      const pathname = page.routeSegment ? `/${page.routeSegment}/example-slug` : '/';
+      expect(deriveModeFromPathname(pathname)).toBe(page.mode);
+      expect(deriveBootstrapMode(pathname, 'auth')).toBe(page.mode);
+      expect(deriveBootstrapMode(pathname, 'config-error')).toBe(page.mode);
+    }
+    expect(deriveBootstrapMode('/support', 'loading')).toBe('loading');
+
+    expect(buildPathForMode('group', { group: 'all' })).toBe('/');
+    expect(buildPathForMode('group', { group: 'kids' })).toBe('/?group=kids');
+    expect(buildPathForMode('owner', { owner: 'alex' })).toBe('/portfolio/alex');
+    expect(buildPathForMode('transactions')).toBe('/input');
+    expect(buildPathForMode('pension')).toBe('/pension/forecast');
   });
 
   it('keeps route segments unique and mode derivation aligned', () => {

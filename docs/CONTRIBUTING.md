@@ -51,15 +51,17 @@ For smoke tests, pre-deploy checks, or CI workflows:
 
 See `docs/DEPLOY.md` for detailed background and troubleshooting.
 
-## Code quality expectations
+## Code quality invariants (non-negotiable)
 
-AllotMint follows these non-negotiable standards (derived from NASA/JPL Power of Ten):
+Derived from the NASA/JPL Power of Ten guidelines — applicable subset only.
+C-specific rules (no dynamic allocation, pointer restrictions, preprocessor
+limits, recursion ban) are omitted as inapplicable to this stack.
 
-- **Function length**: Keep functions under ~60 lines. If a function no longer fits on one screen, refactor before making changes.
-- **Zero lint warnings**: `make lint` and `npm --prefix frontend run lint` must pass clean. Rewrite code until it passes — do not suppress warnings without documented justification.
-- **No silent error swallowing**: Every error path must be explicit. No bare `except: pass`, no `catch` blocks that silently discard errors, no unhandled Promise rejections.
-- **Return values checked**: Check return values of functions that can fail. If deliberately discarding one, make it explicit: `_ = function()` in Python or a comment in TypeScript.
-- **Minimum scope**: Declare variables as late as possible and as locally as possible. Avoid module-level mutable state.
+- **Function length**: Keep functions to ~60 lines or fewer — roughly one screen. If a function no longer fits on one screen, refactor before making further changes.
+- **Zero lint warnings**: `make lint` and `npm --prefix frontend run lint` must pass clean. If a tool flags something incorrectly, rewrite the code until it doesn't — do not suppress warnings without a documented justification inline.
+- **No silent error swallowing**: every error path must be explicitly handled. No bare `except: pass`, no `catch` blocks that discard exceptions silently, no unhandled Promise rejections.
+- **No ignored return values**: check return values of functions that can fail. If you deliberately discard a return value, make it explicit (`_ =` in Python, explicit `void` comment in TS) and add a brief comment explaining why.
+- **Minimum scope**: declare variables as late as possible and as locally as possible. Avoid module-level mutable state unless genuinely necessary.
 
 ## Running tests and validation
 
@@ -110,17 +112,31 @@ pwsh scripts/powershell/pre-deploy-check.ps1
 
 This validates environment variables, dependency resolution, CDK synthesis, IAM permissions, linting, and testing in one run.
 
-## Git and GitHub workflow
+## Branch and PR policy
 
-- **Never commit directly to `main`.** Always create a feature branch (`fix/issue-NNNN-...` or `feat/issue-NNNN-...`).
-- **Stage files explicitly**: never use `git commit -am` — this can sweep in lock file changes from `npm ci` or `npm install` that strip platform-specific dependencies.
-- **Provide issue context**: if implementing a GitHub issue, include `Closes #NNNN` in your PR body so GitHub auto-closes the issue.
-- **Wait for review**: all changes require review and CI to pass before merging.
+**Never commit directly to `main`.** This applies to all changes including
+documentation, config, and trivial fixes.
 
-Branch naming convention:
-- Bug fixes: `fix/issue-NNNN-short-description`
-- Features: `feat/issue-NNNN-short-description`
-- Docs/chore: `docs/short-description` or `chore/short-description`
+This rule exists to preserve CI gating, review history, and the ability to
+revert cleanly. A direct push to `main` bypasses all of these and cannot be
+undone without rewriting history.
+
+Treat branch creation as the first implementation step, not something to do
+at the end. If the current checkout is dirty or already contains unrelated
+work, create a clean worktree from `main` and do the task there.
+
+Always:
+1. Create a branch (`fix/issue-NNNN-short-description`, `feat/issue-NNNN-short-description`, `docs/short-description`, or `chore/short-description`)
+2. Push changes to the branch
+3. Open a PR targeting `main`
+4. Wait for review/merge
+
+If implementing a GitHub issue, include an auto-closing reference in the PR
+body (for example: `Closes #1234`).
+
+**Stage files explicitly**: never use `git commit -am` — this can sweep in
+lock file changes from `npm ci` or `npm install` that strip platform-specific
+dependencies.
 
 ## Automated code reviews
 

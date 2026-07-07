@@ -1,5 +1,7 @@
 # Security
 
+To report a vulnerability, see [.github/SECURITY.md](../.github/SECURITY.md).
+
 ## AWS-hosted UI authentication
 
 The AWS static site stack protects the hosted frontend with an Amazon Cognito user pool and hosted UI. `StaticSiteStack` creates the user pool, a public SPA client that uses the OAuth 2.0 authorization-code flow with PKCE, and a Cognito domain. The deployed `/config.json` includes the Cognito domain and client ID so the React app redirects unauthenticated visitors before rendering the portfolio dashboard.

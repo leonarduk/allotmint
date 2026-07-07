@@ -20,10 +20,6 @@ Read `AGENTS.md` for full repository guidance. Use these short rules while gener
 
 ## Code quality invariants (non-negotiable)
 
-Derived from NASA/JPL Power of Ten — applicable subset only (C-specific rules omitted):
-
-- **Function length**: ~60 lines max. Refactor before adding more to an oversized function.
-- **Zero lint warnings**: `make lint` and `npm --prefix frontend run lint` must pass clean. Rewrite code that triggers false positives rather than suppressing them.
-- **No silent error swallowing**: no bare `except: pass`, no silent `catch` blocks, no unhandled Promise rejections.
-- **No ignored return values**: if you discard a return value intentionally, make it explicit and add a comment explaining why.
-- **Minimum scope**: declare variables as late and as locally as possible; avoid unnecessary module-level mutable state.
+See `docs/CONTRIBUTING.md` ("Code quality invariants" section) for the
+canonical rules: function length, zero lint warnings, no silent error
+swallowing, no ignored return values, minimum scope.

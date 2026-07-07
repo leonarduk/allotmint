@@ -5,12 +5,17 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from typing import Any, Callable
 
 MAX_DIFF_CHARS = 120_000
+REQUEST_TIMEOUT_SECONDS = 60
+MAX_FETCH_ATTEMPTS = 3
+RETRY_BACKOFF_SECONDS = 2
+RETRYABLE_HTTP_STATUSES = {429, 500, 502, 503, 504}
 DEFAULT_ISSUE_BODY = "No linked issue found. Review code on its own merits."
 TRUNCATION_NOTICE_TEMPLATE = (
     "\n\n[diff truncated after {kept_files} file(s); skipped {skipped_files} additional file(s) "
@@ -332,6 +337,22 @@ def format_truncation_log(original_diff: str, truncated_diff: str) -> str:
     )
 
 
+def _post_once(request: urllib.request.Request, provider_label: str) -> dict[str, Any]:
+    """Issue a single POST attempt and return the parsed JSON body.
+
+    Raises `urllib.error.HTTPError`/`URLError`/`json.JSONDecodeError` on failure;
+    the caller decides which of those are worth retrying.
+    """
+    with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
+        status = getattr(response, "status", None)
+        raw = response.read()
+        print(
+            f"INFO: {provider_label} API responded status={status} bytes={len(raw)}",
+            file=sys.stderr,
+        )
+        return json.loads(raw)
+
+
 def fetch_review(
     url: str,
     headers: dict[str, str],
@@ -341,11 +362,18 @@ def fetch_review(
 ) -> tuple[str, dict[str, Any]]:
     """POST `payload` to `url` and return the review text plus provider-specific extras.
 
-    Shared by the Claude and GPT review scripts: handles the HTTP POST, timeout,
-    `HTTPError` reporting, and empty-response warning so each script only has to
-    supply its endpoint, headers, payload, and an `extractor` that turns the parsed
-    JSON response into `(review_text, extra)`. `extra` carries provider-specific
-    metadata (e.g. Claude's `stop_reason`) back to the caller.
+    Shared by the Claude, GPT, and DeepSeek review scripts: handles the HTTP POST,
+    timeout, retry-with-backoff on transient failures, `HTTPError` reporting, and
+    empty-response warning so each script only has to supply its endpoint, headers,
+    payload, and an `extractor` that turns the parsed JSON response into
+    `(review_text, extra)`. `extra` carries provider-specific metadata (e.g.
+    Claude's `stop_reason`) back to the caller.
+
+    Retries up to `MAX_FETCH_ATTEMPTS` times with a linear backoff (`attempt *
+    RETRY_BACKOFF_SECONDS`) on network errors (`URLError`, including timeouts) and
+    HTTP statuses in `RETRYABLE_HTTP_STATUSES` (429 rate limiting, 5xx server
+    errors). Non-retryable HTTP errors (e.g. 401/403 auth failures) and malformed
+    JSON responses fail immediately without retrying.
     """
     request = urllib.request.Request(
         url,
@@ -354,32 +382,37 @@ def fetch_review(
         method="POST",
     )
 
-    status: int | None = None
-    try:
-        with urllib.request.urlopen(request, timeout=60) as response:
-            status = getattr(response, "status", None)
-            raw = response.read()
-            print(
-                f"INFO: {provider_label} API responded status={status} bytes={len(raw)}",
-                file=sys.stderr,
-            )
-            data = json.loads(raw)
-    except urllib.error.HTTPError as exc:
-        # Keep the provider response in stderr so maintainers can distinguish auth, quota, and API failures.
-        body = exc.read().decode()
-        print(f"ERROR: {provider_label} API returned {exc.code}: {body}", file=sys.stderr)
-        raise SystemExit(1) from exc
-    except urllib.error.URLError as exc:
-        print(f"ERROR: {provider_label} API request failed: {exc.reason}", file=sys.stderr)
-        raise SystemExit(1) from exc
-    except json.JSONDecodeError as exc:
-        print(f"ERROR: {provider_label} API returned non-JSON response: {exc}", file=sys.stderr)
-        raise SystemExit(1) from exc
+    data: dict[str, Any] | None = None
+    for attempt in range(1, MAX_FETCH_ATTEMPTS + 1):
+        try:
+            data = _post_once(request, provider_label)
+            break
+        except urllib.error.HTTPError as exc:
+            # Keep the provider response in stderr so maintainers can distinguish auth, quota, and API failures.
+            body = exc.read().decode()
+            print(f"ERROR: {provider_label} API returned {exc.code}: {body}", file=sys.stderr)
+            if exc.code not in RETRYABLE_HTTP_STATUSES or attempt == MAX_FETCH_ATTEMPTS:
+                raise SystemExit(1) from exc
+        except urllib.error.URLError as exc:
+            print(f"ERROR: {provider_label} API request failed: {exc.reason}", file=sys.stderr)
+            if attempt == MAX_FETCH_ATTEMPTS:
+                raise SystemExit(1) from exc
+        except json.JSONDecodeError as exc:
+            print(f"ERROR: {provider_label} API returned non-JSON response: {exc}", file=sys.stderr)
+            raise SystemExit(1) from exc
+
+        delay = attempt * RETRY_BACKOFF_SECONDS
+        print(
+            f"INFO: {provider_label} attempt {attempt}/{MAX_FETCH_ATTEMPTS} failed; "
+            f"retrying in {delay}s",
+            file=sys.stderr,
+        )
+        time.sleep(delay)
 
     review, extra = extractor(data)
     if not review.strip():
         print(
-            f"WARNING: {provider_label} API returned an empty review body (status={status})",
+            f"WARNING: {provider_label} API returned an empty review body",
             file=sys.stderr,
         )
     return review, extra

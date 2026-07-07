@@ -40,8 +40,10 @@ def get_max_tokens() -> int:
 def extract_deepseek_review(data: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     """Extract review text from DeepSeek chat-completions responses.
 
-    DeepSeek's API is OpenAI-compatible: the response shape is
-    `{"choices": [{"message": {"content": "..."}}]}`.
+    DeepSeek's API is OpenAI-compatible: the response shape is always
+    `{"choices": [{"message": {"content": "<string>"}}]}` — unlike Anthropic's
+    content-block format, DeepSeek never returns `content` as a list, so no
+    list-handling branch is needed here.
     """
     choices = data.get("choices", [])
     if not choices:
@@ -49,12 +51,7 @@ def extract_deepseek_review(data: dict[str, Any]) -> tuple[str, dict[str, Any]]:
 
     message = choices[0].get("message", {})
     content = message.get("content", "")
-    if isinstance(content, list):
-        review = "\n".join(part.get("text", "") for part in content if part.get("type") == "text").strip()
-    elif isinstance(content, str):
-        review = content.strip()
-    else:
-        review = ""
+    review = content.strip() if isinstance(content, str) else ""
     return review, {}
 
 

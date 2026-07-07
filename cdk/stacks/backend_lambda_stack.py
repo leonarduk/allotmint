@@ -147,6 +147,23 @@ class BackendLambdaStack(Stack):
             )
 
     @staticmethod
+    def _require_single_cfn_authorizer(
+        cfn_authorizers: Sequence[apigwv2.CfnAuthorizer],
+    ) -> apigwv2.CfnAuthorizer:
+        """Return the sole entry in ``cfn_authorizers`` or raise ``ValueError``.
+
+        Guards against silently overriding the wrong resource if a second
+        authorizer is ever added to backend_api (#4057).
+        """
+
+        if len(cfn_authorizers) != 1:
+            raise ValueError(
+                "Expected exactly one CfnAuthorizer under BackendApi, found "
+                f"{len(cfn_authorizers)}"
+            )
+        return cfn_authorizers[0]
+
+    @staticmethod
     def _grant_timeseries_cache_access(
         fn: _lambda.DockerImageFunction,
         *,
@@ -625,11 +642,7 @@ class BackendLambdaStack(Stack):
             for child in backend_api.node.find_all()
             if isinstance(child, apigwv2.CfnAuthorizer)
         ]
-        assert len(backend_cfn_authorizers) == 1, (
-            "Expected exactly one CfnAuthorizer under BackendApi, found "
-            f"{len(backend_cfn_authorizers)}"
-        )
-        backend_cfn_authorizer = backend_cfn_authorizers[0]
+        backend_cfn_authorizer = self._require_single_cfn_authorizer(backend_cfn_authorizers)
         backend_cfn_authorizer.add_property_override(
             "JwtConfiguration.Audience",
             Fn.condition_if(

@@ -215,6 +215,11 @@ def describe_token(token: str | None) -> dict[str, Any]:
         return {"token_present": False, "claims": {}, "allowed_email_match": False}
 
     payload = _unverified_claims(token)
+    if not payload:
+        # Malformed/undecodable token: no claims to report, rather than a
+        # fixed allowlist of keys all mapped to None.
+        return {"token_present": True, "claims": {}, "allowed_email_match": False}
+
     claims = {field: payload.get(field) for field in WHOAMI_CLAIM_FIELDS}
 
     email = payload.get("email") or payload.get("sub")

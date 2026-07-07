@@ -36,6 +36,23 @@ from stacks.exports import BACKEND_API_URL_EXPORT
 # distinct from the read-only ``accounts/`` demo prefix (issue #4275).
 WRITABLE_ACCOUNTS_PREFIX = "writable-accounts"
 
+# API Gateway access-log format for the backend HTTP API's default stage.
+# Deliberately logs claims/status/source IP only — never the raw bearer
+# token or Authorization header — so no credentials land in the logs.
+# Applied to the default stage in BackendLambdaStack.__init__ (issue #4255, #4738).
+ACCESS_LOG_FORMAT = json.dumps(
+    {
+        "requestId": "$context.requestId",
+        "routeKey": "$context.routeKey",
+        "status": "$context.status",
+        "errorMessage": "$context.error.message",
+        "authorizerError": "$context.authorizer.error",
+        "integrationStatus": "$context.integrationStatus",
+        "responseLatency": "$context.responseLatency",
+        "sourceIp": "$context.identity.sourceIp",
+    }
+)
+
 
 class BackendLambdaStack(Stack):
     """CDK stack that builds and deploys the backend Lambda."""
@@ -450,17 +467,6 @@ class BackendLambdaStack(Stack):
             retention=logs.RetentionDays.ONE_WEEK,
             removal_policy=RemovalPolicy.DESTROY,
         )
-        access_log_format = json.dumps(
-            {
-                "requestId": "$context.requestId",
-                "routeKey": "$context.routeKey",
-                "status": "$context.status",
-                "errorMessage": "$context.error.message",
-                "authorizerError": "$context.authorizer.error",
-                "integrationStatus": "$context.integrationStatus",
-                "responseLatency": "$context.responseLatency",
-            }
-        )
         default_stage = backend_api.default_stage
         assert default_stage is not None, "BackendApi must expose a default stage"
         cfn_default_stage = default_stage.node.default_child
@@ -470,7 +476,7 @@ class BackendLambdaStack(Stack):
         cfn_default_stage.add_property_override(
             "AccessLogSettings.DestinationArn", access_log_group.log_group_arn
         )
-        cfn_default_stage.add_property_override("AccessLogSettings.Format", access_log_format)
+        cfn_default_stage.add_property_override("AccessLogSettings.Format", ACCESS_LOG_FORMAT)
 
         backend_integration = apigwv2_integrations.HttpLambdaIntegration(
             "BackendLambdaIntegration", backend_fn

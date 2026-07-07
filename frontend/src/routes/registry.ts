@@ -275,6 +275,10 @@ export const ROUTE_REGISTRY: RouteRegistryEntry[] = [
     defaultPath: () => '/scenario',
   },
   {
+    // 'standalone' section: this page is not part of the main user/support
+    // menu structure (see getMenuEntries), it's only reachable by direct
+    // navigation to routePath. It still needs routePath + lazyComponent so
+    // standalonePageRoutes below picks it up and mounts it as a <Route>.
     mode: 'virtual',
     routeSegment: 'virtual',
     section: 'standalone',
@@ -292,6 +296,8 @@ export const ROUTE_REGISTRY: RouteRegistryEntry[] = [
     defaultPath: () => '/research',
   },
   {
+    // Also 'standalone': reachable pre-login from the sign-in screen, so it
+    // must not depend on anything in the authenticated user/support menus.
     mode: 'createaccount',
     routeSegment: 'create-account',
     section: 'standalone',
@@ -428,6 +434,11 @@ export function validatePageManifest() {
   };
 }
 
+// Entries actually mounted as React Router <Route>s, independent of `section`.
+// `section: 'standalone'` marks a route as outside the main menu structure,
+// but it's routePath + lazyComponent together (not section) that decide
+// whether an entry ends up here — see the `alerts` entry above for the one
+// 'standalone' entry that's deliberately excluded.
 export const standalonePageRoutes = ROUTE_REGISTRY.filter((entry) =>
   Boolean(entry.routePath && entry.lazyComponent)
 ) as Array<

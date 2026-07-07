@@ -294,6 +294,51 @@ def test_load_account_falls_back_to_local(tmp_path, monkeypatch, caplog, cleanup
     )
 
 
+def test_load_account_falls_back_sanitises_log_fields(
+    tmp_path, monkeypatch, caplog, cleanup_boto3_module
+):
+    """Owner/account values are sanitised before being logged on fallback.
+
+    Regression test for #4009: a malicious owner/account containing CRLF
+    must not be able to inject fake log lines (CWE-117) into the fallback
+    warning emitted by ``load_account``.
+    """
+    monkeypatch.setattr(dl.config, "app_env", "aws", raising=False)
+    monkeypatch.setenv(dl.DATA_BUCKET_ENV, "bucket")
+
+    owner = "owner\r\nFAKE LOG LINE"
+    account = "acct\r\ninjected"
+
+    owner_dir = tmp_path / "owner"
+    owner_dir.mkdir()
+    (owner_dir / "account.json").write_text('{"value": 7}')
+
+    def fake_client(name):
+        assert name == "s3"
+
+        def get_object(Bucket, Key):
+            raise RuntimeError("boom")
+
+        return SimpleNamespace(get_object=get_object)
+
+    monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=fake_client))
+
+    with caplog.at_level(logging.WARNING):
+        with pytest.raises(FileNotFoundError):
+            dl.load_account(owner, account, data_root=tmp_path)
+
+    warning_records = [
+        r for r in caplog.records if "falling back to local file" in r.getMessage()
+    ]
+    assert len(warning_records) == 1
+    record = warning_records[0]
+
+    assert "\r" not in record.getMessage()
+    assert "\n" not in record.getMessage()
+    assert record.owner == "ownerFAKE LOG LINE"
+    assert record.account == "acctinjected"
+
+
 def test_load_account_missing_bucket(monkeypatch):
     monkeypatch.setattr(dl.config, "app_env", "aws", raising=False)
     monkeypatch.delenv(dl.DATA_BUCKET_ENV, raising=False)

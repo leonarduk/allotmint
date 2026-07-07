@@ -46,9 +46,15 @@ Run the full AllotMint stack (backend + frontend) with real local fixture data.
 3. Open:
 
    - Frontend UI: http://localhost:3000
-   - Backend OpenAPI docs: http://localhost:8000/docs
+   - Backend API console (Swagger UI): http://localhost:8000/api-console
+     (the default `/docs` route is disabled; `.env.local.example` sets
+     `DISABLE_AUTH` and `LOCAL_LOGIN_EMAIL` so the console loads without a
+     real login)
 
-The backend bind-mounts `./data` into `/app/data` so portfolio/account fixtures are served live from your local repository checkout.
+The backend bind-mounts `./data`, `./config.yaml`, and `./backend` into the
+container, and runs with `--reload`, so both fixture data and code edits are
+picked up live from your local repository checkout without rebuilding the
+image.
 
 ### Stop services
 

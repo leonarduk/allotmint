@@ -136,17 +136,10 @@ jobs:
         with:
           ref: ${{ inputs.ref || github.ref }}
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
+      - name: Setup frontend dependencies
+        uses: ./.github/actions/setup-frontend-deps
         with:
-          node-version: '24'
-
-      - name: Install root dependencies
-        run: npm ci
-
-      - name: Install frontend dependencies
-        run: npm ci
-        working-directory: frontend
+          enable-cache: 'false'
 
       - name: Build frontend
         run: npm run build
@@ -545,13 +538,13 @@ jobs:
           for attempt in 1 2 3 4 5; do
             head_out="$(aws s3api head-object --bucket "$data_bucket" --key prices/latest_prices.json 2>&1)" && break
             if echo "$head_out" | grep -q "(403)"; then
-              echo "head-object returned 403 Forbidden — deploy role lacks s3:GetObject or s3:ListBucket on the data bucket. Check CDK grants for GITHUB_DEPLOY_ROLE_ARN. See issue #3191." >&2
-              echo "$head_out" >&2
+              echo "head-object returned 403 Forbidden for bucket=${data_bucket} key=prices/latest_prices.json — deploy role lacks s3:GetObject or s3:ListBucket on the data bucket. Check CDK grants for GITHUB_DEPLOY_ROLE_ARN. See issue #3191." >&2
+              echo "  AWS response: $head_out" >&2
               exit 1
             fi
             if [ "$attempt" -eq 5 ]; then
-              echo "head-object failed on attempt 5/5; giving up." >&2
-              echo "$head_out" >&2
+              echo "head-object failed on attempt 5/5 for bucket=${data_bucket} key=prices/latest_prices.json; giving up." >&2
+              echo "  AWS response: $head_out" >&2
               exit 1
             fi
             echo "head-object attempt $attempt/5 failed (key not yet written); retrying in 20s..." >&2
@@ -817,7 +810,8 @@ jobs:
             fi
             if echo "$head_output" | grep -qiE "Throttling|SlowDown|RequestTimeout|InternalError|ServiceUnavailable|\(50[0-9]\)"; then
               if [ "$attempt" -eq "$max_attempts" ]; then
-                echo "ERROR: S3 bucket access check failed after ${max_attempts} attempts (transient error persisted): head-object returned exit ${head_exit}: ${head_output}" >&2
+                echo "ERROR: S3 bucket access check failed for bucket=${DATA_BUCKET} key=prices/latest_prices.json after ${max_attempts} attempts (transient error persisted, head-object exit ${head_exit})" >&2
+                echo "  AWS response: ${head_output}" >&2
                 exit 1
               fi
               echo "head-object attempt ${attempt}/${max_attempts} hit a transient S3 error; retrying in ${wait_seconds}s..." >&2
@@ -827,7 +821,8 @@ jobs:
               attempt=$((attempt + 1))
               continue
             fi
-            echo "ERROR: S3 bucket access check failed: head-object returned exit ${head_exit}: ${head_output}" >&2
+            echo "ERROR: S3 bucket access check failed for bucket=${DATA_BUCKET} key=prices/latest_prices.json (head-object exit ${head_exit})" >&2
+            echo "  AWS response: ${head_output}" >&2
             exit 1
           done
 
@@ -1066,23 +1061,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
 
-      - name: Install root dependencies
-        run: npm ci
-
-      - name: Install frontend dependencies
-        run: npm ci
-        working-directory: frontend
+      - name: Setup frontend dependencies
+        uses: ./.github/actions/setup-frontend-deps
+        with:
+          enable-cache: 'false'
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps

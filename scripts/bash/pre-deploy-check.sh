@@ -13,6 +13,17 @@ set -uo pipefail
 # Always run from the repository root regardless of where the script is invoked from.
 cd "$(dirname "$0")/../.." || exit 1
 
+# Prefer python3 when present, falling back to python, so the interpreter used here
+# matches whatever scripts/powershell/pre-deploy-check.ps1 resolves to on the same machine.
+if command -v python3 >/dev/null 2>&1; then
+    PYTHON_BIN=python3
+elif command -v python >/dev/null 2>&1; then
+    PYTHON_BIN=python
+else
+    echo "Error: neither python3 nor python found in PATH" >&2
+    exit 1
+fi
+
 PASS=0
 FAIL=0
 SKIP=0
@@ -34,7 +45,7 @@ fi
 echo ""
 echo "=== 1. Dependency dry-run ==="
 rm -rf /tmp/pre-deploy-venv
-if python -m venv /tmp/pre-deploy-venv && /tmp/pre-deploy-venv/bin/pip install --dry-run -r backend/requirements.txt -q; then
+if "$PYTHON_BIN" -m venv /tmp/pre-deploy-venv && /tmp/pre-deploy-venv/bin/pip install --dry-run -r backend/requirements.txt -q; then
     pass "pip dependency dry-run"
 else
     fail "pip dependency dry-run"
@@ -50,16 +61,16 @@ elif [[ -z "${GITHUB_DEPLOY_ROLE_ARN:-}" || -z "${JWT_SECRET:-}" || -z "${GOOGLE
     skip "CDK diff (requires GITHUB_DEPLOY_ROLE_ARN, JWT_SECRET, GOOGLE_CLIENT_ID, DATA_BUCKET)"
 else
     cdk_diff_output=$(mktemp)
+    trap 'rm -f "$cdk_diff_output"' EXIT
     (cd cdk && npx cdk diff BackendLambdaStack StaticSiteStack -c prod=true --method=changeset) | tee "$cdk_diff_output"
     cdk_diff_exit=${PIPESTATUS[0]}
     if [[ $cdk_diff_exit -ne 0 ]]; then
         fail "CDK diff"
-    elif ! python3 scripts/check_cdk_diff_iam_removals.py "$cdk_diff_output"; then
+    elif ! "$PYTHON_BIN" scripts/check_cdk_diff_iam_removals.py "$cdk_diff_output"; then
         fail "CDK diff (removes an IAM Allow grant for the deploy role — see #3741)"
     else
         pass "CDK diff"
     fi
-    rm -f "$cdk_diff_output"
 fi
 
 # 3. IAM permission simulation
@@ -160,7 +171,7 @@ else
     fail "make lint"
 fi
 
-if python -m pytest tests/ -x -q; then
+if "$PYTHON_BIN" -m pytest tests/ -x -q; then
     pass "backend pytest"
 else
     fail "backend pytest"
@@ -184,7 +195,7 @@ fi
 # 6. CDK tests
 echo ""
 echo "=== 6. CDK tests ==="
-if (cd cdk && python -m pytest tests/ -x -q); then
+if (cd cdk && "$PYTHON_BIN" -m pytest tests/ -x -q); then
     pass "CDK pytest"
 else
     fail "CDK pytest"

@@ -2,13 +2,15 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 import pytest
 
+from backend.common.account_models import OwnerSummaryRecord
 from backend.routes import scenario
 
 
 def _client(monkeypatch, list_plots_return, build_map=None):
     app = FastAPI()
     app.include_router(scenario.router)
-    monkeypatch.setattr("backend.routes.scenario.list_plots", lambda: list_plots_return)
+    records = [OwnerSummaryRecord.model_validate(entry) for entry in list_plots_return]
+    monkeypatch.setattr("backend.routes.scenario.list_plots", lambda: records)
 
     def build(owner):
         action = None
@@ -40,7 +42,7 @@ def _client(monkeypatch, list_plots_return, build_map=None):
 
 
 def test_run_scenario_basic(monkeypatch):
-    client = _client(monkeypatch, [{"owner": "alice", "accounts": [1]}])
+    client = _client(monkeypatch, [{"owner": "alice", "accounts": ["acc1"]}])
     resp = client.get("/scenario", params={"ticker": "ABC", "pct": 0.1})
     assert resp.status_code == 200
     data = resp.json()
@@ -50,7 +52,7 @@ def test_run_scenario_basic(monkeypatch):
 
 def test_run_scenario_skips_missing_portfolio(monkeypatch):
     build_map = {"alice": "error"}
-    client = _client(monkeypatch, [{"owner": "alice", "accounts": [1]}], build_map)
+    client = _client(monkeypatch, [{"owner": "alice", "accounts": ["acc1"]}], build_map)
     resp = client.get("/scenario", params={"ticker": "ABC", "pct": 0.1})
     assert resp.status_code == 200
     assert resp.json() == []
@@ -62,7 +64,7 @@ def test_run_scenario_derives_baseline(monkeypatch):
             "accounts": [{"value_estimate_gbp": 50}, {"value_estimate_gbp": 70}],
         }
     }
-    client = _client(monkeypatch, [{"owner": "bob", "accounts": [1]}], build_map)
+    client = _client(monkeypatch, [{"owner": "bob", "accounts": ["acc1"]}], build_map)
     resp = client.get("/scenario", params={"ticker": "XYZ", "pct": 0.1})
     assert resp.status_code == 200
     data = resp.json()[0]
@@ -72,7 +74,7 @@ def test_run_scenario_derives_baseline(monkeypatch):
 
 @pytest.mark.xfail(reason="Scenario data structure changed")
 def test_historical_scenario_parses_tokens(monkeypatch):
-    client = _client(monkeypatch, [{"owner": "alice", "accounts": [1]}])
+    client = _client(monkeypatch, [{"owner": "alice", "accounts": ["acc1"]}])
     resp = client.get(
         "/scenario/historical", params={"event_id": "evt", "horizons": "1d,1w"}
     )

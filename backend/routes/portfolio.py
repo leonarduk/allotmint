@@ -472,10 +472,7 @@ def _list_owner_summaries(
 
     accounts_root = resolve_accounts_root(request, allow_missing=True)
 
-    raw_entries = [
-        OwnerSummaryRecord.model_validate(entry)
-        for entry in data_loader.list_plots(accounts_root, current_user)
-    ]
+    raw_entries = data_loader.list_plots(accounts_root, current_user)
     summaries: List[Dict[str, Any]] = []
 
     for entry in raw_entries:

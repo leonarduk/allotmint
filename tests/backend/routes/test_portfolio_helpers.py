@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from backend.common.account_models import OwnerSummaryRecord
 from backend.routes import portfolio
 
 
@@ -112,7 +113,7 @@ def test_list_owner_summaries_appends_demo_when_missing(monkeypatch: pytest.Monk
     def fake_list_plots(root: Path, current_user):
         call_counter["count"] += 1
         if call_counter["count"] == 1:
-            return [{"owner": "alex", "accounts": ["isa"]}]
+            return [OwnerSummaryRecord(owner="alex", accounts=["isa"])]
         return []
 
     def fake_load_person_meta(owner: str, root: Path) -> dict:

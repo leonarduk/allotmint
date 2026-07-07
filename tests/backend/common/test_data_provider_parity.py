@@ -126,14 +126,14 @@ def _configure_aws(
     )
 
 
-def _normalise_owner_listing(entries: list[dict[str, object]]) -> list[dict[str, object]]:
+def _normalise_owner_listing(entries: list) -> list[dict[str, object]]:
     return sorted(
         [
             {
-                "owner": str(entry["owner"]).lower(),
-                "accounts": sorted(str(account).lower() for account in entry.get("accounts", [])),
-                "full_name": entry.get("full_name"),
-                "email": entry.get("email"),
+                "owner": entry.owner.lower(),
+                "accounts": sorted(account.lower() for account in entry.accounts),
+                "full_name": entry.full_name,
+                "email": entry.email,
             }
             for entry in entries
         ],

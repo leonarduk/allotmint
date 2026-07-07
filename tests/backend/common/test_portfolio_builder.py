@@ -3,7 +3,7 @@ from collections import defaultdict
 
 import pytest
 
-from backend.common.account_models import AccountRecord
+from backend.common.account_models import AccountRecord, OwnerSummaryRecord
 from backend.common.portfolio import build_owner_portfolio
 from backend.common.user_config import UserConfig
 
@@ -31,7 +31,7 @@ def fixture_portfolio_stubs(monkeypatch, today):
     ]
 
     def fake_list_plots(accounts_root=None):  # noqa: ARG001 - signature matches target
-        return [{"owner": owner, "accounts": [{"slug": "account-one"}]}]
+        return [OwnerSummaryRecord(owner=owner, accounts=["account-one"])]
 
     def fake_load_trades(owner_name, accounts_root=None):  # noqa: ARG001
         return [

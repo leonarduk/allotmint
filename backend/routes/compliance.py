@@ -70,7 +70,7 @@ def _known_owners(accounts_root) -> KnownOwnerSet:
         allow_demo_injection = True
 
     for entry in entries:
-        owner = (entry.get("owner") or "").strip()
+        owner = (entry.owner or "").strip()
         if owner:
             owners.add(owner.lower())
 

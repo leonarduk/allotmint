@@ -1,4 +1,13 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
+import {
+  applyAuth as applyAuthToken,
+  DEFAULT_CONFIG_BODY,
+  DEFAULT_GROUPS_BODY,
+  DEFAULT_OWNERS_BODY,
+  getActiveRouteMarker,
+  getBootstrapMarker,
+  setupCoreMocks,
+} from './support/smokeFixtures';
 
 const baseUrl = process.env.SMOKE_URL ?? 'http://localhost:5173';
 const authToken = process.env.SMOKE_AUTH_TOKEN ?? process.env.TEST_ID_TOKEN ?? null;
@@ -6,81 +15,7 @@ const authToken = process.env.SMOKE_AUTH_TOKEN ?? process.env.TEST_ID_TOKEN ?? n
 const smokePath = new URL('/smoke-test', baseUrl).toString();
 const pensionForecastPath = new URL('/pension/forecast', baseUrl).toString();
 
-/**
- * Set up core API mocks so the app does not show BackendUnavailableCard
- * when there is no backend (e.g. CI preview build).  These provide the
- * minimum identity catalogue (/config, /owners, /groups) that the app
- * shell needs before it renders any page component.
- *
- * Tests that need to mock additional endpoints should call setupCoreMocks
- * first and then add their own route() calls.  Tests that intentionally
- * override all three endpoints with their own handlers can skip this.
- */
-const setupCoreMocks = async (page: Page) => {
-  await page.route('**/config', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        app_env: 'test',
-        theme: null,
-        tabs: { trail: true, taxtools: true, 'trade-compliance': true, reports: true },
-        relative_view_enabled: false,
-        google_auth_enabled: false,
-        google_client_id: null,
-        disable_auth: true,
-        allowed_emails: null,
-        local_login_email: null,
-        disabled_tabs: [],
-        enable_family_mvp: false,
-      }),
-    });
-  });
-  await page.route('**/owners', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify([
-        {
-          owner: 'demo-owner',
-          full_name: 'Demo Owner',
-          accounts: ['ISA'],
-          has_transactions_artifact: false,
-        },
-      ]),
-    });
-  });
-  await page.route('**/groups', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify([{ slug: 'all', name: 'All portfolios', members: ['demo-owner'] }]),
-    });
-  });
-};
-
-const applyAuth = async (page: Page) => {
-  if (!authToken) {
-    return;
-  }
-
-  await page.addInitScript((token: string) => {
-    window.localStorage.setItem('authToken', token);
-    // Seed a valid AWS UI auth (Cognito) session so ensureAwsUiAuth() finds an
-    // unexpired session and skips the hosted-UI redirect, which would navigate
-    // away from the app before it renders. See awsUiAuth.ts hasValidSession().
-    window.sessionStorage.setItem(
-      'awsUiAuthSession',
-      JSON.stringify({ idToken: token, expiresAt: Date.now() + 60 * 60 * 1000 })
-    );
-  }, authToken);
-};
-
-const getActiveRouteMarker = (page: Page) =>
-  page.locator('[data-route-marker="active"], [data-testid="active-route-marker"]');
-
-const getBootstrapMarker = (page: Page) =>
-  page.locator('[data-route-marker="bootstrap"], [data-testid="route-bootstrap-marker"]');
+const applyAuth = (page: Page) => applyAuthToken(page, authToken);
 
 // Several non-Family-MVP redirects can change the URL in the preview build:
 // - getOwnerRootRedirectPath redirects bare /portfolio→/portfolio/:owner and
@@ -93,22 +28,52 @@ const getBootstrapMarker = (page: Page) =>
 // Accept these modes plus the original Family MVP targets so redirects are
 // handled gracefully. Disabled tabs are re-enabled via the mock config so the
 // FAMILY_MVP_ROUTE_GATES redirects should not fire; the group/movers entries
-// below are defensive fallbacks.
-const FAMILY_MVP_ENTRY_MODES = ['transactions', 'owner', 'performance', 'group'];
+// below are defensive fallbacks. Named for what it now covers (renamed from
+// FAMILY_MVP_ENTRY_MODES, which undersold its scope once the owner/
+// performance/movers fallbacks were added).
+const ACCEPTED_REDIRECT_MODES = ['transactions', 'owner', 'performance', 'group'];
+
+// Ceiling on how long the async /config fetch (which gates the Family MVP
+// redirect effect) is allowed to take before we give up waiting on it.
+const CONFIG_SETTLE_TIMEOUT_MS = 5000;
+// Once config has resolved, require the URL to stop changing for this long
+// before treating a route as settled — long enough to catch a redirect hop
+// (e.g. bare /portfolio to /portfolio/<owner>), short because at this point
+// the only remaining source of change is synchronous client-side routing.
+const STABLE_WINDOW_MS = 450;
+// How often to re-check the URL while waiting for it to stabilise.
+const POLL_MS = 150;
+
+if (STABLE_WINDOW_MS % POLL_MS !== 0) {
+  throw new Error(
+    `STABLE_WINDOW_MS (${STABLE_WINDOW_MS}) must be a whole multiple of POLL_MS (${POLL_MS}) ` +
+      'so the stability window is measured in whole polling ticks.'
+  );
+}
 
 const waitForStableRoutePathname = async (page: Page): Promise<string> => {
-  // The Family MVP redirect effect only fires once the async /config fetch
-  // resolves, which can take over a second, and an intermediate redirect hop
-  // (e.g. bare /portfolio to /portfolio/<owner>) can briefly unmount the
-  // route marker entirely. Read the browser URL directly — it's always
-  // available, even mid-redirect. Wait out the config-fetch window first,
-  // then require the pathname to stop changing for a short window before
-  // treating it as settled.
-  const MIN_WAIT_MS = 1800;
-  const STABLE_WINDOW_MS = 450;
-  const POLL_MS = 150;
+  // main.tsx renders a `route-bootstrap-marker` element only while the async
+  // /config fetch is in flight; it is removed once config resolves and the
+  // real App mounts. Waiting on its removal (rather than sleeping a fixed
+  // MIN_WAIT_MS floor) means routes that never redirect settle as soon as
+  // config resolves, instead of every route paying the same worst-case wait.
+  await page
+    .waitForFunction(
+      () => document.querySelector('[data-testid="route-bootstrap-marker"]') === null,
+      undefined,
+      { timeout: CONFIG_SETTLE_TIMEOUT_MS }
+    )
+    .catch(() => {
+      // If the bootstrap marker never clears within the ceiling, fall through
+      // to the stability poll below rather than hanging indefinitely — the
+      // assertions after this function returns will fail loudly on whatever
+      // pathname we ended up on.
+    });
+
+  // An intermediate redirect hop (e.g. bare /portfolio to /portfolio/<owner>)
+  // can briefly unmount the route marker entirely, so read the browser URL
+  // directly here — it's always available, even mid-redirect.
   const readPathname = () => new URL(page.url()).pathname;
-  await page.waitForTimeout(MIN_WAIT_MS);
   let previous = readPathname();
   let stableFor = 0;
   while (stableFor < STABLE_WINDOW_MS) {
@@ -203,6 +168,17 @@ const ROUTES: RouteConfig[] = [
         });
       });
     },
+    extraAssertions: async (page) => {
+      // VirtualPortfolio is localStorage-backed, not driven by the mocked
+      // /virtual-portfolios response above (that mock exists purely to
+      // confirm a slow, unrelated in-flight request doesn't block the page
+      // from settling). Assert the manual-entry form itself mounted, so this
+      // route's content is verified beyond just the top-level heading.
+      await expect(page.getByRole('heading', { name: 'Add account', level: 2 })).toBeVisible();
+      await expect(
+        page.getByPlaceholder('Account name (e.g. ISA, Pension, Brokerage)')
+      ).toBeVisible();
+    },
   },
   { path: '/support', assertion: { kind: 'heading', name: 'Support' } },
   // /alerts is rendered inside the app shell via the mode === 'alerts' branch in App.tsx.
@@ -267,6 +243,10 @@ const ROUTES: RouteConfig[] = [
   {
     path: '/compliance/demo-owner',
     assertion: { kind: 'heading', name: 'Compliance warnings' },
+  },
+  {
+    path: '/create-account',
+    assertion: { kind: 'heading', name: 'Create account' },
   },
 ];
 
@@ -359,21 +339,14 @@ test.describe('pension forecast routing', () => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify([
-          {
-            owner: 'demo-owner',
-            full_name: 'Demo Owner',
-            accounts: ['ISA'],
-            has_transactions_artifact: false,
-          },
-        ]),
+        body: JSON.stringify(DEFAULT_OWNERS_BODY),
       });
     });
     await page.route('**/groups', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify([{ slug: 'all', name: 'All portfolios', members: ['demo-owner'] }]),
+        body: JSON.stringify(DEFAULT_GROUPS_BODY),
       });
     });
     await page.route('**/pension/forecast?*', async (route) => {
@@ -409,19 +382,7 @@ test.describe('bootstrap to portfolio happy path', () => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({
-          app_env: 'test',
-          theme: null,
-          tabs: { trail: true, taxtools: true, 'trade-compliance': true, reports: true },
-          relative_view_enabled: false,
-          google_auth_enabled: false,
-          google_client_id: null,
-          disable_auth: true,
-          allowed_emails: null,
-          local_login_email: 'demo@example.com',
-          disabled_tabs: [],
-          enable_family_mvp: false,
-        }),
+        body: JSON.stringify({ ...DEFAULT_CONFIG_BODY, local_login_email: 'demo@example.com' }),
       });
     });
 
@@ -429,14 +390,7 @@ test.describe('bootstrap to portfolio happy path', () => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify([
-          {
-            owner: 'demo-owner',
-            full_name: 'Demo Owner',
-            accounts: ['ISA'],
-            has_transactions_artifact: false,
-          },
-        ]),
+        body: JSON.stringify(DEFAULT_OWNERS_BODY),
       });
     });
 
@@ -444,7 +398,7 @@ test.describe('bootstrap to portfolio happy path', () => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify([{ slug: 'all', name: 'All portfolios', members: ['demo-owner'] }]),
+        body: JSON.stringify(DEFAULT_GROUPS_BODY),
       });
     });
 
@@ -507,7 +461,7 @@ test.describe('public route smoke coverage', () => {
       if (settledPathname !== target.pathname) {
         await expect(getActiveRouteMarker(page)).toBeVisible();
         const redirectedMode = await getActiveRouteMarker(page).getAttribute('data-mode');
-        expect(FAMILY_MVP_ENTRY_MODES).toContain(redirectedMode);
+        expect(ACCEPTED_REDIRECT_MODES).toContain(redirectedMode);
         expect(pageErrors).toHaveLength(0);
         return;
       }
@@ -587,19 +541,7 @@ test.describe('config bootstrap', () => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({
-          app_env: 'test',
-          theme: null,
-          enable_family_mvp: false,
-          relative_view_enabled: false,
-          google_auth_enabled: false,
-          google_client_id: null,
-          disable_auth: true,
-          allowed_emails: null,
-          local_login_email: null,
-          tabs: { trail: true, taxtools: true, 'trade-compliance': true, reports: true },
-          disabled_tabs: [],
-        }),
+        body: JSON.stringify(DEFAULT_CONFIG_BODY),
       });
     };
 
@@ -608,21 +550,14 @@ test.describe('config bootstrap', () => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify([
-          {
-            owner: 'demo-owner',
-            full_name: 'Demo Owner',
-            accounts: ['ISA'],
-            has_transactions_artifact: false,
-          },
-        ]),
+        body: JSON.stringify(DEFAULT_OWNERS_BODY),
       });
     });
     await page.route('**/groups', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify([{ slug: 'all', name: 'All portfolios', members: ['demo-owner'] }]),
+        body: JSON.stringify(DEFAULT_GROUPS_BODY),
       });
     });
 
@@ -651,6 +586,11 @@ test.describe('config bootstrap', () => {
 
 test.describe('timeseries edit resilience', () => {
   test('keeps the route marker visible when the edit load fails', async ({ page }) => {
+    const pageErrors: Error[] = [];
+    page.on('pageerror', (error) => {
+      pageErrors.push(error);
+    });
+
     await applyAuth(page);
 
     await setupCoreMocks(page);
@@ -673,7 +613,13 @@ test.describe('timeseries edit resilience', () => {
     if (settledPathname !== target.pathname) {
       await expect(getActiveRouteMarker(page)).toBeVisible();
       const redirectedMode = await getActiveRouteMarker(page).getAttribute('data-mode');
-      expect(FAMILY_MVP_ENTRY_MODES).toContain(redirectedMode);
+      expect(ACCEPTED_REDIRECT_MODES).toContain(redirectedMode);
+      expect(pageErrors).toHaveLength(0);
+      // Family MVP redirected away from /timeseries before the edit-load
+      // failure could be exercised at all. Mark the test skipped (not a
+      // silent pass) so this shows up explicitly in the report instead of
+      // reading as "the resilience behaviour was verified".
+      test.skip(true, `redirected to mode "${redirectedMode}" before /timeseries could load`);
       return;
     }
 

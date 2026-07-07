@@ -112,7 +112,7 @@ def test_no_iam_table_means_no_removals() -> None:
 def test_flags_removed_allow_grant_for_deploy_role() -> None:
     unmatched = find_unmatched_allow_removals(REMOVED_DEPLOY_ROLE_GRANT_DIFF)
     assert len(unmatched) == 1
-    assert "lambda:InvokeFunction" in unmatched[0]
+    assert "lambda:InvokeFunction" in " ".join(unmatched[0])
 
 
 def test_replace_pair_is_not_flagged() -> None:
@@ -142,19 +142,19 @@ def test_main_returns_one_for_removed_grant(tmp_path) -> None:
 def test_flags_removed_s3_grant_for_portfolio_data_bucket() -> None:
     unmatched = find_unmatched_allow_removals(REMOVED_S3_GRANT_DIFF)
     assert len(unmatched) == 1
-    assert "s3:GetObject" in unmatched[0]
+    assert "s3:GetObject" in " ".join(unmatched[0])
 
 
 def test_flags_removal_after_blank_line_mid_table() -> None:
     unmatched = find_unmatched_allow_removals(BLANK_LINE_MID_TABLE_DIFF)
     assert len(unmatched) == 1
-    assert "lambda:InvokeFunction" in unmatched[0]
+    assert "lambda:InvokeFunction" in " ".join(unmatched[0])
 
 
 def test_flags_removal_in_ansi_colored_diff() -> None:
     unmatched = find_unmatched_allow_removals(ANSI_COLORED_REMOVAL_DIFF)
     assert len(unmatched) == 1
-    assert "lambda:InvokeFunction" in unmatched[0]
+    assert "lambda:InvokeFunction" in " ".join(unmatched[0])
 
 
 def test_main_reads_from_stdin(monkeypatch) -> None:

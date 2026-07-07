@@ -258,9 +258,7 @@ def test_fetch_news_alpha_omits_published_at_when_missing(monkeypatch):
     monkeypatch.setattr(news_module.requests, "get", fake_get)
 
     items = news_module._fetch_news("AAPL")
-    assert items == [
-        {"headline": "Undated headline", "url": "https://example.com/undated"}
-    ]
+    assert items == [{"headline": "Undated headline", "url": "https://example.com/undated"}]
 
 
 def test_fetch_news_fallback(monkeypatch):
@@ -312,9 +310,7 @@ def test_get_news_quota_and_cache(monkeypatch, tmp_path):
     monkeypatch.setattr(news_module, "COUNTER_FILE", counter_path)
     monkeypatch.setattr(config_module.config, "disable_auth", True, raising=False)
     monkeypatch.setattr(config_module.config, "skip_snapshot_warm", True, raising=False)
-    monkeypatch.setattr(
-        "backend.common.portfolio_utils.refresh_snapshot_async", lambda days=0: None
-    )
+    monkeypatch.setattr("backend.common.portfolio_utils.refresh_snapshot_async", lambda days=0: None)
 
     calls = {"alpha": 0}
 
@@ -346,25 +342,19 @@ def test_get_news_quota_and_cache(monkeypatch, tmp_path):
     with TestClient(app) as client:
         first = client.get("/news", params={"ticker": "ABC"})
         assert first.status_code == 200
-        assert first.json() == [
-            {"headline": "ABC headline", "url": "https://example.com/abc"}
-        ]
+        assert first.json() == [{"headline": "ABC headline", "url": "https://example.com/abc", "stale": False}]
         assert calls["alpha"] == 1
         assert json.loads(counter_path.read_text())["count"] == 1
 
         cached = client.get("/news", params={"ticker": "ABC"})
         assert cached.status_code == 200
-        assert cached.json() == [
-            {"headline": "ABC headline", "url": "https://example.com/abc"}
-        ]
+        assert cached.json() == [{"headline": "ABC headline", "url": "https://example.com/abc", "stale": False}]
         assert calls["alpha"] == 1
         assert json.loads(counter_path.read_text())["count"] == 1
 
         second = client.get("/news", params={"ticker": "XYZ"})
         assert second.status_code == 200
-        assert second.json() == [
-            {"headline": "XYZ headline", "url": "https://example.com/xyz"}
-        ]
+        assert second.json() == [{"headline": "XYZ headline", "url": "https://example.com/xyz", "stale": False}]
         assert calls["alpha"] == 2
         assert json.loads(counter_path.read_text())["count"] == 2
 
@@ -376,7 +366,7 @@ def test_get_news_quota_and_cache(monkeypatch, tmp_path):
         cached_after_limit = client.get("/news", params={"ticker": "ABC"})
         assert cached_after_limit.status_code == 200
         assert cached_after_limit.json() == [
-            {"headline": "ABC headline", "url": "https://example.com/abc"}
+            {"headline": "ABC headline", "url": "https://example.com/abc", "stale": False}
         ]
         assert calls["alpha"] == 2
 
@@ -413,7 +403,7 @@ def test_get_cached_news_cold_cache_fetches_once(monkeypatch):
     monkeypatch.setattr(news_module, "_try_consume_quota", fake_quota)
 
     first = news_module.get_cached_news("cold")
-    assert first == [{"headline": "COLD headline", "url": "https://example.com"}]
+    assert first == [{"headline": "COLD headline", "url": "https://example.com", "stale": False}]
     assert fetch_calls["count"] == 1
     assert quota_calls["count"] == 1
 
@@ -423,7 +413,50 @@ def test_get_cached_news_cold_cache_fetches_once(monkeypatch):
     assert quota_calls["count"] == 1
 
 
+def test_get_cached_news_flags_stale_cache_on_quota_exhaustion(monkeypatch):
+    cache: Dict[str, List[Dict[str, str]]] = {
+        "news_STALE": [{"headline": "Old headline", "url": "https://example.com/old"}]
+    }
+
+    monkeypatch.setattr(page_cache, "load_cache", lambda page: cache.get(page))
+    monkeypatch.setattr(page_cache, "is_stale", lambda page, ttl: True)
+    monkeypatch.setattr(page_cache, "cache_age", lambda page: news_module.NEWS_MAX_STALENESS + 1)
+    monkeypatch.setattr(page_cache, "schedule_refresh", lambda *a, **k: None)
+    monkeypatch.setattr(news_module, "_try_consume_quota", lambda: False)
+
+    items = news_module.get_cached_news("stale")
+    assert items == [
+        {
+            "headline": "Old headline",
+            "url": "https://example.com/old",
+            "stale": True,
+        }
+    ]
+
+
+def test_get_cached_news_does_not_flag_recent_cache_on_quota_exhaustion(monkeypatch):
+    cache: Dict[str, List[Dict[str, str]]] = {
+        "news_RECENT": [{"headline": "Recent headline", "url": "https://example.com/recent"}]
+    }
+
+    monkeypatch.setattr(page_cache, "load_cache", lambda page: cache.get(page))
+    monkeypatch.setattr(page_cache, "is_stale", lambda page, ttl: True)
+    monkeypatch.setattr(page_cache, "cache_age", lambda page: news_module.NEWS_MAX_STALENESS - 1)
+    monkeypatch.setattr(page_cache, "schedule_refresh", lambda *a, **k: None)
+    monkeypatch.setattr(news_module, "_try_consume_quota", lambda: False)
+
+    items = news_module.get_cached_news("recent")
+    assert items == [
+        {
+            "headline": "Recent headline",
+            "url": "https://example.com/recent",
+            "stale": False,
+        }
+    ]
+
+
 # ── SSRF guard wiring ─────────────────────────────────────────────────────────
+
 
 @pytest.mark.parametrize(
     "bad_endpoint",
@@ -453,13 +486,15 @@ def test_fetch_news_google_rejects_private_endpoint(monkeypatch, bad_endpoint: s
     monkeypatch.setattr(news_module.cfg, "google_news_endpoint", bad_endpoint)
     with pytest.raises(InvalidExternalURLError):
         news_module.fetch_news_google("AAPL")
+
+
 def test_fetch_news_google_billion_laughs_rejected(monkeypatch):
     bomb = (
         '<?xml version="1.0"?>'
         "<!DOCTYPE lolz ["
         '  <!ENTITY lol "lol">'
-        "  <!ENTITY lol2 \"&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;\">"
-        "  <!ENTITY lol3 \"&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;\">"
+        '  <!ENTITY lol2 "&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;">'
+        '  <!ENTITY lol3 "&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;">'
         "]>"
         "<lolz>&lol3;</lolz>"
     )

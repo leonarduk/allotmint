@@ -145,13 +145,15 @@ opportunities, test coverage gaps, etc.) that are real but should not block
 this PR: list each as a one-line suggested GitHub issue title. Do not request
 changes for these — they belong in the backlog, not this review.
 
-End with a **verdict line** in exactly this format (do not add backticks around the verdict):
+End with a **verdict line** as the very last line of your review, in exactly this format
+(do not add backticks around the verdict, and do not add a list marker such as `-` before it):
 
 - `**APPROVE**` — no blocking concerns (non-blocking items go in section 5 above)
 - `**REQUEST CHANGES**` — one or more blocking bugs, security issues, or unmet AC items (list them)
 
-Do not use COMMENT as a verdict. If there are only non-blocking observations,
-use APPROVE and put them in section 5."""
+The verdict line must contain nothing but the bold verdict itself, optionally followed
+by a short "— explanation" on the same line. Do not use COMMENT as a verdict. If there
+are only non-blocking observations, use APPROVE and put them in section 5."""
 
 
 def emit_empty_diff_notice(provider_name: str) -> int:

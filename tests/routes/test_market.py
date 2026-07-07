@@ -270,6 +270,34 @@ def test_fetch_headlines_with_mocked_news(monkeypatch):
     ]
 
 
+def test_fetch_headlines_propagates_stale_flag_from_get_cached_news(monkeypatch):
+    """End-to-end through market_overview: a stale cache flag from
+    ``get_cached_news`` must survive ``_fetch_headlines`` and reach the
+    ``/market/overview`` response, not just the unit-level helper.
+    """
+
+    from backend.routes import news as news_module
+    from backend.utils import page_cache
+
+    monkeypatch.setattr(market, "INDEX_SYMBOLS", {"One": "ONE"})
+    monkeypatch.setattr(market, "_fetch_indexes", lambda: {})
+    monkeypatch.setattr(market, "_fetch_sectors", lambda: [])
+
+    cache = {"news_ONE": [{"headline": "Old headline", "url": "https://example.test/old"}]}
+
+    monkeypatch.setattr(page_cache, "load_cache", lambda page: cache.get(page))
+    monkeypatch.setattr(page_cache, "is_stale", lambda page, ttl: True)
+    monkeypatch.setattr(page_cache, "cache_age", lambda page: news_module.NEWS_MAX_STALENESS + 1)
+    monkeypatch.setattr(page_cache, "schedule_refresh", lambda *a, **k: None)
+    monkeypatch.setattr(news_module, "_try_consume_quota", lambda: False)
+
+    client = _client()
+    resp = client.get("/market/overview")
+
+    assert resp.status_code == 200
+    assert resp.json()["headlines"] == [{"headline": "Old headline", "url": "https://example.test/old", "stale": True}]
+
+
 def test_market_overview_default_region_handles_fetch_failures(monkeypatch):
     client = _client()
     monkeypatch.setattr(market.cfg, "default_sector_region", "US", raising=False)

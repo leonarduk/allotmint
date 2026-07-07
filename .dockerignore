@@ -10,3 +10,6 @@ infra/
 *.md
 *.ps1
 *.sh
+
+.git/
+ __pycache__

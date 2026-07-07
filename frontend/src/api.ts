@@ -384,6 +384,7 @@ export const getNews = (ticker: string, signal?: AbortSignal) => {
       url: item.url,
       source: cleanOptionalString(item.source ?? null),
       published_at: cleanOptionalString(item.published_at ?? null),
+      stale: item.stale ?? false,
     })),
   );
 };

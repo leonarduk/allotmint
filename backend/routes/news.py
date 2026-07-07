@@ -52,7 +52,6 @@ _FINANCE_KEYWORDS = (
 )
 
 
-
 def _make_news_item(
     headline: object,
     url: object,
@@ -227,9 +226,7 @@ def fetch_news_yahoo(ticker: str) -> List[Dict[str, str]]:
             _parse_epoch_time(item.get("providerPublishTime")),
             item.get("publisher"),
         )
-        if news_item is not None and _is_finance_related(
-            news_item["headline"], clean_ticker, instrument_name
-        ):
+        if news_item is not None and _is_finance_related(news_item["headline"], clean_ticker, instrument_name):
             out.append(news_item)
     return out
 
@@ -253,9 +250,7 @@ def fetch_news_google(ticker: str) -> List[Dict[str, str]]:
             _parse_rss_time(item.findtext("pubDate")),
             item.findtext("source"),
         )
-        if news_item is not None and _is_finance_related(
-            news_item["headline"], clean_ticker, instrument_name
-        ):
+        if news_item is not None and _is_finance_related(news_item["headline"], clean_ticker, instrument_name):
             out.append(news_item)
     return out
 
@@ -357,6 +352,13 @@ def _fetch_news(ticker: str) -> List[Dict[str, str]]:
     return []
 
 
+def _is_cache_stale(page: str) -> bool:
+    """Return True when the cache for ``page`` exceeds ``NEWS_MAX_STALENESS``."""
+
+    age = page_cache.cache_age(page)
+    return age is not None and age > NEWS_MAX_STALENESS
+
+
 def _warn_if_stale(page: str) -> None:
     """Log a warning when the cache being served is dangerously old.
 
@@ -377,13 +379,28 @@ def _warn_if_stale(page: str) -> None:
         )
 
 
+def _tag_stale(items: List[Dict[str, Any]], stale: bool) -> List[Dict[str, Any]]:
+    """Return a copy of ``items`` with a ``stale`` flag attached to each.
+
+    ``stale`` reflects whether the cache backing ``items`` exceeds
+    ``NEWS_MAX_STALENESS``, so the frontend can flag headlines it would
+    otherwise silently re-serve during a quota outage or fetch failure.
+    """
+
+    return [{**item, "stale": stale} for item in items]
+
+
 def get_cached_news(
     ticker: str,
     *,
     cache_writer: Callable[[str, List[Dict[str, str]]], None] | None = None,
     raise_on_quota_exhausted: bool = False,
-) -> List[Dict[str, str]]:
+) -> List[Dict[str, Any]]:
     """Return cached or freshly fetched news for ``ticker``.
+
+    Each returned item carries a ``stale`` flag (True when the cache backing
+    it exceeds ``NEWS_MAX_STALENESS``) so callers can surface staleness to
+    users instead of silently re-serving an old payload.
 
     The helper mirrors the caching and quota handling used by the ``/news``
     endpoint so that other modules can reuse the same logic synchronously.
@@ -420,15 +437,16 @@ def get_cached_news(
     if cache_fresh:
         delay = page_cache.time_until_stale(page, NEWS_TTL)
         _schedule_refresh(delay)
-        return cached if cached is not None else []
+        return _tag_stale(cached if cached is not None else [], False)
 
     try:
         payload = _call()
     except RuntimeError:
         if cached is not None:
             _warn_if_stale(page)
+            stale = _is_cache_stale(page)
             _schedule_refresh()
-            return cached
+            return _tag_stale(cached, stale)
         _schedule_refresh()
         if raise_on_quota_exhausted:
             raise
@@ -451,14 +469,14 @@ def get_cached_news(
         page_cache.save_cache(page, payload)
 
     _schedule_refresh(NEWS_TTL)
-    return payload
+    return _tag_stale(payload, False)
 
 
 @router.get("/news")
 async def get_news(
     background_tasks: BackgroundTasks,
     ticker: str = Query(..., min_length=1),
-) -> List[Dict[str, str]]:
+) -> List[Dict[str, Any]]:
     """Return recent news headlines for ``ticker``."""
 
     tkr = ticker.strip().upper()
@@ -467,9 +485,7 @@ async def get_news(
     try:
         return get_cached_news(
             tkr,
-            cache_writer=lambda page, data: background_tasks.add_task(
-                page_cache.save_cache, page, data
-            ),
+            cache_writer=lambda page, data: background_tasks.add_task(page_cache.save_cache, page, data),
             raise_on_quota_exhausted=True,
         )
     except RuntimeError as exc:

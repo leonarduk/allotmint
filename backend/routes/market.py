@@ -234,16 +234,18 @@ def _fetch_uk_sectors() -> List[SectorPayload]:
     return out
 
 
-def _fetch_headlines() -> List[Dict[str, str]]:
+def _fetch_headlines() -> List[Dict[str, Any]]:
     """Fetch latest headlines for all known index symbols.
 
     Each index symbol is queried individually; results are aggregated and
-    de-duplicated by URL or headline.  If all requests fail, an error is logged
-    so callers have some visibility into the failure.
+    de-duplicated by URL or headline.  Each item carries the ``stale`` flag
+    from ``get_cached_news`` so the frontend can flag headlines served from
+    an aged cache.  If all requests fail, an error is logged so callers have
+    some visibility into the failure.
     """
 
     logger = logging.getLogger(__name__)
-    headlines: List[Dict[str, str]] = []
+    headlines: List[Dict[str, Any]] = []
     seen: set[str] = set()
     success = False
 

@@ -236,7 +236,7 @@ def test_get_cached_news_warns_when_serving_stale_on_quota(monkeypatch, caplog):
     with caplog.at_level("WARNING"):
         result = news_module.get_cached_news("cached")
 
-    assert result == cached_payload
+    assert result == [{**item, "stale": True} for item in cached_payload]
     assert any("Serving stale cached news" in rec.message for rec in caplog.records)
 
 
@@ -309,8 +309,8 @@ def test_get_cached_news_reuses_fresh_cache(monkeypatch):
     result = news_module.get_cached_news("cached")
 
     assert result == [
-        {"headline": "Cached", "url": "https://example.com/cached"},
-        {"headline": "Trim", "url": "https://example.com/trim"},
+        {"headline": "Cached", "url": "https://example.com/cached", "stale": False},
+        {"headline": "Trim", "url": "https://example.com/trim", "stale": False},
     ]
     assert len(scheduled) == 1
     _assert_refresh_call(scheduled[0], page="news_CACHED", delay=42.0)

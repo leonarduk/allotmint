@@ -96,12 +96,18 @@ const mockCognitoTokenEndpoint = async (page: Page, tokenRequests: TokenRequest[
 /**
  * Records any hit to the deprecated /token/cognito backend exchange so the test
  * can assert it is never called — the frontend now sends the Cognito ID token
- * directly (#4256).
+ * directly (#4256). Responds with 401 (not 200/empty) because API Gateway's
+ * Cognito authorizer rejects this route for real — a 200 here would mask a
+ * regression where the frontend starts calling it again (#4259).
  */
 const trackBackendTokenExchange = async (page: Page, hits: string[]) => {
   await page.route('**/token/cognito', async (route) => {
     hits.push(route.request().url());
-    await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+    await route.fulfill({
+      status: 401,
+      contentType: 'application/json',
+      body: JSON.stringify({ message: 'Unauthorized' }),
+    });
   });
 };
 
@@ -185,5 +191,35 @@ test.describe('Cognito hosted UI authentication', () => {
     await assertIdTokenIsReused(page, configRequests);
     // The deprecated backend HS256 exchange must never be called (#4256).
     expect(backendExchangeHits).toHaveLength(0);
+  });
+
+  test('recovers by redirecting to the hosted UI when sessionStorage has a corrupted Cognito session (#4258)', async ({
+    page,
+  }) => {
+    // Simulates a session entry that failed to round-trip through JSON (e.g.
+    // truncated by a storage quota error). loadSession() in awsUiAuth.ts must
+    // discard it rather than throwing, so applyCognitoIdToken() sees no stored
+    // ID token and the app falls through to a normal hosted-UI redirect
+    // instead of getting stuck on a bootstrap error screen.
+    await page.addInitScript(() => {
+      window.sessionStorage.setItem('awsUiAuthSession', 'not-valid-json');
+    });
+    await mockRuntimeConfig(page);
+    await page.route(`${COGNITO_DOMAIN}/oauth2/authorize**`, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/html',
+        body: '<html><body>hosted ui</body></html>',
+      });
+    });
+
+    await page.goto(baseUrl);
+
+    await expect.poll(() => new URL(page.url()).origin).toBe(new URL(COGNITO_DOMAIN).origin);
+    // The unreadable entry is discarded rather than left behind to re-trigger
+    // the same failure on the next load.
+    expect(
+      await page.evaluate(() => window.sessionStorage.getItem('awsUiAuthSession')),
+    ).toBeNull();
   });
 });

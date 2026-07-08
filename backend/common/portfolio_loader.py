@@ -18,6 +18,7 @@ from typing import Any, cast
 
 _ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
+from backend.common.account_models import OwnerSummaryRecord
 from backend.common.data_loader import (
     list_plots,  # owner -> ["isa", "sipp", ...]
     load_account,  # (owner, account) -> parsed JSON
@@ -53,17 +54,17 @@ def _load_accounts_for_owner(owner: str, acct_names: list[str]) -> list[dict]:
     return accounts
 
 
-def _build_owner_portfolio(owner_summary: dict) -> dict:
+def _build_owner_portfolio(owner_summary: OwnerSummaryRecord) -> dict:
     """
-    owner_summary ≅ {'owner': 'alex', 'accounts': ['isa', 'sipp']}
+    owner_summary ≅ OwnerSummaryRecord(owner='alex', accounts=['isa', 'sipp'])
     returns        ≅ {
                         'owner'   : 'alex',
                         'person'  : {...},          # person.json (may be {})
                         'accounts': [ {...}, ... ]  # parsed account JSON
                       }
     """
-    owner = owner_summary["owner"]
-    names = owner_summary.get("accounts", [])
+    owner = owner_summary.owner
+    names = owner_summary.accounts
 
     return {
         "owner": owner,

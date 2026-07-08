@@ -115,6 +115,39 @@ def test_check_trade_requires_owner(monkeypatch):
     assert called is False
 
 
+def test_check_transactions_logs_sanitised_invalid_share_count(monkeypatch, stubbed_env, caplog):
+    """Malformed ``shares`` values are logged with control chars stripped.
+
+    Regression test for #4015: the warning must not leak raw ``\\r``/``\\n``
+    from attacker-controlled transaction fields into the log stream
+    (CWE-117 log injection) - sanitise_log_value() must run on every logged
+    field, and the sanitised shares/ticker/date values must appear in the
+    warning message.
+    """
+    txs = [
+        {
+            "date": "2024-01-05",
+            "ticker": "ABC\r\ninjected",
+            "type": "buy",
+            "shares": "not-a-number\r\nmalicious",
+        }
+    ]
+
+    with caplog.at_level("WARNING"):
+        result = compliance._check_transactions("alice", txs)
+
+    assert result["warnings"] == []
+
+    warning_records = [r for r in caplog.records if "invalid share count" in r.getMessage()]
+    assert len(warning_records) == 1
+    message = warning_records[0].getMessage()
+
+    assert "\r" not in message
+    assert "\n" not in message
+    assert "not-a-numbermalicious" in message
+    assert "ABCinjected" in message
+
+
 def test_evaluate_trades_attach_warnings_once(monkeypatch, stubbed_env):
     trades = [
         {"date": "2024-01-01", "ticker": "ABC", "type": "buy", "shares": 10},

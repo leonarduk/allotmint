@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 import pytest
 
 import backend.routes.nudges as nudges
+from backend.common.account_models import OwnerSummaryRecord
 
 
 def make_client(tmp_path, monkeypatch, owners=None) -> TestClient:
@@ -15,7 +16,7 @@ def make_client(tmp_path, monkeypatch, owners=None) -> TestClient:
     monkeypatch.setattr(
         nudges.data_loader,
         "list_plots",
-        lambda root: [{"owner": owner} for owner in owners],
+        lambda root: [OwnerSummaryRecord(owner=owner) for owner in owners],
     )
 
     return TestClient(app)
@@ -27,7 +28,7 @@ def test_validate_owner_unknown_user(tmp_path, monkeypatch):
     monkeypatch.setattr(
         nudges.data_loader,
         "list_plots",
-        lambda root: [{"owner": "alice"}],
+        lambda root: [OwnerSummaryRecord(owner="alice")],
     )
     request = Request({"type": "http", "app": app})
     with pytest.raises(HTTPException):

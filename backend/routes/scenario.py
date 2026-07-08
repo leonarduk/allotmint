@@ -23,7 +23,7 @@ def run_scenario(
     """Apply a percentage price shock to all portfolios for ``ticker``."""
     results = []
     try:
-        owners = [p["owner"] for p in list_plots() if p.get("accounts")]
+        owners = [p.owner for p in list_plots() if p.accounts]
     except ProviderUnavailable as exc:
         raise HTTPException(status_code=503, detail="Account data provider unavailable") from exc
     for owner in owners:
@@ -95,7 +95,7 @@ def run_historical_scenario(
 
     results = []
     try:
-        owners = [p["owner"] for p in list_plots() if p.get("accounts")]
+        owners = [p.owner for p in list_plots() if p.accounts]
     except ProviderUnavailable as exc:
         raise HTTPException(status_code=503, detail="Account data provider unavailable") from exc
     for owner in owners:

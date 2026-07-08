@@ -22,7 +22,7 @@ const mountRoot = async () => {
 afterEach(() => {
   vi.useRealTimers()
   vi.resetModules()
-  vi.clearAllMocks()
+  vi.restoreAllMocks()
   localStorage.clear()
 })
 
@@ -357,5 +357,103 @@ describe('Root bootstrap integration coverage', () => {
     } finally {
       consoleError.mockRestore()
     }
+  })
+
+  it('backs off exponentially across consecutive config failures before recovering', async () => {
+    // Asserts the retryDelay = min(30000, 2000 * 2**attempt) sequence in
+    // main.tsx's fetchConfig catch handler: three consecutive failures should
+    // schedule retries at 2s, 4s, then 8s before the fourth attempt succeeds.
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    vi.doMock('react-dom/client', () => ({
+      createRoot: () => ({ render: vi.fn() })
+    }))
+
+    const getConfig = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('network down'))
+      .mockRejectedValueOnce(new Error('network down'))
+      .mockRejectedValueOnce(new Error('network down'))
+      .mockResolvedValue({ google_auth_enabled: false, google_client_id: '', disable_auth: true })
+
+    vi.doMock('@/api', async importOriginal => {
+      const mod = await importOriginal<typeof import('@/api')>()
+      return {
+        ...mod,
+        getConfig,
+        getStoredAuthToken: vi.fn(() => null)
+      }
+    })
+
+    vi.doMock('@/App.tsx', () => ({
+      default: () => <div data-testid="app-shell">App ready</div>
+    }))
+
+    const nativeSetTimeout = window.setTimeout
+    const recordedDelays: number[] = []
+    // Only intercept the exact retry-scheduling delays fetchConfig's catch
+    // handler can produce (2000 * 2**attempt); everything else — including
+    // testing-library's own internal waitFor polling timers — must run
+    // natively, or waitFor itself deadlocks.
+    const expectedRetryDelays = new Set([2000, 4000, 8000])
+    const setTimeoutSpy = vi
+      .spyOn(window, 'setTimeout')
+      .mockImplementation(((callback: TimerHandler, delay?: number, ...args: unknown[]) => {
+        if (typeof callback === 'function' && expectedRetryDelays.has(delay ?? -1)) {
+          recordedDelays.push(delay as number)
+          callback(...args)
+          return 0 as unknown as ReturnType<typeof window.setTimeout>
+        }
+        return nativeSetTimeout(callback as TimerHandler, (delay ?? 0) as number, ...(args as []))
+      }) as typeof window.setTimeout)
+
+    try {
+      document.body.innerHTML = '<div id="root"></div>'
+      const { Root } = await import('@/main')
+
+      render(
+        <BrowserRouter>
+          <Root />
+        </BrowserRouter>,
+      )
+
+      await waitFor(() => expect(getConfig).toHaveBeenCalledTimes(4))
+      await screen.findByTestId('app-shell')
+
+      expect(recordedDelays).toEqual([2000, 4000, 8000])
+    } finally {
+      setTimeoutSpy.mockRestore()
+      consoleError.mockRestore()
+    }
+  })
+
+  it('renders the app without restoring an identity when auth is disabled and no local_login_email is configured', async () => {
+    vi.doMock('react-dom/client', () => ({
+      createRoot: () => ({ render: vi.fn() })
+    }))
+
+    vi.doMock('@/api', async importOriginal => {
+      const mod = await importOriginal<typeof import('@/api')>()
+      return {
+        ...mod,
+        getConfig: vi.fn().mockResolvedValue({
+          google_auth_enabled: false,
+          google_client_id: '',
+          disable_auth: true
+          // No local_login_email: bootstrap must not fabricate an identity.
+        }),
+        getStoredAuthToken: vi.fn(() => null)
+      }
+    })
+
+    vi.doMock('@/App.tsx', () => ({
+      default: () => <div data-testid="app-shell">App ready</div>
+    }))
+
+    await mountRoot()
+
+    expect(await screen.findByTestId('app-shell')).toBeInTheDocument()
+    expect(localStorage.getItem('auth.user')).toBeNull()
+    expect(localStorage.getItem('user.profile')).toBeNull()
   })
 })

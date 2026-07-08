@@ -135,10 +135,10 @@ def build_owner_portfolio(
     today = calc.today
     pricing_date = calc.reporting_date
 
-    plots = [p for p in list_plots(accounts_root) if p.get("owner") == owner]
+    plots = [p for p in list_plots(accounts_root) if p.owner == owner]
     if not plots:
         raise FileNotFoundError(f"No plot for owner '{owner}'")
-    accounts_meta = plots[0].get("accounts", [])
+    accounts_meta = plots[0].accounts
 
     trades = load_trades(owner, accounts_root)
     trades_this = 0

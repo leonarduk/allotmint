@@ -424,6 +424,7 @@ Only run the deploy commands when you intentionally want to deploy; they are lis
 - **Smoke preflight fails**: start the local backend/frontend or set `SMOKE_URL` to a reachable deployment.
 - **Google auth errors locally**: verify `GOOGLE_AUTH_ENABLED=true`, `DISABLE_AUTH=false`, and a non-empty `GOOGLE_CLIENT_ID`.
 - **Price snapshot absent after deploy (`[WARNING] Price snapshot not yet seeded`)**: the CDK Trigger automatically invokes `PriceRefreshLambda` synchronously during `cdk deploy BackendLambdaStack`, blocking until the snapshot is written. If the warning still appears, the Trigger Lambda likely timed out or the price-refresh Lambda failed. Check `PriceRefreshLambdaLogGroup` in CloudWatch and re-trigger manually: `aws lambda invoke --function-name <PriceRefreshLambda-physical-name> /dev/null`.
+- **"Verify price snapshot seeded in S3" deploy step fails with a 403**: this step (`deploy-lambda.yml`) hard-fails the deploy on any `head-object` error other than a missing key (`NoSuchKey`/404, which is a soft pass -- the price-refresh job just hasn't run yet). A 403 means the deploy role genuinely lacks `s3:GetObject`/`s3:ListBucket` on the data bucket, or the bucket policy changed; retrying will not help. Check the CDK grants for `GITHUB_DEPLOY_ROLE_ARN` in `cdk/stacks/backend_lambda_stack.py` (see issue #3191) and re-run once the grant is fixed.
 
 ## 12. Canonical command index by task
 

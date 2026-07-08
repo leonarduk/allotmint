@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 from backend.app import create_app
 from backend.common import compliance
+from backend.common.account_models import OwnerSummaryRecord
 
 
 def _setup_app(tmp_path):
@@ -165,7 +166,7 @@ def test_validate_trade_accepts_owner_directories_even_when_filtered(tmp_path, m
 
     monkeypatch.setattr(
         "backend.common.data_loader.list_plots",
-        lambda accounts_root: [{"owner": "alice"}],
+        lambda accounts_root: [OwnerSummaryRecord(owner="alice")],
     )
     monkeypatch.setattr(
         "backend.common.compliance.get_instrument_meta",

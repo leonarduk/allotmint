@@ -165,6 +165,35 @@ def test_resolve_rejects_oversized_segments(ticker, exchange):
     assert exc_info.value.status_code == 400
 
 
+@pytest.mark.parametrize("char,should_match", [
+    ("A", True),
+    ("Z", True),
+    ("0", True),
+    ("9", True),
+    ("_", True),
+    ("-", True),
+    (".", False),
+    (" ", False),
+    ("@", False),
+    ("!", False),
+    ("/", False),
+    ("$", False),
+])
+def test_ticker_symbol_regex_pins_character_class(char, should_match):
+    """Pin the [A-Z0-9_-] allowlist of _TICKER_SYMBOL_RE.
+
+    Regression test for #4163: locks down exactly which characters the
+    ticker-symbol allowlist regex accepts, so a future edit to the pattern
+    can't silently widen (security risk) or narrow (legitimate tickers like
+    BRK-B breaking) it without a test failing.
+    """
+    import backend.routes.timeseries_meta as ts_meta
+
+    candidate = f"AB{char}CD"
+    matched = bool(ts_meta._TICKER_SYMBOL_RE.match(candidate))
+    assert matched == should_match
+
+
 # ---- /timeseries/meta route tests -----------------------------------------
 
 

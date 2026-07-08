@@ -284,6 +284,10 @@ def load_config() -> Config:
     if disable_auth_env is not None:
         data["disable_auth"] = disable_auth_env
 
+    skip_snapshot_warm_env = _env_flag("SKIP_SNAPSHOT_WARM")
+    if skip_snapshot_warm_env is not None:
+        data["skip_snapshot_warm"] = skip_snapshot_warm_env
+
     telegram_token_env = os.getenv("TELEGRAM_BOT_TOKEN")
     if telegram_token_env is not None:
         data["telegram_bot_token"] = telegram_token_env

@@ -36,6 +36,13 @@ from stacks.exports import BACKEND_API_URL_EXPORT
 # distinct from the read-only ``accounts/`` demo prefix (issue #4275).
 WRITABLE_ACCOUNTS_PREFIX = "writable-accounts"
 
+# S3 prefix (relative to the data bucket) under which auto-created instrument
+# metadata is persisted when the local filesystem is read-only (Lambda).
+# Kept in sync with the default in
+# ``backend.common.instruments._s3_location()`` via the ``METADATA_PREFIX``
+# Lambda environment variable below (issue #4930).
+METADATA_PREFIX = "instruments"
+
 # API Gateway access-log format for the backend HTTP API's default stage.
 # Deliberately logs claims/status/source IP only — never the raw bearer
 # token or Authorization header — so no credentials land in the logs.
@@ -328,6 +335,13 @@ class BackendLambdaStack(Stack):
             "JWT_SECRET": jwt_secret,
             "GOOGLE_CLIENT_ID": google_client_id,
             "TIMESERIES_CACHE_BASE": f"s3://{bucket_name}/timeseries",
+            # Without this, backend.common.instruments._s3_location() returns
+            # None and auto-created instrument metadata falls back to writing
+            # under /var/task, which is read-only in Lambda (issue #4930).
+            # Shares the existing data bucket/grants rather than a dedicated
+            # bucket, mirroring TIMESERIES_CACHE_BASE above.
+            "METADATA_BUCKET": bucket_name,
+            "METADATA_PREFIX": METADATA_PREFIX,
         }
         if data_repo:
             backend_env["DATA_REPO"] = data_repo

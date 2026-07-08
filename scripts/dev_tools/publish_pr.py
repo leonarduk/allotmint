@@ -57,6 +57,9 @@ def extract_issue_id(branch_name: str) -> Optional[int]:
     match = re.search(r"issue-(\d+)", branch_name)
     if match:
         return int(match.group(1))
+    match = re.search(r"(\d+)", branch_name)
+    if match:
+        return int(match.group(1))
     return None
 
 

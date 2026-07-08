@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 # Add the scripts directory to the Python path so we can import extract_verdict
@@ -252,12 +251,10 @@ None found.
 class TestExtractVerdictScriptMain:
     """Test the main() function when called via the script."""
 
-    def test_main_with_approve_verdict(self) -> None:
+    def test_main_with_approve_verdict(self, tmp_path) -> None:
         """Test main() returns 0 for APPROVE verdict."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
-            f.write("**APPROVE** — no issues")
-            f.flush()
-            temp_path = f.name
+        temp_path = tmp_path / "review.md"
+        temp_path.write_text("**APPROVE** — no issues")
 
         try:
             result = subprocess.run(
@@ -271,12 +268,10 @@ class TestExtractVerdictScriptMain:
         finally:
             Path(temp_path).unlink()
 
-    def test_main_with_request_changes_verdict(self) -> None:
+    def test_main_with_request_changes_verdict(self, tmp_path) -> None:
         """Test main() returns 1 for REQUEST CHANGES verdict."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
-            f.write("**REQUEST CHANGES** — blocking issue")
-            f.flush()
-            temp_path = f.name
+        temp_path = tmp_path / "review.md"
+        temp_path.write_text("**REQUEST CHANGES** — blocking issue")
 
         try:
             result = subprocess.run(
@@ -290,12 +285,10 @@ class TestExtractVerdictScriptMain:
         finally:
             Path(temp_path).unlink()
 
-    def test_main_with_backtick_approve(self) -> None:
+    def test_main_with_backtick_approve(self, tmp_path) -> None:
         """Test main() returns 0 for backtick-wrapped APPROVE."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
-            f.write("**`APPROVE`** — no issues")
-            f.flush()
-            temp_path = f.name
+        temp_path = tmp_path / "review.md"
+        temp_path.write_text("**`APPROVE`** — no issues")
 
         try:
             result = subprocess.run(
@@ -309,12 +302,10 @@ class TestExtractVerdictScriptMain:
         finally:
             Path(temp_path).unlink()
 
-    def test_main_with_no_verdict(self) -> None:
+    def test_main_with_no_verdict(self, tmp_path) -> None:
         """Test main() returns 1 when no valid verdict found."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
-            f.write("Some review text without a verdict line.")
-            f.flush()
-            temp_path = f.name
+        temp_path = tmp_path / "review.md"
+        temp_path.write_text("Some review text without a verdict line.")
 
         try:
             result = subprocess.run(

@@ -115,6 +115,24 @@ def test_timeseries_cache_base_env_override(monkeypatch, tmp_path):
     reload_config()
 
 
+def test_skip_snapshot_warm_env_override(monkeypatch):
+    """SKIP_SNAPSHOT_WARM lets Lambda disable blocking warmup without a code
+    change (issue #4930's fast rollback lever)."""
+    monkeypatch.delenv("SKIP_SNAPSHOT_WARM", raising=False)
+    default_value = reload_config().skip_snapshot_warm
+
+    monkeypatch.setenv("SKIP_SNAPSHOT_WARM", "true")
+    cfg = reload_config()
+    assert cfg.skip_snapshot_warm is True
+
+    monkeypatch.setenv("SKIP_SNAPSHOT_WARM", "false")
+    cfg = reload_config()
+    assert cfg.skip_snapshot_warm is False
+
+    monkeypatch.delenv("SKIP_SNAPSHOT_WARM")
+    assert reload_config().skip_snapshot_warm == default_value
+
+
 def test_auth_flags(monkeypatch):
     cfg = reload_config()
     assert cfg.google_auth_enabled is False

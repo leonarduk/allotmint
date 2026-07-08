@@ -24,7 +24,7 @@ class AppLifecycleService:
 
     async def startup(self, app: FastAPI) -> None:
         if not self.cfg.skip_snapshot_warm:
-            await self._warm_snapshot()
+            await self._warm_snapshot(app)
 
         # Deferred import: portfolio_utils pulls in pandas; loading it here
         # (inside the lifespan startup hook) rather than at module level keeps
@@ -51,7 +51,7 @@ class AppLifecycleService:
         for temp_dir in self.temp_dirs:
             shutil.rmtree(temp_dir, ignore_errors=True)
 
-    async def _warm_snapshot(self) -> None:
+    async def _warm_snapshot(self, app: FastAPI) -> None:
         # Deferred imports: both pull in pandas transitively.
         from backend.common.portfolio_utils import (
             _load_snapshot,
@@ -76,13 +76,25 @@ class AppLifecycleService:
         except Exception:
             logger.exception("Failed to update latest prices from snapshot")
 
+        # instrument_api.prime_latest_prices() can trigger a live Yahoo Finance
+        # HTTP call per unknown/uncached ticker (price history and/or metadata
+        # auto-create). On a Lambda cold start with many uncached tickers this
+        # can take well over the function timeout. Run it as a background task
+        # instead of awaiting it here, so lifespan startup (and therefore every
+        # route, including /health) is never blocked on it.
+        task = asyncio.create_task(self._prime_latest_prices_background())
+        app.state.background_tasks.append(task)
+
+    @staticmethod
+    async def _prime_latest_prices_background() -> None:
+        from backend.common import instrument_api
+
         try:
             await asyncio.to_thread(instrument_api.prime_latest_prices)
         except Exception:
             # Non-fatal: price priming is a startup optimisation. If it fails (e.g.
             # network unavailable on Lambda cold start) the app should still serve
-            # requests; a re-raise here propagates through the ASGI lifespan and
-            # causes every subsequent request to return 500.
+            # requests.
             logger.exception("Failed to prime latest prices from warmed snapshot")
 
     @staticmethod

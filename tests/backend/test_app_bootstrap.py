@@ -80,8 +80,15 @@ async def test_lifecycle_service_warms_snapshot_and_registers_background_task(
 
     assert warmed == {"snapshot": {"ABC": 1}, "ts": "ts"}
     assert InstrumentApi.latest == {"ABC": 1}
+
+    # prime_latest_prices() can involve live network calls (issue #4930), so
+    # startup() schedules it as a background task instead of awaiting it
+    # in-line. Assert it was scheduled alongside the snapshot-refresh task,
+    # then await it directly to observe its effect.
+    assert snapshot_task in app.state.background_tasks
+    prime_task = next(t for t in app.state.background_tasks if t is not snapshot_task)
+    await prime_task
     assert InstrumentApi.primed is True
-    assert app.state.background_tasks == [snapshot_task]
 
 
 @pytest.mark.asyncio
@@ -148,6 +155,10 @@ async def test_lifecycle_service_startup_survives_prime_latest_prices_failure(
     with caplog.at_level(logging.ERROR):
         # Must not raise — previously the re-raise turned this into a 500 for all requests.
         await service.startup(app)
+        # prime_latest_prices() now runs as a background task (issue #4930); await
+        # it directly so its failure is logged before the assertion below.
+        prime_task = next(t for t in app.state.background_tasks if t is not None)
+        await prime_task
 
     assert any(
         "Failed to prime latest prices" in r.message for r in caplog.records

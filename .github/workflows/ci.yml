@@ -51,6 +51,26 @@ jobs:
       - name: Run bats tests for deploy shell scripts
         run: npx --yes bats@1.13.0 tests/bash/*.bats
 
+  powershell-tests:
+    name: PowerShell script tests (Pester)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # ubuntu-latest ships pwsh but not Pester; pin the version so an
+      # upstream Pester release can't silently change test semantics.
+      - name: Install Pester
+        shell: pwsh
+        run: Install-Module -Name Pester -RequiredVersion 5.6.1 -Force -SkipPublisherCheck -Scope CurrentUser
+      - name: Run Pester tests for scripts/aider-issue.ps1
+        shell: pwsh
+        run: |
+          Import-Module Pester -RequiredVersion 5.6.1 -Force
+          $config = New-PesterConfiguration
+          $config.Run.Path = 'scripts/tests'
+          $config.Run.Exit = $true
+          $config.Output.Verbosity = 'Detailed'
+          Invoke-Pester -Configuration $config
+
   validate-backend-deps:
     name: Validate backend/requirements.txt (dry-run)
     runs-on: ubuntu-latest

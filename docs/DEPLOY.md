@@ -313,11 +313,25 @@ git push
 ```
 
 To update the S3 bucket, sync the local data and ensure your IAM role allows
-``s3:PutObject`` and ``s3:DeleteObject`` on the target paths:
+``s3:PutObject`` and ``s3:DeleteObject`` on the target paths.
+
+`aws s3 sync` has no notion of account ownership — it will silently overwrite
+any object at a matching key. Since account directories are named by owner
+slug (`derive_owner_slug` in `backend/common/signup_provision.py`), a local
+`data/accounts/<slug>/` directory that happens to share a slug with a
+*different* owner already in the bucket (e.g. from a stale branch or a
+rename) would otherwise overwrite that owner's data with no warning. Run the
+collision check first and only sync if it passes:
 
 ```bash
+python scripts/check_account_slug_collisions.py --bucket "$DATA_BUCKET"
 aws s3 sync data/accounts s3://$DATA_BUCKET/accounts/
 ```
+
+The check compares each local `data/accounts/<slug>/person.json` email
+against the same key already in the bucket. It exits non-zero and lists the
+offending slugs if any collide with a different owner; matching or new slugs
+are left alone.
 
 ## Install dependencies
 

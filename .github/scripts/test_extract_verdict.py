@@ -262,7 +262,7 @@ class TestExtractVerdictScriptMain:
         try:
             result = subprocess.run(
                 ["python3", ".github/scripts/extract_verdict.py", temp_path, "TestProvider"],
-                cwd="/mnt/c/Users/steph/workspace/GitHub/allotmint" if Path("/mnt/c/Users/steph/workspace/GitHub/allotmint").exists() else "C:\\Users\\steph\\workspace\\GitHub\\allotmint",
+                cwd=str(Path(__file__).parent.parent.parent),
                 capture_output=True,
                 text=True,
             )
@@ -281,7 +281,7 @@ class TestExtractVerdictScriptMain:
         try:
             result = subprocess.run(
                 ["python3", ".github/scripts/extract_verdict.py", temp_path, "TestProvider"],
-                cwd="/mnt/c/Users/steph/workspace/GitHub/allotmint" if Path("/mnt/c/Users/steph/workspace/GitHub/allotmint").exists() else "C:\\Users\\steph\\workspace\\GitHub\\allotmint",
+                cwd=str(Path(__file__).parent.parent.parent),
                 capture_output=True,
                 text=True,
             )
@@ -300,7 +300,7 @@ class TestExtractVerdictScriptMain:
         try:
             result = subprocess.run(
                 ["python3", ".github/scripts/extract_verdict.py", temp_path, "DeepSeek"],
-                cwd="/mnt/c/Users/steph/workspace/GitHub/allotmint" if Path("/mnt/c/Users/steph/workspace/GitHub/allotmint").exists() else "C:\\Users\\steph\\workspace\\GitHub\\allotmint",
+                cwd=str(Path(__file__).parent.parent.parent),
                 capture_output=True,
                 text=True,
             )
@@ -319,7 +319,7 @@ class TestExtractVerdictScriptMain:
         try:
             result = subprocess.run(
                 ["python3", ".github/scripts/extract_verdict.py", temp_path, "TestProvider"],
-                cwd="/mnt/c/Users/steph/workspace/GitHub/allotmint" if Path("/mnt/c/Users/steph/workspace/GitHub/allotmint").exists() else "C:\\Users\\steph\\workspace\\GitHub\\allotmint",
+                cwd=str(Path(__file__).parent.parent.parent),
                 capture_output=True,
                 text=True,
             )

@@ -32,7 +32,6 @@ import re
 from pathlib import Path
 
 from backend.common.compliance import ensure_owner_scaffold
-from backend.common.path_utils import safe_join
 from backend.common.signup_requests import SignupRequest
 
 logger = logging.getLogger(__name__)
@@ -114,7 +113,7 @@ def _write_person_identity(owner_dir: Path, email: str, full_name: str) -> None:
     the user. Existing keys are preserved.
     """
 
-    person_path = safe_join(owner_dir, "person.json")
+    person_path = owner_dir / "person.json"
     try:
         loaded = json.loads(person_path.read_text())
     except (OSError, json.JSONDecodeError):

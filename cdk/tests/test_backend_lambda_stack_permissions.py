@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import os
 import sys
 from pathlib import Path
@@ -690,24 +691,45 @@ def test_no_logs_grant_to_deploy_role_when_github_deploy_role_arn_absent(monkeyp
     )
 
 
+def _fallback_string_literal(source_path: Path, assigned_name: str) -> str:
+    """Statically extract the fallback string literal assigned to ``assigned_name``.
+
+    Parses the source with ``ast`` instead of importing the module, since the
+    CDK test environment does not install backend runtime dependencies (e.g.
+    ``pyyaml`` pulled in transitively via ``backend/__init__.py`` ->
+    ``backend/config.py``). Walks the assignment's value expression for the
+    first string constant that isn't the env var name itself or the
+    ``.strip()`` argument.
+    """
+    tree = ast.parse(source_path.read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Assign):
+            continue
+        if not any(isinstance(t, ast.Name) and t.id == assigned_name for t in node.targets):
+            continue
+        for sub in ast.walk(node.value):
+            if (
+                isinstance(sub, ast.Constant)
+                and isinstance(sub.value, str)
+                and sub.value not in (assigned_name, "/")
+            ):
+                return sub.value
+    raise AssertionError(f"Could not statically find a fallback literal for {assigned_name!r} in {source_path}")
+
+
 def test_writable_accounts_prefix_matches_backend_accounts_store() -> None:
     """The CDK stack's WRITABLE_ACCOUNTS_PREFIX literal must match the Python
     backend's fallback literal in backend.common.accounts_store, since CDK
     passes its value into the Lambda's WRITABLE_ACCOUNTS_PREFIX env var and
     accounts_store only falls back to its own literal when that env var is
     unset. See issue #4323."""
-    repo_root = CDK_DIR.parent
-    if str(repo_root) not in sys.path:
-        sys.path.insert(0, str(repo_root))
+    accounts_store_path = CDK_DIR.parent / "backend" / "common" / "accounts_store.py"
+    backend_prefix = _fallback_string_literal(accounts_store_path, "WRITABLE_ACCOUNTS_PREFIX")
 
-    from backend.common.accounts_store import (
-        WRITABLE_ACCOUNTS_PREFIX as BACKEND_WRITABLE_ACCOUNTS_PREFIX,
-    )
-
-    assert WRITABLE_ACCOUNTS_PREFIX == BACKEND_WRITABLE_ACCOUNTS_PREFIX, (
+    assert WRITABLE_ACCOUNTS_PREFIX == backend_prefix, (
         "CDK's WRITABLE_ACCOUNTS_PREFIX ('{}') has drifted from "
         "backend.common.accounts_store.WRITABLE_ACCOUNTS_PREFIX ('{}')".format(
-            WRITABLE_ACCOUNTS_PREFIX, BACKEND_WRITABLE_ACCOUNTS_PREFIX
+            WRITABLE_ACCOUNTS_PREFIX, backend_prefix
         )
     )
 

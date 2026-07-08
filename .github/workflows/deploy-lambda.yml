@@ -28,11 +28,33 @@ jobs:
       - name: Check ci.yml passed for this commit
         env:
           GH_TOKEN: ${{ github.token }}
-          COMMIT_SHA: ${{ github.sha }}
+          # Resolve the same ref the deploy job's checkout step will use (see
+          # "Checkout repository" below: ref: ${{ inputs.ref || github.ref }}).
+          # For a plain tag push, inputs.ref is empty and this falls back to
+          # github.sha as before. For a workflow_dispatch that sets inputs.ref
+          # to a different tag/branch/SHA, resolving it here ensures check-ci
+          # gates on the exact commit that will actually be deployed, instead
+          # of always validating github.sha (the commit the dispatch itself
+          # ran from) while a different ref gets checked out and deployed.
+          TARGET_REF: ${{ inputs.ref || github.ref }}
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          echo "Checking ci.yml status for commit ${COMMIT_SHA}..."
+
+          # inputs.ref is documented as a bare tag/branch/SHA, while github.ref
+          # (used as the fallback for a plain tag push) is a fully-qualified
+          # ref like refs/tags/v1.2.3. Strip the prefix so both forms resolve
+          # the same way via the commits API.
+          API_REF="${TARGET_REF#refs/tags/}"
+          API_REF="${API_REF#refs/heads/}"
+
+          COMMIT_SHA="$(gh api "repos/${REPO}/commits/${API_REF}" --jq '.sha')"
+          if [ -z "${COMMIT_SHA}" ] || [ "${COMMIT_SHA}" = "null" ]; then
+            echo "::error::Unable to resolve ref '${TARGET_REF}' to a commit SHA via the GitHub API." >&2
+            exit 1
+          fi
+
+          echo "Checking ci.yml status for commit ${COMMIT_SHA} (resolved from ref ${TARGET_REF})..."
 
           # Poll for the most recent ci.yml run on this exact commit and wait for
           # it to finish before deciding whether to proceed with the deploy.

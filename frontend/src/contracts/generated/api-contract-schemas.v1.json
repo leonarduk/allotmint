@@ -473,7 +473,14 @@
                         ]
                       },
                       "days_held": {
-                        "type": "number"
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
                       },
                       "sell_eligible": {
                         "type": "boolean"
@@ -492,6 +499,56 @@
                         "anyOf": [
                           {
                             "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "eligible_on": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "cost_basis_source": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "asset_class": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "unrealised_gain_gbp": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "unrealized_gain_gbp": {
+                        "anyOf": [
+                          {
+                            "type": "number"
                           },
                           {
                             "type": "null"
@@ -570,9 +627,7 @@
           "as_of",
           "members",
           "total_value_estimate_gbp",
-          "accounts",
-          "members_summary",
-          "subtotals_by_account_type"
+          "accounts"
         ],
         "additionalProperties": false
       }
@@ -854,7 +909,14 @@
                         ]
                       },
                       "days_held": {
-                        "type": "number"
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
                       },
                       "sell_eligible": {
                         "type": "boolean"
@@ -873,6 +935,56 @@
                         "anyOf": [
                           {
                             "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "eligible_on": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "cost_basis_source": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "asset_class": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "unrealised_gain_gbp": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "unrealized_gain_gbp": {
+                        "anyOf": [
+                          {
+                            "type": "number"
                           },
                           {
                             "type": "null"

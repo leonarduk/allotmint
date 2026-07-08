@@ -1,14 +1,14 @@
-from pathlib import Path
 import shutil
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
-from backend.common.instruments import get_instrument_meta
 import backend.common.alerts as alerts
-from backend.app import create_app
 from backend import config as backend_config
 from backend import config_module
+from backend.app import create_app
+from backend.common.instruments import get_instrument_meta
 
 
 @pytest.fixture
@@ -280,6 +280,57 @@ def test_prices_refresh(client):
     assert "status" in resp.json()
 
 
+def test_prices_live_explicit_tickers(client, monkeypatch):
+    import datetime as dt
+
+    live_ts = dt.datetime.now(dt.UTC)
+    stale_ts = dt.datetime.now(dt.UTC) - dt.timedelta(hours=1)
+
+    def _fake_live(full_tickers):
+        return {
+            "HFEL.L": {"price": 12.5, "timestamp": live_ts},
+            "STALE.L": {"price": 3.0, "timestamp": stale_ts},
+        }
+
+    def _fake_latest(full_tickers):
+        return {"HFEL.L": 12.0, "STALE.L": 2.9, "NODATA.L": 5.0}
+
+    monkeypatch.setattr("backend.common.holding_utils.load_live_prices", _fake_live)
+    monkeypatch.setattr("backend.common.holding_utils.load_latest_prices", _fake_latest)
+
+    resp = client.get("/prices/live", params={"tickers": "HFEL.L,STALE.L,NODATA.L"})
+    assert resp.status_code == 200
+    prices = resp.json()["prices"]
+
+    assert prices["HFEL.L"]["live_price"] == 12.5
+    assert prices["HFEL.L"]["stored_price"] == 12.0
+    assert prices["HFEL.L"]["is_stale"] is False
+    assert prices["HFEL.L"]["last_price_time"] is not None
+
+    assert prices["STALE.L"]["live_price"] == 3.0
+    assert prices["STALE.L"]["is_stale"] is True
+
+    assert prices["NODATA.L"]["live_price"] is None
+    assert prices["NODATA.L"]["stored_price"] == 5.0
+    assert prices["NODATA.L"]["last_price_time"] is None
+    assert prices["NODATA.L"]["is_stale"] is True
+
+
+def test_prices_live_defaults_to_portfolio_universe(client, monkeypatch):
+    monkeypatch.setattr(
+        "backend.common.portfolio_utils.list_all_unique_tickers", lambda: ["STUB.L"]
+    )
+    monkeypatch.setattr("backend.common.holding_utils.load_live_prices", lambda t: {})
+    monkeypatch.setattr("backend.common.holding_utils.load_latest_prices", lambda t: {})
+
+    resp = client.get("/prices/live")
+    assert resp.status_code == 200
+    prices = resp.json()["prices"]
+    assert list(prices.keys()) == ["STUB.L"]
+    assert prices["STUB.L"]["live_price"] is None
+    assert prices["STUB.L"]["is_stale"] is True
+
+
 def test_group_instruments(client):
     groups = _get_groups(client)
     slug = groups[0]["slug"]
@@ -468,8 +519,8 @@ def test_screener_endpoint(client, monkeypatch):
 
 
 def test_hash_params_helper(monkeypatch):
-    from backend.screener import Fundamentals
     from backend.routes.screener import _hash_params
+    from backend.screener import Fundamentals
 
     def mock_fetch(ticker: str) -> Fundamentals:
         if ticker == "AAA":

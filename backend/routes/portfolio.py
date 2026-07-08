@@ -17,15 +17,12 @@ import logging
 from pathlib import Path
 from typing import Annotated, Any, Dict, List, Optional, Sequence, Tuple
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.security import OAuth2PasswordBearer
-from pydantic import BaseModel, Field
-
 from backend.auth import get_current_user
 from backend.common import (
     constants,
     data_loader,
     group_portfolio,
+    holding_utils,
     instrument_api,
     portfolio_utils,
     prices,
@@ -38,6 +35,9 @@ from backend.logging_setup import sanitise_log_value
 from backend.routes._accounts import resolve_accounts_root, resolve_owner_directory
 from backend.utils.pricing_dates import PricingDateCalculator
 from backend.utils.timeseries_helpers import resolve_date_range
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.security import OAuth2PasswordBearer
+from pydantic import BaseModel, Field
 
 log = logging.getLogger("routes.portfolio")
 router = APIRouter(tags=["portfolio"])
@@ -995,3 +995,41 @@ async def refresh_prices_get():
 @router.post("/prices/refresh", operation_id="refresh_prices_post")
 async def refresh_prices_post():
     return await _do_refresh_prices()
+
+
+@router.get("/prices/live", operation_id="prices_live_get")
+async def prices_live(
+    tickers: Annotated[
+        Optional[str],
+        Query(description="Comma-separated tickers, e.g. HFEL.L,VOD.L. Defaults to the full portfolio universe."),
+    ] = None,
+):
+    """Return live and stored/last-known prices side by side for each ticker.
+
+    Unlike ``get_price_snapshot`` (which collapses live and stored prices into
+    a single ``last_price`` fallback), this endpoint surfaces both values so
+    callers can compare them directly.
+    """
+    ticker_list = (
+        [t.strip() for t in tickers.split(",") if t.strip()] if tickers else portfolio_utils.list_all_unique_tickers()
+    )
+
+    live = await asyncio.to_thread(holding_utils.load_live_prices, ticker_list)
+    stored = await asyncio.to_thread(holding_utils.load_latest_prices, ticker_list)
+    now = dt.datetime.now(dt.timezone.utc)
+
+    result: Dict[str, Dict[str, Any]] = {}
+    for ticker in ticker_list:
+        live_info = live.get(ticker.upper())
+        live_price = live_info.get("price") if live_info else None
+        ts = live_info.get("timestamp") if live_info else None
+        is_stale = (now - ts) > dt.timedelta(minutes=15) if ts else True
+
+        result[ticker] = {
+            "live_price": float(live_price) if live_price is not None else None,
+            "stored_price": stored.get(ticker),
+            "last_price_time": ts.isoformat().replace("+00:00", "Z") if ts else None,
+            "is_stale": is_stale,
+        }
+
+    return {"prices": result}

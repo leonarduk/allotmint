@@ -35,11 +35,18 @@ globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
   return nativeFetch(input, init);
 }) as typeof fetch;
 
+// A stable mock function reference matters here: real React Router's
+// useNavigate() is referentially stable across renders, and code correctly
+// relies on that (e.g. a useCallback/useEffect dependency array that
+// includes navigate). Returning a fresh vi.fn() on every call breaks that
+// contract and can turn an otherwise-correct effect into an infinite
+// render loop that only shows up under test. See #4810.
+const { mockNavigate } = vi.hoisted(() => ({ mockNavigate: vi.fn() }));
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
   return {
     ...actual,
-    useNavigate: () => vi.fn(),
+    useNavigate: () => mockNavigate,
   };
 });
 

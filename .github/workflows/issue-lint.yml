@@ -50,4 +50,3 @@ jobs:
 
           gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "$comment_body"
           gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --add-label "needs-info"
-          exit 1

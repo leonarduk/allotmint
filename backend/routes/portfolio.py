@@ -863,7 +863,7 @@ async def get_account(owner: str, account: str, request: Request):
     root = resolve_accounts_root(request)
 
     try:
-        data = data_loader.load_account(owner, account, root)
+        data = data_loader.load_account_record(owner, account, root).model_dump(exclude_unset=True)
     except data_loader.ProviderUnavailable as exc:
         log.warning(
             "portfolio.account_provider_unavailable",
@@ -907,7 +907,9 @@ async def get_account(owner: str, account: str, request: Request):
         if not match:
             raise HTTPException(status_code=404, detail="Account not found")
         try:
-            data = data_loader.load_account(owner_dir.name, match, owner_dir.parent)
+            data = data_loader.load_account_record(owner_dir.name, match, owner_dir.parent).model_dump(
+                exclude_unset=True
+            )
         except data_loader.ProviderUnavailable as exc:
             raise HTTPException(status_code=503, detail="Account data provider unavailable") from exc
         except data_loader.InvalidPayload as exc:

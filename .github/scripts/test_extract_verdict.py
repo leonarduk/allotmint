@@ -256,68 +256,56 @@ class TestExtractVerdictScriptMain:
         temp_path = tmp_path / "review.md"
         temp_path.write_text("**APPROVE** — no issues")
 
-        try:
-            result = subprocess.run(
-                ["python3", ".github/scripts/extract_verdict.py", temp_path, "TestProvider"],
-                cwd=str(Path(__file__).parent.parent.parent),
-                capture_output=True,
-                text=True,
-            )
-            assert result.returncode == 0
-            assert "APPROVED" in result.stdout
-        finally:
-            Path(temp_path).unlink()
+        result = subprocess.run(
+            ["python3", ".github/scripts/extract_verdict.py", str(temp_path), "TestProvider"],
+            cwd=str(Path(__file__).parent.parent.parent),
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0
+        assert "APPROVED" in result.stdout
 
     def test_main_with_request_changes_verdict(self, tmp_path) -> None:
         """Test main() returns 1 for REQUEST CHANGES verdict."""
         temp_path = tmp_path / "review.md"
         temp_path.write_text("**REQUEST CHANGES** — blocking issue")
 
-        try:
-            result = subprocess.run(
-                ["python3", ".github/scripts/extract_verdict.py", temp_path, "TestProvider"],
-                cwd=str(Path(__file__).parent.parent.parent),
-                capture_output=True,
-                text=True,
-            )
-            assert result.returncode == 1
-            assert "CHANGES REQUESTED" in result.stdout
-        finally:
-            Path(temp_path).unlink()
+        result = subprocess.run(
+            ["python3", ".github/scripts/extract_verdict.py", str(temp_path), "TestProvider"],
+            cwd=str(Path(__file__).parent.parent.parent),
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 1
+        assert "CHANGES REQUESTED" in result.stdout
 
     def test_main_with_backtick_approve(self, tmp_path) -> None:
         """Test main() returns 0 for backtick-wrapped APPROVE."""
         temp_path = tmp_path / "review.md"
         temp_path.write_text("**`APPROVE`** — no issues")
 
-        try:
-            result = subprocess.run(
-                ["python3", ".github/scripts/extract_verdict.py", temp_path, "DeepSeek"],
-                cwd=str(Path(__file__).parent.parent.parent),
-                capture_output=True,
-                text=True,
-            )
-            assert result.returncode == 0
-            assert "APPROVED" in result.stdout
-        finally:
-            Path(temp_path).unlink()
+        result = subprocess.run(
+            ["python3", ".github/scripts/extract_verdict.py", str(temp_path), "DeepSeek"],
+            cwd=str(Path(__file__).parent.parent.parent),
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0
+        assert "APPROVED" in result.stdout
 
     def test_main_with_no_verdict(self, tmp_path) -> None:
         """Test main() returns 1 when no valid verdict found."""
         temp_path = tmp_path / "review.md"
         temp_path.write_text("Some review text without a verdict line.")
 
-        try:
-            result = subprocess.run(
-                ["python3", ".github/scripts/extract_verdict.py", temp_path, "TestProvider"],
-                cwd=str(Path(__file__).parent.parent.parent),
-                capture_output=True,
-                text=True,
-            )
-            assert result.returncode == 1
-            assert "did not include a valid verdict" in result.stderr
-        finally:
-            Path(temp_path).unlink()
+        result = subprocess.run(
+            ["python3", ".github/scripts/extract_verdict.py", str(temp_path), "TestProvider"],
+            cwd=str(Path(__file__).parent.parent.parent),
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 1
+        assert "did not include a valid verdict" in result.stderr
 
 
 if __name__ == "__main__":

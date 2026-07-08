@@ -1,0 +1,53 @@
+name: Issue Template Lint
+
+on:
+  issues:
+    types: [opened, edited]
+
+permissions:
+  issues: write
+
+jobs:
+  lint-issue-body:
+    runs-on: ubuntu-latest
+    if: ${{ github.actor != 'dependabot[bot]' }}
+    steps:
+      - name: Check required sections are present
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          REPO: ${{ github.repository }}
+        run: |
+          missing=()
+
+          check() {
+            printf '%s' "$ISSUE_BODY" | grep -Eiq "$1" || missing+=("$2")
+          }
+
+          check '##[[:space:]]*what\b'                                     "What"
+          check '##[[:space:]]*why\b'                                      "Why"
+          check '##[[:space:]]*how\b'                                      "How"
+          check '##[[:space:]]*constraints\b'                              "Constraints"
+          check '##[[:space:]]*success[[:space:]]+looks[[:space:]]+like'   "Success looks like"
+          check '##[[:space:]]*failure[[:space:]]+looks[[:space:]]+like'   "Failure looks like"
+
+          if [ "${#missing[@]}" -eq 0 ]; then
+            echo "All required sections present."
+            gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --remove-label "needs-info" 2>/dev/null || true
+            exit 0
+          fi
+
+          gh label create "needs-info" --repo "$REPO" \
+            --description "Automated: issue is missing required template sections" \
+            --color "d4c5f9" --force
+
+          list=$(printf -- '- %s\n' "${missing[@]}")
+          comment_body=$(printf '%s\n\n%s\n\n%s' \
+            "This issue is missing sections expected by the allotmint template:" \
+            "$list" \
+            "Please edit the issue to add them (see \`.github/ISSUE_TEMPLATE/bug_report.md\` for the format). This is an automated check, not a judgment on the issue's validity.")
+
+          gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "$comment_body"
+          gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --add-label "needs-info"
+          exit 1

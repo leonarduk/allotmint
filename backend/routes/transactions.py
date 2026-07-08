@@ -149,6 +149,10 @@ def resolve_writable_store(
         bucket = os.getenv(data_loader.DATA_BUCKET_ENV)
         if bucket:
             return S3AccountsStore(bucket=bucket), _RootResolution.WRITABLE
+        log.warning(
+            "%s is not set; falling back to local accounts store.",
+            data_loader.DATA_BUCKET_ENV,
+        )
     root, kind = _resolve_local_root(request)
     is_global = kind is not _RootResolution.WRITABLE
     return LocalAccountsStore(root=root, is_global=is_global), kind

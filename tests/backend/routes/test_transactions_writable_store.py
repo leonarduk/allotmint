@@ -65,15 +65,34 @@ def test_resolve_writable_store_uses_s3_in_aws(monkeypatch):
     assert store.bucket == "data-bucket"
 
 
-def test_resolve_writable_store_falls_back_local_without_bucket(monkeypatch, tmp_path):
+def test_resolve_writable_store_falls_back_local_without_bucket(
+    monkeypatch, tmp_path, caplog
+):
     monkeypatch.setattr(transactions_module.config, "app_env", "aws")
     monkeypatch.delenv(data_loader.DATA_BUCKET_ENV, raising=False)
 
     request = _make_request({"accounts_root": tmp_path})
-    store, _ = transactions_module.resolve_writable_store(request)
+    with caplog.at_level("WARNING", logger="transactions"):
+        store, _ = transactions_module.resolve_writable_store(request)
 
     assert not isinstance(store, S3AccountsStore)
     assert store.local_root == tmp_path.resolve()
+    assert any(
+        data_loader.DATA_BUCKET_ENV in record.message for record in caplog.records
+    )
+
+
+def test_resolve_writable_store_no_warning_outside_aws(monkeypatch, tmp_path, caplog):
+    monkeypatch.setattr(transactions_module.config, "app_env", "local")
+    monkeypatch.delenv(data_loader.DATA_BUCKET_ENV, raising=False)
+
+    request = _make_request({"accounts_root": tmp_path})
+    with caplog.at_level("WARNING", logger="transactions"):
+        transactions_module.resolve_writable_store(request)
+
+    assert not any(
+        data_loader.DATA_BUCKET_ENV in record.message for record in caplog.records
+    )
 
 
 @pytest.mark.asyncio

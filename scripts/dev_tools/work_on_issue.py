@@ -6,6 +6,8 @@ import argparse
 import os
 import re
 import subprocess
+from os.path import isdir
+
 import sys
 from pathlib import Path
 
@@ -49,7 +51,11 @@ def slugify(text: str) -> str:
 
 def fetch_issue(owner: str, repo: str, issue_id: int) -> dict:
     """Fetch issue details from GitHub API."""
-    url = f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_id}"
+    issues_dir = f"https://api.github.com/repos/{owner}/{repo}/issues/"
+    if not isdir(issues_dir):
+       os.mkdir(issues_dir) or exit(F"Failed to create {issues_dir}")
+
+    url = f"{issues_dir}/{issue_id}"
     try:
         resp = requests.get(url, timeout=10)
         resp.raise_for_status()

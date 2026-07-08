@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from backend.common import portfolio_loader
+from backend.common.account_models import OwnerSummaryRecord
 from backend.common.portfolio_loader import rebuild_account_holdings
 
 
@@ -82,13 +83,13 @@ def test_load_accounts_for_owner_json_error(
 
 
 @pytest.fixture
-def patched_portfolio_loader(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, object]]:
+def patched_portfolio_loader(monkeypatch: pytest.MonkeyPatch) -> list[OwnerSummaryRecord]:
     owners = [
-        {"owner": "alex", "accounts": ["isa"]},
-        {"owner": "beth", "accounts": ["sipp", "taxable"]},
+        OwnerSummaryRecord(owner="alex", accounts=["isa"]),
+        OwnerSummaryRecord(owner="beth", accounts=["sipp", "taxable"]),
     ]
 
-    def _fake_list_plots() -> list[dict[str, object]]:
+    def _fake_list_plots() -> list[OwnerSummaryRecord]:
         return owners
 
     def _fake_person(owner: str) -> dict[str, str]:
@@ -108,20 +109,20 @@ def patched_portfolio_loader(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, 
     return owners
 
 
-def test_list_portfolios_aggregates_owners(patched_portfolio_loader: list[dict[str, object]]) -> None:
+def test_list_portfolios_aggregates_owners(patched_portfolio_loader: list[OwnerSummaryRecord]) -> None:
     result = portfolio_loader.list_portfolios()
 
     expected = [
         {
-            "owner": row["owner"],
-            "person": {"owner": row["owner"], "full_name": row["owner"].title()},
+            "owner": row.owner,
+            "person": {"owner": row.owner, "full_name": row.owner.title()},
             "accounts": [
                 {
-                    "owner": row["owner"],
+                    "owner": row.owner,
                     "account": account.upper(),
-                    "path": f"{row['owner']}/{account}.json",
+                    "path": f"{row.owner}/{account}.json",
                 }
-                for account in row["accounts"]
+                for account in row.accounts
             ],
         }
         for row in patched_portfolio_loader
@@ -131,7 +132,7 @@ def test_list_portfolios_aggregates_owners(patched_portfolio_loader: list[dict[s
 
 
 def test_load_portfolio_case_insensitive(
-    patched_portfolio_loader: list[dict[str, object]]
+    patched_portfolio_loader: list[OwnerSummaryRecord]
 ) -> None:
     all_portfolios = portfolio_loader.list_portfolios()
 

@@ -2,6 +2,7 @@ import pytest
 from httpx import AsyncClient, ASGITransport
 
 from backend.app import create_app
+from backend.common.account_models import OwnerSummaryRecord
 
 
 @pytest.mark.asyncio
@@ -13,8 +14,8 @@ async def test_auth_alerts_portfolio(monkeypatch):
     monkeypatch.setattr(
         "backend.common.data_loader.list_plots",
         lambda root, current_user=None: [
-            {"owner": "alice", "accounts": ["brokerage"]},
-            {"owner": "demo", "accounts": ["demo"]},
+            OwnerSummaryRecord(owner="alice", accounts=["brokerage"]),
+            OwnerSummaryRecord(owner="demo", accounts=["demo"]),
         ],
     )
     transport = ASGITransport(app=app)

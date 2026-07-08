@@ -550,7 +550,7 @@ def test_extract_person_meta_non_list_viewers_drops_key_preserves_rest(monkeypat
 def test_list_plots_delegates_to_aws(monkeypatch):
     monkeypatch.setattr(dl.config, "app_env", "aws", raising=False)
 
-    sentinel = object()
+    sentinel = [{"owner": "aws-owner", "accounts": ["isa"]}]
 
     def fake_aws(current_user=None):
         assert current_user == "alice"
@@ -558,13 +558,14 @@ def test_list_plots_delegates_to_aws(monkeypatch):
 
     monkeypatch.setattr(dl, "_list_aws_plots", fake_aws)
 
-    assert dl.list_plots(current_user="alice") is sentinel
+    result = dl.list_plots(current_user="alice")
+    assert result == [dl.OwnerSummaryRecord(owner="aws-owner", accounts=["isa"])]
 
 
 def test_list_plots_uses_local_when_not_aws(monkeypatch):
     monkeypatch.setattr(dl.config, "app_env", "local", raising=False)
 
-    sentinel = object()
+    sentinel = [{"owner": "local-owner", "accounts": ["sipp"]}]
 
     def fake_local(data_root=None, current_user=None):
         assert data_root == "root"
@@ -573,4 +574,5 @@ def test_list_plots_uses_local_when_not_aws(monkeypatch):
 
     monkeypatch.setattr(dl, "_list_local_plots", fake_local)
 
-    assert dl.list_plots(data_root="root", current_user="bob") is sentinel
+    result = dl.list_plots(data_root="root", current_user="bob")
+    assert result == [dl.OwnerSummaryRecord(owner="local-owner", accounts=["sipp"])]

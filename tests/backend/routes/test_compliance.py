@@ -5,6 +5,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
+from backend.common.account_models import OwnerSummaryRecord
 from backend.common.errors import AppError, OwnerNotFoundError
 from backend.routes import compliance as compliance_module
 
@@ -52,11 +53,9 @@ def test_known_owners_aggregates_plot_metadata(tmp_path, monkeypatch):
         compliance_module.data_loader,
         "list_plots",
         lambda root: [
-            {"owner": "Alice"},
-            {"owner": "Bob"},
-            {"owner": "ALICE"},
-            {"owner": None},
-            {},
+            OwnerSummaryRecord(owner="Alice"),
+            OwnerSummaryRecord(owner="Bob"),
+            OwnerSummaryRecord(owner="ALICE"),
         ],
     )
     monkeypatch.setattr(
@@ -112,7 +111,7 @@ def test_known_owners_adds_demo_owner_when_available(tmp_path, monkeypatch):
     monkeypatch.setattr(
         compliance_module.data_loader,
         "list_plots",
-        lambda _: [{"owner": "Alice"}],
+        lambda _: [OwnerSummaryRecord(owner="Alice")],
     )
     monkeypatch.setattr(
         compliance_module.data_loader,
@@ -135,7 +134,7 @@ def test_known_owners_uses_metadata_when_root_missing(tmp_path, monkeypatch):
     monkeypatch.setattr(
         compliance_module.data_loader,
         "list_plots",
-        lambda _: [{"owner": "Alice"}],
+        lambda _: [OwnerSummaryRecord(owner="Alice")],
     )
     monkeypatch.setattr(
         compliance_module.data_loader,

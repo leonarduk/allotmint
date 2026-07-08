@@ -3,6 +3,7 @@ from pathlib import Path
 import json
 
 from backend.app import create_app
+from backend.common.account_models import OwnerSummaryRecord
 from backend.routes import scenario as scenario_route
 
 
@@ -18,7 +19,7 @@ def test_scenario_route(monkeypatch):
     monkeypatch.setattr(
         scenario_route,
         "list_plots",
-        lambda: [{"owner": "alice", "full_name": "Alice Example", "accounts": [{}]}],
+        lambda: [OwnerSummaryRecord(owner="alice", full_name="Alice Example", accounts=["acc1"])],
     )
     monkeypatch.setattr(
         scenario_route,
@@ -61,7 +62,7 @@ def test_historical_scenario_route(monkeypatch):
     monkeypatch.setattr(
         scenario_route,
         "list_plots",
-        lambda: [{"owner": "alice", "full_name": "Alice Example", "accounts": [{}]}],
+        lambda: [OwnerSummaryRecord(owner="alice", full_name="Alice Example", accounts=["acc1"])],
     )
     monkeypatch.setattr(
         scenario_route,

@@ -24,6 +24,15 @@ or AI agent's default language.
 
 > StaticSiteStack (CloudFront, S3, Cognito) and BackendLambdaStack (API Gateway, Lambda, EventBridge, S3 data bucket, CloudWatch, Budgets, ECR).
 
+## Design decisions
+
+Key architectural tradeoffs made in this project:
+
+- **JSON file storage over a relational DB**: AllotMint is a single-user tool with no concurrency requirements, so a relational database would add operational overhead without a corresponding benefit. Flat JSON keeps local dev dependency-free and makes fixture data trivial to inspect and edit by hand.
+- **Cognito over custom auth**: Using AWS Cognito offloads JWT lifecycle management, MFA, and token rotation to a managed service rather than maintaining that logic in-house. The tradeoff is vendor lock-in to AWS's auth model and APIs.
+- **Lambda + Mangum over a persistent server**: A pay-per-invocation Lambda fits the cost model of a low-traffic personal tool far better than an always-on server. The tradeoff is cold start latency, most notably the ~10-second Lambda INIT phase constraint tracked in [issue #4429](https://github.com/leonarduk/allotmint/issues/4429).
+- **What would change at scale**: multi-user or high-traffic usage would justify swapping JSON storage for Postgres, introducing a proper job queue for background work, and splitting the single Lambda into per-domain functions to isolate cold starts and scaling behavior.
+
 ## Coverage reporting
 
 GitHub Actions uploads both backend (`coverage.xml`) and frontend (`frontend/coverage/lcov.info`) coverage reports to Codecov on pull requests and pushes to `main`.

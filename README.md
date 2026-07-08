@@ -20,9 +20,70 @@ or AI agent's default language.
 
 ## AWS architecture
 
-![AWS architecture](docs/aws-architecture.svg)
+Two independent CDK stacks (`cdk/stacks/static_site_stack.py`, `cdk/stacks/backend_lambda_stack.py`) make up the deployed system. The frontend is served by CloudFront directly from S3; the backend is a separate, CloudFront-less HTTP API. Cognito issues the ID token the browser sends as a bearer token; API Gateway verifies it before Lambda ever runs.
 
-> StaticSiteStack (CloudFront, S3, Cognito) and BackendLambdaStack (API Gateway, Lambda, EventBridge, S3 data bucket, CloudWatch, Budgets, ECR).
+```mermaid
+flowchart LR
+    Browser(["Browser"])
+
+    subgraph StaticSiteStack["StaticSiteStack"]
+        CF["CloudFront Distribution"]
+        S3Static[("S3: StaticSiteBucket")]
+        Cognito["Cognito User Pool\n(Hosted UI, PKCE)"]
+    end
+
+    subgraph BackendLambdaStack["BackendLambdaStack"]
+        APIGW["API Gateway HTTP API"]
+        Authorizer["HttpUserPoolAuthorizer"]
+        Lambda["BackendLambda\n(FastAPI via Mangum)"]
+        S3Data[("S3: PortfolioDataBucket\naccounts/ prices/ transactions/ ...")]
+        PriceLambda["PriceRefreshLambda"]
+        TradingLambda["TradingAgentLambda"]
+        RuleA(["EventBridge: DailyPriceRefresh\ncron 00:00 UTC"])
+        RuleB(["EventBridge: DailyTradingAgentRun\ncron 01:00 UTC"])
+    end
+
+    ECR[("ECR (CDK bootstrap repo)\nbackend/Dockerfile.lambda image")]
+
+    Browser -- "HTTPS" --> CF
+    CF -- "default + /assets/*" --> S3Static
+    Browser -- "Hosted UI redirect" --> Cognito
+    Cognito -- "ID token" --> Browser
+    Browser -- "HTTPS + Bearer ID token" --> APIGW
+    APIGW --> Authorizer
+    Authorizer -- "verifies JWT against" --> Cognito
+    APIGW -- "ANY /, /{proxy+}" --> Lambda
+    Lambda --> S3Data
+    RuleA --> PriceLambda
+    RuleB --> TradingLambda
+    PriceLambda --> S3Data
+    TradingLambda --> S3Data
+    Lambda -.image.-> ECR
+    PriceLambda -.image.-> ECR
+    TradingLambda -.image.-> ECR
+```
+
+`/health`, `/config` (GET), `/token/google`, and `/signup/*` bypass the Cognito authorizer (public or self-authenticating routes); every other route requires a valid Cognito ID token.
+
+### CDK deployment pipeline
+
+Deploys run from `.github/workflows/deploy-lambda.yml` on a `v*` tag push (or manual dispatch), gated on a `ci.yml` run passing first. That gate checks `ci.yml` for `github.sha` — the commit that triggered the workflow run — while the later checkout step uses `inputs.ref || github.ref` (`.github/workflows/deploy-lambda.yml` lines 30-31, 134-137). For a plain tag push these are the same commit, but a manual `workflow_dispatch` that sets `inputs.ref` to a different tag/branch/SHA than the one the dispatch itself ran from will deploy a commit whose CI status was never checked by this gate.
+
+```mermaid
+flowchart TD
+    A["Tag push v* / workflow_dispatch"] --> B["Wait for ci.yml to pass on github.sha\n(NOT necessarily inputs.ref)"]
+    B --> C["Build frontend + install backend deps"]
+    C --> D["Assume AWS role via OIDC + IAM policy simulation"]
+    D --> E["cdk deploy StaticSiteStack\n(Cognito, CloudFront, S3 site bucket)"]
+    E --> F["Read Cognito outputs from CloudFormation"]
+    F --> G["cdk deploy BackendLambdaStack\n(Lambda, API Gateway, EventBridge)\nusing Cognito params"]
+    G --> H["Warm price snapshot (manual Lambda invoke)"]
+    H --> I["Redeploy StaticSiteStack\nwith BackendApiUrl -> refreshes config.json"]
+    I --> J["Reconcile Cognito app client OAuth settings"]
+    J --> K["Smoke checks (/health, /api-console 401) + Lighthouse CI"]
+```
+
+A static, non-interactive copy of the topology is kept at [docs/aws-architecture.svg](docs/aws-architecture.svg) for contexts that can't render Mermaid.
 
 ## Design decisions
 

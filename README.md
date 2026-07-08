@@ -1,8 +1,10 @@
 # AllotMint 🌱💷
 
+[![CI](https://github.com/leonarduk/allotmint/actions/workflows/ci.yml/badge.svg)](https://github.com/leonarduk/allotmint/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/leonarduk/allotmint/branch/main/graph/badge.svg)](https://codecov.io/gh/leonarduk/allotmint)
+[![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-blue.svg)](LICENSE)
 
-AllotMint is a family investing platform with a FastAPI backend, React frontend, and AWS deployment support.
+AllotMint is a family investing platform with a FastAPI backend, React/TypeScript frontend, and AWS deployment support.
 
 ## Language guidelines
 

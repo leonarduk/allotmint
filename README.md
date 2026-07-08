@@ -67,11 +67,11 @@ flowchart LR
 
 ### CDK deployment pipeline
 
-Deploys run from `.github/workflows/deploy-lambda.yml` on a `v*` tag push (or manual dispatch), gated on the `ci.yml` run for that commit passing first.
+Deploys run from `.github/workflows/deploy-lambda.yml` on a `v*` tag push (or manual dispatch), gated on a `ci.yml` run passing first. That gate checks `ci.yml` for `github.sha` — the commit that triggered the workflow run — while the later checkout step uses `inputs.ref || github.ref` (`.github/workflows/deploy-lambda.yml` lines 30-31, 134-137). For a plain tag push these are the same commit, but a manual `workflow_dispatch` that sets `inputs.ref` to a different tag/branch/SHA than the one the dispatch itself ran from will deploy a commit whose CI status was never checked by this gate.
 
 ```mermaid
 flowchart TD
-    A["Tag push v* / workflow_dispatch"] --> B["Wait for ci.yml to pass on this commit"]
+    A["Tag push v* / workflow_dispatch"] --> B["Wait for ci.yml to pass on github.sha\n(NOT necessarily inputs.ref)"]
     B --> C["Build frontend + install backend deps"]
     C --> D["Assume AWS role via OIDC + IAM policy simulation"]
     D --> E["cdk deploy StaticSiteStack\n(Cognito, CloudFront, S3 site bucket)"]

@@ -4,6 +4,7 @@ import { describe, it, expect, vi } from 'vitest';
 import i18n from '@/i18n';
 import Menu from '@/components/Menu';
 import { configContext, type ConfigContextValue } from '@/ConfigContext';
+import { AuthContext } from '@/contexts/auth';
 
 const configWithTransactions: ConfigContextValue = {
   relativeViewEnabled: false,
@@ -298,5 +299,47 @@ describe('Menu', () => {
     expect(
       screen.queryByRole('button', { name: i18n.t('app.menuCategories.goals') })
     ).toBeNull();
+  });
+
+  it('renders logout via AuthContext when no onLogout prop is passed (#4751)', async () => {
+    // Standalone routes (e.g. AlertSettings, PerformanceDiagnostics) mount
+    // Menu without threading an onLogout prop through. The control must
+    // still work by falling back to the app-wide logout registered in
+    // AuthContext, so the button isn't silently missing on those pages.
+    const contextLogout = vi.fn();
+    render(
+      <AuthContext.Provider
+        value={{
+          user: null,
+          setUser: () => {},
+          logout: contextLogout,
+          setLogout: () => {},
+        }}
+      >
+        <MemoryRouter>
+          <Menu />
+        </MemoryRouter>
+      </AuthContext.Provider>
+    );
+    const preferencesToggle = screen.getByRole('button', {
+      name: i18n.t('app.menuCategories.preferences'),
+    });
+    fireEvent.click(preferencesToggle);
+    const btn = await screen.findByRole('menuitem', {
+      name: i18n.t('app.logout'),
+    });
+    fireEvent.click(btn);
+    expect(contextLogout).toHaveBeenCalled();
+  });
+
+  it('hides logout when neither onLogout prop nor AuthContext logout is available', () => {
+    render(
+      <MemoryRouter>
+        <Menu />
+      </MemoryRouter>
+    );
+    expect(
+      screen.queryByRole('menuitem', { name: i18n.t('app.logout') })
+    ).not.toBeInTheDocument();
   });
 });

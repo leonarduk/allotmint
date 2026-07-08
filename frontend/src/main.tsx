@@ -141,7 +141,7 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
   // overridden by cfg.awsUiAuth from the backend GET /config response (which
   // is authoritative and the source that #4610 was designed to enable).
   const [resolvedAwsUiAuth, setResolvedAwsUiAuth] = useState<AwsUiAuthConfig | undefined>(awsUiAuth);
-  const { setUser } = useAuth();
+  const { setUser, setLogout } = useAuth();
   const { setProfile } = useUser();
   const navigate = useNavigate();
   const location = useLocation();
@@ -167,7 +167,7 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
     }
   }, []);
 
-  const logout = () => {
+  const logout = useCallback(() => {
     clearCognitoRefreshTimer();
     apiLogout();
     setUser(null);
@@ -178,7 +178,15 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
     } else {
       navigate('/');
     }
-  };
+  }, [navigate, resolvedAwsUiAuth, setProfile, setUser]);
+
+  // Registered in AuthContext so any Menu instance can log out reliably even
+  // if the page that mounts it forgets to thread an onLogout prop through
+  // (see #4751).
+  useEffect(() => {
+    setLogout(() => logout);
+    return () => setLogout(null);
+  }, [logout, setLogout]);
 
   useEffect(() => {
     if (!storedToken) return;

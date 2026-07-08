@@ -9,12 +9,16 @@ export { AuthContext } from './contexts/auth';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUserState] = useState<UserProfile | null>(() => loadStoredAuthUser());
+  const [logout, setLogoutState] = useState<(() => void) | null>(null);
   const setUser = useCallback((u: UserProfile | null) => {
     setUserState(u);
     persistStoredAuthUser(u);
   }, []);
+  const setLogout = useCallback((fn: (() => void) | null) => {
+    setLogoutState(() => fn);
+  }, []);
   return (
-    <AuthContext.Provider value={{ user, setUser }}>
+    <AuthContext.Provider value={{ user, setUser, logout, setLogout }}>
       {children}
     </AuthContext.Provider>
   );

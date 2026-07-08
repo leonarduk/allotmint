@@ -42,7 +42,10 @@ Describe 'aider-issue.ps1 file discovery logic' {
     BeforeEach {
         # $title/$issueBody/$repoRoot are read by the dot-sourced snippet below;
         # $candidates/$directMatches/$basenameMatches/$referencedFiles are set by it.
-        $repoRoot = 'C:\repo'
+        # A drive-letter path (e.g. 'C:\repo') makes Join-Path throw
+        # DriveNotFoundException on the Linux CI runner, so use a
+        # drive-neutral root that resolves the same on Windows and Linux.
+        $repoRoot = '/repo'
     }
 
     Context 'direct path match' {

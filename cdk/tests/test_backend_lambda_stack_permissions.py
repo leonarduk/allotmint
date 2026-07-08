@@ -690,6 +690,28 @@ def test_no_logs_grant_to_deploy_role_when_github_deploy_role_arn_absent(monkeyp
     )
 
 
+def test_writable_accounts_prefix_matches_backend_accounts_store() -> None:
+    """The CDK stack's WRITABLE_ACCOUNTS_PREFIX literal must match the Python
+    backend's fallback literal in backend.common.accounts_store, since CDK
+    passes its value into the Lambda's WRITABLE_ACCOUNTS_PREFIX env var and
+    accounts_store only falls back to its own literal when that env var is
+    unset. See issue #4323."""
+    repo_root = CDK_DIR.parent
+    if str(repo_root) not in sys.path:
+        sys.path.insert(0, str(repo_root))
+
+    from backend.common.accounts_store import (
+        WRITABLE_ACCOUNTS_PREFIX as BACKEND_WRITABLE_ACCOUNTS_PREFIX,
+    )
+
+    assert WRITABLE_ACCOUNTS_PREFIX == BACKEND_WRITABLE_ACCOUNTS_PREFIX, (
+        "CDK's WRITABLE_ACCOUNTS_PREFIX ('{}') has drifted from "
+        "backend.common.accounts_store.WRITABLE_ACCOUNTS_PREFIX ('{}')".format(
+            WRITABLE_ACCOUNTS_PREFIX, BACKEND_WRITABLE_ACCOUNTS_PREFIX
+        )
+    )
+
+
 def test_grant_bucket_access_raises_on_no_permissions() -> None:
     class _MockFn:
         def add_to_role_policy(self, policy_statement: object) -> None:

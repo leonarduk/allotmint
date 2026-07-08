@@ -81,6 +81,11 @@ export const holdingContractSchema = z.object({
   sell_eligible: z.boolean().optional(),
   days_until_eligible: nullableNumber.optional(),
   next_eligible_sell_date: nullableString.optional(),
+  eligible_on: nullableString.optional(),
+  cost_basis_source: nullableString.optional(),
+  asset_class: nullableString.optional(),
+  unrealised_gain_gbp: nullableNumber.optional(),
+  unrealized_gain_gbp: nullableNumber.optional(),
 });
 
 export const accountContractSchema = z.object({

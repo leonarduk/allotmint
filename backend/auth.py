@@ -293,7 +293,10 @@ def _resolve_identity_when_auth_disabled(token: str | None) -> str | None:
             )
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Unauthorized email")
         return email
-    return local_login_identity()
+    identity = local_login_identity()
+    if identity is None:
+        return None
+    return identity
 
 
 async def get_current_user(token: str | None = Depends(oauth2_scheme)) -> str:

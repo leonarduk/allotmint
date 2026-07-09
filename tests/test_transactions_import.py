@@ -3,9 +3,11 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+from backend import importers
 from backend.app import create_app
 from backend.config import config
 from backend.importers import degiro, moneyhub
+from backend.routes.transactions import Transaction
 
 MONEYHUB_SAMPLE = Path(__file__).parent / "data" / "moneyhub_sample.csv"
 
@@ -68,6 +70,49 @@ def test_moneyhub_to_float_invalid_inputs():
     assert moneyhub._to_float("") is None
     assert moneyhub._to_float("not-a-number") is None
     assert moneyhub._to_float(None) is None
+
+
+def test_moneyhub_parse_empty_csv_returns_no_transactions():
+    csv_data = "Id,Owner,Account,Date,Amount,Description,Category\n"
+    assert moneyhub.parse(csv_data.encode("utf-8")) == []
+
+
+def test_moneyhub_parse_unrecognised_columns_yields_empty_fields():
+    csv_data = "Foo,Bar\nx,y\n"
+    txs = moneyhub.parse(csv_data.encode("utf-8"))
+    assert len(txs) == 1
+    tx = txs[0]
+    assert tx.external_id is None
+    assert tx.owner == ""
+    assert tx.account == ""
+    assert tx.amount_minor is None
+
+
+def _tx(external_id=None, **kwargs):
+    return Transaction(owner="alice", account="ISA", external_id=external_id, **kwargs)
+
+
+def test_dedupe_against_existing_returns_all_when_existing_empty():
+    candidates = [_tx(external_id="a"), _tx(external_id="b")]
+    assert importers.dedupe_against_existing(candidates, []) == candidates
+
+
+def test_dedupe_against_existing_returns_empty_when_candidates_empty():
+    assert importers.dedupe_against_existing([], [_tx(external_id="a")]) == []
+
+
+def test_dedupe_against_existing_filters_matching_external_ids():
+    candidates = [_tx(external_id="a"), _tx(external_id="b")]
+    existing = [_tx(external_id="a")]
+    result = importers.dedupe_against_existing(candidates, existing)
+    assert [t.external_id for t in result] == ["b"]
+
+
+def test_dedupe_against_existing_treats_missing_external_id_as_always_new():
+    candidate = _tx(external_id=None)
+    existing = [_tx(external_id=None)]
+    result = importers.dedupe_against_existing([candidate], existing)
+    assert result == [candidate]
 
 
 def test_import_transactions_moneyhub_dedupes_on_reimport(tmp_path, monkeypatch):

@@ -50,8 +50,11 @@ def dedupe_against_existing(candidates: List[Transaction], existing: List[Transa
     ``_build_transaction_id`` in ``backend.routes.transactions``), so it never
     matches across a re-import of the same source row. Candidates without an
     ``external_id`` have no stable key to compare against and are always
-    treated as new. Shared across import providers so this scheme isn't
-    reimplemented per-provider.
+    treated as new (this includes providers like ``degiro``/``hargreaves``
+    that don't set ``external_id`` at all). Shared across import providers
+    so this scheme isn't reimplemented per-provider -- see issue #3425,
+    which independently needs the same dedupe behaviour for the live
+    Moneyhub API importer.
     """
     existing_ids = {t.external_id for t in existing if t.external_id}
     return [t for t in candidates if not (t.external_id and t.external_id in existing_ids)]

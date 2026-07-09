@@ -169,7 +169,7 @@ def test_target_spa_endpoints_match_contracts(monkeypatch, tmp_path):
     portfolio_payload = client.get("/portfolio/alice").json()
     transactions_payload = client.get("/transactions").json()
 
-    assert SPA_RESPONSE_CONTRACT_VERSION == "2026-03-22"
+    assert SPA_RESPONSE_CONTRACT_VERSION == "2026-07-08"
     ConfigContract.model_validate(config_payload)
     TypeAdapter(List[OwnerSummaryContract]).validate_python(owners_payload)
     TypeAdapter(List[GroupSummaryContract]).validate_python(groups_payload)

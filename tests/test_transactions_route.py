@@ -58,6 +58,7 @@ def test_create_transaction_success(tmp_path, monkeypatch):
     expected_tx = payload.copy()
     expected_tx.pop("owner")
     expected_tx.pop("account")
+    expected_tx.setdefault("external_id", None)
     assert expected_tx in stored["transactions"]
     for tx in stored["transactions"]:
         assert "owner" not in tx

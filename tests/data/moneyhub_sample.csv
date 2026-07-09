@@ -1,0 +1,3 @@
+Id,Owner,Account,Date,Amount,Description,Category
+mh-1001,alice,Current,2024-05-01,-42.50,Tesco Store,Groceries
+mh-1002,alice,Current,2024-05-02,1500.00,Salary,Income

@@ -333,6 +333,7 @@ export interface Transaction {
   owner: string;
   account: string;
   id?: string | null;
+  external_id?: string | null;
   date?: string | null;
   kind?: string | null;
   type?: string | null;

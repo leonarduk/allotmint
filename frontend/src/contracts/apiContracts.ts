@@ -139,6 +139,7 @@ export const transactionContractSchema = z.object({
   owner: z.string(),
   account: z.string(),
   id: nullableString.optional(),
+  external_id: nullableString.optional(),
   date: nullableString.optional(),
   ticker: nullableString.optional(),
   type: nullableString.optional(),

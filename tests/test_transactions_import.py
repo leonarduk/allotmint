@@ -1,8 +1,13 @@
+import json
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 from backend.app import create_app
 from backend.config import config
-from backend.importers import degiro
+from backend.importers import degiro, moneyhub
+
+MONEYHUB_SAMPLE = Path(__file__).parent / "data" / "moneyhub_sample.csv"
 
 
 def _make_client(tmp_path, monkeypatch):
@@ -46,3 +51,59 @@ def test_degiro_parse_handles_bad_data():
     assert tx.units is None
     assert tx.fees is None
     assert tx.amount_minor is None
+
+
+def test_moneyhub_parse_fixture():
+    txs = moneyhub.parse(MONEYHUB_SAMPLE.read_bytes())
+    assert len(txs) == 2
+    assert txs[0].external_id == "mh-1001"
+    assert txs[0].owner == "alice"
+    assert txs[0].account == "Current"
+    assert txs[0].amount_minor == -42.50
+    assert txs[0].comments == "Tesco Store"
+    assert txs[0].type == "Groceries"
+
+
+def test_moneyhub_to_float_invalid_inputs():
+    assert moneyhub._to_float("") is None
+    assert moneyhub._to_float("not-a-number") is None
+    assert moneyhub._to_float(None) is None
+
+
+def test_import_transactions_moneyhub_dedupes_on_reimport(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+
+    # First import: nothing persisted yet, so both rows come back as new.
+    resp = client.post(
+        "/transactions/import",
+        data={"provider": "moneyhub"},
+        files={"file": ("tx.csv", MONEYHUB_SAMPLE.read_bytes(), "text/csv")},
+    )
+    assert resp.status_code == 200
+    first = resp.json()
+    assert {t["external_id"] for t in first} == {"mh-1001", "mh-1002"}
+
+    # Persist one of the two rows directly, mimicking what a caller would do
+    # after reviewing the parsed-but-not-yet-saved import result.
+    owner_dir = tmp_path / "alice"
+    owner_dir.mkdir(parents=True)
+    (owner_dir / "Current_transactions.json").write_text(
+        json.dumps(
+            {
+                "owner": "alice",
+                "account_type": "Current",
+                "transactions": [{"external_id": "mh-1001", "comments": "Tesco Store"}],
+            }
+        )
+    )
+
+    # Re-importing the same export should no longer surface the already
+    # persisted row, only the still-new one.
+    resp = client.post(
+        "/transactions/import",
+        data={"provider": "moneyhub"},
+        files={"file": ("tx.csv", MONEYHUB_SAMPLE.read_bytes(), "text/csv")},
+    )
+    assert resp.status_code == 200
+    second = resp.json()
+    assert {t["external_id"] for t in second} == {"mh-1002"}

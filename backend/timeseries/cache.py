@@ -572,7 +572,9 @@ def load_meta_timeseries_range(
             try:
                 df = _convert_to_base_currency(df, ticker, exchange, s, e, base_currency)
             except ValueError as exc:
-                logger.warning("Skipping FX conversion for %s.%s: %s", _sanitize_for_log(ticker), _sanitize_for_log(exchange), exc)
+                logger.warning(
+                    "Skipping FX conversion for %s.%s: %s", _sanitize_for_log(ticker), _sanitize_for_log(exchange), exc
+                )
                 return _empty_ts()
             return df
 
@@ -634,6 +636,65 @@ def has_cached_meta_timeseries(ticker: str, exchange: str) -> bool:
 
 def meta_timeseries_cache_path(ticker: str, exchange: str) -> str:
     return _cache_path("meta", f"{ticker.upper()}_{exchange.upper()}.parquet")
+
+
+def load_cached_meta_timeseries_full(ticker: str, exchange: str) -> pd.DataFrame:
+    """Read the full cached meta timeseries as-is, with no fetch or date filter.
+
+    Unlike :func:`load_meta_timeseries_range`, this never triggers a live
+    fetch and never dedupes/trims rows — it is intended for read-only
+    diagnostics (e.g. data-quality checks) that need to see the raw cache
+    contents, duplicates included.
+    """
+    return _load_parquet(meta_timeseries_cache_path(ticker, exchange))
+
+
+def _local_cached_meta_filenames(base: str) -> list[str]:
+    meta_dir = Path(base, "meta")
+    if not meta_dir.is_dir():
+        return []
+    return [p.name for p in meta_dir.glob("*.parquet")]
+
+
+def _s3_cached_meta_filenames(base: str) -> list[str]:
+    without_scheme = base[len("s3://") :]
+    bucket, _, prefix = without_scheme.partition("/")
+    if not bucket:
+        logger.warning("Invalid S3 timeseries cache base: %s", _sanitize_for_log(base))
+        return []
+    meta_prefix = f"{prefix.rstrip('/')}/meta/" if prefix else "meta/"
+    names: list[str] = []
+    try:
+        paginator = _s3_client().get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=bucket, Prefix=meta_prefix):
+            for obj in page.get("Contents", []):
+                key = obj["Key"]
+                if key.endswith(".parquet"):
+                    names.append(key.rsplit("/", 1)[-1])
+    except (BotoCoreError, ClientError) as exc:  # pragma: no cover - defensive AWS path
+        logger.error("Unable to list S3 timeseries cache objects under %s: %s", _sanitize_for_log(meta_prefix), exc)
+        return []
+    return names
+
+
+def list_cached_meta_tickers() -> list[tuple[str, str]]:
+    """Return sorted (ticker, exchange) pairs for every cached meta timeseries file."""
+    if _CACHE_BASE is None:
+        return []
+    if _CACHE_BASE.startswith("s3://"):
+        filenames = _s3_cached_meta_filenames(_CACHE_BASE)
+    else:
+        filenames = _local_cached_meta_filenames(_CACHE_BASE)
+
+    pairs: set[tuple[str, str]] = set()
+    for name in filenames:
+        if not name.endswith(".parquet"):
+            continue
+        stem = name[: -len(".parquet")]
+        ticker, sep, exchange = stem.rpartition("_")
+        if sep and ticker and exchange:
+            pairs.add((ticker, exchange))
+    return sorted(pairs)
 
 
 # NOTE: keep arg order to avoid breaking existing callers

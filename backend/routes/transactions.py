@@ -693,6 +693,13 @@ async def import_transactions(
     except Exception as exc:  # pragma: no cover - parsing errors
         raise HTTPException(status_code=400, detail=f"Failed to parse file: {exc}")
 
+    if not any(t.external_id for t in parsed):
+        # No candidate carries a stable key (e.g. degiro/hargreaves never set
+        # external_id), so dedupe would be a no-op. Skip the store lookup
+        # entirely rather than paying for it on every import regardless of
+        # provider.
+        return parsed
+
     store, _ = resolve_writable_store(request)
     existing = _load_all_transactions(store)
     return importers.dedupe_against_existing(parsed, existing)

@@ -58,12 +58,29 @@ def test_degiro_parse_handles_bad_data():
 def test_moneyhub_parse_fixture():
     txs = moneyhub.parse(MONEYHUB_SAMPLE.read_bytes())
     assert len(txs) == 2
-    assert txs[0].external_id == "mh-1001"
+    # No Id column in the fixture, so external_id falls back to the
+    # date+account+amount+description composite key (see issue #3426).
+    assert txs[0].external_id == "2024-05-01|Current|-42.50|tesco store"
     assert txs[0].owner == "alice"
     assert txs[0].account == "Current"
     assert txs[0].amount_minor == -42.50
     assert txs[0].comments == "Tesco Store"
     assert txs[0].type == "Groceries"
+
+
+def test_moneyhub_parse_uses_id_column_when_present():
+    csv_data = (
+        "Id,Owner,Account,Date,Amount,Description,Category\n"
+        "mh-1001,alice,Current,2024-05-01,-42.50,Tesco Store,Groceries\n"
+    )
+    txs = moneyhub.parse(csv_data.encode("utf-8"))
+    assert txs[0].external_id == "mh-1001"
+
+
+def test_moneyhub_composite_key_requires_date_and_amount():
+    assert moneyhub._composite_key(None, "Current", -42.50, "Tesco") is None
+    assert moneyhub._composite_key("2024-05-01", "Current", None, "Tesco") is None
+    assert moneyhub._composite_key("2024-05-01", "Current", -42.50, "Tesco") == "2024-05-01|Current|-42.50|tesco"
 
 
 def test_moneyhub_to_float_invalid_inputs():
@@ -117,6 +134,8 @@ def test_dedupe_against_existing_treats_missing_external_id_as_always_new():
 
 def test_import_transactions_moneyhub_dedupes_on_reimport(tmp_path, monkeypatch):
     client = _make_client(tmp_path, monkeypatch)
+    key_row1 = "2024-05-01|Current|-42.50|tesco store"
+    key_row2 = "2024-05-02|Current|1500.00|salary"
 
     # First import: nothing persisted yet, so both rows come back as new.
     resp = client.post(
@@ -126,7 +145,7 @@ def test_import_transactions_moneyhub_dedupes_on_reimport(tmp_path, monkeypatch)
     )
     assert resp.status_code == 200
     first = resp.json()
-    assert {t["external_id"] for t in first} == {"mh-1001", "mh-1002"}
+    assert {t["external_id"] for t in first} == {key_row1, key_row2}
 
     # Persist one of the two rows directly, mimicking what a caller would do
     # after reviewing the parsed-but-not-yet-saved import result.
@@ -137,7 +156,7 @@ def test_import_transactions_moneyhub_dedupes_on_reimport(tmp_path, monkeypatch)
             {
                 "owner": "alice",
                 "account_type": "Current",
-                "transactions": [{"external_id": "mh-1001", "comments": "Tesco Store"}],
+                "transactions": [{"external_id": key_row1, "comments": "Tesco Store"}],
             }
         )
     )
@@ -151,4 +170,4 @@ def test_import_transactions_moneyhub_dedupes_on_reimport(tmp_path, monkeypatch)
     )
     assert resp.status_code == 200
     second = resp.json()
-    assert {t["external_id"] for t in second} == {"mh-1002"}
+    assert {t["external_id"] for t in second} == {key_row2}

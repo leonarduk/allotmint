@@ -64,6 +64,7 @@
       "allocation": "Allocation",
       "compliance": "Compliance Warnings",
       "dataadmin": "Data Admin",
+      "dataquality": "Data Quality",
       "group": "Group",
       "instrument": "Instrument",
       "instrumentadmin": "Instrument Admin",
@@ -106,6 +107,39 @@
     "ticker": "Ticker",
     "cancel": "Cancel",
     "close": "Close"
+  },
+  "dataQuality": {
+    "title": "Data Quality",
+    "noData": "No cached timeseries positions found.",
+    "viewDetails": "View details",
+    "columns": {
+      "ticker": "Ticker",
+      "exchange": "Exchange",
+      "totalPoints": "Total points",
+      "dateRange": "Date range",
+      "gapCount": "Gaps",
+      "duplicateCount": "Duplicates",
+      "outlierCount": "Outliers",
+      "status": "Status"
+    },
+    "status": {
+      "green": "Clean",
+      "amber": "Has gaps",
+      "red": "Has issues"
+    },
+    "drilldown": {
+      "title": "Data quality details: {{ticker}}.{{exchange}}",
+      "gaps": "Gaps",
+      "duplicates": "Duplicate dates",
+      "outliers": "Outliers",
+      "date": "Date",
+      "value": "Value",
+      "zScore": "Z-score",
+      "missingDays_one": "{{count}} missing business day",
+      "missingDays_other": "{{count}} missing business days",
+      "noIssues": "No data quality issues found for this position.",
+      "close": "Close"
+    }
   },
   "dashboard": {
     "alphaVsBenchmark": "Alpha vs Benchmark",

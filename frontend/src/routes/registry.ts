@@ -183,6 +183,16 @@ export const ROUTE_REGISTRY: RouteRegistryEntry[] = [
     defaultPath: () => '/dataadmin',
   },
   {
+    mode: 'dataquality',
+    routeSegment: 'data-quality',
+    section: 'support',
+    menuCategory: 'operations',
+    priority: 91,
+    defaultPath: () => '/data-quality',
+    routePath: '/data-quality',
+    lazyComponent: lazyPage(() => import('../pages/DataQuality')),
+  },
+  {
     mode: 'reports',
     routeSegment: 'reports',
     section: 'user',

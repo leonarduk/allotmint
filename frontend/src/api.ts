@@ -49,6 +49,7 @@ import type {
   AnalyticsEventPayload,
   AnalyticsFunnelSummary,
   AnalyticsSource,
+  DataQualityTimeseriesResponse,
 } from "./types";
 import {
   configContractSchema,
@@ -57,6 +58,7 @@ import {
   ownersContractSchema,
   portfolioContractSchema,
   transactionsContractSchema,
+  dataQualityTimeseriesContractSchema,
 } from "./contracts/apiContracts";
 
 const cleanOptionalString = (value: unknown): string | null => {
@@ -1465,6 +1467,33 @@ export const getVarBreakdown = (
           varLossPercent: response.var_loss_percent ?? null,
         }
   ));
+};
+
+/** Fetch timeseries data quality metrics (gaps, duplicates, outliers) per cached position. */
+export const getDataQualityTimeseries = async (
+  opts: {
+    ticker?: string;
+    exchange?: string;
+    gapThresholdDays?: number;
+    outlierSigma?: number;
+    rollingWindow?: number;
+  } = {},
+): Promise<DataQualityTimeseriesResponse> => {
+  const params = new URLSearchParams();
+  if (opts.ticker) params.set("ticker", opts.ticker);
+  if (opts.exchange) params.set("exchange", opts.exchange);
+  if (opts.gapThresholdDays != null)
+    params.set("gap_threshold_days", String(opts.gapThresholdDays));
+  if (opts.outlierSigma != null)
+    params.set("outlier_sigma", String(opts.outlierSigma));
+  if (opts.rollingWindow != null)
+    params.set("rolling_window", String(opts.rollingWindow));
+  const qs = params.toString();
+  return dataQualityTimeseriesContractSchema.parse(
+    await fetchJson<DataQualityTimeseriesResponse>(
+      `${API_BASE}/data-quality/timeseries${qs ? `?${qs}` : ""}`,
+    ),
+  );
 };
 
 // ───────────── Goals API ─────────────

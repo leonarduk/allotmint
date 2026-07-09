@@ -217,6 +217,35 @@ export interface ValueAtRiskResponse {
   sharpe_ratio?: number | null;
 }
 
+export interface DataQualityGapPeriod {
+  start: string;
+  end: string;
+  missing_business_days: number;
+}
+
+export interface DataQualityOutlier {
+  date: string;
+  value: number;
+  z_score: number;
+}
+
+export interface TimeseriesQualityPosition {
+  ticker: string;
+  exchange: string;
+  total_points: number;
+  first_date: string | null;
+  last_date: string | null;
+  gap_count: number;
+  gaps: DataQualityGapPeriod[];
+  duplicate_dates: string[];
+  outliers: DataQualityOutlier[];
+}
+
+export interface DataQualityTimeseriesResponse {
+  count: number;
+  positions: TimeseriesQualityPosition[];
+}
+
 export interface AlphaSeriesPoint {
   date: string;
   portfolio_cumulative_return: number;

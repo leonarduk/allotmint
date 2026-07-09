@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from backend import importers
@@ -63,7 +64,7 @@ def test_moneyhub_parse_fixture():
     assert txs[0].external_id == "2024-05-01|Current|-42.50|tesco store"
     assert txs[0].owner == "alice"
     assert txs[0].account == "Current"
-    assert txs[0].amount_minor == -42.50
+    assert txs[0].amount_minor == pytest.approx(-42.50)
     assert txs[0].comments == "Tesco Store"
     assert txs[0].type == "Groceries"
 

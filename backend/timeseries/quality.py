@@ -101,7 +101,13 @@ def find_outliers(
     window: int = DEFAULT_ROLLING_WINDOW,
 ) -> list[Outlier]:
     """Return points whose Close deviates more than ``sigma`` rolling std devs
-    from the trailing rolling mean."""
+    from the trailing rolling mean.
+
+    Uses ``min_periods=window // 2`` so a ticker with fewer than a full
+    window of history still gets outlier coverage; the trade-off is that the
+    rolling mean/std for the first half-window of points is based on fewer
+    samples and is more sensitive to early price swings.
+    """
     if df.empty or "Close" not in df.columns:
         return []
     sorted_df = df.sort_values("Date").reset_index(drop=True)

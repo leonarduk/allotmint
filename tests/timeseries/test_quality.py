@@ -66,6 +66,15 @@ def test_find_gaps_below_threshold_not_reported():
     assert len(find_gaps(df, gap_threshold_days=0)) == 1
 
 
+def test_find_gaps_ignores_uk_bank_holiday():
+    # 2026-12-25 (Fri, Christmas Day) and 2026-12-28 (Mon, Boxing Day
+    # substitute -- 26th falls on a Saturday) are both UK bank holidays, so
+    # the only expected business days between 24th and 29th are the 24th and
+    # 29th themselves. No gap should be reported.
+    df = _df([{"Date": "2026-12-24", "Close": 1.0}, {"Date": "2026-12-29", "Close": 1.0}])
+    assert find_gaps(df) == []
+
+
 def test_find_outliers_flags_spike():
     rows = [{"Date": f"2026-01-{d:02d}", "Close": 100.0} for d in range(1, 21)]
     rows.append({"Date": "2026-01-21", "Close": 1000.0})
@@ -79,6 +88,11 @@ def test_find_outliers_flags_spike():
 def test_find_outliers_stable_series_has_none():
     rows = [{"Date": f"2026-01-{d:02d}", "Close": 100.0 + (d % 2) * 0.1} for d in range(1, 21)]
     df = _df(rows)
+    assert find_outliers(df) == []
+
+
+def test_find_outliers_missing_close_column_returns_empty():
+    df = _df([{"Date": "2026-01-05", "Volume": 100}, {"Date": "2026-01-06", "Volume": 200}])
     assert find_outliers(df) == []
 
 

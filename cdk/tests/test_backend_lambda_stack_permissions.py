@@ -34,6 +34,10 @@ BACKEND_LIST_PREFIXES = (
 # list_portfolios() → S3DataProvider.list_plots() calls list_objects_v2 on that prefix.
 PRICE_REFRESH_LIST_PREFIXES = ("accounts", "prices")
 TRADING_AGENT_LIST_PREFIXES = ("prices",)
+# dividend_refresh only touches AccountsStore (writable-accounts/); unlike
+# price_refresh it never calls list_portfolios(), so it needs no accounts/
+# list grant. See backend/common/dividends.py::refresh_dividends() (#2750).
+DIVIDEND_REFRESH_LIST_PREFIXES = (WRITABLE_ACCOUNTS_PREFIX,)
 
 
 def _stack_template() -> dict:
@@ -252,6 +256,43 @@ def test_s3_permissions_are_scoped_per_lambda() -> None:
     ), "TradingAgentLambda s3:ListBucket must be conditioned to the prices/ prefix"
 
 
+# DividendRefreshLambda reads/writes writable-accounts/ only (issue #2750).
+# Audit evidence: dividend_refresh.lambda_handler → refresh_dividends() →
+# S3AccountsStore.iter_transaction_documents()/read_document()/edit_document()/
+# rebuild_portfolio(), all scoped to WRITABLE_ACCOUNTS_PREFIX
+# (backend/common/dividends.py). It never calls list_portfolios(), so unlike
+# PriceRefreshLambda it needs no ListBucket on accounts/.
+DIVIDEND_REFRESH_MAX_S3 = {"s3:GetObject", "s3:HeadObject", "s3:PutObject", "s3:ListBucket"}
+
+
+def test_dividend_refresh_lambda_has_scoped_s3_permissions() -> None:
+    """Assert minimum and maximum S3 action sets for DividendRefreshLambda's role."""
+    template = _stack_template()
+
+    dividend_role = _role_logical_id_for_lambda(template, "DividendRefreshLambda")
+    dividend_actions = _s3_actions_for_role(template, dividend_role)
+
+    assert {"s3:GetObject", "s3:PutObject", "s3:ListBucket"}.issubset(
+        dividend_actions
+    ), f"DividendRefreshLambda missing required S3 actions: {dividend_actions}"
+    assert (
+        dividend_actions <= DIVIDEND_REFRESH_MAX_S3
+    ), f"DividendRefreshLambda has unexpected S3 actions: {dividend_actions - DIVIDEND_REFRESH_MAX_S3}"
+
+    list_bucket_resources = _resources_for_s3_action(template, dividend_role, "s3:ListBucket")
+    assert list_bucket_resources, "DividendRefreshLambda has s3:ListBucket but no associated resource ARN"
+    for arn in list_bucket_resources:
+        assert not arn.endswith("/*"), (
+            f"DividendRefreshLambda s3:ListBucket is scoped to an object ARN ({arn}); "
+            "it must be scoped to the bucket ARN only (no trailing /*)"
+        )
+
+    dividend_conditions = _conditions_for_s3_action(template, dividend_role, "s3:ListBucket")
+    assert (
+        _expected_prefix_condition(DIVIDEND_REFRESH_LIST_PREFIXES) in dividend_conditions
+    ), "DividendRefreshLambda s3:ListBucket must be conditioned to the writable-accounts/ prefix only"
+
+
 def test_all_lambdas_have_scoped_timeseries_cache_permissions() -> None:
     template = _stack_template()
     expected_condition = {"StringLike": {"s3:prefix": ["timeseries", "timeseries/*"]}}
@@ -345,7 +386,12 @@ def test_grant_bucket_access_accepts_multiple_list_prefixes() -> None:
 def test_lambda_roles_do_not_have_s3_delete_permissions() -> None:
     template = _stack_template()
 
-    role_fragments = ["BackendLambda", "PriceRefreshLambda", "TradingAgentLambda"]
+    role_fragments = [
+        "BackendLambda",
+        "PriceRefreshLambda",
+        "TradingAgentLambda",
+        "DividendRefreshLambda",
+    ]
     forbidden = {"s3:DeleteObject", "s3:DeleteObjectVersion"}
 
     for fragment in role_fragments:

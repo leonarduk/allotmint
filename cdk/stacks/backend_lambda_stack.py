@@ -263,6 +263,11 @@ class BackendLambdaStack(Stack):
             # refresh_prices() finds no tickers, and the snapshot is never written.
             "price_refresh": ("accounts", "prices"),
             "trading_agent": ("prices",),
+            # dividend_refresh reads holdings/transactions via AccountsStore
+            # (iter_transaction_documents() → ListBucket on writable-accounts/)
+            # and writes new DIVIDEND transactions back to the same prefix.
+            # See backend/common/dividends.py::refresh_dividends() (issue #2750).
+            "dividend_refresh": (WRITABLE_ACCOUNTS_PREFIX,),
         }
 
         image_code = _lambda.DockerImageCode.from_image_asset(
@@ -856,6 +861,60 @@ class BackendLambdaStack(Stack):
             "DailyTradingAgentRun",
             schedule=events.Schedule.cron(minute="0", hour="1"),
             targets=[targets.LambdaFunction(agent_fn)],
+        )
+
+        # Scheduled function to fetch and record dividend transactions (issue #2750)
+        dividend_code = _lambda.DockerImageCode.from_image_asset(
+            str(project_root),
+            file="backend/Dockerfile.lambda",
+            cmd=["backend.lambda_api.dividend_refresh.lambda_handler"],
+        )
+        dividend_env = {
+            "APP_ENV": env,
+            "DATA_BUCKET": bucket_name,
+            "DATA_BRANCH": data_branch,
+            "TIMESERIES_CACHE_BASE": f"s3://{bucket_name}/timeseries",
+            # refresh_dividends() reads/writes via AccountsStore, which reads
+            # this env var at import time (backend/common/accounts_store.py).
+            "WRITABLE_ACCOUNTS_PREFIX": WRITABLE_ACCOUNTS_PREFIX,
+        }
+        if data_repo:
+            dividend_env["DATA_REPO"] = data_repo
+
+        dividend_log_group = self._lambda_log_group(self, "DividendRefreshLambdaLogGroup")
+        dividend_fn = _lambda.DockerImageFunction(
+            self,
+            "DividendRefreshLambda",
+            code=dividend_code,
+            environment=dividend_env,
+            log_group=dividend_log_group,
+            timeout=Duration.minutes(10),
+            memory_size=512,
+        )
+
+        # DividendRefreshLambda: reads and writes writable-accounts/ only.
+        # Audited: dividend_refresh.lambda_handler → refresh_dividends()
+        # → S3AccountsStore.iter_transaction_documents()/read_document()/
+        # edit_document()/rebuild_portfolio(), all scoped to
+        # WRITABLE_ACCOUNTS_PREFIX (backend/common/dividends.py). It does not
+        # call list_portfolios()/list_all_unique_tickers(), so unlike
+        # PriceRefreshLambda it needs no ListBucket on accounts/. Instrument
+        # currency lookups (get_instrument_meta) are get_object calls, not
+        # list, so no separate instruments/ list grant is required either.
+        self._grant_bucket_access(
+            dividend_fn,
+            bucket=data_bucket,
+            allow_read=True,
+            allow_put=True,
+            allow_list=True,
+            list_prefix=lambda_list_prefixes["dividend_refresh"],
+        )
+
+        events.Rule(
+            self,
+            "DailyDividendRefresh",
+            schedule=events.Schedule.cron(minute="0", hour="6"),
+            targets=[targets.LambdaFunction(dividend_fn)],
         )
 
         # IAM implicit deny covers all other principals; no explicit DENY

@@ -18,7 +18,10 @@ from backend.routes.transactions import Transaction
 
 
 def _to_float(value: str | None) -> float | None:
-    if value in (None, ""):
+    if value is None:
+        return None
+    value = value.strip()
+    if not value:
         return None
     try:
         return float(value)

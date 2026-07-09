@@ -13,6 +13,7 @@ from backend.routes.analytics import router as analytics_router
 from backend.routes.approvals import router as approvals_router
 from backend.routes.compliance import router as compliance_router
 from backend.routes.config import router as config_router
+from backend.routes.data_quality import router as data_quality_router
 from backend.routes.events import router as events_router
 from backend.routes.goals import router as goals_router
 from backend.routes.instrument import router as instrument_router
@@ -61,6 +62,7 @@ def register_routers(app: FastAPI, cfg: Config) -> None:
     app.include_router(instrument_router)
     app.include_router(instrument_admin_router, dependencies=protected)
     app.include_router(timeseries_router)
+    app.include_router(data_quality_router)
     app.include_router(timeseries_edit_router)
     app.include_router(timeseries_admin_router, dependencies=protected)
     app.include_router(transactions_router)

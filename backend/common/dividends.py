@@ -26,6 +26,11 @@ Design notes / known v1 limitations
   ticker, only dividends declared within the last ``_DEFAULT_LOOKBACK_DAYS``
   days are imported (not full history), to avoid surprise historical backfill
   on the first scheduled run for an existing holding.
+* Provider: v1 uses yfinance only. The issue's Alpha Vantage fallback is
+  deferred — Alpha Vantage's free tier is heavily rate-limited per-key, which
+  doesn't suit a job that queries every held ticker on a schedule, and
+  yfinance is already the provider used elsewhere in this codebase (price
+  refresh). Revisit if yfinance reliability becomes a problem in practice.
 """
 
 from __future__ import annotations
@@ -111,10 +116,12 @@ def _held_units(holdings_doc: Dict[str, Any], ticker: str) -> float:
 def _fetch_new_dividends(ticker: str, *, since: Optional[date]) -> Optional[List[Dict[str, Any]]]:
     """Return dividend declarations for ``ticker`` after ``since``.
 
-    Returns ``None`` when the provider does not recognise ``ticker`` or the
-    fetch otherwise fails — callers should skip the ticker, not error the
-    whole run. Returns an empty list when the ticker is recognised but has no
-    qualifying dividends.
+    Returns ``None`` only when the provider call itself raises — callers
+    should skip the ticker, not error the whole run. Returns an empty list
+    both when the ticker has no qualifying dividends and when yfinance
+    returns an empty series for a ticker it doesn't recognise (the two are
+    indistinguishable from an empty series alone); either way, no exception
+    means no skip.
     """
     try:
         series = yf.Ticker(ticker).dividends
@@ -127,7 +134,14 @@ def _fetch_new_dividends(ticker: str, *, since: Optional[date]) -> Optional[List
         return None
 
     if series is None or series.empty:
-        return None
+        # An empty series does not distinguish "unrecognised ticker" from
+        # "recognised ticker that simply doesn't pay dividends" (e.g. most
+        # growth stocks) — yfinance returns an empty series for both rather
+        # than raising. Treating this as "no new dividends" (not a skip)
+        # avoids permanently flagging legitimate non-dividend-paying
+        # holdings as unrecognised on every run. Only an actual exception
+        # from the provider call above is treated as unrecognised/skipped.
+        return []
 
     cutoff = since or (date.today() - timedelta(days=_DEFAULT_LOOKBACK_DAYS))
     declarations: List[Dict[str, Any]] = []

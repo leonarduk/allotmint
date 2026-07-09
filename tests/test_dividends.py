@@ -119,14 +119,24 @@ def test_refresh_dividends_is_idempotent_on_rerun(tmp_path, monkeypatch):
     assert len(new_divs) == 1, "re-running must not duplicate the dividend transaction"
 
 
+class _RaisingDividends:
+    """Simulates yfinance raising when ``.dividends`` is *accessed* (a network
+    call), as opposed to when ``Ticker(...)`` is merely constructed — the
+    real-world failure point for an unrecognised/delisted ticker."""
+
+    def __init__(self, ticker: str):
+        self._ticker = ticker
+
+    @property
+    def dividends(self):
+        raise ValueError(f"{self._ticker}: no data found")
+
+
 def test_refresh_dividends_skips_unrecognised_ticker(tmp_path, monkeypatch):
     _make_holding("alice", "isa", "OEIC1", 10, tmp_path)
     _store(tmp_path, monkeypatch)
 
-    def _raise(ticker):
-        raise ValueError(f"{ticker}: no data found")
-
-    monkeypatch.setattr(dividends.yf, "Ticker", lambda ticker: SimpleNamespace(dividends=_raise(ticker)))
+    monkeypatch.setattr(dividends.yf, "Ticker", _RaisingDividends)
     monkeypatch.setattr(dividends, "get_instrument_meta", lambda ticker: {})
 
     summary = dividends.refresh_dividends()
@@ -137,8 +147,12 @@ def test_refresh_dividends_skips_unrecognised_ticker(tmp_path, monkeypatch):
     assert not any(t["type"] == "DIVIDEND" for t in txs)
 
 
-def test_refresh_dividends_empty_series_is_skipped_not_errored(tmp_path, monkeypatch):
-    _make_holding("alice", "isa", "OEIC2", 10, tmp_path)
+def test_refresh_dividends_empty_series_is_not_treated_as_skip(tmp_path, monkeypatch):
+    """A recognised ticker that simply pays no dividends (e.g. a growth stock)
+    must not be reported as skipped/unrecognised — yfinance returns an empty
+    series for both cases, so only an actual provider exception counts as a
+    skip. See regression note in _fetch_new_dividends."""
+    _make_holding("alice", "isa", "GOOGL", 10, tmp_path)
     _store(tmp_path, monkeypatch)
 
     monkeypatch.setattr(dividends.yf, "Ticker", lambda ticker: SimpleNamespace(dividends=pd.Series(dtype=float)))
@@ -147,7 +161,8 @@ def test_refresh_dividends_empty_series_is_skipped_not_errored(tmp_path, monkeyp
     summary = dividends.refresh_dividends()
 
     assert summary["dividends_created"] == 0
-    assert summary["skipped_tickers"] == ["OEIC2"]
+    assert summary["skipped_tickers"] == []
+    assert summary["tickers_processed"] == 1
 
 
 def test_refresh_dividends_ignores_declarations_older_than_lookback_on_first_run(tmp_path, monkeypatch):
@@ -244,3 +259,118 @@ def test_refresh_dividends_no_live_network_import(monkeypatch):
 
     assert summary["dividends_created"] == 0
     assert not called
+
+
+def test_refresh_dividends_handles_multiple_tickers_in_one_account(tmp_path, monkeypatch):
+    owner_dir = tmp_path / "alice"
+    owner_dir.mkdir(parents=True)
+    (owner_dir / "isa.json").write_text(
+        json.dumps(
+            {
+                "owner": "alice",
+                "account_type": "isa",
+                "currency": "GBP",
+                "holdings": [
+                    {"ticker": "AAA.L", "units": 100},
+                    {"ticker": "BBB.L", "units": 20},
+                ],
+            }
+        )
+    )
+    (owner_dir / "isa_transactions.json").write_text(
+        json.dumps(
+            {
+                "owner": "alice",
+                "account_type": "isa",
+                "transactions": [
+                    {"type": "BUY", "ticker": "AAA.L", "date": "2024-01-01", "units": 100, "price_gbp": 1.0},
+                    {"type": "BUY", "ticker": "BBB.L", "date": "2024-01-01", "units": 20, "price_gbp": 1.0},
+                ],
+            }
+        )
+    )
+    _store(tmp_path, monkeypatch)
+
+    per_share = {"AAA.L": 0.5, "BBB.L": 0.3}
+    monkeypatch.setattr(
+        dividends.yf,
+        "Ticker",
+        lambda ticker: SimpleNamespace(dividends=_dividends_series({RECENT_EX_DATE: per_share[ticker]})),
+    )
+    monkeypatch.setattr(dividends, "get_instrument_meta", lambda ticker: {"currency": "GBP"})
+
+    summary = dividends.refresh_dividends()
+
+    assert summary["dividends_created"] == 2
+    txs = _read_transactions(tmp_path, "alice", "isa")
+    new_divs = {t["ticker"]: t for t in txs if t["type"] == "DIVIDEND"}
+    assert set(new_divs) == {"AAA.L", "BBB.L"}
+    assert new_divs["AAA.L"]["amount_minor"] == 5000  # 0.5 * 100 units
+    assert new_divs["BBB.L"]["amount_minor"] == 600  # 0.3 * 20 units
+
+
+def test_refresh_dividends_dedupes_multiple_declarations_same_ex_date(tmp_path, monkeypatch):
+    """If the provider ever returns two entries for the same (ticker, ex_date)
+    pair, only one DIVIDEND transaction should be written per key."""
+    _make_holding("alice", "isa", "AAA.L", 100, tmp_path)
+    _store(tmp_path, monkeypatch)
+
+    call_count = []
+
+    def _fake_fetch(ticker, *, since):
+        call_count.append(ticker)
+        # Simulate a regular + special dividend landing on the same ex-date.
+        return [
+            {"ex_date": RECENT_EX_DATE, "amount_per_share": 0.5},
+            {"ex_date": RECENT_EX_DATE, "amount_per_share": 0.5},
+        ]
+
+    monkeypatch.setattr(dividends, "_fetch_new_dividends", _fake_fetch)
+    monkeypatch.setattr(dividends, "get_instrument_meta", lambda ticker: {"currency": "GBP"})
+
+    summary = dividends.refresh_dividends()
+
+    assert call_count == ["AAA.L"]
+    assert summary["dividends_created"] == 1, "only the first declaration for a given (ticker, ex_date) is kept"
+    txs = _read_transactions(tmp_path, "alice", "isa")
+    assert len([t for t in txs if t["type"] == "DIVIDEND"]) == 1
+
+
+def test_fetch_new_dividends_filters_and_shapes_declarations():
+    """Direct unit test of _fetch_new_dividends: filters non-positive amounts
+    and dates on/before the cutoff, and shapes the remaining entries."""
+    old_date = (pd.Timestamp.today() - pd.Timedelta(days=365)).date().isoformat()
+    zero_amount_date = (pd.Timestamp.today() - pd.Timedelta(days=1)).date().isoformat()
+    series = _dividends_series(
+        {
+            old_date: 0.5,  # excluded: older than the default lookback cutoff
+            zero_amount_date: 0.0,  # excluded: non-positive amount
+            RECENT_EX_DATE: 0.4,  # included
+        }
+    )
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(dividends.yf, "Ticker", lambda ticker: SimpleNamespace(dividends=series))
+        result = dividends._fetch_new_dividends("AAA.L", since=None)
+
+    assert result is not None
+    dates = {d["ex_date"] for d in result}
+    assert RECENT_EX_DATE in dates
+    assert old_date not in dates, "declarations at/before the lookback cutoff must be excluded"
+    assert all(d["amount_per_share"] > 0 for d in result), "non-positive amounts must be filtered out"
+
+
+def test_fetch_new_dividends_returns_none_on_provider_exception():
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(dividends.yf, "Ticker", _RaisingDividends)
+        result = dividends._fetch_new_dividends("BAD.L", since=None)
+
+    assert result is None
+
+
+def test_fetch_new_dividends_returns_empty_list_for_empty_series():
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(dividends.yf, "Ticker", lambda ticker: SimpleNamespace(dividends=pd.Series(dtype=float)))
+        result = dividends._fetch_new_dividends("GOOGL", since=None)
+
+    assert result == []

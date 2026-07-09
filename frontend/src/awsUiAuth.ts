@@ -1,3 +1,5 @@
+import { stripAuthCallbackParams } from './utils/urlUtils';
+
 export class UserCancelledError extends Error {
   constructor() {
     super('User cancelled Cognito login');
@@ -70,14 +72,6 @@ const normaliseDomain = (domain: string) => {
   const trimmed = domain.trim().replace(/\/+$/, '');
   if (!trimmed) return '';
   return trimmed.startsWith('https://') ? trimmed : `https://${trimmed}`;
-};
-
-// Strip the given OAuth callback params, preserving any other query params.
-const stripAuthCallbackParams = (keys: string[] = ['code', 'state']) => {
-  const params = new URLSearchParams(window.location.search);
-  keys.forEach((key) => params.delete(key));
-  const search = params.toString() ? `?${params.toString()}` : '';
-  window.history.replaceState({}, document.title, `${window.location.pathname}${search}`);
 };
 
 const redirectUri = (redirectPath?: string) => {

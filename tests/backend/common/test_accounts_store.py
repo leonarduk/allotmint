@@ -15,10 +15,10 @@ from backend.common.accounts_store import (
     WRITABLE_ACCOUNTS_PREFIX,
     LocalAccountsStore,
     S3AccountsStore,
-    _sanitize_log,
 )
 from backend.common.data_loader import ResolvedPaths
 from backend.config import config
+from backend.logging_setup import sanitise_log_value
 
 # ---------------------------------------------------------------------------
 # LocalAccountsStore
@@ -471,15 +471,12 @@ class TestS3Integration:
 # ---------------------------------------------------------------------------
 
 
-def test_sanitize_log_strips_newlines():
-    assert _sanitize_log("evil\nINJECTED") == "evilINJECTED"
-    assert _sanitize_log("evil\rINJECTED") == "evilINJECTED"
-    assert _sanitize_log("evil\r\nINJECTED") == "evilINJECTED"
+def test_accounts_store_uses_shared_sanitiser():
+    """accounts_store must delegate to the shared sanitiser, not a local copy."""
+    import backend.common.accounts_store as accounts_store_mod
 
-
-def test_sanitize_log_leaves_safe_values_unchanged():
-    assert _sanitize_log("alice") == "alice"
-    assert _sanitize_log("writable-accounts/alice/isa.json") == "writable-accounts/alice/isa.json"
+    assert accounts_store_mod.sanitise_log_value is sanitise_log_value
+    assert sanitise_log_value("evil\nINJECTED") == "evilINJECTED"
 
 
 def _assert_no_injected_newlines(caplog: pytest.LogCaptureFixture) -> None:

@@ -36,6 +36,7 @@ from backend.common import portfolio as portfolio_mod
 from backend.common import portfolio_loader
 from backend.common.path_utils import safe_join
 from backend.config import config
+from backend.logging_setup import sanitise_log_value
 
 try:  # Unix-like systems
     import fcntl  # type: ignore
@@ -90,11 +91,6 @@ def _default_person_payload(owner: str) -> Dict[str, Any]:
         "holdings": [],
         "viewers": [],
     }
-
-
-def _sanitize_log(value: str) -> str:
-    """Strip CR/LF from user-controlled values before passing them to logger calls (CWE-117)."""
-    return str(value).replace("\r", "").replace("\n", "")
 
 
 @dataclass
@@ -284,10 +280,10 @@ class S3AccountsStore:
             code = exc.response.get("Error", {}).get("Code", "")
             if code in {"NoSuchKey", "404", "NotFound"}:
                 return None
-            logger.warning("S3 read failed for s3://%s/%s: %s", self.bucket, _sanitize_log(key), exc)
+            logger.warning("S3 read failed for s3://%s/%s: %s", self.bucket, sanitise_log_value(key), exc)
             return None
         except BotoCoreError as exc:
-            logger.warning("S3 read failed for s3://%s/%s: %s", self.bucket, _sanitize_log(key), exc)
+            logger.warning("S3 read failed for s3://%s/%s: %s", self.bucket, sanitise_log_value(key), exc)
             return None
         body = obj.get("Body")
         text = body.read().decode("utf-8-sig").strip() if body else ""
@@ -380,8 +376,8 @@ class S3AccountsStore:
         if tx_data is None:
             logger.warning(
                 "Portfolio rebuild skipped for %s/%s: no transaction document",
-                _sanitize_log(owner),
-                _sanitize_log(account),
+                sanitise_log_value(owner),
+                sanitise_log_value(account),
             )
             return
         holdings_data = portfolio_loader.compute_holdings_from_transactions(tx_data, owner, account)
@@ -401,7 +397,7 @@ class S3AccountsStore:
             try:
                 resp = client.list_objects_v2(**kwargs)
             except (ClientError, BotoCoreError) as exc:
-                logger.warning("S3 list failed for s3://%s/%s: %s", self.bucket, _sanitize_log(prefix), exc)
+                logger.warning("S3 list failed for s3://%s/%s: %s", self.bucket, sanitise_log_value(prefix), exc)
                 return
             for entry in resp.get("Contents", []) or []:
                 key = entry.get("Key")

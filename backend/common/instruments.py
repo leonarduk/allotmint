@@ -146,7 +146,8 @@ def get_instrument_meta(ticker: str) -> Dict[str, Any]:
     """Return metadata for ``ticker`` from disk or S3.
 
     The data files live under ``data/instruments`` or the configured S3
-    location; failures return an empty dict.
+    location; failures return an empty dict. This never makes a live Yahoo
+    Finance call — that only happens via an explicit sync/refresh operation.
     """
     path = _instrument_path(ticker)
     s3_loc = _s3_location()
@@ -170,8 +171,13 @@ def get_instrument_meta(ticker: str) -> Dict[str, Any]:
         with path.open("r", encoding="utf-8") as f:
             return json.load(f)
     except FileNotFoundError:
-        created = _auto_create_instrument_meta(ticker)
-        return created or {}
+        # Do not fall back to a live Yahoo Finance lookup here: this is the
+        # normal read path (portfolio/report rendering, etc.) and every
+        # cache-miss would otherwise turn into a network call. Fetching and
+        # persisting fresh metadata is an explicit, separate operation — see
+        # ``_auto_create_instrument_meta`` / the ``/instrument/admin/.../refresh``
+        # route — that callers must invoke deliberately, not on every read.
+        return {}
     except json.JSONDecodeError as exc:
         logger.warning("Invalid instrument JSON %s: %s", sanitise_log_value(path), sanitise_log_value(exc))
         return {}

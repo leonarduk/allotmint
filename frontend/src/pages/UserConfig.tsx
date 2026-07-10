@@ -18,6 +18,7 @@ export default function UserConfigPage() {
   const { user } = useAuth();
   const { theme } = useConfig();
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
+  const [ownersLoading, setOwnersLoading] = useState(true);
   const [owner, setOwner] = useState('');
   const [cfg, setCfg] = useState<UserConfig>({});
   const [status, setStatus] = useState<string | null>(null);
@@ -33,8 +34,9 @@ export default function UserConfigPage() {
     getOwners()
       .then((os) => setOwners(sanitizeOwners(os)))
       .catch(() => {
-        /* ignore */
-      });
+        setOwners([]);
+      })
+      .finally(() => setOwnersLoading(false));
   }, []);
 
   useEffect(() => {
@@ -148,18 +150,31 @@ export default function UserConfigPage() {
           </p>
         </section>
       )}
-      <select
-        className="w-full border p-2"
-        value={owner}
-        onChange={(e) => setOwner(e.target.value)}
-      >
-        <option value="">{t('userConfig.selectOwner', 'Select owner')}</option>
-        {owners.map((o) => (
-          <option key={o.owner} value={o.owner}>
-            {o.full_name?.trim() ? o.full_name : o.owner}
-          </option>
-        ))}
-      </select>
+      {ownersLoading ? (
+        <p className="text-gray-800 dark:text-gray-200">
+          {t('userConfig.loadingOwners', 'Loading owners...')}
+        </p>
+      ) : owners.length === 0 ? (
+        <p className="text-gray-800 dark:text-gray-200">
+          {t(
+            'userConfig.noOwners',
+            'No accounts are available for your account. Contact an administrator if you believe this is an error.'
+          )}
+        </p>
+      ) : (
+        <select
+          className="w-full border p-2"
+          value={owner}
+          onChange={(e) => setOwner(e.target.value)}
+        >
+          <option value="">{t('userConfig.selectOwner', 'Select owner')}</option>
+          {owners.map((o) => (
+            <option key={o.owner} value={o.owner}>
+              {o.full_name?.trim() ? o.full_name : o.owner}
+            </option>
+          ))}
+        </select>
+      )}
       {owner && (
         <>
           <form onSubmit={save} className="space-y-2">

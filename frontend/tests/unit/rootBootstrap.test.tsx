@@ -277,6 +277,75 @@ describe('Root bootstrap integration coverage', () => {
     expect(await screen.findByTestId('login-page')).toBeInTheDocument()
   })
 
+  it('shows login page when backend cfg carries awsUiAuth.enabled as the string "true" (issue #4635)', async () => {
+    // CDK sometimes serializes booleans as strings, so the backend /config
+    // response can carry awsUiAuth.enabled: 'true' instead of boolean true.
+    // The coercion in main.tsx (cfgAwsUiAuth?.enabled === 'true') must still
+    // force the login page in that case.
+    vi.doMock('react-dom/client', () => ({
+      createRoot: () => ({ render: vi.fn() })
+    }))
+
+    vi.doMock('@/api', async importOriginal => {
+      const mod = await importOriginal<typeof import('@/api')>()
+      return {
+        ...mod,
+        getConfig: vi.fn().mockResolvedValue({
+          google_auth_enabled: false,
+          google_client_id: null,
+          disable_auth: true,
+          awsUiAuth: {
+            enabled: 'true',
+            domain: 'https://cognito.example.com',
+            clientId: 'client-from-backend',
+          },
+        }),
+        getStoredAuthToken: vi.fn(() => null),
+      }
+    })
+
+    vi.doMock('@/LoginPage', () => ({
+      default: () => <div data-testid="login-page">sign in</div>
+    }))
+
+    await mountRoot()
+
+    expect(await screen.findByTestId('login-page')).toBeInTheDocument()
+  })
+
+  it('renders the app without a login page when backend cfg carries awsUiAuth.enabled as the string "false" (issue #4635)', async () => {
+    vi.doMock('react-dom/client', () => ({
+      createRoot: () => ({ render: vi.fn() })
+    }))
+
+    vi.doMock('@/api', async importOriginal => {
+      const mod = await importOriginal<typeof import('@/api')>()
+      return {
+        ...mod,
+        getConfig: vi.fn().mockResolvedValue({
+          google_auth_enabled: false,
+          google_client_id: null,
+          disable_auth: true,
+          awsUiAuth: {
+            enabled: 'false',
+            domain: 'https://cognito.example.com',
+            clientId: 'client-from-backend',
+          },
+        }),
+        getStoredAuthToken: vi.fn(() => null),
+      }
+    })
+
+    vi.doMock('@/App.tsx', () => ({
+      default: () => <div data-testid="app-shell">App ready</div>
+    }))
+
+    await mountRoot()
+
+    expect(await screen.findByTestId('app-shell')).toBeInTheDocument()
+    expect(screen.queryByTestId('login-page')).not.toBeInTheDocument()
+  })
+
   it('shows login page when /config.json awsUiAuth prop is set but disable_auth=true', async () => {
     // Covers the fallback path: /config.json has awsUiAuth but the backend
     // response does not (e.g. older backend deployment).

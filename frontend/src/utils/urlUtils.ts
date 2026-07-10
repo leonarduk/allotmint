@@ -33,3 +33,21 @@ export function decodePathSegment(segment: string): string {
 export function encodePathSegment(segment: string): string {
   return encodeURIComponent(segment.trim());
 }
+
+/**
+ * Strip the given OAuth callback params (default: code, state) from the
+ * current URL's query string, preserving any other query params, and
+ * replace the history entry so the params don't linger on reload/back.
+ */
+export function stripAuthCallbackParams(
+  keys: string[] = ['code', 'state']
+): void {
+  const params = new URLSearchParams(window.location.search);
+  keys.forEach((key) => params.delete(key));
+  const search = params.toString() ? `?${params.toString()}` : '';
+  window.history.replaceState(
+    {},
+    document.title,
+    `${window.location.pathname}${search}`
+  );
+}

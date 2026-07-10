@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import urllib.error
@@ -15,9 +16,57 @@ from llm_labels import extract_tier_label
 
 _FALLBACK_BODY_TEMPLATE = "Follow-up suggested by AI review of PR #{pr_number}."
 
+# Conversational preamble the model sometimes prepends before the real body,
+# e.g. "Here is a complete, actionable GitHub issue body based on your request."
+_PREAMBLE_RE = re.compile(
+    r"^(here('?s| is| are)|below (is|are)|sure|certainly|of course|okay|ok|"
+    r"this is|i('ve| have) (written|drafted|created))\b",
+    re.IGNORECASE,
+)
+_HORIZONTAL_RULES = {"---", "***", "___"}
+
 # Provider used to generate rich issue bodies, selectable via FOLLOWUP_LLM_PROVIDER.
 # Defaults to deepseek, the repo's primary required PR reviewer.
 _DEFAULT_PROVIDER = "deepseek"
+
+
+def _strip_wrapping_code_fence(body: str) -> str:
+    """Unwrap a body the model enclosed in a single ``` or ```markdown fence."""
+    lines = body.splitlines()
+    if len(lines) >= 2 and lines[0].lstrip().startswith("```") and lines[-1].strip() == "```":
+        return "\n".join(lines[1:-1]).strip()
+    return body
+
+
+def _drop_leading_hrule(lines: list[str]) -> list[str]:
+    """Drop leading blank lines and a single leftover horizontal-rule separator."""
+    idx = 0
+    while idx < len(lines) and not lines[idx].strip():
+        idx += 1
+    if idx < len(lines) and lines[idx].strip() in _HORIZONTAL_RULES:
+        return lines[idx + 1 :]
+    return lines
+
+
+def _sanitize_body(text: str) -> str:
+    """Strip conversational preamble and wrapping fences the LLM may add.
+
+    Models occasionally prefix the body with a line like "Here is a complete,
+    actionable GitHub issue body ..." followed by a `---` separator, or wrap the
+    whole body in a ```markdown code fence. That wrapper text leaked verbatim
+    into many historical issues; strip it so only the Markdown body remains.
+    Internal `---` section dividers are preserved — only a leading one is removed.
+    """
+    body = _strip_wrapping_code_fence(text.strip())
+    lines = body.splitlines()
+
+    first = next((line for line in lines if line.strip()), "")
+    if _PREAMBLE_RE.match(first.strip()):
+        # Drop everything up to and including the preamble line, then any blank
+        # lines and a `---` separator that follows it.
+        lines = _drop_leading_hrule(lines[lines.index(first) + 1 :])
+
+    return "\n".join(_drop_leading_hrule(lines)).strip()
 
 
 def _build_prompt(title: str, pr_number: str, review_text: str) -> str:
@@ -57,6 +106,12 @@ Write a complete, actionable GitHub issue body in Markdown covering:
 7. **Failure looks like** — what would indicate the implementation went wrong
 
 Be concise but complete. Do not pad with generic advice.
+
+Output ONLY the raw Markdown issue body. Do not wrap it in a code fence and do
+not add any preamble (e.g. "Here is the issue body") — start directly with the
+first heading. When you name a file, function, or line number, use only paths
+you can confirm from the review text above; if you are unsure, describe the
+location instead of guessing a concrete path.
 End with: _Follow-up from AI review of PR #{pr_number}._"""
 
 
@@ -144,7 +199,7 @@ def _generate_body_via_llm(title: str, pr_number: str, review_text: str) -> str:
 
     prompt = _build_prompt(title, pr_number, review_text)
     try:
-        return call(api_key, prompt)
+        return _sanitize_body(call(api_key, prompt))
     except (urllib.error.HTTPError, urllib.error.URLError, KeyError, IndexError, json.JSONDecodeError) as exc:
         print(f"WARNING: failed to generate issue body via {provider}: {exc}", file=sys.stderr)
         return _FALLBACK_BODY_TEMPLATE.format(pr_number=pr_number)

@@ -134,10 +134,25 @@ async def post_signup_request(request: Request) -> dict[str, str]:
     return await _post_signup_request_impl(request)
 
 
-def _login_url() -> str:
-    """Return the login page URL emailed to a newly approved user."""
+_DEFAULT_LOGIN_URL = "http://localhost:5173"
 
-    return os.getenv("SIGNUP_LOGIN_URL", "").strip()
+
+def _login_url() -> str:
+    """Return the login page URL emailed to a newly approved user.
+
+    Falls back to the local frontend dev URL (and logs a warning) rather than
+    returning an empty string, so the approval email always contains a
+    clickable link even if ``SIGNUP_LOGIN_URL`` is misconfigured (#4385).
+    """
+
+    url = os.getenv("SIGNUP_LOGIN_URL", "").strip()
+    if not url:
+        logger.warning(
+            "SIGNUP_LOGIN_URL is not set; falling back to %s for approval emails",
+            _DEFAULT_LOGIN_URL,
+        )
+        return _DEFAULT_LOGIN_URL
+    return url
 
 
 def _token_error_to_http(exc: SignupTokenError) -> HTTPException:

@@ -196,6 +196,25 @@ def test_approve_provisions_owner_and_notifies_user(client, monkeypatch):
     assert json.loads((store_dir / f"{request_id}.json").read_text())["status"] == "approved"
 
 
+def test_missing_login_url_warns_and_falls_back(client, monkeypatch, caplog):
+    """#4385: an unset SIGNUP_LOGIN_URL must not produce a linkless email."""
+
+    test_client, tmp_path = client
+    sent = _capture_user_email(monkeypatch)
+    _stub_store(monkeypatch)
+    monkeypatch.delenv("SIGNUP_LOGIN_URL", raising=False)
+
+    request_id, token = _pending_request(tmp_path)
+
+    with caplog.at_level("WARNING"):
+        resp = test_client.post(f"/signup/approve?id={request_id}&token={token}")
+
+    assert resp.status_code == 200
+    assert sent["login_url"] == signup_module._DEFAULT_LOGIN_URL
+    assert sent["login_url"]
+    assert any("SIGNUP_LOGIN_URL" in r.message for r in caplog.records)
+
+
 def test_approved_email_is_in_allowed_emails(client, monkeypatch):
     """End-to-end: an approved user's email becomes part of the login allowlist."""
 

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const SPA_RESPONSE_CONTRACT_VERSION = "2026-03-22";
+export const SPA_RESPONSE_CONTRACT_VERSION = "2026-07-08";
 
 const nullableString = z.string().nullable().optional();
 const nullableNumber = z.number().nullable().optional();
@@ -121,6 +121,7 @@ export const transactionContractSchema = z
     owner: z.string(),
     account: z.string(),
     id: nullableString,
+    external_id: nullableString,
     date: nullableString,
     ticker: nullableString,
     type: nullableString,

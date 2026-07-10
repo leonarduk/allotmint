@@ -36,6 +36,7 @@ class Transaction(BaseModel):
     owner: str
     account: str
     id: str | None = None
+    external_id: str | None = None
     date: str | None = None
     ticker: str | None = None
     type: str | None = None
@@ -198,6 +199,7 @@ class TransactionCreate(BaseModel):
     fees: Optional[float] = None
     comments: Optional[str] = None
     reason: Optional[str] = None
+    external_id: Optional[str] = None
 
 
 class TransactionUpdate(TransactionCreate):
@@ -672,16 +674,35 @@ async def delete_transaction(request: Request, tx_id: str) -> dict:
 
 
 @router.post("/transactions/import", response_model=List[Transaction])
-async def import_transactions(provider: str = Form(...), file: UploadFile = File(...)) -> List[Transaction]:
-    """Parse a transaction export and return the contained transactions."""
+async def import_transactions(
+    request: Request, provider: str = Form(...), file: UploadFile = File(...)
+) -> List[Transaction]:
+    """Parse a transaction export and return transactions not already imported.
+
+    Candidates carrying a stable ``external_id`` (e.g. Moneyhub's per-row
+    ``Id``) are filtered against previously persisted transactions so
+    re-importing the same export file does not surface duplicates to the
+    caller.
+    """
 
     data = await file.read()
     try:
-        return importers.parse(provider, data)
+        parsed = importers.parse(provider, data)
     except importers.UnknownProvider as exc:
         raise HTTPException(status_code=400, detail=f"Unknown provider: {exc}")
     except Exception as exc:  # pragma: no cover - parsing errors
         raise HTTPException(status_code=400, detail=f"Failed to parse file: {exc}")
+
+    if not any(t.external_id for t in parsed):
+        # No candidate carries a stable key (e.g. degiro/hargreaves never set
+        # external_id), so dedupe would be a no-op. Skip the store lookup
+        # entirely rather than paying for it on every import regardless of
+        # provider.
+        return parsed
+
+    store, _ = resolve_writable_store(request)
+    existing = _load_all_transactions(store)
+    return importers.dedupe_against_existing(parsed, existing)
 
 
 @router.post("/holdings/import")

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearCognitoSession, ensureAwsUiAuth, extractTokenExchangeErrorReason, getCognitoSessionExpiresAt, getStoredCognitoAccessToken, getStoredCognitoIdToken, refreshCognitoSession, signInWithCognito, UserCancelledError } from '@/awsUiAuth';
+import { clearCognitoSession, cognitoLogout, ensureAwsUiAuth, extractTokenExchangeErrorReason, getCognitoSessionExpiresAt, getStoredCognitoAccessToken, getStoredCognitoIdToken, refreshCognitoSession, signInWithCognito, UserCancelledError } from '@/awsUiAuth';
 
 const assignMock = vi.fn();
 
@@ -332,6 +332,70 @@ describe('signInWithCognito', () => {
 
     const target = new URL(assignMock.mock.calls[0][0]);
     expect(target.searchParams.get('redirect_uri')).toBe('https://app.example.test/callback');
+  });
+});
+
+describe('cognitoLogout', () => {
+  it('redirects to the Cognito logout URL when domain and clientId are set', () => {
+    cognitoLogout(AUTH_CONFIG);
+
+    expect(assignMock).toHaveBeenCalledTimes(1);
+    const target = new URL(assignMock.mock.calls[0][0]);
+    expect(target.origin).toBe('https://auth.example.test');
+    expect(target.pathname).toBe('/logout');
+    expect(target.searchParams.get('client_id')).toBe('client123');
+    expect(target.searchParams.get('logout_uri')).toBe('https://app.example.test/');
+  });
+
+  it('uses a configured redirectPath in the logout_uri', () => {
+    cognitoLogout({ ...AUTH_CONFIG, redirectPath: '/goodbye' });
+
+    const target = new URL(assignMock.mock.calls[0][0]);
+    expect(target.searchParams.get('logout_uri')).toBe('https://app.example.test/goodbye');
+  });
+
+  it('does not redirect when domain is missing', () => {
+    cognitoLogout({ clientId: 'client123' });
+    expect(assignMock).not.toHaveBeenCalled();
+  });
+
+  it('does not redirect when clientId is missing', () => {
+    cognitoLogout({ domain: 'auth.example.test' });
+    expect(assignMock).not.toHaveBeenCalled();
+  });
+
+  it('does not redirect when config is null/undefined', () => {
+    cognitoLogout(null);
+    cognitoLogout();
+    expect(assignMock).not.toHaveBeenCalled();
+  });
+
+  it('clears the local session before redirecting', () => {
+    window.sessionStorage.setItem(
+      'awsUiAuthSession',
+      JSON.stringify({ idToken: 'tok', expiresAt: Date.now() + 3600 * 1000 }),
+    );
+    const removeItemSpy = vi.spyOn(Storage.prototype, 'removeItem');
+
+    cognitoLogout(AUTH_CONFIG);
+
+    expect(removeItemSpy).toHaveBeenCalledWith('awsUiAuthSession');
+    expect(window.sessionStorage.getItem('awsUiAuthSession')).toBeNull();
+    const clearCallOrder = removeItemSpy.mock.invocationCallOrder[0];
+    const assignCallOrder = assignMock.mock.invocationCallOrder[0];
+    expect(clearCallOrder).toBeLessThan(assignCallOrder);
+  });
+
+  it('clears the local session even when config is missing, before returning early', () => {
+    window.sessionStorage.setItem(
+      'awsUiAuthSession',
+      JSON.stringify({ idToken: 'tok', expiresAt: Date.now() + 3600 * 1000 }),
+    );
+
+    cognitoLogout({});
+
+    expect(window.sessionStorage.getItem('awsUiAuthSession')).toBeNull();
+    expect(assignMock).not.toHaveBeenCalled();
   });
 });
 

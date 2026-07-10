@@ -63,6 +63,20 @@ describe('ensureAwsUiAuth', () => {
     expect(assignMock).not.toHaveBeenCalled();
   });
 
+  it('does not invoke exchangeCode when no OAuth callback params are present', async () => {
+    // exchangeCode's only externally observable side effect is the token-endpoint
+    // fetch, so absence of that call is the proxy for "exchangeCode was not run"
+    // (exchangeCode is an unexported module-internal function and, under
+    // Vitest/ESM, spying on it directly would not intercept the in-module call
+    // from ensureAwsUiAuth anyway).
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(ensureAwsUiAuth(AUTH_CONFIG)).resolves.toBe(true);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('skips redirect when a valid session is already stored', async () => {
     window.sessionStorage.setItem(
       'awsUiAuthSession',
@@ -167,6 +181,22 @@ describe('ensureAwsUiAuth', () => {
       expect(stored.accessToken).toBe('access-tok');
       // The refresh token is persisted so the session can be silently renewed.
       expect(stored.refreshToken).toBe('refresh-tok');
+    });
+
+    it('invokes exchangeCode (hits the token endpoint exactly once) when OAuth callback params are present', async () => {
+      // Same proxy reasoning as the "no OAuth params" test above: exchangeCode
+      // itself isn't mockable across the module boundary, so we assert on its
+      // one externally observable effect — the /oauth2/token fetch call.
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ id_token: 'tok', expires_in: 3600 }),
+      });
+      vi.stubGlobal('fetch', fetchMock);
+
+      await expect(ensureAwsUiAuth(AUTH_CONFIG)).resolves.toBe(true);
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock.mock.calls[0][0]).toBe('https://auth.example.test/oauth2/token');
     });
 
     it('uses configured redirectPath in the token exchange request', async () => {

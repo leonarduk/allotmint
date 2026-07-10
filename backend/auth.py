@@ -307,7 +307,16 @@ async def get_current_user(token: str | None = Depends(oauth2_scheme)) -> str:
         if identity:
             current_user.set(identity)
             return identity
+        # No token was presented and no local identity is configured — there is
+        # no caller to authenticate. Raise explicitly rather than falling
+        # through to _user_from_token(None), whose own "no token" rejection
+        # happens to produce the same status code today but is not a
+        # substitute for this terminal case (#4795).
         current_user.set(None)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+        )
     token_str = token if isinstance(token, str) else None
     return _user_from_token(token_str)
 

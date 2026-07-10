@@ -4,18 +4,16 @@ from fastapi import APIRouter, HTTPException, Query, Request
 
 from backend.common.data_loader import load_person_metadata
 from backend.common.pension import (
+    DEFINED_CONTRIBUTION_ACCOUNT_MARKERS,
     _age_from_dob,
+    dc_pension_pot_gbp,
     forecast_pension,
     state_pension_age_uk,
 )
 from backend.common.portfolio import build_owner_portfolio
 from backend.routes._accounts import resolve_accounts_root
 
-# Lower-case substrings that indicate a defined contribution account whose value
-# should be treated as part of the pension pot.  New data files should stick to
-# one of these identifiers (e.g. "sipp" or vendor-prefixed variants such as
-# "kz:sipp") so that they are included automatically.
-DEFINED_CONTRIBUTION_ACCOUNT_MARKERS = ("sipp",)
+__all__ = ["DEFINED_CONTRIBUTION_ACCOUNT_MARKERS", "router"]
 
 router = APIRouter(tags=["pension"])
 
@@ -88,11 +86,7 @@ def pension_forecast(
         portfolio = build_owner_portfolio(owner, *portfolio_args, **portfolio_kwargs)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    pension_pot = 0.0
-    for account in portfolio.get("accounts", []):
-        account_type = str(account.get("account_type", "")).lower()
-        if any(marker in account_type for marker in DEFINED_CONTRIBUTION_ACCOUNT_MARKERS):
-            pension_pot += float(account.get("value_estimate_gbp") or 0.0)
+    pension_pot = dc_pension_pot_gbp(portfolio.get("accounts", []))
 
     db_pensions = []
     if db_income_annual is not None and db_normal_retirement_age is not None:
@@ -104,9 +98,7 @@ def pension_forecast(
         )
 
     annual_contribution = (
-        (contribution_monthly or 0.0) * 12
-        if contribution_monthly is not None
-        else contribution_annual or 0.0
+        (contribution_monthly or 0.0) * 12 if contribution_monthly is not None else contribution_annual or 0.0
     )
 
     try:

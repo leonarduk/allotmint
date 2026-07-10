@@ -5,8 +5,11 @@ import pytest
 from backend.common.pension import (
     DEFAULT_ANNUITY_MULTIPLE,
     _age_from_dob,
+    dc_pension_pot_gbp,
     estimate_db_pension_value,
     forecast_pension,
+    pension_shortfall_vs_target,
+    pension_ytd_return,
     state_pension_age,
     state_pension_age_uk,
 )
@@ -133,12 +136,8 @@ def test_forecast_pension_scenario() -> None:
     assert incomes == [0.0, 5000.0, 14000.0, 16000.0, 16000.0]
     assert result["projected_pot_gbp"] == pytest.approx(15059.2)
     assert result["earliest_retirement_age"] == 34
-    assert result["retirement_income_breakdown"]["state_pension_annual"] == pytest.approx(
-        9000
-    )
-    assert result["retirement_income_breakdown"]["defined_benefit_annual"] == pytest.approx(
-        5000
-    )
+    assert result["retirement_income_breakdown"]["state_pension_annual"] == pytest.approx(9000)
+    assert result["retirement_income_breakdown"]["defined_benefit_annual"] == pytest.approx(5000)
     assert result["retirement_income_breakdown"]["defined_contribution_annual"] == pytest.approx(
         752.96,
         rel=1e-4,
@@ -148,3 +147,61 @@ def test_forecast_pension_scenario() -> None:
     assert result["contribution_annual"] == pytest.approx(2000)
     assert result["desired_income_annual"] == pytest.approx(800)
     assert result["annuity_multiple_used"] == pytest.approx(20)
+
+
+def test_dc_pension_pot_gbp_sums_sipp_accounts_only() -> None:
+    accounts = [
+        {"account_type": "isa", "value_estimate_gbp": 1000},
+        {"account_type": "sipp", "value_estimate_gbp": 5000},
+        {"account_type": "kz:sipp", "value_estimate_gbp": 2500},
+        {"account_type": "gia", "value_estimate_gbp": 750},
+    ]
+    assert dc_pension_pot_gbp(accounts) == pytest.approx(7500)
+
+
+def test_dc_pension_pot_gbp_handles_missing_and_none_values() -> None:
+    accounts = [
+        {"account_type": "sipp"},
+        {"account_type": "sipp", "value_estimate_gbp": None},
+        {"account_type": "sipp", "value_estimate_gbp": 100},
+    ]
+    assert dc_pension_pot_gbp(accounts) == pytest.approx(100)
+
+
+def test_pension_ytd_return_positive_growth() -> None:
+    result = pension_ytd_return(
+        current_pot_gbp=11000,
+        pot_start_of_year_gbp=10000,
+        contributions_ytd_gbp=500,
+    )
+    assert result["ytd_gain_gbp"] == pytest.approx(500)
+    assert result["ytd_return_pct"] == pytest.approx(5.0)
+
+
+def test_pension_ytd_return_zero_baseline_returns_none_pct() -> None:
+    result = pension_ytd_return(current_pot_gbp=1000, pot_start_of_year_gbp=0)
+    assert result["ytd_return_pct"] is None
+    assert result["ytd_gain_gbp"] == pytest.approx(1000)
+
+
+def test_pension_shortfall_vs_target_on_track() -> None:
+    result = pension_shortfall_vs_target(
+        projected_pot_gbp=200000,
+        desired_income_annual=8000,
+        annuity_multiple=20,
+    )
+    assert result["target_pot_gbp"] == pytest.approx(160000)
+    assert result["shortfall_gbp"] == pytest.approx(-40000)
+    assert result["on_track"] is True
+
+
+def test_pension_shortfall_vs_target_short_of_goal() -> None:
+    result = pension_shortfall_vs_target(
+        projected_pot_gbp=100000,
+        desired_income_annual=8000,
+        annuity_multiple=20,
+    )
+    assert result["target_pot_gbp"] == pytest.approx(160000)
+    assert result["shortfall_gbp"] == pytest.approx(60000)
+    assert result["shortfall_pct"] == pytest.approx(37.5)
+    assert result["on_track"] is False

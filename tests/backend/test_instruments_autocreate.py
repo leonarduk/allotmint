@@ -11,8 +11,37 @@ def _reset_state(monkeypatch, tmp_path):
     instruments.get_instrument_meta.cache_clear()
 
 
-def test_get_instrument_meta_auto_creates_using_yahoo(tmp_path, monkeypatch):
+def test_get_instrument_meta_does_not_call_yahoo_on_cache_miss(tmp_path, monkeypatch):
+    """The read path must never make a live Yahoo Finance call.
+
+    Auto-creating metadata from Yahoo is an explicit, separate operation
+    (``_auto_create_instrument_meta`` / the admin ``refresh`` route), not
+    something a cache-miss read should trigger.
+    """
+
     _reset_state(monkeypatch, tmp_path)
+
+    calls: list[tuple[str, str]] = []
+
+    def fake_fetch(symbol: str, exchange: str):  # pragma: no cover - should not be called
+        calls.append((symbol, exchange))
+        return {"name": "Should not happen"}
+
+    monkeypatch.setattr(instruments, "_fetch_metadata_from_yahoo", fake_fetch)
+
+    meta = instruments.get_instrument_meta("aapl.n")
+
+    assert meta == {}
+    assert calls == []
+    assert not list(tmp_path.rglob("*.json"))
+
+
+def test_auto_create_instrument_meta_still_available_for_explicit_use(tmp_path, monkeypatch):
+    """``_auto_create_instrument_meta`` remains callable explicitly (not from reads)."""
+
+    _reset_state(monkeypatch, tmp_path)
+    monkeypatch.delenv("TESTING", raising=False)
+    monkeypatch.setattr(instruments.config, "offline_mode", False)
 
     fetched = {
         "name": "Apple Inc.",
@@ -31,21 +60,17 @@ def test_get_instrument_meta_auto_creates_using_yahoo(tmp_path, monkeypatch):
 
     monkeypatch.setattr(instruments, "_fetch_metadata_from_yahoo", fake_fetch)
 
-    meta = instruments.get_instrument_meta("aapl.n")
+    created = instruments._auto_create_instrument_meta("aapl.n")
 
-    assert meta["ticker"] == "AAPL.N"
-    assert meta["name"] == fetched["name"]
-    assert meta["currency"] == fetched["currency"]
-    assert meta["sector"] == fetched["sector"]
+    assert created is not None
+    assert created["ticker"] == "AAPL.N"
+    assert created["name"] == fetched["name"]
     assert calls == [("AAPL", "N")]
 
     path = tmp_path / "N" / "AAPL.json"
     assert path.exists()
     saved = json.loads(path.read_text(encoding="utf-8"))
     assert saved["ticker"] == "AAPL.N"
-    assert saved["name"] == fetched["name"]
-    assert saved["currency"] == fetched["currency"]
-    assert saved["sector"] == fetched["sector"]
 
 
 def test_auto_create_skips_when_fetch_fails(tmp_path, monkeypatch):
@@ -60,15 +85,14 @@ def test_auto_create_skips_when_fetch_fails(tmp_path, monkeypatch):
 
     monkeypatch.setattr(instruments, "_fetch_metadata_from_yahoo", fake_fetch)
 
-    meta = instruments.get_instrument_meta("MISS.N")
-    assert meta == {}
+    result = instruments._auto_create_instrument_meta("MISS.N")
+    assert result is None
     assert "MISS.N" in instruments._AUTO_CREATE_FAILURES
     assert calls == 1
     assert not list(tmp_path.rglob("*.json"))
 
-    instruments.get_instrument_meta.cache_clear()
-    meta_again = instruments.get_instrument_meta("MISS.N")
-    assert meta_again == {}
+    result_again = instruments._auto_create_instrument_meta("MISS.N")
+    assert result_again is None
     assert calls == 1  # failure cached, no retry
 
 
@@ -83,7 +107,7 @@ def test_auto_create_requires_exchange(tmp_path, monkeypatch):
 
     monkeypatch.setattr(instruments, "_fetch_metadata_from_yahoo", fake_fetch)
 
-    meta = instruments.get_instrument_meta("PFE")
-    assert meta == {}
+    result = instruments._auto_create_instrument_meta("PFE")
+    assert result is None
     assert calls == []
     assert not list(tmp_path.rglob("*.json"))

@@ -405,6 +405,7 @@ export function PortfolioView({ data, loading, error, onDateChange, onAccountAdd
               <CsvImportForm
                 owner={data.owner}
                 accountTypes={data.accounts.map((acct) => acct.account_type)}
+                onImported={onPositionAdded}
               />
             </div>
           )}

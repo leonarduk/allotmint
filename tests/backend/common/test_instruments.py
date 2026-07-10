@@ -325,6 +325,28 @@ def test_save_instrument_meta_variants(monkeypatch, tmp_path) -> None:
         instruments.save_instrument_meta("ABC", {"name": "ABC"})
 
 
+def test_save_instrument_meta_handles_read_only_filesystem(monkeypatch, tmp_path, caplog) -> None:
+    monkeypatch.setattr(instruments, "_INSTRUMENTS_DIR", tmp_path)
+    monkeypatch.setattr(instruments.config, "data_root", tmp_path)
+    monkeypatch.delenv(instruments.METADATA_BUCKET_ENV, raising=False)
+    monkeypatch.delenv(instruments.METADATA_PREFIX_ENV, raising=False)
+
+    def raise_permission_error(*args, **kwargs):
+        raise PermissionError("read-only file system")
+
+    monkeypatch.setattr(Path, "open", raise_permission_error)
+
+    with caplog.at_level("WARNING"):
+        result = instruments.save_instrument_meta("ABC", "L", {"name": "ABC"})
+
+    assert result is None
+    assert any(
+        "Cannot write instrument metadata" in record.getMessage()
+        and record.levelname == "WARNING"
+        for record in caplog.records
+    )
+
+
 def test_fetch_metadata_from_yahoo_builds_normalized_payload(monkeypatch) -> None:
     expected_info = {
         "shortName": "Alpha plc  ",

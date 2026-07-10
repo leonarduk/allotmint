@@ -201,11 +201,15 @@ def save_instrument_meta(
     ticker: str,
     exchange: str | Dict[str, Any],
     data: Optional[Dict[str, Any]] = None,
-) -> Path:
+) -> Optional[Path]:
     """Persist metadata for an instrument and optionally upload to S3.
 
     Supports calling as ``save_instrument_meta("ABC", "L", {...})`` or
     ``save_instrument_meta("ABC.L", {...})``.
+
+    Returns the path written on success, or ``None`` if the local filesystem
+    write failed (e.g. a read-only filesystem in the Lambda runtime). A
+    failed local write does not prevent the S3 upload below from proceeding.
     """
 
     if data is None:
@@ -226,9 +230,13 @@ def save_instrument_meta(
         with path.open("w", encoding="utf-8") as fh:
             json.dump(data, fh, indent=2, sort_keys=True)
             fh.write("\n")
-    except OSError as exc:  # pragma: no cover - filesystem errors are rare
-        logger.exception("Failed to write instrument metadata %s", path)
-        raise
+    except OSError as exc:
+        logger.warning(
+            "Cannot write instrument metadata to %s (read-only filesystem?): %s",
+            sanitise_log_value(path),
+            sanitise_log_value(exc),
+        )
+        path = None
 
     s3_loc = _s3_location()
     if s3_loc:

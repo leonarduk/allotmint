@@ -512,10 +512,6 @@ def _list_local_plots(
     demo_lower = demo_aliases[0].lower() if demo_aliases else "demo"
 
     def _is_authorized(owner: str, meta: Dict[str, Any]) -> bool:
-        viewers = meta.get("viewers", []) if isinstance(meta, dict) else []
-        if not isinstance(viewers, list):
-            viewers = []
-
         if config.disable_auth:
             if user is None:
                 return True
@@ -528,13 +524,13 @@ def _list_local_plots(
             return False
 
         if isinstance(user, str):
-            allowed_identities = {owner.lower()}
-            email = meta.get("email") if isinstance(meta, dict) else None
-            if isinstance(email, str) and email:
-                allowed_identities.add(email.lower())
-            allowed_identities.update(v.lower() for v in viewers if isinstance(v, str))
-            return user.lower() in allowed_identities
+            from backend.common.authz import identity_can_access_owner
 
+            return identity_can_access_owner(user, owner, meta if isinstance(meta, dict) else {})
+
+        viewers = meta.get("viewers", []) if isinstance(meta, dict) else []
+        if not isinstance(viewers, list):
+            viewers = []
         if user and user != owner and user not in viewers:
             return False
 
@@ -823,15 +819,11 @@ def _list_aws_plots(current_user: Optional[str] = None) -> List[Dict[str, Any]]:
             continue
         meta = load_person_meta(owner)
         if current_user:
-            viewers = meta.get("viewers", []) if isinstance(meta, dict) else []
-            if not isinstance(viewers, list):
-                viewers = []
-            allowed_identities = {owner.lower()}
-            email = meta.get("email") if isinstance(meta, dict) else None
-            if isinstance(email, str) and email.strip():
-                allowed_identities.add(email.strip().lower())
-            allowed_identities.update(viewer.lower() for viewer in viewers if isinstance(viewer, str))
-            if not isinstance(user, str) or user.lower() not in allowed_identities:
+            from backend.common.authz import identity_can_access_owner
+
+            if not isinstance(user, str) or not identity_can_access_owner(
+                user, owner, meta if isinstance(meta, dict) else {}
+            ):
                 continue
         results.append(_build_owner_summary(owner, accounts, meta))
     return results

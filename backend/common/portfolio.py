@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from backend.common.approvals import load_approvals
+from backend.common.authz import identity_can_access_owner
 from backend.common.data_loader import (
     DATA_BUCKET_ENV,
     PLOTS_PREFIX,
@@ -108,12 +109,7 @@ def list_owners(
         try:
             data = json.loads(pf.read_text())
             slug = data.get("owner") or data.get("slug")
-            viewers = list(data.get("viewers", []))
-            if slug and (
-                not current_user
-                or current_user == slug
-                or current_user in viewers
-            ):
+            if slug and (not current_user or identity_can_access_owner(current_user, slug, data)):
                 owners.append(slug)
         except (OSError, json.JSONDecodeError) as exc:
             logger.warning("Skipping owner file %s: %s", pf, exc)

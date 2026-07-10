@@ -750,6 +750,44 @@ class TestLoadDemoOwner:
         result = _load_demo_owner(tmp_path)
 
         assert result is None
+
+
+def test_list_aws_plots_enforces_email_and_viewer_permissions(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    cfg = Config()
+    cfg.app_env = "aws"
+    cfg.disable_auth = False
+    cfg.repo_root = tmp_path
+    cfg.accounts_root = tmp_path / "accounts"
+    monkeypatch.setattr("backend.common.data_loader.config", cfg)
+
+    class _FakeS3DataProvider:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def list_plots(self, current_user=None):
+            return [
+                {"owner": "alice", "accounts": ["isa"]},
+                {"owner": "bob", "accounts": ["gia"]},
+            ]
+
+    meta_by_owner = {
+        "alice": {"email": "Alice@Example.com", "viewers": []},
+        "bob": {"email": "bob@example.com", "viewers": []},
+    }
+
+    monkeypatch.setattr("backend.common.data_loader.S3DataProvider", _FakeS3DataProvider)
+    monkeypatch.setattr(
+        "backend.common.data_loader.load_person_meta",
+        lambda owner, root=None: meta_by_owner[owner],
+    )
+
+    result = data_loader._list_aws_plots(current_user="alice@example.com")
+
+    assert [entry["owner"] for entry in result] == ["alice"]
+
+
 def test_list_plots_prefers_aws_results(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     cfg = Config()
     cfg.app_env = "aws"

@@ -194,7 +194,10 @@ def test_check_transactions_sanitises_ticker_when_shares_valid(
         assert "\n" not in message
         assert "FAKELOG LINE" in message
 
-    assert result["warnings"]
+    # These warnings come from the hold-period/approval rules, not from the
+    # invalid-share-count branch under test (which stays silent here since
+    # shares parses fine) - confirms the sell was actually evaluated.
+    assert any("without approval" in w for w in result["warnings"])
 
 
 def test_evaluate_trades_attach_warnings_once(monkeypatch, stubbed_env):

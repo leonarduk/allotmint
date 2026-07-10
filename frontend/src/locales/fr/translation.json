@@ -70,6 +70,7 @@
       "allocation": "Allocation",
       "compliance": "Alertes de conformité",
       "dataadmin": "Administration des données",
+      "dataquality": "Qualité des données",
       "group": "Groupe",
       "instrument": "Instrument",
       "instrumentadmin": "Administration des instruments",

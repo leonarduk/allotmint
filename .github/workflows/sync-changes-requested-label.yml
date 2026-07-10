@@ -36,17 +36,17 @@ on:
   workflow_dispatch: {}
 
 # Multiple review workflows (Claude/GPT/DeepSeek) can complete in rapid
-# succession for the same head SHA, each triggering a workflow_run event that
+# succession for the same PR, each triggering a workflow_run event that
 # independently evaluates whether all reviews have concluded. Without
 # serialization, two concurrent runs can both observe "all succeeded" before
-# either removes the label, and both post a removal comment. Grouping by
-# head_sha serializes runs for the same commit; workflow_run doesn't carry a
-# PR number directly (it's resolved from the commit via the GitHub API
-# inside the job), so head_sha is the natural dedup key. The schedule/
-# workflow_dispatch sweep falls back to the unique run_id so it's never
-# cancelled by this group.
+# either removes the label, and both post a removal comment. Group by PR
+# number so only one run per PR executes at a time. GitHub populates
+# workflow_run.pull_requests for same-repo PRs; for the rare case it's empty
+# (e.g. a fork-originated PR), fall back to head_sha rather than losing
+# serialization entirely. The schedule/workflow_dispatch sweep falls back to
+# the unique run_id so it's never cancelled by this group.
 concurrency:
-  group: sync-changes-requested-label-${{ github.event.workflow_run.head_sha || github.run_id }}
+  group: sync-changes-requested-label-${{ github.event.workflow_run.pull_requests[0].number || github.event.workflow_run.head_sha || github.run_id }}
   cancel-in-progress: true
 
 jobs:

@@ -196,12 +196,36 @@ def test_approve_provisions_owner_and_notifies_user(client, monkeypatch):
     assert json.loads((store_dir / f"{request_id}.json").read_text())["status"] == "approved"
 
 
+@pytest.mark.parametrize("login_url_value", [None, ""])
+def test_missing_login_url_fails_fast_without_provisioning(client, monkeypatch, login_url_value):
+    """#4385: an unset/empty SIGNUP_LOGIN_URL must not send a linkless or
+    fabricated login email — it should fail before the user is provisioned.
+    """
+
+    test_client, tmp_path = client
+    sent = _capture_user_email(monkeypatch)
+    store = _stub_store(monkeypatch)
+    if login_url_value is None:
+        monkeypatch.delenv("SIGNUP_LOGIN_URL", raising=False)
+    else:
+        monkeypatch.setenv("SIGNUP_LOGIN_URL", login_url_value)
+
+    request_id, token = _pending_request(tmp_path)
+
+    resp = test_client.post(f"/signup/approve?id={request_id}&token={token}")
+
+    assert resp.status_code == 503
+    assert sent == {}
+    assert store.ensured == []
+
+
 def test_approved_email_is_in_allowed_emails(client, monkeypatch):
     """End-to-end: an approved user's email becomes part of the login allowlist."""
 
     test_client, tmp_path = client
     _capture_user_email(monkeypatch)
     _stub_store(monkeypatch)
+    monkeypatch.setenv("SIGNUP_LOGIN_URL", "https://allotmint.example/login")
 
     request_id, token = _pending_request(tmp_path)
     resp = test_client.post(f"/signup/approve?id={request_id}&token={token}")
@@ -218,6 +242,7 @@ def test_approve_is_single_use(client, monkeypatch):
     test_client, tmp_path = client
     _capture_user_email(monkeypatch)
     _stub_store(monkeypatch)
+    monkeypatch.setenv("SIGNUP_LOGIN_URL", "https://allotmint.example/login")
 
     request_id, token = _pending_request(tmp_path)
     first = test_client.post(f"/signup/approve?id={request_id}&token={token}")
@@ -278,6 +303,7 @@ def test_reject_invalid_token_rejected(client, monkeypatch):
 def test_approve_user_email_failure_is_not_swallowed(client, monkeypatch):
     test_client, tmp_path = client
     _stub_store(monkeypatch)
+    monkeypatch.setenv("SIGNUP_LOGIN_URL", "https://allotmint.example/login")
 
     def boom(user_email, name, login_url):
         raise RuntimeError("SES down")
@@ -295,6 +321,7 @@ def test_get_approve_is_a_safe_confirmation_page(client, monkeypatch):
     test_client, tmp_path = client
     sent = _capture_user_email(monkeypatch)
     _stub_store(monkeypatch)
+    monkeypatch.setenv("SIGNUP_LOGIN_URL", "https://allotmint.example/login")
 
     request_id, token = _pending_request(tmp_path)
     resp = test_client.get(f"/signup/approve?id={request_id}&token={token}")

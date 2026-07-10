@@ -22,6 +22,7 @@ from stacks.backend_lambda_stack import (
 BACKEND_LIST_PREFIXES = (
     "accounts",
     "alerts",
+    "instruments",
     "prices",
     "queries",
     "timeseries/meta",

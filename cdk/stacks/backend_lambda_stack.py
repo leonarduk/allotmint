@@ -250,14 +250,21 @@ class BackendLambdaStack(Stack):
 
         bucket_name = data_bucket.bucket_name
         lambda_list_prefixes = {
-            # alerts/ and prices/ are included because S3 returns 403 (not 404) when
-            # a key is absent and the caller lacks s3:ListBucket on that prefix, which
-            # prevents the fallback logic in alerts.py and the price-snapshot loader
-            # from distinguishing "missing" from "denied". PriceRefreshLambda and
-            # TradingAgentLambda also import the price loader during cold start.
+            # alerts/, prices/, and instruments/ are included because S3 returns 403
+            # (not 404) when a key is absent and the caller lacks s3:ListBucket on
+            # that prefix, which prevents the fallback logic in alerts.py, the
+            # price-snapshot loader, and instruments.py from distinguishing "missing"
+            # from "denied". Without ListBucket on instruments/, every metadata lookup
+            # for a ticker not already cached locally falls back to a live Yahoo
+            # Finance call plus a failed local write (the Lambda filesystem is
+            # read-only), which is slow enough per-ticker to time out the whole
+            # request once repeated across a portfolio's instruments (issue #5015).
+            # PriceRefreshLambda and TradingAgentLambda also import the price loader
+            # during cold start.
             "backend": (
                 "accounts",
                 "alerts",
+                "instruments",
                 "prices",
                 "queries",
                 "timeseries/meta",

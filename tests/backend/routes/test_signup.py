@@ -326,6 +326,30 @@ def test_get_approve_invalid_token_renders_error_page(client, monkeypatch):
     assert "text/html" in resp.headers["content-type"]
 
 
+def test_get_approve_expired_token_renders_error_page(client, monkeypatch):
+    """A token whose approval window has elapsed hits the RequestExpired path."""
+
+    test_client, tmp_path = client
+    _stub_store(monkeypatch)
+
+    from datetime import datetime, timedelta, timezone
+
+    store_dir = signup_requests.signup_requests_dir(tmp_path)
+    long_ago = datetime.now(timezone.utc) - timedelta(days=8)
+    record, token = signup_requests.create_signup_request(
+        "Jane Doe", "jane@example.com", "", store_dir, now=long_ago
+    )
+
+    resp = test_client.get(f"/signup/approve?id={record.id}&token={token}")
+    assert resp.status_code == 400
+    assert "text/html" in resp.headers["content-type"]
+    assert "invalid or expired approval token" in resp.text
+
+    # The request is untouched: still pending, and nothing was provisioned.
+    assert json.loads((store_dir / f"{record.id}.json").read_text())["status"] == "pending"
+    assert not (tmp_path / "accounts" / "jane").exists()
+
+
 # ---------------------------------------------------------------------------
 # Rate limiting (#4364)
 # ---------------------------------------------------------------------------

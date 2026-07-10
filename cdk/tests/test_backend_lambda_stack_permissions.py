@@ -281,7 +281,9 @@ def test_dividend_refresh_lambda_has_scoped_s3_permissions() -> None:
     ), f"DividendRefreshLambda has unexpected S3 actions: {dividend_actions - DIVIDEND_REFRESH_MAX_S3}"
 
     list_bucket_resources = _resources_for_s3_action(template, dividend_role, "s3:ListBucket")
-    assert list_bucket_resources, "DividendRefreshLambda has s3:ListBucket but no associated resource ARN"
+    assert (
+        list_bucket_resources
+    ), "DividendRefreshLambda has s3:ListBucket but no associated resource ARN"
     for arn in list_bucket_resources:
         assert not arn.endswith("/*"), (
             f"DividendRefreshLambda s3:ListBucket is scoped to an object ARN ({arn}); "
@@ -382,6 +384,80 @@ def test_grant_bucket_access_accepts_multiple_list_prefixes() -> None:
     assert len(conditions) == 1, "Expected exactly one ListBucket statement"
 
     assert conditions[0] == _expected_prefix_condition(BACKEND_LIST_PREFIXES)
+
+
+def test_grant_bucket_access_scopes_put_object_to_put_prefix() -> None:
+    """allow_put=True with put_prefix restricts s3:PutObject to that prefix, not the bucket."""
+    app = App()
+    stack = BackendLambdaStack(app, "GrantBucketAccessPutPrefixStack")
+    fn = _lambda.Function(
+        stack,
+        "GrantBucketAccessPutPrefixFn",
+        runtime=_lambda.Runtime.PYTHON_3_11,
+        code=_lambda.Code.from_inline("def handler(event, context):\n    return None\n"),
+        handler="index.handler",
+    )
+
+    BackendLambdaStack._grant_bucket_access(
+        fn,
+        bucket_name="unit-test-bucket",
+        allow_read=False,
+        allow_put=True,
+        allow_list=False,
+        put_prefix="pension-reports",
+    )
+
+    template = Template.from_stack(stack).to_json()
+    role_logical_id = _role_logical_id_for_lambda(template, "GrantBucketAccessPutPrefixFn")
+    put_resources = _resources_for_s3_action(template, role_logical_id, "s3:PutObject")
+
+    assert put_resources == ["arn:aws:s3:::unit-test-bucket/pension-reports/*"]
+
+
+def test_grant_bucket_access_put_defaults_to_bucket_wide_without_put_prefix() -> None:
+    """Omitting put_prefix preserves the existing bucket-wide s3:PutObject grant."""
+    app = App()
+    stack = BackendLambdaStack(app, "GrantBucketAccessPutDefaultStack")
+    fn = _lambda.Function(
+        stack,
+        "GrantBucketAccessPutDefaultFn",
+        runtime=_lambda.Runtime.PYTHON_3_11,
+        code=_lambda.Code.from_inline("def handler(event, context):\n    return None\n"),
+        handler="index.handler",
+    )
+
+    BackendLambdaStack._grant_bucket_access(
+        fn,
+        bucket_name="unit-test-bucket",
+        allow_read=False,
+        allow_put=True,
+        allow_list=False,
+    )
+
+    template = Template.from_stack(stack).to_json()
+    role_logical_id = _role_logical_id_for_lambda(template, "GrantBucketAccessPutDefaultFn")
+    put_resources = _resources_for_s3_action(template, role_logical_id, "s3:PutObject")
+
+    assert put_resources == ["arn:aws:s3:::unit-test-bucket/*"]
+
+
+def test_pension_report_lambda_put_object_scoped_to_pension_reports_prefix() -> None:
+    """PensionReportLambda's s3:PutObject is scoped to pension-reports/*, not the whole bucket.
+
+    PENSION_SNAPSHOTS_URI (backend_lambda_stack.py) points at
+    pension-reports/pension_snapshots.json — the only path this Lambda ever
+    writes to — so its write grant must not extend to accounts/ or any other
+    prefix (issue #5013).
+    """
+    template = _stack_template()
+    role = _role_logical_id_for_lambda(template, "PensionReportLambda")
+    put_resources = _resources_for_s3_action(template, role, "s3:PutObject")
+
+    assert put_resources, "Expected PensionReportLambda to have an s3:PutObject grant"
+    for resource in put_resources:
+        assert (
+            "pension-reports/*" in resource
+        ), f"Expected s3:PutObject resource scoped to pension-reports/*, got {resource!r}"
 
 
 def test_lambda_roles_do_not_have_s3_delete_permissions() -> None:
@@ -530,16 +606,16 @@ def test_lambda_invoke_grant_scoped_to_alias_arn(monkeypatch) -> None:
     stack = BackendLambdaStack(app, "BackendLambdaStackLambdaAliasTest")
     raw = Template.from_stack(stack).to_json()
     resources = _lambda_invoke_resources_for_role_name(raw, "allotmint-github-deploy")
-    assert resources, (
-        "Expected lambda:InvokeFunction to be granted to the deploy role, but no Resource found"
-    )
+    assert (
+        resources
+    ), "Expected lambda:InvokeFunction to be granted to the deploy role, but no Resource found"
     for resource in resources:
-        assert "live" in resource.lower(), (
-            f"Expected lambda:InvokeFunction resource to include the ':live' alias, got: {resource}"
-        )
-        assert "*" not in resource, (
-            f"Expected lambda:InvokeFunction resource to be scoped (no wildcard), got: {resource}"
-        )
+        assert (
+            "live" in resource.lower()
+        ), f"Expected lambda:InvokeFunction resource to include the ':live' alias, got: {resource}"
+        assert (
+            "*" not in resource
+        ), f"Expected lambda:InvokeFunction resource to be scoped (no wildcard), got: {resource}"
 
 
 def _s3_statements_for_role_name(raw_template: dict, role_name: str) -> list[dict]:
@@ -705,7 +781,9 @@ def test_deploy_role_gets_describe_log_streams_on_backend_log_group(monkeypatch)
         resources = stmt.get("Resource", [])
         if isinstance(resources, (str, dict)):
             resources = [resources]
-        describe_log_streams_resources.extend(r if isinstance(r, str) else str(r) for r in resources)
+        describe_log_streams_resources.extend(
+            r if isinstance(r, str) else str(r) for r in resources
+        )
 
     assert describe_log_streams_resources, (
         "Expected the deploy role to be granted logs:DescribeLogStreams in "
@@ -761,7 +839,9 @@ def _fallback_string_literal(source_path: Path, assigned_name: str) -> str:
                 and sub.value not in (assigned_name, "/")
             ):
                 return sub.value
-    raise AssertionError(f"Could not statically find a fallback literal for {assigned_name!r} in {source_path}")
+    raise AssertionError(
+        f"Could not statically find a fallback literal for {assigned_name!r} in {source_path}"
+    )
 
 
 def test_writable_accounts_prefix_matches_backend_accounts_store() -> None:

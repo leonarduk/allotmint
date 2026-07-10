@@ -85,6 +85,7 @@ class BackendLambdaStack(Stack):
         allow_put: bool,
         allow_list: bool,
         list_prefix: str | Sequence[str] | None = None,
+        put_prefix: str | Sequence[str] | None = None,
     ) -> None:
         """Grant the minimum required S3 actions for a Lambda function.
 
@@ -92,7 +93,12 @@ class BackendLambdaStack(Stack):
         (useful in unit tests that don't synthesise a full stack).
 
         ``allow_list`` controls ``s3:ListBucket`` on the bucket ARN while
-        ``allow_read``/``allow_put`` scope object-level actions to ``/*``.
+        ``allow_read`` scopes ``s3:GetObject`` to ``/*``. ``allow_put`` scopes
+        ``s3:PutObject`` to ``/*`` by default; pass ``put_prefix`` to instead
+        scope the write grant to specific prefix(es) (e.g. the Lambda's own
+        snapshot path) for least privilege. ``put_prefix`` is independent of
+        ``list_prefix`` — a caller may need to list one set of prefixes but
+        write only to a narrower one (issue #5013).
         """
 
         if bucket is None and bucket_name is None:
@@ -113,17 +119,36 @@ class BackendLambdaStack(Stack):
             object_arn = f"arn:aws:s3:::{bucket_name}/*"
             bucket_arn = f"arn:aws:s3:::{bucket_name}"
 
-        object_actions: list[str] = []
         if allow_read:
-            object_actions.append("s3:GetObject")
-        if allow_put:
-            object_actions.append("s3:PutObject")
-
-        if object_actions:
             fn.add_to_role_policy(
                 iam.PolicyStatement(
-                    actions=object_actions,
+                    actions=["s3:GetObject"],
                     resources=[object_arn],
+                )
+            )
+
+        if allow_put:
+            if put_prefix is not None:
+                raw_put_prefixes = [put_prefix] if isinstance(put_prefix, str) else list(put_prefix)
+                normalized_put_prefixes = [prefix.strip().strip("/") for prefix in raw_put_prefixes]
+                normalized_put_prefixes = [prefix for prefix in normalized_put_prefixes if prefix]
+                if not normalized_put_prefixes:
+                    raise ValueError("put_prefix, if provided, must contain a non-empty prefix")
+                if bucket is not None:
+                    put_resources = [
+                        bucket.arn_for_objects(f"{prefix}/*") for prefix in normalized_put_prefixes
+                    ]
+                else:
+                    put_resources = [
+                        f"arn:aws:s3:::{bucket_name}/{prefix}/*"
+                        for prefix in normalized_put_prefixes
+                    ]
+            else:
+                put_resources = [object_arn]
+            fn.add_to_role_policy(
+                iam.PolicyStatement(
+                    actions=["s3:PutObject"],
+                    resources=put_resources,
                 )
             )
 
@@ -973,7 +998,10 @@ class BackendLambdaStack(Stack):
 
         # PensionReportLambda: read-only on accounts/ (list_portfolios() ->
         # list_plots() needs ListBucket, same reasoning as price_refresh above),
-        # plus read+write on its own pension-reports/ snapshot object.
+        # plus write access scoped to pension-reports/ — the only prefix this
+        # Lambda ever writes to (PENSION_SNAPSHOTS_URI above). Scoping the
+        # s3:PutObject resource this way (rather than bucket-wide) prevents the
+        # Lambda from writing outside its own snapshot path (issue #5013).
         self._grant_bucket_access(
             pension_report_fn,
             bucket=data_bucket,
@@ -981,6 +1009,7 @@ class BackendLambdaStack(Stack):
             allow_put=True,
             allow_list=True,
             list_prefix=lambda_list_prefixes["pension_report"],
+            put_prefix="pension-reports",
         )
 
         pension_report_schedule = (

@@ -149,6 +149,21 @@ export default function CreateAccountPage() {
     return <SuccessView />;
   }
 
+  function handleNameChange(value: string) {
+    setName(value);
+    setError(null);
+  }
+
+  function handleEmailChange(value: string) {
+    setEmail(value);
+    setError(null);
+  }
+
+  function handleNoteChange(value: string) {
+    setNote(value);
+    setError(null);
+  }
+
   return (
     <CreateAccountForm
       name={name}
@@ -156,9 +171,9 @@ export default function CreateAccountPage() {
       note={note}
       error={error}
       submitting={submitting}
-      onNameChange={setName}
-      onEmailChange={setEmail}
-      onNoteChange={setNote}
+      onNameChange={handleNameChange}
+      onEmailChange={handleEmailChange}
+      onNoteChange={handleNoteChange}
       onSubmit={handleSubmit}
     />
   );

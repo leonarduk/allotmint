@@ -18,7 +18,19 @@ from stacks.prod_env import assert_prod_env_vars, is_truthy_context
 
 
 def _ui_auth_removal_policy(scope: Construct) -> RemovalPolicy:
-    """Retain the Cognito user pool when production retention is requested."""
+    """Retain the Cognito user pool when production retention is requested.
+
+    Deliberately uses ``is_truthy_context`` rather than ``assert_prod_env_vars``:
+    ``retainUserPool`` and ``prod`` are CDK *context* values read via
+    ``node.try_get_context``, while ``assert_prod_env_vars`` validates
+    required-in-prod *environment* variables via ``os.getenv`` and raises
+    instead of returning a value. The two check different kinds of inputs for
+    different purposes, so they aren't interchangeable here. ``retainUserPool``
+    is intentionally not added to any required-in-prod validation: setting
+    ``prod`` already forces ``RemovalPolicy.RETAIN`` on its own (see below), so
+    ``retainUserPool`` has a safe default in prod and is only needed to opt a
+    non-prod stack into retention. See #4771.
+    """
     retain_user_pool = is_truthy_context(scope.node.try_get_context("retainUserPool"))
     prod = is_truthy_context(scope.node.try_get_context("prod"))
     if retain_user_pool or prod:

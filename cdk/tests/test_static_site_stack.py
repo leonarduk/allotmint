@@ -422,6 +422,26 @@ def test_ui_auth_user_pool_is_retained_for_retain_user_pool_context(tmp_path):
     )
 
 
+def test_ui_auth_user_pool_retain_not_required_in_prod_env_vars(monkeypatch, tmp_path):
+    """retainUserPool is a CDK context flag, not a required-in-prod env var.
+
+    Synthesising with prod=true and no retainUserPool context (and without
+    any retain-related env var) must not raise via assert_prod_env_vars, and
+    the pool must still be retained because prod alone forces RETAIN. See
+    #4771: retainUserPool is intentionally exempt from required-in-prod
+    validation since it has a safe default under prod.
+    """
+    monkeypatch.setenv(
+        "GITHUB_DEPLOY_ROLE_ARN", "arn:aws:iam::123456789012:role/allotmint-github-deploy"
+    )
+    monkeypatch.delenv("RETAIN_USER_POOL", raising=False)
+    template = _template_with_context(tmp_path, {"prod": "true"})
+    template.has_resource(
+        "AWS::Cognito::UserPool",
+        {"DeletionPolicy": "Retain", "UpdateReplacePolicy": "Retain"},
+    )
+
+
 def test_ui_auth_outputs_exist(template):
     template.has_output("UiAuthUserPoolId", {})
     template.has_output("UiAuthUserPoolClientId", {})

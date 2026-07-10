@@ -362,8 +362,14 @@ async def test_get_current_user_rejects_unrecognized_email_claim(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_get_current_user_disabled_without_identity(monkeypatch):
+    """When disable_auth=True, token=None, and local_login_identity() returns None,
+    get_current_user has no identity to fall back to. It clears current_user and
+    falls through to _user_from_token(None), which rejects the missing token
+    (#4795) instead of short-circuiting on the no-identity case."""
+
     monkeypatch.setattr(auth.config, "disable_auth", True, raising=False)
     monkeypatch.setattr(auth, "local_login_identity", lambda: None)
+    auth.current_user.set("stale@example.com")
 
     captured: dict[str, str | None] = {}
 
@@ -377,6 +383,7 @@ async def test_get_current_user_disabled_without_identity(monkeypatch):
         await auth.get_current_user(token=None)
 
     assert captured == {"token": None}
+    assert auth.current_user.get() is None
 
 
 def test_missing_secret_key_generates_ephemeral_secret(monkeypatch, caplog):

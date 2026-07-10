@@ -1005,3 +1005,101 @@ def test_daily_price_refresh_lambda_permission_scoped_to_alias(template):
             ),
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# PensionReportLambda / PensionReportRun (issue #2758)
+# ---------------------------------------------------------------------------
+
+
+def test_pension_report_rule_defaults_to_weekly_monday_cron(template):
+    """With no cadence context/env override, the rule fires weekly on Monday."""
+    template.has_resource_properties(
+        "AWS::Events::Rule",
+        {
+            "ScheduleExpression": assertions.Match.string_like_regexp(r"cron\(0 7 \? \* MON \*\)"),
+            "Targets": assertions.Match.array_with([
+                assertions.Match.object_like({
+                    "Arn": assertions.Match.object_like(
+                        {"Fn::GetAtt": assertions.Match.array_with([
+                            assertions.Match.string_like_regexp("PensionReportLambda")
+                        ])}
+                    )
+                })
+            ]),
+        },
+    )
+
+
+def test_pension_report_rule_monthly_cadence_via_context():
+    """pension_report_cadence="monthly" produces a 1st-of-month cron, not the weekly default."""
+    env_patch = {"JWT_SECRET": "test-secret", "GOOGLE_CLIENT_ID": "test-client-id"}
+    for key, value in env_patch.items():
+        os.environ.setdefault(key, value)
+
+    app = App(context={"pension_report_cadence": "monthly"})
+    stack = BackendLambdaStack(app, "MonthlyPensionReportStack")
+    monthly_template = assertions.Template.from_stack(stack)
+
+    monthly_template.has_resource_properties(
+        "AWS::Events::Rule",
+        {
+            "ScheduleExpression": assertions.Match.string_like_regexp(r"cron\(0 7 1 \* \? \*\)"),
+        },
+    )
+
+
+def test_pension_report_rule_rejects_invalid_cadence():
+    env_patch = {"JWT_SECRET": "test-secret", "GOOGLE_CLIENT_ID": "test-client-id"}
+    for key, value in env_patch.items():
+        os.environ.setdefault(key, value)
+
+    with pytest.raises(ValueError, match="pension_report_cadence"):
+        BackendLambdaStack(
+            App(context={"pension_report_cadence": "daily"}), "InvalidCadenceStack"
+        )
+
+
+def test_pension_report_lambda_read_only_on_accounts_prefix(template):
+    """PensionReportLambda gets scoped ListBucket on accounts/ (list_portfolios() needs it)."""
+    policies = template.find_resources("AWS::IAM::Policy")
+    matched = False
+    for resource in policies.values():
+        role_refs = [
+            ref.get("Ref", "")
+            for ref in resource.get("Properties", {}).get("Roles", [])
+            if isinstance(ref, dict)
+        ]
+        if not any("PensionReportLambda" in ref for ref in role_refs):
+            continue
+        statements = resource["Properties"]["PolicyDocument"]["Statement"]
+        for stmt in statements:
+            if stmt.get("Action") == "s3:ListBucket":
+                conditions = stmt.get("Condition", {}).get("StringLike", {}).get("s3:prefix", [])
+                if "accounts" in conditions:
+                    matched = True
+    assert matched, "Expected a ListBucket statement scoped to the accounts/ prefix"
+
+
+def test_pension_report_lambda_env_includes_snapshots_uri(template):
+    """PENSION_SNAPSHOTS_URI is built from the data bucket ref via Fn::Join, not a plain string."""
+    template.has_resource_properties(
+        "AWS::Lambda::Function",
+        {
+            "Environment": {
+                "Variables": assertions.Match.object_like(
+                    {
+                        "PENSION_SNAPSHOTS_URI": {
+                            "Fn::Join": assertions.Match.array_with([
+                                assertions.Match.array_with([
+                                    assertions.Match.string_like_regexp(
+                                        r"/pension-reports/pension_snapshots\.json$"
+                                    )
+                                ])
+                            ])
+                        }
+                    }
+                )
+            }
+        },
+    )

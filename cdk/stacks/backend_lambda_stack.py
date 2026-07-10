@@ -221,6 +221,19 @@ class BackendLambdaStack(Stack):
         budget_alert_email = self.node.try_get_context("budget_alert_email") or os.getenv(
             "BUDGET_ALERT_EMAIL"
         )
+        # Cadence for the pension report Lambda's EventBridge rule (issue #2758).
+        # "weekly" -> every Monday; "monthly" -> the 1st of the month. Configurable
+        # via CDK context or env var rather than hardcoded in the rule itself.
+        pension_report_cadence = (
+            self.node.try_get_context("pension_report_cadence")
+            or os.getenv("PENSION_REPORT_CADENCE")
+            or "weekly"
+        )
+        if pension_report_cadence not in {"weekly", "monthly"}:
+            raise ValueError(
+                "pension_report_cadence must be 'weekly' or 'monthly', got "
+                f"{pension_report_cadence!r}"
+            )
         data_bucket = s3.Bucket(
             self,
             "PortfolioDataBucket",
@@ -268,6 +281,10 @@ class BackendLambdaStack(Stack):
             # and writes new DIVIDEND transactions back to the same prefix.
             # See backend/common/dividends.py::refresh_dividends() (issue #2750).
             "dividend_refresh": (WRITABLE_ACCOUNTS_PREFIX,),
+            # pension_report calls list_portfolios() -> list_plots(), which needs
+            # ListBucket on accounts/ for the same reason as price_refresh above
+            # (issue #2758).
+            "pension_report": ("accounts",),
         }
 
         image_code = _lambda.DockerImageCode.from_image_asset(
@@ -917,6 +934,60 @@ class BackendLambdaStack(Stack):
             targets=[targets.LambdaFunction(dividend_fn)],
         )
 
+        # Scheduled function to email a pension performance report (issue #2758)
+        pension_report_code = _lambda.DockerImageCode.from_image_asset(
+            str(project_root),
+            file="backend/Dockerfile.lambda",
+            cmd=["backend.lambda_api.pension_report.lambda_handler"],
+        )
+        pension_report_env = {
+            "APP_ENV": env,
+            "DATA_BUCKET": bucket_name,
+            "DATA_BRANCH": data_branch,
+            "TIMESERIES_CACHE_BASE": f"s3://{bucket_name}/timeseries",
+            # Pot-value snapshots persisted for YTD / period-over-period tracking
+            # (backend/common/pension_snapshots.py), stored in the same data
+            # bucket rather than a dedicated resource.
+            "PENSION_SNAPSHOTS_URI": f"s3://{bucket_name}/pension-reports/pension_snapshots.json",
+        }
+        if data_repo:
+            pension_report_env["DATA_REPO"] = data_repo
+
+        pension_report_log_group = self._lambda_log_group(self, "PensionReportLambdaLogGroup")
+        pension_report_fn = _lambda.DockerImageFunction(
+            self,
+            "PensionReportLambda",
+            code=pension_report_code,
+            environment=pension_report_env,
+            log_group=pension_report_log_group,
+            timeout=Duration.minutes(5),
+            memory_size=512,
+        )
+
+        # PensionReportLambda: read-only on accounts/ (list_portfolios() ->
+        # list_plots() needs ListBucket, same reasoning as price_refresh above),
+        # plus read+write on its own pension-reports/ snapshot object.
+        self._grant_bucket_access(
+            pension_report_fn,
+            bucket=data_bucket,
+            allow_read=True,
+            allow_put=True,
+            allow_list=True,
+            list_prefix=lambda_list_prefixes["pension_report"],
+        )
+
+        pension_report_schedule = (
+            events.Schedule.cron(minute="0", hour="7", week_day="MON")
+            if pension_report_cadence == "weekly"
+            else events.Schedule.cron(minute="0", hour="7", day="1")
+        )
+        events.Rule(
+            self,
+            "PensionReportRun",
+            schedule=pension_report_schedule,
+            targets=[targets.LambdaFunction(pension_report_fn)],
+        )
+
         # IAM implicit deny covers all other principals; no explicit DENY
         # resource policy is needed (and a StringNotLike list-based DENY
         # would incorrectly lock out these roles too).
@@ -971,4 +1042,9 @@ class BackendLambdaStack(Stack):
         CfnOutput(self, "BackendLambdaLogGroupName", value=backend_log_group.log_group_name)
         CfnOutput(self, "PriceRefreshLambdaLogGroupName", value=refresh_log_group.log_group_name)
         CfnOutput(self, "TradingAgentLambdaLogGroupName", value=agent_log_group.log_group_name)
+        CfnOutput(
+            self,
+            "PensionReportLambdaLogGroupName",
+            value=pension_report_log_group.log_group_name,
+        )
         CfnOutput(self, "BackendLambdaErrorAlarmName", value=backend_error_alarm.alarm_name)

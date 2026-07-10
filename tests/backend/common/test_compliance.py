@@ -148,6 +148,58 @@ def test_check_transactions_logs_sanitised_invalid_share_count(monkeypatch, stub
     assert "ABCinjected" in message
 
 
+def test_check_transactions_sanitises_ticker_when_shares_valid(
+    monkeypatch, stubbed_env, caplog
+):
+    """CRLF in ``ticker`` is sanitised even when ``shares`` is valid.
+
+    Complements test_check_transactions_logs_sanitised_invalid_share_count,
+    which only exercises the invalid-shares warning branch. This covers the
+    non-warning path: shares parse fine, but the sell still triggers the
+    HOLD_DAYS_MIN/APPROVAL_REQUIRED info logs, which must sanitise the
+    attacker-controlled ticker (CWE-117 log injection).
+    """
+    malicious_ticker = "FAKE\r\nLOG LINE"
+    txs = [
+        {
+            "date": "2024-01-05",
+            "ticker": malicious_ticker,
+            "type": "buy",
+            "shares": 10,
+        },
+        {
+            "date": "2024-01-06",
+            "ticker": malicious_ticker,
+            "type": "sell",
+            "shares": 5,
+        },
+    ]
+
+    with caplog.at_level("INFO"):
+        result = compliance._check_transactions("alice", txs)
+
+    assert not any(
+        "invalid share count" in r.getMessage() for r in caplog.records
+    )
+
+    ticker_records = [
+        r
+        for r in caplog.records
+        if "HOLD_DAYS_MIN" in r.getMessage() or "APPROVAL_REQUIRED" in r.getMessage()
+    ]
+    assert ticker_records
+    for record in ticker_records:
+        message = record.getMessage()
+        assert "\r" not in message
+        assert "\n" not in message
+        assert "FAKELOG LINE" in message
+
+    # These warnings come from the hold-period/approval rules, not from the
+    # invalid-share-count branch under test (which stays silent here since
+    # shares parses fine) - confirms the sell was actually evaluated.
+    assert any("without approval" in w for w in result["warnings"])
+
+
 def test_evaluate_trades_attach_warnings_once(monkeypatch, stubbed_env):
     trades = [
         {"date": "2024-01-01", "ticker": "ABC", "type": "buy", "shares": 10},

@@ -85,8 +85,17 @@ class S3JSONStorage:
 
 @dataclass
 class ParameterStoreJSONStorage:
+    """Parameter Store backed JSON storage.
+
+    Defaults to ``SecureString`` since the JSON payloads persisted through
+    this class (alert thresholds, push subscription secrets, etc.) are
+    treated as secrets. Pass ``type="String"`` explicitly for parameters
+    that must remain readable in plaintext.
+    """
+
     name: str
     client: Any | None = None
+    type: str = "SecureString"
 
     def _client(self):
         if self.client is None:
@@ -107,7 +116,7 @@ class ParameterStoreJSONStorage:
         self._client().put_parameter(
             Name=self.name,
             Value=json.dumps(data),
-            Type="String",
+            Type=self.type,
             Overwrite=True,
         )
 

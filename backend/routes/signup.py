@@ -134,25 +134,16 @@ async def post_signup_request(request: Request) -> dict[str, str]:
     return await _post_signup_request_impl(request)
 
 
-_DEFAULT_LOGIN_URL = "http://localhost:5173"
-
-
 def _login_url() -> str:
     """Return the login page URL emailed to a newly approved user.
 
-    Falls back to the local frontend dev URL (and logs a warning) rather than
-    returning an empty string, so the approval email always contains a
-    clickable link even if ``SIGNUP_LOGIN_URL`` is misconfigured (#4385).
+    Callers must check this is non-empty before using it (see
+    ``approve_signup_request``) rather than silently emailing a linkless or
+    fabricated URL — a misconfigured deployment should fail loudly, not send
+    users to a broken link (#4385).
     """
 
-    url = os.getenv("SIGNUP_LOGIN_URL", "").strip()
-    if not url:
-        logger.warning(
-            "SIGNUP_LOGIN_URL is not set; falling back to %s for approval emails",
-            _DEFAULT_LOGIN_URL,
-        )
-        return _DEFAULT_LOGIN_URL
-    return url
+    return os.getenv("SIGNUP_LOGIN_URL", "").strip()
 
 
 def _token_error_to_http(exc: SignupTokenError) -> HTTPException:
@@ -222,6 +213,14 @@ async def approve_signup_request(request: Request, id: str = "", token: str = ""
     except SignupTokenError as exc:
         raise _token_error_to_http(exc) from exc
 
+    login_url = _login_url()
+    if not login_url:
+        # Misconfiguration, not a client error. Fail before provisioning so an
+        # unset SIGNUP_LOGIN_URL never results in a linkless (or fabricated)
+        # login email (#4385).
+        logger.error("SIGNUP_LOGIN_URL is not configured; cannot approve signup requests")
+        raise HTTPException(status_code=503, detail="signup approval is not available")
+
     accounts_root = resolve_accounts_root(request, allow_missing=True)
     store = resolve_writable_store(request)
     owner = signup_provision.provision_owner(record, accounts_root, store=store)
@@ -234,7 +233,7 @@ async def approve_signup_request(request: Request, id: str = "", token: str = ""
         raise _token_error_to_http(exc) from exc
 
     try:
-        send_signup_approved_email(record.email, record.name, _login_url())
+        send_signup_approved_email(record.email, record.name, login_url)
     except Exception as exc:  # noqa: BLE001 - surface any SES failure, never swallow it
         logger.exception("Failed to send login-ready email for request %s", record.id)
         raise HTTPException(status_code=502, detail="failed to notify user") from exc

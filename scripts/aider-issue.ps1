@@ -170,17 +170,26 @@ $directMatches = @(
 # Search tracked files for a matching leaf name so those still get added to
 # aider's context. Restricted to `git ls-files` output, so only files already
 # tracked in the repo can match - no path traversal outside the repo.
-$trackedFiles = @(git -C $repoRoot ls-files)
-$basenameMatches = @(
+$unmatchedCandidates = @(
     $candidates |
-        Where-Object { -not (Test-Path -LiteralPath (Join-Path $repoRoot $_) -PathType Leaf) } |
-        ForEach-Object {
-            $leaf = Split-Path -Leaf $_
-            $trackedFiles | Where-Object { (Split-Path -Leaf $_) -eq $leaf }
-        } |
-        Sort-Object -Unique |
-        ForEach-Object { Join-Path $repoRoot $_ }
+        Where-Object { -not (Test-Path -LiteralPath (Join-Path $repoRoot $_) -PathType Leaf) }
 )
+$basenameMatches = @()
+if ($unmatchedCandidates.Count -gt 0) {
+    # Only pay for listing every tracked file when a direct match didn't
+    # already resolve every candidate (repos with thousands of files make
+    # this call non-trivial, so skip it in the common all-direct-match case).
+    $trackedFiles = @(git -C $repoRoot ls-files)
+    $basenameMatches = @(
+        $unmatchedCandidates |
+            ForEach-Object {
+                $leaf = Split-Path -Leaf $_
+                $trackedFiles | Where-Object { (Split-Path -Leaf $_) -eq $leaf }
+            } |
+            Sort-Object -Unique |
+            ForEach-Object { Join-Path $repoRoot $_ }
+    )
+}
 
 # Identifier matches: issue text often calls out a specific function/method/
 # symbol in backticks (e.g. a test method name). When multiple files share a

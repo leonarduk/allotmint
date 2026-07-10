@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import i18n from '@/i18n';
 
 // Full logout lifecycle in local dev mode (issue #4802): click -> navigate('/')
 // -> redirect occurs, with no Cognito hosted-UI round trip. Exercises the real
@@ -69,13 +70,17 @@ describe('Logout flow: local dev mode (#4802)', () => {
       return { ...mod, cognitoLogout };
     });
 
-    vi.doMock('@/App.tsx', () => ({
-      default: ({ onLogout }: { onLogout?: () => void }) => (
-        <button type="button" data-testid="logout-button" onClick={onLogout}>
-          logout
-        </button>
-      ),
-    }));
+    // Render the real Menu component (the actual logout button end users
+    // click), not a stand-in, so a regression in Menu's onClick wiring would
+    // be caught here too.
+    vi.doMock('@/App.tsx', async () => {
+      const { default: Menu } = await import('@/components/Menu');
+      return {
+        default: ({ onLogout }: { onLogout?: () => void }) => (
+          <Menu onLogout={onLogout} />
+        ),
+      };
+    });
 
     window.localStorage.setItem(
       'auth.user',
@@ -88,7 +93,13 @@ describe('Logout flow: local dev mode (#4802)', () => {
 
     await mountRoot();
 
-    const logoutButton = await screen.findByTestId('logout-button');
+    const preferencesToggle = await screen.findByRole('button', {
+      name: i18n.t('app.menuCategories.preferences'),
+    });
+    fireEvent.click(preferencesToggle);
+    const logoutButton = await screen.findByRole('menuitem', {
+      name: i18n.t('app.logout'),
+    });
     fireEvent.click(logoutButton);
 
     // navigate('/') was called: the browser location changes to '/'.
@@ -102,7 +113,16 @@ describe('Logout flow: local dev mode (#4802)', () => {
     expect(cognitoLogout).not.toHaveBeenCalled();
 
     // Auth is disabled with no awsUiAuth config, so the app shell (not a
-    // login screen) remains reachable after the redirect.
-    expect(await screen.findByTestId('logout-button')).toBeInTheDocument();
+    // login screen) remains reachable after the redirect. Menu closes its
+    // open category on route change (navigate('/') just fired), so reopen
+    // it to confirm the logout control is still there, not that the app
+    // fell back to a login/error screen.
+    const preferencesToggleAfterLogout = await screen.findByRole('button', {
+      name: i18n.t('app.menuCategories.preferences'),
+    });
+    fireEvent.click(preferencesToggleAfterLogout);
+    expect(
+      await screen.findByRole('menuitem', { name: i18n.t('app.logout') })
+    ).toBeInTheDocument();
   });
 });

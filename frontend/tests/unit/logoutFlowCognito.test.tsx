@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import i18n from '@/i18n';
 
 // Full logout lifecycle in Cognito mode (issue #4802): click -> cognitoLogout()
 // called -> session cleared -> redirect to the Cognito hosted-UI logout
@@ -80,13 +81,17 @@ describe('Logout flow: Cognito mode (#4802)', () => {
       default: () => <div data-testid="login-page">sign in</div>,
     }));
 
-    vi.doMock('@/App.tsx', () => ({
-      default: ({ onLogout }: { onLogout?: () => void }) => (
-        <button type="button" data-testid="logout-button" onClick={onLogout}>
-          logout
-        </button>
-      ),
-    }));
+    // Render the real Menu component (the actual logout button end users
+    // click), not a stand-in, so a regression in Menu's onClick wiring would
+    // be caught here too.
+    vi.doMock('@/App.tsx', async () => {
+      const { default: Menu } = await import('@/components/Menu');
+      return {
+        default: ({ onLogout }: { onLogout?: () => void }) => (
+          <Menu onLogout={onLogout} />
+        ),
+      };
+    });
 
     window.localStorage.setItem('authToken', 'cognito-id-token');
     window.localStorage.setItem(
@@ -107,7 +112,13 @@ describe('Logout flow: Cognito mode (#4802)', () => {
 
     await mountRoot();
 
-    const logoutButton = await screen.findByTestId('logout-button');
+    const preferencesToggle = await screen.findByRole('button', {
+      name: i18n.t('app.menuCategories.preferences'),
+    });
+    fireEvent.click(preferencesToggle);
+    const logoutButton = await screen.findByRole('menuitem', {
+      name: i18n.t('app.logout'),
+    });
     fireEvent.click(logoutButton);
 
     // cognitoLogout() was called: the hosted-UI logout endpoint is reached
@@ -125,6 +136,8 @@ describe('Logout flow: Cognito mode (#4802)', () => {
 
     // The app falls back to the login screen once authed flips to false.
     expect(await screen.findByTestId('login-page')).toBeInTheDocument();
-    expect(screen.queryByTestId('logout-button')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('menuitem', { name: i18n.t('app.logout') })
+    ).not.toBeInTheDocument();
   });
 });

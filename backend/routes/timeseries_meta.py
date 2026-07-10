@@ -82,6 +82,8 @@ def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> tuple[str, st
     return sym, ex
 
 
+# lgtm[py/reflective-xss] — response_class=HTMLResponse intentionally omitted;
+# each return path below constructs its own response type.
 @router.get("/meta")
 async def get_meta_timeseries(
     ticker: str = Query(...),

@@ -193,19 +193,26 @@ test.describe('Cognito hosted UI authentication', () => {
     expect(backendExchangeHits).toHaveLength(0);
   });
 
-  test('recovers by redirecting to the hosted UI when sessionStorage has a corrupted Cognito session (#4258)', async ({
+  test('discards a corrupted Cognito session and boots to the login page, redirecting only on explicit sign-in (#4258)', async ({
     page,
   }) => {
     // Simulates a session entry that failed to round-trip through JSON (e.g.
     // truncated by a storage quota error). loadSession() in awsUiAuth.ts must
-    // discard it rather than throwing, so applyCognitoIdToken() sees no stored
-    // ID token and the app falls through to a normal hosted-UI redirect
-    // instead of getting stuck on a bootstrap error screen.
+    // discard it rather than throwing, so the app boots cleanly to the
+    // LoginPage's "Sign in" button instead of getting stuck on a bootstrap
+    // error screen. The hosted-UI redirect is user-triggered (a Sign in click),
+    // NOT automatic on page load — see #4458, which removed the silent boot
+    // redirect so new visitors can reach the create-account page first.
     await page.addInitScript(() => {
       window.sessionStorage.setItem('awsUiAuthSession', 'not-valid-json');
     });
     await mockRuntimeConfig(page);
+    const configRequests: ConfigRequest[] = [];
+    await mockConfigEndpoint(page, configRequests);
+
+    let authorizeHits = 0;
     await page.route(`${COGNITO_DOMAIN}/oauth2/authorize**`, async (route) => {
+      authorizeHits += 1;
       await route.fulfill({
         status: 200,
         contentType: 'text/html',
@@ -215,11 +222,19 @@ test.describe('Cognito hosted UI authentication', () => {
 
     await page.goto(baseUrl);
 
-    await expect.poll(() => new URL(page.url()).origin).toBe(new URL(COGNITO_DOMAIN).origin);
+    // The app boots to the LoginPage without auto-redirecting to Cognito.
+    const signInButton = page.getByRole('button', { name: 'Sign in' });
+    await expect(signInButton).toBeVisible();
+    expect(new URL(page.url()).origin).toBe(new URL(baseUrl).origin);
+    expect(authorizeHits).toBe(0);
     // The unreadable entry is discarded rather than left behind to re-trigger
     // the same failure on the next load.
     expect(
       await page.evaluate(() => window.sessionStorage.getItem('awsUiAuthSession')),
     ).toBeNull();
+
+    // The hosted-UI redirect happens on the explicit Sign in action.
+    await signInButton.click();
+    await expect.poll(() => new URL(page.url()).origin).toBe(new URL(COGNITO_DOMAIN).origin);
   });
 });

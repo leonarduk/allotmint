@@ -708,6 +708,48 @@ def test_backend_api_routes_require_cognito_authorizer(template):
     assert "POST /token/cognito" not in actual_none_routes
 
 
+def test_signup_routes_use_http_none_authorizer(template):
+    """Positively assert that the /signup/* routes are registered with
+    HttpNoneAuthorizer (AuthorizationType NONE), rather than only checking
+    that they are absent from the Cognito-authorizer set.
+
+    test_backend_api_routes_require_cognito_authorizer above already proves
+    these routes are unauthenticated via a negative check (not in the JWT
+    set). That alone would also pass if a future change accidentally moved
+    them to a different non-JWT authorizer (e.g. IAM). This test documents
+    and enforces the specific intended authorizer (#4799, follow-up from
+    review of PR #4798).
+    """
+    routes = template.find_resources("AWS::ApiGatewayV2::Route")
+    assert routes, "Expected at least one API Gateway route"
+
+    signup_routes = {
+        resource["Properties"].get("RouteKey", logical_id): resource["Properties"]
+        for logical_id, resource in routes.items()
+        if "/signup/" in resource["Properties"].get("RouteKey", "")
+    }
+
+    expected_route_keys = {
+        "POST /signup/request",
+        "GET /signup/approve",
+        "POST /signup/approve",
+        "GET /signup/reject",
+        "POST /signup/reject",
+    }
+    assert set(signup_routes) == expected_route_keys, (
+        f"Unexpected /signup/* route set: {set(signup_routes)}"
+    )
+
+    for route_key, properties in signup_routes.items():
+        assert properties.get("AuthorizationType") == "NONE", (
+            f"Route {route_key} must use HttpNoneAuthorizer (AuthorizationType "
+            f"NONE), got {properties.get('AuthorizationType')!r}"
+        )
+        assert "AuthorizerId" not in properties, (
+            f"Route {route_key} must not reference an authorizer resource"
+        )
+
+
 # ---------------------------------------------------------------------------
 # CORS configuration (issue #4828)
 # ---------------------------------------------------------------------------

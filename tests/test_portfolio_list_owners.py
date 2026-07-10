@@ -27,3 +27,18 @@ def test_list_owners_filters_by_viewer(tmp_path):
 
     owners = portfolio.list_owners(accounts_root=tmp_path, current_user="bob")
     assert set(owners) == {"alice", "bob"}
+
+
+def test_list_owners_matches_email_case_insensitively(tmp_path):
+    """Aligns with /owners: identities matching an owner's email are authorized."""
+    alice = tmp_path / "alice"
+    alice.mkdir()
+    (alice / "person.json").write_text(
+        json.dumps({"owner": "alice", "email": "Alice@Example.com"})
+    )
+    bob = tmp_path / "bob"
+    bob.mkdir()
+    (bob / "person.json").write_text(json.dumps({"owner": "bob"}))
+
+    owners = portfolio.list_owners(accounts_root=tmp_path, current_user="alice@example.com")
+    assert owners == ["alice"]

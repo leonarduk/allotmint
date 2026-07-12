@@ -24,6 +24,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--repo", required=True)
     parser.add_argument("--pr-number", required=True)
     parser.add_argument("--provider-name", required=True)
+    parser.add_argument("--max-chars", type=int, default=MAX_DISCUSSION_CHARS)
     return parser.parse_args()
 
 
@@ -78,7 +79,9 @@ def format_comment(comment: dict, location: str) -> str:
     return f"[{comment['created_at']}] {author} ({location}): {body}"
 
 
-def collect_discussion(repo: str, pr_number: str, provider_name: str) -> str:
+def collect_discussion(
+    repo: str, pr_number: str, provider_name: str, max_chars: int = MAX_DISCUSSION_CHARS
+) -> str:
     """Return formatted human discussion created after the provider's last review."""
     issue_comments = gh_api_list(f"repos/{repo}/issues/{pr_number}/comments")
     inline_comments = gh_api_list(f"repos/{repo}/pulls/{pr_number}/comments")
@@ -97,8 +100,8 @@ def collect_discussion(repo: str, pr_number: str, provider_name: str) -> str:
     entries.sort(key=lambda entry: entry[0])
     discussion = "\n\n".join(text for _, text in entries)
 
-    if len(discussion) > MAX_DISCUSSION_CHARS:
-        cut = discussion[: MAX_DISCUSSION_CHARS - len(TRUNCATION_NOTICE)]
+    if len(discussion) > max_chars:
+        cut = discussion[: max_chars - len(TRUNCATION_NOTICE)]
         discussion = cut.rsplit("\n\n", 1)[0] + TRUNCATION_NOTICE
 
     return discussion
@@ -107,7 +110,7 @@ def collect_discussion(repo: str, pr_number: str, provider_name: str) -> str:
 def main() -> int:
     """Fetch and print PR discussion since the provider's last review."""
     args = parse_args()
-    discussion = collect_discussion(args.repo, args.pr_number, args.provider_name)
+    discussion = collect_discussion(args.repo, args.pr_number, args.provider_name, args.max_chars)
     sys.stdout.write(discussion)
     return 0
 

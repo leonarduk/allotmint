@@ -34,6 +34,11 @@ on:
         required: false
         type: string
         default: ""
+      discussion_max_chars:
+        description: "Max characters of PR discussion to include in the review prompt, if any (default 20000)"
+        required: false
+        type: string
+        default: ""
     secrets:
       anthropic_api_key:
         description: "Anthropic API key, used for Claude reviews and follow-up issue creation"
@@ -105,11 +110,17 @@ jobs:
         id: discussion
         env:
           GH_TOKEN: ${{ secrets.gh_token }}
+          DISCUSSION_MAX_CHARS: ${{ inputs.discussion_max_chars }}
         run: |
+          MAX_CHARS_ARGS=()
+          if [ -n "$DISCUSSION_MAX_CHARS" ]; then
+            MAX_CHARS_ARGS=(--max-chars "$DISCUSSION_MAX_CHARS")
+          fi
           DISCUSSION=$(python3 .github/scripts/prepare_review_discussion.py \
             --repo "${{ github.repository }}" \
             --pr-number "${{ github.event.pull_request.number }}" \
-            --provider-name "${{ inputs.provider_name }}")
+            --provider-name "${{ inputs.provider_name }}" \
+            "${MAX_CHARS_ARGS[@]}")
           DELIM="EOF_$(uuidgen | tr -d '-')"
           {
             echo "text<<$DELIM"

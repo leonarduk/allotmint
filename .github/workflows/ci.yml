@@ -16,6 +16,8 @@ jobs:
           python-version: '3.12'
       - run: pip install -r requirements.txt -r requirements-dev.txt
       - run: python scripts/check_branch_protection_required_checks.py
+      - name: Run extract_verdict tests
+        run: pytest tests/test_extract_verdict.py -v --no-cov
       - uses: actions/setup-node@v6
         with:
           node-version: '24'

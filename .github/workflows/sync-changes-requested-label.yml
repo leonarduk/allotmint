@@ -63,7 +63,7 @@ jobs:
       ENABLE_GPT: ${{ vars.ENABLE_GPT_REVIEW || 'true' }}
       ENABLE_DEEPSEEK: ${{ vars.ENABLE_DEEPSEEK_REVIEW || 'true' }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           sparse-checkout: .github/scripts
           sparse-checkout-cone-mode: false
@@ -96,7 +96,7 @@ jobs:
       ENABLE_GPT: ${{ vars.ENABLE_GPT_REVIEW || 'true' }}
       ENABLE_DEEPSEEK: ${{ vars.ENABLE_DEEPSEEK_REVIEW || 'true' }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           sparse-checkout: .github/scripts
           sparse-checkout-cone-mode: false

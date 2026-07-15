@@ -1,7 +1,7 @@
 import { lazy, type ComponentType, type LazyExoticComponent } from 'react';
 import type { TabsConfig } from '../ConfigContext';
 import type { Mode } from '../modes';
-import { isDefaultGroupSlug } from '../utils/groups';
+import { DEFAULT_GROUP_SLUG } from '../utils/groups';
 
 export type RouteSection = 'user' | 'support' | 'standalone';
 export type MenuSection = Extract<RouteSection, 'user' | 'support'>;
@@ -55,10 +55,13 @@ export const ROUTE_REGISTRY: RouteRegistryEntry[] = [
     menuCategory: 'dashboard',
     priority: 0,
     defaultPath: ({ group, selectedGroup }) => {
-      const resolvedGroup = group ?? selectedGroup ?? '';
-      return resolvedGroup && !isDefaultGroupSlug(resolvedGroup)
-        ? `/?group=${resolvedGroup}`
-        : '/';
+      // Always carry an explicit `group` query param, even for the default
+      // slug: a bare '/' collides with the Family MVP entry-path redirect
+      // (App.tsx's getFamilyMvpRedirectPath fires on '/' with no query),
+      // which silently bounced this menu link to the transactions/input page
+      // instead of the group view (#5075).
+      const resolvedGroup = group ?? selectedGroup ?? DEFAULT_GROUP_SLUG;
+      return `/?group=${resolvedGroup || DEFAULT_GROUP_SLUG}`;
     },
   },
   {

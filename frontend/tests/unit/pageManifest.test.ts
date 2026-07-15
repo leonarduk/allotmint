@@ -57,7 +57,10 @@ describe('page manifest', () => {
     expect(deriveModeFromPathname('/totally-unknown')).toBe('movers');
     expect(deriveRouteFromPathname('/totally-unknown').mode).toBe('movers');
 
-    expect(buildPathForMode('group', { group: 'all' })).toBe('/');
+    // The default group slug still gets an explicit `group` query param (not
+    // a bare '/') so it never collides with the Family MVP entry-path
+    // redirect, which treats '/' with no query as "go to the entry page" (#5075).
+    expect(buildPathForMode('group', { group: 'all' })).toBe('/?group=all');
     expect(buildPathForMode('group', { group: 'kids' })).toBe('/?group=kids');
     expect(buildPathForMode('owner', { owner: 'alex' })).toBe('/portfolio/alex');
     expect(buildPathForMode('transactions')).toBe('/input');

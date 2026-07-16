@@ -7,12 +7,7 @@ from backend.common import user_config as uc
 
 
 def _patch_defaults(monkeypatch, tmp_path):
-    """Patch config and resolve_paths to point at temporary directories."""
-    monkeypatch.setattr(
-        uc,
-        "resolve_paths",
-        lambda repo_root, accounts_root: SimpleNamespace(accounts_root=tmp_path),
-    )
+    """Patch config to point at a temporary directory."""
     monkeypatch.setattr(
         uc,
         "config",

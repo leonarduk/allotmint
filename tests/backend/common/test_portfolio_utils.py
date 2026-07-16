@@ -884,3 +884,33 @@ def test_list_all_unique_tickers_logs_missing_and_counts_nulls(monkeypatch, capl
     assert any("Missing ticker" in message for message in warning_messages)
     info_messages = [rec.message for rec in caplog.records if rec.levelname == "INFO"]
     assert any("1 null tickers" in message for message in info_messages)
+
+
+def test_securities_are_not_built_at_import_time(monkeypatch):
+    """_SECURITIES must stay unbuilt until get_security_meta() is first called.
+
+    Building it eagerly at module import triggers an S3 GetObject per unique
+    ticker across every portfolio during Lambda cold start, which blocks the
+    ASGI app import itself (issue #5082) — the same class of bug already fixed
+    once for _PRICE_SNAPSHOT (issue #2975).
+    """
+    monkeypatch.setattr(portfolio_utils, "_SECURITIES", None)
+
+    calls: list[None] = []
+    real_build = portfolio_utils._build_securities_from_portfolios
+
+    def spy_build():
+        calls.append(None)
+        return real_build()
+
+    monkeypatch.setattr(portfolio_utils, "_build_securities_from_portfolios", spy_build)
+    monkeypatch.setattr(portfolio_utils, "list_portfolios", lambda: [])
+    monkeypatch.setattr(portfolio_utils, "list_virtual_portfolios", lambda: [])
+
+    assert portfolio_utils._SECURITIES is None
+
+    portfolio_utils.get_security_meta("AAA.L")
+    assert calls == [None]
+
+    portfolio_utils.get_security_meta("BBB.L")
+    assert calls == [None]  # second call reuses the already-built dict

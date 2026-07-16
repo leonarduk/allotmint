@@ -454,7 +454,14 @@ def _build_securities_from_portfolios() -> Dict[str, Dict]:
     return securities
 
 
-_SECURITIES = _build_securities_from_portfolios()
+# Not built eagerly at import time: doing so triggers a get_instrument_meta
+# (S3 GetObject) call per unique ticker across every portfolio during Lambda
+# cold start, which blocks the ASGI app import itself (see backend/lambda_api/
+# handler.py, which defers app creation to the first invocation precisely to
+# avoid this class of blocking work). Building it lazily on first use keeps
+# that cost off requests that never need security metadata, matching the
+# _PRICE_SNAPSHOT precedent below (issue #5082, cf. issue #2975).
+_SECURITIES: Dict[str, Dict] | None = None
 
 
 def get_security_meta(ticker: str) -> Dict | None:
@@ -462,6 +469,9 @@ def get_security_meta(ticker: str) -> Dict | None:
 
     Falls back to instrument files if the ticker isn't present in portfolios.
     """
+    global _SECURITIES
+    if _SECURITIES is None:
+        _SECURITIES = _build_securities_from_portfolios()
     t = ticker.upper()
     meta = _SECURITIES.get(t)
     if meta:

@@ -122,6 +122,21 @@ def _s3_location() -> tuple[str, str] | None:
     return bucket, prefix
 
 
+@lru_cache(maxsize=1)
+def _s3_client():
+    """Return a process-wide S3 client, built once instead of per call.
+
+    ``boto3.client()`` re-resolves credentials/config on every construction,
+    which is slow enough that building one per ticker turns a portfolio-wide
+    metadata scan (one call per unique ticker) into a multi-second-per-call
+    tax on top of the network round trip itself. See issue #5082.
+    """
+
+    import boto3  # type: ignore
+
+    return boto3.client("s3")
+
+
 def _instrument_path(ticker: str) -> Path:
     instruments_dir = _active_instruments_dir()
     sym, exch = (ticker.split(".", 1) + [None])[:2]
@@ -155,9 +170,7 @@ def get_instrument_meta(ticker: str) -> Dict[str, Any]:
         bucket, prefix = s3_loc
         key = _instrument_key(ticker, prefix)
         try:
-            import boto3  # type: ignore
-
-            obj = boto3.client("s3").get_object(Bucket=bucket, Key=key)
+            obj = _s3_client().get_object(Bucket=bucket, Key=key)
             return json.loads(obj["Body"].read())
         except Exception as exc:
             logger.warning(
@@ -243,10 +256,8 @@ def save_instrument_meta(
         bucket, prefix = s3_loc
         key = _instrument_key(f"{ticker}.{exchange}", prefix)
         try:
-            import boto3  # type: ignore
-
             body = json.dumps(data).encode("utf-8")
-            boto3.client("s3").put_object(Bucket=bucket, Key=key, Body=body)
+            _s3_client().put_object(Bucket=bucket, Key=key, Body=body)
         except Exception as exc:  # pragma: no cover - best effort
             logger.warning(
                 "Failed to upload instrument metadata for %s.%s to s3://%s/%s: %s",

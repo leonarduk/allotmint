@@ -80,6 +80,7 @@ def test_get_instrument_meta_prefers_s3_when_available(monkeypatch, tmp_path) ->
     monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=fake_client))
 
     instruments.get_instrument_meta.cache_clear()
+    instruments._s3_client.cache_clear()
     assert instruments.get_instrument_meta("ABC.L") == payload
 
 
@@ -104,6 +105,7 @@ def test_get_instrument_meta_falls_back_to_local_on_s3_error(monkeypatch, tmp_pa
     monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=fake_client))
 
     instruments.get_instrument_meta.cache_clear()
+    instruments._s3_client.cache_clear()
     with caplog.at_level("WARNING"):
         assert instruments.get_instrument_meta("ABC.L") == payload
     assert "falling back to local file" in caplog.text
@@ -136,6 +138,7 @@ def test_save_instrument_meta_writes_uploads_and_clears_cache(monkeypatch, tmp_p
     monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=fake_client))
 
     instruments.get_instrument_meta.cache_clear()
+    instruments._s3_client.cache_clear()
     with caplog.at_level("WARNING"):
         instruments.get_instrument_meta("ABC.L")
 

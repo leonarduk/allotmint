@@ -338,6 +338,22 @@ class TestResolveDefaultAccountsRoot:
 
         assert resolve_default_accounts_root() == primary
 
+    def test_returns_primary_when_neither_root_exists(self, tmp_path, monkeypatch):
+        """Neither root exists on disk (e.g. a fresh checkout with no data/
+        directory at all). There's nothing sensible to fall back to, so this
+        degrades to the pre-fallback behaviour: return the (non-existent)
+        configured root and let callers raise FileNotFoundError/MissingData
+        when they try to actually read from it."""
+        primary = tmp_path / "missing_primary"
+        fallback = tmp_path / "missing_fallback"
+        self._patch_paths(monkeypatch, tmp_path, primary, fallback)
+
+        assert resolve_default_accounts_root() == primary
+        assert not resolve_default_accounts_root().exists()
+
+        with pytest.raises(FileNotFoundError):
+            resolve_owner_dir("alice")
+
 
 class TestResolveOwnerDir:
     def test_finds_owner_under_fallback_root(self, tmp_path, monkeypatch):

@@ -59,6 +59,12 @@ interface BootstrapConfig {
 const storedToken = getStoredAuthToken();
 if (storedToken) setAuthToken(storedToken);
 
+// Cap automatic config-fetch retries so a persistently failing backend
+// surfaces the "Unable to load configuration" screen (with a manual Retry
+// button) instead of leaving the app stuck on "Loading configuration..."
+// forever. See issue #5073.
+const MAX_CONFIG_FETCH_ATTEMPTS = 5;
+
 // Populated by bootstrapRuntimeConfig before React mounts so Root can pass it
 // to LoginPage for the explicit Cognito sign-in button.
 let runtimeAwsUiAuth: AwsUiAuthConfig | undefined;
@@ -315,7 +321,7 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
                 ? err
                 : new Error(String(err));
           setConfigError(error);
-          shouldRetry = true;
+          shouldRetry = attempt + 1 < MAX_CONFIG_FETCH_ATTEMPTS;
           nextAttempt = attempt + 1;
           retryDelay = Math.min(30000, 2000 * 2 ** attempt);
         })
@@ -326,7 +332,7 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
           if (isCurrent) {
             activeRequest.current = null;
             setConfigLoading(false);
-            if (shouldRetry) setRetryScheduled(true);
+            setRetryScheduled(shouldRetry);
           }
           if (shouldRetry && isMounted.current) {
             retryTimer.current = window.setTimeout(() => {

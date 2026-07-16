@@ -210,6 +210,60 @@ describe("App family MVP redirects", () => {
     expect(router.state.location.search).toBe("?group=kids");
   });
 
+  it("does not bounce the default group view to the entry path in Family MVP mode (#5075)", async () => {
+    // Reported bug: clicking the "Group" menu link (which resolves to the
+    // default "all" group) landed on the transactions/input page instead of
+    // the group view. `/?group=all` used to get normalised straight back to a
+    // bare '/', which the entry-path redirect above then intercepted.
+    mockConfig({
+      configLoaded: true,
+      familyMvpEnabled: true,
+      disabledTabs: [],
+      tabs: {
+        ...baseConfig.tabs,
+        owner: true,
+        group: true,
+        transactions: true,
+      },
+    });
+
+    vi.doMock("@/components/GroupPortfolioView", () => ({
+      GroupPortfolioView: () => <section>Group Portfolio View</section>,
+    }));
+
+    vi.doMock("@/api", async () => {
+      const actual = await vi.importActual<typeof import("@/api")>("@/api");
+      return {
+        ...actual,
+        getOwners: vi.fn().mockResolvedValue([]),
+        getGroups: vi
+          .fn()
+          .mockResolvedValue([{ slug: "all", name: "At a glance", members: [] }]),
+        getGroupInstruments: vi.fn().mockResolvedValue([]),
+        getPortfolio: vi.fn(),
+        refreshPrices: vi.fn(),
+        getAlerts: vi.fn().mockResolvedValue([]),
+        getNudges: vi.fn().mockResolvedValue([]),
+        getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+        getCompliance: vi
+          .fn()
+          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+        getTimeseries: vi.fn().mockResolvedValue([]),
+        saveTimeseries: vi.fn(),
+        refetchTimeseries: vi.fn(),
+        rebuildTimeseriesCache: vi.fn(),
+        getTradingSignals: vi.fn().mockResolvedValue([]),
+        getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+      };
+    });
+
+    const router = await renderAppAt("/?group=all");
+
+    expect(await screen.findByText("Group Portfolio View")).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/");
+    expect(router.state.location.search).toBe("?group=all");
+  });
+
   it("does not bounce /research/:ticker back to the entry path in Family MVP mode", async () => {
     // The reported bug (#4641): the header search bar navigates to /research/:t,
     // which Family MVP previously reverted to /input. With research enabled it

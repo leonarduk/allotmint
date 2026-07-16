@@ -332,7 +332,16 @@ export default function App({ onLogout }: AppProps) {
     } else if (newMode === 'group') {
       const groupParam = params.get('group');
       setSelectedGroup(normaliseGroupSlug(groupParam));
-      if (groupParam && isDefaultGroupSlug(groupParam) && location.search) {
+      // Skip this cleanup under Family MVP: stripping `?group=all` down to a
+      // bare '/' would immediately re-trigger the entry-path redirect above
+      // (bare '/' with no query is treated as "go to the MVP landing page"),
+      // bouncing the group view straight back off (#5075).
+      if (
+        groupParam &&
+        isDefaultGroupSlug(groupParam) &&
+        location.search &&
+        !familyMvpEnabled
+      ) {
         navigate('/', { replace: true });
       }
     } else if (newMode === 'research') {

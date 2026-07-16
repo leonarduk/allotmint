@@ -1727,7 +1727,10 @@ describe("App", () => {
     );
 
     const groupLink = await screen.findByText("Group");
-    expect(groupLink).toHaveAttribute("href", "/");
+    // The link always carries an explicit `group=all` query param (even for
+    // the default group) so it never collides with the Family MVP bare-root
+    // redirect, which treats '/' with no query as "go to the entry page" (#5075).
+    expect(groupLink).toHaveAttribute("href", "/?group=all");
     expect(groupLink).toBeInTheDocument();
 
     const nav = screen.getByRole("navigation");

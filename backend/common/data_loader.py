@@ -280,6 +280,41 @@ def resolve_paths(
     return ResolvedPaths(repo_path, accounts_path, virtual_root)
 
 
+def resolve_default_accounts_root() -> Path:
+    """Resolve the process-default accounts root.
+
+    Falls back to the repo-local ``data/accounts`` tree when
+    ``config.accounts_root`` doesn't exist on disk, mirroring the fallback
+    already applied by ``list_plots`` and ``resolve_accounts_root``. Without
+    this, helpers that resolve their root lazily from ``config`` (rather than
+    being handed an explicit, existence-checked root by the caller) would
+    raise ``FileNotFoundError`` for valid owners whenever the configured root
+    is missing in the current environment.
+    """
+
+    primary = resolve_paths(config.repo_root, config.accounts_root).accounts_root
+    if primary.exists():
+        return primary
+    fallback = resolve_paths(None, None).accounts_root
+    return fallback if fallback.exists() else primary
+
+
+def resolve_owner_dir(owner: str, accounts_root: Optional[Path] = None) -> Path:
+    """Return ``owner``'s directory, falling back to the repo-local accounts root.
+
+    Raises ``FileNotFoundError`` if the owner isn't found.
+    """
+
+    root = Path(accounts_root) if accounts_root else resolve_default_accounts_root()
+    try:
+        owner_dir = safe_join(root, owner)
+    except ValueError as exc:
+        raise FileNotFoundError("invalid owner") from exc
+    if not owner_dir.exists():
+        raise FileNotFoundError(owner)
+    return owner_dir
+
+
 # ------------------------------------------------------------------
 # Local discovery
 # ------------------------------------------------------------------
@@ -940,7 +975,7 @@ def load_person_metadata(owner: str, data_root: Optional[Path] = None) -> Person
     local_root: Optional[Path] = data_root
     if local_root is None:
         try:
-            local_root = resolve_paths(config.repo_root, config.accounts_root).accounts_root
+            local_root = resolve_default_accounts_root()
         except Exception:  # pragma: no cover - extremely defensive
             local_root = None
 
@@ -1011,7 +1046,7 @@ def load_account(
     local_root: Optional[Path] = data_root
     if local_root is None:
         try:
-            local_root = resolve_paths(config.repo_root, config.accounts_root).accounts_root
+            local_root = resolve_default_accounts_root()
         except Exception:  # pragma: no cover - extremely defensive
             local_root = None
 
@@ -1082,7 +1117,7 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
     local_root: Optional[Path] = data_root
     if local_root is None:
         try:
-            local_root = resolve_paths(config.repo_root, config.accounts_root).accounts_root
+            local_root = resolve_default_accounts_root()
         except Exception:  # pragma: no cover - extremely defensive
             local_root = None
 

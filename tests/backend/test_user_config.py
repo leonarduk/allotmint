@@ -9,11 +9,6 @@ from backend.common import user_config as uc
 def _patch_defaults(monkeypatch, tmp_path):
     monkeypatch.setattr(
         uc,
-        "resolve_paths",
-        lambda repo_root, accounts_root: SimpleNamespace(accounts_root=tmp_path),
-    )
-    monkeypatch.setattr(
-        uc,
         "config",
         SimpleNamespace(
             repo_root=tmp_path,

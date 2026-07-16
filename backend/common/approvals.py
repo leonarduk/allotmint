@@ -8,7 +8,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Dict, Optional
 
-from backend.common.path_utils import safe_join
+from backend.common.data_loader import resolve_owner_dir
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
 
@@ -22,13 +22,7 @@ def approvals_path(owner: str, accounts_root: Path | None = None) -> Path:
     exist.  Callers are expected to handle or propagate this exception.
     """
 
-    root = Path(accounts_root or config.accounts_root)
-    try:
-        owner_dir = safe_join(root, owner)
-    except ValueError as exc:
-        raise FileNotFoundError("invalid owner") from exc
-    if not owner_dir.exists():
-        raise FileNotFoundError(owner_dir)
+    owner_dir = resolve_owner_dir(owner, accounts_root)
     return owner_dir / "approvals.json"
 
 

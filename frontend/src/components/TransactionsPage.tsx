@@ -594,7 +594,7 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
 
   return (
     <div>
-      {manualHoldingsSection}
+      {inputOnly && manualHoldingsSection}
       {!inputOnly && (
         <>
           <TransactionsFilters

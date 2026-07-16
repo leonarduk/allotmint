@@ -1,27 +1,35 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getTradingSignals } from '../api';
 import type { TradingSignal } from '../types';
 import { InstrumentDetail } from '../components/InstrumentDetail';
+import BackendUnavailableCard from '../components/BackendUnavailableCard';
+import useFetchWithRetry from '../hooks/useFetchWithRetry';
 import tableStyles from '../styles/table.module.css';
 import { MAX_TRADING_SIGNAL_ROWS } from '../constants/renderLimits';
 
 export default function Trading() {
   const { t } = useTranslation();
-  const [signals, setSignals] = useState<TradingSignal[]>([]);
-  const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<TradingSignal | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
+  const handleRetry = useCallback(() => setRetryNonce((n) => n + 1), []);
 
-  useEffect(() => {
-    getTradingSignals()
-      .then(setSignals)
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
-  }, []);
+  const { data, loading, error } = useFetchWithRetry(
+    getTradingSignals,
+    500,
+    5,
+    retryNonce,
+  );
 
   if (error) {
-    return <p style={{ color: 'red' }}>{error}</p>;
+    return <BackendUnavailableCard onRetry={handleRetry} />;
   }
 
+  if (loading) {
+    return <p>{t('common.loading')}</p>;
+  }
+
+  const signals = data ?? [];
   if (!signals.length) {
     return <p>{t('trading.noSignals')}</p>;
   }

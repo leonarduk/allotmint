@@ -209,7 +209,15 @@ $identifiers = @(
 )
 $identifierMatches = @(
     $identifiers |
-        ForEach-Object { git -C $repoRoot grep -l -F -- $_ 2>$null } |
+        ForEach-Object {
+            # `git grep` exits 1 (not a terminating error) when an identifier has no
+            # matches. Under $PSNativeCommandUseErrorActionPreference with
+            # $ErrorActionPreference = 'Stop', that non-zero exit becomes a
+            # terminating NativeCommandExitException, which would otherwise abort
+            # this whole ForEach-Object pipeline on the first non-matching
+            # identifier. Catch per-identifier so a miss just yields no matches.
+            try { git -C $repoRoot grep -l -F -- $_ 2>$null } catch { @() }
+        } |
         Sort-Object -Unique |
         ForEach-Object { Join-Path $repoRoot $_ }
 )

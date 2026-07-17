@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import time
 from datetime import date, datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
@@ -317,6 +318,21 @@ def load_stooq_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame
 # Track cache file mtimes to detect updates
 _CACHE_FILE_MTIMES: Dict[str, float] = {}
 
+# Remember S3 objects recently confirmed missing (HeadObject 404) so repeat
+# lookups for the same permanently-uncached ticker within the TTL skip the
+# live network round-trip. Without this, a request touching a delisted/
+# unresolvable ticker (no data from any provider, ever) re-issues a
+# synchronous S3 HeadObject call on every check -- observed in production to
+# stack up into hundreds of calls within a single request and exhaust the
+# Lambda's 30s timeout.
+_S3_HEAD_MISS_TTL_SECONDS = 60.0
+_S3_HEAD_MISS_CACHE: Dict[str, float] = {}
+
+
+def _s3_object_recently_confirmed_missing(cache: str) -> bool:
+    missed_at = _S3_HEAD_MISS_CACHE.get(cache)
+    return missed_at is not None and time.monotonic() - missed_at < _S3_HEAD_MISS_TTL_SECONDS
+
 
 @lru_cache(maxsize=1)
 def _s3_client():
@@ -341,12 +357,23 @@ def _s3_object_mtime(cache: str) -> float:
         return 0.0
     bucket, key = parsed
 
+    if _s3_object_recently_confirmed_missing(cache):
+        return 0.0
+
     try:
         resp = _s3_client().head_object(Bucket=bucket, Key=key)
-    except (BotoCoreError, ClientError) as exc:  # pragma: no cover - defensive AWS path
+    except ClientError as exc:
+        error_code = exc.response.get("Error", {}).get("Code")
+        if error_code in {"404", "NoSuchKey", "NotFound"}:
+            _S3_HEAD_MISS_CACHE[cache] = time.monotonic()
+        else:
+            logger.warning("Unable to read S3 cache metadata for %s: %s", _sanitize_for_log(cache), exc)
+        return 0.0
+    except BotoCoreError as exc:  # pragma: no cover - defensive AWS path
         logger.warning("Unable to read S3 cache metadata for %s: %s", _sanitize_for_log(cache), exc)
         return 0.0
 
+    _S3_HEAD_MISS_CACHE.pop(cache, None)
     last_modified = resp.get("LastModified")
     if not hasattr(last_modified, "timestamp"):
         logger.warning("S3 cache metadata for %s is missing LastModified", _sanitize_for_log(cache))
@@ -612,17 +639,22 @@ def _s3_cache_object_exists(cache: str) -> bool:
         return False
     bucket, key = parsed
 
+    if _s3_object_recently_confirmed_missing(cache):
+        return False
+
     try:
         _s3_client().head_object(Bucket=bucket, Key=key)
     except ClientError as exc:
         error_code = exc.response.get("Error", {}).get("Code")
         if error_code in {"404", "NoSuchKey", "NotFound"}:
+            _S3_HEAD_MISS_CACHE[cache] = time.monotonic()
             return False
         logger.error("Unable to check S3 timeseries cache object %s: %s", _sanitize_for_log(cache), exc)
         return False
     except BotoCoreError as exc:
         logger.error("AWS client error checking S3 timeseries cache object %s: %s", _sanitize_for_log(cache), exc)
         return False
+    _S3_HEAD_MISS_CACHE.pop(cache, None)
     return True
 
 

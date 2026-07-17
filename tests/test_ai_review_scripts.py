@@ -526,6 +526,39 @@ def test_collect_discussion_filters_to_after_last_review_and_excludes_bots(
     assert "AI Code Review" not in discussion
 
 
+def test_collect_discussion_anchors_to_inline_review_comment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = load_script_module("prepare_review_discussion", "prepare_review_discussion.py")
+
+    issue_comments = [
+        _comment("alice", "Old comment before the review, ignore me", "2023-12-31T00:00:00Z"),
+        _comment("alice", "Addressed your concern about the null check", "2024-01-02T00:00:00Z"),
+    ]
+    inline_comments = [
+        _comment(
+            "github-actions[bot]",
+            "## DeepSeek AI Code Review\nLooks fine\n**APPROVE**",
+            "2024-01-01T00:00:00Z",
+            user_type="Bot",
+            path="frontend/src/foo.ts",
+        ),
+    ]
+
+    def fake_gh_api_list(path: str) -> list[dict]:
+        if path.startswith("repos/owner/repo/issues/"):
+            return issue_comments
+        return inline_comments
+
+    monkeypatch.setattr(module, "gh_api_list", fake_gh_api_list)
+
+    discussion = module.collect_discussion("owner/repo", "1", "DeepSeek")
+
+    assert "Addressed your concern about the null check" in discussion
+    assert "Old comment before the review" not in discussion
+    assert "AI Code Review" not in discussion
+
+
 def test_collect_discussion_includes_everything_when_no_prior_review(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

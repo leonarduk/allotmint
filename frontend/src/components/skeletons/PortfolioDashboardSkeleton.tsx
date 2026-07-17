@@ -19,6 +19,7 @@ export default function PortfolioDashboardSkeleton({ label }: Props = {}) {
 
   return (
     <div role="status" aria-live="polite" aria-label={label}>
+      <span className="sr-only">{label}</span>
       {content}
     </div>
   );

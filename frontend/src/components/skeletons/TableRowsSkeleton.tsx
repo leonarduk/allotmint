@@ -15,14 +15,13 @@ export default function TableRowsSkeleton({
   return (
     <>
       {Array.from({ length: rows }).map((_, i) => (
-        <tr
-          key={i}
-          role={i === 0 ? "status" : undefined}
-          aria-live={i === 0 ? "polite" : undefined}
-          aria-label={i === 0 ? label : undefined}
-        >
+        <tr key={i}>
           <td colSpan={colSpan} className={cellClassName}>
-            {i === 0 && <span className="sr-only">{label}</span>}
+            {i === 0 && (
+              <span role="status" aria-live="polite" aria-label={label} className="sr-only">
+                {label}
+              </span>
+            )}
             <div className="h-4 bg-gray-700 rounded animate-pulse" />
           </td>
         </tr>

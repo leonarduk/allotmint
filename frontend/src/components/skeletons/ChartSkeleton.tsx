@@ -12,6 +12,8 @@ export default function ChartSkeleton({ height = 240, label }: Props = {}) {
       aria-label={label}
       className="w-full mb-4 bg-gray-900 border border-gray-700 rounded animate-pulse"
       style={{ height }}
-    />
+    >
+      {label && <span className="sr-only">{label}</span>}
+    </div>
   );
 }

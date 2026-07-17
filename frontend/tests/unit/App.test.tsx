@@ -150,19 +150,12 @@ describe("App", () => {
   it("loads /instrument/all rows from group holdings API", async () => {
     window.history.pushState({}, "", "/instrument/all");
 
-    const mockGetGroupInstruments = vi.fn().mockResolvedValue([
-      {
-        ticker: "FOO.L",
-        name: "Foo Plc",
-        grouping: "Technology",
-        exchange: "L",
-        currency: "GBP",
-        units: 10,
-        market_value_gbp: 1234.56,
-        gain_gbp: 100.0,
-        gain_pct: 8.81,
-      } as InstrumentSummary,
-    ]);
+    let resolveInstruments: (rows: InstrumentSummary[]) => void;
+    const mockGetGroupInstruments = vi.fn().mockReturnValue(
+      new Promise<InstrumentSummary[]>((resolve) => {
+        resolveInstruments = resolve;
+      }),
+    );
 
     let capturedRows: InstrumentSummary[] = [];
 
@@ -222,9 +215,27 @@ describe("App", () => {
     await waitFor(() => expect(mockGetGroupInstruments).toHaveBeenCalledTimes(1));
     expect(mockGetGroupInstruments).toHaveBeenCalledWith("all");
 
+    expect(await screen.findByRole("status", { name: /loading/i })).toBeInTheDocument();
+    expect(screen.queryByTestId("instrument-table")).not.toBeInTheDocument();
+
+    resolveInstruments!([
+      {
+        ticker: "FOO.L",
+        name: "Foo Plc",
+        grouping: "Technology",
+        exchange: "L",
+        currency: "GBP",
+        units: 10,
+        market_value_gbp: 1234.56,
+        gain_gbp: 100.0,
+        gain_pct: 8.81,
+      } as InstrumentSummary,
+    ]);
+
     const table = await screen.findByTestId("instrument-table");
     expect(within(table).getAllByText("FOO.L")).toHaveLength(1);
     expect(capturedRows[0]?.grouping).toBe("Technology");
+    expect(screen.queryByRole("status", { name: /loading/i })).not.toBeInTheDocument();
   });
 
   it("loads /portfolio/all using the group portfolio endpoint", async () => {

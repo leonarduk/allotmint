@@ -250,7 +250,9 @@ export default function App({ onLogout }: AppProps) {
 
   const ownersReq = useFetchWithRetry(getOwners, 500, 5, retryNonce);
   const groupsReq = useFetchWithRetry(getGroups, 500, 5, retryNonce);
-  const identityCatalogReady = ownersReq.data !== null && groupsReq.data !== null;
+  // The portfolio fetch below only needs `selectedOwnerIsGroup`, which is
+  // derived from groupsReq.data alone — it must not wait on ownersReq (#5094).
+  const groupsCatalogReady = groupsReq.data !== null;
   const selectedOwnerGroup = useMemo(
     () =>
       selectedOwner && groupsReq.data
@@ -460,7 +462,7 @@ export default function App({ onLogout }: AppProps) {
 
   // data fetching based on route
   useEffect(() => {
-    if (mode === 'owner' && selectedOwner && identityCatalogReady && !selectedOwnerIsGroup) {
+    if (mode === 'owner' && selectedOwner && groupsCatalogReady && !selectedOwnerIsGroup) {
       const cacheKey = `${selectedOwner}::${portfolioAsOf ?? ''}::${lastRefresh ?? ''}`;
       const cached = portfolioCache.current.get(cacheKey);
 
@@ -489,13 +491,13 @@ export default function App({ onLogout }: AppProps) {
         .catch((e) => setErr(String(e)))
         .finally(() => setLoading(false));
     }
-  }, [mode, selectedOwner, portfolioAsOf, lastRefresh, selectedOwnerIsGroup, identityCatalogReady]);
+  }, [mode, selectedOwner, portfolioAsOf, lastRefresh, selectedOwnerIsGroup, groupsCatalogReady]);
 
   useEffect(() => {
-    if (mode === 'owner' && selectedOwner && identityCatalogReady) {
+    if (mode === 'owner' && selectedOwner && groupsCatalogReady) {
       setPortfolioAsOf(null);
     }
-  }, [mode, selectedOwner, identityCatalogReady]);
+  }, [mode, selectedOwner, groupsCatalogReady]);
 
   useEffect(() => {
     if (mode === 'instrument' && selectedGroup) {

@@ -401,6 +401,158 @@ describe("App", () => {
     expect(mockComplianceWarnings.mock.calls).toContainEqual([["alex"]]);
   });
 
+  it("fetches the owner portfolio as soon as groups resolve, without waiting for owners (#5094)", async () => {
+    window.history.pushState({}, "", "/portfolio/alice");
+
+    let resolveOwners:
+      | ((owners: { owner: string; accounts: unknown[] }[]) => void)
+      | undefined;
+    const ownersPromise = new Promise<{ owner: string; accounts: unknown[] }[]>(
+      (resolve) => {
+        resolveOwners = resolve;
+      },
+    );
+
+    const mockGetPortfolio = vi.fn().mockResolvedValue({
+      owner: "alice",
+      as_of: "2026-01-01",
+      trades_this_month: 0,
+      trades_remaining: 0,
+      total_value_estimate_gbp: 0,
+      accounts: [],
+    } as Portfolio);
+
+    vi.doMock("@/api", async () => {
+      const actual = await vi.importActual<typeof import("@/api")>("@/api");
+      return {
+        ...actual,
+        getOwners: vi.fn().mockReturnValue(ownersPromise),
+        getGroups: vi.fn().mockResolvedValue([]),
+        getPortfolio: mockGetPortfolio,
+        getGroupInstruments: vi.fn().mockResolvedValue([]),
+        getGroupPortfolio: vi.fn(),
+        getGroupAlphaVsBenchmark: vi.fn(),
+        getGroupTrackingError: vi.fn(),
+        getGroupMaxDrawdown: vi.fn(),
+        getGroupSectorContributions: vi.fn(),
+        getGroupRegionContributions: vi.fn(),
+        getGroupMovers: vi.fn(),
+        getCachedGroupInstruments: undefined,
+        listInstrumentGroups: vi.fn().mockResolvedValue([]),
+        listInstrumentGroupingDefinitions: vi.fn().mockResolvedValue([]),
+        refreshPrices: vi.fn(),
+        getAlerts: vi.fn().mockResolvedValue([]),
+        getNudges: vi.fn().mockResolvedValue([]),
+        getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+        getCompliance: vi
+          .fn()
+          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+        getTimeseries: vi.fn().mockResolvedValue([]),
+        saveTimeseries: vi.fn(),
+        refetchTimeseries: vi.fn(),
+        rebuildTimeseriesCache: vi.fn(),
+        getTradingSignals: vi.fn().mockResolvedValue([]),
+        getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+      };
+    });
+
+    const { default: App } = await import("@/App");
+
+    render(
+      <MemoryRouter initialEntries={["/portfolio/alice"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    // getGroups already resolved (empty array) but getOwners is still pending —
+    // the portfolio fetch must not wait on it.
+    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("alice"));
+
+    resolveOwners?.([]);
+  });
+
+  it("does not fetch an owner portfolio for a slug that resolves to a group once groups load", async () => {
+    window.history.pushState({}, "", "/portfolio/kids");
+
+    let resolveGroups:
+      | ((groups: { slug: string; name: string; members: string[] }[]) => void)
+      | undefined;
+    const groupsPromise = new Promise<
+      { slug: string; name: string; members: string[] }[]
+    >((resolve) => {
+      resolveGroups = resolve;
+    });
+
+    const mockGetPortfolio = vi.fn().mockResolvedValue({
+      owner: "kids",
+      as_of: "2026-01-01",
+      trades_this_month: 0,
+      trades_remaining: 0,
+      total_value_estimate_gbp: 0,
+      accounts: [],
+    } as Portfolio);
+    const mockGetGroupPortfolio = vi.fn().mockResolvedValue({
+      name: "Kids",
+      slug: "kids",
+      accounts: [],
+      trades_this_month: 0,
+      trades_remaining: 0,
+    });
+
+    vi.doMock("@/api", async () => {
+      const actual = await vi.importActual<typeof import("@/api")>("@/api");
+      return {
+        ...actual,
+        getOwners: vi.fn().mockResolvedValue([]),
+        getGroups: vi.fn().mockReturnValue(groupsPromise),
+        getPortfolio: mockGetPortfolio,
+        getGroupPortfolio: mockGetGroupPortfolio,
+        getGroupInstruments: vi.fn().mockResolvedValue([]),
+        getGroupAlphaVsBenchmark: vi.fn().mockResolvedValue({ alpha_vs_benchmark: 0 }),
+        getGroupTrackingError: vi.fn().mockResolvedValue({ tracking_error: 0 }),
+        getGroupMaxDrawdown: vi.fn().mockResolvedValue({ max_drawdown: 0 }),
+        getGroupSectorContributions: vi.fn().mockResolvedValue([]),
+        getGroupRegionContributions: vi.fn().mockResolvedValue([]),
+        getGroupMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+        getCachedGroupInstruments: undefined,
+        listInstrumentGroups: vi.fn().mockResolvedValue([]),
+        listInstrumentGroupingDefinitions: vi.fn().mockResolvedValue([]),
+        refreshPrices: vi.fn(),
+        getAlerts: vi.fn().mockResolvedValue([]),
+        getNudges: vi.fn().mockResolvedValue([]),
+        getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+        getCompliance: vi
+          .fn()
+          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+        getTimeseries: vi.fn().mockResolvedValue([]),
+        saveTimeseries: vi.fn(),
+        refetchTimeseries: vi.fn(),
+        rebuildTimeseriesCache: vi.fn(),
+        getTradingSignals: vi.fn().mockResolvedValue([]),
+        getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+      };
+    });
+
+    const { default: App } = await import("@/App");
+
+    render(
+      <MemoryRouter initialEntries={["/portfolio/kids"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    await act(async () => {
+      resolveGroups?.([{ slug: "kids", name: "Kids", members: [] }]);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(mockGetGroupPortfolio).toHaveBeenCalledWith(
+      "kids",
+      { asOf: undefined },
+    ));
+    expect(mockGetPortfolio).not.toHaveBeenCalled();
+  });
+
   it("renders timeseries editor when path is /timeseries", async () => {
     window.history.pushState({}, "", "/timeseries?ticker=ABC&exchange=L");
 

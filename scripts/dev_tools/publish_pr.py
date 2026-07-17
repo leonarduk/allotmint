@@ -135,9 +135,7 @@ def get_changed_files(branch: str, default_branch: str = "main") -> list[str]:
     return list(set(changed_files))
 
 
-def stage_and_commit(
-    files: Optional[list[str]], message: str, branch: str, default_branch: str = "main"
-) -> bool:
+def stage_and_commit(files: Optional[list[str]], message: str, branch: str, default_branch: str = "main") -> bool:
     """Stage and commit the specified files (or changed files in branch if none specified)."""
     try:
         if not files:
@@ -206,14 +204,16 @@ def fetch_issue(owner: str, repo: str, issue_id: int) -> Optional[dict]:
         print(f"Failed to fetch issue #{issue_id}: {exc}", file=sys.stderr)
         return None
 
+
 def get_ollama_server_url(host: str = "localhost", port: int = 11434) -> str:
     """Get Ollama server url."""
     return f"http://{host}:{port}"
 
+
 def is_ollama_running(host: str = "localhost", port: int = 11434) -> bool:
     """Check if Ollama is running locally."""
     try:
-        host_url= get_ollama_server_url(host=host, port=port)
+        host_url = get_ollama_server_url(host=host, port=port)
         resp = requests.get(f"{host_url}/api/tags", timeout=2)
         return resp.status_code == 200
     except requests.RequestException:
@@ -273,6 +273,7 @@ Issue body:
 Generate only the sections above, no preamble."""
 
     ollama_url = get_ollama_server_url()
+    print(f"Waiting for Ollama ({model}) to generate the PR body, this can take up to 60s...")
     try:
         resp = requests.post(
             f"{ollama_url}/api/generate",
@@ -311,6 +312,34 @@ def create_placeholder_pr_body(issue_id: int, issue_title: str, issue_body: str)
 Closes #{issue_id}"""
 
 
+def find_existing_pr(owner: str, repo: str, branch: str) -> Optional[str]:
+    """Return the URL of an existing open PR for this branch, if any."""
+    result = subprocess.run(
+        [
+            "gh",
+            "pr",
+            "list",
+            "--repo",
+            f"{owner}/{repo}",
+            "--head",
+            branch,
+            "--state",
+            "open",
+            "--json",
+            "url",
+            "-q",
+            ".[0].url",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode == 0:
+        url = result.stdout.strip()
+        return url or None
+    return None
+
+
 def create_pr(
     owner: str,
     repo: str,
@@ -319,7 +348,12 @@ def create_pr(
     title: str,
     body: str,
 ) -> Optional[str]:
-    """Create a PR and return the URL."""
+    """Create a PR and return the URL, or the existing PR's URL if one is already open."""
+    existing_pr_url = find_existing_pr(owner, repo, branch)
+    if existing_pr_url:
+        print(f"PR already exists for branch '{branch}': {existing_pr_url}")
+        return existing_pr_url
+
     body_file = None
     try:
         # Write body to temp file to avoid command-line quoting issues
@@ -374,16 +408,14 @@ def check_gh_available() -> None:
         )
     except FileNotFoundError:
         print(
-            "Error: GitHub CLI (gh) is not installed. "
-            "Install from https://cli.github.com/",
+            "Error: GitHub CLI (gh) is not installed. " "Install from https://cli.github.com/",
             file=sys.stderr,
         )
         sys.exit(1)
 
     if result.returncode != 0:
         print(
-            "Error: GitHub CLI (gh) is not authenticated. "
-            "Run 'gh auth login'.",
+            "Error: GitHub CLI (gh) is not authenticated. " "Run 'gh auth login'.",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -514,7 +546,7 @@ def main() -> None:
     pr_url = create_pr(owner, repo, branch, default_branch, f"[Issue #{issue_id}] {issue_title}", pr_body)
 
     if pr_url:
-        print(f"\n✓ PR created successfully!")
+        print("\n✓ PR created successfully!")
         print(f"  {pr_url}")
     else:
         print("Failed to create PR", file=sys.stderr)

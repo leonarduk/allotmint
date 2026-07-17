@@ -6,6 +6,7 @@ import { translateInstrumentType } from "../lib/instrumentType";
 import { money } from "../lib/money";
 import { useConfig } from "../ConfigContext";
 import { RelativeViewToggle } from "../components/RelativeViewToggle";
+import ChartSkeleton from "../components/skeletons/ChartSkeleton";
 import {
   PieChart,
   Pie,
@@ -168,7 +169,13 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
     }
   }, [portfolio, selectedAccounts]);
 
-  if (loading && !portfolio) return <div>Loading...</div>;
+  if (loading && !portfolio) {
+    return (
+      <div className="container mx-auto p-4">
+        <ChartSkeleton height={400} label={t("app.loading")} />
+      </div>
+    );
+  }
 
   const chartData =
     view === "asset" ? assetData : view === "sector" ? sectorData : regionData;

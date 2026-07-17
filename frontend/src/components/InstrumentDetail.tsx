@@ -11,6 +11,9 @@ import { useConfig } from "../ConfigContext";
 import type { InstrumentPosition, TradingSignal } from "../types";
 import { RelativeViewToggle } from "./RelativeViewToggle";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
+import ChartSkeleton from "./skeletons/ChartSkeleton";
+import TableRowsSkeleton from "./skeletons/TableRowsSkeleton";
+import TextSkeleton from "./skeletons/TextSkeleton";
 import {
   ResponsiveContainer,
   LineChart,
@@ -127,15 +130,12 @@ export function InstrumentPositionsTable({
       </thead>
       <tbody>
         {loading ? (
-          <tr>
-            <td
-              colSpan={relativeViewEnabled ? 2 : 5}
-              className={`${tableStyles.cell} ${tableStyles.center}`}
-              style={{ color: mutedColor }}
-            >
-              {t("app.loading")}
-            </td>
-          </tr>
+          <TableRowsSkeleton
+            rows={3}
+            colSpan={relativeViewEnabled ? 2 : 5}
+            label={t("app.loading")}
+            cellClassName={`${tableStyles.cell} ${tableStyles.center}`}
+          />
         ) : positions.length ? (
           positions.map((pos, i) => (
             <tr key={`${pos.owner}-${pos.account}-${i}`}>
@@ -532,9 +532,12 @@ export function InstrumentDetail({
               : undefined,
           }}
         >
-          {t("instrumentDetail.change7d")} {loading
-            ? t("app.loading")
-            : formatChangeSummary(change7dValue, change7dPct)}
+          {t("instrumentDetail.change7d")}{" "}
+          {loading ? (
+            <TextSkeleton width="4rem" label={t("app.loading")} />
+          ) : (
+            formatChangeSummary(change7dValue, change7dPct)
+          )}
         </span>
         {" • "}
         <span
@@ -546,9 +549,12 @@ export function InstrumentDetail({
               : undefined,
           }}
         >
-          {t("instrumentDetail.change30d")} {loading
-            ? t("app.loading")
-            : formatChangeSummary(change30dValue, change30dPct)}
+          {t("instrumentDetail.change30d")}{" "}
+          {loading ? (
+            <TextSkeleton width="4rem" label={t("app.loading")} />
+          ) : (
+            formatChangeSummary(change30dValue, change30dPct)
+          )}
         </span>
       </div>
       {err && <p style={{ color: palette.negative }}>{err}</p>}
@@ -633,16 +639,7 @@ export function InstrumentDetail({
       )}
       {priceMode === "intraday" ? (
         intradayLoading ? (
-          <div
-            style={{
-              height: 220,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            {t("app.loading")}
-          </div>
+          <ChartSkeleton height={220} label={t("app.loading")} />
         ) : (
           <ResponsiveContainer width="100%" height={220}>
             <LineChart data={intradayPrices}>
@@ -657,16 +654,7 @@ export function InstrumentDetail({
           </ResponsiveContainer>
         )
       ) : loading ? (
-        <div
-          style={{
-            height: 220,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          {t("app.loading")}
-        </div>
+        <ChartSkeleton height={220} label={t("app.loading")} />
       ) : (
         <ResponsiveContainer width="100%" height={220}>
           <LineChart data={prices}>
@@ -779,15 +767,12 @@ export function InstrumentDetail({
         </thead>
         <tbody>
           {loading ? (
-            <tr>
-              <td
-                colSpan={4}
-                className={`${tableStyles.cell} ${tableStyles.center}`}
-                style={{ color: palette.muted }}
-              >
-                {t("app.loading")}
-              </td>
-            </tr>
+            <TableRowsSkeleton
+              rows={5}
+              colSpan={4}
+              label={t("app.loading")}
+              cellClassName={`${tableStyles.cell} ${tableStyles.center}`}
+            />
           ) : prices.length ? (
             prices
               .slice(-60)

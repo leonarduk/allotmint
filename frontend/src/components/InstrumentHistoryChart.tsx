@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip } from "recharts";
+import ChartSkeleton from "./skeletons/ChartSkeleton";
 
 export type InstrumentHistoryPoint = {
   date: string;
@@ -40,18 +41,7 @@ export function InstrumentHistoryChart({ data, loading = false, showBollinger = 
   }, [data]);
 
   if (loading) {
-    return (
-      <div
-        style={{
-          height: 220,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        {t("app.loading")}
-      </div>
-    );
+    return <ChartSkeleton height={220} label={t("app.loading")} />;
   }
 
   return (

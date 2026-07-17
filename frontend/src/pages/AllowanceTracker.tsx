@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { getAllowances } from "../api";
 import EmptyState from "../components/EmptyState";
+import TableSkeleton from "../components/skeletons/TableSkeleton";
 
 interface AllowanceInfo {
   used: number;
@@ -9,6 +11,7 @@ interface AllowanceInfo {
 }
 
 export default function AllowanceTracker() {
+  const { t } = useTranslation();
   const [data, setData] = useState<Record<string, AllowanceInfo> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -23,7 +26,7 @@ export default function AllowanceTracker() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <p>Loading...</p>;
+  if (loading) return <TableSkeleton rows={4} columns={3} label={t("app.loading")} />;
   if (error) return <p className="text-red-500">{error}</p>;
   if (!data) return <EmptyState message="No data" />;
 

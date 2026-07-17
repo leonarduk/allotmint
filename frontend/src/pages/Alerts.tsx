@@ -1,11 +1,14 @@
 import { Fragment, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import * as api from "../api";
 import type { Alert } from "../types";
 import EmptyState from "../components/EmptyState";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import errorToast from "../utils/errorToast";
+import ListSkeleton from "../components/skeletons/ListSkeleton";
 
 export default function Alerts() {
+  const { t } = useTranslation();
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
   const parentRef = useRef<HTMLDivElement>(null);
@@ -68,7 +71,8 @@ export default function Alerts() {
         {heading}
         {marker}
         <div role="status" aria-live="polite">
-          Loading...
+          <span className="sr-only">{t("app.loading")}</span>
+          <ListSkeleton rows={5} label={t("app.loading")} wrap={false} />
         </div>
       </Fragment>
     );

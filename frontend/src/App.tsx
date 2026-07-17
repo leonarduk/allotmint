@@ -25,6 +25,8 @@ import { InstrumentTable } from './components/InstrumentTable';
 import { TransactionsPage } from './components/TransactionsPage';
 import lazyWithDelay from './utils/lazyWithDelay';
 import PortfolioDashboardSkeleton from './components/skeletons/PortfolioDashboardSkeleton';
+import TableSkeleton from './components/skeletons/TableSkeleton';
+import ChartSkeleton from './components/skeletons/ChartSkeleton';
 
 import { NotificationsDrawer } from './components/NotificationsDrawer';
 import { ComplianceWarnings } from './components/ComplianceWarnings';
@@ -669,7 +671,7 @@ export default function App({ onLogout }: AppProps) {
             )}
             {err && <p style={{ color: 'red' }}>{err}</p>}
             {loading ? (
-              <p>{t('app.loading')}</p>
+              <TableSkeleton rows={8} columns={6} label={t('app.loading')} />
             ) : (
               <>
                 <InstrumentTable rows={visibleInstruments} />
@@ -713,7 +715,7 @@ export default function App({ onLogout }: AppProps) {
         {mode === 'screener' && <ScreenerQuery />}
         {mode === 'timeseries' && <TimeseriesEdit />}
         {mode === 'virtual' && (
-          <Suspense fallback={<p>{t('app.loading')}</p>}>
+          <Suspense fallback={<PortfolioDashboardSkeleton label={t('app.loading')} />}>
             <VirtualPortfolio />
           </Suspense>
         )}
@@ -732,7 +734,7 @@ export default function App({ onLogout }: AppProps) {
         {mode === 'settings' && <UserConfigPage />}
         {mode === 'scenario' && <ScenarioTester />}
         {mode === 'research' && (
-          <Suspense fallback={<p>{t('app.loading')}</p>}>
+          <Suspense fallback={<ChartSkeleton height={400} label={t('app.loading')} />}>
             <InstrumentResearch ticker={researchTicker} />
           </Suspense>
         )}

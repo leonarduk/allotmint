@@ -1,4 +1,4 @@
-.PHONY: format lint local-up local-down lambda-up lambda-down lambda-test lambda-test-price lambda-test-trading
+.PHONY: format lint local-up local-down lambda-up lambda-down lambda-test lambda-test-price lambda-test-trading smoke-test-pr-comments
 
 format:
 	isort --sp backend/pyproject.toml backend tests
@@ -9,6 +9,11 @@ lint:
 	black --check --config backend/pyproject.toml backend tests
 	pytest
 
+
+# Requires `gh` CLI (authenticated) and network access — hits the live
+# GitHub API against a stable, merged PR. Not part of `make lint`/`pytest`.
+smoke-test-pr-comments:
+	python scripts/dev_tools/smoke_test_extract_pr_comments.py
 
 local-up:
 	docker compose -f docker-compose.local.yml --env-file .env.local up --build

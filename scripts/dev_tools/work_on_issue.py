@@ -7,6 +7,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import requests
@@ -82,9 +83,7 @@ def get_main_branch_sha(owner: str, repo: str) -> str:
         sys.exit(1)
 
 
-def create_branch(
-    owner: str, repo: str, branch_name: str, sha: str, token: str | None = None
-) -> None:
+def create_branch(owner: str, repo: str, branch_name: str, sha: str, token: str | None = None) -> None:
     """Create a branch in the remote repo."""
     url = f"https://api.github.com/repos/{owner}/{repo}/git/refs"
     headers = {"Accept": "application/vnd.github.v3+json"}
@@ -112,6 +111,12 @@ def main() -> None:
         "--token",
         help="GitHub personal access token (for creating branches)",
         default=None,
+    )
+    parser.add_argument(
+        "--type",
+        choices=["fix", "feat"],
+        default="fix",
+        help="Branch prefix to use (default: fix)",
     )
     args = parser.parse_args()
 
@@ -143,7 +148,7 @@ def main() -> None:
 
     # Create branch name
     slug = slugify(title)
-    branch_name = f"fix/issue-{args.issue_id}-{slug}"
+    branch_name = f"{args.type}/issue-{args.issue_id}-{slug}"
     print(f"Branch name: {branch_name}")
 
     # Get the current main/master branch SHA
@@ -153,6 +158,9 @@ def main() -> None:
     # Create branch in remote
     print("Creating branch in remote...")
     create_branch(owner, repo, branch_name, sha, args.token or os.getenv("GITHUB_TOKEN"))
+
+    # Small delay to avoid a race where the branch ref isn't visible yet
+    time.sleep(2)
 
     # Fetch the newly created branch so the local checkout can reference it
     try:

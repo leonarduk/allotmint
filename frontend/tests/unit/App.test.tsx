@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useEffect } from "react";
 import {
@@ -480,6 +480,120 @@ describe("App", () => {
     await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("alice"));
 
     resolveOwners?.([]);
+  });
+
+  it("resets portfolioAsOf to null for a newly selected owner before owners resolve (#5100)", async () => {
+    window.history.pushState({}, "", "/portfolio/alice");
+
+    let resolveOwners:
+      | ((owners: { owner: string; accounts: unknown[] }[]) => void)
+      | undefined;
+    const ownersPromise = new Promise<{ owner: string; accounts: unknown[] }[]>(
+      (resolve) => {
+        resolveOwners = resolve;
+      },
+    );
+
+    const mockGetPortfolio = vi
+      .fn()
+      .mockImplementation((owner: string, opts?: { asOf?: string }) =>
+        Promise.resolve({
+          owner,
+          as_of: opts?.asOf ?? "2026-01-01",
+          trades_this_month: 0,
+          trades_remaining: 0,
+          total_value_estimate_gbp: 0,
+          accounts: [],
+        } as Portfolio),
+      );
+
+    vi.doMock("@/api", async () => {
+      const actual = await vi.importActual<typeof import("@/api")>("@/api");
+      return {
+        ...actual,
+        getOwners: vi.fn().mockReturnValue(ownersPromise),
+        getGroups: vi.fn().mockResolvedValue([]),
+        getPortfolio: mockGetPortfolio,
+        getGroupInstruments: vi.fn().mockResolvedValue([]),
+        getGroupPortfolio: vi.fn(),
+        getGroupAlphaVsBenchmark: vi.fn(),
+        getGroupTrackingError: vi.fn(),
+        getGroupMaxDrawdown: vi.fn(),
+        getGroupSectorContributions: vi.fn(),
+        getGroupRegionContributions: vi.fn(),
+        getGroupMovers: vi.fn(),
+        getCachedGroupInstruments: undefined,
+        listInstrumentGroups: vi.fn().mockResolvedValue([]),
+        listInstrumentGroupingDefinitions: vi.fn().mockResolvedValue([]),
+        refreshPrices: vi.fn(),
+        getAlerts: vi.fn().mockResolvedValue([]),
+        getNudges: vi.fn().mockResolvedValue([]),
+        getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+        getCompliance: vi
+          .fn()
+          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+        getTimeseries: vi.fn().mockResolvedValue([]),
+        saveTimeseries: vi.fn(),
+        refetchTimeseries: vi.fn(),
+        rebuildTimeseriesCache: vi.fn(),
+        getTradingSignals: vi.fn().mockResolvedValue([]),
+        getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+      };
+    });
+
+    const { default: App } = await import("@/App");
+    const { configContext } = await import("@/ConfigContext");
+    const user = userEvent.setup();
+
+    const router = createMemoryRouter(
+      [
+        {
+          path: "*",
+          element: (
+            <configContext.Provider value={makeConfigValue()}>
+              <App />
+            </configContext.Provider>
+          ),
+        },
+      ],
+      { initialEntries: ["/portfolio/alice"] },
+    );
+
+    render(<RouterProvider router={router} />);
+
+    // Initial fetch for alice fires with no "as of" filter.
+    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("alice"));
+
+    // Apply an "as of" date filter, giving alice a non-null portfolioAsOf.
+    const dateInput = await screen.findByLabelText(/as of/i);
+    fireEvent.change(dateInput, { target: { value: "2025-01-01" } });
+    await user.click(screen.getByRole("button", { name: /go/i }));
+
+    await waitFor(() =>
+      expect(mockGetPortfolio).toHaveBeenCalledWith("alice", {
+        asOf: "2025-01-01",
+      }),
+    );
+
+    mockGetPortfolio.mockClear();
+
+    // Switch owners via direct navigation while getOwners is still pending.
+    // The reset effect only depends on groupsCatalogReady (#5094), so it must
+    // clear portfolioAsOf for bob without waiting on the pending owners
+    // request (#5100). The settled fetch for bob carries no "as of" filter,
+    // proving setPortfolioAsOf(null) fired before owners resolved.
+    await act(async () => {
+      await router.navigate("/portfolio/bob");
+    });
+
+    await waitFor(() => {
+      expect(mockGetPortfolio.mock.calls.at(-1)).toEqual(["bob"]);
+    });
+
+    resolveOwners?.([
+      { owner: "alice", accounts: [] },
+      { owner: "bob", accounts: [] },
+    ]);
   });
 
   it("does not fetch an owner portfolio for a slug that resolves to a group once groups load", async () => {

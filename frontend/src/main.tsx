@@ -313,7 +313,6 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
           if (!isMounted.current || activeRequest.current !== controller)
             return;
 
-          console.error('Failed to load configuration', err);
           const error =
             err instanceof DOMException && err.name === 'AbortError'
               ? new Error('Request timed out while loading configuration.')
@@ -324,6 +323,15 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
           shouldRetry = attempt + 1 < MAX_CONFIG_FETCH_ATTEMPTS;
           nextAttempt = attempt + 1;
           retryDelay = Math.min(30000, 2000 * 2 ** attempt);
+          // A single transient "Failed to fetch" that self-heals on the next
+          // attempt isn't an app-breaking failure — log it at warn so it
+          // doesn't read as an unhandled error in the console (#5109). Only
+          // the final, non-retryable failure escalates to console.error.
+          if (shouldRetry) {
+            console.warn('Failed to load configuration, retrying', err);
+          } else {
+            console.error('Failed to load configuration', err);
+          }
         })
         .finally(() => {
           window.clearTimeout(timeoutId);

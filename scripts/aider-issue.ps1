@@ -1,5 +1,9 @@
 param(
-    [Parameter(Mandatory)][string]$Issue
+    [Parameter(Mandatory)][string]$Issue,
+    # Bypass the active-operation check below (MERGE_HEAD/CHERRY_PICK_HEAD/
+    # rebase-merge/rebase-apply) for emergency recovery from a stale git state.
+    # Does not affect the unmerged-path detection or reset logic that follows.
+    [switch]$Force
 )
 
 # Pre-flight: require gh and aider on PATH
@@ -17,18 +21,23 @@ foreach ($cmd in @('gh', 'aider')) {
 # index first" regardless of which issue is being worked.
 $unmergedPaths = @(git diff --name-only --diff-filter=U 2>$null | Where-Object { $_ })
 if ($unmergedPaths.Count -gt 0) {
-    $gitDir = git rev-parse --git-dir
-    $opInProgress = @('MERGE_HEAD', 'CHERRY_PICK_HEAD', 'rebase-merge', 'rebase-apply') |
-        Where-Object { Test-Path (Join-Path $gitDir $_) }
-    if ($opInProgress) {
-        Write-Error "A git operation ($($opInProgress -join ', ')) is in progress with unresolved conflicts in: $($unmergedPaths -join ', '). Resolve or abort it manually before running this script."
-        exit 1
+    if ($Force) {
+        Write-Warning "Bypassing active-operation check due to -Force flag."
+    } else {
+        $gitDir = git rev-parse --git-dir
+        $opInProgress = @('MERGE_HEAD', 'CHERRY_PICK_HEAD', 'rebase-merge', 'rebase-apply') |
+            Where-Object { Test-Path (Join-Path $gitDir $_) }
+        if ($opInProgress) {
+            Write-Error "A git operation ($($opInProgress -join ', ')) is in progress with unresolved conflicts in: $($unmergedPaths -join ', '). Resolve or abort it manually before running this script."
+            exit 1
+        }
     }
-    # No merge/rebase/cherry-pick in progress, so this is leftover from an
-    # interrupted `git stash pop`. Reset just these paths to HEAD to clear the
-    # conflict. Deliberately do NOT run `git stash drop` - the corresponding
-    # stash entry (if any) is left in place for manual review, since choosing
-    # which side to keep is a judgment call this script shouldn't make.
+    # No merge/rebase/cherry-pick in progress (or -Force was passed), so treat
+    # this as leftover from an interrupted `git stash pop`. Reset just these
+    # paths to HEAD to clear the conflict. Deliberately do NOT run `git stash
+    # drop` - the corresponding stash entry (if any) is left in place for
+    # manual review, since choosing which side to keep is a judgment call
+    # this script shouldn't make.
     Write-Warning "Resetting leftover unresolved conflict in: $($unmergedPaths -join ', ') (likely from an interrupted 'git stash pop'). Any related stash entry is left in place for manual review."
     git checkout HEAD -- $unmergedPaths
     if ($LASTEXITCODE -ne 0) {

@@ -325,6 +325,13 @@ _CACHE_FILE_MTIMES: Dict[str, float] = {}
 # synchronous S3 HeadObject call on every check -- observed in production to
 # stack up into hundreds of calls within a single request and exhaust the
 # Lambda's 30s timeout.
+#
+# Trade-off: during this 60s window, confirmed-missing objects will not
+# trigger new HeadObject calls, so a ticker whose data appears in S3 shortly
+# after an initial 404 (e.g. a delayed data load) can keep returning stale
+# "not found" results for up to 60 seconds. Uses time.monotonic(), so the
+# TTL resets on Lambda freeze/thaw -- acceptable, since a thawed instance
+# re-checking S3 immediately is the safe direction to err in.
 _S3_HEAD_MISS_TTL_SECONDS = 60.0
 _S3_HEAD_MISS_CACHE: Dict[str, float] = {}
 

@@ -34,6 +34,7 @@ import {
   setAuthToken,
   UNAUTHORIZED_EVENT,
 } from './api';
+import { logConfigFetchFailure } from './configFetchLogging';
 import LoginPage from './LoginPage';
 import { UserProvider, useUser } from './UserContext';
 import ErrorBoundary from './ErrorBoundary';
@@ -323,15 +324,7 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
           shouldRetry = attempt + 1 < MAX_CONFIG_FETCH_ATTEMPTS;
           nextAttempt = attempt + 1;
           retryDelay = Math.min(30000, 2000 * 2 ** attempt);
-          // A single transient "Failed to fetch" that self-heals on the next
-          // attempt isn't an app-breaking failure — log it at warn so it
-          // doesn't read as an unhandled error in the console (#5109). Only
-          // the final, non-retryable failure escalates to console.error.
-          if (shouldRetry) {
-            console.warn('Failed to load configuration, retrying', err);
-          } else {
-            console.error('Failed to load configuration', err);
-          }
+          logConfigFetchFailure(err, shouldRetry);
         })
         .finally(() => {
           window.clearTimeout(timeoutId);

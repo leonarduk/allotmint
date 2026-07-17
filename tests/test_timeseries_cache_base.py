@@ -1,6 +1,7 @@
 import importlib
 import os
 import sys
+import threading
 from datetime import datetime, timezone
 
 import pandas as pd
@@ -288,6 +289,49 @@ def test_load_meta_timeseries_skips_repeat_head_object_for_confirmed_missing_cac
     for _ in range(5):
         cache.load_meta_timeseries("MISSING", "L", 5)
 
+    assert len(calls) == 1
+
+
+def test_has_cached_meta_timeseries_thread_safe_for_confirmed_missing(monkeypatch):
+    """Concurrent lookups of the same permanently-uncached ticker must still
+    only pay for one live HeadObject call, and the negative cache must not
+    corrupt under concurrent read/write access.
+
+    Regression guard for issue #5104: ``_S3_HEAD_MISS_CACHE`` was a plain
+    dict with no locking, so concurrent threads could race past the TTL
+    check and each issue their own HeadObject call.
+    """
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", "s3://bucket/timeseries")
+    cache = import_cache()
+    calls = []
+    calls_lock = threading.Lock()
+
+    class FakeS3Client:
+        def head_object(self, Bucket, Key):  # noqa: N803 - boto3 API parameter names
+            with calls_lock:
+                calls.append((Bucket, Key))
+            raise cache.ClientError(
+                {"Error": {"Code": "404", "Message": "Not Found"}},
+                "HeadObject",
+            )
+
+    patch_s3_client(monkeypatch, cache, FakeS3Client())
+
+    results = []
+    results_lock = threading.Lock()
+
+    def worker():
+        result = cache.has_cached_meta_timeseries("missing", "us")
+        with results_lock:
+            results.append(result)
+
+    threads = [threading.Thread(target=worker) for _ in range(10)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert results == [False] * 10
     assert len(calls) == 1
 
 

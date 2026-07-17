@@ -33,7 +33,12 @@ on:
     types: [completed]
   schedule:
     - cron: "*/30 * * * *"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to reconcile (leave empty to sweep all open PRs)"
+        required: false
+        type: string
 
 # Multiple review workflows (Claude/GPT/DeepSeek) can complete in rapid
 # succession for the same PR, each triggering a workflow_run event that
@@ -104,7 +109,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
+          PR_NUMBER_INPUT: ${{ github.event.inputs.pr_number }}
         run: |
+          if [ -n "${PR_NUMBER_INPUT// }" ]; then
+            echo "Reconciling single PR #${PR_NUMBER_INPUT} (workflow_dispatch input)."
+            bash .github/scripts/reconcile_changes_requested_label.sh "$PR_NUMBER_INPUT"
+            exit 0
+          fi
+
           PR_NUMBERS=$(gh pr list --repo "$REPO" --state open --label "Changes Requested" \
             --json number --jq '.[].number')
 

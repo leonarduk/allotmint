@@ -35,6 +35,10 @@ jobs:
         working-directory: frontend
         run: pnpm install --no-frozen-lockfile
 
+      - name: Audit dependencies
+        working-directory: frontend
+        run: pnpm audit --audit-level=high
+
       # tsc -b resolves frontend/tsconfig.json, which references
       # tsconfig.app.json (src/) and tsconfig.node.json (vite.config.ts).
       # Both are checked in one pass; no Vite build required.

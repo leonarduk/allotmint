@@ -99,6 +99,28 @@ describe("PortfolioView", () => {
         expect(screen.getByLabelText(/account type/i)).toBeInTheDocument();
     });
 
+    it("shows an accessible skeleton while the portfolio is loading", () => {
+        render(<PortfolioView data={null} loading />);
+
+        expect(screen.getByRole("status", { name: /loading/i })).toBeInTheDocument();
+        expect(screen.queryByText(/Approx Total:/)).not.toBeInTheDocument();
+    });
+
+    it("renders the portfolio dashboard once loading completes", () => {
+        render(<PortfolioView data={mockOwner} loading={false} />);
+
+        expect(screen.getByText(/Approx Total:/)).toBeInTheDocument();
+    });
+
+    it("shows an accessible skeleton while sector data is loading", async () => {
+        const { getOwnerSectorContributions } = await import("@/api");
+        vi.mocked(getOwnerSectorContributions).mockReturnValue(new Promise(() => {}));
+
+        render(<PortfolioView data={mockOwner} />);
+
+        expect(await screen.findByRole("status", { name: /loading/i })).toBeInTheDocument();
+    });
+
     it("shows the CSV import form when accounts exist", () => {
         render(<PortfolioView data={mockOwner} />);
 

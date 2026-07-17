@@ -34,6 +34,7 @@ import {
   setAuthToken,
   UNAUTHORIZED_EVENT,
 } from './api';
+import { logConfigFetchFailure } from './configFetchLogging';
 import LoginPage from './LoginPage';
 import { UserProvider, useUser } from './UserContext';
 import ErrorBoundary from './ErrorBoundary';
@@ -313,7 +314,6 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
           if (!isMounted.current || activeRequest.current !== controller)
             return;
 
-          console.error('Failed to load configuration', err);
           const error =
             err instanceof DOMException && err.name === 'AbortError'
               ? new Error('Request timed out while loading configuration.')
@@ -324,6 +324,7 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
           shouldRetry = attempt + 1 < MAX_CONFIG_FETCH_ATTEMPTS;
           nextAttempt = attempt + 1;
           retryDelay = Math.min(30000, 2000 * 2 ** attempt);
+          logConfigFetchFailure(err, shouldRetry);
         })
         .finally(() => {
           window.clearTimeout(timeoutId);

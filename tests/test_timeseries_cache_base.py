@@ -124,6 +124,49 @@ def test_has_cached_meta_timeseries_skips_repeat_head_object_for_confirmed_missi
     assert len(calls) == 1
 
 
+def test_has_cached_meta_timeseries_rechecks_after_negative_cache_ttl_expires(monkeypatch):
+    """The negative cache must expire after ``_S3_HEAD_MISS_TTL_SECONDS`` so a
+    ticker whose data appears in S3 after an initial 404 (e.g. delayed data
+    load) is re-checked instead of being reported missing forever.
+    """
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", "s3://bucket/timeseries")
+    cache = import_cache()
+    calls = []
+
+    # Advance by a fixed 61s (not derived from the module constant) so the
+    # test actually exercises the documented 60s TTL: if a future change sets
+    # _S3_HEAD_MISS_TTL_SECONDS to e.g. 3600, the cache would still be valid
+    # after 61s and this test would correctly fail instead of silently
+    # adapting to the new value.
+    assert cache._S3_HEAD_MISS_TTL_SECONDS == 60.0
+
+    class FakeS3Client:
+        def head_object(self, Bucket, Key):  # noqa: N803 - boto3 API parameter names
+            calls.append((Bucket, Key))
+            raise cache.ClientError(
+                {"Error": {"Code": "404", "Message": "Not Found"}},
+                "HeadObject",
+            )
+
+    patch_s3_client(monkeypatch, cache, FakeS3Client())
+
+    current_time = [1000.0]
+    monkeypatch.setattr(cache.time, "monotonic", lambda: current_time[0])
+
+    assert cache.has_cached_meta_timeseries("missing", "us") is False
+    assert len(calls) == 1
+
+    # Still within the TTL: cached negative result, no new HeadObject call.
+    current_time[0] += 59
+    assert cache.has_cached_meta_timeseries("missing", "us") is False
+    assert len(calls) == 1
+
+    # TTL has elapsed: the cache must expire and re-check S3.
+    current_time[0] += 2
+    assert cache.has_cached_meta_timeseries("missing", "us") is False
+    assert len(calls) == 2
+
+
 def test_has_cached_meta_timeseries_keeps_local_path_behaviour(monkeypatch, tmp_path):
     monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
     cache = import_cache()
@@ -333,6 +376,60 @@ def test_has_cached_meta_timeseries_thread_safe_for_confirmed_missing(monkeypatc
 
     assert results == [False] * 10
     assert len(calls) == 1
+
+
+def test_s3_object_mtime_returns_none_for_confirmed_missing(monkeypatch):
+    """``_s3_object_mtime`` must signal confirmed-missing objects with a
+    sentinel (``None``) rather than ``0.0``, so ``_invalidate_meta_caches_if_stale``
+    can short-circuit instead of treating every check as a stale-cache
+    transition. See issue #5107.
+    """
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", "s3://bucket/timeseries")
+    cache = import_cache()
+
+    class FakeS3:
+        def head_object(self, *, Bucket, Key):
+            raise cache.ClientError(
+                {"Error": {"Code": "404", "Message": "Not Found"}},
+                "HeadObject",
+            )
+
+    patch_s3_client(monkeypatch, cache, FakeS3())
+
+    cache_uri = "s3://bucket/timeseries/meta/MISSING_L.parquet"
+    assert cache._s3_object_mtime(cache_uri) == 0.0
+    assert cache._s3_object_mtime(cache_uri) is None
+
+
+def test_invalidate_meta_caches_skips_update_for_confirmed_missing(monkeypatch):
+    """Once a ticker is confirmed missing, repeat invalidation checks must
+    not touch ``_CACHE_FILE_MTIMES`` or re-clear the LRUs -- the negative
+    cache should be a true no-op fast path, not just a HeadObject skip.
+    """
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", "s3://bucket/timeseries")
+    cache = import_cache()
+
+    class FakeS3:
+        def head_object(self, *, Bucket, Key):
+            raise cache.ClientError(
+                {"Error": {"Code": "404", "Message": "Not Found"}},
+                "HeadObject",
+            )
+
+    patch_s3_client(monkeypatch, cache, FakeS3())
+
+    clears = []
+    monkeypatch.setattr(cache._load_meta_timeseries_cached, "cache_clear", lambda: clears.append(1))
+    monkeypatch.setattr(cache._memoized_range_cached, "cache_clear", lambda: clears.append(1))
+
+    cache._invalidate_meta_caches_if_stale("MISSING", "L")
+    cache_uri = cache.meta_timeseries_cache_path("MISSING", "L")
+    assert cache._CACHE_FILE_MTIMES[cache_uri] == 0.0
+    assert len(clears) == 0  # first-ever miss: prev was None, no clear triggered
+
+    cache._invalidate_meta_caches_if_stale("MISSING", "L")
+    assert cache._CACHE_FILE_MTIMES[cache_uri] == 0.0
+    assert len(clears) == 0  # confirmed-missing fast path: no further work
 
 
 def test_s3_range_cache_invalidates_when_last_modified_changes(monkeypatch):

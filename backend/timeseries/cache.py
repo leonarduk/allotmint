@@ -326,6 +326,13 @@ _CACHE_FILE_MTIMES: Dict[str, float] = {}
 # synchronous S3 HeadObject call on every check -- observed in production to
 # stack up into hundreds of calls within a single request and exhaust the
 # Lambda's 30s timeout.
+#
+# Trade-off: during this 60s window, confirmed-missing objects will not
+# trigger new HeadObject calls, so a ticker whose data appears in S3 shortly
+# after an initial 404 (e.g. a delayed data load) can keep returning stale
+# "not found" results for up to 60 seconds. Uses time.monotonic(), so the
+# TTL resets on Lambda freeze/thaw -- acceptable, since a thawed instance
+# re-checking S3 immediately is the safe direction to err in.
 _S3_HEAD_MISS_TTL_SECONDS = 60.0
 _S3_HEAD_MISS_CACHE: Dict[str, float] = {}
 _S3_HEAD_MISS_CACHE_LOCK = threading.Lock()
@@ -352,8 +359,17 @@ def _split_s3_cache_uri(cache: str) -> tuple[str, str] | None:
     return bucket, key
 
 
-def _s3_object_mtime(cache: str) -> float:
-    """Return the S3 object's LastModified timestamp for cache invalidation."""
+def _s3_object_mtime(cache: str) -> float | None:
+    """Return the S3 object's LastModified timestamp for cache invalidation.
+
+    Returns ``None`` when the object was already confirmed missing within
+    the negative-cache TTL, signalling the caller to skip invalidation
+    entirely. Without this, the fallback ``0.0`` used for a genuine miss
+    gets compared against the previously recorded mtime on every call,
+    which is harmless on its own but leaves callers no way to distinguish
+    "still missing" from "just went missing" and short-circuit further
+    provider fallback work.
+    """
 
     parsed = _split_s3_cache_uri(cache)
     if parsed is None:
@@ -361,7 +377,7 @@ def _s3_object_mtime(cache: str) -> float:
     bucket, key = parsed
 
     if _s3_object_recently_confirmed_missing(cache):
-        return 0.0
+        return None
 
     try:
         resp = _s3_client().head_object(Bucket=bucket, Key=key)
@@ -391,6 +407,11 @@ def _invalidate_meta_caches_if_stale(ticker: str, exchange: str) -> None:
     cache = meta_timeseries_cache_path(ticker, exchange)
     if cache.startswith("s3://"):
         mtime = _s3_object_mtime(cache)
+        if mtime is None:
+            # Confirmed-missing within the negative-cache TTL: the previous
+            # miss already cleared the LRUs once, so there is nothing new
+            # to invalidate and no reason to touch _CACHE_FILE_MTIMES.
+            return
     else:
         p = Path(cache)
         mtime = p.stat().st_mtime if p.exists() else 0.0

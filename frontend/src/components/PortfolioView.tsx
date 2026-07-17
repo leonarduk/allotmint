@@ -1,6 +1,7 @@
 import { Suspense, useState, useEffect, useCallback, useRef } from "react";
 import type { FormEvent } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import type { Portfolio, Account, SectorContribution } from "../types";
 import { AccountBlock } from "./AccountBlock";
 import { AddAccountForm } from "./AddAccountForm";
@@ -15,6 +16,7 @@ import { complianceForOwner, getOwnerSectorContributions } from "../api";
 import { getGrowthStage } from "../utils/growthStage";
 import lazyWithDelay from "../utils/lazyWithDelay";
 import PortfolioDashboardSkeleton from "./skeletons/PortfolioDashboardSkeleton";
+import TextSkeleton from "./skeletons/TextSkeleton";
 import { useFetch } from "../hooks/useFetch";
 import {
   ResponsiveContainer,
@@ -222,6 +224,7 @@ type Props = {
  * keep the JSX at the bottom easy to follow.
  */
 export function PortfolioView({ data, loading, error, onDateChange, onAccountAdded, onPositionAdded }: Props) {
+  const { t } = useTranslation();
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
   const [hasWarnings, setHasWarnings] = useState(false);
   const [pendingDate, setPendingDate] = useState<string>("");
@@ -278,7 +281,7 @@ export function PortfolioView({ data, loading, error, onDateChange, onAccountAdd
     };
   }, [owner]);
 
-  if (loading) return <div>Loading portfolio…</div>; // show a quick spinner
+  if (loading) return <PortfolioDashboardSkeleton label={t("app.loading")} />;
   if (error) return <div className="text-error">{error}</div>; // bubble errors
   if (!data) return <div>Select an owner.</div>; // nothing chosen yet
 
@@ -430,7 +433,7 @@ export function PortfolioView({ data, loading, error, onDateChange, onAccountAdd
                     Sector contribution
                   </h3>
                   {sectorLoading ? (
-                    <p className="text-sm text-gray-400">Loading sector data…</p>
+                    <TextSkeleton width="8rem" label={t("app.loading")} />
                   ) : sectorError ? (
                     <p className="text-sm text-red-500">
                       Failed to load sector contribution

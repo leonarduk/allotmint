@@ -160,7 +160,7 @@ def main() -> None:
     create_branch(owner, repo, branch_name, sha, args.token or os.getenv("GITHUB_TOKEN"))
 
     # Small delay to avoid a race where the branch ref isn't visible yet
-    time.sleep(2)
+    time.sleep(1)
 
     # Fetch the newly created branch so the local checkout can reference it
     try:

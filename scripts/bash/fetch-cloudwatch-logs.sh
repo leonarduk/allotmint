@@ -10,9 +10,29 @@
 # pagination); an empty/"None" result over --output text means no events
 # matched (AWS CLI JMESPath null -> text "None").
 #
-# Always exits 0 (log fetching is diagnostic, not load-bearing); on error it
-# emits a `::warning::` GitHub Actions annotation instead of failing or
-# silently printing "(no log events found)".
+# stdout/stderr contract (see #4074, #4870):
+#   stdout - result data only, one line per log message (newline-delimited,
+#     no JSON/other structure), in the order returned by filter-log-events.
+#     If no events matched, stdout is exactly the literal line
+#     "(no log events found)". Callers that want to programmatically detect
+#     "no events" vs "events present" should match on that literal string
+#     rather than checking for empty stdout, since stdout is never empty.
+#   stderr - diagnostics only, never result data. All output on stderr is a
+#     GitHub Actions `::warning::...` annotation (AccessDeniedException on
+#     the log group, a non-numeric lookback-seconds argument, or any other
+#     AWS CLI failure); none of it is fatal to the calling workflow. Callers
+#     do not need to parse stderr - it exists for the workflow log/UI only.
+#   exit codes - always 0. Log fetching is diagnostic, not load-bearing, so
+#     AWS CLI/API errors and invalid arguments are reported via the
+#     `::warning::` stderr annotation above rather than a non-zero exit or a
+#     silently swallowed failure.
+#
+# Example:
+#   $ ./fetch-cloudwatch-logs.sh /aws/lambda/my-fn 300
+#   (no log events found)          # -> stdout; log group had no events
+#   $ ./fetch-cloudwatch-logs.sh /aws/lambda/no-access 300
+#   ::warning::logs:FilterLogEvents denied for /aws/lambda/no-access; CloudWatch logs not available (see #3742)
+#                                   # -> stderr; stdout is empty, exit code 0
 
 set -euo pipefail
 

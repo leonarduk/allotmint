@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import threading
 import time
 from datetime import date, datetime, timedelta
 from functools import lru_cache
@@ -334,10 +335,12 @@ _CACHE_FILE_MTIMES: Dict[str, float] = {}
 # re-checking S3 immediately is the safe direction to err in.
 _S3_HEAD_MISS_TTL_SECONDS = 60.0
 _S3_HEAD_MISS_CACHE: Dict[str, float] = {}
+_S3_HEAD_MISS_CACHE_LOCK = threading.Lock()
 
 
 def _s3_object_recently_confirmed_missing(cache: str) -> bool:
-    missed_at = _S3_HEAD_MISS_CACHE.get(cache)
+    with _S3_HEAD_MISS_CACHE_LOCK:
+        missed_at = _S3_HEAD_MISS_CACHE.get(cache)
     return missed_at is not None and time.monotonic() - missed_at < _S3_HEAD_MISS_TTL_SECONDS
 
 
@@ -381,7 +384,8 @@ def _s3_object_mtime(cache: str) -> float | None:
     except ClientError as exc:
         error_code = exc.response.get("Error", {}).get("Code")
         if error_code in {"404", "NoSuchKey", "NotFound"}:
-            _S3_HEAD_MISS_CACHE[cache] = time.monotonic()
+            with _S3_HEAD_MISS_CACHE_LOCK:
+                _S3_HEAD_MISS_CACHE[cache] = time.monotonic()
         else:
             logger.warning("Unable to read S3 cache metadata for %s: %s", _sanitize_for_log(cache), exc)
         return 0.0
@@ -389,7 +393,8 @@ def _s3_object_mtime(cache: str) -> float | None:
         logger.warning("Unable to read S3 cache metadata for %s: %s", _sanitize_for_log(cache), exc)
         return 0.0
 
-    _S3_HEAD_MISS_CACHE.pop(cache, None)
+    with _S3_HEAD_MISS_CACHE_LOCK:
+        _S3_HEAD_MISS_CACHE.pop(cache, None)
     last_modified = resp.get("LastModified")
     if not hasattr(last_modified, "timestamp"):
         logger.warning("S3 cache metadata for %s is missing LastModified", _sanitize_for_log(cache))
@@ -668,14 +673,16 @@ def _s3_cache_object_exists(cache: str) -> bool:
     except ClientError as exc:
         error_code = exc.response.get("Error", {}).get("Code")
         if error_code in {"404", "NoSuchKey", "NotFound"}:
-            _S3_HEAD_MISS_CACHE[cache] = time.monotonic()
+            with _S3_HEAD_MISS_CACHE_LOCK:
+                _S3_HEAD_MISS_CACHE[cache] = time.monotonic()
             return False
         logger.error("Unable to check S3 timeseries cache object %s: %s", _sanitize_for_log(cache), exc)
         return False
     except BotoCoreError as exc:
         logger.error("AWS client error checking S3 timeseries cache object %s: %s", _sanitize_for_log(cache), exc)
         return False
-    _S3_HEAD_MISS_CACHE.pop(cache, None)
+    with _S3_HEAD_MISS_CACHE_LOCK:
+        _S3_HEAD_MISS_CACHE.pop(cache, None)
     return True
 
 

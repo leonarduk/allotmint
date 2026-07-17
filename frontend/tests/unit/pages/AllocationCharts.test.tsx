@@ -88,11 +88,11 @@ describe("AllocationCharts page", () => {
     mockGetGroupPortfolio.mockReturnValueOnce(promise);
 
     render(<AllocationCharts />);
-    expect(screen.getByText(/Loading/)).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: /Loading/ })).toBeInTheDocument();
 
     resolveFn!(samplePortfolio);
     expect(await screen.findByText(/Instrument Types/)).toBeInTheDocument();
-    expect(screen.queryByText(/Loading/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("status", { name: /Loading/ })).not.toBeInTheDocument();
   });
 
   it("displays an error message when API call fails", async () => {

@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { useCallback, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { OpportunityEntry } from "../types";
 import { getOpportunities } from "../api";
 import { useFetch } from "../hooks/useFetch";
@@ -8,6 +9,7 @@ import moversPlugin from "../plugins/movers";
 import { SignalBadge } from "./SignalBadge";
 import { InstrumentDetail } from "./InstrumentDetail";
 import EmptyState from "./EmptyState";
+import TableSkeleton from "./skeletons/TableSkeleton";
 
 interface Props {
   slug?: string;
@@ -16,6 +18,7 @@ interface Props {
 }
 
 export function TopMoversSummary({ slug, days = 1, limit = 5 }: Props) {
+  const { t } = useTranslation();
   const fetchOpportunities = useCallback(async () => {
     if (!slug) return null;
     try {
@@ -41,7 +44,7 @@ export function TopMoversSummary({ slug, days = 1, limit = 5 }: Props) {
   }, [data, limit]);
 
   if (!slug) return <EmptyState message="No group selected." />;
-  if (loading) return <div>Loading...</div>;
+  if (loading) return <TableSkeleton rows={limit} columns={4} label={t("app.loading")} />;
   if (error) return <div>Failed to load movers.</div>;
   if (rows.length === 0) return null;
 

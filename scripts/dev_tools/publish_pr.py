@@ -357,18 +357,26 @@ def create_pr(
             body_file.unlink(missing_ok=True)
 
 
-def check_gh_installed() -> bool:
-    """Check if gh CLI is installed and accessible."""
+def check_gh_available() -> None:
+    """Verify gh CLI is installed and authenticated, exiting with a clear message if not."""
+    error_message = (
+        "Error: GitHub CLI (gh) is not installed or not authenticated. "
+        "Install from https://cli.github.com/ and run 'gh auth login'."
+    )
     try:
-        subprocess.run(
-            ["gh", "--version"],
+        result = subprocess.run(
+            ["gh", "auth", "status"],
             capture_output=True,
             text=True,
-            check=True,
+            check=False,
         )
-        return True
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return False
+    except FileNotFoundError:
+        print(error_message, file=sys.stderr)
+        sys.exit(1)
+
+    if result.returncode != 0:
+        print(error_message, file=sys.stderr)
+        sys.exit(1)
 
 
 def main() -> None:
@@ -410,11 +418,6 @@ def main() -> None:
         os.chdir(git_root)
     except subprocess.CalledProcessError:
         print("Error: Could not determine git root directory", file=sys.stderr)
-        sys.exit(1)
-
-    # Check prerequisites
-    if not check_gh_installed():
-        print("Error: 'gh' CLI not found. Install it from https://github.com/cli/cli", file=sys.stderr)
         sys.exit(1)
 
     # Get repo info
@@ -496,6 +499,7 @@ def main() -> None:
         pr_body += f"\n\nCloses #{issue_id}"
 
     # Create PR
+    check_gh_available()
     print("Creating PR...")
     pr_url = create_pr(owner, repo, branch, default_branch, f"[Issue #{issue_id}] {issue_title}", pr_body)
 

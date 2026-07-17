@@ -93,9 +93,10 @@ def check_working_tree_clean() -> bool:
         return False
 
 
-def get_changed_files(branch: str, default_branch: str = "origin/main") -> list[str]:
+def get_changed_files(branch: str, default_branch: str = "main") -> list[str]:
     """Get list of changed files: either uncommitted changes or commits on the branch."""
     changed_files = []
+    remote_default_branch = f"origin/{default_branch or 'main'}"
     try:
         # Check for both staged and unstaged changes
         result = subprocess.run(
@@ -110,7 +111,7 @@ def get_changed_files(branch: str, default_branch: str = "origin/main") -> list[
 
         # Check for commits on the branch only if we have a merge base
         result = subprocess.run(
-            ["git", "merge-base", branch, default_branch],
+            ["git", "merge-base", branch, remote_default_branch],
             capture_output=True,
             text=True,
             check=False,
@@ -134,7 +135,9 @@ def get_changed_files(branch: str, default_branch: str = "origin/main") -> list[
     return list(set(changed_files))
 
 
-def stage_and_commit(files: Optional[list[str]], message: str, branch: str, default_branch: str = "origin/main") -> bool:
+def stage_and_commit(
+    files: Optional[list[str]], message: str, branch: str, default_branch: str = "main"
+) -> bool:
     """Stage and commit the specified files (or changed files in branch if none specified)."""
     try:
         if not files:

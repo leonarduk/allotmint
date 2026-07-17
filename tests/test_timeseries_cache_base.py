@@ -94,6 +94,35 @@ def test_has_cached_meta_timeseries_returns_false_for_missing_s3_object(monkeypa
     assert created_clients == ["s3"]
 
 
+def test_has_cached_meta_timeseries_skips_repeat_head_object_for_confirmed_missing(monkeypatch):
+    """A permanently-uncached ticker should only pay for one live HeadObject
+    call within the negative-cache TTL, not one per lookup.
+
+    Regression guard for the retry storm in issue #5093: requests touching a
+    delisted/unresolvable ticker were issuing a synchronous S3 HeadObject call
+    on every check, stacking up into hundreds of calls within a single
+    request and exhausting the Lambda's 30s timeout.
+    """
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", "s3://bucket/timeseries")
+    cache = import_cache()
+    calls = []
+
+    class FakeS3Client:
+        def head_object(self, Bucket, Key):  # noqa: N803 - boto3 API parameter names
+            calls.append((Bucket, Key))
+            raise cache.ClientError(
+                {"Error": {"Code": "404", "Message": "Not Found"}},
+                "HeadObject",
+            )
+
+    patch_s3_client(monkeypatch, cache, FakeS3Client())
+
+    for _ in range(5):
+        assert cache.has_cached_meta_timeseries("missing", "us") is False
+
+    assert len(calls) == 1
+
+
 def test_has_cached_meta_timeseries_keeps_local_path_behaviour(monkeypatch, tmp_path):
     monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
     cache = import_cache()
@@ -227,6 +256,39 @@ def test_local_meta_cache_still_invalidates_when_file_mtime_changes(monkeypatch,
     assert second["Close"].iloc[0] == 1.0
     assert third["Close"].iloc[0] == 2.0
     assert len(loads) == 2
+
+
+def test_load_meta_timeseries_skips_repeat_head_object_for_confirmed_missing_cache(monkeypatch):
+    """``_invalidate_meta_caches_if_stale`` must not re-issue a live S3
+    HeadObject call on every request for a ticker with no cache object at
+    all -- see issue #5093 for the production retry-storm this caused.
+    """
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", "s3://bucket/timeseries")
+    cache = import_cache()
+    calls = []
+
+    class FakeS3:
+        def head_object(self, *, Bucket, Key):
+            calls.append((Bucket, Key))
+            raise cache.ClientError(
+                {"Error": {"Code": "404", "Message": "Not Found"}},
+                "HeadObject",
+            )
+
+    patch_s3_client(monkeypatch, cache, FakeS3())
+
+    loads = []
+
+    def fake_rolling_cache(*_args, **_kwargs):
+        loads.append(1)
+        return _frame(1.0)
+
+    monkeypatch.setattr(cache, "_rolling_cache", fake_rolling_cache)
+
+    for _ in range(5):
+        cache.load_meta_timeseries("MISSING", "L", 5)
+
+    assert len(calls) == 1
 
 
 def test_s3_range_cache_invalidates_when_last_modified_changes(monkeypatch):

@@ -111,20 +111,27 @@ jobs:
           REPO: ${{ github.repository }}
           PR_NUMBER_INPUT: ${{ github.event.inputs.pr_number }}
         run: |
-          if [ -n "${PR_NUMBER_INPUT// }" ]; then
+          # xargs collapses/trims surrounding whitespace so a blank or
+          # whitespace-only input is correctly treated as "not provided".
+          PR_NUMBER_INPUT="$(echo "$PR_NUMBER_INPUT" | xargs)"
+
+          if [ -n "$PR_NUMBER_INPUT" ]; then
+            if ! [[ "$PR_NUMBER_INPUT" =~ ^[0-9]+$ ]]; then
+              echo "::error::Invalid pr_number '${PR_NUMBER_INPUT}': must be a positive integer."
+              exit 1
+            fi
             echo "Reconciling single PR #${PR_NUMBER_INPUT} (workflow_dispatch input)."
             bash .github/scripts/reconcile_changes_requested_label.sh "$PR_NUMBER_INPUT"
-            exit 0
+          else
+            PR_NUMBERS=$(gh pr list --repo "$REPO" --state open --label "Changes Requested" \
+              --json number --jq '.[].number')
+
+            if [ -z "$PR_NUMBERS" ]; then
+              echo "No open PRs carry the 'Changes Requested' label."
+              exit 0
+            fi
+
+            for PR_NUMBER in $PR_NUMBERS; do
+              bash .github/scripts/reconcile_changes_requested_label.sh "$PR_NUMBER"
+            done
           fi
-
-          PR_NUMBERS=$(gh pr list --repo "$REPO" --state open --label "Changes Requested" \
-            --json number --jq '.[].number')
-
-          if [ -z "$PR_NUMBERS" ]; then
-            echo "No open PRs carry the 'Changes Requested' label."
-            exit 0
-          fi
-
-          for PR_NUMBER in $PR_NUMBERS; do
-            bash .github/scripts/reconcile_changes_requested_label.sh "$PR_NUMBER"
-          done

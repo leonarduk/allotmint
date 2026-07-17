@@ -56,8 +56,12 @@ def is_human_comment(comment: dict) -> bool:
     return user.get("type") != "Bot"
 
 
-def find_review_anchor(issue_comments: list[dict], provider_name: str) -> str:
+def find_review_anchor(comments: list[dict], provider_name: str) -> str:
     """Return the timestamp of the provider's most recent posted review comment.
+
+    Reviews are normally posted as top-level issue comments, but this accepts
+    any list of comments, so callers can pass inline (PR review) comments too
+    in case a review ever lands there instead.
 
     Returns an empty string if no prior review comment exists, meaning the full
     discussion history should be included.
@@ -65,7 +69,7 @@ def find_review_anchor(issue_comments: list[dict], provider_name: str) -> str:
     marker = f"## {provider_name} AI Code Review"
     timestamps = [
         comment["created_at"]
-        for comment in issue_comments
+        for comment in comments
         if not is_human_comment(comment) and comment.get("body", "").startswith(marker)
     ]
     return max(timestamps, default="")
@@ -83,7 +87,7 @@ def collect_discussion(repo: str, pr_number: str, provider_name: str) -> str:
     issue_comments = gh_api_list(f"repos/{repo}/issues/{pr_number}/comments")
     inline_comments = gh_api_list(f"repos/{repo}/pulls/{pr_number}/comments")
 
-    anchor = find_review_anchor(issue_comments, provider_name)
+    anchor = find_review_anchor(issue_comments + inline_comments, provider_name)
 
     entries: list[tuple[str, str]] = []
     for comment in issue_comments:

@@ -56,6 +56,13 @@ jobs:
           aws s3 sync "s3://$DATA_BUCKET/" data/
 
       - name: Type-check backend
+        # --explicit-package-bases is required because of the root-level __init__.py
+        # (added in #4840 so `backend.contracts_spa` imports resolve from the repo
+        # root). Without it, mypy walks up from that __init__.py to infer a module
+        # name from the checkout directory itself, which fails whenever that
+        # directory name isn't a valid Python identifier (e.g. a worktree path
+        # like allotmint-issue-4842 or any path containing a hyphen) with
+        # "contains __init__.py but is not a valid Python package name".
         run: |
           test -f mypy.ini
           python -m mypy --version

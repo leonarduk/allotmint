@@ -33,6 +33,12 @@ jobs:
         working-directory: frontend
       - run: npm test -- --run
         working-directory: frontend
+      - name: Check cdk/tests/ exists and has tests
+        run: |
+          if [ ! -d "cdk/tests" ] || [ -z "$(ls -A cdk/tests/)" ]; then
+            echo "ERROR: cdk/tests/ is missing or empty. The test job requires at least one test file in cdk/tests/."
+            exit 1
+          fi
       - name: CDK infrastructure tests
         run: pytest cdk/tests/ --no-cov
 

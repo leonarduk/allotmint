@@ -359,10 +359,6 @@ def create_pr(
 
 def check_gh_available() -> None:
     """Verify gh CLI is installed and authenticated, exiting with a clear message if not."""
-    error_message = (
-        "Error: GitHub CLI (gh) is not installed or not authenticated. "
-        "Install from https://cli.github.com/ and run 'gh auth login'."
-    )
     try:
         result = subprocess.run(
             ["gh", "auth", "status"],
@@ -371,11 +367,19 @@ def check_gh_available() -> None:
             check=False,
         )
     except FileNotFoundError:
-        print(error_message, file=sys.stderr)
+        print(
+            "Error: GitHub CLI (gh) is not installed. "
+            "Install from https://cli.github.com/",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     if result.returncode != 0:
-        print(error_message, file=sys.stderr)
+        print(
+            "Error: GitHub CLI (gh) is not authenticated. "
+            "Run 'gh auth login'.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
 

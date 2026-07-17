@@ -125,3 +125,43 @@ def test_deploy_workflow_verify_smoke_tests_references_existing_job() -> None:
             f"verify-smoke-tests needs '{job_name}', but no such job exists in "
             "deploy-lambda.yml — the referenced job may have been renamed"
         )
+
+
+def _step_name(step: dict) -> str:
+    return step.get("name", "") or ""
+
+
+def test_deploy_lambda_step_order() -> None:
+    """The deploy job in deploy-lambda.yml must build before it deploys.
+
+    If "Build frontend" is reordered to run after the first "cdk deploy"
+    step, the deploy would ship stale frontend assets. This checks semantic
+    content (step name/run text) rather than hardcoded indices, so unrelated
+    inserted/reordered steps elsewhere in the job don't break it.
+    """
+    workflow = yaml.safe_load(DEPLOY_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    steps = workflow["jobs"]["deploy"]["steps"]
+
+    build_idx: int | None = None
+    deploy_idx: int | None = None
+
+    for i, step in enumerate(steps):
+        name = _step_name(step)
+        run = _step_run(step)
+        if build_idx is None and ("Build frontend" in name or "npm run build" in run):
+            build_idx = i
+        if deploy_idx is None and ("cdk deploy" in run or name.startswith("Deploy ")):
+            deploy_idx = i
+
+    assert build_idx is not None, (
+        "deploy job has no step that builds the frontend "
+        "(expected a step with 'Build frontend' in its name or 'npm run build' in its run)"
+    )
+    assert deploy_idx is not None, (
+        "deploy job has no step that deploys infrastructure "
+        "(expected a step with 'cdk deploy' in its run or a name starting with 'Deploy ')"
+    )
+    assert build_idx < deploy_idx, (
+        "Build step must run before the first deploy step in the deploy job. "
+        f"Found build at index {build_idx}, deploy at index {deploy_idx}."
+    )

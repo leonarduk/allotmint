@@ -39,8 +39,35 @@ def test_lists_quality_for_all_cached_tickers(monkeypatch):
     assert resp.status_code == 200
     data = resp.json()
     assert data["count"] == 2
+    assert data["truncated"] is False
     tickers = {(p["ticker"], p["exchange"]) for p in data["positions"]}
     assert tickers == {("ABC", "L"), ("XYZ", "N")}
+
+
+def test_max_results_limits_pairs_and_sets_truncated(monkeypatch):
+    cached = {("ABC", "L"): _clean_df(), ("XYZ", "N"): _clean_df()}
+    client = _client(monkeypatch, cached)
+    resp = client.get("/data-quality/timeseries?max_results=1")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["count"] == 1
+    assert data["truncated"] is True
+
+
+def test_max_results_larger_than_total_is_not_truncated(monkeypatch):
+    cached = {("ABC", "L"): _clean_df(), ("XYZ", "N"): _clean_df()}
+    client = _client(monkeypatch, cached)
+    resp = client.get("/data-quality/timeseries?max_results=10")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["count"] == 2
+    assert data["truncated"] is False
+
+
+def test_max_results_out_of_range_rejected(monkeypatch):
+    client = _client(monkeypatch, {})
+    resp = client.get("/data-quality/timeseries?max_results=0")
+    assert resp.status_code == 400
 
 
 def test_filters_to_single_ticker(monkeypatch):

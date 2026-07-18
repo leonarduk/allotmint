@@ -23,7 +23,7 @@ or AI agent's default language.
 Two independent CDK stacks (`cdk/stacks/static_site_stack.py`, `cdk/stacks/backend_lambda_stack.py`) make up the deployed system. The frontend is served by CloudFront directly from S3; the backend is a separate, CloudFront-less HTTP API. Cognito issues the ID token the browser sends as a bearer token; API Gateway verifies it before Lambda ever runs.
 
 ```mermaid
-flowchart LR
+flowchart TD
     Browser(["Browser"])
 
     subgraph StaticSiteStack["StaticSiteStack"]
@@ -83,7 +83,7 @@ flowchart TD
     J --> K["Smoke checks (/health, /api-console 401) + Lighthouse CI"]
 ```
 
-A static, non-interactive copy of the topology is kept at [docs/aws-architecture.svg](docs/aws-architecture.svg) for contexts that can't render Mermaid.
+Both diagrams above are authored directly as Mermaid code blocks in this README and render natively on GitHub — edit them in place, there's no separate source file or regeneration step.
 
 ## Design decisions
 

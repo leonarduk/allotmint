@@ -28,6 +28,10 @@ jobs:
   # context a real reusable-workflow run would produce ("ai-review / GPT AI
   # code review"), so any branch protection rule keyed on that exact string
   # still gets satisfied for Dependabot PRs.
+  #
+  # This context is NOT currently a required status check on `main` (only
+  # DeepSeek's is — see deepseek-pr-review.yml). Kept here for consistency
+  # and in case this context is ever made required in the future.
   dependabot-pass:
     name: ai-review / GPT AI code review
     if: github.actor == 'dependabot[bot]'

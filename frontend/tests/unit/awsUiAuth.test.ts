@@ -9,6 +9,14 @@ const AUTH_CONFIG = {
   clientId: 'client123',
 };
 
+// Shared by the "no OAuth params" and "OAuth params present" exchangeCode
+// tests below, which otherwise duplicate this stubGlobal/mock setup.
+const stubFetch = (resolvedValue?: unknown) => {
+  const fetchMock = resolvedValue === undefined ? vi.fn() : vi.fn().mockResolvedValue(resolvedValue);
+  vi.stubGlobal('fetch', fetchMock);
+  return fetchMock;
+};
+
 const setLocation = (search = '') => {
   Object.defineProperty(window, 'location', {
     configurable: true,
@@ -69,8 +77,7 @@ describe('ensureAwsUiAuth', () => {
     // (exchangeCode is an unexported module-internal function and, under
     // Vitest/ESM, spying on it directly would not intercept the in-module call
     // from ensureAwsUiAuth anyway).
-    const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
+    const fetchMock = stubFetch();
 
     await expect(ensureAwsUiAuth(AUTH_CONFIG)).resolves.toBe(true);
 
@@ -187,11 +194,10 @@ describe('ensureAwsUiAuth', () => {
       // Same proxy reasoning as the "no OAuth params" test above: exchangeCode
       // itself isn't mockable across the module boundary, so we assert on its
       // one externally observable effect — the /oauth2/token fetch call.
-      const fetchMock = vi.fn().mockResolvedValue({
+      const fetchMock = stubFetch({
         ok: true,
         json: () => Promise.resolve({ id_token: 'tok', expires_in: 3600 }),
       });
-      vi.stubGlobal('fetch', fetchMock);
 
       await expect(ensureAwsUiAuth(AUTH_CONFIG)).resolves.toBe(true);
 

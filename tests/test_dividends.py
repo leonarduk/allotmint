@@ -221,6 +221,60 @@ def test_refresh_dividends_skips_zero_unit_holding(tmp_path, monkeypatch):
     assert not called, "provider must not be queried for a zero-unit holding"
 
 
+def test_refresh_dividends_uses_units_held_as_of_ex_date_not_current(tmp_path, monkeypatch):
+    """Regression test for #4947.
+
+    Units bought *after* the ex-date must not inflate the recorded amount,
+    and units sold *before* the ex-date must not be double-counted either.
+    The holding is 200 units today, but only 100 were held on the ex-date
+    (200 bought, 100 sold before the ex-date, 100 bought back after it) —
+    the dividend must be sized on the 100 units actually held on the ex-date.
+    """
+    owner_dir = tmp_path / "alice"
+    owner_dir.mkdir(parents=True)
+    (owner_dir / "isa.json").write_text(
+        json.dumps(
+            {
+                "owner": "alice",
+                "account_type": "isa",
+                "currency": "GBP",
+                "holdings": [{"ticker": "AAA.L", "units": 200}],
+            }
+        )
+    )
+    sell_before_ex_date = (pd.Timestamp.today() - pd.Timedelta(days=15)).date().isoformat()
+    buy_after_ex_date = (pd.Timestamp.today() - pd.Timedelta(days=1)).date().isoformat()
+    (owner_dir / "isa_transactions.json").write_text(
+        json.dumps(
+            {
+                "owner": "alice",
+                "account_type": "isa",
+                "transactions": [
+                    {"type": "BUY", "ticker": "AAA.L", "date": "2024-01-01", "units": 200, "price_gbp": 1.0},
+                    {"type": "SELL", "ticker": "AAA.L", "date": sell_before_ex_date, "units": 100, "price_gbp": 1.0},
+                    {"type": "BUY", "ticker": "AAA.L", "date": buy_after_ex_date, "units": 100, "price_gbp": 1.0},
+                ],
+            }
+        )
+    )
+    _store(tmp_path, monkeypatch)
+
+    monkeypatch.setattr(
+        dividends.yf,
+        "Ticker",
+        lambda ticker: SimpleNamespace(dividends=_dividends_series({RECENT_EX_DATE: 0.5})),
+    )
+    monkeypatch.setattr(dividends, "get_instrument_meta", lambda ticker: {"currency": "GBP"})
+
+    summary = dividends.refresh_dividends()
+
+    assert summary["dividends_created"] == 1
+    new_div = next(t for t in _read_transactions(tmp_path, "alice", "isa") if t["type"] == "DIVIDEND")
+    # 0.5/share * 100 units held on the ex-date = 50.00 GBP -> 5000 pence.
+    # The current-units bug would have used 200 units -> 10000 pence.
+    assert new_div["amount_minor"] == 5000
+
+
 def test_refresh_dividends_processes_multiple_owners_and_accounts(tmp_path, monkeypatch):
     _make_holding("alice", "isa", "AAA.L", 100, tmp_path)
     _make_holding("bob", "sipp", "AAA.L", 50, tmp_path)

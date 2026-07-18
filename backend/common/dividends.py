@@ -14,11 +14,12 @@ Design notes / known v1 limitations
   Fixing the cash-flow sign tables to also recognise ``DIVIDEND`` is tracked
   separately and out of scope here.
 * Amount calculation: yfinance's ``Ticker.dividends`` returns a per-share
-  amount, not the total cash received. This module approximates the total by
-  multiplying the per-share amount by the *currently* held unit count for
-  that position, rather than reconstructing historical share counts as of the
-  ex-date. If units held changed between the ex-date and when this job runs,
-  the recorded amount is an approximation.
+  amount, not the total cash received. This module multiplies the per-share
+  amount by the unit count held as of the dividend's ex-date, reconstructed
+  from the transaction log via
+  :func:`backend.common.portfolio_loader.get_units_as_of` (#4947), so a buy or
+  sell between the ex-date and when this job runs does not skew the recorded
+  amount.
 * Idempotency: the transaction store has no uniqueness constraint, so this
   module de-duplicates by scanning existing ``DIVIDEND`` transactions for a
   matching ``(ticker, ex_date)`` pair before writing.
@@ -47,6 +48,7 @@ from backend.common.accounts_store import LocalAccountsStore, S3AccountsStore
 from backend.common.currency import CurrencyNormaliser
 from backend.common.data_loader import DATA_BUCKET_ENV
 from backend.common.instruments import get_instrument_meta
+from backend.common.portfolio_loader import get_units_as_of
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
 
@@ -231,7 +233,10 @@ def refresh_dividends() -> Dict[str, Any]:
                     key = _dividend_key(ticker, decl["ex_date"])
                     if key in existing_keys:
                         continue
-                    amount_minor = _amount_minor_gbp(ticker, decl["amount_per_share"], units)
+                    units_as_of_ex_date = get_units_as_of(data, ticker, decl["ex_date"])
+                    if not units_as_of_ex_date:
+                        continue
+                    amount_minor = _amount_minor_gbp(ticker, decl["amount_per_share"], units_as_of_ex_date)
                     if amount_minor is None or amount_minor <= 0:
                         continue
                     transactions.append(
@@ -243,7 +248,8 @@ def refresh_dividends() -> Dict[str, Any]:
                             "currency": "GBP",
                             "reason": "Automated dividend import",
                             "comments": (
-                                f"{ticker} dividend {decl['amount_per_share']:.4f}/share " f"x {units:g} units"
+                                f"{ticker} dividend {decl['amount_per_share']:.4f}/share "
+                                f"x {units_as_of_ex_date:g} units"
                             ),
                         }
                     )

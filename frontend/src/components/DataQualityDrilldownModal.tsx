@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import type { TimeseriesQualityPosition } from "../types";
+import styles from "../styles/dataQualityDrilldownModal.module.css";
 
 interface Props {
   position: TimeseriesQualityPosition;
@@ -35,32 +36,8 @@ export function DataQualityDrilldownModal({ position, onClose }: Props) {
   }, []);
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        background: "rgba(0,0,0,0.3)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <div
-        style={{
-          background: "var(--surface-card-bg, #fff)",
-          color: "var(--surface-card-color, #111)",
-          border: "1px solid var(--surface-card-border, #d9d9d9)",
-          padding: "1rem",
-          maxHeight: "80%",
-          minWidth: "20rem",
-          overflow: "auto",
-        }}
-      >
+    <div role="dialog" aria-modal="true" className={styles.overlay}>
+      <div className={styles.modal}>
         <h3>
           {t("dataQuality.drilldown.title", {
             ticker: position.ticker,
@@ -69,9 +46,9 @@ export function DataQualityDrilldownModal({ position, onClose }: Props) {
         </h3>
 
         {hasGaps && (
-          <div style={{ marginBottom: "1rem" }}>
-            <h4 style={{ margin: "0 0 0.5rem 0" }}>{t("dataQuality.drilldown.gaps")}</h4>
-            <ul style={{ margin: 0, paddingLeft: "1rem" }}>
+          <div className={styles.section}>
+            <h4 className={styles.sectionHeading}>{t("dataQuality.drilldown.gaps")}</h4>
+            <ul className={styles.list}>
               {position.gaps.map((gap) => (
                 <li key={`${gap.start}-${gap.end}`}>
                   {gap.start} – {gap.end} (
@@ -83,9 +60,9 @@ export function DataQualityDrilldownModal({ position, onClose }: Props) {
         )}
 
         {hasDuplicates && (
-          <div style={{ marginBottom: "1rem" }}>
-            <h4 style={{ margin: "0 0 0.5rem 0" }}>{t("dataQuality.drilldown.duplicates")}</h4>
-            <ul style={{ margin: 0, paddingLeft: "1rem" }}>
+          <div className={styles.section}>
+            <h4 className={styles.sectionHeading}>{t("dataQuality.drilldown.duplicates")}</h4>
+            <ul className={styles.list}>
               {position.duplicate_dates.map((date) => (
                 <li key={date}>{date}</li>
               ))}
@@ -94,28 +71,26 @@ export function DataQualityDrilldownModal({ position, onClose }: Props) {
         )}
 
         {hasOutliers && (
-          <div style={{ marginBottom: "1rem" }}>
-            <h4 style={{ margin: "0 0 0.5rem 0" }}>{t("dataQuality.drilldown.outliers")}</h4>
+          <div className={styles.section}>
+            <h4 className={styles.sectionHeading}>{t("dataQuality.drilldown.outliers")}</h4>
             <table>
               <thead>
                 <tr>
-                  <th style={{ textAlign: "left", paddingRight: "1rem" }}>
-                    {t("dataQuality.drilldown.date")}
+                  <th className={styles.headerCellLeft}>{t("dataQuality.drilldown.date")}</th>
+                  <th className={styles.headerCellRight}>{t("dataQuality.drilldown.value")}</th>
+                  <th className={styles.headerCellRightLast}>
+                    {t("dataQuality.drilldown.zScore")}
                   </th>
-                  <th style={{ textAlign: "right", paddingRight: "1rem" }}>
-                    {t("dataQuality.drilldown.value")}
-                  </th>
-                  <th style={{ textAlign: "right" }}>{t("dataQuality.drilldown.zScore")}</th>
                 </tr>
               </thead>
               <tbody>
                 {position.outliers.map((outlier) => (
                   <tr key={outlier.date}>
-                    <td style={{ paddingRight: "1rem" }}>{outlier.date}</td>
-                    <td style={{ textAlign: "right", paddingRight: "1rem" }}>
-                      {outlier.value.toFixed(2)}
+                    <td className={styles.cellRight}>{outlier.date}</td>
+                    <td className={styles.cellRightAligned}>{outlier.value.toFixed(2)}</td>
+                    <td className={styles.cellRightAlignedLast}>
+                      {outlier.z_score.toFixed(2)}
                     </td>
-                    <td style={{ textAlign: "right" }}>{outlier.z_score.toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -123,9 +98,9 @@ export function DataQualityDrilldownModal({ position, onClose }: Props) {
           </div>
         )}
 
-        {!hasIssues && <p style={{ margin: 0 }}>{t("dataQuality.drilldown.noIssues")}</p>}
+        {!hasIssues && <p className={styles.noIssues}>{t("dataQuality.drilldown.noIssues")}</p>}
 
-        <button onClick={onClose} style={{ marginTop: "1rem" }}>
+        <button onClick={onClose} className={styles.closeButton}>
           {t("dataQuality.drilldown.close")}
         </button>
       </div>

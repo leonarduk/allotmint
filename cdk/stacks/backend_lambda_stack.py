@@ -85,6 +85,7 @@ class BackendLambdaStack(Stack):
         allow_put: bool,
         allow_list: bool,
         list_prefix: str | Sequence[str] | None = None,
+        put_prefix: str | Sequence[str] | None = None,
     ) -> None:
         """Grant the minimum required S3 actions for a Lambda function.
 
@@ -92,7 +93,12 @@ class BackendLambdaStack(Stack):
         (useful in unit tests that don't synthesise a full stack).
 
         ``allow_list`` controls ``s3:ListBucket`` on the bucket ARN while
-        ``allow_read``/``allow_put`` scope object-level actions to ``/*``.
+        ``allow_read`` scopes ``s3:GetObject`` to ``/*``. ``allow_put`` scopes
+        ``s3:PutObject`` to ``/*`` by default; pass ``put_prefix`` to instead
+        scope the write grant to specific prefix(es) (e.g. the Lambda's own
+        snapshot path) for least privilege. ``put_prefix`` is independent of
+        ``list_prefix`` — a caller may need to list one set of prefixes but
+        write only to a narrower one (issue #5013).
         """
 
         if bucket is None and bucket_name is None:
@@ -113,17 +119,36 @@ class BackendLambdaStack(Stack):
             object_arn = f"arn:aws:s3:::{bucket_name}/*"
             bucket_arn = f"arn:aws:s3:::{bucket_name}"
 
-        object_actions: list[str] = []
         if allow_read:
-            object_actions.append("s3:GetObject")
-        if allow_put:
-            object_actions.append("s3:PutObject")
-
-        if object_actions:
             fn.add_to_role_policy(
                 iam.PolicyStatement(
-                    actions=object_actions,
+                    actions=["s3:GetObject"],
                     resources=[object_arn],
+                )
+            )
+
+        if allow_put:
+            if put_prefix is not None:
+                raw_put_prefixes = [put_prefix] if isinstance(put_prefix, str) else list(put_prefix)
+                normalized_put_prefixes = [prefix.strip().strip("/") for prefix in raw_put_prefixes]
+                normalized_put_prefixes = [prefix for prefix in normalized_put_prefixes if prefix]
+                if not normalized_put_prefixes:
+                    raise ValueError("put_prefix, if provided, must contain a non-empty prefix")
+                if bucket is not None:
+                    put_resources = [
+                        bucket.arn_for_objects(f"{prefix}/*") for prefix in normalized_put_prefixes
+                    ]
+                else:
+                    put_resources = [
+                        f"arn:aws:s3:::{bucket_name}/{prefix}/*"
+                        for prefix in normalized_put_prefixes
+                    ]
+            else:
+                put_resources = [object_arn]
+            fn.add_to_role_policy(
+                iam.PolicyStatement(
+                    actions=["s3:PutObject"],
+                    resources=put_resources,
                 )
             )
 
@@ -221,6 +246,19 @@ class BackendLambdaStack(Stack):
         budget_alert_email = self.node.try_get_context("budget_alert_email") or os.getenv(
             "BUDGET_ALERT_EMAIL"
         )
+        # Cadence for the pension report Lambda's EventBridge rule (issue #2758).
+        # "weekly" -> every Monday; "monthly" -> the 1st of the month. Configurable
+        # via CDK context or env var rather than hardcoded in the rule itself.
+        pension_report_cadence = (
+            self.node.try_get_context("pension_report_cadence")
+            or os.getenv("PENSION_REPORT_CADENCE")
+            or "weekly"
+        )
+        if pension_report_cadence not in {"weekly", "monthly"}:
+            raise ValueError(
+                "pension_report_cadence must be 'weekly' or 'monthly', got "
+                f"{pension_report_cadence!r}"
+            )
         data_bucket = s3.Bucket(
             self,
             "PortfolioDataBucket",
@@ -237,14 +275,21 @@ class BackendLambdaStack(Stack):
 
         bucket_name = data_bucket.bucket_name
         lambda_list_prefixes = {
-            # alerts/ and prices/ are included because S3 returns 403 (not 404) when
-            # a key is absent and the caller lacks s3:ListBucket on that prefix, which
-            # prevents the fallback logic in alerts.py and the price-snapshot loader
-            # from distinguishing "missing" from "denied". PriceRefreshLambda and
-            # TradingAgentLambda also import the price loader during cold start.
+            # alerts/, prices/, and instruments/ are included because S3 returns 403
+            # (not 404) when a key is absent and the caller lacks s3:ListBucket on
+            # that prefix, which prevents the fallback logic in alerts.py, the
+            # price-snapshot loader, and instruments.py from distinguishing "missing"
+            # from "denied". Without ListBucket on instruments/, every metadata lookup
+            # for a ticker not already cached locally falls back to a live Yahoo
+            # Finance call plus a failed local write (the Lambda filesystem is
+            # read-only), which is slow enough per-ticker to time out the whole
+            # request once repeated across a portfolio's instruments (issue #5015).
+            # PriceRefreshLambda and TradingAgentLambda also import the price loader
+            # during cold start.
             "backend": (
                 "accounts",
                 "alerts",
+                "instruments",
                 "prices",
                 "queries",
                 "timeseries/meta",
@@ -268,6 +313,10 @@ class BackendLambdaStack(Stack):
             # and writes new DIVIDEND transactions back to the same prefix.
             # See backend/common/dividends.py::refresh_dividends() (issue #2750).
             "dividend_refresh": (WRITABLE_ACCOUNTS_PREFIX,),
+            # pension_report calls list_portfolios() -> list_plots(), which needs
+            # ListBucket on accounts/ for the same reason as price_refresh above
+            # (issue #2758).
+            "pension_report": ("accounts",),
         }
 
         image_code = _lambda.DockerImageCode.from_image_asset(
@@ -579,6 +628,22 @@ class BackendLambdaStack(Stack):
         # pairing, not two.
         backend_api.add_routes(
             path="/token/google",
+            methods=[apigwv2.HttpMethod.POST],
+            integration=backend_integration,
+            authorizer=apigwv2.HttpNoneAuthorizer(),
+        )
+        # POST /token is the Google-login exchange endpoint documented in
+        # docs/AUTH.md ("The frontend POSTs { id_token } to POST /token") and
+        # called directly by mobile/App.tsx. Like POST /token/google above, the
+        # caller has no Cognito/app token yet — they are presenting a Google ID
+        # token (or, in local/dev-only branches, a username) to obtain a backend
+        # JWT. Without an explicit route here it falls through to the
+        # /{proxy+} ANY catch-all and backend_authorizer rejects it with 401
+        # before backend/app.py's login() ever runs — the same class of bug
+        # already fixed for GET /config, POST /token/google, and POST
+        # /signup/* (audit follow-up from #4798, issue #4800).
+        backend_api.add_routes(
+            path="/token",
             methods=[apigwv2.HttpMethod.POST],
             integration=backend_integration,
             authorizer=apigwv2.HttpNoneAuthorizer(),
@@ -917,6 +982,64 @@ class BackendLambdaStack(Stack):
             targets=[targets.LambdaFunction(dividend_fn)],
         )
 
+        # Scheduled function to email a pension performance report (issue #2758)
+        pension_report_code = _lambda.DockerImageCode.from_image_asset(
+            str(project_root),
+            file="backend/Dockerfile.lambda",
+            cmd=["backend.lambda_api.pension_report.lambda_handler"],
+        )
+        pension_report_env = {
+            "APP_ENV": env,
+            "DATA_BUCKET": bucket_name,
+            "DATA_BRANCH": data_branch,
+            "TIMESERIES_CACHE_BASE": f"s3://{bucket_name}/timeseries",
+            # Pot-value snapshots persisted for YTD / period-over-period tracking
+            # (backend/common/pension_snapshots.py), stored in the same data
+            # bucket rather than a dedicated resource.
+            "PENSION_SNAPSHOTS_URI": f"s3://{bucket_name}/pension-reports/pension_snapshots.json",
+        }
+        if data_repo:
+            pension_report_env["DATA_REPO"] = data_repo
+
+        pension_report_log_group = self._lambda_log_group(self, "PensionReportLambdaLogGroup")
+        pension_report_fn = _lambda.DockerImageFunction(
+            self,
+            "PensionReportLambda",
+            code=pension_report_code,
+            environment=pension_report_env,
+            log_group=pension_report_log_group,
+            timeout=Duration.minutes(5),
+            memory_size=512,
+        )
+
+        # PensionReportLambda: read-only on accounts/ (list_portfolios() ->
+        # list_plots() needs ListBucket, same reasoning as price_refresh above),
+        # plus write access scoped to pension-reports/ — the only prefix this
+        # Lambda ever writes to (PENSION_SNAPSHOTS_URI above). Scoping the
+        # s3:PutObject resource this way (rather than bucket-wide) prevents the
+        # Lambda from writing outside its own snapshot path (issue #5013).
+        self._grant_bucket_access(
+            pension_report_fn,
+            bucket=data_bucket,
+            allow_read=True,
+            allow_put=True,
+            allow_list=True,
+            list_prefix=lambda_list_prefixes["pension_report"],
+            put_prefix="pension-reports",
+        )
+
+        pension_report_schedule = (
+            events.Schedule.cron(minute="0", hour="7", week_day="MON")
+            if pension_report_cadence == "weekly"
+            else events.Schedule.cron(minute="0", hour="7", day="1")
+        )
+        events.Rule(
+            self,
+            "PensionReportRun",
+            schedule=pension_report_schedule,
+            targets=[targets.LambdaFunction(pension_report_fn)],
+        )
+
         # IAM implicit deny covers all other principals; no explicit DENY
         # resource policy is needed (and a StringNotLike list-based DENY
         # would incorrectly lock out these roles too).
@@ -971,4 +1094,9 @@ class BackendLambdaStack(Stack):
         CfnOutput(self, "BackendLambdaLogGroupName", value=backend_log_group.log_group_name)
         CfnOutput(self, "PriceRefreshLambdaLogGroupName", value=refresh_log_group.log_group_name)
         CfnOutput(self, "TradingAgentLambdaLogGroupName", value=agent_log_group.log_group_name)
+        CfnOutput(
+            self,
+            "PensionReportLambdaLogGroupName",
+            value=pension_report_log_group.log_group_name,
+        )
         CfnOutput(self, "BackendLambdaErrorAlarmName", value=backend_error_alarm.alarm_name)

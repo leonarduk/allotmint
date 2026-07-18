@@ -34,6 +34,11 @@ on:
         required: false
         type: string
         default: ""
+      discussion_max_chars:
+        description: "Max characters of PR discussion to include in the review prompt, if any (default 20000)"
+        required: false
+        type: string
+        default: ""
     secrets:
       anthropic_api_key:
         description: "Anthropic API key, used for Claude reviews and follow-up issue creation"
@@ -47,6 +52,15 @@ on:
       gh_token:
         description: "Token used for gh CLI calls (PR/issue read and write)"
         required: true
+
+# github.workflow resolves to the *calling* workflow's name (Claude/DeepSeek/GPT
+# PR Review), so this groups per-provider without cross-cancelling other
+# providers' runs for the same PR. Mirrors the pattern in deepseek-pr-review.yml
+# (#4719): only one job here with no side effects other workflows depend on, so
+# cancelling an in-progress run is safe.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   ai-review:
@@ -105,11 +119,17 @@ jobs:
         id: discussion
         env:
           GH_TOKEN: ${{ secrets.gh_token }}
+          DISCUSSION_MAX_CHARS: ${{ inputs.discussion_max_chars }}
         run: |
+          MAX_CHARS_ARGS=()
+          if [ -n "$DISCUSSION_MAX_CHARS" ]; then
+            MAX_CHARS_ARGS=(--max-chars "$DISCUSSION_MAX_CHARS")
+          fi
           DISCUSSION=$(python3 .github/scripts/prepare_review_discussion.py \
             --repo "${{ github.repository }}" \
             --pr-number "${{ github.event.pull_request.number }}" \
-            --provider-name "${{ inputs.provider_name }}")
+            --provider-name "${{ inputs.provider_name }}" \
+            "${MAX_CHARS_ARGS[@]}")
           DELIM="EOF_$(uuidgen | tr -d '-')"
           {
             echo "text<<$DELIM"
@@ -198,15 +218,22 @@ jobs:
           DEEPSEEK_API_KEY: ${{ secrets.deepseek_api_key }}
           FOLLOWUP_LLM_PROVIDER: ${{ vars.FOLLOWUP_LLM_PROVIDER }}
         run: |
-          # Ensure required labels exist before creating issues
-          gh label create "ai-suggested" --color "0075ca" --description "Suggested by AI code review" \
-            2>/dev/null || true
-          gh label create "haiku" --color "C5DEF5" --description "Suitable for Claude Haiku (simple/mechanical task)" \
-            2>/dev/null || true
-          gh label create "sonnet" --color "BFD4F2" --description "Suitable for Claude Sonnet (moderate reasoning)" \
-            2>/dev/null || true
-          gh label create "opus" --color "0052CC" --description "Suitable for Claude Opus (complex design/architecture)" \
-            2>/dev/null || true
+          # Fetch existing label names once and only create the ones missing,
+          # instead of firing a gh label create call (and eating a 422) for
+          # every label on every run.
+          existing_labels="$(gh label list --json name -q '.[].name')"
+
+          create_label_if_missing() {
+            local name="$1" color="$2" description="$3"
+            if ! grep -qxF "$name" <<< "$existing_labels"; then
+              gh label create "$name" --color "$color" --description "$description" 2>/dev/null || true
+            fi
+          }
+
+          create_label_if_missing "ai-suggested" "0075ca" "Suggested by AI code review"
+          create_label_if_missing "haiku" "C5DEF5" "Suitable for Claude Haiku (simple/mechanical task)"
+          create_label_if_missing "sonnet" "BFD4F2" "Suitable for Claude Sonnet (moderate reasoning)"
+          create_label_if_missing "opus" "0052CC" "Suitable for Claude Opus (complex design/architecture)"
 
           # Extract titles to a file, then create issues via Python subprocess (no shell injection)
           python3 .github/scripts/extract_followups.py /tmp/${{ inputs.provider_id }}_review_body.md \
@@ -221,9 +248,11 @@ jobs:
           GH_TOKEN: ${{ secrets.gh_token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          # Create the label if it doesn't exist
-          gh label create "Changes Requested" --color "d73a49" --description "PR requested changes from code review" \
-            2>/dev/null || true
+          # Create the label only if it doesn't already exist
+          if ! gh label list --json name -q '.[].name' | grep -qxF "Changes Requested"; then
+            gh label create "Changes Requested" --color "d73a49" --description "PR requested changes from code review" \
+              2>/dev/null || true
+          fi
 
           # Add the label to the PR
           gh pr edit "$PR_NUMBER" --add-label "Changes Requested"

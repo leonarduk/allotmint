@@ -27,6 +27,7 @@ import InstallPwaPrompt from "./components/InstallPwaPrompt";
 import BackendUnavailableCard from "./components/BackendUnavailableCard";
 import lazyWithDelay from "./utils/lazyWithDelay";
 import PortfolioDashboardSkeleton from "./components/skeletons/PortfolioDashboardSkeleton";
+import TableSkeleton from "./components/skeletons/TableSkeleton";
 import { sanitizeOwners, findOwnerForUser } from "./utils/owners";
 import { isDefaultGroupSlug } from "./utils/groups";
 import { useAuth } from "./AuthContext";
@@ -330,7 +331,11 @@ export default function MainApp() {
       {mode === "instrument" && groups.length > 0 && (
         <>
           {err && <p style={{ color: "red" }}>{err}</p>}
-          {loading ? <p>{t("app.loading")}</p> : <InstrumentTable rows={instruments} />}
+          {loading ? (
+            <TableSkeleton rows={8} columns={6} label={t("app.loading")} />
+          ) : (
+            <InstrumentTable rows={instruments} />
+          )}
         </>
       )}
 

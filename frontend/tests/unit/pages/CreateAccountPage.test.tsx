@@ -77,6 +77,69 @@ describe("CreateAccountPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("clears the validation error once the user edits a field", () => {
+    render(
+      <MemoryRouter>
+        <CreateAccountPage />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /request account/i }));
+    expect(
+      screen.getByText(/enter your name and email/i),
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/full name/i), {
+      target: { value: "A" },
+    });
+
+    expect(
+      screen.queryByText(/enter your name and email/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it("clears the validation error once the user edits the email field", () => {
+    render(
+      <MemoryRouter>
+        <CreateAccountPage />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /request account/i }));
+    expect(
+      screen.getByText(/enter your name and email/i),
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/email/i), {
+      target: { value: "a" },
+    });
+
+    expect(
+      screen.queryByText(/enter your name and email/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it("clears the validation error once the user edits the note field", () => {
+    render(
+      <MemoryRouter>
+        <CreateAccountPage />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /request account/i }));
+    expect(
+      screen.getByText(/enter your name and email/i),
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/what would you like to use allotmint for/i), {
+      target: { value: "Tracking my ISA" },
+    });
+
+    expect(
+      screen.queryByText(/enter your name and email/i),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows an error message and stays on the form when submission fails", async () => {
     vi.mocked(requestAccountSignup).mockRejectedValue(new Error("network"));
 

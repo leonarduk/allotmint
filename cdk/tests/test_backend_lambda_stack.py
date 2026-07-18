@@ -627,8 +627,8 @@ def test_backend_api_authorizer_accepts_cognito_id_token_contract(template):
 
 def test_backend_api_routes_require_cognito_authorizer(template):
     """All API Gateway routes must require Cognito JWT authorization except
-    /health, GET /config, POST /token/google, the public /signup/* routes, and
-    the CORS preflight OPTIONS routes.
+    /health, GET /config, POST /token, POST /token/google, the public
+    /signup/* routes, and the CORS preflight OPTIONS routes.
 
     /health is intentionally unauthenticated so that post-deploy probes and
     smoke tests can confirm Lambda is reachable without needing a Cognito token.
@@ -636,6 +636,13 @@ def test_backend_api_routes_require_cognito_authorizer(template):
     pre-auth bootstrap endpoint (frontend/src/main.tsx Root.fetchConfig) used
     to determine whether auth is required at all; PUT /config remains
     JWT-protected via the /{proxy+} catch-all.
+    POST /token is intentionally unauthenticated: it is the Google-login
+    exchange endpoint documented in docs/AUTH.md and called directly by
+    mobile/App.tsx. The caller presents a Google ID token (or, in local/dev
+    branches, a username) with no Authorization header at all, so
+    backend_authorizer would reject it with 401 before backend/app.py's
+    login() ever runs — the same class of bug as POST /token/google below
+    (audit follow-up from #4798, issue #4800).
     POST /token/google is intentionally unauthenticated because it exchanges a
     Google ID token (frontend/src/LoginPage.tsx, sent with no Authorization
     header) for an app JWT — backend_authorizer would reject it with 401 before
@@ -659,6 +666,7 @@ def test_backend_api_routes_require_cognito_authorizer(template):
     UNAUTHENTICATED_ROUTES = {
         "GET /health",
         "GET /config",
+        "POST /token",
         "POST /token/google",
         "POST /signup/request",
         "GET /signup/approve",
@@ -706,6 +714,79 @@ def test_backend_api_routes_require_cognito_authorizer(template):
     # the intent directly rather than relying on that implication.
     assert "POST /token/cognito" not in UNAUTHENTICATED_ROUTES
     assert "POST /token/cognito" not in actual_none_routes
+
+
+def test_signup_routes_use_http_none_authorizer(template):
+    """Positively assert that the /signup/* routes are registered with
+    HttpNoneAuthorizer (AuthorizationType NONE), rather than only checking
+    that they are absent from the Cognito-authorizer set.
+
+    test_backend_api_routes_require_cognito_authorizer above already proves
+    these routes are unauthenticated via a negative check (not in the JWT
+    set). That alone would also pass if a future change accidentally moved
+    them to a different non-JWT authorizer (e.g. IAM). This test documents
+    and enforces the specific intended authorizer (#4799, follow-up from
+    review of PR #4798).
+    """
+    routes = template.find_resources("AWS::ApiGatewayV2::Route")
+    assert routes, "Expected at least one API Gateway route"
+
+    signup_routes = {
+        resource["Properties"].get("RouteKey", logical_id): resource["Properties"]
+        for logical_id, resource in routes.items()
+        if "/signup/" in resource["Properties"].get("RouteKey", "")
+    }
+
+    expected_route_keys = {
+        "POST /signup/request",
+        "GET /signup/approve",
+        "POST /signup/approve",
+        "GET /signup/reject",
+        "POST /signup/reject",
+    }
+    assert set(signup_routes) == expected_route_keys, (
+        f"Unexpected /signup/* route set: {set(signup_routes)}"
+    )
+
+    for route_key, properties in signup_routes.items():
+        assert properties.get("AuthorizationType") == "NONE", (
+            f"Route {route_key} must use HttpNoneAuthorizer (AuthorizationType "
+            f"NONE), got {properties.get('AuthorizationType')!r}"
+        )
+        assert "AuthorizerId" not in properties, (
+            f"Route {route_key} must not reference an authorizer resource"
+        )
+
+
+def test_token_route_uses_http_none_authorizer(template):
+    """Positively assert that POST /token is registered with
+    HttpNoneAuthorizer (AuthorizationType NONE), not just absent from the
+    Cognito-authorizer set.
+
+    test_backend_api_routes_require_cognito_authorizer above already proves
+    this route is unauthenticated via a negative check (not in the JWT set).
+    This test documents and enforces the specific intended authorizer,
+    mirroring test_signup_routes_use_http_none_authorizer (audit follow-up
+    from #4798, issue #4800).
+    """
+    routes = template.find_resources("AWS::ApiGatewayV2::Route")
+    assert routes, "Expected at least one API Gateway route"
+
+    token_routes = {
+        resource["Properties"].get("RouteKey", logical_id): resource["Properties"]
+        for logical_id, resource in routes.items()
+        if resource["Properties"].get("RouteKey", "") == "POST /token"
+    }
+    assert set(token_routes) == {"POST /token"}
+
+    for route_key, properties in token_routes.items():
+        assert properties.get("AuthorizationType") == "NONE", (
+            f"Route {route_key} must use HttpNoneAuthorizer (AuthorizationType "
+            f"NONE), got {properties.get('AuthorizationType')!r}"
+        )
+        assert "AuthorizerId" not in properties, (
+            f"Route {route_key} must not reference an authorizer resource"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -961,5 +1042,103 @@ def test_daily_price_refresh_lambda_permission_scoped_to_alias(template):
             "FunctionName": assertions.Match.object_like(
                 {"Ref": assertions.Match.string_like_regexp("PriceRefreshLambdaLiveAlias")}
             ),
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# PensionReportLambda / PensionReportRun (issue #2758)
+# ---------------------------------------------------------------------------
+
+
+def test_pension_report_rule_defaults_to_weekly_monday_cron(template):
+    """With no cadence context/env override, the rule fires weekly on Monday."""
+    template.has_resource_properties(
+        "AWS::Events::Rule",
+        {
+            "ScheduleExpression": assertions.Match.string_like_regexp(r"cron\(0 7 \? \* MON \*\)"),
+            "Targets": assertions.Match.array_with([
+                assertions.Match.object_like({
+                    "Arn": assertions.Match.object_like(
+                        {"Fn::GetAtt": assertions.Match.array_with([
+                            assertions.Match.string_like_regexp("PensionReportLambda")
+                        ])}
+                    )
+                })
+            ]),
+        },
+    )
+
+
+def test_pension_report_rule_monthly_cadence_via_context():
+    """pension_report_cadence="monthly" produces a 1st-of-month cron, not the weekly default."""
+    env_patch = {"JWT_SECRET": "test-secret", "GOOGLE_CLIENT_ID": "test-client-id"}
+    for key, value in env_patch.items():
+        os.environ.setdefault(key, value)
+
+    app = App(context={"pension_report_cadence": "monthly"})
+    stack = BackendLambdaStack(app, "MonthlyPensionReportStack")
+    monthly_template = assertions.Template.from_stack(stack)
+
+    monthly_template.has_resource_properties(
+        "AWS::Events::Rule",
+        {
+            "ScheduleExpression": assertions.Match.string_like_regexp(r"cron\(0 7 1 \* \? \*\)"),
+        },
+    )
+
+
+def test_pension_report_rule_rejects_invalid_cadence():
+    env_patch = {"JWT_SECRET": "test-secret", "GOOGLE_CLIENT_ID": "test-client-id"}
+    for key, value in env_patch.items():
+        os.environ.setdefault(key, value)
+
+    with pytest.raises(ValueError, match="pension_report_cadence"):
+        BackendLambdaStack(
+            App(context={"pension_report_cadence": "daily"}), "InvalidCadenceStack"
+        )
+
+
+def test_pension_report_lambda_read_only_on_accounts_prefix(template):
+    """PensionReportLambda gets scoped ListBucket on accounts/ (list_portfolios() needs it)."""
+    policies = template.find_resources("AWS::IAM::Policy")
+    matched = False
+    for resource in policies.values():
+        role_refs = [
+            ref.get("Ref", "")
+            for ref in resource.get("Properties", {}).get("Roles", [])
+            if isinstance(ref, dict)
+        ]
+        if not any("PensionReportLambda" in ref for ref in role_refs):
+            continue
+        statements = resource["Properties"]["PolicyDocument"]["Statement"]
+        for stmt in statements:
+            if stmt.get("Action") == "s3:ListBucket":
+                conditions = stmt.get("Condition", {}).get("StringLike", {}).get("s3:prefix", [])
+                if "accounts" in conditions:
+                    matched = True
+    assert matched, "Expected a ListBucket statement scoped to the accounts/ prefix"
+
+
+def test_pension_report_lambda_env_includes_snapshots_uri(template):
+    """PENSION_SNAPSHOTS_URI is built from the data bucket ref via Fn::Join, not a plain string."""
+    template.has_resource_properties(
+        "AWS::Lambda::Function",
+        {
+            "Environment": {
+                "Variables": assertions.Match.object_like(
+                    {
+                        "PENSION_SNAPSHOTS_URI": {
+                            "Fn::Join": assertions.Match.array_with([
+                                assertions.Match.array_with([
+                                    assertions.Match.string_like_regexp(
+                                        r"/pension-reports/pension_snapshots\.json$"
+                                    )
+                                ])
+                            ])
+                        }
+                    }
+                )
+            }
         },
     )

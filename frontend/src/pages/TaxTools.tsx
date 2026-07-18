@@ -5,11 +5,14 @@ import {
   useState,
   type ChangeEvent,
 } from "react";
+import { useTranslation } from "react-i18next";
 import { getAllowances, getOwners, getPortfolio, harvestTax } from "../api";
 import EmptyState from "../components/EmptyState";
 import { useRoute } from "../RouteContext";
 import type { Holding, OwnerSummary, Portfolio } from "../types";
 import { sanitizeOwners } from "../utils/owners";
+import LoadingStatus from "../components/skeletons/LoadingStatus";
+import TableSkeleton from "../components/skeletons/TableSkeleton";
 
 type Trade = {
   ticker: string;
@@ -246,6 +249,7 @@ function useHarvestCandidates(owner?: string) {
 }
 
 function TaxHarvestSection() {
+  const { t } = useTranslation();
   const { selectedOwner } = useRoute();
   const { form, updateField, position: manualPosition } = useHarvestForm();
   const { candidates, loading: candidatesLoading, error: candidateError } =
@@ -463,7 +467,11 @@ function TaxHarvestSection() {
       >
         Run Harvest
       </button>
-      {isLoading && <div data-testid="spinner">Loading...</div>}
+      {isLoading && (
+        <LoadingStatus label={t("app.loading")}>
+          <div data-testid="spinner" className="h-4 w-24 bg-gray-700 rounded animate-pulse" />
+        </LoadingStatus>
+      )}
       {error && <p className="text-red-500">{error}</p>}
       {trades && trades.length > 0 && (
         <div className="rounded-md border border-gray-200 bg-gray-50 p-4 text-sm" data-testid="harvest-results">
@@ -502,6 +510,7 @@ function formatAllowanceValue(value: number) {
 }
 
 function TaxAllowancesSection() {
+  const { t } = useTranslation();
   const { selectedOwner } = useRoute();
   const [data, setData] = useState<AllowanceResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -555,7 +564,7 @@ function TaxAllowancesSection() {
     );
   }
 
-  if (loading) return <p>Loading...</p>;
+  if (loading) return <TableSkeleton rows={4} columns={3} label={t("app.loading")} />;
   if (error) return <p className="text-red-500">{error}</p>;
   if (!data) return <EmptyState message="No data" />;
 

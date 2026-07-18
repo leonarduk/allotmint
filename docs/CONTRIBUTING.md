@@ -82,6 +82,17 @@ pytest tests/<path_to_test>.py
 bash scripts/bash/validate-deployment-env.sh
 ```
 
+Some checks depend on live external services and are intentionally excluded
+from `pytest`/`make lint` (which must stay hermetic and mock external
+integrations — see `CLAUDE.md`). Run these explicitly, and only when you have
+the prerequisite installed/authenticated:
+
+```bash
+# Smoke-tests scripts/dev_tools/extract_pr_comments.py against a known,
+# merged PR. Requires: gh CLI, authenticated, and network access.
+make smoke-test-pr-comments
+```
+
 ### Frontend
 
 ```bash

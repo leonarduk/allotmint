@@ -69,6 +69,7 @@ def test_get_instrument_meta_from_s3(monkeypatch):
     monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=fake_client))
 
     instruments.get_instrument_meta.cache_clear()
+    instruments._s3_client.cache_clear()
     assert instruments.get_instrument_meta("ABC.L") == {"foo": 1}
 
 
@@ -90,6 +91,7 @@ def test_save_instrument_meta_uploads_s3(monkeypatch, tmp_path):
         return SimpleNamespace(put_object=put_object)
 
     monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=fake_client))
+    instruments._s3_client.cache_clear()
 
     instruments.save_instrument_meta("ABC.L", {"bar": 2})
     path = tmp_path / "L" / "ABC.json"

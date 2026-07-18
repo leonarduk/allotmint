@@ -93,9 +93,10 @@ def check_working_tree_clean() -> bool:
         return False
 
 
-def get_changed_files(branch: str, default_branch: str = "origin/main") -> list[str]:
+def get_changed_files(branch: str, default_branch: str = "main") -> list[str]:
     """Get list of changed files: either uncommitted changes or commits on the branch."""
     changed_files = []
+    remote_default_branch = f"origin/{default_branch or 'main'}"
     try:
         # Check for both staged and unstaged changes
         result = subprocess.run(
@@ -110,7 +111,7 @@ def get_changed_files(branch: str, default_branch: str = "origin/main") -> list[
 
         # Check for commits on the branch only if we have a merge base
         result = subprocess.run(
-            ["git", "merge-base", branch, default_branch],
+            ["git", "merge-base", branch, remote_default_branch],
             capture_output=True,
             text=True,
             check=False,
@@ -134,7 +135,7 @@ def get_changed_files(branch: str, default_branch: str = "origin/main") -> list[
     return list(set(changed_files))
 
 
-def stage_and_commit(files: Optional[list[str]], message: str, branch: str, default_branch: str = "origin/main") -> bool:
+def stage_and_commit(files: Optional[list[str]], message: str, branch: str, default_branch: str = "main") -> bool:
     """Stage and commit the specified files (or changed files in branch if none specified)."""
     try:
         if not files:
@@ -203,14 +204,16 @@ def fetch_issue(owner: str, repo: str, issue_id: int) -> Optional[dict]:
         print(f"Failed to fetch issue #{issue_id}: {exc}", file=sys.stderr)
         return None
 
+
 def get_ollama_server_url(host: str = "localhost", port: int = 11434) -> str:
     """Get Ollama server url."""
     return f"http://{host}:{port}"
 
+
 def is_ollama_running(host: str = "localhost", port: int = 11434) -> bool:
     """Check if Ollama is running locally."""
     try:
-        host_url= get_ollama_server_url(host=host, port=port)
+        host_url = get_ollama_server_url(host=host, port=port)
         resp = requests.get(f"{host_url}/api/tags", timeout=2)
         return resp.status_code == 200
     except requests.RequestException:
@@ -270,6 +273,7 @@ Issue body:
 Generate only the sections above, no preamble."""
 
     ollama_url = get_ollama_server_url()
+    print(f"Waiting for Ollama ({model}) to generate the PR body, this can take up to 60s...")
     try:
         resp = requests.post(
             f"{ollama_url}/api/generate",
@@ -308,6 +312,34 @@ def create_placeholder_pr_body(issue_id: int, issue_title: str, issue_body: str)
 Closes #{issue_id}"""
 
 
+def find_existing_pr(owner: str, repo: str, branch: str) -> Optional[str]:
+    """Return the URL of an existing open PR for this branch, if any."""
+    result = subprocess.run(
+        [
+            "gh",
+            "pr",
+            "list",
+            "--repo",
+            f"{owner}/{repo}",
+            "--head",
+            branch,
+            "--state",
+            "open",
+            "--json",
+            "url",
+            "-q",
+            ".[0].url",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode == 0:
+        url = result.stdout.strip()
+        return url or None
+    return None
+
+
 def create_pr(
     owner: str,
     repo: str,
@@ -316,7 +348,12 @@ def create_pr(
     title: str,
     body: str,
 ) -> Optional[str]:
-    """Create a PR and return the URL."""
+    """Create a PR and return the URL, or the existing PR's URL if one is already open."""
+    existing_pr_url = find_existing_pr(owner, repo, branch)
+    if existing_pr_url:
+        print(f"PR already exists for branch '{branch}': {existing_pr_url}")
+        return existing_pr_url
+
     body_file = None
     try:
         # Write body to temp file to avoid command-line quoting issues
@@ -360,18 +397,28 @@ def create_pr(
             body_file.unlink(missing_ok=True)
 
 
-def check_gh_installed() -> bool:
-    """Check if gh CLI is installed and accessible."""
+def check_gh_available() -> None:
+    """Verify gh CLI is installed and authenticated, exiting with a clear message if not."""
     try:
-        subprocess.run(
-            ["gh", "--version"],
+        result = subprocess.run(
+            ["gh", "auth", "status"],
             capture_output=True,
             text=True,
-            check=True,
+            check=False,
         )
-        return True
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return False
+    except FileNotFoundError:
+        print(
+            "Error: GitHub CLI (gh) is not installed. " "Install from https://cli.github.com/",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    if result.returncode != 0:
+        print(
+            "Error: GitHub CLI (gh) is not authenticated. " "Run 'gh auth login'.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
 
 def main() -> None:
@@ -413,11 +460,6 @@ def main() -> None:
         os.chdir(git_root)
     except subprocess.CalledProcessError:
         print("Error: Could not determine git root directory", file=sys.stderr)
-        sys.exit(1)
-
-    # Check prerequisites
-    if not check_gh_installed():
-        print("Error: 'gh' CLI not found. Install it from https://github.com/cli/cli", file=sys.stderr)
         sys.exit(1)
 
     # Get repo info
@@ -499,11 +541,12 @@ def main() -> None:
         pr_body += f"\n\nCloses #{issue_id}"
 
     # Create PR
+    check_gh_available()
     print("Creating PR...")
     pr_url = create_pr(owner, repo, branch, default_branch, f"[Issue #{issue_id}] {issue_title}", pr_body)
 
     if pr_url:
-        print(f"\n✓ PR created successfully!")
+        print("\n✓ PR created successfully!")
         print(f"  {pr_url}")
     else:
         print("Failed to create PR", file=sys.stderr)

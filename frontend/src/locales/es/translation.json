@@ -46,6 +46,7 @@
     "sector": "Industrias"
   },
   "app": {
+    "close": "Cerrar",
     "last": "Último:",
     "loading": "Cargando…",
     "logout": "Cerrar sesión",
@@ -70,6 +71,7 @@
       "allocation": "Asignación",
       "compliance": "Alertas de cumplimiento",
       "dataadmin": "Administración de datos",
+      "dataquality": "Calidad de datos",
       "group": "Grupo",
       "instrument": "Instrumento",
       "instrumentadmin": "Administración de instrumentos",
@@ -80,6 +82,7 @@
       "performance": "Rendimiento",
       "rebalance": "Reequilibrio",
       "reports": "Informes",
+      "research": "Investigación",
       "scenario": "Probador de Escenarios",
       "screener": "Filtro y consulta",
       "settings": "Configuración del usuario",

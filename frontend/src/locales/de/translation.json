@@ -46,6 +46,7 @@
     "sector": "Branchen"
   },
   "app": {
+    "close": "Schließen",
     "last": "Zuletzt:",
     "loading": "Laden…",
     "logout": "Abmelden",
@@ -70,6 +71,7 @@
       "allocation": "Allokation",
       "compliance": "Compliance-Warnungen",
       "dataadmin": "Datenverwaltung",
+      "dataquality": "Datenqualität",
       "group": "Gruppe",
       "instrument": "Instrument",
       "instrumentadmin": "Instrumentverwaltung",
@@ -80,6 +82,7 @@
       "performance": "Leistung",
       "rebalance": "Neugewichtung",
       "reports": "Berichte",
+      "research": "Recherche",
       "scenario": "Szenario-Tester",
       "screener": "Filter & Abfrage",
       "settings": "Benutzereinstellungen",

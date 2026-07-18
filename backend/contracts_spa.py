@@ -4,7 +4,7 @@ from typing import List
 
 from pydantic import BaseModel, ConfigDict, Field
 
-SPA_RESPONSE_CONTRACT_VERSION = "2026-03-22"
+SPA_RESPONSE_CONTRACT_VERSION = "2026-07-08"
 
 
 class SpaContractBase(BaseModel):
@@ -122,6 +122,7 @@ class TransactionContract(SpaContractBase):
     owner: str
     account: str
     id: str | None = None
+    external_id: str | None = None
     date: str | None = None
     ticker: str | None = None
     type: str | None = None

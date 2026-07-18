@@ -1,5 +1,9 @@
 param(
-    [Parameter(Mandatory)][string]$Issue
+    [Parameter(Mandatory)][string]$Issue,
+    # Bypass the active-operation check below (MERGE_HEAD/CHERRY_PICK_HEAD/
+    # rebase-merge/rebase-apply) for emergency recovery from a stale git state.
+    # Does not affect the unmerged-path detection or reset logic that follows.
+    [switch]$Force
 )
 
 # Pre-flight: require gh and aider on PATH
@@ -17,18 +21,23 @@ foreach ($cmd in @('gh', 'aider')) {
 # index first" regardless of which issue is being worked.
 $unmergedPaths = @(git diff --name-only --diff-filter=U 2>$null | Where-Object { $_ })
 if ($unmergedPaths.Count -gt 0) {
-    $gitDir = git rev-parse --git-dir
-    $opInProgress = @('MERGE_HEAD', 'CHERRY_PICK_HEAD', 'rebase-merge', 'rebase-apply') |
-        Where-Object { Test-Path (Join-Path $gitDir $_) }
-    if ($opInProgress) {
-        Write-Error "A git operation ($($opInProgress -join ', ')) is in progress with unresolved conflicts in: $($unmergedPaths -join ', '). Resolve or abort it manually before running this script."
-        exit 1
+    if ($Force) {
+        Write-Warning "Bypassing active-operation check due to -Force flag."
+    } else {
+        $gitDir = git rev-parse --git-dir
+        $opInProgress = @('MERGE_HEAD', 'CHERRY_PICK_HEAD', 'rebase-merge', 'rebase-apply') |
+            Where-Object { Test-Path (Join-Path $gitDir $_) }
+        if ($opInProgress) {
+            Write-Error "A git operation ($($opInProgress -join ', ')) is in progress with unresolved conflicts in: $($unmergedPaths -join ', '). Resolve or abort it manually before running this script."
+            exit 1
+        }
     }
-    # No merge/rebase/cherry-pick in progress, so this is leftover from an
-    # interrupted `git stash pop`. Reset just these paths to HEAD to clear the
-    # conflict. Deliberately do NOT run `git stash drop` - the corresponding
-    # stash entry (if any) is left in place for manual review, since choosing
-    # which side to keep is a judgment call this script shouldn't make.
+    # No merge/rebase/cherry-pick in progress (or -Force was passed), so treat
+    # this as leftover from an interrupted `git stash pop`. Reset just these
+    # paths to HEAD to clear the conflict. Deliberately do NOT run `git stash
+    # drop` - the corresponding stash entry (if any) is left in place for
+    # manual review, since choosing which side to keep is a judgment call
+    # this script shouldn't make.
     Write-Warning "Resetting leftover unresolved conflict in: $($unmergedPaths -join ', ') (likely from an interrupted 'git stash pop'). Any related stash entry is left in place for manual review."
     git checkout HEAD -- $unmergedPaths
     if ($LASTEXITCODE -ne 0) {
@@ -170,17 +179,26 @@ $directMatches = @(
 # Search tracked files for a matching leaf name so those still get added to
 # aider's context. Restricted to `git ls-files` output, so only files already
 # tracked in the repo can match - no path traversal outside the repo.
-$trackedFiles = @(git -C $repoRoot ls-files)
-$basenameMatches = @(
+$unmatchedCandidates = @(
     $candidates |
-        Where-Object { -not (Test-Path -LiteralPath (Join-Path $repoRoot $_) -PathType Leaf) } |
-        ForEach-Object {
-            $leaf = Split-Path -Leaf $_
-            $trackedFiles | Where-Object { (Split-Path -Leaf $_) -eq $leaf }
-        } |
-        Sort-Object -Unique |
-        ForEach-Object { Join-Path $repoRoot $_ }
+        Where-Object { -not (Test-Path -LiteralPath (Join-Path $repoRoot $_) -PathType Leaf) }
 )
+$basenameMatches = @()
+if ($unmatchedCandidates.Count -gt 0) {
+    # Only pay for listing every tracked file when a direct match didn't
+    # already resolve every candidate (repos with thousands of files make
+    # this call non-trivial, so skip it in the common all-direct-match case).
+    $trackedFiles = @(git -C $repoRoot ls-files)
+    $basenameMatches = @(
+        $unmatchedCandidates |
+            ForEach-Object {
+                $leaf = Split-Path -Leaf $_
+                $trackedFiles | Where-Object { (Split-Path -Leaf $_) -eq $leaf }
+            } |
+            Sort-Object -Unique |
+            ForEach-Object { Join-Path $repoRoot $_ }
+    )
+}
 
 # Identifier matches: issue text often calls out a specific function/method/
 # symbol in backticks (e.g. a test method name). When multiple files share a
@@ -200,7 +218,15 @@ $identifiers = @(
 )
 $identifierMatches = @(
     $identifiers |
-        ForEach-Object { git -C $repoRoot grep -l -F -- $_ 2>$null } |
+        ForEach-Object {
+            # `git grep` exits 1 (not a terminating error) when an identifier has no
+            # matches. Under $PSNativeCommandUseErrorActionPreference with
+            # $ErrorActionPreference = 'Stop', that non-zero exit becomes a
+            # terminating NativeCommandExitException, which would otherwise abort
+            # this whole ForEach-Object pipeline on the first non-matching
+            # identifier. Catch per-identifier so a miss just yields no matches.
+            try { git -C $repoRoot grep -l -F -- $_ 2>$null } catch { @() }
+        } |
         Sort-Object -Unique |
         ForEach-Object { Join-Path $repoRoot $_ }
 )

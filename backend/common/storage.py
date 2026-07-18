@@ -85,8 +85,17 @@ class S3JSONStorage:
 
 @dataclass
 class ParameterStoreJSONStorage:
+    """Parameter Store backed JSON storage.
+
+    Defaults to ``SecureString`` since the JSON payloads persisted through
+    this class (alert thresholds, push subscription secrets, etc.) are
+    treated as secrets. Pass ``type="String"`` explicitly for parameters
+    that must remain readable in plaintext.
+    """
+
     name: str
     client: Any | None = None
+    type: str = "SecureString"
 
     def _client(self):
         if self.client is None:
@@ -107,18 +116,23 @@ class ParameterStoreJSONStorage:
         self._client().put_parameter(
             Name=self.name,
             Value=json.dumps(data),
-            Type="String",
+            Type=self.type,
             Overwrite=True,
         )
 
 
-def get_storage(uri: str) -> JSONStorage:
+def get_storage(uri: str, *, param_type: str = "SecureString") -> JSONStorage:
     """Return a :class:`JSONStorage` for ``uri``.
 
     Parameters
     ----------
     uri:
         Storage location specified as ``file://``, ``s3://`` or ``ssm://``.
+    param_type:
+        SSM parameter type used when ``uri`` resolves to a
+        :class:`ParameterStoreJSONStorage`. Defaults to ``SecureString``;
+        pass ``"String"`` for non-secret config so it isn't needlessly
+        encrypted. Ignored for other schemes.
     """
 
     parsed = urlparse(uri)
@@ -130,7 +144,7 @@ def get_storage(uri: str) -> JSONStorage:
     if scheme in {"ssm", "ssm-param", "parameter"}:
         name = parsed.netloc + parsed.path
         name = name.lstrip("/")
-        return ParameterStoreJSONStorage(name=name)
+        return ParameterStoreJSONStorage(name=name, type=param_type)
 
     # default to file-based storage
     if scheme in {"file", ""}:

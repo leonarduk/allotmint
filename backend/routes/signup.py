@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import logging
 import os
+from copy import deepcopy
 from json import JSONDecodeError
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -75,14 +76,17 @@ def _store_dir(request: Request) -> Path:
 
 
 def _build_links(request_id: str, token: str) -> tuple[str, str]:
-    """Build the approve/reject links consumed by the approval flow (#4352)."""
+    """Build the approve/reject links consumed by the approval flow (#4352).
+
+    Raises ``RuntimeError`` when ``SIGNUP_APPROVAL_BASE_URL`` is unset: a
+    relative link is unusable in the emailed notification (email clients
+    cannot resolve it), so failing loudly here beats silently sending the
+    admin a broken link (#4369).
+    """
 
     base = os.getenv("SIGNUP_APPROVAL_BASE_URL", "").rstrip("/")
     if not base:
-        # Without a base URL the emailed links are relative and unusable. Warn
-        # rather than fail so the admin still receives the request id + token
-        # and can act manually, but the misconfiguration is not silent.
-        logger.warning("SIGNUP_APPROVAL_BASE_URL is not set; admin approve/reject links will be relative")
+        raise RuntimeError("SIGNUP_APPROVAL_BASE_URL must be set")
     query = f"id={request_id}&token={token}"
     return f"{base}/signup/approve?{query}", f"{base}/signup/reject?{query}"
 
@@ -108,7 +112,14 @@ async def _post_signup_request_impl(request: Request) -> dict[str, str]:
         raise HTTPException(status_code=503, detail="signup is not available")
 
     record, token = signup_requests.create_signup_request(name, email, note, _store_dir(request))
-    approve_url, reject_url = _build_links(record.id, token)
+    try:
+        approve_url, reject_url = _build_links(record.id, token)
+    except RuntimeError:
+        # Misconfiguration, not a client error — and the same for every
+        # caller, so it leaks nothing about account existence (matches the
+        # SIGNUP_ADMIN_EMAIL check above).
+        logger.error("SIGNUP_APPROVAL_BASE_URL is not configured; cannot build admin approval links")
+        raise HTTPException(status_code=503, detail="signup is not available") from None
     notification = SignupAdminNotification(
         request_id=record.id,
         name=record.name,
@@ -135,7 +146,13 @@ async def post_signup_request(request: Request) -> dict[str, str]:
 
 
 def _login_url() -> str:
-    """Return the login page URL emailed to a newly approved user."""
+    """Return the login page URL emailed to a newly approved user.
+
+    Callers must check this is non-empty before using it (see
+    ``approve_signup_request``) rather than silently emailing a linkless or
+    fabricated URL — a misconfigured deployment should fail loudly, not send
+    users to a broken link (#4385).
+    """
 
     return os.getenv("SIGNUP_LOGIN_URL", "").strip()
 
@@ -207,6 +224,14 @@ async def approve_signup_request(request: Request, id: str = "", token: str = ""
     except SignupTokenError as exc:
         raise _token_error_to_http(exc) from exc
 
+    login_url = _login_url()
+    if not login_url:
+        # Misconfiguration, not a client error. Fail before provisioning so an
+        # unset SIGNUP_LOGIN_URL never results in a linkless (or fabricated)
+        # login email (#4385).
+        logger.error("SIGNUP_LOGIN_URL is not configured; cannot approve signup requests")
+        raise HTTPException(status_code=503, detail="signup approval is not available")
+
     accounts_root = resolve_accounts_root(request, allow_missing=True)
     store = resolve_writable_store(request)
     owner = signup_provision.provision_owner(record, accounts_root, store=store)
@@ -219,7 +244,7 @@ async def approve_signup_request(request: Request, id: str = "", token: str = ""
         raise _token_error_to_http(exc) from exc
 
     try:
-        send_signup_approved_email(record.email, record.name, _login_url())
+        send_signup_approved_email(record.email, record.name, login_url)
     except Exception as exc:  # noqa: BLE001 - surface any SES failure, never swallow it
         logger.exception("Failed to send login-ready email for request %s", record.id)
         raise HTTPException(status_code=502, detail="failed to notify user") from exc
@@ -272,10 +297,12 @@ def create_router(
     limited_request = limiter.limit(rate_limit)(_post_signup_request_impl)
     limited.post("/request")(limited_request)
 
-    # Other routes are copied from the module-level router without rate limits
+    # Other routes are copied from the module-level router without rate limits.
+    # Deep-copy so mutating a route on `limited` can't corrupt the shared
+    # module-level `router` (and vice versa).
     for route in router.routes:
         if getattr(route, "path", None) == "/request":
             continue  # already registered above with rate limit
-        limited.routes.append(route)
+        limited.routes.append(deepcopy(route))
 
     return limited

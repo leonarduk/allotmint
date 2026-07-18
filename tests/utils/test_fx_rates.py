@@ -1,11 +1,10 @@
 import datetime as dt
-import datetime as dt
 
 import pandas as pd
 import pytest
 import yfinance as yf
 
-from backend.utils.fx_rates import _safe_for_log, fetch_fx_rate_range
+from backend.utils.fx_rates import fetch_fx_rate_range
 
 
 def _fake_df(start, end):
@@ -85,18 +84,4 @@ def test_fetch_fx_rate_same_currency():
     assert list(df["Rate"]) == [1.0, 1.0, 1.0]
 
 
-@pytest.mark.parametrize(
-    "value,expected",
-    [
-        ("USD", "USD"),
-        ("USD\nGBP", "USDGBP"),
-        ("USD\rGBP", "USDGBP"),
-        ("USD\r\nGBP", "USDGBP"),
-        ("abc\x00def", "abc?def"),
-        ("\x1b[31mred\x1b[0m", "?[31mred?[0m"),
-        (RuntimeError("boom\nboom"), "boomboom"),
-        (123, "123"),
-    ],
-)
-def test_safe_for_log(value, expected):
-    assert _safe_for_log(value) == expected
+

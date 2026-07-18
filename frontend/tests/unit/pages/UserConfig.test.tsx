@@ -97,5 +97,37 @@ describe("UserConfig page", () => {
     const select = await screen.findByRole("combobox");
     expect((select as HTMLSelectElement).value).toBe("");
   });
+
+  it("shows a loading indicator while the authorized owners are being fetched", async () => {
+    let resolveOwners: (value: unknown) => void = () => {};
+    mockGetOwners.mockReturnValue(
+      new Promise((resolve) => {
+        resolveOwners = resolve;
+      }),
+    );
+    mockGetApprovals.mockResolvedValue({ approvals: [] });
+
+    render(<UserConfig />);
+
+    expect(screen.getByText(/loading owners/i)).toBeInTheDocument();
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+
+    await act(async () => {
+      resolveOwners([{ owner: "alex", accounts: [] }]);
+    });
+
+    expect(await screen.findByRole("combobox")).toBeInTheDocument();
+    expect(screen.queryByText(/loading owners/i)).not.toBeInTheDocument();
+  });
+
+  it("shows a meaningful empty state when the user has no authorized owners", async () => {
+    mockGetOwners.mockResolvedValue([]);
+    mockGetApprovals.mockResolvedValue({ approvals: [] });
+
+    render(<UserConfig />);
+
+    expect(await screen.findByText(/no accounts are available/i)).toBeInTheDocument();
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  });
 });
 

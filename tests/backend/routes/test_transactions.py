@@ -358,6 +358,7 @@ async def test_create_transaction_records_valid_payload(monkeypatch, tmp_path):
             "fees": None,
             "comments": None,
             "reason": "Rebalance",
+            "external_id": None,
         }
     ]
     assert transactions_module._PORTFOLIO_IMPACT["alice"] == pytest.approx(7.5)

@@ -18,6 +18,10 @@ RULESET_PATH = REPO_ROOT / ".github" / "rulesets" / "default-branch-protection.j
 WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
 
 EXPECTED_REQUIRED_CHECKS = {
+    # `test` runs cdk/tests/ (CDK infrastructure) against root deps; the
+    # backend `tests/` suite runs once, under Lambda-pinned deps, in
+    # `lambda-compat` below. Keeping each suite to a single dependency set
+    # avoids running `tests/` twice per PR (see PR #4464).
     "CI / test",
     "CI / Validate backend/requirements.txt (dry-run)",
     "CI / Lambda-compat pytest (backend/requirements.txt)",

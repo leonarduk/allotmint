@@ -1434,7 +1434,7 @@ def list_templates(store: TemplateStore | None = None) -> List[ReportTemplate]:
             if template_id in templates:
                 logger.warning(
                     "Ignoring user-defined template %s because it clashes with a built-in",
-                    template_id,
+                    sanitise_log_value(template_id),
                 )
                 continue
             templates[template_id] = _materialise_template(definition, builtin=False)

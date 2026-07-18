@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useEffect } from "react";
 import {
@@ -150,19 +150,12 @@ describe("App", () => {
   it("loads /instrument/all rows from group holdings API", async () => {
     window.history.pushState({}, "", "/instrument/all");
 
-    const mockGetGroupInstruments = vi.fn().mockResolvedValue([
-      {
-        ticker: "FOO.L",
-        name: "Foo Plc",
-        grouping: "Technology",
-        exchange: "L",
-        currency: "GBP",
-        units: 10,
-        market_value_gbp: 1234.56,
-        gain_gbp: 100.0,
-        gain_pct: 8.81,
-      } as InstrumentSummary,
-    ]);
+    let resolveInstruments: (rows: InstrumentSummary[]) => void;
+    const mockGetGroupInstruments = vi.fn().mockReturnValue(
+      new Promise<InstrumentSummary[]>((resolve) => {
+        resolveInstruments = resolve;
+      }),
+    );
 
     let capturedRows: InstrumentSummary[] = [];
 
@@ -222,9 +215,27 @@ describe("App", () => {
     await waitFor(() => expect(mockGetGroupInstruments).toHaveBeenCalledTimes(1));
     expect(mockGetGroupInstruments).toHaveBeenCalledWith("all");
 
+    expect(await screen.findByRole("status", { name: /loading/i })).toBeInTheDocument();
+    expect(screen.queryByTestId("instrument-table")).not.toBeInTheDocument();
+
+    resolveInstruments!([
+      {
+        ticker: "FOO.L",
+        name: "Foo Plc",
+        grouping: "Technology",
+        exchange: "L",
+        currency: "GBP",
+        units: 10,
+        market_value_gbp: 1234.56,
+        gain_gbp: 100.0,
+        gain_pct: 8.81,
+      } as InstrumentSummary,
+    ]);
+
     const table = await screen.findByTestId("instrument-table");
     expect(within(table).getAllByText("FOO.L")).toHaveLength(1);
     expect(capturedRows[0]?.grouping).toBe("Technology");
+    expect(screen.queryByRole("status", { name: /loading/i })).not.toBeInTheDocument();
   });
 
   it("loads /portfolio/all using the group portfolio endpoint", async () => {
@@ -399,6 +410,272 @@ describe("App", () => {
     );
     expect(mockGetPortfolio).not.toHaveBeenCalled();
     expect(mockComplianceWarnings.mock.calls).toContainEqual([["alex"]]);
+  });
+
+  it("fetches the owner portfolio as soon as groups resolve, without waiting for owners (#5094)", async () => {
+    window.history.pushState({}, "", "/portfolio/alice");
+
+    let resolveOwners:
+      | ((owners: { owner: string; accounts: unknown[] }[]) => void)
+      | undefined;
+    const ownersPromise = new Promise<{ owner: string; accounts: unknown[] }[]>(
+      (resolve) => {
+        resolveOwners = resolve;
+      },
+    );
+
+    const mockGetPortfolio = vi.fn().mockResolvedValue({
+      owner: "alice",
+      as_of: "2026-01-01",
+      trades_this_month: 0,
+      trades_remaining: 0,
+      total_value_estimate_gbp: 0,
+      accounts: [],
+    } as Portfolio);
+
+    vi.doMock("@/api", async () => {
+      const actual = await vi.importActual<typeof import("@/api")>("@/api");
+      return {
+        ...actual,
+        getOwners: vi.fn().mockReturnValue(ownersPromise),
+        getGroups: vi.fn().mockResolvedValue([]),
+        getPortfolio: mockGetPortfolio,
+        getGroupInstruments: vi.fn().mockResolvedValue([]),
+        getGroupPortfolio: vi.fn(),
+        getGroupAlphaVsBenchmark: vi.fn(),
+        getGroupTrackingError: vi.fn(),
+        getGroupMaxDrawdown: vi.fn(),
+        getGroupSectorContributions: vi.fn(),
+        getGroupRegionContributions: vi.fn(),
+        getGroupMovers: vi.fn(),
+        getCachedGroupInstruments: undefined,
+        listInstrumentGroups: vi.fn().mockResolvedValue([]),
+        listInstrumentGroupingDefinitions: vi.fn().mockResolvedValue([]),
+        refreshPrices: vi.fn(),
+        getAlerts: vi.fn().mockResolvedValue([]),
+        getNudges: vi.fn().mockResolvedValue([]),
+        getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+        getCompliance: vi
+          .fn()
+          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+        getTimeseries: vi.fn().mockResolvedValue([]),
+        saveTimeseries: vi.fn(),
+        refetchTimeseries: vi.fn(),
+        rebuildTimeseriesCache: vi.fn(),
+        getTradingSignals: vi.fn().mockResolvedValue([]),
+        getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+      };
+    });
+
+    const { default: App } = await import("@/App");
+
+    render(
+      <MemoryRouter initialEntries={["/portfolio/alice"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    // getGroups already resolved (empty array) but getOwners is still pending —
+    // the portfolio fetch must not wait on it.
+    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("alice"));
+
+    resolveOwners?.([]);
+  });
+
+  it("resets portfolioAsOf to null for a newly selected owner before owners resolve (#5100)", async () => {
+    window.history.pushState({}, "", "/portfolio/alice");
+
+    let resolveOwners:
+      | ((owners: { owner: string; accounts: unknown[] }[]) => void)
+      | undefined;
+    const ownersPromise = new Promise<{ owner: string; accounts: unknown[] }[]>(
+      (resolve) => {
+        resolveOwners = resolve;
+      },
+    );
+
+    const mockGetPortfolio = vi
+      .fn()
+      .mockImplementation((owner: string, opts?: { asOf?: string }) =>
+        Promise.resolve({
+          owner,
+          as_of: opts?.asOf ?? "2026-01-01",
+          trades_this_month: 0,
+          trades_remaining: 0,
+          total_value_estimate_gbp: 0,
+          accounts: [],
+        } as Portfolio),
+      );
+
+    vi.doMock("@/api", async () => {
+      const actual = await vi.importActual<typeof import("@/api")>("@/api");
+      return {
+        ...actual,
+        getOwners: vi.fn().mockReturnValue(ownersPromise),
+        getGroups: vi.fn().mockResolvedValue([]),
+        getPortfolio: mockGetPortfolio,
+        getGroupInstruments: vi.fn().mockResolvedValue([]),
+        getGroupPortfolio: vi.fn(),
+        getGroupAlphaVsBenchmark: vi.fn(),
+        getGroupTrackingError: vi.fn(),
+        getGroupMaxDrawdown: vi.fn(),
+        getGroupSectorContributions: vi.fn(),
+        getGroupRegionContributions: vi.fn(),
+        getGroupMovers: vi.fn(),
+        getCachedGroupInstruments: undefined,
+        listInstrumentGroups: vi.fn().mockResolvedValue([]),
+        listInstrumentGroupingDefinitions: vi.fn().mockResolvedValue([]),
+        refreshPrices: vi.fn(),
+        getAlerts: vi.fn().mockResolvedValue([]),
+        getNudges: vi.fn().mockResolvedValue([]),
+        getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+        getCompliance: vi
+          .fn()
+          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+        getTimeseries: vi.fn().mockResolvedValue([]),
+        saveTimeseries: vi.fn(),
+        refetchTimeseries: vi.fn(),
+        rebuildTimeseriesCache: vi.fn(),
+        getTradingSignals: vi.fn().mockResolvedValue([]),
+        getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+      };
+    });
+
+    const { default: App } = await import("@/App");
+    const { configContext } = await import("@/ConfigContext");
+    const user = userEvent.setup();
+
+    const router = createMemoryRouter(
+      [
+        {
+          path: "*",
+          element: (
+            <configContext.Provider value={makeConfigValue()}>
+              <App />
+            </configContext.Provider>
+          ),
+        },
+      ],
+      { initialEntries: ["/portfolio/alice"] },
+    );
+
+    render(<RouterProvider router={router} />);
+
+    // Initial fetch for alice fires with no "as of" filter.
+    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("alice"));
+
+    // Apply an "as of" date filter, giving alice a non-null portfolioAsOf.
+    const dateInput = await screen.findByLabelText(/as of/i);
+    fireEvent.change(dateInput, { target: { value: "2025-01-01" } });
+    await user.click(screen.getByRole("button", { name: /go/i }));
+
+    await waitFor(() =>
+      expect(mockGetPortfolio).toHaveBeenCalledWith("alice", {
+        asOf: "2025-01-01",
+      }),
+    );
+
+    mockGetPortfolio.mockClear();
+
+    // Switch owners via direct navigation while getOwners is still pending.
+    // The reset effect only depends on groupsCatalogReady (#5094), so it must
+    // clear portfolioAsOf for bob without waiting on the pending owners
+    // request (#5100). The settled fetch for bob carries no "as of" filter,
+    // proving setPortfolioAsOf(null) fired before owners resolved.
+    await act(async () => {
+      await router.navigate("/portfolio/bob");
+    });
+
+    await waitFor(() => {
+      expect(mockGetPortfolio.mock.calls.at(-1)).toEqual(["bob"]);
+    });
+
+    resolveOwners?.([
+      { owner: "alice", accounts: [] },
+      { owner: "bob", accounts: [] },
+    ]);
+  });
+
+  it("does not fetch an owner portfolio for a slug that resolves to a group once groups load", async () => {
+    window.history.pushState({}, "", "/portfolio/kids");
+
+    let resolveGroups:
+      | ((groups: { slug: string; name: string; members: string[] }[]) => void)
+      | undefined;
+    const groupsPromise = new Promise<
+      { slug: string; name: string; members: string[] }[]
+    >((resolve) => {
+      resolveGroups = resolve;
+    });
+
+    const mockGetPortfolio = vi.fn().mockResolvedValue({
+      owner: "kids",
+      as_of: "2026-01-01",
+      trades_this_month: 0,
+      trades_remaining: 0,
+      total_value_estimate_gbp: 0,
+      accounts: [],
+    } as Portfolio);
+    const mockGetGroupPortfolio = vi.fn().mockResolvedValue({
+      name: "Kids",
+      slug: "kids",
+      accounts: [],
+      trades_this_month: 0,
+      trades_remaining: 0,
+    });
+
+    vi.doMock("@/api", async () => {
+      const actual = await vi.importActual<typeof import("@/api")>("@/api");
+      return {
+        ...actual,
+        getOwners: vi.fn().mockResolvedValue([]),
+        getGroups: vi.fn().mockReturnValue(groupsPromise),
+        getPortfolio: mockGetPortfolio,
+        getGroupPortfolio: mockGetGroupPortfolio,
+        getGroupInstruments: vi.fn().mockResolvedValue([]),
+        getGroupAlphaVsBenchmark: vi.fn().mockResolvedValue({ alpha_vs_benchmark: 0 }),
+        getGroupTrackingError: vi.fn().mockResolvedValue({ tracking_error: 0 }),
+        getGroupMaxDrawdown: vi.fn().mockResolvedValue({ max_drawdown: 0 }),
+        getGroupSectorContributions: vi.fn().mockResolvedValue([]),
+        getGroupRegionContributions: vi.fn().mockResolvedValue([]),
+        getGroupMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+        getCachedGroupInstruments: undefined,
+        listInstrumentGroups: vi.fn().mockResolvedValue([]),
+        listInstrumentGroupingDefinitions: vi.fn().mockResolvedValue([]),
+        refreshPrices: vi.fn(),
+        getAlerts: vi.fn().mockResolvedValue([]),
+        getNudges: vi.fn().mockResolvedValue([]),
+        getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+        getCompliance: vi
+          .fn()
+          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+        getTimeseries: vi.fn().mockResolvedValue([]),
+        saveTimeseries: vi.fn(),
+        refetchTimeseries: vi.fn(),
+        rebuildTimeseriesCache: vi.fn(),
+        getTradingSignals: vi.fn().mockResolvedValue([]),
+        getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+      };
+    });
+
+    const { default: App } = await import("@/App");
+
+    render(
+      <MemoryRouter initialEntries={["/portfolio/kids"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    await act(async () => {
+      resolveGroups?.([{ slug: "kids", name: "Kids", members: [] }]);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(mockGetGroupPortfolio).toHaveBeenCalledWith(
+      "kids",
+      { asOf: undefined },
+    ));
+    expect(mockGetPortfolio).not.toHaveBeenCalled();
   });
 
   it("renders timeseries editor when path is /timeseries", async () => {
@@ -1727,7 +2004,10 @@ describe("App", () => {
     );
 
     const groupLink = await screen.findByText("Group");
-    expect(groupLink).toHaveAttribute("href", "/");
+    // The link always carries an explicit `group=all` query param (even for
+    // the default group) so it never collides with the Family MVP bare-root
+    // redirect, which treats '/' with no query as "go to the entry page" (#5075).
+    expect(groupLink).toHaveAttribute("href", "/?group=all");
     expect(groupLink).toBeInTheDocument();
 
     const nav = screen.getByRole("navigation");

@@ -16,6 +16,8 @@ jobs:
           python-version: '3.12'
       - run: pip install -r requirements.txt -r requirements-dev.txt
       - run: python scripts/check_branch_protection_required_checks.py
+      - name: Run extract_verdict tests
+        run: pytest tests/test_extract_verdict.py -v --no-cov
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
@@ -31,6 +33,12 @@ jobs:
         working-directory: frontend
       - run: npm test -- --run
         working-directory: frontend
+      - name: Check cdk/tests/ exists and has tests
+        run: |
+          if [ ! -d "cdk/tests" ] || [ -z "$(ls -A cdk/tests/)" ]; then
+            echo "ERROR: cdk/tests/ is missing or empty. The test job requires at least one test file in cdk/tests/."
+            exit 1
+          fi
       - name: CDK infrastructure tests
         run: pytest cdk/tests/ --no-cov
 
@@ -147,6 +155,17 @@ jobs:
         # runs once (here), cdk/tests/ runs once (in test job), against their
         # respective dependency sets.
         run: .venv-lambda/bin/pytest tests/
+
+  lint-shell-scripts:
+    name: Lint .github/scripts shell scripts (shellcheck)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # ubuntu-latest ships shellcheck preinstalled; non-blocking (continue-on-error)
+      # until the existing scripts are cleaned up and this can be made required.
+      - name: Run shellcheck
+        continue-on-error: true
+        run: shellcheck .github/scripts/*.sh
 
   lint-workflows:
     name: Lint GitHub Actions workflows

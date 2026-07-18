@@ -24,6 +24,8 @@ from backend.common.data_loader import (
     load_person_meta,
     load_person_metadata,
     load_virtual_portfolio,
+    resolve_default_accounts_root,
+    resolve_owner_dir,
     resolve_paths,
     save_virtual_portfolio,
 )
@@ -295,6 +297,88 @@ class TestResolvePaths:
         expected_accounts = Path(windows_accounts).expanduser()
         expected_virtual = expected_accounts.parent / "virtual_portfolios"
         assert result == ResolvedPaths(repo_dir, expected_accounts, expected_virtual)
+
+
+class TestResolveDefaultAccountsRoot:
+    """Regression coverage for issue #5072: valid owners 404'd on /performance,
+    /var and portfolio-group endpoints whenever ``config.accounts_root`` pointed
+    at a directory that doesn't exist in the current environment, because
+    ``load_account``/``load_person_metadata``/``user_config``/``approvals``
+    resolved that root directly with no fallback (unlike ``list_plots`` and
+    ``resolve_accounts_root``, which already degrade to the repo-local
+    ``data/accounts`` tree)."""
+
+    def _patch_paths(self, monkeypatch, tmp_path, primary, fallback):
+        def fake_resolve_paths(repo_root, accounts_root):
+            if repo_root is None and accounts_root is None:
+                return ResolvedPaths(tmp_path, fallback, fallback.parent / "virtual_portfolios")
+            return ResolvedPaths(tmp_path, primary, primary.parent / "virtual_portfolios")
+
+        monkeypatch.setattr(data_loader, "resolve_paths", fake_resolve_paths)
+        monkeypatch.setattr(
+            data_loader,
+            "config",
+            type("Cfg", (), {"repo_root": tmp_path, "accounts_root": primary})(),
+        )
+
+    def test_falls_back_when_configured_root_missing(self, tmp_path, monkeypatch):
+        primary = tmp_path / "missing_primary"
+        fallback = tmp_path / "fallback"
+        fallback.mkdir()
+        self._patch_paths(monkeypatch, tmp_path, primary, fallback)
+
+        assert resolve_default_accounts_root() == fallback
+
+    def test_uses_configured_root_when_it_exists(self, tmp_path, monkeypatch):
+        primary = tmp_path / "primary"
+        primary.mkdir()
+        fallback = tmp_path / "fallback"
+        fallback.mkdir()
+        self._patch_paths(monkeypatch, tmp_path, primary, fallback)
+
+        assert resolve_default_accounts_root() == primary
+
+    def test_returns_primary_when_neither_root_exists(self, tmp_path, monkeypatch):
+        """Neither root exists on disk (e.g. a fresh checkout with no data/
+        directory at all). There's nothing sensible to fall back to, so this
+        degrades to the pre-fallback behaviour: return the (non-existent)
+        configured root and let callers raise FileNotFoundError/MissingData
+        when they try to actually read from it."""
+        primary = tmp_path / "missing_primary"
+        fallback = tmp_path / "missing_fallback"
+        self._patch_paths(monkeypatch, tmp_path, primary, fallback)
+
+        assert resolve_default_accounts_root() == primary
+        assert not resolve_default_accounts_root().exists()
+
+        with pytest.raises(FileNotFoundError):
+            resolve_owner_dir("alice")
+
+
+class TestResolveOwnerDir:
+    def test_finds_owner_under_fallback_root(self, tmp_path, monkeypatch):
+        primary = tmp_path / "missing_primary"
+        fallback = tmp_path / "fallback"
+        owner_dir = fallback / "alice"
+        owner_dir.mkdir(parents=True)
+        TestResolveDefaultAccountsRoot()._patch_paths(monkeypatch, tmp_path, primary, fallback)
+
+        assert resolve_owner_dir("alice") == owner_dir
+
+    def test_raises_when_owner_missing_everywhere(self, tmp_path, monkeypatch):
+        primary = tmp_path / "missing_primary"
+        fallback = tmp_path / "fallback"
+        fallback.mkdir()
+        TestResolveDefaultAccountsRoot()._patch_paths(monkeypatch, tmp_path, primary, fallback)
+
+        with pytest.raises(FileNotFoundError):
+            resolve_owner_dir("nobody")
+
+    def test_explicit_accounts_root_bypasses_fallback(self, tmp_path):
+        owner_dir = tmp_path / "explicit" / "alice"
+        owner_dir.mkdir(parents=True)
+
+        assert resolve_owner_dir("alice", tmp_path / "explicit") == owner_dir
 
 
 class TestVirtualPortfolioPersistence:
@@ -750,6 +834,44 @@ class TestLoadDemoOwner:
         result = _load_demo_owner(tmp_path)
 
         assert result is None
+
+
+def test_list_aws_plots_enforces_email_and_viewer_permissions(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    cfg = Config()
+    cfg.app_env = "aws"
+    cfg.disable_auth = False
+    cfg.repo_root = tmp_path
+    cfg.accounts_root = tmp_path / "accounts"
+    monkeypatch.setattr("backend.common.data_loader.config", cfg)
+
+    class _FakeS3DataProvider:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def list_plots(self, current_user=None):
+            return [
+                {"owner": "alice", "accounts": ["isa"]},
+                {"owner": "bob", "accounts": ["gia"]},
+            ]
+
+    meta_by_owner = {
+        "alice": {"email": "Alice@Example.com", "viewers": []},
+        "bob": {"email": "bob@example.com", "viewers": []},
+    }
+
+    monkeypatch.setattr("backend.common.data_loader.S3DataProvider", _FakeS3DataProvider)
+    monkeypatch.setattr(
+        "backend.common.data_loader.load_person_meta",
+        lambda owner, root=None: meta_by_owner[owner],
+    )
+
+    result = data_loader._list_aws_plots(current_user="alice@example.com")
+
+    assert [entry["owner"] for entry in result] == ["alice"]
+
+
 def test_list_plots_prefers_aws_results(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     cfg = Config()
     cfg.app_env = "aws"

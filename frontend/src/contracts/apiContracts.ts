@@ -139,6 +139,7 @@ export const transactionContractSchema = z.object({
   owner: z.string(),
   account: z.string(),
   id: nullableString.optional(),
+  external_id: nullableString.optional(),
   date: nullableString.optional(),
   ticker: nullableString.optional(),
   type: nullableString.optional(),
@@ -164,6 +165,35 @@ export const transactionContractSchema = z.object({
 
 export const transactionsContractSchema = z.array(transactionContractSchema);
 
+const dataQualityGapPeriodSchema = z.object({
+  start: z.string(),
+  end: z.string(),
+  missing_business_days: z.number(),
+});
+
+const dataQualityOutlierSchema = z.object({
+  date: z.string(),
+  value: z.number(),
+  z_score: z.number(),
+});
+
+const timeseriesQualityPositionSchema = z.object({
+  ticker: z.string(),
+  exchange: z.string(),
+  total_points: z.number(),
+  first_date: nullableString,
+  last_date: nullableString,
+  gap_count: z.number(),
+  gaps: z.array(dataQualityGapPeriodSchema),
+  duplicate_dates: z.array(z.string()),
+  outliers: z.array(dataQualityOutlierSchema),
+});
+
+export const dataQualityTimeseriesContractSchema = z.object({
+  count: z.number(),
+  positions: z.array(timeseriesQualityPositionSchema),
+});
+
 export const apiContractSchemas = {
   config: configContractSchema,
   owners: ownersContractSchema,
@@ -171,6 +201,7 @@ export const apiContractSchemas = {
   groupPortfolio: groupPortfolioContractSchema,
   portfolio: portfolioContractSchema,
   transactions: transactionsContractSchema,
+  dataQualityTimeseries: dataQualityTimeseriesContractSchema,
 } as const;
 
 // satisfies Record<keyof typeof apiContractSchemas, object> enforces that every
@@ -186,4 +217,5 @@ export const apiContractJsonSchemas = {
   groupPortfolio: toJSONSchema(groupPortfolioContractSchema),
   portfolio: toJSONSchema(portfolioContractSchema),
   transactions: toJSONSchema(transactionsContractSchema),
+  dataQualityTimeseries: toJSONSchema(dataQualityTimeseriesContractSchema),
 } satisfies Record<keyof typeof apiContractSchemas, object>;

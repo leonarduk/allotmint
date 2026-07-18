@@ -70,11 +70,13 @@ describe('TransactionsPage', () => {
     return within(row).getByRole('button', { name: 'Edit' });
   };
 
-  const getFilterOwner = () => screen.getAllByLabelText(/owner/i)[1];
-  const getFilterAccount = () => screen.getAllByLabelText(/account/i)[1];
-  const getEditorTicker = () => screen.getAllByLabelText('Ticker')[1];
-  const getEditorPrice = () => screen.getAllByLabelText('Price (GBP)')[1];
-  const getEditorUnits = () => screen.getAllByLabelText('Units')[1];
+  // The Account + Holdings Input form only renders when inputOnly is true
+  // (#5089), so outside that mode these labels only match the filters/editor.
+  const getFilterOwner = () => screen.getAllByLabelText(/owner/i)[0];
+  const getFilterAccount = () => screen.getAllByLabelText(/account/i)[0];
+  const getEditorTicker = () => screen.getAllByLabelText('Ticker')[0];
+  const getEditorPrice = () => screen.getAllByLabelText('Price (GBP)')[0];
+  const getEditorUnits = () => screen.getAllByLabelText('Units')[0];
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -93,6 +95,20 @@ describe('TransactionsPage', () => {
     expect(
       (await screen.findAllByText('Alex Example')).at(-1)
     ).toBeInTheDocument();
+  });
+
+  it('does not render the Account + Holdings Input form when inputOnly is false', async () => {
+    render(
+      <TransactionsPage
+        owners={[
+          { owner: 'alex', full_name: 'Alex Example', accounts: ['isa'] },
+        ]}
+      />
+    );
+    await screen.findByText('PFE');
+    expect(
+      screen.queryByText('Account + Holdings Input')
+    ).not.toBeInTheDocument();
   });
 
   it('locks owner and account filters while editing', async () => {
@@ -283,6 +299,39 @@ describe('TransactionsPage', () => {
       screen.getByText('Provide both Units and Price (GBP).')
     ).toBeInTheDocument();
     expect(createManualHoldingMock).not.toHaveBeenCalled();
+  });
+
+  it('saves using Value when Value, Units, and Price are all provided', async () => {
+    const user = userEvent.setup();
+    render(
+      <TransactionsPage
+        owners={[
+          { owner: 'alex', full_name: 'Alex Example', accounts: ['isa'] },
+        ]}
+        inputOnly
+      />
+    );
+
+    await screen.findByText('Account + Holdings Input');
+    await user.type(screen.getByLabelText('Account'), 'ISA');
+    await user.type(screen.getByLabelText(/^Ticker$/i), 'VUSA.L');
+    await user.type(screen.getByLabelText('Value (GBP)'), '500');
+    await user.type(screen.getByLabelText('Units'), '5');
+    await user.type(screen.getByLabelText('Price (GBP)'), '100');
+    await user.click(screen.getByRole('button', { name: 'Save holding' }));
+
+    await waitFor(() => {
+      expect(createManualHoldingMock).toHaveBeenCalledWith(
+        expect.objectContaining({ value_gbp: 500 })
+      );
+    });
+    expect(createManualHoldingMock.mock.calls[0][0]).not.toHaveProperty(
+      'units'
+    );
+    expect(createManualHoldingMock.mock.calls[0][0]).not.toHaveProperty(
+      'price_gbp'
+    );
+    expect(screen.getByText('Holding saved.')).toBeInTheDocument();
   });
 
   it('defaults the manual owner input to the logged-in user\'s owner', async () => {

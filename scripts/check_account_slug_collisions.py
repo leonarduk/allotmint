@@ -129,9 +129,20 @@ def main(argv: list[str]) -> int:
         default="accounts/",
         help="S3 key prefix for accounts (default: accounts/)",
     )
+    parser.add_argument(
+        "--region",
+        default=None,
+        help="AWS region to use (default: boto3's standard resolution order)",
+    )
+    parser.add_argument(
+        "--profile",
+        default=None,
+        help="AWS named profile to use (default: boto3's standard resolution order)",
+    )
     args = parser.parse_args(argv[1:])
 
-    s3_client = boto3.client("s3")
+    session = boto3.Session(profile_name=args.profile, region_name=args.region)
+    s3_client = session.client("s3")
     collisions = find_collisions(args.accounts_dir, s3_client, args.bucket, args.prefix)
 
     if collisions:

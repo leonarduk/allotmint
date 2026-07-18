@@ -1,7 +1,9 @@
+import { useTranslation } from "react-i18next";
 import { useFetch } from "../hooks/useFetch";
 import * as api from "../api";
 import type { Alert, Nudge } from "../types";
 import EmptyState from "./EmptyState";
+import ListSkeleton from "./skeletons/ListSkeleton";
 
 interface Props {
   open: boolean;
@@ -9,6 +11,7 @@ interface Props {
 }
 
 export function NotificationsDrawer({ open, onClose }: Props) {
+  const { t } = useTranslation();
   const {
     data: alerts,
     loading: alertLoading,
@@ -76,7 +79,7 @@ export function NotificationsDrawer({ open, onClose }: Props) {
             ×
           </button>
         </div>
-        {alertLoading && <div>Loading...</div>}
+        {alertLoading && <ListSkeleton rows={2} label={t("app.loading")} />}
         {alertError && <div>Cannot reach server</div>}
         {!alertLoading && !alertError && alertList.length === 0 && (
           <EmptyState message="No alerts" />
@@ -103,7 +106,7 @@ export function NotificationsDrawer({ open, onClose }: Props) {
         <div style={{ marginTop: "1rem" }}>
           <strong>Nudges</strong>
         </div>
-        {nudgeLoading && <div>Loading...</div>}
+        {nudgeLoading && <ListSkeleton rows={2} label={t("app.loading")} />}
         {nudgeError && <div>Cannot reach server</div>}
         {!nudgeLoading && !nudgeError && nudgeList.length === 0 && (
           <EmptyState message="No nudges" />

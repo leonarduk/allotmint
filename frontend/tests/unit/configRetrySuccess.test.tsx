@@ -11,6 +11,7 @@ afterEach(() => {
 describe('Root config retry flow', () => {
   it('recovers from a transient failure and renders the route marker', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
     const nativeSetTimeout = window.setTimeout
     const nativeClearTimeout = window.clearTimeout
@@ -77,10 +78,22 @@ describe('Root config retry flow', () => {
       const marker = await screen.findByTestId('active-route-marker')
       expect(marker).toHaveAttribute('data-mode', 'group')
       expect(marker).toHaveAttribute('data-pathname', '/')
+
+      // A transient failure that recovers on retry should not read as an
+      // unhandled console error (#5109) — it logs at warn instead.
+      expect(consoleWarn).toHaveBeenCalledWith(
+        'Failed to load configuration, retrying',
+        expect.any(Error),
+      )
+      expect(consoleError).not.toHaveBeenCalledWith(
+        'Failed to load configuration',
+        expect.anything(),
+      )
     } finally {
       setTimeoutSpy.mockRestore()
       clearTimeoutSpy.mockRestore()
       consoleError.mockRestore()
+      consoleWarn.mockRestore()
     }
   })
 })

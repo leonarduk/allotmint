@@ -83,6 +83,28 @@ describe("InstrumentDetail", () => {
     mockGetInstrumentIntraday.mockReset();
   });
 
+  it("shows accessible loading skeletons before the instrument detail resolves", async () => {
+    let resolveDetail: (value: { prices: unknown[]; positions: unknown[]; currency: null }) => void;
+    mockGetInstrumentDetail.mockReturnValue(
+      new Promise((resolve) => {
+        resolveDetail = resolve;
+      }),
+    );
+
+    render(
+      <MemoryRouter>
+        <InstrumentDetail ticker="ABC.L" name="ABC" onClose={() => {}} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getAllByRole("status", { name: /loading/i }).length).toBeGreaterThan(0);
+
+    resolveDetail!({ prices: [], positions: [], currency: null });
+
+    await screen.findByRole("heading", { name: "ABC" });
+    expect(screen.queryAllByRole("status", { name: /loading/i })).toHaveLength(0);
+  });
+
   it("shows signal action and reason when provided", async () => {
     mockGetInstrumentDetail.mockResolvedValue({
       prices: [],

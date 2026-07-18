@@ -59,6 +59,12 @@ jobs:
   # reusable-workflow call) — a plain job named "ai-review" does NOT match
   # that string, so it never satisfies the required check. This job's name
   # reproduces the composite string literally so Dependabot PRs unblock.
+  #
+  # WARNING: of the three ai-review workflows (DeepSeek/Claude/GPT), only this
+  # one's context is currently a required status check on `main`. If you
+  # rename this job or the provider_name above, update both this job name AND
+  # the required_status_checks context in branch protection — otherwise
+  # Dependabot PRs will be blocked by a required check that can never pass.
   dependabot-pass:
     name: ai-review / DeepSeek AI code review
     if: github.actor == 'dependabot[bot]'

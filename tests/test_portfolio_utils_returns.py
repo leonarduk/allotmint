@@ -529,3 +529,14 @@ def test_detect_single_day_flash_crash_handles_duplicate_index():
 
     assert len(cleaned) == 4
     assert len(issues) >= 1
+
+
+def test_cash_flow_signs_treat_dividend_singular_same_as_plural():
+    """Regression test for #4948: backend/common/dividends.py writes the
+    ``DIVIDEND`` (singular) transaction type, but the TWR/XIRR cash-flow sign
+    table previously only recognised ``DIVIDENDS`` (plural), silently
+    excluding automated dividend transactions from return calculations.
+    """
+
+    assert "DIVIDEND" in pu._CASH_FLOW_SIGNS
+    assert pu._CASH_FLOW_SIGNS["DIVIDEND"] == pu._CASH_FLOW_SIGNS["DIVIDENDS"]

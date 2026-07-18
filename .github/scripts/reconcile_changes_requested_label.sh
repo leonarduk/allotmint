@@ -26,29 +26,33 @@ fi
 # When a reviewer is disabled (vars.ENABLE_*_REVIEW=false), its workflow
 # job is skipped entirely, so no check-run exists. This excludes disabled
 # reviewers so it doesn't wait forever for a check-run that will never appear.
-ENABLED_CHECK_NAMES=""
+# Each name is multi-word (e.g. "Claude AI code review"), so these must be
+# kept as array elements rather than a space-joined string -- an unquoted
+# string expansion in the loop below would word-split each name apart and
+# never match a real check-run name.
+ENABLED_CHECK_NAMES=()
 
 if [ "${ENABLE_CLAUDE:-true}" != "false" ]; then
-  ENABLED_CHECK_NAMES="$ENABLED_CHECK_NAMES Claude AI code review"
+  ENABLED_CHECK_NAMES+=("Claude AI code review")
 fi
 
 if [ "${ENABLE_GPT:-true}" != "false" ]; then
-  ENABLED_CHECK_NAMES="$ENABLED_CHECK_NAMES GPT AI code review"
+  ENABLED_CHECK_NAMES+=("GPT AI code review")
 fi
 
 if [ "${ENABLE_DEEPSEEK:-true}" != "false" ]; then
-  ENABLED_CHECK_NAMES="$ENABLED_CHECK_NAMES DeepSeek AI code review"
+  ENABLED_CHECK_NAMES+=("DeepSeek AI code review")
 fi
 
-if [ -z "$ENABLED_CHECK_NAMES" ]; then
+if [ "${#ENABLED_CHECK_NAMES[@]}" -eq 0 ]; then
   echo "No AI reviewers are enabled; nothing to reconcile for PR #${PR_NUMBER}."
   exit 0
 fi
 
-echo "PR #${PR_NUMBER} (${HEAD_SHA}) — enabled reviewers:${ENABLED_CHECK_NAMES}"
+echo "PR #${PR_NUMBER} (${HEAD_SHA}) — enabled reviewers: ${ENABLED_CHECK_NAMES[*]}"
 
 ALL_SUCCESS=true
-for NAME in $ENABLED_CHECK_NAMES; do
+for NAME in "${ENABLED_CHECK_NAMES[@]}"; do
   CONCLUSION=$(gh api "repos/${REPO}/commits/${HEAD_SHA}/check-runs" --paginate \
     --jq "[.check_runs[] | select(.name == \"${NAME}\")] | sort_by(.started_at) | last | .conclusion // \"pending\"")
   echo "  ${NAME}: ${CONCLUSION}"

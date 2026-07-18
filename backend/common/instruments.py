@@ -122,6 +122,21 @@ def _s3_location() -> tuple[str, str] | None:
     return bucket, prefix
 
 
+@lru_cache(maxsize=1)
+def _s3_client():
+    """Return a process-wide S3 client, built once instead of per call.
+
+    ``boto3.client()`` re-resolves credentials/config on every construction,
+    which is slow enough that building one per ticker turns a portfolio-wide
+    metadata scan (one call per unique ticker) into a multi-second-per-call
+    tax on top of the network round trip itself. See issue #5082.
+    """
+
+    import boto3  # type: ignore
+
+    return boto3.client("s3")
+
+
 def _instrument_path(ticker: str) -> Path:
     instruments_dir = _active_instruments_dir()
     sym, exch = (ticker.split(".", 1) + [None])[:2]
@@ -146,7 +161,8 @@ def get_instrument_meta(ticker: str) -> Dict[str, Any]:
     """Return metadata for ``ticker`` from disk or S3.
 
     The data files live under ``data/instruments`` or the configured S3
-    location; failures return an empty dict.
+    location; failures return an empty dict. This never makes a live Yahoo
+    Finance call — that only happens via an explicit sync/refresh operation.
     """
     path = _instrument_path(ticker)
     s3_loc = _s3_location()
@@ -154,9 +170,7 @@ def get_instrument_meta(ticker: str) -> Dict[str, Any]:
         bucket, prefix = s3_loc
         key = _instrument_key(ticker, prefix)
         try:
-            import boto3  # type: ignore
-
-            obj = boto3.client("s3").get_object(Bucket=bucket, Key=key)
+            obj = _s3_client().get_object(Bucket=bucket, Key=key)
             return json.loads(obj["Body"].read())
         except Exception as exc:
             logger.warning(
@@ -170,8 +184,13 @@ def get_instrument_meta(ticker: str) -> Dict[str, Any]:
         with path.open("r", encoding="utf-8") as f:
             return json.load(f)
     except FileNotFoundError:
-        created = _auto_create_instrument_meta(ticker)
-        return created or {}
+        # Do not fall back to a live Yahoo Finance lookup here: this is the
+        # normal read path (portfolio/report rendering, etc.) and every
+        # cache-miss would otherwise turn into a network call. Fetching and
+        # persisting fresh metadata is an explicit, separate operation — see
+        # ``_auto_create_instrument_meta`` / the ``/instrument/admin/.../refresh``
+        # route — that callers must invoke deliberately, not on every read.
+        return {}
     except json.JSONDecodeError as exc:
         logger.warning("Invalid instrument JSON %s: %s", sanitise_log_value(path), sanitise_log_value(exc))
         return {}
@@ -195,11 +214,15 @@ def save_instrument_meta(
     ticker: str,
     exchange: str | Dict[str, Any],
     data: Optional[Dict[str, Any]] = None,
-) -> Path:
+) -> Optional[Path]:
     """Persist metadata for an instrument and optionally upload to S3.
 
     Supports calling as ``save_instrument_meta("ABC", "L", {...})`` or
     ``save_instrument_meta("ABC.L", {...})``.
+
+    Returns the path written on success, or ``None`` if the local filesystem
+    write failed (e.g. a read-only filesystem in the Lambda runtime). A
+    failed local write does not prevent the S3 upload below from proceeding.
     """
 
     if data is None:
@@ -220,19 +243,21 @@ def save_instrument_meta(
         with path.open("w", encoding="utf-8") as fh:
             json.dump(data, fh, indent=2, sort_keys=True)
             fh.write("\n")
-    except OSError as exc:  # pragma: no cover - filesystem errors are rare
-        logger.exception("Failed to write instrument metadata %s", path)
-        raise
+    except OSError as exc:
+        logger.warning(
+            "Cannot write instrument metadata to %s (read-only filesystem?): %s",
+            sanitise_log_value(path),
+            sanitise_log_value(exc),
+        )
+        path = None
 
     s3_loc = _s3_location()
     if s3_loc:
         bucket, prefix = s3_loc
         key = _instrument_key(f"{ticker}.{exchange}", prefix)
         try:
-            import boto3  # type: ignore
-
             body = json.dumps(data).encode("utf-8")
-            boto3.client("s3").put_object(Bucket=bucket, Key=key, Body=body)
+            _s3_client().put_object(Bucket=bucket, Key=key, Body=body)
         except Exception as exc:  # pragma: no cover - best effort
             logger.warning(
                 "Failed to upload instrument metadata for %s.%s to s3://%s/%s: %s",

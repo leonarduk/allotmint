@@ -114,7 +114,10 @@ def test_review_script_exits_cleanly_on_empty_diff(
     monkeypatch.setenv("DIFF", "   \n")
 
     assert module.main() == 0
-    assert f"No {provider_name} review generated because the filtered diff was empty." in capsys.readouterr().out
+    assert (
+        f"No {provider_name} review generated because the filtered diff was empty."
+        in capsys.readouterr().out
+    )
 
 
 @pytest.mark.parametrize(
@@ -153,7 +156,9 @@ def test_review_script_prints_review_on_mocked_api_success(
     monkeypatch.setenv("PR_TITLE", "Add thing")
     monkeypatch.setenv("ISSUE_BODY", "Do thing")
     monkeypatch.setenv("DIFF", "diff --git a/a.py b/a.py\n+print('hi')\n")
-    monkeypatch.setattr(review_common.urllib.request, "urlopen", lambda *args, **kwargs: FakeResponse(payload))
+    monkeypatch.setattr(
+        review_common.urllib.request, "urlopen", lambda *args, **kwargs: FakeResponse(payload)
+    )
 
     assert module.main() == 0
     assert "Looks good" in capsys.readouterr().out
@@ -266,7 +271,9 @@ def test_review_script_exits_on_empty_api_response(
     monkeypatch.setenv("PR_TITLE", "Add thing")
     monkeypatch.setenv("ISSUE_BODY", "Do thing")
     monkeypatch.setenv("DIFF", "diff --git a/a.py b/a.py\n+print('hi')\n")
-    monkeypatch.setattr(review_common.urllib.request, "urlopen", lambda *args, **kwargs: FakeResponse(payload))
+    monkeypatch.setattr(
+        review_common.urllib.request, "urlopen", lambda *args, **kwargs: FakeResponse(payload)
+    )
 
     assert module.main() == 1
     assert expected_err in capsys.readouterr().err
@@ -275,9 +282,24 @@ def test_review_script_exits_on_empty_api_response(
 @pytest.mark.parametrize(
     ("module_name", "file_name", "api_env", "expected_message"),
     [
-        ("gpt_review_failure", "gpt_review.py", "OPENAI_API_KEY", "ERROR: OpenAI API returned 500: upstream broke"),
-        ("claude_review_failure", "claude_review.py", "ANTHROPIC_API_KEY", "ERROR: Claude API returned 500: upstream broke"),
-        ("deepseek_review_failure", "deepseek_review.py", "DEEPSEEK_API_KEY", "ERROR: DeepSeek API returned 500: upstream broke"),
+        (
+            "gpt_review_failure",
+            "gpt_review.py",
+            "OPENAI_API_KEY",
+            "ERROR: OpenAI API returned 500: upstream broke",
+        ),
+        (
+            "claude_review_failure",
+            "claude_review.py",
+            "ANTHROPIC_API_KEY",
+            "ERROR: Claude API returned 500: upstream broke",
+        ),
+        (
+            "deepseek_review_failure",
+            "deepseek_review.py",
+            "DEEPSEEK_API_KEY",
+            "ERROR: DeepSeek API returned 500: upstream broke",
+        ),
     ],
 )
 def test_review_script_reports_mocked_api_failure(
@@ -414,7 +436,9 @@ def _run_git(args: list[str], cwd: Path) -> None:
     subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
 
 
-def test_default_globs_include_codeowners_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_default_globs_include_codeowners_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     module = load_script_module("prepare_review_diff", "prepare_review_diff.py")
 
     repo = tmp_path / "repo"
@@ -502,6 +526,39 @@ def test_collect_discussion_filters_to_after_last_review_and_excludes_bots(
     assert "AI Code Review" not in discussion
 
 
+def test_collect_discussion_anchors_to_inline_review_comment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = load_script_module("prepare_review_discussion", "prepare_review_discussion.py")
+
+    issue_comments = [
+        _comment("alice", "Old comment before the review, ignore me", "2023-12-31T00:00:00Z"),
+        _comment("alice", "Addressed your concern about the null check", "2024-01-02T00:00:00Z"),
+    ]
+    inline_comments = [
+        _comment(
+            "github-actions[bot]",
+            "## DeepSeek AI Code Review\nLooks fine\n**APPROVE**",
+            "2024-01-01T00:00:00Z",
+            user_type="Bot",
+            path="frontend/src/foo.ts",
+        ),
+    ]
+
+    def fake_gh_api_list(path: str) -> list[dict]:
+        if path.startswith("repos/owner/repo/issues/"):
+            return issue_comments
+        return inline_comments
+
+    monkeypatch.setattr(module, "gh_api_list", fake_gh_api_list)
+
+    discussion = module.collect_discussion("owner/repo", "1", "DeepSeek")
+
+    assert "Addressed your concern about the null check" in discussion
+    assert "Old comment before the review" not in discussion
+    assert "AI Code Review" not in discussion
+
+
 def test_collect_discussion_includes_everything_when_no_prior_review(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -540,6 +597,80 @@ def test_collect_discussion_truncates_long_discussion(monkeypatch: pytest.Monkey
 
     assert len(discussion) <= module.MAX_DISCUSSION_CHARS
     assert "truncated" in discussion
+
+
+def test_collect_discussion_respects_custom_max_chars(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = load_script_module(
+        "prepare_review_discussion_max_chars", "prepare_review_discussion.py"
+    )
+
+    issue_comments = [
+        _comment(
+            "alice", "x" * 500, f"2024-01-01T{i // 3600:02d}:{(i // 60) % 60:02d}:{i % 60:02d}Z"
+        )
+        for i in range(0, 300)
+    ]
+
+    monkeypatch.setattr(
+        module,
+        "gh_api_list",
+        lambda path: issue_comments if "issues" in path else [],
+    )
+
+    discussion = module.collect_discussion("owner/repo", "1", "DeepSeek", max_chars=1000)
+
+    assert len(discussion) <= 1000
+    assert "truncated" in discussion
+
+
+def test_parse_args_default_max_chars_is_backward_compatible(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = load_script_module("prepare_review_discussion_args", "prepare_review_discussion.py")
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "prepare_review_discussion.py",
+            "--repo",
+            "o/r",
+            "--pr-number",
+            "1",
+            "--provider-name",
+            "Claude",
+        ],
+    )
+
+    args = module.parse_args()
+
+    assert args.max_chars == module.MAX_DISCUSSION_CHARS
+
+
+def test_parse_args_accepts_custom_max_chars(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = load_script_module(
+        "prepare_review_discussion_args_custom", "prepare_review_discussion.py"
+    )
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "prepare_review_discussion.py",
+            "--repo",
+            "o/r",
+            "--pr-number",
+            "1",
+            "--provider-name",
+            "Claude",
+            "--max-chars",
+            "5000",
+        ],
+    )
+
+    args = module.parse_args()
+
+    assert args.max_chars == 5000
 
 
 def test_gh_api_list_parses_paginated_json_arrays(monkeypatch: pytest.MonkeyPatch) -> None:

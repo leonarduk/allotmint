@@ -43,7 +43,9 @@ def test_file_storage_save_and_load(tmp_path: Path) -> None:
     assert storage.load() == payload
 
 
-def test_file_storage_invalid_json_logs_warning(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+def test_file_storage_invalid_json_logs_warning(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
     path = tmp_path / "invalid.json"
     path.write_text("{not-valid-json}")
     storage = FileJSONStorage(path=path)
@@ -95,9 +97,7 @@ def test_s3_storage_load_error_logs_warning(caplog: pytest.LogCaptureFixture) ->
 def test_parameter_store_load_and_save() -> None:
     client = Mock()
     expected = {"value": 1}
-    client.get_parameter.return_value = {
-        "Parameter": {"Value": json.dumps(expected)}
-    }
+    client.get_parameter.return_value = {"Parameter": {"Value": json.dumps(expected)}}
     storage = ParameterStoreJSONStorage(name="/param/name", client=client)
 
     result = storage.load()
@@ -111,6 +111,20 @@ def test_parameter_store_load_and_save() -> None:
     client.put_parameter.assert_called_once_with(
         Name="/param/name",
         Value=json.dumps(payload),
+        Type="SecureString",
+        Overwrite=True,
+    )
+
+
+def test_parameter_store_save_explicit_string_type() -> None:
+    client = Mock()
+    storage = ParameterStoreJSONStorage(name="/param/name", client=client, type="String")
+
+    storage.save({"next": "value"})
+
+    client.put_parameter.assert_called_once_with(
+        Name="/param/name",
+        Value=json.dumps({"next": "value"}),
         Type="String",
         Overwrite=True,
     )
@@ -147,3 +161,13 @@ def test_get_storage_supported_schemes(uri: str, expected_type: type, attrs: dic
 def test_get_storage_unsupported_scheme() -> None:
     with pytest.raises(ValueError):
         get_storage("ftp://example.com/resource")
+
+
+def test_get_storage_ssm_defaults_to_secure_string() -> None:
+    storage = get_storage("ssm://parameter/name")
+    assert storage.type == "SecureString"
+
+
+def test_get_storage_ssm_explicit_string_type() -> None:
+    storage = get_storage("ssm://parameter/name", param_type="String")
+    assert storage.type == "String"

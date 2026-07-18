@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime as dt
 import inspect
 import logging
+import math
 from datetime import timedelta
 from typing import Any, Dict, Optional
 
@@ -21,6 +22,7 @@ from backend.common.currency import CurrencyNormaliser
 from backend.common.instruments import get_instrument_meta
 from backend.common.user_config import UserConfig
 from backend.config import config
+from backend.logging_setup import sanitise_log_value
 from backend.timeseries.cache import load_meta_timeseries_range
 from backend.utils.pricing_dates import PricingDateCalculator
 from backend.utils.timeseries_helpers import (
@@ -165,7 +167,11 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
             result[key] = val
 
         except (OSError, ValueError, KeyError, IndexError, TypeError) as e:
-            logger.warning("latest price fetch failed for %s: %s", full, e)
+            logger.warning(
+                "latest price fetch failed for %s: %s",
+                sanitise_log_value(full),
+                sanitise_log_value(e),
+            )
 
     logger.info("Latest prices fetched: %d/%d", len(result), len(full_tickers))
     return result
@@ -231,7 +237,11 @@ def load_live_prices(full_tickers: list[str]) -> dict[str, Dict[str, object]]:
                 "timestamp": dt.datetime.fromtimestamp(ts, tz=dt.timezone.utc),
             }
     except Exception as exc:
-        logger.warning("live price fetch failed for %s: %s", symbols, exc)
+        logger.warning(
+            "live price fetch failed for %s: %s",
+            sanitise_log_value(symbols),
+            sanitise_log_value(exc),
+        )
 
     return out
 
@@ -277,6 +287,8 @@ def _derived_cost_basis_close_px(
         return None
 
     px = float(df[col].iloc[0])
+    if math.isnan(px):
+        return None
     cache[key] = px
     return px
 
@@ -315,6 +327,9 @@ def _get_price_for_date_scaled(
     try:
         price = float(df.iloc[0][col])
     except (ValueError, TypeError, KeyError, IndexError):
+        return None, None
+
+    if math.isnan(price):
         return None, None
 
     src = df.iloc[0].get("Source")
@@ -549,7 +564,8 @@ def enrich_holding(
         from backend.common import portfolio_utils as pu  # local import to avoid circular
 
         snap = pu._PRICE_SNAPSHOT.get(full) or pu._PRICE_SNAPSHOT.get(ticker)
-        if isinstance(snap, dict) and snap.get("last_price") is not None:
+        snap_price = snap.get("last_price") if isinstance(snap, dict) else None
+        if snap_price is not None and not math.isnan(float(snap_price)):
             px = float(snap["last_price"])
             last_price_time = snap.get("last_price_time")
             is_stale = bool(snap.get("is_stale", False))
@@ -565,6 +581,14 @@ def enrich_holding(
         prev_px, _ = _get_price_for_date_scaled(
             ticker, exchange, prev_date, field="Close_gbp"
         )
+
+        if px is None and prev_px is not None:
+            # Today's close is missing/unavailable (e.g. a gap in the price
+            # source); fall back to the last known close instead of leaving
+            # the holding unpriced.
+            px = prev_px
+            px_source = "previous_close"
+            is_stale = True
 
         if px is not None:
             days_since = max(0, (dt.date.today() - pricing_date).days)

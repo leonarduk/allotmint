@@ -6,6 +6,7 @@ import sys
 from types import SimpleNamespace
 
 import backend.common.data_loader as dl
+from backend.logging_setup import sanitise_log_value
 from botocore.exceptions import ClientError
 import pytest
 
@@ -337,6 +338,39 @@ def test_load_account_falls_back_sanitises_log_fields(
     assert "\n" not in record.getMessage()
     assert record.owner == "ownerFAKE LOG LINE"
     assert record.account == "acctinjected"
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        # CRLF sequences are stripped (the CWE-117 log-injection vector this
+        # function guards against).
+        ("line\r\nbreak", "linebreak"),
+        ("bare\rcr", "barecr"),
+        ("bare\nlf", "barelf"),
+        # Mixed normal text with a CRLF injection attempt.
+        ("owner\r\nFAKE LOG LINE", "ownerFAKE LOG LINE"),
+        # Empty string is a no-op.
+        ("", ""),
+        # Already-safe strings pass through unchanged.
+        ("hello world", "hello world"),
+        # Non-string input is coerced to str first.
+        (123, "123"),
+        # Null bytes and other Unicode control characters are NOT stripped;
+        # sanitise_log_value only targets CRLF (CWE-117), not general control
+        # characters, so they must be preserved as-is.
+        ("bad\x00value", "bad\x00value"),
+        ("ctrl\x01char", "ctrl\x01char"),
+        ("del\x7fchar", "del\x7fchar"),
+    ],
+)
+def test_sanitise_log_value_direct(value, expected):
+    """Direct unit test documenting sanitise_log_value's exact contract.
+
+    Complements the integration tests above (which only assert on the final
+    log record) by exercising the function itself for each edge case.
+    """
+    assert sanitise_log_value(value) == expected
 
 
 def test_load_account_missing_bucket(monkeypatch):

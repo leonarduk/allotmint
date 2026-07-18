@@ -133,6 +133,29 @@ describe("TaxTools", () => {
     await screen.findByTestId("harvest-results");
   });
 
+  it("shows an accessible table skeleton while allowances are loading", async () => {
+    let resolveAllowances: (value: Awaited<ReturnType<typeof getAllowances>>) => void;
+    allowancesMock.mockReturnValue(
+      new Promise((resolve) => {
+        resolveAllowances = resolve;
+      }),
+    );
+
+    render(<TaxTools />);
+
+    expect(await screen.findByRole("status", { name: /loading/i })).toBeInTheDocument();
+    expect(screen.queryByText(/tax year 2024/i)).not.toBeInTheDocument();
+
+    resolveAllowances!({
+      owner: "alice",
+      tax_year: "2024",
+      allowances: { isa: { used: 1000, limit: 20000, remaining: 19000 } },
+    });
+
+    await screen.findByText(/tax year 2024/i);
+    expect(screen.queryByRole("status", { name: /loading/i })).not.toBeInTheDocument();
+  });
+
   it("renders allowance data", async () => {
     render(<TaxTools />);
 

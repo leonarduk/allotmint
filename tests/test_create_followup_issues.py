@@ -161,6 +161,72 @@ def test_generate_body_falls_back_on_api_error(
     assert "failed to generate" in capsys.readouterr().err
 
 
+@pytest.mark.parametrize(
+    "raw",
+    [
+        # Preamble + `---` separator (the most common leaked pattern in milestone 9).
+        "Here is a complete, actionable GitHub issue body based on your request.\n\n"
+        "---\n\n## What\nDo the thing.",
+        "Here is the complete, actionable GitHub issue body in Markdown:\n\n"
+        "---\n\n## What\nDo the thing.",
+        "Here's the issue body:\n\n## What\nDo the thing.",
+        "Below is the issue body.\n\n***\n\n## What\nDo the thing.",
+        # Whole body wrapped in a ```markdown fence (as in issue #4870).
+        "```markdown\n## What\nDo the thing.\n```",
+        # Bare leading horizontal rule with no preamble.
+        "---\n\n## What\nDo the thing.",
+    ],
+)
+def test_sanitize_body_strips_preamble_and_fences(raw: str) -> None:
+    mod = load_module()
+    cleaned = mod._sanitize_body(raw)
+    assert cleaned.startswith("## What")
+    assert cleaned.endswith("Do the thing.")
+    assert "Here" not in cleaned
+    assert "```" not in cleaned
+
+
+def test_sanitize_body_preserves_internal_horizontal_rules() -> None:
+    """A `---` divider inside the body is content, not a leftover separator."""
+    mod = load_module()
+    body = "## What\nFirst section.\n\n---\n\n## Why\nSecond section."
+    assert mod._sanitize_body(body) == body
+
+
+def test_sanitize_body_leaves_clean_body_unchanged() -> None:
+    mod = load_module()
+    body = "## What\nAlready clean.\n\n_Follow-up from AI review of PR #42._"
+    assert mod._sanitize_body(body) == body
+
+
+def test_generate_body_sanitizes_llm_preamble(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """End-to-end: preamble returned by the provider is stripped before use."""
+    mod = load_module()
+    monkeypatch.delenv("FOLLOWUP_LLM_PROVIDER", raising=False)
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
+    fake_payload = {
+        "choices": [
+            {
+                "message": {
+                    "content": "Here is a complete, actionable GitHub issue body "
+                    "based on your request.\n\n---\n\n## What\nFix the thing.\n\n"
+                    "_Follow-up from AI review of PR #42._"
+                }
+            }
+        ]
+    }
+    monkeypatch.setattr(
+        mod.urllib.request,
+        "urlopen",
+        lambda *args, **kwargs: FakeResponse(fake_payload),
+    )
+    body = mod._generate_body_via_llm("Fix the thing", "42", "Review text here")
+    assert body.startswith("## What")
+    assert "Here is" not in body
+
+
 def test_build_body_uses_fallback_when_no_review_text(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

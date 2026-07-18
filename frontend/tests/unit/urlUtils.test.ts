@@ -1,5 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
-import { decodePathSegment, encodePathSegment } from "@/utils/urlUtils";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  decodePathSegment,
+  encodePathSegment,
+  stripAuthCallbackParams,
+} from "@/utils/urlUtils";
 
 describe("encodePathSegment", () => {
   it("encodes spaces as %20", () => {
@@ -80,5 +84,59 @@ describe("getOwnerRootRedirectPath URL encoding", () => {
       { owner: "alice", accounts: [] },
     ]);
     expect(result).toBe("/performance/alice");
+  });
+});
+
+describe("stripAuthCallbackParams", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    window.history.replaceState({}, "", "/");
+  });
+
+  it("strips the default code/state params, preserving other query params", () => {
+    window.history.replaceState(
+      {},
+      "",
+      "/callback?code=abc123&state=xyz&foo=bar",
+    );
+    const replaceState = vi.spyOn(window.history, "replaceState");
+
+    stripAuthCallbackParams();
+
+    expect(replaceState).toHaveBeenCalledWith(
+      {},
+      document.title,
+      "/callback?foo=bar",
+    );
+  });
+
+  it("strips a custom set of keys, including error", () => {
+    window.history.replaceState(
+      {},
+      "",
+      "/callback?code=abc123&state=xyz&error=access_denied",
+    );
+    const replaceState = vi.spyOn(window.history, "replaceState");
+
+    stripAuthCallbackParams(["code", "state", "error"]);
+
+    expect(replaceState).toHaveBeenCalledWith(
+      {},
+      document.title,
+      "/callback",
+    );
+  });
+
+  it("omits the query string entirely when no params remain", () => {
+    window.history.replaceState({}, "", "/callback?code=abc123&state=xyz");
+    const replaceState = vi.spyOn(window.history, "replaceState");
+
+    stripAuthCallbackParams();
+
+    expect(replaceState).toHaveBeenCalledWith(
+      {},
+      document.title,
+      "/callback",
+    );
   });
 });

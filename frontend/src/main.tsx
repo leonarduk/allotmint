@@ -34,6 +34,7 @@ import {
   setAuthToken,
   UNAUTHORIZED_EVENT,
 } from './api';
+import { logConfigFetchFailure } from './configFetchLogging';
 import LoginPage from './LoginPage';
 import { UserProvider, useUser } from './UserContext';
 import ErrorBoundary from './ErrorBoundary';
@@ -58,6 +59,12 @@ interface BootstrapConfig {
 
 const storedToken = getStoredAuthToken();
 if (storedToken) setAuthToken(storedToken);
+
+// Cap automatic config-fetch retries so a persistently failing backend
+// surfaces the "Unable to load configuration" screen (with a manual Retry
+// button) instead of leaving the app stuck on "Loading configuration..."
+// forever. See issue #5073.
+const MAX_CONFIG_FETCH_ATTEMPTS = 5;
 
 // Populated by bootstrapRuntimeConfig before React mounts so Root can pass it
 // to LoginPage for the explicit Cognito sign-in button.
@@ -137,6 +144,14 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
   const [authed, setAuthed] = useState(
     Boolean(storedToken) || Boolean(getStoredCognitoIdToken()),
   );
+  // Distinguishes "session expired mid-use" from "never signed in yet" so the
+  // sign-in wall can explain *why* it appeared instead of silently discarding
+  // the user's in-progress session with no context. See issue #5183.
+  const [sessionExpired, setSessionExpired] = useState(false);
+  const authedRef = useRef(authed);
+  useEffect(() => {
+    authedRef.current = authed;
+  }, [authed]);
   // Resolved awsUiAuth: starts from the /config.json-derived prop; may be
   // overridden by cfg.awsUiAuth from the backend GET /config response (which
   // is authoritative and the source that #4610 was designed to enable).
@@ -173,8 +188,16 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
     setUser(null);
     setProfile(undefined);
     setAuthed(false);
+    // A deliberate, user-initiated logout is not a session expiry.
+    setSessionExpired(false);
     if (resolvedAwsUiAuth?.enabled) {
-      cognitoLogout(resolvedAwsUiAuth);
+      // Local session state is already cleared above; a failed hosted-UI
+      // redirect (e.g. a malformed domain) must not crash the app mid-logout.
+      try {
+        cognitoLogout(resolvedAwsUiAuth);
+      } catch (err) {
+        console.error('cognitoLogout failed', err);
+      }
     } else {
       navigate('/');
     }
@@ -209,6 +232,10 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
       apiLogout();
       setUser(null);
       setProfile(undefined);
+      // Only a token that was previously valid (the user was actively using
+      // the app) counts as a session "expiring" — a first-time visitor with
+      // no prior session should still see the plain sign-in wall.
+      if (authedRef.current) setSessionExpired(true);
       setAuthed(false);
     };
     window.addEventListener(UNAUTHORIZED_EVENT, handleUnauthorized);
@@ -307,7 +334,6 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
           if (!isMounted.current || activeRequest.current !== controller)
             return;
 
-          console.error('Failed to load configuration', err);
           const error =
             err instanceof DOMException && err.name === 'AbortError'
               ? new Error('Request timed out while loading configuration.')
@@ -315,9 +341,10 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
                 ? err
                 : new Error(String(err));
           setConfigError(error);
-          shouldRetry = true;
+          shouldRetry = attempt + 1 < MAX_CONFIG_FETCH_ATTEMPTS;
           nextAttempt = attempt + 1;
           retryDelay = Math.min(30000, 2000 * 2 ** attempt);
+          logConfigFetchFailure(err, shouldRetry);
         })
         .finally(() => {
           window.clearTimeout(timeoutId);
@@ -326,7 +353,7 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
           if (isCurrent) {
             activeRequest.current = null;
             setConfigLoading(false);
-            if (shouldRetry) setRetryScheduled(true);
+            setRetryScheduled(shouldRetry);
           }
           if (shouldRetry && isMounted.current) {
             retryTimer.current = window.setTimeout(() => {
@@ -405,7 +432,11 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
         <LoginPage
           clientId={clientId}
           awsUiAuth={resolvedAwsUiAuth}
-          onSuccess={() => setAuthed(true)}
+          sessionExpired={sessionExpired}
+          onSuccess={() => {
+            setSessionExpired(false);
+            setAuthed(true);
+          }}
         />
       </>
     );

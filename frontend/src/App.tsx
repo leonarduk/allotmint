@@ -25,6 +25,8 @@ import { InstrumentTable } from './components/InstrumentTable';
 import { TransactionsPage } from './components/TransactionsPage';
 import lazyWithDelay from './utils/lazyWithDelay';
 import PortfolioDashboardSkeleton from './components/skeletons/PortfolioDashboardSkeleton';
+import TableSkeleton from './components/skeletons/TableSkeleton';
+import ChartSkeleton from './components/skeletons/ChartSkeleton';
 
 import { NotificationsDrawer } from './components/NotificationsDrawer';
 import { ComplianceWarnings } from './components/ComplianceWarnings';
@@ -250,7 +252,9 @@ export default function App({ onLogout }: AppProps) {
 
   const ownersReq = useFetchWithRetry(getOwners, 500, 5, retryNonce);
   const groupsReq = useFetchWithRetry(getGroups, 500, 5, retryNonce);
-  const identityCatalogReady = ownersReq.data !== null && groupsReq.data !== null;
+  // The portfolio fetch below only needs `selectedOwnerIsGroup`, which is
+  // derived from groupsReq.data alone — it must not wait on ownersReq (#5094).
+  const groupsCatalogReady = groupsReq.data !== null;
   const selectedOwnerGroup = useMemo(
     () =>
       selectedOwner && groupsReq.data
@@ -332,7 +336,16 @@ export default function App({ onLogout }: AppProps) {
     } else if (newMode === 'group') {
       const groupParam = params.get('group');
       setSelectedGroup(normaliseGroupSlug(groupParam));
-      if (groupParam && isDefaultGroupSlug(groupParam) && location.search) {
+      // Skip this cleanup under Family MVP: stripping `?group=all` down to a
+      // bare '/' would immediately re-trigger the entry-path redirect above
+      // (bare '/' with no query is treated as "go to the MVP landing page"),
+      // bouncing the group view straight back off (#5075).
+      if (
+        groupParam &&
+        isDefaultGroupSlug(groupParam) &&
+        location.search &&
+        !familyMvpEnabled
+      ) {
         navigate('/', { replace: true });
       }
     } else if (newMode === 'research') {
@@ -451,7 +464,7 @@ export default function App({ onLogout }: AppProps) {
 
   // data fetching based on route
   useEffect(() => {
-    if (mode === 'owner' && selectedOwner && identityCatalogReady && !selectedOwnerIsGroup) {
+    if (mode === 'owner' && selectedOwner && groupsCatalogReady && !selectedOwnerIsGroup) {
       const cacheKey = `${selectedOwner}::${portfolioAsOf ?? ''}::${lastRefresh ?? ''}`;
       const cached = portfolioCache.current.get(cacheKey);
 
@@ -480,13 +493,13 @@ export default function App({ onLogout }: AppProps) {
         .catch((e) => setErr(String(e)))
         .finally(() => setLoading(false));
     }
-  }, [mode, selectedOwner, portfolioAsOf, lastRefresh, selectedOwnerIsGroup, identityCatalogReady]);
+  }, [mode, selectedOwner, portfolioAsOf, lastRefresh, selectedOwnerIsGroup, groupsCatalogReady]);
 
   useEffect(() => {
-    if (mode === 'owner' && selectedOwner && identityCatalogReady) {
+    if (mode === 'owner' && selectedOwner && groupsCatalogReady) {
       setPortfolioAsOf(null);
     }
-  }, [mode, selectedOwner, identityCatalogReady]);
+  }, [mode, selectedOwner, groupsCatalogReady]);
 
   useEffect(() => {
     if (mode === 'instrument' && selectedGroup) {
@@ -660,7 +673,7 @@ export default function App({ onLogout }: AppProps) {
             )}
             {err && <p style={{ color: 'red' }}>{err}</p>}
             {loading ? (
-              <p>{t('app.loading')}</p>
+              <TableSkeleton rows={8} columns={6} label={t('app.loading')} />
             ) : (
               <>
                 <InstrumentTable rows={visibleInstruments} />
@@ -704,7 +717,7 @@ export default function App({ onLogout }: AppProps) {
         {mode === 'screener' && <ScreenerQuery />}
         {mode === 'timeseries' && <TimeseriesEdit />}
         {mode === 'virtual' && (
-          <Suspense fallback={<p>{t('app.loading')}</p>}>
+          <Suspense fallback={<PortfolioDashboardSkeleton label={t('app.loading')} />}>
             <VirtualPortfolio />
           </Suspense>
         )}
@@ -723,7 +736,7 @@ export default function App({ onLogout }: AppProps) {
         {mode === 'settings' && <UserConfigPage />}
         {mode === 'scenario' && <ScenarioTester />}
         {mode === 'research' && (
-          <Suspense fallback={<p>{t('app.loading')}</p>}>
+          <Suspense fallback={<ChartSkeleton height={400} label={t('app.loading')} />}>
             <InstrumentResearch ticker={researchTicker} />
           </Suspense>
         )}

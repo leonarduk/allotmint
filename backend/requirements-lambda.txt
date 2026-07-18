@@ -16,8 +16,8 @@ defusedxml~=0.7.1
 distro~=1.9.0
 pysocks~=1.7.1
 protobuf>=7.35.1,<8  # >=6.31.1 fixes CVE-2025-4565; 6.31.0+ includes protocolbuffers/protobuf#15999 for Python 3.14 PyType_Spec compatibility
-cryptography~=48.0.0
-cffi~=2.0.0
+cryptography~=49.0.0
+cffi~=2.1.0
 setuptools~=83.0.0
 pytz~=2026.2
 trio~=0.33.0
@@ -26,14 +26,14 @@ sniffio~=1.3.1
 sortedcontainers~=2.4.0
 idna~=3.18
 numpy~=2.4.6
-charset-normalizer~=3.4.7
+charset-normalizer~=3.4.9
 fastparquet
 python-dateutil~=2.9.0post0
 certifi~=2026.6.17
 starlette~=1.3.1  # >=1.3.1 fixes CVE-2026-54283 (urlencoded form-data limits bypass)
 pydantic~=2.13.4
 requests>=2.34.2,<3
-peewee~=4.1.1
+peewee~=4.2.3
 PyJWT~=2.13.0
 python-multipart~=0.0.32
 google-auth~=2.55.1

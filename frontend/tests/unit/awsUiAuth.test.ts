@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearCognitoSession, ensureAwsUiAuth, extractTokenExchangeErrorReason, getCognitoSessionExpiresAt, getStoredCognitoAccessToken, getStoredCognitoIdToken, refreshCognitoSession, signInWithCognito, UserCancelledError } from '@/awsUiAuth';
+import { clearCognitoSession, cognitoLogout, ensureAwsUiAuth, extractTokenExchangeErrorReason, getCognitoSessionExpiresAt, getStoredCognitoAccessToken, getStoredCognitoIdToken, refreshCognitoSession, signInWithCognito, UserCancelledError } from '@/awsUiAuth';
 
 const assignMock = vi.fn();
 
@@ -61,6 +61,20 @@ describe('ensureAwsUiAuth', () => {
   it('does not auto-redirect unauthenticated users — returns true to let React mount', async () => {
     await expect(ensureAwsUiAuth(AUTH_CONFIG)).resolves.toBe(true);
     expect(assignMock).not.toHaveBeenCalled();
+  });
+
+  it('does not invoke exchangeCode when no OAuth callback params are present', async () => {
+    // exchangeCode's only externally observable side effect is the token-endpoint
+    // fetch, so absence of that call is the proxy for "exchangeCode was not run"
+    // (exchangeCode is an unexported module-internal function and, under
+    // Vitest/ESM, spying on it directly would not intercept the in-module call
+    // from ensureAwsUiAuth anyway).
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(ensureAwsUiAuth(AUTH_CONFIG)).resolves.toBe(true);
+
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('skips redirect when a valid session is already stored', async () => {
@@ -167,6 +181,22 @@ describe('ensureAwsUiAuth', () => {
       expect(stored.accessToken).toBe('access-tok');
       // The refresh token is persisted so the session can be silently renewed.
       expect(stored.refreshToken).toBe('refresh-tok');
+    });
+
+    it('invokes exchangeCode (hits the token endpoint exactly once) when OAuth callback params are present', async () => {
+      // Same proxy reasoning as the "no OAuth params" test above: exchangeCode
+      // itself isn't mockable across the module boundary, so we assert on its
+      // one externally observable effect — the /oauth2/token fetch call.
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ id_token: 'tok', expires_in: 3600 }),
+      });
+      vi.stubGlobal('fetch', fetchMock);
+
+      await expect(ensureAwsUiAuth(AUTH_CONFIG)).resolves.toBe(true);
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock.mock.calls[0][0]).toBe('https://auth.example.test/oauth2/token');
     });
 
     it('uses configured redirectPath in the token exchange request', async () => {
@@ -332,6 +362,80 @@ describe('signInWithCognito', () => {
 
     const target = new URL(assignMock.mock.calls[0][0]);
     expect(target.searchParams.get('redirect_uri')).toBe('https://app.example.test/callback');
+  });
+});
+
+describe('cognitoLogout', () => {
+  it('redirects to the Cognito logout URL when domain and clientId are set', () => {
+    cognitoLogout(AUTH_CONFIG);
+
+    expect(assignMock).toHaveBeenCalledTimes(1);
+    const target = new URL(assignMock.mock.calls[0][0]);
+    expect(target.origin).toBe('https://auth.example.test');
+    expect(target.pathname).toBe('/logout');
+    expect(target.searchParams.get('client_id')).toBe('client123');
+    expect(target.searchParams.get('logout_uri')).toBe('https://app.example.test/');
+  });
+
+  it('uses a configured redirectPath in the logout_uri', () => {
+    cognitoLogout({ ...AUTH_CONFIG, redirectPath: '/goodbye' });
+
+    const target = new URL(assignMock.mock.calls[0][0]);
+    expect(target.searchParams.get('logout_uri')).toBe('https://app.example.test/goodbye');
+  });
+
+  it('does not redirect when domain is missing', () => {
+    cognitoLogout({ clientId: 'client123' });
+    expect(assignMock).not.toHaveBeenCalled();
+  });
+
+  it('does not redirect when clientId is missing', () => {
+    cognitoLogout({ domain: 'auth.example.test' });
+    expect(assignMock).not.toHaveBeenCalled();
+  });
+
+  it('does not redirect when config is null/undefined', () => {
+    cognitoLogout(null);
+    cognitoLogout();
+    expect(assignMock).not.toHaveBeenCalled();
+  });
+
+  it('does not throw when the domain contains invalid URL characters', () => {
+    // normaliseDomain only trims/prefixes the domain string — it never
+    // validates or parses it as a URL — so a malformed domain must not crash
+    // the logout flow, even though the resulting redirect target is bogus.
+    expect(() =>
+      cognitoLogout({ domain: 'auth example <invalid>', clientId: 'client123' }),
+    ).not.toThrow();
+    expect(assignMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('clears the local session before redirecting', () => {
+    window.sessionStorage.setItem(
+      'awsUiAuthSession',
+      JSON.stringify({ idToken: 'tok', expiresAt: Date.now() + 3600 * 1000 }),
+    );
+    const removeItemSpy = vi.spyOn(Storage.prototype, 'removeItem');
+
+    cognitoLogout(AUTH_CONFIG);
+
+    expect(removeItemSpy).toHaveBeenCalledWith('awsUiAuthSession');
+    expect(window.sessionStorage.getItem('awsUiAuthSession')).toBeNull();
+    const clearCallOrder = removeItemSpy.mock.invocationCallOrder[0];
+    const assignCallOrder = assignMock.mock.invocationCallOrder[0];
+    expect(clearCallOrder).toBeLessThan(assignCallOrder);
+  });
+
+  it('clears the local session even when config is missing, before returning early', () => {
+    window.sessionStorage.setItem(
+      'awsUiAuthSession',
+      JSON.stringify({ idToken: 'tok', expiresAt: Date.now() + 3600 * 1000 }),
+    );
+
+    cognitoLogout({});
+
+    expect(window.sessionStorage.getItem('awsUiAuthSession')).toBeNull();
+    expect(assignMock).not.toHaveBeenCalled();
   });
 });
 

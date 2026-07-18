@@ -14,9 +14,15 @@ Returns dict with fields used in API response.
 """
 
 import datetime as dt
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 DEFAULT_ANNUITY_MULTIPLE = 20  # crude capitalisation proxy
+
+# Lower-case substrings that indicate a defined contribution account whose value
+# should be treated as part of the pension pot.  New data files should stick to
+# one of these identifiers (e.g. "sipp" or vendor-prefixed variants such as
+# "kz:sipp") so that they are included automatically.
+DEFINED_CONTRIBUTION_ACCOUNT_MARKERS = ("sipp",)
 
 
 def state_pension_age_uk(dob: str) -> int:
@@ -41,9 +47,7 @@ def state_pension_age_uk(dob: str) -> int:
     return 68
 
 
-def _age_from_dob(
-    dob_str: Optional[str], today: Optional[dt.date] = None
-) -> Optional[float]:
+def _age_from_dob(dob_str: Optional[str], today: Optional[dt.date] = None) -> Optional[float]:
     """Convert YYYY-MM-DD string to fractional years age."""
     if not dob_str:
         return None
@@ -192,9 +196,7 @@ def forecast_pension(
                 continue
         forecast.append({"age": age, "income": income})
 
-    desired_income_value = (
-        float(desired_income_annual) if desired_income_annual is not None else None
-    )
+    desired_income_value = float(desired_income_annual) if desired_income_annual is not None else None
     state_income = float(state_pension_annual or 0.0)
     db_income_retirement = 0.0
     for pension in pensions:
@@ -225,4 +227,69 @@ def forecast_pension(
         "contribution_annual": float(contribution_annual),
         "desired_income_annual": desired_income_value,
         "annuity_multiple_used": float(annuity_multiple),
+    }
+
+
+def dc_pension_pot_gbp(accounts: List[Dict[str, Any]]) -> float:
+    """Sum ``value_estimate_gbp`` across defined-contribution pension accounts.
+
+    An account is treated as a DC pension pot when its ``account_type``
+    contains one of :data:`DEFINED_CONTRIBUTION_ACCOUNT_MARKERS`. Shared by
+    ``backend.routes.pension`` and the scheduled pension report Lambda so the
+    pot-value derivation only lives in one place.
+    """
+    total = 0.0
+    for account in accounts:
+        account_type = str(account.get("account_type", "")).lower()
+        if any(marker in account_type for marker in DEFINED_CONTRIBUTION_ACCOUNT_MARKERS):
+            total += float(account.get("value_estimate_gbp") or 0.0)
+    return total
+
+
+def pension_ytd_return(
+    *,
+    current_pot_gbp: float,
+    pot_start_of_year_gbp: float,
+    contributions_ytd_gbp: float = 0.0,
+) -> Dict[str, Any]:
+    """Return the year-to-date investment growth of a DC pension pot.
+
+    ``pot_start_of_year_gbp`` is the pot value at the start of the current
+    calendar year (or the earliest known snapshot, e.g. via
+    ``backend.common.pension_snapshots``). ``contributions_ytd_gbp`` is
+    subtracted from the raw pot change so the returned figures reflect
+    investment growth rather than money paid in.
+    """
+    ytd_gain_gbp = current_pot_gbp - pot_start_of_year_gbp - contributions_ytd_gbp
+    ytd_return_pct = (ytd_gain_gbp / pot_start_of_year_gbp) * 100.0 if pot_start_of_year_gbp else None
+    return {
+        "current_pot_gbp": float(current_pot_gbp),
+        "pot_start_of_year_gbp": float(pot_start_of_year_gbp),
+        "contributions_ytd_gbp": float(contributions_ytd_gbp),
+        "ytd_gain_gbp": ytd_gain_gbp,
+        "ytd_return_pct": ytd_return_pct,
+    }
+
+
+def pension_shortfall_vs_target(
+    *,
+    projected_pot_gbp: float,
+    desired_income_annual: float,
+    annuity_multiple: float = DEFAULT_ANNUITY_MULTIPLE,
+) -> Dict[str, Any]:
+    """Compare a projected pot against the pot required to support a target income.
+
+    Mirrors ``forecast_pension()``'s ``earliest_retirement_age`` comparison
+    (``pot / annuity_multiple >= desired_income_annual``) but expressed as a
+    pot-value shortfall/surplus rather than an age.
+    """
+    target_pot_gbp = desired_income_annual * annuity_multiple
+    shortfall_gbp = target_pot_gbp - projected_pot_gbp
+    shortfall_pct = (shortfall_gbp / target_pot_gbp * 100.0) if target_pot_gbp else None
+    return {
+        "target_pot_gbp": float(target_pot_gbp),
+        "projected_pot_gbp": float(projected_pot_gbp),
+        "shortfall_gbp": float(shortfall_gbp),
+        "shortfall_pct": shortfall_pct,
+        "on_track": shortfall_gbp <= 0,
     }

@@ -27,6 +27,7 @@ def client(tmp_path, monkeypatch):
         lambda request, allow_missing=False: accounts_root,
     )
     monkeypatch.setenv("SIGNUP_ADMIN_EMAIL", "admin@example.com")
+    monkeypatch.setenv("SIGNUP_APPROVAL_BASE_URL", "https://admin.example.com")
 
     app = FastAPI()
     app.include_router(signup_module.router)
@@ -82,16 +83,19 @@ def test_invalid_payload_returns_400(client, monkeypatch):
     assert resp.status_code == 400
 
 
-def test_missing_base_url_warns_but_still_notifies(client, monkeypatch, caplog):
+def test_missing_base_url_returns_503(client, monkeypatch, caplog):
+    """#4369: a relative approve/reject link is unusable in the admin email,
+    so a missing SIGNUP_APPROVAL_BASE_URL must fail loudly (503) rather than
+    silently sending a broken link."""
     test_client, _ = client
     sent = _capture_email(monkeypatch)
     monkeypatch.delenv("SIGNUP_APPROVAL_BASE_URL", raising=False)
 
-    with caplog.at_level("WARNING"):
+    with caplog.at_level("ERROR"):
         resp = test_client.post("/signup/request", json={"name": "Jane", "email": "jane@example.com"})
 
-    assert resp.status_code == 200
-    assert sent["notification"].approve_url.startswith("/signup/approve")
+    assert resp.status_code == 503
+    assert "notification" not in sent, "admin must not be emailed a broken relative link"
     assert any("SIGNUP_APPROVAL_BASE_URL" in r.message for r in caplog.records)
 
 
@@ -196,12 +200,36 @@ def test_approve_provisions_owner_and_notifies_user(client, monkeypatch):
     assert json.loads((store_dir / f"{request_id}.json").read_text())["status"] == "approved"
 
 
+@pytest.mark.parametrize("login_url_value", [None, ""])
+def test_missing_login_url_fails_fast_without_provisioning(client, monkeypatch, login_url_value):
+    """#4385: an unset/empty SIGNUP_LOGIN_URL must not send a linkless or
+    fabricated login email — it should fail before the user is provisioned.
+    """
+
+    test_client, tmp_path = client
+    sent = _capture_user_email(monkeypatch)
+    store = _stub_store(monkeypatch)
+    if login_url_value is None:
+        monkeypatch.delenv("SIGNUP_LOGIN_URL", raising=False)
+    else:
+        monkeypatch.setenv("SIGNUP_LOGIN_URL", login_url_value)
+
+    request_id, token = _pending_request(tmp_path)
+
+    resp = test_client.post(f"/signup/approve?id={request_id}&token={token}")
+
+    assert resp.status_code == 503
+    assert sent == {}
+    assert store.ensured == []
+
+
 def test_approved_email_is_in_allowed_emails(client, monkeypatch):
     """End-to-end: an approved user's email becomes part of the login allowlist."""
 
     test_client, tmp_path = client
     _capture_user_email(monkeypatch)
     _stub_store(monkeypatch)
+    monkeypatch.setenv("SIGNUP_LOGIN_URL", "https://allotmint.example/login")
 
     request_id, token = _pending_request(tmp_path)
     resp = test_client.post(f"/signup/approve?id={request_id}&token={token}")
@@ -218,6 +246,7 @@ def test_approve_is_single_use(client, monkeypatch):
     test_client, tmp_path = client
     _capture_user_email(monkeypatch)
     _stub_store(monkeypatch)
+    monkeypatch.setenv("SIGNUP_LOGIN_URL", "https://allotmint.example/login")
 
     request_id, token = _pending_request(tmp_path)
     first = test_client.post(f"/signup/approve?id={request_id}&token={token}")
@@ -278,6 +307,7 @@ def test_reject_invalid_token_rejected(client, monkeypatch):
 def test_approve_user_email_failure_is_not_swallowed(client, monkeypatch):
     test_client, tmp_path = client
     _stub_store(monkeypatch)
+    monkeypatch.setenv("SIGNUP_LOGIN_URL", "https://allotmint.example/login")
 
     def boom(user_email, name, login_url):
         raise RuntimeError("SES down")
@@ -295,6 +325,7 @@ def test_get_approve_is_a_safe_confirmation_page(client, monkeypatch):
     test_client, tmp_path = client
     sent = _capture_user_email(monkeypatch)
     _stub_store(monkeypatch)
+    monkeypatch.setenv("SIGNUP_LOGIN_URL", "https://allotmint.example/login")
 
     request_id, token = _pending_request(tmp_path)
     resp = test_client.get(f"/signup/approve?id={request_id}&token={token}")
@@ -326,6 +357,30 @@ def test_get_approve_invalid_token_renders_error_page(client, monkeypatch):
     assert "text/html" in resp.headers["content-type"]
 
 
+def test_get_approve_expired_token_renders_error_page(client, monkeypatch):
+    """A token whose approval window has elapsed hits the RequestExpired path."""
+
+    test_client, tmp_path = client
+    _stub_store(monkeypatch)
+
+    from datetime import datetime, timedelta, timezone
+
+    store_dir = signup_requests.signup_requests_dir(tmp_path)
+    long_ago = datetime.now(timezone.utc) - timedelta(days=8)
+    record, token = signup_requests.create_signup_request(
+        "Jane Doe", "jane@example.com", "", store_dir, now=long_ago
+    )
+
+    resp = test_client.get(f"/signup/approve?id={record.id}&token={token}")
+    assert resp.status_code == 400
+    assert "text/html" in resp.headers["content-type"]
+    assert "invalid or expired approval token" in resp.text
+
+    # The request is untouched: still pending, and nothing was provisioned.
+    assert json.loads((store_dir / f"{record.id}.json").read_text())["status"] == "pending"
+    assert not (tmp_path / "accounts" / "jane").exists()
+
+
 # ---------------------------------------------------------------------------
 # Rate limiting (#4364)
 # ---------------------------------------------------------------------------
@@ -342,6 +397,7 @@ def rate_limited_client(tmp_path, monkeypatch):
         lambda request, allow_missing=False: accounts_root,
     )
     monkeypatch.setenv("SIGNUP_ADMIN_EMAIL", "admin@example.com")
+    monkeypatch.setenv("SIGNUP_APPROVAL_BASE_URL", "https://admin.example.com")
 
     limiter = Limiter(key_func=get_remote_address, storage_uri="memory://")
     router = signup_module.create_router(limiter, "3/minute")
@@ -433,6 +489,27 @@ def test_rate_limited_invalid_payload_still_400(rate_limited_client, monkeypatch
         json={"name": "User", "email": "user@example.com"},
     )
     assert resp.status_code == 429
+
+
+def test_create_router_copies_are_independent_of_module_router():
+    """Routes on the rate-limited router (#4436) must not alias module-level ones.
+
+    ``create_router`` copies non-``/request`` routes from the module-level
+    ``router`` onto the new limited router. If those were the same objects,
+    mutating a route on one router would silently corrupt the other.
+    """
+
+    limiter = Limiter(key_func=get_remote_address, storage_uri="memory://")
+    limited = signup_module.create_router(limiter, "3/minute")
+
+    module_route = next(r for r in signup_module.router.routes if r.path == "/signup/approve")
+    limited_route = next(r for r in limited.routes if r.path == "/signup/approve")
+
+    assert limited_route is not module_route
+
+    original_endpoint = module_route.endpoint
+    limited_route.endpoint = lambda: None
+    assert module_route.endpoint is original_endpoint
 
 
 def test_throttling_response_is_identical_for_all_emails(rate_limited_client, monkeypatch):

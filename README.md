@@ -23,7 +23,7 @@ or AI agent's default language.
 Two independent CDK stacks (`cdk/stacks/static_site_stack.py`, `cdk/stacks/backend_lambda_stack.py`) make up the deployed system. The frontend is served by CloudFront directly from S3; the backend is a separate, CloudFront-less HTTP API. Cognito issues the ID token the browser sends as a bearer token; API Gateway verifies it before Lambda ever runs.
 
 ```mermaid
-flowchart LR
+flowchart TD
     Browser(["Browser"])
 
     subgraph StaticSiteStack["StaticSiteStack"]
@@ -83,7 +83,7 @@ flowchart TD
     J --> K["Smoke checks (/health, /api-console 401) + Lighthouse CI"]
 ```
 
-A static, non-interactive copy of the topology is kept at [docs/aws-architecture.svg](docs/aws-architecture.svg) for contexts that can't render Mermaid.
+Both diagrams above are authored directly as Mermaid code blocks in this README and render natively on GitHub — edit them in place, there's no separate source file or regeneration step.
 
 ## Design decisions
 
@@ -93,6 +93,15 @@ Key architectural tradeoffs made in this project:
 - **Cognito over custom auth**: Using AWS Cognito offloads JWT lifecycle management, MFA, and token rotation to a managed service rather than maintaining that logic in-house. The tradeoff is vendor lock-in to AWS's auth model and APIs.
 - **Lambda + Mangum over a persistent server**: A pay-per-invocation Lambda fits the cost model of a low-traffic personal tool far better than an always-on server. The tradeoff is cold start latency, most notably the ~10-second Lambda INIT phase constraint tracked in [issue #4429](https://github.com/leonarduk/allotmint/issues/4429).
 - **What would change at scale**: multi-user or high-traffic usage would justify swapping JSON storage for Postgres, introducing a proper job queue for background work, and splitting the single Lambda into per-domain functions to isolate cold starts and scaling behavior.
+
+## Local development
+
+This project uses JSON files under `data/` as its local "database" (see [JSON file storage](#design-decisions) above) — there's no local database server to set up.
+
+- Inspect a fixture, e.g. an account's holdings: `cat data/accounts/demo/isa.json | jq '.'` (each owner under `data/accounts/<owner>/` has one JSON file per account type, e.g. `isa.json`, `sipp.json`)
+- Edit fixture data directly with any text editor — e.g. add a position by editing the relevant JSON file under `data/accounts/<owner>/`
+- Most routes read fixtures straight from disk, so edits take effect on your next request; a few expensive report pages are cached separately under `data/cache/` and refresh on a timer (see `backend/utils/page_cache.py`)
+- Run the app against these fixtures with `bash scripts/bash/run-local-api.sh` (backend) and `npm --prefix frontend run dev` (frontend) — see [docs/CONTRIBUTOR_RUNBOOK.md](docs/CONTRIBUTOR_RUNBOOK.md) for the full local setup
 
 ## Coverage reporting
 

@@ -64,4 +64,32 @@ describe("TopMoversSummary", () => {
     await waitFor(() => expect(mockGetOpportunities).not.toHaveBeenCalled());
     expect(screen.getByText(/no group selected/i)).toBeInTheDocument();
   });
+
+  it("shows an accessible table skeleton while loading, then the movers table", async () => {
+    let resolveFn: (value: typeof samplePayload) => void;
+    const samplePayload = {
+      entries: baseEntries,
+      signals: [],
+      context: { source: "group", group: "all", days: 1, anomalies: [] },
+    };
+    mockGetOpportunities.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveFn = resolve;
+      }),
+    );
+
+    render(
+      <MemoryRouter>
+        <TopMoversSummary slug="all" />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("status", { name: /loading/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "AAA" })).not.toBeInTheDocument();
+
+    resolveFn!(samplePayload);
+
+    expect(await screen.findByRole("button", { name: "AAA" })).toBeInTheDocument();
+    expect(screen.queryByRole("status", { name: /loading/i })).not.toBeInTheDocument();
+  });
 });

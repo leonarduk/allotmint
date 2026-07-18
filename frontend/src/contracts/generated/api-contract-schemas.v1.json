@@ -1046,6 +1046,16 @@
                 }
               ]
             },
+            "external_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "date": {
               "anyOf": [
                 {

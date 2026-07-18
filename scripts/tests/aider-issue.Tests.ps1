@@ -136,10 +136,11 @@ Describe 'aider-issue.ps1 file discovery logic' {
         }
     }
 
-    Context 'unconditional git ls-files call' {
-        It 'calls git ls-files even when every candidate already matched directly' {
-            # Known gap from PR #4293: git ls-files runs unconditionally, even
-            # when no candidate needs the basename fallback.
+    Context 'deferred git ls-files call' {
+        It 'does not call git ls-files when every candidate already matched directly' {
+            # Fixed in issue #4295 (follow-up from PR #4293): git ls-files
+            # used to run unconditionally, even when no candidate needed the
+            # basename fallback. It should now be skipped in that case.
             $title = 'Fix a bug'
             $issueBody = 'See .github/scripts/test_extract_verdict.py for details.'
 
@@ -147,6 +148,21 @@ Describe 'aider-issue.ps1 file discovery logic' {
                 $LiteralPath -eq (Join-Path $repoRoot '.github/scripts/test_extract_verdict.py')
             }
             Mock -CommandName git -MockWith { @() }
+
+            . ([scriptblock]::Create($script:DiscoverySnippet))
+
+            Should -Invoke -CommandName git -ParameterFilter { $args -contains 'ls-files' } -Times 0 -Exactly
+        }
+
+        It 'calls git ls-files when at least one candidate is unmatched' {
+            $title = 'Fix a bug'
+            $issueBody = 'Bug in test_extract_verdict.py needs fixing'
+
+            Mock -CommandName Test-Path -MockWith { $false }
+            Mock -CommandName git -MockWith {
+                if ($args -contains 'ls-files') { return @('.github/scripts/test_extract_verdict.py') }
+                return @()
+            }
 
             . ([scriptblock]::Create($script:DiscoverySnippet))
 

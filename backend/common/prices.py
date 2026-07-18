@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -88,6 +89,9 @@ def _close_on(sym: str, exch: str, d: date) -> Optional[float]:
     except Exception:
         return None
 
+    if math.isnan(value):
+        return None
+
     if close_col.lower() != "close_gbp":
         from backend.common.instruments import get_instrument_meta
         from backend.common.portfolio_utils import _fx_to_base
@@ -136,13 +140,16 @@ def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
         price_currency: Optional[str]
 
         if live_info:
-            price = float(live_info.get("price")) if live_info.get("price") is not None else None
+            live_price = live_info.get("price")
+            price = float(live_price) if live_price is not None else None
+            if price is not None and math.isnan(price):
+                price = None
             ts = live_info.get("timestamp")
             if ts:
                 is_stale = (now - ts) > timedelta(minutes=15)
             # load_live_prices converts to GBP internally
             price_currency = "GBP"
-        elif last_close is not None:
+        elif last_close is not None and not math.isnan(float(last_close)):
             price = float(last_close)
             # no timestamp -> treat as stale
             # _load_latest_prices already normalises to GBP.
@@ -242,10 +249,15 @@ def refresh_prices() -> Dict:
     path = Path(config.prices_json)
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Merge strategy: only write entries where we successfully fetched a price.
-    # This preserves existing seed/cached prices for tickers that returned None
-    # (offline mode, market closed, data-source outage) rather than trashing them.
-    to_persist = {t: v for t, v in snapshot.items() if v.get("last_price") is not None}
+    # Merge strategy: only write entries where we successfully fetched a finite,
+    # positive price. This preserves existing seed/cached prices for tickers that
+    # returned None or a non-finite value (offline mode, market closed,
+    # data-source outage) rather than trashing them.
+    to_persist = {
+        t: v
+        for t, v in snapshot.items()
+        if v.get("last_price") is not None and pd.notna(v.get("last_price")) and v.get("last_price") > 0
+    }
     existing: Dict = {}
     if path.exists():
         try:

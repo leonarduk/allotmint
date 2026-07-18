@@ -314,6 +314,13 @@ re-runs the same reconciliation logic (shared via
 a PR whose reviews have actually passed gets its label cleared within the
 next scheduled sweep even if the triggering event was lost.
 
+`workflow_dispatch` also accepts an optional `pr_number` input to
+force-reconcile a single PR immediately, instead of waiting for the next
+scheduled sweep or scanning every open PR. Run it from the Actions tab (or
+`gh workflow run sync-changes-requested-label.yml -f pr_number=123`) when a
+specific PR's label is stuck. Leaving `pr_number` empty falls back to the
+full sweep, same as before.
+
 If a fourth reviewer is added (see [Adding a new AI reviewer](#adding-a-new-ai-reviewer)),
 update `sync-changes-requested-label.yml`'s `workflows:` trigger list and its
 conclusion checks to include the new provider's check-run name — otherwise

@@ -74,6 +74,14 @@ describe("DataQuality page", () => {
     expect(screen.getByText(en.dataQuality.status.red)).toBeInTheDocument();
   });
 
+  it("shows loading state while fetching", async () => {
+    mockGetDataQualityTimeseries.mockReturnValue(new Promise(() => {}));
+
+    render(<DataQuality />);
+
+    expect(await screen.findByText(en.common.loading)).toBeInTheDocument();
+  });
+
   it("shows an empty state when no positions are cached", async () => {
     mockGetDataQualityTimeseries.mockResolvedValue({ count: 0, positions: [] });
 

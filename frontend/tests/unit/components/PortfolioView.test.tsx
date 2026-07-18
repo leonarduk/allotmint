@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { PortfolioView } from "@/components/PortfolioView";
 import type { Portfolio } from "@/types";
@@ -125,6 +125,26 @@ describe("PortfolioView", () => {
         render(<PortfolioView data={mockOwner} />);
 
         expect(screen.getByText(/import csv/i)).toBeInTheDocument();
+    });
+
+    it("calls onPositionAdded when CsvImportForm triggers onImported", async () => {
+        const { importHoldingsCsv } = await import("@/api");
+        vi.mocked(importHoldingsCsv).mockResolvedValue({ path: "steve/ISA/import.csv" });
+        const onPositionAdded = vi.fn();
+
+        render(<PortfolioView data={mockOwner} onPositionAdded={onPositionAdded} />);
+
+        fireEvent.change(screen.getByLabelText(/provider/i), {
+            target: { value: "degiro" },
+        });
+        const file = new File(["ticker,qty\nAAPL,1"], "holdings.csv", { type: "text/csv" });
+        fireEvent.change(screen.getByLabelText(/csv file/i), {
+            target: { files: [file] },
+        });
+
+        fireEvent.click(screen.getByRole("button", { name: /^import$/i }));
+
+        await waitFor(() => expect(onPositionAdded).toHaveBeenCalledTimes(1));
     });
 
     it("hides the CSV import form when no accounts exist", () => {

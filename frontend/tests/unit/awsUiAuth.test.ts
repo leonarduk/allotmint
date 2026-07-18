@@ -400,6 +400,16 @@ describe('cognitoLogout', () => {
     expect(assignMock).not.toHaveBeenCalled();
   });
 
+  it('does not throw when the domain contains invalid URL characters', () => {
+    // normaliseDomain only trims/prefixes the domain string — it never
+    // validates or parses it as a URL — so a malformed domain must not crash
+    // the logout flow, even though the resulting redirect target is bogus.
+    expect(() =>
+      cognitoLogout({ domain: 'auth example <invalid>', clientId: 'client123' }),
+    ).not.toThrow();
+    expect(assignMock).toHaveBeenCalledTimes(1);
+  });
+
   it('clears the local session before redirecting', () => {
     window.sessionStorage.setItem(
       'awsUiAuthSession',

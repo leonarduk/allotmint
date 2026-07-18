@@ -19,14 +19,26 @@ _DEFAULT_SNAPSHOTS_URI = (
     f"file://{(config.repo_root or Path(__file__).resolve().parents[1]) / 'data' / 'pension_snapshots.json'}"
 )
 
-try:
-    _STORAGE: JSONStorage = get_storage(os.getenv("PENSION_SNAPSHOTS_URI", _DEFAULT_SNAPSHOTS_URI))
-except Exception:
-    _STORAGE = get_storage(_DEFAULT_SNAPSHOTS_URI)
+
+def _get_storage() -> JSONStorage:
+    """Resolve the snapshots storage backend, reading ``PENSION_SNAPSHOTS_URI``
+    at call time rather than import time.
+
+    A module-level constant would freeze whichever value (or fallback) was in
+    effect the moment this module was first imported — e.g. before a
+    framework or test finishes setting env vars — and never re-evaluate it.
+    Resolving lazily on each call means the configured backend is always
+    honoured once the env var is actually set. Intentionally not cached at
+    module level (#5010).
+    """
+    try:
+        return get_storage(os.getenv("PENSION_SNAPSHOTS_URI", _DEFAULT_SNAPSHOTS_URI))
+    except Exception:
+        return get_storage(_DEFAULT_SNAPSHOTS_URI)
 
 
 def _load_raw() -> Dict[str, Dict[str, Any]]:
-    data = _STORAGE.load()
+    data = _get_storage().load()
     if not isinstance(data, dict):
         return {}
     return {k: v for k, v in data.items() if isinstance(v, dict)}
@@ -69,7 +81,7 @@ def record_snapshot(owner: str, *, pot_gbp: float, as_of: dt.date) -> None:
         "last_pot_gbp": pot_gbp,
         "last_as_of": as_of.isoformat(),
     }
-    _STORAGE.save(data)
+    _get_storage().save(data)
 
 
 __all__ = [

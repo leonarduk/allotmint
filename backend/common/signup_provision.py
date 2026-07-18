@@ -87,6 +87,14 @@ def _resolve_owner_slug(email: str, accounts_root: Path) -> str:
     re-provision); one owned by a different email is skipped so we never clobber
     another user's data. ``email`` is lowercased to match the normalised form
     stored in ``person.json``.
+
+    ``person.json`` is scaffolded and stamped with ``email`` immediately after
+    ``mkdir`` wins, before returning. Without this, a second concurrent
+    approval for the *same* email that loses the ``mkdir`` race would hit
+    ``FileExistsError`` and find no ``person.json`` yet (the winner hadn't
+    written it), read no matching email via ``_read_person_email``, and go on
+    to claim a second slug for the same person. Writing it here closes that
+    window instead of leaving it to the caller's later, non-atomic write.
     """
 
     email = email.strip().lower()
@@ -101,6 +109,8 @@ def _resolve_owner_slug(email: str, accounts_root: Path) -> str:
             if _read_person_email(owner_dir) == email:
                 return candidate
             continue
+        ensure_owner_scaffold(candidate, accounts_root)
+        _write_person_identity(owner_dir, email, "")
         return candidate
     raise RuntimeError(f"could not allocate an owner slug for base {base!r}")
 

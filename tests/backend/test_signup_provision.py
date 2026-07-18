@@ -129,6 +129,32 @@ def test_provision_owner_skips_slug_with_corrupted_person_json(tmp_path):
     assert (accounts_root / "jane" / "person.json").read_text() == "{ not json"
 
 
+def test_resolve_owner_slug_stamps_email_immediately_after_mkdir(tmp_path):
+    """Regression test for #4402.
+
+    A concurrent approval for the *same* email that loses the ``mkdir`` race
+    must see the winner's email via ``_read_person_email`` right away, not
+    after the caller gets around to calling ``_write_person_identity``. This
+    simulates the losing side of that race by calling ``_resolve_owner_slug``
+    directly (not through ``provision_owner``, which would also write the
+    email but only after returning).
+    """
+
+    accounts_root = tmp_path / "accounts"
+    accounts_root.mkdir()
+
+    winner = signup_provision._resolve_owner_slug("jane@example.com", accounts_root)
+    assert winner == "jane"
+
+    # The loser of the mkdir race hits FileExistsError on "jane" immediately
+    # after the winner's mkdir succeeds. Without the fix, person.json is not
+    # written yet at this point, so the loser would fail to recognise the
+    # slug as already claimed by this email and allocate "jane-2" instead.
+    loser = signup_provision._resolve_owner_slug("jane@example.com", accounts_root)
+    assert loser == "jane"
+    assert sorted(p.name for p in accounts_root.iterdir()) == ["jane"]
+
+
 def test_resolve_owner_slug_raises_when_exhausted(tmp_path, monkeypatch):
     accounts_root = tmp_path / "accounts"
     accounts_root.mkdir()

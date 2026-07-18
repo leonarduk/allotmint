@@ -7,7 +7,8 @@ name: Project Status — In Review
 #   - repo secret GH_PROJECT_TOKEN: a PAT with the `project` scope. The default
 #     GITHUB_TOKEN cannot write to Projects V2, so a PAT is required.
 #   - repo variable PROJECT_NUMBER: the project board number (defaults to 1).
-#   - a Status field on that board with an option named exactly "In Review".
+#   - a Status field on that board with an option named exactly "In review"
+#     (matches this repo's board; case-sensitive).
 #
 # If the PR body has no Closes/Fixes/Resolves #N reference, or the linked
 # issue isn't on the project board, this exits cleanly with no failure.
@@ -41,7 +42,7 @@ jobs:
         env:
           PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER || '1' }}
           ISSUE_NUMBER: ${{ steps.extract.outputs.issue_number }}
-          STATUS_OPTION_NAME: "In Review"
+          STATUS_OPTION_NAME: "In review"
         with:
           github-token: ${{ secrets.GH_PROJECT_TOKEN }}
           script: |

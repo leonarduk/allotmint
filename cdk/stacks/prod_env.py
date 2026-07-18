@@ -27,6 +27,12 @@ def assert_prod_env_vars(scope: Construct, required_vars: dict[str, str]) -> Non
     used in the error message. Validation only runs when the ``prod`` CDK
     context is truthy; dev/staging synths are unaffected. See #3847, #3866,
     #4731.
+
+    Note: not every prod-only check goes through this helper. Some checks
+    (e.g. ``_ui_auth_removal_policy`` in ``static_site_stack.py``) depend on
+    CDK *context* values (``node.try_get_context``) rather than *environment*
+    variables (``os.getenv``), so they read their own context directly
+    instead of calling this function — see that function's docstring for why.
     """
 
     if not is_truthy_context(scope.node.try_get_context("prod")):

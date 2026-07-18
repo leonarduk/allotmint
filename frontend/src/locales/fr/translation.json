@@ -46,6 +46,7 @@
     "sector": "Secteurs"
   },
   "app": {
+    "close": "Fermer",
     "last": "Dernier :",
     "loading": "Chargement…",
     "logout": "Déconnexion",

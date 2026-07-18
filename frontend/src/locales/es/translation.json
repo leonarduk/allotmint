@@ -46,6 +46,7 @@
     "sector": "Industrias"
   },
   "app": {
+    "close": "Cerrar",
     "last": "Último:",
     "loading": "Cargando…",
     "logout": "Cerrar sesión",

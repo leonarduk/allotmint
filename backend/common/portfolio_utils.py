@@ -1733,6 +1733,7 @@ def _parse_date(val: Any) -> date | None:
 _CASH_FLOW_SIGNS = {
     "DEPOSIT": 1,
     "WITHDRAWAL": -1,
+    "DIVIDEND": 1,
     "DIVIDENDS": 1,
     "INTEREST": 1,
 }

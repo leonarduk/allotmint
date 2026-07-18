@@ -5,21 +5,9 @@ from functools import lru_cache
 import pandas as pd
 import yfinance as yf
 
+from backend.logging_setup import sanitise_log_value
+
 logger = logging.getLogger(__name__)
-
-
-def _safe_for_log(value: object) -> str:
-    """Return a single-line, printable representation safe for plain-text logs.
-
-    Stricter than ``backend.logging_setup.sanitise_log_value``: also escapes
-    non-printable/ANSI control characters, not just CWE-117 ``\\r``/``\\n``
-    injection, since FX pair/exception values can come from noisy upstream
-    APIs.
-    """
-
-    text = str(value)
-    text = text.replace("\r", "").replace("\n", "")
-    return "".join(ch if ch.isprintable() else "?" for ch in text)
 
 
 # Map of base -> quote -> ticker used by yfinance.  When a pair is missing we
@@ -75,9 +63,9 @@ def fetch_fx_rate_range(base: str, quote: str, start_date: date, end_date: date)
     except Exception as exc:
         logger.info(
             "FX fetch failed for %s/%s: %s",
-            _safe_for_log(base),
-            _safe_for_log(quote),
-            _safe_for_log(exc),
+            sanitise_log_value(base),
+            sanitise_log_value(quote),
+            sanitise_log_value(exc),
         )
 
     dates = pd.bdate_range(start_date, end_date).date

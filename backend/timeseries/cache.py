@@ -337,6 +337,35 @@ _S3_HEAD_MISS_TTL_SECONDS = 60.0
 _S3_HEAD_MISS_CACHE: Dict[str, float] = {}
 _S3_HEAD_MISS_CACHE_LOCK = threading.Lock()
 
+# Remember the last confirmed mtime for S3 objects that DO exist, so repeat
+# staleness checks for the same (present) ticker within the TTL skip the live
+# HeadObject round-trip too. Without this, every load_meta_timeseries[_range]
+# call -- including the 2-3 calls per ticker issued by price_change_pct/
+# top_movers for a group's worth of holdings -- re-issues a synchronous S3
+# HeadObject, turning a Movers/Instrument-page request into dozens of
+# sequential network round trips and pushing it toward the Lambda timeout.
+# See issue #5180 (regression of the #5093/#5103 cold-path symptom class).
+#
+# Trade-off: within this window a freshly-updated S3 object can be served
+# from the previously-cached mtime, so ``_invalidate_meta_caches_if_stale``
+# may miss an update for up to the TTL. That mirrors the negative-cache
+# trade-off above and is acceptable for a value that changes at most once a
+# day (end-of-day price refresh).
+_S3_MTIME_TTL_SECONDS = 30.0
+_S3_MTIME_CACHE: Dict[str, tuple[float, float]] = {}
+_S3_MTIME_CACHE_LOCK = threading.Lock()
+
+
+def _recently_confirmed_mtime(cache: str) -> float | None:
+    with _S3_MTIME_CACHE_LOCK:
+        entry = _S3_MTIME_CACHE.get(cache)
+    if entry is None:
+        return None
+    mtime, fetched_at = entry
+    if time.monotonic() - fetched_at < _S3_MTIME_TTL_SECONDS:
+        return mtime
+    return None
+
 
 def _s3_object_recently_confirmed_missing(cache: str) -> bool:
     with _S3_HEAD_MISS_CACHE_LOCK:
@@ -379,6 +408,10 @@ def _s3_object_mtime(cache: str) -> float | None:
     if _s3_object_recently_confirmed_missing(cache):
         return None
 
+    cached_mtime = _recently_confirmed_mtime(cache)
+    if cached_mtime is not None:
+        return cached_mtime
+
     try:
         resp = _s3_client().head_object(Bucket=bucket, Key=key)
     except ClientError as exc:
@@ -399,7 +432,10 @@ def _s3_object_mtime(cache: str) -> float | None:
     if not hasattr(last_modified, "timestamp"):
         logger.warning("S3 cache metadata for %s is missing LastModified", _sanitize_for_log(cache))
         return 0.0
-    return float(last_modified.timestamp())
+    mtime = float(last_modified.timestamp())
+    with _S3_MTIME_CACHE_LOCK:
+        _S3_MTIME_CACHE[cache] = (mtime, time.monotonic())
+    return mtime
 
 
 def _invalidate_meta_caches_if_stale(ticker: str, exchange: str) -> None:

@@ -262,9 +262,15 @@ def test_s3_meta_cache_invalidates_when_last_modified_changes(monkeypatch):
 
     monkeypatch.setattr(cache, "_rolling_cache", fake_rolling_cache)
 
+    current_time = [1000.0]
+    monkeypatch.setattr(cache.time, "monotonic", lambda: current_time[0])
+
     first = cache.load_meta_timeseries("ABC", "L", 5)
     second = cache.load_meta_timeseries("ABC", "L", 5)
 
+    # The positive mtime cache (_S3_MTIME_TTL_SECONDS) must elapse before a
+    # changed LastModified is even observed via a fresh HeadObject call.
+    current_time[0] += cache._S3_MTIME_TTL_SECONDS + 1
     last_modified = datetime(2026, 5, 8, 12, 5, tzinfo=timezone.utc)
     third = cache.load_meta_timeseries("ABC", "L", 5)
 
@@ -432,6 +438,47 @@ def test_invalidate_meta_caches_skips_update_for_confirmed_missing(monkeypatch):
     assert len(clears) == 0  # confirmed-missing fast path: no further work
 
 
+def test_s3_object_mtime_skips_repeat_head_object_within_ttl(monkeypatch):
+    """A present (non-missing) S3 object's mtime must be reused within
+    ``_S3_MTIME_TTL_SECONDS`` instead of re-issuing a HeadObject call.
+
+    Without this, every ``load_meta_timeseries[_range]`` call -- including
+    the several calls per ticker issued by ``top_movers``/``price_change_pct``
+    for a group's worth of holdings -- re-checks S3 synchronously, which was
+    the dominant blocking-call source behind issue #5180.
+    """
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", "s3://bucket/timeseries")
+    cache = import_cache()
+    assert cache._S3_MTIME_TTL_SECONDS == 30.0
+
+    calls = []
+    last_modified = datetime(2026, 5, 8, 12, 0, tzinfo=timezone.utc)
+
+    class FakeS3:
+        def head_object(self, *, Bucket, Key):
+            calls.append((Bucket, Key))
+            return {"LastModified": last_modified}
+
+    patch_s3_client(monkeypatch, cache, FakeS3())
+
+    current_time = [1000.0]
+    monkeypatch.setattr(cache.time, "monotonic", lambda: current_time[0])
+
+    cache_uri = "s3://bucket/timeseries/meta/ABC_L.parquet"
+    first = cache._s3_object_mtime(cache_uri)
+    assert len(calls) == 1
+
+    current_time[0] += 29
+    second = cache._s3_object_mtime(cache_uri)
+    assert len(calls) == 1  # still within TTL: no new HeadObject call
+    assert second == first
+
+    current_time[0] += 2
+    third = cache._s3_object_mtime(cache_uri)
+    assert len(calls) == 2  # TTL elapsed: re-checked S3
+    assert third == first
+
+
 def test_s3_range_cache_invalidates_when_last_modified_changes(monkeypatch):
     monkeypatch.setenv("TIMESERIES_CACHE_BASE", "s3://bucket/timeseries")
     cache = import_cache()
@@ -452,10 +499,16 @@ def test_s3_range_cache_invalidates_when_last_modified_changes(monkeypatch):
 
     monkeypatch.setattr(cache, "_rolling_cache", fake_rolling_cache)
 
+    current_time = [1000.0]
+    monkeypatch.setattr(cache.time, "monotonic", lambda: current_time[0])
+
     target = pd.Timestamp("2026-05-08").date()
     first = cache.load_meta_timeseries_range("ABC", "L", target, target)
     second = cache.load_meta_timeseries_range("ABC", "L", target, target)
 
+    # The positive mtime cache (_S3_MTIME_TTL_SECONDS) must elapse before a
+    # changed LastModified is even observed via a fresh HeadObject call.
+    current_time[0] += cache._S3_MTIME_TTL_SECONDS + 1
     last_modified = datetime(2026, 5, 8, 12, 5, tzinfo=timezone.utc)
     third = cache.load_meta_timeseries_range("ABC", "L", target, target)
 

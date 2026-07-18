@@ -95,6 +95,29 @@ class TestFetchPrDiff:
             fetch_pr_diff("owner", "repo", 789)
         assert exc_info.value.code == 1
 
+    @mock.patch("pr_review.subprocess.run")
+    def test_binary_file_entries_are_filtered_out(self, mock_run):
+        """Binary file diffs must not reach the model."""
+        mock_result = mock.MagicMock()
+        mock_result.stdout = (
+            "diff --git a/logo.png b/logo.png\n"
+            "Binary files a/logo.png and b/logo.png differ\n"
+            "diff --git a/file.py b/file.py\n"
+            "--- a/file.py\n"
+            "+++ b/file.py\n"
+            "@@ -1 +1 @@\n"
+            "-old\n"
+            "+new\n"
+        )
+        mock_run.return_value = mock_result
+
+        diff = fetch_pr_diff("owner", "repo", 789)
+
+        assert "logo.png" not in diff
+        assert "Binary files" not in diff
+        assert "file.py" in diff
+        assert "+new" in diff
+
 
 class TestExtractIssueBody:
     @mock.patch("pr_review.subprocess.run")

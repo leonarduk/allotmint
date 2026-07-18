@@ -688,3 +688,46 @@ def test_gh_api_list_parses_paginated_json_arrays(monkeypatch: pytest.MonkeyPatc
     )
 
     assert module.gh_api_list("repos/owner/repo/issues/1/comments") == [{"id": 1}, {"id": 2}]
+
+
+class TestFilterBinaryFiles:
+    def test_empty_diff(self) -> None:
+        assert review_common.filter_binary_files("") == ""
+
+    def test_text_only_diff_is_unchanged(self) -> None:
+        diff = "diff --git a/file.py b/file.py\n--- a/file.py\n+++ b/file.py\n@@ -1 +1 @@\n-old\n+new\n"
+        assert review_common.filter_binary_files(diff) == diff
+
+    def test_binary_only_diff_becomes_empty(self) -> None:
+        diff = "diff --git a/logo.png b/logo.png\nBinary files a/logo.png and b/logo.png differ\n"
+        assert review_common.filter_binary_files(diff) == ""
+
+    def test_mixed_diff_keeps_only_text_files(self) -> None:
+        diff = (
+            "diff --git a/logo.png b/logo.png\n"
+            "Binary files a/logo.png and b/logo.png differ\n"
+            "diff --git a/file.py b/file.py\n"
+            "--- a/file.py\n"
+            "+++ b/file.py\n"
+            "@@ -1 +1 @@\n"
+            "-old\n"
+            "+new\n"
+        )
+        filtered = review_common.filter_binary_files(diff)
+        assert "logo.png" not in filtered
+        assert "file.py" in filtered
+        assert "+new" in filtered
+
+    def test_git_binary_patch_form_is_also_filtered(self) -> None:
+        diff = "diff --git a/data.bin b/data.bin\nGIT binary patch\nliteral 10\n...\n"
+        assert review_common.filter_binary_files(diff) == ""
+
+    def test_renamed_binary_file_is_filtered(self) -> None:
+        diff = (
+            "diff --git a/old.png b/new.png\n"
+            "similarity index 100%\n"
+            "rename from old.png\n"
+            "rename to new.png\n"
+            "Binary files a/old.png and b/new.png differ\n"
+        )
+        assert review_common.filter_binary_files(diff) == ""

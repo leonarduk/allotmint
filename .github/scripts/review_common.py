@@ -273,6 +273,20 @@ def split_diff_blocks(diff_text: str) -> list[str]:
     return blocks
 
 
+def filter_binary_files(diff_text: str) -> str:
+    """Drop binary file entries from a git diff before it reaches the model.
+
+    Binary blocks (images, compiled artifacts) waste review budget and can
+    confuse the model with non-text content; reuses ``split_diff_blocks`` so
+    whole-file boundaries are preserved even for renamed binary files.
+    """
+    blocks = split_diff_blocks(diff_text)
+    text_blocks = [
+        block for block in blocks if "Binary files" not in block and "GIT binary patch" not in block
+    ]
+    return "".join(text_blocks)
+
+
 def truncate_diff(diff_text: str, limit: int = MAX_DIFF_CHARS) -> tuple[str, bool]:
     """Truncate a diff on whole-file boundaries and emit a notice when files are skipped.
 

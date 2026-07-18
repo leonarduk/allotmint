@@ -9,7 +9,25 @@ from unittest import mock
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "dev_tools"))
-from work_on_issue import main
+from work_on_issue import main, slugify
+
+
+class TestSlugify:
+    def test_normal_title(self):
+        assert slugify("Fix login bug") == "fix-login-bug"
+
+    def test_emoji_only_title_falls_back_to_deterministic_hash(self):
+        slug = slugify("\U0001f680\U0001f680\U0001f680")
+        assert slug
+        assert slug == slugify("\U0001f680\U0001f680\U0001f680")
+
+    def test_fallback_is_short_and_hex(self):
+        slug = slugify("\U0001f680")
+        assert len(slug) == 8
+        int(slug, 16)  # raises ValueError if not hex
+
+    def test_different_empty_titles_produce_different_fallbacks(self):
+        assert slugify("\U0001f680") != slugify("\U0001f389")
 
 
 def _run_main(monkeypatch, tmp_path, cli_args, sleep_mock):

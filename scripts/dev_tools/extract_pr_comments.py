@@ -209,7 +209,7 @@ def format_inline_comment(
 
     return {
         "id": comment.get("id"),
-        "author": comment.get("user", {}).get("login"),
+        "author": (comment.get("user") or {}).get("login"),
         "type": "inline",
         "path": comment.get("path"),
         "line": comment.get("line"),
@@ -223,7 +223,7 @@ def format_top_level_comment(comment: dict[str, Any]) -> dict[str, Any]:
     """Format top-level comment for JSONL output."""
     return {
         "id": comment.get("id"),
-        "author": comment.get("user", {}).get("login"),
+        "author": (comment.get("user") or {}).get("login"),
         "type": "top-level",
         "created_at": comment.get("created_at"),
         "body": comment.get("body"),

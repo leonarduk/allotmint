@@ -29,6 +29,9 @@ from backend.utils import update_holdings_from_csv
 router = APIRouter(tags=["transactions"])
 log = logging.getLogger("transactions")
 
+# resolve_writable_store() has always lived in this module (never in
+# data_loader.py); this flag dedupes its missing-DATA_BUCKET warning to
+# once per process without touching any other call site.
 _warned_missing_data_bucket = False
 
 

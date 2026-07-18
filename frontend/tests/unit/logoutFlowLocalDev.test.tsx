@@ -125,4 +125,76 @@ describe('Logout flow: local dev mode (#4802)', () => {
       await screen.findByRole('menuitem', { name: i18n.t('app.logout') })
     ).toBeInTheDocument();
   });
+
+  it('logs out cleanly when no auth mode is configured at all', async () => {
+    // Distinct from the happy-path test above: no awsUiAuth, no Google auth,
+    // and no local_login_email either, so there is no demo identity and no
+    // hosted-UI to redirect to — auth is fully disabled with nothing to log
+    // out *of*. The logout control (registered via AuthContext regardless of
+    // auth state, see #4751) must still behave gracefully rather than error.
+    vi.doMock('react-dom/client', () => ({
+      createRoot: () => ({ render: vi.fn() }),
+    }));
+
+    vi.doMock('react-router-dom', async () =>
+      vi.importActual<typeof import('react-router-dom')>('react-router-dom')
+    );
+
+    vi.doMock('@/api', async (importOriginal) => {
+      const mod = await importOriginal<typeof import('@/api')>();
+      return {
+        ...mod,
+        getConfig: vi.fn().mockResolvedValue({
+          google_auth_enabled: false,
+          google_client_id: '',
+          disable_auth: true,
+        }),
+        getStoredAuthToken: vi.fn(() => null),
+      };
+    });
+
+    const cognitoLogout = vi.fn();
+    vi.doMock('@/awsUiAuth', async (importOriginal) => {
+      const mod = await importOriginal<typeof import('@/awsUiAuth')>();
+      return { ...mod, cognitoLogout };
+    });
+
+    vi.doMock('@/App.tsx', async () => {
+      const { default: Menu } = await import('@/components/Menu');
+      return {
+        default: ({ onLogout }: { onLogout?: () => void }) => (
+          <Menu onLogout={onLogout} />
+        ),
+      };
+    });
+
+    const consoleErrorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    await mountRoot();
+
+    const preferencesToggle = await screen.findByRole('button', {
+      name: i18n.t('app.menuCategories.preferences'),
+    });
+    fireEvent.click(preferencesToggle);
+    const logoutButton = await screen.findByRole('menuitem', {
+      name: i18n.t('app.logout'),
+    });
+    fireEvent.click(logoutButton);
+
+    // navigate('/') fires (there is no Cognito hosted-UI to redirect to).
+    await waitFor(() => expect(window.location.pathname).toBe('/'));
+
+    // No Cognito round trip, and no unexpected application errors logged
+    // during a logout that has no session to actually tear down (ignoring
+    // React's unrelated "not wrapped in act" test-environment warnings).
+    expect(cognitoLogout).not.toHaveBeenCalled();
+    const unexpectedErrors = consoleErrorSpy.mock.calls.filter(
+      ([message]) => !String(message).includes('not wrapped in act')
+    );
+    expect(unexpectedErrors).toEqual([]);
+
+    consoleErrorSpy.mockRestore();
+  });
 });

@@ -111,7 +111,9 @@ describe("DataQuality page", () => {
     render(<DataQuality />);
 
     const viewDetailsButton = await screen.findByRole("button", {
-      name: en.dataQuality.viewDetails,
+      name: en.dataQuality.viewDetailsFor
+        .replace("{{ticker}}", "DUPED")
+        .replace("{{exchange}}", "N"),
     });
     await act(async () => {
       await userEvent.click(viewDetailsButton);

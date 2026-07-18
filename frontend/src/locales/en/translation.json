@@ -114,6 +114,7 @@
     "title": "Data Quality",
     "noData": "No cached timeseries positions found.",
     "viewDetails": "View details",
+    "viewDetailsFor": "View details for {{ticker}}.{{exchange}}",
     "columns": {
       "ticker": "Ticker",
       "exchange": "Exchange",

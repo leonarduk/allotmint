@@ -52,6 +52,22 @@ def test_close_on_returns_none_when_no_price_columns(monkeypatch: pytest.MonkeyP
     assert prices._close_on("ABC", "N", sample_date) is None
 
 
+def test_close_on_returns_none_for_nan_close(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``_close_on`` should return ``None`` rather than propagate a NaN close price."""
+
+    sample_date = date(2024, 5, 9)
+    frame = pd.DataFrame({"Close": [float("nan")]})
+
+    monkeypatch.setattr(prices, "_nearest_weekday", lambda d, forward=False: sample_date)
+    monkeypatch.setattr(
+        prices,
+        "load_meta_timeseries_range",
+        lambda sym, exch, start_date, end_date: frame,
+    )
+
+    assert prices._close_on("ABC", "L", sample_date) is None
+
+
 def test_close_on_converts_native_currency_to_gbp(monkeypatch: pytest.MonkeyPatch) -> None:
     """``_close_on`` should convert native close prices to GBP when needed."""
 
@@ -169,6 +185,29 @@ def test_get_price_snapshot_handles_stale_and_missing_data(monkeypatch: pytest.M
         ("GHI", "L", seven_day),
         ("GHI", "L", thirty_day),
     ]
+
+
+def test_get_price_snapshot_treats_nan_price_as_no_data(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A NaN live/last-close price must not be written into the snapshot as ``last_price``."""
+
+    tickers = ["NAN_LIVE.L", "NAN_CACHED.L"]
+
+    monkeypatch.setattr(
+        prices,
+        "_load_latest_prices",
+        lambda requested: {"NAN_LIVE.L": 12.0, "NAN_CACHED.L": float("nan")},
+    )
+    monkeypatch.setattr(
+        prices,
+        "load_live_prices",
+        lambda requested: {"NAN_LIVE.L": {"price": float("nan"), "timestamp": datetime.now(UTC)}},
+    )
+    monkeypatch.setattr(prices.instrument_api, "_resolve_full_ticker", lambda full, latest: None)
+
+    snapshot = prices.get_price_snapshot(tickers)
+
+    assert snapshot["NAN_LIVE.L"]["last_price"] is None
+    assert snapshot["NAN_CACHED.L"]["last_price"] is None
 
 
 # ---------------------------------------------------------------------------

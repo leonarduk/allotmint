@@ -81,7 +81,9 @@ def _load_recipient_owners() -> Optional[List[str]]:
     """Return the configured list of owners to report on, or ``None`` for "all owners"."""
 
     uri = os.getenv("PENSION_REPORT_RECIPIENTS_URI", _DEFAULT_RECIPIENTS_URI)
-    data = get_storage(uri).load()
+    # Owner keys only (no emails or other secrets are stored here -- see
+    # module docstring), so this doesn't need SecureString encryption.
+    data = get_storage(uri, param_type="String").load()
     owners = data.get("owners")
     if not owners:
         return None

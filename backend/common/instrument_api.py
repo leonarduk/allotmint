@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
+import math
 from functools import lru_cache
 from typing import Any, Dict, List, Mapping, Optional, Tuple
 
@@ -386,7 +387,10 @@ def _close_on(sym: str, ex: str, d: dt.date) -> Optional[float]:
     col = "close_gbp" if "close_gbp" in df.columns else ("Close_gbp" if "Close_gbp" in df.columns else None)
     if col is None:
         col = "close" if "close" in df.columns else ("Close" if "Close" in df.columns else None)
-    return float(df[col].iloc[0]) if col else None
+    if not col:
+        return None
+    price = float(df[col].iloc[0])
+    return None if math.isnan(price) else price
 
 
 def price_change_pct(ticker: str, days: int) -> Optional[float]:

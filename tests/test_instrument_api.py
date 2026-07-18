@@ -25,6 +25,16 @@ def _set_today(monkeypatch, target: dt.date) -> None:
     monkeypatch.setattr(ia.dt, "date", FixedDate)
 
 
+def test_close_on_returns_none_for_nan_close(monkeypatch):
+    sample_date = dt.date(2023, 1, 8)
+    frame = pd.DataFrame({"Date": [sample_date], "Close": [float("nan")]})
+
+    monkeypatch.setattr(ia, "_nearest_weekday", lambda d, forward=False: sample_date)
+    monkeypatch.setattr(ia, "load_meta_timeseries_range", lambda sym, ex, start_date, end_date: frame)
+
+    assert ia._close_on("AAA", "L", sample_date) is None
+
+
 def test_price_change_pct_unresolved(monkeypatch):
     _fixed_today(monkeypatch)
     monkeypatch.setattr(ia, "_resolve_full_ticker", lambda t, latest: None)

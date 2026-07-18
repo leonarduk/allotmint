@@ -15,6 +15,14 @@ sys.path.insert(0, str(Path(__file__).parent))
 from comment_formats import to_fixer, to_jsonl
 
 
+class FetchPaginatedError(Exception):
+    """Raised by fetch_paginated(strict=True) when a request or parse fails."""
+
+
+class ReviewsFetchError(Exception):
+    """Raised when fetching PR reviews fails and 'resolved' status can't be trusted."""
+
+
 def run_gh_command(args: list[str], json_output: bool = False) -> tuple[str, int]:
     """Run a gh command and return output, exit code."""
     try:
@@ -87,8 +95,36 @@ def get_pr_head_commit_date(owner: str, repo: str, pr: int) -> str:
     return get_commit_date(owner, repo, sha.strip())
 
 
-def fetch_paginated(owner: str, repo: str, endpoint: str) -> tuple[list[dict[str, Any]], bool]:
-    """Fetch paginated API endpoint, return (items, truncated)."""
+def _handle_request_failure(
+    items: list[dict[str, Any]], endpoint: str, page: int, strict: bool
+) -> tuple[list[dict[str, Any]], bool]:
+    """Warn and return partial results, or raise if strict, for a failed request."""
+    if items:
+        print(
+            f"Warning: API request to {endpoint} page {page} failed after "
+            f"collecting {len(items)} items. Returning partial results.",
+            file=sys.stderr,
+        )
+        if strict:
+            raise FetchPaginatedError(
+                f"API request to {endpoint} page {page} failed after "
+                f"collecting {len(items)} items."
+            )
+        return items, True
+    print(f"Error: API request to {endpoint} page {page} failed.", file=sys.stderr)
+    if strict:
+        raise FetchPaginatedError(f"API request to {endpoint} page {page} failed.")
+    return [], True
+
+
+def fetch_paginated(
+    owner: str, repo: str, endpoint: str, strict: bool = False
+) -> tuple[list[dict[str, Any]], bool]:
+    """Fetch paginated API endpoint, return (items, truncated).
+
+    When strict is True, raise FetchPaginatedError instead of returning
+    truncated results on a request or parse failure.
+    """
     items: list[dict[str, Any]] = []
     page = 1
 
@@ -99,20 +135,16 @@ def fetch_paginated(owner: str, repo: str, endpoint: str) -> tuple[list[dict[str
         ]
         output, code = run_gh_command(args)
         if code != 0:
-            if items:
-                print(
-                    f"Warning: API request to {endpoint} page {page} failed after "
-                    f"collecting {len(items)} items. Returning partial results.",
-                    file=sys.stderr,
-                )
-                return items, True
-            print(f"Error: API request to {endpoint} page {page} failed.", file=sys.stderr)
-            return [], True
+            return _handle_request_failure(items, endpoint, page, strict)
 
         try:
             data = json.loads(output) if output else []
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
             print(f"Error: Failed to parse JSON from {endpoint} page {page}.", file=sys.stderr)
+            if strict:
+                raise FetchPaginatedError(
+                    f"Failed to parse JSON from {endpoint} page {page}."
+                ) from e
             return items, True
 
         if not isinstance(data, list) or len(data) == 0:
@@ -127,7 +159,11 @@ def fetch_paginated(owner: str, repo: str, endpoint: str) -> tuple[list[dict[str
 def fetch_reviews(owner: str, repo: str, pr: int) -> tuple[dict[int, bool], bool]:
     """Fetch reviews and map review_id -> is_currently_dismissed (resolved)."""
     endpoint = f"/repos/{owner}/{repo}/pulls/{pr}/reviews"
-    reviews, truncated = fetch_paginated(owner, repo, endpoint)
+    try:
+        reviews, truncated = fetch_paginated(owner, repo, endpoint, strict=True)
+    except FetchPaginatedError as e:
+        raise ReviewsFetchError(f"Failed to fetch reviews for PR {pr}: {e}") from e
+
     review_dismissed: dict[int, bool] = {}
 
     if not reviews:
@@ -319,9 +355,13 @@ def main() -> int:
         owner, repo = infer_repo()
 
     since_timestamp = determine_since_timestamp(args, owner, repo)
-    deduped, truncated = process_comments(
-        owner, repo, args.pr, since_timestamp, args.skip_resolved
-    )
+    try:
+        deduped, truncated = process_comments(
+            owner, repo, args.pr, since_timestamp, args.skip_resolved
+        )
+    except ReviewsFetchError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
 
     if not deduped and not truncated:
         print(

@@ -29,6 +29,21 @@ def test_get_price_for_date_scaled_empty_data(monkeypatch):
     assert src is None
 
 
+def test_get_price_for_date_scaled_nan_close(monkeypatch):
+    """A NaN close (e.g. a gap-filled row for a date outside the cache) must not leak out."""
+
+    def fake_loader(*args, **kwargs):
+        return pd.DataFrame({"Close_gbp": [float("nan")], "Source": ["Yahoo"]})
+
+    monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", fake_loader)
+    monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *args, **kwargs: 1.0)
+    monkeypatch.setattr(holding_utils, "apply_scaling", lambda df, scale: df)
+    d = dt.date(2024, 1, 1)
+    price, src = holding_utils._get_price_for_date_scaled("AAA", "L", d)
+    assert price is None
+    assert src is None
+
+
 def test_get_effective_cost_basis_gbp_booked_cost(monkeypatch):
     monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *args, **kwargs: 1.0)
     holding = {TICKER: "AAA.L", UNITS: 10, COST_BASIS_GBP: 123.45}

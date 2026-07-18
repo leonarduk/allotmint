@@ -148,6 +148,12 @@ def main():
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(content)
 
+    # An issue closed and reopened between the two paginated fetches above
+    # would otherwise appear in both sets; only treat it as closed when it's
+    # not also open, so a reopened issue's file is never deleted then
+    # recreated on the next run.
+    truly_closed_ids = closed_ids - open_ids_to_filenames.keys()
+
     # Remove files that are:
     # 1. For closed issues, or
     # 2. For open issues but with outdated filenames (e.g., issue was renamed)
@@ -156,7 +162,7 @@ def main():
         if not match:
             continue
         issue_id = int(match.group(1))
-        is_closed = issue_id in closed_ids
+        is_closed = issue_id in truly_closed_ids
         current_name = open_ids_to_filenames.get(issue_id)
         is_outdated = current_name and current_name != filepath.name
         if is_closed or is_outdated:

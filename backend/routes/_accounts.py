@@ -21,6 +21,23 @@ def resolve_accounts_root(request: Request, *, allow_missing: bool = False) -> P
     or cannot be resolved to a valid path the function falls back to the
     configured repository paths, ultimately defaulting to the standard data
     directory discovered via :func:`data_loader.resolve_paths`.
+
+    This function always returns a ``Path`` — it never returns ``None`` and
+    never raises for a missing directory. ``allow_missing`` only controls
+    whether a *cached* ``request.app.state.accounts_root`` that points at a
+    directory that doesn't exist on disk is accepted as-is:
+
+    - ``allow_missing=False`` (default): a non-existent cached path is
+      discarded, and resolution falls through to the configured repository
+      paths (and ultimately the standard data directory) instead.
+    - ``allow_missing=True``: a non-existent cached path is returned
+      unchanged. Callers that pass this (e.g. account-creation/signup routes)
+      need the directory a new account *will* live in before it exists.
+
+    The configured-path and fallback branches below are unconditional and
+    always return a ``Path`` regardless of whether that directory currently
+    exists — callers must check existence themselves if it matters for their
+    use case.
     """
 
     accounts_root_value = getattr(request.app.state, "accounts_root", None)

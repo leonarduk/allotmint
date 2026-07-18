@@ -7,6 +7,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Optional
 
@@ -356,9 +357,15 @@ def create_pr(
 
     body_file = None
     try:
-        # Write body to temp file to avoid command-line quoting issues
-        body_file = Path.home() / f".pr-body-{os.getpid()}.txt"
-        body_file.write_text(body, encoding="utf-8")
+        # Write body to temp file to avoid command-line quoting issues.
+        # delete=False + explicit unlink (rather than delete=True) because an
+        # open NamedTemporaryFile can't be reopened by the `gh` subprocess on
+        # Windows while this process still holds the handle.
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".md", delete=False, encoding="utf-8"
+        ) as tmp:
+            tmp.write(body)
+            body_file = Path(tmp.name)
 
         result = subprocess.run(
             [

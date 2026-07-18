@@ -50,99 +50,114 @@ jobs:
             const issueNumber = parseInt(process.env.ISSUE_NUMBER, 10);
             const statusOptionName = process.env.STATUS_OPTION_NAME;
 
-            // repositoryOwner + the ProjectV2Owner interface works for both
-            // user-owned and org-owned boards without needing to know which.
-            const { repositoryOwner } = await github.graphql(
-              `query($login: String!, $number: Int!) {
-                repositoryOwner(login: $login) {
-                  ... on ProjectV2Owner {
-                    projectV2(number: $number) { id }
-                  }
-                }
-              }`,
-              { login: owner, number: projectNumber }
-            );
-            const projectId = repositoryOwner?.projectV2?.id;
-            if (!projectId) {
-              core.setFailed(`Project #${projectNumber} not found for owner '${owner}'. Check the PROJECT_NUMBER repo variable.`);
-              return;
-            }
-
-            let statusFieldId;
-            let statusOptions;
-            let itemId;
-            let cursor = null;
-
-            do {
-              const result = await github.graphql(
-                `query($projectId: ID!, $cursor: String) {
-                  node(id: $projectId) {
-                    ... on ProjectV2 {
-                      field(name: "Status") {
-                        ... on ProjectV2SingleSelectField {
-                          id
-                          options { id name }
-                        }
-                      }
-                      items(first: 100, after: $cursor) {
-                        pageInfo { hasNextPage endCursor }
-                        nodes {
-                          id
-                          content { ... on Issue { number } }
-                        }
-                      }
+            // Wrapped so a GraphQL failure (e.g. GH_PROJECT_TOKEN missing the
+            // `project` scope) surfaces as one clear setFailed message instead
+            // of an unhandled-rejection stack trace.
+            try {
+              // repositoryOwner + the ProjectV2Owner interface works for both
+              // user-owned and org-owned boards without needing to know which.
+              const { repositoryOwner } = await github.graphql(
+                `query($login: String!, $number: Int!) {
+                  repositoryOwner(login: $login) {
+                    ... on ProjectV2Owner {
+                      projectV2(number: $number) { id }
                     }
                   }
                 }`,
-                { projectId, cursor }
+                { login: owner, number: projectNumber }
               );
-
-              const project = result.node;
-              statusFieldId = statusFieldId ?? project.field?.id;
-              statusOptions = statusOptions ?? project.field?.options;
-
-              const match = project.items.nodes.find(
-                (item) => item.content?.number === issueNumber
-              );
-              if (match) {
-                itemId = match.id;
-                break;
+              const projectId = repositoryOwner?.projectV2?.id;
+              if (!projectId) {
+                core.setFailed(`Project #${projectNumber} not found for owner '${owner}'. Check the PROJECT_NUMBER repo variable.`);
+                return;
               }
 
-              cursor = project.items.pageInfo.hasNextPage ? project.items.pageInfo.endCursor : null;
-            } while (cursor);
+              let statusFieldId;
+              let statusOptions;
+              let itemId;
+              let cursor = null;
 
-            if (!itemId) {
-              core.info(`Issue #${issueNumber} is not on project #${projectNumber}; nothing to do.`);
-              return;
-            }
+              do {
+                const result = await github.graphql(
+                  `query($projectId: ID!, $cursor: String) {
+                    node(id: $projectId) {
+                      ... on ProjectV2 {
+                        field(name: "Status") {
+                          ... on ProjectV2SingleSelectField {
+                            id
+                            options { id name }
+                          }
+                        }
+                        items(first: 100, after: $cursor) {
+                          pageInfo { hasNextPage endCursor }
+                          nodes {
+                            id
+                            content { ... on Issue { number } }
+                          }
+                        }
+                      }
+                    }
+                  }`,
+                  { projectId, cursor }
+                );
 
-            if (!statusFieldId || !statusOptions) {
-              core.setFailed(`Project #${projectNumber} has no "Status" single-select field.`);
-              return;
-            }
+                const project = result.node;
+                statusFieldId = statusFieldId ?? project.field?.id;
+                statusOptions = statusOptions ?? project.field?.options;
 
-            const targetOption = statusOptions.find((o) => o.name === statusOptionName);
-            if (!targetOption) {
-              core.setFailed(
-                `Project #${projectNumber}'s Status field has no option named "${statusOptionName}" ` +
-                `(found: ${statusOptions.map((o) => o.name).join(", ")}).`
-              );
-              return;
-            }
-
-            await github.graphql(
-              `mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
-                updateProjectV2ItemFieldValue(input: {
-                  projectId: $projectId,
-                  itemId: $itemId,
-                  fieldId: $fieldId,
-                  value: { singleSelectOptionId: $optionId }
-                }) {
-                  projectV2Item { id }
+                const match = project.items.nodes.find(
+                  (item) => item.content?.number === issueNumber
+                );
+                if (match) {
+                  itemId = match.id;
+                  break;
                 }
-              }`,
-              { projectId, itemId, fieldId: statusFieldId, optionId: targetOption.id }
-            );
 
-            core.info(`Moved issue #${issueNumber} to "${statusOptionName}" on project #${projectNumber}.`);
+                cursor = project.items.pageInfo.hasNextPage ? project.items.pageInfo.endCursor : null;
+              } while (cursor);
+
+              if (!itemId) {
+                core.info(`Issue #${issueNumber} is not on project #${projectNumber}; nothing to do.`);
+                return;
+              }
+
+              if (!statusFieldId || !statusOptions) {
+                core.setFailed(`Project #${projectNumber} has no "Status" single-select field.`);
+                return;
+              }
+
+              const targetOption = statusOptions.find((o) => o.name === statusOptionName);
+              if (!targetOption) {
+                core.setFailed(
+                  `Project #${projectNumber}'s Status field has no option named "${statusOptionName}" ` +
+                  `(found: ${statusOptions.map((o) => o.name).join(", ")}).`
+                );
+                return;
+              }
+
+              await github.graphql(
+                `mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+                  updateProjectV2ItemFieldValue(input: {
+                    projectId: $projectId,
+                    itemId: $itemId,
+                    fieldId: $fieldId,
+                    value: { singleSelectOptionId: $optionId }
+                  }) {
+                    projectV2Item { id }
+                  }
+                }`,
+                { projectId, itemId, fieldId: statusFieldId, optionId: targetOption.id }
+              );
+
+              core.info(`Moved issue #${issueNumber} to "${statusOptionName}" on project #${projectNumber}.`);
+            } catch (error) {
+              if (error.message?.includes("INSUFFICIENT_SCOPES") || error.message?.includes("required scopes")) {
+                core.setFailed(
+                  `GH_PROJECT_TOKEN is missing the 'project' scope required for Projects V2 access. ` +
+                  `Regenerate the PAT with the 'project' scope (classic) or 'Projects' permission ` +
+                  `(fine-grained) and update the repo secret. Original error: ${error.message}`
+                );
+              } else {
+                core.setFailed(`Failed to update project status: ${error.message}`);
+              }
+            }

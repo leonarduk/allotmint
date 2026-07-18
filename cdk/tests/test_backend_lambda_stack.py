@@ -297,6 +297,26 @@ def test_backend_lambda_has_jwt_and_google_env_vars(template):
     )
 
 
+def test_backend_lambda_has_metadata_bucket_env_vars(template):
+    """BackendLambda must have METADATA_BUCKET/METADATA_PREFIX so
+    backend.common.instruments._s3_location() can resolve a writable S3
+    location for auto-created instrument metadata instead of falling back to
+    the read-only /var/task filesystem on Lambda (issue #4930)."""
+    template.has_resource_properties(
+        "AWS::Lambda::Function",
+        {
+            "Environment": {
+                "Variables": assertions.Match.object_like(
+                    {
+                        "METADATA_BUCKET": assertions.Match.any_value(),
+                        "METADATA_PREFIX": "instruments",
+                    }
+                )
+            }
+        },
+    )
+
+
 def test_backend_lambda_timeout_is_at_least_30s(template):
     """BackendLambda must have a timeout > the 3 s default to survive cold starts."""
     functions = template.find_resources("AWS::Lambda::Function")

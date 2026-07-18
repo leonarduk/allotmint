@@ -92,6 +92,73 @@ async def test_lifecycle_service_warms_snapshot_and_registers_background_task(
 
 
 @pytest.mark.asyncio
+async def test_lifecycle_service_warmup_logs_timed_phases(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+):
+    """Each cold-start warmup phase must log its own duration (issue #4937), so
+    which phase (snapshot load vs. metadata update vs. price-history fetch)
+    dominates a slow cold start can be diagnosed from the logs."""
+    snapshot_task = asyncio.Future()
+
+    monkeypatch.setattr("backend.common.portfolio_utils._load_snapshot", lambda: ({"ABC": 1}, "ts"))
+    monkeypatch.setattr(
+        "backend.common.portfolio_utils.refresh_snapshot_in_memory", lambda snapshot, ts: None
+    )
+    monkeypatch.setattr(
+        "backend.common.instrument_api.update_latest_prices_from_snapshot", lambda snapshot: None
+    )
+    monkeypatch.setattr("backend.common.instrument_api.prime_latest_prices", lambda: None)
+    monkeypatch.setattr(
+        "backend.common.portfolio_utils.refresh_snapshot_async", lambda days: snapshot_task
+    )
+
+    config.skip_snapshot_warm = False
+    config.snapshot_warm_days = 5
+    service = AppLifecycleService(cfg=config)
+    app = app_module.create_app()
+
+    with caplog.at_level(logging.INFO, logger="backend.bootstrap.startup"):
+        await service.startup(app)
+        prime_task = next(t for t in app.state.background_tasks if t is not snapshot_task)
+        await prime_task
+
+    phases = {
+        record.phase
+        for record in caplog.records
+        if getattr(record, "phase", None) is not None
+    }
+    assert phases == {"snapshot_load", "metadata_update_from_snapshot", "price_history_fetch"}
+    for record in caplog.records:
+        if getattr(record, "phase", None) is not None:
+            assert isinstance(record.duration_ms, float)
+            assert record.duration_ms >= 0
+
+
+@pytest.mark.asyncio
+async def test_prime_latest_prices_background_is_an_instance_method(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Regression for issue #4938: this must be callable as a bound method (it
+    reads no instance state today, but @staticmethod was misleading given the
+    self.-prefixed call site in _warm_snapshot)."""
+    called = {"primed": False}
+    monkeypatch.setattr(
+        "backend.common.instrument_api.prime_latest_prices",
+        lambda: called.__setitem__("primed", True),
+    )
+
+    service = AppLifecycleService(cfg=config)
+    assert not isinstance(
+        type(service).__dict__["_prime_latest_prices_background"], staticmethod
+    )
+
+    await service._prime_latest_prices_background()
+
+    assert called["primed"] is True
+
+
+@pytest.mark.asyncio
 async def test_lifecycle_service_shutdown_cancels_tasks_and_temp_dirs(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):

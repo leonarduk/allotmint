@@ -21,7 +21,7 @@ backend/app.py:215
 backend/auth.py:126
 backend/auth.py:537
 backend/bootstrap/isolation.py:89
-backend/bootstrap/startup.py:67
+backend/bootstrap/startup.py:92
 backend/common/accounts_store.py:244
 backend/common/accounts_store.py:283
 backend/common/accounts_store.py:286

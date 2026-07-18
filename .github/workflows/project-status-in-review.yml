@@ -1,0 +1,164 @@
+name: Project Status — In Review
+
+# Moves a PR's linked issue to the "In Review" status on the GitHub Projects V2
+# board when the PR is opened or reopened. See #4431.
+#
+# Requires:
+#   - repo secret GH_PROJECT_TOKEN: a PAT with the `project` scope. The default
+#     GITHUB_TOKEN cannot write to Projects V2, so a PAT is required.
+#   - repo variable PROJECT_NUMBER: the project board number (defaults to 1).
+#   - a Status field on that board with an option named exactly "In review"
+#     (matches this repo's board; case-sensitive).
+#
+# If the PR body has no Closes/Fixes/Resolves #N reference, or the linked
+# issue isn't on the project board, this exits cleanly with no failure.
+
+on:
+  pull_request:
+    types: [opened, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  set-in-review:
+    name: Move linked issue to In Review
+    runs-on: ubuntu-latest
+    steps:
+      - name: Extract linked issue number
+        id: extract
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          issue_number=$(printf '%s' "$PR_BODY" | grep -ioE '(closes|fixes|resolves)[[:space:]]+#[0-9]+' | head -1 | grep -oE '[0-9]+' || true)
+          if [ -z "$issue_number" ]; then
+            echo "No linked issue found (no Closes/Fixes/Resolves #N in PR body); exiting cleanly."
+          fi
+          echo "issue_number=$issue_number" >> "$GITHUB_OUTPUT"
+
+      - name: Move issue to In Review
+        if: steps.extract.outputs.issue_number != ''
+        uses: actions/github-script@d746ffe35508b1917358783b479e04febd2b8f71  # v9.0.0
+        env:
+          PROJECT_NUMBER: ${{ vars.PROJECT_NUMBER || '1' }}
+          ISSUE_NUMBER: ${{ steps.extract.outputs.issue_number }}
+          STATUS_OPTION_NAME: "In review"
+        with:
+          github-token: ${{ secrets.GH_PROJECT_TOKEN }}
+          script: |
+            const owner = context.repo.owner;
+            const projectNumber = parseInt(process.env.PROJECT_NUMBER, 10);
+            const issueNumber = parseInt(process.env.ISSUE_NUMBER, 10);
+            const statusOptionName = process.env.STATUS_OPTION_NAME;
+
+            // Wrapped so a GraphQL failure (e.g. GH_PROJECT_TOKEN missing the
+            // `project` scope) surfaces as one clear setFailed message instead
+            // of an unhandled-rejection stack trace.
+            try {
+              // repositoryOwner + the ProjectV2Owner interface works for both
+              // user-owned and org-owned boards without needing to know which.
+              const { repositoryOwner } = await github.graphql(
+                `query($login: String!, $number: Int!) {
+                  repositoryOwner(login: $login) {
+                    ... on ProjectV2Owner {
+                      projectV2(number: $number) { id }
+                    }
+                  }
+                }`,
+                { login: owner, number: projectNumber }
+              );
+              const projectId = repositoryOwner?.projectV2?.id;
+              if (!projectId) {
+                core.setFailed(`Project #${projectNumber} not found for owner '${owner}'. Check the PROJECT_NUMBER repo variable.`);
+                return;
+              }
+
+              let statusFieldId;
+              let statusOptions;
+              let itemId;
+              let cursor = null;
+
+              do {
+                const result = await github.graphql(
+                  `query($projectId: ID!, $cursor: String) {
+                    node(id: $projectId) {
+                      ... on ProjectV2 {
+                        field(name: "Status") {
+                          ... on ProjectV2SingleSelectField {
+                            id
+                            options { id name }
+                          }
+                        }
+                        items(first: 100, after: $cursor) {
+                          pageInfo { hasNextPage endCursor }
+                          nodes {
+                            id
+                            content { ... on Issue { number } }
+                          }
+                        }
+                      }
+                    }
+                  }`,
+                  { projectId, cursor }
+                );
+
+                const project = result.node;
+                statusFieldId = statusFieldId ?? project.field?.id;
+                statusOptions = statusOptions ?? project.field?.options;
+
+                const match = project.items.nodes.find(
+                  (item) => item.content?.number === issueNumber
+                );
+                if (match) {
+                  itemId = match.id;
+                  break;
+                }
+
+                cursor = project.items.pageInfo.hasNextPage ? project.items.pageInfo.endCursor : null;
+              } while (cursor);
+
+              if (!itemId) {
+                core.info(`Issue #${issueNumber} is not on project #${projectNumber}; nothing to do.`);
+                return;
+              }
+
+              if (!statusFieldId || !statusOptions) {
+                core.setFailed(`Project #${projectNumber} has no "Status" single-select field.`);
+                return;
+              }
+
+              const targetOption = statusOptions.find((o) => o.name === statusOptionName);
+              if (!targetOption) {
+                core.setFailed(
+                  `Project #${projectNumber}'s Status field has no option named "${statusOptionName}" ` +
+                  `(found: ${statusOptions.map((o) => o.name).join(", ")}).`
+                );
+                return;
+              }
+
+              await github.graphql(
+                `mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+                  updateProjectV2ItemFieldValue(input: {
+                    projectId: $projectId,
+                    itemId: $itemId,
+                    fieldId: $fieldId,
+                    value: { singleSelectOptionId: $optionId }
+                  }) {
+                    projectV2Item { id }
+                  }
+                }`,
+                { projectId, itemId, fieldId: statusFieldId, optionId: targetOption.id }
+              );
+
+              core.info(`Moved issue #${issueNumber} to "${statusOptionName}" on project #${projectNumber}.`);
+            } catch (error) {
+              if (error.message?.includes("INSUFFICIENT_SCOPES") || error.message?.includes("required scopes")) {
+                core.setFailed(
+                  `GH_PROJECT_TOKEN is missing the 'project' scope required for Projects V2 access. ` +
+                  `Regenerate the PAT with the 'project' scope (classic) or 'Projects' permission ` +
+                  `(fine-grained) and update the repo secret. Original error: ${error.message}`
+                );
+              } else {
+                core.setFailed(`Failed to update project status: ${error.message}`);
+              }
+            }

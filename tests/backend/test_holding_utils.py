@@ -161,3 +161,32 @@ def test_enrich_holding_market_value_set_from_price_snapshot(monkeypatch):
     )
     assert result["gain_gbp"] is not None
     assert result["current_price_gbp"] == pytest.approx(97.5)
+
+
+def test_enrich_holding_falls_back_to_previous_close_when_today_missing(monkeypatch):
+    """If today's close is unavailable (e.g. a gap in the price source, or a
+    NaN-filled placeholder row for a date outside the cache), the holding must
+    fall back to the last known close rather than leaving price fields null.
+    """
+    import backend.common.portfolio_utils as pu
+
+    monkeypatch.setattr(hu, "get_instrument_meta", lambda *_: {"currency": "GBP"})
+    monkeypatch.setattr(pu, "get_security_meta", lambda *_: {})
+    monkeypatch.setattr(pu, "_PRICE_SNAPSHOT", {})
+
+    def fake_price_for_date(ticker, exchange, d, field="Close_gbp"):
+        # No price for "today"; a valid close exists for the previous date.
+        if d == dt.date(2026, 5, 15):
+            return 50.0, "Yahoo"
+        return None, None
+
+    monkeypatch.setattr(hu, "_get_price_for_date_scaled", fake_price_for_date)
+    monkeypatch.setattr(hu, "get_effective_cost_basis_gbp", lambda h, cache, price_hint=None: 0.0)
+
+    holding = {TICKER: "FOO.L", UNITS: 10, COST_BASIS_GBP: 0.0, ACQUIRED_DATE: "2025-01-01"}
+    today = dt.date(2026, 5, 16)
+    result = hu.enrich_holding(holding, today, price_cache={})
+
+    assert result["price"] == pytest.approx(50.0)
+    assert result["current_price_gbp"] == pytest.approx(50.0)
+    assert result["market_value_gbp"] == pytest.approx(500.0)

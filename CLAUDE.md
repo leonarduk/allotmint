@@ -51,6 +51,7 @@ checkouts, required PR steps, branch naming, `Closes #NNNN` linking).
 0. For any change touching existing files, read the current file content in full from disk before writing; do not rely on diff snippets or memory of earlier reads.
 1. Inspect `git status` and avoid disturbing user changes.
 2. Create or switch to the task branch before editing files; if the checkout is dirty with unrelated work, create a clean worktree from `main`.
+2b. When implementing a GitHub issue that's tracked on the Projects board, move its status to **In Progress** before writing any implementation code (if you have the project-scoped access to do so — the default `GITHUB_TOKEN` cannot write to Projects V2, so this may not be possible in every environment). Opening a PR with `Closes #NNNN` in its body later moves the issue to **In Review** automatically (see `.github/workflows/project-status-in-review.yml`, #4431).
 3. Read the exact script/package targets you plan to mention or change.
 4. Make the smallest coherent change.
 5. Run the narrowest useful validation.

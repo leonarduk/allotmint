@@ -75,6 +75,28 @@ def test_get_units_as_of_ignores_other_tickers() -> None:
     }
 
     assert get_units_as_of(tx_data, "ABC", "2024-06-01") == pytest.approx(100.0)
+def test_rebuild_account_holdings_treats_dividend_singular_like_dividends(tmp_path: Path) -> None:
+    """Regression test for #4948: the sign table must recognise both
+    ``DIVIDEND`` (written by backend/common/dividends.py) and the legacy
+    ``DIVIDENDS`` literal identically, not silently drop one of them.
+    """
+
+    owner_dir = tmp_path / "alice"
+    owner_dir.mkdir()
+    tx_file = owner_dir / "ISA_transactions.json"
+    tx_data = {
+        "currency": "GBP",
+        "transactions": [
+            {"type": "DEPOSIT", "amount_minor": 10000},
+            {"type": "DIVIDEND", "amount_minor": 2500},
+        ],
+    }
+    tx_file.write_text(json.dumps(tx_data))
+
+    result = rebuild_account_holdings("alice", "isa", accounts_root=tmp_path)
+
+    holdings = {h["ticker"]: h for h in result["holdings"]}
+    assert holdings["CASH.GBP"]["units"] == pytest.approx(125.0)
 
 
 def test_rebuild_account_holdings_missing_file(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:

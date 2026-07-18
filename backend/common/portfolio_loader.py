@@ -212,6 +212,7 @@ def compute_holdings_from_transactions(
     CASH_SIGNS = {
         "DEPOSIT": 1,
         "WITHDRAWAL": -1,
+        "DIVIDEND": 1,
         "DIVIDENDS": 1,
         "INTEREST": 1,
     }

@@ -6,13 +6,12 @@ hand. See issue #2750.
 
 Design notes / known v1 limitations
 ------------------------------------
-* Transaction type literal: the codebase is inconsistent between ``DIVIDEND``
-  (``backend/reports.py`` income aggregation, ``backend/utils/positions.py``)
-  and ``DIVIDENDS`` (cash-flow sign tables in ``portfolio_loader.py`` and
-  ``portfolio_utils.py`` used by TWR/XIRR). This module writes ``DIVIDEND`` to
-  match the income-reporting path and the issue's stated acceptance criteria.
-  Fixing the cash-flow sign tables to also recognise ``DIVIDEND`` is tracked
-  separately and out of scope here.
+* Transaction type literal: this module writes ``DIVIDEND`` to match the
+  income-reporting path (``backend/reports.py``, ``backend/utils/positions.py``)
+  and the issue's stated acceptance criteria. The cash-flow sign tables in
+  ``portfolio_loader.py`` and ``portfolio_utils.py`` (used by TWR/XIRR) also
+  recognise ``DIVIDEND`` alongside the legacy ``DIVIDENDS`` literal (#4948),
+  so both transaction-type spellings are treated consistently everywhere.
 * Amount calculation: yfinance's ``Ticker.dividends`` returns a per-share
   amount, not the total cash received. This module multiplies the per-share
   amount by the unit count held as of the dividend's ex-date, reconstructed

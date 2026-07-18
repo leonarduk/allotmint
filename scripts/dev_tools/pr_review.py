@@ -21,7 +21,13 @@ from ollama_common import (
     get_ollama_model,
     validate_ollama_connection,
 )
-from review_common import build_prompt, emit_empty_diff_notice, finalize_review, truncate_diff
+from review_common import (
+    build_prompt,
+    emit_empty_diff_notice,
+    filter_binary_files,
+    finalize_review,
+    truncate_diff,
+)
 
 
 def get_repo_info() -> tuple[str, str]:
@@ -86,7 +92,7 @@ def fetch_pr_diff(owner: str, repo: str, pr_id: int) -> str:
             text=True,
             check=True,
         )
-        return result.stdout
+        return filter_binary_files(result.stdout)
     except FileNotFoundError as exc:
         print(f"ERROR: gh CLI not found. Is GitHub CLI installed? {exc}", file=sys.stderr)
         raise SystemExit(1) from exc

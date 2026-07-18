@@ -110,6 +110,33 @@ class TestCreatePr:
         assert url == "https://github.com/leonarduk/allotmint/pull/123"
         mock_run.assert_not_called()
 
+    @mock.patch("publish_pr.find_existing_pr")
+    @mock.patch("publish_pr.subprocess.run")
+    def test_body_temp_file_is_outside_home_dir_and_cleaned_up(self, mock_run, mock_find_existing):
+        """The PR body temp file must live in the system temp dir, not ~, and be removed after."""
+        from publish_pr import create_pr
+
+        mock_find_existing.return_value = None
+        seen_path = {}
+
+        def fake_run(cmd, **kwargs):
+            body_file_arg = Path(cmd[cmd.index("--body-file") + 1])
+            seen_path["path"] = body_file_arg
+            assert body_file_arg.read_text(encoding="utf-8") == "pr body text"
+            return mock.MagicMock(
+                returncode=0,
+                stdout="https://github.com/leonarduk/allotmint/pull/456\n",
+            )
+
+        mock_run.side_effect = fake_run
+
+        url = create_pr("leonarduk", "allotmint", "fix/issue-4445-slug", "main", "title", "pr body text")
+
+        assert url == "https://github.com/leonarduk/allotmint/pull/456"
+        assert not seen_path["path"].name.startswith(".pr-body-")
+        assert seen_path["path"].parent != Path.home()
+        assert not seen_path["path"].exists()
+
 
 class TestCheckGhAvailable:
     @mock.patch("publish_pr.subprocess.run")

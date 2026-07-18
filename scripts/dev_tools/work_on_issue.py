@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 import re
 import subprocess
@@ -41,11 +42,19 @@ def get_repo_info() -> tuple[str, str]:
 
 
 def slugify(text: str) -> str:
-    """Convert text to a URL-friendly slug."""
-    text = text.lower()
-    text = re.sub(r"[^\w\s-]", "", text)
-    text = re.sub(r"[-\s]+", "-", text)
-    return text.strip("-")[:50]
+    """Convert text to a URL-friendly slug.
+
+    Falls back to a deterministic hash when the title has no ASCII
+    word characters (e.g. emoji-only titles), so branch names never end up
+    with a trailing hyphen like ``fix/issue-4445-``.
+    """
+    slug = text.lower()
+    slug = re.sub(r"[^\w\s-]", "", slug)
+    slug = re.sub(r"[-\s]+", "-", slug)
+    slug = slug.strip("-")[:50]
+    if not slug:
+        slug = hashlib.sha256(text.encode("utf-8")).hexdigest()[:8]
+    return slug
 
 
 def fetch_issue(owner: str, repo: str, issue_id: int) -> dict:

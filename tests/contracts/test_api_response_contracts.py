@@ -45,7 +45,12 @@ ENDPOINT_FIXTURES = {
 
 @pytest.fixture(scope="module")
 def client() -> TestClient:
-    return TestClient(create_app())
+    # Use as a context manager so the app's lifespan startup runs (it warms
+    # the in-memory price snapshot from the committed seed file). Without
+    # this, requests fall through to raw timeseries lookups that can surface
+    # stale/incomplete rows for the current trading day - see issue #5192.
+    with TestClient(create_app()) as test_client:
+        yield test_client
 
 
 def _validate_contract(name: str, payload: Any) -> list[str]:

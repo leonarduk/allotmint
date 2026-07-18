@@ -1,6 +1,7 @@
 import asyncio
 import inspect
 import os
+import shutil
 from pathlib import Path
 
 try:
@@ -59,6 +60,44 @@ def enable_offline_mode():
         yield
     finally:
         config.offline_mode = previous
+
+
+@pytest.fixture(scope="session", autouse=True)
+def isolate_prices_json(tmp_path_factory):
+    """Redirect the default price-snapshot path to a session-scoped temp copy.
+
+    ``AppLifecycleService.startup`` (backend/bootstrap/startup.py) fires an
+    unconditional background task (``refresh_snapshot_async``) on every app
+    startup, which writes through ``portfolio_utils._PRICES_PATH`` — a path
+    bound once at import time from ``config.prices_json``. Any test that
+    boots the real app via ``TestClient`` therefore risks a background
+    refresh racing with the test run and overwriting the committed seed file
+    at data/prices/latest_prices.json with live-fetched data (see issue
+    #5192). Individual tests that need their own isolated path already
+    monkeypatch ``_PRICES_PATH``/``config.prices_json`` per-test; this
+    fixture only changes the *default* so nothing falls through to the real
+    repo file when a test forgets to.
+
+    Deliberately not restored at teardown: ``refresh_snapshot_async`` hands
+    its work to a real OS thread via ``asyncio.to_thread``, and cancelling
+    the wrapping asyncio task at app shutdown does not stop a thread already
+    in flight. If this fixture restored the original (real) path on
+    teardown, a straggler thread from an early test could still finish after
+    that restore and write live data into the committed seed file at the
+    very end of the run. Leaving the redirect in place for the rest of the
+    process lifetime closes that window; nothing after the test session
+    needs the original value back.
+    """
+    from backend.common import portfolio_utils
+
+    real_path = Path(config.prices_json) if config.prices_json else None
+    tmp_prices_json = tmp_path_factory.mktemp("prices") / "latest_prices.json"
+    if real_path and real_path.exists():
+        shutil.copy(real_path, tmp_prices_json)
+
+    config.prices_json = tmp_prices_json
+    portfolio_utils._PRICES_PATH = tmp_prices_json
+    yield tmp_prices_json
 
 
 @pytest.fixture(autouse=True)

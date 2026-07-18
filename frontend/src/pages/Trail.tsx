@@ -34,8 +34,8 @@ export default function Trail() {
       .catch((e) => setError(String(e)));
   };
 
-  if (!data) return <div>{t("common.loading")}</div>;
   if (error) return <div style={{ color: "red" }}>{error}</div>;
+  if (!data) return <div>{t("common.loading")}</div>;
 
   const daily = data.tasks.filter((t) => t.type === "daily");
   const once = data.tasks.filter((t) => t.type === "once");

@@ -12,7 +12,7 @@ from backend.common.storage import get_storage
 def snapshot_storage(tmp_path, monkeypatch):
     storage = get_storage(f"file://{tmp_path / 'pension_snapshots.json'}")
     storage.save({})
-    monkeypatch.setattr(snapshots_mod, "_STORAGE", storage)
+    monkeypatch.setattr(snapshots_mod, "_get_storage", lambda: storage)
     return storage
 
 
@@ -64,3 +64,21 @@ def test_previous_period_pot_gbp_no_previous_uses_current() -> None:
 def test_previous_period_pot_gbp_returns_last_pot() -> None:
     previous = {"last_pot_gbp": 4200}
     assert snapshots_mod.previous_period_pot_gbp(previous, 5000) == 4200
+
+
+def test_get_storage_reads_env_var_set_after_module_import(tmp_path, monkeypatch) -> None:
+    """Regression test for #5010.
+
+    The module is already imported (it has to be, to write this test), well
+    before this test sets PENSION_SNAPSHOTS_URI. A module-level ``_STORAGE``
+    constant would have frozen the fallback default at import time and never
+    seen this env var; the lazy accessor must resolve it on this call.
+    """
+    target = tmp_path / "custom_snapshots.json"
+    monkeypatch.setenv("PENSION_SNAPSHOTS_URI", f"file://{target}")
+
+    storage = snapshots_mod._get_storage()
+    storage.save({"alice": {"year": 2024}})
+
+    assert target.exists()
+    assert snapshots_mod.get_previous_snapshot("alice") == {"year": 2024}

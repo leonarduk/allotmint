@@ -275,7 +275,7 @@ def _validate_manual_holding_payload(payload: ManualHoldingCreate) -> None:
     has_price = payload.price_gbp is not None
     has_units_price = has_units and has_price
     has_partial_units_price = has_units != has_price
-    if has_partial_units_price or has_value == has_units_price:
+    if has_partial_units_price or not (has_value or has_units_price):
         raise HTTPException(
             status_code=400,
             detail="Provide either value_gbp or both units and price_gbp",

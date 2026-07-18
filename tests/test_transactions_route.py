@@ -580,18 +580,28 @@ def test_create_manual_holding_updates_existing_ticker_in_account(tmp_path, monk
     assert saved["holdings"] == [{"ticker": "VUSA.L", "units": 3.0, "price": 100.0}]
 
 
+def test_create_manual_holding_with_value_takes_precedence_over_units_and_price(
+    tmp_path, monkeypatch
+):
+    client = _make_client(tmp_path, monkeypatch)
+    payload = {
+        "owner": "alice",
+        "account": "SIPP",
+        "ticker": "MSFT",
+        "value_gbp": 500,
+        "units": 5,
+        "price_gbp": 100,
+    }
+
+    resp = client.post("/holdings/manual", json=payload)
+    assert resp.status_code == 200
+    assert resp.json()["holding"] == {"ticker": "MSFT", "value_gbp": 500.0}
+
+
 def test_create_manual_holding_rejects_invalid_metric_combo(tmp_path, monkeypatch):
     client = _make_client(tmp_path, monkeypatch)
 
     invalid_payloads = [
-        {
-            "owner": "alice",
-            "account": "SIPP",
-            "ticker": "MSFT",
-            "value_gbp": 10,
-            "units": 1,
-            "price_gbp": 10,
-        },
         {
             "owner": "alice",
             "account": "SIPP",

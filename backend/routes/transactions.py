@@ -29,6 +29,8 @@ from backend.utils import update_holdings_from_csv
 router = APIRouter(tags=["transactions"])
 log = logging.getLogger("transactions")
 
+_warned_missing_data_bucket = False
+
 
 class Transaction(BaseModel):
     """Simple representation of a transaction record."""
@@ -146,14 +148,17 @@ def resolve_writable_store(
     on-disk accounts root is used, flagged ``is_global`` when it resolves to the
     shared demo dataset so write handlers refuse to mutate it.
     """
+    global _warned_missing_data_bucket
     if getattr(config, "app_env", None) == "aws":
         bucket = os.getenv(data_loader.DATA_BUCKET_ENV)
         if bucket:
             return S3AccountsStore(bucket=bucket), _RootResolution.WRITABLE
-        log.warning(
-            "%s is not set; falling back to local accounts store.",
-            data_loader.DATA_BUCKET_ENV,
-        )
+        if not _warned_missing_data_bucket:
+            log.warning(
+                "%s is not set; falling back to local accounts store.",
+                data_loader.DATA_BUCKET_ENV,
+            )
+            _warned_missing_data_bucket = True
     root, kind = _resolve_local_root(request)
     is_global = kind is not _RootResolution.WRITABLE
     return LocalAccountsStore(root=root, is_global=is_global), kind

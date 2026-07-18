@@ -70,6 +70,7 @@ def test_resolve_writable_store_falls_back_local_without_bucket(
 ):
     monkeypatch.setattr(transactions_module.config, "app_env", "aws")
     monkeypatch.delenv(data_loader.DATA_BUCKET_ENV, raising=False)
+    monkeypatch.setattr(transactions_module, "_warned_missing_data_bucket", False)
 
     request = _make_request({"accounts_root": tmp_path})
     with caplog.at_level("WARNING", logger="transactions"):
@@ -93,6 +94,27 @@ def test_resolve_writable_store_no_warning_outside_aws(monkeypatch, tmp_path, ca
     assert not any(
         data_loader.DATA_BUCKET_ENV in record.message for record in caplog.records
     )
+
+
+def test_resolve_writable_store_warns_only_once_per_process(
+    monkeypatch, tmp_path, caplog
+):
+    monkeypatch.setattr(transactions_module.config, "app_env", "aws")
+    monkeypatch.delenv(data_loader.DATA_BUCKET_ENV, raising=False)
+    monkeypatch.setattr(transactions_module, "_warned_missing_data_bucket", False)
+
+    with caplog.at_level("WARNING", logger="transactions"):
+        for _ in range(3):
+            transactions_module.resolve_writable_store(
+                _make_request({"accounts_root": tmp_path})
+            )
+
+    warnings = [
+        record
+        for record in caplog.records
+        if data_loader.DATA_BUCKET_ENV in record.message
+    ]
+    assert len(warnings) == 1
 
 
 @pytest.mark.asyncio

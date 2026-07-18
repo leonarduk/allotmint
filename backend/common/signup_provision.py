@@ -156,16 +156,18 @@ def provision_owner(
     """Provision the owner for an approved request and return the owner slug.
 
     Scaffolds the owner directory under ``accounts_root`` and records the
-    request email in ``person.json`` so the user can authenticate. When a
-    writable ``store`` is supplied its ``ensure_owner`` is also invoked so the
-    deployed writable-store path stays consistent with #4353.
+    request email in ``person.json`` so the user can authenticate.
+    ``_resolve_owner_slug`` already performs both the scaffold and the
+    identity write (with the real ``full_name``) as part of atomically
+    claiming the slug, so there is nothing left to do here for a fresh
+    or re-provisioned owner. When a writable ``store`` is supplied its
+    ``ensure_owner`` is also invoked so the deployed writable-store path
+    stays consistent with #4353.
     """
 
     accounts_root = Path(accounts_root)
     email = record.email.strip().lower()
     owner = _resolve_owner_slug(email, accounts_root, record.name)
-    owner_dir = ensure_owner_scaffold(owner, accounts_root)
-    _write_person_identity(owner_dir, email, record.name)
 
     if store is not None:
         ensure = getattr(store, "ensure_owner", None)

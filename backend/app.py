@@ -28,6 +28,7 @@ from backend.bootstrap import (
     register_routers,
 )
 from backend.config import reload_config
+from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
 
@@ -175,7 +176,7 @@ def create_app() -> FastAPI:
         if allowlist_raw and not (cfg.disable_auth or os.getenv("TESTING")):
             normalized = {item.strip().lower() for item in allowlist_raw if isinstance(item, str) and item.strip()}
             if normalized and email.lower() not in normalized:
-                logger.warning("Email %s not authorized for login", email)
+                logger.warning("Email %s not authorized for login", sanitise_log_value(email))
                 raise HTTPException(status_code=403, detail="email not authorized")
 
         token = auth.create_access_token(email)

@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import shutil
+import time
+from contextlib import contextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -13,6 +15,27 @@ from backend.config import Config
 from backend.utils import page_cache
 
 logger = logging.getLogger(__name__)
+
+
+@contextmanager
+def _timed_phase(name: str):
+    """Log how long a cold-start warmup phase took, in ``extra`` and in the message text.
+
+    ``extra`` keeps the fields structured for whenever a JSON log formatter is in
+    place; they're also inlined into the message so the timing is visible today
+    with the plain text formatter.
+    """
+    start = time.monotonic()
+    try:
+        yield
+    finally:
+        duration_ms = round((time.monotonic() - start) * 1000, 2)
+        logger.info(
+            "cold_start_phase phase=%s duration_ms=%s",
+            name,
+            duration_ms,
+            extra={"phase": name, "duration_ms": duration_ms},
+        )
 
 
 class AppLifecycleService:
@@ -59,7 +82,8 @@ class AppLifecycleService:
         )
 
         try:
-            result = _load_snapshot()
+            with _timed_phase("snapshot_load"):
+                result = _load_snapshot()
             if not isinstance(result, tuple) or len(result) != 2 or not isinstance(result[0], dict):
                 raise ValueError("Malformed snapshot")
             snapshot, ts = result
@@ -72,7 +96,8 @@ class AppLifecycleService:
         from backend.common import instrument_api
 
         try:
-            instrument_api.update_latest_prices_from_snapshot(snapshot)
+            with _timed_phase("metadata_update_from_snapshot"):
+                instrument_api.update_latest_prices_from_snapshot(snapshot)
         except Exception:
             logger.exception("Failed to update latest prices from snapshot")
 
@@ -85,12 +110,12 @@ class AppLifecycleService:
         task = asyncio.create_task(self._prime_latest_prices_background())
         app.state.background_tasks.append(task)
 
-    @staticmethod
-    async def _prime_latest_prices_background() -> None:
+    async def _prime_latest_prices_background(self) -> None:
         from backend.common import instrument_api
 
         try:
-            await asyncio.to_thread(instrument_api.prime_latest_prices)
+            with _timed_phase("price_history_fetch"):
+                await asyncio.to_thread(instrument_api.prime_latest_prices)
         except Exception:
             # Non-fatal: price priming is a startup optimisation. If it fails (e.g.
             # network unavailable on Lambda cold start) the app should still serve

@@ -9,6 +9,9 @@ interface Props {
   clientId: string;
   awsUiAuth?: AwsUiAuthConfig;
   onSuccess: () => void;
+  /** True when this page appeared because a previously-active session expired
+   * mid-use, rather than on a fresh, never-signed-in visit. See issue #5183. */
+  sessionExpired?: boolean;
 }
 
 declare global {
@@ -23,7 +26,12 @@ function sanitize(input: string): string {
   );
 }
 
-export default function LoginPage({ clientId, awsUiAuth, onSuccess }: Props) {
+export default function LoginPage({
+  clientId,
+  awsUiAuth,
+  onSuccess,
+  sessionExpired = false,
+}: Props) {
   const { setProfile } = useUser();
   const { setUser } = useAuth();
   const [error, setError] = useState<string | null>(null);
@@ -106,6 +114,15 @@ export default function LoginPage({ clientId, awsUiAuth, onSuccess }: Props) {
         marginTop: '2rem',
       }}
     >
+      {sessionExpired && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{ marginBottom: '1rem', textAlign: 'center' }}
+        >
+          Your session has expired. Please sign in again to continue.
+        </div>
+      )}
       {awsUiAuthEnabled ? (
         <div>
           {cognitoError && (

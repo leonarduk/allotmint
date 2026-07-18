@@ -98,3 +98,27 @@ describe('LoginPage awsUiAuth mode', () => {
     expect(screen.queryByRole('button', { name: /sign in/i })).toBeNull()
   })
 })
+
+describe('LoginPage sessionExpired messaging', () => {
+  it('shows a session-expired explanation when sessionExpired is true', () => {
+    render(
+      <BrowserRouter>
+        <LoginPage clientId="google-cid" onSuccess={() => {}} sessionExpired />
+      </BrowserRouter>,
+    )
+
+    expect(
+      screen.getByText(/your session has expired/i),
+    ).toBeInTheDocument()
+  })
+
+  it('does not show the session-expired explanation on a fresh visit', () => {
+    render(
+      <BrowserRouter>
+        <LoginPage clientId="google-cid" onSuccess={() => {}} />
+      </BrowserRouter>,
+    )
+
+    expect(screen.queryByText(/your session has expired/i)).toBeNull()
+  })
+})

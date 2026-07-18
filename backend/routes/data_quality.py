@@ -60,6 +60,9 @@ async def get_timeseries_quality(
     rolling_window: int = Query(
         DEFAULT_ROLLING_WINDOW, ge=2, le=250, description="Rolling window size (trading days) for outlier detection"
     ),
+    max_results: int | None = Query(
+        None, ge=1, le=1000, description="Limit the number of distinct ticker/exchange pairs processed"
+    ),
 ):
     if bool(ticker) != bool(exchange):
         raise HTTPException(status_code=400, detail="ticker and exchange must be provided together")
@@ -72,6 +75,10 @@ async def get_timeseries_quality(
         pairs = [(tkr, exch)]
     else:
         pairs = list_cached_meta_tickers()
+
+    truncated = max_results is not None and len(pairs) > max_results
+    if max_results is not None:
+        pairs = pairs[:max_results]
 
     results = []
     for tkr, exch in pairs:
@@ -96,4 +103,4 @@ async def get_timeseries_quality(
             )
         )
 
-    return JSONResponse(content={"count": len(results), "positions": results})
+    return JSONResponse(content={"count": len(results), "positions": results, "truncated": truncated})

@@ -1965,12 +1965,21 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
                     or name_map.get("adj_close")
                 )
                 if close_col:
-                    latest_row = df.iloc[-1]
-                    snapshot[t] = {
-                        "last_price": float(latest_row[close_col]),
-                        "price_currency": "GBP",
-                        "last_price_date": pd.to_datetime(latest_row["Date"]).strftime("%Y-%m-%d"),
-                    }
+                    # Prefer the most recent row with a finite close over the
+                    # literal last row: the current day's row can be an
+                    # incomplete placeholder (NaN OHLC) before intraday data
+                    # arrives, and using it verbatim would drop a ticker with
+                    # a perfectly good prior close (issue #5192).
+                    valid_rows = df[pd.notna(df[close_col])]
+                    if not valid_rows.empty:
+                        latest_row = valid_rows.iloc[-1]
+                        price = float(latest_row[close_col])
+                        if price > 0:
+                            snapshot[t] = {
+                                "last_price": price,
+                                "price_currency": "GBP",
+                                "last_price_date": pd.to_datetime(latest_row["Date"]).strftime("%Y-%m-%d"),
+                            }
         except (OSError, ValueError, KeyError, IndexError, TypeError) as e:
             logger.warning("Could not get timeseries for %s: %s", sanitise_log_value(t), sanitise_log_value(e))
 

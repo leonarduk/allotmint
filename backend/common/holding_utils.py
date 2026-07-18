@@ -317,6 +317,9 @@ def _get_price_for_date_scaled(
     except (ValueError, TypeError, KeyError, IndexError):
         return None, None
 
+    if not pd.notna(price):
+        return None, None
+
     src = df.iloc[0].get("Source")
     if pd.isna(src):
         src = None
@@ -549,7 +552,11 @@ def enrich_holding(
         from backend.common import portfolio_utils as pu  # local import to avoid circular
 
         snap = pu._PRICE_SNAPSHOT.get(full) or pu._PRICE_SNAPSHOT.get(ticker)
-        if isinstance(snap, dict) and snap.get("last_price") is not None:
+        if (
+            isinstance(snap, dict)
+            and snap.get("last_price") is not None
+            and pd.notna(snap.get("last_price"))
+        ):
             px = float(snap["last_price"])
             last_price_time = snap.get("last_price_time")
             is_stale = bool(snap.get("is_stale", False))

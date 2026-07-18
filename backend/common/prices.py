@@ -242,10 +242,15 @@ def refresh_prices() -> Dict:
     path = Path(config.prices_json)
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Merge strategy: only write entries where we successfully fetched a price.
-    # This preserves existing seed/cached prices for tickers that returned None
-    # (offline mode, market closed, data-source outage) rather than trashing them.
-    to_persist = {t: v for t, v in snapshot.items() if v.get("last_price") is not None}
+    # Merge strategy: only write entries where we successfully fetched a finite,
+    # positive price. This preserves existing seed/cached prices for tickers that
+    # returned None or a non-finite value (offline mode, market closed,
+    # data-source outage) rather than trashing them.
+    to_persist = {
+        t: v
+        for t, v in snapshot.items()
+        if v.get("last_price") is not None and pd.notna(v.get("last_price")) and v.get("last_price") > 0
+    }
     existing: Dict = {}
     if path.exists():
         try:

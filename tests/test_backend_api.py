@@ -274,7 +274,7 @@ def test_invalid_account(client):
     assert resp.status_code == 404
 
 
-def test_prices_refresh(client):
+def test_prices_refresh(client, mock_refresh_prices):
     resp = client.post("/prices/refresh")
     assert resp.status_code == 200
     assert "status" in resp.json()
@@ -491,7 +491,7 @@ def test_yahoo_timeseries_html(client):
     assert ticker.lower() in html
 
 
-def test_alerts_endpoint(client, monkeypatch):
+def test_alerts_endpoint(client, monkeypatch, mock_refresh_prices):
     alerts._RECENT_ALERTS.clear()
     alerts.clear_state()
     monkeypatch.setattr(alerts, "publish_alert", lambda alert: alerts._RECENT_ALERTS.append(alert))

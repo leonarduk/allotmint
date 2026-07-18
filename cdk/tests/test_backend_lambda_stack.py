@@ -627,8 +627,8 @@ def test_backend_api_authorizer_accepts_cognito_id_token_contract(template):
 
 def test_backend_api_routes_require_cognito_authorizer(template):
     """All API Gateway routes must require Cognito JWT authorization except
-    /health, GET /config, POST /token/google, the public /signup/* routes, and
-    the CORS preflight OPTIONS routes.
+    /health, GET /config, POST /token, POST /token/google, the public
+    /signup/* routes, and the CORS preflight OPTIONS routes.
 
     /health is intentionally unauthenticated so that post-deploy probes and
     smoke tests can confirm Lambda is reachable without needing a Cognito token.
@@ -636,6 +636,13 @@ def test_backend_api_routes_require_cognito_authorizer(template):
     pre-auth bootstrap endpoint (frontend/src/main.tsx Root.fetchConfig) used
     to determine whether auth is required at all; PUT /config remains
     JWT-protected via the /{proxy+} catch-all.
+    POST /token is intentionally unauthenticated: it is the Google-login
+    exchange endpoint documented in docs/AUTH.md and called directly by
+    mobile/App.tsx. The caller presents a Google ID token (or, in local/dev
+    branches, a username) with no Authorization header at all, so
+    backend_authorizer would reject it with 401 before backend/app.py's
+    login() ever runs — the same class of bug as POST /token/google below
+    (audit follow-up from #4798, issue #4800).
     POST /token/google is intentionally unauthenticated because it exchanges a
     Google ID token (frontend/src/LoginPage.tsx, sent with no Authorization
     header) for an app JWT — backend_authorizer would reject it with 401 before
@@ -659,6 +666,7 @@ def test_backend_api_routes_require_cognito_authorizer(template):
     UNAUTHENTICATED_ROUTES = {
         "GET /health",
         "GET /config",
+        "POST /token",
         "POST /token/google",
         "POST /signup/request",
         "GET /signup/approve",
@@ -741,6 +749,37 @@ def test_signup_routes_use_http_none_authorizer(template):
     )
 
     for route_key, properties in signup_routes.items():
+        assert properties.get("AuthorizationType") == "NONE", (
+            f"Route {route_key} must use HttpNoneAuthorizer (AuthorizationType "
+            f"NONE), got {properties.get('AuthorizationType')!r}"
+        )
+        assert "AuthorizerId" not in properties, (
+            f"Route {route_key} must not reference an authorizer resource"
+        )
+
+
+def test_token_route_uses_http_none_authorizer(template):
+    """Positively assert that POST /token is registered with
+    HttpNoneAuthorizer (AuthorizationType NONE), not just absent from the
+    Cognito-authorizer set.
+
+    test_backend_api_routes_require_cognito_authorizer above already proves
+    this route is unauthenticated via a negative check (not in the JWT set).
+    This test documents and enforces the specific intended authorizer,
+    mirroring test_signup_routes_use_http_none_authorizer (audit follow-up
+    from #4798, issue #4800).
+    """
+    routes = template.find_resources("AWS::ApiGatewayV2::Route")
+    assert routes, "Expected at least one API Gateway route"
+
+    token_routes = {
+        resource["Properties"].get("RouteKey", logical_id): resource["Properties"]
+        for logical_id, resource in routes.items()
+        if resource["Properties"].get("RouteKey", "") == "POST /token"
+    }
+    assert set(token_routes) == {"POST /token"}
+
+    for route_key, properties in token_routes.items():
         assert properties.get("AuthorizationType") == "NONE", (
             f"Route {route_key} must use HttpNoneAuthorizer (AuthorizationType "
             f"NONE), got {properties.get('AuthorizationType')!r}"

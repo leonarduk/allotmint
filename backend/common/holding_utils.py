@@ -22,6 +22,7 @@ from backend.common.currency import CurrencyNormaliser
 from backend.common.instruments import get_instrument_meta
 from backend.common.user_config import UserConfig
 from backend.config import config
+from backend.logging_setup import sanitise_log_value
 from backend.timeseries.cache import load_meta_timeseries_range
 from backend.utils.pricing_dates import PricingDateCalculator
 from backend.utils.timeseries_helpers import (
@@ -166,7 +167,11 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
             result[key] = val
 
         except (OSError, ValueError, KeyError, IndexError, TypeError) as e:
-            logger.warning("latest price fetch failed for %s: %s", full, e)
+            logger.warning(
+                "latest price fetch failed for %s: %s",
+                sanitise_log_value(full),
+                sanitise_log_value(e),
+            )
 
     logger.info("Latest prices fetched: %d/%d", len(result), len(full_tickers))
     return result
@@ -232,7 +237,11 @@ def load_live_prices(full_tickers: list[str]) -> dict[str, Dict[str, object]]:
                 "timestamp": dt.datetime.fromtimestamp(ts, tz=dt.timezone.utc),
             }
     except Exception as exc:
-        logger.warning("live price fetch failed for %s: %s", symbols, exc)
+        logger.warning(
+            "live price fetch failed for %s: %s",
+            sanitise_log_value(symbols),
+            sanitise_log_value(exc),
+        )
 
     return out
 

@@ -10,13 +10,14 @@ from typing import Any, Dict
 import yaml
 from fastapi import APIRouter, HTTPException
 
-from backend.contracts_spa import ConfigContract
 from backend import config_module
 from backend.config import (
     ConfigValidationError,
     _project_config_path,
     validate_google_auth,
 )
+from backend.contracts_spa import ConfigContract
+from backend.logging_setup import sanitise_log_value
 
 _TRUE_STRINGS = {"1", "true", "yes"}
 _FALSE_STRINGS = {"0", "false", "no"}
@@ -206,7 +207,7 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
         try:
             validate_google_auth(persisted_google_auth_enabled, google_client_id)
         except ConfigValidationError as exc:
-            logger.error("Invalid config update: %s", exc)
+            logger.error("Invalid config update: %s", sanitise_log_value(exc))
             raise HTTPException(status_code=400, detail=str(exc))
 
     has_changes = data != existing_data
@@ -243,5 +244,5 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
         cfg = config_module.reload_config()
         return serialise_config(cfg)
     except ConfigValidationError as exc:
-        logger.error("Invalid config after reload: %s", exc)
+        logger.error("Invalid config after reload: %s", sanitise_log_value(exc))
         raise HTTPException(status_code=400, detail=str(exc))

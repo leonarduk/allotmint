@@ -30,6 +30,7 @@ _SUBSCRIPTIONS_KEY = "alerts/push_subscriptions.json"
 
 from backend.common.storage import get_storage
 from backend.config import config
+from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger("alerts")
 
@@ -89,7 +90,7 @@ def _parse_thresholds(data: Dict) -> Dict[str, float]:
         try:
             valid[key] = float(value)
         except (TypeError, ValueError):
-            logger.warning("Invalid threshold value %r for %s", value, key)
+            logger.warning("Invalid threshold value %r for %s", value, sanitise_log_value(key))
     return valid
 
 
@@ -100,7 +101,7 @@ def _parse_subscriptions(data: Dict) -> Dict[str, Dict]:
         if isinstance(sub, dict):
             valid[user] = sub
         else:
-            logger.warning("Push subscription for %s invalid: %r", user, sub)
+            logger.warning("Push subscription for %s invalid: %r", sanitise_log_value(user), sub)
     return valid
 
 

@@ -9,7 +9,13 @@ logger = logging.getLogger(__name__)
 
 
 def _safe_for_log(value: object) -> str:
-    """Return a single-line, printable representation safe for plain-text logs."""
+    """Return a single-line, printable representation safe for plain-text logs.
+
+    Stricter than ``backend.logging_setup.sanitise_log_value``: also escapes
+    non-printable/ANSI control characters, not just CWE-117 ``\\r``/``\\n``
+    injection, since FX pair/exception values can come from noisy upstream
+    APIs.
+    """
 
     text = str(value)
     text = text.replace("\r", "").replace("\n", "")

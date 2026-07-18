@@ -34,6 +34,10 @@ export default function Trail() {
       .catch((e) => setError(String(e)));
   };
 
+  // Both states reset to null on every mount (useState has no persistence
+  // across unmounts), so there is no "stale error" case here: error must be
+  // checked before !data, otherwise a failed getTrailTasks() call leaves the
+  // UI stuck on the loading message forever since data is never set.
   if (error) return <div style={{ color: "red" }}>{error}</div>;
   if (!data) return <div>{t("common.loading")}</div>;
 

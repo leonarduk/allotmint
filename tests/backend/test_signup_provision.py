@@ -129,22 +129,30 @@ def test_provision_owner_skips_slug_with_corrupted_person_json(tmp_path):
     assert (accounts_root / "jane" / "person.json").read_text() == "{ not json"
 
 
-def test_resolve_owner_slug_stamps_email_immediately_after_mkdir(tmp_path):
+def test_resolve_owner_slug_stamps_identity_immediately_after_mkdir(tmp_path):
     """Regression test for #4402.
 
     A concurrent approval for the *same* email that loses the ``mkdir`` race
-    must see the winner's email via ``_read_person_email`` right away, not
-    after the caller gets around to calling ``_write_person_identity``. This
-    simulates the losing side of that race by calling ``_resolve_owner_slug``
-    directly (not through ``provision_owner``, which would also write the
-    email but only after returning).
+    must see the winner's identity (email + full_name) via
+    ``_read_person_email`` right away, not after the caller gets around to
+    calling ``_write_person_identity``. This simulates the losing side of that
+    race by calling ``_resolve_owner_slug`` directly (not through
+    ``provision_owner``, which would also write the email but only after
+    returning).
     """
 
     accounts_root = tmp_path / "accounts"
     accounts_root.mkdir()
 
-    winner = signup_provision._resolve_owner_slug("jane@example.com", accounts_root)
+    winner = signup_provision._resolve_owner_slug(
+        "jane@example.com", accounts_root, "Jane Doe"
+    )
     assert winner == "jane"
+
+    # The winner's person.json must carry the complete identity immediately.
+    person = json.loads((accounts_root / "jane" / "person.json").read_text())
+    assert person["email"] == "jane@example.com"
+    assert person["full_name"] == "Jane Doe"
 
     # The loser of the mkdir race hits FileExistsError on "jane" immediately
     # after the winner's mkdir succeeds. Without the fix, person.json is not
@@ -155,6 +163,24 @@ def test_resolve_owner_slug_stamps_email_immediately_after_mkdir(tmp_path):
     assert sorted(p.name for p in accounts_root.iterdir()) == ["jane"]
 
 
+def test_resolve_owner_slug_cleans_up_on_write_failure(tmp_path, monkeypatch):
+    """If the identity write fails after mkdir, the orphan directory is removed."""
+
+    accounts_root = tmp_path / "accounts"
+    accounts_root.mkdir()
+
+    def _failing_write(*_args, **_kwargs):
+        raise OSError("simulated disk full")
+
+    monkeypatch.setattr(signup_provision, "_write_person_identity", _failing_write)
+
+    with pytest.raises(OSError, match="simulated disk full"):
+        signup_provision._resolve_owner_slug("jane@example.com", accounts_root, "Jane Doe")
+
+    # The directory created by mkdir must be cleaned up.
+    assert not (accounts_root / "jane").exists()
+
+
 def test_resolve_owner_slug_raises_when_exhausted(tmp_path, monkeypatch):
     accounts_root = tmp_path / "accounts"
     accounts_root.mkdir()
@@ -163,7 +189,9 @@ def test_resolve_owner_slug_raises_when_exhausted(tmp_path, monkeypatch):
     # Occupy both candidate slugs with a different email so none can be reused.
     for name in ("jane", "jane-2"):
         (accounts_root / name).mkdir()
-        (accounts_root / name / "person.json").write_text(json.dumps({"email": "other@example.com"}))
+        (accounts_root / name / "person.json").write_text(
+            json.dumps({"email": "other@example.com"})
+        )
 
     with pytest.raises(RuntimeError):
         signup_provision.provision_owner(_record("jane@example.com"), accounts_root)

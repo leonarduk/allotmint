@@ -29,6 +29,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import shutil
 from pathlib import Path
 
 from backend.common.compliance import ensure_owner_scaffold
@@ -78,7 +79,7 @@ def _read_person_email(owner_dir: Path) -> str:
     return email.strip().lower() if isinstance(email, str) else ""
 
 
-def _resolve_owner_slug(email: str, accounts_root: Path) -> str:
+def _resolve_owner_slug(email: str, accounts_root: Path, full_name: str = "") -> str:
     """Atomically claim an owner slug for ``email`` under ``accounts_root``.
 
     The candidate directory is created with ``mkdir`` (no ``exist_ok``) so two
@@ -88,13 +89,17 @@ def _resolve_owner_slug(email: str, accounts_root: Path) -> str:
     another user's data. ``email`` is lowercased to match the normalised form
     stored in ``person.json``.
 
-    ``person.json`` is scaffolded and stamped with ``email`` immediately after
-    ``mkdir`` wins, before returning. Without this, a second concurrent
-    approval for the *same* email that loses the ``mkdir`` race would hit
-    ``FileExistsError`` and find no ``person.json`` yet (the winner hadn't
-    written it), read no matching email via ``_read_person_email``, and go on
-    to claim a second slug for the same person. Writing it here closes that
-    window instead of leaving it to the caller's later, non-atomic write.
+    ``person.json`` is scaffolded and stamped with the full identity
+    (``email`` + ``full_name``) immediately after ``mkdir`` wins, before
+    returning. Without this, a second concurrent approval for the *same* email
+    that loses the ``mkdir`` race would hit ``FileExistsError`` and find no
+    ``person.json`` yet (the winner hadn't written it), read no matching email
+    via ``_read_person_email``, and go on to claim a second slug for the same
+    person. Writing it here closes that window instead of leaving it to the
+    caller's later, non-atomic write.
+
+    If the scaffold or identity write fails, the created directory is removed
+    so we never leave an orphan directory behind.
     """
 
     email = email.strip().lower()
@@ -109,8 +114,12 @@ def _resolve_owner_slug(email: str, accounts_root: Path) -> str:
             if _read_person_email(owner_dir) == email:
                 return candidate
             continue
-        ensure_owner_scaffold(candidate, accounts_root)
-        _write_person_identity(owner_dir, email, "")
+        try:
+            ensure_owner_scaffold(candidate, accounts_root)
+            _write_person_identity(owner_dir, email, full_name)
+        except Exception:
+            shutil.rmtree(owner_dir, ignore_errors=True)
+            raise
         return candidate
     raise RuntimeError(f"could not allocate an owner slug for base {base!r}")
 
@@ -154,7 +163,7 @@ def provision_owner(
 
     accounts_root = Path(accounts_root)
     email = record.email.strip().lower()
-    owner = _resolve_owner_slug(email, accounts_root)
+    owner = _resolve_owner_slug(email, accounts_root, record.name)
     owner_dir = ensure_owner_scaffold(owner, accounts_root)
     _write_person_identity(owner_dir, email, record.name)
 

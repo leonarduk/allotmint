@@ -34,6 +34,7 @@ from pathlib import Path
 
 from backend.common.compliance import ensure_owner_scaffold
 from backend.common.signup_requests import SignupRequest
+from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
 
@@ -174,5 +175,9 @@ def provision_owner(
         if callable(ensure):
             ensure(owner)
 
-    logger.info("Provisioned owner %s for approved signup request %s", owner, record.id)
+    logger.info(
+        "Provisioned owner %s for approved signup request %s",
+        sanitise_log_value(owner),
+        sanitise_log_value(record.id),
+    )
     return owner

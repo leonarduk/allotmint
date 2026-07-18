@@ -1971,7 +1971,9 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
                     # arrives, and using it verbatim would drop a ticker with
                     # a perfectly good prior close (issue #5192).
                     valid_rows = df[pd.notna(df[close_col])]
-                    if not valid_rows.empty:
+                    if valid_rows.empty:
+                        logger.warning("Skipping %s: no non-NaN close price found", sanitise_log_value(t))
+                    else:
                         latest_row = valid_rows.iloc[-1]
                         price = float(latest_row[close_col])
                         if price > 0:

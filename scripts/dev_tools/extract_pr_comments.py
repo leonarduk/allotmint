@@ -87,8 +87,8 @@ def get_pr_head_commit_date(owner: str, repo: str, pr: int) -> str:
     return get_commit_date(owner, repo, sha.strip())
 
 
-def fetch_paginated(owner: str, repo: str, endpoint: str) -> list[dict[str, Any]]:
-    """Fetch paginated API endpoint, return all items."""
+def fetch_paginated(owner: str, repo: str, endpoint: str) -> tuple[list[dict[str, Any]], bool]:
+    """Fetch paginated API endpoint, return (items, truncated)."""
     items: list[dict[str, Any]] = []
     page = 1
 
@@ -105,15 +105,15 @@ def fetch_paginated(owner: str, repo: str, endpoint: str) -> list[dict[str, Any]
                     f"collecting {len(items)} items. Returning partial results.",
                     file=sys.stderr,
                 )
-                return items
+                return items, True
             print(f"Error: API request to {endpoint} page {page} failed.", file=sys.stderr)
-            return []
+            return [], True
 
         try:
             data = json.loads(output) if output else []
         except json.JSONDecodeError:
             print(f"Error: Failed to parse JSON from {endpoint} page {page}.", file=sys.stderr)
-            return items
+            return items, True
 
         if not isinstance(data, list) or len(data) == 0:
             break
@@ -121,13 +121,13 @@ def fetch_paginated(owner: str, repo: str, endpoint: str) -> list[dict[str, Any]
         items.extend(data)
         page += 1
 
-    return items
+    return items, False
 
 
-def fetch_reviews(owner: str, repo: str, pr: int) -> dict[int, bool]:
+def fetch_reviews(owner: str, repo: str, pr: int) -> tuple[dict[int, bool], bool]:
     """Fetch reviews and map review_id -> is_currently_dismissed (resolved)."""
     endpoint = f"/repos/{owner}/{repo}/pulls/{pr}/reviews"
-    reviews = fetch_paginated(owner, repo, endpoint)
+    reviews, truncated = fetch_paginated(owner, repo, endpoint)
     review_dismissed: dict[int, bool] = {}
 
     if not reviews:
@@ -136,7 +136,7 @@ def fetch_reviews(owner: str, repo: str, pr: int) -> dict[int, bool]:
             "will default to false. This may indicate an API error.",
             file=sys.stderr,
         )
-        return review_dismissed
+        return review_dismissed, truncated
 
     for review in reviews:
         if isinstance(review, dict):
@@ -146,16 +146,16 @@ def fetch_reviews(owner: str, repo: str, pr: int) -> dict[int, bool]:
             if review_id is not None:
                 review_dismissed[review_id] = is_dismissed
 
-    return review_dismissed
+    return review_dismissed, truncated
 
 
-def fetch_inline_comments(owner: str, repo: str, pr: int) -> list[dict[str, Any]]:
+def fetch_inline_comments(owner: str, repo: str, pr: int) -> tuple[list[dict[str, Any]], bool]:
     """Fetch inline review thread comments."""
     endpoint = f"/repos/{owner}/{repo}/pulls/{pr}/comments"
     return fetch_paginated(owner, repo, endpoint)
 
 
-def fetch_top_level_comments(owner: str, repo: str, pr: int) -> list[dict[str, Any]]:
+def fetch_top_level_comments(owner: str, repo: str, pr: int) -> tuple[list[dict[str, Any]], bool]:
     """Fetch top-level issue/PR comments."""
     endpoint = f"/repos/{owner}/{repo}/issues/{pr}/comments"
     return fetch_paginated(owner, repo, endpoint)
@@ -189,7 +189,7 @@ def format_inline_comment(
 
     return {
         "id": comment.get("id"),
-        "author": comment.get("user", {}).get("login"),
+        "author": (comment.get("user") or {}).get("login"),
         "type": "inline",
         "path": comment.get("path"),
         "line": comment.get("line"),
@@ -203,7 +203,7 @@ def format_top_level_comment(comment: dict[str, Any]) -> dict[str, Any]:
     """Format top-level comment for JSONL output."""
     return {
         "id": comment.get("id"),
-        "author": comment.get("user", {}).get("login"),
+        "author": (comment.get("user") or {}).get("login"),
         "type": "top-level",
         "created_at": comment.get("created_at"),
         "body": comment.get("body"),
@@ -253,11 +253,12 @@ def process_comments(
     pr_number: int,
     since_timestamp: datetime,
     skip_resolved: bool,
-) -> list[dict[str, Any]]:
-    """Fetch, filter, and deduplicate comments."""
-    review_dismissed = fetch_reviews(owner, repo, pr_number)
-    inline_comments = fetch_inline_comments(owner, repo, pr_number)
-    top_level_comments = fetch_top_level_comments(owner, repo, pr_number)
+) -> tuple[list[dict[str, Any]], bool]:
+    """Fetch, filter, and deduplicate comments. Returns (comments, truncated)."""
+    review_dismissed, reviews_truncated = fetch_reviews(owner, repo, pr_number)
+    inline_comments, inline_truncated = fetch_inline_comments(owner, repo, pr_number)
+    top_level_comments, top_level_truncated = fetch_top_level_comments(owner, repo, pr_number)
+    truncated = reviews_truncated or inline_truncated or top_level_truncated
 
     inline_comments = filter_by_timestamp(inline_comments, since_timestamp)
     top_level_comments = filter_by_timestamp(top_level_comments, since_timestamp)
@@ -280,21 +281,27 @@ def process_comments(
             deduped.append(comment)
             seen_ids.add(comment_id)
 
-    return deduped
+    return deduped, truncated
 
 
 def write_output(
-    comments: list[dict[str, Any]], output_file: str | None, format_type: str
+    comments: list[dict[str, Any]],
+    output_file: str | None,
+    format_type: str,
+    truncated: bool = False,
 ) -> int:
     """Write comments to output file or stdout in the specified format."""
     formatter = to_fixer if format_type == "fixer" else to_jsonl
+    lines = list(formatter(comments))
+    if truncated and format_type == "jsonl":
+        lines.append(json.dumps({"truncated": True}))
     try:
         if output_file:
             with open(output_file, "w", encoding="utf-8") as f:
-                for line in formatter(comments):
+                for line in lines:
                     f.write(line + "\n")
         else:
-            for line in formatter(comments):
+            for line in lines:
                 print(line)
     except OSError as e:
         print(f"Error writing output: {e}", file=sys.stderr)
@@ -312,16 +319,18 @@ def main() -> int:
         owner, repo = infer_repo()
 
     since_timestamp = determine_since_timestamp(args, owner, repo)
-    deduped = process_comments(owner, repo, args.pr, since_timestamp, args.skip_resolved)
+    deduped, truncated = process_comments(
+        owner, repo, args.pr, since_timestamp, args.skip_resolved
+    )
 
-    if not deduped:
+    if not deduped and not truncated:
         print(
             f"No comments found for PR {args.pr} after {since_timestamp.isoformat()}.",
             file=sys.stderr,
         )
         return 0
 
-    return write_output(deduped, args.output, args.format)
+    return write_output(deduped, args.output, args.format, truncated)
 
 
 if __name__ == "__main__":

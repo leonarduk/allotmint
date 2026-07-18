@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime as dt
 import inspect
 import logging
+import math
 from datetime import timedelta
 from typing import Any, Dict, Optional
 
@@ -277,6 +278,8 @@ def _derived_cost_basis_close_px(
         return None
 
     px = float(df[col].iloc[0])
+    if math.isnan(px):
+        return None
     cache[key] = px
     return px
 
@@ -317,7 +320,7 @@ def _get_price_for_date_scaled(
     except (ValueError, TypeError, KeyError, IndexError):
         return None, None
 
-    if not pd.notna(price):
+    if math.isnan(price):
         return None, None
 
     src = df.iloc[0].get("Source")
@@ -552,11 +555,8 @@ def enrich_holding(
         from backend.common import portfolio_utils as pu  # local import to avoid circular
 
         snap = pu._PRICE_SNAPSHOT.get(full) or pu._PRICE_SNAPSHOT.get(ticker)
-        if (
-            isinstance(snap, dict)
-            and snap.get("last_price") is not None
-            and pd.notna(snap.get("last_price"))
-        ):
+        snap_price = snap.get("last_price") if isinstance(snap, dict) else None
+        if snap_price is not None and not math.isnan(float(snap_price)):
             px = float(snap["last_price"])
             last_price_time = snap.get("last_price_time")
             is_stale = bool(snap.get("is_stale", False))
@@ -572,6 +572,14 @@ def enrich_holding(
         prev_px, _ = _get_price_for_date_scaled(
             ticker, exchange, prev_date, field="Close_gbp"
         )
+
+        if px is None and prev_px is not None:
+            # Today's close is missing/unavailable (e.g. a gap in the price
+            # source); fall back to the last known close instead of leaving
+            # the holding unpriced.
+            px = prev_px
+            px_source = "previous_close"
+            is_stale = True
 
         if px is not None:
             days_since = max(0, (dt.date.today() - pricing_date).days)

@@ -486,6 +486,27 @@ def test_rate_limited_invalid_payload_still_400(rate_limited_client, monkeypatch
     assert resp.status_code == 429
 
 
+def test_create_router_copies_are_independent_of_module_router():
+    """Routes on the rate-limited router (#4436) must not alias module-level ones.
+
+    ``create_router`` copies non-``/request`` routes from the module-level
+    ``router`` onto the new limited router. If those were the same objects,
+    mutating a route on one router would silently corrupt the other.
+    """
+
+    limiter = Limiter(key_func=get_remote_address, storage_uri="memory://")
+    limited = signup_module.create_router(limiter, "3/minute")
+
+    module_route = next(r for r in signup_module.router.routes if r.path == "/signup/approve")
+    limited_route = next(r for r in limited.routes if r.path == "/signup/approve")
+
+    assert limited_route is not module_route
+
+    original_endpoint = module_route.endpoint
+    limited_route.endpoint = lambda: None
+    assert module_route.endpoint is original_endpoint
+
+
 def test_throttling_response_is_identical_for_all_emails(rate_limited_client, monkeypatch):
     """Rate-limit response must not leak whether an email has an account."""
 

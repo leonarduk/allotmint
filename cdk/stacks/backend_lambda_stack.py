@@ -632,6 +632,22 @@ class BackendLambdaStack(Stack):
             integration=backend_integration,
             authorizer=apigwv2.HttpNoneAuthorizer(),
         )
+        # POST /token is the Google-login exchange endpoint documented in
+        # docs/AUTH.md ("The frontend POSTs { id_token } to POST /token") and
+        # called directly by mobile/App.tsx. Like POST /token/google above, the
+        # caller has no Cognito/app token yet — they are presenting a Google ID
+        # token (or, in local/dev-only branches, a username) to obtain a backend
+        # JWT. Without an explicit route here it falls through to the
+        # /{proxy+} ANY catch-all and backend_authorizer rejects it with 401
+        # before backend/app.py's login() ever runs — the same class of bug
+        # already fixed for GET /config, POST /token/google, and POST
+        # /signup/* (audit follow-up from #4798, issue #4800).
+        backend_api.add_routes(
+            path="/token",
+            methods=[apigwv2.HttpMethod.POST],
+            integration=backend_integration,
+            authorizer=apigwv2.HttpNoneAuthorizer(),
+        )
         # POST /signup/request, and the /signup/approve and /signup/reject
         # GET+POST pairs, are the public account-request/admin-approval flow
         # (see the module docstring in backend/routes/signup.py). None of these

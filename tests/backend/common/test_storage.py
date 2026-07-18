@@ -161,3 +161,13 @@ def test_get_storage_supported_schemes(uri: str, expected_type: type, attrs: dic
 def test_get_storage_unsupported_scheme() -> None:
     with pytest.raises(ValueError):
         get_storage("ftp://example.com/resource")
+
+
+def test_get_storage_ssm_defaults_to_secure_string() -> None:
+    storage = get_storage("ssm://parameter/name")
+    assert storage.type == "SecureString"
+
+
+def test_get_storage_ssm_explicit_string_type() -> None:
+    storage = get_storage("ssm://parameter/name", param_type="String")
+    assert storage.type == "String"

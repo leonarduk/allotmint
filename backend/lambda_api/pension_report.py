@@ -30,6 +30,7 @@ import os
 from typing import Any, Dict, List, Optional, Tuple
 
 from backend.common.alerts import publish_sns_alert
+from backend.logging_setup import sanitise_log_value
 from backend.common.pension import (
     _age_from_dob,
     dc_pension_pot_gbp,
@@ -99,12 +100,12 @@ def _build_report_for_owner(
     dob = person.get("dob")
     email = person.get("email")
     if not dob or not email:
-        logger.warning("Skipping pension report for %s: missing dob or email", owner)
+        logger.warning("Skipping pension report for %s: missing dob or email", sanitise_log_value(owner))
         return None
 
     current_age = _age_from_dob(dob, today)
     if current_age is None:
-        logger.warning("Skipping pension report for %s: invalid dob", owner)
+        logger.warning("Skipping pension report for %s: invalid dob", sanitise_log_value(owner))
         return None
 
     retirement_age = state_pension_age_uk(dob)
@@ -221,7 +222,7 @@ def lambda_handler(event, context):
             send_pension_report_email(email, report)
             sent += 1
         except Exception as exc:
-            logger.error("Pension report failed for owner %s: %s", owner, exc, exc_info=True)
+            logger.error("Pension report failed for owner %s: %s", sanitise_log_value(owner), exc, exc_info=True)
             errors.append(f"{owner}: {exc}")
 
     if errors:

@@ -82,10 +82,8 @@ backend/common/transaction_reconciliation.py:186
 backend/common/transaction_reconciliation.py:39
 backend/common/transaction_reconciliation.py:44
 backend/lambda_api/dividend_refresh.py:27
-backend/lambda_api/pension_report.py:100
-backend/lambda_api/pension_report.py:105
-backend/lambda_api/pension_report.py:197
-backend/lambda_api/pension_report.py:222
+backend/lambda_api/pension_report.py:198
+backend/lambda_api/pension_report.py:223
 backend/lambda_api/price_refresh.py:61
 backend/lambda_api/price_refresh.py:63
 backend/lambda_api/price_refresh.py:78

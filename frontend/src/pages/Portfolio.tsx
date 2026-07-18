@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { getOwners, getPortfolio } from "../api";
@@ -87,7 +87,10 @@ export function Portfolio() {
     }
   }, [owners, activeOwner, handleOwnerChange]);
 
+  const latestRequestRef = useRef(0);
+
   const reloadPortfolio = useCallback(() => {
+    const requestId = ++latestRequestRef.current;
     if (!activeOwner) {
       setData(null);
       setError(null);
@@ -98,11 +101,17 @@ export function Portfolio() {
     setError(null);
     getPortfolio(activeOwner)
       .then((d) => {
+        if (latestRequestRef.current !== requestId) return;
         setData(d);
         setError(null);
       })
-      .catch(() => setError("Failed to load portfolio"))
-      .finally(() => setLoading(false));
+      .catch(() => {
+        if (latestRequestRef.current !== requestId) return;
+        setError("Failed to load portfolio");
+      })
+      .finally(() => {
+        if (latestRequestRef.current === requestId) setLoading(false);
+      });
   }, [activeOwner]);
 
   useEffect(() => {

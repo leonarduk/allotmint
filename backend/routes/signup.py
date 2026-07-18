@@ -76,14 +76,17 @@ def _store_dir(request: Request) -> Path:
 
 
 def _build_links(request_id: str, token: str) -> tuple[str, str]:
-    """Build the approve/reject links consumed by the approval flow (#4352)."""
+    """Build the approve/reject links consumed by the approval flow (#4352).
+
+    Raises ``RuntimeError`` when ``SIGNUP_APPROVAL_BASE_URL`` is unset: a
+    relative link is unusable in the emailed notification (email clients
+    cannot resolve it), so failing loudly here beats silently sending the
+    admin a broken link (#4369).
+    """
 
     base = os.getenv("SIGNUP_APPROVAL_BASE_URL", "").rstrip("/")
     if not base:
-        # Without a base URL the emailed links are relative and unusable. Warn
-        # rather than fail so the admin still receives the request id + token
-        # and can act manually, but the misconfiguration is not silent.
-        logger.warning("SIGNUP_APPROVAL_BASE_URL is not set; admin approve/reject links will be relative")
+        raise RuntimeError("SIGNUP_APPROVAL_BASE_URL must be set")
     query = f"id={request_id}&token={token}"
     return f"{base}/signup/approve?{query}", f"{base}/signup/reject?{query}"
 
@@ -109,7 +112,14 @@ async def _post_signup_request_impl(request: Request) -> dict[str, str]:
         raise HTTPException(status_code=503, detail="signup is not available")
 
     record, token = signup_requests.create_signup_request(name, email, note, _store_dir(request))
-    approve_url, reject_url = _build_links(record.id, token)
+    try:
+        approve_url, reject_url = _build_links(record.id, token)
+    except RuntimeError:
+        # Misconfiguration, not a client error — and the same for every
+        # caller, so it leaks nothing about account existence (matches the
+        # SIGNUP_ADMIN_EMAIL check above).
+        logger.error("SIGNUP_APPROVAL_BASE_URL is not configured; cannot build admin approval links")
+        raise HTTPException(status_code=503, detail="signup is not available") from None
     notification = SignupAdminNotification(
         request_id=record.id,
         name=record.name,

@@ -6,7 +6,7 @@ import pytest
 
 from backend.common import portfolio_loader
 from backend.common.account_models import OwnerSummaryRecord
-from backend.common.portfolio_loader import rebuild_account_holdings
+from backend.common.portfolio_loader import get_units_as_of, rebuild_account_holdings
 
 
 def test_rebuild_account_holdings(tmp_path: Path) -> None:
@@ -41,6 +41,40 @@ def test_rebuild_account_holdings(tmp_path: Path) -> None:
     assert holdings["CASH.GBP"]["units"] == pytest.approx(75.0)
 
 
+def test_get_units_as_of_ignores_transactions_after_cutoff() -> None:
+    """Regression test for #4947: a buy dated after ``as_of`` must not count."""
+    tx_data = {
+        "transactions": [
+            {"type": "BUY", "ticker": "ABC", "units": 100, "date": "2024-01-01"},
+            {"type": "BUY", "ticker": "ABC", "units": 100, "date": "2024-06-01"},
+        ]
+    }
+
+    assert get_units_as_of(tx_data, "ABC", "2024-03-01") == pytest.approx(100.0)
+    assert get_units_as_of(tx_data, "ABC", "2024-06-01") == pytest.approx(200.0)
+
+
+def test_get_units_as_of_reflects_a_sell_before_cutoff() -> None:
+    tx_data = {
+        "transactions": [
+            {"type": "BUY", "ticker": "ABC", "units": 200, "date": "2024-01-01"},
+            {"type": "SELL", "ticker": "ABC", "units": 100, "date": "2024-02-01"},
+        ]
+    }
+
+    assert get_units_as_of(tx_data, "ABC", "2024-01-15") == pytest.approx(200.0)
+    assert get_units_as_of(tx_data, "ABC", "2024-02-01") == pytest.approx(100.0)
+
+
+def test_get_units_as_of_ignores_other_tickers() -> None:
+    tx_data = {
+        "transactions": [
+            {"type": "BUY", "ticker": "ABC", "units": 100, "date": "2024-01-01"},
+            {"type": "BUY", "ticker": "XYZ", "units": 999, "date": "2024-01-01"},
+        ]
+    }
+
+    assert get_units_as_of(tx_data, "ABC", "2024-06-01") == pytest.approx(100.0)
 def test_rebuild_account_holdings_treats_dividend_singular_like_dividends(tmp_path: Path) -> None:
     """Regression test for #4948: the sign table must recognise both
     ``DIVIDEND`` (written by backend/common/dividends.py) and the legacy

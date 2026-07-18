@@ -191,7 +191,13 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
     // A deliberate, user-initiated logout is not a session expiry.
     setSessionExpired(false);
     if (resolvedAwsUiAuth?.enabled) {
-      cognitoLogout(resolvedAwsUiAuth);
+      // Local session state is already cleared above; a failed hosted-UI
+      // redirect (e.g. a malformed domain) must not crash the app mid-logout.
+      try {
+        cognitoLogout(resolvedAwsUiAuth);
+      } catch (err) {
+        console.error('cognitoLogout failed', err);
+      }
     } else {
       navigate('/');
     }

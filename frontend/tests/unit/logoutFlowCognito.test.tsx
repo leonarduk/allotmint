@@ -140,4 +140,94 @@ describe('Logout flow: Cognito mode (#4802)', () => {
       screen.queryByRole('menuitem', { name: i18n.t('app.logout') })
     ).not.toBeInTheDocument();
   });
+
+  it('does not crash when cognitoLogout throws, and logs the failure', async () => {
+    vi.doMock('react-dom/client', () => ({
+      createRoot: () => ({ render: vi.fn() }),
+    }));
+
+    vi.doMock('@/api', async (importOriginal) => {
+      const mod = await importOriginal<typeof import('@/api')>();
+      return {
+        ...mod,
+        getConfig: vi.fn().mockResolvedValue({
+          google_auth_enabled: false,
+          google_client_id: '',
+          disable_auth: true,
+          awsUiAuth: {
+            enabled: true,
+            domain: 'https://cognito.example.test',
+            clientId: 'client-abc',
+            redirectPath: '/',
+          },
+        }),
+        getStoredAuthToken: vi.fn(() => 'cognito-id-token'),
+      };
+    });
+
+    const cognitoLogout = vi.fn(() => {
+      throw new Error('redirect boom');
+    });
+    vi.doMock('@/awsUiAuth', async (importOriginal) => {
+      const mod = await importOriginal<typeof import('@/awsUiAuth')>();
+      return { ...mod, cognitoLogout };
+    });
+
+    vi.doMock('@/App.tsx', async () => {
+      const { default: Menu } = await import('@/components/Menu');
+      return {
+        default: ({ onLogout }: { onLogout?: () => void }) => (
+          <Menu onLogout={onLogout} />
+        ),
+      };
+    });
+
+    const consoleErrorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    window.localStorage.setItem('authToken', 'cognito-id-token');
+    window.localStorage.setItem(
+      'auth.user',
+      JSON.stringify({ email: 'demo@example.test' })
+    );
+    window.sessionStorage.setItem(
+      'awsUiAuthSession',
+      JSON.stringify({
+        idToken: 'cognito-id-token',
+        expiresAt: Date.now() + 60_000,
+      })
+    );
+
+    await mountRoot();
+
+    const preferencesToggle = await screen.findByRole('button', {
+      name: i18n.t('app.menuCategories.preferences'),
+    });
+    fireEvent.click(preferencesToggle);
+    const logoutButton = await screen.findByRole('menuitem', {
+      name: i18n.t('app.logout'),
+    });
+    fireEvent.click(logoutButton);
+
+    // cognitoLogout's throw is caught: the app keeps rendering instead of
+    // crashing, and the failure is surfaced via console.error rather than
+    // being silently swallowed.
+    await waitFor(() => expect(cognitoLogout).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        'cognitoLogout failed',
+        expect.any(Error)
+      )
+    );
+
+    // Local app-level auth state is still cleared even though the redirect
+    // failed (the mocked cognitoLogout throws before reaching the real
+    // implementation's own sessionStorage cleanup, so that isn't asserted
+    // here — see the happy-path test above for that).
+    expect(window.localStorage.getItem('authToken')).toBeNull();
+    expect(window.localStorage.getItem('auth.user')).toBeNull();
+
+    consoleErrorSpy.mockRestore();
+  });
 });

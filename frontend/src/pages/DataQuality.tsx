@@ -133,7 +133,14 @@ export default function DataQuality() {
                   <QualityStatusBadge status={row.status} />
                 </td>
                 <td className={tableStyles.cell}>
-                  <button type="button" onClick={() => setSelected(row)}>
+                  <button
+                    type="button"
+                    onClick={() => setSelected(row)}
+                    aria-label={t("dataQuality.viewDetailsFor", {
+                      ticker: row.ticker,
+                      exchange: row.exchange,
+                    })}
+                  >
                     {t("dataQuality.viewDetails")}
                   </button>
                 </td>

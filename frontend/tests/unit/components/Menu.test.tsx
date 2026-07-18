@@ -342,4 +342,36 @@ describe('Menu', () => {
       screen.queryByRole('menuitem', { name: i18n.t('app.logout') })
     ).not.toBeInTheDocument();
   });
+
+  it.each([
+    ['MVP', true],
+    ['non-MVP', false],
+  ])(
+    'shows the logout button in %s mode (#4490)',
+    async (_label, familyMvpEnabled) => {
+      // The !familyMvpEnabled guard around the logout button was removed in
+      // PR #4482; assert visibility explicitly in both modes so a regression
+      // reintroducing that guard is caught directly.
+      const onLogout = vi.fn();
+      const config: ConfigContextValue = {
+        ...configWithTransactions,
+        familyMvpEnabled,
+      };
+      render(
+        <configContext.Provider value={config}>
+          <MemoryRouter>
+            <Menu onLogout={onLogout} />
+          </MemoryRouter>
+        </configContext.Provider>
+      );
+      const preferencesToggle = screen.getByRole('button', {
+        name: i18n.t('app.menuCategories.preferences'),
+      });
+      fireEvent.click(preferencesToggle);
+
+      expect(
+        await screen.findByRole('menuitem', { name: i18n.t('app.logout') })
+      ).toBeInTheDocument();
+    }
+  );
 });

@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import logging
 import os
+from copy import deepcopy
 from json import JSONDecodeError
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -286,10 +287,12 @@ def create_router(
     limited_request = limiter.limit(rate_limit)(_post_signup_request_impl)
     limited.post("/request")(limited_request)
 
-    # Other routes are copied from the module-level router without rate limits
+    # Other routes are copied from the module-level router without rate limits.
+    # Deep-copy so mutating a route on `limited` can't corrupt the shared
+    # module-level `router` (and vice versa).
     for route in router.routes:
         if getattr(route, "path", None) == "/request":
             continue  # already registered above with rate limit
-        limited.routes.append(route)
+        limited.routes.append(deepcopy(route))
 
     return limited

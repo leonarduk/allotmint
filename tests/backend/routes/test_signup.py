@@ -27,6 +27,7 @@ def client(tmp_path, monkeypatch):
         lambda request, allow_missing=False: accounts_root,
     )
     monkeypatch.setenv("SIGNUP_ADMIN_EMAIL", "admin@example.com")
+    monkeypatch.setenv("SIGNUP_APPROVAL_BASE_URL", "https://admin.example.com")
 
     app = FastAPI()
     app.include_router(signup_module.router)
@@ -82,16 +83,19 @@ def test_invalid_payload_returns_400(client, monkeypatch):
     assert resp.status_code == 400
 
 
-def test_missing_base_url_warns_but_still_notifies(client, monkeypatch, caplog):
+def test_missing_base_url_returns_503(client, monkeypatch, caplog):
+    """#4369: a relative approve/reject link is unusable in the admin email,
+    so a missing SIGNUP_APPROVAL_BASE_URL must fail loudly (503) rather than
+    silently sending a broken link."""
     test_client, _ = client
     sent = _capture_email(monkeypatch)
     monkeypatch.delenv("SIGNUP_APPROVAL_BASE_URL", raising=False)
 
-    with caplog.at_level("WARNING"):
+    with caplog.at_level("ERROR"):
         resp = test_client.post("/signup/request", json={"name": "Jane", "email": "jane@example.com"})
 
-    assert resp.status_code == 200
-    assert sent["notification"].approve_url.startswith("/signup/approve")
+    assert resp.status_code == 503
+    assert "notification" not in sent, "admin must not be emailed a broken relative link"
     assert any("SIGNUP_APPROVAL_BASE_URL" in r.message for r in caplog.records)
 
 
@@ -393,6 +397,7 @@ def rate_limited_client(tmp_path, monkeypatch):
         lambda request, allow_missing=False: accounts_root,
     )
     monkeypatch.setenv("SIGNUP_ADMIN_EMAIL", "admin@example.com")
+    monkeypatch.setenv("SIGNUP_APPROVAL_BASE_URL", "https://admin.example.com")
 
     limiter = Limiter(key_func=get_remote_address, storage_uri="memory://")
     router = signup_module.create_router(limiter, "3/minute")

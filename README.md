@@ -94,6 +94,15 @@ Key architectural tradeoffs made in this project:
 - **Lambda + Mangum over a persistent server**: A pay-per-invocation Lambda fits the cost model of a low-traffic personal tool far better than an always-on server. The tradeoff is cold start latency, most notably the ~10-second Lambda INIT phase constraint tracked in [issue #4429](https://github.com/leonarduk/allotmint/issues/4429).
 - **What would change at scale**: multi-user or high-traffic usage would justify swapping JSON storage for Postgres, introducing a proper job queue for background work, and splitting the single Lambda into per-domain functions to isolate cold starts and scaling behavior.
 
+## Local development
+
+This project uses JSON files under `data/` as its local "database" (see [JSON file storage](#design-decisions) above) — there's no local database server to set up.
+
+- Inspect a fixture, e.g. an account's holdings: `cat data/accounts/demo/isa.json | jq '.'` (each owner under `data/accounts/<owner>/` has one JSON file per account type, e.g. `isa.json`, `sipp.json`)
+- Edit fixture data directly with any text editor — e.g. add a position by editing the relevant JSON file under `data/accounts/<owner>/`
+- Most routes read fixtures straight from disk, so edits take effect on your next request; a few expensive report pages are cached separately under `data/cache/` and refresh on a timer (see `backend/utils/page_cache.py`)
+- Run the app against these fixtures with `bash scripts/bash/run-local-api.sh` (backend) and `npm --prefix frontend run dev` (frontend) — see [docs/CONTRIBUTOR_RUNBOOK.md](docs/CONTRIBUTOR_RUNBOOK.md) for the full local setup
+
 ## Coverage reporting
 
 GitHub Actions uploads both backend (`coverage.xml`) and frontend (`frontend/coverage/lcov.info`) coverage reports to Codecov on pull requests and pushes to `main`.

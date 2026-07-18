@@ -46,6 +46,7 @@
     "sector": "Industries"
   },
   "app": {
+    "close": "Close",
     "last": "Last:",
     "loading": "Loading…",
     "logout": "Logout",

@@ -46,6 +46,7 @@
     "sector": "Branchen"
   },
   "app": {
+    "close": "Schließen",
     "last": "Zuletzt:",
     "loading": "Laden…",
     "logout": "Abmelden",

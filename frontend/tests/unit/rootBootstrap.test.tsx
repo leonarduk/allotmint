@@ -228,6 +228,86 @@ describe('Root bootstrap integration coverage', () => {
     expect(localStorage.getItem('authToken')).toBeNull()
   })
 
+  it('tells the login page the session expired when a previously-valid token is rejected mid-session (issue #5183)', async () => {
+    // Same stale-token setup as the #4674 test above, but asserts the
+    // sign-in wall is told *why* it appeared, so it can show a clear,
+    // recoverable message instead of a bare, unexplained "Sign in" button.
+    vi.doMock('react-dom/client', () => ({
+      createRoot: () => ({ render: vi.fn() })
+    }))
+
+    localStorage.setItem('authToken', 'stale-expired-token')
+
+    vi.doMock('@/api', async importOriginal => {
+      const mod = await importOriginal<typeof import('@/api')>()
+      return {
+        ...mod,
+        getConfig: vi.fn().mockResolvedValue({
+          google_auth_enabled: true,
+          google_client_id: 'client-123',
+          disable_auth: false
+        }),
+        getStoredAuthToken: vi.fn(() => 'stale-expired-token')
+      }
+    })
+
+    vi.doMock('@/LoginPage', () => ({
+      default: ({ sessionExpired }: { sessionExpired?: boolean }) => (
+        <div data-testid="login-page" data-session-expired={String(Boolean(sessionExpired))}>
+          sign in
+        </div>
+      )
+    }))
+
+    vi.doMock('@/App.tsx', async () => {
+      const { useEffect } = await import('react')
+      function StaleTokenApp() {
+        useEffect(() => {
+          window.dispatchEvent(new Event(UNAUTHORIZED_EVENT))
+        }, [])
+        return <div data-testid="app-shell">App ready</div>
+      }
+      return { default: StaleTokenApp }
+    })
+
+    await mountRoot()
+
+    const loginPage = await screen.findByTestId('login-page')
+    expect(loginPage).toHaveAttribute('data-session-expired', 'true')
+  })
+
+  it('does not tell the login page the session expired on a first-time, never-authenticated visit', async () => {
+    vi.doMock('react-dom/client', () => ({
+      createRoot: () => ({ render: vi.fn() })
+    }))
+
+    vi.doMock('@/api', async importOriginal => {
+      const mod = await importOriginal<typeof import('@/api')>()
+      return {
+        ...mod,
+        getConfig: vi.fn().mockResolvedValue({
+          google_auth_enabled: true,
+          google_client_id: 'client-123',
+          disable_auth: false
+        }),
+        getStoredAuthToken: vi.fn(() => null)
+      }
+    })
+
+    vi.doMock('@/LoginPage', () => ({
+      default: ({ sessionExpired }: { sessionExpired?: boolean }) => (
+        <div data-testid="login-page" data-session-expired={String(Boolean(sessionExpired))}>
+          sign in
+        </div>
+      )
+    }))
+
+    await mountRoot()
+
+    const loginPage = await screen.findByTestId('login-page')
+    expect(loginPage).toHaveAttribute('data-session-expired', 'false')
+  })
+
   it('shows login page when backend cfg carries awsUiAuth.enabled and disable_auth=true', async () => {
     // Covers the primary path: backend GET /config is authoritative.
     // /config.json has no awsUiAuth (prop is absent), but the backend response

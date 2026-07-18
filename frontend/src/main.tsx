@@ -144,6 +144,14 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
   const [authed, setAuthed] = useState(
     Boolean(storedToken) || Boolean(getStoredCognitoIdToken()),
   );
+  // Distinguishes "session expired mid-use" from "never signed in yet" so the
+  // sign-in wall can explain *why* it appeared instead of silently discarding
+  // the user's in-progress session with no context. See issue #5183.
+  const [sessionExpired, setSessionExpired] = useState(false);
+  const authedRef = useRef(authed);
+  useEffect(() => {
+    authedRef.current = authed;
+  }, [authed]);
   // Resolved awsUiAuth: starts from the /config.json-derived prop; may be
   // overridden by cfg.awsUiAuth from the backend GET /config response (which
   // is authoritative and the source that #4610 was designed to enable).
@@ -180,6 +188,8 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
     setUser(null);
     setProfile(undefined);
     setAuthed(false);
+    // A deliberate, user-initiated logout is not a session expiry.
+    setSessionExpired(false);
     if (resolvedAwsUiAuth?.enabled) {
       cognitoLogout(resolvedAwsUiAuth);
     } else {
@@ -216,6 +226,10 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
       apiLogout();
       setUser(null);
       setProfile(undefined);
+      // Only a token that was previously valid (the user was actively using
+      // the app) counts as a session "expiring" — a first-time visitor with
+      // no prior session should still see the plain sign-in wall.
+      if (authedRef.current) setSessionExpired(true);
       setAuthed(false);
     };
     window.addEventListener(UNAUTHORIZED_EVENT, handleUnauthorized);
@@ -412,7 +426,11 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
         <LoginPage
           clientId={clientId}
           awsUiAuth={resolvedAwsUiAuth}
-          onSuccess={() => setAuthed(true)}
+          sessionExpired={sessionExpired}
+          onSuccess={() => {
+            setSessionExpired(false);
+            setAuthed(true);
+          }}
         />
       </>
     );

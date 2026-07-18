@@ -181,6 +181,36 @@ def test_resolve_owner_slug_cleans_up_on_write_failure(tmp_path, monkeypatch):
     assert not (accounts_root / "jane").exists()
 
 
+def test_resolve_owner_slug_cleans_up_on_scaffold_failure(tmp_path, monkeypatch):
+    """Regression test for #5259.
+
+    The cleanup on failure must also cover ``ensure_owner_scaffold`` raising,
+    not just ``_write_person_identity`` — both calls sit inside the same
+    try/except in ``_resolve_owner_slug``, but ``ensure_owner_scaffold`` runs
+    first in that sequence and needs its own assertion.
+    """
+
+    accounts_root = tmp_path / "accounts"
+    accounts_root.mkdir()
+
+    def _failing_scaffold(*_args, **_kwargs):
+        raise OSError("simulated disk full")
+
+    monkeypatch.setattr(signup_provision, "ensure_owner_scaffold", _failing_scaffold)
+
+    with pytest.raises(OSError, match="simulated disk full"):
+        signup_provision._resolve_owner_slug("jane@example.com", accounts_root, "Jane Doe")
+
+    # The directory created by mkdir must be cleaned up.
+    assert not (accounts_root / "jane").exists()
+
+    # A retry after the transient failure clears must succeed and reclaim
+    # the same slug rather than being stuck skipping over it forever.
+    monkeypatch.undo()
+    owner = signup_provision._resolve_owner_slug("jane@example.com", accounts_root, "Jane Doe")
+    assert owner == "jane"
+
+
 def test_resolve_owner_slug_raises_when_exhausted(tmp_path, monkeypatch):
     accounts_root = tmp_path / "accounts"
     accounts_root.mkdir()

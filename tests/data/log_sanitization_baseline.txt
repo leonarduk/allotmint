@@ -66,10 +66,9 @@ backend/common/portfolio.py:81
 backend/common/prices.py:242
 backend/common/prices.py:297
 backend/common/prices.py:301
-backend/common/signup_provision.py:175
-backend/common/signup_provision.py:70
-backend/common/signup_provision.py:73
-backend/common/signup_provision.py:76
+backend/common/signup_provision.py:71
+backend/common/signup_provision.py:74
+backend/common/signup_provision.py:77
 backend/common/signup_requests.py:206
 backend/common/signup_requests.py:254
 backend/common/signup_requests.py:274

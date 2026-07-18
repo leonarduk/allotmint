@@ -621,6 +621,18 @@ def test_create_manual_holding_rejects_invalid_metric_combo(tmp_path, monkeypatc
             "value_gbp": 10,
             "price_gbp": 10,
         },
+        {
+            "owner": "alice",
+            "account": "SIPP",
+            "ticker": "MSFT",
+            "units": 1,
+        },
+        {
+            "owner": "alice",
+            "account": "SIPP",
+            "ticker": "MSFT",
+            "price_gbp": 10,
+        },
     ]
 
     for payload in invalid_payloads:

@@ -12,6 +12,7 @@ from pathlib import Path
 from fastapi import FastAPI
 
 from backend.config import Config
+from backend.logging_setup import sanitise_log_value
 from backend.utils import page_cache
 
 logger = logging.getLogger(__name__)
@@ -32,8 +33,8 @@ def _timed_phase(name: str):
         duration_ms = round((time.monotonic() - start) * 1000, 2)
         logger.info(
             "cold_start_phase phase=%s duration_ms=%s",
-            name,
-            duration_ms,
+            sanitise_log_value(name),
+            sanitise_log_value(duration_ms),
             extra={"phase": name, "duration_ms": duration_ms},
         )
 

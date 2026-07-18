@@ -95,6 +95,28 @@ def get_pr_head_commit_date(owner: str, repo: str, pr: int) -> str:
     return get_commit_date(owner, repo, sha.strip())
 
 
+def _handle_request_failure(
+    items: list[dict[str, Any]], endpoint: str, page: int, strict: bool
+) -> tuple[list[dict[str, Any]], bool]:
+    """Warn and return partial results, or raise if strict, for a failed request."""
+    if items:
+        print(
+            f"Warning: API request to {endpoint} page {page} failed after "
+            f"collecting {len(items)} items. Returning partial results.",
+            file=sys.stderr,
+        )
+        if strict:
+            raise FetchPaginatedError(
+                f"API request to {endpoint} page {page} failed after "
+                f"collecting {len(items)} items."
+            )
+        return items, True
+    print(f"Error: API request to {endpoint} page {page} failed.", file=sys.stderr)
+    if strict:
+        raise FetchPaginatedError(f"API request to {endpoint} page {page} failed.")
+    return [], True
+
+
 def fetch_paginated(
     owner: str, repo: str, endpoint: str, strict: bool = False
 ) -> tuple[list[dict[str, Any]], bool]:
@@ -113,22 +135,7 @@ def fetch_paginated(
         ]
         output, code = run_gh_command(args)
         if code != 0:
-            if items:
-                print(
-                    f"Warning: API request to {endpoint} page {page} failed after "
-                    f"collecting {len(items)} items. Returning partial results.",
-                    file=sys.stderr,
-                )
-                if strict:
-                    raise FetchPaginatedError(
-                        f"API request to {endpoint} page {page} failed after "
-                        f"collecting {len(items)} items."
-                    )
-                return items, True
-            print(f"Error: API request to {endpoint} page {page} failed.", file=sys.stderr)
-            if strict:
-                raise FetchPaginatedError(f"API request to {endpoint} page {page} failed.")
-            return [], True
+            return _handle_request_failure(items, endpoint, page, strict)
 
         try:
             data = json.loads(output) if output else []

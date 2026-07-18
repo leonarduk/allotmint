@@ -301,6 +301,39 @@ describe('TransactionsPage', () => {
     expect(createManualHoldingMock).not.toHaveBeenCalled();
   });
 
+  it('saves using Value when Value, Units, and Price are all provided', async () => {
+    const user = userEvent.setup();
+    render(
+      <TransactionsPage
+        owners={[
+          { owner: 'alex', full_name: 'Alex Example', accounts: ['isa'] },
+        ]}
+        inputOnly
+      />
+    );
+
+    await screen.findByText('Account + Holdings Input');
+    await user.type(screen.getByLabelText('Account'), 'ISA');
+    await user.type(screen.getByLabelText(/^Ticker$/i), 'VUSA.L');
+    await user.type(screen.getByLabelText('Value (GBP)'), '500');
+    await user.type(screen.getByLabelText('Units'), '5');
+    await user.type(screen.getByLabelText('Price (GBP)'), '100');
+    await user.click(screen.getByRole('button', { name: 'Save holding' }));
+
+    await waitFor(() => {
+      expect(createManualHoldingMock).toHaveBeenCalledWith(
+        expect.objectContaining({ value_gbp: 500 })
+      );
+    });
+    expect(createManualHoldingMock.mock.calls[0][0]).not.toHaveProperty(
+      'units'
+    );
+    expect(createManualHoldingMock.mock.calls[0][0]).not.toHaveProperty(
+      'price_gbp'
+    );
+    expect(screen.getByText('Holding saved.')).toBeInTheDocument();
+  });
+
   it('defaults the manual owner input to the logged-in user\'s owner', async () => {
     render(
       <AuthContext.Provider

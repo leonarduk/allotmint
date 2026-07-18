@@ -245,7 +245,7 @@ export function TransactionsPage({ owners, inputOnly = false }: Props) {
 
     const hasValue = hasValueInput;
     const hasUnitsPrice = hasUnitsInput && hasPriceInput;
-    if (hasValue === hasUnitsPrice) {
+    if (!hasValue && !hasUnitsPrice) {
       setManualError('Provide either Value (GBP) or both Units + Price (GBP).');
       return;
     }

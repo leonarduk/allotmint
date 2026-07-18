@@ -194,9 +194,55 @@ def test_refresh_snapshot_skips_write_when_path_missing(monkeypatch, caplog):
     assert recorded["snapshot"] == {
         "SKIP.L": {"last_price": 12.0, "price_currency": "GBP", "last_price_date": "2024-03-10"},
     }
-    assert any(
-        "Price snapshot path not configured; skipping write" in message for message in caplog.messages
+    assert any("Price snapshot path not configured; skipping write" in message for message in caplog.messages)
+
+
+@pytest.mark.anyio("asyncio")
+async def test_refresh_snapshot_skips_nan_close_price_and_keeps_seeded_value(tmp_path, monkeypatch, caplog):
+    """A NaN close price from the timeseries source must not overwrite a good seeded price."""
+    seed = {
+        "VWRL.L": {"last_price": 97.5, "price_currency": "GBP", "last_price_date": "2024-05-16"},
+    }
+    prices_path = tmp_path / "latest_prices.json"
+    prices_path.write_text(json.dumps(seed))
+
+    tickers = ["VWRL.L"]
+    monkeypatch.setattr(pu, "_PRICE_SNAPSHOT", {t: {} for t in tickers})
+    monkeypatch.setattr(pu, "list_all_unique_tickers", lambda: tickers)
+
+    nan_df = pd.DataFrame(
+        {
+            "Date": pd.to_datetime(["2024-06-01"]),
+            "Close": [float("nan")],
+        }
     )
+
+    monkeypatch.setattr(
+        pu,
+        "load_meta_timeseries_range",
+        lambda *, ticker, exchange, start_date, end_date: nan_df,
+    )
+    monkeypatch.setattr(pu, "get_scaling_override", lambda *_, **__: 1)
+    monkeypatch.setattr(pu, "apply_scaling", lambda df, scale: df)
+
+    recorded = {}
+    monkeypatch.setattr(
+        pu, "refresh_snapshot_in_memory", lambda snapshot, ts: recorded.setdefault("snapshot", snapshot)
+    )
+    monkeypatch.setattr(pu, "_PRICES_PATH", prices_path)
+
+    caplog.set_level("WARNING")
+
+    pu.refresh_snapshot_in_memory_from_timeseries(days=7)
+
+    assert "VWRL.L" not in recorded["snapshot"]
+    assert "Skipping VWRL.L" in "\n".join(caplog.messages)
+
+    result = json.loads(prices_path.read_text())
+    assert result["VWRL.L"]["last_price"] == pytest.approx(
+        97.5
+    ), "Seeded price must be preserved when the timeseries source returns NaN"
+
 
 @pytest.mark.anyio("asyncio")
 async def test_refresh_snapshot_async_invokes_to_thread(monkeypatch):
@@ -271,9 +317,7 @@ def test_refresh_snapshot_merges_with_existing_prices_file(tmp_path, monkeypatch
     pu.refresh_snapshot_in_memory_from_timeseries(days=7)
 
     result = json.loads(prices_path.read_text())
-    assert result["NEW.L"]["last_price"] == pytest.approx(15.0), (
-        "Ticker with fresh timeseries data must be updated"
-    )
-    assert result["OLD.L"]["last_price"] == pytest.approx(50.0), (
-        "Ticker with no timeseries data must retain its existing price"
-    )
+    assert result["NEW.L"]["last_price"] == pytest.approx(15.0), "Ticker with fresh timeseries data must be updated"
+    assert result["OLD.L"]["last_price"] == pytest.approx(
+        50.0
+    ), "Ticker with no timeseries data must retain its existing price"

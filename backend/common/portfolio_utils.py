@@ -1966,11 +1966,15 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
                 )
                 if close_col:
                     latest_row = df.iloc[-1]
-                    snapshot[t] = {
-                        "last_price": float(latest_row[close_col]),
-                        "price_currency": "GBP",
-                        "last_price_date": pd.to_datetime(latest_row["Date"]).strftime("%Y-%m-%d"),
-                    }
+                    last_price = float(latest_row[close_col])
+                    if math.isnan(last_price):
+                        logger.warning("Skipping %s: latest close price is NaN", sanitise_log_value(t))
+                    else:
+                        snapshot[t] = {
+                            "last_price": last_price,
+                            "price_currency": "GBP",
+                            "last_price_date": pd.to_datetime(latest_row["Date"]).strftime("%Y-%m-%d"),
+                        }
         except (OSError, ValueError, KeyError, IndexError, TypeError) as e:
             logger.warning("Could not get timeseries for %s: %s", sanitise_log_value(t), sanitise_log_value(e))
 

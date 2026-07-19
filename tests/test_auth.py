@@ -383,6 +383,28 @@ async def test_get_current_user_disabled_without_identity(monkeypatch):
     assert auth.current_user.get() is None
 
 
+@pytest.mark.asyncio
+async def test_get_current_user_enabled_without_token(monkeypatch):
+    """When disable_auth=False (the default) and token=None, get_current_user must
+    fall straight through to _user_from_token(None) and reject the request.
+    local_login_identity() is the disable_auth-only fallback (see
+    _resolve_identity_when_auth_disabled) and must never be consulted on the
+    auth-enabled path."""
+
+    monkeypatch.setattr(auth.config, "disable_auth", False, raising=False)
+
+    def fail_local_login_identity() -> str | None:  # pragma: no cover - safety guard
+        raise AssertionError("local_login_identity should not be called on the auth-enabled path")
+
+    monkeypatch.setattr(auth, "local_login_identity", fail_local_login_identity)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await auth.get_current_user(token=None)
+
+    assert exc_info.value.status_code == 401
+    assert exc_info.value.detail == "Invalid authentication credentials"
+
+
 def test_missing_secret_key_generates_ephemeral_secret(monkeypatch, caplog):
     monkeypatch.delenv("JWT_SECRET", raising=False)
     monkeypatch.delenv("APP_ENV", raising=False)

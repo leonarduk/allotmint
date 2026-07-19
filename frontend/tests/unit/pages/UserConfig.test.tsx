@@ -129,5 +129,59 @@ describe("UserConfig page", () => {
     expect(await screen.findByText(/no accounts are available/i)).toBeInTheDocument();
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   });
+
+  it("shows a permission-specific message when loading approvals 403s (#5215)", async () => {
+    mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
+    mockGetUserConfig.mockResolvedValue({});
+    const forbidden = new Error("HTTP 403 - Forbidden (/accounts/alex/approvals)");
+    (forbidden as any).status = 403;
+    mockGetApprovals.mockRejectedValue(forbidden);
+
+    render(<UserConfig />);
+
+    const select = await screen.findByRole("combobox");
+    await act(async () => {
+      await userEvent.selectOptions(select, "alex");
+    });
+
+    expect(
+      await screen.findByText(/don't have permission to view or manage approvals/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/^Failed to load approvals$/)).not.toBeInTheDocument();
+  });
+
+  it("shows a session-expiry message when loading approvals 401s (#5215)", async () => {
+    mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
+    mockGetUserConfig.mockResolvedValue({});
+    const unauthorized = new Error("HTTP 401 - Unauthorized (/accounts/alex/approvals)");
+    (unauthorized as any).status = 401;
+    mockGetApprovals.mockRejectedValue(unauthorized);
+
+    render(<UserConfig />);
+
+    const select = await screen.findByRole("combobox");
+    await act(async () => {
+      await userEvent.selectOptions(select, "alex");
+    });
+
+    expect(await screen.findByText(/session has expired/i)).toBeInTheDocument();
+  });
+
+  it("falls back to the generic message for a non-permission approvals failure", async () => {
+    mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
+    mockGetUserConfig.mockResolvedValue({});
+    const serverError = new Error("HTTP 500 - Internal Server Error (/accounts/alex/approvals)");
+    (serverError as any).status = 500;
+    mockGetApprovals.mockRejectedValue(serverError);
+
+    render(<UserConfig />);
+
+    const select = await screen.findByRole("combobox");
+    await act(async () => {
+      await userEvent.selectOptions(select, "alex");
+    });
+
+    expect(await screen.findByText(/^Failed to load approvals$/)).toBeInTheDocument();
+  });
 });
 

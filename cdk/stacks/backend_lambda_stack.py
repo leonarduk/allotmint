@@ -258,6 +258,16 @@ class BackendLambdaStack(Stack):
         signup_login_url = self.node.try_get_context("signup_login_url") or os.getenv(
             "SIGNUP_LOGIN_URL", ""
         )
+        # SES sender identity used as the `Source` for signup/pension-report
+        # emails (backend/emails/*.py's `_SENDER_EMAIL`, from `WEEKLY_REPORT_FROM`,
+        # defaulting to "no-reply@allotmint.com"). Used below to scope the
+        # `ses:SendEmail` IAM grants to this identity instead of `"*"` (#5372).
+        ses_sender_email = self.node.try_get_context("ses_sender_email") or os.getenv(
+            "WEEKLY_REPORT_FROM", "no-reply@allotmint.com"
+        )
+        ses_send_email_resources = [
+            f"arn:aws:ses:{self.region}:{self.account}:identity/{ses_sender_email}"
+        ]
         # Cadence for the pension report Lambda's EventBridge rule (issue #2758).
         # "weekly" -> every Monday; "monthly" -> the 1st of the month. Configurable
         # via CDK context or env var rather than hardcoded in the rule itself.
@@ -461,7 +471,7 @@ class BackendLambdaStack(Stack):
         backend_fn.add_to_role_policy(
             iam.PolicyStatement(
                 actions=["ses:SendEmail"],
-                resources=["*"],
+                resources=ses_send_email_resources,
             )
         )
 
@@ -1065,7 +1075,7 @@ class BackendLambdaStack(Stack):
         pension_report_fn.add_to_role_policy(
             iam.PolicyStatement(
                 actions=["ses:SendEmail"],
-                resources=["*"],
+                resources=ses_send_email_resources,
             )
         )
 

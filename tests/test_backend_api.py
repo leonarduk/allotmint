@@ -316,6 +316,31 @@ def test_prices_live_explicit_tickers(client, monkeypatch):
     assert prices["NODATA.L"]["is_stale"] is True
 
 
+def test_prices_live_missing_timestamp(client, monkeypatch):
+    """A ticker present in live prices but whose entry has no timestamp key
+    must not crash the endpoint (`(now - None)` would raise TypeError) --
+    it should be treated the same as "no live data": no last_price_time,
+    stale (#4944)."""
+
+    def _fake_live(full_tickers):
+        return {"MISSING_TS.L": {"price": 7.5}}
+
+    def _fake_latest(full_tickers):
+        return {"MISSING_TS.L": 7.0}
+
+    monkeypatch.setattr("backend.common.holding_utils.load_live_prices", _fake_live)
+    monkeypatch.setattr("backend.common.holding_utils.load_latest_prices", _fake_latest)
+
+    resp = client.get("/prices/live", params={"tickers": "MISSING_TS.L"})
+    assert resp.status_code == 200
+    prices = resp.json()["prices"]
+
+    assert prices["MISSING_TS.L"]["live_price"] == 7.5
+    assert prices["MISSING_TS.L"]["stored_price"] == 7.0
+    assert prices["MISSING_TS.L"]["last_price_time"] is None
+    assert prices["MISSING_TS.L"]["is_stale"] is True
+
+
 def test_prices_live_defaults_to_portfolio_universe(client, monkeypatch):
     monkeypatch.setattr(
         "backend.common.portfolio_utils.list_all_unique_tickers", lambda: ["STUB.L"]

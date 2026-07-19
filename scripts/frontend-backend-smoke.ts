@@ -1046,6 +1046,7 @@ export function fillPath(path: string, fixtures: SmokeFixtures, method?: string)
 export async function runSmoke(base: string) {
   const normalizedBase = base.replace(/\/+$/, '');
   const healthUrl = `${normalizedBase}/health`;
+  const authToken = process.env.SMOKE_AUTH_TOKEN?.trim() || process.env.TEST_ID_TOKEN?.trim() || null;
 
   try {
     await fetch(healthUrl, { method: 'GET' });
@@ -1129,6 +1130,39 @@ export async function runSmoke(base: string) {
     }
 
   }
+
+  await runAuthenticatedCheck(normalizedBase, authToken);
+}
+
+// The sweep above deliberately calls every route unauthenticated, so a 401 on a
+// protected route only proves the route + authorizer exist — it never sends real
+// authenticated traffic through the JWT authorizer to the backend integration.
+// This check does exactly that with a single read-only, idempotent request, so a
+// broken authorizer or integration (wrong audience, misconfigured Lambda
+// permission, etc.) is caught here instead of silently passing (#5366).
+async function runAuthenticatedCheck(normalizedBase: string, authToken: string | null): Promise<void> {
+  if (!authToken) {
+    console.warn(
+      'No SMOKE_AUTH_TOKEN/TEST_ID_TOKEN provided; skipping authenticated route check (#5366).',
+    );
+    return;
+  }
+
+  const authUrl = `${normalizedBase}/owners`;
+  let res: Awaited<ReturnType<typeof fetch>>;
+  try {
+    res = await fetch(authUrl, { headers: { Authorization: `Bearer ${authToken}` } });
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(`Network error while calling authenticated GET /owners: ${reason}`);
+  }
+  if (!res.ok) {
+    throw new Error(
+      `Authenticated smoke check failed: GET /owners with a Bearer token -> ${res.status}. ` +
+        'The JWT authorizer or an integration may be broken.',
+    );
+  }
+  console.log(`✓ GET /owners (authenticated, ${res.status})`);
 }
 
 if (require.main === module) {

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import shutil
 import time
 from contextlib import contextmanager
@@ -16,6 +17,13 @@ from backend.logging_setup import sanitise_log_value
 from backend.utils import page_cache
 
 logger = logging.getLogger(__name__)
+
+# Time-bound the two synchronous, potentially-slow snapshot warmup calls in
+# _warm_snapshot() (S3 read + in-memory metadata scan) so a large snapshot or
+# slow network can never consume the whole Lambda cold-start budget (#4940).
+# Each call gets its own budget rather than sharing one, so a timeout on the
+# first doesn't eat into the second's allowance.
+_SNAPSHOT_LOAD_TIMEOUT_SECONDS = float(os.getenv("SNAPSHOT_LOAD_TIMEOUT_SECONDS", "5.0"))
 
 
 @contextmanager
@@ -84,12 +92,21 @@ class AppLifecycleService:
 
         try:
             with _timed_phase("snapshot_load"):
-                result = _load_snapshot()
+                result = await asyncio.wait_for(
+                    asyncio.to_thread(_load_snapshot),
+                    timeout=_SNAPSHOT_LOAD_TIMEOUT_SECONDS,
+                )
             if not isinstance(result, tuple) or len(result) != 2 or not isinstance(result[0], dict):
                 raise ValueError("Malformed snapshot")
             snapshot, ts = result
+        except TimeoutError:
+            logger.warning(
+                "Snapshot load timed out after %ss; proceeding without snapshot data",
+                sanitise_log_value(_SNAPSHOT_LOAD_TIMEOUT_SECONDS),
+            )
+            snapshot, ts = {}, None
         except Exception as exc:
-            logger.error("Failed to load price snapshot: %s", exc)
+            logger.error("Failed to load price snapshot: %s", sanitise_log_value(exc))
             snapshot, ts = {}, None
 
         refresh_snapshot_in_memory(snapshot, ts)
@@ -98,7 +115,15 @@ class AppLifecycleService:
 
         try:
             with _timed_phase("metadata_update_from_snapshot"):
-                instrument_api.update_latest_prices_from_snapshot(snapshot)
+                await asyncio.wait_for(
+                    asyncio.to_thread(instrument_api.update_latest_prices_from_snapshot, snapshot),
+                    timeout=_SNAPSHOT_LOAD_TIMEOUT_SECONDS,
+                )
+        except TimeoutError:
+            logger.warning(
+                "Updating latest prices from snapshot timed out after %ss",
+                sanitise_log_value(_SNAPSHOT_LOAD_TIMEOUT_SECONDS),
+            )
         except Exception:
             logger.exception("Failed to update latest prices from snapshot")
 

@@ -83,6 +83,10 @@ function addInstrumentTypeOption(options: string[], value: string) {
   );
 }
 
+function sortNewsByPublishedAtDesc(items: NewsItem[]): NewsItem[] {
+  return [...items].sort((a, b) => (b.published_at ?? "").localeCompare(a.published_at ?? ""));
+}
+
 type DisplayPrice = {
   close: number;
   currency: string;
@@ -663,7 +667,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
       setNewsError(null);
       try {
         const items = await getNews(tkr, newsCtrl.signal);
-        setNews(items);
+        setNews(sortNewsByPublishedAtDesc(items));
       } catch (err) {
         const error = err as { name?: string } | null | undefined;
         if (error?.name === "AbortError") {

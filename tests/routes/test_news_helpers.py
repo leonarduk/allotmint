@@ -127,6 +127,29 @@ def test_trim_payload_filters_invalid_entries():
     assert news_module._trim_payload({"unexpected": "mapping"}) == []
 
 
+def test_trim_payload_sorts_by_published_at_descending():
+    payload = [
+        {"headline": "Oldest", "url": "https://example.com/1", "published_at": "2024-01-01T00:00:00Z"},
+        {"headline": "Newest", "url": "https://example.com/2", "published_at": "2024-06-01T12:00:00Z"},
+        {"headline": "Middle", "url": "https://example.com/3", "published_at": "2024-03-15T09:30:00Z"},
+    ]
+
+    assert [item["headline"] for item in news_module._trim_payload(payload)] == [
+        "Newest",
+        "Middle",
+        "Oldest",
+    ]
+
+
+def test_trim_payload_sorts_missing_published_at_last():
+    payload = [
+        {"headline": "NoDate", "url": "https://example.com/1"},
+        {"headline": "Dated", "url": "https://example.com/2", "published_at": "2024-01-01T00:00:00Z"},
+    ]
+
+    assert [item["headline"] for item in news_module._trim_payload(payload)] == ["Dated", "NoDate"]
+
+
 def test_isoformat_normalises_to_utc_seconds():
     naive = datetime(2024, 1, 2, 3, 4, 5)
     aware = datetime(2024, 1, 2, 3, 4, 5, tzinfo=timezone(timedelta(hours=2)))

@@ -145,7 +145,20 @@ def _trim_payload(payload: Any) -> List[Dict[str, str]]:
         )
         if news_item is not None:
             trimmed.append(news_item)
-    return trimmed
+    return _sort_by_published_at_desc(trimmed)
+
+
+def _sort_by_published_at_desc(items: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    """Return ``items`` ordered most-recent-first by ``published_at``.
+
+    ``published_at`` values are already normalised to ISO-8601 UTC strings by
+    ``_isoformat``, so lexicographic ordering matches chronological ordering.
+    Items missing ``published_at`` sort last rather than being dropped, since
+    upstream sources (notably the Yahoo/Google fallbacks) don't always return
+    results in date order.
+    """
+
+    return sorted(items, key=lambda item: item.get("published_at") or "", reverse=True)
 
 
 def _lookup_instrument_name(ticker: str) -> Optional[str]:

@@ -70,12 +70,14 @@ def create_app() -> FastAPI:
             "Set ADMIN_EMAILS to a comma-separated list of admin emails."
         )
 
-    async def require_admin(current_user: str = Depends(auth.get_current_user)) -> str:
+    async def require_admin(
+        current_user: str | None = Depends(auth.get_active_user),
+    ) -> str | None:
         if admin_set:
             # Allowlist is configured: always enforce it regardless of disable_auth.
             # DISABLE_AUTH=true is set on the Lambda because API Gateway handles Cognito
             # auth — it must NOT be used to bypass the admin restriction here.
-            if current_user.lower() not in admin_set:
+            if current_user is None or current_user.lower() not in admin_set:
                 raise HTTPException(status_code=403, detail="Admin access required")
         elif not cfg.disable_auth:
             # No allowlist in a production-like environment: deny all to avoid silent
@@ -225,7 +227,7 @@ def create_app() -> FastAPI:
 
     @app.get("/whoami")
     async def whoami(
-        _: str = Depends(require_admin),
+        _: str | None = Depends(require_admin),
         token: str | None = Depends(auth.oauth2_scheme),
     ):
         """Auth-boundary debug view of the bearer token the backend received.

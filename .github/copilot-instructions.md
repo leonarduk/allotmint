@@ -13,6 +13,7 @@ Read `AGENTS.md` for full repository guidance. Use these short rules while gener
 - Prefer `bash scripts/bash/run-local-api.sh` for the local backend instead of outdated `uvicorn app:app` examples.
 - Verify command names against actual `package.json`, `Makefile`, and scripts before updating docs.
 - If your change implements an issue, include an auto-closing PR reference (for example: `Closes #1234`).
+- When creating an issue, always use the template format from `.github/ISSUE_TEMPLATE/` and include all required sections: What, Why, How, Constraints, LLM tier, Success looks like, Failure looks like.
 - When rebasing a PR, force-push to the same branch — don't create a new one.
 - Keep changes out of generated dependency folders such as `node_modules/`.
 - Be careful when changing `data/`, auth defaults, or smoke-test flows; these are tightly coupled to local development and demos.

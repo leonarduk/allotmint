@@ -1,6 +1,69 @@
+import json
+
 import pytest
 
 from backend.lambda_api import pension_report as lam
+
+
+def test_load_recipient_owners_reads_from_ssm_parameter_store(monkeypatch):
+    """Exercises the real get_storage() -> ssm:// -> ParameterStoreJSONStorage
+    pipeline (not a mock of _load_recipient_owners/get_storage themselves), so
+    a broken ssm:// scheme registration or a renamed parameter would be
+    caught here rather than only mocked out."""
+    monkeypatch.delenv("PENSION_REPORT_RECIPIENTS_URI", raising=False)
+
+    calls = []
+
+    class FakeSsmClient:
+        def get_parameter(self, Name, WithDecryption):  # noqa: N803
+            calls.append({"Name": Name, "WithDecryption": WithDecryption})
+            return {"Parameter": {"Value": json.dumps({"owners": ["alice", "bob"]})}}
+
+    monkeypatch.setattr("boto3.client", lambda service, *args, **kwargs: FakeSsmClient())
+
+    owners = lam._load_recipient_owners()
+
+    assert owners == ["alice", "bob"]
+    assert calls == [{"Name": "pension-report-recipients", "WithDecryption": True}]
+
+
+def test_load_recipient_owners_honours_recipients_uri_override(monkeypatch):
+    monkeypatch.setenv("PENSION_REPORT_RECIPIENTS_URI", "ssm://custom-recipients-param")
+
+    calls = []
+
+    class FakeSsmClient:
+        def get_parameter(self, Name, WithDecryption):  # noqa: N803
+            calls.append(Name)
+            return {"Parameter": {"Value": json.dumps({"owners": ["carol"]})}}
+
+    monkeypatch.setattr("boto3.client", lambda service, *args, **kwargs: FakeSsmClient())
+
+    owners = lam._load_recipient_owners()
+
+    assert owners == ["carol"]
+    assert calls == ["custom-recipients-param"]
+
+
+def test_load_recipient_owners_returns_none_when_ssm_parameter_missing(monkeypatch):
+    """ParameterStoreJSONStorage.load() swallows ClientError/BotoCoreError and
+    returns {} (see backend/common/storage.py), so a missing SSM parameter
+    surfaces here as "no recipients configured" (None) rather than an
+    exception -- matches the "all owners" default, not a hard failure."""
+    from botocore.exceptions import ClientError
+
+    monkeypatch.delenv("PENSION_REPORT_RECIPIENTS_URI", raising=False)
+
+    class FailingSsmClient:
+        def get_parameter(self, Name, WithDecryption):  # noqa: N803
+            raise ClientError(
+                {"Error": {"Code": "ParameterNotFound", "Message": "not found"}},
+                "GetParameter",
+            )
+
+    monkeypatch.setattr("boto3.client", lambda service, *args, **kwargs: FailingSsmClient())
+
+    assert lam._load_recipient_owners() is None
 
 
 def _portfolio(owner="alice", dob="1990-01-01", email="alice@example.com", pot=10000.0):

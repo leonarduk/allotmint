@@ -95,15 +95,43 @@ def test_moneyhub_parse_empty_csv_returns_no_transactions():
     assert moneyhub.parse(csv_data.encode("utf-8")) == []
 
 
-def test_moneyhub_parse_unrecognised_columns_yields_empty_fields():
+def test_moneyhub_parse_rejects_csv_with_unrecognised_columns():
     csv_data = "Foo,Bar\nx,y\n"
+    with pytest.raises(ValueError, match="missing required columns"):
+        moneyhub.parse(csv_data.encode("utf-8"))
+
+
+def test_moneyhub_parse_rejects_csv_missing_some_required_columns():
+    csv_data = "Owner,Account\nalice,Current\n"
+    with pytest.raises(ValueError) as exc_info:
+        moneyhub.parse(csv_data.encode("utf-8"))
+    message = str(exc_info.value)
+    assert "date" in message
+    assert "amount" in message
+
+
+def test_moneyhub_parse_rejects_empty_csv():
+    with pytest.raises(ValueError, match="missing required columns"):
+        moneyhub.parse(b"")
+
+
+@pytest.mark.parametrize("id_header", ["Id", "id", "ID", "iD"])
+def test_moneyhub_parse_header_matching_is_case_insensitive_for_id(id_header):
+    csv_data = (
+        f"{id_header},Owner,Account,Date,Amount,Description,Category\n"
+        "mh-1001,alice,Current,2024-05-01,-42.50,Tesco Store,Groceries\n"
+    )
+    txs = moneyhub.parse(csv_data.encode("utf-8"))
+    assert txs[0].external_id == "mh-1001"
+
+
+def test_moneyhub_parse_header_matching_is_case_insensitive_for_required_columns():
+    csv_data = "OWNER,ACCOUNT,DATE,AMOUNT,description,category\nalice,Current,2024-05-01,-42.50,Tesco,Groceries\n"
     txs = moneyhub.parse(csv_data.encode("utf-8"))
     assert len(txs) == 1
-    tx = txs[0]
-    assert tx.external_id is None
-    assert tx.owner == ""
-    assert tx.account == ""
-    assert tx.amount_minor is None
+    assert txs[0].owner == "alice"
+    assert txs[0].account == "Current"
+    assert txs[0].amount_minor == pytest.approx(-42.50)
 
 
 def _tx(external_id=None, **kwargs):

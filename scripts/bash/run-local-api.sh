@@ -3,12 +3,13 @@ set -euo pipefail
 
 # ensure script runs from repository root so log files are written consistently
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+cd "$REPO_ROOT"
 
 # ensure data directory exists
 if [[ ! -d data || -z "$(ls -A data 2>/dev/null)" ]]; then
   echo "Data directory missing; syncing..." >&2
-  scripts/sync_data.sh
+  "$SCRIPT_DIR/sync_data.sh"
 fi
 
 # Load Telegram credentials if available

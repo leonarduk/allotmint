@@ -25,6 +25,14 @@ from typing import List
 
 from backend.routes.transactions import Transaction
 
+# Columns a Moneyhub export must have for a row to carry a meaningful
+# transaction. ``Id`` and ``Description``/``Category`` are intentionally
+# excluded: ``Id`` is optional (falls back to the composite key below) and
+# the fixture/real exports this was reverse-engineered from omit it, while
+# description/category can legitimately be blank on a real row. Matched
+# case-insensitively against the normalised (lowercased) header row.
+REQUIRED_COLUMNS = frozenset({"owner", "account", "date", "amount"})
+
 
 def _to_float(value: str | None) -> float | None:
     if value is None:
@@ -55,24 +63,39 @@ def parse(data: bytes) -> List[Transaction]:
     """Parse a Moneyhub manual CSV export into transactions.
 
     Expected columns: ``Owner``, ``Account``, ``Date``, ``Amount``,
-    ``Description``, ``Category``, and optionally ``Id``.
+    ``Description``, ``Category``, and optionally ``Id``. Header matching is
+    case-insensitive, so ``ID``, ``id``, and ``iD`` are all accepted.
+
+    Raises:
+        ValueError: if any of ``REQUIRED_COLUMNS`` is missing from the
+            header row (case-insensitively), e.g. a non-Moneyhub CSV was
+            uploaded by mistake.
     """
     text = data.decode("utf-8-sig")
     reader = csv.DictReader(io.StringIO(text))
+    normalised_fieldnames = [(name or "").strip().lower() for name in reader.fieldnames or []]
+    missing = REQUIRED_COLUMNS - set(normalised_fieldnames)
+    if missing:
+        raise ValueError(
+            f"CSV missing required columns: {', '.join(sorted(missing))}. "
+            f"Expected columns: {', '.join(sorted(REQUIRED_COLUMNS))}"
+        )
+    reader.fieldnames = normalised_fieldnames
+
     transactions: List[Transaction] = []
     for row in reader:
-        account = row.get("Account") or row.get("account") or ""
-        date = row.get("Date") or row.get("date")
-        amount = _to_float(row.get("Amount") or row.get("amount"))
-        description = row.get("Description") or row.get("description")
-        row_id = (row.get("Id") or row.get("id") or "").strip() or None
+        account = row.get("account") or ""
+        date = row.get("date")
+        amount = _to_float(row.get("amount"))
+        description = row.get("description")
+        row_id = (row.get("id") or "").strip() or None
         transactions.append(
             Transaction(
                 external_id=row_id or _composite_key(date, account, amount, description),
-                owner=row.get("Owner") or row.get("owner") or "",
+                owner=row.get("owner") or "",
                 account=account,
                 date=date,
-                type=row.get("Category") or row.get("category"),
+                type=row.get("category"),
                 amount_minor=amount,
                 comments=description,
             )

@@ -79,6 +79,14 @@ jobs:
           $config.Output.Verbosity = 'Detailed'
           Invoke-Pester -Configuration $config
 
+  # Not redundant with lambda-compat below despite both installing
+  # backend/requirements.txt: this job is a pure dependency-resolution check
+  # (pip install --dry-run, no packages actually installed, no tests run)
+  # that also asserts no duplicate package names in the requirements file --
+  # both fast, install-free checks lambda-compat doesn't perform. lambda-compat
+  # does a full real install plus the entire pytest suite, which is slower and
+  # gives no earlier signal on a dependency conflict than this job already
+  # gives. Keep both (issue #4467).
   validate-backend-deps:
     name: Validate backend/requirements.txt (dry-run)
     runs-on: ubuntu-latest

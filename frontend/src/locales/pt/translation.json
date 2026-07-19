@@ -19,7 +19,8 @@
       "positiveNumber": "Introduza um número positivo.",
       "generic": "Não foi possível adicionar a posição."
     },
-    "emptyAccountCta": "Adicione a sua primeira posição"
+    "emptyAccountCta": "Adicione a sua primeira posição",
+    "collapse": "Recolher formulário de adicionar posição"
   },
   "alertSettings": {
     "description": "Configure quando receber alertas. Os alertas aparecem na página de alertas e nas notificações push.",

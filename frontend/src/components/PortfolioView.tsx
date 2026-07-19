@@ -408,6 +408,7 @@ export function PortfolioView({ data, loading, error, onDateChange, onAccountAdd
                   accounts={data.accounts.map((acct) => acct.account_type)}
                   defaultAccount={addPositionAccount}
                   onAdded={handlePositionAdded}
+                  onCollapse={() => setAddPositionExpanded(false)}
                 />
               ) : (
                 <button

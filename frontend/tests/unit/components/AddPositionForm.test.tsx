@@ -101,4 +101,19 @@ describe("AddPositionForm", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("HTTP 400 - Bad Request");
   });
+
+  it("does not render a collapse button when onCollapse is not provided", () => {
+    render(<AddPositionForm owner="alice" accounts={["ISA"]} />);
+
+    expect(screen.queryByRole("button", { name: "Collapse add position form" })).toBeNull();
+  });
+
+  it("calls onCollapse when the collapse button is clicked", async () => {
+    const onCollapse = vi.fn();
+    render(<AddPositionForm owner="alice" accounts={["ISA"]} onCollapse={onCollapse} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Collapse add position form" }));
+
+    expect(onCollapse).toHaveBeenCalledTimes(1);
+  });
 });

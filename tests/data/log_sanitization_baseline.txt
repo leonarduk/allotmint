@@ -108,7 +108,6 @@ backend/routes/market.py:138
 backend/routes/market.py:145
 backend/routes/timeseries_admin.py:110
 backend/routes/timeseries_admin.py:88
-backend/routes/trading_agent.py:60
 backend/timeseries/cache.py:114
 backend/timeseries/cache.py:242
 backend/timeseries/cache.py:258

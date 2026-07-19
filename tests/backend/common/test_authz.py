@@ -76,3 +76,40 @@ def test_ensure_owner_access_rejects_missing_identity(monkeypatch):
 
     with pytest.raises(PermissionDeniedError):
         authz.ensure_owner_access(None, "alice")
+
+
+def test_ensure_owner_access_denial_is_logged(monkeypatch, caplog):
+    """A denial must be logged with enough context to diagnose the next real
+    occurrence of issue #5215 (a 403 on /accounts/{owner}/approvals that
+    couldn't be reproduced or root-caused from code alone) without needing
+    another blind investigation. The raw identity is deliberately not logged
+    (only whether one was present), since it may be a real user's email.
+    """
+    monkeypatch.setattr(config, "disable_auth", False)
+    monkeypatch.setattr(authz, "load_person_meta", lambda owner, root=None: {})
+
+    with caplog.at_level("WARNING", logger="backend.common.authz"):
+        with pytest.raises(PermissionDeniedError):
+            authz.ensure_owner_access(None, "alice")
+
+    assert len(caplog.records) == 1
+    message = caplog.records[0].getMessage()
+    assert "alice" in message
+    assert "identity_present=False" in message
+
+
+def test_ensure_owner_access_denial_log_reports_identity_present_when_unauthorized(
+    monkeypatch, caplog
+):
+    """A present-but-unauthorized identity is distinguished from no identity
+    at all in the log, since they're different failure modes (wrong account
+    vs. genuinely anonymous caller).
+    """
+    monkeypatch.setattr(config, "disable_auth", False)
+    monkeypatch.setattr(authz, "load_person_meta", lambda owner, root=None: {})
+
+    with caplog.at_level("WARNING", logger="backend.common.authz"):
+        with pytest.raises(PermissionDeniedError):
+            authz.ensure_owner_access("bob", "alice")
+
+    assert "identity_present=True" in caplog.records[0].getMessage()

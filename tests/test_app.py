@@ -87,6 +87,25 @@ def test_docs_url_is_removed(monkeypatch):
     assert resp.status_code == 404
 
 
+def test_api_console_no_auth_local_dev(monkeypatch):
+    """GET /api-console returns 200 (HTML) in local dev without any dependency overrides.
+
+    When disable_auth=True and no ADMIN_EMAILS is configured, the admin gate
+    should allow unauthenticated visitors through — no token, no
+    local_login_email, no dependency_overrides required.
+    """
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    monkeypatch.setattr(config, "snapshot_warm_days", 30)
+    monkeypatch.setattr(config, "disable_auth", True)
+    monkeypatch.delenv("ADMIN_EMAILS", raising=False)
+    with patch("backend.common.portfolio_utils.refresh_snapshot_async"):
+        app = create_app()
+        with TestClient(app) as client:
+            resp = client.get("/api-console")
+    assert resp.status_code == 200
+    assert "text/html" in resp.headers["content-type"]
+
+
 def test_api_console_accessible_when_auth_disabled(monkeypatch):
     # When auth is disabled the admin check is bypassed; use dependency_overrides
     # so get_current_user returns a user without a real JWT token.

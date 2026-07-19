@@ -508,6 +508,7 @@ export function InstrumentDetail({
       <div
         style={{
           display: "flex",
+          flexWrap: "wrap",
           justifyContent: "space-between",
           alignItems: "center",
           marginBottom: "0.2rem",

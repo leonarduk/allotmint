@@ -410,7 +410,14 @@
                         ]
                       },
                       "day_change_gbp": {
-                        "type": "number"
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
                       },
                       "day_change_currency": {
                         "anyOf": [
@@ -846,7 +853,14 @@
                         ]
                       },
                       "day_change_gbp": {
-                        "type": "number"
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
                       },
                       "day_change_currency": {
                         "anyOf": [

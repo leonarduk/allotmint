@@ -102,11 +102,11 @@ class AppLifecycleService:
         except TimeoutError:
             logger.warning(
                 "Snapshot load timed out after %ss; proceeding without snapshot data",
-                _SNAPSHOT_LOAD_TIMEOUT_SECONDS,
+                sanitise_log_value(_SNAPSHOT_LOAD_TIMEOUT_SECONDS),
             )
             snapshot, ts = {}, None
         except Exception as exc:
-            logger.error("Failed to load price snapshot: %s", exc)
+            logger.error("Failed to load price snapshot: %s", sanitise_log_value(exc))
             snapshot, ts = {}, None
 
         refresh_snapshot_in_memory(snapshot, ts)
@@ -122,7 +122,7 @@ class AppLifecycleService:
         except TimeoutError:
             logger.warning(
                 "Updating latest prices from snapshot timed out after %ss",
-                _SNAPSHOT_LOAD_TIMEOUT_SECONDS,
+                sanitise_log_value(_SNAPSHOT_LOAD_TIMEOUT_SECONDS),
             )
         except Exception:
             logger.exception("Failed to update latest prices from snapshot")

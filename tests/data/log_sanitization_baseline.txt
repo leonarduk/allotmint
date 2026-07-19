@@ -31,6 +31,9 @@ backend/common/alerts.py:78
 backend/common/approvals.py:40
 backend/common/approvals.py:45
 backend/common/approvals.py:92
+# issue #5215 diagnostic: identity is not None (always bool) and len(...)
+# (always int) can't carry attacker-controlled input.
+backend/common/authz.py:82
 backend/common/compliance.py:198
 backend/common/compliance.py:236
 backend/common/compliance.py:265

@@ -17,6 +17,10 @@ import logging
 from pathlib import Path
 from typing import Annotated, Any, Dict, List, Optional, Sequence, Tuple
 
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.security import OAuth2PasswordBearer
+from pydantic import BaseModel, Field
+
 from backend.auth import get_current_user
 from backend.common import (
     constants,
@@ -35,9 +39,6 @@ from backend.logging_setup import sanitise_log_value
 from backend.routes._accounts import resolve_accounts_root, resolve_owner_directory
 from backend.utils.pricing_dates import PricingDateCalculator
 from backend.utils.timeseries_helpers import resolve_date_range
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.security import OAuth2PasswordBearer
-from pydantic import BaseModel, Field
 
 log = logging.getLogger("routes.portfolio")
 router = APIRouter(tags=["portfolio"])

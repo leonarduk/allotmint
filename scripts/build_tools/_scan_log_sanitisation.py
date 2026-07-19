@@ -2,7 +2,7 @@
 ``tests/test_log_sanitization_audit.py``. Not part of the test suite itself
 -- run manually when auditing a new batch of logger calls:
 
-    python scripts/dev_tools/_scan_log_sanitisation.py
+    python scripts/build_tools/_scan_log_sanitisation.py
 """
 
 from __future__ import annotations

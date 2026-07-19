@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-SCRIPTS_DIR = Path(__file__).resolve().parents[1] / "scripts" / "dev_tools"
+SCRIPTS_DIR = Path(__file__).resolve().parents[1] / "scripts" / "build_tools"
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 

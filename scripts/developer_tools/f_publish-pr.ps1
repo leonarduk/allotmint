@@ -33,5 +33,8 @@ if ($Model) {
 }
 
 # Run the Python script
-python (Join-Path $repoRoot "scripts" "publish_pr.py") @pythonArgs
+# Nest Join-Path calls so this also works on Windows PowerShell 5.1, whose
+# Join-Path lacks the -AdditionalChildPath parameter (PowerShell 6+ only).
+$scriptPath = Join-Path (Join-Path (Join-Path (Join-Path $repoRoot "scripts") "developer_tools") "lib") "publish_pr.py"
+python $scriptPath @pythonArgs
 exit $LASTEXITCODE

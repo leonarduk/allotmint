@@ -1,0 +1,5 @@
+# Shell scripts must always use LF line endings, even on Windows checkouts
+# (core.autocrlf=true would otherwise rewrite them to CRLF and break bash,
+# e.g. `set -o pipefail` -> `set -o pipefail\r: invalid option name`).
+*.sh text eol=lf
+*.bash text eol=lf

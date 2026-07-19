@@ -1,4 +1,4 @@
-import scripts.dev_tools.publish_pr as publish_pr
+import scripts.developer_tools.lib.publish_pr as publish_pr
 
 
 class _FakeResult:

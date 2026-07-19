@@ -13,8 +13,12 @@ import subprocess
 import sys
 from pathlib import Path
 
-# Add parent directory to path to import review_common
+# Add .github/scripts (for review_common) and the local lib/ dir (for
+# ollama_common) to sys.path so this works both as an importable module and
+# when invoked directly (e.g. `python scripts/developer_tools/e_local_review.py`),
+# where the repo root is not on sys.path and `scripts` is not importable.
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / ".github" / "scripts"))
+sys.path.insert(0, str(Path(__file__).parent / "lib"))
 from ollama_common import (
     fetch_ollama_review,
     get_ollama_endpoint,

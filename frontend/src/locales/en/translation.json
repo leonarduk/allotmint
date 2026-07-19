@@ -19,7 +19,8 @@
       "positiveNumber": "Enter a positive number.",
       "generic": "Failed to add position."
     },
-    "emptyAccountCta": "Add your first position"
+    "emptyAccountCta": "Add your first position",
+    "collapse": "Collapse add position form"
   },
   "alertSettings": {
     "description": "Configure when you'll receive alerts. Alerts appear on the Alerts page and in push notifications.",

@@ -336,7 +336,13 @@ export function PortfolioView({ data, loading, error, onDateChange, onAccountAdd
 
   const handlePositionAdded = () => {
     setAddPositionExpanded(false);
+    setAddPositionAccount(undefined);
     onPositionAdded?.();
+  };
+
+  const handleCollapseAddPosition = () => {
+    setAddPositionExpanded(false);
+    setAddPositionAccount(undefined);
   };
 
   return (
@@ -403,12 +409,24 @@ export function PortfolioView({ data, loading, error, onDateChange, onAccountAdd
           {data.accounts.length > 0 && (
             <div ref={addPositionRef} className="mb-6">
               {addPositionExpanded ? (
-                <AddPositionForm
-                  owner={data.owner}
-                  accounts={data.accounts.map((acct) => acct.account_type)}
-                  defaultAccount={addPositionAccount}
-                  onAdded={handlePositionAdded}
-                />
+                <div>
+                  <div className="mb-2 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={handleCollapseAddPosition}
+                      aria-label={t("addPosition.collapse")}
+                      className="rounded border border-gray-700 px-3 py-1.5 text-sm text-white hover:border-gray-500 hover:bg-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
+                    >
+                      − {t("addPosition.title")}
+                    </button>
+                  </div>
+                  <AddPositionForm
+                    owner={data.owner}
+                    accounts={data.accounts.map((acct) => acct.account_type)}
+                    defaultAccount={addPositionAccount}
+                    onAdded={handlePositionAdded}
+                  />
+                </div>
               ) : (
                 <button
                   type="button"

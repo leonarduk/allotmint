@@ -12,6 +12,7 @@ vi.mock("@/api", () => ({
   getVarBreakdown: vi.fn().mockResolvedValue([]),
   createAccount: vi.fn(),
   importHoldingsCsv: vi.fn(),
+  createManualHolding: vi.fn(),
 }));
 
 vi.mock("@/components/PerformanceDashboard", () => ({
@@ -77,6 +78,22 @@ describe("PortfolioView", () => {
         render(<PortfolioView data={mockOwner} />);
 
         expect(screen.getByRole("button", { name: /add account/i })).toBeInTheDocument();
+    });
+
+    it("expands the Add Position form and can collapse it again", () => {
+        render(<PortfolioView data={mockOwner} />);
+
+        const addButton = screen.getByRole("button", { name: /^\+ add position$/i });
+        fireEvent.click(addButton);
+
+        expect(screen.getByRole("heading", { name: /add position/i })).toBeInTheDocument();
+        const collapseButton = screen.getByRole("button", { name: /collapse add position form/i });
+        expect(collapseButton).toBeInTheDocument();
+
+        fireEvent.click(collapseButton);
+
+        expect(screen.queryByRole("heading", { name: /add position/i })).not.toBeInTheDocument();
+        expect(screen.getByRole("button", { name: /^\+ add position$/i })).toBeInTheDocument();
     });
 
     it("opens the add-account form when 'Add account' is clicked", () => {

@@ -396,6 +396,40 @@ describe("InstrumentResearch page", () => {
     expect(await screen.findByText("No news available")).toBeInTheDocument();
   });
 
+  it("orders news most-recent first regardless of API response order", async () => {
+    mockGetNews.mockResolvedValueOnce([
+      {
+        headline: "Oldest headline",
+        url: "https://example.com/oldest",
+        published_at: "2023-01-01T00:00:00Z",
+      },
+      {
+        headline: "Newest headline",
+        url: "https://example.com/newest",
+        published_at: "2023-08-25T16:00:00Z",
+      },
+      {
+        headline: "Middle headline",
+        url: "https://example.com/middle",
+        published_at: "2023-05-01T00:00:00Z",
+      },
+    ]);
+
+    renderPage();
+
+    const newsTab = screen.getByRole("button", { name: /News/i });
+    await userEvent.click(newsTab);
+
+    const links = await screen.findAllByRole("link", {
+      name: /(Oldest|Newest|Middle) headline/,
+    });
+    expect(links.map((link) => link.textContent)).toEqual([
+      "Newest headline",
+      "Middle headline",
+      "Oldest headline",
+    ]);
+  });
+
   it("renders news metadata when available", async () => {
     mockGetNews.mockResolvedValueOnce([
       {

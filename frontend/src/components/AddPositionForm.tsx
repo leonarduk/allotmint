@@ -10,9 +10,10 @@ type Props = {
   accounts: string[];
   defaultAccount?: string;
   onAdded?: () => void;
+  onCollapse?: () => void;
 };
 
-export function AddPositionForm({ owner, accounts, defaultAccount, onAdded }: Props) {
+export function AddPositionForm({ owner, accounts, defaultAccount, onAdded, onCollapse }: Props) {
   const { t } = useTranslation();
   const [account, setAccount] = useState(defaultAccount ?? accounts[0] ?? "");
   const [ticker, setTicker] = useState("");
@@ -83,7 +84,19 @@ export function AddPositionForm({ owner, accounts, defaultAccount, onAdded }: Pr
       aria-label={t("addPosition.title")}
       className="mb-6 rounded-lg border border-gray-800 bg-black/20 p-4"
     >
-      <h3 className="mb-3 text-base font-semibold text-white">{t("addPosition.title")}</h3>
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-base font-semibold text-white">{t("addPosition.title")}</h3>
+        {onCollapse && (
+          <button
+            type="button"
+            onClick={onCollapse}
+            aria-label={t("addPosition.collapse")}
+            className="rounded border border-gray-700 px-2 py-0.5 text-sm text-white hover:border-gray-500 hover:bg-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
+          >
+            −
+          </button>
+        )}
+      </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <label className="text-sm text-gray-300">
           {t("addPosition.account")}

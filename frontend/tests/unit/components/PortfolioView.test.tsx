@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { PortfolioView } from "@/components/PortfolioView";
 import type { Portfolio } from "@/types";
@@ -145,6 +145,20 @@ describe("PortfolioView", () => {
         fireEvent.click(screen.getByRole("button", { name: /^import$/i }));
 
         await waitFor(() => expect(onPositionAdded).toHaveBeenCalledTimes(1));
+    });
+
+    it("resets the pre-selected account when the add-position form is collapsed and reopened", () => {
+        Element.prototype.scrollIntoView = vi.fn();
+        render(<PortfolioView data={mockOwner} />);
+
+        fireEvent.click(screen.getAllByRole("button", { name: /add your first position/i })[1]);
+        const addPositionForm = screen.getByRole("form", { name: /^add position$/i });
+        expect(within(addPositionForm).getByLabelText(/account/i)).toHaveValue("SIPP");
+
+        fireEvent.click(screen.getByRole("button", { name: /collapse add position form/i }));
+        fireEvent.click(screen.getByRole("button", { name: /\+ add position/i }));
+
+        expect(within(screen.getByRole("form", { name: /^add position$/i })).getByLabelText(/account/i)).toHaveValue("ISA");
     });
 
     it("hides the CSV import form when no accounts exist", () => {

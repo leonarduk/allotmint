@@ -3,6 +3,7 @@ from __future__ import annotations
 """Market overview endpoint aggregating indexes, sectors and headlines."""
 
 import logging
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Literal, Optional, TypedDict
 
 import requests
@@ -45,6 +46,13 @@ US_SECTOR_ETFS = {
 
 
 logger = logging.getLogger(__name__)
+
+# Headlines older than this are excluded from the Market Overview feed so the
+# page doesn't surface stale stories mixed in with recent ones.  Mirrors the
+# staleness-threshold pattern used for cache freshness in
+# ``backend.routes.news.NEWS_MAX_STALENESS``, but this applies to the
+# article's own publish date rather than the cache's age.
+HEADLINE_MAX_AGE = timedelta(hours=72)
 
 
 class IndexPayload(TypedDict):
@@ -234,14 +242,62 @@ def _fetch_uk_sectors() -> List[SectorPayload]:
     return out
 
 
+def _parse_published_at(value: Any) -> Optional[datetime]:
+    """Parse an ISO-8601 ``published_at`` string into a timezone-aware datetime."""
+
+    if not isinstance(value, str) or not value:
+        return None
+
+    cleaned = value[:-1] + "+00:00" if value.endswith("Z") else value
+    try:
+        dt = datetime.fromisoformat(cleaned)
+    except ValueError:
+        return None
+
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def _sort_and_filter_headlines(headlines: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Sort headlines newest-first and drop ones older than ``HEADLINE_MAX_AGE``.
+
+    Items whose ``published_at`` is missing or unparsable are treated as
+    undated: they're excluded from the primary (recency-filtered) result but
+    kept as a fallback, sorted after any dated items, so the page still shows
+    something when upstream providers return sparse or undated coverage
+    instead of going to an empty state.
+    """
+
+    now = datetime.now(timezone.utc)
+    dated: List[tuple[datetime, Dict[str, Any]]] = []
+    undated: List[Dict[str, Any]] = []
+
+    for item in headlines:
+        published = _parse_published_at(item.get("published_at"))
+        if published is None:
+            undated.append(item)
+        else:
+            dated.append((published, item))
+
+    dated.sort(key=lambda pair: pair[0], reverse=True)
+    recent = [item for published, item in dated if now - published <= HEADLINE_MAX_AGE]
+
+    if recent:
+        return recent
+
+    return [item for _, item in dated] + undated
+
+
 def _fetch_headlines() -> List[Dict[str, Any]]:
     """Fetch latest headlines for all known index symbols.
 
     Each index symbol is queried individually; results are aggregated and
-    de-duplicated by URL or headline.  Each item carries the ``stale`` flag
-    from ``get_cached_news`` so the frontend can flag headlines served from
-    an aged cache.  If all requests fail, an error is logged so callers have
-    some visibility into the failure.
+    de-duplicated by URL or headline, then sorted newest-first and filtered
+    to ``HEADLINE_MAX_AGE`` (see ``_sort_and_filter_headlines``).  Each item
+    carries the ``stale`` flag from ``get_cached_news`` so the frontend can
+    flag headlines served from an aged cache.  If all requests fail, an error
+    is logged so callers have some visibility into the failure.
     """
 
     logger = logging.getLogger(__name__)
@@ -271,7 +327,7 @@ def _fetch_headlines() -> List[Dict[str, Any]]:
     if not success:
         logger.error("Failed to fetch news for all index symbols")
 
-    return headlines
+    return _sort_and_filter_headlines(headlines)
 
 
 def _safe(func, default):

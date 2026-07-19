@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from typing import List
 
 import pytest
@@ -38,12 +39,8 @@ def test_fetch_headlines_uses_cached_helper(monkeypatch):
     second = market_module._fetch_headlines()
 
     assert seen_fresh == set(symbols)
-    assert sorted(item["headline"] for item in first) == sorted(
-        f"{sym} fresh" for sym in symbols
-    )
-    assert sorted(item["headline"] for item in second) == sorted(
-        f"{sym} cached" for sym in symbols
-    )
+    assert sorted(item["headline"] for item in first) == sorted(f"{sym} fresh" for sym in symbols)
+    assert sorted(item["headline"] for item in second) == sorted(f"{sym} cached" for sym in symbols)
 
 
 def test_fetch_headlines_stops_on_quota_exhaustion(monkeypatch):
@@ -63,10 +60,7 @@ def test_fetch_headlines_stops_on_quota_exhaustion(monkeypatch):
 
     assert calls == symbols[: symbols.index(stop_after) + 1]
     assert all(stop_after not in item["headline"] for item in headlines)
-    assert all(
-        item["headline"].endswith("fresh")
-        for item in headlines
-    )
+    assert all(item["headline"].endswith("fresh") for item in headlines)
 
 
 @pytest.mark.asyncio
@@ -168,6 +162,58 @@ def test_fetch_uk_sectors_nested_values(monkeypatch):
         {"sector": "Financials", "change": -1.1, "source": "lse"},
         {"sector": "Utilities", "change": 0.5, "source": "lse"},
     ]
+
+
+def _iso(dt: datetime) -> str:
+    return dt.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def test_sort_and_filter_headlines_excludes_old_and_sorts_newest_first():
+    now = datetime.now(timezone.utc)
+    old = {
+        "headline": "Old",
+        "url": "https://example.com/old",
+        "published_at": _iso(now - timedelta(days=10)),
+    }
+    middle = {
+        "headline": "Middle",
+        "url": "https://example.com/middle",
+        "published_at": _iso(now - timedelta(hours=10)),
+    }
+    newest = {
+        "headline": "Newest",
+        "url": "https://example.com/newest",
+        "published_at": _iso(now - timedelta(hours=1)),
+    }
+
+    result = market_module._sort_and_filter_headlines([old, middle, newest])
+
+    assert result == [newest, middle]
+
+
+def test_sort_and_filter_headlines_falls_back_when_nothing_recent():
+    now = datetime.now(timezone.utc)
+    old = {
+        "headline": "Old",
+        "url": "https://example.com/old",
+        "published_at": _iso(now - timedelta(days=30)),
+    }
+    older = {
+        "headline": "Older",
+        "url": "https://example.com/older",
+        "published_at": _iso(now - timedelta(days=60)),
+    }
+    undated = {"headline": "Undated", "url": "https://example.com/undated"}
+
+    result = market_module._sort_and_filter_headlines([older, old, undated])
+
+    assert result == [old, older, undated]
+
+
+def test_sort_and_filter_headlines_keeps_undated_when_no_dated_items():
+    undated = [{"headline": "A", "url": "https://example.com/a"}]
+
+    assert market_module._sort_and_filter_headlines(undated) == undated
 
 
 def test_fetch_uk_sectors_skips_invalid_entries(monkeypatch):

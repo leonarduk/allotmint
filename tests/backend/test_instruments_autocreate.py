@@ -23,7 +23,7 @@ def test_get_instrument_meta_does_not_call_yahoo_on_cache_miss(tmp_path, monkeyp
 
     calls: list[tuple[str, str]] = []
 
-    def fake_fetch(symbol: str, exchange: str):  # pragma: no cover - should not be called
+    def fake_fetch(symbol: str, exchange: str):
         calls.append((symbol, exchange))
         return {"name": "Should not happen"}
 

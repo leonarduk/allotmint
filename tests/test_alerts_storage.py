@@ -41,6 +41,38 @@ def test_parse_subscriptions_discards_non_dict_entries():
     assert alerts._parse_subscriptions(data) == {"u1": {"k": "v"}}
 
 
+def test_parse_thresholds_sanitises_key_in_warning_log(caplog):
+    """Regression for issue #5261: the invalid-threshold warning must strip
+    embedded newlines from the (attacker-controlled) dict key before logging,
+    via sanitise_log_value."""
+    data = {"legit\nFAKE INJECTED LOG LINE": "not-a-number"}
+
+    with caplog.at_level("WARNING", logger=alerts.logger.name):
+        alerts._parse_thresholds(data)
+
+    warnings = [r for r in caplog.records if "Invalid threshold value" in r.message]
+    assert len(warnings) == 1
+    assert "\n" not in warnings[0].message
+    assert "legit" in warnings[0].message
+    assert "FAKE INJECTED LOG LINE" in warnings[0].message
+
+
+def test_parse_subscriptions_sanitises_user_in_warning_log(caplog):
+    """Regression for issue #5261: the invalid-subscription warning must strip
+    embedded newlines from the (attacker-controlled) user key before logging,
+    via sanitise_log_value."""
+    data = {"alice\nFAKE INJECTED LOG LINE": "not-a-dict"}
+
+    with caplog.at_level("WARNING", logger=alerts.logger.name):
+        alerts._parse_subscriptions(data)
+
+    warnings = [r for r in caplog.records if "Push subscription for" in r.message]
+    assert len(warnings) == 1
+    assert "\n" not in warnings[0].message
+    assert "alice" in warnings[0].message
+    assert "FAKE INJECTED LOG LINE" in warnings[0].message
+
+
 def test_load_settings_uses_local_when_no_bucket(monkeypatch):
     local = {"a": "0.3", "b": "bad"}
 

@@ -558,6 +558,7 @@ export default function App({ onLogout }: AppProps) {
         <div
           style={{
             display: 'flex',
+            flexWrap: 'wrap',
             alignItems: 'center',
             gap: '0.5rem',
             margin: '1rem 0',

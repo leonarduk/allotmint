@@ -15,6 +15,7 @@ if str(CDK_DIR) not in sys.path:
     sys.path.insert(0, str(CDK_DIR))
 
 from stacks.backend_lambda_stack import (
+    METADATA_PREFIX,
     WRITABLE_ACCOUNTS_PREFIX,
     BackendLambdaStack,
 )
@@ -858,6 +859,22 @@ def test_writable_accounts_prefix_matches_backend_accounts_store() -> None:
         "backend.common.accounts_store.WRITABLE_ACCOUNTS_PREFIX ('{}')".format(
             WRITABLE_ACCOUNTS_PREFIX, backend_prefix
         )
+    )
+
+
+def test_metadata_prefix_matches_backend_instruments_s3_location() -> None:
+    """The CDK stack's METADATA_PREFIX literal must match the Python backend's
+    fallback literal in backend.common.instruments._s3_location(), since CDK
+    passes its value into the Lambda's METADATA_PREFIX env var and
+    _s3_location() only falls back to its own literal when that env var is
+    unset. See issue #4930 (the constants going out of sync would silently
+    change where auto-created instrument metadata is written)."""
+    instruments_path = CDK_DIR.parent / "backend" / "common" / "instruments.py"
+    backend_prefix = _fallback_string_literal(instruments_path, "prefix")
+
+    assert METADATA_PREFIX == backend_prefix, (
+        "CDK's METADATA_PREFIX ('{}') has drifted from the fallback literal in "
+        "backend.common.instruments._s3_location() ('{}')".format(METADATA_PREFIX, backend_prefix)
     )
 
 

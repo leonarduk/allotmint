@@ -53,9 +53,11 @@ from backend.routes.transactions import resolve_writable_store
 if TYPE_CHECKING:
     from slowapi import Limiter
 
-# Module-level router kept for backward compatibility (tests and direct imports).
-# It is unlimited — callers should prefer :func:`create_router` when a limiter
-# is available.
+# WARNING: this module-level router has NO rate limiting applied. It exists
+# for backward compatibility (tests and direct imports) only. Production code
+# must call create_router(limiter=...) instead -- create_router(limiter=None)
+# (its own default) also returns this same unprotected router, so passing a
+# limiter is not optional for a production mount.
 router = APIRouter(prefix="/signup", tags=["signup"])
 
 logger = logging.getLogger(__name__)
@@ -283,6 +285,10 @@ def create_router(
     is decorated via ``limiter.limit(rate_limit)``. The limiter must be the
     same instance registered on ``app.state.limiter`` so rate-limit counters
     are shared across the application.
+
+    If ``limiter`` is ``None`` (the default) or ``rate_limit`` is falsy, this
+    returns the unprotected module-level ``router`` with no rate limiting at
+    all -- always pass both for a production mount.
 
     Approve and reject endpoints are not rate-limited — they already require
     unguessable single-use tokens.

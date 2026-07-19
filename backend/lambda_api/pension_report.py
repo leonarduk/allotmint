@@ -123,6 +123,12 @@ def _build_report_for_owner(
     ytd = pension_ytd_return(
         current_pot_gbp=pot_gbp,
         pot_start_of_year_gbp=start_of_year_pot,
+        # Known limitation: contributions made so far this year are not
+        # tracked here, so this YTD return is overstated by that amount (it
+        # can't distinguish investment growth from new money paid in).
+        # TODO: prorate contribution_annual over the elapsed year, e.g.
+        # contribution_annual * (today.timetuple().tm_yday / 365.25), once a
+        # per-owner contribution history is available to validate against.
         contributions_ytd_gbp=0.0,
     )
 

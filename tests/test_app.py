@@ -1,3 +1,4 @@
+import asyncio
 from unittest.mock import patch
 
 import pytest
@@ -21,7 +22,8 @@ def test_health_env_variable(monkeypatch):
     assert resp.json()["env"] == "staging"
 
 
-def test_startup_warms_snapshot(monkeypatch):
+@pytest.mark.asyncio
+async def test_startup_warms_snapshot(monkeypatch):
     monkeypatch.setattr(config, "skip_snapshot_warm", False)
     monkeypatch.setattr(config, "snapshot_warm_days", 30)
     with (
@@ -32,8 +34,13 @@ def test_startup_warms_snapshot(monkeypatch):
         patch("backend.common.instrument_api.prime_latest_prices") as mock_prime,
     ):
         app = create_app()
-        with TestClient(app):
-            pass
+        # prime_latest_prices now runs inside a background asyncio Task
+        # rather than synchronously. Use the async lifespan directly and
+        # await the task so the assertion below can observe the call.
+        async with app.router.lifespan_context(app):
+            tasks = getattr(app.state, "background_tasks", [])
+            if tasks:
+                await asyncio.gather(*tasks, return_exceptions=True)
     mock_refresh.assert_called_once_with(days=30)
     mock_load.assert_called_once_with()
     mock_mem.assert_called_once_with({}, None)

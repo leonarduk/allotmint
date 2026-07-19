@@ -518,6 +518,28 @@ def test_pension_report_lambda_put_object_scoped_to_pension_reports_prefix() -> 
         ), f"Expected s3:PutObject resource scoped to pension-reports/*, got {resource!r}"
 
 
+def test_ses_send_email_scoped_to_sender_identity_not_wildcard() -> None:
+    """BackendLambda and PensionReportLambda's ses:SendEmail must not be `"*"`.
+
+    Both Lambdas only ever send from the WEEKLY_REPORT_FROM sender identity
+    (backend/emails/*.py's `_SENDER_EMAIL`, default "no-reply@allotmint.com").
+    A wildcard resource would let a compromised Lambda send email as any
+    verified SES identity in the account (issue #5372).
+    """
+    template = _stack_template()
+
+    for fragment in ("BackendLambda", "PensionReportLambda"):
+        role = _role_logical_id_for_lambda(template, fragment)
+        send_email_resources = _resources_for_s3_action(template, role, "ses:SendEmail")
+
+        assert send_email_resources, f"Expected {fragment} to have an ses:SendEmail grant"
+        for resource in send_email_resources:
+            assert resource != "*", f"{fragment}'s ses:SendEmail must not be scoped to '*'"
+            assert (
+                "identity/no-reply@allotmint.com" in resource
+            ), f"Expected ses:SendEmail scoped to the sender identity, got {resource!r}"
+
+
 def test_lambda_roles_do_not_have_s3_delete_permissions() -> None:
     template = _stack_template()
 

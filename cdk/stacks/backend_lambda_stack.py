@@ -246,6 +246,18 @@ class BackendLambdaStack(Stack):
         budget_alert_email = self.node.try_get_context("budget_alert_email") or os.getenv(
             "BUDGET_ALERT_EMAIL"
         )
+        # Public account-signup request flow (#4352, #5367). These vars must be
+        # set for the create-account form and admin approval email flow to work.
+        # Supplied via CDK context or env var rather than hardcoded in the stack.
+        signup_admin_email = self.node.try_get_context("signup_admin_email") or os.getenv(
+            "SIGNUP_ADMIN_EMAIL", ""
+        )
+        signup_approval_base_url = self.node.try_get_context("signup_approval_base_url") or os.getenv(
+            "SIGNUP_APPROVAL_BASE_URL", ""
+        )
+        signup_login_url = self.node.try_get_context("signup_login_url") or os.getenv(
+            "SIGNUP_LOGIN_URL", ""
+        )
         # Cadence for the pension report Lambda's EventBridge rule (issue #2758).
         # "weekly" -> every Monday; "monthly" -> the 1st of the month. Configurable
         # via CDK context or env var rather than hardcoded in the rule itself.
@@ -399,6 +411,15 @@ class BackendLambdaStack(Stack):
         }
         if data_repo:
             backend_env["DATA_REPO"] = data_repo
+        # Signup request env vars (#5367): conditional so empty/unset values
+        # are not injected, which lets the route handler's 503 guard fire
+        # cleanly instead of surfacing as a downstream SES error.
+        if signup_admin_email:
+            backend_env["SIGNUP_ADMIN_EMAIL"] = signup_admin_email
+        if signup_approval_base_url:
+            backend_env["SIGNUP_APPROVAL_BASE_URL"] = signup_approval_base_url
+        if signup_login_url:
+            backend_env["SIGNUP_LOGIN_URL"] = signup_login_url
 
         backend_log_group = self._lambda_log_group(self, "BackendLambdaLogGroup")
         backend_fn = _lambda.DockerImageFunction(
@@ -431,6 +452,18 @@ class BackendLambdaStack(Stack):
             list_prefix=lambda_list_prefixes["backend"],
         )
         self._grant_timeseries_cache_access(backend_fn, bucket=data_bucket, allow_put=True)
+
+        # SES send permission for signup admin/user notification emails (#5367).
+        # The Lambda calls ses:SendEmail to notify the admin of new account
+        # requests (signup_request.py) and to tell approved users their login
+        # is ready (signup_approved.py). The pension report Lambda also sends
+        # email via SES and receives the same grant further below.
+        backend_fn.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["ses:SendEmail"],
+                resources=["*"],
+            )
+        )
 
         ui_auth_user_pool_id_default = self.node.try_get_context(
             "ui_auth_user_pool_id"
@@ -1026,6 +1059,14 @@ class BackendLambdaStack(Stack):
             allow_list=True,
             list_prefix=lambda_list_prefixes["pension_report"],
             put_prefix="pension-reports",
+        )
+
+        # SES send permission for the pension report email (#5367).
+        pension_report_fn.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["ses:SendEmail"],
+                resources=["*"],
+            )
         )
 
         pension_report_schedule = (

@@ -15,6 +15,7 @@ export default function SummaryBar({ owners, owner, onOwnerChange, onRefresh }: 
     <div
       style={{
         display: "flex",
+        flexWrap: "wrap",
         justifyContent: "space-between",
         alignItems: "center",
         marginBottom: "1rem",

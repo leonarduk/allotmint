@@ -727,6 +727,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
       <div
         style={{
           display: "flex",
+          flexWrap: "wrap",
           justifyContent: "space-between",
           alignItems: "flex-end",
           gap: "1rem",
@@ -822,6 +823,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
         <div
           style={{
             display: "flex",
+            flexWrap: "wrap",
             gap: "2rem",
             marginBottom: "1rem",
             padding: "0.75rem 1rem",

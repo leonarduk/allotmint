@@ -2,17 +2,17 @@ from __future__ import annotations
 
 import ast
 import os
-import sys
 from pathlib import Path
 
 import pytest
 from aws_cdk import App
 from aws_cdk import aws_lambda as _lambda
+from aws_cdk import aws_s3 as s3
 from aws_cdk.assertions import Template
 
+# sys.path setup for this file's `stacks...` import (needs cdk/ on the path,
+# not the repo root) lives in cdk/tests/conftest.py (#4929).
 CDK_DIR = Path(__file__).resolve().parents[1]
-if str(CDK_DIR) not in sys.path:
-    sys.path.insert(0, str(CDK_DIR))
 
 from stacks.backend_lambda_stack import (
     METADATA_PREFIX,
@@ -413,6 +413,63 @@ def test_grant_bucket_access_scopes_put_object_to_put_prefix() -> None:
     put_resources = _resources_for_s3_action(template, role_logical_id, "s3:PutObject")
 
     assert put_resources == ["arn:aws:s3:::unit-test-bucket/pension-reports/*"]
+
+
+def test_grant_bucket_access_scopes_put_object_to_put_prefix_with_bucket_construct(monkeypatch) -> None:
+    """Same as test_grant_bucket_access_scopes_put_object_to_put_prefix but via the
+    `bucket` (CDK IBucket construct) parameter instead of `bucket_name` (#5027) --
+    _grant_bucket_access's put_prefix branch has separate arn-building code for
+    each (bucket.arn_for_objects(...) vs an f-string), so the bucket_name path
+    alone doesn't exercise it."""
+    monkeypatch.setenv("JWT_SECRET", "test-secret")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-client-id")
+    app = App()
+    stack = BackendLambdaStack(app, "GrantBucketAccessPutPrefixBucketStack")
+    bucket = s3.Bucket(stack, "GrantBucketAccessPutPrefixBucket", bucket_name="unit-test-bucket-construct")
+    fn = _lambda.Function(
+        stack,
+        "GrantBucketAccessPutPrefixBucketFn",
+        runtime=_lambda.Runtime.PYTHON_3_11,
+        code=_lambda.Code.from_inline("def handler(event, context):\n    return None\n"),
+        handler="index.handler",
+    )
+
+    BackendLambdaStack._grant_bucket_access(
+        fn,
+        bucket=bucket,
+        allow_read=False,
+        allow_put=True,
+        allow_list=False,
+        put_prefix="pension-reports",
+    )
+
+    template = Template.from_stack(stack).to_json()
+    # BackendLambdaStack's own constructor already creates its production data
+    # bucket, so match on BucketName rather than taking the first
+    # AWS::S3::Bucket resource -- there are two in this template.
+    bucket_logical_id = next(
+        logical_id
+        for logical_id, resource in template["Resources"].items()
+        if resource.get("Type") == "AWS::S3::Bucket"
+        and resource.get("Properties", {}).get("BucketName") == "unit-test-bucket-construct"
+    )
+    role_logical_id = _role_logical_id_for_lambda(template, "GrantBucketAccessPutPrefixBucketFn")
+    put_resources = _resources_for_s3_action(template, role_logical_id, "s3:PutObject")
+
+    assert len(put_resources) == 1, f"Expected exactly one s3:PutObject resource, got: {put_resources}"
+    # A CDK `bucket` construct resolves arn_for_objects() to a CloudFormation
+    # intrinsic referencing the bucket's Arn attribute, not a plain ARN string
+    # -- unlike the bucket_name path in
+    # test_grant_bucket_access_scopes_put_object_to_put_prefix, which builds a
+    # plain f-string. Assert on that structure plus the prefix suffix, since
+    # this is exactly the code path (bucket.arn_for_objects(...)) this test
+    # exists to cover.
+    put_resource = ast.literal_eval(put_resources[0])
+    assert set(put_resource.keys()) == {"Fn::Join"}
+    separator, parts = put_resource["Fn::Join"]
+    assert separator == ""
+    assert parts[0] == {"Fn::GetAtt": [bucket_logical_id, "Arn"]}
+    assert parts[1] == "/pension-reports/*"
 
 
 def test_grant_bucket_access_put_defaults_to_bucket_wide_without_put_prefix() -> None:

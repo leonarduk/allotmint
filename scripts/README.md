@@ -137,13 +137,24 @@ Use the PowerShell wrapper for convenience:
 
 ## import_transactions.py
 
-Upload a local transaction export to the running backend for parsing:
+Upload a local transaction export to the running backend for parsing and persistence:
 
 ```
 python scripts/import_transactions.py degiro path/to/transactions.csv
 ```
 
-Use `--api` to point at a different backend URL. Parsed transactions are printed as JSON.
+Use `--api` to point at a different backend URL. Rows already imported (matched by the
+source provider's stable id, where available) are deduped and never re-persisted.
+
+Degiro and Moneyhub exports carry an owner/account per row; Hargreaves exports don't, so
+pass `--owner`/`--account` as a fallback destination for rows that lack their own:
+
+```
+python scripts/import_transactions.py hargreaves path/to/export.csv --owner alice --account isa
+```
+
+Rows with no resolvable owner/account (no fallback given, and the row doesn't carry its
+own) are reported as skipped rather than persisted or silently dropped.
 
 ## work_on_issue.py
 

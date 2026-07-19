@@ -441,8 +441,32 @@ def test_import_transactions_success(tmp_path, monkeypatch):
     resp = client.post("/transactions/import", data={"provider": "degiro"}, files=files)
 
     assert resp.status_code == 200
-    assert resp.json() == [tx.model_dump() for tx in sample]
+    data = resp.json()
+    assert data["skipped"] == []
+    assert len(data["persisted"]) == 1
+    assert data["persisted"][0]["owner"] == "alice"
+    assert data["persisted"][0]["account"] == "isa"
+    assert data["persisted"][0]["ticker"] == "PFE"
+    assert data["persisted"][0]["id"] == "alice:isa:0"
     assert captured == {"provider": "degiro", "data": b"content"}
+
+
+def test_import_transactions_empty_parse_does_not_require_writable_store(tmp_path, monkeypatch):
+    """An empty parse result (e.g. the "test" provider used by smoke tests,
+    which always returns []) must not 400 for a request with no writable
+    account root -- there's nothing to persist or dedupe against, so no
+    store should even be resolved (#4965, follow-up to #5366's smoke-test
+    auth fix: this endpoint is on the smoke sweep and must keep responding
+    200 regardless of the caller's write permissions).
+    """
+    client = _make_client(tmp_path, monkeypatch, accounts_root="")
+    monkeypatch.setattr(transactions.importers, "parse", lambda provider, data: [])
+
+    files = {"file": ("tx.csv", b"content", "text/csv")}
+    resp = client.post("/transactions/import", data={"provider": "test"}, files=files)
+
+    assert resp.status_code == 200
+    assert resp.json() == {"persisted": [], "skipped": []}
 
 
 def test_import_transactions_unknown_provider(tmp_path, monkeypatch):

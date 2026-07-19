@@ -36,9 +36,10 @@ import type { RowWithCost } from './instrumentTable/types';
 type Props = {
   rows: InstrumentSummary[];
   showGroupTotals?: boolean;
+  showSparklines?: boolean;
 };
 
-export function InstrumentTable({ rows, showGroupTotals = true }: Props) {
+export function InstrumentTable({ rows, showGroupTotals = true, showSparklines = true }: Props) {
   const { t } = useTranslation();
   const { relativeViewEnabled, baseCurrency } = useConfig();
   const [groupDefinitions, setGroupDefinitions] = useState<InstrumentGroupDefinition[]>([]);
@@ -124,8 +125,12 @@ export function InstrumentTable({ rows, showGroupTotals = true }: Props) {
   }
 
   const noFilteredRows = rowsWithCost.length === 0;
+  const showTrend = showSparklines && visibleColumns.trend;
+  const trendColumnLabels: [keyof typeof visibleColumns, string][] = showSparklines
+    ? [['trend', 'Trend']]
+    : [];
   const columnLabels: [keyof typeof visibleColumns, string][] = [
-    ['trend', 'Trend'],
+    ...trendColumnLabels,
     ['units', 'Units'],
     ['cost', 'Cost'],
     ['market', 'Market'],
@@ -235,7 +240,7 @@ export function InstrumentTable({ rows, showGroupTotals = true }: Props) {
               {t('instrumentTable.columns.name')}
               {sortKey === 'name' ? (asc ? ' ▲' : ' ▼') : ''}
             </th>
-            {visibleColumns.trend && (
+            {showTrend && (
               <th className={`${tableStyles.cell} ${tableStyles.center}`}>
                 {t('instrumentTable.columns.trend', { defaultValue: 'Trend' })}
               </th>
@@ -377,7 +382,7 @@ export function InstrumentTable({ rows, showGroupTotals = true }: Props) {
                       </span>
                     </button>
                   </th>
-                  {visibleColumns.trend && (
+                  {showTrend && (
                     <td className={`${tableStyles.cell} ${tableStyles.groupCell}`}>—</td>
                   )}
                   <td className={`${tableStyles.cell} ${tableStyles.groupCell}`}>—</td>
@@ -467,7 +472,7 @@ export function InstrumentTable({ rows, showGroupTotals = true }: Props) {
                         </button>
                       </td>
                       <td className={tableStyles.cell}>{r.name}</td>
-                      {visibleColumns.trend && (
+                      {showTrend && (
                         <td className={`${tableStyles.cell} ${tableStyles.center}`}>
                           <Sparkline
                             ticker={r.ticker}
@@ -626,7 +631,8 @@ export function InstrumentTable({ rows, showGroupTotals = true }: Props) {
         })}
         <tfoot>
           <tr>
-            <td className={`${tableStyles.cell} font-semibold`} colSpan={visibleColumns.trend ? 5 : 4}>
+            {/* colSpan covers always-visible columns (ticker, name, ccy, type) plus trend when shown */}
+            <td className={`${tableStyles.cell} font-semibold`} colSpan={showTrend ? 5 : 4}>
               {totalLabel}
             </td>
             {!relativeViewEnabled && visibleColumns.units && (

@@ -108,6 +108,40 @@ def test_notify_telegram_env_gating(monkeypatch):
     assert sent["text"] == "BUY AAA: r"
 
 
+def test_telegram_send_failure_is_logged_sanitised(monkeypatch, caplog):
+    """A Telegram send failure must not crash the endpoint, and the logged
+    exception message must have embedded newlines stripped (#5260) --
+    redact_token() only strips the bot token, not CRLF characters."""
+    fake_signals = [
+        {
+            "ticker": "AAA",
+            "action": "BUY",
+            "reason": "r",
+        }
+    ]
+    monkeypatch.setattr("backend.agent.trading_agent.run", lambda **_: fake_signals)
+
+    def boom(text: str) -> None:
+        raise RuntimeError("connection failed\nFAKE INJECTED LOG LINE")
+
+    monkeypatch.setattr("backend.routes.trading_agent.send_message", boom)
+    monkeypatch.setattr("backend.routes.trading_agent.config.app_env", "local", raising=False)
+
+    client = make_client()
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "token")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "chat")
+
+    with caplog.at_level("WARNING", logger="backend.routes.trading_agent"):
+        resp = client.get("/trading-agent/signals", params={"notify_telegram": "true"})
+
+    assert resp.status_code == 200
+    warning_records = [r for r in caplog.records if "Telegram send failed" in r.message]
+    assert len(warning_records) == 1
+    assert "\n" not in warning_records[0].message
+    assert "connection failed" in warning_records[0].message
+    assert "FAKE INJECTED LOG LINE" in warning_records[0].message
+
+
 def test_no_signals(monkeypatch):
     monkeypatch.setattr("backend.agent.trading_agent.run", lambda **_: [])
 

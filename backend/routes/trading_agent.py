@@ -13,6 +13,7 @@ from backend.agent import trading_agent
 from backend.agent.models import TradingSignal
 from backend.common.alerts import publish_alert
 from backend.config import config
+from backend.logging_setup import sanitise_log_value
 from backend.utils.telegram_utils import send_message, redact_token
 
 logger = logging.getLogger(__name__)
@@ -57,6 +58,12 @@ async def signals(
             try:
                 send_message(text)
             except Exception as exc:  # pragma: no cover - network errors
-                logger.warning("Telegram send failed: %s", redact_token(str(exc)))
+                # redact_token() only strips the bot token; the exception message
+                # can otherwise carry embedded newlines from a signal's ticker or
+                # reason text (composed into `text` above), so it also needs
+                # sanitise_log_value's CRLF stripping (#5260).
+                logger.warning(
+                    "Telegram send failed: %s", sanitise_log_value(redact_token(str(exc)))
+                )
 
     return [TradingSignal.model_validate(sig) for sig in raw_signals]

@@ -13,6 +13,23 @@ import { useAuth } from '../AuthContext';
 import { useConfig } from '../ConfigContext';
 import { findOwnerForUser, sanitizeOwners } from '../utils/owners';
 
+/**
+ * Distinguish permission/session failures from generic ones so the approvals
+ * error message tells the user something actionable instead of a blanket
+ * "Failed to ..." (#5215 -- a 403 here was previously indistinguishable from
+ * a network hiccup).
+ */
+function approvalsErrorMessage(err: unknown, fallback: string): string {
+  const status = (err as { status?: number } | null | undefined)?.status;
+  if (status === 403) {
+    return "You don't have permission to view or manage approvals for this account.";
+  }
+  if (status === 401) {
+    return 'Your session has expired. Sign in again to manage approvals.';
+  }
+  return fallback;
+}
+
 export default function UserConfigPage() {
   const { t } = useTranslation();
   const { user } = useAuth();
@@ -68,9 +85,9 @@ export default function UserConfigPage() {
           setApprovals(res.approvals);
           setApprovalsError(null);
         })
-        .catch(() => {
+        .catch((err) => {
           setApprovals([]);
-          setApprovalsError('Failed to load approvals');
+          setApprovalsError(approvalsErrorMessage(err, 'Failed to load approvals'));
         });
     }
   }, [owner]);
@@ -101,8 +118,8 @@ export default function UserConfigPage() {
       setNewTicker('');
       setNewDate('');
       setApprovalsError(null);
-    } catch {
-      setApprovalsError('Failed to add approval');
+    } catch (err) {
+      setApprovalsError(approvalsErrorMessage(err, 'Failed to add approval'));
     }
   }
 
@@ -112,8 +129,8 @@ export default function UserConfigPage() {
       const res = await removeApproval(owner, ticker);
       setApprovals(res.approvals);
       setApprovalsError(null);
-    } catch {
-      setApprovalsError('Failed to remove approval');
+    } catch (err) {
+      setApprovalsError(approvalsErrorMessage(err, 'Failed to remove approval'));
     }
   }
 

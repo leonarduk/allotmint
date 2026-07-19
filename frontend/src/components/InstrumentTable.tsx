@@ -17,6 +17,7 @@ import {
   listInstrumentGroupingDefinitions,
 } from '../api';
 import { useNavigate } from 'react-router-dom';
+import Sparkline from './Sparkline';
 import { useInstrumentTableState } from './instrumentTable/useInstrumentTableState';
 import {
   cashFirstComparator,
@@ -124,6 +125,7 @@ export function InstrumentTable({ rows, showGroupTotals = true }: Props) {
 
   const noFilteredRows = rowsWithCost.length === 0;
   const columnLabels: [keyof typeof visibleColumns, string][] = [
+    ['trend', 'Trend'],
     ['units', 'Units'],
     ['cost', 'Cost'],
     ['market', 'Market'],
@@ -233,6 +235,11 @@ export function InstrumentTable({ rows, showGroupTotals = true }: Props) {
               {t('instrumentTable.columns.name')}
               {sortKey === 'name' ? (asc ? ' ▲' : ' ▼') : ''}
             </th>
+            {visibleColumns.trend && (
+              <th className={`${tableStyles.cell} ${tableStyles.center}`}>
+                {t('instrumentTable.columns.trend', { defaultValue: 'Trend' })}
+              </th>
+            )}
             <th
               className={`${tableStyles.cell} ${tableStyles.clickable}`}
               onClick={() => handleSort('currency')}
@@ -370,6 +377,9 @@ export function InstrumentTable({ rows, showGroupTotals = true }: Props) {
                       </span>
                     </button>
                   </th>
+                  {visibleColumns.trend && (
+                    <td className={`${tableStyles.cell} ${tableStyles.groupCell}`}>—</td>
+                  )}
                   <td className={`${tableStyles.cell} ${tableStyles.groupCell}`}>—</td>
                   <td className={`${tableStyles.cell} ${tableStyles.groupCell}`}>—</td>
                   {!relativeViewEnabled && visibleColumns.units && (
@@ -457,6 +467,18 @@ export function InstrumentTable({ rows, showGroupTotals = true }: Props) {
                         </button>
                       </td>
                       <td className={tableStyles.cell}>{r.name}</td>
+                      {visibleColumns.trend && (
+                        <td className={`${tableStyles.cell} ${tableStyles.center}`}>
+                          <Sparkline
+                            ticker={r.ticker}
+                            days={90}
+                            ariaLabel={t('instrumentTable.columns.sparklineAria', {
+                              ticker: r.ticker,
+                              defaultValue: `Price trend for ${r.ticker}`,
+                            })}
+                          />
+                        </td>
+                      )}
                       <td className={tableStyles.cell}>
                         {isSupportedFx(r.currency) ? (
                           <button
@@ -604,7 +626,7 @@ export function InstrumentTable({ rows, showGroupTotals = true }: Props) {
         })}
         <tfoot>
           <tr>
-            <td className={`${tableStyles.cell} font-semibold`} colSpan={4}>
+            <td className={`${tableStyles.cell} font-semibold`} colSpan={visibleColumns.trend ? 5 : 4}>
               {totalLabel}
             </td>
             {!relativeViewEnabled && visibleColumns.units && (

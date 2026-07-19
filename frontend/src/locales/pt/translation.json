@@ -289,6 +289,7 @@
       "market": "Valor de mercado £",
       "name": "Nome",
       "ticker": "Ticker",
+      "trend": "Tendência",
       "type": "Tipo",
       "units": "Unidades"
     },

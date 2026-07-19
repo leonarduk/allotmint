@@ -31,4 +31,5 @@ export type VisibleColumns = {
   market: boolean;
   gain: boolean;
   gain_pct: boolean;
+  trend: boolean;
 };

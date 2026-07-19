@@ -340,6 +340,7 @@
       "market": "Market £",
       "name": "Name",
       "ticker": "Ticker",
+      "trend": "Trend",
       "type": "Type",
       "units": "Units"
     },

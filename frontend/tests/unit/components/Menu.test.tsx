@@ -343,6 +343,65 @@ describe('Menu', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('toggles the mobile menu list via the hamburger button (#5382)', () => {
+    // The hamburger is the mobile-collapse control (hidden at sm: and above via
+    // Tailwind); jsdom can't evaluate the sm: media query, but it can verify the
+    // mobileMenuOpen state drives both the aria-expanded flag and the "hidden"/
+    // "flex" class swap on the menu list, which is what actually collapses it.
+    render(
+      <MemoryRouter>
+        <Menu />
+      </MemoryRouter>
+    );
+    const hamburger = screen.getByRole('button', { name: i18n.t('app.menu') });
+    const menuList = document.getElementById('app-main-menu');
+    expect(hamburger).toHaveAttribute('aria-expanded', 'false');
+    expect(hamburger).toHaveAttribute('aria-controls', 'app-main-menu');
+    expect(menuList).toHaveClass('hidden');
+    expect(menuList).not.toHaveClass('flex');
+
+    fireEvent.click(hamburger);
+    expect(hamburger).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('button', { name: i18n.t('app.close') })).toBe(hamburger);
+    expect(menuList).toHaveClass('flex');
+    expect(menuList).not.toHaveClass('hidden');
+
+    fireEvent.click(hamburger);
+    expect(hamburger).toHaveAttribute('aria-expanded', 'false');
+    expect(menuList).toHaveClass('hidden');
+  });
+
+  it('closes the mobile menu when Escape is pressed (#5382)', () => {
+    render(
+      <MemoryRouter>
+        <Menu />
+      </MemoryRouter>
+    );
+    const hamburger = screen.getByRole('button', { name: i18n.t('app.menu') });
+    fireEvent.click(hamburger);
+    expect(hamburger).toHaveAttribute('aria-expanded', 'true');
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(hamburger).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('closes the mobile menu when clicking outside the nav (#5382)', () => {
+    render(
+      <div>
+        <MemoryRouter>
+          <Menu />
+        </MemoryRouter>
+        <div data-testid="outside">outside content</div>
+      </div>
+    );
+    const hamburger = screen.getByRole('button', { name: i18n.t('app.menu') });
+    fireEvent.click(hamburger);
+    expect(hamburger).toHaveAttribute('aria-expanded', 'true');
+
+    fireEvent.mouseDown(screen.getByTestId('outside'));
+    expect(hamburger).toHaveAttribute('aria-expanded', 'false');
+  });
+
   it.each([
     ['MVP', true],
     ['non-MVP', false],

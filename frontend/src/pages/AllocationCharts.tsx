@@ -199,13 +199,13 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
 
   return (
     <div className="container mx-auto p-4">
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-2xl md:text-4xl">
           {t("app.modes.allocation", { defaultValue: "Allocation" })}
         </h1>
         <RelativeViewToggle />
       </div>
-      <div className="mb-4 flex gap-2">
+      <div className="mb-4 flex flex-wrap gap-2">
         <button onClick={() => setView("asset")} disabled={view === "asset"}>
           {t("allocation.instrumentTypes", { defaultValue: "Instrument Types" })}
         </button>

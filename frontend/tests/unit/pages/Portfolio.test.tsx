@@ -177,6 +177,59 @@ describe("Portfolio page", () => {
     expect(screen.getByText(/Approx Total:/).textContent).toMatch(/200/);
   });
 
+  it("clears the loading state when a stale request resolves while the newer request is still pending", async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: "alice", accounts: [] },
+      { owner: "bob", accounts: [] },
+    ]);
+
+    const alice = deferred<Portfolio>();
+    const bob = deferred<Portfolio>();
+    mockGetPortfolio.mockImplementation((owner: string) =>
+      owner === "alice" ? alice.promise : bob.promise,
+    );
+
+    render(
+      <HelmetProvider>
+        <MemoryRouter initialEntries={["/portfolio"]}>
+          <OwnerOnlyRouteProvider>
+            <Routes>
+              <Route path="/portfolio" element={<PortfolioPage />} />
+            </Routes>
+          </OwnerOnlyRouteProvider>
+        </MemoryRouter>
+      </HelmetProvider>,
+    );
+
+    const ownerSelect = await screen.findByLabelText(/Owner/i);
+    await userEvent.selectOptions(ownerSelect, "alice");
+    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("alice"));
+
+    await userEvent.selectOptions(ownerSelect, "bob");
+    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("bob"));
+
+    // The stale (alice) request resolves while the newer (bob) request is
+    // still pending -- e.g. bob's request never completes. Before the fix,
+    // alice's `finally` block would skip `setLoading(false)` because it's no
+    // longer the latest request, and since bob's `finally` never runs
+    // either, `loading` would stay stuck at `true` forever.
+    await act(async () => {
+      alice.resolve({
+        owner: "alice",
+        as_of: "2024-01-01",
+        trades_this_month: 0,
+        trades_remaining: 0,
+        total_value_estimate_gbp: 100,
+        accounts: [],
+      } as Portfolio);
+      await alice.promise;
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByText(/^Loading…$/)).not.toBeInTheDocument();
+  });
+
   it("shows available owners excluding demo entries", async () => {
     mockGetOwners.mockResolvedValueOnce([
       { owner: "demo", accounts: [] },

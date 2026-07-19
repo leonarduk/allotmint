@@ -37,9 +37,9 @@ class TestGetOllamaEndpoint:
 
 class TestGetOllamaModel:
     def test_default_model(self):
-        """Should return default neural-chat when env var not set."""
+        """Should return default qwen2.5-coder:14b when env var not set."""
         with mock.patch.dict(os.environ, {}, clear=True):
-            assert get_ollama_model() == "neural-chat"
+            assert get_ollama_model() == "qwen2.5-coder:14b"
 
     def test_custom_model(self):
         """Should return custom model from env var."""
@@ -51,14 +51,14 @@ class TestListAvailableModels:
     @mock.patch("urllib.request.urlopen")
     def test_successful_model_list(self, mock_urlopen):
         """Should return list of models from Ollama API."""
-        response_data = {"models": [{"name": "neural-chat"}, {"name": "mistral"}, {"name": "codellama"}]}
+        response_data = {"models": [{"name": "qwen2.5-coder:14b"}, {"name": "mistral"}, {"name": "codellama"}]}
         mock_response = mock.MagicMock()
         mock_response.read.return_value = json.dumps(response_data).encode()
         mock_response.__enter__.return_value = mock_response
         mock_urlopen.return_value = mock_response
 
         models = list_available_models("http://localhost:11434")
-        assert models == ["neural-chat", "mistral", "codellama"]
+        assert models == ["qwen2.5-coder:14b", "mistral", "codellama"]
 
     @mock.patch("urllib.request.urlopen")
     def test_ollama_unreachable(self, mock_urlopen):
@@ -85,7 +85,7 @@ class TestValidateOllamaConnection:
     @mock.patch("ollama_common.list_available_models")
     def test_valid_connection(self, mock_list_models):
         """Should return True when models are available."""
-        mock_list_models.return_value = ["neural-chat", "mistral"]
+        mock_list_models.return_value = ["qwen2.5-coder:14b", "mistral"]
         assert validate_ollama_connection("http://localhost:11434") is True
 
     @mock.patch("ollama_common.list_available_models")
@@ -122,7 +122,7 @@ class TestFetchOllamaReview:
         mock_response.__enter__.return_value = mock_response
         mock_urlopen.return_value = mock_response
 
-        review = fetch_ollama_review("http://localhost:11434", "neural-chat", "Test prompt")
+        review = fetch_ollama_review("http://localhost:11434", "qwen2.5-coder:14b", "Test prompt")
         assert "This PR looks good" in review
         assert "No issues found" in review
 
@@ -133,7 +133,7 @@ class TestFetchOllamaReview:
 
         mock_urlopen.side_effect = urllib.error.URLError("Connection refused")
         with pytest.raises(SystemExit) as exc_info:
-            fetch_ollama_review("http://localhost:11434", "neural-chat", "Test prompt")
+            fetch_ollama_review("http://localhost:11434", "qwen2.5-coder:14b", "Test prompt")
         assert exc_info.value.code == 1
 
     @mock.patch("urllib.request.urlopen")
@@ -160,5 +160,5 @@ class TestFetchOllamaReview:
         mock_urlopen.return_value = mock_response
 
         with pytest.raises(SystemExit) as exc_info:
-            fetch_ollama_review("http://localhost:11434", "neural-chat", "Test prompt")
+            fetch_ollama_review("http://localhost:11434", "qwen2.5-coder:14b", "Test prompt")
         assert exc_info.value.code == 1

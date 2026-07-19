@@ -18,10 +18,10 @@ def get_ollama_endpoint() -> str:
 def get_ollama_model() -> str:
     """Return the Ollama model to use for reviews.
 
-    Defaults to 'neural-chat' (a lightweight coder model). Override with
+    Defaults to 'qwen2.5-coder:14b' (a lightweight coder model). Override with
     OLLAMA_MODEL environment variable.
     """
-    return os.environ.get("OLLAMA_MODEL", "neural-chat")
+    return os.environ.get("OLLAMA_MODEL", "qwen2.5-coder:14b")
 
 
 def list_available_models(endpoint: str) -> list[str]:

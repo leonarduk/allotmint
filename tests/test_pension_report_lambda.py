@@ -1,3 +1,4 @@
+import datetime as dt
 import json
 
 import pytest
@@ -183,3 +184,50 @@ def test_build_report_flags_shortfall_when_desired_income_configured(monkeypatch
 
     email, report = stub_environment["sent_emails"][0]
     assert any("short of the" in alert for alert in report.alerts)
+
+
+def test_build_report_for_owner_sanitises_owner_when_missing_dob_or_email(caplog):
+    """Regression for issue #5261: the missing-dob/email skip warning must
+    strip embedded newlines from the (user-supplied) owner name."""
+    person = {"dob": None, "email": "alice@example.com"}
+    with caplog.at_level("WARNING", logger=lam.logger.name):
+        result = lam._build_report_for_owner("alice\nFAKE INJECTED LOG LINE", person, [], dt.date(2026, 1, 1))
+
+    assert result is None
+    warnings = [r for r in caplog.records if "missing dob or email" in r.message]
+    assert len(warnings) == 1
+    assert "\n" not in warnings[0].message
+    assert "FAKE INJECTED LOG LINE" in warnings[0].message
+
+
+def test_build_report_for_owner_sanitises_owner_when_invalid_dob(caplog):
+    """Regression for issue #5261: the invalid-dob skip warning must strip
+    embedded newlines from the (user-supplied) owner name."""
+    person = {"dob": "not-a-date", "email": "alice@example.com"}
+    with caplog.at_level("WARNING", logger=lam.logger.name):
+        result = lam._build_report_for_owner("alice\nFAKE INJECTED LOG LINE", person, [], dt.date(2026, 1, 1))
+
+    assert result is None
+    warnings = [r for r in caplog.records if "invalid dob" in r.message]
+    assert len(warnings) == 1
+    assert "\n" not in warnings[0].message
+    assert "FAKE INJECTED LOG LINE" in warnings[0].message
+
+
+def test_lambda_handler_sanitises_owner_on_per_owner_failure(monkeypatch, stub_environment, caplog):
+    """Regression for issue #5261: the per-owner failure error log must strip
+    embedded newlines from the (user-supplied) owner name."""
+
+    def boom(owner, person, accounts, today):
+        raise ValueError("boom")
+
+    monkeypatch.setattr(lam, "_build_report_for_owner", boom)
+    monkeypatch.setattr(lam, "list_portfolios", lambda: [_portfolio(owner="alice\nFAKE INJECTED LOG LINE")])
+
+    with caplog.at_level("ERROR", logger=lam.logger.name):
+        lam.lambda_handler({}, {})
+
+    errors = [r for r in caplog.records if "Pension report failed for owner" in r.message]
+    assert len(errors) == 1
+    assert "\n" not in errors[0].message
+    assert "FAKE INJECTED LOG LINE" in errors[0].message

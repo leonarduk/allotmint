@@ -347,7 +347,7 @@ export function PortfolioView({ data, loading, error, onDateChange, onAccountAdd
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <section className="rounded-lg border border-gray-800 bg-gray-900/70 p-4 md:p-6">
           {!familyMvpEnabled && (
             <form

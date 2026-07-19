@@ -93,6 +93,24 @@ the prerequisite installed/authenticated:
 make smoke-test-pr-comments
 ```
 
+### Pre-commit hooks (optional but recommended)
+
+`.pre-commit-config.yaml` runs `ruff --fix`, `black`, the full `pytest` suite,
+and a log-sanitisation check on every commit. Install once per clone:
+
+```bash
+pip install pre-commit
+pre-commit install
+```
+
+The log-sanitisation hook (`scripts/dev_tools/check_new_log_sanitisation.py`)
+fails a commit if it adds a new `backend/` `logger.warning/error/info` call
+with a non-literal argument that isn't wrapped in `sanitise_log_value(...)`
+from `backend.logging_setup`. It only checks lines the staged diff actually
+adds, so the pre-existing entries grandfathered into
+`tests/data/log_sanitization_baseline.txt` never block an unrelated commit —
+only a genuinely new unwrapped call does.
+
 ### Frontend
 
 ```bash

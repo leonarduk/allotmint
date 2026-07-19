@@ -6,14 +6,10 @@ Run from the repo root:
 """
 import json
 import os
-import sys
-from pathlib import Path
 
 import pytest
 
-# Ensure the cdk package is importable when running from repo root.
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
+# sys.path setup for `cdk.stacks...` imports lives in cdk/tests/conftest.py (#4929).
 aws_cdk = pytest.importorskip("aws_cdk", reason="aws-cdk-lib not installed")
 
 from aws_cdk import App, assertions  # noqa: E402
@@ -645,6 +641,21 @@ def test_backend_api_authorizer_accepts_cognito_id_token_contract(template):
     assert {"Ref": "UiAuthUserPoolClientId"} in without_smoke_client
 
 
+def _route_authorizer_map(template: dict) -> dict[str, dict]:
+    """Return ``{route_key: properties}`` for every API Gateway route in ``template``.
+
+    Shared by test_backend_api_routes_require_cognito_authorizer and
+    test_signup_routes_use_http_none_authorizer, which both need the same
+    RouteKey -> {AuthorizationType, AuthorizerId, ...} mapping (#4982). A pure
+    function with no fixture dependencies, so it stays trivially reusable.
+    """
+    routes = template.find_resources("AWS::ApiGatewayV2::Route")
+    return {
+        resource["Properties"].get("RouteKey", logical_id): resource["Properties"]
+        for logical_id, resource in routes.items()
+    }
+
+
 def test_backend_api_routes_require_cognito_authorizer(template):
     """All API Gateway routes must require Cognito JWT authorization except
     /health, GET /config, POST /token, POST /token/google, the public
@@ -697,13 +708,11 @@ def test_backend_api_routes_require_cognito_authorizer(template):
         "OPTIONS /{proxy+}",
     }
 
-    routes = template.find_resources("AWS::ApiGatewayV2::Route")
-    assert routes, "Expected at least one API Gateway route"
+    route_authorizer_map = _route_authorizer_map(template)
+    assert route_authorizer_map, "Expected at least one API Gateway route"
 
     actual_none_routes = set()
-    for logical_id, resource in routes.items():
-        properties = resource["Properties"]
-        route_key = properties.get("RouteKey", logical_id)
+    for route_key, properties in route_authorizer_map.items():
         auth_type = properties.get("AuthorizationType")
         if auth_type == "NONE":
             actual_none_routes.add(route_key)
@@ -748,13 +757,13 @@ def test_signup_routes_use_http_none_authorizer(template):
     and enforces the specific intended authorizer (#4799, follow-up from
     review of PR #4798).
     """
-    routes = template.find_resources("AWS::ApiGatewayV2::Route")
-    assert routes, "Expected at least one API Gateway route"
+    route_authorizer_map = _route_authorizer_map(template)
+    assert route_authorizer_map, "Expected at least one API Gateway route"
 
     signup_routes = {
-        resource["Properties"].get("RouteKey", logical_id): resource["Properties"]
-        for logical_id, resource in routes.items()
-        if "/signup/" in resource["Properties"].get("RouteKey", "")
+        route_key: properties
+        for route_key, properties in route_authorizer_map.items()
+        if "/signup/" in route_key
     }
 
     expected_route_keys = {

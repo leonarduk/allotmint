@@ -5,13 +5,9 @@ Run from the repo root:
     pytest cdk/tests/test_prod_env.py -v
 """
 
-import sys
-from pathlib import Path
-
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
+# sys.path setup for `cdk.stacks...` imports lives in cdk/tests/conftest.py (#4929).
 aws_cdk = pytest.importorskip("aws_cdk", reason="aws-cdk-lib not installed")
 
 from aws_cdk import App, Stack  # noqa: E402

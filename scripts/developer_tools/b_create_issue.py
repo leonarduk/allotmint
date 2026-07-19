@@ -10,8 +10,17 @@ import os
 import re
 import subprocess
 import sys
+from pathlib import Path
 
 import requests
+
+sys.path.insert(0, str(Path(__file__).parent / "lib"))
+from ollama_common import (
+    fetch_ollama_review,
+    get_ollama_endpoint,
+    get_ollama_model,
+    validate_ollama_connection,
+)
 
 GITHUB_API_BASE = "https://api.github.com"
 
@@ -327,6 +336,90 @@ def derive_title_from_what(what: str) -> str | None:
     return first
 
 
+def build_review_prompt(title: str, body: str) -> str:
+    """Build the prompt sent to the local LLM to review and improve the issue."""
+    return (
+        "You are reviewing a GitHub issue before it is filed. The issue uses a "
+        "structured template with '## What', '## Why', '## How', '## Constraints', "
+        "'## LLM tier', '## Success looks like' and '## Failure looks like' sections.\n\n"
+        "Improve the clarity, completeness and precision of the title and body below "
+        "while preserving the section structure and the author's intent. Do not invent "
+        "requirements that aren't implied by the original text.\n\n"
+        "Respond with exactly two parts, in this format and nothing else:\n"
+        "TITLE: <improved title>\n"
+        "BODY:\n<improved body, keeping the '## Section' headings>\n\n"
+        f"Original title: {title}\n\n"
+        f"Original body:\n{body}\n"
+    )
+
+
+def parse_review_response(
+    response: str, fallback_title: str, fallback_body: str
+) -> tuple[str, str]:
+    """Parse the LLM's TITLE/BODY response, falling back to the originals on any mismatch."""
+    match = re.search(r"TITLE:\s*(.*?)\s*\nBODY:\s*\n?(.*)", response, re.DOTALL)
+    if not match:
+        return fallback_title, fallback_body
+    title = match.group(1).strip()
+    body = match.group(2).strip()
+    if not title or not body:
+        return fallback_title, fallback_body
+    return title, body
+
+
+def offer_local_llm_review(title: str, body: str) -> tuple[str, str]:
+    """Optionally send the draft issue to a local Ollama model for review.
+
+    Returns the (possibly improved) title and body. Falls back to the
+    originals if the user declines, Ollama is unreachable, or the response
+    can't be parsed.
+    """
+    try:
+        use_llm = (
+            input("\nUse local LLM (ollama) to review and improve this issue? [y/N] ")
+            .strip()
+            .lower()
+        )
+    except EOFError:
+        use_llm = ""
+    if use_llm not in ("y", "yes"):
+        return title, body
+
+    endpoint = get_ollama_endpoint()
+    model = get_ollama_model()
+
+    if not validate_ollama_connection(endpoint):
+        print(
+            f"WARNING: Could not reach Ollama at {endpoint}; skipping LLM review.", file=sys.stderr
+        )
+        return title, body
+
+    print(f"Reviewing with {model} at {endpoint}...")
+    response = fetch_ollama_review(endpoint, model, build_review_prompt(title, body))
+    if not response.strip():
+        print("WARNING: LLM review returned no content; keeping original issue.", file=sys.stderr)
+        return title, body
+
+    suggested_title, suggested_body = parse_review_response(response, title, body)
+
+    print()
+    print("=" * 60)
+    print("LLM-suggested revision:")
+    print("=" * 60)
+    print(f"Title: {suggested_title}")
+    print()
+    print(suggested_body)
+    print("=" * 60)
+
+    try:
+        apply = input("Use this revised title/body? [y/N] ").strip().lower()
+    except EOFError:
+        apply = ""
+    if apply in ("y", "yes"):
+        return suggested_title, suggested_body
+    return title, body
+
+
 def confirm_and_create(
     owner: str,
     repo: str,
@@ -438,6 +531,9 @@ def main() -> None:
         body = format_bug_body(sections)
     else:
         body = format_feature_body(sections)
+
+    # Optionally improve with a local LLM before creating
+    title, body = offer_local_llm_review(title, body)
 
     # Confirm and create
     confirm_and_create(owner, repo, title, body, labels, token)

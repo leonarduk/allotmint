@@ -12,6 +12,13 @@ repos:
       - id: black
   - repo: local
     hooks:
+      - id: log-sanitisation
+        name: New logger calls must sanitise user-controlled values
+        entry: python scripts/dev_tools/check_new_log_sanitisation.py
+        language: system
+        types: [python]
+        files: ^backend/
+        exclude: ^backend/logging_setup\.py$
       - id: pytest
         name: pytest
         entry: pytest

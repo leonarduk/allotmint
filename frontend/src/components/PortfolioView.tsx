@@ -230,6 +230,7 @@ export function PortfolioView({ data, loading, error, onDateChange, onAccountAdd
   const [pendingDate, setPendingDate] = useState<string>("");
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [addPositionAccount, setAddPositionAccount] = useState<string | undefined>(undefined);
+  const [addPositionExpanded, setAddPositionExpanded] = useState(false);
   const addPositionRef = useRef<HTMLDivElement>(null);
   const { baseCurrency, familyMvpEnabled, enableAdvancedAnalytics = true } = useConfig();
 
@@ -329,7 +330,13 @@ export function PortfolioView({ data, loading, error, onDateChange, onAccountAdd
 
   const handleAddPositionRequest = (accountType: string) => {
     setAddPositionAccount(accountType);
+    setAddPositionExpanded(true);
     addPositionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const handlePositionAdded = () => {
+    setAddPositionExpanded(false);
+    onPositionAdded?.();
   };
 
   return (
@@ -395,12 +402,22 @@ export function PortfolioView({ data, loading, error, onDateChange, onAccountAdd
           )}
           {data.accounts.length > 0 && (
             <div ref={addPositionRef} className="mb-6">
-              <AddPositionForm
-                owner={data.owner}
-                accounts={data.accounts.map((acct) => acct.account_type)}
-                defaultAccount={addPositionAccount}
-                onAdded={onPositionAdded}
-              />
+              {addPositionExpanded ? (
+                <AddPositionForm
+                  owner={data.owner}
+                  accounts={data.accounts.map((acct) => acct.account_type)}
+                  defaultAccount={addPositionAccount}
+                  onAdded={handlePositionAdded}
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setAddPositionExpanded(true)}
+                  className="rounded border border-gray-700 px-3 py-1.5 text-sm text-white hover:border-gray-500 hover:bg-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
+                >
+                  + {t("addPosition.title")}
+                </button>
+              )}
             </div>
           )}
           {data.accounts.length > 0 && (

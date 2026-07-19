@@ -102,10 +102,10 @@ backend/reports.py:462
 backend/reports.py:468
 backend/reports.py:522
 backend/reports.py:809
-backend/routes/market.py:121
 backend/routes/market.py:129
-backend/routes/market.py:138
-backend/routes/market.py:145
+backend/routes/market.py:137
+backend/routes/market.py:146
+backend/routes/market.py:153
 backend/routes/timeseries_admin.py:110
 backend/routes/timeseries_admin.py:88
 backend/timeseries/cache.py:114

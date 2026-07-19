@@ -75,6 +75,28 @@ def test_find_gaps_ignores_uk_bank_holiday():
     assert find_gaps(df) == []
 
 
+def test_find_gaps_multiple_disjoint_gaps():
+    # Two separate 2-business-day gaps in one series, with a valid stretch
+    # between them: present Mon 5th-Fri 9th, gap Mon 12th-Tue 13th, present
+    # Wed 14th-Fri 16th, gap Mon 19th-Tue 20th, present Wed 21st (#4957).
+    present_days = [5, 6, 7, 8, 9, 14, 15, 16, 21]
+    df = _df([{"Date": f"2026-01-{d:02d}", "Close": 1.0} for d in present_days])
+
+    gaps = find_gaps(df)
+
+    assert len(gaps) == 2
+    assert gaps[0] == {
+        "start": "2026-01-12",
+        "end": "2026-01-13",
+        "missing_business_days": 2,
+    }
+    assert gaps[1] == {
+        "start": "2026-01-19",
+        "end": "2026-01-20",
+        "missing_business_days": 2,
+    }
+
+
 def test_find_outliers_flags_spike():
     rows = [{"Date": f"2026-01-{d:02d}", "Close": 100.0} for d in range(1, 21)]
     rows.append({"Date": "2026-01-21", "Close": 1000.0})

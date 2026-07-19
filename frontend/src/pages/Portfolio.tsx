@@ -110,7 +110,7 @@ export function Portfolio() {
         setError("Failed to load portfolio");
       })
       .finally(() => {
-        if (latestRequestRef.current === requestId) setLoading(false);
+        setLoading(false);
       });
   }, [activeOwner]);
 

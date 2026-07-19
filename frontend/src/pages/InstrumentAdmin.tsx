@@ -184,6 +184,7 @@ export default function InstrumentAdmin() {
       >
         {t("instrumentadmin.add")}
       </button>
+      <div className="overflow-x-auto">
       <table className="w-full border-collapse">
         <thead>
           <tr>
@@ -244,6 +245,7 @@ export default function InstrumentAdmin() {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

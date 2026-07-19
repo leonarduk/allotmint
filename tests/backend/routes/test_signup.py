@@ -1,4 +1,5 @@
 import json
+import warnings
 
 import pytest
 from fastapi import FastAPI
@@ -510,6 +511,37 @@ def test_create_router_copies_are_independent_of_module_router():
     original_endpoint = module_route.endpoint
     limited_route.endpoint = lambda: None
     assert module_route.endpoint is original_endpoint
+
+
+def test_create_router_warns_when_returning_unprotected_router():
+    """create_router() must warn when it falls back to the unprotected router (#5334).
+
+    Called with no args (or a falsy rate_limit), it returns the module-level
+    `router` with no rate limiting at all. That's intentional for tests/direct
+    imports, but a production caller doing this by mistake would otherwise
+    fail silently -- a RuntimeWarning surfaces the misuse without breaking
+    anything (filterable by tests, doesn't raise on its own).
+    """
+
+    with pytest.warns(RuntimeWarning, match="unprotected signup router"):
+        result = signup_module.create_router()
+
+    assert result is signup_module.router
+
+    limiter = Limiter(key_func=get_remote_address, storage_uri="memory://")
+    with pytest.warns(RuntimeWarning, match="unprotected signup router"):
+        result = signup_module.create_router(limiter, rate_limit=None)
+
+    assert result is signup_module.router
+
+
+def test_create_router_does_not_warn_when_properly_configured():
+    """No warning when both limiter and rate_limit are supplied (the production path)."""
+
+    limiter = Limiter(key_func=get_remote_address, storage_uri="memory://")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        signup_module.create_router(limiter, "3/minute")
 
 
 def test_throttling_response_is_identical_for_all_emails(rate_limited_client, monkeypatch):

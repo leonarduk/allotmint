@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import logging
 import os
+import warnings
 from copy import deepcopy
 from json import JSONDecodeError
 from pathlib import Path
@@ -295,6 +296,13 @@ def create_router(
     """
 
     if limiter is None or not rate_limit:
+        warnings.warn(
+            "create_router() returned the unprotected signup router with no "
+            "rate limiting on POST /signup/request -- pass both limiter and "
+            "rate_limit for a production mount.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
         return router
 
     limited = APIRouter(prefix="/signup", tags=["signup"])

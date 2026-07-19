@@ -211,6 +211,7 @@ export function PerformanceDashboard({ owner, asOf }: Props) {
       <div
         style={{
           display: "flex",
+          flexWrap: "wrap",
           gap: "1rem",
           marginBottom: "1rem",
         }}

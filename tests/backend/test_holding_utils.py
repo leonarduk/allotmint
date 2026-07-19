@@ -190,3 +190,37 @@ def test_enrich_holding_falls_back_to_previous_close_when_today_missing(monkeypa
     assert result["price"] == pytest.approx(50.0)
     assert result["current_price_gbp"] == pytest.approx(50.0)
     assert result["market_value_gbp"] == pytest.approx(500.0)
+
+
+def test_enrich_holding_monday_fallback_reaches_previous_friday(monkeypatch):
+    """Regression for issue #5208: when pricing_date lands on a Monday and
+    Monday's own close is missing, the fallback must reach back to the
+    previous Friday's close rather than Sunday (a non-trading day). Uses
+    PricingDateCalculator.previous_pricing_date (already weekend-aware via
+    _nearest_weekday), not a naive pricing_date - timedelta(days=1)."""
+    import backend.common.portfolio_utils as pu
+
+    monkeypatch.setattr(hu, "get_instrument_meta", lambda *_: {"currency": "GBP"})
+    monkeypatch.setattr(pu, "get_security_meta", lambda *_: {})
+    monkeypatch.setattr(pu, "_PRICE_SNAPSHOT", {})
+
+    previous_friday = dt.date(2026, 5, 15)
+
+    def fake_price_for_date(ticker, exchange, d, field="Close_gbp"):
+        # Monday's close is missing; only the previous Friday has a price.
+        if d == previous_friday:
+            return 42.0, "Yahoo"
+        return None, None
+
+    monkeypatch.setattr(hu, "_get_price_for_date_scaled", fake_price_for_date)
+    monkeypatch.setattr(hu, "get_effective_cost_basis_gbp", lambda h, cache, price_hint=None: 0.0)
+
+    holding = {TICKER: "FOO.L", UNITS: 10, COST_BASIS_GBP: 0.0, ACQUIRED_DATE: "2025-01-01"}
+    # today = Tuesday so calc.reporting_date resolves to the preceding Monday.
+    today = dt.date(2026, 5, 19)
+    result = hu.enrich_holding(holding, today, price_cache={})
+
+    assert result["price"] == pytest.approx(42.0)
+    assert result["current_price_gbp"] == pytest.approx(42.0)
+    assert result["market_value_gbp"] == pytest.approx(420.0)
+    assert result["is_stale"] is True

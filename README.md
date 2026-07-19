@@ -6,6 +6,16 @@
 
 AllotMint is a family investing platform with a FastAPI backend, React/TypeScript frontend, and AWS deployment support.
 
+## Screenshots
+
+| Portfolio view | Screener |
+| --- | --- |
+| ![Portfolio holdings with live prices and gains](docs/assets/qa-screenshots/portfolio-view.png) | ![Screener and saved-query builder](docs/assets/qa-screenshots/screener.png) |
+
+| Reports | Mobile |
+| --- | --- |
+| ![Report templates](docs/assets/qa-screenshots/reports.png) | ![Portfolio view on a mobile-width viewport](docs/assets/qa-screenshots/mobile-portfolio-view.png) |
+
 ## Language guidelines
 
 All code, comments, commit messages, documentation, and PR/issue text in this

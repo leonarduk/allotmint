@@ -9,12 +9,12 @@ from unittest import mock
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "dev_tools"))
-from pr_review import extract_issue_body, fetch_pr_details, fetch_pr_diff, get_repo_info
+sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "developer_tools"))
+from g_pr_review import extract_issue_body, fetch_pr_details, fetch_pr_diff, get_repo_info
 
 
 class TestGetRepoInfo:
-    @mock.patch("pr_review.subprocess.run")
+    @mock.patch("g_pr_review.subprocess.run")
     def test_https_url(self, mock_run):
         """Should extract owner and repo from HTTPS URL."""
         mock_result = mock.MagicMock()
@@ -25,7 +25,7 @@ class TestGetRepoInfo:
         assert owner == "owner"
         assert repo == "repo"
 
-    @mock.patch("pr_review.subprocess.run")
+    @mock.patch("g_pr_review.subprocess.run")
     def test_ssh_url(self, mock_run):
         """Should extract owner and repo from SSH URL."""
         mock_result = mock.MagicMock()
@@ -36,7 +36,7 @@ class TestGetRepoInfo:
         assert owner == "owner"
         assert repo == "repo"
 
-    @mock.patch("pr_review.subprocess.run")
+    @mock.patch("g_pr_review.subprocess.run")
     def test_invalid_remote(self, mock_run):
         """Should raise error for invalid remote URL."""
         import subprocess
@@ -48,7 +48,7 @@ class TestGetRepoInfo:
 
 
 class TestFetchPrDetails:
-    @mock.patch("pr_review.subprocess.run")
+    @mock.patch("g_pr_review.subprocess.run")
     def test_successful_fetch(self, mock_run):
         """Should fetch and parse PR details."""
         mock_result = mock.MagicMock()
@@ -61,7 +61,7 @@ class TestFetchPrDetails:
         assert details["title"] == "Fix bug #123"
         assert details["body"] == "Closes #456"
 
-    @mock.patch("pr_review.subprocess.run")
+    @mock.patch("g_pr_review.subprocess.run")
     def test_fetch_failure(self, mock_run):
         """Should exit on fetch failure."""
         import subprocess
@@ -74,7 +74,7 @@ class TestFetchPrDetails:
 
 
 class TestFetchPrDiff:
-    @mock.patch("pr_review.subprocess.run")
+    @mock.patch("g_pr_review.subprocess.run")
     def test_successful_fetch(self, mock_run):
         """Should fetch PR diff."""
         mock_result = mock.MagicMock()
@@ -84,7 +84,7 @@ class TestFetchPrDiff:
         diff = fetch_pr_diff("owner", "repo", 789)
         assert "diff --git" in diff
 
-    @mock.patch("pr_review.subprocess.run")
+    @mock.patch("g_pr_review.subprocess.run")
     def test_fetch_failure(self, mock_run):
         """Should exit on fetch failure."""
         import subprocess
@@ -95,7 +95,7 @@ class TestFetchPrDiff:
             fetch_pr_diff("owner", "repo", 789)
         assert exc_info.value.code == 1
 
-    @mock.patch("pr_review.subprocess.run")
+    @mock.patch("g_pr_review.subprocess.run")
     def test_binary_file_entries_are_filtered_out(self, mock_run):
         """Binary file diffs must not reach the model."""
         mock_result = mock.MagicMock()
@@ -120,7 +120,7 @@ class TestFetchPrDiff:
 
 
 class TestExtractIssueBody:
-    @mock.patch("pr_review.subprocess.run")
+    @mock.patch("g_pr_review.subprocess.run")
     def test_extract_closes_reference(self, mock_run):
         """Should extract issue body from Closes reference."""
         mock_result = mock.MagicMock()
@@ -142,7 +142,7 @@ class TestExtractIssueBody:
         body = extract_issue_body(pr_body, "owner", "repo")
         assert body == pr_body
 
-    @mock.patch("pr_review.subprocess.run")
+    @mock.patch("g_pr_review.subprocess.run")
     def test_issue_fetch_failure(self, mock_run):
         """Should return PR body if issue fetch fails."""
         import subprocess

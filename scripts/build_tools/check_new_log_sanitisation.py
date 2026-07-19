@@ -8,7 +8,7 @@ only a genuinely new unwrapped logger call does, even in an otherwise
 untouched file. See issue #5262.
 
 Run manually against currently staged changes:
-    python scripts/dev_tools/check_new_log_sanitisation.py <file> [<file> ...]
+    python scripts/build_tools/check_new_log_sanitisation.py <file> [<file> ...]
 
 Wired into .pre-commit-config.yaml as a `local` hook with pass_filenames
 enabled (the default), so pre-commit passes it the staged Python files.
@@ -23,7 +23,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.dev_tools._scan_log_sanitisation import find_unwrapped_log_calls  # noqa: E402
+from scripts.build_tools._scan_log_sanitisation import find_unwrapped_log_calls  # noqa: E402
 
 
 def _added_line_numbers(path: str, *, cwd: Path = REPO_ROOT) -> set[int]:

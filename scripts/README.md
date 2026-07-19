@@ -161,7 +161,7 @@ own) are reported as skipped rather than persisted or silently dropped.
 Automate GitHub issue checkout: create a branch, check it out locally, and save the issue body to a markdown file in one command.
 
 ```bash
-python scripts/dev_tools/work_on_issue.py 4445
+python scripts/developer_tools/c_work_on_issue.py 4445
 ```
 
 The script:
@@ -177,7 +177,7 @@ Optional flags:
 Automate PR publishing: commit changes, push to remote, and create a PR with auto-filled body sections. Optionally uses Ollama to generate thoughtful PR descriptions.
 
 ```bash
-python scripts/dev_tools/publish_pr.py
+python scripts/developer_tools/publish_pr.py
 ```
 
 The script:

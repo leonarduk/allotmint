@@ -44,7 +44,12 @@ npm run smoke:test:codex:poc
 
 See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#branch-and-pr-policy) for the
 canonical branch/PR rules (never commit to `main`, worktree-first for dirty
-checkouts, required PR steps, branch naming, `Closes #NNNN` linking).
+checkouts, required PR steps, branch naming, `Closes #NNNN` linking). Agents
+must treat branch creation as a first step, not a release step at the end.
+
+**When rebasing a PR branch**: rebase onto the target and force-push to the
+**same branch name**. The PR updates automatically. Do not create a new branch
+or a new PR — that duplicates review state and creates noise.
 
 ## Preferred workflow
 

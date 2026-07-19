@@ -124,6 +124,7 @@ Before finishing:
 - If work implements a GitHub issue, include an auto-closing reference in the PR body (for example: `Closes #1234`).
 - If you changed UI behavior, attach screenshots.
 - If you changed operational workflows, mention the exact commands used for validation.
+- **When rebasing a PR branch**: rebase onto the target and force-push to the **same branch name**. The PR updates automatically. Do not create a new branch or a new PR — that duplicates review state and creates noise.
 
 ## 9. Additional AI-facing files in this repo
 

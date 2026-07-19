@@ -138,7 +138,15 @@ export default function CreateAccountPage() {
       });
       setSubmitted(true);
     } catch (err) {
-      console.error("Failed to submit account signup request", err);
+      const status = (err as Record<string, unknown> | null)?.status;
+      if (typeof status === "number") {
+        console.error(
+          `Failed to submit account signup request (HTTP ${status})`,
+          err,
+        );
+      } else {
+        console.error("Failed to submit account signup request", err);
+      }
       setError("Something went wrong submitting your request. Please try again.");
     } finally {
       setSubmitting(false);

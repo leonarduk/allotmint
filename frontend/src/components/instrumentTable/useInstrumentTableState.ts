@@ -15,6 +15,7 @@ const DEFAULT_VISIBLE_COLUMNS: VisibleColumns = {
   market: true,
   gain: true,
   gain_pct: true,
+  trend: true,
 };
 
 export function useInstrumentTableState(

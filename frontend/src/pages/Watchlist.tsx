@@ -146,7 +146,7 @@ export function Watchlist() {
           onChange={(e) => setSymbols(e.target.value)}
         />
       </div>
-      <div className="mb-2 flex items-center gap-2">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
         <label className="flex items-center gap-1">
           {t("watchlist.refreshFrequency", { defaultValue: "Auto-refresh" })}
           <select

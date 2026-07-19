@@ -1,4 +1,3 @@
-import json
 from pathlib import Path
 
 import pytest
@@ -32,8 +31,60 @@ def test_import_transactions_csv(tmp_path, monkeypatch):
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert data[0]["ticker"] == "PFE"
-    assert data[0]["owner"] == "alice"
+    assert data["skipped"] == []
+    assert len(data["persisted"]) == 1
+    persisted = data["persisted"][0]
+    assert persisted["ticker"] == "PFE"
+    assert persisted["owner"] == "alice"
+    assert persisted["price_gbp"] == 10.5
+    assert persisted["units"] == 2
+    assert persisted["reason"] == "diversify"
+    assert persisted["id"] == "alice:ISA:0"
+
+
+def test_import_transactions_hargreaves_uses_owner_account_fallback(tmp_path, monkeypatch):
+    """Hargreaves rows never carry owner/account of their own (hargreaves.parse()
+    always sets them to ""), so the caller must supply a destination
+    explicitly via the ``owner``/``account`` form fields (#4965).
+    """
+    client = _make_client(tmp_path, monkeypatch)
+    csv_data = "Code,Units held,Price (pence),Cost (£)\nPFE,2,1050,21.00\n"
+
+    resp = client.post(
+        "/transactions/import",
+        data={"provider": "hargreaves", "owner": "alice", "account": "ISA"},
+        files={"file": ("tx.csv", csv_data, "text/csv")},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["skipped"] == []
+    assert len(data["persisted"]) == 1
+    persisted = data["persisted"][0]
+    assert persisted["owner"] == "alice"
+    assert persisted["account"] == "ISA"
+    assert persisted["ticker"] == "PFE"
+    assert persisted["price_gbp"] == pytest.approx(10.5)
+    assert persisted["units"] == 2
+
+
+def test_import_transactions_skips_rows_with_no_resolvable_owner_account(tmp_path, monkeypatch):
+    """A row with no owner/account of its own, and no fallback supplied, must
+    be reported as skipped rather than persisted or silently dropped (#4965).
+    """
+    client = _make_client(tmp_path, monkeypatch)
+    csv_data = "Code,Units held,Price (pence),Cost (£)\nPFE,2,1050,21.00\n"
+
+    resp = client.post(
+        "/transactions/import",
+        data={"provider": "hargreaves"},
+        files={"file": ("tx.csv", csv_data, "text/csv")},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["persisted"] == []
+    assert len(data["skipped"]) == 1
+    assert data["skipped"][0]["skip_reason"] == "missing owner/account"
+    assert data["skipped"][0]["ticker"] == "PFE"
 
 
 def test_degiro_to_float_invalid_inputs():
@@ -161,12 +212,20 @@ def test_dedupe_against_existing_treats_missing_external_id_as_always_new():
     assert result == [candidate]
 
 
-def test_import_transactions_moneyhub_dedupes_on_reimport(tmp_path, monkeypatch):
+def test_import_transactions_moneyhub_persists_and_dedupes_on_reimport(tmp_path, monkeypatch):
+    """Import -> persist -> re-import must show zero duplicates end-to-end (#4965).
+
+    Unlike the old version of this test, nothing is hand-written to the
+    accounts store to simulate a prior import: both rounds go through the
+    real ``/transactions/import`` persistence path, so a regression in that
+    path (e.g. dedupe checking the wrong store) would actually be caught.
+    """
     client = _make_client(tmp_path, monkeypatch)
     key_row1 = "2024-05-01|Current|-42.50|tesco store"
     key_row2 = "2024-05-02|Current|1500.00|salary"
 
-    # First import: nothing persisted yet, so both rows come back as new.
+    # First import: nothing persisted yet, so both bank-style rows (no
+    # ticker/price/units -- Moneyhub) are persisted as-is.
     resp = client.post(
         "/transactions/import",
         data={"provider": "moneyhub"},
@@ -174,29 +233,17 @@ def test_import_transactions_moneyhub_dedupes_on_reimport(tmp_path, monkeypatch)
     )
     assert resp.status_code == 200
     first = resp.json()
-    assert {t["external_id"] for t in first} == {key_row1, key_row2}
+    assert first["skipped"] == []
+    assert {t["external_id"] for t in first["persisted"]} == {key_row1, key_row2}
+    assert all(t["owner"] == "alice" for t in first["persisted"])
 
-    # Persist one of the two rows directly, mimicking what a caller would do
-    # after reviewing the parsed-but-not-yet-saved import result.
-    owner_dir = tmp_path / "alice"
-    owner_dir.mkdir(parents=True)
-    (owner_dir / "Current_transactions.json").write_text(
-        json.dumps(
-            {
-                "owner": "alice",
-                "account_type": "Current",
-                "transactions": [{"external_id": key_row1, "comments": "Tesco Store"}],
-            }
-        )
-    )
-
-    # Re-importing the same export should no longer surface the already
-    # persisted row, only the still-new one.
+    # Re-importing the same export must persist nothing further: both rows
+    # are already in storage, so dedupe filters them out before persistence
+    # is ever attempted.
     resp = client.post(
         "/transactions/import",
         data={"provider": "moneyhub"},
         files={"file": ("tx.csv", MONEYHUB_SAMPLE.read_bytes(), "text/csv")},
     )
     assert resp.status_code == 200
-    second = resp.json()
-    assert {t["external_id"] for t in second} == {key_row2}
+    assert resp.json() == {"persisted": [], "skipped": []}

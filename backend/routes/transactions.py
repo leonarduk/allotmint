@@ -532,6 +532,38 @@ def _validate_component(value: str, field: str) -> str:
     return value
 
 
+def _persist_transaction(
+    store: "AccountsStore", owner: str, account: str, tx_data: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Append ``tx_data`` to owner/account's transaction log and rebuild the portfolio.
+
+    Shared by :func:`create_transaction` (single, request-validated write) and
+    :func:`import_transactions` (bulk write from a parsed import, #4965) so
+    both go through the exact same append/impact/rebuild path rather than
+    duplicating it. Portfolio impact is computed tolerantly (0.0 when
+    ``price_gbp``/``units`` are absent) since imported bank-style rows (e.g.
+    Moneyhub) carry no ticker/price/units at all -- ``rebuild_account_holdings``
+    already skips any transaction entry without a ticker.
+    """
+
+    impact = _calculate_portfolio_impact(tx_data)
+    _PORTFOLIO_IMPACT[owner] += impact
+    _POSTED_TRANSACTIONS.append({"owner": owner, "account": account, **tx_data})
+
+    store.ensure_owner(owner)
+    with _locked_transactions_data(owner, account, store) as (data, _file):
+        transactions = data.setdefault("transactions", [])
+        transactions.append(tx_data)
+        data["owner"] = owner
+        data["account_type"] = account
+        new_index = len(transactions) - 1
+
+    _rebuild_portfolio(owner, account, store)
+
+    tx_id = _build_transaction_id(owner, account, new_index)
+    return _format_transaction_response(owner, account, tx_data, tx_id)
+
+
 @router.post("/transactions", status_code=201)
 async def create_transaction(request: Request, tx: TransactionCreate) -> dict:
     """Store a new transaction and return it.
@@ -555,22 +587,8 @@ async def create_transaction(request: Request, tx: TransactionCreate) -> dict:
     units_val = tx_data.get("units")
     if price is None or units_val is None:
         raise HTTPException(status_code=400, detail="price_gbp and units are required")
-    impact = float(price) * float(units_val)
-    _PORTFOLIO_IMPACT[owner] += impact
-    _POSTED_TRANSACTIONS.append({"owner": owner, "account": account, **tx_data})
 
-    store.ensure_owner(owner)
-    with _locked_transactions_data(owner, account, store) as (data, _file):
-        transactions = data.setdefault("transactions", [])
-        transactions.append(tx_data)
-        data["owner"] = owner
-        data["account_type"] = account
-        new_index = len(transactions) - 1
-
-    _rebuild_portfolio(owner, account, store)
-
-    tx_id = _build_transaction_id(owner, account, new_index)
-    return _format_transaction_response(owner, account, tx_data, tx_id)
+    return _persist_transaction(store, owner, account, tx_data)
 
 
 @router.put("/transactions/{tx_id}")
@@ -681,16 +699,46 @@ async def delete_transaction(request: Request, tx_id: str) -> dict:
     return {"status": "deleted"}
 
 
-@router.post("/transactions/import", response_model=List[Transaction])
+def _tx_data_from_parsed(row: Transaction) -> Dict[str, Any]:
+    """Normalise a parsed import ``Transaction`` into the persisted-record shape.
+
+    Importers set ``price``/``reason_to_buy`` (degiro/hargreaves) while the
+    persisted shape (matching ``TransactionCreate``) uses
+    ``price_gbp``/``reason`` -- coalesce rather than storing both. Bank-style
+    rows (Moneyhub) carry no ticker/price/units at all; those fields persist
+    as ``None``, which ``_calculate_portfolio_impact`` and
+    ``rebuild_account_holdings`` already treat as "no security impact" (#4965).
+    """
+
+    tx_data = row.model_dump(mode="json", exclude={"owner", "account", "id"})
+    if tx_data.get("price_gbp") is None:
+        tx_data["price_gbp"] = tx_data.get("price")
+    tx_data.pop("price", None)
+    if not tx_data.get("reason"):
+        tx_data["reason"] = tx_data.get("reason_to_buy")
+    tx_data.pop("reason_to_buy", None)
+    return tx_data
+
+
+@router.post("/transactions/import")
 async def import_transactions(
-    request: Request, provider: str = Form(...), file: UploadFile = File(...)
-) -> List[Transaction]:
-    """Parse a transaction export and return transactions not already imported.
+    request: Request,
+    provider: str = Form(...),
+    file: UploadFile = File(...),
+    owner: str | None = Form(default=None),
+    account: str | None = Form(default=None),
+) -> Dict[str, List[Dict[str, Any]]]:
+    """Parse a transaction export, persist rows not already imported, and report the rest.
 
     Candidates carrying a stable ``external_id`` (e.g. Moneyhub's per-row
     ``Id``) are filtered against previously persisted transactions so
-    re-importing the same export file does not surface duplicates to the
-    caller.
+    re-importing the same export file does not persist duplicates.
+
+    ``owner``/``account`` are optional fallbacks used only when a parsed row
+    doesn't carry its own (e.g. Hargreaves exports never set owner/account —
+    the caller must supply the destination explicitly). Rows for which no
+    owner/account can be resolved are reported in ``skipped`` rather than
+    persisted or silently dropped.
     """
 
     data = await file.read()
@@ -701,16 +749,40 @@ async def import_transactions(
     except Exception as exc:  # pragma: no cover - parsing errors
         raise HTTPException(status_code=400, detail=f"Failed to parse file: {exc}")
 
-    if not any(t.external_id for t in parsed):
-        # No candidate carries a stable key (e.g. degiro/hargreaves never set
-        # external_id), so dedupe would be a no-op. Skip the store lookup
-        # entirely rather than paying for it on every import regardless of
-        # provider.
-        return parsed
+    if not parsed:
+        # Nothing to persist or dedupe against -- skip resolving a writable
+        # store entirely so an empty parse (e.g. the "test" provider used by
+        # smoke tests, which always returns []) never 400s for callers with
+        # no writable account root.
+        return {"persisted": [], "skipped": []}
 
-    store, _ = resolve_writable_store(request)
-    existing = _load_all_transactions(store)
-    return importers.dedupe_against_existing(parsed, existing)
+    store = _require_writable_store(request)
+
+    if any(t.external_id for t in parsed):
+        existing = _load_all_transactions(store)
+        parsed = importers.dedupe_against_existing(parsed, existing)
+
+    persisted: List[Dict[str, Any]] = []
+    skipped: List[Dict[str, Any]] = []
+
+    for row in parsed:
+        row_owner = row.owner or owner
+        row_account = row.account or account
+        if not row_owner or not row_account:
+            skipped.append({**row.model_dump(mode="json"), "skip_reason": "missing owner/account"})
+            continue
+
+        try:
+            row_owner = _validate_component(row_owner, "owner")
+            row_account = _validate_component(row_account, "account")
+        except HTTPException as exc:
+            skipped.append({**row.model_dump(mode="json"), "skip_reason": str(exc.detail)})
+            continue
+
+        tx_data = _tx_data_from_parsed(row)
+        persisted.append(_persist_transaction(store, row_owner, row_account, tx_data))
+
+    return {"persisted": persisted, "skipped": skipped}
 
 
 @router.post("/holdings/import")

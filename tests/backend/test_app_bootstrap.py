@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from pathlib import Path
 
 import pytest
@@ -230,6 +231,88 @@ async def test_lifecycle_service_startup_survives_prime_latest_prices_failure(
     assert any(
         "Failed to prime latest prices" in r.message for r in caplog.records
     ), "Expected 'Failed to prime latest prices' log but got: " + str(
+        [r.message for r in caplog.records]
+    )
+
+
+@pytest.mark.asyncio
+async def test_lifecycle_service_snapshot_load_is_time_bounded(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+):
+    """A hanging _load_snapshot() must not block startup indefinitely (#4940).
+
+    On cold start, a large/slow snapshot read could consume the whole Lambda
+    timeout before any request handler (including /health) gets a chance to
+    run. Startup must time out, log a warning, and proceed with an empty
+    snapshot rather than hang.
+    """
+    monkeypatch.setattr("backend.bootstrap.startup._SNAPSHOT_LOAD_TIMEOUT_SECONDS", 0.05)
+
+    def _hang():
+        time.sleep(0.5)
+        return ({"ABC": 1}, "ts")
+
+    monkeypatch.setattr("backend.common.portfolio_utils._load_snapshot", _hang)
+    warmed = {}
+    monkeypatch.setattr(
+        "backend.common.portfolio_utils.refresh_snapshot_in_memory",
+        lambda snapshot, ts: warmed.update({"snapshot": snapshot, "ts": ts}),
+    )
+    monkeypatch.setattr(
+        "backend.common.instrument_api.update_latest_prices_from_snapshot",
+        lambda snapshot: None,
+    )
+    monkeypatch.setattr("backend.common.instrument_api.prime_latest_prices", lambda: None)
+    monkeypatch.setattr("backend.common.portfolio_utils.refresh_snapshot_async", lambda days: None)
+    monkeypatch.setattr(config, "skip_snapshot_warm", False, raising=False)
+
+    service = AppLifecycleService(cfg=config)
+    app = app_module.create_app()
+
+    with caplog.at_level(logging.WARNING):
+        await asyncio.wait_for(service.startup(app), timeout=2.0)
+
+    assert warmed == {"snapshot": {}, "ts": None}
+    assert any(
+        "Snapshot load timed out" in r.message for r in caplog.records
+    ), "Expected a snapshot-load timeout warning but got: " + str(
+        [r.message for r in caplog.records]
+    )
+
+
+@pytest.mark.asyncio
+async def test_lifecycle_service_metadata_update_is_time_bounded(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+):
+    """A hanging update_latest_prices_from_snapshot() must not block startup either (#4940)."""
+
+    monkeypatch.setattr("backend.bootstrap.startup._SNAPSHOT_LOAD_TIMEOUT_SECONDS", 0.05)
+
+    monkeypatch.setattr("backend.common.portfolio_utils._load_snapshot", lambda: ({"ABC": 1}, "ts"))
+    monkeypatch.setattr(
+        "backend.common.portfolio_utils.refresh_snapshot_in_memory",
+        lambda snapshot, ts: None,
+    )
+
+    def _hang(snapshot):
+        time.sleep(0.5)
+
+    monkeypatch.setattr("backend.common.instrument_api.update_latest_prices_from_snapshot", _hang)
+    monkeypatch.setattr("backend.common.instrument_api.prime_latest_prices", lambda: None)
+    monkeypatch.setattr("backend.common.portfolio_utils.refresh_snapshot_async", lambda days: None)
+    monkeypatch.setattr(config, "skip_snapshot_warm", False, raising=False)
+
+    service = AppLifecycleService(cfg=config)
+    app = app_module.create_app()
+
+    with caplog.at_level(logging.WARNING):
+        await asyncio.wait_for(service.startup(app), timeout=2.0)
+
+    assert any(
+        "timed out" in r.message for r in caplog.records
+    ), "Expected a metadata-update timeout warning but got: " + str(
         [r.message for r in caplog.records]
     )
 

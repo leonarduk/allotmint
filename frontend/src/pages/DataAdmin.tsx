@@ -61,6 +61,7 @@ export default function DataAdmin() {
   return (
     <div className="container mx-auto p-4 max-w-5xl">
       <h2 className="mb-4 text-xl md:text-2xl">{t("app.modes.dataadmin")}</h2>
+      <div className="overflow-x-auto">
       <table className="w-full border-collapse">
         <thead>
           <tr>
@@ -126,6 +127,7 @@ export default function DataAdmin() {
           })}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

@@ -36,7 +36,7 @@ export function AccountBlock({
   const { baseCurrency } = useConfig();
 
   return (
-    <div className="mb-4 p-2 md:mb-8 md:p-4">
+    <div className="mb-4 min-w-0 p-2 md:mb-8 md:p-4">
       <h2 className="mt-0">
         {onToggle && (
           <input

@@ -284,7 +284,7 @@ export function HoldingsTable({
         </>
       )}
       {sortedRows.length ? (
-        <div ref={tableContainerRef} className="overflow-x-auto md:overflow-visible">
+        <div ref={tableContainerRef} className="overflow-x-auto">
           <table className={`${tableStyles.table} mb-4 w-full`}>
         <thead ref={tableHeaderRef}>
           <tr>

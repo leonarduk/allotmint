@@ -1,4 +1,4 @@
-"""Tests for the pre-commit hook in scripts/dev_tools/check_new_log_sanitisation.py
+"""Tests for the pre-commit hook in scripts/build_tools/check_new_log_sanitisation.py
 (issue #5262)."""
 
 from __future__ import annotations
@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.dev_tools import check_new_log_sanitisation as hook
+from scripts.build_tools import check_new_log_sanitisation as hook
 
 
 def _run_git(args: list[str], cwd: Path) -> None:

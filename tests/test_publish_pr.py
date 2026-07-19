@@ -8,7 +8,7 @@ from unittest import mock
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "dev_tools"))
+sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "build_tools"))
 from publish_pr import (
     check_gh_available,
     create_placeholder_pr_body,

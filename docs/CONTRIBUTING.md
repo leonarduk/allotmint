@@ -88,7 +88,7 @@ integrations — see `CLAUDE.md`). Run these explicitly, and only when you have
 the prerequisite installed/authenticated:
 
 ```bash
-# Smoke-tests scripts/dev_tools/extract_pr_comments.py against a known,
+# Smoke-tests scripts/build_tools/extract_pr_comments.py against a known,
 # merged PR. Requires: gh CLI, authenticated, and network access.
 make smoke-test-pr-comments
 ```

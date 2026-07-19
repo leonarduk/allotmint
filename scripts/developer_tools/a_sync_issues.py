@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Sync GitHub issues to local markdown files for offline access."""
 
 import os

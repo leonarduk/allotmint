@@ -1,10 +1,10 @@
-"""Tests for scripts/dev_tools/comment_formats.py."""
+"""Tests for scripts/build_tools/comment_formats.py."""
 
 import json
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "dev_tools"))
+sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "build_tools"))
 
 from comment_formats import to_fixer, to_jsonl
 

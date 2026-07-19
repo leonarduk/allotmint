@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scripts.dev_tools._scan_log_sanitisation import find_unwrapped_log_calls
+from scripts.build_tools._scan_log_sanitisation import find_unwrapped_log_calls
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 BASELINE_PATH = REPO_ROOT / "tests" / "data" / "log_sanitization_baseline.txt"

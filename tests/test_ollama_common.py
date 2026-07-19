@@ -12,7 +12,7 @@ import pytest
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "dev_tools"))
+sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "developer_tools" / "lib"))
 from ollama_common import (
     extract_ollama_review,
     fetch_ollama_review,

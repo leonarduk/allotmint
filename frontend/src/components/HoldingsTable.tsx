@@ -372,7 +372,7 @@ export function HoldingsTable({
             <th className={`${tableStyles.cell} ${tableStyles.clickable}`} onClick={() => handleSort("name")}>
               {t("holdingsTable.columns.name")}{sortKey === "name" ? (asc ? " ▲" : " ▼") : ""}
             </th>
-            <th className={tableStyles.cell}>{t("holdingsTable.columns.trend")}</th>
+            <th className={tableStyles.cell}>{t("holdingsTable.columns.trend")} ({sparkRange}d)</th>
             <th className={tableStyles.cell}>{t("instrumentTable.columns.ccy")}</th>
             <th className={tableStyles.cell}>{t("instrumentTable.columns.type")}</th>
             {!relativeViewEnabled && visibleColumns.units && (
@@ -462,7 +462,7 @@ export function HoldingsTable({
               (globalThis as any).sparks?.[h.ticker]?.[String(sparkRange)] ?? [];
             const sparkColor =
               sparkData.length > 1
-                ? sparkData[sparkData.length - 1].close_gbp >= sparkData[0].close_gbp
+                ? sparkData[sparkData.length - 1].close_gbp > sparkData[0].close_gbp
                   ? "lightgreen"
                   : "red"
                 : "#8884d8";

@@ -31,7 +31,7 @@ export interface Holding {
   /** Whether the current price may be stale */
   is_stale?: boolean;
   latest_source?: string | null;
-  day_change_gbp?: number;
+  day_change_gbp?: number | null;
   day_change_currency?: string | null;
   instrument_type?: string | null;
   sector?: string | null;

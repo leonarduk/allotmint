@@ -336,7 +336,13 @@ export function PortfolioView({ data, loading, error, onDateChange, onAccountAdd
 
   const handlePositionAdded = () => {
     setAddPositionExpanded(false);
+    setAddPositionAccount(undefined);
     onPositionAdded?.();
+  };
+
+  const handleAddPositionCollapse = () => {
+    setAddPositionExpanded(false);
+    setAddPositionAccount(undefined);
   };
 
   return (
@@ -408,7 +414,7 @@ export function PortfolioView({ data, loading, error, onDateChange, onAccountAdd
                   accounts={data.accounts.map((acct) => acct.account_type)}
                   defaultAccount={addPositionAccount}
                   onAdded={handlePositionAdded}
-                  onCollapse={() => setAddPositionExpanded(false)}
+                  onCollapse={handleAddPositionCollapse}
                 />
               ) : (
                 <button

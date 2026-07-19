@@ -7,10 +7,13 @@ import {
 } from '../../src/contracts/apiContracts';
 
 export type MockConfigBody = z.infer<typeof configContractSchema> & {
-  // enable_family_mvp is not part of the versioned /config contract yet, but the
-  // frontend already reads it (Family MVP route gating). configContractSchema is
-  // .passthrough(), so carrying it here does not fail validation.
-  enable_family_mvp?: boolean;
+  // enable_family_mvp is not enumerated in the versioned configContractSchema
+  // (it stays .passthrough() deliberately -- see apiContracts.ts), but the
+  // backend's /config response now always includes it (backend.config.Config
+  // is serialised in full via asdict()) and the frontend reads it for Family
+  // MVP route gating, so every mock body must set it explicitly rather than
+  // silently omitting a field real responses always carry.
+  enable_family_mvp: boolean;
 };
 export type MockOwnersBody = z.infer<typeof ownersContractSchema>;
 export type MockGroupsBody = z.infer<typeof groupsContractSchema>;

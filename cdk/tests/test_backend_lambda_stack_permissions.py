@@ -878,6 +878,46 @@ def test_metadata_prefix_matches_backend_instruments_s3_location() -> None:
     )
 
 
+# Every module-level *_PREFIX string constant in backend_lambda_stack.py that is
+# duplicated in a backend fallback literal (see issue #4933's audit) must have a
+# corresponding cross-check test above. If this set drifts from what's actually
+# declared in the stack, either a new duplicated constant needs a cross-check
+# test, or this set is stale and should be trimmed.
+_COVERED_STACK_PREFIX_CONSTANTS = frozenset({"WRITABLE_ACCOUNTS_PREFIX", "METADATA_PREFIX"})
+
+
+def test_no_uncovered_duplicated_prefix_constants_in_backend_lambda_stack() -> None:
+    """Guards the issue #4933 audit finding: WRITABLE_ACCOUNTS_PREFIX and
+    METADATA_PREFIX are the only module-level ``*_PREFIX`` string constants in
+    ``backend_lambda_stack.py`` that duplicate a backend fallback literal, and
+    both already have a cross-check test. If a future change adds another
+    ``*_PREFIX`` constant here, this test fails as a reminder to either add a
+    matching cross-check test (and extend the covered set above) or, if the
+    new constant isn't actually duplicated in the backend, confirm that and
+    extend the set to acknowledge it's out of scope."""
+    stack_path = CDK_DIR / "stacks" / "backend_lambda_stack.py"
+    tree = ast.parse(stack_path.read_text(encoding="utf-8"))
+
+    declared_prefix_constants = {
+        target.id
+        for node in tree.body
+        if isinstance(node, ast.Assign)
+        for target in node.targets
+        if isinstance(target, ast.Name)
+        and target.id.endswith("_PREFIX")
+        and isinstance(node.value, ast.Constant)
+        and isinstance(node.value.value, str)
+    }
+
+    assert declared_prefix_constants == _COVERED_STACK_PREFIX_CONSTANTS, (
+        "Module-level *_PREFIX string constants in backend_lambda_stack.py "
+        f"({sorted(declared_prefix_constants)}) no longer match the audited/covered "
+        f"set ({sorted(_COVERED_STACK_PREFIX_CONSTANTS)}). Add a cross-check test "
+        "for any new constant that duplicates a backend fallback literal, or "
+        "update _COVERED_STACK_PREFIX_CONSTANTS if it's confirmed out of scope."
+    )
+
+
 def test_grant_bucket_access_raises_on_no_permissions() -> None:
     class _MockFn:
         def add_to_role_policy(self, policy_statement: object) -> None:

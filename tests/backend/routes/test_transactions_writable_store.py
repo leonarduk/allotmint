@@ -178,3 +178,37 @@ async def test_create_transaction_persists_to_s3(monkeypatch):
     stored = json.loads(fake.objects[key].decode("utf-8"))
     assert len(stored["transactions"]) == 1
     assert stored["transactions"][0]["ticker"] == "AAA"
+
+
+class TestReadEndpointsWithNonexistentRoot:
+    """A configured accounts_root that doesn't exist on disk must not crash read
+    endpoints (issue #4449). Write endpoints already return a clear 400 via
+    _require_writable_store's is_global check; these read endpoints instead
+    call resolve_writable_store directly and must degrade to "no data" rather
+    than raising when the resolved local_root path is missing."""
+
+    @staticmethod
+    def _nonexistent_request(tmp_path):
+        return _make_request({"accounts_root": tmp_path / "does-not-exist"})
+
+    @pytest.mark.asyncio
+    async def test_list_transactions_returns_empty_list(self, tmp_path):
+        result = await transactions_module.list_transactions(self._nonexistent_request(tmp_path))
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_list_manual_holdings_returns_empty_accounts(self, tmp_path):
+        # A owner absent from both the (nonexistent) writable root and the
+        # global demo dataset -- unlike list_transactions/
+        # transactions_with_compliance, this endpoint also merges in the
+        # global demo dataset, so a real demo owner like "alice" would
+        # legitimately return non-empty data here.
+        result = await transactions_module.list_manual_holdings(
+            self._nonexistent_request(tmp_path), owner="no-such-demo-owner"
+        )
+        assert result == {"owner": "no-such-demo-owner", "accounts": []}
+
+    @pytest.mark.asyncio
+    async def test_transactions_with_compliance_returns_empty_list(self, tmp_path):
+        result = await transactions_module.transactions_with_compliance("alice", self._nonexistent_request(tmp_path))
+        assert result == {"transactions": []}

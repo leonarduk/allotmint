@@ -40,12 +40,17 @@ npm run smoke:test:codex:poc
 - Be cautious around `data/`, auth toggles, and smoke-test identities; these often affect local demos and automated flows.
 - Preserve cross-platform workflow parity when touching scripts because the repo uses both bash and PowerShell helpers.
 
-## Branch and PR policy
+## Branch, issue, and PR policy
 
 See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#branch-and-pr-policy) for the
 canonical branch/PR rules (never commit to `main`, worktree-first for dirty
 checkouts, required PR steps, branch naming, `Closes #NNNN` linking). Agents
 must treat branch creation as a first step, not a release step at the end.
+
+**Issue creation**: Always use the template format from
+`.github/ISSUE_TEMPLATE/bug_report.md` or `.github/ISSUE_TEMPLATE/feature_request.md`
+and include every required section: What, Why, How, Constraints, LLM tier,
+Success looks like, Failure looks like.
 
 **When rebasing a PR branch**: rebase onto the target and force-push to the
 **same branch name**. The PR updates automatically. Do not create a new branch

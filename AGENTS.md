@@ -113,7 +113,25 @@ Before finishing:
 3. Update nearby docs when behavior or workflow meaningfully changes.
 4. Summarize any environment limitations clearly.
 
-## 8. Commit and PR expectations
+## 8. Issue creation
+
+When creating a GitHub issue, always use the repo template format defined in
+`.github/ISSUE_TEMPLATE/bug_report.md` or `.github/ISSUE_TEMPLATE/feature_request.md`.
+The required sections are:
+
+- **What** — what is broken or what should be built
+- **Why** — impact on users or developers
+- **How** — steps to reproduce (bug) or high-level approach (feature); include
+  expected vs actual behavior and environment for bugs
+- **Constraints** — guardrails the fix must respect (backwards compat, API
+  shape, platform parity, etc.)
+- **LLM tier** — suggested AI agent tier: haiku / sonnet / opus
+- **Success looks like** — checklist of acceptance criteria
+- **Failure looks like** — what regressions or gaps would mean the fix failed
+
+Never submit an issue that is missing any of these sections.
+
+## 9. Commit and PR expectations
 
 - Use focused, imperative commit messages, e.g. `Refresh AI contributor guidance`.
 - In PR descriptions, include:
@@ -126,7 +144,7 @@ Before finishing:
 - If you changed operational workflows, mention the exact commands used for validation.
 - **When rebasing a PR branch**: rebase onto the target and force-push to the **same branch name**. The PR updates automatically. Do not create a new branch or a new PR — that duplicates review state and creates noise.
 
-## 9. Additional AI-facing files in this repo
+## 10. Additional AI-facing files in this repo
 
 To support tool-specific agents, keep these files aligned when the repo guidance changes:
 - `AGENTS.md` — primary source of truth for agent workflow.
@@ -135,7 +153,7 @@ To support tool-specific agents, keep these files aligned when the repo guidance
 
 When updating one of these, consider whether the same repo facts or command changes should be mirrored in the others.
 
-## 10. Code quality invariants (non-negotiable)
+## 11. Code quality invariants (non-negotiable)
 
 See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md#code-quality-invariants-non-negotiable)
 for the canonical rules (function length, zero lint warnings, no silent error

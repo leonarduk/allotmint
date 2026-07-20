@@ -284,6 +284,7 @@ def create_issue_via_gh(
     # Write body to a temp file so the CLI can read it safely on all platforms.
     import tempfile
 
+    body_path: str | None = None
     try:
         with tempfile.NamedTemporaryFile(
             mode="w",

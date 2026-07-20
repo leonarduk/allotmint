@@ -141,9 +141,9 @@ def build_owner_portfolio(
         # from a transient empty/partial listing (e.g. an S3 listing hiccup
         # in list_plots) without requiring another blind investigation.
         logger.warning(
-            "build_owner_portfolio: no plot found for owner=%s (total plots discovered=%d)",
+            "build_owner_portfolio: no plot found for owner=%s (total plots discovered=%s)",
             sanitise_log_value(owner),
-            len(all_plots),
+            sanitise_log_value(len(all_plots)),
         )
         raise FileNotFoundError(f"No plot for owner '{owner}'")
     accounts_meta = plots[0].accounts

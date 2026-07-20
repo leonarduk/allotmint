@@ -153,3 +153,35 @@ To close out the remaining success criteria in #2749:
 3. Store the sandbox credentials via `ssm://` per [Secret storage
    decision](#secret-storage-decision) (SecureString) and hand the parameter
    name to the agent implementing #3425.
+
+## #3425 implementation status
+
+The importer infrastructure described above has been built against the
+field-mapping plan and auth flow decided here, ahead of real sandbox access
+(tracked in #3425):
+
+- [`backend/integrations/moneyhub_api.py`](../backend/integrations/moneyhub_api.py) —
+  stateless OAuth2 HTTP client (`refresh_access_token`, `fetch_transactions`)
+  against `https://api.moneyhub.co.uk`.
+- [`backend/common/moneyhub_tokens.py`](../backend/common/moneyhub_tokens.py) —
+  per-owner token storage via the `ssm://` scheme
+  (`/allotmint/moneyhub/tokens/{owner}` by default, overridable via
+  `MONEYHUB_TOKENS_STORAGE_URI` for tests/local dev), with lazy refresh-on-read.
+- [`backend/importers/moneyhub_api.py`](../backend/importers/moneyhub_api.py) —
+  maps raw API transaction records onto `Transaction` (`kind="account"`,
+  `external_id` prefixed `moneyhub:`, pending transactions excluded), reusing
+  the same `dedupe_against_existing` helper #3426's CSV importer uses.
+- `POST /transactions/import/moneyhub` (`backend/routes/transactions.py`) —
+  pulls an owner's transactions live and persists new ones through the same
+  `_persist_transaction` path as the file-upload importer.
+
+**Still blocked on the human prerequisite above**: this was built against
+the documented-but-unconfirmed Moneyhub schema (`id`, `accountId`, `date`,
+`amount.amount`/`amount.currency`, `description`, `category`, `status`), and
+tests mock the HTTP layer rather than hitting a real sandbox. Once real
+sandbox credentials and a sample response exist, verify the field names and
+the cash-vs-trade-data question above, and adjust the mapping in
+`backend/importers/moneyhub_api.py` if they differ. The CDK `StringParameter`
+construct and IAM grant for the `/allotmint/moneyhub/*` namespace, and the
+account-id linking table (Moneyhub `accountId` → AllotMint account slug),
+remain open follow-up work.

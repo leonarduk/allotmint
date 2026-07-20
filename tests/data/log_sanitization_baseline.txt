@@ -19,7 +19,13 @@ backend/app.py:166
 backend/app.py:198
 backend/app.py:217
 backend/auth.py:126
+# accounts-root path comes from server config, not attacker-controlled input.
+backend/auth.py:151
 backend/auth.py:537
+# provider is always a hardcoded literal ("Google"/"Cognito") passed by the
+# caller, never attacker-controlled; email/token on the same call are already
+# wrapped in sanitise_log_value.
+backend/auth.py:560
 backend/bootstrap/isolation.py:89
 backend/bootstrap/startup.py:92
 backend/common/accounts_store.py:244

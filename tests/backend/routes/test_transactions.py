@@ -326,6 +326,60 @@ def test_format_transaction_response_omits_missing_instrument_name(monkeypatch):
     }
 
 
+def _make_transaction(**overrides):
+    fields = {
+        "owner": "alice",
+        "account": "primary",
+        "ticker": "AAA",
+        "units": 10,
+    }
+    fields.update(overrides)
+    return transactions_module.Transaction(**fields)
+
+
+def test_tx_data_from_parsed_raises_on_conflicting_price_and_price_gbp():
+    row = _make_transaction(price=10.5, price_gbp=11.0)
+
+    with pytest.raises(ValueError, match="Conflicting values for price"):
+        transactions_module._tx_data_from_parsed(row)
+
+
+def test_tx_data_from_parsed_allows_matching_price_and_price_gbp():
+    row = _make_transaction(price=10.5, price_gbp=10.5)
+
+    tx_data = transactions_module._tx_data_from_parsed(row)
+
+    assert tx_data["price_gbp"] == 10.5
+    assert "price" not in tx_data
+
+
+def test_tx_data_from_parsed_coalesces_price_only():
+    row = _make_transaction(price=10.5, price_gbp=None)
+
+    tx_data = transactions_module._tx_data_from_parsed(row)
+
+    assert tx_data["price_gbp"] == 10.5
+    assert "price" not in tx_data
+
+
+def test_tx_data_from_parsed_keeps_price_gbp_only():
+    row = _make_transaction(price=None, price_gbp=9.9)
+
+    tx_data = transactions_module._tx_data_from_parsed(row)
+
+    assert tx_data["price_gbp"] == 9.9
+    assert "price" not in tx_data
+
+
+def test_tx_data_from_parsed_no_prices_set():
+    row = _make_transaction(price=None, price_gbp=None)
+
+    tx_data = transactions_module._tx_data_from_parsed(row)
+
+    assert tx_data["price_gbp"] is None
+    assert "price" not in tx_data
+
+
 @pytest.mark.asyncio
 async def test_create_transaction_records_valid_payload(monkeypatch, tmp_path):
     accounts_dir = tmp_path / "accounts"

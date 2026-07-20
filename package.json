@@ -3,14 +3,14 @@
   "version": "0.0.2",
   "devDependencies": {
     "@capacitor/cli": "^8.4.1",
-    "aws-cdk": "2.1130.0",
+    "aws-cdk": "2.1132.0",
     "concurrently": "^10.0.3",
-    "postcss": "^8.5.19",
+    "postcss": "^8.5.20",
     "tsx": "^4.23.1"
   },
   "dependencies": {
     "@capacitor/android": "^8.4.1",
-    "@capacitor/core": "^8.4.1",
+    "@capacitor/core": "^8.4.2",
     "@capacitor/ios": "^8.4.1",
     "yaml": "^2.9.0"
   },

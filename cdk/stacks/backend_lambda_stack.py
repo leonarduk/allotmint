@@ -438,8 +438,8 @@ class BackendLambdaStack(Stack):
             code=image_code,
             environment=backend_env,
             log_group=backend_log_group,
-            timeout=Duration.seconds(30),
-            memory_size=512,
+            timeout=Duration.seconds(90),
+            memory_size=1024,
         )
         backend_fn.add_environment("APP_ENV", env)
 

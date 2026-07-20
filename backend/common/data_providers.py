@@ -96,14 +96,25 @@ class S3DataProvider:
             raise ProviderUnavailable(f"Missing {DATA_BUCKET_ENV} env var for AWS account loading")
 
     def _client(self):
+        """Return a cached boto3 S3 client, reusing it across calls.
+
+        boto3 clients are thread-safe and can be reused; creating a new
+        client per call adds ~100-200ms of cold-start overhead each time
+        (credential resolution, endpoint discovery). Reusing a single
+        client eliminates this overhead on every account/person-meta load.
+        """
+        if hasattr(self, "_cached_client"):
+            return self._cached_client
         try:
             import boto3  # type: ignore
         except Exception as exc:  # pragma: no cover - import failure is environment-specific
             raise ProviderUnavailable("boto3 is not available") from exc
         try:
-            return boto3.client("s3")
+            client = boto3.client("s3")
         except Exception as exc:  # pragma: no cover - client creation is environment-specific
             raise ProviderUnavailable("Unable to create S3 client") from exc
+        self._cached_client = client
+        return client
 
     def load_account(self, owner: str, account: str) -> AccountObject:
         key = f"{PLOTS_PREFIX}{owner}/{account}.json"

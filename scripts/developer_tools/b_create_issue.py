@@ -309,7 +309,6 @@ def create_issue_via_gh(
             cmd.extend(["--label", label])
 
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        os.unlink(body_path)
 
         if result.returncode != 0:
             print(f"gh CLI failed: {result.stderr.strip()}", file=sys.stderr)

@@ -18,7 +18,7 @@ jobs:
       - run: python scripts/check_branch_protection_required_checks.py
       - name: Run extract_verdict tests
         run: pytest tests/test_extract_verdict.py -v --no-cov
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
       - run: npm ci
@@ -47,7 +47,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
       # bats-core is fetched on demand via npx rather than assuming it's

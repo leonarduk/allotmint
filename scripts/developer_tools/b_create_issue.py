@@ -320,7 +320,9 @@ def create_issue_via_gh(
     except (OSError, subprocess.TimeoutExpired) as exc:
         print(f"gh CLI error: {exc}", file=sys.stderr)
         return None
-
+    finally:
+        if body_path and os.path.exists(body_path):
+            os.unlink(body_path)
 
 def derive_title_from_what(what: str) -> str | None:
     """Extract a candidate title from the first meaningful line of 'What'."""

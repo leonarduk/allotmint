@@ -1,4 +1,5 @@
 import datetime as dt
+import logging
 from collections import defaultdict
 
 import pytest
@@ -106,3 +107,26 @@ def test_build_owner_portfolio_requires_plot(monkeypatch, today):
 
     with pytest.raises(FileNotFoundError):
         build_owner_portfolio("nope")
+
+
+def test_build_owner_portfolio_logs_total_plot_count_on_miss(monkeypatch, today, caplog):
+    """Regression test for #5286.
+
+    When an owner has no matching plot, log how many plots were discovered in
+    total -- this distinguishes a genuinely-missing owner (plots found > 0,
+    just none matching) from a possibly-transient empty/partial listing
+    (plots found == 0), without which a reported 404 for a real owner is
+    unreproducible from logs alone.
+    """
+    other_owner = OwnerSummaryRecord(owner="other", accounts=["account-one"])
+    monkeypatch.setattr("backend.common.portfolio.list_plots", lambda root=None: [other_owner])
+
+    with caplog.at_level(logging.WARNING, logger="backend.common.portfolio"):
+        with pytest.raises(FileNotFoundError):
+            build_owner_portfolio("nope")
+
+    assert any(
+        "no plot found for owner=nope" in record.getMessage()
+        and "total plots discovered=1" in record.getMessage()
+        for record in caplog.records
+    )

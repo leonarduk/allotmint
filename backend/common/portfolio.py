@@ -131,8 +131,20 @@ def build_owner_portfolio(
     today = calc.today
     pricing_date = calc.reporting_date
 
-    plots = [p for p in list_plots(accounts_root) if p.owner == owner]
+    all_plots = list_plots(accounts_root)
+    plots = [p for p in all_plots if p.owner == owner]
     if not plots:
+        # Diagnostics for #5286: performance/tracking-error and its sibling
+        # endpoints report this as a generic 404 "Owner not found", which is
+        # indistinguishable from a genuinely-nonexistent owner. Logging the
+        # total plot count discovered lets a real occurrence be told apart
+        # from a transient empty/partial listing (e.g. an S3 listing hiccup
+        # in list_plots) without requiring another blind investigation.
+        logger.warning(
+            "build_owner_portfolio: no plot found for owner=%s (total plots discovered=%d)",
+            sanitise_log_value(owner),
+            len(all_plots),
+        )
         raise FileNotFoundError(f"No plot for owner '{owner}'")
     accounts_meta = plots[0].accounts
 

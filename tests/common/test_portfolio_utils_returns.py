@@ -57,6 +57,37 @@ def test_compute_metrics_none_when_series_misaligned(monkeypatch: pytest.MonkeyP
     assert portfolio_utils.compute_tracking_error("alice", "SPY.L", days=365) is None
 
 
+def test_compute_metrics_none_when_benchmark_data_entirely_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A benchmark with no cached/fetchable data must degrade gracefully.
+
+    Regression test for #5286: the leading theory for a reported 404 on
+    `/performance/{owner}/tracking-error` was a missing benchmark data file.
+    load_meta_timeseries returning a genuinely empty frame (rather than
+    raising) must produce ``None`` results, not an exception that a route
+    handler could mistranslate into a 404 "Owner not found".
+    """
+
+    dates = pd.date_range("2024-01-01", periods=3, freq="D")
+    portfolio_series = pd.Series([100.0, 110.0, 115.0], index=dates.date)
+
+    def fake_portfolio_value_series(
+        name: str, days: int, *, group: bool = False, pricing_date=None, **_
+    ) -> pd.Series:
+        return portfolio_series
+
+    monkeypatch.setattr(portfolio_utils, "_portfolio_value_series", fake_portfolio_value_series)
+
+    def fake_load_meta_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame:
+        return pd.DataFrame()
+
+    monkeypatch.setattr(portfolio_utils, "load_meta_timeseries", fake_load_meta_timeseries)
+
+    assert portfolio_utils.compute_alpha_vs_benchmark("alice", "MISSING.L", days=365) is None
+    assert portfolio_utils.compute_tracking_error("alice", "MISSING.L", days=365) is None
+
+
 def test_group_metrics_and_max_drawdown(monkeypatch: pytest.MonkeyPatch) -> None:
     dates = pd.date_range("2024-01-01", periods=3, freq="D")
     shared_series = pd.Series([100.0, 110.0, 115.0], index=dates.date)

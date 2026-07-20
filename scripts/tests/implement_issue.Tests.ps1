@@ -1,34 +1,34 @@
-# Unit tests for the file discovery logic in ../aider-issue.ps1
+# Unit tests for the file discovery logic in ../developer_tools/implement_issue.ps1
 # (direct path matching + basename fallback via `git ls-files`, added by PR #4293).
 #
-# aider-issue.ps1 is a top-level script with real side effects (git checkout,
+# implement_issue.ps1 is a top-level script with real side effects (git checkout,
 # git reset --hard, git push, gh pr create) and no extracted function to call
 # in isolation, so these tests extract the discovery snippet verbatim from the
 # source file's text and dot-source it with git/Test-Path mocked. This runs the
 # exact shipped code (not a re-implementation), so a regression in the real
 # script fails these tests, while `git`/the filesystem are never touched.
 #
-# Constraint: this file must never modify aider-issue.ps1 (tests only).
+# Constraint: this file must never modify implement_issue.ps1 (tests only).
 
 BeforeAll {
-    $script:ScriptUnderTest = (Resolve-Path (Join-Path $PSScriptRoot '..' 'aider-issue.ps1')).Path
+    $script:ScriptUnderTest = (Resolve-Path (Join-Path $PSScriptRoot '..' 'developer_tools' 'implement_issue.ps1')).Path
     $raw = Get-Content -LiteralPath $script:ScriptUnderTest -Raw
 
     # Start marker: first line of the candidate-path regex setup.
     # End marker: the line combining identifier/direct/basename matches into $referencedFiles.
-    # If aider-issue.ps1 is restructured, these IndexOf calls stop finding the
+    # If implement_issue.ps1 is restructured, these IndexOf calls stop finding the
     # markers and the throw below fails loudly instead of silently testing stale text.
     $startToken = '$pathPattern'
     $endToken = '$referencedFiles = @(('
 
     $startIndex = $raw.IndexOf($startToken)
     if ($startIndex -lt 0) {
-        throw "Could not locate start marker '$startToken' in aider-issue.ps1 - the file discovery logic may have moved. Update the extraction markers in this test file."
+        throw "Could not locate start marker '$startToken' in implement_issue.ps1 - the file discovery logic may have moved. Update the extraction markers in this test file."
     }
 
     $endAnchor = $raw.IndexOf($endToken)
     if ($endAnchor -lt 0) {
-        throw "Could not locate end marker '$endToken' in aider-issue.ps1 - the file discovery logic may have moved. Update the extraction markers in this test file."
+        throw "Could not locate end marker '$endToken' in implement_issue.ps1 - the file discovery logic may have moved. Update the extraction markers in this test file."
     }
 
     $eol = $raw.IndexOf("`n", $endAnchor)
@@ -37,7 +37,7 @@ BeforeAll {
     $script:DiscoverySnippet = $raw.Substring($startIndex, $eol - $startIndex)
 }
 
-Describe 'aider-issue.ps1 file discovery logic' {
+Describe 'implement_issue.ps1 file discovery logic' {
 
     BeforeEach {
         # $title/$issueBody/$repoRoot are read by the dot-sourced snippet below;

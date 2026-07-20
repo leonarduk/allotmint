@@ -255,16 +255,25 @@ $fileArgs = @($referencedFiles | ForEach-Object { '--file', $_ })
 Write-Host "[4/6] Running aider on issue #$number (wall-clock cap: ${TimeoutMinutes}m)..."
 
 # Run via System.Diagnostics.Process (not Start-Process/the call operator) so
-# each argument travels as its own ArgumentList entry - no shell re-quoting to
-# get wrong - while still letting us bound total wall-clock time with
-# WaitForExit(timeout). UseShellExecute=$false with no output redirection
-# means aider's output streams straight to this console, same as a direct call.
+# we can bound total wall-clock time with WaitForExit(timeout).
+# UseShellExecute=$false with no output redirection means aider's output
+# streams straight to this console, same as a direct call.
+#
+# Build a single command-line string for .Arguments rather than populating
+# .ArgumentList: on Windows PowerShell 5.1 (the default `powershell.exe`,
+# distinct from pwsh/PowerShell 7), ProcessStartInfo.ArgumentList comes back
+# $null instead of an initialized collection, so every .Add() below is a
+# silent no-op - aider then launches with zero arguments (no --yes-always,
+# no --message-file) and sits at its interactive prompt instead of running
+# non-interactively. .Arguments (a plain string) has worked the same way on
+# both PowerShell hosts since .NET 1.1.
+$allAiderArgs = @($fileArgs) + @('--yes-always', '--message-file', $promptFile)
+$aiderArgString = ($allAiderArgs | ForEach-Object {
+        if ($_ -match '[\s"]') { '"' + ($_ -replace '"', '""') + '"' } else { $_ }
+    }) -join ' '
+
 $aiderPath = (Get-Command aider -ErrorAction Stop).Source
-$psi = [System.Diagnostics.ProcessStartInfo]::new($aiderPath)
-foreach ($a in $fileArgs) { $psi.ArgumentList.Add($a) }
-$psi.ArgumentList.Add('--yes-always')
-$psi.ArgumentList.Add('--message-file')
-$psi.ArgumentList.Add($promptFile)
+$psi = [System.Diagnostics.ProcessStartInfo]::new($aiderPath, $aiderArgString)
 $psi.UseShellExecute = $false
 
 $aiderProc = [System.Diagnostics.Process]::Start($psi)

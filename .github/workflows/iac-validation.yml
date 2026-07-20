@@ -81,7 +81,7 @@ jobs:
 
       - name: Set up Node.js
         if: needs.detect-iac-changes.outputs.iac_changed == 'true'
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: '24'
           cache: 'npm'

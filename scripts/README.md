@@ -172,6 +172,29 @@ The script:
 
 Optional flags:
 - `--token TOKEN`: GitHub personal access token (also reads `GITHUB_TOKEN` env var). Required for branch creation (unauthenticated requests will fail with 401/403).
+
+## developer_tools/implement_issue.ps1
+
+Automates implementing a GitHub issue end-to-end with a local LLM: fetches the
+issue, creates/resets an `issue-<N>` branch, runs [aider](https://aider.chat)
+against a local Ollama model (configured in `.aider.conf.yml`) to generate the
+code changes, then pushes the branch and opens a draft PR.
+
+```powershell
+./scripts/developer_tools/implement_issue.ps1 -Issue 123
+```
+
+Requires `gh` and `aider` on PATH, and a running local Ollama server serving
+the model configured in `.aider.conf.yml`.
+
+Optional flags:
+- `-Force`: bypass the pre-flight check for an unresolved merge/rebase/cherry-pick conflict left over from a prior interrupted run.
+- `-TimeoutMinutes N` (default `40`): wall-clock cap on the aider run. This is separate from the `timeout` setting in `.aider.conf.yml`, which only bounds a single LLM API call — a 14B local model on modest hardware can need the API-call timeout raised too if it consistently runs long.
+
+If aider makes no commits (e.g. the local model replies with prose instead of
+edits), the script fails rather than pushing an empty branch or opening a
+content-free PR.
+
 ## publish_pr.py
 
 Automate PR publishing: commit changes, push to remote, and create a PR with auto-filled body sections. Optionally uses Ollama to generate thoughtful PR descriptions.

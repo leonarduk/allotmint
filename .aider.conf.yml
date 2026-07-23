@@ -5,3 +5,10 @@ yes-always: true
 
 auto-test: true
 test-cmd: "pytest -q --ignore=tests/integration --ignore=tests/live"
+
+# litellm's default completion timeout is 600s, which a 14B local model can
+# exceed on modest hardware once the repo-map + prompt fill the large context
+# window configured in .aider.model.settings.yml. Without this, aider aborts
+# mid-generation with a Timeout error before producing any edits, which looks
+# like the whole run "hung" rather than the API call being cut short.
+timeout: 1800

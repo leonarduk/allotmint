@@ -3,7 +3,14 @@ param(
     # Bypass the active-operation check below (MERGE_HEAD/CHERRY_PICK_HEAD/
     # rebase-merge/rebase-apply) for emergency recovery from a stale git state.
     # Does not affect the unmerged-path detection or reset logic that follows.
-    [switch]$Force
+    [switch]$Force,
+    # Wall-clock cap on the aider run itself, independent of the `timeout`
+    # setting in .aider.conf.yml (which only bounds a single LLM API call).
+    # A stuck git lock, editor prompt, or other non-API hang would otherwise
+    # leave the script running indefinitely with no way to tell "still
+    # working" from "hung". Defaults a bit above the 1800s (30min) API
+    # timeout so a normal slow-but-successful run isn't cut off first.
+    [int]$TimeoutMinutes = 40
 )
 
 # Pre-flight: require gh and aider on PATH
@@ -245,10 +252,46 @@ if ($referencedFiles.Count -gt 0) {
 # option. An empty array splats to nothing, leaving aider to work from repo-map.
 $fileArgs = @($referencedFiles | ForEach-Object { '--file', $_ })
 
-Write-Host "[4/6] Running aider on issue #$number..."
-aider @fileArgs --yes-always --message-file $promptFile
+Write-Host "[4/6] Running aider on issue #$number (wall-clock cap: ${TimeoutMinutes}m)..."
+
+# Run via System.Diagnostics.Process (not Start-Process/the call operator) so
+# we can bound total wall-clock time with WaitForExit(timeout).
+# UseShellExecute=$false with no output redirection means aider's output
+# streams straight to this console, same as a direct call.
+#
+# Build a single command-line string for .Arguments rather than populating
+# .ArgumentList: on Windows PowerShell 5.1 (the default `powershell.exe`,
+# distinct from pwsh/PowerShell 7), ProcessStartInfo.ArgumentList comes back
+# $null instead of an initialized collection, so every .Add() below is a
+# silent no-op - aider then launches with zero arguments (no --yes-always,
+# no --message-file) and sits at its interactive prompt instead of running
+# non-interactively. .Arguments (a plain string) has worked the same way on
+# both PowerShell hosts since .NET 1.1.
+$allAiderArgs = @($fileArgs) + @('--yes-always', '--message-file', $promptFile)
+$aiderArgString = ($allAiderArgs | ForEach-Object {
+        if ($_ -match '[\s"]') { '"' + ($_ -replace '"', '""') + '"' } else { $_ }
+    }) -join ' '
+
+$aiderPath = (Get-Command aider -ErrorAction Stop).Source
+$psi = [System.Diagnostics.ProcessStartInfo]::new($aiderPath, $aiderArgString)
+$psi.UseShellExecute = $false
+
+$aiderProc = [System.Diagnostics.Process]::Start($psi)
+$finishedInTime = $aiderProc.WaitForExit([int]($TimeoutMinutes * 60 * 1000))
+if (-not $finishedInTime) {
+    Write-Error "aider did not finish within $TimeoutMinutes minute(s) (PID $($aiderProc.Id)) - killing it. This is a wall-clock safety net distinct from the API-call timeout in .aider.conf.yml; a run can still stall on something other than the LLM call (e.g. a git lock or an interactive prompt aider is waiting on). Re-run with -TimeoutMinutes for a larger issue on slower hardware, or investigate why aider stalled."
+    try { $aiderProc.Kill($true) } catch {
+        Write-Warning "Failed to kill stalled aider process (PID $($aiderProc.Id)): $_. You may need to terminate it manually."
+    }
+    Remove-Item $promptFile -ErrorAction SilentlyContinue
+    exit 1
+}
+$aiderExitCode = $aiderProc.ExitCode
 Remove-Item $promptFile -ErrorAction SilentlyContinue
-if ($LASTEXITCODE -ne 0) { exit 1 }
+if ($aiderExitCode -ne 0) {
+    Write-Error "aider exited with code $aiderExitCode."
+    exit 1
+}
 
 # Abort if aider made no commits - avoids pushing an empty branch and opening
 # a content-free PR. The most common cause is the model replying with prose

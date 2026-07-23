@@ -45,6 +45,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-```
-
-This should resolve the syntax error by removing the invalid comment block and adding a proper docstring at the top of the file.

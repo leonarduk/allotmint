@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 # slow network can never consume the whole Lambda cold-start budget (#4940).
 # Each call gets its own budget rather than sharing one, so a timeout on the
 # first doesn't eat into the second's allowance.
-_SNAPSHOT_LOAD_TIMEOUT_SECONDS = float(os.getenv("SNAPSHOT_LOAD_TIMEOUT_SECONDS", "5.0"))
+_SNAPSHOT_LOAD_TIMEOUT_SECONDS = float(os.getenv("SNAPSHOT_LOAD_TIMEOUT_SECONDS", "10.0"))
 
 
 @contextmanager

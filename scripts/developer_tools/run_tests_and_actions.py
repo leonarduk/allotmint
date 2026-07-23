@@ -47,20 +47,4 @@ if __name__ == "__main__":
     main()
 ```
 
-### Explanation:
-
-1. **run_command**: A helper function to execute shell commands and handle errors.
-2. **run_pytest**: Executes `pytest` to run integration tests.
-3. **run_github_actions**: Uses the `gh` CLI to trigger GitHub Actions.
-4. **main**: Provides a menu for users to select actions to execute.
-
-### Usage:
-
-1. Ensure you have `pytest` and `gh` installed on your system.
-2. Run the script using Python:
-   ```bash
-   python scripts/developer_tools/run_tests_and_actions.py
-   ```
-3. Follow the prompts to run integration tests or trigger GitHub Actions.
-
-This script provides a simple and user-friendly interface for automating integration tests and GitHub Actions, making it easier to ensure comprehensive testing before committing code.
+This should resolve the syntax error by removing the invalid comment block and adding a proper docstring at the top of the file.

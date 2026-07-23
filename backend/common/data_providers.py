@@ -94,8 +94,9 @@ class S3DataProvider:
         self.bucket = bucket or os.getenv(DATA_BUCKET_ENV)
         if not self.bucket:
             raise ProviderUnavailable(f"Missing {DATA_BUCKET_ENV} env var for AWS account loading")
+        self._cached_client: Optional[Any] = None
 
-    def _client(self):
+    def _client(self) -> Any:
         """Return a cached boto3 S3 client, reusing it across calls.
 
         boto3 clients are thread-safe and can be reused; creating a new
@@ -103,7 +104,7 @@ class S3DataProvider:
         (credential resolution, endpoint discovery). Reusing a single
         client eliminates this overhead on every account/person-meta load.
         """
-        if hasattr(self, "_cached_client"):
+        if self._cached_client is not None:
             return self._cached_client
         try:
             import boto3  # type: ignore

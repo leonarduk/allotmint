@@ -79,12 +79,13 @@ def test_classify_single_issue_defaults_to_backlog(monkeypatch):
 def test_fetch_unmilestoned_open_issues_filters_milestoned(monkeypatch):
     payload = json.dumps(
         [
-            {"number": 1, "title": "No milestone", "labels": [], "milestone": None},
+            {"number": 1, "title": "No milestone", "labels": [], "milestone": None, "body": None},
             {
                 "number": 2,
                 "title": "Has milestone",
                 "labels": [{"name": "bug"}],
                 "milestone": {"title": "Backend Hardening & Test Coverage"},
+                "body": None
             },
         ]
     )
@@ -100,17 +101,6 @@ def test_fetch_unmilestoned_open_issues_exits_on_gh_failure(monkeypatch):
         assert False, "expected SystemExit"
     except SystemExit as exc:
         assert exc.code == 1
-
-
-def test_fetch_issue_body_returns_empty_on_failure(monkeypatch):
-    monkeypatch.setattr(h, "run_gh", lambda args: _FakeResult(1, "", "not found"))
-    assert h.fetch_issue_body(999) == ""
-
-
-def test_fetch_issue_body_returns_body_text(monkeypatch):
-    monkeypatch.setattr(h, "run_gh", lambda args: _FakeResult(0, json.dumps({"body": "hello"})))
-    assert h.fetch_issue_body(1) == "hello"
-
 
 def test_close_issue_dry_run_does_not_call_gh(monkeypatch):
     calls = []

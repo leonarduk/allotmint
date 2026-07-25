@@ -171,7 +171,7 @@ _PROVIDERS: dict[str, tuple[str, Callable[[str, str], str]]] = {
     "deepseek": (
         "DEEPSEEK_API_KEY",
         _openai_compatible_caller(
-            "https://api.deepseek.com/v1/chat/completions", "DEEPSEEK_FOLLOWUP_MODEL", "deepseek-chat"
+            "https://api.deepseek.com/v1/chat/completions", "DEEPSEEK_FOLLOWUP_MODEL", "deepseek-v4-flash"
         ),
     ),
 }

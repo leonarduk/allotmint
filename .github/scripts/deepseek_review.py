@@ -13,14 +13,14 @@ from typing import Any
 
 from review_common import build_prompt, emit_empty_diff_notice, fetch_review, finalize_review, load_review_context
 
-DEFAULT_DEEPSEEK_MODEL = "deepseek-chat"
+DEFAULT_DEEPSEEK_MODEL = "deepseek-v4-flash"
 DEFAULT_MAX_TOKENS = 4096
 
 
 def get_deepseek_model() -> str:
     """Return the DeepSeek model ID to call for advisory reviews.
 
-    Defaults to `deepseek-chat` (the latest DeepSeek-V3 alias). Set
+    Defaults to `deepseek-v4-flash` (the latest DeepSeek-V3 alias). Set
     `DEEPSEEK_MODEL` to override (e.g. to `deepseek-reasoner` for a deeper
     review). An unset or empty value falls back to the default.
     """

@@ -25,6 +25,7 @@ import json
 import re
 import subprocess
 import sys
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -39,6 +40,8 @@ from ollama_common import (  # noqa: E402
 REPO_OWNER = "leonarduk"
 REPO_NAME = "allotmint"
 CONSOLIDATOR_MILESTONE = "Backend Hardening & Test Coverage"
+GH_RETRY_ATTEMPTS = 3
+GH_RETRY_BACKOFF_SECONDS = 2
 
 SCOPE_APART_PATTERN = re.compile(r"(?:tracked separately as|out of scope:?)\s*#(\d+)", re.IGNORECASE)
 ISSUE_REF_PATTERN = re.compile(r"#(\d+)")
@@ -56,13 +59,32 @@ class Issue:
 
 
 def run_gh(args: list[str]) -> subprocess.CompletedProcess[str]:
-    """Run a `gh` CLI command scoped to REPO_OWNER/REPO_NAME. Never raises."""
-    return subprocess.run(
-        ["gh", *args, "--repo", f"{REPO_OWNER}/{REPO_NAME}"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    """Run a `gh` CLI command scoped to REPO_OWNER/REPO_NAME. Never raises.
+
+    Retries transient failures (network blips, GraphQL timeouts) up to
+    GH_RETRY_ATTEMPTS times with a linear backoff before returning the
+    last failing result to the caller.
+    """
+    result = None
+    for attempt in range(1, GH_RETRY_ATTEMPTS + 1):
+        result = subprocess.run(
+            ["gh", *args, "--repo", f"{REPO_OWNER}/{REPO_NAME}"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            check=False,
+        )
+        if result.returncode == 0:
+            return result
+        if attempt < GH_RETRY_ATTEMPTS:
+            wait_seconds = GH_RETRY_BACKOFF_SECONDS * attempt
+            print(
+                f"WARNING: gh {' '.join(args)} failed (attempt {attempt}/{GH_RETRY_ATTEMPTS}): "
+                f"{result.stderr.strip()} -- retrying in {wait_seconds}s",
+                file=sys.stderr,
+            )
+            time.sleep(wait_seconds)
+    return result
 
 
 def fetch_unmilestoned_open_issues() -> list[Issue]:
@@ -74,7 +96,7 @@ def fetch_unmilestoned_open_issues() -> list[Issue]:
             "--state",
             "open",
             "--json",
-            "number,title,labels,milestone,createdAt",
+            "number,title,labels,milestone,createdAt,body",
             "--limit",
             "500",
         ]
@@ -94,21 +116,10 @@ def fetch_unmilestoned_open_issues() -> list[Issue]:
         if item.get("milestone") is not None:
             continue
         labels = [label["name"] for label in item.get("labels", [])]
-        issues.append(Issue(number=item["number"], title=item["title"], labels=labels))
+        issues.append(Issue(number=item["number"], title=item["title"],
+                            labels=labels, body=item.get("body") or ""))
+
     return issues
-
-
-def fetch_issue_body(number: int) -> str:
-    """Fetch the full body text of a single issue via `gh issue view`."""
-    result = run_gh(["issue", "view", str(number), "--json", "body"])
-    if result.returncode != 0:
-        print(f"WARNING: gh issue view #{number} failed: {result.stderr}", file=sys.stderr)
-        return ""
-    try:
-        return json.loads(result.stdout).get("body") or ""
-    except json.JSONDecodeError:
-        return ""
-
 
 def is_scoped_apart(body: str, other_number: int) -> bool:
     """Return True if `body` explicitly scopes itself apart from `other_number`."""
@@ -202,7 +213,8 @@ def parse_classifications(response: str) -> dict[int, str]:
 
 def classify_single_issue(issue: Issue, model: str, endpoint: str) -> str:
     """Classify a standalone issue as NEW_FEATURE or BACKLOG."""
-    prompt = SINGLE_CLASSIFY_PROMPT_TEMPLATE.format(number=issue.number, title=issue.title, body=issue.body.strip())
+    prompt = SINGLE_CLASSIFY_PROMPT_TEMPLATE.format(number=issue.number, title=issue.title,
+                                                    body=issue.body.strip())
     response = fetch_ollama_review(endpoint, model, prompt)
     return "NEW_FEATURE" if "NEW_FEATURE" in response.upper() else "BACKLOG"
 
@@ -357,9 +369,6 @@ def main() -> int:
     if args.limit is not None:
         issues = issues[: args.limit]
     print(f"INFO: {len(issues)} unmilestoned open issues found", file=sys.stderr)
-
-    for issue in issues:
-        issue.body = fetch_issue_body(issue.number)
 
     print(f"INFO: Using Ollama model '{model}' at {endpoint}", file=sys.stderr)
 

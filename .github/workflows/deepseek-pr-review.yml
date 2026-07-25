@@ -44,7 +44,7 @@ jobs:
       # "Deep Review Required" opts a PR into the stronger reasoning model
       # with a larger token budget (its chain-of-thought tokens count
       # against max_tokens). Without the label, the script falls back to
-      # its defaults (deepseek-chat, 4096 tokens).
+      # its defaults (deepseek-v4-flash, 4096 tokens).
       deepseek_model: ${{ contains(github.event.pull_request.labels.*.name, 'Deep Review Required') && 'deepseek-reasoner' || '' }}
       deepseek_max_tokens: ${{ contains(github.event.pull_request.labels.*.name, 'Deep Review Required') && '16000' || '' }}
     secrets:

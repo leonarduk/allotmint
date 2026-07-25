@@ -25,6 +25,7 @@ import json
 import re
 import subprocess
 import sys
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -39,6 +40,8 @@ from ollama_common import (  # noqa: E402
 REPO_OWNER = "leonarduk"
 REPO_NAME = "allotmint"
 CONSOLIDATOR_MILESTONE = "Backend Hardening & Test Coverage"
+GH_RETRY_ATTEMPTS = 3
+GH_RETRY_BACKOFF_SECONDS = 2
 
 SCOPE_APART_PATTERN = re.compile(r"(?:tracked separately as|out of scope:?)\s*#(\d+)", re.IGNORECASE)
 ISSUE_REF_PATTERN = re.compile(r"#(\d+)")
@@ -56,14 +59,32 @@ class Issue:
 
 
 def run_gh(args: list[str]) -> subprocess.CompletedProcess[str]:
-    """Run a `gh` CLI command scoped to REPO_OWNER/REPO_NAME. Never raises."""
-    return subprocess.run(
-        ["gh", *args, "--repo", f"{REPO_OWNER}/{REPO_NAME}"],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        check=False,
-    )
+    """Run a `gh` CLI command scoped to REPO_OWNER/REPO_NAME. Never raises.
+
+    Retries transient failures (network blips, GraphQL timeouts) up to
+    GH_RETRY_ATTEMPTS times with a linear backoff before returning the
+    last failing result to the caller.
+    """
+    result = None
+    for attempt in range(1, GH_RETRY_ATTEMPTS + 1):
+        result = subprocess.run(
+            ["gh", *args, "--repo", f"{REPO_OWNER}/{REPO_NAME}"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            check=False,
+        )
+        if result.returncode == 0:
+            return result
+        if attempt < GH_RETRY_ATTEMPTS:
+            wait_seconds = GH_RETRY_BACKOFF_SECONDS * attempt
+            print(
+                f"WARNING: gh {' '.join(args)} failed (attempt {attempt}/{GH_RETRY_ATTEMPTS}): "
+                f"{result.stderr.strip()} -- retrying in {wait_seconds}s",
+                file=sys.stderr,
+            )
+            time.sleep(wait_seconds)
+    return result
 
 
 def fetch_unmilestoned_open_issues() -> list[Issue]:
@@ -96,7 +117,7 @@ def fetch_unmilestoned_open_issues() -> list[Issue]:
             continue
         labels = [label["name"] for label in item.get("labels", [])]
         issues.append(Issue(number=item["number"], title=item["title"],
-                            labels=labels, body=item["body"]))
+                            labels=labels, body=item.get("body") or ""))
 
     return issues
 

@@ -94,6 +94,19 @@ def test_fetch_unmilestoned_open_issues_filters_milestoned(monkeypatch):
     assert [i.number for i in issues] == [1]
 
 
+def test_fetch_unmilestoned_open_issues_populates_body_from_batch(monkeypatch):
+    payload = json.dumps(
+        [
+            {"number": 1, "title": "Has a body", "labels": [], "milestone": None, "body": "See #2 for context"},
+            {"number": 2, "title": "Null body", "labels": [], "milestone": None, "body": None},
+        ]
+    )
+    monkeypatch.setattr(h, "run_gh", lambda args: _FakeResult(0, payload))
+    issues = h.fetch_unmilestoned_open_issues()
+    assert issues[0].body == "See #2 for context"
+    assert issues[1].body == ""
+
+
 def test_fetch_unmilestoned_open_issues_exits_on_gh_failure(monkeypatch):
     monkeypatch.setattr(h, "run_gh", lambda args: _FakeResult(1, "", "boom"))
     try:
@@ -101,6 +114,32 @@ def test_fetch_unmilestoned_open_issues_exits_on_gh_failure(monkeypatch):
         assert False, "expected SystemExit"
     except SystemExit as exc:
         assert exc.code == 1
+
+
+def test_run_gh_retries_transient_failure_then_succeeds(monkeypatch):
+    monkeypatch.setattr(h.time, "sleep", lambda seconds: None)
+    calls = []
+
+    def fake_run(args, **kwargs):
+        calls.append(args)
+        if len(calls) < 2:
+            return _FakeResult(1, "", "TLS handshake timeout")
+        return _FakeResult(0, "ok")
+
+    monkeypatch.setattr(h.subprocess, "run", fake_run)
+    result = h.run_gh(["issue", "list"])
+    assert result.returncode == 0
+    assert len(calls) == 2
+
+
+def test_run_gh_gives_up_after_max_retries(monkeypatch):
+    sleeps = []
+    monkeypatch.setattr(h.time, "sleep", lambda seconds: sleeps.append(seconds))
+    monkeypatch.setattr(h.subprocess, "run", lambda args, **kwargs: _FakeResult(1, "", "boom"))
+    result = h.run_gh(["issue", "list"])
+    assert result.returncode == 1
+    assert len(sleeps) == h.GH_RETRY_ATTEMPTS - 1
+
 
 def test_close_issue_dry_run_does_not_call_gh(monkeypatch):
     calls = []

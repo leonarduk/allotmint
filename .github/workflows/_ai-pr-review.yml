@@ -234,6 +234,12 @@ jobs:
           create_label_if_missing "haiku" "C5DEF5" "Suitable for Claude Haiku (simple/mechanical task)"
           create_label_if_missing "sonnet" "BFD4F2" "Suitable for Claude Sonnet (moderate reasoning)"
           create_label_if_missing "opus" "0052CC" "Suitable for Claude Opus (complex design/architecture)"
+          # local-7b/local-14b are also valid tiers in create_followup_issues.py's prompt
+          # (llm_labels.LLM_TIER_MAP) even though this workflow's own review prompts don't
+          # request them; missing either label makes `gh issue create --label local-7b` fail
+          # outright and previously crashed the whole follow-up batch (see #5556).
+          create_label_if_missing "local-7b" "0e8a16" "Doable by a local LLM (qwen2.5-coder:7b)"
+          create_label_if_missing "local-14b" "1d76db" "Doable by a local LLM (qwen2.5-coder:14b); too hard for 7b"
 
           # Extract titles to a file, then create issues via Python subprocess (no shell injection)
           python3 .github/scripts/extract_followups.py /tmp/${{ inputs.provider_id }}_review_body.md \

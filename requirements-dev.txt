@@ -1,4 +1,4 @@
-aws-cdk-lib~=2.259.0
+aws-cdk-lib~=2.262.1
 constructs~=10.6.0
 jinja2~=3.1.4
 mangum-cli~=0.1.0

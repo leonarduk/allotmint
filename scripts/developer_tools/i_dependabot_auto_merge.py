@@ -6,9 +6,17 @@ needs to click merge. This script finds open PRs authored by `dependabot[bot]`,
 merges the ones whose checks have all passed on the current head SHA, and deletes
 the branch afterward. A PR that is otherwise green but merely behind `main` (no
 real conflicts) is never left stuck on that alone: GitHub branch protection
-generally requires the head branch to be up to date before merging, so this
-script triggers a branch update (`gh pr update-branch`) instead of a direct
-merge in that case; a later run merges it once mergeable_state is "clean".
+generally requires the head branch to be up to date before merging, so a plain
+`gh pr merge` on a behind PR is rejected outright. --behind-strategy controls
+how that case is handled:
+  - "admin" (default): force-merge with `gh pr merge --admin`, which bypasses
+    branch-protection enforcement for that one merge. Checks still have to
+    have passed first -- --admin only gets past the "not up to date" rule,
+    it doesn't skip CI.
+  - "update-branch": merge main into the PR branch first (gh pr update-branch)
+    and leave the actual merge to a later run, once CI re-passes and the PR
+    reports mergeable_state == "clean".
+  - "skip": leave the PR alone entirely.
 
 Safety:
   - Defaults to dry-run. Pass --yes to actually merge/delete anything.
@@ -49,11 +57,11 @@ GH_TIMEOUT_SECONDS = 60
 MERGEABILITY_REFRESH_ATTEMPTS = 3
 MERGEABILITY_REFRESH_WAIT_SECONDS = 3
 
-# mergeable_state values that are eligible for action (merge or branch
-# update) rather than an outright skip. "behind" means only out-of-date with
-# the base branch -- not a real conflict -- so it's still handled, just via
-# update_branch() instead of a direct merge (see process_pr). "clean" is the
-# ordinary green/no-conflict case that merges directly.
+# mergeable_state values that are eligible for a merge rather than an
+# outright skip. "behind" means only out-of-date with the base branch -- not
+# a real conflict -- so it still merges, just with --admin to bypass the
+# "must be up to date" branch-protection rule (see process_pr). "clean" is
+# the ordinary green/no-conflict case that needs no special handling.
 MERGEABLE_STATES_OK_TO_MERGE = {"clean", "behind"}
 
 
@@ -232,7 +240,7 @@ def is_mergeable(pr: PullRequest) -> bool:
     return pr.mergeable_state in MERGEABLE_STATES_OK_TO_MERGE
 
 
-def merge_and_delete(pr: PullRequest, dry_run: bool) -> bool:
+def merge_and_delete(pr: PullRequest, dry_run: bool, admin: bool = False) -> bool:
     """Merge a Dependabot PR (squash) and delete its head branch.
 
     Returns False if a real (non-dry-run) merge attempt failed, so the caller
@@ -241,6 +249,13 @@ def merge_and_delete(pr: PullRequest, dry_run: bool) -> bool:
     the merge on an already-merged PR. `--match-head-commit` guards against
     merging a different revision than the one whose checks/mergeability were
     validated.
+
+    `admin=True` adds `--admin`, which bypasses branch-protection enforcement
+    for this one merge -- used only for a PR that's green but "behind" main,
+    to get past the "head branch must be up to date" rule (a straight
+    `gh pr merge` on a behind PR is rejected outright otherwise). Checks
+    still have to have passed first; `--admin` isn't used to skip CI, only to
+    override the up-to-date requirement.
     """
     prefix = "[DRY RUN] " if dry_run else ""
     print(f"{prefix}Merging PR #{pr.number} ({pr.title}) and deleting branch '{pr.head_ref_name}'")
@@ -257,6 +272,8 @@ def merge_and_delete(pr: PullRequest, dry_run: bool) -> bool:
     args = ["pr", "merge", str(pr.number), "--squash", "--delete-branch"]
     if pr.head_sha:
         args += ["--match-head-commit", pr.head_sha]
+    if admin:
+        args += ["--admin"]
     result = _run_gh_once(args)
     if result.returncode != 0:
         print(f"ERROR: failed to merge PR #{pr.number}: {result.stderr}", file=sys.stderr)
@@ -267,15 +284,11 @@ def merge_and_delete(pr: PullRequest, dry_run: bool) -> bool:
 def update_branch(pr: PullRequest, dry_run: bool) -> bool:
     """Update a Dependabot PR's branch with the latest changes from main.
 
-    GitHub branch protection commonly requires the head branch to be up to
-    date with the base before a merge is allowed, so `gh pr merge` on a PR
-    reporting mergeable_state == "behind" fails outright (confirmed against
-    real PRs: "the head branch is not up to date with the base branch").
-    Triggering an update here lets CI re-run against the refreshed branch; a
-    later run of this script merges it once mergeable_state reports "clean".
-    Uses `_run_gh_once` (no retry) since this mutates the branch -- a retry
-    after a lost response could reattempt the update on an already-updated
-    branch.
+    Used by the "update-branch" --behind-strategy: triggers CI to re-run
+    against the refreshed branch, leaving the actual merge to a later run
+    once mergeable_state reports "clean". Uses `_run_gh_once` (no retry)
+    since this mutates the branch -- a retry after a lost response could
+    reattempt the update on an already-updated branch.
     """
     prefix = "[DRY RUN] " if dry_run else ""
     print(
@@ -292,11 +305,12 @@ def update_branch(pr: PullRequest, dry_run: bool) -> bool:
     return True
 
 
-def process_pr(pr: PullRequest, dry_run: bool) -> bool:
+def process_pr(pr: PullRequest, dry_run: bool, behind_strategy: str = "admin") -> bool:
     """Decide whether a single Dependabot PR should be merged, and act on it.
 
     Returns False only when a merge/update was attempted and failed; skipping
-    a PR (checks not passed, not mergeable) is not treated as a failure.
+    a PR (checks not passed, not mergeable, or behind_strategy == "skip") is
+    not treated as a failure.
     """
     if not checks_have_passed(pr.checks):
         print(f"SKIP: PR #{pr.number} ({pr.title}) -- checks not all passed")
@@ -309,7 +323,12 @@ def process_pr(pr: PullRequest, dry_run: bool) -> bool:
         )
         return True
     if pr.mergeable_state == "behind":
-        return update_branch(pr, dry_run)
+        if behind_strategy == "skip":
+            print(f"SKIP: PR #{pr.number} ({pr.title}) -- behind main, --behind-strategy=skip")
+            return True
+        if behind_strategy == "update-branch":
+            return update_branch(pr, dry_run)
+        return merge_and_delete(pr, dry_run, admin=True)
     return merge_and_delete(pr, dry_run)
 
 
@@ -357,6 +376,15 @@ def main() -> int:
         help="Repository to operate on as 'owner/name'. Defaults to the 'origin' git "
         "remote, falling back to leonarduk/allotmint.",
     )
+    parser.add_argument(
+        "--behind-strategy",
+        choices=["admin", "update-branch", "skip"],
+        default="admin",
+        help="How to handle a green PR that's only blocked by being behind main: "
+        "'admin' (default) force-merges with `gh pr merge --admin`; 'update-branch' "
+        "merges main into the PR branch and leaves the merge to a later run; "
+        "'skip' leaves the PR alone entirely.",
+    )
     args = parser.parse_args()
     dry_run = not args.yes
 
@@ -372,7 +400,7 @@ def main() -> int:
 
     had_failures = False
     for pr in prs:
-        if not process_pr(pr, dry_run):
+        if not process_pr(pr, dry_run, behind_strategy=args.behind_strategy):
             had_failures = True
 
     return 1 if had_failures else 0

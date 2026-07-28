@@ -150,7 +150,7 @@ def test_resolve_mergeability_retries_then_gives_up(monkeypatch):
 def test_process_pr_refreshes_mergeability_before_checking(monkeypatch):
     monkeypatch.setattr(i, "resolve_mergeability", lambda pr: setattr(pr, "mergeable_state", "clean"))
     calls = []
-    monkeypatch.setattr(i, "merge_and_delete", lambda pr, dry_run: calls.append(pr.number) or True)
+    monkeypatch.setattr(i, "merge_and_delete", lambda pr, dry_run, admin=False: calls.append(pr.number) or True)
     pr = _pr(1, mergeable_state="unknown")
     assert i.process_pr(pr, dry_run=True) is True
     assert calls == [1]
@@ -158,7 +158,7 @@ def test_process_pr_refreshes_mergeability_before_checking(monkeypatch):
 
 def test_process_pr_skips_when_checks_not_passed(monkeypatch):
     calls = []
-    monkeypatch.setattr(i, "merge_and_delete", lambda pr, dry_run: calls.append(pr.number) or True)
+    monkeypatch.setattr(i, "merge_and_delete", lambda pr, dry_run, admin=False: calls.append(pr.number) or True)
     pr = _pr(1, checks=[{"status": "COMPLETED", "conclusion": "FAILURE"}])
     assert i.process_pr(pr, dry_run=True) is True
     assert calls == []
@@ -166,36 +166,56 @@ def test_process_pr_skips_when_checks_not_passed(monkeypatch):
 
 def test_process_pr_skips_when_not_mergeable(monkeypatch):
     calls = []
-    monkeypatch.setattr(i, "merge_and_delete", lambda pr, dry_run: calls.append(pr.number) or True)
+    monkeypatch.setattr(i, "merge_and_delete", lambda pr, dry_run, admin=False: calls.append(pr.number) or True)
     pr = _pr(1, mergeable_state="dirty")
     assert i.process_pr(pr, dry_run=True) is True
     assert calls == []
 
 
-def test_process_pr_updates_branch_when_green_and_only_behind(monkeypatch):
+def test_process_pr_force_merges_when_green_and_only_behind_default_strategy(monkeypatch):
     merge_calls = []
-    update_calls = []
-    monkeypatch.setattr(i, "merge_and_delete", lambda pr, dry_run: merge_calls.append(pr.number) or True)
-    monkeypatch.setattr(i, "update_branch", lambda pr, dry_run: update_calls.append(pr.number) or True)
+    monkeypatch.setattr(
+        i, "merge_and_delete", lambda pr, dry_run, admin=False: merge_calls.append((pr.number, admin)) or True
+    )
     pr = _pr(1, mergeable_state="behind")
     assert i.process_pr(pr, dry_run=True) is True
-    assert update_calls == [1]
-    assert merge_calls == []
+    assert merge_calls == [(1, True)]
 
 
 def test_process_pr_merges_directly_when_clean(monkeypatch):
     merge_calls = []
-    update_calls = []
-    monkeypatch.setattr(i, "merge_and_delete", lambda pr, dry_run: merge_calls.append(pr.number) or True)
-    monkeypatch.setattr(i, "update_branch", lambda pr, dry_run: update_calls.append(pr.number) or True)
+    monkeypatch.setattr(
+        i, "merge_and_delete", lambda pr, dry_run, admin=False: merge_calls.append((pr.number, admin)) or True
+    )
     pr = _pr(1, mergeable_state="clean")
     assert i.process_pr(pr, dry_run=True) is True
-    assert merge_calls == [1]
+    assert merge_calls == [(1, False)]
+
+
+def test_process_pr_behind_strategy_update_branch(monkeypatch):
+    merge_calls = []
+    update_calls = []
+    monkeypatch.setattr(i, "merge_and_delete", lambda pr, dry_run, admin=False: merge_calls.append(pr.number) or True)
+    monkeypatch.setattr(i, "update_branch", lambda pr, dry_run: update_calls.append(pr.number) or True)
+    pr = _pr(1, mergeable_state="behind")
+    assert i.process_pr(pr, dry_run=True, behind_strategy="update-branch") is True
+    assert update_calls == [1]
+    assert merge_calls == []
+
+
+def test_process_pr_behind_strategy_skip(monkeypatch):
+    merge_calls = []
+    update_calls = []
+    monkeypatch.setattr(i, "merge_and_delete", lambda pr, dry_run, admin=False: merge_calls.append(pr.number) or True)
+    monkeypatch.setattr(i, "update_branch", lambda pr, dry_run: update_calls.append(pr.number) or True)
+    pr = _pr(1, mergeable_state="behind")
+    assert i.process_pr(pr, dry_run=True, behind_strategy="skip") is True
+    assert merge_calls == []
     assert update_calls == []
 
 
 def test_process_pr_propagates_merge_failure(monkeypatch):
-    monkeypatch.setattr(i, "merge_and_delete", lambda pr, dry_run: False)
+    monkeypatch.setattr(i, "merge_and_delete", lambda pr, dry_run, admin=False: False)
     pr = _pr(1, mergeable_state="clean")
     assert i.process_pr(pr, dry_run=False) is False
 
@@ -203,7 +223,7 @@ def test_process_pr_propagates_merge_failure(monkeypatch):
 def test_process_pr_propagates_update_branch_failure(monkeypatch):
     monkeypatch.setattr(i, "update_branch", lambda pr, dry_run: False)
     pr = _pr(1, mergeable_state="behind")
-    assert i.process_pr(pr, dry_run=False) is False
+    assert i.process_pr(pr, dry_run=False, behind_strategy="update-branch") is False
 
 
 def test_update_branch_dry_run_does_not_call_gh(monkeypatch):
@@ -261,6 +281,22 @@ def test_merge_and_delete_omits_match_head_commit_when_sha_unknown(monkeypatch):
 def test_merge_and_delete_returns_false_on_gh_failure(monkeypatch):
     monkeypatch.setattr(i, "_run_gh_once", lambda args: _FakeResult(1, "", "boom"))
     assert i.merge_and_delete(_pr(1), dry_run=False) is False
+
+
+def test_merge_and_delete_adds_admin_flag_when_requested(monkeypatch):
+    calls = []
+    monkeypatch.setattr(i, "_run_gh_once", lambda args: calls.append(args) or _FakeResult(0))
+    assert i.merge_and_delete(_pr(1, head_sha="deadbeef"), dry_run=False, admin=True) is True
+    assert calls == [
+        ["pr", "merge", "1", "--squash", "--delete-branch", "--match-head-commit", "deadbeef", "--admin"]
+    ]
+
+
+def test_merge_and_delete_omits_admin_flag_by_default(monkeypatch):
+    calls = []
+    monkeypatch.setattr(i, "_run_gh_once", lambda args: calls.append(args) or _FakeResult(0))
+    i.merge_and_delete(_pr(1, head_sha=""), dry_run=False)
+    assert "--admin" not in calls[0]
 
 
 def test_merge_and_delete_does_not_retry(monkeypatch):

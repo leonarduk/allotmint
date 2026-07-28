@@ -238,14 +238,16 @@ bash scripts/bash/publish-pr.sh -m "Fix bug in auth" --no-ollama
 Auto-merge open Dependabot pull requests once their checks have all passed, then
 delete the branch. A PR that is green but only out-of-date with `main` (no real
 conflicts) is never left stuck: GitHub branch protection generally requires the
-head branch to be up to date before merging, so a directly out-of-date PR gets
-its branch updated (`gh pr update-branch`) instead of an immediate merge, and
-is picked up and merged on a later run once CI re-passes against the update.
-Run the script periodically (e.g. on a schedule) so that follow-up happens.
+head branch to be up to date before merging, so a plain `gh pr merge` on such a
+PR is rejected outright. By default this script force-merges it instead with
+`gh pr merge --admin`, bypassing branch-protection enforcement for that one
+merge only -- checks still have to have passed first, `--admin` just gets past
+the "not up to date" rule. Use `--behind-strategy` to change this behavior.
 
 ```bash
 python scripts/developer_tools/i_dependabot_auto_merge.py
 python scripts/developer_tools/i_dependabot_auto_merge.py --yes
+python scripts/developer_tools/i_dependabot_auto_merge.py --yes --behind-strategy update-branch
 ```
 
 The script:
@@ -253,8 +255,8 @@ The script:
 2. Skips any PR whose checks haven't all completed successfully, or that has a
    real merge conflict (`mergeable_state == dirty`)
 3. Merges (squash) and deletes the branch for every remaining PR that's fully
-   up to date with `main`; for one that's only behind, triggers a branch
-   update instead and leaves the merge to a later run
+   up to date with `main`; for one that's only behind, handles it per
+   `--behind-strategy` (force-merge, update the branch, or skip)
 
 Defaults to dry-run (prints what it would do). Pass `--yes` to actually merge
 and delete branches. Never touches non-Dependabot PRs or protected branches
@@ -263,6 +265,15 @@ and delete branches. Never touches non-Dependabot PRs or protected branches
 Optional flags:
 - `--repo owner/name`: Operate on a different repository. Defaults to the
   `origin` git remote, falling back to `leonarduk/allotmint`.
+- `--behind-strategy {admin,update-branch,skip}` (default `admin`): how to
+  handle a green PR that's only blocked by being behind `main`.
+  - `admin`: force-merge with `gh pr merge --admin`, bypassing the
+    "must be up to date" branch-protection rule for that merge.
+  - `update-branch`: merge `main` into the PR branch first
+    (`gh pr update-branch`) and leave the actual merge to a later run, once
+    CI re-passes and the PR reports `mergeable_state == clean`. Run the
+    script periodically (e.g. on a schedule) for this follow-up to happen.
+  - `skip`: leave the PR alone entirely.
 
 **Requirements:**
 - `gh` CLI must be installed and authenticated with a token that can merge PRs

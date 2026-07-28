@@ -50,6 +50,8 @@ import type {
   AnalyticsFunnelSummary,
   AnalyticsSource,
   DataQualityTimeseriesResponse,
+  DataExplorerDirectory,
+  DataExplorerFile,
 } from "./types";
 import {
   configContractSchema,
@@ -945,6 +947,17 @@ export const rebuildTimeseriesCache = (ticker: string, exchange: string) =>
   fetchJson<{ status: string; rows: number }>(
     `${API_BASE}/timeseries/admin/${encodeURIComponent(ticker)}/${encodeURIComponent(exchange)}/rebuild_cache`,
     { method: "POST" },
+  );
+
+// Data explorer (read-only browsing of the backend data/ area)
+export const listDataExplorerDirectory = (path: string = "") =>
+  fetchJson<DataExplorerDirectory>(
+    `${API_BASE}/data-explorer/tree?path=${encodeURIComponent(path)}`,
+  );
+
+export const getDataExplorerFile = (path: string) =>
+  fetchJson<DataExplorerFile>(
+    `${API_BASE}/data-explorer/file?path=${encodeURIComponent(path)}`,
   );
 
 // Instrument metadata admin

@@ -2,7 +2,7 @@
   "name": "allotmint",
   "version": "0.0.2",
   "devDependencies": {
-    "@capacitor/cli": "^8.4.1",
+    "@capacitor/cli": "^8.4.2",
     "aws-cdk": "2.1133.0",
     "concurrently": "^10.0.3",
     "postcss": "^8.5.23",

@@ -66,6 +66,7 @@
       "allocation": "Allocation",
       "compliance": "Compliance Warnings",
       "dataadmin": "Data Admin",
+      "dataexplorer": "Data Explorer",
       "dataquality": "Data Quality",
       "group": "Group",
       "instrument": "Instrument",

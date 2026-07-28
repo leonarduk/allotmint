@@ -254,6 +254,10 @@ Defaults to dry-run (prints what it would do). Pass `--yes` to actually merge
 and delete branches. Never touches non-Dependabot PRs or protected branches
 (`main`/`master`).
 
+Optional flags:
+- `--repo owner/name`: Operate on a different repository. Defaults to the
+  `origin` git remote, falling back to `leonarduk/allotmint`.
+
 **Requirements:**
 - `gh` CLI must be installed and authenticated with a token that can merge PRs
   and delete branches on the target repo (`repo` scope).

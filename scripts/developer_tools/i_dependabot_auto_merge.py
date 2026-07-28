@@ -15,13 +15,16 @@ Safety:
   - Never deletes `main`/`master`, only the merged PR's own head branch.
 
 Requires the `gh` CLI to be authenticated with a token that can merge PRs and
-delete branches on the target repo (repo scope covers this).
+delete branches on the target repo (repo scope covers this). Defaults to
+operating on the `origin` git remote's repo; pass --repo owner/name to
+override.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 import time
@@ -144,10 +147,16 @@ def checks_have_passed(checks: list[dict]) -> bool:
 
 
 def is_mergeable(pr: PullRequest) -> bool:
-    """Return True if the PR has no real conflicts (being merely behind main is fine)."""
-    if pr.mergeable is False:
+    """Return True if the PR has no real conflicts (being merely behind main is fine).
+
+    `mergeable` is `None` while GitHub is still computing mergeability, and
+    `mergeable_state` is empty in that case too -- both must be treated as
+    not-yet-mergeable rather than defaulting to "ok", since GitHub hasn't
+    confirmed the PR is conflict-free yet.
+    """
+    if pr.mergeable is not True:
         return False
-    return pr.mergeable_state in MERGEABLE_STATES_OK_TO_MERGE or pr.mergeable_state == ""
+    return pr.mergeable_state in MERGEABLE_STATES_OK_TO_MERGE
 
 
 def merge_and_delete(pr: PullRequest, dry_run: bool) -> None:
@@ -183,6 +192,34 @@ def process_pr(pr: PullRequest, dry_run: bool) -> None:
     merge_and_delete(pr, dry_run)
 
 
+def resolve_repo(explicit: str | None) -> tuple[str, str]:
+    """Resolve the (owner, repo) to operate on.
+
+    Precedence: an explicit `--repo owner/name` flag, then the `origin` git
+    remote, then the hardcoded REPO_OWNER/REPO_NAME fallback.
+    """
+    if explicit:
+        owner, _, name = explicit.partition("/")
+        if not owner or not name:
+            print(f"ERROR: --repo must be in 'owner/name' form, got '{explicit}'", file=sys.stderr)
+            raise SystemExit(1)
+        return owner, name
+
+    result = subprocess.run(
+        ["git", "remote", "get-url", "origin"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+    )
+    if result.returncode == 0:
+        match = re.search(r"[:/]([^/:]+)/([^/]+?)(?:\.git)?$", result.stdout.strip())
+        if match:
+            return match.group(1), match.group(2)
+
+    return REPO_OWNER, REPO_NAME
+
+
 def main() -> int:
     """Run the Dependabot auto-merge flow."""
     parser = argparse.ArgumentParser(
@@ -193,8 +230,17 @@ def main() -> int:
         action="store_true",
         help="Actually merge and delete branches. Without this flag, runs in dry-run mode.",
     )
+    parser.add_argument(
+        "--repo",
+        default=None,
+        help="Repository to operate on as 'owner/name'. Defaults to the 'origin' git "
+        "remote, falling back to leonarduk/allotmint.",
+    )
     args = parser.parse_args()
     dry_run = not args.yes
+
+    global REPO_OWNER, REPO_NAME
+    REPO_OWNER, REPO_NAME = resolve_repo(args.repo)
 
     print(f"INFO: Fetching open Dependabot PRs for {REPO_OWNER}/{REPO_NAME}...", file=sys.stderr)
     prs = fetch_open_dependabot_prs()

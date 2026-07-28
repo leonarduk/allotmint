@@ -106,6 +106,56 @@ def test_fetch_open_dependabot_prs_exits_on_gh_failure(monkeypatch):
     assert exc_info.value.code == 1
 
 
+def test_fetch_mergeability_parses_payload(monkeypatch):
+    payload = json.dumps({"mergeable": "MERGEABLE", "mergeStateStatus": "BEHIND"})
+    monkeypatch.setattr(i, "run_gh", lambda args: _FakeResult(0, payload))
+    mergeable, state = i.fetch_mergeability(42)
+    assert mergeable == "MERGEABLE"
+    assert state == "behind"
+
+
+def test_fetch_mergeability_returns_unknown_on_gh_failure(monkeypatch):
+    monkeypatch.setattr(i, "run_gh", lambda args: _FakeResult(1, "", "boom"))
+    mergeable, state = i.fetch_mergeability(42)
+    assert mergeable is None
+    assert state == ""
+
+
+def test_resolve_mergeability_skips_refetch_when_already_known(monkeypatch):
+    calls = []
+    monkeypatch.setattr(i, "fetch_mergeability", lambda number: calls.append(number) or ("MERGEABLE", "clean"))
+    pr = _pr(1, mergeable="MERGEABLE", mergeable_state="clean")
+    i.resolve_mergeability(pr)
+    assert calls == []
+
+
+def test_resolve_mergeability_refetches_when_unknown(monkeypatch):
+    monkeypatch.setattr(i, "fetch_mergeability", lambda number: ("MERGEABLE", "behind"))
+    pr = _pr(1, mergeable="UNKNOWN", mergeable_state="unknown")
+    i.resolve_mergeability(pr)
+    assert pr.mergeable == "MERGEABLE"
+    assert pr.mergeable_state == "behind"
+
+
+def test_resolve_mergeability_retries_then_gives_up(monkeypatch):
+    calls = []
+    monkeypatch.setattr(i, "fetch_mergeability", lambda number: calls.append(number) or ("UNKNOWN", "unknown"))
+    monkeypatch.setattr(i.time, "sleep", lambda seconds: None)
+    pr = _pr(1, mergeable="UNKNOWN", mergeable_state="unknown")
+    i.resolve_mergeability(pr)
+    assert len(calls) == i.MERGEABILITY_REFRESH_ATTEMPTS
+    assert pr.mergeable_state == "unknown"
+
+
+def test_process_pr_refreshes_mergeability_before_checking(monkeypatch):
+    monkeypatch.setattr(i, "resolve_mergeability", lambda pr: setattr(pr, "mergeable_state", "behind"))
+    calls = []
+    monkeypatch.setattr(i, "merge_and_delete", lambda pr, dry_run: calls.append(pr.number) or True)
+    pr = _pr(1, mergeable_state="unknown")
+    assert i.process_pr(pr, dry_run=True) is True
+    assert calls == [1]
+
+
 def test_process_pr_skips_when_checks_not_passed(monkeypatch):
     calls = []
     monkeypatch.setattr(i, "merge_and_delete", lambda pr, dry_run: calls.append(pr.number) or True)

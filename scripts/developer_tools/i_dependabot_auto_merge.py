@@ -14,6 +14,12 @@ Safety:
     (`mergeable_state == "dirty"`).
   - Never deletes `main`/`master`, only the merged PR's own head branch.
 
+`gh pr list` frequently reports mergeability as "UNKNOWN" because GitHub
+computes it lazily and bulk list queries don't reliably trigger that
+computation. For any PR whose checks have already passed, this script
+refetches mergeability with a per-PR `gh pr view` call (with a few retries)
+before deciding to skip it.
+
 Requires the `gh` CLI to be authenticated with a token that can merge PRs and
 delete branches on the target repo (repo scope covers this). Defaults to
 operating on the `origin` git remote's repo; pass --repo owner/name to
@@ -37,6 +43,8 @@ PROTECTED_BRANCHES = {"main", "master"}
 GH_RETRY_ATTEMPTS = 3
 GH_RETRY_BACKOFF_SECONDS = 2
 GH_TIMEOUT_SECONDS = 60
+MERGEABILITY_REFRESH_ATTEMPTS = 3
+MERGEABILITY_REFRESH_WAIT_SECONDS = 3
 
 # mergeable_state values that still permit a merge -- "behind" means only
 # out-of-date with the base branch, which the issue explicitly asks us to
@@ -148,6 +156,41 @@ def fetch_open_dependabot_prs() -> list[PullRequest]:
     return prs
 
 
+def fetch_mergeability(number: int) -> tuple[str | None, str]:
+    """Fetch a single PR's mergeable/mergeStateStatus via `gh pr view`.
+
+    `gh pr list` frequently reports "UNKNOWN" for these fields because GitHub
+    computes real mergeability lazily, and bulk list queries don't reliably
+    trigger that computation. Querying a single PR is much more likely to
+    return a computed value.
+    """
+    result = run_gh(["pr", "view", str(number), "--json", "mergeable,mergeStateStatus"])
+    if result.returncode != 0:
+        return None, ""
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return None, ""
+    return data.get("mergeable"), (data.get("mergeStateStatus") or "").lower()
+
+
+def resolve_mergeability(pr: PullRequest) -> None:
+    """Refresh pr.mergeable/pr.mergeable_state in place if not yet computed.
+
+    Retries a few times with a short wait, since GitHub computes mergeability
+    asynchronously after a PR is queried and it can take a moment to settle.
+    Mutates `pr` in place so callers see the refreshed values.
+    """
+    for attempt in range(MERGEABILITY_REFRESH_ATTEMPTS):
+        if pr.mergeable_state and pr.mergeable_state != "unknown":
+            return
+        pr.mergeable, pr.mergeable_state = fetch_mergeability(pr.number)
+        if pr.mergeable_state and pr.mergeable_state != "unknown":
+            return
+        if attempt < MERGEABILITY_REFRESH_ATTEMPTS - 1:
+            time.sleep(MERGEABILITY_REFRESH_WAIT_SECONDS)
+
+
 def checks_have_passed(checks: list[dict]) -> bool:
     """Return True only if there is at least one check and every check succeeded.
 
@@ -223,6 +266,7 @@ def process_pr(pr: PullRequest, dry_run: bool) -> bool:
     if not checks_have_passed(pr.checks):
         print(f"SKIP: PR #{pr.number} ({pr.title}) -- checks not all passed")
         return True
+    resolve_mergeability(pr)
     if not is_mergeable(pr):
         print(
             f"SKIP: PR #{pr.number} ({pr.title}) -- not mergeable "

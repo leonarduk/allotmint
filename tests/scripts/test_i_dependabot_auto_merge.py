@@ -208,21 +208,30 @@ def test_process_pr_propagates_update_branch_failure(monkeypatch):
 
 def test_update_branch_dry_run_does_not_call_gh(monkeypatch):
     calls = []
-    monkeypatch.setattr(i, "run_gh", lambda args: calls.append(args))
+    monkeypatch.setattr(i, "_run_gh_once", lambda args: calls.append(args))
     assert i.update_branch(_pr(1), dry_run=True) is True
     assert calls == []
 
 
 def test_update_branch_calls_gh_pr_update_branch(monkeypatch):
     calls = []
-    monkeypatch.setattr(i, "run_gh", lambda args: calls.append(args) or _FakeResult(0))
+    monkeypatch.setattr(i, "_run_gh_once", lambda args: calls.append(args) or _FakeResult(0))
     assert i.update_branch(_pr(7), dry_run=False) is True
     assert calls == [["pr", "update-branch", "7"]]
 
 
 def test_update_branch_returns_false_on_gh_failure(monkeypatch):
-    monkeypatch.setattr(i, "run_gh", lambda args: _FakeResult(1, "", "boom"))
+    monkeypatch.setattr(i, "_run_gh_once", lambda args: _FakeResult(1, "", "boom"))
     assert i.update_branch(_pr(1), dry_run=False) is False
+
+
+def test_update_branch_does_not_retry(monkeypatch):
+    """Branch update must not go through the retrying run_gh -- it isn't idempotent."""
+    calls = []
+    monkeypatch.setattr(i, "run_gh", lambda args: calls.append(args) or _FakeResult(0))
+    monkeypatch.setattr(i, "_run_gh_once", lambda args: _FakeResult(0))
+    i.update_branch(_pr(1), dry_run=False)
+    assert calls == []
 
 
 def test_merge_and_delete_dry_run_does_not_call_gh(monkeypatch):
@@ -245,7 +254,7 @@ def test_merge_and_delete_calls_gh_pr_merge(monkeypatch):
 def test_merge_and_delete_omits_match_head_commit_when_sha_unknown(monkeypatch):
     calls = []
     monkeypatch.setattr(i, "_run_gh_once", lambda args: calls.append(args) or _FakeResult(0))
-    i.merge_and_delete(_pr(1, head_sha=""), dry_run=False)
+    assert i.merge_and_delete(_pr(1, head_sha=""), dry_run=False) is True
     assert calls == [["pr", "merge", "1", "--squash", "--delete-branch"]]
 
 
@@ -259,7 +268,7 @@ def test_merge_and_delete_does_not_retry(monkeypatch):
     calls = []
     monkeypatch.setattr(i, "run_gh", lambda args: calls.append(args) or _FakeResult(0))
     monkeypatch.setattr(i, "_run_gh_once", lambda args: _FakeResult(0))
-    i.merge_and_delete(_pr(1), dry_run=False)
+    assert i.merge_and_delete(_pr(1), dry_run=False) is True
     assert calls == []
 
 

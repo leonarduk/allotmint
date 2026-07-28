@@ -171,10 +171,12 @@ def fetch_mergeability(number: int) -> tuple[str | None, str]:
     """
     result = run_gh(["pr", "view", str(number), "--json", "mergeable,mergeStateStatus"])
     if result.returncode != 0:
+        print(f"WARNING: gh pr view {number} failed: {result.stderr.strip()}", file=sys.stderr)
         return None, ""
     try:
         data = json.loads(result.stdout)
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as exc:
+        print(f"WARNING: gh pr view {number} returned non-JSON output: {exc}", file=sys.stderr)
         return None, ""
     return data.get("mergeable"), (data.get("mergeStateStatus") or "").lower()
 
@@ -271,6 +273,9 @@ def update_branch(pr: PullRequest, dry_run: bool) -> bool:
     real PRs: "the head branch is not up to date with the base branch").
     Triggering an update here lets CI re-run against the refreshed branch; a
     later run of this script merges it once mergeable_state reports "clean".
+    Uses `_run_gh_once` (no retry) since this mutates the branch -- a retry
+    after a lost response could reattempt the update on an already-updated
+    branch.
     """
     prefix = "[DRY RUN] " if dry_run else ""
     print(
@@ -280,7 +285,7 @@ def update_branch(pr: PullRequest, dry_run: bool) -> bool:
     if dry_run:
         return True
 
-    result = run_gh(["pr", "update-branch", str(pr.number)])
+    result = _run_gh_once(["pr", "update-branch", str(pr.number)])
     if result.returncode != 0:
         print(f"ERROR: failed to update branch for PR #{pr.number}: {result.stderr}", file=sys.stderr)
         return False

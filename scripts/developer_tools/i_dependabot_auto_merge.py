@@ -5,17 +5,18 @@ routine dependency-bump PRs; when CI has already passed there's no reason a huma
 needs to click merge. This script finds open PRs authored by `dependabot[bot]`,
 merges the ones whose checks have all passed on the current head SHA, and deletes
 the branch afterward. A PR that is otherwise green but merely behind `main` (no
-real conflicts) is never left stuck on that alone: GitHub branch protection
-generally requires the head branch to be up to date before merging, so a plain
+real conflicts) is handled specially: GitHub branch protection generally
+requires the head branch to be up to date before merging, so a plain
 `gh pr merge` on a behind PR is rejected outright. --behind-strategy controls
 how that case is handled:
   - "admin" (default): force-merge with `gh pr merge --admin`, which bypasses
     branch-protection enforcement for that one merge. Checks still have to
     have passed first -- --admin only gets past the "not up to date" rule,
-    it doesn't skip CI.
+    it doesn't skip CI. A behind PR is never left stuck with this strategy.
   - "update-branch": merge main into the PR branch first (gh pr update-branch)
     and leave the actual merge to a later run, once CI re-passes and the PR
-    reports mergeable_state == "clean".
+    reports mergeable_state == "clean". A PR can sit behind for multiple runs
+    until that happens.
   - "skip": leave the PR alone entirely.
 
 Safety:

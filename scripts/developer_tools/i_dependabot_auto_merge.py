@@ -36,6 +36,7 @@ DEPENDABOT_LOGIN = "dependabot[bot]"
 PROTECTED_BRANCHES = {"main", "master"}
 GH_RETRY_ATTEMPTS = 3
 GH_RETRY_BACKOFF_SECONDS = 2
+GH_TIMEOUT_SECONDS = 60
 
 # mergeable_state values that still permit a merge -- "behind" means only
 # out-of-date with the base branch, which the issue explicitly asks us to
@@ -56,22 +57,42 @@ class PullRequest:
     checks: list[dict] = field(default_factory=list)
 
 
+def _run_gh_once(args: list[str], timeout: int = GH_TIMEOUT_SECONDS) -> subprocess.CompletedProcess[str]:
+    """Run a single `gh` CLI command scoped to REPO_OWNER/REPO_NAME. Never raises.
+
+    A timed-out process is reported as a failing CompletedProcess rather than
+    propagating subprocess.TimeoutExpired, so callers can uniformly check
+    `result.returncode`.
+    """
+    cmd = ["gh", *args, "--repo", f"{REPO_OWNER}/{REPO_NAME}"]
+    try:
+        return subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            check=False,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        return subprocess.CompletedProcess(
+            cmd, returncode=124, stdout="", stderr=f"gh {' '.join(args)} timed out after {timeout}s"
+        )
+
+
 def run_gh(args: list[str]) -> subprocess.CompletedProcess[str]:
     """Run a `gh` CLI command scoped to REPO_OWNER/REPO_NAME. Never raises.
 
     Retries transient failures (network blips, GraphQL timeouts) up to
     GH_RETRY_ATTEMPTS times with a linear backoff before returning the last
-    failing result to the caller.
+    failing result to the caller. Only safe for idempotent (read-only)
+    commands -- use `_run_gh_once` directly for non-idempotent operations
+    like merging a PR, where a retry after a lost response could re-invoke
+    the action on an already-completed PR.
     """
     result = None
     for attempt in range(1, GH_RETRY_ATTEMPTS + 1):
-        result = subprocess.run(
-            ["gh", *args, "--repo", f"{REPO_OWNER}/{REPO_NAME}"],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            check=False,
-        )
+        result = _run_gh_once(args)
         if result.returncode == 0:
             return result
         if attempt < GH_RETRY_ATTEMPTS:
@@ -149,47 +170,66 @@ def checks_have_passed(checks: list[dict]) -> bool:
 def is_mergeable(pr: PullRequest) -> bool:
     """Return True if the PR has no real conflicts (being merely behind main is fine).
 
-    `mergeable` is `None` while GitHub is still computing mergeability, and
-    `mergeable_state` is empty in that case too -- both must be treated as
-    not-yet-mergeable rather than defaulting to "ok", since GitHub hasn't
-    confirmed the PR is conflict-free yet.
+    `gh pr list --json mergeable` returns the GraphQL MergeableState enum as a
+    string -- "MERGEABLE", "CONFLICTING", or "UNKNOWN" -- never a Python bool,
+    so a real conflict is rejected explicitly here rather than compared
+    against `True`. `mergeable_state` (mergeStateStatus) is empty while
+    GitHub is still computing it; that, plus anything outside
+    MERGEABLE_STATES_OK_TO_MERGE, is treated as not-yet-mergeable.
     """
-    if pr.mergeable is not True:
+    if (pr.mergeable or "").upper() == "CONFLICTING":
         return False
     return pr.mergeable_state in MERGEABLE_STATES_OK_TO_MERGE
 
 
-def merge_and_delete(pr: PullRequest, dry_run: bool) -> None:
-    """Merge a Dependabot PR (squash) and delete its head branch."""
+def merge_and_delete(pr: PullRequest, dry_run: bool) -> bool:
+    """Merge a Dependabot PR (squash) and delete its head branch.
+
+    Returns False if a real (non-dry-run) merge attempt failed, so the caller
+    can propagate a nonzero exit code. Uses `_run_gh_once` (no retry) since
+    merge is not idempotent -- a retry after a lost response could re-invoke
+    the merge on an already-merged PR. `--match-head-commit` guards against
+    merging a different revision than the one whose checks/mergeability were
+    validated.
+    """
     prefix = "[DRY RUN] " if dry_run else ""
     print(f"{prefix}Merging PR #{pr.number} ({pr.title}) and deleting branch '{pr.head_ref_name}'")
     if dry_run:
-        return
+        return True
 
     if pr.head_ref_name in PROTECTED_BRANCHES:
         print(
             f"ERROR: refusing to delete protected branch '{pr.head_ref_name}' for PR #{pr.number}",
             file=sys.stderr,
         )
-        return
+        return False
 
-    result = run_gh(["pr", "merge", str(pr.number), "--squash", "--delete-branch"])
+    args = ["pr", "merge", str(pr.number), "--squash", "--delete-branch"]
+    if pr.head_sha:
+        args += ["--match-head-commit", pr.head_sha]
+    result = _run_gh_once(args)
     if result.returncode != 0:
         print(f"ERROR: failed to merge PR #{pr.number}: {result.stderr}", file=sys.stderr)
+        return False
+    return True
 
 
-def process_pr(pr: PullRequest, dry_run: bool) -> None:
-    """Decide whether a single Dependabot PR should be merged, and act on it."""
+def process_pr(pr: PullRequest, dry_run: bool) -> bool:
+    """Decide whether a single Dependabot PR should be merged, and act on it.
+
+    Returns False only when a merge was attempted and failed; skipping a PR
+    (checks not passed, not mergeable) is not treated as a failure.
+    """
     if not checks_have_passed(pr.checks):
         print(f"SKIP: PR #{pr.number} ({pr.title}) -- checks not all passed")
-        return
+        return True
     if not is_mergeable(pr):
         print(
             f"SKIP: PR #{pr.number} ({pr.title}) -- not mergeable "
             f"(mergeable={pr.mergeable}, state={pr.mergeable_state})"
         )
-        return
-    merge_and_delete(pr, dry_run)
+        return True
+    return merge_and_delete(pr, dry_run)
 
 
 def resolve_repo(explicit: str | None) -> tuple[str, str]:
@@ -249,10 +289,12 @@ def main() -> int:
     if dry_run:
         print("INFO: Running in dry-run mode. Pass --yes to actually merge/delete.", file=sys.stderr)
 
+    had_failures = False
     for pr in prs:
-        process_pr(pr, dry_run)
+        if not process_pr(pr, dry_run):
+            had_failures = True
 
-    return 0
+    return 1 if had_failures else 0
 
 
 if __name__ == "__main__":

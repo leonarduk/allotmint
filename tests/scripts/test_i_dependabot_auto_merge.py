@@ -1,14 +1,17 @@
 import json
 
+import pytest
+
 import scripts.developer_tools.i_dependabot_auto_merge as i
 
 
-def _pr(number, title="Bump foo", head_ref_name="dependabot/pip/foo-1.2.3",
-        mergeable=True, mergeable_state="clean", checks=None):
+def _pr(number, title="Bump foo", head_ref_name="dependabot/pip/foo-1.2.3", head_sha="",
+        mergeable="MERGEABLE", mergeable_state="clean", checks=None):
     return i.PullRequest(
         number=number,
         title=title,
         head_ref_name=head_ref_name,
+        head_sha=head_sha,
         mergeable=mergeable,
         mergeable_state=mergeable_state,
         checks=checks if checks is not None else [{"status": "COMPLETED", "conclusion": "SUCCESS"}],
@@ -48,19 +51,20 @@ def test_checks_have_passed_false_when_pending():
 
 
 def test_is_mergeable_true_when_clean():
-    assert i.is_mergeable(_pr(1, mergeable=True, mergeable_state="clean"))
+    assert i.is_mergeable(_pr(1, mergeable="MERGEABLE", mergeable_state="clean"))
 
 
 def test_is_mergeable_true_when_only_behind_main():
-    assert i.is_mergeable(_pr(1, mergeable=True, mergeable_state="behind"))
+    assert i.is_mergeable(_pr(1, mergeable="MERGEABLE", mergeable_state="behind"))
 
 
 def test_is_mergeable_false_when_dirty():
-    assert not i.is_mergeable(_pr(1, mergeable=True, mergeable_state="dirty"))
+    assert not i.is_mergeable(_pr(1, mergeable="MERGEABLE", mergeable_state="dirty"))
 
 
-def test_is_mergeable_false_when_mergeable_flag_false():
-    assert not i.is_mergeable(_pr(1, mergeable=False, mergeable_state="clean"))
+def test_is_mergeable_false_when_conflicting_even_if_state_looks_clean():
+    """Real conflicts must be rejected regardless of a stale/odd mergeable_state."""
+    assert not i.is_mergeable(_pr(1, mergeable="CONFLICTING", mergeable_state="clean"))
 
 
 def test_is_mergeable_false_when_mergeable_is_none_and_state_empty():
@@ -68,7 +72,7 @@ def test_is_mergeable_false_when_mergeable_is_none_and_state_empty():
 
 
 def test_is_mergeable_false_when_state_unknown():
-    assert not i.is_mergeable(_pr(1, mergeable=True, mergeable_state="unknown"))
+    assert not i.is_mergeable(_pr(1, mergeable="MERGEABLE", mergeable_state="unknown"))
 
 
 def test_fetch_open_dependabot_prs_parses_payload(monkeypatch):
@@ -79,7 +83,7 @@ def test_fetch_open_dependabot_prs_parses_payload(monkeypatch):
                 "title": "Bump requests from 2.0 to 2.1",
                 "headRefName": "dependabot/pip/requests-2.1",
                 "headRefOid": "abc123",
-                "mergeable": True,
+                "mergeable": "MERGEABLE",
                 "mergeStateStatus": "CLEAN",
                 "statusCheckRollup": [{"status": "COMPLETED", "conclusion": "SUCCESS"}],
             }
@@ -90,60 +94,90 @@ def test_fetch_open_dependabot_prs_parses_payload(monkeypatch):
     assert len(prs) == 1
     assert prs[0].number == 42
     assert prs[0].head_ref_name == "dependabot/pip/requests-2.1"
+    assert prs[0].head_sha == "abc123"
+    assert prs[0].mergeable == "MERGEABLE"
     assert prs[0].mergeable_state == "clean"
 
 
 def test_fetch_open_dependabot_prs_exits_on_gh_failure(monkeypatch):
     monkeypatch.setattr(i, "run_gh", lambda args: _FakeResult(1, "", "boom"))
-    try:
+    with pytest.raises(SystemExit) as exc_info:
         i.fetch_open_dependabot_prs()
-        assert False, "expected SystemExit"
-    except SystemExit as exc:
-        assert exc.code == 1
+    assert exc_info.value.code == 1
 
 
 def test_process_pr_skips_when_checks_not_passed(monkeypatch):
     calls = []
-    monkeypatch.setattr(i, "merge_and_delete", lambda pr, dry_run: calls.append(pr.number))
+    monkeypatch.setattr(i, "merge_and_delete", lambda pr, dry_run: calls.append(pr.number) or True)
     pr = _pr(1, checks=[{"status": "COMPLETED", "conclusion": "FAILURE"}])
-    i.process_pr(pr, dry_run=True)
+    assert i.process_pr(pr, dry_run=True) is True
     assert calls == []
 
 
 def test_process_pr_skips_when_not_mergeable(monkeypatch):
     calls = []
-    monkeypatch.setattr(i, "merge_and_delete", lambda pr, dry_run: calls.append(pr.number))
+    monkeypatch.setattr(i, "merge_and_delete", lambda pr, dry_run: calls.append(pr.number) or True)
     pr = _pr(1, mergeable_state="dirty")
-    i.process_pr(pr, dry_run=True)
+    assert i.process_pr(pr, dry_run=True) is True
     assert calls == []
 
 
 def test_process_pr_merges_when_green_and_only_behind(monkeypatch):
     calls = []
-    monkeypatch.setattr(i, "merge_and_delete", lambda pr, dry_run: calls.append(pr.number))
+    monkeypatch.setattr(i, "merge_and_delete", lambda pr, dry_run: calls.append(pr.number) or True)
     pr = _pr(1, mergeable_state="behind")
-    i.process_pr(pr, dry_run=True)
+    assert i.process_pr(pr, dry_run=True) is True
     assert calls == [1]
+
+
+def test_process_pr_propagates_merge_failure(monkeypatch):
+    monkeypatch.setattr(i, "merge_and_delete", lambda pr, dry_run: False)
+    pr = _pr(1, mergeable_state="clean")
+    assert i.process_pr(pr, dry_run=False) is False
 
 
 def test_merge_and_delete_dry_run_does_not_call_gh(monkeypatch):
     calls = []
-    monkeypatch.setattr(i, "run_gh", lambda args: calls.append(args))
-    i.merge_and_delete(_pr(1), dry_run=True)
+    monkeypatch.setattr(i, "_run_gh_once", lambda args: calls.append(args))
+    assert i.merge_and_delete(_pr(1), dry_run=True) is True
     assert calls == []
 
 
 def test_merge_and_delete_calls_gh_pr_merge(monkeypatch):
     calls = []
-    monkeypatch.setattr(i, "run_gh", lambda args: calls.append(args) or _FakeResult(0))
-    i.merge_and_delete(_pr(1, head_ref_name="dependabot/pip/foo-1.2.3"), dry_run=False)
+    monkeypatch.setattr(i, "_run_gh_once", lambda args: calls.append(args) or _FakeResult(0))
+    result = i.merge_and_delete(
+        _pr(1, head_ref_name="dependabot/pip/foo-1.2.3", head_sha="deadbeef"), dry_run=False
+    )
+    assert result is True
+    assert calls == [["pr", "merge", "1", "--squash", "--delete-branch", "--match-head-commit", "deadbeef"]]
+
+
+def test_merge_and_delete_omits_match_head_commit_when_sha_unknown(monkeypatch):
+    calls = []
+    monkeypatch.setattr(i, "_run_gh_once", lambda args: calls.append(args) or _FakeResult(0))
+    i.merge_and_delete(_pr(1, head_sha=""), dry_run=False)
     assert calls == [["pr", "merge", "1", "--squash", "--delete-branch"]]
+
+
+def test_merge_and_delete_returns_false_on_gh_failure(monkeypatch):
+    monkeypatch.setattr(i, "_run_gh_once", lambda args: _FakeResult(1, "", "boom"))
+    assert i.merge_and_delete(_pr(1), dry_run=False) is False
+
+
+def test_merge_and_delete_does_not_retry(monkeypatch):
+    """Merge must not go through the retrying run_gh -- it isn't idempotent."""
+    calls = []
+    monkeypatch.setattr(i, "run_gh", lambda args: calls.append(args) or _FakeResult(0))
+    monkeypatch.setattr(i, "_run_gh_once", lambda args: _FakeResult(0))
+    i.merge_and_delete(_pr(1), dry_run=False)
+    assert calls == []
 
 
 def test_merge_and_delete_refuses_protected_branch(monkeypatch):
     calls = []
-    monkeypatch.setattr(i, "run_gh", lambda args: calls.append(args) or _FakeResult(0))
-    i.merge_and_delete(_pr(1, head_ref_name="main"), dry_run=False)
+    monkeypatch.setattr(i, "_run_gh_once", lambda args: calls.append(args) or _FakeResult(0))
+    assert i.merge_and_delete(_pr(1, head_ref_name="main"), dry_run=False) is False
     assert calls == []
 
 
@@ -152,11 +186,9 @@ def test_resolve_repo_uses_explicit_flag(monkeypatch):
 
 
 def test_resolve_repo_rejects_malformed_explicit_flag():
-    try:
+    with pytest.raises(SystemExit) as exc_info:
         i.resolve_repo("not-a-valid-repo")
-        assert False, "expected SystemExit"
-    except SystemExit as exc:
-        assert exc.code == 1
+    assert exc_info.value.code == 1
 
 
 def test_resolve_repo_parses_https_git_remote(monkeypatch):
@@ -180,3 +212,16 @@ def test_resolve_repo_parses_ssh_git_remote(monkeypatch):
 def test_resolve_repo_falls_back_when_remote_lookup_fails(monkeypatch):
     monkeypatch.setattr(i.subprocess, "run", lambda *a, **k: _FakeResult(1, "", "no remote"))
     assert i.resolve_repo(None) == (i.REPO_OWNER, i.REPO_NAME)
+
+
+def test_run_gh_returns_failing_result_on_timeout(monkeypatch):
+    import subprocess
+
+    def _raise_timeout(*args, **kwargs):
+        raise subprocess.TimeoutExpired(cmd=["gh"], timeout=60)
+
+    monkeypatch.setattr(i.subprocess, "run", _raise_timeout)
+    monkeypatch.setattr(i.time, "sleep", lambda seconds: None)
+    result = i.run_gh(["pr", "list"])
+    assert result.returncode != 0
+    assert "timed out" in result.stderr

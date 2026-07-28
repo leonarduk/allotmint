@@ -240,7 +240,7 @@ delete the branch. A PR that is green but only out-of-date with `main` (no real
 conflicts) is still merged.
 
 ```bash
-python scripts/developer_tools/i_dependabot_auto_merge.py --dry-run
+python scripts/developer_tools/i_dependabot_auto_merge.py
 python scripts/developer_tools/i_dependabot_auto_merge.py --yes
 ```
 

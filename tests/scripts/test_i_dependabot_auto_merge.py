@@ -63,6 +63,14 @@ def test_is_mergeable_false_when_mergeable_flag_false():
     assert not i.is_mergeable(_pr(1, mergeable=False, mergeable_state="clean"))
 
 
+def test_is_mergeable_false_when_mergeable_is_none_and_state_empty():
+    assert not i.is_mergeable(_pr(1, mergeable=None, mergeable_state=""))
+
+
+def test_is_mergeable_false_when_state_unknown():
+    assert not i.is_mergeable(_pr(1, mergeable=True, mergeable_state="unknown"))
+
+
 def test_fetch_open_dependabot_prs_parses_payload(monkeypatch):
     payload = json.dumps(
         [
@@ -137,3 +145,38 @@ def test_merge_and_delete_refuses_protected_branch(monkeypatch):
     monkeypatch.setattr(i, "run_gh", lambda args: calls.append(args) or _FakeResult(0))
     i.merge_and_delete(_pr(1, head_ref_name="main"), dry_run=False)
     assert calls == []
+
+
+def test_resolve_repo_uses_explicit_flag(monkeypatch):
+    assert i.resolve_repo("someorg/somerepo") == ("someorg", "somerepo")
+
+
+def test_resolve_repo_rejects_malformed_explicit_flag():
+    try:
+        i.resolve_repo("not-a-valid-repo")
+        assert False, "expected SystemExit"
+    except SystemExit as exc:
+        assert exc.code == 1
+
+
+def test_resolve_repo_parses_https_git_remote(monkeypatch):
+    monkeypatch.setattr(
+        i.subprocess,
+        "run",
+        lambda *a, **k: _FakeResult(0, "https://github.com/someorg/somerepo.git\n"),
+    )
+    assert i.resolve_repo(None) == ("someorg", "somerepo")
+
+
+def test_resolve_repo_parses_ssh_git_remote(monkeypatch):
+    monkeypatch.setattr(
+        i.subprocess,
+        "run",
+        lambda *a, **k: _FakeResult(0, "git@github.com:someorg/somerepo.git\n"),
+    )
+    assert i.resolve_repo(None) == ("someorg", "somerepo")
+
+
+def test_resolve_repo_falls_back_when_remote_lookup_fails(monkeypatch):
+    monkeypatch.setattr(i.subprocess, "run", lambda *a, **k: _FakeResult(1, "", "no remote"))
+    assert i.resolve_repo(None) == (i.REPO_OWNER, i.REPO_NAME)

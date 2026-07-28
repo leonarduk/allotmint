@@ -422,6 +422,27 @@ export interface TimeseriesSummary {
   main_source?: string | null;
 }
 
+export interface DataExplorerEntry {
+  name: string;
+  path: string;
+  type: "dir" | "file";
+  size: number | null;
+  modified: string;
+}
+
+export interface DataExplorerDirectory {
+  path: string;
+  entries: DataExplorerEntry[];
+}
+
+export interface DataExplorerFile {
+  path: string;
+  size: number;
+  modified: string;
+  truncated: boolean;
+  content: string;
+}
+
 export interface InstrumentMetadata {
   ticker: string;
   exchange?: string | null;

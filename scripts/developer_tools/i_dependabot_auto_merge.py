@@ -5,7 +5,10 @@ routine dependency-bump PRs; when CI has already passed there's no reason a huma
 needs to click merge. This script finds open PRs authored by `dependabot[bot]`,
 merges the ones whose checks have all passed on the current head SHA, and deletes
 the branch afterward. A PR that is otherwise green but merely behind `main` (no
-real conflicts) is still merged -- being behind alone should never block it.
+real conflicts) is never left stuck on that alone: GitHub branch protection
+generally requires the head branch to be up to date before merging, so this
+script triggers a branch update (`gh pr update-branch`) instead of a direct
+merge in that case; a later run merges it once mergeable_state is "clean".
 
 Safety:
   - Defaults to dry-run. Pass --yes to actually merge/delete anything.
@@ -46,9 +49,11 @@ GH_TIMEOUT_SECONDS = 60
 MERGEABILITY_REFRESH_ATTEMPTS = 3
 MERGEABILITY_REFRESH_WAIT_SECONDS = 3
 
-# mergeable_state values that still permit a merge -- "behind" means only
-# out-of-date with the base branch, which the issue explicitly asks us to
-# merge anyway. "clean" is the ordinary green/no-conflict case.
+# mergeable_state values that are eligible for action (merge or branch
+# update) rather than an outright skip. "behind" means only out-of-date with
+# the base branch -- not a real conflict -- so it's still handled, just via
+# update_branch() instead of a direct merge (see process_pr). "clean" is the
+# ordinary green/no-conflict case that merges directly.
 MERGEABLE_STATES_OK_TO_MERGE = {"clean", "behind"}
 
 
@@ -257,11 +262,36 @@ def merge_and_delete(pr: PullRequest, dry_run: bool) -> bool:
     return True
 
 
+def update_branch(pr: PullRequest, dry_run: bool) -> bool:
+    """Update a Dependabot PR's branch with the latest changes from main.
+
+    GitHub branch protection commonly requires the head branch to be up to
+    date with the base before a merge is allowed, so `gh pr merge` on a PR
+    reporting mergeable_state == "behind" fails outright (confirmed against
+    real PRs: "the head branch is not up to date with the base branch").
+    Triggering an update here lets CI re-run against the refreshed branch; a
+    later run of this script merges it once mergeable_state reports "clean".
+    """
+    prefix = "[DRY RUN] " if dry_run else ""
+    print(
+        f"{prefix}PR #{pr.number} ({pr.title}) is green but behind main -- "
+        "updating branch instead of merging now"
+    )
+    if dry_run:
+        return True
+
+    result = run_gh(["pr", "update-branch", str(pr.number)])
+    if result.returncode != 0:
+        print(f"ERROR: failed to update branch for PR #{pr.number}: {result.stderr}", file=sys.stderr)
+        return False
+    return True
+
+
 def process_pr(pr: PullRequest, dry_run: bool) -> bool:
     """Decide whether a single Dependabot PR should be merged, and act on it.
 
-    Returns False only when a merge was attempted and failed; skipping a PR
-    (checks not passed, not mergeable) is not treated as a failure.
+    Returns False only when a merge/update was attempted and failed; skipping
+    a PR (checks not passed, not mergeable) is not treated as a failure.
     """
     if not checks_have_passed(pr.checks):
         print(f"SKIP: PR #{pr.number} ({pr.title}) -- checks not all passed")
@@ -273,6 +303,8 @@ def process_pr(pr: PullRequest, dry_run: bool) -> bool:
             f"(mergeable={pr.mergeable}, state={pr.mergeable_state})"
         )
         return True
+    if pr.mergeable_state == "behind":
+        return update_branch(pr, dry_run)
     return merge_and_delete(pr, dry_run)
 
 

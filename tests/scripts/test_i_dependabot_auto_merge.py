@@ -148,7 +148,7 @@ def test_resolve_mergeability_retries_then_gives_up(monkeypatch):
 
 
 def test_process_pr_refreshes_mergeability_before_checking(monkeypatch):
-    monkeypatch.setattr(i, "resolve_mergeability", lambda pr: setattr(pr, "mergeable_state", "behind"))
+    monkeypatch.setattr(i, "resolve_mergeability", lambda pr: setattr(pr, "mergeable_state", "clean"))
     calls = []
     monkeypatch.setattr(i, "merge_and_delete", lambda pr, dry_run: calls.append(pr.number) or True)
     pr = _pr(1, mergeable_state="unknown")
@@ -172,18 +172,57 @@ def test_process_pr_skips_when_not_mergeable(monkeypatch):
     assert calls == []
 
 
-def test_process_pr_merges_when_green_and_only_behind(monkeypatch):
-    calls = []
-    monkeypatch.setattr(i, "merge_and_delete", lambda pr, dry_run: calls.append(pr.number) or True)
+def test_process_pr_updates_branch_when_green_and_only_behind(monkeypatch):
+    merge_calls = []
+    update_calls = []
+    monkeypatch.setattr(i, "merge_and_delete", lambda pr, dry_run: merge_calls.append(pr.number) or True)
+    monkeypatch.setattr(i, "update_branch", lambda pr, dry_run: update_calls.append(pr.number) or True)
     pr = _pr(1, mergeable_state="behind")
     assert i.process_pr(pr, dry_run=True) is True
-    assert calls == [1]
+    assert update_calls == [1]
+    assert merge_calls == []
+
+
+def test_process_pr_merges_directly_when_clean(monkeypatch):
+    merge_calls = []
+    update_calls = []
+    monkeypatch.setattr(i, "merge_and_delete", lambda pr, dry_run: merge_calls.append(pr.number) or True)
+    monkeypatch.setattr(i, "update_branch", lambda pr, dry_run: update_calls.append(pr.number) or True)
+    pr = _pr(1, mergeable_state="clean")
+    assert i.process_pr(pr, dry_run=True) is True
+    assert merge_calls == [1]
+    assert update_calls == []
 
 
 def test_process_pr_propagates_merge_failure(monkeypatch):
     monkeypatch.setattr(i, "merge_and_delete", lambda pr, dry_run: False)
     pr = _pr(1, mergeable_state="clean")
     assert i.process_pr(pr, dry_run=False) is False
+
+
+def test_process_pr_propagates_update_branch_failure(monkeypatch):
+    monkeypatch.setattr(i, "update_branch", lambda pr, dry_run: False)
+    pr = _pr(1, mergeable_state="behind")
+    assert i.process_pr(pr, dry_run=False) is False
+
+
+def test_update_branch_dry_run_does_not_call_gh(monkeypatch):
+    calls = []
+    monkeypatch.setattr(i, "run_gh", lambda args: calls.append(args))
+    assert i.update_branch(_pr(1), dry_run=True) is True
+    assert calls == []
+
+
+def test_update_branch_calls_gh_pr_update_branch(monkeypatch):
+    calls = []
+    monkeypatch.setattr(i, "run_gh", lambda args: calls.append(args) or _FakeResult(0))
+    assert i.update_branch(_pr(7), dry_run=False) is True
+    assert calls == [["pr", "update-branch", "7"]]
+
+
+def test_update_branch_returns_false_on_gh_failure(monkeypatch):
+    monkeypatch.setattr(i, "run_gh", lambda args: _FakeResult(1, "", "boom"))
+    assert i.update_branch(_pr(1), dry_run=False) is False
 
 
 def test_merge_and_delete_dry_run_does_not_call_gh(monkeypatch):

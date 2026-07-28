@@ -237,7 +237,11 @@ bash scripts/bash/publish-pr.sh -m "Fix bug in auth" --no-ollama
 
 Auto-merge open Dependabot pull requests once their checks have all passed, then
 delete the branch. A PR that is green but only out-of-date with `main` (no real
-conflicts) is still merged.
+conflicts) is never left stuck: GitHub branch protection generally requires the
+head branch to be up to date before merging, so a directly out-of-date PR gets
+its branch updated (`gh pr update-branch`) instead of an immediate merge, and
+is picked up and merged on a later run once CI re-passes against the update.
+Run the script periodically (e.g. on a schedule) so that follow-up happens.
 
 ```bash
 python scripts/developer_tools/i_dependabot_auto_merge.py
@@ -248,7 +252,9 @@ The script:
 1. Lists open PRs authored by `dependabot[bot]`
 2. Skips any PR whose checks haven't all completed successfully, or that has a
    real merge conflict (`mergeable_state == dirty`)
-3. Merges (squash) and deletes the branch for every remaining PR
+3. Merges (squash) and deletes the branch for every remaining PR that's fully
+   up to date with `main`; for one that's only behind, triggers a branch
+   update instead and leaves the merge to a later run
 
 Defaults to dry-run (prints what it would do). Pass `--yes` to actually merge
 and delete branches. Never touches non-Dependabot PRs or protected branches

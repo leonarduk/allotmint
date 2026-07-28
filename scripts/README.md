@@ -233,6 +233,35 @@ bash scripts/bash/publish-pr.sh -m "Fix bug in auth" --no-ollama
 - `gh` CLI must be installed and authenticated
 - Ollama is optional but recommended for better PR descriptions
 
+## i_dependabot_auto_merge.py
+
+Auto-merge open Dependabot pull requests once their checks have all passed, then
+delete the branch. A PR that is green but only out-of-date with `main` (no real
+conflicts) is still merged.
+
+```bash
+python scripts/developer_tools/i_dependabot_auto_merge.py --dry-run
+python scripts/developer_tools/i_dependabot_auto_merge.py --yes
+```
+
+The script:
+1. Lists open PRs authored by `dependabot[bot]`
+2. Skips any PR whose checks haven't all completed successfully, or that has a
+   real merge conflict (`mergeable_state == dirty`)
+3. Merges (squash) and deletes the branch for every remaining PR
+
+Defaults to dry-run (prints what it would do). Pass `--yes` to actually merge
+and delete branches. Never touches non-Dependabot PRs or protected branches
+(`main`/`master`).
+
+Optional flags:
+- `--repo owner/name`: Operate on a different repository. Defaults to the
+  `origin` git remote, falling back to `leonarduk/allotmint`.
+
+**Requirements:**
+- `gh` CLI must be installed and authenticated with a token that can merge PRs
+  and delete branches on the target repo (`repo` scope).
+
 ## reconcile_drawdown.py
 
 Inspect max drawdowns and dump holding price data when the portfolio suffers a

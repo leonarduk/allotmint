@@ -26,6 +26,7 @@ export interface TabsConfig {
   movers: boolean;
   instrumentadmin: boolean;
   dataadmin: boolean;
+  dataexplorer: boolean;
   virtual: boolean;
   research: boolean;
   support: boolean;
@@ -88,6 +89,7 @@ const defaultTabs: TabsConfig = {
   movers: true,
   instrumentadmin: true,
   dataadmin: true,
+  dataexplorer: true,
   virtual: true,
   research: true,
   support: true,

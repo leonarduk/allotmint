@@ -14,6 +14,7 @@ export type Mode =
   | "movers"
   | "instrumentadmin"
   | "dataadmin"
+  | "dataexplorer"
   | "virtual"
   | "settings"
   | "research"
@@ -45,6 +46,7 @@ export const MODES: Mode[] = [
   "rebalance",
   "instrumentadmin",
   "dataadmin",
+  "dataexplorer",
   "virtual",
   "research",
   "reports",

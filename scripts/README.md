@@ -278,6 +278,10 @@ Optional flags:
     script periodically (e.g. on a schedule) for this follow-up to happen.
   - `skip`: leave the PR alone entirely.
 
+**Requirements:**
+- `gh` CLI must be installed and authenticated with a token that can merge PRs
+  and delete branches on the target repo (`repo` scope).
+
 ## work_on_pr.py
 
 Like `work_on_issue.py`, but for picking up an existing pull request instead
@@ -300,15 +304,15 @@ The script:
 2. Looks up the PR (by number, or via an interactive prompt over open PRs)
 3. Fetches the PR's head branch and checks it out locally, adding a
    throwaway remote to fetch from the contributor's fork first if the PR
-   comes from one
+   comes from one (the remote is removed again once the branch is checked
+   out)
 
 Optional flags:
 - `--token TOKEN`: GitHub personal access token (also reads `GITHUB_TOKEN`
   env var). Increases the API rate limit and is required for private repos.
 
-**Requirements:**
-- `gh` CLI must be installed and authenticated with a token that can merge PRs
-  and delete branches on the target repo (`repo` scope).
+Uses only `requests` and plain `git` -- no `gh` CLI or special GitHub scopes
+required.
 
 ## reconcile_drawdown.py
 

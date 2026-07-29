@@ -21,18 +21,10 @@ def get_repo_info() -> tuple[str, str]:
             check=True,
         )
         url = result.stdout.strip()
-        # Handle both https and ssh URLs
-        if url.startswith("git@"):
-            # git@github.com:owner/repo.git
-            match = re.search(r"github\.com[:/]([^/]+)/(.+?)(?:\.git)?$", url)
-        else:
-            # https://github.com/owner/repo.git
-            match = re.search(r"github\.com/([^/]+)/(.+?)(?:\.git)?$", url)
+        # Handles both https and ssh (git@github.com:owner/repo.git) URLs
+        match = re.search(r"github\.com[:/]([^/]+)/(.+?)(?:\.git)?/?$", url)
         if match:
-            repo = match.group(2)
-            if repo.endswith(".git"):
-                repo = repo[:-4]
-            return match.group(1), repo
+            return match.group(1), match.group(2)
     except subprocess.CalledProcessError as exc:
         raise ValueError(f"Could not determine GitHub repo from git remote origin: {exc}") from exc
     raise ValueError("Could not determine GitHub repo from git remote origin")
@@ -52,7 +44,7 @@ def list_open_prs(owner: str, repo: str, token: str | None) -> list[dict]:
         resp = requests.get(
             url,
             headers=_auth_headers(token),
-            params={"state": "open", "per_page": 30},
+            params={"state": "open", "per_page": 100},
             timeout=10,
         )
         resp.raise_for_status()
@@ -82,10 +74,14 @@ def prompt_for_pr(prs: list[dict]) -> dict:
 
     print("Open pull requests:")
     for pr in prs:
-        author = pr.get("user", {}).get("login", "unknown")
+        author = (pr.get("user") or {}).get("login", "unknown")
         print(f"  #{pr['number']}: {pr['title']} [{pr['head']['ref']}] (by {author})")
 
-    choice = input("\nEnter PR number to work on: ").strip()
+    try:
+        choice = input("\nEnter PR number to work on: ").strip()
+    except (EOFError, KeyboardInterrupt):
+        print("\nAborted.", file=sys.stderr)
+        sys.exit(1)
     try:
         pr_number = int(choice)
     except ValueError:
@@ -118,34 +114,47 @@ def checkout_pr_branch(pr: dict) -> None:
         fork_clone_url = head_repo["clone_url"]
         remote_name = f"pr-{pr['number']}"
         local_branch = f"pr-{pr['number']}-{branch_name}"
+        remote_ref = f"{remote_name}/{branch_name}"
         print(f"PR head is in fork {fork_full_name}; fetching as remote '{remote_name}'...")
         subprocess.run(["git", "remote", "remove", remote_name], capture_output=True, check=False)
-        subprocess.run(["git", "remote", "add", remote_name, fork_clone_url], check=True)
-        subprocess.run(["git", "fetch", remote_name, branch_name], check=True)
         try:
-            subprocess.run(
-                ["git", "checkout", "-b", local_branch, f"{remote_name}/{branch_name}"],
-                check=True,
-                capture_output=True,
-            )
-        except subprocess.CalledProcessError:
-            subprocess.run(["git", "checkout", local_branch], check=True)
+            subprocess.run(["git", "remote", "add", remote_name, fork_clone_url], check=True)
+            subprocess.run(["git", "fetch", remote_name, branch_name], check=True)
+        except subprocess.CalledProcessError as exc:
+            print(f"Failed to fetch {branch_name} from fork {fork_full_name}: {exc}", file=sys.stderr)
+            sys.exit(1)
+        _checkout_local_branch(local_branch, remote_ref)
+        # The remote is only needed to fetch the fork's branch; drop it once checked out.
+        subprocess.run(["git", "remote", "remove", remote_name], capture_output=True, check=False)
         return
 
     print(f"Fetching branch {branch_name} from origin...")
-    subprocess.run(["git", "fetch", "origin", branch_name], check=True)
+    try:
+        subprocess.run(["git", "fetch", "origin", branch_name], check=True)
+    except subprocess.CalledProcessError as exc:
+        print(f"Failed to fetch branch {branch_name} from origin: {exc}", file=sys.stderr)
+        sys.exit(1)
+    _checkout_local_branch(branch_name, f"origin/{branch_name}")
+
+
+def _checkout_local_branch(local_branch: str, remote_ref: str) -> None:
+    """Check out ``local_branch`` tracking ``remote_ref``, updating it in place if it already exists."""
     try:
         subprocess.run(
-            ["git", "checkout", "-b", branch_name, f"origin/{branch_name}"],
+            ["git", "checkout", "-b", local_branch, remote_ref],
             check=True,
             capture_output=True,
         )
+        return
     except subprocess.CalledProcessError:
-        try:
-            subprocess.run(["git", "checkout", branch_name], check=True)
-        except subprocess.CalledProcessError as exc:
-            print(f"Failed to checkout branch: {exc}", file=sys.stderr)
-            sys.exit(1)
+        pass
+
+    try:
+        subprocess.run(["git", "checkout", local_branch], check=True)
+        subprocess.run(["git", "merge", "--ff-only", remote_ref], check=True)
+    except subprocess.CalledProcessError as exc:
+        print(f"Failed to update local branch {local_branch} to {remote_ref}: {exc}", file=sys.stderr)
+        sys.exit(1)
 
 
 def main() -> None:

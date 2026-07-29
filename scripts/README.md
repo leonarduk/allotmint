@@ -282,6 +282,38 @@ Optional flags:
 - `gh` CLI must be installed and authenticated with a token that can merge PRs
   and delete branches on the target repo (`repo` scope).
 
+## work_on_pr.py
+
+Like `work_on_issue.py`, but for picking up an existing pull request instead
+of starting a new one: fetches the PR from GitHub and checks out its branch
+locally (creating a local tracking branch if needed).
+
+```bash
+python scripts/developer_tools/j_work_on_pr.py 4512
+```
+
+Omit the PR number to list all open pull requests and choose one
+interactively:
+
+```bash
+python scripts/developer_tools/j_work_on_pr.py
+```
+
+The script:
+1. Fetches from `origin`
+2. Looks up the PR (by number, or via an interactive prompt over open PRs)
+3. Fetches the PR's head branch and checks it out locally, adding a
+   throwaway remote to fetch from the contributor's fork first if the PR
+   comes from one (the remote is removed again once the branch is checked
+   out)
+
+Optional flags:
+- `--token TOKEN`: GitHub personal access token (also reads `GITHUB_TOKEN`
+  env var). Increases the API rate limit and is required for private repos.
+
+Uses only `requests` and plain `git` -- no `gh` CLI or special GitHub scopes
+required.
+
 ## reconcile_drawdown.py
 
 Inspect max drawdowns and dump holding price data when the portfolio suffers a

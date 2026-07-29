@@ -242,7 +242,7 @@ incremental push onto a branch that already has an open PR -- without also
 creating/updating a PR.
 
 ```bash
-python scripts/developer_tools/commit_and_push.py
+python scripts/developer_tools/i_commit_and_push.py
 ```
 
 The script:

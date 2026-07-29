@@ -45,7 +45,6 @@ def _known_owners(accounts_root) -> KnownOwnerSet:
         except Exception:
             return
 
-
         for alias in aliases:
             try:
                 demo_dir = fallback_root / alias
@@ -101,11 +100,7 @@ def _known_owners(accounts_root) -> KnownOwnerSet:
         return owners
 
     try:
-        root_path = (
-            Path(accounts_root)
-            if accounts_root
-            else data_loader.resolve_paths(None, None).accounts_root
-        )
+        root_path = Path(accounts_root) if accounts_root else data_loader.resolve_paths(None, None).accounts_root
     except Exception:
         owners.active_root_has_entries = active_root_has_entries
         return owners
@@ -134,11 +129,11 @@ async def compliance_for_owner(owner: str, request: Request):
     accounts_root = resolve_accounts_root(request)
     owner_dir = resolve_owner_directory(accounts_root, owner)
     if not owner_dir:
-        raise_owner_not_found()
+        raise_owner_not_found(owner)
     owner = owner_dir.name
     owners = _known_owners(accounts_root)
     if owners and owner.lower() not in owners:
-        raise_owner_not_found()
+        raise_owner_not_found(owner, total_owners_discovered=len(owners))
     try:
         # ``check_owner`` now returns additional fields such as
         # ``hold_countdowns`` and ``trades_remaining`` which are
@@ -146,7 +141,7 @@ async def compliance_for_owner(owner: str, request: Request):
         return compliance.check_owner(owner, accounts_root)
     except FileNotFoundError as exc:
         logger.warning("accounts for %s not found: %s", sanitise_log_value(owner), sanitise_log_value(exc))
-        raise_owner_not_found()
+        raise_owner_not_found(owner)
 
 
 @router.post("/compliance/validate")
@@ -165,23 +160,21 @@ async def validate_trade(request: Request):
     raw_owner = trade.get("owner")
     owner_value = " ".join(str(raw_owner or "").split()).strip()
     if not owner_value:
-        raise_owner_not_found()
+        raise_owner_not_found(owner_value)
 
     owners = _known_owners(accounts_root)
-    discovered_for_active_root = getattr(
-        owners, "active_root_has_entries", bool(owners)
-    )
+    discovered_for_active_root = getattr(owners, "active_root_has_entries", bool(owners))
     owner_dir = resolve_owner_directory(accounts_root, owner_value)
     scaffold_missing = owner_dir is None
 
     if owner_dir:
         canonical_owner = owner_dir.name
         if discovered_for_active_root and canonical_owner.lower() not in owners:
-            raise_owner_not_found()
+            raise_owner_not_found(canonical_owner, total_owners_discovered=len(owners))
         trade["owner"] = canonical_owner
     else:
         if discovered_for_active_root:
-            raise_owner_not_found()
+            raise_owner_not_found(owner_value, total_owners_discovered=len(owners))
         trade["owner"] = owner_value
     try:
         result = compliance.check_trade(
@@ -190,7 +183,7 @@ async def validate_trade(request: Request):
             scaffold_missing=scaffold_missing,
         )
     except FileNotFoundError:
-        raise_owner_not_found()
+        raise_owner_not_found(str(trade["owner"]))
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 

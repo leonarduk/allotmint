@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 from backend import nudges as nudge_utils
 from backend.common import data_loader
-from backend.common.errors import OWNER_NOT_FOUND
+from backend.common.errors import OWNER_NOT_FOUND, log_owner_not_found
 
 router = APIRouter(prefix="/nudges", tags=["nudges"])
 
@@ -21,6 +21,7 @@ def _validate_owner(
     except data_loader.ProviderUnavailable as exc:
         raise HTTPException(status_code=503, detail="Account data provider unavailable") from exc
     if user not in owners and not allow_unknown:
+        log_owner_not_found(user, total_plots_discovered=len(owners))
         raise HTTPException(status_code=404, detail=OWNER_NOT_FOUND)
 
 

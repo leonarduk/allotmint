@@ -18,4 +18,4 @@ async def get_metrics(owner: str):
             metrics = compute_and_store_metrics(owner)
         return metrics
     except FileNotFoundError:
-        raise_owner_not_found()
+        raise_owner_not_found(owner)

@@ -7,7 +7,10 @@ from typing import Any, Callable, TypeVar
 
 from fastapi import HTTPException
 
+from backend.logging_setup import sanitise_log_value
+
 OWNER_NOT_FOUND = "Owner not found"
+logger = logging.getLogger(__name__)
 
 
 class AppError(Exception):
@@ -92,9 +95,22 @@ class OwnerNotFoundError(ResourceNotFoundError):
         super().__init__(detail, extra=extra)
 
 
-def raise_owner_not_found() -> None:
-    """Helper for raising a canonical owner-not-found error."""
-    raise OwnerNotFoundError(OWNER_NOT_FOUND)
+def log_owner_not_found(owner: str | None = None, **diagnostics: Any) -> None:
+    """Log a missing-owner lookup with consistent diagnostic context."""
+    diagnostic_text = ", ".join(f"{key}={sanitise_log_value(value)}" for key, value in diagnostics.items())
+    suffix = f" ({diagnostic_text})" if diagnostic_text else ""
+    logger.warning(
+        "owner lookup: no owner found for owner=%s%s",
+        sanitise_log_value(owner),
+        sanitise_log_value(suffix),
+    )
+
+
+def raise_owner_not_found(owner: str | None = None, **diagnostics: Any) -> None:
+    """Log diagnostic context and raise the canonical owner-not-found error."""
+    log_owner_not_found(owner, **diagnostics)
+    extra = {"owner": owner, **diagnostics} if owner is not None else diagnostics
+    raise OwnerNotFoundError(OWNER_NOT_FOUND, extra=extra)
 
 
 F = TypeVar("F", bound=Callable[..., Any])

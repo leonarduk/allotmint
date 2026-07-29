@@ -4,33 +4,15 @@ from __future__ import annotations
 
 import argparse
 import os
-import re
 import subprocess
 import sys
 
 import requests
-
-
-def get_repo_info() -> tuple[str, str]:
-    """Extract owner and repo from git remote origin."""
-    try:
-        result = subprocess.run(
-            ["git", "config", "--get", "remote.origin.url"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        url = result.stdout.strip()
-        # Handles both https and ssh (git@github.com:owner/repo.git) URLs
-        match = re.search(r"github\.com[:/]([^/]+)/(.+?)(?:\.git)?/?$", url)
-        if match:
-            return match.group(1), match.group(2)
-    except subprocess.CalledProcessError as exc:
-        raise ValueError(f"Could not determine GitHub repo from git remote origin: {exc}") from exc
-    raise ValueError("Could not determine GitHub repo from git remote origin")
+from lib.github_repo import get_repo_info
 
 
 def _auth_headers(token: str | None) -> dict:
+    """Build GitHub API headers, including authentication when available."""
     headers = {"Accept": "application/vnd.github.v3+json"}
     if token:
         headers["Authorization"] = f"token {token}"
@@ -123,9 +105,11 @@ def checkout_pr_branch(pr: dict) -> None:
         except subprocess.CalledProcessError as exc:
             print(f"Failed to fetch {branch_name} from fork {fork_full_name}: {exc}", file=sys.stderr)
             sys.exit(1)
-        _checkout_local_branch(local_branch, remote_ref)
-        # The remote is only needed to fetch the fork's branch; drop it once checked out.
-        subprocess.run(["git", "remote", "remove", remote_name], capture_output=True, check=False)
+        try:
+            _checkout_local_branch(local_branch, remote_ref)
+        finally:
+            # The remote is temporary and must also be removed after a failed checkout.
+            subprocess.run(["git", "remote", "remove", remote_name], capture_output=True, check=False)
         return
 
     print(f"Fetching branch {branch_name} from origin...")
@@ -158,6 +142,7 @@ def _checkout_local_branch(local_branch: str, remote_ref: str) -> None:
 
 
 def main() -> None:
+    """Fetch a selected pull request and check out its head branch."""
     parser = argparse.ArgumentParser(description="Check out the branch for an open GitHub pull request")
     parser.add_argument(
         "pr_number",

@@ -12,6 +12,7 @@ import requests
 from fastapi import APIRouter, Query
 
 from backend import config_module
+from backend.logging_setup import sanitise_log_value
 from backend.routes.news import get_cached_news
 from backend.utils.lazy_import import lazy_import
 
@@ -69,7 +70,7 @@ def _get_headline_max_age() -> timedelta:
     except ValueError:
         logger.warning(
             "Invalid HEADLINE_MAX_AGE_HOURS=%r; using the %.0f-hour default",
-            raw_hours,
+            sanitise_log_value(raw_hours),
             DEFAULT_HEADLINE_MAX_AGE_HOURS,
         )
         return timedelta(hours=DEFAULT_HEADLINE_MAX_AGE_HOURS)

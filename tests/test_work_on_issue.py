@@ -9,7 +9,7 @@ from unittest import mock
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "developer_tools"))
-from c_work_on_issue import main, slugify
+from d_work_on_issue import fetch_issue, main, slugify
 
 
 class TestSlugify:
@@ -30,18 +30,36 @@ class TestSlugify:
         assert slugify("\U0001f680") != slugify("\U0001f389")
 
 
+def test_fetch_issue_authenticates_with_token(monkeypatch):
+    """The issue lookup must support private repositories."""
+    response = mock.MagicMock()
+    response.json.return_value = {"title": "Private issue"}
+    get = mock.MagicMock(return_value=response)
+    monkeypatch.setattr("d_work_on_issue.requests.get", get)
+
+    assert fetch_issue("owner", "repo", 42, "secret") == {"title": "Private issue"}
+    get.assert_called_once_with(
+        "https://api.github.com/repos/owner/repo/issues/42",
+        headers={
+            "Accept": "application/vnd.github.v3+json",
+            "Authorization": "token secret",
+        },
+        timeout=10,
+    )
+
+
 def _run_main(monkeypatch, tmp_path, cli_args, sleep_mock):
     """Run main() with every external side effect mocked, return the resolved branch name."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(sys, "argv", ["d_work_on_issue.py", *cli_args])
-    monkeypatch.setattr("c_work_on_issue.time.sleep", sleep_mock)
-    monkeypatch.setattr("c_work_on_issue.get_repo_info", lambda: ("leonarduk", "allotmint"))
+    monkeypatch.setattr("d_work_on_issue.time.sleep", sleep_mock)
+    monkeypatch.setattr("d_work_on_issue.get_repo_info", lambda: ("leonarduk", "allotmint"))
     monkeypatch.setattr(
-        "c_work_on_issue.fetch_issue",
-        lambda owner, repo, issue_id: {"title": "Some Issue Title", "body": "body text"},
+        "d_work_on_issue.fetch_issue",
+        lambda owner, repo, issue_id, token: {"title": "Some Issue Title", "body": "body text"},
     )
-    monkeypatch.setattr("c_work_on_issue.get_main_branch_sha", lambda owner, repo: "deadbeef")
-    monkeypatch.setattr("c_work_on_issue.create_branch", lambda owner, repo, branch_name, sha, token: None)
+    monkeypatch.setattr("d_work_on_issue.get_main_branch_sha", lambda owner, repo: "deadbeef")
+    monkeypatch.setattr("d_work_on_issue.create_branch", lambda owner, repo, branch_name, sha, token: None)
 
     run_calls: list[list[str]] = []
 
@@ -49,7 +67,7 @@ def _run_main(monkeypatch, tmp_path, cli_args, sleep_mock):
         run_calls.append(cmd)
         return mock.MagicMock(returncode=0, stdout="")
 
-    monkeypatch.setattr("c_work_on_issue.subprocess.run", fake_run)
+    monkeypatch.setattr("d_work_on_issue.subprocess.run", fake_run)
 
     main()
 

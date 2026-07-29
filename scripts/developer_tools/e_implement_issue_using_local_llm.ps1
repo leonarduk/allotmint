@@ -79,8 +79,8 @@ if (-not $defaultBranch) {
     $defaultBranch = 'main'
 }
 
-# Accept either a full URL or a bare issue number
-if ($Issue -match '(\d+)$') {
+# Accept only a bare issue number or a canonical GitHub issue URL.
+if ($Issue -match '^(\d+)$' -or $Issue -match '^https://github\.com/[^/\s]+/[^/\s]+/issues/(\d+)$') {
     $number = $Matches[1]
 } else {
     Write-Error "Expected an issue number or URL, e.g. 123 or https://github.com/leonarduk/allotmint/issues/123"
@@ -137,7 +137,11 @@ if (-not $baseSha) {
 # non-interactively, process the reply, then exit). Routing the issue body through
 # a file keeps attacker-controlled content off the command line entirely.
 $promptFile = [System.IO.Path]::GetTempFileName()
-Set-Content -Path $promptFile -Value "GitHub issue #${number}: $title`n`n$issueBody" -Encoding UTF8
+[System.IO.File]::WriteAllText(
+    $promptFile,
+    "GitHub issue #${number}: $title`n`n$issueBody",
+    (New-Object System.Text.UTF8Encoding($false))
+)
 
 # Discover files the issue references that actually exist on disk and add them
 # to aider's editable context. Without explicit targets, weaker local models
@@ -330,7 +334,7 @@ $issueBody
 ## Changes
 $diffStat
 
-🤖 Implemented via [aider](https://aider.chat) with local Ollama model
+Implemented via [aider](https://aider.chat) with local Ollama model
 "@
 
 # Build the PR title with + to avoid re-evaluating backticks or $(...) in $title

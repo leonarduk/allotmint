@@ -173,7 +173,7 @@ The script:
 Optional flags:
 - `--token TOKEN`: GitHub personal access token (also reads `GITHUB_TOKEN` env var). Required for branch creation (unauthenticated requests will fail with 401/403).
 
-## developer_tools/implement_issue.ps1
+## developer_tools/e_implement_issue_using_local_llm.ps1
 
 Automates implementing a GitHub issue end-to-end with a local LLM: fetches the
 issue, creates/resets an `issue-<N>` branch, runs [aider](https://aider.chat)
@@ -181,7 +181,7 @@ against a local Ollama model (configured in `.aider.conf.yml`) to generate the
 code changes, then pushes the branch and opens a draft PR.
 
 ```powershell
-./scripts/developer_tools/implement_issue.ps1 -Issue 123
+./scripts/developer_tools/e_implement_issue_using_local_llm.ps1 -Issue 123
 ```
 
 Requires `gh` and `aider` on PATH, and a running local Ollama server serving
@@ -233,7 +233,7 @@ bash scripts/bash/publish-pr.sh -m "Fix bug in auth" --no-ollama
 - `gh` CLI must be installed and authenticated
 - Ollama is optional but recommended for better PR descriptions
 
-## j_commit_and_push.py
+## developer_tools/lib/commit_and_push.py
 
 Commit local changes and push to `origin`, using a local Ollama model to draft
 the commit message from the diff. This is a lighter-weight alternative to
@@ -242,7 +242,7 @@ incremental push onto a branch that already has an open PR -- without also
 creating/updating a PR.
 
 ```bash
-python scripts/developer_tools/i_commit_and_push.py
+python scripts/developer_tools/lib/commit_and_push.py
 ```
 
 The script:
@@ -261,7 +261,7 @@ Optional flags:
 
 On Windows, use the PowerShell wrapper:
 ```powershell
-./scripts/developer_tools/j_commit_and_push.ps1 -Message "Fix bug in auth" -NoOllama
+./scripts/developer_tools/i_commit_and_push.ps1 -Message "Fix bug in auth" -NoOllama
 ```
 
 Or on Linux/Mac:
@@ -272,7 +272,7 @@ bash scripts/bash/commit-and-push.sh -m "Fix bug in auth" --no-ollama
 **Requirements:**
 - Ollama is optional but recommended for better commit messages; without it (or with `--no-ollama`), a plain default message is used
 
-## i_dependabot_auto_merge.py
+## l_dependabot_auto_merge.py
 
 Auto-merge open Dependabot pull requests once their checks have all passed, then
 delete the branch. A PR that is green but only out-of-date with `main` (no real

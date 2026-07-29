@@ -1,7 +1,7 @@
 #!/bin/bash
 # Commit local changes (with an Ollama-drafted message) and push to origin.
 
-REPO_ROOT=$(git rev-parse --show-toplevel)
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
 if [ -z "$REPO_ROOT" ]; then
     echo "Error: not in a git repository" >&2
     exit 1

@@ -44,17 +44,27 @@ def get_git_root() -> str:
 
 def stage_changes(files: Optional[list[str]]) -> None:
     """Stage the given files, or all changes (tracked and untracked) if none given."""
-    if files:
-        for f in files:
-            subprocess.run(["git", "add", f], check=True)
-    else:
-        subprocess.run(["git", "add", "-A"], check=True)
+    try:
+        if files:
+            subprocess.run(["git", "add", "--", *files], check=True)
+        else:
+            subprocess.run(["git", "add", "-A"], check=True)
+    except subprocess.CalledProcessError as exc:
+        print(f"ERROR: Failed to stage changes: {exc}", file=sys.stderr)
+        raise SystemExit(1) from exc
 
 
 def has_staged_changes() -> bool:
-    """Return True if there are staged changes ready to commit."""
+    """Return True if there are staged changes ready to commit.
+
+    `git diff --cached --quiet` exits 0 (no diff) or 1 (has diff); any other
+    code means the command itself failed and must not be read as "changes".
+    """
     result = subprocess.run(["git", "diff", "--cached", "--quiet"], check=False)
-    return result.returncode != 0
+    if result.returncode not in (0, 1):
+        print(f"ERROR: 'git diff --cached --quiet' failed with exit code {result.returncode}", file=sys.stderr)
+        raise SystemExit(1)
+    return result.returncode == 1
 
 
 def get_staged_diff() -> str:
@@ -68,6 +78,9 @@ def get_staged_diff() -> str:
     return result.stdout
 
 
+MAX_DIFF_CHARS = 20_000
+
+
 def build_commit_prompt(diff: str, issue_id: Optional[int]) -> str:
     """Build the Ollama prompt used to draft a commit message from a diff."""
     issue_line = (
@@ -75,6 +88,8 @@ def build_commit_prompt(diff: str, issue_id: Optional[int]) -> str:
         if issue_id
         else "No issue is linked to this branch; do not invent an issue reference."
     )
+    if len(diff) > MAX_DIFF_CHARS:
+        diff = diff[:MAX_DIFF_CHARS] + "\n... (diff truncated)"
     return f"""Write a git commit message for the following diff.
 
 Rules:
@@ -120,7 +135,8 @@ def commit_changes(message: str) -> bool:
         return False
 
 
-def main() -> int:
+def build_arg_parser() -> argparse.ArgumentParser:
+    """Build the CLI argument parser."""
     parser = argparse.ArgumentParser(
         description="Commit local changes (with an Ollama-drafted message) and push to origin"
     )
@@ -152,7 +168,11 @@ def main() -> int:
         action="store_true",
         help="Commit only; skip pushing the branch to origin",
     )
-    args = parser.parse_args()
+    return parser
+
+
+def main() -> int:
+    args = build_arg_parser().parse_args()
 
     os.chdir(get_git_root())
 

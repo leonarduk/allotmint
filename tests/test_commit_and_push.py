@@ -48,8 +48,7 @@ class TestStageChanges:
     def test_stages_specific_files(self, mock_run):
         stage_changes(["a.py", "b.py"])
 
-        calls = [c.args[0] for c in mock_run.call_args_list]
-        assert calls == [["git", "add", "a.py"], ["git", "add", "b.py"]]
+        mock_run.assert_called_once_with(["git", "add", "--", "a.py", "b.py"], check=True)
 
     @mock.patch("j_commit_and_push.subprocess.run")
     def test_stages_all_when_no_files_given(self, mock_run):
@@ -57,10 +56,18 @@ class TestStageChanges:
 
         mock_run.assert_called_once_with(["git", "add", "-A"], check=True)
 
+    @mock.patch("j_commit_and_push.subprocess.run")
+    def test_failure_exits_cleanly(self, mock_run):
+        mock_run.side_effect = subprocess.CalledProcessError(1, "git")
+
+        with pytest.raises(SystemExit) as exc_info:
+            stage_changes(["missing.py"])
+        assert exc_info.value.code == 1
+
 
 class TestHasStagedChanges:
     @mock.patch("j_commit_and_push.subprocess.run")
-    def test_true_when_diff_nonzero_exit(self, mock_run):
+    def test_true_when_diff_exit_code_one(self, mock_run):
         mock_run.return_value = mock.MagicMock(returncode=1)
         assert has_staged_changes() is True
 
@@ -68,6 +75,14 @@ class TestHasStagedChanges:
     def test_false_when_no_diff(self, mock_run):
         mock_run.return_value = mock.MagicMock(returncode=0)
         assert has_staged_changes() is False
+
+    @mock.patch("j_commit_and_push.subprocess.run")
+    def test_git_error_raises_instead_of_reporting_changes(self, mock_run):
+        mock_run.return_value = mock.MagicMock(returncode=128)
+
+        with pytest.raises(SystemExit) as exc_info:
+            has_staged_changes()
+        assert exc_info.value.code == 1
 
 
 class TestGetStagedDiff:
@@ -201,6 +216,45 @@ class TestMain:
     @mock.patch("j_commit_and_push.extract_issue_id")
     @mock.patch("j_commit_and_push.get_current_branch")
     @mock.patch("j_commit_and_push.get_git_root")
+    def test_forwards_selected_files_to_staging(
+        self,
+        mock_root,
+        mock_branch,
+        mock_extract,
+        mock_stage,
+        mock_has_staged,
+        mock_commit,
+        mock_push,
+    ):
+        mock_root.return_value = "/repo"
+        mock_branch.return_value = "fix/issue-4445-thing"
+        mock_extract.return_value = 4445
+        mock_has_staged.return_value = True
+        mock_commit.return_value = True
+        mock_push.return_value = True
+
+        argv = [
+            "j_commit_and_push.py",
+            "--message",
+            "Fix the thing",
+            "--no-ollama",
+            "--files",
+            "a.py",
+            "b.py",
+        ]
+        with mock.patch("sys.argv", argv), mock.patch("j_commit_and_push.os.chdir"):
+            result = main()
+
+        assert result == 0
+        mock_stage.assert_called_once_with(["a.py", "b.py"])
+
+    @mock.patch("j_commit_and_push.push_to_remote")
+    @mock.patch("j_commit_and_push.commit_changes")
+    @mock.patch("j_commit_and_push.has_staged_changes")
+    @mock.patch("j_commit_and_push.stage_changes")
+    @mock.patch("j_commit_and_push.extract_issue_id")
+    @mock.patch("j_commit_and_push.get_current_branch")
+    @mock.patch("j_commit_and_push.get_git_root")
     def test_no_push_flag_skips_push(
         self,
         mock_root,
@@ -253,3 +307,34 @@ class TestMain:
 
         assert result == 1
         mock_push.assert_not_called()
+
+    @mock.patch("j_commit_and_push.push_to_remote")
+    @mock.patch("j_commit_and_push.commit_changes")
+    @mock.patch("j_commit_and_push.has_staged_changes")
+    @mock.patch("j_commit_and_push.stage_changes")
+    @mock.patch("j_commit_and_push.extract_issue_id")
+    @mock.patch("j_commit_and_push.get_current_branch")
+    @mock.patch("j_commit_and_push.get_git_root")
+    def test_push_failure_exits_nonzero(
+        self,
+        mock_root,
+        mock_branch,
+        mock_extract,
+        mock_stage,
+        mock_has_staged,
+        mock_commit,
+        mock_push,
+    ):
+        mock_root.return_value = "/repo"
+        mock_branch.return_value = "chore/misc"
+        mock_extract.return_value = None
+        mock_has_staged.return_value = True
+        mock_commit.return_value = True
+        mock_push.return_value = False
+
+        argv = ["j_commit_and_push.py", "--message", "Tidy up", "--no-ollama"]
+        with mock.patch("sys.argv", argv), mock.patch("j_commit_and_push.os.chdir"):
+            result = main()
+
+        assert result == 1
+        mock_push.assert_called_once_with("chore/misc")

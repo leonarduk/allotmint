@@ -3,6 +3,8 @@ from __future__ import annotations
 """Market overview endpoint aggregating indexes, sectors and headlines."""
 
 import logging
+import math
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Literal, Optional, TypedDict
 
@@ -47,12 +49,27 @@ US_SECTOR_ETFS = {
 
 logger = logging.getLogger(__name__)
 
+
+def _headline_max_age() -> timedelta:
+    """Return the configured headline age limit, or the 72-hour default."""
+
+    raw_hours = os.getenv("HEADLINE_MAX_AGE_HOURS", "72")
+    try:
+        hours = float(raw_hours)
+    except ValueError:
+        hours = 72.0
+
+    if not math.isfinite(hours) or hours <= 0:
+        hours = 72.0
+    return timedelta(hours=hours)
+
+
 # Headlines older than this are excluded from the Market Overview feed so the
 # page doesn't surface stale stories mixed in with recent ones.  Mirrors the
 # staleness-threshold pattern used for cache freshness in
 # ``backend.routes.news.NEWS_MAX_STALENESS``, but this applies to the
 # article's own publish date rather than the cache's age.
-HEADLINE_MAX_AGE = timedelta(hours=72)
+HEADLINE_MAX_AGE = _headline_max_age()
 
 
 class IndexPayload(TypedDict):
@@ -248,7 +265,7 @@ def _parse_published_at(value: Any) -> Optional[datetime]:
     if not isinstance(value, str) or not value:
         return None
 
-    cleaned = value[:-1] + "+00:00" if value.endswith("Z") else value
+    cleaned = value.replace("Z", "+00:00")
     try:
         dt = datetime.fromisoformat(cleaned)
     except ValueError:

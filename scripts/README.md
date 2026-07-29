@@ -233,6 +233,45 @@ bash scripts/bash/publish-pr.sh -m "Fix bug in auth" --no-ollama
 - `gh` CLI must be installed and authenticated
 - Ollama is optional but recommended for better PR descriptions
 
+## j_commit_and_push.py
+
+Commit local changes and push to `origin`, using a local Ollama model to draft
+the commit message from the diff. This is a lighter-weight alternative to
+`publish_pr.py` for when you just want to commit and push -- e.g. an
+incremental push onto a branch that already has an open PR -- without also
+creating/updating a PR.
+
+```bash
+python scripts/developer_tools/j_commit_and_push.py
+```
+
+The script:
+1. Stages changed files (all changes by default, or specific files via `--files`)
+2. If Ollama is running locally, asks it to draft a commit message from the staged diff
+3. If Ollama is unavailable or `--no-ollama` is passed, falls back to a plain default message
+4. Appends a `Refs #<issue-id>` trailer with the issue ID extracted from the branch name (e.g. `fix/issue-4445-slug` -> `4445`), if one isn't already present in the message
+5. Commits, then pushes the branch to `origin` (skip with `--no-push`)
+
+Optional flags:
+- `-m/--message TEXT`: Commit message override (skips Ollama generation)
+- `-f/--files FILE [FILE ...]`: Specific files to stage (default: all changed files)
+- `--no-ollama`: Skip Ollama and use a plain default commit message
+- `--model MODEL`: Ollama model name (default: env var `OLLAMA_MODEL` or `qwen2.5-coder:14b`)
+- `--no-push`: Commit only; skip pushing to `origin`
+
+On Windows, use the PowerShell wrapper:
+```powershell
+./scripts/developer_tools/j_commit_and_push.ps1 -Message "Fix bug in auth" -NoOllama
+```
+
+Or on Linux/Mac:
+```bash
+bash scripts/bash/commit-and-push.sh -m "Fix bug in auth" --no-ollama
+```
+
+**Requirements:**
+- Ollama is optional but recommended for better commit messages; without it (or with `--no-ollama`), a plain default message is used
+
 ## i_dependabot_auto_merge.py
 
 Auto-merge open Dependabot pull requests once their checks have all passed, then

@@ -168,6 +168,30 @@ def _iso(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+@pytest.mark.parametrize("value", [None, "", 123])
+def test_parse_published_at_rejects_missing_or_non_string_values(value):
+    assert market_module._parse_published_at(value) is None
+
+
+def test_parse_published_at_accepts_utc_designator():
+    assert market_module._parse_published_at("2026-01-02T03:04:05Z") == datetime(
+        2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc
+    )
+
+
+def test_headline_max_age_uses_environment_hours(monkeypatch):
+    monkeypatch.setenv("HEADLINE_MAX_AGE_HOURS", "24")
+
+    assert market_module._headline_max_age() == timedelta(hours=24)
+
+
+@pytest.mark.parametrize("value", ["invalid", "0", "-1", "inf"])
+def test_headline_max_age_falls_back_for_invalid_environment_value(monkeypatch, value):
+    monkeypatch.setenv("HEADLINE_MAX_AGE_HOURS", value)
+
+    assert market_module._headline_max_age() == timedelta(hours=72)
+
+
 def test_sort_and_filter_headlines_excludes_old_and_sorts_newest_first():
     now = datetime.now(timezone.utc)
     old = {
@@ -189,6 +213,25 @@ def test_sort_and_filter_headlines_excludes_old_and_sorts_newest_first():
     result = market_module._sort_and_filter_headlines([old, middle, newest])
 
     assert result == [newest, middle]
+
+
+def test_sort_and_filter_headlines_excludes_undated_when_recent_items_exist():
+    now = datetime.now(timezone.utc)
+    recent = {
+        "headline": "Recent",
+        "url": "https://example.com/recent",
+        "published_at": _iso(now - timedelta(hours=1)),
+    }
+    old = {
+        "headline": "Old",
+        "url": "https://example.com/old",
+        "published_at": _iso(now - timedelta(days=10)),
+    }
+    undated = {"headline": "Undated", "url": "https://example.com/undated"}
+
+    result = market_module._sort_and_filter_headlines([undated, old, recent])
+
+    assert result == [recent]
 
 
 def test_sort_and_filter_headlines_falls_back_when_nothing_recent():

@@ -60,6 +60,12 @@ class AppLifecycleService:
         self.temp_dirs = temp_dirs or []
 
     async def startup(self, app: FastAPI) -> None:
+        # Deferred to lifespan startup so importing the Lambda handler remains
+        # safe when Moneyhub is not configured for this deployment.
+        from backend.routes.transactions import validate_moneyhub_configuration
+
+        validate_moneyhub_configuration()
+
         if not self.cfg.skip_snapshot_warm:
             await self._warm_snapshot(app)
 

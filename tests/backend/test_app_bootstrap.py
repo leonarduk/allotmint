@@ -14,6 +14,23 @@ from backend.bootstrap.startup import AppLifecycleService
 from backend.config import config
 
 
+@pytest.mark.asyncio
+async def test_startup_rejects_partial_moneyhub_configuration(monkeypatch):
+    monkeypatch.setenv("MONEYHUB_CLIENT_ID", "client-id")
+    monkeypatch.delenv("MONEYHUB_CLIENT_SECRET", raising=False)
+    monkeypatch.setattr(
+        "backend.routes.transactions._moneyhub_client_instance", None
+    )
+    service = AppLifecycleService(cfg=config)
+    app = app_module.create_app()
+
+    with pytest.raises(
+        RuntimeError,
+        match="MONEYHUB_CLIENT_ID and MONEYHUB_CLIENT_SECRET must be set",
+    ):
+        await service.startup(app)
+
+
 def test_create_app_test_isolation_copies_accounts_root(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):

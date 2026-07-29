@@ -141,7 +141,8 @@ def test_moneyhub_to_float_invalid_inputs():
     assert moneyhub._to_float(None) is None
 
 
-def test_moneyhub_parse_empty_csv_returns_no_transactions():
+def test_moneyhub_parse_header_only_csv_returns_no_transactions():
+    """Header-only CSV (all required columns, zero data rows) parses to []."""
     csv_data = "Id,Owner,Account,Date,Amount,Description,Category\n"
     assert moneyhub.parse(csv_data.encode("utf-8")) == []
 

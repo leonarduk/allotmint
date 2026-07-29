@@ -161,7 +161,7 @@ own) are reported as skipped rather than persisted or silently dropped.
 Automate GitHub issue checkout: create a branch, check it out locally, and save the issue body to a markdown file in one command.
 
 ```bash
-python scripts/developer_tools/c_work_on_issue.py 4445
+python scripts/developer_tools/d_work_on_issue.py 4445
 ```
 
 The script:
@@ -242,7 +242,7 @@ incremental push onto a branch that already has an open PR -- without also
 creating/updating a PR.
 
 ```bash
-python scripts/developer_tools/j_commit_and_push.py
+python scripts/developer_tools/commit_and_push.py
 ```
 
 The script:
@@ -287,9 +287,9 @@ defers the actual merge to a later run once CI re-passes, and `skip` leaves the
 PR alone entirely -- neither of those two guarantees it won't stay stuck.
 
 ```bash
-python scripts/developer_tools/i_dependabot_auto_merge.py
-python scripts/developer_tools/i_dependabot_auto_merge.py --yes
-python scripts/developer_tools/i_dependabot_auto_merge.py --yes --behind-strategy update-branch
+python scripts/developer_tools/l_dependabot_auto_merge.py
+python scripts/developer_tools/l_dependabot_auto_merge.py --yes
+python scripts/developer_tools/l_dependabot_auto_merge.py --yes --behind-strategy update-branch
 ```
 
 The script:
@@ -328,14 +328,14 @@ of starting a new one: fetches the PR from GitHub and checks out its branch
 locally (creating a local tracking branch if needed).
 
 ```bash
-python scripts/developer_tools/j_work_on_pr.py 4512
+python scripts/developer_tools/k_work_on_pr.py 4512
 ```
 
 Omit the PR number to list all open pull requests and choose one
 interactively:
 
 ```bash
-python scripts/developer_tools/j_work_on_pr.py
+python scripts/developer_tools/k_work_on_pr.py
 ```
 
 The script:

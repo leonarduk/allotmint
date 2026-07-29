@@ -167,7 +167,7 @@ class TestMain:
         mock_extract.return_value = 4445
         mock_has_staged.return_value = False
 
-        with mock.patch("sys.argv", ["j_commit_and_push.py"]), mock.patch("j_commit_and_push.os.chdir"):
+        with mock.patch("sys.argv", ["commit_and_push.py"]), mock.patch("j_commit_and_push.os.chdir"):
             result = main()
 
         assert result == 0
@@ -198,7 +198,7 @@ class TestMain:
         mock_commit.return_value = True
         mock_push.return_value = True
 
-        argv = ["j_commit_and_push.py", "--message", "Fix the thing", "--no-ollama"]
+        argv = ["commit_and_push.py", "--message", "Fix the thing", "--no-ollama"]
         with mock.patch("sys.argv", argv), mock.patch("j_commit_and_push.os.chdir"):
             result = main()
 
@@ -234,7 +234,7 @@ class TestMain:
         mock_push.return_value = True
 
         argv = [
-            "j_commit_and_push.py",
+            "commit_and_push.py",
             "--message",
             "Fix the thing",
             "--no-ollama",
@@ -271,7 +271,7 @@ class TestMain:
         mock_has_staged.return_value = True
         mock_commit.return_value = True
 
-        argv = ["j_commit_and_push.py", "--message", "Tidy up", "--no-ollama", "--no-push"]
+        argv = ["commit_and_push.py", "--message", "Tidy up", "--no-ollama", "--no-push"]
         with mock.patch("sys.argv", argv), mock.patch("j_commit_and_push.os.chdir"):
             result = main()
 
@@ -301,7 +301,7 @@ class TestMain:
         mock_has_staged.return_value = True
         mock_commit.return_value = False
 
-        argv = ["j_commit_and_push.py", "--message", "Tidy up", "--no-ollama"]
+        argv = ["commit_and_push.py", "--message", "Tidy up", "--no-ollama"]
         with mock.patch("sys.argv", argv), mock.patch("j_commit_and_push.os.chdir"):
             result = main()
 
@@ -332,7 +332,7 @@ class TestMain:
         mock_commit.return_value = True
         mock_push.return_value = False
 
-        argv = ["j_commit_and_push.py", "--message", "Tidy up", "--no-ollama"]
+        argv = ["commit_and_push.py", "--message", "Tidy up", "--no-ollama"]
         with mock.patch("sys.argv", argv), mock.patch("j_commit_and_push.os.chdir"):
             result = main()
 

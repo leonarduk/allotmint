@@ -33,7 +33,7 @@ class TestSlugify:
 def _run_main(monkeypatch, tmp_path, cli_args, sleep_mock):
     """Run main() with every external side effect mocked, return the resolved branch name."""
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(sys, "argv", ["c_work_on_issue.py", *cli_args])
+    monkeypatch.setattr(sys, "argv", ["d_work_on_issue.py", *cli_args])
     monkeypatch.setattr("c_work_on_issue.time.sleep", sleep_mock)
     monkeypatch.setattr("c_work_on_issue.get_repo_info", lambda: ("leonarduk", "allotmint"))
     monkeypatch.setattr(
@@ -72,7 +72,7 @@ class TestBranchTypeFlag:
         assert branch_name.startswith("feat/issue-4445-")
 
     def test_rejects_invalid_type(self, monkeypatch, tmp_path):
-        monkeypatch.setattr(sys, "argv", ["c_work_on_issue.py", "4445", "--type", "bogus"])
+        monkeypatch.setattr(sys, "argv", ["d_work_on_issue.py", "4445", "--type", "bogus"])
 
         with pytest.raises(SystemExit):
             main()

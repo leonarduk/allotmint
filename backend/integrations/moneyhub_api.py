@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
-from urllib.parse import urljoin
+from urllib.parse import parse_qs, urljoin, urlsplit
 
 import requests
 
@@ -116,9 +116,16 @@ class MoneyhubClient:
             if not next_url:
                 break
             url = urljoin(url, next_url)
-            params = {}
+            params = self._account_filter_params(url, account_id)
 
         return transactions
+
+    @staticmethod
+    def _account_filter_params(url: str, account_id: Optional[str]) -> Dict[str, str]:
+        """Preserve an account filter unless the page URL already contains it."""
+        if not account_id or "accountId" in parse_qs(urlsplit(url).query, keep_blank_values=True):
+            return {}
+        return {"accountId": account_id}
 
     def _fetch_transaction_page(self, url: str, params: Dict[str, str], access_token: str) -> tuple[Any, Any]:
         """Fetch and decode one validated transaction page."""

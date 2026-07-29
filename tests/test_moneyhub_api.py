@@ -35,8 +35,36 @@ def test_fetch_transactions_follows_next_link(monkeypatch):
     assert result == [{"id": "tx-1"}, {"id": "tx-2"}]
     assert calls == [
         ("https://api.moneyhub.co.uk/transactions", {"accountId": "account-1"}),
-        ("https://api.moneyhub.co.uk/transactions?page=2", {}),
+        ("https://api.moneyhub.co.uk/transactions?page=2", {"accountId": "account-1"}),
     ]
+
+
+def test_fetch_transactions_does_not_duplicate_account_filter_in_next_url(monkeypatch):
+    responses = iter(
+        [
+            FakeResponse(
+                {
+                    "data": [{"id": "tx-1"}],
+                    "next": "/transactions?page=2&accountId=account-1",
+                }
+            ),
+            FakeResponse({"data": [{"id": "tx-2"}]}),
+        ]
+    )
+    calls = []
+
+    def fake_get(url, **kwargs):
+        calls.append((url, kwargs["params"]))
+        return next(responses)
+
+    monkeypatch.setattr(requests, "get", fake_get)
+
+    MoneyhubClient("id", "secret").fetch_transactions("token", account_id="account-1")
+
+    assert calls[1] == (
+        "https://api.moneyhub.co.uk/transactions?page=2&accountId=account-1",
+        {},
+    )
 
 
 def test_fetch_transactions_follows_link_header(monkeypatch):

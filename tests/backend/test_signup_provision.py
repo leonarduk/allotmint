@@ -144,9 +144,7 @@ def test_resolve_owner_slug_stamps_identity_immediately_after_mkdir(tmp_path):
     accounts_root = tmp_path / "accounts"
     accounts_root.mkdir()
 
-    winner = signup_provision._resolve_owner_slug(
-        "jane@example.com", accounts_root, "Jane Doe"
-    )
+    winner = signup_provision._resolve_owner_slug("jane@example.com", accounts_root, "Jane Doe")
     assert winner == "jane"
 
     # The winner's person.json must carry the complete identity immediately.
@@ -211,6 +209,29 @@ def test_resolve_owner_slug_cleans_up_on_scaffold_failure(tmp_path, monkeypatch)
     assert owner == "jane"
 
 
+def test_provision_owner_cleans_up_on_scaffold_failure(tmp_path, monkeypatch):
+    """A scaffold failure must propagate through the public provisioning API."""
+
+    accounts_root = tmp_path / "accounts"
+    accounts_root.mkdir()
+    store_calls = []
+
+    class FakeStore:
+        def ensure_owner(self, owner):
+            store_calls.append(owner)
+
+    def _failing_scaffold(*_args, **_kwargs):
+        raise OSError("simulated disk full")
+
+    monkeypatch.setattr(signup_provision, "ensure_owner_scaffold", _failing_scaffold)
+
+    with pytest.raises(OSError, match="simulated disk full"):
+        signup_provision.provision_owner(_record("jane@example.com"), accounts_root, store=FakeStore())
+
+    assert not (accounts_root / "jane").exists()
+    assert store_calls == []
+
+
 def test_resolve_owner_slug_raises_when_exhausted(tmp_path, monkeypatch):
     accounts_root = tmp_path / "accounts"
     accounts_root.mkdir()
@@ -219,9 +240,7 @@ def test_resolve_owner_slug_raises_when_exhausted(tmp_path, monkeypatch):
     # Occupy both candidate slugs with a different email so none can be reused.
     for name in ("jane", "jane-2"):
         (accounts_root / name).mkdir()
-        (accounts_root / name / "person.json").write_text(
-            json.dumps({"email": "other@example.com"})
-        )
+        (accounts_root / name / "person.json").write_text(json.dumps({"email": "other@example.com"}))
 
     with pytest.raises(RuntimeError):
         signup_provision.provision_owner(_record("jane@example.com"), accounts_root)

@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest import mock
 
 import pytest
+
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "developer_tools"))
 
 from g_local_review import (

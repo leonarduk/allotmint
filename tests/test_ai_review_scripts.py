@@ -464,6 +464,36 @@ def test_default_globs_include_codeowners_file(
     assert ".github/CODEOWNERS" in diff
 
 
+def test_default_globs_include_config_file_extensions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = load_script_module("prepare_review_diff_config_globs", "prepare_review_diff.py")
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _run_git(["init", "-b", "main"], repo)
+    _run_git(["config", "user.email", "test@example.com"], repo)
+    _run_git(["config", "user.name", "Test"], repo)
+
+    (repo / "README.md").write_text("hello\n")
+    _run_git(["add", "README.md"], repo)
+    _run_git(["commit", "-m", "init"], repo)
+    _run_git(["update-ref", "refs/remotes/origin/main", "HEAD"], repo)
+
+    (repo / "pytest.ini").write_text("[pytest]\ntestpaths = tests\n")
+    (repo / "mypy.cfg").write_text("[mypy]\nstrict = True\n")
+    (repo / "pyproject.toml").write_text("[tool.black]\nline-length = 100\n")
+    _run_git(["add", "pytest.ini", "mypy.cfg", "pyproject.toml"], repo)
+    _run_git(["commit", "-m", "add config files"], repo)
+
+    monkeypatch.chdir(repo)
+    diff = module.git_diff("main", module.DEFAULT_GLOBS)
+
+    assert "pytest.ini" in diff
+    assert "mypy.cfg" in diff
+    assert "pyproject.toml" in diff
+
+
 def _comment(
     login: str, body: str, created_at: str, user_type: str = "User", path: str | None = None
 ) -> dict:

@@ -60,6 +60,15 @@ class AppLifecycleService:
         self.temp_dirs = temp_dirs or []
 
     async def startup(self, app: FastAPI) -> None:
+        if not os.getenv("TESTING"):
+            # Constructing the lazy singleton here validates credentials before
+            # the application begins accepting Moneyhub import requests. Tests
+            # intentionally run without external-service credentials and still
+            # exercise validation directly.
+            from backend.routes.transactions import _get_moneyhub_client
+
+            _get_moneyhub_client()
+
         if not self.cfg.skip_snapshot_warm:
             await self._warm_snapshot(app)
 

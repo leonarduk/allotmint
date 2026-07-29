@@ -146,6 +146,16 @@ def test_moneyhub_parse_empty_csv_returns_no_transactions():
     assert moneyhub.parse(csv_data.encode("utf-8")) == []
 
 
+def test_moneyhub_parse_row_with_empty_date_has_no_composite_key():
+    csv_data = "Owner,Account,Date,Amount,Description,Category\nalice,Current,,-42.50,Tesco Store,Groceries\n"
+
+    transactions = moneyhub.parse(csv_data.encode("utf-8"))
+
+    assert len(transactions) == 1
+    assert transactions[0].external_id is None
+    assert transactions[0].date == ""
+
+
 def test_moneyhub_parse_rejects_csv_with_unrecognised_columns():
     csv_data = "Foo,Bar\nx,y\n"
     with pytest.raises(ValueError, match="missing required columns"):

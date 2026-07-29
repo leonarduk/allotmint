@@ -734,7 +734,7 @@ export default function App({ onLogout }: AppProps) {
         {mode === 'alerts' && <Alerts />}
         {mode === 'taxtools' && <TaxTools />}
         {mode === 'support' && <Support />}
-        {mode === 'settings' && <UserConfigPage />}
+        {mode === 'settings' && <UserConfigPage selectedOwner={selectedOwner} />}
         {mode === 'scenario' && <ScenarioTester />}
         {mode === 'research' && (
           <Suspense fallback={<ChartSkeleton height={400} label={t('app.loading')} />}>

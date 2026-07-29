@@ -116,4 +116,24 @@ describe("AddPositionForm", () => {
 
     expect(onCollapse).toHaveBeenCalledTimes(1);
   });
+
+  it("labels the collapse control and exposes its expanded state", () => {
+    render(
+      <AddPositionForm
+        owner="alice"
+        accounts={["ISA"]}
+        onCollapse={vi.fn()}
+        controlsId="add-position-form"
+      />,
+    );
+
+    const button = screen.getByRole("button", { name: "Collapse add position form" });
+    expect(button).toHaveTextContent("Collapse");
+    expect(button).toHaveAttribute("aria-expanded", "true");
+    expect(button).toHaveAttribute("aria-controls", "add-position-form");
+    expect(screen.getByRole("form", { name: "Add position" })).toHaveAttribute(
+      "id",
+      "add-position-form",
+    );
+  });
 });

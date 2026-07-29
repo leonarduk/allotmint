@@ -11,9 +11,17 @@ type Props = {
   defaultAccount?: string;
   onAdded?: () => void;
   onCollapse?: () => void;
+  controlsId?: string;
 };
 
-export function AddPositionForm({ owner, accounts, defaultAccount, onAdded, onCollapse }: Props) {
+export function AddPositionForm({
+  owner,
+  accounts,
+  defaultAccount,
+  onAdded,
+  onCollapse,
+  controlsId,
+}: Props) {
   const { t } = useTranslation();
   const [account, setAccount] = useState(defaultAccount ?? accounts[0] ?? "");
   const [ticker, setTicker] = useState("");
@@ -80,6 +88,7 @@ export function AddPositionForm({ owner, accounts, defaultAccount, onAdded, onCo
 
   return (
     <form
+      id={controlsId}
       onSubmit={handleSubmit}
       aria-label={t("addPosition.title")}
       className="mb-6 rounded-lg border border-gray-800 bg-black/20 p-4"
@@ -91,9 +100,14 @@ export function AddPositionForm({ owner, accounts, defaultAccount, onAdded, onCo
             type="button"
             onClick={onCollapse}
             aria-label={t("addPosition.collapse")}
-            className="rounded border border-gray-700 px-2 py-0.5 text-sm text-white hover:border-gray-500 hover:bg-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
+            aria-expanded="true"
+            aria-controls={controlsId}
+            className="inline-flex items-center gap-1.5 rounded border border-gray-700 px-2 py-0.5 text-sm text-white hover:border-gray-500 hover:bg-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
           >
-            −
+            <svg aria-hidden="true" viewBox="0 0 12 12" className="h-3 w-3" fill="none">
+              <path d="M2 6h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+            {t("addPosition.collapseShort")}
           </button>
         )}
       </div>

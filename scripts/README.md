@@ -195,6 +195,32 @@ If aider makes no commits (e.g. the local model replies with prose instead of
 edits), the script fails rather than pushing an empty branch or opening a
 content-free PR.
 
+## f_run_ci_checks.py
+
+Run the credential-free integration and validation steps from the most relevant
+GitHub Actions workflows before pushing. With no arguments, the script presents
+an interactive menu:
+
+```bash
+python scripts/developer_tools/f_run_ci_checks.py
+```
+
+For automation or non-interactive shells, select one or more groups explicitly:
+
+```bash
+python scripts/developer_tools/f_run_ci_checks.py --list
+python scripts/developer_tools/f_run_ci_checks.py --check backend --check frontend
+python scripts/developer_tools/f_run_ci_checks.py --all --keep-going
+python scripts/developer_tools/f_run_ci_checks.py --all --dry-run
+```
+
+The groups mirror backend integration, frontend, infrastructure/workflow-lint,
+and developer-script jobs. The runner assumes their dependencies are already
+installed, runs from the repository root regardless of the caller's current
+directory, stops at the first failure by default, and propagates a failing exit
+status. Cloud deployment and other secret-dependent jobs are intentionally not
+offered as local checks.
+
 ## publish_pr.py
 
 Automate PR publishing: commit changes, push to remote, and create a PR with auto-filled body sections. Optionally uses Ollama to generate thoughtful PR descriptions.

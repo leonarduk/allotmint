@@ -28,6 +28,7 @@ from aws_cdk import aws_s3 as s3
 from constructs import Construct
 
 from stacks.exports import BACKEND_API_URL_EXPORT
+from stacks.ssm_parameter_namespace import SsmParameterNamespaceGrant
 
 # S3 prefix (relative to the data bucket) under which per-owner writable account
 # documents are persisted. Kept in sync with
@@ -42,6 +43,11 @@ WRITABLE_ACCOUNTS_PREFIX = "writable-accounts"
 # ``backend.common.instruments._s3_location()`` via the ``METADATA_PREFIX``
 # Lambda environment variable below (issue #4930).
 METADATA_PREFIX = "instruments"
+
+# SSM namespace reserved for per-owner Moneyhub OAuth token sets. Tokens are
+# created lazily by ParameterStoreJSONStorage, so CDK grants the namespace
+# rather than provisioning a placeholder parameter.
+MONEYHUB_TOKEN_NAMESPACE = "/allotmint/moneyhub/tokens"
 
 # API Gateway access-log format for the backend HTTP API's default stage.
 # Deliberately logs claims/status/source IP only — never the raw bearer
@@ -442,6 +448,14 @@ class BackendLambdaStack(Stack):
             memory_size=1024,
         )
         backend_fn.add_environment("APP_ENV", env)
+
+        SsmParameterNamespaceGrant(
+            self,
+            "MoneyhubTokenNamespaceGrant",
+            grantee=backend_fn,
+            namespace=MONEYHUB_TOKEN_NAMESPACE,
+            allow_write=True,
+        )
 
         # BackendLambda: read + put + list for API data paths. Add an explicit
         # timeseries cache grant below so the synthesized IAM policy always covers

@@ -161,6 +161,29 @@ describe("PortfolioView", () => {
         expect(within(screen.getByRole("form", { name: /^add position$/i })).getByLabelText(/account/i)).toHaveValue("ISA");
     });
 
+    it("exposes the add-position expansion state and collapses on Escape", () => {
+        render(<PortfolioView data={mockOwner} />);
+
+        const expandButton = screen.getByRole("button", { name: /\+ add position/i });
+        expect(expandButton).toHaveAttribute("aria-expanded", "false");
+        expect(expandButton).toHaveAttribute("aria-controls", "add-position-form");
+
+        fireEvent.click(expandButton);
+        const collapseButton = screen.getByRole("button", { name: /collapse add position form/i });
+        expect(collapseButton).toHaveAttribute("aria-expanded", "true");
+        expect(collapseButton).toHaveAttribute("aria-controls", "add-position-form");
+        expect(screen.getByRole("form", { name: /^add position$/i })).toHaveAttribute("id", "add-position-form");
+        expect(collapseButton).toHaveTextContent("Collapse");
+        expect(collapseButton.querySelector("svg")).toBeInTheDocument();
+
+        fireEvent.keyDown(document, { key: "Enter" });
+        expect(screen.getByRole("form", { name: /^add position$/i })).toBeInTheDocument();
+
+        fireEvent.keyDown(document, { key: "Escape" });
+        expect(screen.queryByRole("form", { name: /^add position$/i })).not.toBeInTheDocument();
+        expect(screen.getByRole("button", { name: /\+ add position/i })).toHaveAttribute("aria-expanded", "false");
+    });
+
     it("hides the CSV import form when no accounts exist", () => {
         const emptyOwner: Portfolio = { ...mockOwner, accounts: [] };
 

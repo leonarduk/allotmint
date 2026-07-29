@@ -232,6 +232,7 @@ export function PortfolioView({ data, loading, error, onDateChange, onAccountAdd
   const [addPositionAccount, setAddPositionAccount] = useState<string | undefined>(undefined);
   const [addPositionExpanded, setAddPositionExpanded] = useState(false);
   const addPositionRef = useRef<HTMLDivElement>(null);
+  const addPositionFormId = "add-position-form";
   const { baseCurrency, familyMvpEnabled, enableAdvancedAnalytics = true } = useConfig();
 
   const accountKey = (acct: Account, idx: number) => `${acct.account_type}-${idx}`;
@@ -243,6 +244,23 @@ export function PortfolioView({ data, loading, error, onDateChange, onAccountAdd
   useEffect(() => {
     setPendingDate(data?.as_of ?? "");
   }, [data?.as_of]);
+
+  const handleAddPositionCollapse = useCallback(() => {
+    setAddPositionExpanded(false);
+    setAddPositionAccount(undefined);
+  }, []);
+
+  useEffect(() => {
+    if (!addPositionExpanded) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !event.defaultPrevented) {
+        handleAddPositionCollapse();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [addPositionExpanded, handleAddPositionCollapse]);
 
   const owner = data?.owner ?? null;
   const asOf = data?.as_of ?? null;
@@ -340,11 +358,6 @@ export function PortfolioView({ data, loading, error, onDateChange, onAccountAdd
     onPositionAdded?.();
   };
 
-  const handleAddPositionCollapse = () => {
-    setAddPositionExpanded(false);
-    setAddPositionAccount(undefined);
-  };
-
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
@@ -415,11 +428,14 @@ export function PortfolioView({ data, loading, error, onDateChange, onAccountAdd
                   defaultAccount={addPositionAccount}
                   onAdded={handlePositionAdded}
                   onCollapse={handleAddPositionCollapse}
+                  controlsId={addPositionFormId}
                 />
               ) : (
                 <button
                   type="button"
                   onClick={() => setAddPositionExpanded(true)}
+                  aria-expanded="false"
+                  aria-controls={addPositionFormId}
                   className="rounded border border-gray-700 px-3 py-1.5 text-sm text-white hover:border-gray-500 hover:bg-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
                 >
                   + {t("addPosition.title")}

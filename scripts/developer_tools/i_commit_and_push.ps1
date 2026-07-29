@@ -40,6 +40,6 @@ if ($NoPush) {
 # Run the Python script
 # Nest Join-Path calls so this also works on Windows PowerShell 5.1, whose
 # Join-Path lacks the -AdditionalChildPath parameter (PowerShell 6+ only).
-$scriptPath = Join-Path (Join-Path $repoRoot "scripts") (Join-Path "developer_tools" "j_commit_and_push.py")
+$scriptPath = Join-Path (Join-Path (Join-Path (Join-Path $repoRoot "scripts") "developer_tools") "lib") "commit_and_push.py"
 python $scriptPath @pythonArgs
 exit $LASTEXITCODE

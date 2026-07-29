@@ -66,3 +66,5 @@ jenkins_home/
 
 # Offline issue sync
 issues/
+/scripts/developer_tools/.issue-*.md
+/scripts/developer_tools/local_review_*.md

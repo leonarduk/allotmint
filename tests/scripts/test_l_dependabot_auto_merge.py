@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-import scripts.developer_tools.i_dependabot_auto_merge as i
+import scripts.developer_tools.l_dependabot_auto_merge as i
 
 
 def _pr(number, title="Bump foo", head_ref_name="dependabot/pip/foo-1.2.3", head_sha="",

@@ -1,6 +1,6 @@
 import json
 
-import scripts.developer_tools.h_triage_issues as h
+import scripts.developer_tools.c_triage_issues as h
 
 
 def _issue(number, title, body="", labels=None):

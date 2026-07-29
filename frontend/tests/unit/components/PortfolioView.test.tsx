@@ -161,6 +161,27 @@ describe("PortfolioView", () => {
         expect(within(screen.getByRole("form", { name: /^add position$/i })).getByLabelText(/account/i)).toHaveValue("ISA");
     });
 
+    it("collapses the add-position form on Escape and ignores other keys", () => {
+        render(<PortfolioView data={mockOwner} />);
+        const addButton = screen.getByRole("button", { name: /\+ add position/i });
+        expect(addButton).toHaveAttribute("aria-expanded", "false");
+
+        fireEvent.click(addButton);
+        expect(screen.getByRole("button", { name: /collapse add position form/i })).toHaveAttribute(
+            "aria-expanded",
+            "true",
+        );
+
+        fireEvent.keyDown(document, { key: "Enter" });
+        expect(screen.getByRole("form", { name: /^add position$/i })).toBeInTheDocument();
+
+        fireEvent.keyDown(document, { key: "Escape" });
+        expect(screen.queryByRole("form", { name: /^add position$/i })).not.toBeInTheDocument();
+
+        fireEvent.keyDown(document, { key: "Escape" });
+        expect(screen.getByRole("button", { name: /\+ add position/i })).toBeInTheDocument();
+    });
+
     it("hides the CSV import form when no accounts exist", () => {
         const emptyOwner: Portfolio = { ...mockOwner, accounts: [] };
 

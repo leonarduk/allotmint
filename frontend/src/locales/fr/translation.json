@@ -20,7 +20,8 @@
       "generic": "Impossible d'ajouter la position."
     },
     "emptyAccountCta": "Ajouter votre première position",
-    "collapse": "Réduire le formulaire d'ajout de position"
+    "collapse": "Réduire le formulaire d'ajout de position",
+    "collapseShort": "Réduire"
   },
   "alertSettings": {
     "description": "Configurez quand vous recevrez des alertes. Les alertes apparaissent sur la page des alertes et dans les notifications push.",

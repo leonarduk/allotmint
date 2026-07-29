@@ -15,7 +15,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Query, Request, Upload
 from pydantic import BaseModel, ConfigDict, Field
 
 from backend import importers
-from backend.common import compliance, data_loader
+from backend.common import compliance, data_loader, moneyhub_tokens
 from backend.common.accounts_store import (
     LocalAccountsStore,
     S3AccountsStore,
@@ -23,6 +23,7 @@ from backend.common.accounts_store import (
 from backend.common.instruments import get_instrument_meta
 from backend.common.ticker_utils import normalise_filter_ticker
 from backend.config import config
+from backend.integrations.moneyhub_api import MoneyhubClient
 from backend.routes._accounts import resolve_accounts_root
 from backend.utils import update_holdings_from_csv
 
@@ -33,6 +34,24 @@ log = logging.getLogger("transactions")
 # data_loader.py); this flag dedupes its missing-DATA_BUCKET warning to
 # once per process without touching any other call site.
 _warned_missing_data_bucket = False
+_moneyhub_client_instance: MoneyhubClient | None = None
+
+
+def _get_moneyhub_client() -> MoneyhubClient:
+    """Return the process-wide Moneyhub client, creating it on first use."""
+    global _moneyhub_client_instance
+
+    if _moneyhub_client_instance is None:
+        client_id = os.environ.get("MONEYHUB_CLIENT_ID")
+        client_secret = os.environ.get("MONEYHUB_CLIENT_SECRET")
+        if (not client_id or not client_secret) and not os.getenv("TESTING"):
+            raise RuntimeError("MONEYHUB_CLIENT_ID and MONEYHUB_CLIENT_SECRET must be set")
+        _moneyhub_client_instance = MoneyhubClient(
+            client_id=client_id or "",
+            client_secret=client_secret or "",
+            base_url=os.environ.get("MONEYHUB_BASE_URL", "https://api.moneyhub.co.uk"),
+        )
+    return _moneyhub_client_instance
 
 
 class Transaction(BaseModel):
@@ -170,10 +189,7 @@ def resolve_writable_store(
 def _store_disabled_detail(kind: _RootResolution) -> str:
     """Return the 400 detail for a write against a non-writable store."""
     if kind is _RootResolution.NONE:
-        return (
-            "Create an account to enable manual holdings and "
-            "transaction writes."
-        )
+        return "Create an account to enable manual holdings and " "transaction writes."
     return "Accounts root not configured"
 
 
@@ -532,9 +548,7 @@ def _validate_component(value: str, field: str) -> str:
     return value
 
 
-def _persist_transaction(
-    store: "AccountsStore", owner: str, account: str, tx_data: Dict[str, Any]
-) -> Dict[str, Any]:
+def _persist_transaction(store: "AccountsStore", owner: str, account: str, tx_data: Dict[str, Any]) -> Dict[str, Any]:
     """Append ``tx_data`` to owner/account's transaction log and rebuild the portfolio.
 
     Shared by :func:`create_transaction` (single, request-validated write) and
@@ -785,6 +799,64 @@ async def import_transactions(
 
         tx_data = _tx_data_from_parsed(row)
         persisted.append(_persist_transaction(store, row_owner, row_account, tx_data))
+
+    return {"persisted": persisted, "skipped": skipped}
+
+
+@router.post("/transactions/import/moneyhub")
+async def import_moneyhub_transactions(request: Request, owner: str = Form(...)) -> Dict[str, List[Dict[str, Any]]]:
+    """Pull ``owner``'s transactions from the live Moneyhub API, persist the new ones, and report the rest.
+
+    Unlike :func:`import_transactions` (file upload), this pulls directly
+    from Moneyhub using the owner's stored OAuth consent (see
+    :mod:`backend.common.moneyhub_tokens`) -- the access method and auth
+    flow decided in ``docs/moneyhub-integration.md`` (#2749). Requires the
+    owner to have already completed the Moneyhub consent flow and have a
+    token set stored; there is no self-service way for this endpoint to
+    initiate that consent itself.
+    """
+    owner = _validate_component(owner, "owner")
+
+    from backend.importers import moneyhub_api as moneyhub_mapper
+    from backend.integrations.moneyhub_api import MoneyhubAPIError
+
+    client = _get_moneyhub_client()
+    try:
+        access_token = moneyhub_tokens.get_valid_access_token(owner, client)
+    except moneyhub_tokens.MoneyhubAuthError as exc:
+        raise HTTPException(status_code=424, detail=str(exc))
+
+    try:
+        raw = client.fetch_transactions(access_token)
+    except MoneyhubAPIError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+    parsed = moneyhub_mapper.map_transactions(raw, owner)
+    if not parsed:
+        return {"persisted": [], "skipped": []}
+
+    store = _require_writable_store(request)
+
+    if any(t.external_id for t in parsed):
+        existing = _load_all_transactions(store)
+        parsed = importers.dedupe_against_existing(parsed, existing)
+
+    persisted: List[Dict[str, Any]] = []
+    skipped: List[Dict[str, Any]] = []
+
+    for row in parsed:
+        row_account = row.account
+        if not row_account:
+            skipped.append({**row.model_dump(mode="json"), "skip_reason": "missing account"})
+            continue
+        try:
+            row_account = _validate_component(row_account, "account")
+        except HTTPException as exc:
+            skipped.append({**row.model_dump(mode="json"), "skip_reason": str(exc.detail)})
+            continue
+
+        tx_data = _tx_data_from_parsed(row)
+        persisted.append(_persist_transaction(store, owner, row_account, tx_data))
 
     return {"persisted": persisted, "skipped": skipped}
 

@@ -60,6 +60,12 @@ class AppLifecycleService:
         self.temp_dirs = temp_dirs or []
 
     async def startup(self, app: FastAPI) -> None:
+        # Keep Moneyhub optional for local/test deployments, but fail fast on
+        # partial credentials instead of waiting for the first import request.
+        from backend.routes.transactions import validate_moneyhub_configuration
+
+        validate_moneyhub_configuration()
+
         if not self.cfg.skip_snapshot_warm:
             await self._warm_snapshot(app)
 

@@ -353,6 +353,18 @@ Optional flags:
 Uses only `requests` and plain `git` -- no `gh` CLI or special GitHub scopes
 required.
 
+## classify_change.py
+
+Used by the `classify-change` CI job (`.github/workflows/ci.yml`,
+`.github/workflows/backend-integration.yml`) to classify a pull request's
+diff as "doc-only" so the heavyweight test jobs can skip. See
+[docs/CONTRIBUTOR_RUNBOOK.md](../docs/CONTRIBUTOR_RUNBOOK.md#ci-fast-path-for-doc-only-prs)
+for the classification rules.
+
+```bash
+python scripts/classify_change.py --event-name pull_request --base <base-sha> --head <head-sha>
+```
+
 ## reconcile_drawdown.py
 
 Inspect max drawdowns and dump holding price data when the portfolio suffers a

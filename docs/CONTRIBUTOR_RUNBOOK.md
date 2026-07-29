@@ -8,6 +8,28 @@ For the broader product overview, see [docs/README.md](README.md). For repo-wide
 
 Before pushing, be aware that pull requests trigger automated AI code reviews via Claude and GPT workflows. These reviews are advisory and posted as PR comments. For details on how these workflows operate, failure handling, and debugging tips, see [docs/AI_REVIEW_WORKFLOWS.md](AI_REVIEW_WORKFLOWS.md).
 
+### CI fast path for doc-only PRs
+
+A `classify-change` job in `.github/workflows/ci.yml` and `.github/workflows/backend-integration.yml`
+inspects the PR's diff (via `scripts/classify_change.py`) and skips the heavyweight
+`test`, `lambda-compat`, `python-compatibility`, and `integration-tests` jobs
+when every changed line, across every changed file, is a blank line, a
+full-line comment (`#` in Python; `//`/`/* */` in TS/JS), or content inside a
+`*.md`/`docs/**`/`.github/ISSUE_TEMPLATE/**` file. `frontend-smoke` already
+skips on non-frontend PRs via its own path filter, and a doc-only PR that
+also doesn't touch `frontend/**` skips it too as a side effect of its
+`needs: test`.
+
+The classifier is deliberately conservative: any real code line, config file
+(`pytest.ini`, `mypy.ini`, `requirements*.txt`, workflow YAML, etc.),
+permission-bit change, or rename touching a non-doc path makes the whole PR
+non-doc-only, and the full suite runs as before. If classification itself
+fails for any reason, the full suite also runs — it never fails open into
+skipping tests. Lightweight checks (`super-linter`, `lint-workflows`,
+`pr-lint`, `issue-lint`, `empty-pr-check`, `validate-backend-deps`) always run
+regardless of classification. See [issue #5594](https://github.com/leonarduk/allotmint/issues/5594)
+for the full rationale.
+
 ## 1. Supported run modes at a glance
 
 | Mode | When to use it | Backend entrypoint | Frontend entrypoint | Auth expectation | Data expectation |

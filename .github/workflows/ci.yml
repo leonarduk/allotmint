@@ -7,7 +7,43 @@ on:
 permissions:
   contents: read
 jobs:
+  # Classifies pull_request diffs as "doc-only" (comments/docstrings/*.md/docs/**
+  # only) so the heavyweight jobs below can skip on PRs like #5554 that add a
+  # code comment but touch no executable behaviour. Always runs (never gated
+  # itself) so jobs that `needs: classify-change` never lose their required
+  # status check to skip-propagation; non-pull_request events (push, etc.)
+  # conservatively classify as not doc-only. See scripts/classify_change.py.
+  classify-change:
+    name: Classify PR change (doc-only detection)
+    runs-on: ubuntu-latest
+    outputs:
+      doc-only: ${{ steps.classify.outputs.doc-only }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Classify change as doc-only or not
+        id: classify
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python scripts/classify_change.py \
+            --event-name "$EVENT_NAME" \
+            --base "$BASE_SHA" \
+            --head "$HEAD_SHA" \
+            --github-output "$GITHUB_OUTPUT"
+
   test:
+    needs: classify-change
+    # !cancelled() (not the implicit default success()) so a classify-change
+    # failure still runs the full suite instead of silently skipping it --
+    # see scripts/classify_change.py's conservative fallback.
+    if: "!cancelled() && needs.classify-change.outputs.doc-only != 'true'"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -140,6 +176,8 @@ jobs:
 
   lambda-compat:
     name: Lambda-compat pytest (backend/requirements.txt)
+    needs: classify-change
+    if: "!cancelled() && needs.classify-change.outputs.doc-only != 'true'"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -195,6 +233,8 @@ jobs:
 
   python-compatibility:
     name: Python ${{ matrix.python-version }} compatibility smoke
+    needs: classify-change
+    if: "!cancelled() && needs.classify-change.outputs.doc-only != 'true'"
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false

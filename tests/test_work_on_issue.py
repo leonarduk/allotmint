@@ -9,7 +9,7 @@ from unittest import mock
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "developer_tools"))
-from c_work_on_issue import main, slugify
+from d_work_on_issue import main, slugify
 
 
 class TestSlugify:
@@ -34,14 +34,14 @@ def _run_main(monkeypatch, tmp_path, cli_args, sleep_mock):
     """Run main() with every external side effect mocked, return the resolved branch name."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(sys, "argv", ["d_work_on_issue.py", *cli_args])
-    monkeypatch.setattr("c_work_on_issue.time.sleep", sleep_mock)
-    monkeypatch.setattr("c_work_on_issue.get_repo_info", lambda: ("leonarduk", "allotmint"))
+    monkeypatch.setattr("d_work_on_issue.time.sleep", sleep_mock)
+    monkeypatch.setattr("d_work_on_issue.get_repo_info", lambda: ("leonarduk", "allotmint"))
     monkeypatch.setattr(
-        "c_work_on_issue.fetch_issue",
+        "d_work_on_issue.fetch_issue",
         lambda owner, repo, issue_id: {"title": "Some Issue Title", "body": "body text"},
     )
-    monkeypatch.setattr("c_work_on_issue.get_main_branch_sha", lambda owner, repo: "deadbeef")
-    monkeypatch.setattr("c_work_on_issue.create_branch", lambda owner, repo, branch_name, sha, token: None)
+    monkeypatch.setattr("d_work_on_issue.get_main_branch_sha", lambda owner, repo: "deadbeef")
+    monkeypatch.setattr("d_work_on_issue.create_branch", lambda owner, repo, branch_name, sha, token: None)
 
     run_calls: list[list[str]] = []
 
@@ -49,7 +49,7 @@ def _run_main(monkeypatch, tmp_path, cli_args, sleep_mock):
         run_calls.append(cmd)
         return mock.MagicMock(returncode=0, stdout="")
 
-    monkeypatch.setattr("c_work_on_issue.subprocess.run", fake_run)
+    monkeypatch.setattr("d_work_on_issue.subprocess.run", fake_run)
 
     main()
 

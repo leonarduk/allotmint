@@ -94,10 +94,7 @@ def test_degiro_to_float_invalid_inputs():
 
 
 def test_degiro_parse_handles_bad_data():
-    csv_data = (
-        "owner,account,date,ticker,type,price,units\n"
-        "bob,ISA,2024-05-02,MSFT,BUY,,oops\n"
-    )
+    csv_data = "owner,account,date,ticker,type,price,units\n" "bob,ISA,2024-05-02,MSFT,BUY,,oops\n"
     txs = degiro.parse(csv_data.encode("utf-8"))
     assert len(txs) == 1
     tx = txs[0]
@@ -141,9 +138,19 @@ def test_moneyhub_to_float_invalid_inputs():
     assert moneyhub._to_float(None) is None
 
 
-def test_moneyhub_parse_empty_csv_returns_no_transactions():
+def test_moneyhub_parse_header_only_csv_returns_no_transactions():
     csv_data = "Id,Owner,Account,Date,Amount,Description,Category\n"
     assert moneyhub.parse(csv_data.encode("utf-8")) == []
+
+
+def test_moneyhub_parse_empty_date_leaves_composite_key_unset():
+    csv_data = "Owner,Account,Date,Amount,Description,Category\n" "alice,Current,,-42.50,Tesco Store,Groceries\n"
+
+    txs = moneyhub.parse(csv_data.encode("utf-8"))
+
+    assert len(txs) == 1
+    assert txs[0].date == ""
+    assert txs[0].external_id is None
 
 
 def test_moneyhub_parse_rejects_csv_with_unrecognised_columns():

@@ -131,8 +131,12 @@ def test_moneyhub_parse_uses_id_column_when_present():
 
 def test_moneyhub_composite_key_requires_date_and_amount():
     assert moneyhub._composite_key(None, "Current", -42.50, "Tesco") is None
+    assert moneyhub._composite_key("", "Current", -42.50, "Tesco") is None
     assert moneyhub._composite_key("2024-05-01", "Current", None, "Tesco") is None
-    assert moneyhub._composite_key("2024-05-01", "Current", -42.50, "Tesco") == "2024-05-01|Current|-42.50|tesco"
+    assert (
+        moneyhub._composite_key("2024-05-01", "Current", -42.50, "Tesco")
+        == "2024-05-01|Current|-42.50|tesco"
+    )
 
 
 def test_moneyhub_to_float_invalid_inputs():
@@ -144,6 +148,19 @@ def test_moneyhub_to_float_invalid_inputs():
 def test_moneyhub_parse_empty_csv_returns_no_transactions():
     csv_data = "Id,Owner,Account,Date,Amount,Description,Category\n"
     assert moneyhub.parse(csv_data.encode("utf-8")) == []
+
+
+def test_moneyhub_parse_row_with_empty_date_has_no_composite_key():
+    csv_data = (
+        "Owner,Account,Date,Amount,Description,Category\n"
+        "alice,Current,,-42.50,Tesco Store,Groceries\n"
+    )
+
+    transactions = moneyhub.parse(csv_data.encode("utf-8"))
+
+    assert len(transactions) == 1
+    assert transactions[0].date == ""
+    assert transactions[0].external_id is None
 
 
 def test_moneyhub_parse_rejects_csv_with_unrecognised_columns():
@@ -177,7 +194,10 @@ def test_moneyhub_parse_header_matching_is_case_insensitive_for_id(id_header):
 
 
 def test_moneyhub_parse_header_matching_is_case_insensitive_for_required_columns():
-    csv_data = "OWNER,ACCOUNT,DATE,AMOUNT,description,category\nalice,Current,2024-05-01,-42.50,Tesco,Groceries\n"
+    csv_data = (
+        "OWNER,ACCOUNT,DATE,AMOUNT,description,category\n"
+        "alice,Current,2024-05-01,-42.50,Tesco,Groceries\n"
+    )
     txs = moneyhub.parse(csv_data.encode("utf-8"))
     assert len(txs) == 1
     assert txs[0].owner == "alice"

@@ -173,7 +173,7 @@ The script:
 Optional flags:
 - `--token TOKEN`: GitHub personal access token (also reads `GITHUB_TOKEN` env var). Required for branch creation (unauthenticated requests will fail with 401/403).
 
-## e_implement_issue_using_local_llm.ps1
+## developer_tools/e_implement_issue_using_local_llm.ps1
 
 Automates implementing a GitHub issue end-to-end with a local LLM: fetches the
 issue, creates/resets an `issue-<N>` branch, runs [aider](https://aider.chat)
@@ -233,7 +233,7 @@ bash scripts/bash/publish-pr.sh -m "Fix bug in auth" --no-ollama
 - `gh` CLI must be installed and authenticated
 - Ollama is optional but recommended for better PR descriptions
 
-## commit_and_push.py
+## developer_tools/lib/commit_and_push.py
 
 Commit local changes and push to `origin`, using a local Ollama model to draft
 the commit message from the diff. This is a lighter-weight alternative to
@@ -272,7 +272,7 @@ bash scripts/bash/commit-and-push.sh -m "Fix bug in auth" --no-ollama
 **Requirements:**
 - Ollama is optional but recommended for better commit messages; without it (or with `--no-ollama`), a plain default message is used
 
-## i_dependabot_auto_merge.py
+## l_dependabot_auto_merge.py
 
 Auto-merge open Dependabot pull requests once their checks have all passed, then
 delete the branch. A PR that is green but only out-of-date with `main` (no real

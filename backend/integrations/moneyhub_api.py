@@ -71,9 +71,7 @@ class MoneyhubClient:
         except requests.RequestException as exc:
             raise MoneyhubAPIError(f"Token refresh failed: {exc}") from exc
 
-    def fetch_transactions(
-        self, access_token: str, *, account_id: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+    def fetch_transactions(self, access_token: str, *, account_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """Fetch raw transaction records for the consented accounts.
 
         ``account_id`` narrows the pull to a single connected account;
@@ -101,6 +99,7 @@ class MoneyhubClient:
         except requests.RequestException as exc:
             raise MoneyhubAPIError(f"Transaction fetch failed: {exc}") from exc
 
-        if isinstance(payload, dict):
-            return payload.get("data", payload.get("transactions", []))
-        return payload
+        transactions = payload.get("data", payload.get("transactions", [])) if isinstance(payload, dict) else payload
+        if not isinstance(transactions, list) or not all(isinstance(item, dict) for item in transactions):
+            raise MoneyhubAPIError("Transaction fetch returned an invalid payload")
+        return transactions

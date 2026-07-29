@@ -97,6 +97,30 @@ def test_fetch_transactions_returns_bare_list_payload(monkeypatch):
     assert txs == [{"id": "tx-1"}]
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"data": None},
+        {"data": "not-a-list"},
+        {"data": [{"id": "tx-1"}, "not-an-object"]},
+    ],
+)
+def test_fetch_transactions_rejects_invalid_payload(monkeypatch, payload):
+    client = MoneyhubClient(client_id="id", client_secret="secret")
+
+    class FakeResponse:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return payload
+
+    monkeypatch.setattr(requests, "get", lambda *a, **k: FakeResponse())
+
+    with pytest.raises(MoneyhubAPIError, match="invalid payload"):
+        client.fetch_transactions("access-token")
+
+
 def test_fetch_transactions_wraps_network_error(monkeypatch):
     client = MoneyhubClient(client_id="id", client_secret="secret")
 
@@ -192,9 +216,7 @@ def test_load_token_set_returns_none_when_absent(token_storage):
 
 
 def test_save_and_load_token_set_round_trips(token_storage):
-    token_set = TokenSet(
-        access_token="a", refresh_token="r", expires_at=123.0, account_ids=["acc-1"]
-    )
+    token_set = TokenSet(access_token="a", refresh_token="r", expires_at=123.0, account_ids=["acc-1"])
     moneyhub_tokens.save_token_set("alice", token_set)
 
     loaded = moneyhub_tokens.load_token_set("alice")

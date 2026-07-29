@@ -80,11 +80,13 @@ body {
  * Native form controls do not consistently inherit the page colour scheme.
  * Browsers can retain dark-theme text while rendering a white control surface.
  */
-select,
-select option,
-select optgroup,
-textarea,
-input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']) {
+:where(
+    select,
+    select option,
+    select optgroup,
+    textarea,
+    input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color'])
+) {
     background-color: var(--native-control-bg);
     color: var(--native-control-color);
 }

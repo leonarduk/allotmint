@@ -143,7 +143,11 @@ def get_storage(uri: str, *, param_type: str = "SecureString") -> JSONStorage:
 
     if scheme in {"ssm", "ssm-param", "parameter"}:
         name = parsed.netloc + parsed.path
-        name = name.lstrip("/")
+        # Preserve the leading slash for hierarchical names written as
+        # ``ssm:///allotmint/...``. The two-slash legacy form
+        # ``ssm://parameter/name`` has a netloc and remains relative.
+        if parsed.netloc:
+            name = name.lstrip("/")
         return ParameterStoreJSONStorage(name=name, type=param_type)
 
     # default to file-based storage

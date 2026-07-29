@@ -28,6 +28,7 @@ from aws_cdk import aws_s3 as s3
 from constructs import Construct
 
 from stacks.exports import BACKEND_API_URL_EXPORT
+from stacks.moneyhub_token_store import MoneyhubTokenStore
 
 # S3 prefix (relative to the data bucket) under which per-owner writable account
 # documents are persisted. Kept in sync with
@@ -442,6 +443,13 @@ class BackendLambdaStack(Stack):
             memory_size=1024,
         )
         backend_fn.add_environment("APP_ENV", env)
+
+        moneyhub_token_store = MoneyhubTokenStore(self, "MoneyhubTokenStore")
+        moneyhub_token_store.grant_read_write(backend_fn)
+        backend_fn.add_environment(
+            "MONEYHUB_TOKEN_PARAMETER_PREFIX",
+            moneyhub_token_store.parameter_prefix,
+        )
 
         # BackendLambda: read + put + list for API data paths. Add an explicit
         # timeseries cache grant below so the synthesized IAM policy always covers

@@ -11,14 +11,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - run: pip install -r requirements.txt -r requirements-dev.txt
       - run: python scripts/check_branch_protection_required_checks.py
       - name: Run extract_verdict tests
         run: pytest tests/test_extract_verdict.py -v --no-cov
-      - uses: actions/setup-node@v6
+      - name: Check package-lock.json cross-OS platform coverage
+        run: python scripts/check_lockfile_platform_coverage.py
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
       - run: npm ci
@@ -47,7 +49,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
       # bats-core is fetched on demand via npx rather than assuming it's
@@ -69,7 +71,7 @@ jobs:
       - name: Install Pester
         shell: pwsh
         run: Install-Module -Name Pester -RequiredVersion 5.6.1 -Force -SkipPublisherCheck -Scope CurrentUser
-      - name: Run Pester tests for scripts/aider-issue.ps1
+      - name: Run Pester tests for scripts/developer_tools/e_implement_issue_using_local_llm.ps1
         shell: pwsh
         run: |
           Import-Module Pester -RequiredVersion 5.6.1 -Force
@@ -92,7 +94,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Assert no duplicate package names in backend/requirements.txt
@@ -143,7 +145,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Create isolated venv for Lambda-compat test
@@ -205,7 +207,7 @@ jobs:
       # Python 3.12 remains covered by the primary CI/backend integration job;
       # this lightweight smoke keeps Python 3.11 support honest without
       # duplicating the full backend integration and coverage workflow.
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install --upgrade pip

@@ -171,7 +171,7 @@ _PROVIDERS: dict[str, tuple[str, Callable[[str, str], str]]] = {
     "deepseek": (
         "DEEPSEEK_API_KEY",
         _openai_compatible_caller(
-            "https://api.deepseek.com/v1/chat/completions", "DEEPSEEK_FOLLOWUP_MODEL", "deepseek-chat"
+            "https://api.deepseek.com/v1/chat/completions", "DEEPSEEK_FOLLOWUP_MODEL", "deepseek-v4-flash"
         ),
     ),
 }
@@ -236,7 +236,14 @@ def issue_exists(title: str) -> bool:
 
 def create_issues(
     titles: list[str], pr_number: str, review_text: str | None = None
-) -> None:
+) -> list[str]:
+    """Create each follow-up issue, returning titles that failed to create.
+
+    A failure on one title (e.g. an unrecognized label) must not abort the
+    remaining titles in the batch — a single bad `gh issue create` call
+    previously raised uncaught and silently dropped every follow-up after it.
+    """
+    failed: list[str] = []
     for title in titles:
         if not title.strip():
             continue
@@ -250,10 +257,15 @@ def create_issues(
         if llm_label:
             labels.append(llm_label)
         label_args = [arg for label in labels for arg in ("--label", label)]
-        subprocess.run(
-            ["gh", "issue", "create", "--title", title, "--body", body, *label_args],
-            check=True,
-        )
+        try:
+            subprocess.run(
+                ["gh", "issue", "create", "--title", title, "--body", body, *label_args],
+                check=True,
+            )
+        except subprocess.CalledProcessError as exc:
+            print(f"ERROR: failed to create issue '{title}': {exc}", file=sys.stderr)
+            failed.append(title)
+    return failed
 
 
 def main() -> int:
@@ -284,7 +296,10 @@ def main() -> int:
                 file=sys.stderr,
             )
 
-    create_issues(titles, pr_number, review_text)
+    failed = create_issues(titles, pr_number, review_text)
+    if failed:
+        print(f"ERROR: {len(failed)} of {len(titles)} follow-up issue(s) failed to create", file=sys.stderr)
+        return 1
     return 0
 
 

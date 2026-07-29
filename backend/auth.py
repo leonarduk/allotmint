@@ -59,8 +59,35 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 current_user: ContextVar[str | None] = ContextVar("current_user", default=None)
 
 
+def _emails_for_person_meta(meta: Any) -> Set[str]:
+    """Return the lower-cased owner email plus any viewer emails from ``meta``.
+
+    Mirrors :func:`backend.common.authz._allowed_identities`, which grants
+    per-owner access to both the owner's own email and its ``viewers`` list.
+    ``_allowed_emails`` must recognise the same set at login/identity-resolution
+    time, otherwise a legitimate viewer (allowed by ``ensure_owner_access``)
+    would be rejected earlier with a 403 "Unauthorized email" before ever
+    reaching that per-owner check (#5215).
+    """
+
+    if meta is None:
+        return set()
+    emails: Set[str] = set()
+    email = getattr(meta, "email", None)
+    if isinstance(email, str) and email.strip():
+        emails.add(email.strip().lower())
+    viewers = getattr(meta, "viewers", None)
+    if isinstance(viewers, list):
+        emails.update(viewer.strip().lower() for viewer in viewers if isinstance(viewer, str) and viewer.strip())
+    return emails
+
+
 def _allowed_emails() -> Set[str]:
     """Return the set of configured account emails.
+
+    Includes both each owner's own email and their configured viewer emails
+    (see :func:`_emails_for_person_meta`), so identity resolution accepts the
+    same callers ``ensure_owner_access`` would later authorize for that owner.
 
     When running in AWS, owner metadata is loaded from S3. If this request
     fails, the exception is logged and an empty set is returned so that login
@@ -105,9 +132,7 @@ def _allowed_emails() -> Set[str]:
                 meta = load_person_metadata(owner)
             except Exception:
                 meta = None
-            email = meta.email if meta else None
-            if email:
-                emails.add(email.lower())
+            emails |= _emails_for_person_meta(meta)
         return emails
 
     # Determine the accounts root from configuration. Prefer the explicitly
@@ -133,9 +158,7 @@ def _allowed_emails() -> Set[str]:
             meta = load_person_metadata(owner_dir.name, data_root=root)
         except Exception:
             meta = None
-        email = meta.email if meta else None
-        if email:
-            emails.add(email.lower())
+        emails |= _emails_for_person_meta(meta)
     return emails
 
 

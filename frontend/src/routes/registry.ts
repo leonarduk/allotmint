@@ -196,6 +196,16 @@ export const ROUTE_REGISTRY: RouteRegistryEntry[] = [
     lazyComponent: lazyPage(() => import('../pages/DataQuality')),
   },
   {
+    mode: 'dataexplorer',
+    routeSegment: 'data-explorer',
+    section: 'support',
+    menuCategory: 'operations',
+    priority: 92,
+    defaultPath: () => '/data-explorer',
+    routePath: '/data-explorer',
+    lazyComponent: lazyPage(() => import('../pages/DataExplorer')),
+  },
+  {
     mode: 'reports',
     routeSegment: 'reports',
     section: 'user',

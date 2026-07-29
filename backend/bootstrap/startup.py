@@ -23,7 +23,12 @@ logger = logging.getLogger(__name__)
 # slow network can never consume the whole Lambda cold-start budget (#4940).
 # Each call gets its own budget rather than sharing one, so a timeout on the
 # first doesn't eat into the second's allowance.
-_SNAPSHOT_LOAD_TIMEOUT_SECONDS = float(os.getenv("SNAPSHOT_LOAD_TIMEOUT_SECONDS", "5.0"))
+# Raised from 5s to 10s alongside the Lambda function timeout increase
+# (30s -> 90s) that fixed cold-start 503s on /portfolio-group/all: 5s was
+# too tight for S3 reads under cold-start CPU throttling. Must stay well
+# below the 90s Lambda timeout (see backend_lambda_stack.py) since two
+# calls share this budget sequentially.
+_SNAPSHOT_LOAD_TIMEOUT_SECONDS = float(os.getenv("SNAPSHOT_LOAD_TIMEOUT_SECONDS", "10.0"))
 
 
 @contextmanager

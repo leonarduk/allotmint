@@ -161,7 +161,7 @@ own) are reported as skipped rather than persisted or silently dropped.
 Automate GitHub issue checkout: create a branch, check it out locally, and save the issue body to a markdown file in one command.
 
 ```bash
-python scripts/developer_tools/c_work_on_issue.py 4445
+python scripts/developer_tools/d_work_on_issue.py 4445
 ```
 
 The script:
@@ -172,6 +172,55 @@ The script:
 
 Optional flags:
 - `--token TOKEN`: GitHub personal access token (also reads `GITHUB_TOKEN` env var). Required for branch creation (unauthenticated requests will fail with 401/403).
+
+## developer_tools/e_implement_issue_using_local_llm.ps1
+
+Automates implementing a GitHub issue end-to-end with a local LLM: fetches the
+issue, creates/resets an `issue-<N>` branch, runs [aider](https://aider.chat)
+against a local Ollama model (configured in `.aider.conf.yml`) to generate the
+code changes, then pushes the branch and opens a draft PR.
+
+```powershell
+./scripts/developer_tools/e_implement_issue_using_local_llm.ps1 -Issue 123
+```
+
+Requires `gh` and `aider` on PATH, and a running local Ollama server serving
+the model configured in `.aider.conf.yml`.
+
+Optional flags:
+- `-Force`: bypass the pre-flight check for an unresolved merge/rebase/cherry-pick conflict left over from a prior interrupted run.
+- `-TimeoutMinutes N` (default `40`): wall-clock cap on the aider run. This is separate from the `timeout` setting in `.aider.conf.yml`, which only bounds a single LLM API call — a 14B local model on modest hardware can need the API-call timeout raised too if it consistently runs long.
+
+If aider makes no commits (e.g. the local model replies with prose instead of
+edits), the script fails rather than pushing an empty branch or opening a
+content-free PR.
+
+## f_run_ci_checks.py
+
+Run the credential-free integration and validation steps from the most relevant
+GitHub Actions workflows before pushing. With no arguments, the script presents
+an interactive menu:
+
+```bash
+python scripts/developer_tools/f_run_ci_checks.py
+```
+
+For automation or non-interactive shells, select one or more groups explicitly:
+
+```bash
+python scripts/developer_tools/f_run_ci_checks.py --list
+python scripts/developer_tools/f_run_ci_checks.py --check backend --check frontend
+python scripts/developer_tools/f_run_ci_checks.py --all --keep-going
+python scripts/developer_tools/f_run_ci_checks.py --all --dry-run
+```
+
+The groups mirror backend integration, frontend, infrastructure/workflow-lint,
+and developer-script jobs. The runner assumes their dependencies are already
+installed, runs from the repository root regardless of the caller's current
+directory, stops at the first failure by default, and propagates a failing exit
+status. Cloud deployment and other secret-dependent jobs are intentionally not
+offered as local checks.
+
 ## publish_pr.py
 
 Automate PR publishing: commit changes, push to remote, and create a PR with auto-filled body sections. Optionally uses Ollama to generate thoughtful PR descriptions.
@@ -209,6 +258,126 @@ bash scripts/bash/publish-pr.sh -m "Fix bug in auth" --no-ollama
 - Branch name must follow pattern: `fix/issue-NNNN-*`, `feat/issue-NNNN-*`, or `docs/issue-NNNN-*`
 - `gh` CLI must be installed and authenticated
 - Ollama is optional but recommended for better PR descriptions
+
+## developer_tools/lib/commit_and_push.py
+
+Commit local changes and push to `origin`, using a local Ollama model to draft
+the commit message from the diff. This is a lighter-weight alternative to
+`publish_pr.py` for when you just want to commit and push -- e.g. an
+incremental push onto a branch that already has an open PR -- without also
+creating/updating a PR.
+
+```bash
+python scripts/developer_tools/lib/commit_and_push.py
+```
+
+The script:
+1. Stages changed files (all changes by default, or specific files via `--files`)
+2. If Ollama is running locally, asks it to draft a commit message from the staged diff
+3. If Ollama is unavailable or `--no-ollama` is passed, falls back to a plain default message
+4. Appends a `Refs #<issue-id>` trailer with the issue ID extracted from the branch name (e.g. `fix/issue-4445-slug` -> `4445`), if one isn't already present in the message
+5. Commits, then pushes the branch to `origin` (skip with `--no-push`)
+
+Optional flags:
+- `-m/--message TEXT`: Commit message override (skips Ollama generation)
+- `-f/--files FILE [FILE ...]`: Specific files to stage (default: all changed files)
+- `--no-ollama`: Skip Ollama and use a plain default commit message
+- `--model MODEL`: Ollama model name (default: env var `OLLAMA_MODEL` or `qwen2.5-coder:14b`)
+- `--no-push`: Commit only; skip pushing to `origin`
+
+On Windows, use the PowerShell wrapper:
+```powershell
+./scripts/developer_tools/i_commit_and_push.ps1 -Message "Fix bug in auth" -NoOllama
+```
+
+Or on Linux/Mac:
+```bash
+bash scripts/bash/commit-and-push.sh -m "Fix bug in auth" --no-ollama
+```
+
+**Requirements:**
+- Ollama is optional but recommended for better commit messages; without it (or with `--no-ollama`), a plain default message is used
+
+## l_dependabot_auto_merge.py
+
+Auto-merge open Dependabot pull requests once their checks have all passed, then
+delete the branch. A PR that is green but only out-of-date with `main` (no real
+conflicts) is handled specially: GitHub branch protection generally requires the
+head branch to be up-to-date before merging, so a plain `gh pr merge` on such a
+PR is rejected outright. By default, this script force-merges it instead with
+`gh pr merge --admin`, bypassing branch-protection enforcement for that one
+merge only -- checks still have to have passed first, `--admin` just gets past
+the "not up to date" rule, so a behind PR is never left stuck with the default
+strategy. `--behind-strategy` selects an alternative instead: `update-branch`
+defers the actual merge to a later run once CI re-passes, and `skip` leaves the
+PR alone entirely -- neither of those two guarantees it won't stay stuck.
+
+```bash
+python scripts/developer_tools/l_dependabot_auto_merge.py
+python scripts/developer_tools/l_dependabot_auto_merge.py --yes
+python scripts/developer_tools/l_dependabot_auto_merge.py --yes --behind-strategy update-branch
+```
+
+The script:
+1. Lists open PRs authored by `dependabot[bot]`
+2. Skips any PR whose checks haven't all completed successfully, or that has a
+   real merge conflict (`mergeable_state == dirty`)
+3. Merges (squash) and deletes the branch for every remaining PR that's fully
+   up to date with `main`; for one that's only behind, handles it per
+   `--behind-strategy` (force-merge, update the branch, or skip)
+
+Defaults to dry-run (prints what it would do). Pass `--yes` to actually merge
+and delete branches. Never touches non-Dependabot PRs or protected branches
+(`main`/`master`).
+
+Optional flags:
+- `--repo owner/name`: Operate on a different repository. Defaults to the
+  `origin` git remote, falling back to `leonarduk/allotmint`.
+- `--behind-strategy {admin,update-branch,skip}` (default `admin`): how to
+  handle a green PR that's only blocked by being behind `main`.
+  - `admin`: force-merge with `gh pr merge --admin`, bypassing the
+    "must be up to date" branch-protection rule for that merge.
+  - `update-branch`: merge `main` into the PR branch first
+    (`gh pr update-branch`) and leave the actual merge to a later run, once
+    CI re-passes and the PR reports `mergeable_state == clean`. Run the
+    script periodically (e.g. on a schedule) for this follow-up to happen.
+  - `skip`: leave the PR alone entirely.
+
+**Requirements:**
+- `gh` CLI must be installed and authenticated with a token that can merge PRs
+  and delete branches on the target repo (`repo` scope).
+
+## work_on_pr.py
+
+Like `work_on_issue.py`, but for picking up an existing pull request instead
+of starting a new one: fetches the PR from GitHub and checks out its branch
+locally (creating a local tracking branch if needed).
+
+```bash
+python scripts/developer_tools/k_work_on_pr.py 4512
+```
+
+Omit the PR number to list all open pull requests and choose one
+interactively:
+
+```bash
+python scripts/developer_tools/k_work_on_pr.py
+```
+
+The script:
+1. Fetches from `origin`
+2. Looks up the PR (by number, or via an interactive prompt over open PRs)
+3. Fetches the PR's head branch and checks it out locally, adding a
+   throwaway remote to fetch from the contributor's fork first if the PR
+   comes from one (the remote is removed again once the branch is checked
+   out)
+
+Optional flags:
+- `--token TOKEN`: GitHub personal access token (also reads `GITHUB_TOKEN`
+  env var). Increases the API rate limit and is required for private repos.
+
+Uses only `requests` and plain `git` -- no `gh` CLI or special GitHub scopes
+required.
 
 ## reconcile_drawdown.py
 

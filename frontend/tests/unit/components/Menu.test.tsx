@@ -386,6 +386,10 @@ describe('Menu', () => {
   });
 
   it('closes the mobile menu when clicking outside the nav (#5382)', () => {
+    // Menu's click-outside handler checks mobileMenuRef.current.contains(event.target)
+    // via a plain document-level mousedown listener (no composedPath()). Firing the
+    // event on a real sibling element outside the <nav ref={mobileMenuRef}> exercises
+    // that exact containment check rather than assuming it (#5440).
     render(
       <div>
         <MemoryRouter>
@@ -400,6 +404,27 @@ describe('Menu', () => {
 
     fireEvent.mouseDown(screen.getByTestId('outside'));
     expect(hamburger).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('does not close the mobile menu when clicking inside the nav (#5440)', () => {
+    // Negative case for the click-outside handler: mobileMenuRef wraps both the
+    // hamburger button and the <ul id="app-main-menu"> menu list, so a mousedown
+    // anywhere inside either must NOT collapse the menu.
+    render(
+      <MemoryRouter>
+        <Menu />
+      </MemoryRouter>
+    );
+    const hamburger = screen.getByRole('button', { name: i18n.t('app.menu') });
+    fireEvent.click(hamburger);
+    expect(hamburger).toHaveAttribute('aria-expanded', 'true');
+
+    const menuList = document.getElementById('app-main-menu');
+    fireEvent.mouseDown(menuList as HTMLElement);
+    expect(hamburger).toHaveAttribute('aria-expanded', 'true');
+
+    fireEvent.mouseDown(hamburger);
+    expect(hamburger).toHaveAttribute('aria-expanded', 'true');
   });
 
   it.each([

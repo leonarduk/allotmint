@@ -284,6 +284,7 @@ def create_issue_via_gh(
     # Write body to a temp file so the CLI can read it safely on all platforms.
     import tempfile
 
+    body_path: str | None = None
     try:
         with tempfile.NamedTemporaryFile(
             mode="w",
@@ -309,7 +310,6 @@ def create_issue_via_gh(
             cmd.extend(["--label", label])
 
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        os.unlink(body_path)
 
         if result.returncode != 0:
             print(f"gh CLI failed: {result.stderr.strip()}", file=sys.stderr)
@@ -320,7 +320,9 @@ def create_issue_via_gh(
     except (OSError, subprocess.TimeoutExpired) as exc:
         print(f"gh CLI error: {exc}", file=sys.stderr)
         return None
-
+    finally:
+        if body_path and os.path.exists(body_path):
+            os.unlink(body_path)
 
 def derive_title_from_what(what: str) -> str | None:
     """Extract a candidate title from the first meaningful line of 'What'."""

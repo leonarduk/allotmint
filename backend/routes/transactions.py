@@ -711,8 +711,12 @@ def _tx_data_from_parsed(row: Transaction) -> Dict[str, Any]:
     """
 
     tx_data = row.model_dump(mode="json", exclude={"owner", "account", "id"})
-    if tx_data.get("price_gbp") is None:
-        tx_data["price_gbp"] = tx_data.get("price")
+    price = tx_data.get("price")
+    price_gbp = tx_data.get("price_gbp")
+    if price is not None and price_gbp is not None and price != price_gbp:
+        raise ValueError(f"Conflicting values for price ({price}) and price_gbp ({price_gbp})")
+    if price_gbp is None:
+        tx_data["price_gbp"] = price
     tx_data.pop("price", None)
     if not tx_data.get("reason"):
         tx_data["reason"] = tx_data.get("reason_to_buy")

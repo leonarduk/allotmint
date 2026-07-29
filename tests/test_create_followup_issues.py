@@ -350,6 +350,55 @@ def test_create_issues_applies_llm_label(
     assert "ai-suggested" in created[0]
 
 
+def test_create_issues_continues_after_one_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A failing `gh issue create` (e.g. an unrecognized label) must not abort
+    the batch — subsequent titles still get attempted, and the failed title
+    is returned so callers can surface it."""
+    mod = load_module()
+    attempted: list[str] = []
+
+    def fake_run(cmd, **kwargs):
+        title = cmd[cmd.index("--title") + 1]
+        attempted.append(title)
+        if title == "Bad title":
+            raise mod.subprocess.CalledProcessError(1, cmd)
+        return None
+
+    monkeypatch.setattr(mod, "issue_exists", lambda title: False)
+    monkeypatch.setattr(mod.subprocess, "run", fake_run)
+
+    failed = mod.create_issues(["Bad title", "Good title"], "5", None)
+
+    assert attempted == ["Bad title", "Good title"]
+    assert failed == ["Bad title"]
+    assert "failed to create issue 'Bad title'" in capsys.readouterr().err
+
+
+def test_main_returns_nonzero_when_issue_creation_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    mod = load_module()
+
+    followups = tmp_path / "followups.json"
+    followups.write_text(json.dumps(["Bad title"]))
+    review = tmp_path / "review.md"
+    review.write_text("Some review text")
+
+    monkeypatch.setattr(mod, "create_issues", lambda *args, **kwargs: ["Bad title"])
+    monkeypatch.setattr(
+        sys, "argv", ["create_followup_issues.py", str(followups), "7", str(review)]
+    )
+
+    result = mod.main()
+    assert result == 1
+    assert "1 of 1 follow-up issue(s) failed to create" in capsys.readouterr().err
+
+
 def test_create_issues_applies_no_llm_label_when_body_has_no_tier(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

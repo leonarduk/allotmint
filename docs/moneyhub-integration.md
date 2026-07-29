@@ -73,6 +73,22 @@ per owner, not one for the whole app).
 
 ## Secret storage decision
 
+### Known client-credential exception
+
+The live API implementation currently being developed reads
+`MONEYHUB_CLIENT_ID` and `MONEYHUB_CLIENT_SECRET` directly from the process
+environment. It does **not** resolve those two client credentials from SSM.
+This is a known deviation from issue #2749's SSM requirement, tracked in
+issue #5481; changing credential resolution is outside the scope of that
+documentation update.
+
+This exception applies only to the Moneyhub OAuth client's registration
+credentials. After an owner completes authentication, that owner's access and
+refresh tokens use the `ssm://` storage described below. The current mainline
+code supports manual Moneyhub CSV imports only; this note documents the
+credential contract of the pending live API integration so it is not mistaken
+for the token-storage contract.
+
 Follow the existing `ssm://` pattern in
 [`backend/common/storage.py`](../backend/common/storage.py) rather than
 inventing a new secret-loading mechanism — this repo's `cdk/` has no

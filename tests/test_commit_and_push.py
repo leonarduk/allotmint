@@ -1,4 +1,4 @@
-"""Unit tests for j_commit_and_push script."""
+"""Unit tests for commit_and_push script."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "developer_tools"))
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "developer_tools" / "lib"))
 
-from j_commit_and_push import (  # noqa: E402
+from commit_and_push import (  # noqa: E402
     build_commit_prompt,
     commit_changes,
     ensure_issue_reference,
@@ -26,7 +26,7 @@ from j_commit_and_push import (  # noqa: E402
 
 
 class TestGetGitRoot:
-    @mock.patch("j_commit_and_push.subprocess.run")
+    @mock.patch("commit_and_push.subprocess.run")
     def test_successful_fetch(self, mock_run):
         mock_result = mock.MagicMock()
         mock_result.stdout = "/path/to/repo\n"
@@ -34,7 +34,7 @@ class TestGetGitRoot:
 
         assert get_git_root() == "/path/to/repo"
 
-    @mock.patch("j_commit_and_push.subprocess.run")
+    @mock.patch("commit_and_push.subprocess.run")
     def test_not_a_git_repo(self, mock_run):
         mock_run.side_effect = subprocess.CalledProcessError(128, "git")
 
@@ -44,19 +44,19 @@ class TestGetGitRoot:
 
 
 class TestStageChanges:
-    @mock.patch("j_commit_and_push.subprocess.run")
+    @mock.patch("commit_and_push.subprocess.run")
     def test_stages_specific_files(self, mock_run):
         stage_changes(["a.py", "b.py"])
 
         mock_run.assert_called_once_with(["git", "add", "--", "a.py", "b.py"], check=True)
 
-    @mock.patch("j_commit_and_push.subprocess.run")
+    @mock.patch("commit_and_push.subprocess.run")
     def test_stages_all_when_no_files_given(self, mock_run):
         stage_changes(None)
 
         mock_run.assert_called_once_with(["git", "add", "-A"], check=True)
 
-    @mock.patch("j_commit_and_push.subprocess.run")
+    @mock.patch("commit_and_push.subprocess.run")
     def test_failure_exits_cleanly(self, mock_run):
         mock_run.side_effect = subprocess.CalledProcessError(1, "git")
 
@@ -66,17 +66,17 @@ class TestStageChanges:
 
 
 class TestHasStagedChanges:
-    @mock.patch("j_commit_and_push.subprocess.run")
+    @mock.patch("commit_and_push.subprocess.run")
     def test_true_when_diff_exit_code_one(self, mock_run):
         mock_run.return_value = mock.MagicMock(returncode=1)
         assert has_staged_changes() is True
 
-    @mock.patch("j_commit_and_push.subprocess.run")
+    @mock.patch("commit_and_push.subprocess.run")
     def test_false_when_no_diff(self, mock_run):
         mock_run.return_value = mock.MagicMock(returncode=0)
         assert has_staged_changes() is False
 
-    @mock.patch("j_commit_and_push.subprocess.run")
+    @mock.patch("commit_and_push.subprocess.run")
     def test_git_error_raises_instead_of_reporting_changes(self, mock_run):
         mock_run.return_value = mock.MagicMock(returncode=128)
 
@@ -86,7 +86,7 @@ class TestHasStagedChanges:
 
 
 class TestGetStagedDiff:
-    @mock.patch("j_commit_and_push.subprocess.run")
+    @mock.patch("commit_and_push.subprocess.run")
     def test_returns_diff_output(self, mock_run):
         mock_run.return_value = mock.MagicMock(stdout="diff --git a/x b/x\n")
         assert get_staged_diff() == "diff --git a/x b/x\n"
@@ -107,13 +107,13 @@ class TestGenerateCommitMessage:
     def test_empty_diff_returns_none(self):
         assert generate_commit_message("", 4445, "model", "http://localhost:11434") is None
 
-    @mock.patch("j_commit_and_push.fetch_ollama_review")
+    @mock.patch("commit_and_push.fetch_ollama_review")
     def test_returns_stripped_message(self, mock_fetch):
         mock_fetch.return_value = "  Fix the thing  \n"
         result = generate_commit_message("diff", 4445, "model", "http://localhost:11434")
         assert result == "Fix the thing"
 
-    @mock.patch("j_commit_and_push.fetch_ollama_review")
+    @mock.patch("commit_and_push.fetch_ollama_review")
     def test_ollama_failure_returns_none(self, mock_fetch):
         mock_fetch.side_effect = SystemExit(1)
         assert generate_commit_message("diff", 4445, "model", "http://localhost:11434") is None
@@ -133,25 +133,25 @@ class TestEnsureIssueReference:
 
 
 class TestCommitChanges:
-    @mock.patch("j_commit_and_push.subprocess.run")
+    @mock.patch("commit_and_push.subprocess.run")
     def test_success(self, mock_run):
         mock_run.return_value = mock.MagicMock()
         assert commit_changes("Fix the thing") is True
 
-    @mock.patch("j_commit_and_push.subprocess.run")
+    @mock.patch("commit_and_push.subprocess.run")
     def test_failure(self, mock_run):
         mock_run.side_effect = subprocess.CalledProcessError(1, "git")
         assert commit_changes("Fix the thing") is False
 
 
 class TestMain:
-    @mock.patch("j_commit_and_push.push_to_remote")
-    @mock.patch("j_commit_and_push.commit_changes")
-    @mock.patch("j_commit_and_push.has_staged_changes")
-    @mock.patch("j_commit_and_push.stage_changes")
-    @mock.patch("j_commit_and_push.extract_issue_id")
-    @mock.patch("j_commit_and_push.get_current_branch")
-    @mock.patch("j_commit_and_push.get_git_root")
+    @mock.patch("commit_and_push.push_to_remote")
+    @mock.patch("commit_and_push.commit_changes")
+    @mock.patch("commit_and_push.has_staged_changes")
+    @mock.patch("commit_and_push.stage_changes")
+    @mock.patch("commit_and_push.extract_issue_id")
+    @mock.patch("commit_and_push.get_current_branch")
+    @mock.patch("commit_and_push.get_git_root")
     def test_no_changes_to_commit(
         self,
         mock_root,
@@ -167,20 +167,20 @@ class TestMain:
         mock_extract.return_value = 4445
         mock_has_staged.return_value = False
 
-        with mock.patch("sys.argv", ["j_commit_and_push.py"]), mock.patch("j_commit_and_push.os.chdir"):
+        with mock.patch("sys.argv", ["commit_and_push.py"]), mock.patch("commit_and_push.os.chdir"):
             result = main()
 
         assert result == 0
         mock_commit.assert_not_called()
         mock_push.assert_not_called()
 
-    @mock.patch("j_commit_and_push.push_to_remote")
-    @mock.patch("j_commit_and_push.commit_changes")
-    @mock.patch("j_commit_and_push.has_staged_changes")
-    @mock.patch("j_commit_and_push.stage_changes")
-    @mock.patch("j_commit_and_push.extract_issue_id")
-    @mock.patch("j_commit_and_push.get_current_branch")
-    @mock.patch("j_commit_and_push.get_git_root")
+    @mock.patch("commit_and_push.push_to_remote")
+    @mock.patch("commit_and_push.commit_changes")
+    @mock.patch("commit_and_push.has_staged_changes")
+    @mock.patch("commit_and_push.stage_changes")
+    @mock.patch("commit_and_push.extract_issue_id")
+    @mock.patch("commit_and_push.get_current_branch")
+    @mock.patch("commit_and_push.get_git_root")
     def test_commits_and_pushes_with_explicit_message(
         self,
         mock_root,
@@ -198,8 +198,8 @@ class TestMain:
         mock_commit.return_value = True
         mock_push.return_value = True
 
-        argv = ["j_commit_and_push.py", "--message", "Fix the thing", "--no-ollama"]
-        with mock.patch("sys.argv", argv), mock.patch("j_commit_and_push.os.chdir"):
+        argv = ["commit_and_push.py", "--message", "Fix the thing", "--no-ollama"]
+        with mock.patch("sys.argv", argv), mock.patch("commit_and_push.os.chdir"):
             result = main()
 
         assert result == 0
@@ -209,13 +209,13 @@ class TestMain:
         assert "#4445" in committed_message
         mock_push.assert_called_once_with("fix/issue-4445-thing")
 
-    @mock.patch("j_commit_and_push.push_to_remote")
-    @mock.patch("j_commit_and_push.commit_changes")
-    @mock.patch("j_commit_and_push.has_staged_changes")
-    @mock.patch("j_commit_and_push.stage_changes")
-    @mock.patch("j_commit_and_push.extract_issue_id")
-    @mock.patch("j_commit_and_push.get_current_branch")
-    @mock.patch("j_commit_and_push.get_git_root")
+    @mock.patch("commit_and_push.push_to_remote")
+    @mock.patch("commit_and_push.commit_changes")
+    @mock.patch("commit_and_push.has_staged_changes")
+    @mock.patch("commit_and_push.stage_changes")
+    @mock.patch("commit_and_push.extract_issue_id")
+    @mock.patch("commit_and_push.get_current_branch")
+    @mock.patch("commit_and_push.get_git_root")
     def test_forwards_selected_files_to_staging(
         self,
         mock_root,
@@ -234,7 +234,7 @@ class TestMain:
         mock_push.return_value = True
 
         argv = [
-            "j_commit_and_push.py",
+            "commit_and_push.py",
             "--message",
             "Fix the thing",
             "--no-ollama",
@@ -242,19 +242,19 @@ class TestMain:
             "a.py",
             "b.py",
         ]
-        with mock.patch("sys.argv", argv), mock.patch("j_commit_and_push.os.chdir"):
+        with mock.patch("sys.argv", argv), mock.patch("commit_and_push.os.chdir"):
             result = main()
 
         assert result == 0
         mock_stage.assert_called_once_with(["a.py", "b.py"])
 
-    @mock.patch("j_commit_and_push.push_to_remote")
-    @mock.patch("j_commit_and_push.commit_changes")
-    @mock.patch("j_commit_and_push.has_staged_changes")
-    @mock.patch("j_commit_and_push.stage_changes")
-    @mock.patch("j_commit_and_push.extract_issue_id")
-    @mock.patch("j_commit_and_push.get_current_branch")
-    @mock.patch("j_commit_and_push.get_git_root")
+    @mock.patch("commit_and_push.push_to_remote")
+    @mock.patch("commit_and_push.commit_changes")
+    @mock.patch("commit_and_push.has_staged_changes")
+    @mock.patch("commit_and_push.stage_changes")
+    @mock.patch("commit_and_push.extract_issue_id")
+    @mock.patch("commit_and_push.get_current_branch")
+    @mock.patch("commit_and_push.get_git_root")
     def test_no_push_flag_skips_push(
         self,
         mock_root,
@@ -271,20 +271,20 @@ class TestMain:
         mock_has_staged.return_value = True
         mock_commit.return_value = True
 
-        argv = ["j_commit_and_push.py", "--message", "Tidy up", "--no-ollama", "--no-push"]
-        with mock.patch("sys.argv", argv), mock.patch("j_commit_and_push.os.chdir"):
+        argv = ["commit_and_push.py", "--message", "Tidy up", "--no-ollama", "--no-push"]
+        with mock.patch("sys.argv", argv), mock.patch("commit_and_push.os.chdir"):
             result = main()
 
         assert result == 0
         mock_push.assert_not_called()
 
-    @mock.patch("j_commit_and_push.push_to_remote")
-    @mock.patch("j_commit_and_push.commit_changes")
-    @mock.patch("j_commit_and_push.has_staged_changes")
-    @mock.patch("j_commit_and_push.stage_changes")
-    @mock.patch("j_commit_and_push.extract_issue_id")
-    @mock.patch("j_commit_and_push.get_current_branch")
-    @mock.patch("j_commit_and_push.get_git_root")
+    @mock.patch("commit_and_push.push_to_remote")
+    @mock.patch("commit_and_push.commit_changes")
+    @mock.patch("commit_and_push.has_staged_changes")
+    @mock.patch("commit_and_push.stage_changes")
+    @mock.patch("commit_and_push.extract_issue_id")
+    @mock.patch("commit_and_push.get_current_branch")
+    @mock.patch("commit_and_push.get_git_root")
     def test_commit_failure_exits_nonzero(
         self,
         mock_root,
@@ -301,20 +301,20 @@ class TestMain:
         mock_has_staged.return_value = True
         mock_commit.return_value = False
 
-        argv = ["j_commit_and_push.py", "--message", "Tidy up", "--no-ollama"]
-        with mock.patch("sys.argv", argv), mock.patch("j_commit_and_push.os.chdir"):
+        argv = ["commit_and_push.py", "--message", "Tidy up", "--no-ollama"]
+        with mock.patch("sys.argv", argv), mock.patch("commit_and_push.os.chdir"):
             result = main()
 
         assert result == 1
         mock_push.assert_not_called()
 
-    @mock.patch("j_commit_and_push.push_to_remote")
-    @mock.patch("j_commit_and_push.commit_changes")
-    @mock.patch("j_commit_and_push.has_staged_changes")
-    @mock.patch("j_commit_and_push.stage_changes")
-    @mock.patch("j_commit_and_push.extract_issue_id")
-    @mock.patch("j_commit_and_push.get_current_branch")
-    @mock.patch("j_commit_and_push.get_git_root")
+    @mock.patch("commit_and_push.push_to_remote")
+    @mock.patch("commit_and_push.commit_changes")
+    @mock.patch("commit_and_push.has_staged_changes")
+    @mock.patch("commit_and_push.stage_changes")
+    @mock.patch("commit_and_push.extract_issue_id")
+    @mock.patch("commit_and_push.get_current_branch")
+    @mock.patch("commit_and_push.get_git_root")
     def test_push_failure_exits_nonzero(
         self,
         mock_root,
@@ -332,8 +332,8 @@ class TestMain:
         mock_commit.return_value = True
         mock_push.return_value = False
 
-        argv = ["j_commit_and_push.py", "--message", "Tidy up", "--no-ollama"]
-        with mock.patch("sys.argv", argv), mock.patch("j_commit_and_push.os.chdir"):
+        argv = ["commit_and_push.py", "--message", "Tidy up", "--no-ollama"]
+        with mock.patch("sys.argv", argv), mock.patch("commit_and_push.os.chdir"):
             result = main()
 
         assert result == 1

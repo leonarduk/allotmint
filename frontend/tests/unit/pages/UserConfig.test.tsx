@@ -85,6 +85,54 @@ describe("UserConfig page", () => {
     expect(mockGetUserConfig).not.toHaveBeenCalledWith("alex");
   });
 
+  it("defaults the owner dropdown to the app-wide active owner (#5553)", async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: "alex", accounts: [], email: "alex@example.com" },
+      { owner: "jamie", accounts: [], email: "jamie@example.com" },
+    ]);
+    mockGetUserConfig.mockResolvedValue({});
+    mockGetApprovals.mockResolvedValue({ approvals: [] });
+
+    render(
+      <AuthContext.Provider
+        value={{ user: { email: "jamie@example.com" }, setUser: vi.fn() }}
+      >
+        <UserConfig selectedOwner="alex" />
+      </AuthContext.Provider>,
+    );
+
+    const select = await screen.findByRole("combobox");
+    await screen.findByDisplayValue("alex");
+    expect((select as HTMLSelectElement).value).toBe("alex");
+    // The globally active owner (e.g. shown in the top nav) must win over the
+    // logged-in user's mapped owner so Settings reflects what the rest of the
+    // app is already showing, instead of silently switching to a different
+    // account.
+    await waitFor(() => expect(mockGetUserConfig).toHaveBeenCalledWith("alex"));
+    expect(mockGetUserConfig).not.toHaveBeenCalledWith("jamie");
+  });
+
+  it("falls back to the logged-in user's owner when the active owner isn't in the authorized list (#5553)", async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: "alex", accounts: [], email: "alex@example.com" },
+      { owner: "jamie", accounts: [], email: "jamie@example.com" },
+    ]);
+    mockGetUserConfig.mockResolvedValue({});
+    mockGetApprovals.mockResolvedValue({ approvals: [] });
+
+    render(
+      <AuthContext.Provider
+        value={{ user: { email: "jamie@example.com" }, setUser: vi.fn() }}
+      >
+        <UserConfig selectedOwner="not-a-real-owner" />
+      </AuthContext.Provider>,
+    );
+
+    const select = await screen.findByRole("combobox");
+    await screen.findByDisplayValue("jamie");
+    expect((select as HTMLSelectElement).value).toBe("jamie");
+  });
+
   it("leaves the owner dropdown unselected when there is no logged-in user", async () => {
     mockGetOwners.mockResolvedValue([
       { owner: "alex", accounts: [], email: "alex@example.com" },

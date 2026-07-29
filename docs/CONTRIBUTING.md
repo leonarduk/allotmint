@@ -176,6 +176,11 @@ incorrect `peer: true` annotations, which then makes Linux CI fail with
 `EUSAGE` even though the change looks unrelated. Before committing any
 `frontend/package-lock.json` diff, review it for removed `@emnapi/*` or other
 `optionalDependencies`/`peer` entries and restore them if present.
+CI runs `python scripts/check_lockfile_platform_coverage.py` (see the `test`
+job in `.github/workflows/ci.yml`) to catch a lockfile that lost coverage for
+`linux`, `win32`, or `darwin` before it reaches a Linux `npm ci` step; run it
+locally after regenerating either `package-lock.json` or
+`frontend/package-lock.json` to check the same thing before pushing.
 
 ## Automated code reviews
 

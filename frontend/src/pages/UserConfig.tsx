@@ -30,7 +30,11 @@ function approvalsErrorMessage(err: unknown, fallback: string): string {
   return fallback;
 }
 
-export default function UserConfigPage() {
+type UserConfigPageProps = {
+  selectedOwner?: string;
+};
+
+export default function UserConfigPage({ selectedOwner = '' }: UserConfigPageProps) {
   const { t } = useTranslation();
   const { user } = useAuth();
   const { theme } = useConfig();
@@ -58,8 +62,14 @@ export default function UserConfigPage() {
 
   useEffect(() => {
     if (!owners.length) return;
-    setOwner((current) => current || findOwnerForUser(owners, user)?.owner || '');
-  }, [owners, user]);
+    setOwner((current) => {
+      if (current) return current;
+      if (selectedOwner && owners.some((o) => o.owner === selectedOwner)) {
+        return selectedOwner;
+      }
+      return findOwnerForUser(owners, user)?.owner || '';
+    });
+  }, [owners, user, selectedOwner]);
 
   useEffect(() => {
     if (owner) {

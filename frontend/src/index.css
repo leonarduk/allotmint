@@ -17,6 +17,8 @@
     --surface-card-color: rgba(255, 255, 255, 0.95);
     --surface-card-border: #3a3a3a;
     --surface-muted-color: #bbbbbb;
+    --native-control-bg: #ffffff;
+    --native-control-color: #213547;
 
     font-synthesis: none;
     text-rendering: optimizeLegibility;
@@ -72,6 +74,19 @@ body {
     margin: 0;
     min-width: 320px;
     min-height: 100vh;
+}
+
+/*
+ * Native form controls do not consistently inherit the page colour scheme.
+ * Browsers can retain dark-theme text while rendering a white control surface.
+ */
+select,
+select option,
+select optgroup,
+textarea,
+input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']) {
+    background-color: var(--native-control-bg);
+    color: var(--native-control-color);
 }
 
 h1 {
@@ -138,5 +153,4 @@ button:focus-visible {
     background-color: #ffffff;
     color: #213547;
 }
-
 

@@ -195,23 +195,23 @@ If aider makes no commits (e.g. the local model replies with prose instead of
 edits), the script fails rather than pushing an empty branch or opening a
 content-free PR.
 
-## f_run_ci_checks.py
+## g_run_ci_checks.py
 
 Run the credential-free integration and validation steps from the most relevant
 GitHub Actions workflows before pushing. With no arguments, the script presents
 an interactive menu:
 
 ```bash
-python scripts/developer_tools/f_run_ci_checks.py
+python scripts/developer_tools/g_run_ci_checks.py
 ```
 
 For automation or non-interactive shells, select one or more groups explicitly:
 
 ```bash
-python scripts/developer_tools/f_run_ci_checks.py --list
-python scripts/developer_tools/f_run_ci_checks.py --check backend --check frontend
-python scripts/developer_tools/f_run_ci_checks.py --all --keep-going
-python scripts/developer_tools/f_run_ci_checks.py --all --dry-run
+python scripts/developer_tools/g_run_ci_checks.py --list
+python scripts/developer_tools/g_run_ci_checks.py --check backend --check frontend
+python scripts/developer_tools/g_run_ci_checks.py --all --keep-going
+python scripts/developer_tools/g_run_ci_checks.py --all --dry-run
 ```
 
 The groups mirror backend integration, frontend, infrastructure/workflow-lint,
@@ -354,14 +354,14 @@ of starting a new one: fetches the PR from GitHub and checks out its branch
 locally (creating a local tracking branch if needed).
 
 ```bash
-python scripts/developer_tools/k_work_on_pr.py 4512
+python scripts/developer_tools/e_work_on_pr.py 4512
 ```
 
 Omit the PR number to list all open pull requests and choose one
 interactively:
 
 ```bash
-python scripts/developer_tools/k_work_on_pr.py
+python scripts/developer_tools/e_work_on_pr.py
 ```
 
 The script:

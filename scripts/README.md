@@ -221,6 +221,30 @@ directory, stops at the first failure by default, and propagates a failing exit
 status. Cloud deployment and other secret-dependent jobs are intentionally not
 offered as local checks.
 
+## n_check_github_actions.py
+
+Check the real GitHub Actions run status for the current branch/PR via `gh`,
+rather than the local approximations run by `g_run_ci_checks.py`. Useful for
+confirming CI has actually picked up your latest push, and for jumping
+straight to failed-step logs without leaving the terminal.
+
+```bash
+python scripts/developer_tools/n_check_github_actions.py
+```
+
+By default it lists runs matching the current branch's PR head SHA (or the
+local HEAD SHA if there's no open PR yet), then offers to watch a run to
+completion or print its failed logs:
+
+```bash
+python scripts/developer_tools/n_check_github_actions.py --branch my-branch
+python scripts/developer_tools/n_check_github_actions.py --all-shas
+python scripts/developer_tools/n_check_github_actions.py --watch 123456789
+python scripts/developer_tools/n_check_github_actions.py --log-failed 123456789
+```
+
+Requires `gh` on PATH and to be authenticated (`gh auth login`).
+
 ## publish_pr.py
 
 Automate PR publishing: commit changes, push to remote, and create a PR with auto-filled body sections. Optionally uses Ollama to generate thoughtful PR descriptions.

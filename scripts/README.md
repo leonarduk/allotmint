@@ -215,11 +215,12 @@ python scripts/developer_tools/g_run_ci_checks.py --all --dry-run
 ```
 
 The groups mirror backend integration, frontend, infrastructure/workflow-lint,
-and developer-script jobs. The runner assumes their dependencies are already
-installed, runs from the repository root regardless of the caller's current
-directory, stops at the first failure by default, and propagates a failing exit
-status. Cloud deployment and other secret-dependent jobs are intentionally not
-offered as local checks.
+developer-script (bats/Pester/shellcheck), and backend dependency-conflict
+jobs. The runner assumes their dependencies are already installed, runs from
+the repository root regardless of the caller's current directory, stops at
+the first failure by default, and propagates a failing exit status. Cloud
+deployment and other secret-dependent jobs are intentionally not offered as
+local checks.
 
 ## publish_pr.py
 

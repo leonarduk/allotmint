@@ -173,20 +173,29 @@ def test_parse_published_at_rejects_missing_or_non_string_values(value):
     assert market_module._parse_published_at(value) is None
 
 
-def test_parse_published_at_accepts_utc_designator():
-    assert market_module._parse_published_at("2026-01-02T03:04:05Z") == datetime(
-        2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc
+def test_parse_published_at_accepts_utc_suffix():
+    assert market_module._parse_published_at("2026-07-29T10:30:00Z") == datetime(
+        2026, 7, 29, 10, 30, tzinfo=timezone.utc
     )
 
 
-@pytest.mark.parametrize(
-    ("configured_hours", "expected_hours"),
-    [("12", 12), ("invalid", 72), ("0", 72), ("nan", 72)],
-)
-def test_headline_max_age_configuration(monkeypatch, configured_hours, expected_hours):
-    monkeypatch.setenv("HEADLINE_MAX_AGE_HOURS", configured_hours)
+def test_headline_max_age_uses_environment_override(monkeypatch):
+    monkeypatch.setenv("HEADLINE_MAX_AGE_HOURS", "24")
 
-    assert market_module._headline_max_age() == timedelta(hours=expected_hours)
+    assert market_module._get_headline_max_age() == timedelta(hours=24)
+
+
+def test_headline_max_age_uses_default_when_unset(monkeypatch):
+    monkeypatch.delenv("HEADLINE_MAX_AGE_HOURS", raising=False)
+
+    assert market_module._get_headline_max_age() == timedelta(hours=72)
+
+
+@pytest.mark.parametrize("value", ["invalid", "0", "-1", "nan", "inf"])
+def test_headline_max_age_falls_back_for_invalid_values(monkeypatch, value):
+    monkeypatch.setenv("HEADLINE_MAX_AGE_HOURS", value)
+
+    assert market_module._get_headline_max_age() == timedelta(hours=72)
 
 
 def test_sort_and_filter_headlines_excludes_old_and_sorts_newest_first():

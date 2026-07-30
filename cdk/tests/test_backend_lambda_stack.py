@@ -514,6 +514,56 @@ def test_backend_error_alarm_exists(template):
     )
 
 
+def test_portfolio_group_all_5xx_alarm_uses_route_specific_log_metric(template):
+    template.has_resource_properties(
+        "AWS::Logs::MetricFilter",
+        {
+            "FilterPattern": (
+                '{ ($.routeKey = "GET /portfolio-group/all") && ($.status = 5*) }'
+            ),
+            "MetricTransformations": [
+                {
+                    "DefaultValue": 0,
+                    "MetricName": "PortfolioGroupAll5xx",
+                    "MetricNamespace": "AllotMint/BackendApi",
+                    "MetricValue": "1",
+                }
+            ],
+        },
+    )
+    template.has_resource_properties(
+        "AWS::CloudWatch::Alarm",
+        {
+            "ComparisonOperator": "GreaterThanThreshold",
+            "DatapointsToAlarm": 2,
+            "EvaluationPeriods": 2,
+            "MetricName": "PortfolioGroupAll5xx",
+            "Namespace": "AllotMint/BackendApi",
+            "Period": 60,
+            "Statistic": "Sum",
+            "Threshold": 0,
+            "TreatMissingData": "notBreaching",
+        },
+    )
+
+
+def test_portfolio_group_all_5xx_alarm_notifies_operational_topic(template):
+    topics = template.find_resources("AWS::SNS::Topic")
+    assert len(topics) == 1
+    topic_logical_id = next(iter(topics))
+
+    alarms = template.find_resources("AWS::CloudWatch::Alarm")
+    route_alarms = [
+        alarm
+        for alarm in alarms.values()
+        if alarm.get("Properties", {}).get("MetricName") == "PortfolioGroupAll5xx"
+    ]
+    assert len(route_alarms) == 1
+    assert route_alarms[0]["Properties"]["AlarmActions"] == [
+        {"Ref": topic_logical_id}
+    ]
+
+
 def test_monthly_budget_exists(template):
     resources = template.find_resources("AWS::Budgets::Budget")
     assert resources, "Expected an AWS::Budgets::Budget resource"
@@ -1002,6 +1052,10 @@ def test_lambda_log_group_name_outputs_exist(template):
 
 def test_backend_lambda_error_alarm_output_exists(template):
     template.has_output("BackendLambdaErrorAlarmName", {})
+
+
+def test_portfolio_group_all_5xx_alarm_output_exists(template):
+    template.has_output("PortfolioGroupAll5xxAlarmName", {})
 
 
 # ---------------------------------------------------------------------------

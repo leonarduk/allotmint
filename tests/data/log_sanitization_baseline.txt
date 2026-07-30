@@ -111,10 +111,15 @@ backend/reports.py:462
 backend/reports.py:468
 backend/reports.py:522
 backend/reports.py:809
-backend/routes/market.py:129
-backend/routes/market.py:137
-backend/routes/market.py:146
-backend/routes/market.py:153
+backend/routes/market.py:162
+backend/routes/market.py:170
+backend/routes/market.py:179
+backend/routes/market.py:186
+# DEFAULT_HEADLINE_MAX_AGE_HOURS is a module-level float constant (the
+# hardcoded 72-hour fallback), never attacker-controlled; the other arg on
+# each of these two calls is already wrapped in sanitise_log_value.
+backend/routes/market.py:71
+backend/routes/market.py:79
 backend/routes/timeseries_admin.py:110
 backend/routes/timeseries_admin.py:88
 backend/timeseries/cache.py:114

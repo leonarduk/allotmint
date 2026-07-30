@@ -106,16 +106,13 @@ has a working pluggable JSON storage abstraction selected by URI scheme:
 refresh token, expiry, connected account IDs) as one JSON blob per owner
 under an `ssm://` parameter, e.g. `ssm:///allotmint/moneyhub/tokens/{owner}`,
 loaded through `get_storage()` exactly like the alerts module already does.
-Two changes needed on top of the existing abstraction (out of scope for this
-spike, listed for #3425):
+The storage and deployment groundwork is now in place:
 
-- `ParameterStoreJSONStorage` should use `Type="SecureString"` (not
-  `String`) when persisting token material — the current alerts use case
-  doesn't carry secrets, so this wasn't needed before.
-- A CDK `StringParameter`/`Secret` construct and IAM grant so the Lambda
-  execution role can read/write the `/allotmint/moneyhub/*` parameter
-  namespace — there is no existing CDK precedent for this in `cdk/stacks/`,
-  so it is new construct work, not a copy of an existing pattern.
+- `ParameterStoreJSONStorage` persists `SecureString` values by default and
+  decrypts them on read.
+- `MoneyhubTokenStore` grants the backend Lambda only `ssm:GetParameter` and
+  `ssm:PutParameter` beneath `/allotmint/moneyhub/tokens/*`. Parameters remain
+  application-created because owner IDs are not known at deployment time.
 
 Token refresh should happen lazily on read (check expiry, refresh if
 needed, write back the updated blob) rather than a separate scheduled job,

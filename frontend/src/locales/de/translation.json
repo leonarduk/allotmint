@@ -20,7 +20,8 @@
       "generic": "Position konnte nicht hinzugefügt werden."
     },
     "emptyAccountCta": "Erste Position hinzufügen",
-    "collapse": "Formular zum Hinzufügen einer Position einklappen"
+    "collapse": "Formular zum Hinzufügen einer Position einklappen",
+    "collapseShort": "Einklappen"
   },
   "alertSettings": {
     "description": "Konfigurieren Sie, wann Sie Benachrichtigungen erhalten. Die Alarme erscheinen auf der Alerts-Seite und als Push-Benachrichtigungen.",

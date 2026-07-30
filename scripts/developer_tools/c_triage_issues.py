@@ -2,7 +2,7 @@
 
 Continues the a_/b_/c_/.../g_ script chain in scripts/developer_tools/. Replaces the
 hosted "allotmint-issue-triage" scheduled cloud-agent task: a local model (driven via
-lib/ollama_common.py, same pattern as g_local_review.py/j_pr_review.py) classifies
+lib/ollama_common.py, same pattern as h_local_review.py/k_pr_review.py) classifies
 open, unmilestoned issues and this script drives the resulting `gh issue` calls
 directly, so the routine no longer needs a hosted-Claude scheduled session.
 

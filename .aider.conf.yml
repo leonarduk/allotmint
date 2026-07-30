@@ -1,9 +1,13 @@
 model: "ollama/qwen2.5-coder:7b"
+edit-format: "diff"
 
 auto-commits: false
-yes-always: true
+yes-always: false
 
-auto-test: true
+# Disabled: a test failure was letting the model treat unrelated errors (e.g.
+# a conftest.py collision) as a new task and rewrite files outside the
+# requested scope. Run tests yourself after reviewing the diff instead.
+auto-test: false
 test-cmd: "pytest -q --ignore=tests/integration --ignore=tests/live"
 
 # litellm's default completion timeout is 600s, which a 14B local model can

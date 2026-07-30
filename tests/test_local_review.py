@@ -120,7 +120,7 @@ class TestGenerateMarkdownReport:
             review=review,
             target_branch="main",
             current_branch="feature/test",
-            model="qwen2.5-coder:14b",
+            model="qwen2.5-coder:7b",
             diff_size=1500,
             timestamp="2024-01-15T10:30:00+00:00",
         )
@@ -129,7 +129,7 @@ class TestGenerateMarkdownReport:
         assert "**Generated:** 2024-01-15T10:30:00+00:00" in report
         assert "**Current branch:** feature/test" in report
         assert "**Compared against:** main" in report
-        assert "**AI Model:** qwen2.5-coder:14b" in report
+        assert "**AI Model:** qwen2.5-coder:7b" in report
         assert "**Diff size:** 1500 characters" in report
         assert "## Review" in report
         assert "APPROVE" in report

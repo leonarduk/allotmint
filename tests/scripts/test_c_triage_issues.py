@@ -1,4 +1,5 @@
 import json
+from unittest.mock import patch
 
 import scripts.developer_tools.c_triage_issues as h
 
@@ -36,9 +37,10 @@ def test_find_candidate_groups_unions_cross_referencing_issues():
         _issue(2, "Second nit", body="See also #1"),
         _issue(3, "Unrelated standalone", body="No references here"),
     ]
-    groups = h.find_candidate_groups(issues)
-    assert len(groups) == 1
-    assert {i.number for i in groups[0]} == {1, 2}
+    with patch.object(h, 'run_gh', return_value=_FakeResult(stdout=json.dumps([{"number": 1}, {"number": 2}]))) as mock_run_gh:
+        groups = h.find_candidate_groups(issues)
+        assert len(groups) == 1
+        assert {i.number for i in groups[0]} == {1, 2}
 
 
 def test_find_candidate_groups_respects_scope_apart_guard():
@@ -46,16 +48,18 @@ def test_find_candidate_groups_respects_scope_apart_guard():
         _issue(1, "First", body="Related to #2, but tracked separately as #2"),
         _issue(2, "Second", body="Related to #1"),
     ]
-    groups = h.find_candidate_groups(issues)
-    assert groups == []
+    with patch.object(h, 'run_gh', return_value=_FakeResult(stdout=json.dumps([{"number": 1}, {"number": 2}]))) as mock_run_gh:
+        groups = h.find_candidate_groups(issues)
+        assert groups == []
 
 
 def test_find_candidate_groups_ignores_refs_outside_the_unmilestoned_set():
     issues = [
         _issue(1, "First", body="Introduced by #999"),
     ]
-    groups = h.find_candidate_groups(issues)
-    assert groups == []
+    with patch.object(h, 'run_gh', return_value=_FakeResult(stdout=json.dumps([{"number": 1}]))) as mock_run_gh:
+        groups = h.find_candidate_groups(issues)
+        assert groups == []
 
 
 def test_parse_classifications_reads_number_and_label():
@@ -89,9 +93,9 @@ def test_fetch_unmilestoned_open_issues_filters_milestoned(monkeypatch):
             },
         ]
     )
-    monkeypatch.setattr(h, "run_gh", lambda args: _FakeResult(0, payload))
-    issues = h.fetch_unmilestoned_open_issues(True)
-    assert [i.number for i in issues] == [1]
+    with patch.object(h, 'run_gh', return_value=_FakeResult(stdout=payload)) as mock_run_gh:
+        issues = h.fetch_unmilestoned_open_issues(True)
+        assert [i.number for i in issues] == [1]
 
 
 def test_fetch_unmilestoned_open_issues_populates_body_from_batch(monkeypatch):
@@ -101,165 +105,157 @@ def test_fetch_unmilestoned_open_issues_populates_body_from_batch(monkeypatch):
             {"number": 2, "title": "Null body", "labels": [], "milestone": None, "body": None},
         ]
     )
-    monkeypatch.setattr(h, "run_gh", lambda args: _FakeResult(0, payload))
-    issues = h.fetch_unmilestoned_open_issues(True)
-    assert issues[0].body == "See #2 for context"
-    assert issues[1].body == ""
+    with patch.object(h, 'run_gh', return_value=_FakeResult(stdout=payload)) as mock_run_gh:
+        issues = h.fetch_unmilestoned_open_issues(True)
+        assert issues[0].body == "See #2 for context"
+        assert issues[1].body == ""
 
 
 def test_fetch_unmilestoned_open_issues_exits_on_gh_failure(monkeypatch):
-    monkeypatch.setattr(h, "run_gh", lambda args: _FakeResult(1, "", "boom"))
-    try:
-        h.fetch_unmilestoned_open_issues(True)
-        assert False, "expected SystemExit"
-    except SystemExit as exc:
-        assert exc.code == 1
+    with patch.object(h, 'run_gh', return_value=_FakeResult(returncode=1, stderr="boom")) as mock_run_gh:
+        try:
+            h.fetch_unmilestoned_open_issues(True)
+            assert False, "expected SystemExit"
+        except SystemExit as exc:
+            assert exc.code == 1
 
 
 def test_run_gh_retries_transient_failure_then_succeeds(monkeypatch):
-    monkeypatch.setattr(h.time, "sleep", lambda seconds: None)
     calls = []
 
     def fake_run(args, **kwargs):
         calls.append(args)
         if len(calls) < 2:
-            return _FakeResult(1, "", "TLS handshake timeout")
-        return _FakeResult(0, "ok")
+            return _FakeResult(returncode=1, stderr="TLS handshake timeout")
+        return _FakeResult(returncode=0, stdout="ok")
 
-    monkeypatch.setattr(h.subprocess, "run", fake_run)
-    result = h.run_gh(["issue", "list"], verbose=True)
-    assert result.returncode == 0
-    assert len(calls) == 2
+    with patch.object(h.subprocess, 'run', side_effect=fake_run) as mock_run:
+        result = h.run_gh(["issue", "list"], verbose=True)
+        assert result.returncode == 0
+        assert len(calls) == 2
 
 
 def test_run_gh_gives_up_after_max_retries(monkeypatch):
     sleeps = []
-    monkeypatch.setattr(h.time, "sleep", lambda seconds: sleeps.append(seconds))
-    monkeypatch.setattr(h.subprocess, "run", lambda args, **kwargs: _FakeResult(1, "", "boom"))
-    result = h.run_gh(["issue", "list"], verbose=True)
-    assert result.returncode == 1
-    assert len(sleeps) == h.GH_RETRY_ATTEMPTS - 1
+    with patch.object(h.time, 'sleep', side_effect=sleeps.append) as mock_sleep:
+        with patch.object(h.subprocess, 'run', return_value=_FakeResult(returncode=1, stderr="boom")) as mock_run:
+            result = h.run_gh(["issue", "list"], verbose=True)
+            assert result.returncode == 1
+            assert len(sleeps) == h.GH_RETRY_ATTEMPTS - 1
 
 
 def test_close_issue_dry_run_does_not_call_gh(monkeypatch):
     calls = []
-    monkeypatch.setattr(h, "run_gh", lambda args: calls.append(args))
-    h.close_issue(1, "dup", dry_run=True)
-    assert calls == []
+    with patch.object(h, 'run_gh', side_effect=calls.append) as mock_run_gh:
+        h.close_issue(1, "dup", dry_run=True)
+        assert calls == []
 
 
 def test_close_issue_calls_gh_with_not_planned_reason(monkeypatch):
     calls = []
-    monkeypatch.setattr(h, "run_gh", lambda args: calls.append(args))
-    h.close_issue(1, "dup reason", dry_run=False)
-    assert calls == [["issue", "close", "1", "--reason", "not planned", "--comment", "dup reason"]]
+    with patch.object(h, 'run_gh', side_effect=calls.append) as mock_run_gh:
+        h.close_issue(1, "dup reason", dry_run=False)
+        assert calls == [["issue", "close", "1", "--reason", "not planned", "--comment", "dup reason"]]
 
 
 def test_assign_milestone_calls_gh_edit(monkeypatch):
     calls = []
-    monkeypatch.setattr(h, "run_gh", lambda args: calls.append(args))
-    h.assign_milestone(5, h.CONSOLIDATOR_MILESTONE, dry_run=False)
-    assert calls == [["issue", "edit", "5", "--milestone", h.CONSOLIDATOR_MILESTONE]]
+    with patch.object(h, 'run_gh', side_effect=calls.append) as mock_run_gh:
+        h.assign_milestone(5, h.CONSOLIDATOR_MILESTONE, dry_run=False)
+        assert calls == [["issue", "edit", "5", "--milestone", h.CONSOLIDATOR_MILESTONE]]
 
 
 def test_comment_new_feature_never_touches_milestone(monkeypatch):
     calls = []
-    monkeypatch.setattr(h, "run_gh", lambda args: calls.append(args))
-    h.comment_new_feature(5, dry_run=False)
-    assert len(calls) == 1
-    assert calls[0][:2] == ["issue", "comment"]
-    assert "--milestone" not in calls[0]
+    with patch.object(h, 'run_gh', side_effect=calls.append) as mock_run_gh:
+        h.comment_new_feature(5, dry_run=False)
+        assert len(calls) == 1
+        assert calls[0][:2] == ["issue", "comment"]
+        assert "--milestone" not in calls[0]
 
 
 def test_create_consolidator_issue_dry_run_returns_none_and_skips_gh(monkeypatch):
     calls = []
-    monkeypatch.setattr(h, "run_gh", lambda args: calls.append(args))
-    result = h.create_consolidator_issue("Title", [_issue(1, "A"), _issue(2, "B")], dry_run=True)
-    assert result is None
-    assert calls == []
+    with patch.object(h, 'run_gh', side_effect=calls.append) as mock_run_gh:
+        result = h.create_consolidator_issue("Title", [_issue(1, "A"), _issue(2, "B")], dry_run=True)
+        assert result is None
+        assert calls == []
 
 
 def test_create_consolidator_issue_parses_issue_number(monkeypatch):
-    monkeypatch.setattr(
-        h,
-        "run_gh",
-        lambda args: _FakeResult(0, "https://github.com/leonarduk/allotmint/issues/4242\n"),
-    )
-    result = h.create_consolidator_issue("Title", [_issue(1, "A"), _issue(2, "B")], dry_run=False)
-    assert result == 4242
+    with patch.object(h, 'run_gh', return_value=_FakeResult(stdout="https://github.com/leonarduk/allotmint/issues/4242\n")) as mock_run_gh:
+        result = h.create_consolidator_issue("Title", [_issue(1, "A"), _issue(2, "B")], dry_run=False)
+        assert result == 4242
 
 
 def test_create_consolidator_issue_returns_none_on_failure(monkeypatch):
-    monkeypatch.setattr(h, "run_gh", lambda args: _FakeResult(1, "", "boom"))
-    result = h.create_consolidator_issue("Title", [_issue(1, "A")], dry_run=False)
-    assert result is None
+    with patch.object(h, 'run_gh', return_value=_FakeResult(returncode=1, stderr="boom")) as mock_run_gh:
+        result = h.create_consolidator_issue("Title", [_issue(1, "A")], dry_run=False)
+        assert result is None
 
 
 def test_triage_group_closes_duplicate_keeping_lowest_number(monkeypatch):
     monkeypatch.setattr(h, "fetch_ollama_review", lambda endpoint, model, prompt: "#2: DUPLICATE")
     closed = []
-    monkeypatch.setattr(h, "close_issue", lambda number, comment, dry_run: closed.append(number))
-    group = [_issue(1, "First"), _issue(2, "Second")]
-    handled = h.triage_group(group, "model", "endpoint", dry_run=True, verbose=True)
-    assert closed == [2]
-    assert handled == {2}
+    with patch.object(h, "close_issue", side_effect=closed.append) as mock_close_issue:
+        group = [_issue(1, "First"), _issue(2, "Second")]
+        handled = h.triage_group(group, "model", "endpoint", dry_run=True, verbose=True)
+        assert closed == [2]
+        assert handled == {2}
 
 
 def test_triage_group_does_not_close_canonical_even_if_flagged_duplicate(monkeypatch):
     monkeypatch.setattr(h, "fetch_ollama_review", lambda endpoint, model, prompt: "#1: DUPLICATE\n#2: DUPLICATE")
     closed = []
-    monkeypatch.setattr(h, "close_issue", lambda number, comment, dry_run: closed.append(number))
-    group = [_issue(1, "First"), _issue(2, "Second")]
-    handled = h.triage_group(group, "model", "endpoint", dry_run=True, verbose=True)
-    assert closed == [2]
-    assert handled == {2}
+    with patch.object(h, "close_issue", side_effect=closed.append) as mock_close_issue:
+        group = [_issue(1, "First"), _issue(2, "Second")]
+        handled = h.triage_group(group, "model", "endpoint", dry_run=True, verbose=True)
+        assert closed == [2]
+        assert handled == {2}
 
 
 def test_triage_group_folds_multiple_fold_candidates_into_consolidator(monkeypatch):
     monkeypatch.setattr(h, "fetch_ollama_review", lambda endpoint, model, prompt: "#1: FOLD\n#2: FOLD")
-    monkeypatch.setattr(h, "create_consolidator_issue", lambda title, folded, dry_run: 999)
-    closed = []
-    monkeypatch.setattr(h, "close_issue", lambda number, comment, dry_run: closed.append(number))
-    group = [_issue(1, "First"), _issue(2, "Second")]
-    handled = h.triage_group(group, "model", "endpoint", dry_run=True, verbose=True)
-    assert closed == [1, 2]
-    assert handled == {1, 2}
+    with patch.object(h, "create_consolidator_issue", return_value=999) as mock_create_consolidator_issue:
+        closed = []
+        with patch.object(h, "close_issue", side_effect=closed.append) as mock_close_issue:
+            group = [_issue(1, "First"), _issue(2, "Second")]
+            handled = h.triage_group(group, "model", "endpoint", dry_run=True, verbose=True)
+            assert closed == [1, 2]
+            assert handled == {1, 2}
 
 
 def test_triage_group_single_fold_candidate_is_left_unhandled(monkeypatch):
     monkeypatch.setattr(h, "fetch_ollama_review", lambda endpoint, model, prompt: "#1: FOLD")
-    created = []
-    monkeypatch.setattr(h, "create_consolidator_issue", lambda title, folded, dry_run: created.append(1))
-    group = [_issue(1, "First")]
-    handled = h.triage_group(group, "model", "endpoint", dry_run=True, verbose=True)
-    assert created == []
-    assert handled == set()
+    with patch.object(h, "create_consolidator_issue", return_value=999) as mock_create_consolidator_issue:
+        closed = []
+        with patch.object(h, "close_issue", side_effect=closed.append) as mock_close_issue:
+            group = [_issue(1, "First")]
+            handled = h.triage_group(group, "model", "endpoint", dry_run=True, verbose=True)
+            assert closed == []
+            assert handled == set()
 
 
 def test_triage_group_new_feature_is_commented_and_handled(monkeypatch):
     monkeypatch.setattr(h, "fetch_ollama_review", lambda endpoint, model, prompt: "#1: NEW_FEATURE")
-    commented = []
-    monkeypatch.setattr(h, "comment_new_feature", lambda number, dry_run: commented.append(number))
-    group = [_issue(1, "Add a feature"), _issue(2, "Nit")]
-    handled = h.triage_group(group, "model", "endpoint", dry_run=True, verbose=True)
-    assert commented == [1]
-    assert 1 in handled
+    with patch.object(h, "comment_new_feature", return_value=None) as mock_comment_new_feature:
+        group = [_issue(1, "Add a feature"), _issue(2, "Nit")]
+        handled = h.triage_group(group, "model", "endpoint", dry_run=True, verbose=True)
+        assert mock_comment_new_feature.call_args_list == [((1,), {})]
+        assert 1 in handled
 
 
 def test_triage_remaining_assigns_milestone_to_backlog_issues(monkeypatch):
     monkeypatch.setattr(h, "classify_single_issue", lambda issue, model, endpoint: "BACKLOG")
-    assigned = []
-    monkeypatch.setattr(h, "assign_milestone", lambda number, milestone, dry_run: assigned.append(number))
-    h.triage_remaining([_issue(1, "Nit")], "model", "endpoint", dry_run=True, verbose=True)
-    assert assigned == [1]
+    with patch.object(h, "assign_milestone", return_value=None) as mock_assign_milestone:
+        h.triage_remaining([_issue(1, "Nit")], "model", "endpoint", dry_run=True, verbose=True)
+        assert mock_assign_milestone.call_args_list == [((1, h.CONSOLIDATOR_MILESTONE), {})]
 
 
 def test_triage_remaining_skips_milestone_for_new_feature(monkeypatch):
     monkeypatch.setattr(h, "classify_single_issue", lambda issue, model, endpoint: "NEW_FEATURE")
-    commented = []
-    assigned = []
-    monkeypatch.setattr(h, "assign_milestone", lambda number, milestone, dry_run: assigned.append(number))
-    monkeypatch.setattr(h, "comment_new_feature", lambda number, dry_run: commented.append(number))
-    h.triage_remaining([_issue(1, "Add a feature")], "model", "endpoint", dry_run=True, verbose=True)
-    assert assigned == []
-    assert commented == [1]
+    with patch.object(h, "assign_milestone", return_value=None) as mock_assign_milestone:
+        with patch.object(h, "comment_new_feature", return_value=None) as mock_comment_new_feature:
+            h.triage_remaining([_issue(1, "Add a feature")], "model", "endpoint", dry_run=True, verbose=True)
+            assert mock_assign_milestone.call_args_list == []
+            assert mock_comment_new_feature.call_args_list == [((1,), {})]

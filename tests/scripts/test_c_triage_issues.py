@@ -71,13 +71,13 @@ def test_parse_classifications_reads_number_and_label():
 def test_classify_single_issue_detects_new_feature(monkeypatch):
     monkeypatch.setattr(h, "fetch_ollama_review", lambda endpoint, model, prompt: "NEW_FEATURE")
     issue = _issue(1, "Add dark mode toggle")
-    assert h.classify_single_issue(issue, "model", "endpoint") == "NEW_FEATURE"
+    assert h.classify_single_issue(issue, "model", "endpoint", verbose=False) == "NEW_FEATURE"
 
 
 def test_classify_single_issue_defaults_to_backlog(monkeypatch):
     monkeypatch.setattr(h, "fetch_ollama_review", lambda endpoint, model, prompt: "BACKLOG")
     issue = _issue(1, "Add missing test coverage")
-    assert h.classify_single_issue(issue, "model", "endpoint") == "BACKLOG"
+    assert h.classify_single_issue(issue, "model", "endpoint", verbose=False) == "BACKLOG"
 
 
 def test_fetch_unmilestoned_open_issues_filters_milestoned(monkeypatch):
@@ -197,9 +197,12 @@ def test_create_consolidator_issue_returns_none_on_failure(monkeypatch):
 def test_triage_group_closes_duplicate_keeping_lowest_number(monkeypatch):
     monkeypatch.setattr(h, "fetch_ollama_review", lambda endpoint, model, prompt: "#2: DUPLICATE")
     closed = []
-    with patch.object(h, "close_issue", side_effect=closed.append) as mock_close_issue:
+    close_side_effect = lambda number, comment, dry_run: closed.append(number)  # noqa: E731
+    with patch.object(h, "close_issue", side_effect=close_side_effect):
         group = [_issue(1, "First"), _issue(2, "Second")]
-        handled = h.triage_group(group, "model", "endpoint", dry_run=True, verbose=True)
+        handled = h.triage_group(
+            group, model="model", endpoint="endpoint", dry_run=True, verbose=False
+        )
         assert closed == [2]
         assert handled == {2}
 
@@ -207,7 +210,8 @@ def test_triage_group_closes_duplicate_keeping_lowest_number(monkeypatch):
 def test_triage_group_does_not_close_canonical_even_if_flagged_duplicate(monkeypatch):
     monkeypatch.setattr(h, "fetch_ollama_review", lambda endpoint, model, prompt: "#1: DUPLICATE\n#2: DUPLICATE")
     closed = []
-    with patch.object(h, "close_issue", side_effect=closed.append) as mock_close_issue:
+    close_side_effect = lambda number, comment, dry_run: closed.append(number)  # noqa: E731
+    with patch.object(h, "close_issue", side_effect=close_side_effect):
         group = [_issue(1, "First"), _issue(2, "Second")]
         handled = h.triage_group(group, "model", "endpoint", dry_run=True, verbose=True)
         assert closed == [2]
@@ -216,9 +220,10 @@ def test_triage_group_does_not_close_canonical_even_if_flagged_duplicate(monkeyp
 
 def test_triage_group_folds_multiple_fold_candidates_into_consolidator(monkeypatch):
     monkeypatch.setattr(h, "fetch_ollama_review", lambda endpoint, model, prompt: "#1: FOLD\n#2: FOLD")
-    with patch.object(h, "create_consolidator_issue", return_value=999) as mock_create_consolidator_issue:
-        closed = []
-        with patch.object(h, "close_issue", side_effect=closed.append) as mock_close_issue:
+    closed = []
+    close_side_effect = lambda number, comment, dry_run: closed.append(number)  # noqa: E731
+    with patch.object(h, "create_consolidator_issue", return_value=999):
+        with patch.object(h, "close_issue", side_effect=close_side_effect):
             group = [_issue(1, "First"), _issue(2, "Second")]
             handled = h.triage_group(group, "model", "endpoint", dry_run=True, verbose=True)
             assert closed == [1, 2]
@@ -227,9 +232,10 @@ def test_triage_group_folds_multiple_fold_candidates_into_consolidator(monkeypat
 
 def test_triage_group_single_fold_candidate_is_left_unhandled(monkeypatch):
     monkeypatch.setattr(h, "fetch_ollama_review", lambda endpoint, model, prompt: "#1: FOLD")
-    with patch.object(h, "create_consolidator_issue", return_value=999) as mock_create_consolidator_issue:
-        closed = []
-        with patch.object(h, "close_issue", side_effect=closed.append) as mock_close_issue:
+    closed = []
+    close_side_effect = lambda number, comment, dry_run: closed.append(number)  # noqa: E731
+    with patch.object(h, "create_consolidator_issue", return_value=999):
+        with patch.object(h, "close_issue", side_effect=close_side_effect):
             group = [_issue(1, "First")]
             handled = h.triage_group(group, "model", "endpoint", dry_run=True, verbose=True)
             assert closed == []
@@ -241,21 +247,22 @@ def test_triage_group_new_feature_is_commented_and_handled(monkeypatch):
     with patch.object(h, "comment_new_feature", return_value=None) as mock_comment_new_feature:
         group = [_issue(1, "Add a feature"), _issue(2, "Nit")]
         handled = h.triage_group(group, "model", "endpoint", dry_run=True, verbose=True)
-        assert mock_comment_new_feature.call_args_list == [((1,), {})]
+        assert mock_comment_new_feature.call_args_list == [((1, True), {})]
         assert 1 in handled
 
 
 def test_triage_remaining_assigns_milestone_to_backlog_issues(monkeypatch):
-    monkeypatch.setattr(h, "classify_single_issue", lambda issue, model, endpoint: "BACKLOG")
+    monkeypatch.setattr(h, "classify_single_issue", lambda issue, model, endpoint, verbose: "BACKLOG")
     with patch.object(h, "assign_milestone", return_value=None) as mock_assign_milestone:
         h.triage_remaining([_issue(1, "Nit")], "model", "endpoint", dry_run=True, verbose=True)
-        assert mock_assign_milestone.call_args_list == [((1, h.CONSOLIDATOR_MILESTONE), {})]
+        assert mock_assign_milestone.call_args_list == [((1, h.CONSOLIDATOR_MILESTONE, True), {})]
 
 
 def test_triage_remaining_skips_milestone_for_new_feature(monkeypatch):
-    monkeypatch.setattr(h, "classify_single_issue", lambda issue, model, endpoint: "NEW_FEATURE")
+    monkeypatch.setattr(h, "classify_single_issue", lambda issue, model, endpoint, verbose: "NEW_FEATURE")
     with patch.object(h, "assign_milestone", return_value=None) as mock_assign_milestone:
         with patch.object(h, "comment_new_feature", return_value=None) as mock_comment_new_feature:
-            h.triage_remaining([_issue(1, "Add a feature")], "model", "endpoint", dry_run=True, verbose=True)
+            h.triage_remaining([_issue(1, "Add a feature")], "model", "endpoint",
+                               dry_run=True, verbose=True)
             assert mock_assign_milestone.call_args_list == []
-            assert mock_comment_new_feature.call_args_list == [((1,), {})]
+            assert mock_comment_new_feature.call_args_list == [((1, True), {})]

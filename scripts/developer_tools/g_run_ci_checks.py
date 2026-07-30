@@ -54,13 +54,20 @@ CHECKS = (
     ),
     Check(
         "scripts",
-        "Bash and PowerShell developer script tests",
+        "Bash and PowerShell developer script tests, plus shellcheck",
         ".github/workflows/ci.yml",
         (
             "npx --yes bats@1.13.0 tests/bash/*.bats",
             'pwsh -NoProfile -Command "Import-Module Pester -RequiredVersion '
             '5.6.1 -Force; Invoke-Pester -Path scripts/tests -CI"',
+            "shellcheck .github/scripts/*.sh",
         ),
+    ),
+    Check(
+        "backend-deps",
+        "Backend requirements.txt dependency-conflict dry-run",
+        ".github/workflows/ci.yml (validate-backend-deps)",
+        ("pip install --dry-run -r backend/requirements.txt",),
     ),
 )
 

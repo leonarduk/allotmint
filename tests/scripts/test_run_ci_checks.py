@@ -16,6 +16,13 @@ def test_select_checks_preserves_catalog_order() -> None:
     assert [check.name for check in selected] == ["backend", "scripts"]
 
 
+def test_catalog_covers_backend_deps_and_shell_lint() -> None:
+    names = [check.name for check in g_run_ci_checks.CHECKS]
+
+    assert "backend-deps" in names
+    assert "shellcheck .github/scripts/*.sh" in g_run_ci_checks.CHECKS[names.index("scripts")].commands
+
+
 def test_noninteractive_invocation_requires_selection(monkeypatch: pytest.MonkeyPatch) -> None:
     args = g_run_ci_checks.parse_args([])
     monkeypatch.setattr(g_run_ci_checks.sys.stdin, "isatty", lambda: False)

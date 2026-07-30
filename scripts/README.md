@@ -353,6 +353,10 @@ Like `work_on_issue.py`, but for picking up an existing pull request instead
 of starting a new one: fetches the PR from GitHub and checks out its branch
 locally (creating a local tracking branch if needed).
 
+Dependencies: This script requires the requests library. 
+If it is not already installed, run pip install requests.
+
+
 ```bash
 python scripts/developer_tools/e_work_on_pr.py 4512
 ```

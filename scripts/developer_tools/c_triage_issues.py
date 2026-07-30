@@ -58,7 +58,7 @@ class Issue:
     body: str = ""
 
 
-def run_gh(args: list[str], verbose: bool) -> subprocess.CompletedProcess[str]:
+def run_gh(args: list[str]) -> subprocess.CompletedProcess[str]:
     """Run a `gh` CLI command scoped to REPO_OWNER/REPO_NAME. Never raises.
 
     Retries transient failures (network blips, GraphQL timeouts) up to
@@ -87,7 +87,7 @@ def run_gh(args: list[str], verbose: bool) -> subprocess.CompletedProcess[str]:
     return result
 
 
-def fetch_unmilestoned_open_issues(verbose: bool) -> list[Issue]:
+def fetch_unmilestoned_open_issues(verbose: bool = False) -> list[Issue]:
     """List open issues that have no milestone assigned."""
     result = run_gh(
         [
@@ -100,7 +100,6 @@ def fetch_unmilestoned_open_issues(verbose: bool) -> list[Issue]:
             "--limit",
             "500",
         ],
-        verbose=verbose,
     )
     if result.returncode != 0:
         print(f"ERROR: gh issue list failed: {result.stderr}", file=sys.stderr)
@@ -213,7 +212,7 @@ def parse_classifications(response: str) -> dict[int, str]:
     return {int(m.group(1)): m.group(2).upper() for m in CLASSIFICATION_LINE_PATTERN.finditer(response)}
 
 
-def classify_single_issue(issue: Issue, model: str, endpoint: str, verbose: bool) -> str:
+def classify_single_issue(issue: Issue, model: str, endpoint: str, verbose: bool = False) -> str:
     """Classify a standalone issue as NEW_FEATURE or BACKLOG."""
     prompt = SINGLE_CLASSIFY_PROMPT_TEMPLATE.format(number=issue.number, title=issue.title,
                                                     body=issue.body.strip())
@@ -295,7 +294,8 @@ def create_consolidator_issue(title: str, folded: list[Issue], dry_run: bool) ->
     return int(match.group(1)) if match else None
 
 
-def triage_group(group: list[Issue], model: str, endpoint: str, dry_run: bool, verbose: bool) -> set[int]:
+def triage_group(group: list[Issue], model: str, endpoint: str, dry_run: bool,
+                 verbose: bool = False) -> set[int]:
     """Classify and act on one candidate group. Returns the issue numbers it handled."""
     prompt = build_group_classification_prompt(group)
     response = fetch_ollama_review(endpoint, model, prompt)
@@ -332,7 +332,8 @@ def triage_group(group: list[Issue], model: str, endpoint: str, dry_run: bool, v
     return handled
 
 
-def triage_remaining(issues: list[Issue], model: str, endpoint: str, dry_run: bool, verbose: bool) -> None:
+def triage_remaining(issues: list[Issue], model: str, endpoint: str, dry_run: bool,
+                     verbose: bool = False) -> None:
     """Classify every issue not already handled by group triage, then act on it."""
     for issue in issues:
         classification = classify_single_issue(issue, model, endpoint, verbose)

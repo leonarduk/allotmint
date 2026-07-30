@@ -18,6 +18,7 @@ from aws_cdk import aws_apigatewayv2_authorizers as apigwv2_authorizers
 from aws_cdk import aws_apigatewayv2_integrations as apigwv2_integrations
 from aws_cdk import aws_budgets as budgets
 from aws_cdk import aws_cloudwatch as cloudwatch
+from aws_cdk import aws_cloudwatch_actions as cloudwatch_actions
 from aws_cdk import aws_cognito as cognito
 from aws_cdk import aws_events as events
 from aws_cdk import aws_events_targets as targets
@@ -25,6 +26,8 @@ from aws_cdk import aws_iam as iam
 from aws_cdk import aws_lambda as _lambda
 from aws_cdk import aws_logs as logs
 from aws_cdk import aws_s3 as s3
+from aws_cdk import aws_sns as sns
+from aws_cdk import aws_sns_subscriptions as sns_subscriptions
 from constructs import Construct
 
 from stacks.exports import BACKEND_API_URL_EXPORT
@@ -1112,6 +1115,43 @@ class BackendLambdaStack(Stack):
             treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
         )
 
+        # HTTP API metrics are emitted per API/stage, not per route. Derive a
+        # route-specific metric from the structured access log so failures of
+        # this comparatively expensive aggregation endpoint are not hidden by
+        # otherwise healthy API traffic (issue #5523).
+        portfolio_group_5xx_metric = logs.MetricFilter(
+            self,
+            "PortfolioGroupAll5xxMetricFilter",
+            log_group=access_log_group,
+            filter_pattern=logs.FilterPattern.literal(
+                '{ ($.routeKey = "GET /portfolio-group/all") && ($.status = 5*) }'
+            ),
+            metric_namespace="AllotMint/BackendApi",
+            metric_name="PortfolioGroupAll5xx",
+            metric_value="1",
+            default_value=0,
+        )
+        operational_alerts_topic = sns.Topic(self, "OperationalAlertsTopic")
+        if budget_alert_email:
+            operational_alerts_topic.add_subscription(
+                sns_subscriptions.EmailSubscription(budget_alert_email)
+            )
+        portfolio_group_5xx_alarm = cloudwatch.Alarm(
+            self,
+            "PortfolioGroupAll5xxAlarm",
+            metric=portfolio_group_5xx_metric.metric(
+                statistic="Sum", period=Duration.minutes(1)
+            ),
+            threshold=0,
+            comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            evaluation_periods=2,
+            datapoints_to_alarm=2,
+            treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
+        )
+        portfolio_group_5xx_alarm.add_alarm_action(
+            cloudwatch_actions.SnsAction(operational_alerts_topic)
+        )
+
         budget_notification = None
         if budget_alert_email:
             budget_notification = budgets.CfnBudget.NotificationWithSubscribersProperty(
@@ -1159,3 +1199,8 @@ class BackendLambdaStack(Stack):
             value=pension_report_log_group.log_group_name,
         )
         CfnOutput(self, "BackendLambdaErrorAlarmName", value=backend_error_alarm.alarm_name)
+        CfnOutput(
+            self,
+            "PortfolioGroupAll5xxAlarmName",
+            value=portfolio_group_5xx_alarm.alarm_name,
+        )

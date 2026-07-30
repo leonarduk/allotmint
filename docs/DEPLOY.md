@@ -7,6 +7,7 @@ Copy `.env.example` to `.env` and supply the following values:
 | Variable | Purpose |
 | --- | --- |
 | `ALPHA_VANTAGE_KEY` | API key for market data |
+| `HEADLINE_MAX_AGE_HOURS` | Optional maximum age of Market Overview headlines; defaults to 72 hours |
 | `SNS_TOPIC_ARN` | Optional SNS topic for alerts |
 | `TELEGRAM_BOT_TOKEN` | Optional Telegram bot token for alerts |
 | `TELEGRAM_CHAT_ID` | Telegram chat for alerts |

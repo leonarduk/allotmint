@@ -195,23 +195,23 @@ If aider makes no commits (e.g. the local model replies with prose instead of
 edits), the script fails rather than pushing an empty branch or opening a
 content-free PR.
 
-## f_run_ci_checks.py
+## g_run_ci_checks.py
 
 Run the credential-free integration and validation steps from the most relevant
 GitHub Actions workflows before pushing. With no arguments, the script presents
 an interactive menu:
 
 ```bash
-python scripts/developer_tools/f_run_ci_checks.py
+python scripts/developer_tools/g_run_ci_checks.py
 ```
 
 For automation or non-interactive shells, select one or more groups explicitly:
 
 ```bash
-python scripts/developer_tools/f_run_ci_checks.py --list
-python scripts/developer_tools/f_run_ci_checks.py --check backend --check frontend
-python scripts/developer_tools/f_run_ci_checks.py --all --keep-going
-python scripts/developer_tools/f_run_ci_checks.py --all --dry-run
+python scripts/developer_tools/g_run_ci_checks.py --list
+python scripts/developer_tools/g_run_ci_checks.py --check backend --check frontend
+python scripts/developer_tools/g_run_ci_checks.py --all --keep-going
+python scripts/developer_tools/g_run_ci_checks.py --all --dry-run
 ```
 
 The groups mirror backend integration, frontend, infrastructure/workflow-lint,
@@ -282,7 +282,7 @@ Optional flags:
 - `-m/--message TEXT`: Commit message override (skips Ollama generation)
 - `-f/--files FILE [FILE ...]`: Specific files to stage (default: all changed files)
 - `--no-ollama`: Skip Ollama and use a plain default commit message
-- `--model MODEL`: Ollama model name (default: env var `OLLAMA_MODEL` or `qwen2.5-coder:14b`)
+- `--model MODEL`: Ollama model name (default: env var `OLLAMA_MODEL` or `qwen2.5-coder:7b`)
 - `--no-push`: Commit only; skip pushing to `origin`
 
 On Windows, use the PowerShell wrapper:
@@ -353,15 +353,19 @@ Like `work_on_issue.py`, but for picking up an existing pull request instead
 of starting a new one: fetches the PR from GitHub and checks out its branch
 locally (creating a local tracking branch if needed).
 
+Dependencies: This script requires the requests library. 
+If it is not already installed, run pip install requests.
+
+
 ```bash
-python scripts/developer_tools/k_work_on_pr.py 4512
+python scripts/developer_tools/e_work_on_pr.py 4512
 ```
 
 Omit the PR number to list all open pull requests and choose one
 interactively:
 
 ```bash
-python scripts/developer_tools/k_work_on_pr.py
+python scripts/developer_tools/e_work_on_pr.py
 ```
 
 The script:

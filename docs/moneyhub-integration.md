@@ -112,6 +112,13 @@ explicit `String` override for non-secret configuration. CDK grants the backend
 Lambda read/write access only to `/allotmint/moneyhub/tokens/*`. Parameters are
 created lazily per owner; Parameter Store has no path resource to provision, so
 the stack deliberately does not create a placeholder secret.
+The storage and deployment groundwork is now in place:
+
+- `ParameterStoreJSONStorage` persists `SecureString` values by default and
+  decrypts them on read.
+- `MoneyhubTokenStore` grants the backend Lambda only `ssm:GetParameter` and
+  `ssm:PutParameter` beneath `/allotmint/moneyhub/tokens/*`. Parameters remain
+  application-created because owner IDs are not known at deployment time.
 
 Token refresh should happen lazily on read (check expiry, refresh if
 needed, write back the updated blob) rather than a separate scheduled job,

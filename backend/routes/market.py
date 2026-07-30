@@ -3,6 +3,8 @@ from __future__ import annotations
 """Market overview endpoint aggregating indexes, sectors and headlines."""
 
 import logging
+import math
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Literal, Optional, TypedDict
 
@@ -10,6 +12,7 @@ import requests
 from fastapi import APIRouter, Query
 
 from backend import config_module
+from backend.logging_setup import sanitise_log_value
 from backend.routes.news import get_cached_news
 from backend.utils.lazy_import import lazy_import
 
@@ -52,7 +55,37 @@ logger = logging.getLogger(__name__)
 # staleness-threshold pattern used for cache freshness in
 # ``backend.routes.news.NEWS_MAX_STALENESS``, but this applies to the
 # article's own publish date rather than the cache's age.
-HEADLINE_MAX_AGE = timedelta(hours=72)
+DEFAULT_HEADLINE_MAX_AGE_HOURS = 72.0
+
+
+def _get_headline_max_age() -> timedelta:
+    """Return the configured headline age limit, or the safe default."""
+
+    raw_hours = os.getenv("HEADLINE_MAX_AGE_HOURS")
+    if raw_hours is None:
+        return timedelta(hours=DEFAULT_HEADLINE_MAX_AGE_HOURS)
+
+    try:
+        hours = float(raw_hours)
+    except ValueError:
+        logger.warning(
+            "Invalid HEADLINE_MAX_AGE_HOURS=%r; using the %.0f-hour default",
+            sanitise_log_value(raw_hours),
+            DEFAULT_HEADLINE_MAX_AGE_HOURS,
+        )
+        return timedelta(hours=DEFAULT_HEADLINE_MAX_AGE_HOURS)
+
+    if not math.isfinite(hours) or hours <= 0:
+        logger.warning(
+            "HEADLINE_MAX_AGE_HOURS must be positive; using the %.0f-hour default",
+            DEFAULT_HEADLINE_MAX_AGE_HOURS,
+        )
+        return timedelta(hours=DEFAULT_HEADLINE_MAX_AGE_HOURS)
+
+    return timedelta(hours=hours)
+
+
+HEADLINE_MAX_AGE = _get_headline_max_age()
 
 
 class IndexPayload(TypedDict):
@@ -248,7 +281,7 @@ def _parse_published_at(value: Any) -> Optional[datetime]:
     if not isinstance(value, str) or not value:
         return None
 
-    cleaned = value[:-1] + "+00:00" if value.endswith("Z") else value
+    cleaned = value.replace("Z", "+00:00")
     try:
         dt = datetime.fromisoformat(cleaned)
     except ValueError:

@@ -165,7 +165,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--model",
         default=None,
-        help="Ollama model name (default: OLLAMA_MODEL env var or 'qwen2.5-coder:14b')",
+        help="Ollama model name (default: OLLAMA_MODEL env var or 'qwen2.5-coder:7b')",
     )
     parser.add_argument(
         "--no-push",

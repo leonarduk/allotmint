@@ -282,7 +282,7 @@ Optional flags:
 - `-m/--message TEXT`: Commit message override (skips Ollama generation)
 - `-f/--files FILE [FILE ...]`: Specific files to stage (default: all changed files)
 - `--no-ollama`: Skip Ollama and use a plain default commit message
-- `--model MODEL`: Ollama model name (default: env var `OLLAMA_MODEL` or `qwen2.5-coder:14b`)
+- `--model MODEL`: Ollama model name (default: env var `OLLAMA_MODEL` or `qwen2.5-coder:7b`)
 - `--no-push`: Commit only; skip pushing to `origin`
 
 On Windows, use the PowerShell wrapper:

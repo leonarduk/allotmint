@@ -45,6 +45,8 @@ const CSV_HEADERS = [
   "gain_pct",
 ];
 
+const ADD_POSITION_FORM_ID = "add-position-form";
+
 const sanitizeFilenamePart = (value: string): string =>
   value.replaceAll(/[^a-zA-Z0-9_-]/g, "_");
 
@@ -244,6 +246,21 @@ export function PortfolioView({ data, loading, error, onDateChange, onAccountAdd
     setPendingDate(data?.as_of ?? "");
   }, [data?.as_of]);
 
+  const handleAddPositionCollapse = useCallback(() => {
+    setAddPositionExpanded(false);
+    setAddPositionAccount(undefined);
+  }, []);
+
+  useEffect(() => {
+    if (!addPositionExpanded) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") handleAddPositionCollapse();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [addPositionExpanded, handleAddPositionCollapse]);
+
   const owner = data?.owner ?? null;
   const asOf = data?.as_of ?? null;
 
@@ -340,11 +357,6 @@ export function PortfolioView({ data, loading, error, onDateChange, onAccountAdd
     onPositionAdded?.();
   };
 
-  const handleAddPositionCollapse = () => {
-    setAddPositionExpanded(false);
-    setAddPositionAccount(undefined);
-  };
-
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
@@ -415,11 +427,14 @@ export function PortfolioView({ data, loading, error, onDateChange, onAccountAdd
                   defaultAccount={addPositionAccount}
                   onAdded={handlePositionAdded}
                   onCollapse={handleAddPositionCollapse}
+                  controlsId={ADD_POSITION_FORM_ID}
                 />
               ) : (
                 <button
                   type="button"
                   onClick={() => setAddPositionExpanded(true)}
+                  aria-expanded="false"
+                  aria-controls={ADD_POSITION_FORM_ID}
                   className="rounded border border-gray-700 px-3 py-1.5 text-sm text-white hover:border-gray-500 hover:bg-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
                 >
                   + {t("addPosition.title")}

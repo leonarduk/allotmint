@@ -117,14 +117,14 @@ def find_outliers(
     rolling_std = close.rolling(window=window, min_periods=min_periods).std()
 
     outliers: list[Outlier] = []
-    for idx, value in close.items():
-        mean = rolling_mean[idx]
-        std = rolling_std[idx]
+    for pos, value in enumerate(close):
+        mean = rolling_mean.iloc[pos]
+        std = rolling_std.iloc[pos]
         if pd.isna(value) or pd.isna(mean) or pd.isna(std) or std == 0:
             continue
         z_score = abs(value - mean) / std
         if z_score > sigma:
-            row_date = pd.to_datetime(sorted_df["Date"][idx]).date()
+            row_date = pd.to_datetime(sorted_df["Date"].iloc[pos]).date()
             outliers.append(Outlier(date=row_date.isoformat(), value=float(value), z_score=float(z_score)))
     return outliers
 

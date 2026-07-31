@@ -141,9 +141,20 @@ def test_moneyhub_to_float_invalid_inputs():
     assert moneyhub._to_float(None) is None
 
 
-def test_moneyhub_parse_empty_csv_returns_no_transactions():
+def test_moneyhub_parse_header_only_csv_returns_no_transactions():
+    """Header-only CSV (all required columns, zero data rows) parses to []."""
     csv_data = "Id,Owner,Account,Date,Amount,Description,Category\n"
     assert moneyhub.parse(csv_data.encode("utf-8")) == []
+
+
+def test_moneyhub_parse_row_with_empty_date_has_no_composite_key():
+    csv_data = "Owner,Account,Date,Amount,Description,Category\n" "alice,Current,,-42.50,Tesco Store,Groceries\n"
+
+    transactions = moneyhub.parse(csv_data.encode("utf-8"))
+
+    assert len(transactions) == 1
+    assert transactions[0].date == ""
+    assert transactions[0].external_id is None
 
 
 def test_moneyhub_parse_rejects_csv_with_unrecognised_columns():

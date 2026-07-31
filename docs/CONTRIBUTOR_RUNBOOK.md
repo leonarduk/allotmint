@@ -71,6 +71,7 @@ Copy `.env.example` to `.env` if you want a local file-backed setup, or export t
 | `APP_ENV` | Optional override | `APP_ENV=local` | Selects `local`, `production`, or `aws` runtime behavior. |
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | Optional | `123456:token` / `123456789` | Enables Telegram alert forwarding. |
 | `ALPHA_VANTAGE_KEY` | Optional unless using Alpha Vantage-backed features | `demo` | Enables Alpha Vantage integrations without storing the secret in git. |
+| `HEADLINE_MAX_AGE_HOURS` | Optional | `72` | Sets the maximum age of headlines shown in Market Overview. |
 | `TIMESERIES_CACHE_BASE` | Optional | `TIMESERIES_CACHE_BASE=./data/timeseries` | Overrides the configured timeseries cache directory. |
 
 ### Local auth-enabled mode

@@ -479,7 +479,9 @@ export default function PensionForecast() {
           <div className="space-y-3 text-sm text-slate-700">
             {currentAge !== null && dob && (
               <InfoLine
-                label={t("pensionForecast.currentAge", { age: currentAge })}
+                label={t("pensionForecast.currentAge", {
+                  age: Math.round(currentAge),
+                })}
                 value={t("pensionForecast.birthDate", { dob })}
               />
             )}

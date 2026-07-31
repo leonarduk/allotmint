@@ -39,20 +39,41 @@ def test_get_moneyhub_client_requires_credentials(monkeypatch, missing_name):
     monkeypatch.setenv("MONEYHUB_CLIENT_SECRET", "client-secret")
     monkeypatch.delenv(missing_name)
 
-    with pytest.raises(RuntimeError, match="MONEYHUB_CLIENT_ID and MONEYHUB_CLIENT_SECRET must be set"):
+    with pytest.raises(
+        RuntimeError, match="MONEYHUB_CLIENT_ID and MONEYHUB_CLIENT_SECRET must be set"
+    ):
         transactions._get_moneyhub_client()
 
 
-def test_app_startup_validates_moneyhub_credentials(monkeypatch):
+def test_app_startup_warns_but_succeeds_without_moneyhub_credentials(monkeypatch, caplog):
+    """A missing credential pair must only disable the feature, not crash startup (#5729)."""
     monkeypatch.setattr(transactions, "_moneyhub_client_instance", None)
     monkeypatch.delenv("TESTING", raising=False)
     monkeypatch.delenv("MONEYHUB_CLIENT_ID", raising=False)
     monkeypatch.delenv("MONEYHUB_CLIENT_SECRET", raising=False)
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
 
     app = create_app()
-    with pytest.raises(RuntimeError, match="MONEYHUB_CLIENT_ID and MONEYHUB_CLIENT_SECRET must be set"):
+    with caplog.at_level("WARNING", logger="transactions"):
         with TestClient(app):
             pass
+
+    assert any("MONEYHUB_CLIENT_ID" in record.message for record in caplog.records)
+
+
+def test_moneyhub_import_route_returns_503_when_unconfigured(monkeypatch):
+    monkeypatch.setattr(transactions, "_moneyhub_client_instance", None)
+    monkeypatch.delenv("TESTING", raising=False)
+    monkeypatch.delenv("MONEYHUB_CLIENT_ID", raising=False)
+    monkeypatch.delenv("MONEYHUB_CLIENT_SECRET", raising=False)
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+
+    app = create_app()
+    with TestClient(app) as client:
+        response = client.post("/transactions/import/moneyhub", data={"owner": "test-owner"})
+
+    assert response.status_code == 503
+    assert "MONEYHUB_CLIENT_ID" in response.json()["detail"]
 
 
 def test_refresh_access_token_posts_expected_payload(monkeypatch):
@@ -254,7 +275,9 @@ def test_load_token_set_returns_none_when_absent(token_storage):
 
 
 def test_save_and_load_token_set_round_trips(token_storage):
-    token_set = TokenSet(access_token="a", refresh_token="r", expires_at=123.0, account_ids=["acc-1"])
+    token_set = TokenSet(
+        access_token="a", refresh_token="r", expires_at=123.0, account_ids=["acc-1"]
+    )
     moneyhub_tokens.save_token_set("alice", token_set)
 
     loaded = moneyhub_tokens.load_token_set("alice")

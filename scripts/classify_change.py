@@ -1,25 +1,34 @@
-"""Classify a PR's diff as "doc-only" so CI can skip heavyweight test jobs.
+"""Classify a PR's diff so CI runs only the test jobs the change can affect.
 
-A change is doc-only when every changed line, across every changed file, is
-one of: a blank line, a full-line comment in a language we recognise, or a
-line inside a file matched by a documentation glob (``*.md``, ``docs/**``,
-etc.). Anything else -- including a single line of real code, a config file
-edit, a permission-bit change, or a rename that touches a non-doc path --
-makes the whole diff non-doc-only.
+Two classifications are produced from a single ``git diff``:
 
-The classifier is intentionally conservative: false negatives (running the
-full suite on a change that was actually doc-only) are fine, false positives
-(skipping the full suite on a change that touches real behaviour) are not.
-When in doubt, this module says "not doc-only".
+``doc-only``
+    True when every changed line, across every changed file, is one of: a
+    blank line, a full-line comment in a language we recognise, or a line
+    inside a file matched by a documentation glob (``*.md``, ``docs/**``,
+    etc.). Anything else -- including a single line of real code, a config
+    file edit, a permission-bit change, or a rename that touches a non-doc
+    path -- makes the whole diff non-doc-only.
+
+``backend`` / ``frontend`` / ``cdk`` / ``shell`` / ``powershell``
+    Per-area flags derived from the changed *paths* via ``AREA_PATH_RULES``
+    below. A doc-only diff sets every area to false, so CI jobs need to
+    consult one flag rather than a flag plus a doc-only override.
+
+The classifier is intentionally conservative: false negatives (running a
+suite that the change could not have broken) are cheap, false positives
+(skipping a suite that would have caught a regression) are not. When in
+doubt -- an unrecognised path, a failed diff, a non-``pull_request`` event --
+this module widens to "everything is affected".
 
 Usage::
 
     python scripts/classify_change.py --event-name pull_request \\
         --base <base-sha> --head <head-sha> [--github-output "$GITHUB_OUTPUT"]
 
-Prints ``doc-only=true`` or ``doc-only=false`` to stdout and, if
-``--github-output`` is given, appends the same line to that file so a GitHub
-Actions step can expose it via ``steps.<id>.outputs.doc-only``.
+Prints one ``key=value`` line per flag to stdout and, if ``--github-output``
+is given, appends the same lines to that file so a GitHub Actions step can
+expose them via ``steps.<id>.outputs.<key>``.
 
 This script intentionally uses only the Python standard library so it can
 run in CI before any pip install step.
@@ -50,6 +59,128 @@ SAFE_COMMENT_PREFIXES: dict[str, tuple[str, ...]] = {
 }
 
 _DIFF_HEADER_RE = re.compile(r"^diff --git a/(.+) b/(.+)$")
+
+# Every CI area a change can affect. Adding an area here is not enough on its
+# own -- it also needs a rule in AREA_PATH_RULES and a job gated on it.
+AREAS: tuple[str, ...] = ("backend", "frontend", "cdk", "shell", "powershell")
+
+_ALL_AREAS = frozenset(AREAS)
+_NO_AREAS: frozenset[str] = frozenset()
+
+# Ordered path -> area map. The FIRST rule whose glob matches a changed path
+# decides that path's areas; later rules are not consulted. Order therefore
+# matters: narrow rules must precede the broad ones they sit inside (e.g.
+# `tests/bash/**` before `tests/**`).
+#
+# Globs are matched case-insensitively against forward-slash repo-relative
+# paths. `**` matches across directory separators, `*` does not.
+#
+# A path matching NO rule falls back to "every area" -- see areas_for_path.
+# That fallback is what keeps a newly added top-level directory from silently
+# skipping every suite, so resist the urge to add a catch-all rule here.
+AREA_PATH_RULES: tuple[tuple[str, frozenset[str]], ...] = (
+    # -- Documentation: affects no executable area. ------------------------
+    ("docs/**", _NO_AREAS),
+    ("**/*.md", _NO_AREAS),
+    (".github/issue_template/**", _NO_AREAS),
+    (".github/pull_request_template*", _NO_AREAS),
+    ("license*", _NO_AREAS),
+    # -- CI's own machinery: widen to everything. --------------------------
+    # A workflow, composite action, ruleset or classifier edit can change the
+    # behaviour of any job, including this gating itself, so such a change
+    # must never narrow the suite that validates it.
+    ("scripts/classify_change.py", _ALL_AREAS),
+    ("scripts/check_branch_protection_required_checks.py", _ALL_AREAS),
+    (".github/**", _ALL_AREAS),
+    # -- Shell / container / deploy tooling. -------------------------------
+    ("scripts/bash/**", frozenset({"shell"})),
+    ("**/*.sh", frozenset({"shell"})),
+    ("**/*.bats", frozenset({"shell"})),
+    ("tests/bash/**", frozenset({"shell"})),
+    ("dockerfile*", frozenset({"shell"})),
+    ("**/dockerfile*", frozenset({"shell"})),
+    ("docker/**", frozenset({"shell"})),
+    ("docker-compose*.yml", frozenset({"shell"})),
+    ("deploy/**", frozenset({"shell"})),
+    ("jenkinsfile*", frozenset({"shell"})),
+    # -- PowerShell tooling (Pester suite lives in scripts/tests). ---------
+    ("scripts/powershell/**", frozenset({"powershell"})),
+    ("**/*.ps1", frozenset({"powershell"})),
+    ("scripts/tests/**", frozenset({"powershell"})),
+    # -- Frontend. ---------------------------------------------------------
+    ("frontend/**", frozenset({"frontend"})),
+    # The root package.json/lockfile installs the CDK CLI used by cdk synth
+    # (`../node_modules/.bin/cdk`) as well as the repo-level npm scripts, so a
+    # change there is both a frontend and a CDK concern.
+    ("package.json", frozenset({"frontend", "cdk"})),
+    ("package-lock.json", frozenset({"frontend", "cdk"})),
+    # -- Infrastructure. ---------------------------------------------------
+    # Deliberately does NOT include backend/** or frontend/**: cdk/tests are
+    # unit tests over CDK constructs, which application code cannot break.
+    # The full synth-against-real-assets path stays covered by cdk-dry-run.yml,
+    # whose own `paths:` filter still lists backend/** and frontend/**.
+    ("cdk/**", frozenset({"cdk"})),
+    ("infra/**", frozenset({"cdk"})),
+    # -- Backend. ----------------------------------------------------------
+    # The SPA contract version is asserted on both sides of the wire by
+    # scripts/check_contract_version_sync.py, so this one module is a
+    # frontend concern too.
+    ("backend/contracts_spa.py", frozenset({"backend", "frontend"})),
+    ("backend/**", frozenset({"backend"})),
+    ("tests/**", frozenset({"backend"})),
+    ("data/**", frozenset({"backend"})),
+    ("requirements*.txt", frozenset({"backend"})),
+    ("pyproject.toml", frozenset({"backend"})),
+    ("pytest.ini", frozenset({"backend"})),
+    ("mypy.ini", frozenset({"backend"})),
+    ("logging.ini", frozenset({"backend"})),
+    ("config*.yaml", frozenset({"backend"})),
+    ("makefile", frozenset({"backend"})),
+    # Remaining scripts/ entries are Python helpers covered by tests/scripts.
+    ("scripts/**", frozenset({"backend"})),
+)
+
+
+def _glob_to_regex(pattern: str) -> re.Pattern[str]:
+    """Compile a repo-path glob to a regex.
+
+    `**/` matches zero or more leading directories, `**` matches across
+    separators, `*` matches within a single path segment.
+    """
+    parts: list[str] = []
+    index = 0
+    while index < len(pattern):
+        if pattern.startswith("**/", index):
+            parts.append("(?:.*/)?")
+            index += 3
+        elif pattern.startswith("**", index):
+            parts.append(".*")
+            index += 2
+        elif pattern[index] == "*":
+            parts.append("[^/]*")
+            index += 1
+        else:
+            parts.append(re.escape(pattern[index]))
+            index += 1
+    return re.compile("^" + "".join(parts) + "$")
+
+
+_COMPILED_AREA_RULES: tuple[tuple[re.Pattern[str], frozenset[str]], ...] = tuple(
+    (_glob_to_regex(pattern), areas) for pattern, areas in AREA_PATH_RULES
+)
+
+
+def areas_for_path(path: str) -> frozenset[str]:
+    """Return the CI areas a single changed *path* can affect.
+
+    Falls back to every area when no rule matches, so an unmapped path can
+    never cause a suite to be skipped.
+    """
+    normalised = path.lower()
+    for regex, areas in _COMPILED_AREA_RULES:
+        if regex.match(normalised):
+            return areas
+    return _ALL_AREAS
 
 
 class FileDiff:
@@ -145,6 +276,45 @@ def classify_diff(diff_text: str) -> bool:
     return all(classify_file(f) for f in files)
 
 
+def areas_for_diff(diff_text: str) -> frozenset[str]:
+    """Return the union of CI areas affected by *diff_text*.
+
+    Renames contribute both their old and new path, so moving a file out of
+    an area still runs that area's suite.
+    """
+    affected: set[str] = set()
+    for file_diff in parse_file_diffs(diff_text):
+        affected |= areas_for_path(file_diff.path)
+        if file_diff.old_path != file_diff.path:
+            affected |= areas_for_path(file_diff.old_path)
+    return frozenset(affected)
+
+
+def classify(event_name: str, base: str, head: str) -> tuple[bool, frozenset[str]]:
+    """Return ``(doc_only, affected_areas)`` for a change.
+
+    Only ``pull_request`` events get diff-based classification; every other
+    event (push, workflow_dispatch, ...) conservatively runs the full suite,
+    since a base/head diff isn't meaningful in the same way there. A diff
+    that cannot be computed widens to the full suite for the same reason.
+    """
+    if event_name != "pull_request" or not base or not head:
+        return False, _ALL_AREAS
+    try:
+        diff_text = get_diff_text(base, head)
+    except subprocess.CalledProcessError as exc:
+        print(
+            f"WARNING: could not compute diff ({exc}); treating every area as affected",
+            file=sys.stderr,
+        )
+        return False, _ALL_AREAS
+    # A doc-only diff zeroes every area so gated jobs consult a single flag
+    # rather than an area flag plus a doc-only override.
+    if classify_diff(diff_text):
+        return True, _NO_AREAS
+    return False, areas_for_diff(diff_text)
+
+
 def get_diff_text(base: str, head: str) -> str:
     result = subprocess.run(
         ["git", "diff", "--no-color", "--unified=0", f"{base}...{head}"],
@@ -164,29 +334,23 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def format_output_lines(doc_only: bool, areas: frozenset[str]) -> list[str]:
+    """Render the classification as ``key=value`` lines, doc-only first."""
+    lines = [f"doc-only={'true' if doc_only else 'false'}"]
+    lines.extend(f"{area}={'true' if area in areas else 'false'}" for area in AREAS)
+    return lines
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    doc_only, areas = classify(args.event_name, args.base, args.head)
 
-    # Only pull_request events get diff-based classification; every other
-    # event (push, workflow_dispatch, ...) conservatively runs the full
-    # suite, since a base/head diff isn't meaningful in the same way there.
-    doc_only = False
-    if args.event_name == "pull_request" and args.base and args.head:
-        try:
-            diff_text = get_diff_text(args.base, args.head)
-        except subprocess.CalledProcessError as exc:
-            print(
-                f"WARNING: could not compute diff ({exc}); treating as not doc-only",
-                file=sys.stderr,
-            )
-        else:
-            doc_only = classify_diff(diff_text)
-
-    output_line = f"doc-only={'true' if doc_only else 'false'}"
-    print(output_line)
+    output_lines = format_output_lines(doc_only, areas)
+    for line in output_lines:
+        print(line)
     if args.github_output:
         with open(args.github_output, "a", encoding="utf-8") as fh:
-            fh.write(output_line + "\n")
+            fh.write("\n".join(output_lines) + "\n")
     return 0
 
 

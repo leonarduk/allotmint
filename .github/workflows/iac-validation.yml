@@ -11,62 +11,30 @@ permissions:
   contents: read
 
 jobs:
-  detect-iac-changes:
-    name: Detect IaC changes
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    outputs:
-      iac_changed: ${{ steps.changed-files.outputs.iac_changed }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Check for IaC-relevant file changes
-        id: changed-files
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: |
-          set -euo pipefail
-
-          if [ -z "$BASE_SHA" ] || ! git cat-file -e "$BASE_SHA^{commit}"; then
-            if git rev-parse --verify "$HEAD_SHA^" >/dev/null 2>&1; then
-              BASE_SHA="$(git rev-parse "$HEAD_SHA^")"
-            else
-              echo "iac_changed=true" >> "$GITHUB_OUTPUT"
-              echo "No comparable base commit found; running IaC validation defensively."
-              exit 0
-            fi
-          fi
-
-          changed_files="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" -- cdk infra .github/workflows)"
-          if [ -n "$changed_files" ]; then
-            echo "iac_changed=true" >> "$GITHUB_OUTPUT"
-            echo "IaC validation will run for these files:"
-            echo "$changed_files"
-          else
-            echo "iac_changed=false" >> "$GITHUB_OUTPUT"
-            echo "No IaC-relevant changes detected."
-          fi
+  # Shared with ci.yml, backend-integration.yml and frontend-tests.yml. This
+  # replaces a hand-rolled `git diff --name-only -- cdk infra .github/workflows`
+  # step; the equivalent globs now live in AREA_PATH_RULES in
+  # scripts/classify_change.py, and .github/** still widens to every area, so
+  # a workflow edit keeps triggering CDK validation exactly as before.
+  classify-change:
+    uses: ./.github/workflows/_classify-change.yml
 
   cdk-validation:
     name: CDK validation
-    needs: detect-iac-changes
+    needs: classify-change
+    # A job-level gate replaces the per-step `if:` that used to be repeated on
+    # all eleven steps. cdk-validation is not a required status check, so
+    # skipping the job outright is safe here; ci.yml's required jobs keep the
+    # always-report shape instead. `!= 'false'` with `!cancelled()` keeps the
+    # fail-safe polarity: a classifier failure runs the validation.
+    if: "!cancelled() && needs.classify-change.outputs.cdk != 'false'"
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Skip CDK validation for unrelated changes
-        if: needs.detect-iac-changes.outputs.iac_changed != 'true'
-        run: echo "No IaC-relevant changes detected; CDK validation is not required."
-
       - name: Checkout repository
-        if: needs.detect-iac-changes.outputs.iac_changed == 'true'
         uses: actions/checkout@v7
 
       - name: Set up Python
-        if: needs.detect-iac-changes.outputs.iac_changed == 'true'
         uses: actions/setup-python@v7
         with:
           python-version: '3.12'
@@ -74,13 +42,11 @@ jobs:
           cache-dependency-path: cdk/requirements.txt
 
       - name: Install Python dependencies
-        if: needs.detect-iac-changes.outputs.iac_changed == 'true'
         # Install only CDK packages and pytest; the full app stack is not needed for synth/test
         # and mixing requirements files causes aws-cdk-lib version conflicts.
         run: python -m pip install pytest -r cdk/requirements.txt
 
       - name: Set up Node.js
-        if: needs.detect-iac-changes.outputs.iac_changed == 'true'
         uses: actions/setup-node@v7
         with:
           node-version: '24'
@@ -90,28 +56,25 @@ jobs:
             frontend/package-lock.json
 
       - name: Install CDK CLI dependencies
-        if: needs.detect-iac-changes.outputs.iac_changed == 'true'
         run: npm ci
 
       - name: Install frontend dependencies
-        if: needs.detect-iac-changes.outputs.iac_changed == 'true'
         working-directory: frontend
         run: npm ci
 
       # StaticSiteStack stages frontend/dist during synth, so build assets before invoking CDK.
       - name: Build frontend assets for CDK synth
-        if: needs.detect-iac-changes.outputs.iac_changed == 'true'
         working-directory: frontend
         run: npm run build
 
       - name: Run CDK tests
-        if: needs.detect-iac-changes.outputs.iac_changed == 'true'
         # Clear addopts from pytest.ini so --cov=backend --cov-fail-under=90 is not inherited;
         # CDK tests don't cover backend/ and pytest-cov is not installed in this job.
+        # Not redundant with ci.yml's cdk-tests job: that one runs cdk/tests
+        # against the root requirements set, this one against cdk/requirements.txt.
         run: pytest cdk/tests -v --tb=short --override-ini="addopts="
 
       - name: Synthesize CDK app
-        if: needs.detect-iac-changes.outputs.iac_changed == 'true'
         working-directory: cdk
         env:
           JWT_SECRET: ci-cdk-validation-secret

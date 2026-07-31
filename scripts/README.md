@@ -386,15 +386,21 @@ required.
 
 ## classify_change.py
 
-Used by the `classify-change` CI job (`.github/workflows/ci.yml`,
-`.github/workflows/backend-integration.yml`) to classify a pull request's
-diff as "doc-only" so the heavyweight test jobs can skip. See
-[docs/CONTRIBUTOR_RUNBOOK.md](../docs/CONTRIBUTOR_RUNBOOK.md#ci-fast-path-for-doc-only-prs)
-for the classification rules.
+The single source of truth for "which CI areas can this PR affect?". Called by
+the shared `.github/workflows/_classify-change.yml` reusable workflow, which
+`ci.yml`, `backend-integration.yml`, `frontend-tests.yml` and
+`iac-validation.yml` all reuse so they cannot disagree.
+
+Emits one `key=value` line per flag: `doc-only`, plus `backend`, `frontend`,
+`cdk`, `shell` and `powershell`. A doc-only diff sets every area to false.
 
 ```bash
 python scripts/classify_change.py --event-name pull_request --base <base-sha> --head <head-sha>
 ```
+
+The path-to-area map lives in `AREA_PATH_RULES` at the top of the script; see
+[docs/CONTRIBUTOR_RUNBOOK.md](../docs/CONTRIBUTOR_RUNBOOK.md#ci-runs-only-the-areas-a-pr-affects)
+for the rules, the fail-safe behaviour, and how to add a new area.
 
 ## n_review_issue.py
 

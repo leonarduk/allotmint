@@ -16,6 +16,10 @@ spec.loader.exec_module(_mod)  # type: ignore[union-attr]
 classify_diff = _mod.classify_diff
 is_doc_path = _mod.is_doc_path
 main = _mod.main
+areas_for_path = _mod.areas_for_path
+areas_for_diff = _mod.areas_for_diff
+classify = _mod.classify
+AREAS = _mod.AREAS
 
 
 # ---------------------------------------------------------------------------
@@ -268,7 +272,10 @@ class TestMain:
             ]
         )
         assert exit_code == 0
-        assert output_file.read_text(encoding="utf-8") == "doc-only=true\n"
+        written = output_file.read_text(encoding="utf-8").splitlines()
+        # An empty diff is doc-only, so every area flag must be false.
+        assert written[0] == "doc-only=true"
+        assert sorted(written[1:]) == sorted(f"{area}=false" for area in AREAS)
 
     def test_diff_failure_falls_back_to_not_doc_only(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
@@ -282,3 +289,281 @@ class TestMain:
         captured = capsys.readouterr()
         assert "doc-only=false" in captured.out
         assert "WARNING" in captured.err
+
+    def test_every_area_flag_is_emitted_exactly_once(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A missing output line would leave a gated job with an empty flag.
+
+        `!= 'false'` means that fails safe (the job runs), but silently, so
+        assert the full set is always present rather than relying on it.
+        """
+        monkeypatch.setattr(_mod, "get_diff_text", lambda base, head: "")
+        exit_code = main(["--event-name", "pull_request", "--base", "a", "--head", "b"])
+        assert exit_code == 0
+        printed = capsys.readouterr().out.splitlines()
+        keys = [line.split("=", 1)[0] for line in printed]
+        assert keys == ["doc-only", *AREAS]
+
+
+# ---------------------------------------------------------------------------
+# areas_for_path
+# ---------------------------------------------------------------------------
+
+
+class TestAreasForPath:
+    @pytest.mark.parametrize(
+        ("path", "expected"),
+        [
+            # Backend
+            ("backend/app.py", {"backend"}),
+            ("backend/routes/accounts.py", {"backend"}),
+            ("tests/test_backend_api.py", {"backend"}),
+            ("tests/scripts/test_publish_pr.py", {"backend"}),
+            ("requirements.txt", {"backend"}),
+            ("requirements-dev.txt", {"backend"}),
+            ("mypy.ini", {"backend"}),
+            ("pyproject.toml", {"backend"}),
+            ("config.yaml", {"backend"}),
+            ("scripts/site_healthcheck.py", {"backend"}),
+            ("data/accounts/demo.json", {"backend"}),
+            # Frontend
+            ("frontend/src/main.tsx", {"frontend"}),
+            ("frontend/package-lock.json", {"frontend"}),
+            # CDK
+            ("cdk/stacks/api_stack.py", {"cdk"}),
+            ("cdk/tests/test_api_stack.py", {"cdk"}),
+            ("infra/lambda/handler.py", {"cdk"}),
+            # Shell / container / deploy
+            ("scripts/bash/run-local-api.sh", {"shell"}),
+            ("tests/bash/fetch-cloudwatch-logs.bats", {"shell"}),
+            ("Dockerfile", {"shell"}),
+            ("backend/Dockerfile.lambda", {"shell"}),
+            ("docker/nginx/nginx.conf", {"shell"}),
+            ("docker-compose.local.yml", {"shell"}),
+            ("deploy/Jenkinsfile-deploy", {"shell"}),
+            ("Jenkinsfile", {"shell"}),
+            # PowerShell
+            ("scripts/powershell/aider-issue.ps1", {"powershell"}),
+            ("scripts/developer_tools/m_implement_issue.ps1", {"powershell"}),
+            ("scripts/tests/aider-issue.Tests.ps1", {"powershell"}),
+        ],
+    )
+    def test_single_area_paths(self, path: str, expected: set[str]) -> None:
+        assert set(areas_for_path(path)) == expected
+
+    @pytest.mark.parametrize(
+        "path",
+        ["docs/DEPLOY.md", "README.md", "frontend/README.md", "LICENSE", ".github/ISSUE_TEMPLATE/bug_report.md"],
+    )
+    def test_documentation_paths_affect_no_area(self, path: str) -> None:
+        assert areas_for_path(path) == frozenset()
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            ".github/workflows/ci.yml",
+            ".github/workflows/_classify-change.yml",
+            ".github/actions/setup-frontend-deps/action.yml",
+            ".github/rulesets/default-branch-protection.json",
+            # .github/scripts/*.sh are invoked by workflows, so they widen to
+            # everything under the `.github/**` rule rather than being treated
+            # as ordinary shell scripts.
+            ".github/scripts/extract_verdict.sh",
+            "scripts/classify_change.py",
+            "scripts/check_branch_protection_required_checks.py",
+        ],
+    )
+    def test_ci_machinery_widens_to_every_area(self, path: str) -> None:
+        """A change to the gating itself must never narrow the suite that validates it."""
+        assert set(areas_for_path(path)) == set(AREAS)
+
+    def test_unmapped_path_falls_back_to_every_area(self) -> None:
+        """The fail-safe: a new top-level directory can't silently skip everything."""
+        assert set(areas_for_path("some-brand-new-top-level-dir/thing.go")) == set(AREAS)
+
+    def test_root_package_files_are_frontend_and_cdk(self) -> None:
+        """Root npm installs the CDK CLI that `cdk synth` invokes, not just JS deps."""
+        assert set(areas_for_path("package.json")) == {"frontend", "cdk"}
+        assert set(areas_for_path("package-lock.json")) == {"frontend", "cdk"}
+
+    def test_contracts_spa_is_backend_and_frontend(self) -> None:
+        """check_contract_version_sync.py asserts this module against the SPA."""
+        assert set(areas_for_path("backend/contracts_spa.py")) == {"backend", "frontend"}
+
+    def test_narrow_rules_win_over_the_broader_rules_they_sit_inside(self) -> None:
+        # tests/bash/** and scripts/tests/** must not be swallowed by
+        # tests/** -> backend or scripts/** -> backend.
+        assert set(areas_for_path("tests/bash/deploy.bats")) == {"shell"}
+        assert set(areas_for_path("scripts/tests/thing.Tests.ps1")) == {"powershell"}
+        # ...while their general cases still land on backend.
+        assert set(areas_for_path("tests/test_app.py")) == {"backend"}
+        assert set(areas_for_path("scripts/check_contract_version_sync.py")) == {"backend"}
+
+    def test_matching_is_case_insensitive(self) -> None:
+        assert areas_for_path("Docs/Guide.MD") == frozenset()
+        assert set(areas_for_path("Frontend/src/App.tsx")) == {"frontend"}
+
+
+# ---------------------------------------------------------------------------
+# areas_for_diff
+# ---------------------------------------------------------------------------
+
+
+class TestAreasForDiff:
+    def test_multi_area_diff_unions_areas(self) -> None:
+        diff = """\
+diff --git a/backend/app.py b/backend/app.py
+index abc123..def456 100644
+--- a/backend/app.py
++++ b/backend/app.py
+@@ -1 +1 @@
+-x = 1
++x = 2
+diff --git a/frontend/src/App.tsx b/frontend/src/App.tsx
+index abc123..def456 100644
+--- a/frontend/src/App.tsx
++++ b/frontend/src/App.tsx
+@@ -1 +1 @@
+-const a = 1
++const a = 2
+"""
+        assert set(areas_for_diff(diff)) == {"backend", "frontend"}
+
+    def test_rename_counts_both_old_and_new_paths(self) -> None:
+        """Moving a file out of an area must still run that area's suite."""
+        diff = """\
+diff --git a/backend/helper.py b/scripts/powershell/helper.ps1
+similarity index 90%
+rename from backend/helper.py
+rename to scripts/powershell/helper.ps1
+"""
+        assert set(areas_for_diff(diff)) == {"backend", "powershell"}
+
+    def test_empty_diff_affects_no_area(self) -> None:
+        assert areas_for_diff("") == frozenset()
+
+
+# ---------------------------------------------------------------------------
+# classify (the doc-only + areas combination the workflows consume)
+# ---------------------------------------------------------------------------
+
+
+class TestClassify:
+    def test_non_pull_request_event_affects_every_area(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """push to main must keep running the full suite."""
+
+        def fail_if_called(base: str, head: str) -> str:
+            raise AssertionError("get_diff_text should not be called for push events")
+
+        monkeypatch.setattr(_mod, "get_diff_text", fail_if_called)
+        doc_only, areas = classify("push", "abc", "def")
+        assert doc_only is False
+        assert set(areas) == set(AREAS)
+
+    @pytest.mark.parametrize(("base", "head"), [("", "head-sha"), ("base-sha", ""), ("", "")])
+    def test_missing_sha_affects_every_area(self, monkeypatch: pytest.MonkeyPatch, base: str, head: str) -> None:
+        monkeypatch.setattr(
+            _mod,
+            "get_diff_text",
+            lambda b, h: (_ for _ in ()).throw(AssertionError("should not diff without both SHAs")),
+        )
+        _, areas = classify("pull_request", base, head)
+        assert set(areas) == set(AREAS)
+
+    def test_diff_failure_affects_every_area(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        def raise_called_process_error(base: str, head: str) -> str:
+            raise subprocess.CalledProcessError(1, ["git", "diff"])
+
+        monkeypatch.setattr(_mod, "get_diff_text", raise_called_process_error)
+        doc_only, areas = classify("pull_request", "abc", "def")
+        assert doc_only is False
+        assert set(areas) == set(AREAS)
+
+    def test_doc_only_diff_zeroes_every_area(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        diff = """\
+diff --git a/docs/RUNBOOK.md b/docs/RUNBOOK.md
+index abc123..def456 100644
+--- a/docs/RUNBOOK.md
++++ b/docs/RUNBOOK.md
+@@ -1,0 +2 @@
++Some prose.
+"""
+        monkeypatch.setattr(_mod, "get_diff_text", lambda base, head: diff)
+        doc_only, areas = classify("pull_request", "abc", "def")
+        assert doc_only is True
+        assert areas == frozenset()
+
+    def test_comment_only_python_change_zeroes_areas_despite_backend_path(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """doc-only wins over the path map, so jobs gate on one flag only."""
+        diff = """\
+diff --git a/backend/app.py b/backend/app.py
+index abc123..def456 100644
+--- a/backend/app.py
++++ b/backend/app.py
+@@ -10,0 +11 @@ SOME_CONST = 5
++# Explanatory comment only.
+"""
+        monkeypatch.setattr(_mod, "get_diff_text", lambda base, head: diff)
+        doc_only, areas = classify("pull_request", "abc", "def")
+        assert doc_only is True
+        assert areas == frozenset()
+
+    def test_backend_only_change_does_not_affect_frontend(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        diff = """\
+diff --git a/backend/routes/accounts.py b/backend/routes/accounts.py
+index abc123..def456 100644
+--- a/backend/routes/accounts.py
++++ b/backend/routes/accounts.py
+@@ -1 +1 @@
+-LIMIT = 10
++LIMIT = 20
+"""
+        monkeypatch.setattr(_mod, "get_diff_text", lambda base, head: diff)
+        doc_only, areas = classify("pull_request", "abc", "def")
+        assert doc_only is False
+        assert set(areas) == {"backend"}
+
+    def test_frontend_only_change_does_not_affect_backend(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        diff = """\
+diff --git a/frontend/src/pages/Market.tsx b/frontend/src/pages/Market.tsx
+index abc123..def456 100644
+--- a/frontend/src/pages/Market.tsx
++++ b/frontend/src/pages/Market.tsx
+@@ -1 +1 @@
+-const a = 1
++const a = 2
+"""
+        monkeypatch.setattr(_mod, "get_diff_text", lambda base, head: diff)
+        _, areas = classify("pull_request", "abc", "def")
+        assert set(areas) == {"frontend"}
+
+    def test_powershell_only_change_affects_only_powershell(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        diff = """\
+diff --git a/scripts/powershell/aider-issue.ps1 b/scripts/powershell/aider-issue.ps1
+index abc123..def456 100644
+--- a/scripts/powershell/aider-issue.ps1
++++ b/scripts/powershell/aider-issue.ps1
+@@ -1 +1 @@
+-$x = 1
++$x = 2
+"""
+        monkeypatch.setattr(_mod, "get_diff_text", lambda base, head: diff)
+        _, areas = classify("pull_request", "abc", "def")
+        assert set(areas) == {"powershell"}
+
+    def test_workflow_change_affects_every_area(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        diff = """\
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index abc123..def456 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -1 +1 @@
+-  runs-on: ubuntu-latest
++  runs-on: ubuntu-24.04
+"""
+        monkeypatch.setattr(_mod, "get_diff_text", lambda base, head: diff)
+        _, areas = classify("pull_request", "abc", "def")
+        assert set(areas) == set(AREAS)

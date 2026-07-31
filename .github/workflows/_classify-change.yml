@@ -1,0 +1,76 @@
+# Single source of truth for "which CI areas can this PR affect?".
+#
+# Called via `uses: ./.github/workflows/_classify-change.yml` so that ci.yml,
+# backend-integration.yml, frontend-tests.yml and iac-validation.yml all gate
+# on identical outputs. Before this existed the repo had four competing
+# mechanisms (a duplicated classify job, dorny/paths-filter, a hand-rolled
+# changed-files step, and workflow-level `paths:`), which could disagree.
+#
+# The classification rules -- and the fail-safe that widens an unrecognised
+# path to every area -- live in scripts/classify_change.py, not here.
+#
+# Callers MUST treat a missing output as "run the job": gate on
+# `needs.<id>.outputs.<area> != 'false'`, never on `== 'true'`. If this
+# workflow fails, its outputs are empty strings, and `!= 'false'` is the
+# polarity that then errs towards running the suite.
+name: Classify change
+
+on:
+  workflow_call:
+    outputs:
+      doc-only:
+        description: Whole diff is documentation/comments only.
+        value: ${{ jobs.classify.outputs.doc-only }}
+      backend:
+        description: Change can affect the Python backend or its test suite.
+        value: ${{ jobs.classify.outputs.backend }}
+      frontend:
+        description: Change can affect the frontend app or its test suite.
+        value: ${{ jobs.classify.outputs.frontend }}
+      cdk:
+        description: Change can affect CDK/IaC constructs.
+        value: ${{ jobs.classify.outputs.cdk }}
+      shell:
+        description: Change can affect shell scripts, containers or deploy tooling.
+        value: ${{ jobs.classify.outputs.shell }}
+      powershell:
+        description: Change can affect PowerShell scripts or their Pester suite.
+        value: ${{ jobs.classify.outputs.powershell }}
+
+permissions:
+  contents: read
+
+jobs:
+  classify:
+    name: Classify PR change (affected areas)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      doc-only: ${{ steps.classify.outputs.doc-only }}
+      backend: ${{ steps.classify.outputs.backend }}
+      frontend: ${{ steps.classify.outputs.frontend }}
+      cdk: ${{ steps.classify.outputs.cdk }}
+      shell: ${{ steps.classify.outputs.shell }}
+      powershell: ${{ steps.classify.outputs.powershell }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          # Full history: the classifier diffs base...head, and a shallow
+          # clone has no merge base to diff against.
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Classify affected areas
+        id: classify
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        # No pip install: classify_change.py is stdlib-only by design.
+        run: |
+          python scripts/classify_change.py \
+            --event-name "$EVENT_NAME" \
+            --base "$BASE_SHA" \
+            --head "$HEAD_SHA" \
+            --github-output "$GITHUB_OUTPUT"

@@ -8,27 +8,68 @@ For the broader product overview, see [docs/README.md](README.md). For repo-wide
 
 Before pushing, be aware that pull requests trigger automated AI code reviews via Claude and GPT workflows. These reviews are advisory and posted as PR comments. For details on how these workflows operate, failure handling, and debugging tips, see [docs/AI_REVIEW_WORKFLOWS.md](AI_REVIEW_WORKFLOWS.md).
 
-### CI fast path for doc-only PRs
+### CI runs only the areas a PR affects
 
-A `classify-change` job in `.github/workflows/ci.yml` and `.github/workflows/backend-integration.yml`
-inspects the PR's diff (via `scripts/classify_change.py`) and skips the heavyweight
-`test`, `lambda-compat`, `python-compatibility`, and `integration-tests` jobs
-when every changed line, across every changed file, is a blank line, a
-full-line comment (`#` in Python; `//`/`/* */` in TS/JS), or content inside a
-`*.md`/`docs/**`/`.github/ISSUE_TEMPLATE/**` file. `frontend-smoke` already
-skips on non-frontend PRs via its own path filter, and a doc-only PR that
-also doesn't touch `frontend/**` skips it too as a side effect of its
-`needs: test`.
+A PR does not run the whole test suite. The shared reusable workflow
+`.github/workflows/_classify-change.yml` runs `scripts/classify_change.py`
+once and publishes a flag per area; `ci.yml`, `backend-integration.yml`,
+`frontend-tests.yml` and `iac-validation.yml` all gate their jobs on those
+same flags, so they cannot disagree about what a PR touched.
 
-The classifier is deliberately conservative: any real code line, config file
-(`pytest.ini`, `mypy.ini`, `requirements*.txt`, workflow YAML, etc.),
-permission-bit change, or rename touching a non-doc path makes the whole PR
-non-doc-only, and the full suite runs as before. If classification itself
-fails for any reason, the full suite also runs — it never fails open into
-skipping tests. Lightweight checks (`super-linter`, `lint-workflows`,
-`pr-lint`, `issue-lint`, `empty-pr-check`, `validate-backend-deps`) always run
-regardless of classification. See [issue #5594](https://github.com/leonarduk/allotmint/issues/5594)
-for the full rationale.
+| Area | Gated jobs | Triggered by (see `AREA_PATH_RULES`) |
+| --- | --- | --- |
+| `backend` | `integration-tests`, `lambda-compat`, `python-compatibility`, `validate-backend-deps` | `backend/**`, `tests/**`, `data/**`, `requirements*.txt`, `pyproject.toml`, `pytest.ini`, `mypy.ini`, `config*.yaml`, `scripts/**.py` |
+| `frontend` | `frontend-checks`, `frontend-smoke`, `frontend-tests` | `frontend/**`, root `package.json`/`package-lock.json`, `backend/contracts_spa.py` |
+| `cdk` | `cdk-tests`, `cdk-validation` | `cdk/**`, `infra/**`, root `package.json`/`package-lock.json` |
+| `shell` | `shell-tests` (bats), `lint-shell-scripts` | `**/*.sh`, `scripts/bash/**`, `tests/bash/**`, `Dockerfile*`, `docker/**`, `docker-compose*.yml`, `deploy/**`, `Jenkinsfile*` |
+| `powershell` | `powershell-tests` (Pester) | `**/*.ps1`, `scripts/powershell/**`, `scripts/tests/**` |
+
+Some checks are deliberately **never** gated, because they are what verifies
+the gating: `test` (branch-protection and lockfile validation),
+`lint-workflows`, plus `super-linter`, `pr-lint`, `issue-lint` and
+`empty-pr-check`.
+
+**The classifier only ever widens.** It is designed so that being wrong costs
+wall-clock, never coverage:
+
+- **Doc-only PRs skip every area.** When every changed line is a blank line, a
+  full-line comment (`#` in Python; `//`/`/* */` in TS/JS), or content inside a
+  `*.md`/`docs/**`/`.github/ISSUE_TEMPLATE/**` file, all area flags are false.
+  Any real code line, config file, permission-bit change, or rename touching a
+  non-doc path makes the PR non-doc-only.
+- **An unrecognised path runs everything.** A file matching no rule in
+  `AREA_PATH_RULES` widens to every area, so adding a new top-level directory
+  cannot silently skip suites.
+- **CI's own machinery runs everything.** Any change under `.github/**`, or to
+  `classify_change.py` itself, sets every area — a change to the gating never
+  narrows the suite that validates it.
+- **Failure runs everything.** A `push` to `main`, a missing base SHA, or a
+  classifier crash all classify as "every area affected". Jobs gate on
+  `<area> != 'false'` (never `== 'true'`) so empty outputs from a failed
+  classifier run the job rather than skipping it.
+
+#### Adding or changing an area
+
+1. Add the path glob to `AREA_PATH_RULES` in `scripts/classify_change.py`.
+   Rules are **first-match-wins**, so a narrow rule must precede any broader
+   rule it sits inside (`tests/bash/**` before `tests/**`).
+2. For a genuinely new area, add it to `AREAS`, declare it as an output in
+   `.github/workflows/_classify-change.yml`, and gate the job with
+   `if: "!cancelled() && needs.classify-change.outputs.<area> != 'false'"`.
+3. If the gated job is a required check, update **both**
+   `.github/rulesets/default-branch-protection.json` and
+   `EXPECTED_REQUIRED_CHECKS` in
+   `scripts/check_branch_protection_required_checks.py` in the same PR — and
+   remember the ruleset JSON is a record of intent, so an admin must also apply
+   it in the repo's GitHub settings.
+4. `tests/scripts/test_classify_change.py` and
+   `tests/scripts/test_ci_area_gating.py` enforce the mapping and the gating
+   invariants; extend them alongside the change.
+
+See [issue #5594](https://github.com/leonarduk/allotmint/issues/5594) for the
+original doc-only fast path and
+[issue #5722](https://github.com/leonarduk/allotmint/issues/5722) for the
+generalisation to per-area gating.
 
 ## 1. Supported run modes at a glance
 

@@ -34,6 +34,7 @@ from backend.common import (
 )
 from backend.common import portfolio as portfolio_mod
 from backend.common.account_models import OwnerSummaryRecord, PersonMetadata
+from backend.common.errors import log_owner_not_found
 from backend.config import config, demo_identity
 from backend.logging_setup import sanitise_log_value
 from backend.routes._accounts import resolve_accounts_root, resolve_owner_directory
@@ -65,16 +66,8 @@ def _coerce_owner_summary_entry(entry: OwnerSummaryRecord | Dict[str, Any] | Non
     return OwnerSummaryRecord.model_construct(
         owner=str(payload.get("owner", "")),
         accounts=list(accounts) if isinstance(accounts, list) else [],
-        full_name=(
-            raw_full_name.strip()
-            if isinstance(raw_full_name, str) and raw_full_name.strip()
-            else None
-        ),
-        email=(
-            raw_email.strip()
-            if isinstance(raw_email, str) and raw_email.strip()
-            else None
-        ),
+        full_name=(raw_full_name.strip() if isinstance(raw_full_name, str) and raw_full_name.strip() else None),
+        email=(raw_email.strip() if isinstance(raw_email, str) and raw_email.strip() else None),
         has_transactions_artifact=bool(payload.get("has_transactions_artifact", False)),
     )
 
@@ -466,9 +459,7 @@ def _build_demo_summary(accounts_root: Path) -> Dict[str, Any]:
     return fallback
 
 
-def _list_owner_summaries(
-    request: Request, current_user: Optional[str] = None
-) -> List[OwnerSummary]:
+def _list_owner_summaries(request: Request, current_user: Optional[str] = None) -> List[OwnerSummary]:
     """Return owner summaries enriched with conventional account entries."""
 
     accounts_root = resolve_accounts_root(request, allow_missing=True)
@@ -506,9 +497,7 @@ if config.disable_auth:
 else:
 
     @router.get("/owners", response_model=List[OwnerSummary])
-    async def owners(
-        request: Request, current_user: str = Depends(get_current_user)
-    ) -> List[OwnerSummary]:
+    async def owners(request: Request, current_user: str = Depends(get_current_user)) -> List[OwnerSummary]:
         """List available owners including demo defaults when necessary."""
 
         return _list_owner_summaries(request, current_user)
@@ -531,10 +520,9 @@ async def portfolio(owner: str, request: Request, as_of: str | None = None):
     pricing_date = _resolve_pricing_date(as_of)
 
     try:
-        return portfolio_mod.build_owner_portfolio(
-            owner, accounts_root, pricing_date=pricing_date
-        )
+        return portfolio_mod.build_owner_portfolio(owner, accounts_root, pricing_date=pricing_date)
     except FileNotFoundError:
+        log_owner_not_found(owner)
         raise HTTPException(status_code=404, detail="Owner not found")
 
 
@@ -547,10 +535,9 @@ async def portfolio_sectors(owner: str, request: Request, as_of: str | None = No
     pricing_date = _resolve_pricing_date(as_of)
 
     try:
-        portfolio_data = portfolio_mod.build_owner_portfolio(
-            owner, accounts_root, pricing_date=pricing_date
-        )
+        portfolio_data = portfolio_mod.build_owner_portfolio(owner, accounts_root, pricing_date=pricing_date)
     except FileNotFoundError:
+        log_owner_not_found(owner)
         raise HTTPException(status_code=404, detail="Owner not found")
 
     return portfolio_utils.aggregate_by_sector(portfolio_data)
@@ -572,6 +559,7 @@ async def portfolio_var(
         var = risk.compute_portfolio_var(owner, days=days, confidence=confidence, include_cash=not exclude_cash)
         sharpe = risk.compute_sharpe_ratio(owner, days=days)
     except FileNotFoundError:
+        log_owner_not_found(owner)
         raise HTTPException(status_code=404, detail="Owner not found")
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -615,6 +603,7 @@ async def portfolio_var_breakdown(
             horizon_days=horizon_days,
         )
     except FileNotFoundError:
+        log_owner_not_found(owner)
         raise HTTPException(status_code=404, detail="Owner not found")
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -644,6 +633,7 @@ async def portfolio_var_recompute(
     try:
         var = risk.compute_portfolio_var(owner, days=days, confidence=confidence)
     except FileNotFoundError:
+        log_owner_not_found(owner)
         raise HTTPException(status_code=404, detail="Owner not found")
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -668,11 +658,7 @@ def _normalise_filter_values(values: Optional[Sequence[str]]) -> set[str] | None
         return None
     if isinstance(values, str):
         values = [values]
-    normalised = {
-        str(value).strip().lower()
-        for value in values
-        if value is not None and str(value).strip()
-    }
+    normalised = {str(value).strip().lower() for value in values if value is not None and str(value).strip()}
     return normalised or None
 
 
@@ -727,9 +713,7 @@ async def group_instruments(
     portfolio_for_aggregation: Dict[str, Any]
     if filters:
         filtered_accounts = [
-            account
-            for account in gp.get("accounts", [])
-            if _account_matches_filters(account, filters)
+            account for account in gp.get("accounts", []) if _account_matches_filters(account, filters)
         ]
         portfolio_for_aggregation = {**gp, "accounts": filtered_accounts}
     else:
@@ -835,7 +819,8 @@ async def group_movers(
     except Exception as e:
         log.warning(
             "Failed to load instrument summaries for group %s: %s",
-            sanitise_log_value(slug), sanitise_log_value(e),
+            sanitise_log_value(slug),
+            sanitise_log_value(e),
         )
         raise HTTPException(status_code=404, detail="Group not found")
 
@@ -962,15 +947,11 @@ async def instrument_detail(
     control only the price-series window.  A position exists or it doesn't;
     there is no historical positions API here.
     """
-    resolved_start, resolved_end = resolve_date_range(
-        365, start_date=start_date, end_date=end_date
-    )
+    resolved_start, resolved_end = resolve_date_range(365, start_date=start_date, end_date=end_date)
     if resolved_start > resolved_end:
         raise HTTPException(status_code=400, detail="start_date must not be after end_date")
     try:
-        series = instrument_api.timeseries_for_ticker(
-            ticker, start_date=resolved_start, end_date=resolved_end
-        )
+        series = instrument_api.timeseries_for_ticker(ticker, start_date=resolved_start, end_date=resolved_end)
         prices_list = series.get("prices", [])
         positions_list = instrument_api.positions_for_ticker(slug, ticker)
     except Exception:

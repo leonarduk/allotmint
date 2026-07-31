@@ -79,7 +79,7 @@ async def owner_alpha(
         response.update(breakdown)
         return response
     except FileNotFoundError:
-        raise_owner_not_found()
+        raise_owner_not_found(owner, benchmark=benchmark)
 
 
 @router.get("/performance/{owner}/tracking-error")
@@ -105,7 +105,7 @@ async def owner_tracking_error(
         response.update(breakdown)
         return response
     except FileNotFoundError:
-        raise_owner_not_found()
+        raise_owner_not_found(owner, benchmark=benchmark)
 
 
 @router.get("/performance/{owner}/max-drawdown")
@@ -124,7 +124,7 @@ async def owner_max_drawdown(owner: str, days: int = 365, as_of: str | None = No
         response.update(breakdown)
         return response
     except FileNotFoundError:
-        raise_owner_not_found()
+        raise_owner_not_found(owner)
 
 
 @router.get("/performance/{owner}/twr")
@@ -133,12 +133,10 @@ async def owner_twr(owner: str, days: int = 365, as_of: str | None = None):
     """Return time-weighted return for ``owner``."""
     owner = _validate_owner_slug(owner, "owner")
     try:
-        val = portfolio_utils.compute_time_weighted_return(
-            owner, days, pricing_date=_resolve_as_of(as_of)
-        )
+        val = portfolio_utils.compute_time_weighted_return(owner, days, pricing_date=_resolve_as_of(as_of))
         return {"owner": owner, "time_weighted_return": val}
     except FileNotFoundError:
-        raise_owner_not_found()
+        raise_owner_not_found(owner)
 
 
 @router.get("/performance/{owner}/xirr")
@@ -147,12 +145,10 @@ async def owner_xirr(owner: str, days: int = 365, as_of: str | None = None):
     """Return XIRR for ``owner``."""
     owner = _validate_owner_slug(owner, "owner")
     try:
-        val = portfolio_utils.compute_xirr(
-            owner, days, pricing_date=_resolve_as_of(as_of)
-        )
+        val = portfolio_utils.compute_xirr(owner, days, pricing_date=_resolve_as_of(as_of))
         return {"owner": owner, "xirr": val}
     except FileNotFoundError:
-        raise_owner_not_found()
+        raise_owner_not_found(owner)
 
 
 @router.get("/performance/{owner}/holdings")
@@ -164,7 +160,7 @@ async def owner_holdings(owner: str, date: str):
         rows = portfolio_utils.portfolio_value_breakdown(owner, date)
         return {"owner": owner, "date": date, "holdings": rows}
     except FileNotFoundError:
-        raise_owner_not_found()
+        raise_owner_not_found(owner)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -175,9 +171,7 @@ async def group_alpha(slug: str, benchmark: str = "VWRL.L", days: int = 365):
     slug = _validate_owner_slug(slug, "slug")
     benchmark = _validate_benchmark(benchmark)
     try:
-        result = portfolio_utils.compute_group_alpha_vs_benchmark(
-            slug, benchmark, days, include_breakdown=True
-        )
+        result = portfolio_utils.compute_group_alpha_vs_benchmark(slug, benchmark, days, include_breakdown=True)
         if isinstance(result, tuple):
             val, breakdown = result
         else:
@@ -195,9 +189,7 @@ async def group_tracking_error(slug: str, benchmark: str = "VWRL.L", days: int =
     slug = _validate_owner_slug(slug, "slug")
     benchmark = _validate_benchmark(benchmark)
     try:
-        result = portfolio_utils.compute_group_tracking_error(
-            slug, benchmark, days, include_breakdown=True
-        )
+        result = portfolio_utils.compute_group_tracking_error(slug, benchmark, days, include_breakdown=True)
         if isinstance(result, tuple):
             val, breakdown = result
         else:
@@ -214,9 +206,7 @@ async def group_max_drawdown(slug: str, days: int = 365):
     """Return max drawdown for a group portfolio."""
     slug = _validate_owner_slug(slug, "slug")
     try:
-        result = portfolio_utils.compute_group_max_drawdown(
-            slug, days, include_breakdown=True
-        )
+        result = portfolio_utils.compute_group_max_drawdown(slug, days, include_breakdown=True)
         if isinstance(result, tuple):
             val, breakdown = result
         else:
@@ -229,6 +219,7 @@ async def group_max_drawdown(slug: str, days: int = 365):
 
 
 @router.get("/performance/{owner}")
+@handle_owner_not_found
 async def performance(
     owner: str,
     days: int = 365,
@@ -249,7 +240,7 @@ async def performance(
             pricing_date=_resolve_as_of(as_of),
         )
     except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="Owner not found")
+        raise_owner_not_found(owner)
     return {"owner": owner, **result}
 
 
@@ -263,4 +254,4 @@ async def compare_returns(owner: str, days: int = 365):
         cash_apy = portfolio_utils.compute_cash_apy(owner, days)
         return {"owner": owner, "cagr": cagr, "cash_apy": cash_apy}
     except FileNotFoundError:
-        raise_owner_not_found()
+        raise_owner_not_found(owner)

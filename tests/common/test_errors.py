@@ -2,6 +2,7 @@ import asyncio
 import logging
 
 import pytest
+
 from backend.common.errors import (
     OWNER_NOT_FOUND,
     OwnerNotFoundError,
@@ -14,10 +15,16 @@ from backend.common.errors import (
 )
 
 
-def test_raise_owner_not_found():
-    with pytest.raises(OwnerNotFoundError) as excinfo:
-        raise_owner_not_found()
+def test_raise_owner_not_found(caplog):
+    with caplog.at_level(logging.WARNING, logger="backend.common.errors"):
+        with pytest.raises(OwnerNotFoundError) as excinfo:
+            raise_owner_not_found("missing-owner", total_plots_discovered=3)
     assert str(excinfo.value) == OWNER_NOT_FOUND
+    assert excinfo.value.extra == {
+        "owner": "missing-owner",
+        "total_plots_discovered": 3,
+    }
+    assert "owner lookup: no owner found for owner=missing-owner " "(total_plots_discovered=3)" in caplog.text
 
 
 def test_handle_owner_not_found_sync():

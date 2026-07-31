@@ -55,7 +55,7 @@ def _resolve_owner_dir(root: Path, owner: str) -> Path:
         if fallback_dir:
             return fallback_dir
 
-    raise_owner_not_found()
+    raise_owner_not_found(owner)
 
 
 @router.get("/{owner}/approvals")

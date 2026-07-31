@@ -51,7 +51,8 @@ async def test_get_metrics_raises_http_not_found(monkeypatch):
 
     stub = {"called": False}
 
-    def stub_raise_owner_not_found():
+    def stub_raise_owner_not_found(owner=None, **_diagnostics):
+        assert owner == "alex"
         stub["called"] = True
         raise OwnerNotFoundError
 

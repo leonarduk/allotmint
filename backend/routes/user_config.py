@@ -16,7 +16,7 @@ async def get_user_config(owner: str, request: Request, identity: str | None = D
     try:
         cfg = load_user_config(owner, accounts_root)
     except FileNotFoundError:
-        raise_owner_not_found()
+        raise_owner_not_found(owner)
     return cfg.to_dict()
 
 
@@ -30,7 +30,7 @@ async def update_user_config(owner: str, request: Request, identity: str | None 
         cfg = load_user_config(owner, accounts_root)
         return cfg.to_dict()
     except FileNotFoundError:
-        raise_owner_not_found()
+        raise_owner_not_found(owner)
 
 
 router.get("/{owner}")(get_user_config)

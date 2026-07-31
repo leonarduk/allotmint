@@ -6,8 +6,10 @@ from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
+from backend.common.errors import log_owner_not_found
 from backend.reports import (
     DEFAULT_TEMPLATE_ID,
+    _parse_date,
     build_report_document,
     create_user_template,
     delete_user_template,
@@ -16,7 +18,6 @@ from backend.reports import (
     report_to_csv,
     report_to_pdf,
     update_user_template,
-    _parse_date,
 )
 
 router = APIRouter(tags=["reports"])
@@ -72,9 +73,7 @@ async def create_template(payload: TemplateCreatePayload) -> dict:
 
 
 @router.put("/reports/templates/{template_id}")
-async def update_template(
-    template_id: str, payload: TemplateUpdatePayload
-) -> dict:
+async def update_template(template_id: str, payload: TemplateUpdatePayload) -> dict:
     try:
         template = update_user_template(template_id, payload.model_dump())
     except FileNotFoundError:
@@ -115,6 +114,7 @@ async def owner_report(
             build_kwargs["watermark"] = watermark_text
         document = build_report_document(DEFAULT_TEMPLATE_ID, owner, **build_kwargs)
     except FileNotFoundError:
+        log_owner_not_found(owner, template_id=DEFAULT_TEMPLATE_ID)
         raise HTTPException(status_code=404, detail="Owner not found")
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -155,6 +155,7 @@ async def owner_template_report(
             build_kwargs["watermark"] = watermark_text
         document = build_report_document(template_id, owner, **build_kwargs)
     except FileNotFoundError:
+        log_owner_not_found(owner, template_id=template_id)
         raise HTTPException(status_code=404, detail="Owner not found")
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -164,17 +165,13 @@ async def owner_template_report(
         return Response(
             content,
             media_type="text/csv",
-            headers={
-                "Content-Disposition": f"attachment; filename={owner}_{template_id}.csv"
-            },
+            headers={"Content-Disposition": f"attachment; filename={owner}_{template_id}.csv"},
         )
     if format.lower() == "pdf":
         content = report_to_pdf(document)
         return Response(
             content,
             media_type="application/pdf",
-            headers={
-                "Content-Disposition": f"attachment; filename={owner}_{template_id}.pdf"
-            },
+            headers={"Content-Disposition": f"attachment; filename={owner}_{template_id}.pdf"},
         )
     return document.to_dict()

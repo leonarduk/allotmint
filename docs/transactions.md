@@ -76,3 +76,44 @@ adjustment. Fetch it again using `GET /portfolio/alex` to verify:
 # later
 curl https://api.example.com/portfolio/alex
 ```
+
+## Bulk import
+
+```
+POST /transactions/import
+Content-Type: multipart/form-data
+```
+
+Upload the provider export in the `file` field and identify its format with
+the `provider` field. The optional `owner` and `account` fields provide a
+destination when rows in the export do not contain one. Rows without a
+resolvable destination, or with an invalid owner or account, are returned in
+`skipped` with a `skip_reason`.
+
+The response is an object containing separate arrays for transactions written
+and rows skipped; it is not a flat array:
+
+```json
+{
+  "persisted": [
+    {
+      "id": "alex:isa:0",
+      "owner": "alex",
+      "account": "isa",
+      "ticker": "PFE",
+      "price_gbp": 17.0,
+      "units": 10
+    }
+  ],
+  "skipped": [
+    {
+      "ticker": "MSFT",
+      "skip_reason": "missing owner/account"
+    }
+  ]
+}
+```
+
+Persistence is atomic for the accepted rows in one request. If any write
+fails, transactions already written by that import are removed and affected
+portfolios are rebuilt before the error is returned.

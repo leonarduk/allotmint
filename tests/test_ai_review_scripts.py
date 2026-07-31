@@ -67,6 +67,88 @@ def test_deepseek_review_uses_current_default_model_and_allows_override(
     assert module.get_deepseek_model() == "deepseek-v4-flash"
 
 
+def test_deepseek_review_disables_thinking_mode_for_default_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression test for #5697: flash-tier reviews must disable thinking mode.
+
+    Thinking-capable DeepSeek models default to thinking mode "on", which can
+    burn the whole max_tokens budget on reasoning_content and leave `content`
+    empty — the review then fails with a 200 response and no visible cause.
+    Sending `thinking: {type: disabled}` for the default (non-reasoner) model
+    avoids that.
+    """
+    module = load_script_module("deepseek_review_thinking_flash", "deepseek_review.py")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
+    monkeypatch.setenv("PR_TITLE", "Add thing")
+    monkeypatch.setenv("ISSUE_BODY", "Do thing")
+    monkeypatch.setenv("DIFF", "diff --git a/a.py b/a.py\n+print('hi')\n")
+    monkeypatch.delenv("DEEPSEEK_MODEL", raising=False)
+
+    captured_payloads: list[dict[str, object]] = []
+
+    def fake_urlopen(request, *args, **kwargs):
+        captured_payloads.append(json.loads(request.data.decode()))
+        return FakeResponse({"choices": [{"message": {"content": "Looks good\n**APPROVE**"}}]})
+
+    monkeypatch.setattr(review_common.urllib.request, "urlopen", fake_urlopen)
+
+    assert module.main() == 0
+    assert captured_payloads[0]["thinking"] == {"type": "disabled"}
+
+
+def test_deepseek_review_leaves_thinking_mode_enabled_for_reasoner_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """deepseek-reasoner is opted into deliberately for deep reviews; don't disable reasoning."""
+    module = load_script_module("deepseek_review_thinking_reasoner", "deepseek_review.py")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
+    monkeypatch.setenv("PR_TITLE", "Add thing")
+    monkeypatch.setenv("ISSUE_BODY", "Do thing")
+    monkeypatch.setenv("DIFF", "diff --git a/a.py b/a.py\n+print('hi')\n")
+    monkeypatch.setenv("DEEPSEEK_MODEL", "deepseek-reasoner")
+
+    captured_payloads: list[dict[str, object]] = []
+
+    def fake_urlopen(request, *args, **kwargs):
+        captured_payloads.append(json.loads(request.data.decode()))
+        return FakeResponse({"choices": [{"message": {"content": "Looks good\n**APPROVE**"}}]})
+
+    monkeypatch.setattr(review_common.urllib.request, "urlopen", fake_urlopen)
+
+    assert module.main() == 0
+    assert "thinking" not in captured_payloads[0]
+
+
+def test_deepseek_review_warns_when_only_reasoning_content_returned(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """If a response still comes back reasoning-only, the failure must explain why (#5697)."""
+    module = load_script_module("deepseek_review_reasoning_only", "deepseek_review.py")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
+    monkeypatch.setenv("PR_TITLE", "Add thing")
+    monkeypatch.setenv("ISSUE_BODY", "Do thing")
+    monkeypatch.setenv("DIFF", "diff --git a/a.py b/a.py\n+print('hi')\n")
+    payload = {
+        "choices": [
+            {
+                "message": {"content": "", "reasoning_content": "thinking very hard..."},
+                "finish_reason": "length",
+            }
+        ]
+    }
+    monkeypatch.setattr(
+        review_common.urllib.request, "urlopen", lambda *args, **kwargs: FakeResponse(payload)
+    )
+
+    assert module.main() == 1
+    err = capsys.readouterr().err
+    assert "reasoning_content" in err
+    assert "finish_reason='length'" in err
+    assert "ERROR: DeepSeek API returned an empty review" in err
+
+
 @pytest.mark.parametrize(
     ("module_name", "file_name", "api_env"),
     [

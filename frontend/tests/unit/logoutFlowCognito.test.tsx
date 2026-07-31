@@ -116,9 +116,14 @@ describe('Logout flow: Cognito mode (#4802)', () => {
       name: i18n.t('app.menuCategories.preferences'),
     });
     fireEvent.click(preferencesToggle);
-    const logoutButton = await screen.findByRole('menuitem', {
-      name: i18n.t('app.logout'),
-    });
+    // Timeout raised above the Testing Library default (1000ms): under CI
+    // load this re-render was observed to occasionally exceed the default
+    // and fail the assertion even though the menu genuinely opens (#5734).
+    const logoutButton = await screen.findByRole(
+      'menuitem',
+      { name: i18n.t('app.logout') },
+      { timeout: 3000 }
+    );
     fireEvent.click(logoutButton);
 
     // cognitoLogout() was called: the hosted-UI logout endpoint is reached
@@ -205,9 +210,14 @@ describe('Logout flow: Cognito mode (#4802)', () => {
       name: i18n.t('app.menuCategories.preferences'),
     });
     fireEvent.click(preferencesToggle);
-    const logoutButton = await screen.findByRole('menuitem', {
-      name: i18n.t('app.logout'),
-    });
+    // Timeout raised above the Testing Library default (1000ms): under CI
+    // load this re-render was observed to occasionally exceed the default
+    // and fail the assertion even though the menu genuinely opens (#5734).
+    const logoutButton = await screen.findByRole(
+      'menuitem',
+      { name: i18n.t('app.logout') },
+      { timeout: 3000 }
+    );
     fireEvent.click(logoutButton);
 
     // cognitoLogout's throw is caught: the app keeps rendering instead of

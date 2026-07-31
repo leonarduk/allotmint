@@ -168,6 +168,36 @@ def _iso(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+@pytest.mark.parametrize("value", [None, "", 123])
+def test_parse_published_at_rejects_missing_or_non_string_values(value):
+    assert market_module._parse_published_at(value) is None
+
+
+def test_parse_published_at_accepts_utc_suffix():
+    assert market_module._parse_published_at("2026-07-29T10:30:00Z") == datetime(
+        2026, 7, 29, 10, 30, tzinfo=timezone.utc
+    )
+
+
+def test_headline_max_age_uses_environment_override(monkeypatch):
+    monkeypatch.setenv("HEADLINE_MAX_AGE_HOURS", "24")
+
+    assert market_module._get_headline_max_age() == timedelta(hours=24)
+
+
+def test_headline_max_age_uses_default_when_unset(monkeypatch):
+    monkeypatch.delenv("HEADLINE_MAX_AGE_HOURS", raising=False)
+
+    assert market_module._get_headline_max_age() == timedelta(hours=72)
+
+
+@pytest.mark.parametrize("value", ["invalid", "0", "-1", "nan", "inf"])
+def test_headline_max_age_falls_back_for_invalid_values(monkeypatch, value):
+    monkeypatch.setenv("HEADLINE_MAX_AGE_HOURS", value)
+
+    assert market_module._get_headline_max_age() == timedelta(hours=72)
+
+
 def test_sort_and_filter_headlines_excludes_old_and_sorts_newest_first():
     now = datetime.now(timezone.utc)
     old = {
@@ -189,6 +219,25 @@ def test_sort_and_filter_headlines_excludes_old_and_sorts_newest_first():
     result = market_module._sort_and_filter_headlines([old, middle, newest])
 
     assert result == [newest, middle]
+
+
+def test_sort_and_filter_headlines_excludes_undated_when_recent_items_exist():
+    now = datetime.now(timezone.utc)
+    recent = {
+        "headline": "Recent",
+        "url": "https://example.com/recent",
+        "published_at": _iso(now - timedelta(hours=1)),
+    }
+    old = {
+        "headline": "Old",
+        "url": "https://example.com/old",
+        "published_at": _iso(now - timedelta(days=10)),
+    }
+    undated = {"headline": "Undated", "url": "https://example.com/undated"}
+
+    result = market_module._sort_and_filter_headlines([undated, old, recent])
+
+    assert result == [recent]
 
 
 def test_sort_and_filter_headlines_falls_back_when_nothing_recent():

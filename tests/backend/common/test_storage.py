@@ -168,6 +168,12 @@ def test_get_storage_ssm_defaults_to_secure_string() -> None:
     assert storage.type == "SecureString"
 
 
+def test_get_storage_preserves_hierarchical_parameter_name() -> None:
+    storage = get_storage("ssm:///allotmint/moneyhub/tokens/owner-id")
+
+    assert storage.name == "/allotmint/moneyhub/tokens/owner-id"
+
+
 def test_get_storage_ssm_explicit_string_type() -> None:
     storage = get_storage("ssm://parameter/name", param_type="String")
     assert storage.type == "String"

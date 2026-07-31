@@ -546,10 +546,6 @@ def _persist_transaction(
     already skips any transaction entry without a ticker.
     """
 
-    impact = _calculate_portfolio_impact(tx_data)
-    _PORTFOLIO_IMPACT[owner] += impact
-    _POSTED_TRANSACTIONS.append({"owner": owner, "account": account, **tx_data})
-
     store.ensure_owner(owner)
     with _locked_transactions_data(owner, account, store) as (data, _file):
         transactions = data.setdefault("transactions", [])
@@ -558,10 +554,49 @@ def _persist_transaction(
         data["account_type"] = account
         new_index = len(transactions) - 1
 
-    _rebuild_portfolio(owner, account, store)
+    try:
+        _rebuild_portfolio(owner, account, store)
+    except Exception:
+        with _locked_transactions_data(owner, account, store) as (data, _file):
+            data.setdefault("transactions", []).pop(new_index)
+        raise
+
+    impact = _calculate_portfolio_impact(tx_data)
+    _PORTFOLIO_IMPACT[owner] += impact
+    _POSTED_TRANSACTIONS.append({"owner": owner, "account": account, **tx_data})
 
     tx_id = _build_transaction_id(owner, account, new_index)
     return _format_transaction_response(owner, account, tx_data, tx_id)
+
+
+def _rollback_persisted_transaction(store: "AccountsStore", persisted: Mapping[str, Any]) -> Tuple[str, str]:
+    """Remove one transaction previously returned by ``_persist_transaction``."""
+    owner, account, index = _parse_transaction_id(str(persisted["id"]))
+    with _locked_transactions_data(owner, account, store) as (data, _file):
+        stored = data.setdefault("transactions", [])
+        if index >= len(stored):
+            raise RuntimeError(f"Cannot roll back missing transaction {persisted['id']}")
+        removed = stored.pop(index)
+
+    posted = {"owner": owner, "account": account, **removed}
+    for posted_index in range(len(_POSTED_TRANSACTIONS) - 1, -1, -1):
+        if _POSTED_TRANSACTIONS[posted_index] == posted:
+            _POSTED_TRANSACTIONS.pop(posted_index)
+            break
+    else:
+        raise RuntimeError(f"Cannot roll back untracked transaction {persisted['id']}")
+
+    _PORTFOLIO_IMPACT[owner] -= _calculate_portfolio_impact(removed)
+    if not _PORTFOLIO_IMPACT[owner]:
+        del _PORTFOLIO_IMPACT[owner]
+    return owner, account
+
+
+def _rollback_import(store: "AccountsStore", persisted: List[Dict[str, Any]]) -> None:
+    """Compensate all writes from a failed bulk import in reverse order."""
+    affected = {_rollback_persisted_transaction(store, row) for row in reversed(persisted)}
+    for owner, account in affected:
+        _rebuild_portfolio(owner, account, store)
 
 
 @router.post("/transactions", status_code=201)
@@ -784,7 +819,11 @@ async def import_transactions(
             continue
 
         tx_data = _tx_data_from_parsed(row)
-        persisted.append(_persist_transaction(store, row_owner, row_account, tx_data))
+        try:
+            persisted.append(_persist_transaction(store, row_owner, row_account, tx_data))
+        except Exception:
+            _rollback_import(store, persisted)
+            raise
 
     return {"persisted": persisted, "skipped": skipped}
 

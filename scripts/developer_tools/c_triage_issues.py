@@ -87,7 +87,7 @@ def run_gh(args: list[str]) -> subprocess.CompletedProcess[str]:
     return result
 
 
-def fetch_unmilestoned_open_issues() -> list[Issue]:
+def fetch_unmilestoned_open_issues(verbose: bool = False) -> list[Issue]:
     """List open issues that have no milestone assigned."""
     result = run_gh(
         [
@@ -99,7 +99,7 @@ def fetch_unmilestoned_open_issues() -> list[Issue]:
             "number,title,labels,milestone,createdAt,body",
             "--limit",
             "500",
-        ]
+        ],
     )
     if result.returncode != 0:
         print(f"ERROR: gh issue list failed: {result.stderr}", file=sys.stderr)
@@ -120,6 +120,7 @@ def fetch_unmilestoned_open_issues() -> list[Issue]:
                             labels=labels, body=item.get("body") or ""))
 
     return issues
+
 
 def is_scoped_apart(body: str, other_number: int) -> bool:
     """Return True if `body` explicitly scopes itself apart from `other_number`."""
@@ -211,11 +212,13 @@ def parse_classifications(response: str) -> dict[int, str]:
     return {int(m.group(1)): m.group(2).upper() for m in CLASSIFICATION_LINE_PATTERN.finditer(response)}
 
 
-def classify_single_issue(issue: Issue, model: str, endpoint: str) -> str:
+def classify_single_issue(issue: Issue, model: str, endpoint: str, verbose: bool = False) -> str:
     """Classify a standalone issue as NEW_FEATURE or BACKLOG."""
     prompt = SINGLE_CLASSIFY_PROMPT_TEMPLATE.format(number=issue.number, title=issue.title,
                                                     body=issue.body.strip())
     response = fetch_ollama_review(endpoint, model, prompt)
+    if verbose:
+        print(f"[VERBOSE] Model response for issue #{issue.number}: {response}", file=sys.stderr)
     return "NEW_FEATURE" if "NEW_FEATURE" in response.upper() else "BACKLOG"
 
 
@@ -291,10 +294,13 @@ def create_consolidator_issue(title: str, folded: list[Issue], dry_run: bool) ->
     return int(match.group(1)) if match else None
 
 
-def triage_group(group: list[Issue], model: str, endpoint: str, dry_run: bool) -> set[int]:
+def triage_group(group: list[Issue], model: str, endpoint: str, dry_run: bool,
+                 verbose: bool = False) -> set[int]:
     """Classify and act on one candidate group. Returns the issue numbers it handled."""
     prompt = build_group_classification_prompt(group)
     response = fetch_ollama_review(endpoint, model, prompt)
+    if verbose:
+        print(f"[VERBOSE] Model response for group {group}: {response}", file=sys.stderr)
     classifications = parse_classifications(response)
     canonical = min(group, key=lambda issue: issue.number)
 
@@ -326,10 +332,11 @@ def triage_group(group: list[Issue], model: str, endpoint: str, dry_run: bool) -
     return handled
 
 
-def triage_remaining(issues: list[Issue], model: str, endpoint: str, dry_run: bool) -> None:
+def triage_remaining(issues: list[Issue], model: str, endpoint: str, dry_run: bool,
+                     verbose: bool = False) -> None:
     """Classify every issue not already handled by group triage, then act on it."""
     for issue in issues:
-        classification = classify_single_issue(issue, model, endpoint)
+        classification = classify_single_issue(issue, model, endpoint, verbose)
         if classification == "NEW_FEATURE":
             comment_new_feature(issue.number, dry_run)
         else:
@@ -343,6 +350,11 @@ def main() -> int:
         "--dry-run",
         action="store_true",
         help="Print the actions that would be taken without calling gh",
+    )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Print verbose output, including raw model responses",
     )
     parser.add_argument(
         "--limit",
@@ -365,7 +377,7 @@ def main() -> int:
         f"INFO: Fetching unmilestoned open issues from {REPO_OWNER}/{REPO_NAME}...",
         file=sys.stderr,
     )
-    issues = fetch_unmilestoned_open_issues()
+    issues = fetch_unmilestoned_open_issues(args.verbose)
     if args.limit is not None:
         issues = issues[: args.limit]
     print(f"INFO: {len(issues)} unmilestoned open issues found", file=sys.stderr)
@@ -375,10 +387,10 @@ def main() -> int:
     groups = find_candidate_groups(issues)
     handled: set[int] = set()
     for group in groups:
-        handled |= triage_group(group, model, endpoint, args.dry_run)
+        handled |= triage_group(group, model, endpoint, args.dry_run, args.verbose)
 
     remaining = [issue for issue in issues if issue.number not in handled]
-    triage_remaining(remaining, model, endpoint, args.dry_run)
+    triage_remaining(remaining, model, endpoint, args.dry_run, args.verbose)
 
     return 0
 

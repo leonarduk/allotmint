@@ -108,7 +108,10 @@ class MoneyhubClient:
             payload, response_headers = self._fetch_transaction_page(url, params, access_token)
 
             if isinstance(payload, dict):
-                transactions.extend(payload.get("data", payload.get("transactions", [])))
+                page_transactions = payload.get("data")
+                if page_transactions is None:
+                    page_transactions = payload.get("transactions", [])
+                transactions.extend(page_transactions)
             else:
                 transactions.extend(payload)
 

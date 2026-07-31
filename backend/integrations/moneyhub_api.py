@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
+from urllib.parse import parse_qs, urljoin, urlsplit
 
 import requests
 
@@ -71,7 +72,13 @@ class MoneyhubClient:
         except requests.RequestException as exc:
             raise MoneyhubAPIError(f"Token refresh failed: {exc}") from exc
 
-    def fetch_transactions(self, access_token: str, *, account_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    def fetch_transactions(
+        self,
+        access_token: str,
+        *,
+        account_id: Optional[str] = None,
+        max_pages: int = 10,
+    ) -> List[Dict[str, Any]]:
         """Fetch raw transaction records for the consented accounts.
 
         ``account_id`` narrows the pull to a single connected account;
@@ -79,27 +86,90 @@ class MoneyhubClient:
         owner has consented to share. Field mapping into AllotMint's
         ``Transaction`` model happens separately -- see
         :mod:`backend.importers.moneyhub_api`.
+
+        ``max_pages`` bounds the number of responses followed when Moneyhub
+        supplies a next-page URL. It defaults to 10 to protect callers from a
+        malformed or cyclic pagination chain.
         """
+        if max_pages < 1:
+            raise ValueError("max_pages must be at least 1")
+
         url = f"{self.base_url}/transactions"
-        validate_external_url(url)
         params: Dict[str, str] = {}
         if account_id:
             params["accountId"] = account_id
 
+        transactions: List[Dict[str, Any]] = []
+        visited_urls = set()
+        for _ in range(max_pages):
+            if url in visited_urls:
+                break
+            visited_urls.add(url)
+            payload, response_headers = self._fetch_transaction_page(url, params, access_token)
+
+            if isinstance(payload, dict):
+                if "data" in payload:
+                    page_transactions = payload.get("data")
+                else:
+                    page_transactions = payload.get("transactions", [])
+            else:
+                page_transactions = payload
+
+            if not isinstance(page_transactions, list) or not all(isinstance(item, dict) for item in page_transactions):
+                raise MoneyhubAPIError("Transaction fetch returned an invalid payload")
+            transactions.extend(page_transactions)
+
+            next_url = self._next_page_url(payload, response_headers)
+            if not next_url:
+                break
+            url = urljoin(url, next_url)
+            params = self._account_filter_params(url, account_id)
+
+        return transactions
+
+    @staticmethod
+    def _account_filter_params(url: str, account_id: Optional[str]) -> Dict[str, str]:
+        """Preserve an account filter unless the page URL already contains it."""
+        if not account_id or "accountId" in parse_qs(urlsplit(url).query, keep_blank_values=True):
+            return {}
+        return {"accountId": account_id}
+
+    def _fetch_transaction_page(self, url: str, params: Dict[str, str], access_token: str) -> tuple[Any, Any]:
+        """Fetch and decode one validated transaction page."""
+        validate_external_url(url)
         try:
-            resp = requests.get(
+            response = requests.get(
                 url,
                 params=params,
                 headers=self._headers(access_token),
                 timeout=self.timeout,
                 allow_redirects=False,
             )
-            resp.raise_for_status()
-            payload = resp.json()
+            response.raise_for_status()
+            return response.json(), getattr(response, "headers", {})
         except requests.RequestException as exc:
             raise MoneyhubAPIError(f"Transaction fetch failed: {exc}") from exc
 
-        transactions = payload.get("data", payload.get("transactions", [])) if isinstance(payload, dict) else payload
-        if not isinstance(transactions, list) or not all(isinstance(item, dict) for item in transactions):
-            raise MoneyhubAPIError("Transaction fetch returned an invalid payload")
-        return transactions
+    @staticmethod
+    def _next_page_url(payload: Any, headers: Any) -> Optional[str]:
+        """Return a next-page URL from common Moneyhub response formats."""
+        if isinstance(payload, dict):
+            candidates = [payload.get("next")]
+            for key in ("links", "pagination"):
+                metadata = payload.get(key)
+                if isinstance(metadata, dict):
+                    candidates.append(metadata.get("next"))
+            for candidate in candidates:
+                if isinstance(candidate, str) and candidate:
+                    return candidate
+                if isinstance(candidate, dict):
+                    href = candidate.get("href")
+                    if isinstance(href, str) and href:
+                        return href
+
+        link_header = headers.get("Link", "") if hasattr(headers, "get") else ""
+        for link in link_header.split(","):
+            parts = [part.strip() for part in link.split(";")]
+            if len(parts) > 1 and 'rel="next"' in parts[1:] and parts[0].startswith("<"):
+                return parts[0][1:-1]
+        return None

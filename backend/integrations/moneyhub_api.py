@@ -108,12 +108,16 @@ class MoneyhubClient:
             payload, response_headers = self._fetch_transaction_page(url, params, access_token)
 
             if isinstance(payload, dict):
-                page_transactions = payload.get("data")
-                if page_transactions is None:
+                if "data" in payload:
+                    page_transactions = payload.get("data")
+                else:
                     page_transactions = payload.get("transactions", [])
-                transactions.extend(page_transactions)
             else:
-                transactions.extend(payload)
+                page_transactions = payload
+
+            if not isinstance(page_transactions, list) or not all(isinstance(item, dict) for item in page_transactions):
+                raise MoneyhubAPIError("Transaction fetch returned an invalid payload")
+            transactions.extend(page_transactions)
 
             next_url = self._next_page_url(payload, response_headers)
             if not next_url:

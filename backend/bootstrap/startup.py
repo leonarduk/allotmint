@@ -60,6 +60,14 @@ class AppLifecycleService:
         self.temp_dirs = temp_dirs or []
 
     async def startup(self, app: FastAPI) -> None:
+        if not os.getenv("TESTING"):
+            # Route modules are already loaded when the ASGI lifespan starts.
+            # Initialising here validates deployment credentials before the app
+            # accepts traffic while preserving import safety and test isolation.
+            from backend.routes.transactions import _get_moneyhub_client
+
+            _get_moneyhub_client()
+
         if not self.cfg.skip_snapshot_warm:
             await self._warm_snapshot(app)
 

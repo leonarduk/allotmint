@@ -384,6 +384,38 @@ Optional flags:
 Uses only `requests` and plain `git` -- no `gh` CLI or special GitHub scopes
 required.
 
+## n_review_issue.py
+
+Review and refresh a single GitHub issue with a local or cloud LLM before work
+starts on it, so a stale or vague issue gets corrected instead of misread.
+Fetches the issue, asks the chosen model to bring the title/body up to date
+while preserving the original section structure, shows a diff of the proposed
+change, and only calls `gh issue edit` after you approve it.
+
+```bash
+python scripts/developer_tools/n_review_issue.py 5695
+```
+
+Omit the issue number or `--model` to be prompted interactively:
+
+```bash
+python scripts/developer_tools/n_review_issue.py
+```
+
+Optional flags:
+- `--model {local,cloud}`: `local` uses Ollama (see `OLLAMA_ENDPOINT`/`OLLAMA_MODEL`
+  above); `cloud` uses DeepSeek and requires `DEEPSEEK_API_KEY` to be set.
+- `--yes`: skip the confirmation prompt and update the issue if changes are proposed.
+- `--dry-run`: show the proposed diff and confirmation flow, but never call
+  `gh issue edit`.
+- `--verbose`: print the raw model response.
+
+If the model's revised body is far shorter than the original, the script
+refuses to propose the change rather than risk silently dropping details.
+
+**Requirements:** `gh` CLI authenticated against the target repo; either a
+running local Ollama server or a `DEEPSEEK_API_KEY`, depending on `--model`.
+
 ## reconcile_drawdown.py
 
 Inspect max drawdowns and dump holding price data when the portfolio suffers a

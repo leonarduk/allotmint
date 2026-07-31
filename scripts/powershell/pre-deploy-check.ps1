@@ -7,6 +7,11 @@
 #
 # $ErrorActionPreference = 'Continue' is set explicitly to document intent: every check
 # must run and accumulate its own PASS/FAIL rather than aborting on the first error.
+#
+# CI note: editing this file sets the `powershell` area in
+# scripts/classify_change.py, which runs the Pester suite under scripts/tests.
+# The backend, frontend and CDK jobs deliberately skip for a PowerShell-only
+# change -- see docs/CONTRIBUTOR_RUNBOOK.md "CI runs only the areas a PR affects".
 $ErrorActionPreference = 'Continue'
 
 # Always run from the repository root regardless of where the script is invoked from.

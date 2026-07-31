@@ -8,7 +8,7 @@ import re
 from fastapi import APIRouter, HTTPException
 
 from backend.common import portfolio_utils
-from backend.common.errors import handle_owner_not_found, log_owner_not_found, raise_owner_not_found
+from backend.common.errors import handle_owner_not_found, raise_owner_not_found
 from backend.utils.pricing_dates import PricingDateCalculator
 
 router = APIRouter(tags=["performance"])
@@ -219,6 +219,7 @@ async def group_max_drawdown(slug: str, days: int = 365):
 
 
 @router.get("/performance/{owner}")
+@handle_owner_not_found
 async def performance(
     owner: str,
     days: int = 365,
@@ -239,8 +240,7 @@ async def performance(
             pricing_date=_resolve_as_of(as_of),
         )
     except FileNotFoundError:
-        log_owner_not_found(owner)
-        raise HTTPException(status_code=404, detail="Owner not found")
+        raise_owner_not_found(owner)
     return {"owner": owner, **result}
 
 

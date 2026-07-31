@@ -62,11 +62,12 @@ class AppLifecycleService:
     async def startup(self, app: FastAPI) -> None:
         if not os.getenv("TESTING"):
             # Route modules are already loaded when the ASGI lifespan starts.
-            # Initialising here validates deployment credentials before the app
-            # accepts traffic while preserving import safety and test isolation.
-            from backend.routes.transactions import _get_moneyhub_client
+            # This only warns (doesn't raise) when Moneyhub credentials are
+            # missing -- Moneyhub live-API import is optional, so a missing
+            # credential pair must not crash the whole app at startup (#5729).
+            from backend.routes.transactions import check_moneyhub_configured
 
-            _get_moneyhub_client()
+            check_moneyhub_configured()
 
         if not self.cfg.skip_snapshot_warm:
             await self._warm_snapshot(app)

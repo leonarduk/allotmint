@@ -37,8 +37,39 @@ _warned_missing_data_bucket = False
 _moneyhub_client_instance: MoneyhubClient | None = None
 
 
+def _moneyhub_configured() -> bool:
+    """Whether Moneyhub OAuth client credentials are present in the environment."""
+    return bool(os.environ.get("MONEYHUB_CLIENT_ID")) and bool(
+        os.environ.get("MONEYHUB_CLIENT_SECRET")
+    )
+
+
+def check_moneyhub_configured() -> None:
+    """Warn (not raise) at startup if Moneyhub credentials are missing.
+
+    Previously the startup lifecycle called ``_get_moneyhub_client()``
+    directly, which raised ``RuntimeError`` when credentials were unset and
+    crashed the whole app -- taking down every route, not just Moneyhub's
+    (#5729). Moneyhub live-API import is an optional feature, so a missing
+    credential pair should only disable that feature; the client is still
+    built lazily by ``_get_moneyhub_client()`` on first real use.
+    """
+    if not _moneyhub_configured() and not os.getenv("TESTING"):
+        log.warning(
+            "MONEYHUB_CLIENT_ID and/or MONEYHUB_CLIENT_SECRET not set; "
+            "Moneyhub live-API transaction import will be unavailable"
+        )
+
+
 def _get_moneyhub_client() -> MoneyhubClient:
-    """Return the process-wide Moneyhub client, creating it on first use."""
+    """Return the process-wide Moneyhub client, creating it on first use.
+
+    Raises:
+        RuntimeError: if credentials are unset (and not in ``TESTING`` mode).
+            Callers that reach this from a request handler should catch it
+            and return a 503, since it means the optional Moneyhub feature
+            isn't configured -- not that the request itself is broken.
+    """
     global _moneyhub_client_instance
 
     if _moneyhub_client_instance is None:
@@ -377,7 +408,9 @@ def _format_transaction_response(
     return payload
 
 
-def _prepare_updated_transaction(existing: Mapping[str, object], update: Mapping[str, object]) -> Dict[str, object]:
+def _prepare_updated_transaction(
+    existing: Mapping[str, object], update: Mapping[str, object]
+) -> Dict[str, object]:
     managed_fields = {"ticker", "date", "price_gbp", "units", "fees", "comments", "reason"}
     updated = dict(existing)
     for field in managed_fields:
@@ -390,7 +423,9 @@ def _prepare_updated_transaction(existing: Mapping[str, object], update: Mapping
     return updated
 
 
-def _transactions_from_doc(owner: str, account_raw: str, data: Mapping[str, Any]) -> List[Transaction]:
+def _transactions_from_doc(
+    owner: str, account_raw: str, data: Mapping[str, Any]
+) -> List[Transaction]:
     results: List[Transaction] = []
     account = account_raw.lower()
     transactions = data.get("transactions", []) or []
@@ -432,12 +467,18 @@ def _load_all_transactions(store: Optional["AccountsStore"] = None) -> List[Tran
                 if not isinstance(data, dict):
                     continue
                 owner = str(data.get("owner") or path.parent.name)
-                account_raw = str(data.get("account_type") or path.stem.replace("_transactions", ""))
-                merged[(owner.lower(), account_raw.lower())] = _transactions_from_doc(owner, account_raw, data)
+                account_raw = str(
+                    data.get("account_type") or path.stem.replace("_transactions", "")
+                )
+                merged[(owner.lower(), account_raw.lower())] = _transactions_from_doc(
+                    owner, account_raw, data
+                )
 
     if store is not None:
         for owner, account_raw, data in store.iter_transaction_documents():
-            merged[(owner.lower(), account_raw.lower())] = _transactions_from_doc(owner, account_raw, data)
+            merged[(owner.lower(), account_raw.lower())] = _transactions_from_doc(
+                owner, account_raw, data
+            )
 
     results: List[Transaction] = []
     for txs in merged.values():
@@ -473,7 +514,9 @@ def _find_transaction_account(owner: str, account: str, store: "AccountsStore") 
 
 
 @contextmanager
-def _locked_transactions_data(owner: str, account: str, store: "AccountsStore") -> Iterator[Tuple[dict, None]]:
+def _locked_transactions_data(
+    owner: str, account: str, store: "AccountsStore"
+) -> Iterator[Tuple[dict, None]]:
     default = {"owner": owner, "account_type": account, "transactions": []}
     with store.edit_document(owner, f"{account}_transactions.json", default=default) as data:
         data.setdefault("owner", owner)
@@ -515,7 +558,9 @@ async def transactions_with_compliance(
     """Return transactions for ``owner`` annotated with compliance warnings."""
 
     store, _ = resolve_writable_store(request)
-    txs = [t.model_dump() for t in _load_all_transactions(store) if t.owner.lower() == owner.lower()]
+    txs = [
+        t.model_dump() for t in _load_all_transactions(store) if t.owner.lower() == owner.lower()
+    ]
     if account:
         txs = [t for t in txs if (t.get("account") or "").lower() == account.lower()]
     norm_ticker = normalise_filter_ticker(
@@ -548,7 +593,9 @@ def _validate_component(value: str, field: str) -> str:
     return value
 
 
-def _persist_transaction(store: "AccountsStore", owner: str, account: str, tx_data: Dict[str, Any]) -> Dict[str, Any]:
+def _persist_transaction(
+    store: "AccountsStore", owner: str, account: str, tx_data: Dict[str, Any]
+) -> Dict[str, Any]:
     """Append ``tx_data`` to owner/account's transaction log and rebuild the portfolio.
 
     Shared by :func:`create_transaction` (single, request-validated write) and
@@ -583,7 +630,9 @@ def _persist_transaction(store: "AccountsStore", owner: str, account: str, tx_da
     return _format_transaction_response(owner, account, tx_data, tx_id)
 
 
-def _rollback_persisted_transaction(store: "AccountsStore", persisted: Mapping[str, Any]) -> Tuple[str, str]:
+def _rollback_persisted_transaction(
+    store: "AccountsStore", persisted: Mapping[str, Any]
+) -> Tuple[str, str]:
     """Remove one transaction previously returned by ``_persist_transaction``."""
     owner, account, index = _parse_transaction_id(str(persisted["id"]))
     with _locked_transactions_data(owner, account, store) as (data, _file):
@@ -843,7 +892,9 @@ async def import_transactions(
 
 
 @router.post("/transactions/import/moneyhub")
-async def import_moneyhub_transactions(request: Request, owner: str = Form(...)) -> Dict[str, List[Dict[str, Any]]]:
+async def import_moneyhub_transactions(
+    request: Request, owner: str = Form(...)
+) -> Dict[str, List[Dict[str, Any]]]:
     """Pull ``owner``'s transactions from the live Moneyhub API, persist the new ones, and report the rest.
 
     Unlike :func:`import_transactions` (file upload), this pulls directly
@@ -859,7 +910,10 @@ async def import_moneyhub_transactions(request: Request, owner: str = Form(...))
     from backend.importers import moneyhub_api as moneyhub_mapper
     from backend.integrations.moneyhub_api import MoneyhubAPIError
 
-    client = _get_moneyhub_client()
+    try:
+        client = _get_moneyhub_client()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
     try:
         access_token = moneyhub_tokens.get_valid_access_token(owner, client)
     except moneyhub_tokens.MoneyhubAuthError as exc:
@@ -963,7 +1017,11 @@ async def create_manual_holding(request: Request, payload: ManualHoldingCreate) 
 
         holdings = account_payload.setdefault("holdings", [])
         for index, existing in enumerate(holdings):
-            existing_ticker = str(existing.get("ticker") or "").strip().upper() if isinstance(existing, Mapping) else ""
+            existing_ticker = (
+                str(existing.get("ticker") or "").strip().upper()
+                if isinstance(existing, Mapping)
+                else ""
+            )
             if existing_ticker == ticker:
                 holdings[index] = holding
                 break

@@ -73,6 +73,22 @@ per owner, not one for the whole app).
 
 ## Secret storage decision
 
+### Known client-credential exception
+
+The live API implementation currently being developed reads
+`MONEYHUB_CLIENT_ID` and `MONEYHUB_CLIENT_SECRET` directly from the process
+environment. It does **not** resolve those two client credentials from SSM.
+This is a known deviation from issue #2749's SSM requirement, tracked in
+issue #5481; changing credential resolution is outside the scope of that
+documentation update.
+
+This exception applies only to the Moneyhub OAuth client's registration
+credentials. After an owner completes authentication, that owner's access and
+refresh tokens use the `ssm://` storage described below. The current mainline
+code supports manual Moneyhub CSV imports only; this note documents the
+credential contract of the pending live API integration so it is not mistaken
+for the token-storage contract.
+
 Follow the existing `ssm://` pattern in
 [`backend/common/storage.py`](../backend/common/storage.py) rather than
 inventing a new secret-loading mechanism — this repo's `cdk/` has no
@@ -90,16 +106,13 @@ has a working pluggable JSON storage abstraction selected by URI scheme:
 refresh token, expiry, connected account IDs) as one JSON blob per owner
 under an `ssm://` parameter, e.g. `ssm:///allotmint/moneyhub/tokens/{owner}`,
 loaded through `get_storage()` exactly like the alerts module already does.
-Two changes needed on top of the existing abstraction (out of scope for this
-spike, listed for #3425):
+The storage and deployment groundwork is now in place:
 
-- `ParameterStoreJSONStorage` should use `Type="SecureString"` (not
-  `String`) when persisting token material — the current alerts use case
-  doesn't carry secrets, so this wasn't needed before.
-- A CDK `StringParameter`/`Secret` construct and IAM grant so the Lambda
-  execution role can read/write the `/allotmint/moneyhub/*` parameter
-  namespace — there is no existing CDK precedent for this in `cdk/stacks/`,
-  so it is new construct work, not a copy of an existing pattern.
+- `ParameterStoreJSONStorage` persists `SecureString` values by default and
+  decrypts them on read.
+- `MoneyhubTokenStore` grants the backend Lambda only `ssm:GetParameter` and
+  `ssm:PutParameter` beneath `/allotmint/moneyhub/tokens/*`. Parameters remain
+  application-created because owner IDs are not known at deployment time.
 
 Token refresh should happen lazily on read (check expiry, refresh if
 needed, write back the updated blob) rather than a separate scheduled job,

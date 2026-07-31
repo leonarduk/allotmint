@@ -1,17 +1,19 @@
+import time
 from unittest.mock import patch
 
-from backend.common.constants import ACCOUNTS, HOLDINGS, OWNER
 from backend.common import group_portfolio
+from backend.common.account_models import OwnerSummaryRecord
+from backend.common.constants import ACCOUNTS, HOLDINGS, OWNER
 
 
 def test_list_groups_returns_expected_defaults():
-    mock_portfolios = [
-        {"owner": "Lucy"},
-        {"owner": "Steve"},
-        {"owner": "Alex"},
-        {"owner": "Joe"},
+    owner_rows = [
+        OwnerSummaryRecord(owner="Lucy"),
+        OwnerSummaryRecord(owner="Steve"),
+        OwnerSummaryRecord(owner="Alex"),
+        OwnerSummaryRecord(owner="Joe"),
     ]
-    with patch("backend.common.portfolio_loader.list_portfolios", return_value=mock_portfolios):
+    with patch("backend.common.group_portfolio.data_loader.list_plots", return_value=owner_rows):
         groups = group_portfolio.list_groups()
 
     assert groups == [
@@ -23,6 +25,23 @@ def test_list_groups_returns_expected_defaults():
         {"slug": "adults", "name": "Adults", "members": ["Lucy", "Steve"]},
         {"slug": "children", "name": "Children", "members": ["Alex", "Joe"]},
     ]
+
+
+def test_list_groups_does_not_load_portfolio_contents():
+    """Group discovery must not issue one data load per owner or account."""
+    owner_rows = [OwnerSummaryRecord(owner=f"owner-{index}", accounts=[f"account-{index}"]) for index in range(1_000)]
+
+    started_at = time.perf_counter()
+    with (
+        patch("backend.common.group_portfolio.data_loader.list_plots", return_value=owner_rows),
+        patch("backend.common.portfolio_loader.list_portfolios") as list_portfolios,
+    ):
+        groups = group_portfolio.list_groups()
+    elapsed = time.perf_counter() - started_at
+
+    list_portfolios.assert_not_called()
+    assert len(groups[0]["members"]) == len(owner_rows)
+    assert elapsed < 2
 
 
 def test_build_group_portfolio_merges_accounts_and_totals():
@@ -53,6 +72,10 @@ def test_build_group_portfolio_merges_accounts_and_totals():
 
     patches = [
         patch("backend.common.portfolio_loader.list_portfolios", return_value=mock_portfolios),
+        patch(
+            "backend.common.group_portfolio.data_loader.list_plots",
+            return_value=[OwnerSummaryRecord(owner=row["owner"]) for row in mock_portfolios],
+        ),
         patch("backend.common.group_portfolio.load_approvals", return_value={}),
         patch("backend.common.group_portfolio.load_user_config", return_value={}),
         patch(
@@ -60,7 +83,7 @@ def test_build_group_portfolio_merges_accounts_and_totals():
             side_effect=lambda h, *_args, **_kwargs: h,
         ),
     ]
-    with patches[0], patches[1], patches[2], patches[3]:
+    with patches[0], patches[1], patches[2], patches[3], patches[4]:
         result = group_portfolio.build_group_portfolio("adults")
 
     assert result["slug"] == "adults"

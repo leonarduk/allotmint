@@ -51,7 +51,10 @@ def _composite_key(date: str | None, account: str, amount: float | None, descrip
 
     Returns ``None`` (no stable key) unless both ``date`` and ``amount`` are
     present, since those two fields carry the most identifying weight for a
-    bank/aggregator transaction row.
+    bank/aggregator transaction row. ``not date`` is ``True`` for both
+    ``None`` and an empty string, so a row with a blank ``Date`` column is
+    treated the same as a row missing the column's value entirely -- see
+    issue #5345.
     """
     if not date or amount is None:
         return None

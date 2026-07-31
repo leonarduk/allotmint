@@ -109,7 +109,13 @@ def test_build_owner_portfolio_requires_plot(monkeypatch, today):
         build_owner_portfolio("nope")
 
 
-def test_build_owner_portfolio_logs_total_plot_count_on_miss(monkeypatch, today, caplog):
+@pytest.mark.parametrize(
+    "discovered_plots",
+    [[], [OwnerSummaryRecord(owner="other", accounts=["account-one"])]],
+)
+def test_build_owner_portfolio_logs_total_plot_count_on_miss(
+    monkeypatch, today, caplog, discovered_plots
+):
     """Regression test for #5286.
 
     When an owner has no matching plot, log how many plots were discovered in
@@ -118,15 +124,14 @@ def test_build_owner_portfolio_logs_total_plot_count_on_miss(monkeypatch, today,
     (plots found == 0), without which a reported 404 for a real owner is
     unreproducible from logs alone.
     """
-    other_owner = OwnerSummaryRecord(owner="other", accounts=["account-one"])
-    monkeypatch.setattr("backend.common.portfolio.list_plots", lambda root=None: [other_owner])
+    monkeypatch.setattr("backend.common.portfolio.list_plots", lambda root=None: discovered_plots)
 
     with caplog.at_level(logging.WARNING, logger="backend.common.portfolio"):
         with pytest.raises(FileNotFoundError):
             build_owner_portfolio("nope")
 
-    assert any(
-        "no plot found for owner=nope" in record.getMessage()
-        and "total plots discovered=1" in record.getMessage()
-        for record in caplog.records
+    expected_message = (
+        "build_owner_portfolio: no plot found for owner=nope "
+        f"(total plots discovered={len(discovered_plots)})"
     )
+    assert expected_message in caplog.messages

@@ -10,7 +10,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "developer_tools"))
 
-from g_local_review import (
+from h_local_review import (
     generate_markdown_report,
     get_current_branch,
     get_git_root,
@@ -20,7 +20,7 @@ from g_local_review import (
 
 
 class TestGetGitRoot:
-    @mock.patch("g_local_review.subprocess.run")
+    @mock.patch("h_local_review.subprocess.run")
     def test_successful_fetch(self, mock_run):
         """Should return git root directory."""
         mock_result = mock.MagicMock()
@@ -30,7 +30,7 @@ class TestGetGitRoot:
         root = get_git_root()
         assert root == "/path/to/repo"
 
-    @mock.patch("g_local_review.subprocess.run")
+    @mock.patch("h_local_review.subprocess.run")
     def test_not_a_git_repo(self, mock_run):
         """Should exit when not in a git repository."""
         import subprocess
@@ -43,7 +43,7 @@ class TestGetGitRoot:
 
 
 class TestGetCurrentBranch:
-    @mock.patch("g_local_review.subprocess.run")
+    @mock.patch("h_local_review.subprocess.run")
     def test_successful_fetch(self, mock_run):
         """Should return current branch name."""
         mock_result = mock.MagicMock()
@@ -53,7 +53,7 @@ class TestGetCurrentBranch:
         branch = get_current_branch()
         assert branch == "feature/test-branch"
 
-    @mock.patch("g_local_review.subprocess.run")
+    @mock.patch("h_local_review.subprocess.run")
     def test_fetch_failure(self, mock_run):
         """Should exit on fetch failure."""
         import subprocess
@@ -66,7 +66,7 @@ class TestGetCurrentBranch:
 
 
 class TestGetLocalDiff:
-    @mock.patch("g_local_review.subprocess.run")
+    @mock.patch("h_local_review.subprocess.run")
     def test_successful_diff(self, mock_run):
         """Should return diff including staged and unstaged changes."""
         # Mock git diff against main
@@ -89,7 +89,7 @@ class TestGetLocalDiff:
         assert "diff --git a/file2.py" in diff
         assert "file3.py" in diff
 
-    @mock.patch("g_local_review.subprocess.run")
+    @mock.patch("h_local_review.subprocess.run")
     def test_no_changes(self, mock_run):
         """Should return empty diff when no changes."""
         mock_result = mock.MagicMock()
@@ -100,7 +100,7 @@ class TestGetLocalDiff:
         diff = get_local_diff("main")
         assert diff.strip() == ""
 
-    @mock.patch("g_local_review.subprocess.run")
+    @mock.patch("h_local_review.subprocess.run")
     def test_git_error(self, mock_run):
         """Should exit on git error."""
         import subprocess
@@ -120,7 +120,7 @@ class TestGenerateMarkdownReport:
             review=review,
             target_branch="main",
             current_branch="feature/test",
-            model="qwen2.5-coder:14b",
+            model="qwen2.5-coder:7b",
             diff_size=1500,
             timestamp="2024-01-15T10:30:00+00:00",
         )
@@ -129,7 +129,7 @@ class TestGenerateMarkdownReport:
         assert "**Generated:** 2024-01-15T10:30:00+00:00" in report
         assert "**Current branch:** feature/test" in report
         assert "**Compared against:** main" in report
-        assert "**AI Model:** qwen2.5-coder:14b" in report
+        assert "**AI Model:** qwen2.5-coder:7b" in report
         assert "**Diff size:** 1500 characters" in report
         assert "## Review" in report
         assert "APPROVE" in report

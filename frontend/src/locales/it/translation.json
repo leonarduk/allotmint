@@ -20,7 +20,8 @@
       "generic": "Impossibile aggiungere la posizione."
     },
     "emptyAccountCta": "Aggiungi la tua prima posizione",
-    "collapse": "Comprimi il modulo di aggiunta posizione"
+    "collapse": "Comprimi il modulo di aggiunta posizione",
+    "collapseShort": "Comprimi"
   },
   "alertSettings": {
     "description": "Configura quando riceverai avvisi. Gli avvisi compaiono nella pagina degli avvisi e nelle notifiche push.",

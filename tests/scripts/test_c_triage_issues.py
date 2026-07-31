@@ -90,7 +90,7 @@ def test_fetch_unmilestoned_open_issues_filters_milestoned(monkeypatch):
         ]
     )
     monkeypatch.setattr(h, "run_gh", lambda args: _FakeResult(0, payload))
-    issues = h.fetch_unmilestoned_open_issues()
+    issues = h.fetch_unmilestoned_open_issues(True)
     assert [i.number for i in issues] == [1]
 
 
@@ -102,7 +102,7 @@ def test_fetch_unmilestoned_open_issues_populates_body_from_batch(monkeypatch):
         ]
     )
     monkeypatch.setattr(h, "run_gh", lambda args: _FakeResult(0, payload))
-    issues = h.fetch_unmilestoned_open_issues()
+    issues = h.fetch_unmilestoned_open_issues(True)
     assert issues[0].body == "See #2 for context"
     assert issues[1].body == ""
 
@@ -110,7 +110,7 @@ def test_fetch_unmilestoned_open_issues_populates_body_from_batch(monkeypatch):
 def test_fetch_unmilestoned_open_issues_exits_on_gh_failure(monkeypatch):
     monkeypatch.setattr(h, "run_gh", lambda args: _FakeResult(1, "", "boom"))
     try:
-        h.fetch_unmilestoned_open_issues()
+        h.fetch_unmilestoned_open_issues(True)
         assert False, "expected SystemExit"
     except SystemExit as exc:
         assert exc.code == 1
@@ -200,7 +200,7 @@ def test_triage_group_closes_duplicate_keeping_lowest_number(monkeypatch):
     closed = []
     monkeypatch.setattr(h, "close_issue", lambda number, comment, dry_run: closed.append(number))
     group = [_issue(1, "First"), _issue(2, "Second")]
-    handled = h.triage_group(group, "model", "endpoint", dry_run=True)
+    handled = h.triage_group(group, "model", "endpoint", dry_run=True, verbose=True)
     assert closed == [2]
     assert handled == {2}
 
@@ -210,7 +210,7 @@ def test_triage_group_does_not_close_canonical_even_if_flagged_duplicate(monkeyp
     closed = []
     monkeypatch.setattr(h, "close_issue", lambda number, comment, dry_run: closed.append(number))
     group = [_issue(1, "First"), _issue(2, "Second")]
-    handled = h.triage_group(group, "model", "endpoint", dry_run=True)
+    handled = h.triage_group(group, "model", "endpoint", dry_run=True, verbose=True)
     assert closed == [2]
     assert handled == {2}
 
@@ -221,7 +221,7 @@ def test_triage_group_folds_multiple_fold_candidates_into_consolidator(monkeypat
     closed = []
     monkeypatch.setattr(h, "close_issue", lambda number, comment, dry_run: closed.append(number))
     group = [_issue(1, "First"), _issue(2, "Second")]
-    handled = h.triage_group(group, "model", "endpoint", dry_run=True)
+    handled = h.triage_group(group, "model", "endpoint", dry_run=True, verbose=True)
     assert closed == [1, 2]
     assert handled == {1, 2}
 
@@ -231,7 +231,7 @@ def test_triage_group_single_fold_candidate_is_left_unhandled(monkeypatch):
     created = []
     monkeypatch.setattr(h, "create_consolidator_issue", lambda title, folded, dry_run: created.append(1))
     group = [_issue(1, "First")]
-    handled = h.triage_group(group, "model", "endpoint", dry_run=True)
+    handled = h.triage_group(group, "model", "endpoint", dry_run=True, verbose=True)
     assert created == []
     assert handled == set()
 
@@ -241,25 +241,25 @@ def test_triage_group_new_feature_is_commented_and_handled(monkeypatch):
     commented = []
     monkeypatch.setattr(h, "comment_new_feature", lambda number, dry_run: commented.append(number))
     group = [_issue(1, "Add a feature"), _issue(2, "Nit")]
-    handled = h.triage_group(group, "model", "endpoint", dry_run=True)
+    handled = h.triage_group(group, "model", "endpoint", dry_run=True, verbose=True)
     assert commented == [1]
     assert 1 in handled
 
 
 def test_triage_remaining_assigns_milestone_to_backlog_issues(monkeypatch):
-    monkeypatch.setattr(h, "classify_single_issue", lambda issue, model, endpoint: "BACKLOG")
+    monkeypatch.setattr(h, "classify_single_issue", lambda issue, model, endpoint, verbose: "BACKLOG")
     assigned = []
     monkeypatch.setattr(h, "assign_milestone", lambda number, milestone, dry_run: assigned.append(number))
-    h.triage_remaining([_issue(1, "Nit")], "model", "endpoint", dry_run=True)
+    h.triage_remaining([_issue(1, "Nit")], "model", "endpoint", dry_run=True, verbose=True)
     assert assigned == [1]
 
 
 def test_triage_remaining_skips_milestone_for_new_feature(monkeypatch):
-    monkeypatch.setattr(h, "classify_single_issue", lambda issue, model, endpoint: "NEW_FEATURE")
-    assigned = []
+    monkeypatch.setattr(h, "classify_single_issue", lambda issue, model, endpoint, verbose: "NEW_FEATURE")
     commented = []
+    assigned = []
     monkeypatch.setattr(h, "assign_milestone", lambda number, milestone, dry_run: assigned.append(number))
     monkeypatch.setattr(h, "comment_new_feature", lambda number, dry_run: commented.append(number))
-    h.triage_remaining([_issue(1, "Add a feature")], "model", "endpoint", dry_run=True)
+    h.triage_remaining([_issue(1, "Add a feature")], "model", "endpoint", dry_run=True, verbose=True)
     assert assigned == []
     assert commented == [1]

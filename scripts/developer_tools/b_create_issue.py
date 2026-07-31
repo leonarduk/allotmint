@@ -378,13 +378,13 @@ def offer_local_llm_review(title: str, body: str) -> tuple[str, str]:
     """
     try:
         use_llm = (
-            input("\nUse local LLM (ollama) to review and improve this issue? [y/N] ")
+            input("\nUse local LLM (ollama) to review and improve this issue? [Y/n] ")
             .strip()
             .lower()
         )
     except EOFError:
         use_llm = ""
-    if use_llm not in ("y", "yes"):
+    if use_llm not in ("y", "yes", ""):
         return title, body
 
     endpoint = get_ollama_endpoint()
@@ -414,10 +414,10 @@ def offer_local_llm_review(title: str, body: str) -> tuple[str, str]:
     print("=" * 60)
 
     try:
-        apply = input("Use this revised title/body? [y/N] ").strip().lower()
+        apply = input("Use this revised title/body? [Y/n] ").strip().lower()
     except EOFError:
         apply = ""
-    if apply in ("y", "yes"):
+    if apply in ("", "y", "yes"):
         return suggested_title, suggested_body
     return title, body
 

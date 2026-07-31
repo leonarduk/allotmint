@@ -12,33 +12,7 @@ import time
 from pathlib import Path
 
 import requests
-
-
-def get_repo_info() -> tuple[str, str]:
-    """Extract owner and repo from git remote origin."""
-    try:
-        result = subprocess.run(
-            ["git", "config", "--get", "remote.origin.url"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        url = result.stdout.strip()
-        # Handle both https and ssh URLs
-        if url.startswith("git@"):
-            # git@github.com:owner/repo.git
-            match = re.search(r"github\.com[:/]([^/]+)/(.+?)(?:\.git)?$", url)
-        else:
-            # https://github.com/owner/repo.git
-            match = re.search(r"github\.com/([^/]+)/(.+?)(?:\.git)?$", url)
-        if match:
-            repo = match.group(2)
-            if repo.endswith(".git"):
-                repo = repo[:-4]
-            return match.group(1), repo
-    except subprocess.CalledProcessError as exc:
-        raise ValueError(f"Could not determine GitHub repo from git remote origin: {exc}") from exc
-    raise ValueError("Could not determine GitHub repo from git remote origin")
+from lib.github_repo import get_repo_info
 
 
 def slugify(text: str) -> str:
@@ -57,11 +31,14 @@ def slugify(text: str) -> str:
     return slug
 
 
-def fetch_issue(owner: str, repo: str, issue_id: int) -> dict:
+def fetch_issue(owner: str, repo: str, issue_id: int, token: str | None = None) -> dict:
     """Fetch issue details from GitHub API."""
     url = f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_id}"
+    headers = {"Accept": "application/vnd.github.v3+json"}
+    if token:
+        headers["Authorization"] = f"token {token}"
     try:
-        resp = requests.get(url, timeout=10)
+        resp = requests.get(url, headers=headers, timeout=10)
         resp.raise_for_status()
     except requests.RequestException as exc:
         print(f"Failed to fetch issue #{issue_id}: {exc}", file=sys.stderr)
@@ -114,6 +91,7 @@ def create_branch(owner: str, repo: str, branch_name: str, sha: str, token: str 
 
 
 def main() -> None:
+    """Create and check out a remote branch for the requested issue."""
     parser = argparse.ArgumentParser(description="Create a GitHub issue checkout branch")
     parser.add_argument("issue_id", type=int, help="GitHub issue ID")
     parser.add_argument(
@@ -146,9 +124,11 @@ def main() -> None:
         print(f"Failed to fetch from origin: {exc}", file=sys.stderr)
         sys.exit(1)
 
+    token = args.token or os.getenv("GITHUB_TOKEN")
+
     # Fetch issue
     print(f"Fetching issue #{args.issue_id}...")
-    issue = fetch_issue(owner, repo, args.issue_id)
+    issue = fetch_issue(owner, repo, args.issue_id, token)
     title = issue.get("title", "")
     body = issue.get("body") or ""
     if not title:
@@ -166,7 +146,7 @@ def main() -> None:
 
     # Create branch in remote
     print("Creating branch in remote...")
-    create_branch(owner, repo, branch_name, sha, args.token or os.getenv("GITHUB_TOKEN"))
+    create_branch(owner, repo, branch_name, sha, token)
 
     # Small delay to avoid a race where the branch ref isn't visible yet
     time.sleep(1)

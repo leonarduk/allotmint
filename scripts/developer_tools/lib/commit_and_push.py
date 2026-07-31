@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-sys.path.insert(0, str(Path(__file__).parent / "lib"))
+sys.path.insert(0, str(Path(__file__).parent))
 
 from ollama_common import (  # noqa: E402
     fetch_ollama_review,
@@ -69,12 +69,16 @@ def has_staged_changes() -> bool:
 
 def get_staged_diff() -> str:
     """Return the diff of staged changes."""
-    result = subprocess.run(
-        ["git", "diff", "--cached"],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--cached"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        print(f"ERROR: Failed to read staged changes: {exc}", file=sys.stderr)
+        raise SystemExit(1) from exc
     return result.stdout
 
 
@@ -161,7 +165,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--model",
         default=None,
-        help="Ollama model name (default: OLLAMA_MODEL env var or 'qwen2.5-coder:14b')",
+        help="Ollama model name (default: OLLAMA_MODEL env var or 'qwen2.5-coder:7b')",
     )
     parser.add_argument(
         "--no-push",
@@ -172,6 +176,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    """Stage, commit, and optionally push changes based on CLI arguments."""
     args = build_arg_parser().parse_args()
 
     os.chdir(get_git_root())

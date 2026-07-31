@@ -58,6 +58,7 @@ backend.log
 /.coverage
 /.coveragerc
 /coverage/
+/test-results/
 
 # Jenkins
 jenkins_home/
@@ -68,3 +69,9 @@ jenkins_home/
 issues/
 /scripts/developer_tools/.issue-*.md
 /scripts/developer_tools/local_review_*.md
+/data/queries/test-query.json
+
+coverage.xml
+/scripts/developer_tools/scripts/developer_tools/.coverage
+/scripts/developer_tools/test-results/junit.xml
+/.issue-*.md

@@ -173,7 +173,7 @@ The script:
 Optional flags:
 - `--token TOKEN`: GitHub personal access token (also reads `GITHUB_TOKEN` env var). Required for branch creation (unauthenticated requests will fail with 401/403).
 
-## e_implement_issue_using_local_llm.ps1
+## developer_tools/e_implement_issue_using_local_llm.ps1
 
 Automates implementing a GitHub issue end-to-end with a local LLM: fetches the
 issue, creates/resets an `issue-<N>` branch, runs [aider](https://aider.chat)
@@ -194,6 +194,33 @@ Optional flags:
 If aider makes no commits (e.g. the local model replies with prose instead of
 edits), the script fails rather than pushing an empty branch or opening a
 content-free PR.
+
+## g_run_ci_checks.py
+
+Run the credential-free integration and validation steps from the most relevant
+GitHub Actions workflows before pushing. With no arguments, the script presents
+an interactive menu:
+
+```bash
+python scripts/developer_tools/g_run_ci_checks.py
+```
+
+For automation or non-interactive shells, select one or more groups explicitly:
+
+```bash
+python scripts/developer_tools/g_run_ci_checks.py --list
+python scripts/developer_tools/g_run_ci_checks.py --check backend --check frontend
+python scripts/developer_tools/g_run_ci_checks.py --all --keep-going
+python scripts/developer_tools/g_run_ci_checks.py --all --dry-run
+```
+
+The groups mirror backend integration, frontend, infrastructure/workflow-lint,
+developer-script (bats/Pester/shellcheck), and backend dependency-conflict
+jobs. The runner assumes their dependencies are already installed, runs from
+the repository root regardless of the caller's current directory, stops at
+the first failure by default, and propagates a failing exit status. Cloud
+deployment and other secret-dependent jobs are intentionally not offered as
+local checks.
 
 ## publish_pr.py
 
@@ -233,7 +260,7 @@ bash scripts/bash/publish-pr.sh -m "Fix bug in auth" --no-ollama
 - `gh` CLI must be installed and authenticated
 - Ollama is optional but recommended for better PR descriptions
 
-## commit_and_push.py
+## developer_tools/lib/commit_and_push.py
 
 Commit local changes and push to `origin`, using a local Ollama model to draft
 the commit message from the diff. This is a lighter-weight alternative to
@@ -256,7 +283,7 @@ Optional flags:
 - `-m/--message TEXT`: Commit message override (skips Ollama generation)
 - `-f/--files FILE [FILE ...]`: Specific files to stage (default: all changed files)
 - `--no-ollama`: Skip Ollama and use a plain default commit message
-- `--model MODEL`: Ollama model name (default: env var `OLLAMA_MODEL` or `qwen2.5-coder:14b`)
+- `--model MODEL`: Ollama model name (default: env var `OLLAMA_MODEL` or `qwen2.5-coder:7b`)
 - `--no-push`: Commit only; skip pushing to `origin`
 
 On Windows, use the PowerShell wrapper:
@@ -272,7 +299,7 @@ bash scripts/bash/commit-and-push.sh -m "Fix bug in auth" --no-ollama
 **Requirements:**
 - Ollama is optional but recommended for better commit messages; without it (or with `--no-ollama`), a plain default message is used
 
-## i_dependabot_auto_merge.py
+## l_dependabot_auto_merge.py
 
 Auto-merge open Dependabot pull requests once their checks have all passed, then
 delete the branch. A PR that is green but only out-of-date with `main` (no real
@@ -327,15 +354,19 @@ Like `work_on_issue.py`, but for picking up an existing pull request instead
 of starting a new one: fetches the PR from GitHub and checks out its branch
 locally (creating a local tracking branch if needed).
 
+Dependencies: This script requires the requests library. 
+If it is not already installed, run pip install requests.
+
+
 ```bash
-python scripts/developer_tools/k_work_on_pr.py 4512
+python scripts/developer_tools/e_work_on_pr.py 4512
 ```
 
 Omit the PR number to list all open pull requests and choose one
 interactively:
 
 ```bash
-python scripts/developer_tools/k_work_on_pr.py
+python scripts/developer_tools/e_work_on_pr.py
 ```
 
 The script:
@@ -352,6 +383,38 @@ Optional flags:
 
 Uses only `requests` and plain `git` -- no `gh` CLI or special GitHub scopes
 required.
+
+## n_review_issue.py
+
+Review and refresh a single GitHub issue with a local or cloud LLM before work
+starts on it, so a stale or vague issue gets corrected instead of misread.
+Fetches the issue, asks the chosen model to bring the title/body up to date
+while preserving the original section structure, shows a diff of the proposed
+change, and only calls `gh issue edit` after you approve it.
+
+```bash
+python scripts/developer_tools/n_review_issue.py 5695
+```
+
+Omit the issue number or `--model` to be prompted interactively:
+
+```bash
+python scripts/developer_tools/n_review_issue.py
+```
+
+Optional flags:
+- `--model {local,cloud}`: `local` uses Ollama (see `OLLAMA_ENDPOINT`/`OLLAMA_MODEL`
+  above); `cloud` uses DeepSeek and requires `DEEPSEEK_API_KEY` to be set.
+- `--yes`: skip the confirmation prompt and update the issue if changes are proposed.
+- `--dry-run`: show the proposed diff and confirmation flow, but never call
+  `gh issue edit`.
+- `--verbose`: print the raw model response.
+
+If the model's revised body is far shorter than the original, the script
+refuses to propose the change rather than risk silently dropping details.
+
+**Requirements:** `gh` CLI authenticated against the target repo; either a
+running local Ollama server or a `DEEPSEEK_API_KEY`, depending on `--model`.
 
 ## reconcile_drawdown.py
 

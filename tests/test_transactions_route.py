@@ -451,6 +451,43 @@ def test_import_transactions_success(tmp_path, monkeypatch):
     assert captured == {"provider": "degiro", "data": b"content"}
 
 
+def test_calculate_portfolio_impact_tolerates_bank_transaction_fields():
+    assert transactions._calculate_portfolio_impact({"price_gbp": None, "units": None}) == 0.0
+
+
+def test_import_transactions_rolls_back_when_later_write_fails(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+    posted_before = list(transactions._POSTED_TRANSACTIONS)
+    impact_before = dict(transactions._PORTFOLIO_IMPACT)
+    sample = [
+        transactions.Transaction(owner="alice", account="isa", ticker="PFE", price_gbp=2, units=3),
+        transactions.Transaction(owner="alice", account="isa", ticker="MSFT", price_gbp=5, units=2),
+    ]
+    monkeypatch.setattr(transactions.importers, "parse", lambda provider, data: sample)
+    real_persist = transactions._persist_transaction
+    calls = 0
+
+    def fail_second_write(store, owner, account, tx_data):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise OSError("simulated persistence failure")
+        return real_persist(store, owner, account, tx_data)
+
+    monkeypatch.setattr(transactions, "_persist_transaction", fail_second_write)
+    with pytest.raises(OSError, match="simulated persistence failure"):
+        client.post(
+            "/transactions/import",
+            data={"provider": "degiro"},
+            files={"file": ("tx.csv", b"content", "text/csv")},
+        )
+
+    stored = json.loads((tmp_path / "alice" / "isa_transactions.json").read_text())
+    assert stored["transactions"] == []
+    assert transactions._POSTED_TRANSACTIONS == posted_before
+    assert dict(transactions._PORTFOLIO_IMPACT) == impact_before
+
+
 def test_import_transactions_empty_parse_does_not_require_writable_store(tmp_path, monkeypatch):
     """An empty parse result (e.g. the "test" provider used by smoke tests,
     which always returns []) must not 400 for a request with no writable

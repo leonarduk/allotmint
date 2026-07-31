@@ -10,9 +10,11 @@ Virtual "group portfolio" builder.
 
 import datetime as dt
 import logging
+import time
 from datetime import date
 from typing import Any, Dict, List
 
+from backend.common import data_loader
 from backend.common import portfolio as owner_portfolio
 from backend.common.approvals import load_approvals
 from backend.common.constants import (
@@ -62,9 +64,10 @@ def list_groups() -> List[Dict[str, Any]]:
     - "adults"   - lucy + steve
     - "children" - alex + joe
     """
-    from backend.common.portfolio_loader import list_portfolios  # local import avoids cycles
-
-    owners = sorted({pf.get("owner") for pf in list_portfolios() if pf.get("owner")})
+    started_at = time.perf_counter()
+    owner_rows = data_loader.list_plots()
+    owners = sorted({row.owner for row in owner_rows})
+    owner_discovery_ms = (time.perf_counter() - started_at) * 1000
 
     groups = [
         {
@@ -96,6 +99,16 @@ def list_groups() -> List[Dict[str, Any]]:
             }
         )
 
+    logger.info(
+        "group_portfolio.list_groups_complete",
+        extra={
+            "event": "group_portfolio.list_groups_complete",
+            "owner_count": len(owners),
+            "group_count": len(groups),
+            "owner_discovery_ms": round(owner_discovery_ms, 2),
+            "duration_ms": round((time.perf_counter() - started_at) * 1000, 2),
+        },
+    )
     return groups
 
 

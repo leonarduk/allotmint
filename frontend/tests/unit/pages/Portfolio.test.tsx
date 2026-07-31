@@ -36,10 +36,12 @@ function OwnerOnlyRouteProvider({ children }: { children: React.ReactNode }) {
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((res) => {
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
     resolve = res;
+    reject = rej;
   });
-  return { promise, resolve };
+  return { promise, resolve, reject };
 }
 
 vi.mock("@/api");
@@ -177,6 +179,112 @@ describe("Portfolio page", () => {
     expect(screen.getByText(/Approx Total:/).textContent).toMatch(/200/);
   });
 
+  it("keeps the newer request error when the stale request resolves later", async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: "alice", accounts: [] },
+      { owner: "bob", accounts: [] },
+    ]);
+
+    const alice = deferred<Portfolio>();
+    const bob = deferred<Portfolio>();
+    mockGetPortfolio.mockImplementation((owner: string) =>
+      owner === "alice" ? alice.promise : bob.promise,
+    );
+
+    render(
+      <HelmetProvider>
+        <MemoryRouter initialEntries={["/portfolio"]}>
+          <OwnerOnlyRouteProvider>
+            <Routes>
+              <Route path="/portfolio" element={<PortfolioPage />} />
+            </Routes>
+          </OwnerOnlyRouteProvider>
+        </MemoryRouter>
+      </HelmetProvider>,
+    );
+
+    const ownerSelect = await screen.findByLabelText(/Owner/i);
+    await userEvent.selectOptions(ownerSelect, "alice");
+    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("alice"));
+    await userEvent.selectOptions(ownerSelect, "bob");
+    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("bob"));
+
+    await act(async () => {
+      bob.reject(new Error("bob failed"));
+      await expect(bob.promise).rejects.toThrow("bob failed");
+    });
+    expect(await screen.findByText("Failed to load portfolio")).toBeInTheDocument();
+
+    await act(async () => {
+      alice.resolve({
+        owner: "alice",
+        as_of: "2024-01-01",
+        trades_this_month: 0,
+        trades_remaining: 0,
+        total_value_estimate_gbp: 100,
+        accounts: [],
+      } as Portfolio);
+      await alice.promise;
+    });
+
+    expect(screen.getByText("Failed to load portfolio")).toBeInTheDocument();
+    expect(screen.queryByText(/Approx Total:/)).not.toBeInTheDocument();
+  });
+
+  it("ignores a stale request error while the newer owner request is pending", async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: "alice", accounts: [] },
+      { owner: "bob", accounts: [] },
+    ]);
+
+    const alice = deferred<Portfolio>();
+    const bob = deferred<Portfolio>();
+    mockGetPortfolio.mockImplementation((owner: string) =>
+      owner === "alice" ? alice.promise : bob.promise,
+    );
+
+    render(
+      <HelmetProvider>
+        <MemoryRouter initialEntries={["/portfolio"]}>
+          <OwnerOnlyRouteProvider>
+            <Routes>
+              <Route path="/portfolio" element={<PortfolioPage />} />
+            </Routes>
+          </OwnerOnlyRouteProvider>
+        </MemoryRouter>
+      </HelmetProvider>,
+    );
+
+    const ownerSelect = await screen.findByLabelText(/Owner/i);
+    await userEvent.selectOptions(ownerSelect, "alice");
+    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("alice"));
+    await userEvent.selectOptions(ownerSelect, "bob");
+    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("bob"));
+
+    await act(async () => {
+      alice.reject(new Error("stale alice failure"));
+      await expect(alice.promise).rejects.toThrow("stale alice failure");
+    });
+    expect(screen.queryByText("Failed to load portfolio")).not.toBeInTheDocument();
+
+    await act(async () => {
+      bob.resolve({
+        owner: "bob",
+        as_of: "2024-01-01",
+        trades_this_month: 0,
+        trades_remaining: 0,
+        total_value_estimate_gbp: 200,
+        accounts: [
+          { account_type: "isa", currency: "GBP", value_estimate_gbp: 200, holdings: [] },
+        ],
+      } as Portfolio);
+      await bob.promise;
+    });
+
+    expect((await screen.findByText(/Approx Total:/)).textContent).toMatch(/200/);
+    expect(screen.queryByText("Failed to load portfolio")).not.toBeInTheDocument();
+  });
+
   it("clears the loading state when a stale request resolves while the newer request is still pending", async () => {
     mockGetOwners.mockResolvedValue([
       { owner: "alice", accounts: [] },
@@ -228,6 +336,22 @@ describe("Portfolio page", () => {
     });
 
     expect(screen.queryByText(/^Loading…$/)).not.toBeInTheDocument();
+
+    await act(async () => {
+      bob.resolve({
+        owner: "bob",
+        as_of: "2024-01-01",
+        trades_this_month: 0,
+        trades_remaining: 0,
+        total_value_estimate_gbp: 200,
+        accounts: [
+          { account_type: "isa", currency: "GBP", value_estimate_gbp: 200, holdings: [] },
+        ],
+      } as Portfolio);
+      await bob.promise;
+    });
+
+    expect((await screen.findByText(/Approx Total:/)).textContent).toMatch(/200/);
   });
 
   it("shows available owners excluding demo entries", async () => {

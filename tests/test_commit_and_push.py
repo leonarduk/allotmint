@@ -1,4 +1,4 @@
-"""Unit tests for commit_and_push script."""
+"""Unit tests for the commit_and_push helper."""
 
 from __future__ import annotations
 
@@ -90,6 +90,14 @@ class TestGetStagedDiff:
     def test_returns_diff_output(self, mock_run):
         mock_run.return_value = mock.MagicMock(stdout="diff --git a/x b/x\n")
         assert get_staged_diff() == "diff --git a/x b/x\n"
+
+    @mock.patch("commit_and_push.subprocess.run")
+    def test_failure_exits_cleanly(self, mock_run):
+        mock_run.side_effect = subprocess.CalledProcessError(1, "git")
+
+        with pytest.raises(SystemExit) as exc_info:
+            get_staged_diff()
+        assert exc_info.value.code == 1
 
 
 class TestBuildCommitPrompt:

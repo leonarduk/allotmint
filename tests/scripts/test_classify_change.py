@@ -187,6 +187,14 @@ new mode 100755
 """
         assert classify_diff(diff) is False
 
+    def test_permission_change_on_doc_path_is_not_doc_only(self) -> None:
+        diff = """\
+diff --git a/docs/DEPLOY.md b/docs/DEPLOY.md
+old mode 100644
+new mode 100755
+"""
+        assert classify_diff(diff) is False
+
     def test_rename_between_doc_paths_is_doc_only(self) -> None:
         diff = """\
 diff --git a/docs/OLD_NAME.md b/docs/NEW_NAME.md

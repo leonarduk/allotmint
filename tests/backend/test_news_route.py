@@ -1,3 +1,4 @@
+import pytest
 import requests
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -5,6 +6,18 @@ from typing import Dict, List, Tuple
 
 from backend.routes import news
 from backend.utils import page_cache
+
+
+@pytest.fixture(autouse=True)
+def _isolated_news_quota(tmp_path, monkeypatch):
+    """Point the daily request-quota counter at a per-test file.
+
+    ``news._try_consume_quota`` persists its count to a real file on disk
+    (shared across every test run on the machine, all day). Without this,
+    repeated local test runs exhaust the quota and later runs start getting
+    legitimate 429s unrelated to what they're testing.
+    """
+    monkeypatch.setattr(news, "COUNTER_FILE", tmp_path / "news_requests.json")
 
 
 def _client():

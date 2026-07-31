@@ -13,6 +13,9 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BACKEND_ROOT = REPO_ROOT / "backend"
 EXCLUDED_FILES = {BACKEND_ROOT / "logging_setup.py"}
+
+# When running on Windows, these folders can cause unexpected issues
+EXCLUDED_DIR_NAMES = {".venv", "venv", "env", ".env", "site-packages", "node_modules"}
 LOG_METHODS = {"warning", "error", "info"}
 
 
@@ -42,6 +45,8 @@ def find_unwrapped_log_calls() -> list[tuple[str, int]]:
     results: list[tuple[str, int]] = []
     for path in sorted(BACKEND_ROOT.rglob("*.py")):
         if path in EXCLUDED_FILES or "tests" in path.parts:
+            continue
+        if EXCLUDED_DIR_NAMES.intersection(path.parts):
             continue
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         for node in ast.walk(tree):

@@ -104,8 +104,10 @@ class S3DataProvider:
         (credential resolution, endpoint discovery). Reusing a single
         client eliminates this overhead on every account/person-meta load.
         """
-        if self._cached_client is not None:
-            return self._cached_client
+        cached = getattr(self, "_cached_client", None)
+        if cached is not None:
+            return cached
+
         try:
             import boto3  # type: ignore
         except Exception as exc:  # pragma: no cover - import failure is environment-specific

@@ -11,7 +11,17 @@ permissions:
   contents: read
 
 jobs:
+  # Shared with ci.yml, backend-integration.yml and iac-validation.yml.
+  classify-change:
+    uses: ./.github/workflows/_classify-change.yml
+
   frontend-tests:
+    needs: classify-change
+    # !cancelled() (not the implicit default success()) so a classify-change
+    # failure still runs the suite instead of silently skipping it, and
+    # `!= 'false'` (not `== 'true'`) so empty outputs from a failed classifier
+    # err towards running. See scripts/classify_change.py.
+    if: "!cancelled() && needs.classify-change.outputs.frontend != 'false'"
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository

@@ -36,6 +36,12 @@
             "context": "CI / test"
           },
           {
+            "context": "CI / Frontend lint, type-check and unit tests"
+          },
+          {
+            "context": "CI / CDK infrastructure tests"
+          },
+          {
             "context": "CI / Validate backend/requirements.txt (dry-run)"
           },
           {

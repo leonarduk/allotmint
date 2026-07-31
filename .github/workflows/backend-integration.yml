@@ -12,43 +12,20 @@ permissions:
   id-token: write
   
 jobs:
-  # Duplicated from ci.yml's classify-change job because workflow files can't
-  # share job outputs across files without a reusable workflow; the actual
-  # classification logic lives once in scripts/classify_change.py. Always
-  # runs (never gated itself) so integration-tests never loses its required
-  # status check to needs-skip-propagation; non-pull_request events (push,
-  # etc.) conservatively classify as not doc-only.
+  # Shared with ci.yml, frontend-tests.yml and iac-validation.yml. This job was
+  # previously a verbatim copy of ci.yml's classify-change because workflow
+  # files can't share job outputs across files -- a reusable workflow is
+  # exactly the mechanism that fixes that.
   classify-change:
-    name: Classify PR change (doc-only detection)
-    runs-on: ubuntu-latest
-    outputs:
-      doc-only: ${{ steps.classify.outputs.doc-only }}
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-python@v7
-        with:
-          python-version: '3.12'
-      - name: Classify change as doc-only or not
-        id: classify
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          python scripts/classify_change.py \
-            --event-name "$EVENT_NAME" \
-            --base "$BASE_SHA" \
-            --head "$HEAD_SHA" \
-            --github-output "$GITHUB_OUTPUT"
+    uses: ./.github/workflows/_classify-change.yml
 
   integration-tests:
     needs: classify-change
     # !cancelled() (not the implicit default success()) so a classify-change
-    # failure still runs the full suite instead of silently skipping it --
-    # see scripts/classify_change.py's conservative fallback.
-    if: "!cancelled() && needs.classify-change.outputs.doc-only != 'true'"
+    # failure still runs the suite instead of silently skipping it, and
+    # `!= 'false'` (not `== 'true'`) so empty outputs from a failed classifier
+    # err towards running. See scripts/classify_change.py.
+    if: "!cancelled() && needs.classify-change.outputs.backend != 'false'"
     runs-on: ubuntu-latest
     env:
       AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}

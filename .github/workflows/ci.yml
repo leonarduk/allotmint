@@ -7,43 +7,29 @@ on:
 permissions:
   contents: read
 jobs:
-  # Classifies pull_request diffs as "doc-only" (comments/docstrings/*.md/docs/**
-  # only) so the heavyweight jobs below can skip on PRs like #5554 that add a
-  # code comment but touch no executable behaviour. Always runs (never gated
-  # itself) so jobs that `needs: classify-change` never lose their required
-  # status check to skip-propagation; non-pull_request events (push, etc.)
-  # conservatively classify as not doc-only. See scripts/classify_change.py.
+  # Single source of truth for which areas a PR can affect. Always runs (never
+  # gated itself) so jobs that `needs: classify-change` never lose their
+  # required status check to skip-propagation.
+  #
+  # Gated jobs below use `<area> != 'false'` rather than `== 'true'`: if the
+  # classifier fails its outputs are empty strings, and `!= 'false'` is the
+  # polarity that then errs towards running the suite. Pair it with
+  # `!cancelled()` (not the implicit default success()) so a classify-change
+  # failure doesn't skip-propagate. See scripts/classify_change.py.
   classify-change:
-    name: Classify PR change (doc-only detection)
-    runs-on: ubuntu-latest
-    outputs:
-      doc-only: ${{ steps.classify.outputs.doc-only }}
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-python@v7
-        with:
-          python-version: '3.12'
-      - name: Classify change as doc-only or not
-        id: classify
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          python scripts/classify_change.py \
-            --event-name "$EVENT_NAME" \
-            --base "$BASE_SHA" \
-            --head "$HEAD_SHA" \
-            --github-output "$GITHUB_OUTPUT"
+    uses: ./.github/workflows/_classify-change.yml
 
+  # Repo-hygiene checks: cheap, apply to every PR, and gate nothing
+  # area-specific. Deliberately ungated --
+  # check_branch_protection_required_checks.py is what stops the ruleset
+  # drifting away from the jobs below, so it must run even on a change that
+  # affects no test area.
+  #
+  # Do NOT add a `name:` here and do not rename the job id. This job's check
+  # context is literally "CI / test" in
+  # .github/rulesets/default-branch-protection.json; renaming it would leave
+  # branch protection waiting forever for a context no workflow produces.
   test:
-    needs: classify-change
-    # !cancelled() (not the implicit default success()) so a classify-change
-    # failure still runs the full suite instead of silently skipping it --
-    # see scripts/classify_change.py's conservative fallback.
-    if: "!cancelled() && needs.classify-change.outputs.doc-only != 'true'"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -58,6 +44,14 @@ jobs:
         run: pytest tests/test_review_common.py -v --no-cov
       - name: Check package-lock.json cross-OS platform coverage
         run: python scripts/check_lockfile_platform_coverage.py
+
+  frontend-checks:
+    name: Frontend lint, type-check and unit tests
+    needs: classify-change
+    if: "!cancelled() && needs.classify-change.outputs.frontend != 'false'"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
@@ -73,10 +67,22 @@ jobs:
         working-directory: frontend
       - run: npm test -- --run
         working-directory: frontend
+
+  cdk-tests:
+    name: CDK infrastructure tests
+    needs: classify-change
+    if: "!cancelled() && needs.classify-change.outputs.cdk != 'false'"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt -r requirements-dev.txt
       - name: Check cdk/tests/ exists and has tests
         run: |
           if [ ! -d "cdk/tests" ] || [ -z "$(ls -A cdk/tests/)" ]; then
-            echo "ERROR: cdk/tests/ is missing or empty. The test job requires at least one test file in cdk/tests/."
+            echo "ERROR: cdk/tests/ is missing or empty. This job requires at least one test file in cdk/tests/."
             exit 1
           fi
       - name: CDK infrastructure tests
@@ -84,6 +90,8 @@ jobs:
 
   shell-tests:
     name: Bash script tests (bats)
+    needs: classify-change
+    if: "!cancelled() && needs.classify-change.outputs.shell != 'false'"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -101,6 +109,8 @@ jobs:
 
   powershell-tests:
     name: PowerShell script tests (Pester)
+    needs: classify-change
+    if: "!cancelled() && needs.classify-change.outputs.powershell != 'false'"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -129,6 +139,8 @@ jobs:
   # gives. Keep both (issue #4467).
   validate-backend-deps:
     name: Validate backend/requirements.txt (dry-run)
+    needs: classify-change
+    if: "!cancelled() && needs.classify-change.outputs.backend != 'false'"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -181,7 +193,7 @@ jobs:
   lambda-compat:
     name: Lambda-compat pytest (backend/requirements.txt)
     needs: classify-change
-    if: "!cancelled() && needs.classify-change.outputs.doc-only != 'true'"
+    if: "!cancelled() && needs.classify-change.outputs.backend != 'false'"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -200,14 +212,16 @@ jobs:
         env:
           ALLOTMINT_SKIP_SNAPSHOT_WARM: 'true'
         # Run tests/ under Lambda-pinned deps to validate the backend works in
-        # the constrained Lambda runtime environment. The test job runs cdk/tests/
-        # instead, covering CDK infrastructure. This avoids duplication: tests/
-        # runs once (here), cdk/tests/ runs once (in test job), against their
-        # respective dependency sets.
+        # the constrained Lambda runtime environment. The cdk-tests job runs
+        # cdk/tests/ instead, covering CDK infrastructure. This avoids
+        # duplication: tests/ runs once (here), cdk/tests/ runs once (in
+        # cdk-tests), against their respective dependency sets.
         run: .venv-lambda/bin/pytest tests/
 
   lint-shell-scripts:
     name: Lint .github/scripts shell scripts (shellcheck)
+    needs: classify-change
+    if: "!cancelled() && needs.classify-change.outputs.shell != 'false'"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -217,6 +231,8 @@ jobs:
         continue-on-error: true
         run: shellcheck .github/scripts/*.sh
 
+  # Deliberately ungated: this is the check that validates the gating itself,
+  # so it must run on every PR, including ones that touch only workflow YAML.
   lint-workflows:
     name: Lint GitHub Actions workflows
     runs-on: ubuntu-latest
@@ -238,7 +254,7 @@ jobs:
   python-compatibility:
     name: Python ${{ matrix.python-version }} compatibility smoke
     needs: classify-change
-    if: "!cancelled() && needs.classify-change.outputs.doc-only != 'true'"
+    if: "!cancelled() && needs.classify-change.outputs.backend != 'false'"
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -261,26 +277,29 @@ jobs:
           ALLOTMINT_SKIP_SNAPSHOT_WARM: 'true'
         run: pytest --no-cov tests/test_backend_api.py::test_health tests/backend/common/test_data_provider_parity.py -q
 
-  detect-frontend-changes:
-    name: Detect frontend-relevant changes
-    runs-on: ubuntu-latest
-    outputs:
-      frontend: ${{ steps.filter.outputs.frontend }}
-    steps:
-      - uses: actions/checkout@v7
-      - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4
-        id: filter
-        with:
-          filters: |
-            frontend:
-              - 'frontend/**'
-              - 'package.json'
-              - 'package-lock.json'
-
   frontend-smoke:
     name: Frontend smoke tests (preview build)
-    needs: [test, detect-frontend-changes]
-    if: needs.detect-frontend-changes.outputs.frontend == 'true'
+    needs: [classify-change, frontend-checks]
+    # Three clauses, each load-bearing:
+    #   !cancelled()                     -- survive a classify-change failure
+    #                                       instead of skip-propagating, which
+    #                                       would report this required check as
+    #                                       skipped (i.e. passing) without ever
+    #                                       running the smoke tests.
+    #   frontend-checks.result != failure -- don't spend ~15 min on Playwright
+    #                                       when lint/type-check/vitest already
+    #                                       failed. `!cancelled()` replaces the
+    #                                       implicit success(), so this has to
+    #                                       be stated explicitly. A *skipped*
+    #                                       frontend-checks is fine: it means
+    #                                       frontend == 'false', and the third
+    #                                       clause skips this job too.
+    #   frontend != 'false'              -- the actual area gate, in fail-safe
+    #                                       polarity (empty output => run).
+    if: >-
+      !cancelled()
+      && needs.frontend-checks.result != 'failure'
+      && needs.classify-change.outputs.frontend != 'false'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

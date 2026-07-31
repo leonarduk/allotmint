@@ -18,11 +18,23 @@ RULESET_PATH = REPO_ROOT / ".github" / "rulesets" / "default-branch-protection.j
 WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
 
 EXPECTED_REQUIRED_CHECKS = {
-    # `test` runs cdk/tests/ (CDK infrastructure) against root deps; the
-    # backend `tests/` suite runs once, under Lambda-pinned deps, in
-    # `lambda-compat` below. Keeping each suite to a single dependency set
-    # avoids running `tests/` twice per PR (see PR #4464).
+    # `test` is the ungated repo-hygiene job (branch-protection validation,
+    # lockfile platform coverage, extract_verdict/review_common tests). Its
+    # context string is the bare job id, so the job must never gain a `name:`
+    # and must never be renamed -- see the comment on the job in ci.yml.
     "CI / test",
+    # Area-gated jobs. These skip on PRs that can't affect them, and GitHub
+    # reports a skipped job as a passing required check -- which is only safe
+    # because every gate is written `<area> != 'false'` with `!cancelled()`,
+    # so a classifier failure runs the job rather than skipping it. See
+    # scripts/classify_change.py and .github/workflows/_classify-change.yml.
+    "CI / Frontend lint, type-check and unit tests",
+    # cdk/tests/ against root deps; iac-validation.yml runs the same suite
+    # against cdk/requirements.txt. The backend `tests/` suite runs once,
+    # under Lambda-pinned deps, in `lambda-compat` below. Keeping each suite
+    # to a single dependency set avoids running `tests/` twice per PR
+    # (see PR #4464).
+    "CI / CDK infrastructure tests",
     "CI / Validate backend/requirements.txt (dry-run)",
     "CI / Lambda-compat pytest (backend/requirements.txt)",
     "CI / Frontend smoke tests (preview build)",

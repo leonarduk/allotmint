@@ -9,6 +9,9 @@ import en from "@/locales/en/translation.json";
 vi.mock("@/api", () => ({
   getAlertThreshold: vi.fn().mockResolvedValue({ threshold: 5 }),
   setAlertThreshold: vi.fn().mockResolvedValue({}),
+  getAlerts: vi.fn().mockResolvedValue([]),
+  getNudges: vi.fn().mockResolvedValue([]),
+  searchInstruments: vi.fn().mockResolvedValue([]),
 }));
 
 describe("AlertSettings navigation", () => {
@@ -39,6 +42,13 @@ describe("AlertSettings navigation", () => {
     expect(
       screen.getByRole("heading", { name: en.alertSettings.push.title })
     ).toBeInTheDocument();
+
+    // Header parity (#5736): the shared AppHeader controls must be present,
+    // not just the bare nav.
+    expect(
+      screen.getByRole("button", { name: "notifications" }),
+    ).toBeInTheDocument();
+    expect(screen.getByAltText("user avatar")).toBeInTheDocument();
   });
 });
 

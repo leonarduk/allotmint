@@ -28,11 +28,9 @@ import PortfolioDashboardSkeleton from './components/skeletons/PortfolioDashboar
 import TableSkeleton from './components/skeletons/TableSkeleton';
 import ChartSkeleton from './components/skeletons/ChartSkeleton';
 
-import { NotificationsDrawer } from './components/NotificationsDrawer';
 import { ComplianceWarnings } from './components/ComplianceWarnings';
 import { ScreenerQuery } from './pages/ScreenerQuery';
 import useFetchWithRetry from './hooks/useFetchWithRetry';
-import { LanguageSwitcher } from './components/LanguageSwitcher';
 import { TimeseriesEdit } from './pages/TimeseriesEdit';
 import Watchlist from './pages/Watchlist';
 import TopMovers from './pages/TopMovers';
@@ -47,11 +45,9 @@ import UserConfigPage from './pages/UserConfig';
 import BackendUnavailableCard from './components/BackendUnavailableCard';
 import Reports from './pages/Reports';
 import ReportTemplateCreator from './pages/ReportTemplateCreator';
-import UserAvatar from './components/UserAvatar';
 import AllocationCharts from './pages/AllocationCharts';
 import InstrumentAdmin from './pages/InstrumentAdmin';
-import Menu from './components/Menu';
-import { InstrumentSearchBarToggle } from './components/InstrumentSearchBar';
+import AppHeader from './components/AppHeader';
 import Rebalance from './pages/Rebalance';
 import PensionForecast from './pages/PensionForecast';
 import TaxTools from './pages/TaxTools';
@@ -216,7 +212,6 @@ export default function App({ onLogout }: AppProps) {
 
   const [backendUnavailable, setBackendUnavailable] = useState(false);
   const [retryNonce, setRetryNonce] = useState(0);
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   const handleRetry = useCallback(() => {
     setRetryNonce((n) => n + 1);
@@ -555,22 +550,12 @@ export default function App({ onLogout }: AppProps) {
 
     return (
       <>
-        <div
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            alignItems: 'center',
-            gap: '0.5rem',
-            margin: '1rem 0',
-          }}
+        <AppHeader
+          selectedOwner={selectedOwner}
+          selectedGroup={selectedGroup}
+          onLogout={handleLogout}
+          lastRefresh={lastRefresh}
         >
-          <LanguageSwitcher />
-          <Menu
-            selectedOwner={selectedOwner}
-            selectedGroup={selectedGroup}
-            onLogout={handleLogout}
-            style={{ margin: 0 }}
-          />
           {mode === 'owner' && (
             <div data-testid="portfolio-owner-selector">
               <OwnerSelector
@@ -580,38 +565,7 @@ export default function App({ onLogout }: AppProps) {
               />
             </div>
           )}
-          {lastRefresh && (
-            <span
-              style={{
-                background: '#eee',
-                borderRadius: '1rem',
-                padding: '0.25rem 0.5rem',
-                fontSize: '0.75rem',
-              }}
-              title={t('app.last') ?? undefined}
-            >
-              {new Date(lastRefresh).toLocaleString()}
-            </span>
-          )}
-          <InstrumentSearchBarToggle />
-          <button
-            aria-label="notifications"
-            onClick={() => setNotificationsOpen(true)}
-            style={{
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '1.5rem',
-            }}
-          >
-            🔔
-          </button>
-          <UserAvatar />
-        </div>
-        <NotificationsDrawer
-          open={notificationsOpen}
-          onClose={() => setNotificationsOpen(false)}
-        />
+        </AppHeader>
 
         {/* INDIVIDUAL OWNER VIEW */}
         {mode === 'owner' && !selectedOwnerIsGroup && (

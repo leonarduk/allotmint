@@ -273,11 +273,12 @@ bash scripts/bash/publish-pr.sh -m "Fix bug in auth" --no-ollama
 
 ## developer_tools/lib/commit_and_push.py
 
-Commit local changes and push to `origin`, using a local Ollama model to draft
-the commit message from the diff. This is a lighter-weight alternative to
-`publish_pr.py` for when you just want to commit and push -- e.g. an
-incremental push onto a branch that already has an open PR -- without also
-creating/updating a PR.
+Commit local changes and push to `origin`, using a local or cloud LLM (via
+`developer_tools/lib/llm_common.py`, same local/cloud switch as
+`n_review_issue.py`) to draft the commit message from the diff. This is a
+lighter-weight alternative to `publish_pr.py` for when you just want to commit
+and push -- e.g. an incremental push onto a branch that already has an open
+PR -- without also creating/updating a PR.
 
 ```bash
 python scripts/developer_tools/lib/commit_and_push.py
@@ -285,16 +286,17 @@ python scripts/developer_tools/lib/commit_and_push.py
 
 The script:
 1. Stages changed files (all changes by default, or specific files via `--files`)
-2. If Ollama is running locally, asks it to draft a commit message from the staged diff
-3. If Ollama is unavailable or `--no-ollama` is passed, falls back to a plain default message
+2. Asks the chosen model (`local` Ollama by default, or `cloud` DeepSeek via `--model-source cloud`) to draft a commit message from the staged diff
+3. If that model is unavailable or `--no-llm` is passed, falls back to a plain default message
 4. Appends a `Refs #<issue-id>` trailer with the issue ID extracted from the branch name (e.g. `fix/issue-4445-slug` -> `4445`), if one isn't already present in the message
 5. Commits, then pushes the branch to `origin` (skip with `--no-push`)
 
 Optional flags:
-- `-m/--message TEXT`: Commit message override (skips Ollama generation)
+- `-m/--message TEXT`: Commit message override (skips LLM generation)
 - `-f/--files FILE [FILE ...]`: Specific files to stage (default: all changed files)
-- `--no-ollama`: Skip Ollama and use a plain default commit message
-- `--model MODEL`: Ollama model name (default: env var `OLLAMA_MODEL` or `qwen2.5-coder:7b`)
+- `--no-llm` (alias `--no-ollama`): Skip the LLM and use a plain default commit message
+- `--model-source {local,cloud}`: Which model to use (default: `local`)
+- `--model MODEL`: Ollama model name, only used with `--model-source local` (default: env var `OLLAMA_MODEL` or `qwen2.5-coder:7b`)
 - `--no-push`: Commit only; skip pushing to `origin`
 
 On Windows, use the PowerShell wrapper:
@@ -308,7 +310,7 @@ bash scripts/bash/commit-and-push.sh -m "Fix bug in auth" --no-ollama
 ```
 
 **Requirements:**
-- Ollama is optional but recommended for better commit messages; without it (or with `--no-ollama`), a plain default message is used
+- A model is optional but recommended for better commit messages; without one reachable (or with `--no-llm`), a plain default message is used. `--model-source cloud` requires `DEEPSEEK_API_KEY`.
 
 ## m_dependabot_auto_merge.py
 
@@ -451,7 +453,12 @@ Review and refresh a single GitHub issue with a local or cloud LLM before work
 starts on it, so a stale or vague issue gets corrected instead of misread.
 Fetches the issue, asks the chosen model to bring the title/body up to date
 while preserving the original section structure, shows a diff of the proposed
-change, and only calls `gh issue edit` after you approve it.
+change, and only calls `gh issue edit` after you approve it. The local/cloud
+model switch lives in `developer_tools/lib/llm_common.py` and is shared by
+`b_create_issue.py`, `c_triage_issues.py`, `h_local_review.py`,
+`k_pr_review.py`, and `lib/commit_and_push.py` -- all of them accept
+`--model-source {local,cloud}` (or, for `b_create_issue.py`, an interactive
+prompt) to pick the same way.
 
 ```bash
 python scripts/developer_tools/o_review_issue.py 5695

@@ -1,10 +1,11 @@
-"""CLI tool to triage unmilestoned open issues using a local Ollama model.
+"""CLI tool to triage unmilestoned open issues using a local or cloud LLM.
 
 Continues the a_/b_/c_/.../o_ script chain in scripts/developer_tools/. Replaces the
-hosted "allotmint-issue-triage" scheduled cloud-agent task: a local model (driven via
-lib/ollama_common.py, same pattern as i_local_review.py/l_pr_review.py) classifies
-open, unmilestoned issues and this script drives the resulting `gh issue` calls
-directly, so the routine no longer needs a hosted-Claude scheduled session.
+hosted "allotmint-issue-triage" scheduled cloud-agent task: a model (local Ollama or
+cloud DeepSeek, driven via lib/llm_common.py, same pattern as
+i_local_review.py/l_pr_review.py/o_review_issue.py) classifies open, unmilestoned
+issues and this script drives the resulting `gh issue` calls directly, so the routine
+no longer needs a hosted-Claude scheduled session.
 
 Rules ported from the scheduled-task prompt:
   - Only issues with no milestone are ever touched; already-milestoned issues are
@@ -30,11 +31,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent / "lib"))
-from ollama_common import (  # noqa: E402
-    fetch_ollama_review,
-    get_ollama_endpoint,
-    get_ollama_model,
-    validate_ollama_connection,
+from llm_common import (  # noqa: E402
+    add_model_source_arg,
+    describe_model_source,
+    fetch_review,
+    validate_model_source,
 )
 
 REPO_OWNER = "leonarduk"
@@ -43,9 +44,13 @@ CONSOLIDATOR_MILESTONE = "Backend Hardening & Test Coverage"
 GH_RETRY_ATTEMPTS = 3
 GH_RETRY_BACKOFF_SECONDS = 2
 
-SCOPE_APART_PATTERN = re.compile(r"(?:tracked separately as|out of scope:?)\s*#(\d+)", re.IGNORECASE)
+SCOPE_APART_PATTERN = re.compile(
+    r"(?:tracked separately as|out of scope:?)\s*#(\d+)", re.IGNORECASE
+)
 ISSUE_REF_PATTERN = re.compile(r"#(\d+)")
-CLASSIFICATION_LINE_PATTERN = re.compile(r"#(\d+):\s*(DUPLICATE|FOLD|STANDALONE|NEW_FEATURE)", re.IGNORECASE)
+CLASSIFICATION_LINE_PATTERN = re.compile(
+    r"#(\d+):\s*(DUPLICATE|FOLD|STANDALONE|NEW_FEATURE)", re.IGNORECASE
+)
 
 
 @dataclass
@@ -116,8 +121,14 @@ def fetch_unmilestoned_open_issues(verbose: bool = False) -> list[Issue]:
         if item.get("milestone") is not None:
             continue
         labels = [label["name"] for label in item.get("labels", [])]
-        issues.append(Issue(number=item["number"], title=item["title"],
-                            labels=labels, body=item.get("body") or ""))
+        issues.append(
+            Issue(
+                number=item["number"],
+                title=item["title"],
+                labels=labels,
+                body=item.get("body") or "",
+            )
+        )
 
     return issues
 
@@ -209,14 +220,17 @@ def build_group_classification_prompt(group: list[Issue]) -> str:
 
 def parse_classifications(response: str) -> dict[int, str]:
     """Parse the model's '#N: CLASSIFICATION' lines into a {number: classification} map."""
-    return {int(m.group(1)): m.group(2).upper() for m in CLASSIFICATION_LINE_PATTERN.finditer(response)}
+    return {
+        int(m.group(1)): m.group(2).upper() for m in CLASSIFICATION_LINE_PATTERN.finditer(response)
+    }
 
 
-def classify_single_issue(issue: Issue, model: str, endpoint: str, verbose: bool = False) -> str:
+def classify_single_issue(issue: Issue, model_source: str, verbose: bool = False) -> str:
     """Classify a standalone issue as NEW_FEATURE or BACKLOG."""
-    prompt = SINGLE_CLASSIFY_PROMPT_TEMPLATE.format(number=issue.number, title=issue.title,
-                                                    body=issue.body.strip())
-    response = fetch_ollama_review(endpoint, model, prompt)
+    prompt = SINGLE_CLASSIFY_PROMPT_TEMPLATE.format(
+        number=issue.number, title=issue.title, body=issue.body.strip()
+    )
+    response = fetch_review(model_source, prompt)
     if verbose:
         print(f"[VERBOSE] Model response for issue #{issue.number}: {response}", file=sys.stderr)
     return "NEW_FEATURE" if "NEW_FEATURE" in response.upper() else "BACKLOG"
@@ -294,11 +308,12 @@ def create_consolidator_issue(title: str, folded: list[Issue], dry_run: bool) ->
     return int(match.group(1)) if match else None
 
 
-def triage_group(group: list[Issue], model: str, endpoint: str, dry_run: bool,
-                 verbose: bool = False) -> set[int]:
+def triage_group(
+    group: list[Issue], model_source: str, dry_run: bool, verbose: bool = False
+) -> set[int]:
     """Classify and act on one candidate group. Returns the issue numbers it handled."""
     prompt = build_group_classification_prompt(group)
-    response = fetch_ollama_review(endpoint, model, prompt)
+    response = fetch_review(model_source, prompt)
     if verbose:
         print(f"[VERBOSE] Model response for group {group}: {response}", file=sys.stderr)
     classifications = parse_classifications(response)
@@ -325,18 +340,21 @@ def triage_group(group: list[Issue], model: str, endpoint: str, dry_run: bool,
         title = f"Consolidated follow-ups: {fold_candidates[0].title}"
         consolidator_number = create_consolidator_issue(title, fold_candidates, dry_run)
         for issue in fold_candidates:
-            reference = f"#{consolidator_number}" if consolidator_number else "a new consolidator issue"
+            reference = (
+                f"#{consolidator_number}" if consolidator_number else "a new consolidator issue"
+            )
             close_issue(issue.number, f"Folded into {reference}.", dry_run)
             handled.add(issue.number)
 
     return handled
 
 
-def triage_remaining(issues: list[Issue], model: str, endpoint: str, dry_run: bool,
-                     verbose: bool = False) -> None:
+def triage_remaining(
+    issues: list[Issue], model_source: str, dry_run: bool, verbose: bool = False
+) -> None:
     """Classify every issue not already handled by group triage, then act on it."""
     for issue in issues:
-        classification = classify_single_issue(issue, model, endpoint, verbose)
+        classification = classify_single_issue(issue, model_source, verbose)
         if classification == "NEW_FEATURE":
             comment_new_feature(issue.number, dry_run)
         else:
@@ -345,7 +363,9 @@ def triage_remaining(issues: list[Issue], model: str, endpoint: str, dry_run: bo
 
 def main() -> int:
     """Run the issue-triage flow."""
-    parser = argparse.ArgumentParser(description="Triage open, unmilestoned issues using a local Ollama model")
+    parser = argparse.ArgumentParser(
+        description="Triage open, unmilestoned issues using a local or cloud LLM"
+    )
     parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -362,16 +382,11 @@ def main() -> int:
         default=None,
         help="Only consider the first N unmilestoned issues (useful for testing)",
     )
+    add_model_source_arg(parser)
     args = parser.parse_args()
 
-    endpoint = get_ollama_endpoint()
-    if not validate_ollama_connection(endpoint):
-        print(
-            f"ERROR: Ollama is not reachable at {endpoint}. Please start Ollama or set OLLAMA_ENDPOINT.",
-            file=sys.stderr,
-        )
+    if not validate_model_source(args.model_source):
         return 1
-    model = get_ollama_model()
 
     print(
         f"INFO: Fetching unmilestoned open issues from {REPO_OWNER}/{REPO_NAME}...",
@@ -382,15 +397,15 @@ def main() -> int:
         issues = issues[: args.limit]
     print(f"INFO: {len(issues)} unmilestoned open issues found", file=sys.stderr)
 
-    print(f"INFO: Using Ollama model '{model}' at {endpoint}", file=sys.stderr)
+    print(f"INFO: Using {describe_model_source(args.model_source)}", file=sys.stderr)
 
     groups = find_candidate_groups(issues)
     handled: set[int] = set()
     for group in groups:
-        handled |= triage_group(group, model, endpoint, args.dry_run, args.verbose)
+        handled |= triage_group(group, args.model_source, args.dry_run, args.verbose)
 
     remaining = [issue for issue in issues if issue.number not in handled]
-    triage_remaining(remaining, model, endpoint, args.dry_run, args.verbose)
+    triage_remaining(remaining, args.model_source, args.dry_run, args.verbose)
 
     return 0
 

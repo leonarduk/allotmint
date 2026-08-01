@@ -1,4 +1,4 @@
-"""Unit tests for the local-LLM review step in scripts/developer_tools/b_create_issue.py."""
+"""Unit tests for the LLM review step in scripts/developer_tools/b_create_issue.py."""
 
 from __future__ import annotations
 
@@ -7,12 +7,13 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "developer_tools"))
+sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "developer_tools" / "lib"))
 
 from b_create_issue import (  # noqa: E402
     build_review_prompt,
     format_bug_body,
     format_feature_body,
-    offer_local_llm_review,
+    offer_llm_review,
     parse_review_response,
 )
 
@@ -66,44 +67,54 @@ class TestFormatBody:
         assert "## Files Affected\n\nUnknown" in body
 
 
-class TestOfferLocalLlmReview:
+class TestOfferLlmReview:
     @mock.patch("builtins.input", return_value="n")
     def test_declines_llm_review(self, _mock_input):
-        title, body = offer_local_llm_review("orig title", "orig body")
+        title, body = offer_llm_review("orig title", "orig body")
         assert (title, body) == ("orig title", "orig body")
 
-    @mock.patch("b_create_issue.validate_ollama_connection", return_value=False)
+    @mock.patch("b_create_issue.validate_model_source", return_value=False)
+    @mock.patch("b_create_issue.prompt_for_model_source", return_value="local")
     @mock.patch("builtins.input", return_value="y")
-    def test_falls_back_when_ollama_unreachable(self, _mock_input, _mock_validate):
-        title, body = offer_local_llm_review("orig title", "orig body")
+    def test_falls_back_when_model_unreachable(
+        self, _mock_input, _mock_prompt_source, _mock_validate
+    ):
+        title, body = offer_llm_review("orig title", "orig body")
         assert (title, body) == ("orig title", "orig body")
 
-    @mock.patch("b_create_issue.fetch_ollama_review", return_value="")
-    @mock.patch("b_create_issue.validate_ollama_connection", return_value=True)
+    @mock.patch("b_create_issue.fetch_review", return_value="")
+    @mock.patch("b_create_issue.validate_model_source", return_value=True)
+    @mock.patch("b_create_issue.prompt_for_model_source", return_value="local")
     @mock.patch("builtins.input", return_value="y")
-    def test_falls_back_on_empty_llm_response(self, _mock_input, _mock_validate, _mock_fetch):
-        title, body = offer_local_llm_review("orig title", "orig body")
+    def test_falls_back_on_empty_llm_response(
+        self, _mock_input, _mock_prompt_source, _mock_validate, _mock_fetch
+    ):
+        title, body = offer_llm_review("orig title", "orig body")
         assert (title, body) == ("orig title", "orig body")
 
     @mock.patch(
-        "b_create_issue.fetch_ollama_review",
+        "b_create_issue.fetch_review",
         return_value="TITLE: New title\nBODY:\n## What\n\nNew body\n",
     )
-    @mock.patch("b_create_issue.validate_ollama_connection", return_value=True)
+    @mock.patch("b_create_issue.validate_model_source", return_value=True)
+    @mock.patch("b_create_issue.prompt_for_model_source", return_value="local")
     @mock.patch("builtins.input", side_effect=["y", "y"])
-    def test_applies_accepted_suggestion(self, _mock_input, _mock_validate, _mock_fetch):
-        title, body = offer_local_llm_review("orig title", "orig body")
+    def test_applies_accepted_suggestion(
+        self, _mock_input, _mock_prompt_source, _mock_validate, _mock_fetch
+    ):
+        title, body = offer_llm_review("orig title", "orig body")
         assert title == "New title"
         assert "New body" in body
 
     @mock.patch(
-        "b_create_issue.fetch_ollama_review",
+        "b_create_issue.fetch_review",
         return_value="TITLE: New title\nBODY:\n## What\n\nNew body\n",
     )
-    @mock.patch("b_create_issue.validate_ollama_connection", return_value=True)
+    @mock.patch("b_create_issue.validate_model_source", return_value=True)
+    @mock.patch("b_create_issue.prompt_for_model_source", return_value="local")
     @mock.patch("builtins.input", side_effect=["y", "n"])
     def test_keeps_original_when_suggestion_rejected(
-        self, _mock_input, _mock_validate, _mock_fetch
+        self, _mock_input, _mock_prompt_source, _mock_validate, _mock_fetch
     ):
-        title, body = offer_local_llm_review("orig title", "orig body")
+        title, body = offer_llm_review("orig title", "orig body")
         assert (title, body) == ("orig title", "orig body")

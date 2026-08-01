@@ -1,7 +1,8 @@
-"""CLI tool to review a GitHub PR using local Ollama.
+"""CLI tool to review a GitHub PR using a local or cloud LLM.
 
-Takes a PR ID and calls Ollama to generate an advisory review, reusing the
-shared review_common infrastructure. Requires gh CLI for fetching PR details.
+Takes a PR ID and calls the chosen model (local Ollama or cloud DeepSeek,
+via lib/llm_common.py) to generate an advisory review, reusing the shared
+review_common infrastructure. Requires gh CLI for fetching PR details.
 """
 
 from __future__ import annotations
@@ -14,16 +15,16 @@ import sys
 from pathlib import Path
 
 # Add .github/scripts (for review_common) and the local lib/ dir (for
-# ollama_common) to sys.path so this works both as an importable module and
+# llm_common) to sys.path so this works both as an importable module and
 # when invoked directly (e.g. `python scripts/developer_tools/l_pr_review.py`),
 # where the repo root is not on sys.path and `scripts` is not importable.
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / ".github" / "scripts"))
 sys.path.insert(0, str(Path(__file__).parent / "lib"))
-from ollama_common import (
-    fetch_ollama_review,
-    get_ollama_endpoint,
-    get_ollama_model,
-    validate_ollama_connection,
+from llm_common import (
+    add_model_source_arg,
+    describe_model_source,
+    fetch_review,
+    validate_model_source,
 )
 from review_common import (
     build_prompt,
@@ -146,25 +147,17 @@ def extract_issue_body(pr_body: str, owner: str, repo: str) -> str:
 
 def main() -> int:
     """Run the PR review flow."""
-    parser = argparse.ArgumentParser(description="Review a GitHub PR using local Ollama")
+    parser = argparse.ArgumentParser(description="Review a GitHub PR using a local or cloud LLM")
     parser.add_argument("pr_id", type=int, help="GitHub PR ID to review")
     parser.add_argument(
         "--repo",
         help="GitHub repository (owner/repo format). Auto-detected from git remote if not provided.",  # noqa: E501
     )
+    add_model_source_arg(parser)
     args = parser.parse_args()
 
-    # Validate Ollama is reachable
-    endpoint = get_ollama_endpoint()
-    if not validate_ollama_connection(endpoint):
-        print(
-            f"ERROR: Ollama is not reachable at {endpoint}. "
-            "Please start Ollama or set OLLAMA_ENDPOINT.",
-            file=sys.stderr,
-        )
+    if not validate_model_source(args.model_source):
         return 1
-
-    model = get_ollama_model()
 
     # Get repo info
     try:
@@ -201,14 +194,14 @@ def main() -> int:
         )
 
     if not diff.strip():
-        return emit_empty_diff_notice("Ollama")
+        return emit_empty_diff_notice(args.model_source)
 
     # Build prompt and fetch review
     prompt = build_prompt(pr_title, diff, issue_body, discussion="", verified_facts="")
-    print(f"INFO: Using Ollama model '{model}'", file=sys.stderr)
-    review = fetch_ollama_review(endpoint, model, prompt)
+    print(f"INFO: Using {describe_model_source(args.model_source)}", file=sys.stderr)
+    review = fetch_review(args.model_source, prompt)
 
-    return finalize_review(review, "ERROR: Ollama returned an empty review")
+    return finalize_review(review, "ERROR: Model returned an empty review")
 
 
 if __name__ == "__main__":

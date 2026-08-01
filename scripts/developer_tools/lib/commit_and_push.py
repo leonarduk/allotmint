@@ -1,10 +1,10 @@
-"""CLI tool to commit local changes and push, using a local LLM for the commit message.
+"""CLI tool to commit local changes and push, using an LLM for the commit message.
 
-Stages local changes, asks a local Ollama model to draft a commit message
-from the diff (falling back to a plain default message when Ollama is
-unavailable or `--no-ollama` is passed), makes sure the message references
-the issue ID found in the current branch name, commits, and pushes the
-branch to `origin`.
+Stages local changes, asks the chosen model (local Ollama or cloud DeepSeek,
+via llm_common.py) to draft a commit message from the diff (falling back to a
+plain default message when that model is unavailable or `--no-llm` is
+passed), makes sure the message references the issue ID found in the current
+branch name, commits, and pushes the branch to `origin`.
 """
 
 from __future__ import annotations
@@ -14,15 +14,15 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from ollama_common import (  # noqa: E402
-    fetch_ollama_review,
-    get_ollama_endpoint,
-    get_ollama_model,
-    validate_ollama_connection,
+from llm_common import (  # noqa: E402
+    LOCAL,
+    add_model_source_arg,
+    describe_model_source,
+    fetch_review,
+    validate_model_source,
 )
 from publish_pr import extract_issue_id, get_current_branch, push_to_remote  # noqa: E402
 
@@ -42,7 +42,7 @@ def get_git_root() -> str:
         raise SystemExit(1) from exc
 
 
-def stage_changes(files: Optional[list[str]]) -> None:
+def stage_changes(files: list[str] | None) -> None:
     """Stage the given files, or all changes (tracked and untracked) if none given."""
     try:
         if files:
@@ -62,7 +62,10 @@ def has_staged_changes() -> bool:
     """
     result = subprocess.run(["git", "diff", "--cached", "--quiet"], check=False)
     if result.returncode not in (0, 1):
-        print(f"ERROR: 'git diff --cached --quiet' failed with exit code {result.returncode}", file=sys.stderr)
+        print(
+            f"ERROR: 'git diff --cached --quiet' failed with exit code {result.returncode}",
+            file=sys.stderr,
+        )
         raise SystemExit(1)
     return result.returncode == 1
 
@@ -85,8 +88,8 @@ def get_staged_diff() -> str:
 MAX_DIFF_CHARS = 20_000
 
 
-def build_commit_prompt(diff: str, issue_id: Optional[int]) -> str:
-    """Build the Ollama prompt used to draft a commit message from a diff."""
+def build_commit_prompt(diff: str, issue_id: int | None) -> str:
+    """Build the prompt used to draft a commit message from a diff."""
     issue_line = (
         f"Reference issue #{issue_id} in the message (e.g. a trailing 'Refs #{issue_id}' line)."
         if issue_id
@@ -107,19 +110,19 @@ Diff:
 """
 
 
-def generate_commit_message(diff: str, issue_id: Optional[int], model: str, endpoint: str) -> Optional[str]:
-    """Ask Ollama to draft a commit message. Returns None on failure or empty diff."""
+def generate_commit_message(diff: str, issue_id: int | None, model_source: str) -> str | None:
+    """Ask the chosen model to draft a commit message. Returns None on failure or empty diff."""
     if not diff.strip():
         return None
     prompt = build_commit_prompt(diff, issue_id)
     try:
-        message = fetch_ollama_review(endpoint, model, prompt)
+        message = fetch_review(model_source, prompt)
     except SystemExit:
         return None
     return message.strip() or None
 
 
-def ensure_issue_reference(message: str, issue_id: Optional[int]) -> str:
+def ensure_issue_reference(message: str, issue_id: int | None) -> str:
     """Append a 'Refs #<issue_id>' trailer if the message doesn't already mention it."""
     if issue_id is None:
         return message
@@ -142,13 +145,13 @@ def commit_changes(message: str) -> bool:
 def build_arg_parser() -> argparse.ArgumentParser:
     """Build the CLI argument parser."""
     parser = argparse.ArgumentParser(
-        description="Commit local changes (with an Ollama-drafted message) and push to origin"
+        description="Commit local changes (with an LLM-drafted message) and push to origin"
     )
     parser.add_argument(
         "--message",
         "-m",
         default=None,
-        help="Commit message override (skips Ollama generation)",
+        help="Commit message override (skips LLM generation)",
     )
     parser.add_argument(
         "--files",
@@ -158,15 +161,21 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Specific files to stage (default: all changed files)",
     )
     parser.add_argument(
+        "--no-llm",
         "--no-ollama",
+        dest="no_llm",
         action="store_true",
-        help="Skip Ollama and use a plain default commit message",
+        help="Skip the LLM and use a plain default commit message",
     )
     parser.add_argument(
         "--model",
         default=None,
-        help="Ollama model name (default: OLLAMA_MODEL env var or 'qwen2.5-coder:7b')",
+        help=(
+            "Ollama model name, only used when --model-source=local "
+            "(default: OLLAMA_MODEL env var or 'qwen2.5-coder:7b')"
+        ),
     )
+    add_model_source_arg(parser)
     parser.add_argument(
         "--no-push",
         action="store_true",
@@ -178,6 +187,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
 def main() -> int:
     """Stage, commit, and optionally push changes based on CLI arguments."""
     args = build_arg_parser().parse_args()
+
+    if args.model and args.model_source == LOCAL:
+        os.environ["OLLAMA_MODEL"] = args.model
 
     os.chdir(get_git_root())
 
@@ -191,15 +203,17 @@ def main() -> int:
         return 0
 
     message = args.message
-    if not message and not args.no_ollama:
-        endpoint = get_ollama_endpoint()
-        if validate_ollama_connection(endpoint):
-            model = args.model or get_ollama_model()
-            print(f"INFO: Generating commit message with Ollama model '{model}'...", file=sys.stderr)
+    if not message and not args.no_llm:
+        if validate_model_source(args.model_source):
+            print(
+                f"INFO: Generating commit message with "
+                f"{describe_model_source(args.model_source)}...",
+                file=sys.stderr,
+            )
             diff = get_staged_diff()
-            message = generate_commit_message(diff, issue_id, model, endpoint)
+            message = generate_commit_message(diff, issue_id, args.model_source)
         else:
-            print(f"WARNING: Ollama not reachable at {endpoint}. Using a default message.", file=sys.stderr)
+            print("WARNING: Model unavailable. Using a default message.", file=sys.stderr)
 
     if not message:
         message = f"Work on issue #{issue_id}" if issue_id else "Commit local changes"

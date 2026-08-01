@@ -113,18 +113,18 @@ class TestBuildCommitPrompt:
 
 class TestGenerateCommitMessage:
     def test_empty_diff_returns_none(self):
-        assert generate_commit_message("", 4445, "model", "http://localhost:11434") is None
+        assert generate_commit_message("", 4445, "local") is None
 
-    @mock.patch("commit_and_push.fetch_ollama_review")
+    @mock.patch("commit_and_push.fetch_review")
     def test_returns_stripped_message(self, mock_fetch):
         mock_fetch.return_value = "  Fix the thing  \n"
-        result = generate_commit_message("diff", 4445, "model", "http://localhost:11434")
+        result = generate_commit_message("diff", 4445, "local")
         assert result == "Fix the thing"
 
-    @mock.patch("commit_and_push.fetch_ollama_review")
-    def test_ollama_failure_returns_none(self, mock_fetch):
+    @mock.patch("commit_and_push.fetch_review")
+    def test_model_failure_returns_none(self, mock_fetch):
         mock_fetch.side_effect = SystemExit(1)
-        assert generate_commit_message("diff", 4445, "model", "http://localhost:11434") is None
+        assert generate_commit_message("diff", 4445, "local") is None
 
 
 class TestEnsureIssueReference:

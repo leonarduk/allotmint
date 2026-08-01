@@ -17,11 +17,11 @@ import requests
 sys.path.insert(0, str(Path(__file__).parent / "lib"))
 from github_repo import get_repo_info
 from issue_review import parse_review_response
-from ollama_common import (
-    fetch_ollama_review,
-    get_ollama_endpoint,
-    get_ollama_model,
-    validate_ollama_connection,
+from llm_common import (
+    describe_model_source,
+    fetch_review,
+    prompt_for_model_source,
+    validate_model_source,
 )
 
 GITHUB_API_BASE = "https://api.github.com"
@@ -350,35 +350,26 @@ def build_review_prompt(title: str, body: str) -> str:
     )
 
 
-def offer_local_llm_review(title: str, body: str) -> tuple[str, str]:
-    """Optionally send the draft issue to a local Ollama model for review.
+def offer_llm_review(title: str, body: str) -> tuple[str, str]:
+    """Optionally send the draft issue to a local or cloud LLM for review.
 
     Returns the (possibly improved) title and body. Falls back to the
-    originals if the user declines, Ollama is unreachable, or the response
-    can't be parsed.
+    originals if the user declines, the chosen model is unreachable, or the
+    response can't be parsed.
     """
     try:
-        use_llm = (
-            input("\nUse local LLM (ollama) to review and improve this issue? [Y/n] ")
-            .strip()
-            .lower()
-        )
+        use_llm = input("\nUse an LLM to review and improve this issue? [Y/n] ").strip().lower()
     except EOFError:
         use_llm = ""
     if use_llm not in ("y", "yes", ""):
         return title, body
 
-    endpoint = get_ollama_endpoint()
-    model = get_ollama_model()
-
-    if not validate_ollama_connection(endpoint):
-        print(
-            f"WARNING: Could not reach Ollama at {endpoint}; skipping LLM review.", file=sys.stderr
-        )
+    model_source = prompt_for_model_source()
+    if not validate_model_source(model_source):
         return title, body
 
-    print(f"Reviewing with {model} at {endpoint}...")
-    response = fetch_ollama_review(endpoint, model, build_review_prompt(title, body))
+    print(f"Reviewing with {describe_model_source(model_source)}...")
+    response = fetch_review(model_source, build_review_prompt(title, body))
     if not response.strip():
         print("WARNING: LLM review returned no content; keeping original issue.", file=sys.stderr)
         return title, body
@@ -517,8 +508,8 @@ def main() -> None:
     else:
         body = format_feature_body(sections)
 
-    # Optionally improve with a local LLM before creating
-    title, body = offer_local_llm_review(title, body)
+    # Optionally improve with an LLM before creating
+    title, body = offer_llm_review(title, body)
 
     # Confirm and create
     confirm_and_create(owner, repo, title, body, labels, token)

@@ -40,18 +40,35 @@ CLOUD = "cloud"
 # safe-to-approve diff.
 MIN_BODY_LENGTH_RATIO = 0.5
 
+# Canonical issue structure: the bug report template is the source of truth for the
+# section headings the model must produce, so a template edit propagates here without
+# a matching code change.
+BUG_REPORT_TEMPLATE_PATH = (
+    Path(__file__).parent.parent.parent / ".github" / "ISSUE_TEMPLATE" / "bug_report.md"
+)
+FALLBACK_TEMPLATE_SECTIONS = [
+    "What",
+    "Why",
+    "How",
+    "Constraints",
+    "LLM tier",
+    "Success looks like",
+    "Failure looks like",
+]
+
 REVIEW_PROMPT_TEMPLATE = """You are reviewing an existing GitHub issue from the allotmint repo \
 for staleness before it is worked on. The issue may describe files, behaviour, or context that \
 has since changed.
 
-Update the title and body so they are accurate and current. Preserve the original section \
-structure (e.g. '## What', '## Why', '## How', '## Constraints', '## LLM tier', \
-'## Success looks like', '## Failure looks like') if present, and keep every concrete detail \
-that is still accurate. Never delete information outright -- if something is now uncertain, \
-flag it inline instead of removing it. Do not invent new requirements or acceptance criteria \
-that aren't implied by the original text.
+Update the title and body so they are accurate and current. The issue must use this section \
+structure, taken from .github/ISSUE_TEMPLATE/bug_report.md: {sections}. Add any of these \
+sections that are missing from the original issue (with a best-effort value inferred from the \
+rest of the issue, or "Unknown" if it can't be inferred), and keep every concrete detail that \
+is still accurate. Never delete information outright -- if something is now uncertain, flag it \
+inline instead of removing it. Do not invent new requirements or acceptance criteria that \
+aren't implied by the original text.
 
-If the issue is already accurate and needs no changes, return it unchanged.
+If the issue is already accurate and complete, return it unchanged.
 
 Respond with exactly two parts, in this format and nothing else:
 TITLE: <title>
@@ -61,8 +78,35 @@ BODY:
 Original title: {title}
 
 Original body:
-{body}
+{body}\
+{feedback_section}
 """
+
+FEEDBACK_SECTION_TEMPLATE = """
+
+The user reviewed a previous revision and gave this feedback -- incorporate it:
+{feedback}
+"""
+
+
+def load_template_sections(template_path: Path = BUG_REPORT_TEMPLATE_PATH) -> list[str]:
+    """Extract the ordered '## Section' headings from a GitHub issue template.
+
+    Falls back to FALLBACK_TEMPLATE_SECTIONS if the template file is missing or empty,
+    so a moved/renamed template degrades gracefully instead of breaking the tool.
+    """
+    try:
+        text = template_path.read_text(encoding="utf-8")
+    except OSError:
+        return list(FALLBACK_TEMPLATE_SECTIONS)
+    sections = re.findall(r"^##\s+(.+?)\s*$", text, re.MULTILINE)
+    return sections or list(FALLBACK_TEMPLATE_SECTIONS)
+
+
+def missing_sections(body: str, sections: list[str]) -> list[str]:
+    """Return the required sections that have no '## <Section>' heading in body."""
+    present = set(re.findall(r"^##\s+(.+?)\s*$", body, re.MULTILINE))
+    return [section for section in sections if section not in present]
 
 
 def fetch_issue(owner: str, repo: str, number: int) -> dict:
@@ -91,9 +135,17 @@ def fetch_issue(owner: str, repo: str, number: int) -> dict:
     return json.loads(result.stdout)
 
 
-def build_review_prompt(title: str, body: str) -> str:
-    """Build the prompt sent to the model to review and refresh the issue."""
-    return REVIEW_PROMPT_TEMPLATE.format(title=title, body=body)
+def build_review_prompt(title: str, body: str, feedback: str | None = None) -> str:
+    """Build the prompt sent to the model to review and refresh the issue.
+
+    When `feedback` is given (the user's response to a prior proposed revision),
+    it's appended so the model can address it in the next attempt.
+    """
+    sections = ", ".join(f"'## {section}'" for section in load_template_sections())
+    feedback_section = FEEDBACK_SECTION_TEMPLATE.format(feedback=feedback) if feedback else ""
+    return REVIEW_PROMPT_TEMPLATE.format(
+        title=title, body=body, sections=sections, feedback_section=feedback_section
+    )
 
 
 def parse_review_response(
@@ -110,9 +162,15 @@ def parse_review_response(
     return title, body
 
 
-def run_review(model_source: str, title: str, body: str, verbose: bool = False) -> str | None:
+def run_review(
+    model_source: str,
+    title: str,
+    body: str,
+    verbose: bool = False,
+    feedback: str | None = None,
+) -> str | None:
     """Call the chosen model with the review prompt. Returns None on any failure."""
-    prompt = build_review_prompt(title, body)
+    prompt = build_review_prompt(title, body, feedback=feedback)
 
     if model_source == LOCAL:
         endpoint = get_ollama_endpoint()
@@ -228,6 +286,27 @@ def prompt_for_issue_number() -> int:
         raise SystemExit(1) from None
 
 
+def prompt_for_disposition() -> tuple[str, str | None]:
+    """Ask the user to apply, reject, or send feedback on a proposed revision.
+
+    Returns a ("apply" | "abort" | "retry", feedback) pair. Anything typed other than
+    a y/n answer is treated as feedback for another review round.
+    """
+    try:
+        raw = input(
+            "Apply this update to the issue? [Y/n, or type feedback to have the model try "
+            "again] "
+        ).strip()
+    except EOFError:
+        return "abort", None
+    lowered = raw.lower()
+    if lowered in ("", "y", "yes"):
+        return "apply", None
+    if lowered in ("n", "no"):
+        return "abort", None
+    return "retry", raw
+
+
 def prompt_for_model_source() -> str:
     """Interactively prompt for which model to use."""
     print()
@@ -281,34 +360,47 @@ def main() -> int:
     if issue.get("state") == "CLOSED":
         print(f"WARNING: Issue #{issue_id} is closed.", file=sys.stderr)
 
-    response = run_review(model_source, title, body, args.verbose)
-    if response is None:
-        return 1
+    required_sections = load_template_sections()
+    feedback: str | None = None
 
-    new_title, new_body = parse_review_response(response, title, body)
+    while True:
+        response = run_review(model_source, title, body, args.verbose, feedback=feedback)
+        if response is None:
+            return 1
 
-    if looks_like_content_loss(body, new_body):
-        print(
-            "ERROR: The revised body is far shorter than the original issue; refusing to "
-            "propose a change that may have dropped details. Re-run with --verbose to inspect "
-            "the raw model response.",
-            file=sys.stderr,
-        )
-        return 1
+        new_title, new_body = parse_review_response(response, title, body)
 
-    print_diff(title, body, new_title, new_body)
+        if looks_like_content_loss(body, new_body):
+            print(
+                "ERROR: The revised body is far shorter than the original issue; refusing to "
+                "propose a change that may have dropped details. Re-run with --verbose to "
+                "inspect the raw model response.",
+                file=sys.stderr,
+            )
+            return 1
 
-    if new_title == title and new_body == body:
-        return 0
+        print_diff(title, body, new_title, new_body)
 
-    if not args.yes:
-        try:
-            confirm = input("Apply this update to the issue? [Y/n] ").strip().lower()
-        except EOFError:
-            confirm = "n"
-        if confirm not in ("", "y", "yes"):
+        missing = missing_sections(new_body, required_sections)
+        if missing:
+            print(
+                f"WARNING: Proposed body is still missing required sections: {', '.join(missing)}",
+                file=sys.stderr,
+            )
+
+        if new_title == title and new_body == body:
+            return 0
+
+        if args.yes:
+            break
+
+        action, feedback = prompt_for_disposition()
+        if action == "apply":
+            break
+        if action == "abort":
             print("Aborted; issue left unchanged.", file=sys.stderr)
             return 0
+        print("INFO: Re-reviewing with your feedback...", file=sys.stderr)
 
     return 0 if update_issue(owner, repo, issue_id, new_title, new_body, args.dry_run) else 1
 

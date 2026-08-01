@@ -49,15 +49,13 @@ def test_looks_like_content_loss_false_when_original_is_empty():
 
 
 def test_run_review_local_returns_none_when_ollama_unreachable(monkeypatch):
-    monkeypatch.setattr(n, "validate_ollama_connection", lambda endpoint: False)
+    monkeypatch.setattr(n, "validate_model_source", lambda model_source: False)
     assert n.run_review(n.LOCAL, "title", "body") is None
 
 
 def test_run_review_local_returns_response(monkeypatch):
-    monkeypatch.setattr(n, "validate_ollama_connection", lambda endpoint: True)
-    monkeypatch.setattr(
-        n, "fetch_ollama_review", lambda endpoint, model, prompt: "TITLE: t\nBODY:\nb"
-    )
+    monkeypatch.setattr(n, "validate_model_source", lambda model_source: True)
+    monkeypatch.setattr(n, "fetch_review", lambda model_source, prompt: "TITLE: t\nBODY:\nb")
     assert n.run_review(n.LOCAL, "title", "body") == "TITLE: t\nBODY:\nb"
 
 
@@ -87,13 +85,13 @@ def test_run_review_cloud_returns_none_without_api_key(monkeypatch):
 
 def test_run_review_cloud_returns_response(monkeypatch):
     monkeypatch.setenv("DEEPSEEK_API_KEY", "fake-key")
-    monkeypatch.setattr(n, "fetch_deepseek_review", lambda api_key, prompt: "TITLE: t\nBODY:\nb")
+    monkeypatch.setattr(n, "fetch_review", lambda model_source, prompt: "TITLE: t\nBODY:\nb")
     assert n.run_review(n.CLOUD, "title", "body") == "TITLE: t\nBODY:\nb"
 
 
 def test_run_review_returns_none_on_empty_response(monkeypatch):
-    monkeypatch.setattr(n, "validate_ollama_connection", lambda endpoint: True)
-    monkeypatch.setattr(n, "fetch_ollama_review", lambda endpoint, model, prompt: "   ")
+    monkeypatch.setattr(n, "validate_model_source", lambda model_source: True)
+    monkeypatch.setattr(n, "fetch_review", lambda model_source, prompt: "   ")
     assert n.run_review(n.LOCAL, "title", "body") is None
 
 

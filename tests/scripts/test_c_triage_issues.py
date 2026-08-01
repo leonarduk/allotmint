@@ -65,15 +65,15 @@ def test_parse_classifications_reads_number_and_label():
 
 
 def test_classify_single_issue_detects_new_feature(monkeypatch):
-    monkeypatch.setattr(h, "fetch_ollama_review", lambda endpoint, model, prompt: "NEW_FEATURE")
+    monkeypatch.setattr(h, "fetch_review", lambda model_source, prompt: "NEW_FEATURE")
     issue = _issue(1, "Add dark mode toggle")
-    assert h.classify_single_issue(issue, "model", "endpoint") == "NEW_FEATURE"
+    assert h.classify_single_issue(issue, "local") == "NEW_FEATURE"
 
 
 def test_classify_single_issue_defaults_to_backlog(monkeypatch):
-    monkeypatch.setattr(h, "fetch_ollama_review", lambda endpoint, model, prompt: "BACKLOG")
+    monkeypatch.setattr(h, "fetch_review", lambda model_source, prompt: "BACKLOG")
     issue = _issue(1, "Add missing test coverage")
-    assert h.classify_single_issue(issue, "model", "endpoint") == "BACKLOG"
+    assert h.classify_single_issue(issue, "local") == "BACKLOG"
 
 
 def test_fetch_unmilestoned_open_issues_filters_milestoned(monkeypatch):
@@ -196,70 +196,80 @@ def test_create_consolidator_issue_returns_none_on_failure(monkeypatch):
 
 
 def test_triage_group_closes_duplicate_keeping_lowest_number(monkeypatch):
-    monkeypatch.setattr(h, "fetch_ollama_review", lambda endpoint, model, prompt: "#2: DUPLICATE")
+    monkeypatch.setattr(h, "fetch_review", lambda model_source, prompt: "#2: DUPLICATE")
     closed = []
     monkeypatch.setattr(h, "close_issue", lambda number, comment, dry_run: closed.append(number))
     group = [_issue(1, "First"), _issue(2, "Second")]
-    handled = h.triage_group(group, "model", "endpoint", dry_run=True, verbose=True)
+    handled = h.triage_group(group, "local", dry_run=True, verbose=True)
     assert closed == [2]
     assert handled == {2}
 
 
 def test_triage_group_does_not_close_canonical_even_if_flagged_duplicate(monkeypatch):
-    monkeypatch.setattr(h, "fetch_ollama_review", lambda endpoint, model, prompt: "#1: DUPLICATE\n#2: DUPLICATE")
+    monkeypatch.setattr(
+        h, "fetch_review", lambda model_source, prompt: "#1: DUPLICATE\n#2: DUPLICATE"
+    )
     closed = []
     monkeypatch.setattr(h, "close_issue", lambda number, comment, dry_run: closed.append(number))
     group = [_issue(1, "First"), _issue(2, "Second")]
-    handled = h.triage_group(group, "model", "endpoint", dry_run=True, verbose=True)
+    handled = h.triage_group(group, "local", dry_run=True, verbose=True)
     assert closed == [2]
     assert handled == {2}
 
 
 def test_triage_group_folds_multiple_fold_candidates_into_consolidator(monkeypatch):
-    monkeypatch.setattr(h, "fetch_ollama_review", lambda endpoint, model, prompt: "#1: FOLD\n#2: FOLD")
+    monkeypatch.setattr(h, "fetch_review", lambda model_source, prompt: "#1: FOLD\n#2: FOLD")
     monkeypatch.setattr(h, "create_consolidator_issue", lambda title, folded, dry_run: 999)
     closed = []
     monkeypatch.setattr(h, "close_issue", lambda number, comment, dry_run: closed.append(number))
     group = [_issue(1, "First"), _issue(2, "Second")]
-    handled = h.triage_group(group, "model", "endpoint", dry_run=True, verbose=True)
+    handled = h.triage_group(group, "local", dry_run=True, verbose=True)
     assert closed == [1, 2]
     assert handled == {1, 2}
 
 
 def test_triage_group_single_fold_candidate_is_left_unhandled(monkeypatch):
-    monkeypatch.setattr(h, "fetch_ollama_review", lambda endpoint, model, prompt: "#1: FOLD")
+    monkeypatch.setattr(h, "fetch_review", lambda model_source, prompt: "#1: FOLD")
     created = []
-    monkeypatch.setattr(h, "create_consolidator_issue", lambda title, folded, dry_run: created.append(1))
+    monkeypatch.setattr(
+        h, "create_consolidator_issue", lambda title, folded, dry_run: created.append(1)
+    )
     group = [_issue(1, "First")]
-    handled = h.triage_group(group, "model", "endpoint", dry_run=True, verbose=True)
+    handled = h.triage_group(group, "local", dry_run=True, verbose=True)
     assert created == []
     assert handled == set()
 
 
 def test_triage_group_new_feature_is_commented_and_handled(monkeypatch):
-    monkeypatch.setattr(h, "fetch_ollama_review", lambda endpoint, model, prompt: "#1: NEW_FEATURE")
+    monkeypatch.setattr(h, "fetch_review", lambda model_source, prompt: "#1: NEW_FEATURE")
     commented = []
     monkeypatch.setattr(h, "comment_new_feature", lambda number, dry_run: commented.append(number))
     group = [_issue(1, "Add a feature"), _issue(2, "Nit")]
-    handled = h.triage_group(group, "model", "endpoint", dry_run=True, verbose=True)
+    handled = h.triage_group(group, "local", dry_run=True, verbose=True)
     assert commented == [1]
     assert 1 in handled
 
 
 def test_triage_remaining_assigns_milestone_to_backlog_issues(monkeypatch):
-    monkeypatch.setattr(h, "classify_single_issue", lambda issue, model, endpoint, verbose: "BACKLOG")
+    monkeypatch.setattr(h, "classify_single_issue", lambda issue, model_source, verbose: "BACKLOG")
     assigned = []
-    monkeypatch.setattr(h, "assign_milestone", lambda number, milestone, dry_run: assigned.append(number))
-    h.triage_remaining([_issue(1, "Nit")], "model", "endpoint", dry_run=True, verbose=True)
+    monkeypatch.setattr(
+        h, "assign_milestone", lambda number, milestone, dry_run: assigned.append(number)
+    )
+    h.triage_remaining([_issue(1, "Nit")], "local", dry_run=True, verbose=True)
     assert assigned == [1]
 
 
 def test_triage_remaining_skips_milestone_for_new_feature(monkeypatch):
-    monkeypatch.setattr(h, "classify_single_issue", lambda issue, model, endpoint, verbose: "NEW_FEATURE")
+    monkeypatch.setattr(
+        h, "classify_single_issue", lambda issue, model_source, verbose: "NEW_FEATURE"
+    )
     commented = []
     assigned = []
-    monkeypatch.setattr(h, "assign_milestone", lambda number, milestone, dry_run: assigned.append(number))
+    monkeypatch.setattr(
+        h, "assign_milestone", lambda number, milestone, dry_run: assigned.append(number)
+    )
     monkeypatch.setattr(h, "comment_new_feature", lambda number, dry_run: commented.append(number))
-    h.triage_remaining([_issue(1, "Add a feature")], "model", "endpoint", dry_run=True, verbose=True)
+    h.triage_remaining([_issue(1, "Add a feature")], "local", dry_run=True, verbose=True)
     assert assigned == []
     assert commented == [1]

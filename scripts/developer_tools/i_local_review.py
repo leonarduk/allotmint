@@ -1,8 +1,9 @@
-"""CLI tool to review uncommitted local changes using Ollama.
+"""CLI tool to review uncommitted local changes using a local or cloud LLM.
 
 Compares the current working directory (including uncommitted changes)
 against the target branch (default: main) and generates a markdown report
-with the Ollama review.
+with the review from the chosen model (local Ollama or cloud DeepSeek, via
+lib/llm_common.py).
 """
 
 from __future__ import annotations
@@ -14,16 +15,16 @@ import sys
 from pathlib import Path
 
 # Add .github/scripts (for review_common) and the local lib/ dir (for
-# ollama_common) to sys.path so this works both as an importable module and
+# llm_common) to sys.path so this works both as an importable module and
 # when invoked directly (e.g. `python scripts/developer_tools/i_local_review.py`),
 # where the repo root is not on sys.path and `scripts` is not importable.
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / ".github" / "scripts"))
 sys.path.insert(0, str(Path(__file__).parent / "lib"))
-from ollama_common import (
-    fetch_ollama_review,
-    get_ollama_endpoint,
-    get_ollama_model,
-    validate_ollama_connection,
+from llm_common import (
+    add_model_source_arg,
+    describe_model_source,
+    fetch_review,
+    validate_model_source,
 )
 from review_common import build_prompt, truncate_diff
 
@@ -144,7 +145,8 @@ def save_report(content: str, output_path: str) -> str:
 def main() -> int:
     """Run the local review flow."""
     parser = argparse.ArgumentParser(
-        description="Review uncommitted local changes using Ollama and generate a markdown report"
+        description="Review uncommitted local changes using a local or cloud LLM "
+        "and generate a markdown report"
     )
     parser.add_argument(
         "--branch",
@@ -161,19 +163,12 @@ def main() -> int:
         action="store_true",
         help="Print review to stdout instead of saving to file",
     )
+    add_model_source_arg(parser)
     args = parser.parse_args()
 
-    # Validate Ollama is reachable
-    endpoint = get_ollama_endpoint()
-    if not validate_ollama_connection(endpoint):
-        print(
-            f"ERROR: Ollama is not reachable at {endpoint}. "
-            "Please start Ollama or set OLLAMA_ENDPOINT.",
-            file=sys.stderr,
-        )
+    if not validate_model_source(args.model_source):
         return 1
 
-    model = get_ollama_model()
     current_branch = get_current_branch()
 
     # Get local diff
@@ -194,7 +189,7 @@ def main() -> int:
         return 0
 
     # Build prompt and fetch review
-    print(f"INFO: Using Ollama model '{model}'", file=sys.stderr)
+    print(f"INFO: Using {describe_model_source(args.model_source)}", file=sys.stderr)
     prompt = build_prompt(
         pr_title=f"Local changes on {current_branch}",
         diff=diff,
@@ -202,10 +197,10 @@ def main() -> int:
         discussion="",
         verified_facts="",
     )
-    review = fetch_ollama_review(endpoint, model, prompt)
+    review = fetch_review(args.model_source, prompt)
 
     if not review.strip():
-        print("ERROR: Ollama returned an empty review", file=sys.stderr)
+        print("ERROR: Model returned an empty review", file=sys.stderr)
         return 1
 
     # Generate timestamp for report
@@ -216,7 +211,7 @@ def main() -> int:
         review=review,
         target_branch=args.branch,
         current_branch=current_branch,
-        model=model,
+        model=describe_model_source(args.model_source),
         diff_size=len(diff),
         timestamp=timestamp,
     )

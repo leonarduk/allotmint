@@ -3,6 +3,8 @@ param(
     [string[]]$Files = $null,
     [switch]$NoOllama = $false,
     [string]$Model = $null,
+    [ValidateSet('local', 'cloud')]
+    [string]$ModelSource = $null,
     [switch]$NoPush = $false
 )
 
@@ -31,6 +33,10 @@ if ($NoOllama) {
 
 if ($Model) {
     $pythonArgs += "--model", $Model
+}
+
+if ($ModelSource) {
+    $pythonArgs += "--model-source", $ModelSource
 }
 
 if ($NoPush) {

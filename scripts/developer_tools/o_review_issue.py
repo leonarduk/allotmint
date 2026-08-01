@@ -18,19 +18,19 @@ import sys
 import tempfile
 from pathlib import Path
 
-# Add .github/scripts (for deepseek_review) and the local lib/ dir (for
-# ollama_common/github_repo) to sys.path so this works both as an importable
-# module and when invoked directly, where the repo root is not on sys.path.
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / ".github" / "scripts"))
+# Add the local lib/ dir (for github_repo/llm_common) to sys.path so this
+# works both as an importable module and when invoked directly, where the
+# repo root is not on sys.path.
 sys.path.insert(0, str(Path(__file__).parent / "lib"))
-from deepseek_review import fetch_deepseek_review  # noqa: E402
 from github_repo import get_repo_info  # noqa: E402
 from issue_review import parse_review_response  # noqa: E402
-from ollama_common import (  # noqa: E402
-    fetch_ollama_review,
-    get_ollama_endpoint,
-    get_ollama_model,
-    validate_ollama_connection,
+from llm_common import (  # noqa: E402
+    CLOUD,
+    LOCAL,
+    describe_model_source,
+    fetch_review,
+    prompt_for_model_source,
+    validate_model_source,
 )
 
 REPO_ROOT_ENV_FILE = Path(__file__).parent.parent.parent / ".env"
@@ -50,9 +50,6 @@ def load_env_file(env_path: Path = REPO_ROOT_ENV_FILE) -> None:
 
 
 load_env_file()
-
-LOCAL = "local"
-CLOUD = "cloud"
 
 # Below this fraction of the original body length, treat the model's answer as having
 # dropped content rather than genuinely trimmed stale text, and refuse to show it as a
@@ -178,27 +175,10 @@ def run_review(
     """Call the chosen model with the review prompt. Returns None on any failure."""
     prompt = build_review_prompt(title, body, feedback=feedback)
 
-    if model_source == LOCAL:
-        endpoint = get_ollama_endpoint()
-        if not validate_ollama_connection(endpoint):
-            print(
-                f"ERROR: Ollama is not reachable at {endpoint}. "
-                "Start Ollama or set OLLAMA_ENDPOINT.",
-                file=sys.stderr,
-            )
-            return None
-        model = get_ollama_model()
-        print(f"INFO: Reviewing with local model '{model}' at {endpoint}...", file=sys.stderr)
-        response = fetch_ollama_review(endpoint, model, prompt)
-    else:
-        api_key = os.environ.get("DEEPSEEK_API_KEY", "")
-        if not api_key:
-            print(
-                "ERROR: DEEPSEEK_API_KEY is not set; cannot use the cloud model.", file=sys.stderr
-            )
-            return None
-        print("INFO: Reviewing with cloud model (DeepSeek)...", file=sys.stderr)
-        response = fetch_deepseek_review(api_key, prompt)
+    if not validate_model_source(model_source):
+        return None
+    print(f"INFO: Reviewing with {describe_model_source(model_source)}...", file=sys.stderr)
+    response = fetch_review(model_source, prompt)
 
     if verbose:
         print(f"[VERBOSE] Model response:\n{response}", file=sys.stderr)
@@ -311,19 +291,6 @@ def prompt_for_disposition() -> tuple[str, str | None]:
     if lowered in ("n", "no"):
         return "abort", None
     return "retry", raw
-
-
-def prompt_for_model_source() -> str:
-    """Interactively prompt for which model to use."""
-    print()
-    print("Model source:")
-    print("  [l] Local (Ollama)")
-    print("  [c] Cloud (DeepSeek)")
-    try:
-        choice = input("> ").strip().lower()
-    except EOFError:
-        choice = "l"
-    return CLOUD if choice in ("c", "cloud") else LOCAL
 
 
 def main() -> int:

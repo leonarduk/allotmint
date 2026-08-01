@@ -273,6 +273,37 @@ AllotMint depends heavily on realistic local/demo data.
 
 This path is preferred over outdated docs that still mention `uvicorn app:app`.
 
+### Running multiple local instances side by side
+
+`scripts/bash/run-local-api.sh` and `scripts/run-backend.ps1` pick the first
+free port starting at `server.uvicorn_port` (default `8000`) instead of
+failing if it's already bound, so a second checkout (e.g. a separate
+worktree or clone for a different set of changes) can run its own backend at
+the same time. The port actually chosen is logged to the terminal and
+written to `.local/ports/backend.port` (gitignored, one per checkout).
+
+`vite.config.ts` reads that file automatically when you start the frontend
+dev server (`npm --prefix frontend run dev`, or either `run-frontend`
+script) and points `VITE_ALLOTMINT_API_BASE` at the matching backend — the
+terminal and browser console both log which backend URL was picked. This
+only happens for the dev server; explicitly setting `VITE_ALLOTMINT_API_BASE`
+(env var or `.env`) always wins, and production builds/AWS deployments are
+unaffected since they don't run the dev server or read `.local/ports/`.
+
+The frontend dev server itself still uses Vite's own default port-clash
+handling (`5173`, incrementing if busy) — nothing extra to configure there.
+
+**Scope**: one backend per checkout at a time. `.local/ports/backend.port`
+lives at the repo root, so two backends started from the *same* checkout
+still race for the same file (last one to finish starting wins) — run
+concurrent instances from separate worktrees/clones instead, each with its
+own `.local/`.
+
+Set `UVICORN_PORT_FIXED=1` to opt out and require the exact configured
+`server.uvicorn_port`, failing loudly instead of shifting to the next free
+port (e.g. if you specifically need the default port and want a clash to be
+an error rather than silently rebinding elsewhere).
+
 ### Minimal local env example
 
 ```bash

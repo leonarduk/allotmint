@@ -35,6 +35,31 @@ LOG_CONFIG=$(awk -F': ' '/^log_config:/ {print $2}' "$CONFIG_FILE" | tr -d '"')
 
 export ALLOTMINT_ENV="$APP_ENV"
 
+# shellcheck source=scripts/bash/lib/find_free_port.sh
+source "$SCRIPT_DIR/lib/find_free_port.sh"
+
+# Pick a free port starting from the configured one so multiple local
+# instances (e.g. separate worktrees/clones) can run side by side without
+# clashing (see #5760). Explicitly setting UVICORN_PORT in the environment
+# is treated as a hard requirement and is not shifted.
+if [[ -z "${UVICORN_PORT_FIXED:-}" ]]; then
+  RESOLVED_PORT=$(find_free_port "$UVICORN_PORT")
+  if [[ "$RESOLVED_PORT" != "$UVICORN_PORT" ]]; then
+    echo "Port $UVICORN_PORT is in use; using $RESOLVED_PORT instead" >&2
+  fi
+  UVICORN_PORT="$RESOLVED_PORT"
+fi
+
+# Write via a temp file + rename so a concurrent reader (vite.config.ts)
+# never observes a partially written port number.
+PORT_FILE_DIR="$REPO_ROOT/.local/ports"
+mkdir -p "$PORT_FILE_DIR"
+PORT_FILE="$PORT_FILE_DIR/backend.port"
+TMP_PORT_FILE="$(mktemp "${PORT_FILE_DIR}/.backend.port.XXXXXX")"
+echo "$UVICORN_PORT" > "$TMP_PORT_FILE"
+mv -f "$TMP_PORT_FILE" "$PORT_FILE"
+echo "Backend will listen on http://localhost:$UVICORN_PORT (port recorded in .local/ports/backend.port)" >&2
+
 if [[ -n "${DATA_BUCKET:-}" ]]; then
   echo "Syncing data from s3://$DATA_BUCKET/" >&2
   aws s3 sync "s3://$DATA_BUCKET/" data/

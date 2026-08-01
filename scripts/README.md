@@ -173,15 +173,15 @@ The script:
 Optional flags:
 - `--token TOKEN`: GitHub personal access token (also reads `GITHUB_TOKEN` env var). Required for branch creation (unauthenticated requests will fail with 401/403).
 
-## developer_tools/f_aider_issue_extractor.py
+## developer_tools/f_implement_issue_with_aider.py
 
 Extract the prompt needed from a GitHub issue (or a local markdown file) to
 run in [aider](https://aider.chat), so working a task locally doesn't require
 manually copying the issue text and guessing which files to hand to aider.
 
 ```bash
-python scripts/developer_tools/f_aider_issue_extractor.py -i 4445
-python scripts/developer_tools/f_aider_issue_extractor.py -f .issue-4445.md
+python scripts/developer_tools/f_implement_issue_with_aider.py -i 4445
+python scripts/developer_tools/f_implement_issue_with_aider.py -f .issue-4445.md
 ```
 
 The script:

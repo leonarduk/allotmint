@@ -399,10 +399,10 @@ def confirm_with_user(
             print("[DEBUG] --no-confirm flag set; skipping confirmation", file=sys.stderr)
         return True
 
-    print("\nProceed with Aider? (y/n): ", end="", flush=True)
+    print("\nProceed with Aider? (Y/n): ", end="", flush=True)
     try:
         response = input().strip().lower()
-        return response in ("y", "yes")
+        return response in ("", "y", "yes")
     except EOFError:
         print("(EOF received; skipping confirmation)", file=sys.stderr)
         return False
@@ -444,7 +444,9 @@ def run_aider(files: list[str], prompt: str, verbose: bool = False) -> None:
         message_file.close()
         if verbose:
             print(f"[DEBUG] Applying initial prompt to {len(files)} files...", file=sys.stderr)
-        initial = _run_aider(["aider", "--message-file", message_file.name, *files])
+        initial = _run_aider(
+            ["aider", "--edit-format", "whole", "--message-file", message_file.name, *files]
+        )
     finally:
         Path(message_file.name).unlink(missing_ok=True)
 
@@ -458,7 +460,7 @@ def run_aider(files: list[str], prompt: str, verbose: bool = False) -> None:
 
     if verbose:
         print("[DEBUG] Handing off to an interactive aider session...", file=sys.stderr)
-    interactive = _run_aider(["aider", *files])
+    interactive = _run_aider(["aider", "--edit-format", "whole", *files])
     if interactive.returncode != 0:
         print(f"ERROR: aider exited with status {interactive.returncode}", file=sys.stderr)
         sys.exit(interactive.returncode)

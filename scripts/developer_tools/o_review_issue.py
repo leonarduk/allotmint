@@ -188,6 +188,19 @@ def list_repo_files(repo_root: Path) -> list[str]:
     return [line.strip() for line in result.stdout.splitlines() if line.strip()]
 
 
+def strip_files_affected_section(text: str) -> str:
+    """Remove any existing '## Files Affected' section from issue text.
+
+    A prior review pass may have written incorrect, stale, or overly broad paths into
+    this section. Searching that text for "mentions" to re-confirm would let a bad
+    entry re-justify itself on every future re-review (#5829) -- so file/symbol
+    hints are only ever resolved from the issue's substantive prose, not its own
+    previous output.
+    """
+    pattern = re.compile(r"^##\s+Files Affected\s*\n.*?(?=^##\s+|\Z)", re.MULTILINE | re.DOTALL)
+    return pattern.sub("", text)
+
+
 def find_repo_file_hints(text: str, repo_root: Path) -> dict[str, list[str]]:
     """Resolve filenames/symbols mentioned in issue text to real repo-relative paths.
 
@@ -196,7 +209,15 @@ def find_repo_file_hints(text: str, repo_root: Path) -> dict[str, list[str]]:
     any file it's asked to cite. This grounds the prompt by searching the actual
     checkout for tracked files matching a bare filename, or containing a def/class
     matching a backticked symbol name, mentioned in the issue.
+
+    A name is only resolved when it maps to exactly one file. A name that matches
+    several files (a common filename reused across directories, a symbol name
+    defined in more than one module) is ambiguous rather than wrong, but including
+    every candidate is what caused the file finder to flood "Files Affected" with
+    irrelevant matches (#5829) -- so ambiguous names are left unresolved rather than
+    guessed.
     """
+    text = strip_files_affected_section(text)
     hints: dict[str, list[str]] = {}
 
     repo_files = list_repo_files(repo_root)
@@ -210,7 +231,7 @@ def find_repo_file_hints(text: str, repo_root: Path) -> dict[str, list[str]]:
         if filename in hints:
             continue
         matches = files_by_basename.get(filename)
-        if matches:
+        if matches and len(matches) == 1:
             hints[filename] = matches
 
     for match in re.finditer(r"`([A-Za-z_][A-Za-z0-9_]*)`", text):
@@ -226,7 +247,7 @@ def find_repo_file_hints(text: str, repo_root: Path) -> dict[str, list[str]]:
             check=False,
         )
         matches = [line.strip() for line in result.stdout.splitlines() if line.strip()]
-        if matches:
+        if len(matches) == 1:
             hints[symbol] = matches
 
     return hints
@@ -236,10 +257,7 @@ def format_file_hints(hints: dict[str, list[str]]) -> str:
     """Render resolved file hints as a bullet list for the review prompt, or "" if empty."""
     if not hints:
         return ""
-    lines = []
-    for name, paths in hints.items():
-        joined = ", ".join(f"`{path}`" for path in paths[:5])
-        lines.append(f"- `{name}` -> {joined}")
+    lines = [f"- `{name}` -> `{paths[0]}`" for name, paths in hints.items()]
     return FILE_HINTS_SECTION_TEMPLATE.format(hints="\n".join(lines))
 
 

@@ -253,15 +253,64 @@ def test_find_repo_file_hints_ignores_short_symbols(git_repo):
     assert n.find_repo_file_hints("Fix `id` please.", git_repo) == {}
 
 
+def test_find_repo_file_hints_skips_ambiguous_filename(git_repo):
+    # Two files share the basename 'config.py' -- neither is confidently "the" match.
+    other_dir = git_repo / "other"
+    other_dir.mkdir()
+    (other_dir / "config.py").write_text("VALUE = 1\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=git_repo, check=True)
+    subprocess.run(
+        ["git", "commit", "-q", "-m", "add duplicate basename"], cwd=git_repo, check=True
+    )
+    (git_repo / "config.py").write_text("VALUE = 2\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=git_repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "add root config.py"], cwd=git_repo, check=True)
+    assert n.find_repo_file_hints("See config.py for details.", git_repo) == {}
+
+
+def test_find_repo_file_hints_skips_ambiguous_symbol(git_repo):
+    # The same symbol name is defined in two different files -- ambiguous, so unresolved.
+    other_dir = git_repo / "other"
+    other_dir.mkdir()
+    (other_dir / "helpers.py").write_text(
+        "def widget_test_stub_symbol():\n    pass\n", encoding="utf-8"
+    )
+    subprocess.run(["git", "add", "-A"], cwd=git_repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "add duplicate symbol"], cwd=git_repo, check=True)
+    hints = n.find_repo_file_hints("Fix `widget_test_stub_symbol` retry handling.", git_repo)
+    assert hints == {}
+
+
+def test_find_repo_file_hints_ignores_stale_files_affected_section(git_repo):
+    # A prior pass's (possibly wrong) Files Affected entry shouldn't re-confirm itself just
+    # because the filename it names happens to exist in the repo.
+    text = "## What\nsome unrelated bug.\n\n## Files Affected\n- `README.md`\n"
+    assert n.find_repo_file_hints(text, git_repo) == {}
+
+
+def test_strip_files_affected_section_removes_only_that_section():
+    text = "## What\nsome text\n\n## Files Affected\n- `a.py`\n- `b.py`\n\n## Constraints\nnone\n"
+    result = n.strip_files_affected_section(text)
+    assert "a.py" not in result
+    assert "b.py" not in result
+    assert "## What\nsome text" in result
+    assert "## Constraints\nnone" in result
+
+
+def test_strip_files_affected_section_noop_when_section_absent():
+    text = "## What\nsome text\n\n## Constraints\nnone\n"
+    assert n.strip_files_affected_section(text) == text
+
+
 def test_format_file_hints_empty():
     assert n.format_file_hints({}) == ""
 
 
 def test_format_file_hints_renders_bullet_list():
-    text = n.format_file_hints({"foo": ["a/foo.py"], "bar": ["b/bar.py", "c/bar.py"]})
+    text = n.format_file_hints({"foo": ["a/foo.py"], "bar": ["b/bar.py"]})
     assert "Known repository file locations" in text
     assert "- `foo` -> `a/foo.py`" in text
-    assert "- `bar` -> `b/bar.py`, `c/bar.py`" in text
+    assert "- `bar` -> `b/bar.py`" in text
 
 
 def test_build_review_prompt_includes_file_hints_section():

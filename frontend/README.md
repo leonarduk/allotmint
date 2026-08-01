@@ -14,6 +14,12 @@ The backend API must be running and reachable from the browser (local, LAN IP, o
 - `npm run dev` – start the Vite development server.
 - `npm test` – execute the test suite with Vitest and Testing Library.
   Test files should be named `*.test.ts`, `*.test.tsx`, or `*.test.js` to be picked up.
+  Tests that mount the full `Root` app around `Menu` and then wait on a
+  menu re-render (e.g. `findByRole('menuitem', ...)`) should pass
+  `MENU_INTERACTION_TIMEOUT_MS` from `tests/support/menuInteractionTimeout.ts`
+  as the query timeout instead of a bare number, since Testing Library's
+  1000ms default has been observed to be too tight for that heavier render
+  path under CI load (#5734).
 - `npm run build` – production build: runs `tsc -b` (full type-check) then
   `vite build`. This is the build used before any real deploy or CDK synth
   (`deploy-lambda.yml`, `cdk-dry-run.yml`, `iac-validation.yml`, and the

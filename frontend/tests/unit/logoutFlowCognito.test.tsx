@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import i18n from '@/i18n';
+import { MENU_INTERACTION_TIMEOUT_MS } from '../support/menuInteractionTimeout';
 
 // Full logout lifecycle in Cognito mode (issue #4802): click -> cognitoLogout()
 // called -> session cleared -> redirect to the Cognito hosted-UI logout
@@ -116,13 +117,10 @@ describe('Logout flow: Cognito mode (#4802)', () => {
       name: i18n.t('app.menuCategories.preferences'),
     });
     fireEvent.click(preferencesToggle);
-    // Timeout raised above the Testing Library default (1000ms): under CI
-    // load this re-render was observed to occasionally exceed the default
-    // and fail the assertion even though the menu genuinely opens (#5734).
     const logoutButton = await screen.findByRole(
       'menuitem',
       { name: i18n.t('app.logout') },
-      { timeout: 3000 }
+      { timeout: MENU_INTERACTION_TIMEOUT_MS }
     );
     fireEvent.click(logoutButton);
 
@@ -210,13 +208,10 @@ describe('Logout flow: Cognito mode (#4802)', () => {
       name: i18n.t('app.menuCategories.preferences'),
     });
     fireEvent.click(preferencesToggle);
-    // Timeout raised above the Testing Library default (1000ms): under CI
-    // load this re-render was observed to occasionally exceed the default
-    // and fail the assertion even though the menu genuinely opens (#5734).
     const logoutButton = await screen.findByRole(
       'menuitem',
       { name: i18n.t('app.logout') },
-      { timeout: 3000 }
+      { timeout: MENU_INTERACTION_TIMEOUT_MS }
     );
     fireEvent.click(logoutButton);
 

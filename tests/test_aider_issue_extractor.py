@@ -466,14 +466,27 @@ class TestMainOrdering:
     @mock.patch("f_aider_issue_extractor.run_aider")
     @mock.patch("f_aider_issue_extractor.resolve_files_to_edit")
     @mock.patch("f_aider_issue_extractor.get_repo_info", return_value=("owner", "repo"))
+    @mock.patch("f_aider_issue_extractor.validate_ollama_connection", return_value=True)
     def test_chdirs_to_repo_root_before_resolving_files(
-        self, mock_repo_info, mock_resolve, mock_run_aider, mock_get_repo_root, mock_chdir
+        self,
+        mock_validate,
+        mock_repo_info,
+        mock_resolve,
+        mock_run_aider,
+        mock_get_repo_root,
+        mock_chdir,
     ):
         # Regression test: paths extracted from an issue body (and the files
         # ultimately handed to aider) are resolved relative to the process
         # cwd. Without chdir'ing to the repo root first, running this script
         # from e.g. scripts/developer_tools/ makes every real repo-relative
         # path look nonexistent.
+        #
+        # validate_ollama_connection is mocked (not exercised elsewhere in
+        # this test) purely so main() doesn't sys.exit(1) on the real
+        # connectivity check before ever reaching the chdir this test is
+        # actually verifying (#5810) -- environments without Ollama running
+        # would otherwise fail here for an unrelated reason.
         calls = []
         mock_chdir.side_effect = lambda path: calls.append("chdir")
         mock_resolve.side_effect = lambda *a, **k: calls.append("resolve") or ["file.py"]

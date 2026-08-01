@@ -18,6 +18,7 @@ is_doc_path = _mod.is_doc_path
 main = _mod.main
 areas_for_path = _mod.areas_for_path
 areas_for_diff = _mod.areas_for_diff
+backend_dev_tools_only = _mod.backend_dev_tools_only
 classify = _mod.classify
 AREAS = _mod.AREAS
 
@@ -273,9 +274,10 @@ class TestMain:
         )
         assert exit_code == 0
         written = output_file.read_text(encoding="utf-8").splitlines()
-        # An empty diff is doc-only, so every area flag must be false.
+        # An empty diff is doc-only, so every area flag (and the narrow
+        # dev-tools flag) must be false.
         assert written[0] == "doc-only=true"
-        assert sorted(written[1:]) == sorted(f"{area}=false" for area in AREAS)
+        assert sorted(written[1:]) == sorted([*(f"{area}=false" for area in AREAS), "backend-dev-tools-only=false"])
 
     def test_diff_failure_falls_back_to_not_doc_only(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
@@ -303,7 +305,7 @@ class TestMain:
         assert exit_code == 0
         printed = capsys.readouterr().out.splitlines()
         keys = [line.split("=", 1)[0] for line in printed]
-        assert keys == ["doc-only", *AREAS]
+        assert keys == ["doc-only", *AREAS, "backend-dev-tools-only"]
 
 
 # ---------------------------------------------------------------------------
@@ -443,6 +445,107 @@ rename to frontend/src/helper.ts
 
 
 # ---------------------------------------------------------------------------
+# backend_dev_tools_only
+# ---------------------------------------------------------------------------
+
+
+class TestBackendDevToolsOnly:
+    def test_dev_tools_script_change_is_narrow(self) -> None:
+        diff = """\
+diff --git a/scripts/developer_tools/n_review_issue.py b/scripts/developer_tools/n_review_issue.py
+index abc123..def456 100644
+--- a/scripts/developer_tools/n_review_issue.py
++++ b/scripts/developer_tools/n_review_issue.py
+@@ -1 +1 @@
+-x = 1
++x = 2
+"""
+        assert backend_dev_tools_only(diff) is True
+
+    def test_dev_tools_test_change_is_narrow(self) -> None:
+        diff = """\
+diff --git a/tests/scripts/test_n_review_issue.py b/tests/scripts/test_n_review_issue.py
+index abc123..def456 100644
+--- a/tests/scripts/test_n_review_issue.py
++++ b/tests/scripts/test_n_review_issue.py
+@@ -1 +1 @@
+-x = 1
++x = 2
+"""
+        assert backend_dev_tools_only(diff) is True
+
+    def test_other_scripts_change_is_not_narrow(self) -> None:
+        """A non-dev-tools scripts/** file still falls to the full backend suite."""
+        diff = """\
+diff --git a/scripts/check_portfolio_health.py b/scripts/check_portfolio_health.py
+index abc123..def456 100644
+--- a/scripts/check_portfolio_health.py
++++ b/scripts/check_portfolio_health.py
+@@ -1 +1 @@
+-x = 1
++x = 2
+"""
+        assert backend_dev_tools_only(diff) is False
+
+    def test_backend_module_change_is_not_narrow(self) -> None:
+        diff = """\
+diff --git a/backend/app.py b/backend/app.py
+index abc123..def456 100644
+--- a/backend/app.py
++++ b/backend/app.py
+@@ -1 +1 @@
+-x = 1
++x = 2
+"""
+        assert backend_dev_tools_only(diff) is False
+
+    def test_mixed_dev_tools_and_backend_change_is_not_narrow(self) -> None:
+        diff = """\
+diff --git a/scripts/developer_tools/n_review_issue.py b/scripts/developer_tools/n_review_issue.py
+index abc123..def456 100644
+--- a/scripts/developer_tools/n_review_issue.py
++++ b/scripts/developer_tools/n_review_issue.py
+@@ -1 +1 @@
+-x = 1
++x = 2
+diff --git a/backend/app.py b/backend/app.py
+index abc123..def456 100644
+--- a/backend/app.py
++++ b/backend/app.py
+@@ -1 +1 @@
+-y = 1
++y = 2
+"""
+        assert backend_dev_tools_only(diff) is False
+
+    def test_rename_out_of_dev_tools_is_not_narrow(self) -> None:
+        """Moving a dev-tools script into backend/ must not narrow the suite."""
+        diff = """\
+diff --git a/scripts/developer_tools/n_review_issue.py b/backend/n_review_issue.py
+similarity index 100%
+rename from scripts/developer_tools/n_review_issue.py
+rename to backend/n_review_issue.py
+"""
+        assert backend_dev_tools_only(diff) is False
+
+    def test_frontend_only_diff_is_not_narrow(self) -> None:
+        """No backend path at all means the narrow flag doesn't apply."""
+        diff = """\
+diff --git a/frontend/src/App.tsx b/frontend/src/App.tsx
+index abc123..def456 100644
+--- a/frontend/src/App.tsx
++++ b/frontend/src/App.tsx
+@@ -1 +1 @@
+-const a = 1
++const a = 2
+"""
+        assert backend_dev_tools_only(diff) is False
+
+    def test_empty_diff_is_not_narrow(self) -> None:
+        assert backend_dev_tools_only("") is False
+
+
+# ---------------------------------------------------------------------------
 # classify (the doc-only + areas combination the workflows consume)
 # ---------------------------------------------------------------------------
 
@@ -455,9 +558,10 @@ class TestClassify:
             raise AssertionError("get_diff_text should not be called for push events")
 
         monkeypatch.setattr(_mod, "get_diff_text", fail_if_called)
-        doc_only, areas = classify("push", "abc", "def")
+        doc_only, areas, narrow = classify("push", "abc", "def")
         assert doc_only is False
         assert set(areas) == set(AREAS)
+        assert narrow is False
 
     @pytest.mark.parametrize(("base", "head"), [("", "head-sha"), ("base-sha", ""), ("", "")])
     def test_missing_sha_affects_every_area(self, monkeypatch: pytest.MonkeyPatch, base: str, head: str) -> None:
@@ -466,17 +570,19 @@ class TestClassify:
             "get_diff_text",
             lambda b, h: (_ for _ in ()).throw(AssertionError("should not diff without both SHAs")),
         )
-        _, areas = classify("pull_request", base, head)
+        _, areas, narrow = classify("pull_request", base, head)
         assert set(areas) == set(AREAS)
+        assert narrow is False
 
     def test_diff_failure_affects_every_area(self, monkeypatch: pytest.MonkeyPatch) -> None:
         def raise_called_process_error(base: str, head: str) -> str:
             raise subprocess.CalledProcessError(1, ["git", "diff"])
 
         monkeypatch.setattr(_mod, "get_diff_text", raise_called_process_error)
-        doc_only, areas = classify("pull_request", "abc", "def")
+        doc_only, areas, narrow = classify("pull_request", "abc", "def")
         assert doc_only is False
         assert set(areas) == set(AREAS)
+        assert narrow is False
 
     def test_doc_only_diff_zeroes_every_area(self, monkeypatch: pytest.MonkeyPatch) -> None:
         diff = """\
@@ -488,9 +594,10 @@ index abc123..def456 100644
 +Some prose.
 """
         monkeypatch.setattr(_mod, "get_diff_text", lambda base, head: diff)
-        doc_only, areas = classify("pull_request", "abc", "def")
+        doc_only, areas, narrow = classify("pull_request", "abc", "def")
         assert doc_only is True
         assert areas == frozenset()
+        assert narrow is False
 
     def test_comment_only_python_change_zeroes_areas_despite_backend_path(
         self, monkeypatch: pytest.MonkeyPatch
@@ -505,9 +612,10 @@ index abc123..def456 100644
 +# Explanatory comment only.
 """
         monkeypatch.setattr(_mod, "get_diff_text", lambda base, head: diff)
-        doc_only, areas = classify("pull_request", "abc", "def")
+        doc_only, areas, narrow = classify("pull_request", "abc", "def")
         assert doc_only is True
         assert areas == frozenset()
+        assert narrow is False
 
     def test_backend_only_change_does_not_affect_frontend(self, monkeypatch: pytest.MonkeyPatch) -> None:
         diff = """\
@@ -520,9 +628,10 @@ index abc123..def456 100644
 +LIMIT = 20
 """
         monkeypatch.setattr(_mod, "get_diff_text", lambda base, head: diff)
-        doc_only, areas = classify("pull_request", "abc", "def")
+        doc_only, areas, narrow = classify("pull_request", "abc", "def")
         assert doc_only is False
         assert set(areas) == {"backend"}
+        assert narrow is False
 
     def test_frontend_only_change_does_not_affect_backend(self, monkeypatch: pytest.MonkeyPatch) -> None:
         diff = """\
@@ -535,8 +644,9 @@ index abc123..def456 100644
 +const a = 2
 """
         monkeypatch.setattr(_mod, "get_diff_text", lambda base, head: diff)
-        _, areas = classify("pull_request", "abc", "def")
+        _, areas, narrow = classify("pull_request", "abc", "def")
         assert set(areas) == {"frontend"}
+        assert narrow is False
 
     def test_powershell_only_change_falls_back_to_backend(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """No dedicated area for .ps1 (no Pester suite); falls to scripts/** -> backend."""
@@ -550,8 +660,9 @@ index abc123..def456 100644
 +$x = 2
 """
         monkeypatch.setattr(_mod, "get_diff_text", lambda base, head: diff)
-        _, areas = classify("pull_request", "abc", "def")
+        _, areas, narrow = classify("pull_request", "abc", "def")
         assert set(areas) == {"backend"}
+        assert narrow is False
 
     def test_workflow_change_affects_every_area(self, monkeypatch: pytest.MonkeyPatch) -> None:
         diff = """\
@@ -564,5 +675,45 @@ index abc123..def456 100644
 +  runs-on: ubuntu-24.04
 """
         monkeypatch.setattr(_mod, "get_diff_text", lambda base, head: diff)
-        _, areas = classify("pull_request", "abc", "def")
+        _, areas, narrow = classify("pull_request", "abc", "def")
         assert set(areas) == set(AREAS)
+        assert narrow is False
+
+    def test_dev_tools_only_change_sets_narrow_flag(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        diff = """\
+diff --git a/scripts/developer_tools/n_review_issue.py b/scripts/developer_tools/n_review_issue.py
+index abc123..def456 100644
+--- a/scripts/developer_tools/n_review_issue.py
++++ b/scripts/developer_tools/n_review_issue.py
+@@ -1 +1 @@
+-x = 1
++x = 2
+"""
+        monkeypatch.setattr(_mod, "get_diff_text", lambda base, head: diff)
+        doc_only, areas, narrow = classify("pull_request", "abc", "def")
+        assert doc_only is False
+        assert set(areas) == {"backend"}
+        assert narrow is True
+
+    def test_dev_tools_plus_backend_change_clears_narrow_flag(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A dev-tools change alongside a real backend/ change must run the full suite."""
+        diff = """\
+diff --git a/scripts/developer_tools/n_review_issue.py b/scripts/developer_tools/n_review_issue.py
+index abc123..def456 100644
+--- a/scripts/developer_tools/n_review_issue.py
++++ b/scripts/developer_tools/n_review_issue.py
+@@ -1 +1 @@
+-x = 1
++x = 2
+diff --git a/backend/app.py b/backend/app.py
+index abc123..def456 100644
+--- a/backend/app.py
++++ b/backend/app.py
+@@ -1 +1 @@
+-y = 1
++y = 2
+"""
+        monkeypatch.setattr(_mod, "get_diff_text", lambda base, head: diff)
+        _, areas, narrow = classify("pull_request", "abc", "def")
+        assert set(areas) == {"backend"}
+        assert narrow is False

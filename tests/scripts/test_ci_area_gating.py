@@ -125,9 +125,12 @@ def test_reusable_workflow_exposes_every_area() -> None:
     # PyYAML parses the `on:` key as the boolean True.
     triggers = workflow.get(True) or workflow.get("on")
     declared = set(triggers["workflow_call"]["outputs"])
-    assert declared == {*AREAS, "doc-only"}, (
-        f"_classify-change.yml declares outputs {sorted(declared)}, but "
-        f"classify_change.py emits {sorted({*AREAS, 'doc-only'})}"
+    # backend-dev-tools-only is not an area (see scripts/classify_change.py):
+    # it never gates a job on its own, so it's expected alongside the areas
+    # rather than folded into them.
+    expected = {*AREAS, "doc-only", "backend-dev-tools-only"}
+    assert declared == expected, (
+        f"_classify-change.yml declares outputs {sorted(declared)}, but " f"classify_change.py emits {sorted(expected)}"
     )
 
     job_outputs = set(workflow["jobs"]["classify"]["outputs"])

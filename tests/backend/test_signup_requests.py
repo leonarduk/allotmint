@@ -1,8 +1,7 @@
 import json
+import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 
 import pytest
 
@@ -161,11 +160,21 @@ def test_validate_request_does_not_mutate(tmp_path):
     assert consumed.status == "approved"
 
 
-def test_enforce_cap_race_condition(tmp_path, monkeypatch):
+def test_enforce_cap_serializes_concurrent_callers(tmp_path, monkeypatch):
+    """Prove _PERSIST_LOCK serialises concurrent callers into _enforce_cap_unlocked.
+
+    Thread A is deliberately stalled (via an Event) while inside the wrapped
+    ``_enforce_cap_unlocked``, which it can only reach after acquiring
+    ``_PERSIST_LOCK`` in ``_persist``. Thread B is then started and must block
+    acquiring that same lock, so it can never observe the wrapper's counter
+    above 1 while the lock is held. If ``_PERSIST_LOCK`` were removed, thread B
+    would reach the wrapper while thread A is still stalled inside it, and the
+    counter would exceed 1.
+    """
     store = signup_requests.signup_requests_dir(tmp_path)
     store.mkdir(parents=True, exist_ok=True)
 
-    # Seed directory with too many pending files so _enforce_cap MUST run
+    # Seed directory with too many pending files so _enforce_cap_unlocked MUST run
     for i in range(signup_requests._MAX_PENDING_REQUESTS + 5):
         (store / f"req_{i}.json").write_text(
             json.dumps(
@@ -176,31 +185,64 @@ def test_enforce_cap_race_condition(tmp_path, monkeypatch):
             )
         )
 
-    # Monkeypatch Path.glob to force overlap inside _enforce_cap
-    real_glob = Path.glob
+    real_enforce_cap_unlocked = signup_requests._enforce_cap_unlocked
 
-    def slow_glob(self, pattern):
-        time.sleep(0.01)  # force threads to overlap
-        return real_glob(self, pattern)
+    counter_lock = threading.Lock()
+    active_count = 0
+    max_observed = 0
 
-    monkeypatch.setattr(Path, "glob", slow_glob)
+    thread_a_entered = threading.Event()
+    thread_a_may_proceed = threading.Event()
 
-    # Run TWO concurrent create_signup_request calls
-    with ThreadPoolExecutor(max_workers=2) as ex:
-        futures = [
-            ex.submit(
-                signup_requests.create_signup_request,
-                "A",
-                "a@example.com",
-                "",
-                store,
-            )
-            for _ in range(2)
-        ]
-        for f in futures:
-            f.result()
+    def wrapper(directory, max_pending, *, now=None):
+        nonlocal active_count, max_observed
+        with counter_lock:
+            active_count += 1
+            max_observed = max(max_observed, active_count)
+        try:
+            if not thread_a_entered.is_set():
+                # This is thread A: announce entry, then stall so a second
+                # caller has a real chance to race in if the lock is broken.
+                thread_a_entered.set()
+                thread_a_may_proceed.wait(timeout=5)
+            return real_enforce_cap_unlocked(directory, max_pending, now=now)
+        finally:
+            with counter_lock:
+                active_count -= 1
 
-    # Now check that the cap was respected
+    monkeypatch.setattr(signup_requests, "_enforce_cap_unlocked", wrapper)
+
+    thread_a = threading.Thread(
+        target=signup_requests.create_signup_request,
+        args=("A", "a@example.com", "", store),
+    )
+    thread_b = threading.Thread(
+        target=signup_requests.create_signup_request,
+        args=("B", "b@example.com", "", store),
+    )
+
+    thread_a.start()
+    assert thread_a_entered.wait(timeout=5), "thread A never entered the critical section"
+
+    # Thread B must block acquiring _PERSIST_LOCK (held by thread A) rather
+    # than entering the wrapper concurrently. The lock's blocking semantics
+    # make the pass-path deterministic regardless of the sleep below; the
+    # sleep only biases scheduling so that thread B has actually reached its
+    # lock-acquisition attempt before thread A is allowed to proceed, which
+    # matters for the manual "remove the lock, watch this fail" check in the
+    # linked issue rather than for the assertions this test makes.
+    thread_b.start()
+    time.sleep(0.05)
+    thread_a_may_proceed.set()
+
+    thread_a.join(timeout=5)
+    thread_b.join(timeout=5)
+    assert not thread_a.is_alive(), "thread A did not finish"
+    assert not thread_b.is_alive(), "thread B did not finish"
+
+    assert max_observed == 1, "more than one thread was inside _enforce_cap_unlocked at once"
+
+    # Secondary sanity check: the cap itself was respected.
     files = list(store.glob("*.json"))
     assert len(files) <= signup_requests._MAX_PENDING_REQUESTS
 

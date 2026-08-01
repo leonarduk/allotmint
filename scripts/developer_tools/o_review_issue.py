@@ -275,7 +275,11 @@ def format_file_hints(hints: dict[str, list[str]]) -> str:
     return FILE_HINTS_SECTION_TEMPLATE.format(hints="\n".join(lines))
 
 
-def apply_known_file_paths(body: str, file_hints: dict[str, list[str]]) -> str:
+def apply_known_file_paths(
+    body: str,
+    file_hints: dict[str, list[str]],
+    sections: list[str] | None = None,
+) -> str:
     """Always rewrite the '## Files Affected' section deterministically, never the model's text.
 
     Both local and cloud models will guess a plausible, real, but wrong file (#5632: `backend/
@@ -284,13 +288,27 @@ def apply_known_file_paths(body: str, file_hints: dict[str, list[str]]) -> str:
     enforced. So the model's own "Files Affected" text is never trusted here: this always
     replaces it with paths confidently resolved by find_repo_file_hints(), or with the literal
     "Unknown" when nothing resolved, so an unverified guess can never survive into the issue.
+
+    A model will also sometimes drop the section heading entirely rather than leave it empty
+    (#5650) -- in that case it's inserted at its canonical position (from `sections`, the
+    template's section order) ahead of whichever required section comes next, or appended to
+    the end of the body if no later section is present either.
     """
     paths = sorted({path for matches in file_hints.values() for path in matches})
     replacement = "\n".join(f"- `{path}`" for path in paths) if paths else "Unknown"
+
     pattern = re.compile(r"(^##\s+Files Affected\s*\n)(.*?)(?=^##\s+|\Z)", re.MULTILINE | re.DOTALL)
-    if not pattern.search(body):
-        return body
-    return pattern.sub(lambda m: m.group(1) + replacement + "\n\n", body, count=1)
+    if pattern.search(body):
+        return pattern.sub(lambda m: m.group(1) + replacement + "\n\n", body, count=1)
+
+    section_block = f"## Files Affected\n{replacement}\n\n"
+    sections = sections if sections is not None else load_template_sections()
+    if "Files Affected" in sections:
+        for later_section in sections[sections.index("Files Affected") + 1 :]:
+            match = re.search(rf"^##\s+{re.escape(later_section)}\s*$", body, re.MULTILINE)
+            if match:
+                return body[: match.start()] + section_block + body[match.start() :]
+    return body.rstrip("\n") + "\n\n" + section_block.rstrip("\n") + "\n"
 
 
 def build_review_prompt(
@@ -592,7 +610,7 @@ def main() -> int:
                 file=sys.stderr,
             )
 
-        if new_title == title and new_body == body:
+        if new_title == title and new_body.rstrip() == body.rstrip():
             return 0
 
         if args.yes:

@@ -408,10 +408,31 @@ def test_apply_known_file_paths_forces_unknown_without_hints():
     assert "## Files Affected\nUnknown" in result
 
 
-def test_apply_known_file_paths_noop_when_section_missing():
+def test_apply_known_file_paths_inserts_section_before_next_canonical_section():
+    # The model dropped the 'Files Affected' heading entirely (#5650) -- it must still be
+    # inserted, in its canonical template position, not silently skipped.
+    body = "## What\ntext\n\n## Constraints\nsome constraint\n"
+    hints = {"foo": ["a/foo.py"]}
+    sections = ["What", "Files Affected", "Constraints"]
+    result = n.apply_known_file_paths(body, hints, sections=sections)
+    assert "## Files Affected\n- `a/foo.py`\n\n## Constraints\nsome constraint" in result
+    assert result.index("## Files Affected") < result.index("## Constraints")
+
+
+def test_apply_known_file_paths_appends_section_when_no_later_section_present():
     body = "## What\nno files affected section here\n"
     hints = {"foo": ["a/foo.py"]}
-    assert n.apply_known_file_paths(body, hints) == body
+    sections = ["What", "Files Affected"]
+    result = n.apply_known_file_paths(body, hints, sections=sections)
+    assert result.rstrip("\n").endswith("## Files Affected\n- `a/foo.py`")
+    assert "## What\nno files affected section here" in result
+
+
+def test_apply_known_file_paths_inserts_unknown_when_section_missing_and_no_hints():
+    body = "## What\ntext\n\n## Constraints\nnone\n"
+    sections = ["What", "Files Affected", "Constraints"]
+    result = n.apply_known_file_paths(body, {}, sections=sections)
+    assert "## Files Affected\nUnknown\n\n## Constraints\nnone" in result
 
 
 def test_apply_known_file_paths_handles_last_section_in_body():

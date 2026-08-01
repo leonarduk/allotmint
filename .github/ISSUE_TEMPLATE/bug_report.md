@@ -29,6 +29,11 @@ messages, screenshots, or logs where relevant. -->
 
 **Environment:** (backend/frontend/CDK, browser, OS, commit/branch)
 
+## Files Affected
+
+<!-- List the specific file paths (from the repo root) that need to be
+changed, added, or deleted to fix this. Use one path per line. -->
+
 ## Constraints
 
 <!-- Anything the fix must not break, e.g. "must not change the public API

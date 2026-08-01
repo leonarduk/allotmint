@@ -34,6 +34,10 @@ SECTIONS_FEATURE = [
     ("Why", "Why is this needed? What problem does it solve, or what value does it add?"),
     ("How", "Outline the intended approach at a high level."),
     (
+        "Files Affected",
+        "Specific file paths (from the repo root) to change, add, or delete. One per line.",
+    ),
+    (
         "Constraints",
         (
             "Anything the implementation must respect"
@@ -55,6 +59,10 @@ SECTIONS_BUG = [
     ("What", "What is broken? Describe the observed behavior."),
     ("Why", "Why does this matter? What's the user/dev impact?"),
     ("How", "Steps to reproduce, and (if known) what the fix likely involves."),
+    (
+        "Files Affected",
+        "Specific file paths (from the repo root) to change, add, or delete. One per line.",
+    ),
     ("Constraints", "Anything the fix must not break."),
     ("LLM tier", "Suggested AI agent tier: haiku / sonnet / opus"),
     (
@@ -170,6 +178,10 @@ def format_feature_body(sections: dict[str, str]) -> str:
         "",
         sections.get("How", ""),
         "",
+        "## Files Affected",
+        "",
+        sections.get("Files Affected", "Unknown"),
+        "",
         "## Constraints",
         "",
         sections.get("Constraints", "None"),
@@ -203,6 +215,10 @@ def format_bug_body(sections: dict[str, str]) -> str:
         "## How",
         "",
         sections.get("How", ""),
+        "",
+        "## Files Affected",
+        "",
+        sections.get("Files Affected", "Unknown"),
         "",
         "## Constraints",
         "",
@@ -470,6 +486,8 @@ def main() -> None:
             default = "-"
         elif label == "Constraints":
             default = "None"
+        elif label == "Files Affected":
+            default = "Unknown"
 
         value = prompt(label, hint, default=default)
         sections[label] = value

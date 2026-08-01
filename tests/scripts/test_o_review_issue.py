@@ -143,6 +143,7 @@ def test_load_template_sections_reads_real_bug_report_template():
         "What",
         "Why",
         "How",
+        "Files Affected",
         "Constraints",
         "LLM tier",
         "Success looks like",

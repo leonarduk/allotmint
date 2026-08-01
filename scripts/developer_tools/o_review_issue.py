@@ -69,6 +69,7 @@ FALLBACK_TEMPLATE_SECTIONS = [
     "What",
     "Why",
     "How",
+    "Files Affected",
     "Constraints",
     "LLM tier",
     "Success looks like",

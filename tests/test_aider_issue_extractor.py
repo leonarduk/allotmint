@@ -19,6 +19,7 @@ from f_aider_issue_extractor import (  # noqa: E402
     load_issue_from_file,
     main,
     parse_issue_body,
+    resolve_files_to_edit,
     run_aider,
     suggest_files_with_ollama,
 )
@@ -67,6 +68,11 @@ class TestParseIssueBody:
         body = "## Random Heading\n\nSome content.\n"
         assert parse_issue_body(body) == {}
 
+    def test_extracts_files_affected_section(self):
+        body = "## Files Affected\n\nbackend/app.py\nfrontend/src/main.tsx\n"
+        sections = parse_issue_body(body)
+        assert sections["files_affected"] == "backend/app.py\nfrontend/src/main.tsx"
+
 
 class TestIsSafeRelativePath:
     def test_rejects_parent_traversal(self):
@@ -100,6 +106,37 @@ class TestExtractFilePathsFromIssue:
         # rejected before the existence check ever runs.
         body = "See scripts/../scripts/developer_tools/f_aider_issue_extractor.py for details."
         assert extract_file_paths_from_issue(body) == []
+
+
+class TestResolveFilesToEdit:
+    def test_prefers_files_affected_section_over_whole_body(self):
+        real_file = "scripts/developer_tools/f_aider_issue_extractor.py"
+        other_file = "scripts/developer_tools/b_create_issue.py"
+        body = f"See {other_file} for background."
+
+        result = resolve_files_to_edit("title", body, "http://x", "model", files_affected=real_file)
+        assert result == [real_file]
+
+    @mock.patch("f_aider_issue_extractor.fetch_ollama_review")
+    def test_falls_back_to_body_when_files_affected_has_no_real_paths(self, mock_fetch):
+        real_file = "scripts/developer_tools/f_aider_issue_extractor.py"
+        body = f"See {real_file} for details."
+
+        result = resolve_files_to_edit(
+            "title", body, "http://x", "model", files_affected="totally/made/up/path.py"
+        )
+        assert result == [real_file]
+        mock_fetch.assert_not_called()
+
+    @mock.patch("f_aider_issue_extractor.fetch_ollama_review")
+    def test_asks_ollama_when_nothing_found_anywhere(self, mock_fetch):
+        mock_fetch.return_value = "[]"
+
+        result = resolve_files_to_edit(
+            "title", "no files here", "http://x", "model", files_affected="also none here"
+        )
+        assert result == []
+        mock_fetch.assert_called_once()
 
 
 class TestFormulateAiderPrompt:

@@ -19,6 +19,11 @@ assignees: ""
 <!-- Outline the intended approach at a high level. Link to affected files or
 areas of the codebase if known. -->
 
+## Files Affected
+
+<!-- List the specific file paths (from the repo root) that need to be
+changed, added, or deleted to implement this. Use one path per line. -->
+
 ## Constraints
 
 <!-- Anything the implementation must respect, e.g. "no application code

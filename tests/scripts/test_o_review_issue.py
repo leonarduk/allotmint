@@ -1,6 +1,8 @@
 import json
 import os
 
+import pytest
+
 import scripts.developer_tools.o_review_issue as n
 
 
@@ -60,6 +62,9 @@ def test_run_review_local_returns_response(monkeypatch):
 
 
 def test_load_env_file_sets_missing_vars(monkeypatch, tmp_path):
+    # python-dotenv is a dev-only dependency (requirements-dev.txt); some CI jobs
+    # install only backend/requirements.txt, where load_env_file is a documented no-op.
+    pytest.importorskip("dotenv")
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
     env_file = tmp_path / ".env"
     env_file.write_text("DEEPSEEK_API_KEY=from-env-file\n", encoding="utf-8")

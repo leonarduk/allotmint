@@ -17,6 +17,7 @@ from f_aider_issue_extractor import (  # noqa: E402
     formulate_aider_prompt,
     is_safe_relative_path,
     load_issue_from_file,
+    main,
     parse_issue_body,
     run_aider,
     suggest_files_with_ollama,
@@ -212,13 +213,18 @@ class TestConfirmWithUser:
 
 
 class TestRunAider:
+    """run_aider makes two aider calls: a non-interactive --message-file pass
+    to apply the initial prompt, then a plain interactive handoff on the same
+    files. --message-file disables aider's chat mode entirely, so a single
+    call can't both apply the prompt and stay interactive afterward."""
+
     def test_exits_when_no_files(self):
         with pytest.raises(SystemExit) as exc_info:
             run_aider([], "prompt")
         assert exc_info.value.code == 1
 
     @mock.patch("f_aider_issue_extractor.subprocess.run")
-    def test_passes_message_file_and_files_and_cleans_up(self, mock_run):
+    def test_applies_message_file_then_hands_off_interactively(self, mock_run):
         mock_run.return_value = mock.MagicMock(returncode=0)
         written_paths = []
 
@@ -231,26 +237,43 @@ class TestRunAider:
         with mock.patch.object(Path, "unlink", tracking_unlink):
             run_aider(["file_a.py", "file_b.py"], "the prompt body")
 
-        cmd = mock_run.call_args[0][0]
-        assert cmd[0] == "aider"
-        assert cmd[1] == "--message-file"
-        message_file_path = Path(cmd[2])
-        assert cmd[3:] == ["file_a.py", "file_b.py"]
+        assert mock_run.call_count == 2
+        initial_cmd, interactive_cmd = (call.args[0] for call in mock_run.call_args_list)
+
+        assert initial_cmd[0] == "aider"
+        assert initial_cmd[1] == "--message-file"
+        message_file_path = Path(initial_cmd[2])
+        assert initial_cmd[3:] == ["file_a.py", "file_b.py"]
+
+        assert interactive_cmd == ["aider", "file_a.py", "file_b.py"]
+
         assert written_paths == [message_file_path]
         assert not message_file_path.exists()
 
     @mock.patch("f_aider_issue_extractor.subprocess.run")
-    def test_propagates_nonzero_exit_code(self, mock_run):
+    def test_propagates_nonzero_exit_code_from_initial_apply(self, mock_run):
         mock_run.return_value = mock.MagicMock(returncode=3)
 
         with pytest.raises(SystemExit) as exc_info:
             run_aider(["file.py"], "prompt")
         assert exc_info.value.code == 3
+        # A failed initial apply must not proceed to the interactive handoff.
+        assert mock_run.call_count == 1
 
     @mock.patch("f_aider_issue_extractor.subprocess.run")
-    def test_succeeds_silently_on_zero_exit_code(self, mock_run):
+    def test_propagates_nonzero_exit_code_from_interactive_session(self, mock_run):
+        mock_run.side_effect = [mock.MagicMock(returncode=0), mock.MagicMock(returncode=5)]
+
+        with pytest.raises(SystemExit) as exc_info:
+            run_aider(["file.py"], "prompt")
+        assert exc_info.value.code == 5
+        assert mock_run.call_count == 2
+
+    @mock.patch("f_aider_issue_extractor.subprocess.run")
+    def test_succeeds_silently_when_both_calls_exit_zero(self, mock_run):
         mock_run.return_value = mock.MagicMock(returncode=0)
         run_aider(["file.py"], "prompt")  # should not raise
+        assert mock_run.call_count == 2
 
     @mock.patch("f_aider_issue_extractor.subprocess.run")
     def test_exits_when_aider_not_installed(self, mock_run):
@@ -259,8 +282,52 @@ class TestRunAider:
         with pytest.raises(SystemExit) as exc_info:
             run_aider(["file.py"], "prompt")
         assert exc_info.value.code == 1
+        assert mock_run.call_count == 1
 
     @mock.patch("f_aider_issue_extractor.subprocess.run")
-    def test_keyboard_interrupt_does_not_propagate(self, mock_run):
+    def test_keyboard_interrupt_exits_cleanly(self, mock_run):
         mock_run.side_effect = KeyboardInterrupt
-        run_aider(["file.py"], "prompt")  # should not raise
+
+        with pytest.raises(SystemExit) as exc_info:
+            run_aider(["file.py"], "prompt")
+        assert exc_info.value.code == 0
+
+
+class TestMainOrdering:
+    """The issue's constraint is to fail early if Ollama isn't running, before
+    any other work -- these pin that ordering against a regression."""
+
+    @mock.patch("f_aider_issue_extractor.run_aider")
+    @mock.patch("f_aider_issue_extractor.resolve_files_to_edit")
+    @mock.patch("f_aider_issue_extractor.fetch_issue_from_github")
+    @mock.patch("f_aider_issue_extractor.get_repo_info")
+    @mock.patch("f_aider_issue_extractor.validate_ollama_connection")
+    def test_ollama_checked_before_github_fetch(
+        self, mock_validate, mock_repo_info, mock_fetch, mock_resolve, mock_run_aider
+    ):
+        calls = []
+        mock_validate.side_effect = lambda endpoint: calls.append("ollama") or True
+        mock_repo_info.return_value = ("owner", "repo")
+        mock_fetch.side_effect = lambda *a, **k: calls.append("github") or (
+            "Title",
+            "## What\nBody",
+        )
+        mock_resolve.return_value = ["file.py"]
+
+        main(["-i", "42", "--no-confirm"])
+
+        assert calls == ["ollama", "github"]
+        mock_run_aider.assert_called_once()
+
+    @mock.patch("f_aider_issue_extractor.fetch_issue_from_github")
+    @mock.patch("f_aider_issue_extractor.get_repo_info")
+    @mock.patch("f_aider_issue_extractor.validate_ollama_connection", return_value=False)
+    def test_exits_before_any_github_io_when_ollama_down(
+        self, mock_validate, mock_repo_info, mock_fetch
+    ):
+        with pytest.raises(SystemExit) as exc_info:
+            main(["-i", "42"])
+
+        assert exc_info.value.code == 1
+        mock_repo_info.assert_not_called()
+        mock_fetch.assert_not_called()

@@ -162,3 +162,16 @@ class TestFetchOllamaReview:
         with pytest.raises(SystemExit) as exc_info:
             fetch_ollama_review("http://localhost:11434", "qwen2.5-coder:7b", "Test prompt")
         assert exc_info.value.code == 1
+
+    @mock.patch("urllib.request.urlopen")
+    def test_read_timeout(self, mock_urlopen):
+        """A stall mid-read raises a bare TimeoutError, not URLError -- must
+        still exit cleanly rather than propagate as an uncaught exception."""
+        mock_response = mock.MagicMock()
+        mock_response.read.side_effect = TimeoutError("The read operation timed out")
+        mock_response.__enter__.return_value = mock_response
+        mock_urlopen.return_value = mock_response
+
+        with pytest.raises(SystemExit) as exc_info:
+            fetch_ollama_review("http://localhost:11434", "qwen2.5-coder:7b", "Test prompt")
+        assert exc_info.value.code == 1

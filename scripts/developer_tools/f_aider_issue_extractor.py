@@ -21,7 +21,7 @@ from lib.ollama_common import (
 )
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
         description="Extract GitHub issue prompt for Aider with local LLM assistance",
@@ -60,7 +60,7 @@ def parse_args() -> argparse.Namespace:
         help="GitHub personal access token (optional, uses GITHUB_TOKEN env var if not provided)",
     )
 
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
 def fetch_issue_from_github(
@@ -294,6 +294,32 @@ Do not include test files or lock files. Be concise."""
     return extracted_paths
 
 
+def resolve_files_to_edit(
+    title: str,
+    body: str,
+    endpoint: str,
+    model: str,
+    verbose: bool = False,
+) -> list[str]:
+    """Return the files to hand to aider.
+
+    Prefers file paths already mentioned in the issue body; falls back to
+    asking Ollama to suggest files only when none are found there.
+    """
+    extracted_paths = extract_file_paths_from_issue(body, verbose)
+    if extracted_paths:
+        if verbose:
+            print(f"[DEBUG] Using extracted paths: {extracted_paths}", file=sys.stderr)
+        return extracted_paths
+
+    if verbose:
+        print(
+            "[DEBUG] No files extracted from issue; asking Ollama to suggest...",
+            file=sys.stderr,
+        )
+    return suggest_files_with_ollama(title, body, extracted_paths, endpoint, model, verbose)
+
+
 def formulate_aider_prompt(
     issue_title: str,
     parsed_sections: dict[str, str],
@@ -355,21 +381,33 @@ def confirm_with_user(
         return False
 
 
-def run_aider(files: list[str], prompt: str, verbose: bool = False) -> None:
-    """Run aider with the extracted files and prompt.
+def _run_aider(cmd: list[str]) -> subprocess.CompletedProcess[bytes]:
+    """Run one aider invocation with inherited stdio, translating aider-not-found
+    and Ctrl+C into the same clean-exit handling both call sites need."""
+    try:
+        return subprocess.run(cmd, check=False)
+    except FileNotFoundError:
+        print("ERROR: aider not found. Install it with: pip install aider-chat", file=sys.stderr)
+        sys.exit(1)
+    except KeyboardInterrupt:
+        print("\n[OK] Aider session interrupted by user", file=sys.stderr)
+        sys.exit(0)
 
-    The prompt is passed via aider's --message-file rather than piped stdin:
-    piping via Popen.communicate() closes stdin once written, which would
-    silently prevent the user from interacting with aider afterward.
-    subprocess.run() here inherits the parent's stdio untouched, so aider's
-    own interactive prompt still works once the initial message is applied.
+
+def run_aider(files: list[str], prompt: str, verbose: bool = False) -> None:
+    """Apply the initial prompt, then hand off to an interactive aider session.
+
+    Aider's --message/--message-file explicitly disable chat mode: they send
+    one message, apply the reply, and exit -- they cannot themselves stay
+    interactive afterward. So the initial prompt is applied non-interactively
+    first, then aider is launched again with no message and inherited stdio,
+    giving the user a real interactive REPL as the issue's AC requires.
+    Aider's own .aider.chat.history.md carries the conversation across both
+    invocations.
     """
     if not files:
         print("ERROR: No files to add to Aider; aborting.", file=sys.stderr)
         sys.exit(1)
-
-    if verbose:
-        print(f"[DEBUG] Running aider with {len(files)} files...", file=sys.stderr)
 
     message_file = tempfile.NamedTemporaryFile(
         mode="w", suffix=".md", delete=False, encoding="utf-8"
@@ -377,29 +415,45 @@ def run_aider(files: list[str], prompt: str, verbose: bool = False) -> None:
     try:
         message_file.write(prompt)
         message_file.close()
-
-        cmd = ["aider", "--message-file", message_file.name, *files]
         if verbose:
-            print(f"[DEBUG] Command: {' '.join(cmd)}", file=sys.stderr)
-
-        result = subprocess.run(cmd, check=False)
-    except FileNotFoundError:
-        print("ERROR: aider not found. Install it with: pip install aider-chat", file=sys.stderr)
-        sys.exit(1)
-    except KeyboardInterrupt:
-        print("\n[OK] Aider session interrupted by user", file=sys.stderr)
-        return
+            print(f"[DEBUG] Applying initial prompt to {len(files)} files...", file=sys.stderr)
+        initial = _run_aider(["aider", "--message-file", message_file.name, *files])
     finally:
         Path(message_file.name).unlink(missing_ok=True)
 
-    if result.returncode != 0:
-        print(f"ERROR: aider exited with status {result.returncode}", file=sys.stderr)
-        sys.exit(result.returncode)
+    if initial.returncode != 0:
+        print(
+            f"ERROR: aider exited with status {initial.returncode} "
+            "while applying the initial prompt",
+            file=sys.stderr,
+        )
+        sys.exit(initial.returncode)
+
+    if verbose:
+        print("[DEBUG] Handing off to an interactive aider session...", file=sys.stderr)
+    interactive = _run_aider(["aider", *files])
+    if interactive.returncode != 0:
+        print(f"ERROR: aider exited with status {interactive.returncode}", file=sys.stderr)
+        sys.exit(interactive.returncode)
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
     """Main entry point."""
-    args = parse_args()
+    args = parse_args(argv)
+
+    # Fail early if Ollama isn't running, before any GitHub/file I/O -- per
+    # the issue's constraint, nothing else here is useful without it.
+    endpoint = get_ollama_endpoint()
+    model = get_ollama_model()
+
+    if args.verbose:
+        print(f"[DEBUG] Ollama endpoint: {endpoint}", file=sys.stderr)
+        print(f"[DEBUG] Ollama model: {model}", file=sys.stderr)
+
+    if not validate_ollama_connection(endpoint):
+        print("ERROR: Ollama serve must be running", file=sys.stderr)
+        print(f"ERROR: Could not connect to {endpoint}", file=sys.stderr)
+        sys.exit(1)
 
     # Get repo info (for GitHub fetching)
     if args.issue_id:
@@ -419,37 +473,7 @@ def main() -> None:
     # Parse issue structure
     parsed = parse_issue_body(body, args.verbose)
 
-    # Extract file paths mentioned in the issue
-    extracted_paths = extract_file_paths_from_issue(body, args.verbose)
-
-    # Check Ollama before using it
-    endpoint = get_ollama_endpoint()
-    model = get_ollama_model()
-
-    if args.verbose:
-        print(f"[DEBUG] Ollama endpoint: {endpoint}", file=sys.stderr)
-        print(f"[DEBUG] Ollama model: {model}", file=sys.stderr)
-
-    if not validate_ollama_connection(endpoint):
-        print("ERROR: Ollama serve must be running", file=sys.stderr)
-        print(f"ERROR: Could not connect to {endpoint}", file=sys.stderr)
-        sys.exit(1)
-
-    # Suggest files using Ollama
-    if not extracted_paths:
-        if args.verbose:
-            print(
-                "[DEBUG] No files extracted from issue; asking Ollama to suggest...",
-                file=sys.stderr,
-            )
-        files = suggest_files_with_ollama(
-            title, body, extracted_paths, endpoint, model, args.verbose
-        )
-    else:
-        if args.verbose:
-            print(f"[DEBUG] Using extracted paths: {extracted_paths}", file=sys.stderr)
-        files = extracted_paths
-
+    files = resolve_files_to_edit(title, body, endpoint, model, args.verbose)
     if not files:
         print(
             "WARNING: No files found or suggested. Proceeding with empty file list.",

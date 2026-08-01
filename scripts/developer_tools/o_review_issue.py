@@ -117,6 +117,14 @@ The user reviewed a previous revision and gave this feedback -- incorporate it:
 {feedback}
 """
 
+# Section headings in an issue *body* may use any level from '##' to '######' -- some
+# issues (and some model rewrites) use a deeper level than the template's canonical
+# '##' for subsections (#5820: an issue with '### Why', '### How', etc. throughout had
+# every one of those sections misreported as "missing" because the check only matched
+# a literal '##'). Every pattern here that scans an existing body tolerates '#{2,6}';
+# newly *inserted* headings still always emit canonical '##'.
+_SECTION_HEADING = r"#{2,6}"
+
 
 def load_template_sections(template_path: Path = BUG_REPORT_TEMPLATE_PATH) -> list[str]:
     """Extract the ordered '## Section' headings from a GitHub issue template.
@@ -133,8 +141,8 @@ def load_template_sections(template_path: Path = BUG_REPORT_TEMPLATE_PATH) -> li
 
 
 def missing_sections(body: str, sections: list[str]) -> list[str]:
-    """Return the required sections that have no '## <Section>' heading in body."""
-    present = set(re.findall(r"^##\s+(.+?)\s*$", body, re.MULTILINE))
+    """Return the required sections that have no heading (any level) in body."""
+    present = set(re.findall(rf"^{_SECTION_HEADING}\s+(.+?)\s*$", body, re.MULTILINE))
     return [section for section in sections if section not in present]
 
 
@@ -211,7 +219,10 @@ def strip_files_affected_section(text: str) -> str:
     hints are only ever resolved from the issue's substantive prose, not its own
     previous output.
     """
-    pattern = re.compile(r"^##\s+Files Affected\s*\n.*?(?=^##\s+|\Z)", re.MULTILINE | re.DOTALL)
+    pattern = re.compile(
+        rf"^{_SECTION_HEADING}\s+Files Affected\s*\n.*?(?=^{_SECTION_HEADING}\s+|\Z)",
+        re.MULTILINE | re.DOTALL,
+    )
     return pattern.sub("", text)
 
 
@@ -297,7 +308,10 @@ def apply_known_file_paths(
     paths = sorted({path for matches in file_hints.values() for path in matches})
     replacement = "\n".join(f"- `{path}`" for path in paths) if paths else "Unknown"
 
-    pattern = re.compile(r"(^##\s+Files Affected\s*\n)(.*?)(?=^##\s+|\Z)", re.MULTILINE | re.DOTALL)
+    pattern = re.compile(
+        rf"(^{_SECTION_HEADING}\s+Files Affected\s*\n)(.*?)(?=^{_SECTION_HEADING}\s+|\Z)",
+        re.MULTILINE | re.DOTALL,
+    )
     if pattern.search(body):
         return pattern.sub(lambda m: m.group(1) + replacement + "\n\n", body, count=1)
 
@@ -305,7 +319,9 @@ def apply_known_file_paths(
     sections = sections if sections is not None else load_template_sections()
     if "Files Affected" in sections:
         for later_section in sections[sections.index("Files Affected") + 1 :]:
-            match = re.search(rf"^##\s+{re.escape(later_section)}\s*$", body, re.MULTILINE)
+            match = re.search(
+                rf"^{_SECTION_HEADING}\s+{re.escape(later_section)}\s*$", body, re.MULTILINE
+            )
             if match:
                 return body[: match.start()] + section_block + body[match.start() :]
     return body.rstrip("\n") + "\n\n" + section_block.rstrip("\n") + "\n"
@@ -445,15 +461,21 @@ def files_affected_is_unresolved(body: str) -> bool:
     """Return True when the '## Files Affected' section has no confirmed path.
 
     apply_known_file_paths() always writes either real resolved paths or the literal
-    "Unknown" into this section, so an empty/"Unknown" section means the file finder
-    found nothing it could confirm against the repo -- this issue can't be reliably
-    auto-implemented until a human identifies the correct file(s).
+    "Unknown" into this section (inserting it if the model dropped it entirely), so
+    in the normal main() flow this is always called on a body that already has the
+    section. But the heading being missing altogether is itself an unresolved state
+    (#5845) -- treating it as resolved (the old behavior) would let a malformed or
+    pre-template body silently skip the unresolved-files CLI warning and issue
+    comment if this were ever called before apply_known_file_paths, or on a body
+    that bypassed it.
     """
     match = re.search(
-        r"^##\s+Files Affected\s*\n(.*?)(?=^##\s+|\Z)", body, re.MULTILINE | re.DOTALL
+        rf"^{_SECTION_HEADING}\s+Files Affected\s*\n(.*?)(?=^{_SECTION_HEADING}\s+|\Z)",
+        body,
+        re.MULTILINE | re.DOTALL,
     )
     if not match:
-        return False
+        return True
     content = match.group(1).strip()
     return content == "" or content.lower() == "unknown"
 
@@ -626,8 +648,11 @@ def main() -> int:
 
     if not update_issue(owner, repo, issue_id, new_title, new_body, args.dry_run):
         return 1
+    # A failure here is reported (post_unresolved_files_comment prints its own ERROR) but
+    # is not fatal: the issue's title/body update above already succeeded, and a failed
+    # advisory comment shouldn't make a successful update report as an overall failure (#5847).
     if unresolved_files:
-        return 0 if post_unresolved_files_comment(owner, repo, issue_id, args.dry_run) else 1
+        post_unresolved_files_comment(owner, repo, issue_id, args.dry_run)
     return 0
 
 

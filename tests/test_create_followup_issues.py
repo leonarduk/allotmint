@@ -59,7 +59,13 @@ def test_generate_body_calls_deepseek_by_default_and_returns_content(
     monkeypatch.delenv("FOLLOWUP_LLM_PROVIDER", raising=False)
     monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
     fake_payload = {
-        "choices": [{"message": {"content": "## What\nFix the thing\n\n_Follow-up from AI review of PR #42._"}}]
+        "choices": [
+            {
+                "message": {
+                    "content": "## What\nFix the thing\n\n_Follow-up from AI review of PR #42._"
+                }
+            }
+        ]
     }
     monkeypatch.setattr(
         mod.urllib.request,
@@ -83,7 +89,13 @@ def test_generate_body_treats_empty_provider_env_as_default(
     monkeypatch.setenv("FOLLOWUP_LLM_PROVIDER", "")
     monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
     fake_payload = {
-        "choices": [{"message": {"content": "## What\nFix the thing\n\n_Follow-up from AI review of PR #42._"}}]
+        "choices": [
+            {
+                "message": {
+                    "content": "## What\nFix the thing\n\n_Follow-up from AI review of PR #42._"
+                }
+            }
+        ]
     }
     monkeypatch.setattr(
         mod.urllib.request,
@@ -101,7 +113,9 @@ def test_generate_body_calls_claude_when_selected(
     mod = load_module()
     monkeypatch.setenv("FOLLOWUP_LLM_PROVIDER", "claude")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
-    fake_payload = {"content": [{"text": "## What\nFix the thing\n\n_Follow-up from AI review of PR #42._"}]}
+    fake_payload = {
+        "content": [{"text": "## What\nFix the thing\n\n_Follow-up from AI review of PR #42._"}]
+    }
     monkeypatch.setattr(
         mod.urllib.request,
         "urlopen",
@@ -119,7 +133,13 @@ def test_generate_body_calls_gpt_when_selected(
     monkeypatch.setenv("FOLLOWUP_LLM_PROVIDER", "gpt")
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     fake_payload = {
-        "choices": [{"message": {"content": "## What\nFix the thing\n\n_Follow-up from AI review of PR #42._"}}]
+        "choices": [
+            {
+                "message": {
+                    "content": "## What\nFix the thing\n\n_Follow-up from AI review of PR #42._"
+                }
+            }
+        ]
     }
     monkeypatch.setattr(
         mod.urllib.request,
@@ -131,18 +151,17 @@ def test_generate_body_calls_gpt_when_selected(
     assert "Follow-up" in body
 
 
-def test_generate_body_falls_back_on_unknown_provider(
+def test_generate_body_returns_none_on_unknown_provider(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     mod = load_module()
     monkeypatch.setenv("FOLLOWUP_LLM_PROVIDER", "bogus")
-    body = mod._generate_body_via_llm("Fix the thing", "42", "Review text here")
-    assert "PR #42" in body
+    assert mod._generate_body_via_llm("Fix the thing", "42", "Review text here") is None
     assert "unknown FOLLOWUP_LLM_PROVIDER 'bogus'" in capsys.readouterr().err
 
 
-def test_generate_body_falls_back_on_api_error(
+def test_generate_body_returns_none_on_api_error(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -156,9 +175,36 @@ def test_generate_body_falls_back_on_api_error(
         )
 
     monkeypatch.setattr(mod.urllib.request, "urlopen", raise_error)
-    body = mod._generate_body_via_llm("Fix the thing", "42", "Review text here")
-    assert "PR #42" in body
+    assert mod._generate_body_via_llm("Fix the thing", "42", "Review text here") is None
     assert "failed to generate" in capsys.readouterr().err
+
+
+def test_build_body_appends_pr_footer_when_provider_unknown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mod = load_module()
+    monkeypatch.setenv("FOLLOWUP_LLM_PROVIDER", "bogus")
+    body = mod._build_body("Fix the thing", "42", "Review text here")
+    assert "PR #42" in body
+    assert "Follow-up" in body
+
+
+def test_build_body_appends_pr_footer_even_when_model_omits_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The prompt asks the model not to add its own footer, and models are
+    unreliable about following instructions like this anyway (#5845/#5846/#5847
+    all shipped with no PR link) -- the footer must be guaranteed in code."""
+    mod = load_module()
+    monkeypatch.delenv("FOLLOWUP_LLM_PROVIDER", raising=False)
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
+    fake_payload = {"choices": [{"message": {"content": "## What\nFix the thing."}}]}
+    monkeypatch.setattr(
+        mod.urllib.request, "urlopen", lambda *args, **kwargs: FakeResponse(fake_payload)
+    )
+    body = mod._build_body("Fix the thing", "42", "Review text here")
+    assert body.startswith("## What\nFix the thing.")
+    assert body.endswith("_Follow-up suggested by AI review of PR #42._")
 
 
 @pytest.mark.parametrize(
@@ -248,12 +294,14 @@ def test_main_missing_review_file_falls_back(
     followups.write_text(json.dumps([]))
 
     monkeypatch.setattr(
-        sys, "argv", [
+        sys,
+        "argv",
+        [
             "create_followup_issues.py",
             str(followups),
             "7",
             "/nonexistent/review.md",
-        ]
+        ],
     )
     result = mod.main()
     assert result == 0

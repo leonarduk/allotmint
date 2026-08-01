@@ -9,20 +9,37 @@ from pathlib import Path
 
 # Require at least 3 chars so trivial backtick tokens (`` `s` ``, `` `1` ``)
 # don't masquerade as a file/function/identifier reference.
-_REFERENCE_PATTERN = re.compile(r'`[^`]{3,}`')
+_REFERENCE_PATTERN = re.compile(r"`[^`]{3,}`")
 
 # Generic, low-value phrasing that gives an agent nothing concrete to act on.
 # A title is only rejected if it matches one of these AND has no backtick-quoted
 # file/function/identifier reference (see _is_low_specificity).
 _GENERIC_PHRASING_PATTERNS = [
     re.compile(
-        r'\bconsider adding (?:more )?(?:detailed|descriptive)?\s*'
-        r'(?:comments?|logging|documentation|tests?)\b.*\bfor clarity\b',
+        r"\bconsider adding (?:more )?(?:detailed|descriptive)?\s*"
+        r"(?:comments?|logging|documentation|tests?)\b.*\bfor clarity\b",
         re.IGNORECASE,
     ),
-    re.compile(r'\bimprove readability\b', re.IGNORECASE),
-    re.compile(r'\badd(?:ing)? more context\b', re.IGNORECASE),
+    re.compile(r"\bimprove readability\b", re.IGNORECASE),
+    re.compile(r"\badd(?:ing)? more context\b", re.IGNORECASE),
 ]
+
+# Quote pairs an AI reviewer wraps a suggested title in (straight and curly).
+_WRAPPING_QUOTE_PAIRS = [('"', '"'), ("'", "'"), ("“", "”"), ("‘", "’")]
+
+
+def _strip_wrapping_quotes(title: str) -> str:
+    """Strip a single matched pair of wrapping quote marks from a title.
+
+    The AI reviewer sometimes writes suggested titles wrapped in quotes (e.g.
+    `- "Add relevance scoring..."`); the bullet regex captures the line verbatim,
+    so without this the quotes end up baked into the created issue's title (#5846).
+    """
+    if len(title) >= 2 and any(
+        title[0] == open_q and title[-1] == close_q for open_q, close_q in _WRAPPING_QUOTE_PAIRS
+    ):
+        return title[1:-1].strip()
+    return title
 
 
 def _is_low_specificity(title: str) -> bool:
@@ -38,28 +55,29 @@ def extract_followups(review_text: str) -> list[str]:
     Looks for a heading matching '5. Suggested follow-up issues' and extracts
     bullet items (- or *) until the next heading or the verdict line.
     """
-    section_match = re.search(r'^#{1,6}\s+5\.\s+\S', review_text, re.MULTILINE)
+    section_match = re.search(r"^#{1,6}\s+5\.\s+\S", review_text, re.MULTILINE)
     if not section_match:
         return []
 
     section_start = section_match.end()
-    next_heading = re.search(r'^#{1,6}\s+\S', review_text[section_start:], re.MULTILINE)
+    next_heading = re.search(r"^#{1,6}\s+\S", review_text[section_start:], re.MULTILINE)
     if next_heading and next_heading.start() > 0:
         section_text = review_text[section_start : section_start + next_heading.start()]
     else:
         section_text = review_text[section_start:]
 
     # Stop before the verdict line in case it falls inside the section
-    verdict_match = re.search(r'^\*\*(APPROVE|REQUEST CHANGES)\*\*', section_text, re.MULTILINE)
+    verdict_match = re.search(r"^\*\*(APPROVE|REQUEST CHANGES)\*\*", section_text, re.MULTILINE)
     if verdict_match:
         section_text = section_text[: verdict_match.start()]
 
-    verdict_title_re = re.compile(r'^\*\*(APPROVE|REQUEST CHANGES)\*\*', re.IGNORECASE)
+    verdict_title_re = re.compile(r"^\*\*(APPROVE|REQUEST CHANGES)\*\*", re.IGNORECASE)
     titles = []
-    for m in re.finditer(r'^[-*]\s+(.+)', section_text, re.MULTILINE):
+    for m in re.finditer(r"^[-*]\s+(.+)", section_text, re.MULTILINE):
         title = m.group(1).strip()
         if not title or verdict_title_re.match(title):
             continue
+        title = _strip_wrapping_quotes(title)
         if _is_low_specificity(title):
             print(f"Skipping low-specificity follow-up: {title}", file=sys.stderr)
             continue

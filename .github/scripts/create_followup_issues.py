@@ -14,7 +14,7 @@ from typing import Callable
 
 from llm_labels import extract_tier_label
 
-_FALLBACK_BODY_TEMPLATE = "Follow-up suggested by AI review of PR #{pr_number}."
+_PR_FOOTER_TEMPLATE = "_Follow-up suggested by AI review of PR #{pr_number}._"
 
 # Conversational preamble the model sometimes prepends before the real body,
 # e.g. "Here is a complete, actionable GitHub issue body based on your request."
@@ -111,17 +111,19 @@ Output ONLY the raw Markdown issue body. Do not wrap it in a code fence and do
 not add any preamble (e.g. "Here is the issue body") — start directly with the
 first heading. When you name a file, function, or line number, use only paths
 you can confirm from the review text above; if you are unsure, describe the
-location instead of guessing a concrete path.
-End with: _Follow-up from AI review of PR #{pr_number}._"""
+location instead of guessing a concrete path. Do not add a footer crediting the
+source PR -- that is appended separately."""
 
 
 def _call_anthropic(api_key: str, prompt: str) -> str:
     model = os.environ.get("ANTHROPIC_FOLLOWUP_MODEL", "claude-haiku-4-5-20251001")
-    payload = json.dumps({
-        "model": model,
-        "max_tokens": 1024,
-        "messages": [{"role": "user", "content": prompt}],
-    }).encode()
+    payload = json.dumps(
+        {
+            "model": model,
+            "max_tokens": 1024,
+            "messages": [{"role": "user", "content": prompt}],
+        }
+    ).encode()
     req = urllib.request.Request(
         "https://api.anthropic.com/v1/messages",
         data=payload,
@@ -136,16 +138,20 @@ def _call_anthropic(api_key: str, prompt: str) -> str:
     return data["content"][0]["text"].strip()
 
 
-def _openai_compatible_caller(url: str, model_env: str, default_model: str) -> Callable[[str, str], str]:
+def _openai_compatible_caller(
+    url: str, model_env: str, default_model: str
+) -> Callable[[str, str], str]:
     """Return a caller for OpenAI-compatible chat-completions APIs (OpenAI, DeepSeek)."""
 
     def _call(api_key: str, prompt: str) -> str:
-        payload = json.dumps({
-            "model": os.environ.get(model_env, default_model),
-            "max_tokens": 1024,
-            "temperature": 0.2,
-            "messages": [{"role": "user", "content": prompt}],
-        }).encode()
+        payload = json.dumps(
+            {
+                "model": os.environ.get(model_env, default_model),
+                "max_tokens": 1024,
+                "temperature": 0.2,
+                "messages": [{"role": "user", "content": prompt}],
+            }
+        ).encode()
         req = urllib.request.Request(
             url,
             data=payload,
@@ -166,60 +172,91 @@ _PROVIDERS: dict[str, tuple[str, Callable[[str, str], str]]] = {
     "claude": ("ANTHROPIC_API_KEY", _call_anthropic),
     "gpt": (
         "OPENAI_API_KEY",
-        _openai_compatible_caller("https://api.openai.com/v1/chat/completions", "OPENAI_FOLLOWUP_MODEL", "gpt-4o-mini"),
+        _openai_compatible_caller(
+            "https://api.openai.com/v1/chat/completions", "OPENAI_FOLLOWUP_MODEL", "gpt-4o-mini"
+        ),
     ),
     "deepseek": (
         "DEEPSEEK_API_KEY",
         _openai_compatible_caller(
-            "https://api.deepseek.com/v1/chat/completions", "DEEPSEEK_FOLLOWUP_MODEL", "deepseek-v4-flash"
+            "https://api.deepseek.com/v1/chat/completions",
+            "DEEPSEEK_FOLLOWUP_MODEL",
+            "deepseek-v4-flash",
         ),
     ),
 }
 
 
-def _generate_body_via_llm(title: str, pr_number: str, review_text: str) -> str:
+def _generate_body_via_llm(title: str, pr_number: str, review_text: str) -> str | None:
     """Call the configured LLM provider to generate a rich issue body.
 
     The provider is chosen via FOLLOWUP_LLM_PROVIDER (claude, gpt, or deepseek;
-    defaults to deepseek). Falls back to a minimal template if the provider is
-    unknown, its API key is unset, or the API call fails.
+    defaults to deepseek). Returns None if the provider is unknown, its API key is
+    unset, or the API call fails -- callers fall back to a minimal body.
     """
     # GitHub Actions sets unset `vars.*` to an empty string rather than omitting the
     # env var entirely, so `os.environ.get(..., default)` would not apply the default.
     provider = os.environ.get("FOLLOWUP_LLM_PROVIDER", "").strip().lower() or _DEFAULT_PROVIDER
     provider_config = _PROVIDERS.get(provider)
     if provider_config is None:
-        print(f"WARNING: unknown FOLLOWUP_LLM_PROVIDER '{provider}', using fallback body", file=sys.stderr)
-        return _FALLBACK_BODY_TEMPLATE.format(pr_number=pr_number)
+        print(
+            f"WARNING: unknown FOLLOWUP_LLM_PROVIDER '{provider}', using fallback body",
+            file=sys.stderr,
+        )
+        return None
 
     api_key_env, call = provider_config
     api_key = os.environ.get(api_key_env, "")
     if not api_key:
-        return _FALLBACK_BODY_TEMPLATE.format(pr_number=pr_number)
+        return None
 
     prompt = _build_prompt(title, pr_number, review_text)
     try:
         return _sanitize_body(call(api_key, prompt))
-    except (urllib.error.HTTPError, urllib.error.URLError, KeyError, IndexError, json.JSONDecodeError) as exc:
+    except (
+        urllib.error.HTTPError,
+        urllib.error.URLError,
+        KeyError,
+        IndexError,
+        json.JSONDecodeError,
+    ) as exc:
         print(f"WARNING: failed to generate issue body via {provider}: {exc}", file=sys.stderr)
-        return _FALLBACK_BODY_TEMPLATE.format(pr_number=pr_number)
+        return None
 
 
 def _build_body(title: str, pr_number: str, review_text: str | None) -> str:
-    if review_text:
-        return _generate_body_via_llm(title, pr_number, review_text)
-    return _FALLBACK_BODY_TEMPLATE.format(pr_number=pr_number)
+    """Build the issue body, always ending with a footer linking back to the source PR.
+
+    The prompt used to ask the model to end with a PR-linking footer itself, but that
+    was unreliable: long responses got truncated (max_tokens) before reaching it, and
+    models sometimes dropped it outright -- the #5845/#5846/#5847 batch of auto-filed
+    follow-ups all shipped with no visible link back to PR #5830, the review that
+    generated them. The footer is appended here unconditionally instead, so every
+    follow-up issue is traceable back to its source PR regardless of what the model
+    actually returned.
+    """
+    footer = _PR_FOOTER_TEMPLATE.format(pr_number=pr_number)
+    body = _generate_body_via_llm(title, pr_number, review_text) if review_text else None
+    if not body:
+        return footer
+    return f"{body}\n\n{footer}"
 
 
 def issue_exists(title: str) -> bool:
     """Return True if an ai-suggested issue with this exact title already exists."""
     result = subprocess.run(
         [
-            "gh", "issue", "list",
-            "--label", "ai-suggested",
-            "--search", title,
-            "--json", "title",
-            "--limit", "20",
+            "gh",
+            "issue",
+            "list",
+            "--label",
+            "ai-suggested",
+            "--search",
+            title,
+            "--json",
+            "title",
+            "--limit",
+            "20",
         ],
         capture_output=True,
         text=True,
@@ -234,9 +271,7 @@ def issue_exists(title: str) -> bool:
     return any(i.get("title", "").strip() == title.strip() for i in issues)
 
 
-def create_issues(
-    titles: list[str], pr_number: str, review_text: str | None = None
-) -> list[str]:
+def create_issues(titles: list[str], pr_number: str, review_text: str | None = None) -> list[str]:
     """Create each follow-up issue, returning titles that failed to create.
 
     A failure on one title (e.g. an unrecognized label) must not abort the
@@ -298,7 +333,10 @@ def main() -> int:
 
     failed = create_issues(titles, pr_number, review_text)
     if failed:
-        print(f"ERROR: {len(failed)} of {len(titles)} follow-up issue(s) failed to create", file=sys.stderr)
+        print(
+            f"ERROR: {len(failed)} of {len(titles)} follow-up issue(s) failed to create",
+            file=sys.stderr,
+        )
         return 1
     return 0
 

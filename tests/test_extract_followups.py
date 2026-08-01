@@ -156,6 +156,45 @@ def test_add_more_context_without_reference_is_dropped() -> None:
     assert extract_followups(review) == ["Add unit tests for the new helper"]
 
 
+def test_wrapping_double_quotes_are_stripped() -> None:
+    """A title wrapped in quotes by the reviewer (#5846) shouldn't carry them
+    verbatim into the created issue's title."""
+    review = """\
+## 5. Suggested follow-up issues
+
+- "Add relevance scoring to file finder to prioritize production code over test files"
+
+**APPROVE**
+"""
+    assert extract_followups(review) == [
+        "Add relevance scoring to file finder to prioritize production code over test files"
+    ]
+
+
+def test_wrapping_single_quotes_are_stripped() -> None:
+    review = """\
+## 5. Suggested follow-up issues
+
+- 'Refactor the auth module'
+
+**APPROVE**
+"""
+    assert extract_followups(review) == ["Refactor the auth module"]
+
+
+def test_internal_quote_is_not_stripped() -> None:
+    """Only a matched wrapping pair is stripped -- a quote that isn't wrapping
+    the whole title (or is unmatched) is left alone."""
+    review = """\
+## 5. Suggested follow-up issues
+
+- Rename the "old" variable to something clearer
+
+**APPROVE**
+"""
+    assert extract_followups(review) == ['Rename the "old" variable to something clearer']
+
+
 def test_trivial_backtick_token_does_not_bypass_filter() -> None:
     """A short, meaningless backtick token (e.g. a variable name like `s`) should
     not count as a concrete reference and bypass the specificity filter."""

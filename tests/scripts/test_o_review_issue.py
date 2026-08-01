@@ -182,6 +182,13 @@ def test_missing_sections_empty_when_all_present():
     assert n.missing_sections(body, ["What", "Why"]) == []
 
 
+def test_missing_sections_recognizes_deeper_heading_levels():
+    # An issue using '###' throughout (#5820) must not have every one of those
+    # sections misreported as missing just because they aren't '##'.
+    body = "## What\ntext\n\n### Why\nreason\n\n#### How\nsteps\n"
+    assert n.missing_sections(body, ["What", "Why", "How", "Constraints"]) == ["Constraints"]
+
+
 def test_build_review_prompt_has_no_feedback_section_by_default():
     prompt = n.build_review_prompt("title", "## What\nbody")
     assert "The user reviewed a previous revision" not in prompt
@@ -235,8 +242,14 @@ def test_files_affected_is_unresolved_false_when_paths_present():
     assert not n.files_affected_is_unresolved(body)
 
 
-def test_files_affected_is_unresolved_false_when_section_missing():
-    assert not n.files_affected_is_unresolved("## What\nno such section\n")
+def test_files_affected_is_unresolved_true_when_section_missing():
+    # A missing heading is itself an unresolved state (#5845), not a pass-through.
+    assert n.files_affected_is_unresolved("## What\nno such section\n")
+
+
+def test_files_affected_is_unresolved_recognizes_deeper_heading_level():
+    body = "### Files Affected\n- `real/path.py`\n"
+    assert not n.files_affected_is_unresolved(body)
 
 
 def test_post_unresolved_files_comment_dry_run_skips_gh_call(monkeypatch):
@@ -352,6 +365,13 @@ def test_strip_files_affected_section_noop_when_section_absent():
     assert n.strip_files_affected_section(text) == text
 
 
+def test_strip_files_affected_section_recognizes_deeper_heading_level():
+    text = "## What\nsome text\n\n### Files Affected\n- `a.py`\n\n### Constraints\nnone\n"
+    result = n.strip_files_affected_section(text)
+    assert "a.py" not in result
+    assert "### Constraints\nnone" in result
+
+
 def test_format_file_hints_empty():
     assert n.format_file_hints({}) == ""
 
@@ -384,6 +404,16 @@ def test_apply_known_file_paths_replaces_model_guess():
     result = n.apply_known_file_paths(body, hints)
     assert "- `scripts/build_tools/extract_pr_comments.py`" in result
     assert "fetch_paginated.py" not in result
+
+
+def test_apply_known_file_paths_recognizes_deeper_heading_level():
+    # #5820: a body using '###' throughout must still have its Files Affected
+    # section found and replaced, not treated as missing and duplicated at '##'.
+    body = "### What\nsome text\n\n### Files Affected\n- `old.py`\n\n### Constraints\nnone\n"
+    hints = {"old": ["real/old.py"]}
+    result = n.apply_known_file_paths(body, hints)
+    assert result.count("Files Affected") == 1
+    assert "### Files Affected\n- `real/old.py`" in result
     assert "## Constraints\nnone" in result
 
 

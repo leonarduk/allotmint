@@ -173,49 +173,60 @@ The script:
 Optional flags:
 - `--token TOKEN`: GitHub personal access token (also reads `GITHUB_TOKEN` env var). Required for branch creation (unauthenticated requests will fail with 401/403).
 
-## developer_tools/e_implement_issue_using_local_llm.ps1
+## developer_tools/f_aider_issue_extractor.py
 
-Automates implementing a GitHub issue end-to-end with a local LLM: fetches the
-issue, creates/resets an `issue-<N>` branch, runs [aider](https://aider.chat)
-against a local Ollama model (configured in `.aider.conf.yml`) to generate the
-code changes, then pushes the branch and opens a draft PR.
+Extract the prompt needed from a GitHub issue (or a local markdown file) to
+run in [aider](https://aider.chat), so working a task locally doesn't require
+manually copying the issue text and guessing which files to hand to aider.
 
-```powershell
-./scripts/developer_tools/e_implement_issue_using_local_llm.ps1 -Issue 123
+```bash
+python scripts/developer_tools/f_aider_issue_extractor.py -i 4445
+python scripts/developer_tools/f_aider_issue_extractor.py -f .issue-4445.md
 ```
 
-Requires `gh` and `aider` on PATH, and a running local Ollama server serving
-the model configured in `.aider.conf.yml`.
+The script:
+1. Fetches the issue from GitHub (`-i <issue_id>`) or loads it from a local
+   markdown file (`-f <file_name>`)
+2. Parses the structured `What`/`Why`/`How`/`Constraints`/etc. sections and
+   extracts any file paths already mentioned in the issue body
+3. If no file paths are found, asks a local Ollama model to suggest which
+   repo files are relevant
+4. Prints the resulting file list and formulated prompt for confirmation
+5. On confirmation, adds the files to `aider` and hands off interactive
+   control to it
 
 Optional flags:
-- `-Force`: bypass the pre-flight check for an unresolved merge/rebase/cherry-pick conflict left over from a prior interrupted run.
-- `-TimeoutMinutes N` (default `40`): wall-clock cap on the aider run. This is separate from the `timeout` setting in `.aider.conf.yml`, which only bounds a single LLM API call — a 14B local model on modest hardware can need the API-call timeout raised too if it consistently runs long.
+- `-v/--verbose`: print additional debug/thinking output
+- `--no-confirm`: skip the confirmation prompt and proceed straight to aider
+- `--token TOKEN`: GitHub personal access token (also reads `GITHUB_TOKEN` env var)
 
-If aider makes no commits (e.g. the local model replies with prose instead of
-edits), the script fails rather than pushing an empty branch or opening a
-content-free PR.
+The script never runs tests, commits code, or creates PRs itself -- it only
+prepares aider's inputs and hands off control.
 
-## g_run_ci_checks.py
+**Requirements:** a running local Ollama server (the script fails fast with
+"Ollama serve must be running" if it isn't); `aider` on PATH.
+
+## h_run_ci_checks.py
 
 Run the credential-free integration and validation steps from the most relevant
 GitHub Actions workflows before pushing. With no arguments, the script presents
 an interactive menu:
 
 ```bash
-python scripts/developer_tools/g_run_ci_checks.py
+python scripts/developer_tools/h_run_ci_checks.py
 ```
 
 For automation or non-interactive shells, select one or more groups explicitly:
 
 ```bash
-python scripts/developer_tools/g_run_ci_checks.py --list
-python scripts/developer_tools/g_run_ci_checks.py --check backend --check frontend
-python scripts/developer_tools/g_run_ci_checks.py --all --keep-going
-python scripts/developer_tools/g_run_ci_checks.py --all --dry-run
+python scripts/developer_tools/h_run_ci_checks.py --list
+python scripts/developer_tools/h_run_ci_checks.py --check backend --check frontend
+python scripts/developer_tools/h_run_ci_checks.py --all --keep-going
+python scripts/developer_tools/h_run_ci_checks.py --all --dry-run
 ```
 
 The groups mirror backend integration, frontend, infrastructure/workflow-lint,
-developer-script (bats/Pester/shellcheck), and backend dependency-conflict
+developer-script (bats/shellcheck), and backend dependency-conflict
 jobs. The runner assumes their dependencies are already installed, runs from
 the repository root regardless of the caller's current directory, stops at
 the first failure by default, and propagates a failing exit status. Cloud
@@ -288,7 +299,7 @@ Optional flags:
 
 On Windows, use the PowerShell wrapper:
 ```powershell
-./scripts/developer_tools/i_commit_and_push.ps1 -Message "Fix bug in auth" -NoOllama
+./scripts/developer_tools/j_commit_and_push.ps1 -Message "Fix bug in auth" -NoOllama
 ```
 
 Or on Linux/Mac:
@@ -299,7 +310,7 @@ bash scripts/bash/commit-and-push.sh -m "Fix bug in auth" --no-ollama
 **Requirements:**
 - Ollama is optional but recommended for better commit messages; without it (or with `--no-ollama`), a plain default message is used
 
-## l_dependabot_auto_merge.py
+## m_dependabot_auto_merge.py
 
 Auto-merge open Dependabot pull requests once their checks have all passed, then
 delete the branch. A PR that is green but only out-of-date with `main` (no real
@@ -314,9 +325,9 @@ defers the actual merge to a later run once CI re-passes, and `skip` leaves the
 PR alone entirely -- neither of those two guarantees it won't stay stuck.
 
 ```bash
-python scripts/developer_tools/l_dependabot_auto_merge.py
-python scripts/developer_tools/l_dependabot_auto_merge.py --yes
-python scripts/developer_tools/l_dependabot_auto_merge.py --yes --behind-strategy update-branch
+python scripts/developer_tools/m_dependabot_auto_merge.py
+python scripts/developer_tools/m_dependabot_auto_merge.py --yes
+python scripts/developer_tools/m_dependabot_auto_merge.py --yes --behind-strategy update-branch
 ```
 
 The script:
@@ -392,7 +403,7 @@ the shared `.github/workflows/_classify-change.yml` reusable workflow, which
 `iac-validation.yml` all reuse so they cannot disagree.
 
 Emits one `key=value` line per flag: `doc-only`, plus `backend`, `frontend`,
-`cdk`, `shell` and `powershell`. A doc-only diff sets every area to false.
+`cdk` and `shell`. A doc-only diff sets every area to false.
 
 ```bash
 python scripts/classify_change.py --event-name pull_request --base <base-sha> --head <head-sha>
@@ -434,7 +445,7 @@ See [docs/BRANCH_PROTECTION.md](../docs/BRANCH_PROTECTION.md) for the context
 naming rules — required contexts are check-run names (`test`), not the
 `Workflow / Job` labels the Actions UI displays.
 
-## n_review_issue.py
+## o_review_issue.py
 
 Review and refresh a single GitHub issue with a local or cloud LLM before work
 starts on it, so a stale or vague issue gets corrected instead of misread.
@@ -443,13 +454,13 @@ while preserving the original section structure, shows a diff of the proposed
 change, and only calls `gh issue edit` after you approve it.
 
 ```bash
-python scripts/developer_tools/n_review_issue.py 5695
+python scripts/developer_tools/o_review_issue.py 5695
 ```
 
 Omit the issue number or `--model` to be prompted interactively:
 
 ```bash
-python scripts/developer_tools/n_review_issue.py
+python scripts/developer_tools/o_review_issue.py
 ```
 
 Optional flags:

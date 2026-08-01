@@ -22,7 +22,7 @@ same flags, so they cannot disagree about what a PR touched.
 | `frontend` | `frontend-checks`, `frontend-smoke`, `frontend-tests` | `frontend/**`, root `package.json`/`package-lock.json`, `backend/contracts_spa.py` |
 | `cdk` | `cdk-tests`, `cdk-validation` | `cdk/**`, `infra/**`, root `package.json`/`package-lock.json` |
 | `shell` | `shell-tests` (bats), `lint-shell-scripts` | `**/*.sh`, `scripts/bash/**`, `tests/bash/**`, `Dockerfile*`, `docker/**`, `docker-compose*.yml`, `deploy/**`, `Jenkinsfile*` |
-| `powershell` | `powershell-tests` (Pester) | `**/*.ps1`, `scripts/powershell/**`, `scripts/tests/**` |
+| `powershell` | none currently (no Pester suite in the repo; the classifier flag is reserved for one) | `**/*.ps1`, `scripts/powershell/**`, `scripts/tests/**` |
 
 Some checks are deliberately **never** gated, because they are what verifies
 the gating: `test` (branch-protection and lockfile validation),

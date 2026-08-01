@@ -15,7 +15,7 @@ from pathlib import Path
 
 # Add .github/scripts (for review_common) and the local lib/ dir (for
 # ollama_common) to sys.path so this works both as an importable module and
-# when invoked directly (e.g. `python scripts/developer_tools/h_local_review.py`),
+# when invoked directly (e.g. `python scripts/developer_tools/i_local_review.py`),
 # where the repo root is not on sys.path and `scripts` is not importable.
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / ".github" / "scripts"))
 sys.path.insert(0, str(Path(__file__).parent / "lib"))

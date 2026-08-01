@@ -1,6 +1,6 @@
 """CLI tool to review and refresh a single GitHub issue using a local or cloud LLM.
 
-Continues the a_/b_/c_/.../m_ script chain in scripts/developer_tools/. Fetches one
+Continues the a_/b_/c_/.../o_ script chain in scripts/developer_tools/. Fetches one
 issue by number, asks the chosen model (local Ollama or cloud DeepSeek) to bring the
 title/body up to date, shows a diff of the proposed change, and only calls `gh issue
 edit` after the user approves it. Never touches the issue if the model's answer looks

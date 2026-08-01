@@ -96,29 +96,44 @@ h1 {
     line-height: 1.1;
 }
 
-button {
-    border-radius: 8px;
-    border: 1px solid transparent;
-    padding: 0.6em 1.2em;
-    font-size: 1em;
-    font-weight: 500;
-    font-family: inherit;
-    background-color: #1a1a1a;
-    cursor: pointer;
-    transition: border-color 0.25s;
-}
+/*
+ * Layered so Tailwind utility classes (emitted into the `utilities` layer)
+ * can override this default without a specificity fight. An unlayered
+ * `button { ... }` rule outranks every named layer regardless of
+ * specificity, which previously made bg-* utilities on <button> silently
+ * lose to this #1a1a1a default (#5735).
+ */
+@layer base {
+    button {
+        border-radius: 8px;
+        border: 1px solid transparent;
+        padding: 0.6em 1.2em;
+        font-size: 1em;
+        font-weight: 500;
+        font-family: inherit;
+        background-color: #1a1a1a;
+        cursor: pointer;
+        transition: border-color 0.25s;
+    }
 
-button:hover {
-    border-color: #646cff;
-}
+    button:hover {
+        border-color: #646cff;
+    }
 
-button:focus,
-button:focus-visible {
-    outline: 4px auto -webkit-focus-ring-color;
-}
+    button:focus,
+    button:focus-visible {
+        outline: 4px auto -webkit-focus-ring-color;
+    }
 
-:root[data-theme='light'] button {
-    background-color: #f9f9f9;
+    :root[data-theme='light'] button {
+        background-color: #f9f9f9;
+    }
+
+    @media (prefers-color-scheme: light) {
+        :root:not([data-theme]) button {
+            background-color: #f9f9f9;
+        }
+    }
 }
 
 @media (prefers-color-scheme: light) {
@@ -138,10 +153,6 @@ button:focus-visible {
 
     :root:not([data-theme]) a:hover {
         color: #747bff;
-    }
-
-    :root:not([data-theme]) button {
-        background-color: #f9f9f9;
     }
 }
 

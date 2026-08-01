@@ -193,10 +193,10 @@ export default function Menu({
                 type="button"
                 aria-expanded={isOpen}
                 aria-controls={panelId}
-                className={`flex min-h-11 w-full items-center justify-between gap-2 rounded px-3 py-2 text-sm font-medium transition-colors duration-150 focus:outline-none focus-visible:ring sm:min-w-[8rem] sm:w-auto ${
+                className={`flex min-h-11 w-full items-center justify-between gap-2 rounded border-b-2 px-3 py-2 text-sm font-medium transition-colors duration-150 focus:outline-none focus-visible:ring sm:min-w-[8rem] sm:w-auto ${
                   isOpen || containsActiveTab
-                    ? 'bg-gray-100 text-gray-900'
-                    : 'bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                    ? 'border-blue-600 bg-gray-100 text-gray-900'
+                    : 'border-transparent bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                 }`}
                 onClick={() =>
                   setOpenCategory((current) =>

@@ -1,4 +1,5 @@
 import json
+import os
 
 import scripts.developer_tools.o_review_issue as n
 
@@ -56,6 +57,22 @@ def test_run_review_local_returns_response(monkeypatch):
         n, "fetch_ollama_review", lambda endpoint, model, prompt: "TITLE: t\nBODY:\nb"
     )
     assert n.run_review(n.LOCAL, "title", "body") == "TITLE: t\nBODY:\nb"
+
+
+def test_load_env_file_sets_missing_vars(monkeypatch, tmp_path):
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    env_file = tmp_path / ".env"
+    env_file.write_text("DEEPSEEK_API_KEY=from-env-file\n", encoding="utf-8")
+    n.load_env_file(env_file)
+    # Register with monkeypatch so it's still tracked for auto-cleanup after the test.
+    monkeypatch.setenv("DEEPSEEK_API_KEY", os.environ["DEEPSEEK_API_KEY"])
+    assert os.environ["DEEPSEEK_API_KEY"] == "from-env-file"
+
+
+def test_load_env_file_missing_file_is_a_noop(monkeypatch, tmp_path):
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    n.load_env_file(tmp_path / "does_not_exist.env")
+    assert "DEEPSEEK_API_KEY" not in os.environ
 
 
 def test_run_review_cloud_returns_none_without_api_key(monkeypatch):

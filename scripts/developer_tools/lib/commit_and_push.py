@@ -208,6 +208,14 @@ def main() -> int:
     if args.model and args.model_source == LOCAL:
         os.environ["OLLAMA_MODEL"] = args.model
 
+    # Add warning for --model with --model-source cloud
+    if args.model and args.model_source != LOCAL:
+        print(
+            "Warning: --model is only supported with --model-source local; "
+            "ignoring --model for cloud model source.",
+            file=sys.stderr,
+        )
+
     os.chdir(get_git_root())
 
     branch = get_current_branch()

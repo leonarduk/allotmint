@@ -197,7 +197,7 @@ def main() -> int:
 
     # Output or save report
     if args.output:
-        return save_review_to_file(args, report)
+        return save_review_to_file(args, review)
     else:
         return finalize_review(review, "ERROR: Model returned an empty review")
 
@@ -231,11 +231,6 @@ def add_arguments() -> Namespace:
         "--output",
         "-o",
         help="Output markdown file path (default: local_review_<timestamp>.md)",
-    )
-    parser.add_argument(
-        "--stdout",
-        action="store_true",
-        help="Print review to stdout instead of saving to file",
     )
     add_model_source_arg(parser)
     args = parser.parse_args()

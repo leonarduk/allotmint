@@ -6,10 +6,12 @@ import {
   setAlertThreshold,
 } from "../api";
 import { useUser } from "../UserContext";
+import { usePriceRefresh } from "../PriceRefreshContext";
 
 export default function AlertSettings() {
   const { t } = useTranslation();
   const { profile } = useUser();
+  const { lastRefresh } = usePriceRefresh();
   // Owner is determined from the authenticated user's profile
   const owner = profile?.email;
   const [threshold, setThreshold] = useState<number | "">("");
@@ -39,7 +41,7 @@ export default function AlertSettings() {
 
   return (
     <div style={{ padding: "1rem" }}>
-      <AppHeader />
+      <AppHeader lastRefresh={lastRefresh} />
       <div style={{ maxWidth: 600 }}>
         <h1>{t("alertSettings.title")}</h1>
         <p>{t("alertSettings.description")}</p>

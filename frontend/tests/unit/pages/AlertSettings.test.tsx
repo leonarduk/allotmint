@@ -42,6 +42,13 @@ describe("AlertSettings navigation", () => {
     expect(
       screen.getByRole("heading", { name: en.alertSettings.push.title })
     ).toBeInTheDocument();
+
+    // Header parity (#5736): the shared AppHeader controls must be present,
+    // not just the bare nav.
+    expect(
+      screen.getByRole("button", { name: "notifications" }),
+    ).toBeInTheDocument();
+    expect(screen.getByAltText("user avatar")).toBeInTheDocument();
   });
 });
 

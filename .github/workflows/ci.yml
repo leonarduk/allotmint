@@ -320,7 +320,7 @@ jobs:
         run: npx playwright install --with-deps chromium
         working-directory: frontend
       - name: Run frontend smoke tests
-        run: npx playwright test --config playwright.config.ts tests/smoke.spec.ts
+        run: npx playwright test --config playwright.config.ts tests/smoke.spec.ts tests/navActiveState.spec.ts
         working-directory: frontend
       - name: Upload Playwright smoke-test artifacts
         if: failure()

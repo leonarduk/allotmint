@@ -141,6 +141,7 @@ def fetch_issue(owner: str, repo: str, number: int) -> dict:
         ],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=False,
     )
     if result.returncode != 0:
@@ -246,6 +247,7 @@ def update_issue(owner: str, repo: str, number: int, title: str, body: str, dry_
             ],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=False,
         )
     finally:

@@ -33,6 +33,24 @@ from ollama_common import (  # noqa: E402
     validate_ollama_connection,
 )
 
+REPO_ROOT_ENV_FILE = Path(__file__).parent.parent.parent / ".env"
+
+
+def load_env_file(env_path: Path = REPO_ROOT_ENV_FILE) -> None:
+    """Load local dev secrets (e.g. DEEPSEEK_API_KEY) from a repo-root .env file.
+
+    CI sets these as real env vars instead, so a missing .env or missing
+    python-dotenv is fine -- this only helps local, interactive runs.
+    """
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        return
+    load_dotenv(env_path)
+
+
+load_env_file()
+
 LOCAL = "local"
 CLOUD = "cloud"
 

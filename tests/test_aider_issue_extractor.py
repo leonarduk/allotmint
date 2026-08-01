@@ -404,13 +404,22 @@ class TestMainOrdering:
     """The issue's constraint is to fail early if Ollama isn't running, before
     any other work -- these pin that ordering against a regression."""
 
+    @mock.patch("f_aider_issue_extractor.os.chdir")
+    @mock.patch("f_aider_issue_extractor.get_repo_root", return_value="/repo/root")
     @mock.patch("f_aider_issue_extractor.run_aider")
     @mock.patch("f_aider_issue_extractor.resolve_files_to_edit")
     @mock.patch("f_aider_issue_extractor.fetch_issue_from_github")
     @mock.patch("f_aider_issue_extractor.get_repo_info")
     @mock.patch("f_aider_issue_extractor.validate_ollama_connection")
     def test_ollama_checked_before_github_fetch(
-        self, mock_validate, mock_repo_info, mock_fetch, mock_resolve, mock_run_aider
+        self,
+        mock_validate,
+        mock_repo_info,
+        mock_fetch,
+        mock_resolve,
+        mock_run_aider,
+        mock_get_repo_root,
+        mock_chdir,
     ):
         calls = []
         mock_validate.side_effect = lambda endpoint: calls.append("ollama") or True
@@ -425,6 +434,7 @@ class TestMainOrdering:
 
         assert calls == ["ollama", "github"]
         mock_run_aider.assert_called_once()
+        mock_chdir.assert_called_once_with("/repo/root")
 
     @mock.patch("f_aider_issue_extractor.fetch_issue_from_github")
     @mock.patch("f_aider_issue_extractor.get_repo_info")
@@ -438,3 +448,37 @@ class TestMainOrdering:
         assert exc_info.value.code == 1
         mock_repo_info.assert_not_called()
         mock_fetch.assert_not_called()
+
+    @mock.patch("f_aider_issue_extractor.os.chdir")
+    @mock.patch("f_aider_issue_extractor.get_repo_root", side_effect=ValueError("not a git repo"))
+    @mock.patch("f_aider_issue_extractor.validate_ollama_connection", return_value=True)
+    def test_exits_cleanly_when_repo_root_cannot_be_determined(
+        self, mock_validate, mock_get_repo_root, mock_chdir
+    ):
+        with pytest.raises(SystemExit) as exc_info:
+            main(["-i", "42"])
+
+        assert exc_info.value.code == 1
+        mock_chdir.assert_not_called()
+
+    @mock.patch("f_aider_issue_extractor.os.chdir")
+    @mock.patch("f_aider_issue_extractor.get_repo_root", return_value="/repo/root")
+    @mock.patch("f_aider_issue_extractor.run_aider")
+    @mock.patch("f_aider_issue_extractor.resolve_files_to_edit")
+    @mock.patch("f_aider_issue_extractor.get_repo_info", return_value=("owner", "repo"))
+    def test_chdirs_to_repo_root_before_resolving_files(
+        self, mock_repo_info, mock_resolve, mock_run_aider, mock_get_repo_root, mock_chdir
+    ):
+        # Regression test: paths extracted from an issue body (and the files
+        # ultimately handed to aider) are resolved relative to the process
+        # cwd. Without chdir'ing to the repo root first, running this script
+        # from e.g. scripts/developer_tools/ makes every real repo-relative
+        # path look nonexistent.
+        calls = []
+        mock_chdir.side_effect = lambda path: calls.append("chdir")
+        mock_resolve.side_effect = lambda *a, **k: calls.append("resolve") or ["file.py"]
+
+        main(["-f", str(Path(__file__)), "--no-confirm"])
+
+        assert calls == ["chdir", "resolve"]
+        mock_get_repo_root.assert_called_once()

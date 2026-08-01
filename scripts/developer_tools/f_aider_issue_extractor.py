@@ -12,7 +12,7 @@ import tempfile
 from pathlib import Path
 
 import requests
-from lib.github_repo import get_repo_info
+from lib.github_repo import get_repo_info, get_repo_root
 from lib.ollama_common import (
     fetch_ollama_review,
     get_ollama_endpoint,
@@ -468,6 +468,11 @@ def main(argv: list[str] | None = None) -> None:
     """Main entry point."""
     args = parse_args(argv)
 
+    # Resolve a local issue file against the caller's original cwd before
+    # the chdir below moves us to the repo root.
+    if args.issue_file:
+        args.issue_file = str(Path(args.issue_file).resolve())
+
     # Fail early if Ollama isn't running, before any GitHub/file I/O -- per
     # the issue's constraint, nothing else here is useful without it.
     endpoint = get_ollama_endpoint()
@@ -480,6 +485,17 @@ def main(argv: list[str] | None = None) -> None:
     if not validate_ollama_connection(endpoint):
         print("ERROR: Ollama serve must be running", file=sys.stderr)
         print(f"ERROR: Could not connect to {endpoint}", file=sys.stderr)
+        sys.exit(1)
+
+    # Extracted/suggested file paths and the final `aider` invocation are
+    # both resolved relative to the process cwd, so chdir to the repo root
+    # to make this work regardless of where the script was invoked from
+    # (e.g. from scripts/developer_tools/, where a repo-relative path like
+    # "frontend/src/main.tsx" would otherwise never resolve).
+    try:
+        os.chdir(get_repo_root())
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
         sys.exit(1)
 
     # Get repo info (for GitHub fetching)

@@ -37,6 +37,10 @@ def test_extract_verdict_request_changes(mod):
     assert mod.extract_verdict("nope\n**REQUEST CHANGES**") == "REQUEST CHANGES"
 
 
+def test_extract_verdict_skip(mod):
+    assert mod.extract_verdict("blah\n**SKIP**") == "SKIP"
+
+
 def test_extract_verdict_none(mod):
     assert mod.extract_verdict("no verdict here") is None
 
@@ -49,7 +53,15 @@ def test_main_approve(tmp_path, capsys, mod, provider):
     f = tmp_path / "review.md"
     f.write_text("Looks good\n**APPROVE**")
     assert mod.main(str(f), provider) == 0
-    assert f"✓ {provider} review: APPROVED" in capsys.readouterr().out
+    assert f"[+] {provider} review: APPROVED" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("provider", ["Claude", "GPT"])
+def test_main_skip(tmp_path, capsys, mod, provider):
+    f = tmp_path / "review.md"
+    f.write_text("No review\n**SKIP**")
+    assert mod.main(str(f), provider) == 0
+    assert f"[~] {provider} review: SKIPPED (empty diff)" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize("provider", ["Claude", "GPT"])
@@ -57,7 +69,7 @@ def test_main_request_changes(tmp_path, capsys, mod, provider):
     f = tmp_path / "review.md"
     f.write_text("Fix this\n**REQUEST CHANGES**")
     assert mod.main(str(f), provider) == 1
-    assert f"✗ {provider} review: CHANGES REQUESTED" in capsys.readouterr().out
+    assert f"[-] {provider} review: CHANGES REQUESTED" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize("provider", ["Claude", "GPT"])

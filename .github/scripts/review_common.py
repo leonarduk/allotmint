@@ -164,15 +164,17 @@ are only non-blocking observations, use APPROVE and put them in section 5."""
 def emit_empty_diff_notice(provider_name: str) -> int:
     """Exit cleanly when the filtered diff is empty instead of making a no-context API call.
 
-    Ends with a bold **APPROVE** line so `extract_verdict.py` treats this the same as a real
+    Ends with a bold **SKIP** sentinel so `extract_verdict.py` treats this the same as a real
     "nothing to flag" review instead of "no valid verdict found" (which the workflow's
-    `check_approval` step otherwise reports as `CHANGES REQUESTED` — see #5715). There is
-    nothing to request changes on when no diff was reviewed at all.
+    `check_approval` step otherwise reports as `CHANGES REQUESTED` — see #5715). **SKIP** is
+    more semantically accurate than **APPROVE** for the empty-diff case — it signals
+    "no review was performed" rather than "I reviewed and approved". There is nothing to
+    request changes on when no diff was reviewed at all.
     """
     print(
         f"No {provider_name} review generated because the filtered diff was empty. "
         "The workflow can still post this advisory note without failing.\n\n"
-        "**APPROVE** — nothing to review"
+        "**SKIP**"
     )
     return 0
 

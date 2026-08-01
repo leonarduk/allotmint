@@ -183,13 +183,14 @@ function Coalesce([object]$value, [object]$fallback) {
 }
 
 function Test-PortFree([int]$Port) {
+  $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, $Port)
   try {
-    $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, $Port)
     $listener.Start()
-    $listener.Stop()
     return $true
   } catch {
     return $false
+  } finally {
+    $listener.Stop()
   }
 }
 
@@ -405,9 +406,14 @@ if (-not $env:UVICORN_PORT_FIXED) {
   }
 }
 
+# Write via a temp file + rename so a concurrent reader (vite.config.ts)
+# never observes a partially written port number.
 $portFileDir = Join-Path $REPO_ROOT '.local\ports'
 New-Item -ItemType Directory -Force -Path $portFileDir | Out-Null
-Set-Content -Path (Join-Path $portFileDir 'backend.port') -Value $port -NoNewline
+$portFile = Join-Path $portFileDir 'backend.port'
+$tmpPortFile = Join-Path $portFileDir ".backend.port.$PID.tmp"
+Set-Content -Path $tmpPortFile -Value $port -NoNewline
+Move-Item -Path $tmpPortFile -Destination $portFile -Force
 
 $logConfig = Get-ConfigValue $cfg @('paths','log_config') 'backend/logging.ini'
 $resolvedLogConfig = $null

@@ -50,9 +50,14 @@ if [[ -z "${UVICORN_PORT_FIXED:-}" ]]; then
   UVICORN_PORT="$RESOLVED_PORT"
 fi
 
+# Write via a temp file + rename so a concurrent reader (vite.config.ts)
+# never observes a partially written port number.
 PORT_FILE_DIR="$REPO_ROOT/.local/ports"
 mkdir -p "$PORT_FILE_DIR"
-echo "$UVICORN_PORT" > "$PORT_FILE_DIR/backend.port"
+PORT_FILE="$PORT_FILE_DIR/backend.port"
+TMP_PORT_FILE="$(mktemp "${PORT_FILE_DIR}/.backend.port.XXXXXX")"
+echo "$UVICORN_PORT" > "$TMP_PORT_FILE"
+mv -f "$TMP_PORT_FILE" "$PORT_FILE"
 echo "Backend will listen on http://localhost:$UVICORN_PORT (port recorded in .local/ports/backend.port)" >&2
 
 if [[ -n "${DATA_BUCKET:-}" ]]; then

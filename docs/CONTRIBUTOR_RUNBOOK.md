@@ -293,6 +293,17 @@ unaffected since they don't run the dev server or read `.local/ports/`.
 The frontend dev server itself still uses Vite's own default port-clash
 handling (`5173`, incrementing if busy) — nothing extra to configure there.
 
+**Scope**: one backend per checkout at a time. `.local/ports/backend.port`
+lives at the repo root, so two backends started from the *same* checkout
+still race for the same file (last one to finish starting wins) — run
+concurrent instances from separate worktrees/clones instead, each with its
+own `.local/`.
+
+Set `UVICORN_PORT_FIXED=1` to opt out and require the exact configured
+`server.uvicorn_port`, failing loudly instead of shifting to the next free
+port (e.g. if you specifically need the default port and want a clash to be
+an error rather than silently rebinding elsewhere).
+
 ### Minimal local env example
 
 ```bash

@@ -13,7 +13,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BACKEND_ROOT = REPO_ROOT / "backend"
 EXCLUDED_FILES = {BACKEND_ROOT / "logging_setup.py"}
-LOG_METHODS = {"warning", "error", "info"}
+LOG_METHODS = {"warning", "error", "info", "debug", "exception"}
 
 
 def _is_safe_arg(node: ast.expr) -> bool:

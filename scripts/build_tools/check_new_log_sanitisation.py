@@ -88,7 +88,7 @@ def main(argv: list[str]) -> int:
 
     if violations:
         print(
-            "New logger.warning/error/info call(s) with an unsanitised argument:",
+            "New logger.warning/error/info/debug/exception call(s) with an unsanitised argument:",
             file=sys.stderr,
         )
         for v in sorted(violations):

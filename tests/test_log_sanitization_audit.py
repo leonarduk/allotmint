@@ -1,6 +1,6 @@
 """Regression guard for CWE-117 log injection (issue #4997).
 
-Scans every ``logger.warning/error/info`` call in ``backend/`` for
+Scans every ``logger.warning/error/info/debug/exception`` call in ``backend/`` for
 positional arguments (after the format string) that are neither literals
 nor wrapped in ``sanitise_log_value(...)``. A large baseline of pre-existing
 call sites is grandfathered in via ``tests/data/log_sanitization_baseline.txt``

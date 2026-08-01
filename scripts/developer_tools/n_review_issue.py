@@ -25,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / ".github" / "script
 sys.path.insert(0, str(Path(__file__).parent / "lib"))
 from deepseek_review import fetch_deepseek_review  # noqa: E402
 from github_repo import get_repo_info  # noqa: E402
+from issue_review import parse_review_response  # noqa: E402
 from ollama_common import (  # noqa: E402
     fetch_ollama_review,
     get_ollama_endpoint,
@@ -146,20 +147,6 @@ def build_review_prompt(title: str, body: str, feedback: str | None = None) -> s
     return REVIEW_PROMPT_TEMPLATE.format(
         title=title, body=body, sections=sections, feedback_section=feedback_section
     )
-
-
-def parse_review_response(
-    response: str, fallback_title: str, fallback_body: str
-) -> tuple[str, str]:
-    """Parse the model's TITLE/BODY response, falling back to the originals on any mismatch."""
-    match = re.search(r"TITLE:\s*(.*?)\s*\nBODY:\s*\n?(.*)", response, re.DOTALL)
-    if not match:
-        return fallback_title, fallback_body
-    title = match.group(1).strip()
-    body = match.group(2).strip()
-    if not title or not body:
-        return fallback_title, fallback_body
-    return title, body
 
 
 def run_review(

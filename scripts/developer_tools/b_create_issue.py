@@ -15,6 +15,8 @@ from pathlib import Path
 import requests
 
 sys.path.insert(0, str(Path(__file__).parent / "lib"))
+from github_repo import get_repo_info
+from issue_review import parse_review_response
 from ollama_common import (
     fetch_ollama_review,
     get_ollama_endpoint,
@@ -64,30 +66,6 @@ SECTIONS_BUG = [
         "What regressions or gaps would mean the fix failed. Start each line with '-'.",
     ),
 ]
-
-
-def get_repo_info() -> tuple[str, str]:
-    """Extract owner and repo from git remote origin."""
-    try:
-        result = subprocess.run(
-            ["git", "config", "--get", "remote.origin.url"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        url = result.stdout.strip()
-        if url.startswith("git@"):
-            match = re.search(r"github\.com[:/]([^/]+)/(.+?)(?:\.git)?$", url)
-        else:
-            match = re.search(r"github\.com/([^/]+)/(.+?)(?:\.git)?$", url)
-        if match:
-            repo = match.group(2)
-            if repo.endswith(".git"):
-                repo = repo[:-4]
-            return match.group(1), repo
-    except subprocess.CalledProcessError as exc:
-        raise ValueError(f"Could not determine GitHub repo from git remote origin: {exc}") from exc
-    raise ValueError("Could not determine GitHub repo from git remote origin")
 
 
 def get_github_token() -> str:
@@ -324,6 +302,7 @@ def create_issue_via_gh(
         if body_path and os.path.exists(body_path):
             os.unlink(body_path)
 
+
 def derive_title_from_what(what: str) -> str | None:
     """Extract a candidate title from the first meaningful line of 'What'."""
     if not what:
@@ -353,20 +332,6 @@ def build_review_prompt(title: str, body: str) -> str:
         f"Original title: {title}\n\n"
         f"Original body:\n{body}\n"
     )
-
-
-def parse_review_response(
-    response: str, fallback_title: str, fallback_body: str
-) -> tuple[str, str]:
-    """Parse the LLM's TITLE/BODY response, falling back to the originals on any mismatch."""
-    match = re.search(r"TITLE:\s*(.*?)\s*\nBODY:\s*\n?(.*)", response, re.DOTALL)
-    if not match:
-        return fallback_title, fallback_body
-    title = match.group(1).strip()
-    body = match.group(2).strip()
-    if not title or not body:
-        return fallback_title, fallback_body
-    return title, body
 
 
 def offer_local_llm_review(title: str, body: str) -> tuple[str, str]:

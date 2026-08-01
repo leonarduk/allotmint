@@ -10,9 +10,12 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import os
 import subprocess
 import sys
+from argparse import Namespace
 from pathlib import Path
+from typing import Any
 
 # Add .github/scripts (for review_common) and the local lib/ dir (for
 # llm_common) to sys.path so this works both as an importable module and
@@ -26,8 +29,15 @@ from llm_common import (
     fetch_review,
     validate_model_source,
 )
-from review_common import build_prompt, truncate_diff
+from review_common import (
+    build_prompt, 
+    finalize_review,
+    truncate_diff
+)
+from publish_pr import extract_issue_id, get_current_branch
 
+from d_work_on_issue import fetch_issue
+from lib.github_repo import get_repo_info
 
 def get_git_root() -> str:
     """Get the root directory of the git repository."""
@@ -43,23 +53,6 @@ def get_git_root() -> str:
     except subprocess.CalledProcessError as exc:
         print(f"ERROR: Not a git repository or git command failed: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
-
-
-def get_current_branch() -> str:
-    """Get the current branch name."""
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            check=True,
-        )
-        return result.stdout.strip()
-    except subprocess.CalledProcessError as exc:
-        print(f"ERROR: Failed to get current branch: {exc}", file=sys.stderr)
-        raise SystemExit(1) from exc
-
 
 def get_local_diff(target_branch: str = "main") -> str:
     """Get diff of uncommitted changes against target branch.
@@ -149,27 +142,7 @@ def save_report(content: str, output_path: str) -> str:
 
 def main() -> int:
     """Run the local review flow."""
-    parser = argparse.ArgumentParser(
-        description="Review uncommitted local changes using a local or cloud LLM "
-        "and generate a markdown report"
-    )
-    parser.add_argument(
-        "--branch",
-        default="main",
-        help="Target branch to compare against (default: main)",
-    )
-    parser.add_argument(
-        "--output",
-        "-o",
-        help="Output markdown file path (default: local_review_<timestamp>.md)",
-    )
-    parser.add_argument(
-        "--stdout",
-        action="store_true",
-        help="Print review to stdout instead of saving to file",
-    )
-    add_model_source_arg(parser)
-    args = parser.parse_args()
+    args = add_arguments()
 
     if not validate_model_source(args.model_source):
         return 1
@@ -177,28 +150,29 @@ def main() -> int:
     current_branch = get_current_branch()
 
     # Get local diff
-    print(f"INFO: Comparing {current_branch} against {args.branch}...", file=sys.stderr)
-    diff = get_local_diff(args.branch)
-
-    # Truncate diff if needed
-    original_diff_len = len(diff)
-    diff, was_truncated = truncate_diff(diff)
-    if was_truncated:
-        print(
-            f"INFO: Truncated diff from {original_diff_len} to {len(diff)} characters",
-            file=sys.stderr,
-        )
+    diff = get_diff(args, current_branch)
 
     if not diff.strip():
         print("No changes found to review.", file=sys.stderr)
         return 0
 
+    # Get repo info
+    try:
+        owner, repo = get_repo_info()
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
+        
     # Build prompt and fetch review
+    token = os.getenv("GITHUB_TOKEN")
+    issue_id =extract_issue_id(current_branch)
+    issue_body = fetch_issue(owner, repo, issue_id, token)
+
     print(f"INFO: Using {describe_model_source(args.model_source)}", file=sys.stderr)
     prompt = build_prompt(
         pr_title=f"Local changes on {current_branch}",
         diff=diff,
-        issue_body="Local code review (no linked issue)",
+        issue_body=issue_body,
         discussion="",
         verified_facts="",
     )
@@ -222,25 +196,68 @@ def main() -> int:
     )
 
     # Output or save report
-    if args.stdout:
-        print(report)
-        return 0
+    if args.output:
+        return save_review_to_file(args, report)
     else:
-        # Determine output file path
-        if args.output:
-            output_path = args.output
-        else:
-            # Generate default filename with timestamp
-            ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            output_path = f"local_review_{ts}.md"
+        return finalize_review(review, "ERROR: Model returned an empty review")
 
-        try:
-            abs_path = save_report(report, output_path)
-            print(f"Review saved to: {abs_path}", file=sys.stderr)
-            return 0
-        except OSError as exc:
-            print(f"ERROR: Failed to save report: {exc}", file=sys.stderr)
-            return 1
+
+def get_diff(args: Namespace, current_branch: str) -> Any:
+    print(f"INFO: Comparing {current_branch} against {args.branch}...", file=sys.stderr)
+    diff = get_local_diff(args.branch)
+
+    # Truncate diff if needed
+    original_diff_len = len(diff)
+    diff, was_truncated = truncate_diff(diff)
+    if was_truncated:
+        print(
+            f"INFO: Truncated diff from {original_diff_len} to {len(diff)} characters",
+            file=sys.stderr,
+        )
+    return diff
+
+
+def add_arguments() -> Namespace:
+    parser = argparse.ArgumentParser(
+        description="Review uncommitted local changes using a local or cloud LLM "
+                    "and generate a markdown report"
+    )
+    parser.add_argument(
+        "--branch",
+        default="main",
+        help="Target branch to compare against (default: main)",
+    )
+    parser.add_argument(
+        "--output",
+        "-o",
+        help="Output markdown file path (default: local_review_<timestamp>.md)",
+    )
+    parser.add_argument(
+        "--stdout",
+        action="store_true",
+        help="Print review to stdout instead of saving to file",
+    )
+    add_model_source_arg(parser)
+    args = parser.parse_args()
+    return args
+
+
+def save_review_to_file(args: Namespace, report: str) -> int:
+    # Determine output file path
+    if args.output:
+        output_path = args.output
+    else:
+        # Generate default filename with timestamp
+        ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_path = f"local_review_{ts}.md"
+
+    try:
+        abs_path = save_report(report, output_path)
+        print(f"Review saved to: {abs_path}", file=sys.stderr)
+        return 0
+    except OSError as exc:
+        print(f"ERROR: Failed to save report: {exc}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

@@ -290,7 +290,7 @@ export default function Menu({
                         type="button"
                         role="menuitem"
                         onClick={effectiveLogout}
-                        className="block min-h-11 w-full rounded px-3 py-2 text-left text-sm text-gray-600 transition-colors duration-150 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring"
+                        className={`block min-h-11 w-full rounded px-3 py-2 text-left text-sm text-white bg-red-500 transition-colors duration-150 hover:bg-red-600 focus:outline-none focus-visible:ring`}
                       >
                         {t('app.logout')}
                       </button>

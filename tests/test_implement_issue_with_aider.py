@@ -11,7 +11,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "developer_tools"))
 
-from f_aider_issue_extractor import (  # noqa: E402
+from f_implement_issue_with_aider import (  # noqa: E402
     confirm_with_user,
     extract_file_paths_from_issue,
     fetch_issue_from_github,
@@ -92,12 +92,12 @@ class TestIsSafeRelativePath:
         assert is_safe_relative_path("/etc/passwd") is False
 
     def test_accepts_plain_relative_path(self):
-        assert is_safe_relative_path("scripts/developer_tools/f_aider_issue_extractor.py") is True
+        assert is_safe_relative_path("scripts/developer_tools/f_implement_issue_with_aider.py") is True
 
 
 class TestExtractFilePathsFromIssue:
     def test_finds_existing_file_path(self):
-        real_file = "scripts/developer_tools/f_aider_issue_extractor.py"
+        real_file = "scripts/developer_tools/f_implement_issue_with_aider.py"
         body = f"See {real_file} for details."
         paths = extract_file_paths_from_issue(body)
         assert real_file in paths
@@ -113,11 +113,11 @@ class TestExtractFilePathsFromIssue:
         # This resolves on disk to the same file as the "finds_existing_file_path"
         # test above, but the raw path contains a '..' segment, which must be
         # rejected before the existence check ever runs.
-        body = "See scripts/../scripts/developer_tools/f_aider_issue_extractor.py for details."
+        body = "See scripts/../scripts/developer_tools/f_implement_issue_with_aider.py for details."
         assert extract_file_paths_from_issue(body) == []
 
     def test_finds_path_inside_markdown_link(self):
-        real_file = "scripts/developer_tools/f_aider_issue_extractor.py"
+        real_file = "scripts/developer_tools/f_implement_issue_with_aider.py"
         body = f"- [{real_file}](https://github.com/owner/repo/blob/main/{real_file}) - details."
         paths = extract_file_paths_from_issue(body)
         assert paths == [real_file]
@@ -137,16 +137,16 @@ class TestExtractFilePathsFromIssue:
 
 class TestResolveFilesToEdit:
     def test_prefers_files_affected_section_over_whole_body(self):
-        real_file = "scripts/developer_tools/f_aider_issue_extractor.py"
+        real_file = "scripts/developer_tools/f_implement_issue_with_aider.py"
         other_file = "scripts/developer_tools/b_create_issue.py"
         body = f"See {other_file} for background."
 
         result = resolve_files_to_edit("title", body, "http://x", "model", files_affected=real_file)
         assert result == [real_file]
 
-    @mock.patch("f_aider_issue_extractor.fetch_ollama_review")
+    @mock.patch("f_implement_issue_with_aider.fetch_ollama_review")
     def test_falls_back_to_body_when_files_affected_has_no_real_paths(self, mock_fetch):
-        real_file = "scripts/developer_tools/f_aider_issue_extractor.py"
+        real_file = "scripts/developer_tools/f_implement_issue_with_aider.py"
         body = f"See {real_file} for details."
 
         result = resolve_files_to_edit(
@@ -155,7 +155,7 @@ class TestResolveFilesToEdit:
         assert result == [real_file]
         mock_fetch.assert_not_called()
 
-    @mock.patch("f_aider_issue_extractor.fetch_ollama_review")
+    @mock.patch("f_implement_issue_with_aider.fetch_ollama_review")
     def test_asks_ollama_when_nothing_found_anywhere(self, mock_fetch):
         mock_fetch.return_value = "[]"
 
@@ -165,13 +165,13 @@ class TestResolveFilesToEdit:
         assert result == []
         mock_fetch.assert_called_once()
 
-    @mock.patch("f_aider_issue_extractor.fetch_ollama_review")
+    @mock.patch("f_implement_issue_with_aider.fetch_ollama_review")
     def test_resolves_files_from_bold_header_markdown_link_issue_without_ollama(self, mock_fetch):
         # Regression test for #5798: issues written before the "## Heading"
         # template was standardized use bold "**Heading**" lines and list
         # files as markdown links, e.g. "[path](url)". Previously this fell
         # through to Ollama and produced an empty file list.
-        real_file = "scripts/developer_tools/f_aider_issue_extractor.py"
+        real_file = "scripts/developer_tools/f_implement_issue_with_aider.py"
         body = (
             "**What**\nSomething is broken.\n\n"
             "**Files to change**\n"
@@ -229,7 +229,7 @@ class TestFormulateAiderPrompt:
 
 
 class TestFetchIssueFromGithub:
-    @mock.patch("f_aider_issue_extractor.requests.get")
+    @mock.patch("f_implement_issue_with_aider.requests.get")
     def test_returns_title_and_body_on_success(self, mock_get):
         mock_response = mock.MagicMock()
         mock_response.json.return_value = {"title": "Bug title", "body": "Bug body"}
@@ -239,7 +239,7 @@ class TestFetchIssueFromGithub:
         assert title == "Bug title"
         assert body == "Bug body"
 
-    @mock.patch("f_aider_issue_extractor.requests.get")
+    @mock.patch("f_implement_issue_with_aider.requests.get")
     def test_exits_when_issue_has_no_title(self, mock_get):
         mock_response = mock.MagicMock()
         mock_response.json.return_value = {"title": "", "body": "Bug body"}
@@ -249,7 +249,7 @@ class TestFetchIssueFromGithub:
             fetch_issue_from_github("owner", "repo", 42)
         assert exc_info.value.code == 1
 
-    @mock.patch("f_aider_issue_extractor.requests.get")
+    @mock.patch("f_implement_issue_with_aider.requests.get")
     def test_exits_on_request_failure(self, mock_get):
         import requests
 
@@ -276,31 +276,31 @@ class TestLoadIssueFromFile:
 
 
 class TestSuggestFilesWithOllama:
-    @mock.patch("f_aider_issue_extractor.fetch_ollama_review")
+    @mock.patch("f_implement_issue_with_aider.fetch_ollama_review")
     def test_parses_json_array_from_response(self, mock_fetch):
-        real_file = "scripts/developer_tools/f_aider_issue_extractor.py"
+        real_file = "scripts/developer_tools/f_implement_issue_with_aider.py"
         mock_fetch.return_value = f'Here you go: ["{real_file}"]'
 
         result = suggest_files_with_ollama("title", "body", [], "http://x", "model")
         assert result == [real_file]
 
-    @mock.patch("f_aider_issue_extractor.fetch_ollama_review")
+    @mock.patch("f_implement_issue_with_aider.fetch_ollama_review")
     def test_falls_back_to_extracted_paths_when_ollama_fails(self, mock_fetch):
         mock_fetch.side_effect = SystemExit(1)
 
         result = suggest_files_with_ollama("title", "body", ["existing.py"], "http://x", "model")
         assert result == ["existing.py"]
 
-    @mock.patch("f_aider_issue_extractor.fetch_ollama_review")
+    @mock.patch("f_implement_issue_with_aider.fetch_ollama_review")
     def test_falls_back_when_response_has_no_json(self, mock_fetch):
         mock_fetch.return_value = "no json here"
 
         result = suggest_files_with_ollama("title", "body", ["existing.py"], "http://x", "model")
         assert result == ["existing.py"]
 
-    @mock.patch("f_aider_issue_extractor.fetch_ollama_review")
+    @mock.patch("f_implement_issue_with_aider.fetch_ollama_review")
     def test_rejects_traversal_path_in_suggested_json(self, mock_fetch):
-        traversal_path = "scripts/../scripts/developer_tools/f_aider_issue_extractor.py"
+        traversal_path = "scripts/../scripts/developer_tools/f_implement_issue_with_aider.py"
         mock_fetch.return_value = f'["{traversal_path}"]'
 
         result = suggest_files_with_ollama("title", "body", [], "http://x", "model")
@@ -330,7 +330,7 @@ class TestRunAider:
             run_aider([], "prompt")
         assert exc_info.value.code == 1
 
-    @mock.patch("f_aider_issue_extractor.subprocess.run")
+    @mock.patch("f_implement_issue_with_aider.subprocess.run")
     def test_applies_message_file_then_hands_off_interactively(self, mock_run):
         mock_run.return_value = mock.MagicMock(returncode=0)
         written_paths = []
@@ -348,16 +348,23 @@ class TestRunAider:
         initial_cmd, interactive_cmd = (call.args[0] for call in mock_run.call_args_list)
 
         assert initial_cmd[0] == "aider"
-        assert initial_cmd[1] == "--message-file"
-        message_file_path = Path(initial_cmd[2])
-        assert initial_cmd[3:] == ["file_a.py", "file_b.py"]
+        assert initial_cmd[1:3] == ["--edit-format", "whole"]
+        assert initial_cmd[3] == "--message-file"
+        message_file_path = Path(initial_cmd[4])
+        assert initial_cmd[5:] == ["file_a.py", "file_b.py"]
 
-        assert interactive_cmd == ["aider", "file_a.py", "file_b.py"]
+        assert interactive_cmd == [
+            "aider",
+            "--edit-format",
+            "whole",
+            "file_a.py",
+            "file_b.py",
+        ]
 
         assert written_paths == [message_file_path]
         assert not message_file_path.exists()
 
-    @mock.patch("f_aider_issue_extractor.subprocess.run")
+    @mock.patch("f_implement_issue_with_aider.subprocess.run")
     def test_propagates_nonzero_exit_code_from_initial_apply(self, mock_run):
         mock_run.return_value = mock.MagicMock(returncode=3)
 
@@ -367,7 +374,7 @@ class TestRunAider:
         # A failed initial apply must not proceed to the interactive handoff.
         assert mock_run.call_count == 1
 
-    @mock.patch("f_aider_issue_extractor.subprocess.run")
+    @mock.patch("f_implement_issue_with_aider.subprocess.run")
     def test_propagates_nonzero_exit_code_from_interactive_session(self, mock_run):
         mock_run.side_effect = [mock.MagicMock(returncode=0), mock.MagicMock(returncode=5)]
 
@@ -376,13 +383,13 @@ class TestRunAider:
         assert exc_info.value.code == 5
         assert mock_run.call_count == 2
 
-    @mock.patch("f_aider_issue_extractor.subprocess.run")
+    @mock.patch("f_implement_issue_with_aider.subprocess.run")
     def test_succeeds_silently_when_both_calls_exit_zero(self, mock_run):
         mock_run.return_value = mock.MagicMock(returncode=0)
         run_aider(["file.py"], "prompt")  # should not raise
         assert mock_run.call_count == 2
 
-    @mock.patch("f_aider_issue_extractor.subprocess.run")
+    @mock.patch("f_implement_issue_with_aider.subprocess.run")
     def test_exits_when_aider_not_installed(self, mock_run):
         mock_run.side_effect = FileNotFoundError
 
@@ -391,7 +398,7 @@ class TestRunAider:
         assert exc_info.value.code == 1
         assert mock_run.call_count == 1
 
-    @mock.patch("f_aider_issue_extractor.subprocess.run")
+    @mock.patch("f_implement_issue_with_aider.subprocess.run")
     def test_keyboard_interrupt_exits_cleanly(self, mock_run):
         mock_run.side_effect = KeyboardInterrupt
 
@@ -404,13 +411,13 @@ class TestMainOrdering:
     """The issue's constraint is to fail early if Ollama isn't running, before
     any other work -- these pin that ordering against a regression."""
 
-    @mock.patch("f_aider_issue_extractor.os.chdir")
-    @mock.patch("f_aider_issue_extractor.get_repo_root", return_value="/repo/root")
-    @mock.patch("f_aider_issue_extractor.run_aider")
-    @mock.patch("f_aider_issue_extractor.resolve_files_to_edit")
-    @mock.patch("f_aider_issue_extractor.fetch_issue_from_github")
-    @mock.patch("f_aider_issue_extractor.get_repo_info")
-    @mock.patch("f_aider_issue_extractor.validate_ollama_connection")
+    @mock.patch("f_implement_issue_with_aider.os.chdir")
+    @mock.patch("f_implement_issue_with_aider.get_repo_root", return_value="/repo/root")
+    @mock.patch("f_implement_issue_with_aider.run_aider")
+    @mock.patch("f_implement_issue_with_aider.resolve_files_to_edit")
+    @mock.patch("f_implement_issue_with_aider.fetch_issue_from_github")
+    @mock.patch("f_implement_issue_with_aider.get_repo_info")
+    @mock.patch("f_implement_issue_with_aider.validate_ollama_connection")
     def test_ollama_checked_before_github_fetch(
         self,
         mock_validate,
@@ -436,9 +443,9 @@ class TestMainOrdering:
         mock_run_aider.assert_called_once()
         mock_chdir.assert_called_once_with("/repo/root")
 
-    @mock.patch("f_aider_issue_extractor.fetch_issue_from_github")
-    @mock.patch("f_aider_issue_extractor.get_repo_info")
-    @mock.patch("f_aider_issue_extractor.validate_ollama_connection", return_value=False)
+    @mock.patch("f_implement_issue_with_aider.fetch_issue_from_github")
+    @mock.patch("f_implement_issue_with_aider.get_repo_info")
+    @mock.patch("f_implement_issue_with_aider.validate_ollama_connection", return_value=False)
     def test_exits_before_any_github_io_when_ollama_down(
         self, mock_validate, mock_repo_info, mock_fetch
     ):
@@ -449,9 +456,9 @@ class TestMainOrdering:
         mock_repo_info.assert_not_called()
         mock_fetch.assert_not_called()
 
-    @mock.patch("f_aider_issue_extractor.os.chdir")
-    @mock.patch("f_aider_issue_extractor.get_repo_root", side_effect=ValueError("not a git repo"))
-    @mock.patch("f_aider_issue_extractor.validate_ollama_connection", return_value=True)
+    @mock.patch("f_implement_issue_with_aider.os.chdir")
+    @mock.patch("f_implement_issue_with_aider.get_repo_root", side_effect=ValueError("not a git repo"))
+    @mock.patch("f_implement_issue_with_aider.validate_ollama_connection", return_value=True)
     def test_exits_cleanly_when_repo_root_cannot_be_determined(
         self, mock_validate, mock_get_repo_root, mock_chdir
     ):
@@ -461,12 +468,12 @@ class TestMainOrdering:
         assert exc_info.value.code == 1
         mock_chdir.assert_not_called()
 
-    @mock.patch("f_aider_issue_extractor.os.chdir")
-    @mock.patch("f_aider_issue_extractor.get_repo_root", return_value="/repo/root")
-    @mock.patch("f_aider_issue_extractor.run_aider")
-    @mock.patch("f_aider_issue_extractor.resolve_files_to_edit")
-    @mock.patch("f_aider_issue_extractor.get_repo_info", return_value=("owner", "repo"))
-    @mock.patch("f_aider_issue_extractor.validate_ollama_connection", return_value=True)
+    @mock.patch("f_implement_issue_with_aider.os.chdir")
+    @mock.patch("f_implement_issue_with_aider.get_repo_root", return_value="/repo/root")
+    @mock.patch("f_implement_issue_with_aider.run_aider")
+    @mock.patch("f_implement_issue_with_aider.resolve_files_to_edit")
+    @mock.patch("f_implement_issue_with_aider.get_repo_info", return_value=("owner", "repo"))
+    @mock.patch("f_implement_issue_with_aider.validate_ollama_connection", return_value=True)
     def test_chdirs_to_repo_root_before_resolving_files(
         self,
         mock_validate,

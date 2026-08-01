@@ -142,7 +142,7 @@ def fetch_open_dependabot_prs() -> list[PullRequest]:
             "number,title,headRefName,headRefOid,mergeable,mergeStateStatus,statusCheckRollup",
             "--limit",
             "200",
-        ]
+        ],
     )
     if result.returncode != 0:
         print(f"ERROR: gh pr list failed: {result.stderr}", file=sys.stderr)

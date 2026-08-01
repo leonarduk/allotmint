@@ -86,6 +86,7 @@ def get_github_token() -> str:
             ["gh", "auth", "token"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=5,
         )
         if result.returncode == 0 and result.stdout.strip():
@@ -303,7 +304,7 @@ def create_issue_via_gh(
         for label in labels:
             cmd.extend(["--label", label])
 
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", timeout=30)
 
         if result.returncode != 0:
             print(f"gh CLI failed: {result.stderr.strip()}", file=sys.stderr)

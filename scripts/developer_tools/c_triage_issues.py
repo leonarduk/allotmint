@@ -67,8 +67,8 @@ def run_gh(args: list[str]) -> subprocess.CompletedProcess[str]:
     """Run a `gh` CLI command scoped to REPO_OWNER/REPO_NAME. Never raises.
 
     Retries transient failures (network blips, GraphQL timeouts) up to
-    GH_RETRY_ATTEMPTS times with a linear backoff before returning the
-    last failing result to the caller.
+    GH_RETRY_ATTEMPTS times with a linear backoff before returning the last
+    failing result to the caller.
     """
     result = None
     for attempt in range(1, GH_RETRY_ATTEMPTS + 1):

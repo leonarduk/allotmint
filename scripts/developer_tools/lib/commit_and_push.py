@@ -49,6 +49,7 @@ def get_git_root() -> str:
             ["git", "rev-parse", "--show-toplevel"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=True,
         )
         return result.stdout.strip()
@@ -92,6 +93,7 @@ def get_staged_diff() -> str:
             ["git", "diff", "--cached"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=True,
         )
     except subprocess.CalledProcessError as exc:

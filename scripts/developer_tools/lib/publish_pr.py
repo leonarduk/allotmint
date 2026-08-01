@@ -21,6 +21,7 @@ def get_repo_info() -> tuple[str, str]:
             ["git", "config", "--get", "remote.origin.url"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=True,
         )
         url = result.stdout.strip()
@@ -45,6 +46,7 @@ def get_current_branch() -> str:
             ["git", "rev-parse", "--abbrev-ref", "HEAD"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=True,
         )
         return result.stdout.strip()
@@ -71,6 +73,7 @@ def get_default_branch(owner: str, repo: str) -> str:
             ["gh", "repo", "view", f"{owner}/{repo}", "--json", "defaultBranchRef", "-q", ".defaultBranchRef.name"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=False,
         )
         if result.returncode == 0:
@@ -87,6 +90,7 @@ def check_working_tree_clean() -> bool:
             ["git", "status", "--porcelain"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=True,
         )
         return not result.stdout.strip()
@@ -104,6 +108,7 @@ def get_changed_files(branch: str, default_branch: str = "main") -> list[str]:
             ["git", "diff", "--name-only", "HEAD"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=False,
         )
         if result.returncode == 0 and result.stdout.strip():
@@ -115,6 +120,7 @@ def get_changed_files(branch: str, default_branch: str = "main") -> list[str]:
             ["git", "merge-base", branch, remote_default_branch],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=False,
         )
         if result.returncode == 0:
@@ -123,6 +129,7 @@ def get_changed_files(branch: str, default_branch: str = "main") -> list[str]:
                 ["git", "diff", "--name-only", f"{merge_base}...HEAD"],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
                 check=False,
             )
             if result.returncode == 0 and result.stdout.strip():
@@ -174,6 +181,7 @@ def branch_is_ahead_of_main(branch: str, default_branch: str) -> bool:
             ["git", "rev-list", "--count", f"{default_branch}..{branch}"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=False,
         )
         if result.returncode == 0:
@@ -333,6 +341,7 @@ def find_existing_pr(owner: str, repo: str, branch: str) -> Optional[str]:
         ],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=False,
     )
     if result.returncode == 0:
@@ -385,6 +394,7 @@ def create_pr(
             ],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=False,
         )
 
@@ -411,6 +421,7 @@ def check_gh_available() -> None:
             ["gh", "auth", "status"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=False,
         )
     except FileNotFoundError:
@@ -461,6 +472,7 @@ def main() -> None:
             ["git", "rev-parse", "--show-toplevel"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=True,
         )
         git_root = result.stdout.strip()

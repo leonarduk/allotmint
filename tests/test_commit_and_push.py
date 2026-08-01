@@ -21,8 +21,19 @@ from commit_and_push import (  # noqa: E402
     get_staged_diff,
     has_staged_changes,
     main,
+    refuse_if_main_branch,
     stage_changes,
 )
+
+
+class TestRefuseIfMainBranch:
+    def test_raises_on_main(self):
+        with pytest.raises(SystemExit) as exc_info:
+            refuse_if_main_branch("main")
+        assert exc_info.value.code == 1
+
+    def test_allows_other_branches(self):
+        refuse_if_main_branch("fix/4445-thing")
 
 
 class TestGetGitRoot:
@@ -153,6 +164,35 @@ class TestCommitChanges:
 
 
 class TestMain:
+    @mock.patch("commit_and_push.push_to_remote")
+    @mock.patch("commit_and_push.commit_changes")
+    @mock.patch("commit_and_push.has_staged_changes")
+    @mock.patch("commit_and_push.stage_changes")
+    @mock.patch("commit_and_push.extract_issue_id")
+    @mock.patch("commit_and_push.get_current_branch")
+    @mock.patch("commit_and_push.get_git_root")
+    def test_refuses_to_commit_on_main_branch(
+        self,
+        mock_root,
+        mock_branch,
+        mock_extract,
+        mock_stage,
+        mock_has_staged,
+        mock_commit,
+        mock_push,
+    ):
+        mock_root.return_value = "/repo"
+        mock_branch.return_value = "main"
+
+        with mock.patch("sys.argv", ["commit_and_push.py"]), mock.patch("commit_and_push.os.chdir"):
+            with pytest.raises(SystemExit) as exc_info:
+                main()
+
+        assert exc_info.value.code == 1
+        mock_stage.assert_not_called()
+        mock_commit.assert_not_called()
+        mock_push.assert_not_called()
+
     @mock.patch("commit_and_push.push_to_remote")
     @mock.patch("commit_and_push.commit_changes")
     @mock.patch("commit_and_push.has_staged_changes")

@@ -26,6 +26,21 @@ from llm_common import (  # noqa: E402
 )
 from publish_pr import extract_issue_id, get_current_branch, push_to_remote  # noqa: E402
 
+MAIN_BRANCH = "main"
+
+
+def refuse_if_main_branch(branch: str) -> None:
+    """Exit with guidance if the current branch is the main branch."""
+    if branch != MAIN_BRANCH:
+        return
+    print(
+        f"ERROR: Refusing to commit directly to '{MAIN_BRANCH}'.\n"
+        "Create or switch to a feature/bugfix branch first, e.g.:\n"
+        "    git checkout -b fix/<issue-number>-short-description",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
+
 
 def get_git_root() -> str:
     """Get the root directory of the git repository."""
@@ -194,6 +209,7 @@ def main() -> int:
     os.chdir(get_git_root())
 
     branch = get_current_branch()
+    refuse_if_main_branch(branch)
     issue_id = extract_issue_id(branch)
 
     stage_changes(args.files)

@@ -1,10 +1,10 @@
 {
-  "name": "main deterministic PR gates",
+  "name": "Main",
   "target": "branch",
   "enforcement": "active",
   "conditions": {
     "ref_name": {
-      "include": ["refs/heads/main"],
+      "include": ["~DEFAULT_BRANCH"],
       "exclude": []
     }
   },
@@ -17,13 +17,16 @@
       "type": "non_fast_forward"
     },
     {
+      "type": "copilot_code_review"
+    },
+    {
       "type": "pull_request",
       "parameters": {
-        "required_approving_review_count": 1,
-        "dismiss_stale_reviews_on_push": true,
-        "require_code_owner_review": true,
+        "required_approving_review_count": 0,
+        "dismiss_stale_reviews_on_push": false,
+        "require_code_owner_review": false,
         "require_last_push_approval": false,
-        "required_review_thread_resolution": true,
+        "required_review_thread_resolution": false,
         "allowed_merge_methods": ["merge", "squash", "rebase"]
       }
     },
@@ -31,42 +34,47 @@
       "type": "required_status_checks",
       "parameters": {
         "strict_required_status_checks_policy": true,
+        "do_not_enforce_on_create": false,
         "required_status_checks": [
           {
-            "context": "CI / test"
+            "context": "test",
+            "integration_id": 15368
           },
           {
-            "context": "CI / Frontend lint, type-check and unit tests"
+            "context": "Frontend lint, type-check and unit tests",
+            "integration_id": 15368
           },
           {
-            "context": "CI / CDK infrastructure tests"
+            "context": "CDK infrastructure tests",
+            "integration_id": 15368
           },
           {
-            "context": "CI / Validate backend/requirements.txt (dry-run)"
+            "context": "Validate backend/requirements.txt (dry-run)",
+            "integration_id": 15368
           },
           {
-            "context": "Backend Integration Tests / integration-tests"
+            "context": "Lambda-compat pytest (backend/requirements.txt)",
+            "integration_id": 15368
           },
           {
-            "context": "Frontend Tests / frontend-tests"
+            "context": "Frontend smoke tests (preview build)",
+            "integration_id": 15368
           },
           {
-            "context": "CI / Frontend smoke tests (preview build)"
+            "context": "integration-tests",
+            "integration_id": 15368
           },
           {
-            "context": "PR Body Issue Reference Check / require-issue-reference"
+            "context": "require-issue-reference",
+            "integration_id": 15368
           },
           {
-            "context": "Dependency Review / dependency-review"
+            "context": "Check for merge conflicts with main",
+            "integration_id": 15368
           },
           {
-            "context": "CI / Lambda-compat pytest (backend/requirements.txt)"
-          },
-          {
-            "context": "ai-review / DeepSeek AI code review"
-          },
-          {
-            "context": "Merge Conflict Check / Check for merge conflicts with main"
+            "context": "ai-review / DeepSeek AI code review",
+            "integration_id": 15368
           }
         ]
       }

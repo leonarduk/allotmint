@@ -148,15 +148,17 @@ def test_hygiene_and_lint_jobs_stay_ungated() -> None:
 
 
 def test_required_test_job_keeps_its_context_name() -> None:
-    """ "CI / test" is a required context; a `name:` here would change it.
+    """`test` is a required context; a `name:` here would change it.
 
-    Branch protection matches on the rendered context string. Adding a `name:`
-    to this job renames the context, and the ruleset would then wait forever
-    for a check no workflow produces -- blocking every PR.
+    Branch protection matches on the check-run name, which for an Actions job
+    is its `name:` or, absent that, its job id -- *not* the `Workflow / Job`
+    form the UI displays. Adding a `name:` to this job renames the context, and
+    the ruleset would then wait forever for a check no workflow produces --
+    blocking every PR. See issue #5728.
     """
     assert "name" not in _load("ci.yml")["jobs"]["test"], (
         "ci.yml:test must not declare a `name:`; its required check context is "
-        "the bare job id 'CI / test' in .github/rulesets/default-branch-protection.json"
+        "the bare job id 'test' in .github/rulesets/default-branch-protection.json"
     )
 
 

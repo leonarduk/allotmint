@@ -1,42 +1,107 @@
 # Branch protection required checks
 
-The default branch (`main`) must be protected by the repository ruleset stored in
+The default branch (`main`) is gated by **one** mechanism: the repository
+ruleset stored in
 [`.github/rulesets/default-branch-protection.json`](../.github/rulesets/default-branch-protection.json).
-That ruleset is the source of truth for deterministic merge gates and should be
-kept in sync with GitHub repository settings.
+That file is the source of truth. Classic branch protection must not also set
+required status checks — two live mechanisms with two naming conventions is
+what caused issue #5728, where the checked-in ruleset enforced nothing at all.
+
+## Context naming — read this before editing the ruleset
+
+A required status check matches a GitHub Actions **check-run name**. That is
+**not** the `Workflow / Job` label the Actions UI shows. The rules are:
+
+| Job shape | Check-run name | Example |
+|---|---|---|
+| job with a `name:` | that `name:` | `CDK infrastructure tests` |
+| job without a `name:` | the job id | `test` |
+| job delegating via `uses:` | `<caller job id> / <called job name>` | `ai-review / DeepSeek AI code review` |
+
+Getting this wrong does not fail loudly — it leaves every PR pending forever on
+a check that never arrives. Verify any new context against a real check run
+before adding it:
+
+```bash
+gh api "repos/leonarduk/allotmint/commits/<pr-head-sha>/check-runs?per_page=100" --jq '.check_runs[].name'
+```
 
 ## Required deterministic checks
 
-Require these status checks before a pull request can merge into `main`:
+| Context | Produced by |
+|---|---|
+| `test` | `ci.yml` job `test` (ungated repo hygiene) |
+| `Frontend lint, type-check and unit tests` | `ci.yml` job `frontend-checks` |
+| `CDK infrastructure tests` | `ci.yml` job `cdk-tests` |
+| `Validate backend/requirements.txt (dry-run)` | `ci.yml` job `validate-backend-deps` |
+| `Lambda-compat pytest (backend/requirements.txt)` | `ci.yml` job `lambda-compat` |
+| `Frontend smoke tests (preview build)` | `ci.yml` job `frontend-smoke` |
+| `integration-tests` | `backend-integration.yml` |
+| `require-issue-reference` | `pr-lint.yml` |
+| `Check for merge conflicts with main` | `conflict-check.yml` |
+| `ai-review / DeepSeek AI code review` | `deepseek-pr-review.yml` via `_ai-pr-review.yml` |
 
-- `CI / test`
-- `Backend Integration Tests / integration-tests`
-- `Frontend Tests / frontend-tests`
-- `PR Body Issue Reference Check / require-issue-reference`
-- `Dependency Review / dependency-review`
+If a workflow or job is renamed, update the ruleset, `EXPECTED_REQUIRED_CHECKS`
+in `scripts/check_branch_protection_required_checks.py`, and this document in
+the same pull request.
 
-These names intentionally use the exact `Workflow name / job name` contexts that
-GitHub branch protection expects. If a workflow or job is renamed, update the
-ruleset and this document in the same pull request.
+### Skipped jobs count as passing
+
+Every area-gated job above skips on PRs that cannot affect it, and GitHub
+reports a skipped job as a *passing* required check. That is only safe because
+each gate is written `<area> != 'false'` paired with `!cancelled()`, so a
+classifier failure runs the suite rather than skipping it. Do not "simplify"
+a gate to `== 'true'` — that turns the gate fail-open. See
+`scripts/classify_change.py` and `.github/workflows/_classify-change.yml`.
+
+## Excluded: disabled workflows
+
+`frontend-tests.yml` and `dependency-review.yml` are **disabled** in GitHub
+(`gh workflow list --all` reports `disabled_manually`) and were removed from
+the required list in #5728. A disabled workflow never reports, so requiring one
+blocks every PR permanently. `frontend-tests.yml`'s vitest+coverage run is
+already covered by CI's `Frontend lint, type-check and unit tests`.
+
+Re-enabling either one is a deliberate change that must also fix why it was
+failing, and must remove the file from `DISABLED_WORKFLOW_FILES` in
+`scripts/check_branch_protection_required_checks.py`.
+
+## Review policy
+
+The ruleset requires **0** approving reviews, with no code-owner review, no
+stale-review dismissal and no review-thread resolution. This matches what the
+repository has actually enforced and is deliberate: a solo-maintained repo
+cannot satisfy a 1-approval gate on its own PRs. AI review jobs are advisory
+(below); the deterministic checks above are the real gate.
 
 ## Applying the ruleset
 
-Repository administrators can apply the checked-in ruleset with the GitHub CLI.
-Create it when it does not exist:
+Requires repo admin — the default `GITHUB_TOKEN` cannot write rulesets, so this
+is a human action that CI cannot perform.
 
 ```bash
-gh api --method POST repos/leonarduk/allotmint/rulesets \
-  --input .github/rulesets/default-branch-protection.json
+RULESET_ID=$(gh api repos/leonarduk/allotmint/rulesets --jq '.[] | select(.name == "Main") | .id')
+gh api --method PUT "repos/leonarduk/allotmint/rulesets/${RULESET_ID}" --input .github/rulesets/default-branch-protection.json
 ```
 
-Update it when GitHub already has a ruleset with the same name:
+Create it if no ruleset with that name exists:
 
 ```bash
-RULESET_ID=$(gh api repos/leonarduk/allotmint/rulesets \
-  --jq '.[] | select(.name == "main deterministic PR gates") | .id')
-gh api --method PUT "repos/leonarduk/allotmint/rulesets/${RULESET_ID}" \
-  --input .github/rulesets/default-branch-protection.json
+gh api --method POST repos/leonarduk/allotmint/rulesets --input .github/rulesets/default-branch-protection.json
 ```
+
+Then, on an open PR, confirm the ruleset is genuinely the gate — the PR's merge
+box should list the contexts above as required, and merge should be blocked
+while one of them is red. Only once that is confirmed, drop the duplicate
+required-checks entry from classic protection (this removes *only* the
+required-checks portion; the rest of classic protection is untouched):
+
+```bash
+gh api --method DELETE repos/leonarduk/allotmint/branches/main/protection/required_status_checks
+```
+
+Do not run that command first. Leaving `main` briefly ungated is worse than the
+drift.
 
 ## Advisory checks
 
@@ -44,8 +109,11 @@ AI review jobs are useful review aids, but they depend on external model
 availability and API quotas. Keep these jobs non-blocking and do not add them to
 the required-check ruleset:
 
-- `GPT PR Review / GPT AI code review`
-- `Claude PR Review / Claude AI code review`
+- `ai-review / GPT AI code review`
+- `ai-review / Claude AI code review`
+
+`ai-review / DeepSeek AI code review` is the deliberate exception and *is*
+required.
 
 ## Merge conflict check-run
 
@@ -72,21 +140,31 @@ in the "Checks" tab of long-lived PRs; see the inline comments in
 `conflict-check.yml` for the full investigation history (issue #3738, PR
 #3731).
 
-This check-run is currently advisory (not in the required-checks list above).
-If it is ever added to the ruleset, update this document and the ruleset in
-the same pull request.
-
 ## CodeQL
 
-CodeQL should be added to the required-check set only after a CodeQL workflow is
-configured in this repository and its exact check context is known. Until then,
-it is intentionally absent from the ruleset to avoid documenting a required
-check that GitHub cannot evaluate.
+CodeQL should be added to the required-check set only after its exact check
+context is confirmed against a real check run. Until then, it is intentionally
+absent from the ruleset to avoid documenting a required check that GitHub
+cannot evaluate.
 
 ## Drift detection
 
-`python scripts/check_branch_protection_required_checks.py` verifies that the
-ruleset contains exactly the deterministic checks above, that those checks match
-current workflow/job names, and that advisory AI review jobs remain non-blocking.
-The `CI / test` job runs this script so workflow renames cannot silently weaken
-branch protection.
+Two checkers, because one cannot do both jobs:
+
+| Script | Runs | Sees | Catches |
+|---|---|---|---|
+| `scripts/check_branch_protection_required_checks.py` | the `test` job, every PR | repo files only | a job renamed out from under a required context; a context pointing at a workflow listed as disabled |
+| `scripts/check_live_branch_protection.py` | `branch-protection-drift.yml`, daily | GitHub API (read-only) | the ruleset never being applied, targeting no branches, or having its required checks removed; classic protection re-acquiring required checks; a workflow disabled in the UI |
+
+The live checker needs elevated read access (rulesets are admin-scoped), so it
+runs on a schedule with the `BRANCH_PROTECTION_READ_TOKEN` secret — a
+fine-grained PAT with read-only **Administration** permission — rather than on
+every PR, where a fork PR must never receive a credential. It exits `2` rather
+than `0` when it cannot reach the API, so an expired token fails loudly instead
+of looking like a clean result.
+
+Run it locally with an admin `gh` login:
+
+```bash
+python scripts/check_live_branch_protection.py
+```

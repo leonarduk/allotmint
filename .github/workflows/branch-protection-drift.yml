@@ -1,0 +1,47 @@
+name: Branch Protection Drift
+
+# Compares live GitHub branch protection against
+# .github/rulesets/default-branch-protection.json.
+#
+# Deliberately NOT a PR check. Reading rulesets needs elevated access that the
+# default GITHUB_TOKEN does not have, and a PR from a fork must never receive a
+# PAT. Running on a schedule keeps the credential off the PR path while still
+# catching drift within a day. See issue #5728.
+
+on:
+  schedule:
+    # 07:15 UTC daily -- before the working day, after nightly Dependabot noise.
+    - cron: '15 7 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  drift:
+    name: Compare live branch protection with checked-in ruleset
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: pip install pyyaml
+      # BRANCH_PROTECTION_READ_TOKEN is a fine-grained PAT with read-only
+      # "Administration" repository permission -- the minimum that can read
+      # rulesets. It must never be granted write: this job only reports drift,
+      # and applying a ruleset stays a deliberate human action.
+      #
+      # No fallback to github.token: it cannot read rulesets (they are
+      # admin-scoped), so a fallback would just fail with the same "API
+      # unavailable" exit code as a genuinely missing secret -- masking the
+      # real problem (secret never configured) as if it were transient.
+      - name: Check for drift
+        env:
+          GH_TOKEN: ${{ secrets.BRANCH_PROTECTION_READ_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::BRANCH_PROTECTION_READ_TOKEN is not set. Add a fine-grained PAT with read-only Administration permission -- see docs/BRANCH_PROTECTION.md." >&2
+            exit 1
+          fi
+          python scripts/check_live_branch_protection.py --repo "${{ github.repository }}"

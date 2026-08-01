@@ -33,8 +33,7 @@ from llm_common import (  # noqa: E402
     validate_model_source,
 )
 
-REPO_ROOT_ENV_FILE = Path(__file__).parent.parent.parent / ".env"
-
+REPO_ROOT_ENV_FILE = Path(__file__).resolve().parent.parent.parent / ".env"
 
 def load_env_file(env_path: Path = REPO_ROOT_ENV_FILE) -> None:
     """Load local dev secrets (e.g. DEEPSEEK_API_KEY) from a repo-root .env file.

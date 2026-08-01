@@ -8,7 +8,7 @@ from unittest import mock
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "developer_tools"))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "scripts" / "developer_tools"))
 
 from i_local_review import (
     generate_markdown_report,

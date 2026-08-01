@@ -8,7 +8,7 @@ from unittest import mock
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "developer_tools"))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "scripts" / "developer_tools"))
 from d_work_on_issue import fetch_issue, main, slugify
 
 

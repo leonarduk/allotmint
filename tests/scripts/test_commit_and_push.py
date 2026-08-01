@@ -9,8 +9,8 @@ from unittest import mock
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "developer_tools"))
-sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "developer_tools" / "lib"))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "scripts" / "developer_tools"))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "scripts" / "developer_tools" / "lib"))
 
 from commit_and_push import (  # noqa: E402
     build_commit_prompt,

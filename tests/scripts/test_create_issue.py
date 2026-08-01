@@ -6,8 +6,8 @@ import sys
 from pathlib import Path
 from unittest import mock
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "developer_tools"))
-sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "developer_tools" / "lib"))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "scripts" / "developer_tools"))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "scripts" / "developer_tools" / "lib"))
 
 from b_create_issue import (  # noqa: E402
     build_review_prompt,

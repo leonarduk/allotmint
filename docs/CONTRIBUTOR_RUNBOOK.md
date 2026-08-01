@@ -59,9 +59,12 @@ wall-clock, never coverage:
 3. If the gated job is a required check, update **both**
    `.github/rulesets/default-branch-protection.json` and
    `EXPECTED_REQUIRED_CHECKS` in
-   `scripts/check_branch_protection_required_checks.py` in the same PR — and
-   remember the ruleset JSON is a record of intent, so an admin must also apply
-   it in the repo's GitHub settings.
+   `scripts/check_branch_protection_required_checks.py` in the same PR. Use the
+   job's check-run name (its `name:`, or its job id if it has none) — not the
+   `Workflow / Job` label. An admin must then apply the ruleset in the repo's
+   GitHub settings; until they do, the daily
+   `.github/workflows/branch-protection-drift.yml` run will fail, which is the
+   intended reminder.
 4. `tests/scripts/test_classify_change.py` and
    `tests/scripts/test_ci_area_gating.py` enforce the mapping and the gating
    invariants; extend them alongside the change.
@@ -95,7 +98,7 @@ Notes:
 
 - **JWT namespace conflict**: the `jwt` package (v1.x, from PyPI) and `PyJWT` (listed in `requirements.txt` as `pyjwt`) both install into the `jwt` module namespace. If the standalone `jwt` package is present in your environment it will shadow `PyJWT`, causing `AttributeError: module 'jwt' has no attribute 'encode'` in tests. Fix by running `pip uninstall jwt` before `pip install -r requirements.txt`.
 - Python formatting/lint configuration lives in `backend/pyproject.toml`, while pytest and coverage defaults live in the root `pyproject.toml`.
-- Branch protection required-check policy lives in `docs/BRANCH_PROTECTION.md` and is validated by `python scripts/check_branch_protection_required_checks.py`.
+- Branch protection required-check policy lives in `docs/BRANCH_PROTECTION.md`. It is validated on every PR by `python scripts/check_branch_protection_required_checks.py` (repo files only) and daily against live GitHub settings by `python scripts/check_live_branch_protection.py`. Required contexts are check-run names (`test`), **not** the `Workflow / Job` labels the Actions UI shows.
 - The frontend already has its own `package.json`; use `npm --prefix frontend ...` from the repo root unless you intentionally `cd frontend`.
 
 ## 3. Environment variables you are most likely to need

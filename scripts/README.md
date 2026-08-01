@@ -402,6 +402,38 @@ The path-to-area map lives in `AREA_PATH_RULES` at the top of the script; see
 [docs/CONTRIBUTOR_RUNBOOK.md](../docs/CONTRIBUTOR_RUNBOOK.md#ci-runs-only-the-areas-a-pr-affects)
 for the rules, the fail-safe behaviour, and how to add a new area.
 
+## check_branch_protection_required_checks.py
+
+Offline guard on the merge gate. Reads only repo files, so it runs in `ci.yml`'s
+`test` job on every PR with the default token. Fails when
+`.github/rulesets/default-branch-protection.json` drifts from
+`EXPECTED_REQUIRED_CHECKS`, when a required context matches no workflow job, or
+when one maps to a workflow listed in `DISABLED_WORKFLOW_FILES`.
+
+```bash
+python scripts/check_branch_protection_required_checks.py
+```
+
+## check_live_branch_protection.py
+
+The companion that talks to GitHub. Read-only; fails when the *live* ruleset
+diverges from the checked-in JSON, when classic branch protection also requires
+status checks, or when a required context maps to a workflow GitHub reports as
+disabled. Exits `2` (not `0`) if the API cannot be reached, so a missing or
+expired token never looks like a clean result.
+
+Reading rulesets needs admin-scoped access, so this runs on a schedule
+(`.github/workflows/branch-protection-drift.yml`) rather than on PRs. Locally it
+uses your `gh` login:
+
+```bash
+python scripts/check_live_branch_protection.py --repo leonarduk/allotmint
+```
+
+See [docs/BRANCH_PROTECTION.md](../docs/BRANCH_PROTECTION.md) for the context
+naming rules — required contexts are check-run names (`test`), not the
+`Workflow / Job` labels the Actions UI displays.
+
 ## n_review_issue.py
 
 Review and refresh a single GitHub issue with a local or cloud LLM before work

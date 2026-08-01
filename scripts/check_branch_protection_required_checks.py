@@ -3,6 +3,26 @@
 
 This protects the documented branch protection gate from silently drifting away
 from the deterministic GitHub Actions workflows that are expected to block PRs.
+
+This script is *offline*: it only reads files in the repository, so it can run
+on every PR with the default read-only `GITHUB_TOKEN`. It cannot see what
+GitHub actually enforces -- that comparison lives in
+`scripts/check_live_branch_protection.py`, which needs API access and runs on a
+schedule. Both are needed: this one catches "a job was renamed", the live one
+catches "the ruleset was never applied".
+
+## Context naming
+
+A required status check matches a GitHub Actions **check-run name**, which is:
+
+* the job's `name:` if it has one, otherwise its job id -- e.g. `test`,
+  `CDK infrastructure tests`; **not** the `Workflow / Job` form shown in the
+  Actions UI; and
+* `<caller job id> / <called job name>` for a job that delegates to a reusable
+  workflow via `uses:` -- e.g. `ai-review / DeepSeek AI code review`.
+
+Getting this wrong is not a cosmetic error: a required context that no
+check-run ever produces leaves every PR pending forever. See issue #5728.
 """
 
 from __future__ import annotations
@@ -22,28 +42,40 @@ EXPECTED_REQUIRED_CHECKS = {
     # lockfile platform coverage, extract_verdict/review_common tests). Its
     # context string is the bare job id, so the job must never gain a `name:`
     # and must never be renamed -- see the comment on the job in ci.yml.
-    "CI / test",
+    "test",
     # Area-gated jobs. These skip on PRs that can't affect them, and GitHub
     # reports a skipped job as a passing required check -- which is only safe
     # because every gate is written `<area> != 'false'` with `!cancelled()`,
     # so a classifier failure runs the job rather than skipping it. See
     # scripts/classify_change.py and .github/workflows/_classify-change.yml.
-    "CI / Frontend lint, type-check and unit tests",
+    "Frontend lint, type-check and unit tests",
     # cdk/tests/ against root deps; iac-validation.yml runs the same suite
     # against cdk/requirements.txt. The backend `tests/` suite runs once,
     # under Lambda-pinned deps, in `lambda-compat` below. Keeping each suite
     # to a single dependency set avoids running `tests/` twice per PR
     # (see PR #4464).
-    "CI / CDK infrastructure tests",
-    "CI / Validate backend/requirements.txt (dry-run)",
-    "CI / Lambda-compat pytest (backend/requirements.txt)",
-    "CI / Frontend smoke tests (preview build)",
-    "Backend Integration Tests / integration-tests",
-    "Frontend Tests / frontend-tests",
-    "Merge Conflict Check / Check for merge conflicts with main",
-    "PR Body Issue Reference Check / require-issue-reference",
-    "Dependency Review / dependency-review",
+    "CDK infrastructure tests",
+    "Validate backend/requirements.txt (dry-run)",
+    "Lambda-compat pytest (backend/requirements.txt)",
+    "Frontend smoke tests (preview build)",
+    "integration-tests",
+    "require-issue-reference",
+    "Check for merge conflicts with main",
+    # Reusable-workflow job: the check-run name is `<caller job id> / <called
+    # job name>`, which is why this one alone carries a `/`.
     "ai-review / DeepSeek AI code review",
+}
+
+# Workflows that are disabled in GitHub (`gh workflow list --all` reports
+# `disabled_manually`). A disabled workflow never reports a check-run, so any
+# context it would produce must stay out of the required set or every PR is
+# blocked forever. Removed from the required list in #5728; re-enabling one is
+# a deliberate change that must also fix why it was failing.
+DISABLED_WORKFLOW_FILES = {
+    "frontend-tests.yml",
+    "dependency-review.yml",
+    "siteplan.yml",
+    "super-linter.yml",
 }
 
 
@@ -90,10 +122,20 @@ def resolve_called_workflow_job_names(workflow_path: Path, with_inputs: dict) ->
     return names
 
 
-def workflow_check_contexts() -> set[str]:
+def workflow_check_contexts(exclude_files: set[str] | None = None) -> set[str]:
+    """Return every check-run name the repository's workflows can produce.
+
+    `exclude_files` names workflow files to skip; it defaults to
+    `DISABLED_WORKFLOW_FILES` so a required context can never resolve to a job
+    that will never run. Pass an empty set to see every context, disabled
+    included.
+    """
+    skip = DISABLED_WORKFLOW_FILES if exclude_files is None else exclude_files
     contexts: set[str] = set()
 
     for workflow_path in WORKFLOWS_DIR.glob("*.yml"):
+        if workflow_path.name in skip:
+            continue
         try:
             workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
         except yaml.YAMLError as exc:
@@ -101,9 +143,8 @@ def workflow_check_contexts() -> set[str]:
             continue
         if not isinstance(workflow, dict):
             continue
-        workflow_name = workflow.get("name")
         jobs = workflow.get("jobs")
-        if not isinstance(workflow_name, str) or not isinstance(jobs, dict):
+        if not isinstance(jobs, dict):
             continue
         for job_id, job in jobs.items():
             uses = job.get("uses") if isinstance(job, dict) else None
@@ -116,7 +157,7 @@ def workflow_check_contexts() -> set[str]:
                 continue
             job_name = job.get("name") if isinstance(job, dict) else None
             display_name = job_name if isinstance(job_name, str) else job_id
-            contexts.add(f"{workflow_name} / {display_name}")
+            contexts.add(display_name)
 
     return contexts
 
@@ -134,9 +175,17 @@ def main() -> int:
         if unexpected:
             errors.append(f"Ruleset has unexpected required checks: {unexpected}")
 
-    missing_workflows = sorted(required_contexts - available_contexts)
+    missing_workflows = set(required_contexts) - available_contexts
     if missing_workflows:
-        errors.append(f"Required checks do not match workflow/job names: {missing_workflows}")
+        disabled_contexts = workflow_check_contexts(exclude_files=set()) - available_contexts
+        blocked = sorted(missing_workflows & disabled_contexts)
+        unknown = sorted(missing_workflows - disabled_contexts)
+        if blocked:
+            errors.append(
+                "Required checks map to disabled workflows and can never report: " f"{blocked}"
+            )
+        if unknown:
+            errors.append(f"Required checks do not match workflow/job names: {unknown}")
 
     if errors:
         for error in errors:

@@ -25,10 +25,12 @@ jobs:
   # drifting away from the jobs below, so it must run even on a change that
   # affects no test area.
   #
-  # Do NOT add a `name:` here and do not rename the job id. This job's check
-  # context is literally "CI / test" in
-  # .github/rulesets/default-branch-protection.json; renaming it would leave
-  # branch protection waiting forever for a context no workflow produces.
+  # Do NOT add a `name:` here and do not rename the job id. GitHub matches a
+  # required status check against the *check-run name*, which for a job without
+  # a `name:` is the bare job id -- so this job's context is literally "test"
+  # in .github/rulesets/default-branch-protection.json, not "CI / test".
+  # Renaming it (or adding a `name:`) would leave branch protection waiting
+  # forever for a context no workflow produces. See issue #5728.
   test:
     runs-on: ubuntu-latest
     steps:

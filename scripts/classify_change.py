@@ -91,6 +91,7 @@ AREA_PATH_RULES: tuple[tuple[str, frozenset[str]], ...] = (
     # must never narrow the suite that validates it.
     ("scripts/classify_change.py", _ALL_AREAS),
     ("scripts/check_branch_protection_required_checks.py", _ALL_AREAS),
+    ("scripts/check_live_branch_protection.py", _ALL_AREAS),
     (".github/**", _ALL_AREAS),
     # -- Shell / container / deploy tooling. -------------------------------
     ("scripts/bash/**", frozenset({"shell"})),

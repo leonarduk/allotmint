@@ -22,3 +22,17 @@ def get_repo_info() -> tuple[str, str]:
     if match:
         return match.group(1), match.group(2)
     raise ValueError("Could not determine GitHub repo from git remote origin")
+
+
+def get_repo_root() -> str:
+    """Return the absolute path to the current git repository's root."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        raise ValueError(f"Could not determine repo root from git: {exc}") from exc
+    return result.stdout.strip()

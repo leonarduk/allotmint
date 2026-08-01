@@ -191,7 +191,10 @@ The script:
    extracts any file paths already mentioned in the issue body
 3. If no file paths are found, asks a local Ollama model to suggest which
    repo files are relevant
-4. Prints the resulting file list and formulated prompt for confirmation
+4. Prints the resulting file list, plus a trimmed prompt for confirmation
+   (title, `What`, `How`, `Constraints`, `Success`) -- `Why`, `Files
+   Affected`, and `Failure` are left out since they aren't actionable for
+   a coding LLM or are already covered by the file list
 5. On confirmation, adds the files to `aider` and hands off interactive
    control to it
 

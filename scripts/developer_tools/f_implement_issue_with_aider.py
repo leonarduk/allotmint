@@ -213,13 +213,16 @@ def extract_file_paths_from_issue(
     paths = []
 
     # Match common path patterns: src/foo.ts, backend/app.py, etc. Paths are
-    # also allowed right after '[' or '(' so markdown link syntax like
-    # "[backend/app.py](https://...)" -- common in "Files Affected" sections
-    # generated from issue templates -- is recognized, not just bare paths.
+    # also allowed right after '[', '(', or '`' so markdown link syntax like
+    # "[backend/app.py](https://...)" and the repo's own "Files Affected"
+    # template convention "- `backend/app.py`" (the standard format produced
+    # by every issue template in this repo) are both recognized, not just
+    # bare paths -- a backtick-wrapped bullet was previously never matched at
+    # all, silently producing zero extracted files for a well-formed issue.
     # Longer extensions must be listed before their prefixes (tsx before ts,
     # jsx before js) -- regex alternation takes the first match, so "ts"
     # would otherwise win over "tsx" and truncate the captured path.
-    pattern = r"(?:^|[\s\[\(])([a-zA-Z0-9._/\-]+\.(?:tsx|ts|py|jsx|js|css|md|yaml|yml|json))"
+    pattern = r"(?:^|[\s\[\(`])([a-zA-Z0-9._/\-]+\.(?:tsx|ts|py|jsx|js|css|md|yaml|yml|json))"
     matches = re.finditer(pattern, issue_body, re.MULTILINE)
 
     for match in matches:

@@ -107,6 +107,12 @@ export let API_BASE: string = (() => {
   }
 })();
 
+// Surface which backend this instance is talking to, so it's obvious in the
+// browser console when running multiple local frontend/backend pairs (#5760).
+if (import.meta.env.DEV) {
+  console.info(`[allotmint] Connecting to backend at ${API_BASE}`);
+}
+
 export const getApiBase = () => API_BASE;
 
 export const setApiBase = (value: string | null | undefined) => {

@@ -182,6 +182,29 @@ function Coalesce([object]$value, [object]$fallback) {
   return $fallback
 }
 
+function Test-PortFree([int]$Port) {
+  try {
+    $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, $Port)
+    $listener.Start()
+    $listener.Stop()
+    return $true
+  } catch {
+    return $false
+  }
+}
+
+# Finds the first free port at or after $StartPort so multiple local
+# instances (e.g. separate worktrees/clones) can run side by side without
+# clashing (see #5760).
+function Find-FreePort([int]$StartPort, [int]$MaxTries = 100) {
+  $port = $StartPort
+  for ($i = 0; $i -lt $MaxTries; $i++) {
+    if (Test-PortFree $port) { return $port }
+    $port++
+  }
+  return $StartPort
+}
+
 function Read-YamlSimple([string]$path) {
   # Minimal YAML parser supporting nested hashtables via indentation (scalars only; ignores lists)
   $result = @{}
@@ -373,7 +396,19 @@ if (-not $uvicornAvailable) {
 # ───────────── env + defaults (PS 5.1) ────────
 $env:ALLOTMINT_ENV = Get-ConfigValue $cfg @('server','app_env') 'local'
 $env:DATA_ROOT = Coalesce $env:DATA_ROOT (Coalesce $cfg.paths.data_root 'data')
-$port      = Get-ConfigValue $cfg @('server','uvicorn_port') $Port
+$configuredPort = Get-ConfigValue $cfg @('server','uvicorn_port') $Port
+$port      = $configuredPort
+if (-not $env:UVICORN_PORT_FIXED) {
+  $port = Find-FreePort $configuredPort
+  if ($port -ne $configuredPort) {
+    Write-Host "Port $configuredPort is in use; using $port instead" -ForegroundColor Yellow
+  }
+}
+
+$portFileDir = Join-Path $REPO_ROOT '.local\ports'
+New-Item -ItemType Directory -Force -Path $portFileDir | Out-Null
+Set-Content -Path (Join-Path $portFileDir 'backend.port') -Value $port -NoNewline
+
 $logConfig = Get-ConfigValue $cfg @('paths','log_config') 'backend/logging.ini'
 $resolvedLogConfig = $null
 if (Test-Path $logConfig) {
@@ -405,7 +440,7 @@ if (-not $offline) {
 }
 
 # ───────────── start server ───────────────────
-Write-Host "Starting AllotMint Local API on http://localhost:$port ..." -ForegroundColor Green
+Write-Host "Starting AllotMint Local API on http://localhost:$port ... (recorded in .local/ports/backend.port)" -ForegroundColor Green
 
 $arguments = @(
   'backend.local_api.main:app',

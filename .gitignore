@@ -52,6 +52,9 @@ data/*
 !data/queries/
 !data/queries/**
 
+# Local dev instance port coordination (see #5760)
+/.local/
+
 # Logs
 backend.log
 /tests/.coverage

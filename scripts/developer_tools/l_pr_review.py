@@ -42,6 +42,7 @@ def get_repo_info() -> tuple[str, str]:
             ["git", "config", "--get", "remote.origin.url"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=True,
         )
         url = result.stdout.strip()
@@ -77,6 +78,7 @@ def fetch_pr_details(owner: str, repo: str, pr_id: int) -> dict:
             ],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=True,
         )
         return json.loads(result.stdout)
@@ -95,6 +97,7 @@ def fetch_pr_diff(owner: str, repo: str, pr_id: int) -> str:
             ["gh", "pr", "diff", str(pr_id), "--repo", f"{owner}/{repo}"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=True,
         )
         return filter_binary_files(result.stdout)
@@ -135,6 +138,7 @@ def extract_issue_body(pr_body: str, owner: str, repo: str) -> str:
                     ],
                     capture_output=True,
                     text=True,
+                    encoding="utf-8",
                     check=True,
                 )
                 issue = json.loads(result.stdout)

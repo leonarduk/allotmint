@@ -36,6 +36,7 @@ def get_git_root() -> str:
             ["git", "rev-parse", "--show-toplevel"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=True,
         )
         return result.stdout.strip()
@@ -51,6 +52,7 @@ def get_current_branch() -> str:
             ["git", "rev-parse", "--abbrev-ref", "HEAD"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=True,
         )
         return result.stdout.strip()
@@ -73,6 +75,7 @@ def get_local_diff(target_branch: str = "main") -> str:
             ["git", "diff", f"{target_branch}...HEAD"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=True,
         )
         diff = result.stdout
@@ -82,6 +85,7 @@ def get_local_diff(target_branch: str = "main") -> str:
             ["git", "diff", "HEAD"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=True,
         )
         if result.stdout:
@@ -92,6 +96,7 @@ def get_local_diff(target_branch: str = "main") -> str:
             ["git", "ls-files", "--others", "--exclude-standard"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=True,
         )
         untracked = result.stdout.strip()

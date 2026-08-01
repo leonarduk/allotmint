@@ -53,6 +53,7 @@ def get_main_branch_sha(owner: str, repo: str) -> str:
             ["git", "rev-parse", "origin/main"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=False,
         )
         if result.returncode == 0:
@@ -61,6 +62,7 @@ def get_main_branch_sha(owner: str, repo: str) -> str:
             ["git", "rev-parse", "origin/master"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=True,
         )
         return result.stdout.strip()

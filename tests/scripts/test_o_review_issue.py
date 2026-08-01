@@ -220,6 +220,45 @@ def test_prompt_for_disposition_aborts_on_eof(monkeypatch):
     assert n.prompt_for_disposition() == ("abort", None)
 
 
+def test_files_affected_is_unresolved_true_for_unknown():
+    body = "## What\ntext\n\n## Files Affected\nUnknown\n\n## Constraints\nnone\n"
+    assert n.files_affected_is_unresolved(body)
+
+
+def test_files_affected_is_unresolved_true_for_empty_section():
+    body = "## What\ntext\n\n## Files Affected\n\n## Constraints\nnone\n"
+    assert n.files_affected_is_unresolved(body)
+
+
+def test_files_affected_is_unresolved_false_when_paths_present():
+    body = "## Files Affected\n- `real/path.py`\n"
+    assert not n.files_affected_is_unresolved(body)
+
+
+def test_files_affected_is_unresolved_false_when_section_missing():
+    assert not n.files_affected_is_unresolved("## What\nno such section\n")
+
+
+def test_post_unresolved_files_comment_dry_run_skips_gh_call(monkeypatch):
+    def fail_if_called(*a, **k):
+        raise AssertionError("gh should not be called in dry-run mode")
+
+    monkeypatch.setattr(n.subprocess, "run", fail_if_called)
+    assert n.post_unresolved_files_comment("owner", "repo", 1, dry_run=True) is True
+
+
+def test_post_unresolved_files_comment_success(monkeypatch):
+    monkeypatch.setattr(n.subprocess, "run", lambda *a, **k: _FakeResult(returncode=0))
+    assert n.post_unresolved_files_comment("owner", "repo", 1, dry_run=False) is True
+
+
+def test_post_unresolved_files_comment_reports_failure(monkeypatch):
+    monkeypatch.setattr(
+        n.subprocess, "run", lambda *a, **k: _FakeResult(returncode=1, stderr="boom")
+    )
+    assert n.post_unresolved_files_comment("owner", "repo", 1, dry_run=False) is False
+
+
 def test_list_repo_files_returns_tracked_paths(git_repo):
     files = n.list_repo_files(git_repo)
     assert "README.md" in files

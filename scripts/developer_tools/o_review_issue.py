@@ -414,6 +414,64 @@ def update_issue(owner: str, repo: str, number: int, title: str, body: str, dry_
     return True
 
 
+UNRESOLVED_FILES_COMMENT = (
+    "\U0001f916 Automated issue review: this tool could not confidently locate any file in "
+    "the repository matching the symbols/files referenced in this issue. The referenced code "
+    "may have been renamed, moved, or removed since the issue was filed. `Files Affected` has "
+    'been left as "Unknown" -- please investigate and confirm the correct file(s) before this '
+    "issue is implemented."
+)
+
+
+def files_affected_is_unresolved(body: str) -> bool:
+    """Return True when the '## Files Affected' section has no confirmed path.
+
+    apply_known_file_paths() always writes either real resolved paths or the literal
+    "Unknown" into this section, so an empty/"Unknown" section means the file finder
+    found nothing it could confirm against the repo -- this issue can't be reliably
+    auto-implemented until a human identifies the correct file(s).
+    """
+    match = re.search(
+        r"^##\s+Files Affected\s*\n(.*?)(?=^##\s+|\Z)", body, re.MULTILINE | re.DOTALL
+    )
+    if not match:
+        return False
+    content = match.group(1).strip()
+    return content == "" or content.lower() == "unknown"
+
+
+def post_unresolved_files_comment(owner: str, repo: str, number: int, dry_run: bool) -> bool:
+    """Post a comment flagging that Files Affected couldn't be resolved. Returns success."""
+    if dry_run:
+        print(f"[DRY RUN] Would comment on issue #{number} that Files Affected is unresolved.")
+        return True
+
+    result = subprocess.run(
+        [
+            "gh",
+            "issue",
+            "comment",
+            str(number),
+            "--repo",
+            f"{owner}/{repo}",
+            "--body",
+            UNRESOLVED_FILES_COMMENT,
+        ],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+    )
+    if result.returncode != 0:
+        print(
+            f"ERROR: Failed to comment on issue #{number}: {result.stderr.strip()}",
+            file=sys.stderr,
+        )
+        return False
+    print(f"[OK] Commented on issue #{number} about unresolved files.")
+    return True
+
+
 def prompt_for_issue_number() -> int:
     """Interactively prompt for an issue number."""
     try:
@@ -525,6 +583,15 @@ def main() -> int:
                 file=sys.stderr,
             )
 
+        unresolved_files = files_affected_is_unresolved(new_body)
+        if unresolved_files:
+            print(
+                f"WARNING: Could not confidently identify which files issue #{issue_id} "
+                "affects; it cannot be reliably auto-implemented until a human investigates. "
+                "A comment noting this will be added to the issue.",
+                file=sys.stderr,
+            )
+
         if new_title == title and new_body == body:
             return 0
 
@@ -539,7 +606,11 @@ def main() -> int:
             return 0
         print("INFO: Re-reviewing with your feedback...", file=sys.stderr)
 
-    return 0 if update_issue(owner, repo, issue_id, new_title, new_body, args.dry_run) else 1
+    if not update_issue(owner, repo, issue_id, new_title, new_body, args.dry_run):
+        return 1
+    if unresolved_files:
+        return 0 if post_unresolved_files_comment(owner, repo, issue_id, args.dry_run) else 1
+    return 0
 
 
 if __name__ == "__main__":

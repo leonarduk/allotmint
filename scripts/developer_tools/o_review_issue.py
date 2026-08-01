@@ -117,6 +117,14 @@ The user reviewed a previous revision and gave this feedback -- incorporate it:
 {feedback}
 """
 
+# Section headings in an issue *body* may use any level from '##' to '######' -- some
+# issues (and some model rewrites) use a deeper level than the template's canonical
+# '##' for subsections (#5820: an issue with '### Why', '### How', etc. throughout had
+# every one of those sections misreported as "missing" because the check only matched
+# a literal '##'). Every pattern here that scans an existing body tolerates '#{2,6}';
+# newly *inserted* headings still always emit canonical '##'.
+_SECTION_HEADING = r"#{2,6}"
+
 
 def load_template_sections(template_path: Path = BUG_REPORT_TEMPLATE_PATH) -> list[str]:
     """Extract the ordered '## Section' headings from a GitHub issue template.
@@ -133,8 +141,8 @@ def load_template_sections(template_path: Path = BUG_REPORT_TEMPLATE_PATH) -> li
 
 
 def missing_sections(body: str, sections: list[str]) -> list[str]:
-    """Return the required sections that have no '## <Section>' heading in body."""
-    present = set(re.findall(r"^##\s+(.+?)\s*$", body, re.MULTILINE))
+    """Return the required sections that have no heading (any level) in body."""
+    present = set(re.findall(rf"^{_SECTION_HEADING}\s+(.+?)\s*$", body, re.MULTILINE))
     return [section for section in sections if section not in present]
 
 
@@ -165,8 +173,22 @@ def fetch_issue(owner: str, repo: str, number: int) -> dict:
     return json.loads(result.stdout)
 
 
-# Extensions searched for when an issue mentions a bare filename like 'foo.py'.
-CODE_FILE_EXTENSIONS = ("tsx", "ts", "py", "jsx", "js", "css", "md", "yaml", "yml", "json")
+# Extensions searched for when an issue mentions a bare filename like 'foo.py'. Includes
+# ps1/sh since this repo ships both PowerShell and bash developer_tools scripts.
+CODE_FILE_EXTENSIONS = (
+    "tsx",
+    "ts",
+    "py",
+    "jsx",
+    "js",
+    "css",
+    "md",
+    "yaml",
+    "yml",
+    "json",
+    "ps1",
+    "sh",
+)
 
 # Symbol names (functions/classes) must be at least this many characters to be worth a
 # repo-wide `git grep` -- short backticked tokens (`id`, `db`) are too noisy to search.
@@ -188,6 +210,22 @@ def list_repo_files(repo_root: Path) -> list[str]:
     return [line.strip() for line in result.stdout.splitlines() if line.strip()]
 
 
+def strip_files_affected_section(text: str) -> str:
+    """Remove any existing '## Files Affected' section from issue text.
+
+    A prior review pass may have written incorrect, stale, or overly broad paths into
+    this section. Searching that text for "mentions" to re-confirm would let a bad
+    entry re-justify itself on every future re-review (#5829) -- so file/symbol
+    hints are only ever resolved from the issue's substantive prose, not its own
+    previous output.
+    """
+    pattern = re.compile(
+        rf"^{_SECTION_HEADING}\s+Files Affected\s*\n.*?(?=^{_SECTION_HEADING}\s+|\Z)",
+        re.MULTILINE | re.DOTALL,
+    )
+    return pattern.sub("", text)
+
+
 def find_repo_file_hints(text: str, repo_root: Path) -> dict[str, list[str]]:
     """Resolve filenames/symbols mentioned in issue text to real repo-relative paths.
 
@@ -196,7 +234,15 @@ def find_repo_file_hints(text: str, repo_root: Path) -> dict[str, list[str]]:
     any file it's asked to cite. This grounds the prompt by searching the actual
     checkout for tracked files matching a bare filename, or containing a def/class
     matching a backticked symbol name, mentioned in the issue.
+
+    A name is only resolved when it maps to exactly one file. A name that matches
+    several files (a common filename reused across directories, a symbol name
+    defined in more than one module) is ambiguous rather than wrong, but including
+    every candidate is what caused the file finder to flood "Files Affected" with
+    irrelevant matches (#5829) -- so ambiguous names are left unresolved rather than
+    guessed.
     """
+    text = strip_files_affected_section(text)
     hints: dict[str, list[str]] = {}
 
     repo_files = list_repo_files(repo_root)
@@ -210,7 +256,7 @@ def find_repo_file_hints(text: str, repo_root: Path) -> dict[str, list[str]]:
         if filename in hints:
             continue
         matches = files_by_basename.get(filename)
-        if matches:
+        if matches and len(matches) == 1:
             hints[filename] = matches
 
     for match in re.finditer(r"`([A-Za-z_][A-Za-z0-9_]*)`", text):
@@ -226,7 +272,7 @@ def find_repo_file_hints(text: str, repo_root: Path) -> dict[str, list[str]]:
             check=False,
         )
         matches = [line.strip() for line in result.stdout.splitlines() if line.strip()]
-        if matches:
+        if len(matches) == 1:
             hints[symbol] = matches
 
     return hints
@@ -236,31 +282,49 @@ def format_file_hints(hints: dict[str, list[str]]) -> str:
     """Render resolved file hints as a bullet list for the review prompt, or "" if empty."""
     if not hints:
         return ""
-    lines = []
-    for name, paths in hints.items():
-        joined = ", ".join(f"`{path}`" for path in paths[:5])
-        lines.append(f"- `{name}` -> {joined}")
+    lines = [f"- `{name}` -> `{paths[0]}`" for name, paths in hints.items()]
     return FILE_HINTS_SECTION_TEMPLATE.format(hints="\n".join(lines))
 
 
-def apply_known_file_paths(body: str, file_hints: dict[str, list[str]]) -> str:
-    """Overwrite the '## Files Affected' section with paths resolved by find_repo_file_hints().
+def apply_known_file_paths(
+    body: str,
+    file_hints: dict[str, list[str]],
+    sections: list[str] | None = None,
+) -> str:
+    """Always rewrite the '## Files Affected' section deterministically, never the model's text.
 
-    Small local models are unreliable at copying exact paths back out of the prompt's hint
-    block -- they tend to play it safe and write "Unknown" rather than risk echoing it wrong.
-    Once we've resolved real paths ourselves, write them into the section directly instead of
-    trusting the model to transcribe them.
+    Both local and cloud models will guess a plausible, real, but wrong file (#5632: `backend/
+    app.py` exists, but isn't where the issue's symbol is defined) rather than admit they don't
+    know -- the "write Unknown if unresolved" instruction in the prompt is advisory, not
+    enforced. So the model's own "Files Affected" text is never trusted here: this always
+    replaces it with paths confidently resolved by find_repo_file_hints(), or with the literal
+    "Unknown" when nothing resolved, so an unverified guess can never survive into the issue.
+
+    A model will also sometimes drop the section heading entirely rather than leave it empty
+    (#5650) -- in that case it's inserted at its canonical position (from `sections`, the
+    template's section order) ahead of whichever required section comes next, or appended to
+    the end of the body if no later section is present either.
     """
-    if not file_hints:
-        return body
     paths = sorted({path for matches in file_hints.values() for path in matches})
-    if not paths:
-        return body
-    bullet_list = "\n".join(f"- `{path}`" for path in paths)
-    pattern = re.compile(r"(^##\s+Files Affected\s*\n)(.*?)(?=^##\s+|\Z)", re.MULTILINE | re.DOTALL)
-    if not pattern.search(body):
-        return body
-    return pattern.sub(lambda m: m.group(1) + bullet_list + "\n\n", body, count=1)
+    replacement = "\n".join(f"- `{path}`" for path in paths) if paths else "Unknown"
+
+    pattern = re.compile(
+        rf"(^{_SECTION_HEADING}\s+Files Affected\s*\n)(.*?)(?=^{_SECTION_HEADING}\s+|\Z)",
+        re.MULTILINE | re.DOTALL,
+    )
+    if pattern.search(body):
+        return pattern.sub(lambda m: m.group(1) + replacement + "\n\n", body, count=1)
+
+    section_block = f"## Files Affected\n{replacement}\n\n"
+    sections = sections if sections is not None else load_template_sections()
+    if "Files Affected" in sections:
+        for later_section in sections[sections.index("Files Affected") + 1 :]:
+            match = re.search(
+                rf"^{_SECTION_HEADING}\s+{re.escape(later_section)}\s*$", body, re.MULTILINE
+            )
+            if match:
+                return body[: match.start()] + section_block + body[match.start() :]
+    return body.rstrip("\n") + "\n\n" + section_block.rstrip("\n") + "\n"
 
 
 def build_review_prompt(
@@ -384,6 +448,70 @@ def update_issue(owner: str, repo: str, number: int, title: str, body: str, dry_
     return True
 
 
+UNRESOLVED_FILES_COMMENT = (
+    "\U0001f916 Automated issue review: this tool could not confidently locate any file in "
+    "the repository matching the symbols/files referenced in this issue. The referenced code "
+    "may have been renamed, moved, or removed since the issue was filed. `Files Affected` has "
+    'been left as "Unknown" -- please investigate and confirm the correct file(s) before this '
+    "issue is implemented."
+)
+
+
+def files_affected_is_unresolved(body: str) -> bool:
+    """Return True when the '## Files Affected' section has no confirmed path.
+
+    apply_known_file_paths() always writes either real resolved paths or the literal
+    "Unknown" into this section (inserting it if the model dropped it entirely), so
+    in the normal main() flow this is always called on a body that already has the
+    section. But the heading being missing altogether is itself an unresolved state
+    (#5845) -- treating it as resolved (the old behavior) would let a malformed or
+    pre-template body silently skip the unresolved-files CLI warning and issue
+    comment if this were ever called before apply_known_file_paths, or on a body
+    that bypassed it.
+    """
+    match = re.search(
+        rf"^{_SECTION_HEADING}\s+Files Affected\s*\n(.*?)(?=^{_SECTION_HEADING}\s+|\Z)",
+        body,
+        re.MULTILINE | re.DOTALL,
+    )
+    if not match:
+        return True
+    content = match.group(1).strip()
+    return content == "" or content.lower() == "unknown"
+
+
+def post_unresolved_files_comment(owner: str, repo: str, number: int, dry_run: bool) -> bool:
+    """Post a comment flagging that Files Affected couldn't be resolved. Returns success."""
+    if dry_run:
+        print(f"[DRY RUN] Would comment on issue #{number} that Files Affected is unresolved.")
+        return True
+
+    result = subprocess.run(
+        [
+            "gh",
+            "issue",
+            "comment",
+            str(number),
+            "--repo",
+            f"{owner}/{repo}",
+            "--body",
+            UNRESOLVED_FILES_COMMENT,
+        ],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+    )
+    if result.returncode != 0:
+        print(
+            f"ERROR: Failed to comment on issue #{number}: {result.stderr.strip()}",
+            file=sys.stderr,
+        )
+        return False
+    print(f"[OK] Commented on issue #{number} about unresolved files.")
+    return True
+
+
 def prompt_for_issue_number() -> int:
     """Interactively prompt for an issue number."""
     try:
@@ -495,7 +623,16 @@ def main() -> int:
                 file=sys.stderr,
             )
 
-        if new_title == title and new_body == body:
+        unresolved_files = files_affected_is_unresolved(new_body)
+        if unresolved_files:
+            print(
+                f"WARNING: Could not confidently identify which files issue #{issue_id} "
+                "affects; it cannot be reliably auto-implemented until a human investigates. "
+                "A comment noting this will be added to the issue.",
+                file=sys.stderr,
+            )
+
+        if new_title == title and new_body.rstrip() == body.rstrip():
             return 0
 
         if args.yes:
@@ -509,7 +646,14 @@ def main() -> int:
             return 0
         print("INFO: Re-reviewing with your feedback...", file=sys.stderr)
 
-    return 0 if update_issue(owner, repo, issue_id, new_title, new_body, args.dry_run) else 1
+    if not update_issue(owner, repo, issue_id, new_title, new_body, args.dry_run):
+        return 1
+    # A failure here is reported (post_unresolved_files_comment prints its own ERROR) but
+    # is not fatal: the issue's title/body update above already succeeded, and a failed
+    # advisory comment shouldn't make a successful update report as an overall failure (#5847).
+    if unresolved_files:
+        post_unresolved_files_comment(owner, repo, issue_id, args.dry_run)
+    return 0
 
 
 if __name__ == "__main__":

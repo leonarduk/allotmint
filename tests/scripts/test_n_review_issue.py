@@ -113,3 +113,69 @@ def test_update_issue_reports_failure(monkeypatch):
 def test_update_issue_success(monkeypatch):
     monkeypatch.setattr(n.subprocess, "run", lambda *a, **k: _FakeResult(returncode=0))
     assert n.update_issue("owner", "repo", 1, "title", "body", dry_run=False) is True
+
+
+def test_load_template_sections_reads_real_bug_report_template():
+    sections = n.load_template_sections()
+    assert sections == [
+        "What",
+        "Why",
+        "How",
+        "Constraints",
+        "LLM tier",
+        "Success looks like",
+        "Failure looks like",
+    ]
+
+
+def test_load_template_sections_falls_back_when_file_missing(tmp_path):
+    missing = tmp_path / "does_not_exist.md"
+    assert n.load_template_sections(missing) == n.FALLBACK_TEMPLATE_SECTIONS
+
+
+def test_missing_sections_detects_gaps():
+    body = "## What\nsome text\n\n## Why\nreason\n"
+    assert n.missing_sections(body, ["What", "Why", "How"]) == ["How"]
+
+
+def test_missing_sections_empty_when_all_present():
+    body = "## What\ntext\n\n## Why\ntext\n"
+    assert n.missing_sections(body, ["What", "Why"]) == []
+
+
+def test_build_review_prompt_has_no_feedback_section_by_default():
+    prompt = n.build_review_prompt("title", "## What\nbody")
+    assert "The user reviewed a previous revision" not in prompt
+    assert "'## What'" in prompt
+
+
+def test_build_review_prompt_includes_feedback_when_given():
+    prompt = n.build_review_prompt("title", "## What\nbody", feedback="please add repro steps")
+    assert "The user reviewed a previous revision" in prompt
+    assert "please add repro steps" in prompt
+
+
+def test_prompt_for_disposition_apply_on_blank_or_y(monkeypatch):
+    for answer in ("", "y", "Yes"):
+        monkeypatch.setattr("builtins.input", lambda _prompt, a=answer: a)
+        assert n.prompt_for_disposition() == ("apply", None)
+
+
+def test_prompt_for_disposition_abort_on_n(monkeypatch):
+    monkeypatch.setattr("builtins.input", lambda _prompt: "n")
+    assert n.prompt_for_disposition() == ("abort", None)
+
+
+def test_prompt_for_disposition_treats_other_text_as_feedback(monkeypatch):
+    monkeypatch.setattr("builtins.input", lambda _prompt: "please tighten the Why section")
+    action, feedback = n.prompt_for_disposition()
+    assert action == "retry"
+    assert feedback == "please tighten the Why section"
+
+
+def test_prompt_for_disposition_aborts_on_eof(monkeypatch):
+    def _raise_eof(_prompt):
+        raise EOFError
+
+    monkeypatch.setattr("builtins.input", _raise_eof)
+    assert n.prompt_for_disposition() == ("abort", None)

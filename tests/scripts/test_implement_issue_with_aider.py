@@ -92,7 +92,9 @@ class TestIsSafeRelativePath:
         assert is_safe_relative_path("/etc/passwd") is False
 
     def test_accepts_plain_relative_path(self):
-        assert is_safe_relative_path("scripts/developer_tools/f_implement_issue_with_aider.py") is True
+        assert (
+            is_safe_relative_path("scripts/developer_tools/f_implement_issue_with_aider.py") is True
+        )
 
 
 class TestExtractFilePathsFromIssue:
@@ -130,9 +132,25 @@ class TestExtractFilePathsFromIssue:
     def test_does_not_truncate_jsx_extension_to_js(self):
         # No .jsx fixture exists in-repo, so exercise the regex directly
         # rather than depending on Path.exists() filtering.
-        pattern = r"(?:^|[\s\[\(])([a-zA-Z0-9._/\-]+\.(?:tsx|ts|py|jsx|js|css|md|yaml|yml|json))"
+        pattern = r"(?:^|[\s\[\(`])([a-zA-Z0-9._/\-]+\.(?:tsx|ts|py|jsx|js|css|md|yaml|yml|json))"
         match = re.search(pattern, "See src/components/Foo.jsx for details.")
         assert match.group(1) == "src/components/Foo.jsx"
+
+    def test_finds_path_wrapped_in_backticks(self):
+        # Regression test: this repo's issue template renders "Files Affected"
+        # as a bullet list of backtick-wrapped paths, e.g. "- `backend/app.py`"
+        # -- previously the lookback character class didn't include a backtick,
+        # so this exact, standard format was never matched and every
+        # well-formed issue produced zero extracted files (discovered via #5850).
+        real_file = "scripts/developer_tools/f_implement_issue_with_aider.py"
+        body = f"## Files Affected\n- `{real_file}`\n"
+        assert extract_file_paths_from_issue(body) == [real_file]
+
+    def test_finds_multiple_backtick_wrapped_paths_in_bullet_list(self):
+        file_a = "scripts/developer_tools/f_implement_issue_with_aider.py"
+        file_b = "scripts/developer_tools/b_create_issue.py"
+        body = f"## Files Affected\n- `{file_a}`\n- `{file_b}`\n"
+        assert set(extract_file_paths_from_issue(body)) == {file_a, file_b}
 
 
 class TestResolveFilesToEdit:
@@ -164,6 +182,22 @@ class TestResolveFilesToEdit:
         )
         assert result == []
         mock_fetch.assert_called_once()
+
+    @mock.patch("f_implement_issue_with_aider.fetch_ollama_review")
+    def test_resolves_backtick_wrapped_files_affected_bullet_without_ollama(self, mock_fetch):
+        # Regression test for #5850: the standard "## Files Affected\n- `path`"
+        # bullet format (the actual template convention used across every issue
+        # in this repo) previously matched nothing, so a well-formed issue fell
+        # through to Ollama and still produced an empty file list.
+        real_file = "scripts/developer_tools/f_implement_issue_with_aider.py"
+        body = f"## What\nDo the thing.\n\n## Files Affected\n- `{real_file}`\n"
+        sections = parse_issue_body(body)
+
+        result = resolve_files_to_edit(
+            "title", body, "http://x", "model", files_affected=sections.get("files_affected", "")
+        )
+        assert result == [real_file]
+        mock_fetch.assert_not_called()
 
     @mock.patch("f_implement_issue_with_aider.fetch_ollama_review")
     def test_resolves_files_from_bold_header_markdown_link_issue_without_ollama(self, mock_fetch):
@@ -457,7 +491,9 @@ class TestMainOrdering:
         mock_fetch.assert_not_called()
 
     @mock.patch("f_implement_issue_with_aider.os.chdir")
-    @mock.patch("f_implement_issue_with_aider.get_repo_root", side_effect=ValueError("not a git repo"))
+    @mock.patch(
+        "f_implement_issue_with_aider.get_repo_root", side_effect=ValueError("not a git repo")
+    )
     @mock.patch("f_implement_issue_with_aider.validate_ollama_connection", return_value=True)
     def test_exits_cleanly_when_repo_root_cannot_be_determined(
         self, mock_validate, mock_get_repo_root, mock_chdir

@@ -31,7 +31,17 @@ jobs:
       # "Administration" repository permission -- the minimum that can read
       # rulesets. It must never be granted write: this job only reports drift,
       # and applying a ruleset stays a deliberate human action.
+      #
+      # No fallback to github.token: it cannot read rulesets (they are
+      # admin-scoped), so a fallback would just fail with the same "API
+      # unavailable" exit code as a genuinely missing secret -- masking the
+      # real problem (secret never configured) as if it were transient.
       - name: Check for drift
         env:
-          GH_TOKEN: ${{ secrets.BRANCH_PROTECTION_READ_TOKEN || github.token }}
-        run: python scripts/check_live_branch_protection.py --repo "${{ github.repository }}"
+          GH_TOKEN: ${{ secrets.BRANCH_PROTECTION_READ_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::BRANCH_PROTECTION_READ_TOKEN is not set. Add a fine-grained PAT with read-only Administration permission -- see docs/BRANCH_PROTECTION.md." >&2
+            exit 1
+          fi
+          python scripts/check_live_branch_protection.py --repo "${{ github.repository }}"

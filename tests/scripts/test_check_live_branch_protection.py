@@ -170,6 +170,38 @@ def test_wrong_context_naming_convention_is_drift() -> None:
     assert any("not checked in" in e and "CI / test" in e for e in errors)
 
 
+def test_integration_id_mismatch_is_drift() -> None:
+    """A context whose producing App changes without the string changing."""
+    live = _live_from_checked_in()
+    for rule in live["rules"]:
+        if rule["type"] == "required_status_checks":
+            for check in rule["parameters"]["required_status_checks"]:
+                if check["context"] == "test":
+                    check["integration_id"] = 99999
+    errors = _errors(ruleset=live)
+    assert any("integration_id" in e and "'test'" in e for e in errors)
+
+
+def test_integration_id_absent_from_checked_in_is_not_drift(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Checked-in entries with no integration_id opt out of this comparison."""
+    expected = _checked_in()
+    for rule in expected["rules"]:
+        if rule["type"] == "required_status_checks":
+            for check in rule["parameters"]["required_status_checks"]:
+                check.pop("integration_id", None)
+    live = _live_from_checked_in()
+    for rule in live["rules"]:
+        if rule["type"] == "required_status_checks":
+            for check in rule["parameters"]["required_status_checks"]:
+                check["integration_id"] = 1
+
+    monkeypatch.setattr(_mod, "load_checked_in_ruleset", lambda: expected)
+    _, errors = _mod.run(_fetch_factory(ruleset=live), REPO)
+    assert not any("integration_id" in e for e in errors)
+
+
 def test_dropped_context_is_drift() -> None:
     live = _live_from_checked_in()
     for rule in live["rules"]:

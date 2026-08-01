@@ -107,14 +107,21 @@ def rules_by_type(ruleset: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return rules
 
 
-def required_contexts(ruleset: dict[str, Any]) -> set[str]:
+def required_checks(ruleset: dict[str, Any]) -> dict[str, Any]:
+    """Map required context -> integration_id (None if unset)."""
     rule = rules_by_type(ruleset).get("required_status_checks")
     if not rule:
-        return set()
+        return {}
     checks = rule.get("parameters", {}).get("required_status_checks", [])
     return {
-        c["context"] for c in checks if isinstance(c, dict) and isinstance(c.get("context"), str)
+        c["context"]: c.get("integration_id")
+        for c in checks
+        if isinstance(c, dict) and isinstance(c.get("context"), str)
     }
+
+
+def required_contexts(ruleset: dict[str, Any]) -> set[str]:
+    return set(required_checks(ruleset))
 
 
 def find_live_ruleset(fetch: Fetch, repo: str, name: str) -> dict[str, Any]:
@@ -176,8 +183,10 @@ def compare_pull_request_parameters(expected: dict[str, Any], live: dict[str, An
 
 
 def compare_required_checks(expected: dict[str, Any], live: dict[str, Any]) -> list[str]:
-    want = required_contexts(expected)
-    got = required_contexts(live)
+    want_checks = required_checks(expected)
+    got_checks = required_checks(live)
+    want = set(want_checks)
+    got = set(got_checks)
     errors: list[str] = []
     if want - got:
         errors.append(f"live ruleset does not require checked-in contexts: {sorted(want - got)}")
@@ -185,6 +194,16 @@ def compare_required_checks(expected: dict[str, Any], live: dict[str, Any]) -> l
         errors.append(
             f"live ruleset requires contexts that are not checked in: {sorted(got - want)}"
         )
+
+    # A required context can silently switch which GitHub App produces it --
+    # e.g. a job migrating from a first-party Action to a third-party App --
+    # without the context string itself changing. integration_id catches that.
+    for context in sorted(want & got):
+        want_id, got_id = want_checks[context], got_checks[context]
+        if want_id is not None and got_id is not None and want_id != got_id:
+            errors.append(
+                f"required check {context!r} integration_id: checked-in {want_id}, live {got_id}"
+            )
 
     want_strict = (
         rules_by_type(expected)

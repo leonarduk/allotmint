@@ -4,12 +4,12 @@
 # instances run concurrently without clashing (see #5760).
 
 # Returns 0 (true) if something is already listening on 127.0.0.1:$1.
+# Uses fd 6 (not 3) and confines it to a subshell: bats-core reserves fd 3
+# for its own internal signaling, and closing it from the test process
+# (rather than a subshell) corrupts the harness for later tests.
 port_in_use() {
   local port="$1"
-  (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null
-  local result=$?
-  exec 3>&- 2>/dev/null || true
-  return $result
+  (exec 6<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null
 }
 
 # Prints the first free port at or after $1 (max 100 attempts), falling

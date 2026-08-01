@@ -15,6 +15,13 @@ Two classifications are produced from a single ``git diff``:
     below. A doc-only diff sets every area to false, so CI jobs need to
     consult one flag rather than a flag plus a doc-only override.
 
+``backend-dev-tools-only``
+    True when the backend area is affected *and* every backend-affecting
+    path is confined to ``scripts/developer_tools/**`` or ``tests/scripts/**``
+    -- local-only dev-tools CLI helpers with no import relationship to
+    ``backend/``. Not an area gate on its own: it only tells the backend job
+    it can run ``tests/scripts`` instead of the full suite.
+
 The classifier is intentionally conservative: false negatives (running a
 suite that the change could not have broken) are cheap, false positives
 (skipping a suite that would have caught a regression) are not. When in
@@ -180,6 +187,44 @@ def areas_for_path(path: str) -> frozenset[str]:
     return _ALL_AREAS
 
 
+# Paths whose only backend-relevant coverage lives in `tests/scripts/`: the
+# local-only dev-tools CLI helpers (issue triage, PR review, aider
+# integration) and their tests, neither of which is imported by `backend/`.
+# When every backend-affecting path in a diff matches one of these globs,
+# `backend-integration.yml` can run `pytest tests/scripts` instead of the
+# full backend suite -- see issue #5823.
+_NARROW_BACKEND_GLOBS: tuple[str, ...] = (
+    "scripts/developer_tools/**",
+    "tests/scripts/**",
+)
+_COMPILED_NARROW_BACKEND_RULES: tuple[re.Pattern[str], ...] = tuple(
+    _glob_to_regex(pattern) for pattern in _NARROW_BACKEND_GLOBS
+)
+
+
+def _is_narrow_backend_path(path: str) -> bool:
+    normalised = path.lower()
+    return any(regex.match(normalised) for regex in _COMPILED_NARROW_BACKEND_RULES)
+
+
+def backend_dev_tools_only(diff_text: str) -> bool:
+    """Return True if every backend-affecting path is confined to dev-tools.
+
+    False whenever the backend area isn't touched at all -- callers must only
+    consult this after confirming the backend area flag is true, mirroring
+    how doc-only zeroes every area rather than this flag standing alone.
+    """
+    saw_backend_path = False
+    for file_diff in parse_file_diffs(diff_text):
+        for path in (file_diff.path, file_diff.old_path):
+            if "backend" not in areas_for_path(path):
+                continue
+            saw_backend_path = True
+            if not _is_narrow_backend_path(path):
+                return False
+    return saw_backend_path
+
+
 class FileDiff:
     """Mutable record of one file's entry in a unified `git diff`."""
 
@@ -287,16 +332,18 @@ def areas_for_diff(diff_text: str) -> frozenset[str]:
     return frozenset(affected)
 
 
-def classify(event_name: str, base: str, head: str) -> tuple[bool, frozenset[str]]:
-    """Return ``(doc_only, affected_areas)`` for a change.
+def classify(event_name: str, base: str, head: str) -> tuple[bool, frozenset[str], bool]:
+    """Return ``(doc_only, affected_areas, backend_dev_tools_only)`` for a change.
 
     Only ``pull_request`` events get diff-based classification; every other
     event (push, workflow_dispatch, ...) conservatively runs the full suite,
     since a base/head diff isn't meaningful in the same way there. A diff
-    that cannot be computed widens to the full suite for the same reason.
+    that cannot be computed widens to the full suite for the same reason --
+    both fall back to ``backend_dev_tools_only=False`` so the backend job
+    runs its full suite rather than the narrow one.
     """
     if event_name != "pull_request" or not base or not head:
-        return False, _ALL_AREAS
+        return False, _ALL_AREAS, False
     try:
         diff_text = get_diff_text(base, head)
     except subprocess.CalledProcessError as exc:
@@ -304,12 +351,14 @@ def classify(event_name: str, base: str, head: str) -> tuple[bool, frozenset[str
             f"WARNING: could not compute diff ({exc}); treating every area as affected",
             file=sys.stderr,
         )
-        return False, _ALL_AREAS
+        return False, _ALL_AREAS, False
     # A doc-only diff zeroes every area so gated jobs consult a single flag
     # rather than an area flag plus a doc-only override.
     if classify_diff(diff_text):
-        return True, _NO_AREAS
-    return False, areas_for_diff(diff_text)
+        return True, _NO_AREAS, False
+    areas = areas_for_diff(diff_text)
+    narrow = "backend" in areas and backend_dev_tools_only(diff_text)
+    return False, areas, narrow
 
 
 def get_diff_text(base: str, head: str) -> str:
@@ -331,18 +380,23 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def format_output_lines(doc_only: bool, areas: frozenset[str]) -> list[str]:
-    """Render the classification as ``key=value`` lines, doc-only first."""
+def format_output_lines(doc_only: bool, areas: frozenset[str], backend_dev_tools_only: bool) -> list[str]:
+    """Render the classification as ``key=value`` lines, doc-only first.
+
+    ``backend-dev-tools-only`` is not an area gate -- it never skips a job on
+    its own -- so it's appended last, after every area flag.
+    """
     lines = [f"doc-only={'true' if doc_only else 'false'}"]
     lines.extend(f"{area}={'true' if area in areas else 'false'}" for area in AREAS)
+    lines.append(f"backend-dev-tools-only={'true' if backend_dev_tools_only else 'false'}")
     return lines
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
-    doc_only, areas = classify(args.event_name, args.base, args.head)
+    doc_only, areas, backend_dev_tools_only = classify(args.event_name, args.base, args.head)
 
-    output_lines = format_output_lines(doc_only, areas)
+    output_lines = format_output_lines(doc_only, areas, backend_dev_tools_only)
     for line in output_lines:
         print(line)
     if args.github_output:

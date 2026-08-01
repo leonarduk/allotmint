@@ -33,6 +33,12 @@ on:
       shell:
         description: Change can affect shell scripts, containers or deploy tooling.
         value: ${{ jobs.classify.outputs.shell }}
+      backend-dev-tools-only:
+        description: >-
+          Backend area is affected, but only via scripts/developer_tools/** or
+          tests/scripts/** -- the backend job can run tests/scripts instead of
+          the full suite. Not an area gate; see scripts/classify_change.py.
+        value: ${{ jobs.classify.outputs.backend-dev-tools-only }}
 
 permissions:
   contents: read
@@ -48,6 +54,7 @@ jobs:
       frontend: ${{ steps.classify.outputs.frontend }}
       cdk: ${{ steps.classify.outputs.cdk }}
       shell: ${{ steps.classify.outputs.shell }}
+      backend-dev-tools-only: ${{ steps.classify.outputs.backend-dev-tools-only }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:

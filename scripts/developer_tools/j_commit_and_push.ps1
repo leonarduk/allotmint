@@ -10,6 +10,48 @@ param(
     [switch]$NoPush = $false
 )
 
+<#
+.SYNOPSIS
+Commit local changes (with an LLM-drafted message) and push to origin.
+
+.DESCRIPTION
+This script stages, commits, and optionally pushes changes based on CLI arguments.
+It uses an LLM for the commit message if available and specified.
+
+.PARAMETER Message
+Override the default commit message.
+
+.PARAMETER Files
+Specific files to stage (default: all changed files).
+
+.PARAMETER NoOllama
+Skip the LLM and use a plain default commit message.
+
+.PARAMETER Model
+Ollama model name, only used when --model-source=local (default: OLLAMA_MODEL env var or 'qwen2.5-coder:7b').
+
+.PARAMETER ModelSource
+Specify the source of the model being committed and pushed.
+Possible values:
+- local: Use a local LLM model.
+- cloud: Use a cloud-based LLM model.
+
+.PARAMETER NoPush
+Commit only; skip pushing the branch to origin.
+
+.EXAMPLE
+.\j_commit_and_push.ps1 -Message "Fix bug" -Files "file1.py", "file2.py"
+
+.EXAMPLE
+.\j_commit_and_push.ps1 -NoOllama
+
+.EXAMPLE
+.\j_commit_and_push.ps1 -Model "qwen2.5-coder:7b" -ModelSource local
+
+.NOTES
+Ensure you're in the repo root when running this script.
+#>
+
 # Ensure we're in the repo root
 $repoRoot = git rev-parse --show-toplevel 2>$null
 if (-not $repoRoot) {

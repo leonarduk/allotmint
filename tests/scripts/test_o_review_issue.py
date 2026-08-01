@@ -241,6 +241,17 @@ def test_find_repo_file_hints_resolves_bare_filename(git_repo):
     assert hints == {"README.md": ["README.md"]}
 
 
+def test_find_repo_file_hints_resolves_powershell_and_bash_scripts(git_repo):
+    (git_repo / "deploy.ps1").write_text("Write-Host 'hi'\n", encoding="utf-8")
+    (git_repo / "deploy.sh").write_text("echo hi\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=git_repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "add scripts"], cwd=git_repo, check=True)
+    hints = n.find_repo_file_hints(
+        "The script `deploy.ps1` and `deploy.sh` both need work.", git_repo
+    )
+    assert hints == {"deploy.ps1": ["deploy.ps1"], "deploy.sh": ["deploy.sh"]}
+
+
 def test_find_repo_file_hints_ignores_unknown_names(git_repo):
     text = "Update `totally_missing_symbol` in nonexistent.py."
     assert n.find_repo_file_hints(text, git_repo) == {}

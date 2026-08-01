@@ -165,8 +165,22 @@ def fetch_issue(owner: str, repo: str, number: int) -> dict:
     return json.loads(result.stdout)
 
 
-# Extensions searched for when an issue mentions a bare filename like 'foo.py'.
-CODE_FILE_EXTENSIONS = ("tsx", "ts", "py", "jsx", "js", "css", "md", "yaml", "yml", "json")
+# Extensions searched for when an issue mentions a bare filename like 'foo.py'. Includes
+# ps1/sh since this repo ships both PowerShell and bash developer_tools scripts.
+CODE_FILE_EXTENSIONS = (
+    "tsx",
+    "ts",
+    "py",
+    "jsx",
+    "js",
+    "css",
+    "md",
+    "yaml",
+    "yml",
+    "json",
+    "ps1",
+    "sh",
+)
 
 # Symbol names (functions/classes) must be at least this many characters to be worth a
 # repo-wide `git grep` -- short backticked tokens (`id`, `db`) are too noisy to search.

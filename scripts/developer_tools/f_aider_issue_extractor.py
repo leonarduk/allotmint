@@ -143,9 +143,15 @@ def parse_issue_body(body: str, verbose: bool = False) -> dict[str, str]:
     """
     sections = {}
 
+    # Not every issue follows the "## Heading" template exactly -- issues
+    # filed before the template was standardized (or edited by hand) use a
+    # whole-line "**Heading**" bold style instead. Normalize those to ATX
+    # headers first so the single pattern below catches both.
+    normalized_body = re.sub(r"(?m)^\*\*([^\n*]+)\*\*\s*$", r"## \1", body)
+
     # Split by markdown headers (## Section)
     pattern = r"##\s*([^\n]+)\n(.*?)(?=##\s*|\Z)"
-    matches = re.finditer(pattern, body, re.DOTALL | re.IGNORECASE)
+    matches = re.finditer(pattern, normalized_body, re.DOTALL | re.IGNORECASE)
 
     for match in matches:
         section_title = match.group(1).strip().lower()
@@ -158,7 +164,7 @@ def parse_issue_body(body: str, verbose: bool = False) -> dict[str, str]:
             sections["why"] = section_content
         elif section_title == "how":
             sections["how"] = section_content
-        elif section_title in ("files affected", "files_affected"):
+        elif section_title in ("files affected", "files_affected", "files to change"):
             sections["files_affected"] = section_content
         elif section_title == "constraints":
             sections["constraints"] = section_content
@@ -206,8 +212,14 @@ def extract_file_paths_from_issue(
     """
     paths = []
 
-    # Match common path patterns: src/foo.ts, backend/app.py, etc.
-    pattern = r"(?:^|\s)([a-zA-Z0-9._/\-]+\.(?:ts|tsx|py|js|jsx|css|md|yml|yaml|json))"
+    # Match common path patterns: src/foo.ts, backend/app.py, etc. Paths are
+    # also allowed right after '[' or '(' so markdown link syntax like
+    # "[backend/app.py](https://...)" -- common in "Files Affected" sections
+    # generated from issue templates -- is recognized, not just bare paths.
+    # Longer extensions must be listed before their prefixes (tsx before ts,
+    # jsx before js) -- regex alternation takes the first match, so "ts"
+    # would otherwise win over "tsx" and truncate the captured path.
+    pattern = r"(?:^|[\s\[\(])([a-zA-Z0-9._/\-]+\.(?:tsx|ts|py|jsx|js|css|md|yaml|yml|json))"
     matches = re.finditer(pattern, issue_body, re.MULTILINE)
 
     for match in matches:

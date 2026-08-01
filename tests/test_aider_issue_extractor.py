@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 from unittest import mock
@@ -73,6 +74,14 @@ class TestParseIssueBody:
         sections = parse_issue_body(body)
         assert sections["files_affected"] == "backend/app.py\nfrontend/src/main.tsx"
 
+    def test_extracts_bold_headers_not_just_atx(self):
+        # Issues filed before the "## Heading" template was standardized (or
+        # edited by hand) use whole-line "**Heading**" bold style instead.
+        body = "**What**\nDo the thing.\n\n**Files to change**\nbackend/app.py\n"
+        sections = parse_issue_body(body)
+        assert sections["what"] == "Do the thing."
+        assert sections["files_affected"] == "backend/app.py"
+
 
 class TestIsSafeRelativePath:
     def test_rejects_parent_traversal(self):
@@ -107,6 +116,24 @@ class TestExtractFilePathsFromIssue:
         body = "See scripts/../scripts/developer_tools/f_aider_issue_extractor.py for details."
         assert extract_file_paths_from_issue(body) == []
 
+    def test_finds_path_inside_markdown_link(self):
+        real_file = "scripts/developer_tools/f_aider_issue_extractor.py"
+        body = f"- [{real_file}](https://github.com/owner/repo/blob/main/{real_file}) - details."
+        paths = extract_file_paths_from_issue(body)
+        assert paths == [real_file]
+
+    def test_does_not_truncate_tsx_extension_to_ts(self):
+        real_file = "frontend/src/components/Menu.tsx"
+        body = f"See {real_file} for details."
+        assert extract_file_paths_from_issue(body) == [real_file]
+
+    def test_does_not_truncate_jsx_extension_to_js(self):
+        # No .jsx fixture exists in-repo, so exercise the regex directly
+        # rather than depending on Path.exists() filtering.
+        pattern = r"(?:^|[\s\[\(])([a-zA-Z0-9._/\-]+\.(?:tsx|ts|py|jsx|js|css|md|yaml|yml|json))"
+        match = re.search(pattern, "See src/components/Foo.jsx for details.")
+        assert match.group(1) == "src/components/Foo.jsx"
+
 
 class TestResolveFilesToEdit:
     def test_prefers_files_affected_section_over_whole_body(self):
@@ -137,6 +164,28 @@ class TestResolveFilesToEdit:
         )
         assert result == []
         mock_fetch.assert_called_once()
+
+    @mock.patch("f_aider_issue_extractor.fetch_ollama_review")
+    def test_resolves_files_from_bold_header_markdown_link_issue_without_ollama(self, mock_fetch):
+        # Regression test for #5798: issues written before the "## Heading"
+        # template was standardized use bold "**Heading**" lines and list
+        # files as markdown links, e.g. "[path](url)". Previously this fell
+        # through to Ollama and produced an empty file list.
+        real_file = "scripts/developer_tools/f_aider_issue_extractor.py"
+        body = (
+            "**What**\nSomething is broken.\n\n"
+            "**Files to change**\n"
+            f"- [{real_file}](https://github.com/owner/repo/blob/main/{real_file})"
+            " - relevant logic here.\n\n"
+            "**Constraints**\nNone.\n"
+        )
+        sections = parse_issue_body(body)
+
+        result = resolve_files_to_edit(
+            "title", body, "http://x", "model", files_affected=sections.get("files_affected", "")
+        )
+        assert result == [real_file]
+        mock_fetch.assert_not_called()
 
 
 class TestFormulateAiderPrompt:

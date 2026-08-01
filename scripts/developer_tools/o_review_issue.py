@@ -276,23 +276,21 @@ def format_file_hints(hints: dict[str, list[str]]) -> str:
 
 
 def apply_known_file_paths(body: str, file_hints: dict[str, list[str]]) -> str:
-    """Overwrite the '## Files Affected' section with paths resolved by find_repo_file_hints().
+    """Always rewrite the '## Files Affected' section deterministically, never the model's text.
 
-    Small local models are unreliable at copying exact paths back out of the prompt's hint
-    block -- they tend to play it safe and write "Unknown" rather than risk echoing it wrong.
-    Once we've resolved real paths ourselves, write them into the section directly instead of
-    trusting the model to transcribe them.
+    Both local and cloud models will guess a plausible, real, but wrong file (#5632: `backend/
+    app.py` exists, but isn't where the issue's symbol is defined) rather than admit they don't
+    know -- the "write Unknown if unresolved" instruction in the prompt is advisory, not
+    enforced. So the model's own "Files Affected" text is never trusted here: this always
+    replaces it with paths confidently resolved by find_repo_file_hints(), or with the literal
+    "Unknown" when nothing resolved, so an unverified guess can never survive into the issue.
     """
-    if not file_hints:
-        return body
     paths = sorted({path for matches in file_hints.values() for path in matches})
-    if not paths:
-        return body
-    bullet_list = "\n".join(f"- `{path}`" for path in paths)
+    replacement = "\n".join(f"- `{path}`" for path in paths) if paths else "Unknown"
     pattern = re.compile(r"(^##\s+Files Affected\s*\n)(.*?)(?=^##\s+|\Z)", re.MULTILINE | re.DOTALL)
     if not pattern.search(body):
         return body
-    return pattern.sub(lambda m: m.group(1) + bullet_list + "\n\n", body, count=1)
+    return pattern.sub(lambda m: m.group(1) + replacement + "\n\n", body, count=1)
 
 
 def build_review_prompt(

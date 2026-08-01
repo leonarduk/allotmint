@@ -360,9 +360,13 @@ def test_apply_known_file_paths_dedupes_and_sorts_multiple_matches():
     assert files_section.index("a/foo.py") < files_section.index("b/foo.py")
 
 
-def test_apply_known_file_paths_noop_without_hints():
-    body = "## Files Affected\n- `fetch_paginated.py`\n"
-    assert n.apply_known_file_paths(body, {}) == body
+def test_apply_known_file_paths_forces_unknown_without_hints():
+    # A model-guessed path is never trusted, even if it looks plausible -- without a
+    # confidently resolved hint, the section is forced to "Unknown" rather than left alone.
+    body = "## Files Affected\n- `backend/app.py`\n\n## Constraints\nnone\n"
+    result = n.apply_known_file_paths(body, {})
+    assert "backend/app.py" not in result
+    assert "## Files Affected\nUnknown" in result
 
 
 def test_apply_known_file_paths_noop_when_section_missing():

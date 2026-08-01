@@ -22,7 +22,7 @@ from pathlib import Path
 # works both as an importable module and when invoked directly, where the
 # repo root is not on sys.path.
 sys.path.insert(0, str(Path(__file__).parent / "lib"))
-from github_repo import get_repo_info  # noqa: E402
+from github_repo import get_repo_info, get_repo_root  # noqa: E402
 from issue_review import parse_review_response  # noqa: E402
 from llm_common import (  # noqa: E402
     CLOUD,
@@ -85,6 +85,11 @@ is still accurate. Never delete information outright -- if something is now unce
 inline instead of removing it. Do not invent new requirements or acceptance criteria that \
 aren't implied by the original text.
 
+You do not have direct access to the repository, so for the 'Files Affected' section only use \
+paths listed under "Known repository file locations" below (repo-root-relative, e.g. \
+'backend/app.py'). If a mentioned file/symbol has no entry there, write "Unknown" for it instead \
+of guessing or inventing a placeholder path such as '/path/to/allotmint/...'.
+
 If the issue is already accurate and complete, return it unchanged.
 
 Respond with exactly two parts, in this format and nothing else:
@@ -96,7 +101,14 @@ Original title: {title}
 
 Original body:
 {body}\
+{file_hints_section}\
 {feedback_section}
+"""
+
+FILE_HINTS_SECTION_TEMPLATE = """
+
+Known repository file locations for names mentioned in this issue:
+{hints}
 """
 
 FEEDBACK_SECTION_TEMPLATE = """
@@ -153,16 +165,126 @@ def fetch_issue(owner: str, repo: str, number: int) -> dict:
     return json.loads(result.stdout)
 
 
-def build_review_prompt(title: str, body: str, feedback: str | None = None) -> str:
+# Extensions searched for when an issue mentions a bare filename like 'foo.py'.
+CODE_FILE_EXTENSIONS = ("tsx", "ts", "py", "jsx", "js", "css", "md", "yaml", "yml", "json")
+
+# Symbol names (functions/classes) must be at least this many characters to be worth a
+# repo-wide `git grep` -- short backticked tokens (`id`, `db`) are too noisy to search.
+MIN_SYMBOL_LENGTH = 3
+
+
+def list_repo_files(repo_root: Path) -> list[str]:
+    """Return every git-tracked file path (relative to repo_root), or [] on any failure."""
+    result = subprocess.run(
+        ["git", "ls-files"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+    )
+    if result.returncode != 0:
+        return []
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
+def find_repo_file_hints(text: str, repo_root: Path) -> dict[str, list[str]]:
+    """Resolve filenames/symbols mentioned in issue text to real repo-relative paths.
+
+    The model reviewing the issue has no filesystem access, so left to itself it
+    invents plausible-looking but fake paths (e.g. '/path/to/allotmint/foo.py') for
+    any file it's asked to cite. This grounds the prompt by searching the actual
+    checkout for tracked files matching a bare filename, or containing a def/class
+    matching a backticked symbol name, mentioned in the issue.
+    """
+    hints: dict[str, list[str]] = {}
+
+    repo_files = list_repo_files(repo_root)
+    files_by_basename: dict[str, list[str]] = {}
+    for path in repo_files:
+        files_by_basename.setdefault(Path(path).name, []).append(path)
+
+    ext_pattern = "|".join(CODE_FILE_EXTENSIONS)
+    for match in re.finditer(rf"\b([A-Za-z0-9_\-]+\.(?:{ext_pattern}))\b", text):
+        filename = match.group(1)
+        if filename in hints:
+            continue
+        matches = files_by_basename.get(filename)
+        if matches:
+            hints[filename] = matches
+
+    for match in re.finditer(r"`([A-Za-z_][A-Za-z0-9_]*)`", text):
+        symbol = match.group(1)
+        if symbol in hints or len(symbol) < MIN_SYMBOL_LENGTH:
+            continue
+        result = subprocess.run(
+            ["git", "grep", "-lI", "-E", rf"\b(def|class|function|const)\s+{re.escape(symbol)}\b"],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            check=False,
+        )
+        matches = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+        if matches:
+            hints[symbol] = matches
+
+    return hints
+
+
+def format_file_hints(hints: dict[str, list[str]]) -> str:
+    """Render resolved file hints as a bullet list for the review prompt, or "" if empty."""
+    if not hints:
+        return ""
+    lines = []
+    for name, paths in hints.items():
+        joined = ", ".join(f"`{path}`" for path in paths[:5])
+        lines.append(f"- `{name}` -> {joined}")
+    return FILE_HINTS_SECTION_TEMPLATE.format(hints="\n".join(lines))
+
+
+def apply_known_file_paths(body: str, file_hints: dict[str, list[str]]) -> str:
+    """Overwrite the '## Files Affected' section with paths resolved by find_repo_file_hints().
+
+    Small local models are unreliable at copying exact paths back out of the prompt's hint
+    block -- they tend to play it safe and write "Unknown" rather than risk echoing it wrong.
+    Once we've resolved real paths ourselves, write them into the section directly instead of
+    trusting the model to transcribe them.
+    """
+    if not file_hints:
+        return body
+    paths = sorted({path for matches in file_hints.values() for path in matches})
+    if not paths:
+        return body
+    bullet_list = "\n".join(f"- `{path}`" for path in paths)
+    pattern = re.compile(r"(^##\s+Files Affected\s*\n)(.*?)(?=^##\s+|\Z)", re.MULTILINE | re.DOTALL)
+    if not pattern.search(body):
+        return body
+    return pattern.sub(lambda m: m.group(1) + bullet_list + "\n\n", body, count=1)
+
+
+def build_review_prompt(
+    title: str,
+    body: str,
+    feedback: str | None = None,
+    file_hints: dict[str, list[str]] | None = None,
+) -> str:
     """Build the prompt sent to the model to review and refresh the issue.
 
     When `feedback` is given (the user's response to a prior proposed revision),
-    it's appended so the model can address it in the next attempt.
+    it's appended so the model can address it in the next attempt. `file_hints` are
+    real repo-relative paths resolved by find_repo_file_hints() for filenames/symbols
+    mentioned in the issue, so the model can cite accurate paths instead of guessing.
     """
     sections = ", ".join(f"'## {section}'" for section in load_template_sections())
     feedback_section = FEEDBACK_SECTION_TEMPLATE.format(feedback=feedback) if feedback else ""
+    file_hints_section = format_file_hints(file_hints or {})
     return REVIEW_PROMPT_TEMPLATE.format(
-        title=title, body=body, sections=sections, feedback_section=feedback_section
+        title=title,
+        body=body,
+        sections=sections,
+        feedback_section=feedback_section,
+        file_hints_section=file_hints_section,
     )
 
 
@@ -172,9 +294,10 @@ def run_review(
     body: str,
     verbose: bool = False,
     feedback: str | None = None,
+    file_hints: dict[str, list[str]] | None = None,
 ) -> str | None:
     """Call the chosen model with the review prompt. Returns None on any failure."""
-    prompt = build_review_prompt(title, body, feedback=feedback)
+    prompt = build_review_prompt(title, body, feedback=feedback, file_hints=file_hints)
 
     if not validate_model_source(model_source):
         return None
@@ -338,12 +461,21 @@ def main() -> int:
     required_sections = load_template_sections()
     feedback: str | None = None
 
+    try:
+        repo_root = Path(get_repo_root())
+        file_hints = find_repo_file_hints(f"{title}\n{body}", repo_root)
+    except ValueError:
+        file_hints = {}
+
     while True:
-        response = run_review(model_source, title, body, args.verbose, feedback=feedback)
+        response = run_review(
+            model_source, title, body, args.verbose, feedback=feedback, file_hints=file_hints
+        )
         if response is None:
             return 1
 
         new_title, new_body = parse_review_response(response, title, body)
+        new_body = apply_known_file_paths(new_body, file_hints)
 
         if looks_like_content_loss(body, new_body):
             print(

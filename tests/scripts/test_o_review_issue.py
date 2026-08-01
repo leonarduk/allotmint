@@ -1,9 +1,27 @@
 import json
 import os
+import subprocess
 
 import pytest
 
 import scripts.developer_tools.o_review_issue as n
+
+
+@pytest.fixture
+def git_repo(tmp_path):
+    """A minimal git repo with a couple of tracked files, for file-hint resolution tests."""
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.email", "a@b.c"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.name", "test"], cwd=tmp_path, check=True)
+    nested = tmp_path / "scripts" / "build_tools"
+    nested.mkdir(parents=True)
+    (nested / "extract_pr_comments.py").write_text(
+        "def widget_test_stub_symbol(url):\n    return []\n", encoding="utf-8"
+    )
+    (tmp_path / "README.md").write_text("hello\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=tmp_path, check=True)
+    return tmp_path
 
 
 class _FakeResult:
@@ -200,3 +218,101 @@ def test_prompt_for_disposition_aborts_on_eof(monkeypatch):
 
     monkeypatch.setattr("builtins.input", _raise_eof)
     assert n.prompt_for_disposition() == ("abort", None)
+
+
+def test_list_repo_files_returns_tracked_paths(git_repo):
+    files = n.list_repo_files(git_repo)
+    assert "README.md" in files
+    assert "scripts/build_tools/extract_pr_comments.py" in files
+
+
+def test_list_repo_files_returns_empty_on_failure(tmp_path):
+    # tmp_path is not a git repo, so `git ls-files` fails.
+    assert n.list_repo_files(tmp_path) == []
+
+
+def test_find_repo_file_hints_resolves_backticked_symbol_to_real_path(git_repo):
+    hints = n.find_repo_file_hints("Fix `widget_test_stub_symbol` retry handling.", git_repo)
+    assert hints == {"widget_test_stub_symbol": ["scripts/build_tools/extract_pr_comments.py"]}
+
+
+def test_find_repo_file_hints_resolves_bare_filename(git_repo):
+    hints = n.find_repo_file_hints("See README.md for context.", git_repo)
+    assert hints == {"README.md": ["README.md"]}
+
+
+def test_find_repo_file_hints_ignores_unknown_names(git_repo):
+    text = "Update `totally_missing_symbol` in nonexistent.py."
+    assert n.find_repo_file_hints(text, git_repo) == {}
+
+
+def test_find_repo_file_hints_ignores_short_symbols(git_repo):
+    (git_repo / "id.py").write_text("def id():\n    pass\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=git_repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "add id.py"], cwd=git_repo, check=True)
+    assert n.find_repo_file_hints("Fix `id` please.", git_repo) == {}
+
+
+def test_format_file_hints_empty():
+    assert n.format_file_hints({}) == ""
+
+
+def test_format_file_hints_renders_bullet_list():
+    text = n.format_file_hints({"foo": ["a/foo.py"], "bar": ["b/bar.py", "c/bar.py"]})
+    assert "Known repository file locations" in text
+    assert "- `foo` -> `a/foo.py`" in text
+    assert "- `bar` -> `b/bar.py`, `c/bar.py`" in text
+
+
+def test_build_review_prompt_includes_file_hints_section():
+    prompt = n.build_review_prompt(
+        "title", "## What\nbody", file_hints={"fetch_paginated": ["scripts/foo.py"]}
+    )
+    assert "Known repository file locations" in prompt
+    assert "`fetch_paginated` -> `scripts/foo.py`" in prompt
+
+
+def test_build_review_prompt_no_file_hints_section_by_default():
+    prompt = n.build_review_prompt("title", "## What\nbody")
+    assert "Known repository file locations for names mentioned" not in prompt
+
+
+def test_apply_known_file_paths_replaces_model_guess():
+    body = (
+        "## What\nsome text\n\n## Files Affected\n- `fetch_paginated.py`\n\n## Constraints\nnone\n"
+    )
+    hints = {"fetch_paginated": ["scripts/build_tools/extract_pr_comments.py"]}
+    result = n.apply_known_file_paths(body, hints)
+    assert "- `scripts/build_tools/extract_pr_comments.py`" in result
+    assert "fetch_paginated.py" not in result
+    assert "## Constraints\nnone" in result
+
+
+def test_apply_known_file_paths_dedupes_and_sorts_multiple_matches():
+    body = "## Files Affected\nUnknown\n\n## Constraints\nnone\n"
+    hints = {
+        "foo": ["b/foo.py", "a/foo.py"],
+        "bar": ["a/foo.py"],
+    }
+    result = n.apply_known_file_paths(body, hints)
+    files_section = result.split("## Constraints")[0]
+    assert files_section.count("a/foo.py") == 1
+    assert files_section.index("a/foo.py") < files_section.index("b/foo.py")
+
+
+def test_apply_known_file_paths_noop_without_hints():
+    body = "## Files Affected\n- `fetch_paginated.py`\n"
+    assert n.apply_known_file_paths(body, {}) == body
+
+
+def test_apply_known_file_paths_noop_when_section_missing():
+    body = "## What\nno files affected section here\n"
+    hints = {"foo": ["a/foo.py"]}
+    assert n.apply_known_file_paths(body, hints) == body
+
+
+def test_apply_known_file_paths_handles_last_section_in_body():
+    body = "## What\ntext\n\n## Files Affected\n- `old.py`\n"
+    hints = {"old": ["real/old.py"]}
+    result = n.apply_known_file_paths(body, hints)
+    assert "- `real/old.py`" in result

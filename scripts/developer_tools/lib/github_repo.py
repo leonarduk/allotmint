@@ -13,6 +13,7 @@ def get_repo_info() -> tuple[str, str]:
             ["git", "config", "--get", "remote.origin.url"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=True,
         )
     except subprocess.CalledProcessError as exc:
@@ -31,6 +32,7 @@ def get_repo_root() -> str:
             ["git", "rev-parse", "--show-toplevel"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=True,
         )
     except subprocess.CalledProcessError as exc:

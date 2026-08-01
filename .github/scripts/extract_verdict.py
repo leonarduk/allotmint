@@ -7,9 +7,10 @@ import sys
 from pathlib import Path
 
 # Primary format: bold verdict, optionally with backticks inside the bold markers, e.g.
-# `**APPROVE**` or `` **`APPROVE`** ``. Matched anywhere in the text (first occurrence wins),
-# since this is the format the prompt instructs models to use.
-_BOLD_VERDICT_RE = re.compile(r"\*\*`?(APPROVE|REQUEST CHANGES)`?\*\*")
+# `**APPROVE**`, `**REQUEST CHANGES**`, or `**SKIP**`. Matched anywhere in the text
+# (first occurrence wins), since this is the format the prompt instructs models to use.
+# **SKIP** is a special sentinel for empty-diff cases where no review was performed.
+_BOLD_VERDICT_RE = re.compile(r"\*\*`?(APPROVE|REQUEST CHANGES|SKIP)`?\*\*")
 
 # Fallback format: some models (observed with DeepSeek) drop the bold markers and emit the
 # verdict as a plain or bulleted line instead, e.g. `- APPROVE` or `APPROVE — no concerns`.
@@ -18,7 +19,7 @@ _BOLD_VERDICT_RE = re.compile(r"\*\*`?(APPROVE|REQUEST CHANGES)`?\*\*")
 # acceptance-criteria checklist item doesn't false-positive. Since the prompt asks for the
 # verdict as the last line, the LAST matching line is preferred over the first.
 _LINE_VERDICT_RE = re.compile(
-    r"^[ \t]*(?:[-*•]\s+)?(APPROVE|REQUEST CHANGES)\b(?:\s*[-—:].*)?$",
+    r"^[ \t]*(?:[-*•]\s+)?(APPROVE|REQUEST CHANGES|SKIP)\b(?:\s*[-—:].*)?$",
     re.MULTILINE,
 )
 
@@ -29,12 +30,13 @@ def extract_verdict(review_text: str) -> str | None:
     Looks for verdict lines in the format:
     - `**APPROVE**` or `` **`APPROVE`** ``
     - `**REQUEST CHANGES**` or `` **`REQUEST CHANGES`** ``
+    - `**SKIP**` — special sentinel for empty-diff cases (treated as APPROVE for exit code)
 
     Falls back to a plain or bulleted line consisting solely of the verdict
     (e.g. `- APPROVE`) when no bold verdict is present, to tolerate models
     that drop the markdown bold markers.
 
-    Returns 'APPROVE' or 'REQUEST CHANGES' if found, None otherwise.
+    Returns 'APPROVE', 'REQUEST CHANGES', or 'SKIP' if found, None otherwise.
     """
     match = _BOLD_VERDICT_RE.search(review_text)
     if match:
@@ -70,16 +72,22 @@ def main(review_file: str, provider_name: str) -> int:
     verdict = extract_verdict(review_text)
 
     if verdict == "APPROVE":
-        print(f"✓ {provider_name} review: APPROVED")
+        print(f"[+] {provider_name} review: APPROVED")
+        return 0
+
+    if verdict == "SKIP":
+        # **SKIP** is a special sentinel for empty-diff cases (no review performed).
+        # Treat it as a pass (exit 0) so the workflow succeeds, but with different messaging.
+        print(f"[~] {provider_name} review: SKIPPED (empty diff)")
         return 0
 
     if verdict == "REQUEST CHANGES":
-        print(f"✗ {provider_name} review: CHANGES REQUESTED")
+        print(f"[-] {provider_name} review: CHANGES REQUESTED")
         return 1
 
     print(
         f"ERROR: {provider_name} review did not include a valid verdict. "
-        "Expected '**APPROVE**' or '**REQUEST CHANGES**' (with or without backticks) in the review.",
+        "Expected '**APPROVE**', '**SKIP**', or '**REQUEST CHANGES**' (with or without backticks) in the review.",
         file=sys.stderr,
     )
     return 1

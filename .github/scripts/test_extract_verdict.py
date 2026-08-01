@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import platform
 import subprocess
 import sys
 from pathlib import Path
@@ -247,9 +248,57 @@ None found.
 """
         assert extract_verdict(review_text) == "REQUEST CHANGES"
 
+    def test_skip_sentinel(self) -> None:
+        """Test **SKIP** sentinel for empty-diff cases."""
+        review_text = """
+No review generated because the filtered diff was empty.
+
+**SKIP**
+"""
+        assert extract_verdict(review_text) == "SKIP"
+
+    def test_skip_with_explanation(self) -> None:
+        """Test **SKIP** sentinel with explanation."""
+        review_text = "**SKIP** — no diff available"
+        assert extract_verdict(review_text) == "SKIP"
+
+    def test_backtick_wrapped_skip(self) -> None:
+        """Test backtick-wrapped **`SKIP`** format."""
+        review_text = "**`SKIP`** — empty diff"
+        assert extract_verdict(review_text) == "SKIP"
+
+    def test_unbolded_skip_on_line(self) -> None:
+        """Test fallback for unbolded SKIP verdict on its own line."""
+        review_text = """
+## Review
+
+No changes to review.
+
+SKIP
+"""
+        assert extract_verdict(review_text) == "SKIP"
+
+    def test_bulleted_skip(self) -> None:
+        """Test bulleted SKIP sentinel."""
+        review_text = """
+## Diff Status
+
+- SKIP
+
+No diff was available to review.
+"""
+        assert extract_verdict(review_text) == "SKIP"
+
 
 class TestExtractVerdictScriptMain:
     """Test the main() function when called via the script."""
+
+    def _get_python_cmd(self):
+        """Get the Python command appropriate for the platform."""
+        if platform.system() == "Windows":
+            return ["python"]
+        else:
+            return ["python3"]
 
     def test_main_with_approve_verdict(self, tmp_path) -> None:
         """Test main() returns 0 for APPROVE verdict."""
@@ -257,10 +306,11 @@ class TestExtractVerdictScriptMain:
         temp_path.write_text("**APPROVE** — no issues")
 
         result = subprocess.run(
-            ["python3", ".github/scripts/extract_verdict.py", str(temp_path), "TestProvider"],
+            self._get_python_cmd() + [".github/scripts/extract_verdict.py", str(temp_path), "TestProvider"],
             cwd=str(Path(__file__).parent.parent.parent),
             capture_output=True,
             text=True,
+            encoding="utf-8",
         )
         assert result.returncode == 0
         assert "APPROVED" in result.stdout
@@ -271,10 +321,11 @@ class TestExtractVerdictScriptMain:
         temp_path.write_text("**REQUEST CHANGES** — blocking issue")
 
         result = subprocess.run(
-            ["python3", ".github/scripts/extract_verdict.py", str(temp_path), "TestProvider"],
+            self._get_python_cmd() + [".github/scripts/extract_verdict.py", str(temp_path), "TestProvider"],
             cwd=str(Path(__file__).parent.parent.parent),
             capture_output=True,
             text=True,
+            encoding="utf-8",
         )
         assert result.returncode == 1
         assert "CHANGES REQUESTED" in result.stdout
@@ -285,13 +336,44 @@ class TestExtractVerdictScriptMain:
         temp_path.write_text("**`APPROVE`** — no issues")
 
         result = subprocess.run(
-            ["python3", ".github/scripts/extract_verdict.py", str(temp_path), "DeepSeek"],
+            self._get_python_cmd() + [".github/scripts/extract_verdict.py", str(temp_path), "DeepSeek"],
             cwd=str(Path(__file__).parent.parent.parent),
             capture_output=True,
             text=True,
+            encoding="utf-8",
         )
         assert result.returncode == 0
         assert "APPROVED" in result.stdout
+
+    def test_main_with_skip_verdict(self, tmp_path) -> None:
+        """Test main() returns 0 for SKIP verdict (empty-diff sentinel)."""
+        temp_path = tmp_path / "review.md"
+        temp_path.write_text("No review generated because the filtered diff was empty.\n\n**SKIP**")
+
+        result = subprocess.run(
+            self._get_python_cmd() + [".github/scripts/extract_verdict.py", str(temp_path), "Claude"],
+            cwd=str(Path(__file__).parent.parent.parent),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        )
+        assert result.returncode == 0
+        assert "SKIPPED (empty diff)" in result.stdout
+
+    def test_main_with_backtick_skip(self, tmp_path) -> None:
+        """Test main() returns 0 for backtick-wrapped SKIP."""
+        temp_path = tmp_path / "review.md"
+        temp_path.write_text("**`SKIP`** — no diff available")
+
+        result = subprocess.run(
+            self._get_python_cmd() + [".github/scripts/extract_verdict.py", str(temp_path), "TestProvider"],
+            cwd=str(Path(__file__).parent.parent.parent),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        )
+        assert result.returncode == 0
+        assert "SKIPPED (empty diff)" in result.stdout
 
     def test_main_with_no_verdict(self, tmp_path) -> None:
         """Test main() returns 1 when no valid verdict found."""
@@ -299,7 +381,7 @@ class TestExtractVerdictScriptMain:
         temp_path.write_text("Some review text without a verdict line.")
 
         result = subprocess.run(
-            ["python3", ".github/scripts/extract_verdict.py", str(temp_path), "TestProvider"],
+            self._get_python_cmd() + [".github/scripts/extract_verdict.py", str(temp_path), "TestProvider"],
             cwd=str(Path(__file__).parent.parent.parent),
             capture_output=True,
             text=True,

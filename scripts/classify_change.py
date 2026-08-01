@@ -10,7 +10,7 @@ Two classifications are produced from a single ``git diff``:
     file edit, a permission-bit change, or a rename that touches a non-doc
     path -- makes the whole diff non-doc-only.
 
-``backend`` / ``frontend`` / ``cdk`` / ``shell`` / ``powershell``
+``backend`` / ``frontend`` / ``cdk`` / ``shell``
     Per-area flags derived from the changed *paths* via ``AREA_PATH_RULES``
     below. A doc-only diff sets every area to false, so CI jobs need to
     consult one flag rather than a flag plus a doc-only override.
@@ -62,7 +62,7 @@ _DIFF_HEADER_RE = re.compile(r"^diff --git a/(.+) b/(.+)$")
 
 # Every CI area a change can affect. Adding an area here is not enough on its
 # own -- it also needs a rule in AREA_PATH_RULES and a job gated on it.
-AREAS: tuple[str, ...] = ("backend", "frontend", "cdk", "shell", "powershell")
+AREAS: tuple[str, ...] = ("backend", "frontend", "cdk", "shell")
 
 _ALL_AREAS = frozenset(AREAS)
 _NO_AREAS: frozenset[str] = frozenset()
@@ -104,10 +104,6 @@ AREA_PATH_RULES: tuple[tuple[str, frozenset[str]], ...] = (
     ("docker-compose*.yml", frozenset({"shell"})),
     ("deploy/**", frozenset({"shell"})),
     ("jenkinsfile*", frozenset({"shell"})),
-    # -- PowerShell tooling (Pester suite lives in scripts/tests). ---------
-    ("scripts/powershell/**", frozenset({"powershell"})),
-    ("**/*.ps1", frozenset({"powershell"})),
-    ("scripts/tests/**", frozenset({"powershell"})),
     # -- Frontend. ---------------------------------------------------------
     ("frontend/**", frozenset({"frontend"})),
     # The root package.json/lockfile installs the CDK CLI used by cdk synth

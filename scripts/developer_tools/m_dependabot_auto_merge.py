@@ -1,6 +1,6 @@
 """CLI tool to auto-merge green Dependabot pull requests and delete their branches.
 
-Continues the a_/b_/.../h_ script chain in scripts/developer_tools/. Dependabot opens
+Continues the a_/b_/.../o_ script chain in scripts/developer_tools/. Dependabot opens
 routine dependency-bump PRs; when CI has already passed there's no reason a human
 needs to click merge. This script finds open PRs authored by `dependabot[bot]`,
 merges the ones whose checks have all passed on the current head SHA, and deletes

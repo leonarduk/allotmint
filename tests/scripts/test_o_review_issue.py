@@ -1,6 +1,6 @@
 import json
 
-import scripts.developer_tools.n_review_issue as n
+import scripts.developer_tools.o_review_issue as n
 
 
 class _FakeResult:

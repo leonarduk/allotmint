@@ -54,12 +54,10 @@ CHECKS = (
     ),
     Check(
         "scripts",
-        "Bash and PowerShell developer script tests, plus shellcheck",
+        "Bash developer script tests, plus shellcheck",
         ".github/workflows/ci.yml",
         (
             "npx --yes bats@1.13.0 tests/bash/*.bats",
-            'pwsh -NoProfile -Command "Import-Module Pester -RequiredVersion '
-            '5.6.1 -Force; Invoke-Pester -Path scripts/tests -CI"',
             "shellcheck .github/scripts/*.sh",
         ),
     ),

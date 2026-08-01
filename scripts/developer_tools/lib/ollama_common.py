@@ -88,6 +88,12 @@ def fetch_ollama_review(endpoint: str, model: str, prompt: str) -> str:
     except urllib.error.URLError as exc:
         print(f"ERROR: Ollama API request failed: {exc.reason}", file=sys.stderr)
         raise SystemExit(1) from exc
+    except TimeoutError as exc:
+        # A stall mid-read after the connection succeeds raises a bare
+        # TimeoutError rather than being wrapped in URLError, so it needs its
+        # own handler to avoid propagating as an uncaught exception.
+        print(f"ERROR: Ollama API request timed out: {exc}", file=sys.stderr)
+        raise SystemExit(1) from exc
     except json.JSONDecodeError as exc:
         print(f"ERROR: Ollama API returned non-JSON response: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc

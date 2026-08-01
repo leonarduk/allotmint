@@ -10,6 +10,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "developer_too
 
 from b_create_issue import (  # noqa: E402
     build_review_prompt,
+    format_bug_body,
+    format_feature_body,
     offer_local_llm_review,
     parse_review_response,
 )
@@ -42,6 +44,26 @@ class TestParseReviewResponse:
         title, body = parse_review_response(response, "orig title", "orig body")
         assert title == "orig title"
         assert body == "orig body"
+
+
+class TestFormatBody:
+    def test_feature_body_includes_files_affected_section(self):
+        body = format_feature_body({"Files Affected": "backend/app.py"})
+        assert "## Files Affected" in body
+        assert "backend/app.py" in body
+
+    def test_feature_body_defaults_files_affected_to_unknown(self):
+        body = format_feature_body({})
+        assert "## Files Affected\n\nUnknown" in body
+
+    def test_bug_body_includes_files_affected_section(self):
+        body = format_bug_body({"Files Affected": "frontend/src/main.tsx"})
+        assert "## Files Affected" in body
+        assert "frontend/src/main.tsx" in body
+
+    def test_bug_body_defaults_files_affected_to_unknown(self):
+        body = format_bug_body({})
+        assert "## Files Affected\n\nUnknown" in body
 
 
 class TestOfferLocalLlmReview:

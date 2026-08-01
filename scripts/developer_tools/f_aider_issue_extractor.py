@@ -158,6 +158,8 @@ def parse_issue_body(body: str, verbose: bool = False) -> dict[str, str]:
             sections["why"] = section_content
         elif section_title == "how":
             sections["how"] = section_content
+        elif section_title in ("files affected", "files_affected"):
+            sections["files_affected"] = section_content
         elif section_title == "constraints":
             sections["constraints"] = section_content
         elif section_title in ("llm tier", "llm_tier"):
@@ -300,12 +302,21 @@ def resolve_files_to_edit(
     endpoint: str,
     model: str,
     verbose: bool = False,
+    files_affected: str = "",
 ) -> list[str]:
     """Return the files to hand to aider.
 
-    Prefers file paths already mentioned in the issue body; falls back to
-    asking Ollama to suggest files only when none are found there.
+    Prefers file paths listed in the issue's "Files Affected" section, then
+    falls back to any file paths mentioned elsewhere in the issue body, and
+    only asks Ollama to suggest files when none are found in either place.
     """
+    if files_affected:
+        section_paths = extract_file_paths_from_issue(files_affected, verbose)
+        if section_paths:
+            if verbose:
+                print(f"[DEBUG] Using Files Affected paths: {section_paths}", file=sys.stderr)
+            return section_paths
+
     extracted_paths = extract_file_paths_from_issue(body, verbose)
     if extracted_paths:
         if verbose:
@@ -332,7 +343,7 @@ def formulate_aider_prompt(
         print("[DEBUG] Formulating Aider prompt...", file=sys.stderr)
 
     # Add structured sections
-    for section in ["what", "why", "how", "constraints", "success", "failure"]:
+    for section in ["what", "why", "how", "files_affected", "constraints", "success", "failure"]:
         if section in parsed_sections:
             content = parsed_sections[section].strip()
             if content:
@@ -473,7 +484,9 @@ def main(argv: list[str] | None = None) -> None:
     # Parse issue structure
     parsed = parse_issue_body(body, args.verbose)
 
-    files = resolve_files_to_edit(title, body, endpoint, model, args.verbose)
+    files = resolve_files_to_edit(
+        title, body, endpoint, model, args.verbose, parsed.get("files_affected", "")
+    )
     if not files:
         print(
             "WARNING: No files found or suggested. Proceeding with empty file list.",

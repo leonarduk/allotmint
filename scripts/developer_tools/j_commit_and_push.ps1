@@ -2,6 +2,8 @@ param(
     [string]$Message = $null,
     [string[]]$Files = $null,
     [switch]$NoOllama = $false,
+    [alias("no-llm")]
+    [switch]$NoLlm = $false,
     [string]$Model = $null,
     [ValidateSet('local', 'cloud')]
     [string]$ModelSource = $null,
@@ -29,6 +31,10 @@ if ($Files -and $Files.Count -gt 0) {
 
 if ($NoOllama) {
     $pythonArgs += "--no-ollama"
+}
+
+if ($NoLlm) {
+    $pythonArgs += "--no-llm"
 }
 
 if ($Model) {

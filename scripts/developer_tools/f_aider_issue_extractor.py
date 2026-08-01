@@ -354,8 +354,12 @@ def formulate_aider_prompt(
     if verbose:
         print("[DEBUG] Formulating Aider prompt...", file=sys.stderr)
 
-    # Add structured sections
-    for section in ["what", "why", "how", "files_affected", "constraints", "success", "failure"]:
+    # Add structured sections. "why", "files_affected", and "failure" are
+    # deliberately excluded: motivation isn't actionable for a coding LLM,
+    # the affected files are already loaded into aider's context separately
+    # (repeating them here just adds noise), and "failure" is the inverse of
+    # "success" -- keeping both doesn't add information.
+    for section in ["what", "how", "constraints", "success"]:
         if section in parsed_sections:
             content = parsed_sections[section].strip()
             if content:

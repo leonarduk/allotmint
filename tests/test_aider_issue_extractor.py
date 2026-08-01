@@ -190,21 +190,42 @@ class TestResolveFilesToEdit:
 
 class TestFormulateAiderPrompt:
     def test_includes_title_and_sections(self):
-        sections = {"what": "Do the thing.", "why": "Because it matters."}
+        sections = {"what": "Do the thing.", "how": "Do it this way."}
         prompt = formulate_aider_prompt("Issue Title", sections)
         assert prompt.startswith("Issue Title")
         assert "What:" in prompt
         assert "Do the thing." in prompt
-        assert "Why:" in prompt
+        assert "How:" in prompt
+        assert "Do it this way." in prompt
 
     def test_omits_missing_sections(self):
         prompt = formulate_aider_prompt("Issue Title", {"what": "Only this."})
-        assert "Why:" not in prompt
         assert "How:" not in prompt
+        assert "Constraints:" not in prompt
+        assert "Success:" not in prompt
 
     def test_skips_blank_sections(self):
         prompt = formulate_aider_prompt("Issue Title", {"what": "   "})
         assert "What:" not in prompt
+
+    def test_excludes_why_files_affected_and_failure(self):
+        # These sections are deliberately dropped: "why" isn't actionable,
+        # "files_affected" duplicates the file list already loaded into
+        # aider's context, and "failure" is just the inverse of "success".
+        sections = {
+            "what": "Do the thing.",
+            "why": "Because reasons.",
+            "files_affected": "backend/app.py",
+            "success": "It works.",
+            "failure": "It doesn't work.",
+        }
+        prompt = formulate_aider_prompt("Issue Title", sections)
+        assert "Why:" not in prompt
+        assert "Files Affected:" not in prompt
+        assert "backend/app.py" not in prompt
+        assert "Failure:" not in prompt
+        assert "It doesn't work." not in prompt
+        assert "Success:" in prompt
 
 
 class TestFetchIssueFromGithub:

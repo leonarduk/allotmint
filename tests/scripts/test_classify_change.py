@@ -343,10 +343,10 @@ class TestAreasForPath:
             ("docker-compose.local.yml", {"shell"}),
             ("deploy/Jenkinsfile-deploy", {"shell"}),
             ("Jenkinsfile", {"shell"}),
-            # PowerShell
-            ("scripts/powershell/aider-issue.ps1", {"powershell"}),
-            ("scripts/developer_tools/m_implement_issue.ps1", {"powershell"}),
-            ("scripts/tests/aider-issue.Tests.ps1", {"powershell"}),
+            # PowerShell scripts have no dedicated area (no Pester suite in the
+            # repo); they fall through to the scripts/** -> backend catch-all.
+            ("scripts/powershell/aider-issue.ps1", {"backend"}),
+            ("scripts/developer_tools/m_implement_issue.ps1", {"backend"}),
         ],
     )
     def test_single_area_paths(self, path: str, expected: set[str]) -> None:
@@ -392,11 +392,9 @@ class TestAreasForPath:
         assert set(areas_for_path("backend/contracts_spa.py")) == {"backend", "frontend"}
 
     def test_narrow_rules_win_over_the_broader_rules_they_sit_inside(self) -> None:
-        # tests/bash/** and scripts/tests/** must not be swallowed by
-        # tests/** -> backend or scripts/** -> backend.
+        # tests/bash/** must not be swallowed by tests/** -> backend.
         assert set(areas_for_path("tests/bash/deploy.bats")) == {"shell"}
-        assert set(areas_for_path("scripts/tests/thing.Tests.ps1")) == {"powershell"}
-        # ...while their general cases still land on backend.
+        # ...while its general case still lands on backend.
         assert set(areas_for_path("tests/test_app.py")) == {"backend"}
         assert set(areas_for_path("scripts/check_contract_version_sync.py")) == {"backend"}
 
@@ -433,12 +431,12 @@ index abc123..def456 100644
     def test_rename_counts_both_old_and_new_paths(self) -> None:
         """Moving a file out of an area must still run that area's suite."""
         diff = """\
-diff --git a/backend/helper.py b/scripts/powershell/helper.ps1
+diff --git a/backend/helper.py b/frontend/src/helper.ts
 similarity index 90%
 rename from backend/helper.py
-rename to scripts/powershell/helper.ps1
+rename to frontend/src/helper.ts
 """
-        assert set(areas_for_diff(diff)) == {"backend", "powershell"}
+        assert set(areas_for_diff(diff)) == {"backend", "frontend"}
 
     def test_empty_diff_affects_no_area(self) -> None:
         assert areas_for_diff("") == frozenset()
@@ -540,7 +538,8 @@ index abc123..def456 100644
         _, areas = classify("pull_request", "abc", "def")
         assert set(areas) == {"frontend"}
 
-    def test_powershell_only_change_affects_only_powershell(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_powershell_only_change_falls_back_to_backend(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """No dedicated area for .ps1 (no Pester suite); falls to scripts/** -> backend."""
         diff = """\
 diff --git a/scripts/powershell/aider-issue.ps1 b/scripts/powershell/aider-issue.ps1
 index abc123..def456 100644
@@ -552,7 +551,7 @@ index abc123..def456 100644
 """
         monkeypatch.setattr(_mod, "get_diff_text", lambda base, head: diff)
         _, areas = classify("pull_request", "abc", "def")
-        assert set(areas) == {"powershell"}
+        assert set(areas) == {"backend"}
 
     def test_workflow_change_affects_every_area(self, monkeypatch: pytest.MonkeyPatch) -> None:
         diff = """\

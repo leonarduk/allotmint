@@ -8,6 +8,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import requests
@@ -172,6 +173,27 @@ def parse_issue_body(body: str, verbose: bool = False) -> dict[str, str]:
     return sections
 
 
+def is_safe_relative_path(path: str) -> bool:
+    """Reject absolute paths and paths that escape the repo root via '..' segments.
+
+    Issue bodies and Ollama's suggestions are both untrusted input; without
+    this check a path like '../../.aws/credentials' could be handed straight
+    to aider if such a file happens to exist relative to the cwd.
+
+    Path.is_absolute() alone isn't enough here: PureWindowsPath treats a
+    leading '/' with no drive letter (e.g. '/etc/passwd') as relative, so a
+    script running on Windows would miss it. Reject a leading separator of
+    either style explicitly before falling back to is_absolute() for
+    drive-letter and POSIX-root paths.
+    """
+    if path.startswith(("/", "\\")):
+        return False
+    candidate = Path(path)
+    if candidate.is_absolute():
+        return False
+    return ".." not in candidate.parts
+
+
 def extract_file_paths_from_issue(
     issue_body: str,
     verbose: bool = False,
@@ -188,6 +210,8 @@ def extract_file_paths_from_issue(
 
     for match in matches:
         path = match.group(1)
+        if not is_safe_relative_path(path):
+            continue
         if Path(path).exists():
             paths.append(path)
             if verbose:
@@ -247,8 +271,12 @@ Do not include test files or lock files. Be concise."""
             json_str = response[start : end + 1]
             suggested = json.loads(json_str)
             if isinstance(suggested, list):
-                # Filter to existing files
-                existing = [p for p in suggested if Path(p).exists()]
+                # Filter to existing, safe (non-traversal) files
+                existing = [
+                    p
+                    for p in suggested
+                    if isinstance(p, str) and is_safe_relative_path(p) and Path(p).exists()
+                ]
                 if verbose:
                     print(
                         f"[DEBUG] Ollama suggested {len(existing)} files: {existing}",
@@ -328,7 +356,14 @@ def confirm_with_user(
 
 
 def run_aider(files: list[str], prompt: str, verbose: bool = False) -> None:
-    """Run aider with the extracted files and prompt."""
+    """Run aider with the extracted files and prompt.
+
+    The prompt is passed via aider's --message-file rather than piped stdin:
+    piping via Popen.communicate() closes stdin once written, which would
+    silently prevent the user from interacting with aider afterward.
+    subprocess.run() here inherits the parent's stdio untouched, so aider's
+    own interactive prompt still works once the initial message is applied.
+    """
     if not files:
         print("ERROR: No files to add to Aider; aborting.", file=sys.stderr)
         sys.exit(1)
@@ -336,27 +371,30 @@ def run_aider(files: list[str], prompt: str, verbose: bool = False) -> None:
     if verbose:
         print(f"[DEBUG] Running aider with {len(files)} files...", file=sys.stderr)
 
-    cmd = ["aider"] + files
-
-    if verbose:
-        print(f"[DEBUG] Command: {' '.join(cmd)}", file=sys.stderr)
-        print(f"[DEBUG] Initial prompt: {prompt[:100]}...", file=sys.stderr)
-
+    message_file = tempfile.NamedTemporaryFile(
+        mode="w", suffix=".md", delete=False, encoding="utf-8"
+    )
     try:
-        # Start aider with files; user will type the prompt interactively
-        # We pass the prompt via stdin to pre-seed the conversation
-        proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, text=True)
-        proc.communicate(input=prompt + "\n")
-        proc.wait()
+        message_file.write(prompt)
+        message_file.close()
 
+        cmd = ["aider", "--message-file", message_file.name, *files]
+        if verbose:
+            print(f"[DEBUG] Command: {' '.join(cmd)}", file=sys.stderr)
+
+        result = subprocess.run(cmd, check=False)
     except FileNotFoundError:
         print("ERROR: aider not found. Install it with: pip install aider-chat", file=sys.stderr)
         sys.exit(1)
     except KeyboardInterrupt:
         print("\n[OK] Aider session interrupted by user", file=sys.stderr)
-    except Exception as exc:
-        print(f"ERROR: Failed to run aider: {exc}", file=sys.stderr)
-        sys.exit(1)
+        return
+    finally:
+        Path(message_file.name).unlink(missing_ok=True)
+
+    if result.returncode != 0:
+        print(f"ERROR: aider exited with status {result.returncode}", file=sys.stderr)
+        sys.exit(result.returncode)
 
 
 def main() -> None:

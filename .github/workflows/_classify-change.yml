@@ -33,9 +33,6 @@ on:
       shell:
         description: Change can affect shell scripts, containers or deploy tooling.
         value: ${{ jobs.classify.outputs.shell }}
-      powershell:
-        description: Change can affect PowerShell scripts or their Pester suite.
-        value: ${{ jobs.classify.outputs.powershell }}
 
 permissions:
   contents: read
@@ -51,7 +48,6 @@ jobs:
       frontend: ${{ steps.classify.outputs.frontend }}
       cdk: ${{ steps.classify.outputs.cdk }}
       shell: ${{ steps.classify.outputs.shell }}
-      powershell: ${{ steps.classify.outputs.powershell }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:

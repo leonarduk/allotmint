@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import i18n from '@/i18n';
+import { MENU_INTERACTION_TIMEOUT_MS } from '../support/menuInteractionTimeout';
 
 // Full logout lifecycle in local dev mode (issue #4802): click -> navigate('/')
 // -> redirect occurs, with no Cognito hosted-UI round trip. Exercises the real
@@ -97,9 +98,11 @@ describe('Logout flow: local dev mode (#4802)', () => {
       name: i18n.t('app.menuCategories.preferences'),
     });
     fireEvent.click(preferencesToggle);
-    const logoutButton = await screen.findByRole('menuitem', {
-      name: i18n.t('app.logout'),
-    });
+    const logoutButton = await screen.findByRole(
+      'menuitem',
+      { name: i18n.t('app.logout') },
+      { timeout: MENU_INTERACTION_TIMEOUT_MS }
+    );
     fireEvent.click(logoutButton);
 
     // navigate('/') was called: the browser location changes to '/'.
@@ -122,7 +125,11 @@ describe('Logout flow: local dev mode (#4802)', () => {
     });
     fireEvent.click(preferencesToggleAfterLogout);
     expect(
-      await screen.findByRole('menuitem', { name: i18n.t('app.logout') })
+      await screen.findByRole(
+        'menuitem',
+        { name: i18n.t('app.logout') },
+        { timeout: MENU_INTERACTION_TIMEOUT_MS }
+      )
     ).toBeInTheDocument();
   });
 
@@ -178,9 +185,11 @@ describe('Logout flow: local dev mode (#4802)', () => {
       name: i18n.t('app.menuCategories.preferences'),
     });
     fireEvent.click(preferencesToggle);
-    const logoutButton = await screen.findByRole('menuitem', {
-      name: i18n.t('app.logout'),
-    });
+    const logoutButton = await screen.findByRole(
+      'menuitem',
+      { name: i18n.t('app.logout') },
+      { timeout: MENU_INTERACTION_TIMEOUT_MS }
+    );
     fireEvent.click(logoutButton);
 
     // navigate('/') fires (there is no Cognito hosted-UI to redirect to).

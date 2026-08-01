@@ -8,7 +8,7 @@ import sys
 
 from review_common import MAX_DIFF_CHARS, format_truncation_log, prioritize_diff_blocks, truncate_diff
 
-DEFAULT_GLOBS = ["*.py", "*.ts", "*.tsx", "*.js", "*.json", "*.md", "*.yaml", "*.yml", "Makefile", "*.mk", "*.sh", "*.ps1", "*.txt", "*.html", "*.ini", "*.cfg", "*.toml", "*CODEOWNERS*", ]
+DEFAULT_GLOBS = ["*.py", "*.ts", "*.tsx", "*.js", "*.json", "*.md", "*.yaml", "*.yml", "Makefile", "*.mk", "*.sh", "*.ps1", "*.txt", "*.html", "*.css", "*.ini", "*.cfg", "*.toml", "*CODEOWNERS*", ]
 
 
 def parse_args() -> argparse.Namespace:

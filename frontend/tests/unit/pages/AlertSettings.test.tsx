@@ -9,6 +9,9 @@ import en from "@/locales/en/translation.json";
 vi.mock("@/api", () => ({
   getAlertThreshold: vi.fn().mockResolvedValue({ threshold: 5 }),
   setAlertThreshold: vi.fn().mockResolvedValue({}),
+  getAlerts: vi.fn().mockResolvedValue([]),
+  getNudges: vi.fn().mockResolvedValue([]),
+  searchInstruments: vi.fn().mockResolvedValue([]),
 }));
 
 describe("AlertSettings navigation", () => {

@@ -88,13 +88,19 @@ def test_get_fallback_tier_label(model_name: str, expected_label: str) -> None:
 
 def test_get_fallback_tier_label_with_custom_tier_map() -> None:
     mod = load_module()
-    custom_map = {"fast": "fast-model", "slow": "slow-model", "local-7b": "test-7b"}
+    custom_map = {"fast": "fast-model", "slow": "slow-model"}
     assert mod.get_fallback_tier_label("the-fast-one", custom_map) == "fast-model"
     assert mod.get_fallback_tier_label("the-slow-one", custom_map) == "slow-model"
-    assert mod.get_fallback_tier_label("local-7b", custom_map) == "test-7b"
 
     # No match and no recognised tiers in the custom map -> default.
     assert mod.get_fallback_tier_label("unrelated-model", custom_map) == "sonnet"
+
+def test_get_fallback_tier_label_with_clashing_custom_tier_map() -> None:
+    mod = load_module()
+
+    custom_map = {"fast": "local-7b"}
+
+    assert mod.get_fallback_tier_label("local-7b", custom_map) == "sonnet"
     assert mod.get_fallback_tier_label("local-7b", None) == "local-7b"
     assert mod.get_fallback_tier_label("local-7b") == "local-7b"
 

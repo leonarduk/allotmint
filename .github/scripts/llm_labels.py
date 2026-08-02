@@ -85,7 +85,7 @@ def get_fallback_tier_label(
             return label
 
     if size_marker_map is None:
-        size_marker_map = _SIZE_MARKER_TIERS
+        size_marker_map = _SIZE_MARKER_TIERS if tier_map is None else {}
 
     for marker, label in size_marker_map.items():
         if label in tier_map.values() and re.search(rf"\b{marker}\b", model_lower):

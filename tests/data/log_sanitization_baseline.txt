@@ -44,6 +44,8 @@ backend/common/compliance.py:198
 backend/common/compliance.py:236
 backend/common/compliance.py:265
 backend/common/dividends.py:74
+#5879 - don't double sanitize
+backend/common/errors.py:102
 backend/common/holding_utils.py:104
 backend/common/holding_utils.py:176
 backend/common/holding_utils.py:363

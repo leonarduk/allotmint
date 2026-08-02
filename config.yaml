@@ -69,7 +69,7 @@ trading:
     min_sharpe: null
     max_volatility: null
 ui:
-  enable_family_mvp: true
+  enable_family_mvp: false
   enable_compliance_workflows: false
   enable_advanced_analytics: false
   enable_reporting_extended: false

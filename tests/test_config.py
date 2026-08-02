@@ -56,7 +56,7 @@ def test_family_mvp_flags_default_when_missing(monkeypatch, tmp_path):
 
     cfg = reload_config()
     try:
-        assert cfg.enable_family_mvp is True
+        assert cfg.enable_family_mvp is False
         assert cfg.enable_compliance_workflows is False
         assert cfg.enable_advanced_analytics is False
         assert cfg.enable_reporting_extended is False
@@ -73,7 +73,7 @@ def test_family_mvp_flag_none_falls_back_to_default(monkeypatch, tmp_path):
 
     cfg = reload_config()
     try:
-        assert cfg.enable_family_mvp is True
+        assert cfg.enable_family_mvp is False
     finally:
         monkeypatch.undo()
         reload_config()

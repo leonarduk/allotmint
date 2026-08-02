@@ -21,6 +21,16 @@ def test_validate_tabs_accepts_new_keys():
     assert tabs.research is True
 
 
+def test_validate_tabs_accepts_dataquality():
+    # Regression test for #5871: the Support page's frontend route registry
+    # includes a "dataquality" tab (data-quality page) that must have a
+    # matching TabsConfig field, or saving the Support page's tab toggles
+    # fails with "Unknown tab 'dataquality'".
+    tabs = validate_tabs({"dataquality": False})
+    assert isinstance(tabs, TabsConfig)
+    assert tabs.dataquality is False
+
+
 def test_validate_tabs_rejects_unknown_key():
     with pytest.raises(ConfigValidationError):
         validate_tabs({"unknown": True})

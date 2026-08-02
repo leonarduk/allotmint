@@ -102,8 +102,8 @@ backend/common/transaction_reconciliation.py:66
 backend/common/transaction_reconciliation.py:134
 backend/common/transaction_reconciliation.py:176
 backend/common/transaction_reconciliation.py:186
-backend/config.py:269
-backend/config.py:272
+backend/config.py:270
+backend/config.py:273
 backend/lambda_api/dividend_refresh.py:27
 backend/lambda_api/pension_report.py:206
 backend/lambda_api/pension_report.py:231

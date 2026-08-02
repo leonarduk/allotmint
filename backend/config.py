@@ -57,6 +57,7 @@ class TabsConfig:
     group: bool = True
     owner: bool = True
     dataadmin: bool = True
+    dataquality: bool = True
     dataexplorer: bool = True
     virtual: bool = True
     support: bool = True

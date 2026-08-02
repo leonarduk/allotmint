@@ -130,7 +130,7 @@ class Config:
     allowed_emails: Optional[List[str]] = None
     local_login_email: Optional[str] = None
     relative_view_enabled: Optional[bool] = None
-    enable_family_mvp: bool = True
+    enable_family_mvp: bool = False
     enable_compliance_workflows: bool = False
     enable_advanced_analytics: bool = False
     enable_reporting_extended: bool = False
@@ -454,7 +454,7 @@ def load_config() -> Config:
         enable_family_mvp=_coerce_bool_with_default(
             data.get("enable_family_mvp"),
             key="enable_family_mvp",
-            default=True,
+            default=False,
         ),
         enable_compliance_workflows=_coerce_bool_with_default(
             data.get("enable_compliance_workflows"),

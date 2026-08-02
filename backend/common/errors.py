@@ -102,7 +102,7 @@ def log_owner_not_found(owner: str | None = None, **diagnostics: Any) -> None:
     logger.warning(
         "owner lookup: no owner found for owner=%s%s",
         sanitise_log_value(owner),
-        sanitise_log_value(suffix),
+        suffix,
     )
 
 

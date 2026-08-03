@@ -15,6 +15,8 @@ jobs:
       issues: write
 
     steps:
+      - uses: actions/checkout@v7
+
       - name: Check for existing tier label and apply fallback
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -82,21 +84,11 @@ jobs:
             fi
           done
 
-          # Infer value from the issue body.  Precedence: explicit **Value**
-          # section first, then any bare "<word> Value" mention.
-          body_lower=$(echo "$ISSUE_BODY" | tr '[:upper:]' '[:lower:]')
-          value_label=""
-          if echo "$body_lower" | grep -qE '\*\*value\*\*.*high value|\bhigh value\b'; then
-            value_label="High Value"
-          elif echo "$body_lower" | grep -qE '\*\*value\*\*.*medium value|\bmedium value\b'; then
-            value_label="Medium Value"
-          elif echo "$body_lower" | grep -qE '\*\*value\*\*.*low value|\blow value\b'; then
-            value_label="Low Value"
-          else
-            # Default: Low Value — ai-suggested issues have historically
-            # skewed low-value, matching the manual triage pass on 2026-08-02.
-            value_label="Low Value"
-          fi
+          # Infer value from the issue body using the shared extraction logic
+          # in .github/scripts/llm_labels.py (also used by
+          # create_followup_issues.py), so both paths stay in sync instead of
+          # duplicating the regex here.
+          value_label=$(echo "$ISSUE_BODY" | python3 .github/scripts/llm_labels.py value-label)
 
           echo "Applying value label: $value_label"
           gh issue edit "$ISSUE_NUMBER" \

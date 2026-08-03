@@ -487,6 +487,37 @@ refuses to propose the change rather than risk silently dropping details.
 **Requirements:** `gh` CLI authenticated against the target repo; either a
 running local Ollama server or a `DEEPSEEK_API_KEY`, depending on `--model`.
 
+## p_add_issue_to_pr.py
+
+Retroactively link open PRs to an issue. Every PR is supposed to close an
+issue, but one opened by hand (or by an external contributor) can slip
+through without a `Closes #NNNN` reference. This script scans open PRs,
+skips any whose body already references an issue via a closing keyword
+(`Closes`/`Fixes`/`Resolves`, case-insensitive), and for the rest creates a
+new issue from the PR's own title/body/changed-files (using the standard
+`bug_report.md` template sections) before appending `Closes #<issue_id>` to
+the PR description.
+
+```bash
+python scripts/developer_tools/p_add_issue_to_pr.py
+```
+
+Defaults to dry-run, printing which PRs would get a new issue without
+creating or editing anything:
+
+```bash
+python scripts/developer_tools/p_add_issue_to_pr.py --yes
+```
+
+Optional flags:
+- `--repo owner/name`: target a repo other than the `origin` git remote.
+- `--pr NNNN`: only check/process a single PR instead of scanning all open PRs.
+- `--label LABEL`: label to apply to created issues (repeatable). Defaults to
+  `bug` and `Medium Value`.
+
+**Requirements:** `gh` CLI authenticated with a token that can create issues
+and edit PR descriptions on the target repo (repo scope covers this).
+
 ## reconcile_drawdown.py
 
 Inspect max drawdowns and dump holding price data when the portfolio suffers a

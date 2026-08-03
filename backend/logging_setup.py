@@ -52,7 +52,7 @@ def _switch_console_handler_to_json(root_logger: logging.Logger) -> None:
     """
     formatter = JSONFormatter("%(levelname)s %(name)s %(message)s")
     for handler in root_logger.handlers:
-        if type(handler) is logging.StreamHandler:  # noqa: E721 (exclude FileHandler subclass)
+        if isinstance(handler, logging.StreamHandler) and not isinstance(handler, logging.FileHandler):
             handler.setFormatter(formatter)
 
 

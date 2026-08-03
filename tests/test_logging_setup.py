@@ -82,6 +82,52 @@ def test_switch_console_handler_to_json_mutates_shared_handler():
     assert isinstance(other_logger.handlers[0].formatter, logging_setup.JSONFormatter)
 
 
+def test_switch_console_handler_to_json_covers_stream_handler_subclasses():
+    """A StreamHandler subclass (e.g. one uvicorn or another library installs)
+    must still be switched -- an exact `type(handler) is StreamHandler` check
+    would silently skip it."""
+
+    class CustomStreamHandler(logging.StreamHandler):
+        pass
+
+    root_logger = logging.getLogger("test.json.subclass")
+    custom_handler = CustomStreamHandler()
+    root_logger.handlers = [custom_handler]
+
+    logging_setup._switch_console_handler_to_json(root_logger)
+
+    assert isinstance(custom_handler.formatter, logging_setup.JSONFormatter)
+
+
+def test_switch_console_handler_to_json_leaves_file_handler_untouched(tmp_path):
+    """FileHandler is a StreamHandler subclass; it must not be switched to JSON."""
+    root_logger = logging.getLogger("test.json.filehandler")
+    plain_formatter = logging.Formatter("%(message)s")
+    file_handler = logging.FileHandler(tmp_path / "test.log")
+    file_handler.setFormatter(plain_formatter)
+    root_logger.handlers = [file_handler]
+
+    try:
+        logging_setup._switch_console_handler_to_json(root_logger)
+        assert file_handler.formatter is plain_formatter
+    finally:
+        file_handler.close()
+
+
+def test_switch_console_handler_to_json_preserves_existing_filters():
+    """RedactTokenFilter (attached via logging.ini's filters=redactToken) must
+    still apply after the formatter is swapped to JSON."""
+    root_logger = logging.getLogger("test.json.filters")
+    handler = logging.StreamHandler()
+    marker_filter = logging.Filter(name="redactToken")
+    handler.addFilter(marker_filter)
+    root_logger.handlers = [handler]
+
+    logging_setup._switch_console_handler_to_json(root_logger)
+
+    assert marker_filter in root_logger.handlers[0].filters
+
+
 def test_setup_logging_switches_to_json_when_configured(monkeypatch):
     root_logger = logging.getLogger()
     original_handlers = root_logger.handlers[:]
@@ -101,5 +147,58 @@ def test_setup_logging_switches_to_json_when_configured(monkeypatch):
     try:
         logging_setup.setup_logging()
         assert isinstance(stream_handler.formatter, logging_setup.JSONFormatter)
+    finally:
+        root_logger.handlers = original_handlers
+
+
+def test_setup_logging_leaves_plain_text_formatter_when_log_format_unset(monkeypatch):
+    """LOG_FORMAT unset (or anything other than "json") must not touch the
+    formatter fileConfig installed -- today's plain-text-only behaviour."""
+    root_logger = logging.getLogger()
+    original_handlers = root_logger.handlers[:]
+    root_logger.handlers = []
+
+    monkeypatch.setattr(logging_setup.config, "log_config", "logging.ini")
+    monkeypatch.setattr(logging_setup.config, "log_format", None)
+    monkeypatch.setattr(Path, "exists", lambda self: True)
+
+    stream_handler = logging.StreamHandler()
+    plain_formatter = logging.Formatter("%(message)s")
+    stream_handler.setFormatter(plain_formatter)
+
+    def fake_file_config(*args, **kwargs):
+        root_logger.handlers = [stream_handler]
+
+    monkeypatch.setattr(logging.config, "fileConfig", fake_file_config)
+
+    try:
+        logging_setup.setup_logging()
+        assert stream_handler.formatter is plain_formatter
+    finally:
+        root_logger.handlers = original_handlers
+
+
+def test_setup_logging_switches_to_json_when_uvicorn_preconfigured_logging(monkeypatch):
+    """When uvicorn's own --log-config already populated root_logger.handlers
+    (its Config.configure_logging() runs before the app is imported), fileConfig
+    must be skipped but the JSON switch must still apply to the handler uvicorn
+    installed (issue #4681 follow-up: setup_logging() previously wasn't wired
+    into any real entrypoint, so this path never ran in production)."""
+    root_logger = logging.getLogger()
+    original_handlers = root_logger.handlers[:]
+
+    uvicorn_installed_handler = logging.StreamHandler()
+    root_logger.handlers = [uvicorn_installed_handler]
+
+    monkeypatch.setattr(logging_setup.config, "log_config", "logging.ini")
+    monkeypatch.setattr(logging_setup.config, "log_format", "json")
+
+    file_config_mock = MagicMock()
+    monkeypatch.setattr(logging.config, "fileConfig", file_config_mock)
+
+    try:
+        logging_setup.setup_logging()
+        file_config_mock.assert_not_called()
+        assert isinstance(uvicorn_installed_handler.formatter, logging_setup.JSONFormatter)
     finally:
         root_logger.handlers = original_handlers

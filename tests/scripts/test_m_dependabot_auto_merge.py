@@ -50,12 +50,62 @@ def test_checks_have_passed_false_when_pending():
     assert not i.checks_have_passed(checks)
 
 
+def test_checks_have_passed_true_when_stale_cancelled_duplicate_superseded_by_success():
+    """A rerun can leave both the old CANCELLED run and the new SUCCESS run in the
+    rollup under the same workflow/check name; only the latest should count."""
+    checks = [
+        {
+            "workflowName": "DeepSeek PR Review",
+            "name": "ai-review / DeepSeek AI code review",
+            "status": "COMPLETED",
+            "conclusion": "CANCELLED",
+            "completedAt": "2026-08-03T21:23:45Z",
+        },
+        {
+            "workflowName": "DeepSeek PR Review",
+            "name": "ai-review / DeepSeek AI code review",
+            "status": "COMPLETED",
+            "conclusion": "SUCCESS",
+            "completedAt": "2026-08-03T21:23:57Z",
+        },
+    ]
+    assert i.checks_have_passed(checks)
+
+
+def test_checks_have_passed_false_when_latest_duplicate_still_failing():
+    checks = [
+        {
+            "workflowName": "DeepSeek PR Review",
+            "name": "ai-review / DeepSeek AI code review",
+            "status": "COMPLETED",
+            "conclusion": "SUCCESS",
+            "completedAt": "2026-08-03T21:23:45Z",
+        },
+        {
+            "workflowName": "DeepSeek PR Review",
+            "name": "ai-review / DeepSeek AI code review",
+            "status": "COMPLETED",
+            "conclusion": "CANCELLED",
+            "completedAt": "2026-08-03T21:23:57Z",
+        },
+    ]
+    assert not i.checks_have_passed(checks)
+
+
 def test_is_mergeable_true_when_clean():
     assert i.is_mergeable(_pr(1, mergeable="MERGEABLE", mergeable_state="clean"))
 
 
 def test_is_mergeable_true_when_only_behind_main():
     assert i.is_mergeable(_pr(1, mergeable="MERGEABLE", mergeable_state="behind"))
+
+
+def test_is_mergeable_true_when_blocked():
+    assert i.is_mergeable(_pr(1, mergeable="MERGEABLE", mergeable_state="blocked"))
+
+
+def test_is_mergeable_true_when_unstable():
+    assert i.is_mergeable(_pr(1, mergeable="MERGEABLE", mergeable_state="unstable"))
 
 
 def test_is_mergeable_false_when_dirty():
@@ -179,6 +229,38 @@ def test_process_pr_force_merges_when_green_and_only_behind_default_strategy(mon
     )
     pr = _pr(1, mergeable_state="behind")
     assert i.process_pr(pr, dry_run=True) is True
+    assert merge_calls == [(1, True)]
+
+
+def test_process_pr_force_merges_when_blocked_default_strategy(monkeypatch):
+    merge_calls = []
+    monkeypatch.setattr(
+        i, "merge_and_delete", lambda pr, dry_run, admin=False: merge_calls.append((pr.number, admin)) or True
+    )
+    pr = _pr(1, mergeable_state="blocked")
+    assert i.process_pr(pr, dry_run=True) is True
+    assert merge_calls == [(1, True)]
+
+
+def test_process_pr_force_merges_when_unstable_default_strategy(monkeypatch):
+    merge_calls = []
+    monkeypatch.setattr(
+        i, "merge_and_delete", lambda pr, dry_run, admin=False: merge_calls.append((pr.number, admin)) or True
+    )
+    pr = _pr(1, mergeable_state="unstable")
+    assert i.process_pr(pr, dry_run=True) is True
+    assert merge_calls == [(1, True)]
+
+
+def test_process_pr_behind_strategy_update_branch_does_not_apply_to_blocked(monkeypatch):
+    """update-branch only makes sense for a genuinely behind PR; blocked/unstable still admin-merge."""
+    merge_calls = []
+    update_calls = []
+    monkeypatch.setattr(i, "merge_and_delete", lambda pr, dry_run, admin=False: merge_calls.append((pr.number, admin)) or True)
+    monkeypatch.setattr(i, "update_branch", lambda pr, dry_run: update_calls.append(pr.number) or True)
+    pr = _pr(1, mergeable_state="blocked")
+    assert i.process_pr(pr, dry_run=True, behind_strategy="update-branch") is True
+    assert update_calls == []
     assert merge_calls == [(1, True)]
 
 

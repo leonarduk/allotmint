@@ -1,5 +1,5 @@
 jinja2
-fastapi~=0.139.2
+fastapi~=0.141.1
 mangum~=0.21.0
 pandas~=3.0.5
 yfinance~=1.5.1

@@ -1,5 +1,6 @@
 """Tests for the market overview helpers and HTTP endpoint."""
 
+import time
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -325,7 +326,9 @@ def test_market_overview_default_region_handles_fetch_failures(monkeypatch):
     resp = client.get("/market/overview")
     assert resp.status_code == 200
     assert resp.json() == {"indexes": {}, "sectors": [], "headlines": []}
-    assert calls == ["indexes", "sectors", "headlines"]
+    # Fetchers run concurrently on separate threads, so call order isn't
+    # guaranteed - only that all three ran.
+    assert set(calls) == {"indexes", "sectors", "headlines"}
 
 
 def test_market_overview_uk_region_handles_fetch_errors(monkeypatch):
@@ -359,7 +362,42 @@ def test_market_overview_uk_region_handles_fetch_errors(monkeypatch):
     assert data["indexes"] == {"Dow Jones": {"value": 100.0, "change": 1.5}}
     assert data["sectors"] == []
     assert data["headlines"] == []
-    assert calls == ["uk", "headlines"]
+    # Fetchers run concurrently on separate threads, so call order isn't
+    # guaranteed - only that both ran.
+    assert set(calls) == {"uk", "headlines"}
+
+
+def test_market_overview_fetchers_run_concurrently(monkeypatch):
+    """The three fetchers must overlap in wall-clock time, not run one after
+    another - a purely sequential implementation would take >= 3x as long."""
+
+    delay = 0.2
+
+    def slow_indexes():
+        time.sleep(delay)
+        return {}
+
+    def slow_sectors():
+        time.sleep(delay)
+        return []
+
+    def slow_headlines():
+        time.sleep(delay)
+        return []
+
+    monkeypatch.setattr(market, "_fetch_indexes", slow_indexes)
+    monkeypatch.setattr(market, "_fetch_sectors", slow_sectors)
+    monkeypatch.setattr(market, "_fetch_headlines", slow_headlines)
+
+    client = _client()
+    start = time.monotonic()
+    resp = client.get("/market/overview")
+    elapsed = time.monotonic() - start
+
+    assert resp.status_code == 200
+    # Sequential execution would take roughly 3 * delay; concurrent execution
+    # should take roughly 1 * delay. Use 2x delay as a generous cutoff.
+    assert elapsed < delay * 2
 
 
 # ---------------------------------------------------------------------------

@@ -107,10 +107,14 @@ def test_json_switch_preserves_console_handler_filters(monkeypatch):
     """
     root_logger = logging.getLogger()
     original_handlers = root_logger.handlers[:]
+    original_level = root_logger.level
     root_logger.handlers = []
     monkeypatch.setattr(logging_setup.config, "log_format", "json")
 
     try:
+        # fileConfig applies logging.ini's `[logger_root] level=INFO`, which
+        # would otherwise leak into every later test's caplog capture if not
+        # restored below.
         logging.config.fileConfig(_LOGGING_INI, disable_existing_loggers=False)
 
         console_handlers = [
@@ -126,3 +130,4 @@ def test_json_switch_preserves_console_handler_filters(monkeypatch):
         assert console_handler.filters == filters_before
     finally:
         root_logger.handlers = original_handlers
+        root_logger.setLevel(original_level)

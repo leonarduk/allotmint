@@ -48,6 +48,11 @@ async def test_lifecycle_service_startup_applies_log_format(monkeypatch: pytest.
     apply_log_format_mock = MagicMock()
     monkeypatch.setattr(startup_module, "apply_log_format", apply_log_format_mock)
     monkeypatch.setattr(config, "skip_snapshot_warm", True, raising=False)
+    # skip_snapshot_warm only skips _warm_snapshot(); refresh_snapshot_async()
+    # fires unconditionally, so it must be stubbed out here too -- otherwise
+    # it schedules a real, unawaited background task that can leak into and
+    # pollute later tests' caplog captures.
+    monkeypatch.setattr("backend.common.portfolio_utils.refresh_snapshot_async", lambda days: None)
 
     service = AppLifecycleService(cfg=config)
     app = app_module.create_app()
@@ -55,6 +60,7 @@ async def test_lifecycle_service_startup_applies_log_format(monkeypatch: pytest.
     await service.startup(app)
 
     apply_log_format_mock.assert_called_once_with()
+    assert app.state.background_tasks == []
 
 
 @pytest.mark.asyncio

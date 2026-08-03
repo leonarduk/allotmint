@@ -2,6 +2,7 @@ from __future__ import annotations
 
 """Market overview endpoint aggregating indexes, sectors and headlines."""
 
+import asyncio
 import logging
 import math
 import os
@@ -376,11 +377,21 @@ async def market_overview(
 ) -> Dict[str, Any]:
     """Return index levels, sector performance and latest headlines."""
 
-    indexes = _safe(_fetch_indexes, {})
     default_region = getattr(cfg, "default_sector_region", "US") or "US"
     region_value = region if isinstance(region, str) else None
     selected_region = (region_value or default_region).lower()
     fetcher = _fetch_uk_sectors if selected_region == "uk" else _fetch_sectors
-    sectors = _safe(fetcher, [])
-    headlines = _safe(_fetch_headlines, [])
+
+    # Each fetcher does blocking network I/O, so run them on the default
+    # executor's thread pool and await them together instead of one after
+    # another - total latency becomes roughly the slowest fetcher instead of
+    # the sum of all three. `_safe` still runs inside each thread, so an
+    # exception in one fetcher only replaces that fetcher's own result with
+    # its default and doesn't affect the others or fail the gather.
+    loop = asyncio.get_running_loop()
+    indexes, sectors, headlines = await asyncio.gather(
+        loop.run_in_executor(None, _safe, _fetch_indexes, {}),
+        loop.run_in_executor(None, _safe, fetcher, []),
+        loop.run_in_executor(None, _safe, _fetch_headlines, []),
+    )
     return {"indexes": indexes, "sectors": sectors, "headlines": headlines}

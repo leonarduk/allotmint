@@ -4,6 +4,7 @@ import contextlib
 import io
 import json
 from datetime import date
+from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -378,6 +379,36 @@ def test_tx_data_from_parsed_no_prices_set():
 
     assert tx_data["price_gbp"] is None
     assert "price" not in tx_data
+
+
+class _FakeParsedRow:
+    """Stand-in for a parsed ``Transaction`` whose ``price``/``price_gbp``
+    fields may carry mixed numeric types (e.g. ``Decimal`` vs ``float``),
+    which the ``Transaction`` model itself would normally coerce to
+    ``float`` -- used to exercise the type-safe comparison in isolation."""
+
+    def __init__(self, price, price_gbp):
+        self._price = price
+        self._price_gbp = price_gbp
+
+    def model_dump(self, mode="json", exclude=None):
+        return {"ticker": "AAA", "price": self._price, "price_gbp": self._price_gbp}
+
+
+def test_tx_data_from_parsed_allows_equal_decimal_and_float_price():
+    row = _FakeParsedRow(price=Decimal("10.50"), price_gbp=10.5)
+
+    tx_data = transactions_module._tx_data_from_parsed(row)
+
+    assert tx_data["price_gbp"] == 10.5
+    assert "price" not in tx_data
+
+
+def test_tx_data_from_parsed_raises_on_conflicting_decimal_and_float_price():
+    row = _FakeParsedRow(price=Decimal("10.50"), price_gbp=10.51)
+
+    with pytest.raises(ValueError, match="Conflicting values for price"):
+        transactions_module._tx_data_from_parsed(row)
 
 
 @pytest.mark.asyncio

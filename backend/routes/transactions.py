@@ -7,6 +7,7 @@ import re
 from collections import defaultdict
 from contextlib import contextmanager
 from datetime import date, datetime
+from decimal import Decimal
 from enum import Enum, auto
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Mapping, Optional, Tuple
@@ -813,7 +814,11 @@ def _tx_data_from_parsed(row: Transaction) -> Dict[str, Any]:
     tx_data = row.model_dump(mode="json", exclude={"owner", "account", "id"})
     price = tx_data.get("price")
     price_gbp = tx_data.get("price_gbp")
-    if price is not None and price_gbp is not None and price != price_gbp:
+    if (
+        price is not None
+        and price_gbp is not None
+        and Decimal(str(price)) != Decimal(str(price_gbp))
+    ):
         raise ValueError(f"Conflicting values for price ({price}) and price_gbp ({price_gbp})")
     if price_gbp is None:
         tx_data["price_gbp"] = price

@@ -18,23 +18,51 @@ class AwsUiAuthContract(SpaContractBase):
 
 
 class ConfigTabsContract(SpaContractBase):
-    portfolio: bool
-    transactions: bool
-    goals: bool
-    tax: bool
-    alerts: bool
+    instrument: bool
     performance: bool
-    wizard: bool
-    ideas: bool
-    reports: bool
+    transactions: bool
+    screener: bool
+    query: bool
+    trading: bool
+    timeseries: bool
+    watchlist: bool
+    movers: bool
+    market: bool
+    allocation: bool
+    rebalance: bool
+    instrumentadmin: bool
+    group: bool
+    owner: bool
+    dataadmin: bool
+    dataquality: bool
+    dataexplorer: bool
+    virtual: bool
+    support: bool
     settings: bool
-    queries: bool
-    compliance: bool
+    alertsettings: bool
     trade_compliance: bool = Field(alias="trade-compliance")
+    trail: bool
+    taxtools: bool
+    profile: bool
     pension: bool
+    reports: bool
+    scenario: bool
+    logs: bool
+    research: bool
 
 
 class ConfigContract(SpaContractBase):
+    """Describes the subset of the real ``GET /config`` response the SPA relies on.
+
+    ``serialise_config()`` also exposes internal/backend-only settings (API
+    keys, rate limits, file paths, etc.) that the SPA never reads, so extra
+    top-level fields are ignored here. ``tabs`` is still validated strictly
+    via ``ConfigTabsContract`` since tab-name drift is what previously broke
+    the SPA (see #5871).
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
     app_env: str
     google_auth_enabled: bool | None = None
     google_client_id: str | None = None

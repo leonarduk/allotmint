@@ -95,14 +95,51 @@ def test_get_fallback_tier_label_with_custom_tier_map() -> None:
     # No match and no recognised tiers in the custom map -> default.
     assert mod.get_fallback_tier_label("unrelated-model", custom_map) == "sonnet"
 
+
 def test_get_fallback_tier_label_with_clashing_custom_tier_map() -> None:
     mod = load_module()
 
     custom_map = {"fast": "local-7b"}
 
+    custom_size_map = {
+        "7b": "test-7b",
+        "14b": "test-14b",
+    }
+
+    # Custom tier_map without size_marker_map opt-in: size markers are
+    # ignored entirely, so "local-7b" only matches via the literal tier_map.
     assert mod.get_fallback_tier_label("local-7b", custom_map) == "sonnet"
     assert mod.get_fallback_tier_label("local-7b", None) == "local-7b"
     assert mod.get_fallback_tier_label("local-7b") == "local-7b"
+
+    # Custom size_marker_map whose labels aren't in tier_map.values() ->
+    # no match, falls back to default.
+    assert mod.get_fallback_tier_label("test-7b", custom_map, custom_size_map) == "sonnet"
+
+
+def test_get_fallback_tier_label_with_custom_tier_map_and_explicit_size_marker_map() -> None:
+    """Document the opt-in: a custom tier_map + explicit size_marker_map can
+    match by size marker, as long as the size marker's label is one of the
+    custom tier_map's values."""
+    mod = load_module()
+
+    custom_map = {"fast": "fast-model", "slow": "slow-model"}
+    custom_size_map = {"7b": "fast-model", "14b": "slow-model"}
+
+    # Model name has no literal tier keyword, but matches a size marker whose
+    # label is recognised by the custom tier_map -> opt-in match succeeds.
+    assert (
+        mod.get_fallback_tier_label("qwen2.5-7b-instruct", custom_map, custom_size_map)
+        == "fast-model"
+    )
+    assert (
+        mod.get_fallback_tier_label("qwen2.5-14b-instruct", custom_map, custom_size_map)
+        == "slow-model"
+    )
+
+    # Without the size_marker_map opt-in, the same custom tier_map alone
+    # can't recognise size markers -> falls back to default.
+    assert mod.get_fallback_tier_label("qwen2.5-7b-instruct", custom_map) == "sonnet"
 
 
 def test_llm_tier_map_is_stable() -> None:

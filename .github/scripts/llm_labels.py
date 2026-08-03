@@ -78,6 +78,7 @@ def get_fallback_tier_label(
     Size-marker matching is skipped by default for custom tier_map callers
     unless they explicitly opt in via size_marker_map.
     """
+    used_default_tier_map = tier_map is None
     tier_map = LLM_TIER_MAP if tier_map is None else tier_map
     model_lower = model_name.lower()
     for tier, label in tier_map.items():
@@ -85,7 +86,7 @@ def get_fallback_tier_label(
             return label
 
     if size_marker_map is None:
-        size_marker_map = _SIZE_MARKER_TIERS if tier_map is None else {}
+        size_marker_map = _SIZE_MARKER_TIERS if used_default_tier_map else {}
 
     for marker, label in size_marker_map.items():
         if label in tier_map.values() and re.search(rf"\b{marker}\b", model_lower):

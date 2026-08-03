@@ -43,6 +43,16 @@ shape" or "must preserve bash/PowerShell parity". -->
 
 <!-- If this will be worked by an AI agent, suggest a tier: haiku / sonnet / opus -->
 
+## Value
+
+<!-- How much impact/priority does this have: Low Value / Medium Value / High Value
+- High Value: real bugs, security/auth gaps, financial-data correctness issues,
+  or substantive product features.
+- Medium Value: reliability/observability improvements with real (if non-urgent)
+  blast radius, or consolidated multi-item hardening/test-coverage backlogs.
+- Low Value: single-file "add a test for X" / rename / doc-comment /
+  formatting-only suggestions with no functional risk. -->
+
 ## Success looks like
 
 - [ ]

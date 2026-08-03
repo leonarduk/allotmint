@@ -36,6 +36,16 @@ boundaries, backwards compatibility requirements. -->
 it: haiku (mechanical/additive) / sonnet (judgment required) / opus (complex,
 cross-cutting) -->
 
+## Value
+
+<!-- How much impact/priority does this have: Low Value / Medium Value / High Value
+- High Value: real bugs, security/auth gaps, financial-data correctness issues,
+  or substantive product features.
+- Medium Value: reliability/observability improvements with real (if non-urgent)
+  blast radius, or consolidated multi-item hardening/test-coverage backlogs.
+- Low Value: single-file "add a test for X" / rename / doc-comment /
+  formatting-only suggestions with no functional risk. -->
+
 ## Success looks like
 
 - [ ]

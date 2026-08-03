@@ -46,6 +46,14 @@ SECTIONS_FEATURE = [
     ),
     ("LLM tier", "Suggested AI agent tier: haiku / sonnet / opus"),
     (
+        "Value",
+        "Suggested value tier: Low / Medium / High — High: real bugs, security/auth"
+        " gaps, financial-data correctness, or substantive features. Medium:"
+        " reliability/observability improvements with real blast radius, or"
+        " consolidated hardening/test-coverage backlogs. Low: single-file"
+        " test/rename/doc-only changes with no functional risk.",
+    ),
+    (
         "Success looks like",
         "Checklist of acceptance criteria. Start each line with '- [ ] '.",
     ),
@@ -65,6 +73,14 @@ SECTIONS_BUG = [
     ),
     ("Constraints", "Anything the fix must not break."),
     ("LLM tier", "Suggested AI agent tier: haiku / sonnet / opus"),
+    (
+        "Value",
+        "Suggested value tier: Low / Medium / High — High: real bugs, security/auth"
+        " gaps, financial-data correctness, or substantive features. Medium:"
+        " reliability/observability improvements with real blast radius, or"
+        " consolidated hardening/test-coverage backlogs. Low: single-file"
+        " test/rename/doc-only changes with no functional risk.",
+    ),
     (
         "Success looks like",
         "Checklist of acceptance criteria. Start each line with '- [ ] '.",
@@ -191,6 +207,10 @@ def format_feature_body(sections: dict[str, str]) -> str:
         "",
         sections.get("LLM tier", "sonnet"),
         "",
+        "## Value",
+        "",
+        sections.get("Value", "Medium Value"),
+        "",
         "## Success looks like",
         "",
         sections.get("Success looks like", "- [ ] "),
@@ -228,6 +248,10 @@ def format_bug_body(sections: dict[str, str]) -> str:
         "## LLM tier",
         "",
         sections.get("LLM tier", "sonnet"),
+        "",
+        "## Value",
+        "",
+        sections.get("Value", "Medium Value"),
         "",
         "## Success looks like",
         "",
@@ -464,7 +488,9 @@ def main() -> None:
     # Pick issue type → determines template and default label
     issue_type = pick_issue_type()
     sections_def = SECTIONS_FEATURE if issue_type == TEMPLATE_FEATURE else SECTIONS_BUG
-    default_label = "enhancement" if issue_type == TEMPLATE_FEATURE else "bug"
+    default_label = (
+        "enhancement, Medium Value" if issue_type == TEMPLATE_FEATURE else "bug, Medium Value"
+    )
 
     # Collect sections
     sections: dict[str, str] = {}
@@ -472,6 +498,8 @@ def main() -> None:
         default = ""
         if label == "LLM tier":
             default = "sonnet"
+        elif label == "Value":
+            default = "Medium Value"
         elif label == "Success looks like":
             default = "- [ ] "
         elif label == "Failure looks like":

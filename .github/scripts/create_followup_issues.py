@@ -12,7 +12,7 @@ import urllib.request
 from pathlib import Path
 from typing import Callable
 
-from llm_labels import extract_tier_label
+from llm_labels import extract_tier_label, extract_value_label
 
 _PR_FOOTER_TEMPLATE = "_Follow-up suggested by AI review of PR #{pr_number}._"
 
@@ -102,8 +102,17 @@ Write a complete, actionable GitHub issue body in Markdown covering:
    and self-contained enough for a smaller model to complete correctly
    without broad context; default to the cloud tiers (Haiku/Sonnet/Opus)
    when in doubt
-6. **Success looks like** — specific, verifiable criteria
-7. **Failure looks like** — what would indicate the implementation went wrong
+6. **Value** — how much impact/priority this has: Low Value, Medium Value,
+   or High Value
+   - High Value: real bugs, security/auth gaps, financial-data correctness
+     issues, or substantive product features
+   - Medium Value: reliability/observability improvements with real (if
+     non-urgent) blast radius, and consolidated multi-item
+     hardening/test-coverage backlogs
+   - Low Value: single-file "add a test for X" / rename / doc-comment /
+     formatting-only suggestions with no functional risk
+7. **Success looks like** — specific, verifiable criteria
+8. **Failure looks like** — what would indicate the implementation went wrong
 
 Be concise but complete. Do not pad with generic advice.
 
@@ -291,6 +300,9 @@ def create_issues(titles: list[str], pr_number: str, review_text: str | None = N
         llm_label = extract_tier_label(body)
         if llm_label:
             labels.append(llm_label)
+        value_label = extract_value_label(body)
+        if value_label:
+            labels.append(value_label)
         label_args = [arg for label in labels for arg in ("--label", label)]
         try:
             subprocess.run(

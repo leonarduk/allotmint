@@ -104,3 +104,51 @@ def test_llm_tier_map_is_stable() -> None:
         "sonnet": "sonnet",
         "opus": "opus",
     }
+
+
+@pytest.mark.parametrize(
+    ("body", "expected_label"),
+    [
+        ("**Value**\n**Low Value** — cosmetic change", "Low Value"),
+        ("**Value**\n**Medium Value** — reliability improvement", "Medium Value"),
+        ("**Value**\n**High Value** — security fix", "High Value"),
+        ("**value**\n**HIGH VALUE** — case insensitive", "High Value"),
+        ("This is a High Value issue.", "High Value"),
+        ("This is a Medium Value issue.", "Medium Value"),
+        ("This is a Low Value issue.", "Low Value"),
+        ("No value mentioned", None),
+        ("", None),
+    ],
+)
+def test_extract_value_label(body: str, expected_label: str | None) -> None:
+    mod = load_module()
+    assert mod.extract_value_label(body) == expected_label
+
+
+def test_extract_value_label_prefers_value_section_over_bare_mention() -> None:
+    mod = load_module()
+    body = "Mentions Low Value in passing.\n\n**Value**\n**High Value** — security fix"
+    assert mod.extract_value_label(body) == "High Value"
+
+
+def test_extract_value_label_with_custom_value_map() -> None:
+    mod = load_module()
+    custom_map = {"tiny": "Tiny Value", "huge": "Huge Value"}
+    assert (
+        mod.extract_value_label("**Value**\n**Tiny Value** — quick task", custom_map)
+        == "Tiny Value"
+    )
+    assert mod.extract_value_label("A Huge Value item.", custom_map) == "Huge Value"
+    assert mod.extract_value_label("No value here", custom_map) is None
+    # Default value map shouldn't match when a custom map is supplied.
+    assert mod.extract_value_label("**Value**\n**High Value** — big", custom_map) is None
+
+
+def test_value_label_map_is_stable() -> None:
+    mod = load_module()
+    assert mod.VALUE_LABEL_MAP == {
+        "low": "Low Value",
+        "medium": "Medium Value",
+        "high": "High Value",
+    }
+    assert mod.DEFAULT_VALUE_LABEL == "Low Value"

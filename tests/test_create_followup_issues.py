@@ -371,12 +371,13 @@ def test_create_issues_passes_generated_body(
 
 
 def test_uses_shared_llm_labels_module() -> None:
-    """Tier label extraction is delegated to the shared llm_labels module
-    (see tests/test_llm_labels.py for tier-extraction coverage)."""
+    """Tier and value label extraction are delegated to the shared llm_labels
+    module (see tests/test_llm_labels.py for extraction coverage)."""
     mod = load_module()
     import llm_labels
 
     assert mod.extract_tier_label is llm_labels.extract_tier_label
+    assert mod.extract_value_label is llm_labels.extract_value_label
 
 
 def test_create_issues_applies_llm_label(
@@ -445,6 +446,47 @@ def test_main_returns_nonzero_when_issue_creation_fails(
     result = mod.main()
     assert result == 1
     assert "1 of 1 follow-up issue(s) failed to create" in capsys.readouterr().err
+
+
+def test_create_issues_applies_value_label(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mod = load_module()
+    created: list[list[str]] = []
+
+    monkeypatch.setattr(mod, "issue_exists", lambda title: False)
+    monkeypatch.setattr(
+        mod,
+        "_build_body",
+        lambda *args, **kwargs: "**LLM tier**\n**Sonnet** — moderate\n\n"
+        "**Value**\n**High Value** — security fix",
+    )
+    monkeypatch.setattr(mod.subprocess, "run", lambda cmd, **kwargs: created.append(cmd))
+
+    mod.create_issues(["My title"], "10", "review text")
+    assert created
+    assert "sonnet" in created[0]
+    assert "High Value" in created[0]
+    assert "ai-suggested" in created[0]
+
+
+def test_create_issues_applies_no_value_label_when_body_has_no_value(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When the generated body contains no value mention, create_issues()
+    must not apply any of the Low/Medium/High Value labels — there is no
+    automatic fallback, mirroring the tier-label behaviour."""
+    mod = load_module()
+    created: list[list[str]] = []
+
+    monkeypatch.setattr(mod, "issue_exists", lambda title: False)
+    monkeypatch.setattr(mod, "_build_body", lambda *args, **kwargs: "No value info here.")
+    monkeypatch.setattr(mod.subprocess, "run", lambda cmd, **kwargs: created.append(cmd))
+
+    mod.create_issues(["My title"], "10", None)
+    assert created
+    label_values = [created[0][i + 1] for i, v in enumerate(created[0][:-1]) if v == "--label"]
+    assert not any(v in label_values for v in ("Low Value", "Medium Value", "High Value"))
 
 
 def test_create_issues_applies_no_llm_label_when_body_has_no_tier(

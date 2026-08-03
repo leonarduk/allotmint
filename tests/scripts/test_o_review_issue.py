@@ -162,6 +162,7 @@ def test_load_template_sections_reads_real_bug_report_template():
         "Files Affected",
         "Constraints",
         "LLM tier",
+        "Value",
         "Success looks like",
         "Failure looks like",
     ]

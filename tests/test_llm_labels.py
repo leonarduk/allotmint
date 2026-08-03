@@ -160,6 +160,9 @@ def test_llm_tier_map_is_stable() -> None:
         ("**Value**\n**Medium Value** — reliability improvement", "Medium Value"),
         ("**Value**\n**High Value** — security fix", "High Value"),
         ("**value**\n**HIGH VALUE** — case insensitive", "High Value"),
+        ("**Value**: **High Value**", "High Value"),
+        ("**Value**: **Medium Value** — some text", "Medium Value"),
+        ("**Value** **Low Value** — same line, no colon", "Low Value"),
         ("This is a High Value issue.", "High Value"),
         ("This is a Medium Value issue.", "Medium Value"),
         ("This is a Low Value issue.", "Low Value"),
@@ -175,6 +178,21 @@ def test_extract_value_label(body: str, expected_label: str | None) -> None:
 def test_extract_value_label_prefers_value_section_over_bare_mention() -> None:
     mod = load_module()
     body = "Mentions Low Value in passing.\n\n**Value**\n**High Value** — security fix"
+    assert mod.extract_value_label(body) == "High Value"
+
+
+def test_extract_value_label_prefers_same_line_value_section_over_bare_mention() -> None:
+    mod = load_module()
+    body = "Mentions Low Value in passing.\n\n**Value**: **High Value** — security fix"
+    assert mod.extract_value_label(body) == "High Value"
+
+
+def test_extract_value_label_does_not_match_bare_mention_as_section() -> None:
+    mod = load_module()
+    # A bare "**High Value**" elsewhere in the body, with no "**Value**"
+    # heading anywhere, must fall through to the bare-mention path rather
+    # than being mistaken for a "**Value**" section match.
+    body = "Some notes.\n\nThis looks like a **High Value** fix."
     assert mod.extract_value_label(body) == "High Value"
 
 

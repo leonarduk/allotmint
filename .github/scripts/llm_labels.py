@@ -116,10 +116,15 @@ DEFAULT_VALUE_LABEL = "Low Value"
 
 
 def _build_value_pattern(value_map: dict[str, str]) -> re.Pattern[str]:
-    """Build a regex matching a "**Value**" section naming one of value_map's keys."""
+    """Build a regex matching a "**Value**" section naming one of value_map's keys.
+
+    Accepts both the value label on the line following "**Value**" (e.g.
+    "**Value**\\n**High Value**") and on the same line (e.g.
+    "**Value**: **High Value**").
+    """
     words = "|".join(re.escape(word) for word in value_map)
     return re.compile(
-        rf"\*\*Value\*\*[^\n]*\n[^\n]*\*\*({words})\s+Value\b",
+        rf"\*\*Value\*\*(?:[^\n]*\n)?[^\n]*\*\*({words})\s+Value\b",
         re.IGNORECASE,
     )
 

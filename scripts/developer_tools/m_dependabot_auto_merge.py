@@ -4,19 +4,23 @@ Continues the a_/b_/.../o_ script chain in scripts/developer_tools/. Dependabot 
 routine dependency-bump PRs; when CI has already passed there's no reason a human
 needs to click merge. This script finds open PRs authored by `dependabot[bot]`,
 merges the ones whose checks have all passed on the current head SHA, and deletes
-the branch afterward. A PR that is otherwise green but merely behind `main` (no
-real conflicts) is handled specially: GitHub branch protection generally
-requires the head branch to be up to date before merging, so a plain
-`gh pr merge` on a behind PR is rejected outright. --behind-strategy controls
-how that case is handled:
+the branch afterward. A PR that is otherwise green but reports mergeable_state
+"behind", "blocked", or "unstable" (out of date with `main`, a pending review
+request, or a required check GitHub hasn't finished recomputing -- none of
+which reflect a real conflict) is handled specially: GitHub branch protection
+generally rejects a plain `gh pr merge` in these states. --behind-strategy
+controls how that's handled:
   - "admin" (default): force-merge with `gh pr merge --admin`, which bypasses
     branch-protection enforcement for that one merge. Checks still have to
-    have passed first -- --admin only gets past the "not up to date" rule,
-    it doesn't skip CI. A behind PR is never left stuck with this strategy.
-  - "update-branch": merge main into the PR branch first (gh pr update-branch)
-    and leave the actual merge to a later run, once CI re-passes and the PR
-    reports mergeable_state == "clean". A PR can sit behind for multiple runs
-    until that happens.
+    have passed first -- --admin only gets past the branch-protection block,
+    it doesn't skip CI. A PR is never left stuck needing manual approval with
+    this strategy.
+  - "update-branch": for a "behind" PR, merge main into the PR branch first
+    (gh pr update-branch) and leave the actual merge to a later run, once CI
+    re-passes and the PR reports mergeable_state == "clean" (a PR can sit
+    behind for multiple runs until that happens). "blocked"/"unstable" PRs
+    aren't helped by updating the branch, so they still fall through to an
+    admin merge.
   - "skip": leave the PR alone entirely.
 
 Safety:
@@ -59,11 +63,21 @@ MERGEABILITY_REFRESH_ATTEMPTS = 3
 MERGEABILITY_REFRESH_WAIT_SECONDS = 3
 
 # mergeable_state values that are eligible for a merge rather than an
-# outright skip. "behind" means only out-of-date with the base branch -- not
-# a real conflict -- so it still merges, just with --admin to bypass the
-# "must be up to date" branch-protection rule (see process_pr). "clean" is
-# the ordinary green/no-conflict case that needs no special handling.
-MERGEABLE_STATES_OK_TO_MERGE = {"clean", "behind"}
+# outright skip. "clean" is the ordinary green/no-conflict case that needs no
+# special handling. "behind", "blocked", and "unstable" all show up for PRs
+# that are otherwise green (checks_have_passed already verified the actual
+# statusCheckRollup) but GitHub's branch-protection machinery won't allow a
+# plain merge -- "behind" for an out-of-date head, "blocked"/"unstable" for
+# things like a pending review request or a required-check recompute that
+# hasn't settled -- none of which reflect a real conflict. Since this repo's
+# branch protection requires zero approving reviews, none of these represent
+# an actual human action needed; they're handled by ADMIN_OVERRIDE_STATES
+# below (see process_pr).
+MERGEABLE_STATES_OK_TO_MERGE = {"clean", "behind", "blocked", "unstable"}
+
+# Subset of MERGEABLE_STATES_OK_TO_MERGE that needs `gh pr merge --admin` to
+# get past branch-protection enforcement rather than a plain merge.
+ADMIN_OVERRIDE_STATES = {"behind", "blocked", "unstable"}
 
 
 @dataclass
@@ -207,16 +221,36 @@ def resolve_mergeability(pr: PullRequest) -> None:
             time.sleep(MERGEABILITY_REFRESH_WAIT_SECONDS)
 
 
+def _latest_checks_by_name(checks: list[dict]) -> list[dict]:
+    """Collapse `statusCheckRollup` to the most recent run per (workflow, check) name.
+
+    GitHub can list the same check twice -- e.g. a rerun leaves both the
+    original run (which may show CANCELLED) and the new run (SUCCESS) in the
+    rollup, both under the same workflowName/name pair. Evaluating every
+    entry would fail the whole PR on a stale cancelled duplicate even though
+    the check has since passed, so only the latest-completed entry per name
+    counts.
+    """
+    latest: dict[tuple[str, str], dict] = {}
+    for check in checks:
+        key = (check.get("workflowName") or "", check.get("name") or "")
+        existing = latest.get(key)
+        if existing is None or (check.get("completedAt") or "") >= (existing.get("completedAt") or ""):
+            latest[key] = check
+    return list(latest.values())
+
+
 def checks_have_passed(checks: list[dict]) -> bool:
     """Return True only if there is at least one check and every check succeeded.
 
     A PR with no checks at all is treated as not-yet-verified (returns False),
     since that usually means CI hasn't reported in yet rather than "nothing to
-    check".
+    check". Duplicate entries for the same check (see _latest_checks_by_name)
+    are collapsed to their latest run before evaluation.
     """
     if not checks:
         return False
-    for check in checks:
+    for check in _latest_checks_by_name(checks):
         conclusion = (check.get("conclusion") or "").upper()
         status = (check.get("status") or "").upper()
         if status and status != "COMPLETED":
@@ -227,7 +261,7 @@ def checks_have_passed(checks: list[dict]) -> bool:
 
 
 def is_mergeable(pr: PullRequest) -> bool:
-    """Return True if the PR has no real conflicts (being merely behind main is fine).
+    """Return True if the PR has no real conflicts (behind/blocked/unstable is fine).
 
     `gh pr list --json mergeable` returns the GraphQL MergeableState enum as a
     string -- "MERGEABLE", "CONFLICTING", or "UNKNOWN" -- never a Python bool,
@@ -323,11 +357,14 @@ def process_pr(pr: PullRequest, dry_run: bool, behind_strategy: str = "admin") -
             f"(mergeable={pr.mergeable}, state={pr.mergeable_state})"
         )
         return True
-    if pr.mergeable_state == "behind":
+    if pr.mergeable_state in ADMIN_OVERRIDE_STATES:
         if behind_strategy == "skip":
-            print(f"SKIP: PR #{pr.number} ({pr.title}) -- behind main, --behind-strategy=skip")
+            print(
+                f"SKIP: PR #{pr.number} ({pr.title}) -- state={pr.mergeable_state}, "
+                "--behind-strategy=skip"
+            )
             return True
-        if behind_strategy == "update-branch":
+        if behind_strategy == "update-branch" and pr.mergeable_state == "behind":
             return update_branch(pr, dry_run)
         return merge_and_delete(pr, dry_run, admin=True)
     return merge_and_delete(pr, dry_run)

@@ -233,6 +233,11 @@ def test_enforce_cap_serializes_concurrent_callers(tmp_path, monkeypatch):
     # linked issue rather than for the assertions this test makes.
     thread_b.start()
     time.sleep(0.05)
+    # Make the contention scenario explicit (#5840): thread B must still be
+    # blocked on _PERSIST_LOCK at this point, not finished or idle -- if the
+    # lock were missing, thread B could race straight through and finish
+    # before thread A is ever released below.
+    assert thread_b.is_alive(), "thread B finished before thread A released the lock"
     thread_a_may_proceed.set()
 
     thread_a.join(timeout=5)

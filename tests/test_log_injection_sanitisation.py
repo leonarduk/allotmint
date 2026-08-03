@@ -21,6 +21,7 @@ passed to logging.getLogger() in each module (not __name__):
   portfolio_utils          → portfolio_utils.py
   data_loader              → data_loader.py (logger = logging.getLogger(__name__))
 """
+
 import logging
 from pathlib import Path
 from unittest.mock import patch
@@ -30,6 +31,7 @@ from fastapi.testclient import TestClient
 
 # ── helper ───────────────────────────────────────────────────────────────────
 
+
 def _has_raw_newline(record: logging.LogRecord) -> bool:
     """Return True if the formatted log message contains a bare newline/CR."""
     msg = record.getMessage()
@@ -38,12 +40,22 @@ def _has_raw_newline(record: logging.LogRecord) -> bool:
 
 # ── sanitise_log_value unit tests ────────────────────────────────────────────
 
+
 def test_sanitise_log_value_strips_newline():
     from backend.logging_setup import sanitise_log_value
 
     assert "\n" not in sanitise_log_value("ticker\ninjected")
     assert "\r" not in sanitise_log_value("ticker\rinjected")
     assert "\n" not in sanitise_log_value("a\r\nb")
+
+
+def test_sanitise_log_value_passes_clean_input_unchanged():
+    """Values with no newline/CR characters must pass through unmodified."""
+    from backend.logging_setup import sanitise_log_value
+
+    assert sanitise_log_value("normal_key") == "normal_key"
+    assert sanitise_log_value("John Doe") == "John Doe"
+    assert sanitise_log_value("owner-123") == "owner-123"
 
 
 def test_sanitise_log_value_handles_non_string_types():
@@ -108,6 +120,7 @@ def test_sanitise_log_value_or_sentinel_precedence():
 
 # ── fetch_alphavantage_timeseries ─────────────────────────────────────────────
 
+
 def test_alphavantage_skipped_ticker_log_no_injection(caplog):
     """Injected newline in ticker/exchange must not appear in the log message."""
     from datetime import date
@@ -123,6 +136,7 @@ def test_alphavantage_skipped_ticker_log_no_injection(caplog):
             from backend.timeseries.fetch_alphavantage_timeseries import (
                 fetch_alphavantage_timeseries_range,
             )
+
             fetch_alphavantage_timeseries_range(
                 malicious_ticker,
                 malicious_exchange,
@@ -130,16 +144,13 @@ def test_alphavantage_skipped_ticker_log_no_injection(caplog):
                 date(2024, 1, 31),
             )
 
-    assert caplog.records, (
-        "Expected at least one log record from alphavantage_timeseries logger"
-    )
+    assert caplog.records, "Expected at least one log record from alphavantage_timeseries logger"
     for record in caplog.records:
-        assert not _has_raw_newline(record), (
-            f"Raw newline in log record: {record.getMessage()!r}"
-        )
+        assert not _has_raw_newline(record), f"Raw newline in log record: {record.getMessage()!r}"
 
 
 # ── fetch_meta_timeseries ─────────────────────────────────────────────────────
+
 
 def test_meta_timeseries_invalid_ticker_pattern_log_no_injection(caplog):
     """
@@ -153,14 +164,13 @@ def test_meta_timeseries_invalid_ticker_pattern_log_no_injection(caplog):
         import pandas as pd
 
         from backend.timeseries.fetch_meta_timeseries import fetch_meta_timeseries
+
         result = fetch_meta_timeseries(malicious_ticker)
 
     assert isinstance(result, pd.DataFrame)
     assert caplog.records, "Expected at least one warning record from meta_timeseries logger"
     for record in caplog.records:
-        assert not _has_raw_newline(record), (
-            f"Raw newline in log record: {record.getMessage()!r}"
-        )
+        assert not _has_raw_newline(record), f"Raw newline in log record: {record.getMessage()!r}"
 
 
 def test_meta_timeseries_cache_exchange_mismatch_sentinel():
@@ -180,6 +190,7 @@ def test_meta_timeseries_cache_exchange_mismatch_sentinel():
 
 
 # ── portfolio_loader ──────────────────────────────────────────────────────────
+
 
 def test_portfolio_loader_missing_tx_file_no_injection(caplog, tmp_path):
     """
@@ -201,9 +212,7 @@ def test_portfolio_loader_missing_tx_file_no_injection(caplog, tmp_path):
     assert result == {}
     assert caplog.records, "Expected at least one error record from portfolio_loader"
     for record in caplog.records:
-        assert not _has_raw_newline(record), (
-            f"Raw newline in log record: {record.getMessage()!r}"
-        )
+        assert not _has_raw_newline(record), f"Raw newline in log record: {record.getMessage()!r}"
     # Content is preserved (newline stripped, not content).
     logged_msg = caplog.records[0].getMessage()
     assert "savings" in logged_msg
@@ -213,9 +222,11 @@ def test_portfolio_loader_missing_tx_file_no_injection(caplog, tmp_path):
 
 # ── routes/portfolio — TestClient integration test ───────────────────────────
 
+
 def _portfolio_test_client(tmp_path):
     """Build a minimal FastAPI app wired to the portfolio router."""
     from backend.routes import portfolio as portfolio_module
+
     app = FastAPI()
     app.include_router(portfolio_module.router)
     app.state.accounts_root = tmp_path
@@ -249,12 +260,8 @@ def test_get_account_provider_unavailable_no_log_injection(caplog, monkeypatch, 
     for record in caplog.records:
         owner_val = str(record.__dict__.get("owner", ""))
         account_val = str(record.__dict__.get("account", ""))
-        assert "\n" not in owner_val and "\r" not in owner_val, (
-            f"Raw newline in extra['owner']: {owner_val!r}"
-        )
-        assert "\n" not in account_val and "\r" not in account_val, (
-            f"Raw newline in extra['account']: {account_val!r}"
-        )
+        assert "\n" not in owner_val and "\r" not in owner_val, f"Raw newline in extra['owner']: {owner_val!r}"
+        assert "\n" not in account_val and "\r" not in account_val, f"Raw newline in extra['account']: {account_val!r}"
 
 
 def test_get_account_invalid_payload_no_log_injection(caplog, monkeypatch, tmp_path):
@@ -279,12 +286,11 @@ def test_get_account_invalid_payload_no_log_injection(caplog, monkeypatch, tmp_p
     for record in caplog.records:
         for field in ("owner", "account"):
             val = str(record.__dict__.get(field, ""))
-            assert "\n" not in val and "\r" not in val, (
-                f"Raw newline in extra['{field}']: {val!r}"
-            )
+            assert "\n" not in val and "\r" not in val, f"Raw newline in extra['{field}']: {val!r}"
 
 
 # ── data_loader ───────────────────────────────────────────────────────────────
+
 
 def test_data_loader_extra_dict_current_user_sanitised():
     """
@@ -334,6 +340,7 @@ def test_data_loader_person_meta_owner_sanitised():
 
 # ── portfolio_utils ───────────────────────────────────────────────────────────
 
+
 def test_portfolio_utils_ticker_log_no_injection(caplog):
     """
     portfolio_utils logs ticker/exchange in a warning when non-numeric closes
@@ -359,6 +366,4 @@ def test_portfolio_utils_ticker_log_no_injection(caplog):
 
     assert caplog.records, "Expected a warning record from portfolio_utils logger"
     for record in caplog.records:
-        assert not _has_raw_newline(record), (
-            f"Raw newline in log record: {record.getMessage()!r}"
-        )
+        assert not _has_raw_newline(record), f"Raw newline in log record: {record.getMessage()!r}"

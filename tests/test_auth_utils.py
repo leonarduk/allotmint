@@ -94,3 +94,42 @@ def test_allowed_emails_includes_viewer_emails(monkeypatch, tmp_path):
     monkeypatch.setattr(config, "accounts_root", root)
 
     assert auth._allowed_emails() == {"alice@example.com", "bob@example.com"}
+
+
+def test_allowed_emails_includes_viewer_emails_from_s3(monkeypatch):
+    """The S3 code path (app_env == 'aws') must include viewer emails too (#5476).
+
+    The S3 branch reuses ``_emails_for_person_meta`` (already unit-tested
+    above), but nothing previously exercised the full S3 path in
+    ``_allowed_emails`` -- listing owners via ``list_objects_v2`` and merging
+    in their viewer emails.
+    """
+
+    monkeypatch.setattr(config, "app_env", "aws")
+    monkeypatch.setenv("DATA_BUCKET", "test-bucket")
+
+    class _FakeS3Client:
+        def list_objects_v2(self, **params):
+            assert params["Bucket"] == "test-bucket"
+            return {
+                "Contents": [
+                    {"Key": "accounts/alice/portfolio.json"},
+                    {"Key": "accounts/alice/other.json"},
+                ],
+                "IsTruncated": False,
+            }
+
+    import boto3
+
+    monkeypatch.setattr(boto3, "client", lambda service: _FakeS3Client())
+
+    from backend.common.account_models import PersonMetadata
+
+    person = PersonMetadata(
+        owner="alice",
+        email="Alice@Example.com",
+        viewers=["Bob@Example.com", "  ", 42],  # noqa: PLR2004 (mixed case, whitespace, invalid)
+    )
+    monkeypatch.setattr(auth, "load_person_metadata", lambda owner: person)
+
+    assert auth._allowed_emails() == {"alice@example.com", "bob@example.com"}

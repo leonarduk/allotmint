@@ -14,9 +14,7 @@ from backend.bootstrap.startup import AppLifecycleService
 from backend.config import config
 
 
-def test_create_app_test_isolation_copies_accounts_root(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-):
+def test_create_app_test_isolation_copies_accounts_root(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     repo_root = tmp_path / "repo"
     accounts_root = repo_root / "data" / "accounts"
     owner_dir = accounts_root / "alice"
@@ -65,12 +63,8 @@ async def test_lifecycle_service_warms_snapshot_and_registers_background_task(
         "backend.common.instrument_api.update_latest_prices_from_snapshot",
         InstrumentApi.update_latest_prices_from_snapshot,
     )
-    monkeypatch.setattr(
-        "backend.common.instrument_api.prime_latest_prices", InstrumentApi.prime_latest_prices
-    )
-    monkeypatch.setattr(
-        "backend.common.portfolio_utils.refresh_snapshot_async", lambda days: snapshot_task
-    )
+    monkeypatch.setattr("backend.common.instrument_api.prime_latest_prices", InstrumentApi.prime_latest_prices)
+    monkeypatch.setattr("backend.common.portfolio_utils.refresh_snapshot_async", lambda days: snapshot_task)
 
     config.skip_snapshot_warm = False
     config.snapshot_warm_days = 5
@@ -103,16 +97,10 @@ async def test_lifecycle_service_warmup_logs_timed_phases(
     snapshot_task = asyncio.Future()
 
     monkeypatch.setattr("backend.common.portfolio_utils._load_snapshot", lambda: ({"ABC": 1}, "ts"))
-    monkeypatch.setattr(
-        "backend.common.portfolio_utils.refresh_snapshot_in_memory", lambda snapshot, ts: None
-    )
-    monkeypatch.setattr(
-        "backend.common.instrument_api.update_latest_prices_from_snapshot", lambda snapshot: None
-    )
+    monkeypatch.setattr("backend.common.portfolio_utils.refresh_snapshot_in_memory", lambda snapshot, ts: None)
+    monkeypatch.setattr("backend.common.instrument_api.update_latest_prices_from_snapshot", lambda snapshot: None)
     monkeypatch.setattr("backend.common.instrument_api.prime_latest_prices", lambda: None)
-    monkeypatch.setattr(
-        "backend.common.portfolio_utils.refresh_snapshot_async", lambda days: snapshot_task
-    )
+    monkeypatch.setattr("backend.common.portfolio_utils.refresh_snapshot_async", lambda days: snapshot_task)
 
     config.skip_snapshot_warm = False
     config.snapshot_warm_days = 5
@@ -124,11 +112,7 @@ async def test_lifecycle_service_warmup_logs_timed_phases(
         prime_task = next(t for t in app.state.background_tasks if t is not snapshot_task)
         await prime_task
 
-    phases = {
-        record.phase
-        for record in caplog.records
-        if getattr(record, "phase", None) is not None
-    }
+    phases = {record.phase for record in caplog.records if getattr(record, "phase", None) is not None}
     assert phases == {"snapshot_load", "metadata_update_from_snapshot", "price_history_fetch"}
     for record in caplog.records:
         if getattr(record, "phase", None) is not None:
@@ -150,9 +134,7 @@ async def test_prime_latest_prices_background_is_an_instance_method(
     )
 
     service = AppLifecycleService(cfg=config)
-    assert not isinstance(
-        type(service).__dict__["_prime_latest_prices_background"], staticmethod
-    )
+    assert not isinstance(type(service).__dict__["_prime_latest_prices_background"], staticmethod)
 
     await service._prime_latest_prices_background()
 
@@ -160,9 +142,7 @@ async def test_prime_latest_prices_background_is_an_instance_method(
 
 
 @pytest.mark.asyncio
-async def test_lifecycle_service_shutdown_cancels_tasks_and_temp_dirs(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-):
+async def test_lifecycle_service_shutdown_cancels_tasks_and_temp_dirs(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     cleanup_called = {"page_cache": False}
     temp_dir = tmp_path / "isolated"
     temp_dir.mkdir()
@@ -171,9 +151,7 @@ async def test_lifecycle_service_shutdown_cancels_tasks_and_temp_dirs(
     async def cancel_refresh_tasks():
         cleanup_called["page_cache"] = True
 
-    monkeypatch.setattr(
-        "backend.bootstrap.startup.page_cache.cancel_refresh_tasks", cancel_refresh_tasks
-    )
+    monkeypatch.setattr("backend.bootstrap.startup.page_cache.cancel_refresh_tasks", cancel_refresh_tasks)
 
     service = AppLifecycleService(cfg=config, temp_dirs=[temp_dir])
     app = app_module.create_app()
@@ -230,9 +208,7 @@ async def test_lifecycle_service_startup_survives_prime_latest_prices_failure(
 
     assert any(
         "Failed to prime latest prices" in r.message for r in caplog.records
-    ), "Expected 'Failed to prime latest prices' log but got: " + str(
-        [r.message for r in caplog.records]
-    )
+    ), "Expected 'Failed to prime latest prices' log but got: " + str([r.message for r in caplog.records])
 
 
 @pytest.mark.asyncio
@@ -276,9 +252,7 @@ async def test_lifecycle_service_snapshot_load_is_time_bounded(
     assert warmed == {"snapshot": {}, "ts": None}
     assert any(
         "Snapshot load timed out" in r.message for r in caplog.records
-    ), "Expected a snapshot-load timeout warning but got: " + str(
-        [r.message for r in caplog.records]
-    )
+    ), "Expected a snapshot-load timeout warning but got: " + str([r.message for r in caplog.records])
 
 
 @pytest.mark.asyncio
@@ -312,9 +286,54 @@ async def test_lifecycle_service_metadata_update_is_time_bounded(
 
     assert any(
         "timed out" in r.message for r in caplog.records
-    ), "Expected a metadata-update timeout warning but got: " + str(
-        [r.message for r in caplog.records]
+    ), "Expected a metadata-update timeout warning but got: " + str([r.message for r in caplog.records])
+
+
+@pytest.mark.asyncio
+async def test_snapshot_load_timeout_value_is_respected(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+):
+    """The timeout must fire at the configured value, not just eventually (#5432).
+
+    A regression that changed _SNAPSHOT_LOAD_TIMEOUT_SECONDS handling (e.g. by
+    ignoring it or hardcoding a different value) would still pass the existing
+    "is_time_bounded" tests as long as *a* timeout eventually occurs. This test
+    measures elapsed wall-clock time to pin down the actual configured value.
+    """
+    configured_timeout = 0.3
+    monkeypatch.setattr("backend.bootstrap.startup._SNAPSHOT_LOAD_TIMEOUT_SECONDS", configured_timeout)
+
+    def _hang():
+        time.sleep(100)
+        return ({"ABC": 1}, "ts")
+
+    monkeypatch.setattr("backend.common.portfolio_utils._load_snapshot", _hang)
+    monkeypatch.setattr(
+        "backend.common.portfolio_utils.refresh_snapshot_in_memory",
+        lambda snapshot, ts: None,
     )
+    monkeypatch.setattr(
+        "backend.common.instrument_api.update_latest_prices_from_snapshot",
+        lambda snapshot: None,
+    )
+    monkeypatch.setattr("backend.common.instrument_api.prime_latest_prices", lambda: None)
+    monkeypatch.setattr("backend.common.portfolio_utils.refresh_snapshot_async", lambda days: None)
+    monkeypatch.setattr(config, "skip_snapshot_warm", False, raising=False)
+
+    service = AppLifecycleService(cfg=config)
+    app = app_module.create_app()
+
+    start = time.monotonic()
+    with caplog.at_level(logging.WARNING):
+        await asyncio.wait_for(service.startup(app), timeout=5.0)
+    elapsed = time.monotonic() - start
+
+    # Generous tolerance to avoid CI flakiness while still catching gross
+    # deviations (e.g. the timeout being ignored or set to a different value).
+    assert (
+        configured_timeout <= elapsed < configured_timeout + 2.0
+    ), f"expected timeout around {configured_timeout}s, took {elapsed}s"
 
 
 def test_create_app_skips_snapshot_warm_when_disabled(monkeypatch: pytest.MonkeyPatch):
@@ -337,12 +356,8 @@ def test_create_app_skips_snapshot_warm_when_disabled(monkeypatch: pytest.Monkey
     def track_refresh(days):
         refresh_called_with.append(days)
 
-    monkeypatch.setattr(
-        "backend.bootstrap.startup.AppLifecycleService._warm_snapshot", unexpected_warm
-    )
-    monkeypatch.setattr(
-        "backend.common.portfolio_utils.refresh_snapshot_async", track_refresh
-    )
+    monkeypatch.setattr("backend.bootstrap.startup.AppLifecycleService._warm_snapshot", unexpected_warm)
+    monkeypatch.setattr("backend.common.portfolio_utils.refresh_snapshot_async", track_refresh)
 
     monkeypatch.setattr(config, "snapshot_warm_days", 7, raising=False)
     app = app_module.create_app()
@@ -352,6 +367,6 @@ def test_create_app_skips_snapshot_warm_when_disabled(monkeypatch: pytest.Monkey
     # The blocking warm-up must NOT have run.
     assert warm_called is False
     # The background async refresh MUST still fire unconditionally.
-    assert refresh_called_with == [7], (
-        "refresh_snapshot_async should always be called even when skip_snapshot_warm=True"
-    )
+    assert refresh_called_with == [
+        7
+    ], "refresh_snapshot_async should always be called even when skip_snapshot_warm=True"

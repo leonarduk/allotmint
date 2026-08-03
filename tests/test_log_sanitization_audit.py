@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from scripts.build_tools import _scan_log_sanitisation
 from scripts.build_tools._scan_log_sanitisation import find_unwrapped_log_calls
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -43,3 +44,41 @@ def test_no_new_unwrapped_logger_calls() -> None:
         "tests/data/log_sanitization_baseline.txt with a comment explaining "
         "why the value can't carry attacker-controlled input."
     )
+
+
+def test_find_unwrapped_log_calls_flags_multi_line_debug_and_exception_calls(monkeypatch, tmp_path) -> None:
+    """Multi-line logger.debug/exception calls with unsanitised args must be detected (#5836).
+
+    LOG_METHODS already includes "debug" and "exception", but no test
+    previously fed synthetic source through the scanner to confirm a call
+    whose arguments span several lines is still flagged with the correct
+    node.lineno (the line the call *starts* on).
+    """
+    fake_backend = tmp_path / "backend"
+    fake_backend.mkdir()
+    source = (
+        "import logging\n"
+        "\n"
+        "logger = logging.getLogger(__name__)\n"
+        "\n"
+        "\n"
+        "def handler(owner):\n"
+        "    logger.debug(\n"
+        "        'owner lookup failed for %s',\n"
+        "        owner,\n"
+        "    )\n"
+        "    logger.exception(\n"
+        "        'unexpected error for %s',\n"
+        "        owner,\n"
+        "    )\n"
+    )
+    (fake_backend / "multiline_example.py").write_text(source, encoding="utf-8")
+
+    monkeypatch.setattr(_scan_log_sanitisation, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(_scan_log_sanitisation, "BACKEND_ROOT", fake_backend)
+    monkeypatch.setattr(_scan_log_sanitisation, "EXCLUDED_FILES", set())
+
+    results = find_unwrapped_log_calls()
+
+    assert ("backend/multiline_example.py", 7) in results
+    assert ("backend/multiline_example.py", 11) in results

@@ -59,24 +59,24 @@ def _switch_console_handler_to_json(root_logger: logging.Logger) -> None:
 def setup_logging() -> None:
     """Configure application logging from configuration file.
 
-    If the root logger already has handlers, the function returns immediately
-    to avoid overriding existing logging configuration (e.g. when uvicorn
-    configures logging via ``--log-config``).
+    If the root logger already has handlers -- e.g. because uvicorn configured
+    logging itself via ``--log-config`` before importing the app -- the
+    ``fileConfig`` step is skipped to avoid overriding that configuration.
+    The ``LOG_FORMAT=json`` switch still applies in that case, since it acts
+    on whichever console handler is already installed.
     """
     root_logger = logging.getLogger()
-    if root_logger.handlers:
-        return
 
-    log_config = config.log_config
-    if not log_config:
-        return
+    if not root_logger.handlers:
+        log_config = config.log_config
+        if log_config:
+            config_path = Path(log_config)
+            if not config_path.is_absolute():
+                base = config.repo_root or Path.cwd()
+                config_path = base / config_path
 
-    config_path = Path(log_config)
-    if not config_path.is_absolute():
-        base = config.repo_root or Path.cwd()
-        config_path = base / config_path
+            if config_path.exists():
+                logging.config.fileConfig(config_path, disable_existing_loggers=False)
 
-    if config_path.exists():
-        logging.config.fileConfig(config_path, disable_existing_loggers=False)
-        if config.log_format == "json":
-            _switch_console_handler_to_json(root_logger)
+    if config.log_format == "json":
+        _switch_console_handler_to_json(root_logger)

@@ -28,7 +28,7 @@ from backend.bootstrap import (
     register_routers,
 )
 from backend.config import reload_config
-from backend.logging_setup import sanitise_log_value
+from backend.logging_setup import sanitise_log_value, setup_logging
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +40,8 @@ class CognitoTokenRequest(BaseModel):
 
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
+
+    setup_logging()
 
     cfg = load_runtime_config()
     runtime_paths = configure_runtime_paths(cfg)

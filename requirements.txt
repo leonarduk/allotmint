@@ -39,6 +39,7 @@ pydantic~=2.13.4
 pysocks~=1.7.1
 python-multipart~=0.0.28
 python-dateutil~=2.9.0post0
+python-json-logger~=3.3.0
 pytz~=2025.2
 pyyaml~=6.0.3
 requests>=2.34.2,<3

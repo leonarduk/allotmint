@@ -418,3 +418,36 @@ def test_import_moneyhub_route_surfaces_upstream_failure(tmp_path, monkeypatch):
 
     resp = client.post("/transactions/import/moneyhub", data={"owner": "alice"})
     assert resp.status_code == 502
+
+
+def _make_auth_enabled_client(tmp_path, monkeypatch):
+    """Build a client with authentication (and thus owner scoping) enabled.
+
+    Mirrors ``_auth_enabled_client`` in ``tests/test_user_config_route.py``:
+    ``disable_auth`` must be off before ``create_app()`` for both the
+    router-level auth dependency and :func:`ensure_owner_access` to be live.
+    """
+
+    monkeypatch.setattr(config, "disable_auth", False)
+    client = _make_client(tmp_path, monkeypatch)
+    token = client.post("/token", json={"id_token": "good"}).json()["access_token"]
+    client.headers.update({"Authorization": f"Bearer {token}"})
+    return client
+
+
+def test_import_moneyhub_route_requires_owner_authorization(tmp_path, monkeypatch):
+    """A logged-in user may only trigger a Moneyhub import for an authorized owner (#5704)."""
+
+    def fake_meta(owner, root=None):
+        return {"email": "user@example.com"} if owner == "alice" else {}
+
+    monkeypatch.setattr("backend.common.authz.load_person_meta", fake_meta)
+    client = _make_auth_enabled_client(tmp_path, monkeypatch)
+
+    # Authorized owner: falls through to the normal consent check (no token stored yet).
+    resp = client.post("/transactions/import/moneyhub", data={"owner": "alice"})
+    assert resp.status_code == 424
+
+    # Unauthorized owner: rejected before any Moneyhub call is attempted.
+    resp = client.post("/transactions/import/moneyhub", data={"owner": "bob"})
+    assert resp.status_code == 403

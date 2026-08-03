@@ -140,3 +140,26 @@ def extract_value_label(body: str, value_map: dict[str, str] | None = None) -> s
         if re.search(rf"\b{re.escape(word)}\s+Value\b", body, re.IGNORECASE):
             return label
     return None
+
+
+def _cli(argv: list[str]) -> int:
+    """CLI entry point so bash workflow steps can reuse the extraction logic
+    above instead of re-implementing it with their own regexes.
+
+    Usage: ``echo "$ISSUE_BODY" | python3 llm_labels.py value-label``
+    Prints the extracted label, falling back to ``DEFAULT_VALUE_LABEL``.
+    """
+    import sys
+
+    if len(argv) != 1 or argv[0] != "value-label":
+        print("usage: llm_labels.py value-label < issue_body", file=sys.stderr)
+        return 2
+    body = sys.stdin.read()
+    print(extract_value_label(body) or DEFAULT_VALUE_LABEL)
+    return 0
+
+
+if __name__ == "__main__":
+    import sys
+
+    raise SystemExit(_cli(sys.argv[1:]))

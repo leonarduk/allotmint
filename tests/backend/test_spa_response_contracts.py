@@ -6,12 +6,13 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pydantic import TypeAdapter
 
+from backend.config import Config as RealConfig
 from backend.contracts_spa import (
+    SPA_RESPONSE_CONTRACT_VERSION,
     ConfigContract,
     GroupSummaryContract,
     OwnerSummaryContract,
     PortfolioContract,
-    SPA_RESPONSE_CONTRACT_VERSION,
     TransactionContract,
 )
 from backend.routes import config as config_routes
@@ -32,37 +33,20 @@ def test_target_spa_endpoints_match_contracts(monkeypatch, tmp_path):
     app = _build_app(tmp_path)
     client = TestClient(app)
 
-    monkeypatch.setattr(
-        config_routes,
-        "serialise_config",
-        lambda _: {
-            "app_env": "local",
-            "google_auth_enabled": False,
-            "google_client_id": None,
-            "disable_auth": True,
-            "local_login_email": "demo@example.com",
-            "theme": "dark",
-            "relative_view_enabled": True,
-            "base_currency": "GBP",
-            "tabs": {
-                "portfolio": True,
-                "transactions": True,
-                "goals": True,
-                "tax": True,
-                "alerts": True,
-                "performance": True,
-                "wizard": True,
-                "ideas": True,
-                "reports": True,
-                "settings": True,
-                "queries": True,
-                "compliance": True,
-                "trade-compliance": True,
-                "pension": True,
-            },
-            "disabled_tabs": [],
-        },
+    # Exercise the real serialise_config() implementation against a real Config
+    # instance, rather than a hand-written fixture, so this test actually
+    # catches drift between TabsConfig/serialise_config and the SPA contracts.
+    real_config = RealConfig(
+        app_env="local",
+        google_auth_enabled=False,
+        google_client_id=None,
+        disable_auth=True,
+        local_login_email="demo@example.com",
+        theme="dark",
+        relative_view_enabled=True,
+        base_currency="GBP",
     )
+    monkeypatch.setattr(config_routes.config_module, "config", real_config)
 
     monkeypatch.setattr(
         portfolio_routes,

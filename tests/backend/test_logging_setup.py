@@ -1,11 +1,16 @@
 import json
 import logging
+import logging.config
 import sys
 from datetime import datetime
+from pathlib import Path
 
 import pytest
 
+import backend.logging_setup as logging_setup
 from backend.logging_setup import JSONFormatter, sanitise_log_value
+
+_LOGGING_INI = Path(__file__).resolve().parents[2] / "backend" / "logging.ini"
 
 
 @pytest.mark.parametrize(
@@ -82,3 +87,42 @@ def test_json_formatter_output_stays_parseable_with_exc_info():
     payload = json.loads(output)
     assert payload["message"] == "failed"
     assert "ValueError: boom" in payload["exc_info"]
+
+
+def test_json_switch_preserves_console_handler_filters(monkeypatch):
+    """The JSON switch must only replace the formatter, never the handler
+    object or its filters -- whatever filters logging.ini (or anything else)
+    attached to the console handler survive the switch unchanged (issue
+    #4681 constraint: "RedactTokenFilter must still apply to the JSON
+    handler").
+
+    Note: ``logging.config.fileConfig``'s classic INI format does not
+    actually wire up a handler's ``filters=`` entry at all (that's a
+    dictConfig-only feature) -- a pre-existing gap in this repo that predates
+    and is unrelated to this change, and applies equally to the plain-text
+    ``consoleHandler``. RedactTokenFilter's real effect today comes from the
+    ``logging.getLogger().addFilter(...)`` call in
+    ``backend/utils/telegram_utils.py``, attached directly to the root
+    Logger object rather than any handler.
+    """
+    root_logger = logging.getLogger()
+    original_handlers = root_logger.handlers[:]
+    root_logger.handlers = []
+    monkeypatch.setattr(logging_setup.config, "log_format", "json")
+
+    try:
+        logging.config.fileConfig(_LOGGING_INI, disable_existing_loggers=False)
+
+        console_handlers = [
+            h for h in root_logger.handlers if type(h) is logging.StreamHandler and h.stream is sys.stdout
+        ]
+        assert console_handlers, "expected a stdout console handler wired from logging.ini"
+        console_handler = console_handlers[0]
+        filters_before = list(console_handler.filters)
+
+        logging_setup.apply_log_format()
+
+        assert isinstance(console_handler.formatter, JSONFormatter)
+        assert console_handler.filters == filters_before
+    finally:
+        root_logger.handlers = original_handlers

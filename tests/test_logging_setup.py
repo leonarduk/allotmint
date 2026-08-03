@@ -81,3 +81,22 @@ def test_switch_console_handlers_to_json_ignores_non_stdout_handlers():
         assert not isinstance(other_handler.formatter, JSONFormatter)
     finally:
         root_logger.handlers = original_handlers
+
+
+def test_apply_log_format_is_noop_when_log_format_unset(monkeypatch):
+    """LOG_FORMAT unset (or any value other than 'json') must leave the
+    console handler's formatter untouched -- plain-text behaviour unchanged."""
+    root_logger = logging.getLogger()
+    original_handlers = root_logger.handlers[:]
+    original_formatter = logging.Formatter("%(message)s")
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(original_formatter)
+    root_logger.handlers = [console_handler]
+
+    monkeypatch.setattr(logging_setup.config, "log_format", None)
+
+    try:
+        logging_setup.apply_log_format()
+        assert console_handler.formatter is original_formatter
+    finally:
+        root_logger.handlers = original_handlers

@@ -64,19 +64,32 @@ def extract_tier_label(body: str, tier_map: dict[str, str] | None = None) -> str
     return None
 
 
-def get_fallback_tier_label(model_name: str, tier_map: dict[str, str] | None = None) -> str:
+def get_fallback_tier_label(
+    model_name: str,
+    tier_map: dict[str, str] | None = None,
+    size_marker_map: dict[str, str] | None = None,
+) -> str:
     """Derive a tier label from a model name string (e.g. "claude-haiku-4-5-20251001").
 
     Used when a tier can't be extracted from issue body text but a model name
     is available. Returns ``_DEFAULT_TIER_LABEL`` if the model name doesn't
     name a known tier or size.
+
+    Size-marker matching is skipped by default for custom tier_map callers
+    unless they explicitly opt in via size_marker_map.
     """
+    used_default_tier_map = tier_map is None
     tier_map = LLM_TIER_MAP if tier_map is None else tier_map
     model_lower = model_name.lower()
     for tier, label in tier_map.items():
         if tier in model_lower:
             return label
-    for marker, label in _SIZE_MARKER_TIERS.items():
+
+    if size_marker_map is None:
+        size_marker_map = _SIZE_MARKER_TIERS if used_default_tier_map else {}
+
+    for marker, label in size_marker_map.items():
         if label in tier_map.values() and re.search(rf"\b{marker}\b", model_lower):
             return label
+
     return _DEFAULT_TIER_LABEL

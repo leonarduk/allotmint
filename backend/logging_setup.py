@@ -71,6 +71,21 @@ def _switch_console_handlers_to_json() -> None:
                 seen_handler_ids.add(id(handler))
 
 
+def apply_log_format() -> None:
+    """Switch console handlers to JSON when ``LOG_FORMAT=json``, else no-op.
+
+    Idempotent and safe to call multiple times/places. This is split out from
+    :func:`setup_logging` because ``logging.ini`` can also be applied directly
+    by uvicorn's own ``--log-config`` CLI flag (the local dev run path), which
+    bypasses ``setup_logging`` entirely -- callers on that path (see
+    ``AppLifecycleService.startup`` in ``backend/bootstrap/startup.py``) need
+    to trigger the JSON switch themselves, after uvicorn has finished wiring
+    its own handlers.
+    """
+    if config.log_format == JSON_LOG_FORMAT:
+        _switch_console_handlers_to_json()
+
+
 def setup_logging() -> None:
     """Configure application logging from configuration file.
 
@@ -93,5 +108,4 @@ def setup_logging() -> None:
 
     if config_path.exists():
         logging.config.fileConfig(config_path, disable_existing_loggers=False)
-        if config.log_format == JSON_LOG_FORMAT:
-            _switch_console_handlers_to_json()
+        apply_log_format()

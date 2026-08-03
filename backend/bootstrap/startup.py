@@ -13,7 +13,7 @@ from pathlib import Path
 from fastapi import FastAPI
 
 from backend.config import Config
-from backend.logging_setup import sanitise_log_value
+from backend.logging_setup import apply_log_format, sanitise_log_value
 from backend.utils import page_cache
 
 logger = logging.getLogger(__name__)
@@ -60,6 +60,12 @@ class AppLifecycleService:
         self.temp_dirs = temp_dirs or []
 
     async def startup(self, app: FastAPI) -> None:
+        # Runs after uvicorn has applied its own `--log-config` (which bypasses
+        # backend.logging_setup.setup_logging() entirely on the local dev run
+        # path), so this is the one place guaranteed to see the final console
+        # handler and apply LOG_FORMAT=json to it.
+        apply_log_format()
+
         if not os.getenv("TESTING"):
             # Route modules are already loaded when the ASGI lifespan starts.
             # This only warns (doesn't raise) when Moneyhub credentials are

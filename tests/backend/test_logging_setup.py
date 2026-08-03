@@ -1,5 +1,6 @@
 import json
 import logging
+import sys
 from datetime import datetime
 
 import pytest
@@ -61,3 +62,23 @@ def test_json_formatter_timestamp_is_iso8601():
 
     # datetime.fromisoformat round-trips a valid ISO 8601 timestamp.
     datetime.fromisoformat(payload["timestamp"])
+
+
+def test_json_formatter_output_stays_parseable_with_exc_info():
+    """A logged exception's multi-line traceback must not break JSON parsing.
+
+    json.dumps escapes embedded newlines within the exc_info string value,
+    so the overall record still round-trips as a single, valid JSON object.
+    """
+    formatter = JSONFormatter()
+    try:
+        raise ValueError("boom")
+    except ValueError:
+        record = _make_record(msg="failed", args=None, exc_info=sys.exc_info())
+
+    output = formatter.format(record)
+
+    assert "\n" not in output
+    payload = json.loads(output)
+    assert payload["message"] == "failed"
+    assert "ValueError: boom" in payload["exc_info"]

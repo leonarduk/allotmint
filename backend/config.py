@@ -112,6 +112,7 @@ class Config:
     rate_limit_per_minute: int = 6000
     signup_rate_limit: str = "5/minute"
     log_config: Optional[str] = None
+    log_format: Optional[str] = None
     skip_snapshot_warm: Optional[bool] = None
     snapshot_warm_days: Optional[int] = None
 
@@ -290,6 +291,10 @@ def load_config() -> Config:
     if skip_snapshot_warm_env is not None:
         data["skip_snapshot_warm"] = skip_snapshot_warm_env
 
+    log_format_env = os.getenv("LOG_FORMAT")
+    if log_format_env is not None:
+        data["log_format"] = log_format_env
+
     telegram_token_env = os.getenv("TELEGRAM_BOT_TOKEN")
     if telegram_token_env is not None:
         data["telegram_bot_token"] = telegram_token_env
@@ -437,6 +442,7 @@ def load_config() -> Config:
         rate_limit_per_minute=data.get("rate_limit_per_minute", 60),
         signup_rate_limit=data.get("signup_rate_limit", "5/minute"),
         log_config=data.get("log_config"),
+        log_format=data.get("log_format"),
         skip_snapshot_warm=data.get("skip_snapshot_warm"),
         snapshot_warm_days=data.get("snapshot_warm_days"),
         ft_url_template=data.get("ft_url_template"),

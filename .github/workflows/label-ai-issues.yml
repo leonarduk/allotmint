@@ -1,4 +1,4 @@
-name: Label AI-suggested issues with LLM tier
+name: Label AI-suggested issues with LLM tier and value
 
 on:
   issues:
@@ -6,7 +6,7 @@ on:
 
 jobs:
   apply-llm-tier-label:
-    name: Apply LLM tier label if missing
+    name: Apply LLM tier and value labels if missing
     runs-on: ubuntu-latest
     # Only run for issues that carry the ai-suggested label.
     if: |
@@ -60,3 +60,45 @@ jobs:
           gh issue edit "$ISSUE_NUMBER" \
             --repo "$REPO" \
             --add-label "$tier_label"
+
+      - name: Check for existing value label and apply fallback
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          REPO: ${{ github.repository }}
+        run: |
+          # Collect current label names on the issue.
+          labels=$(gh issue view "$ISSUE_NUMBER" \
+            --repo "$REPO" \
+            --json labels \
+            --jq '[.labels[].name]')
+
+          # If any known value label is already present, nothing to do.
+          for value in "Low Value" "Medium Value" "High Value"; do
+            if echo "$labels" | grep -qF "\"$value\""; then
+              echo "Value label '$value' already present — skipping."
+              exit 0
+            fi
+          done
+
+          # Infer value from the issue body.  Precedence: explicit **Value**
+          # section first, then any bare "<word> Value" mention.
+          body_lower=$(echo "$ISSUE_BODY" | tr '[:upper:]' '[:lower:]')
+          value_label=""
+          if echo "$body_lower" | grep -qE '\*\*value\*\*.*high value|\bhigh value\b'; then
+            value_label="High Value"
+          elif echo "$body_lower" | grep -qE '\*\*value\*\*.*medium value|\bmedium value\b'; then
+            value_label="Medium Value"
+          elif echo "$body_lower" | grep -qE '\*\*value\*\*.*low value|\blow value\b'; then
+            value_label="Low Value"
+          else
+            # Default: Low Value — ai-suggested issues have historically
+            # skewed low-value, matching the manual triage pass on 2026-08-02.
+            value_label="Low Value"
+          fi
+
+          echo "Applying value label: $value_label"
+          gh issue edit "$ISSUE_NUMBER" \
+            --repo "$REPO" \
+            --add-label "$value_label"

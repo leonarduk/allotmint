@@ -11,15 +11,17 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Mapping, Optional, Tuple
 
-from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel, ConfigDict, Field
 
 from backend import importers
+from backend.auth import get_active_user
 from backend.common import compliance, data_loader, moneyhub_tokens
 from backend.common.accounts_store import (
     LocalAccountsStore,
     S3AccountsStore,
 )
+from backend.common.authz import ensure_owner_access
 from backend.common.instruments import get_instrument_meta
 from backend.common.ticker_utils import normalise_filter_ticker
 from backend.config import config
@@ -893,7 +895,9 @@ async def import_transactions(
 
 @router.post("/transactions/import/moneyhub")
 async def import_moneyhub_transactions(
-    request: Request, owner: str = Form(...)
+    request: Request,
+    owner: str = Form(...),
+    identity: str | None = Depends(get_active_user),
 ) -> Dict[str, List[Dict[str, Any]]]:
     """Pull ``owner``'s transactions from the live Moneyhub API, persist the new ones, and report the rest.
 
@@ -904,8 +908,15 @@ async def import_moneyhub_transactions(
     owner to have already completed the Moneyhub consent flow and have a
     token set stored; there is no self-service way for this endpoint to
     initiate that consent itself.
+
+    ``owner`` is only a valid import target when the caller is authorized
+    for it -- :func:`ensure_owner_access` (the same check used by
+    ``/accounts/{owner}/approvals`` and ``/user-config/{owner}``) raises a
+    403 otherwise, so this endpoint can no longer be triggered for an
+    arbitrary owner by anyone who can guess the name (#5704).
     """
     owner = _validate_component(owner, "owner")
+    ensure_owner_access(identity, owner, resolve_accounts_root(request))
 
     from backend.importers import moneyhub_api as moneyhub_mapper
     from backend.integrations.moneyhub_api import MoneyhubAPIError

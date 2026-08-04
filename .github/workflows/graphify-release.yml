@@ -55,7 +55,6 @@ jobs:
       # plain files (not a zip) so past knowledge graphs stay retrievable
       # from the repo itself and readable directly, per release tag.
       - name: Persist graphify output to graphify-output branch
-        if: always()
         run: |
           set -euo pipefail
           TAG="${{ github.ref_name }}"
@@ -72,13 +71,19 @@ jobs:
           WORKTREE_DIR="$(mktemp -d)"
           git worktree add --detach "$WORKTREE_DIR" HEAD
 
+          cleanup() {
+            cd "$GITHUB_WORKSPACE"
+            git worktree remove --force "$WORKTREE_DIR" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
           cd "$WORKTREE_DIR"
           if git ls-remote --exit-code --heads origin graphify-output >/dev/null 2>&1; then
             git fetch origin graphify-output
             git checkout -B graphify-output origin/graphify-output
           else
             git checkout --orphan graphify-output
-            git rm -rf . >/dev/null 2>&1 || true
+            git rm -rf .
           fi
 
           mkdir -p "graphify/$TAG"
@@ -91,14 +96,22 @@ jobs:
           fi
           git commit -m "Add graphify output for $TAG"
 
+          push_succeeded=false
           for attempt in 1 2 3; do
             if git push origin HEAD:graphify-output; then
-              exit 0
+              push_succeeded=true
+              break
             fi
             echo "Push attempt $attempt failed, fetching and rebasing..."
             git fetch origin graphify-output
-            git rebase origin/graphify-output
+            if ! git rebase origin/graphify-output; then
+              git rebase --abort
+              echo "Rebase failed, aborting retries."
+              break
+            fi
           done
 
-          echo "Failed to push graphify output after 3 attempts."
-          exit 1
+          if [ "$push_succeeded" != "true" ]; then
+            echo "Failed to push graphify output after retries."
+            exit 1
+          fi

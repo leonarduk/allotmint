@@ -45,6 +45,25 @@ def test_list_directory_subdir(monkeypatch, tmp_path):
     assert result["entries"][0]["path"] == "timeseries/meta/ABC_L.parquet"
 
 
+def test_list_directory_excludes_git_and_idea_dirs(monkeypatch, tmp_path):
+    (tmp_path / "timeseries").mkdir()
+    (tmp_path / ".git").mkdir()
+    (tmp_path / ".git" / "index").write_bytes(b"\x00\x01")
+    (tmp_path / ".idea").mkdir()
+    (tmp_path / ".idea" / "workspace.xml").write_text("<xml/>")
+    (tmp_path / "accounts.json").write_text("{}")
+
+    monkeypatch.setattr(config, "app_env", "local")
+    monkeypatch.setattr(config, "data_root", tmp_path)
+
+    result = _run(data_explorer.list_directory(""))
+
+    names = [e["name"] for e in result["entries"]]
+    assert ".git" not in names
+    assert ".idea" not in names
+    assert set(names) == {"timeseries", "accounts.json"}
+
+
 def test_list_directory_missing_path_404(monkeypatch, tmp_path):
     monkeypatch.setattr(config, "app_env", "local")
     monkeypatch.setattr(config, "data_root", tmp_path)
@@ -279,6 +298,7 @@ def test_read_file_aws_rejects_unsupported_extension(monkeypatch):
     with pytest.raises(HTTPException) as exc:
         _run(data_explorer.read_file("cache.parquet"))
     assert exc.value.status_code == 415
+    assert exc.value.detail == data_explorer.NOT_PREVIEWABLE_DETAIL
 
 
 def test_read_file_aws_missing_404(monkeypatch):
@@ -334,6 +354,23 @@ def test_read_file_rejects_unsupported_extension(monkeypatch, tmp_path):
     with pytest.raises(HTTPException) as exc:
         _run(data_explorer.read_file("cache.parquet"))
     assert exc.value.status_code == 415
+    assert exc.value.detail == data_explorer.NOT_PREVIEWABLE_DETAIL
+
+
+def test_read_file_rejects_binary_file_with_no_extension_friendly_message(monkeypatch, tmp_path):
+    # Regression for #6112: a file like `.git/index` has no recognised
+    # extension at all, but the 415 detail should still read as a friendly
+    # in-app message rather than a bare technical string.
+    git_dir = tmp_path / ".git"
+    git_dir.mkdir()
+    (git_dir / "index").write_bytes(b"\x00\x01\x02\x03")
+    monkeypatch.setattr(config, "app_env", "local")
+    monkeypatch.setattr(config, "data_root", tmp_path)
+
+    with pytest.raises(HTTPException) as exc:
+        _run(data_explorer.read_file(".git/index"))
+    assert exc.value.status_code == 415
+    assert exc.value.detail == data_explorer.NOT_PREVIEWABLE_DETAIL
 
 
 def test_read_file_missing_404(monkeypatch, tmp_path):

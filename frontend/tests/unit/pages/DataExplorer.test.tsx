@@ -91,7 +91,9 @@ describe("DataExplorer page", () => {
         { name: "cache.parquet", path: "cache.parquet", type: "file", size: 99, modified: "2026-01-01T00:00:00Z" },
       ],
     });
-    mockGetDataExplorerFile.mockRejectedValue(new Error("File type is not previewable"));
+    mockGetDataExplorerFile.mockRejectedValue(
+      new Error("This file type can't be previewed here (binary or unsupported format)."),
+    );
 
     render(<DataExplorer />);
 
@@ -100,6 +102,8 @@ describe("DataExplorer page", () => {
       await userEvent.click(fileButton);
     });
 
-    expect(await screen.findByText("File type is not previewable")).toBeInTheDocument();
+    expect(
+      await screen.findByText("This file type can't be previewed here (binary or unsupported format)."),
+    ).toBeInTheDocument();
   });
 });

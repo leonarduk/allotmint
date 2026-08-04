@@ -250,7 +250,19 @@ export function createClient(
       if (res.status === 401 && typeof window !== "undefined") {
         window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
       }
-      const err = new Error(`HTTP ${res.status} - ${res.statusText} (${safeUrl})`);
+      // Prefer the backend's `detail` message (e.g. actionable 401 guidance)
+      // over the generic status text, so admin screens can surface it as-is
+      // instead of a bare "HTTP 401 - Unauthorized" (#6058).
+      let message = `HTTP ${res.status} - ${res.statusText} (${safeUrl})`;
+      try {
+        const body = await res.json();
+        if (typeof body?.detail === "string" && body.detail.trim()) {
+          message = body.detail;
+        }
+      } catch {
+        // response body was not JSON; fall back to the generic message above
+      }
+      const err = new Error(message);
       (err as any).status = res.status;
       (err as any).headers = res.headers;
       throw err;

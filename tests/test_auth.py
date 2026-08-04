@@ -381,6 +381,11 @@ async def test_get_current_user_disabled_without_identity(monkeypatch):
 
     assert exc_info.value.status_code == 401
     assert auth.current_user.get() is None
+    # The message must be actionable (points to the Support page fix) rather
+    # than a bare/generic 401, since this is the out-of-the-box state of a
+    # fresh local checkout (#6058).
+    assert "Support" in exc_info.value.detail
+    assert "Local login override" in exc_info.value.detail
 
 
 @pytest.mark.asyncio

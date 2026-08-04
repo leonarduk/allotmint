@@ -77,6 +77,36 @@ describe("unauthorized event (issue #4674)", () => {
       window.removeEventListener(UNAUTHORIZED_EVENT, handler);
     }
   });
+
+  it("surfaces the backend's `detail` message instead of a bare status (issue #6058)", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      statusText: "Unauthorized",
+      json: () =>
+        Promise.resolve({
+          detail:
+            "No local login override is configured. Go to Support -> Local login override and select a user to continue in local/demo mode.",
+        }),
+    });
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+    await expect(fetchJson("/data-explorer/tree")).rejects.toThrow(
+      "Go to Support -> Local login override",
+    );
+  });
+
+  it("falls back to the generic status message when the error body isn't JSON", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      statusText: "Server Error",
+      json: () => Promise.reject(new Error("not json")),
+    });
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+    await expect(fetchJson("/owners")).rejects.toThrow("HTTP 500");
+  });
 });
 
 describe("login", () => {

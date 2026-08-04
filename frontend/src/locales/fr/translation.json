@@ -464,6 +464,11 @@
       "tabsEnabled": "Onglets activés",
       "title": "Configuration"
     },
+    "dataExplorer": {
+      "title": "Data Explorer",
+      "description": "Browse the backend data area (local files, or S3 in the AWS deployment) to inspect account, price, and timeseries data.",
+      "link": "Open Data Explorer"
+    },
     "environment": "Environnement",
     "health": {
       "copyReport": "Copier le rapport",

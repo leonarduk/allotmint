@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 from pathlib import Path
 
 import pytest
@@ -111,6 +112,35 @@ def test_get_units_as_of_reflects_a_removal_before_cutoff() -> None:
 
     assert get_units_as_of(tx_data, "ABC", "2024-01-15") == pytest.approx(200.0)
     assert get_units_as_of(tx_data, "ABC", "2024-02-01") == pytest.approx(170.0)
+
+
+def test_get_units_as_of_large_transaction_log_performance() -> None:
+    """Guard against accidental superlinear blowup in the O(n) scan (#5327).
+
+    get_units_as_of does a single linear pass with no indexing, so cost
+    should scale ~linearly with transaction count. 20k transactions (mixed
+    tickers, half of them irrelevant) should still complete in well under a
+    second on any CI runner; a generous 5s ceiling flags a real regression
+    (e.g. an accidental O(n^2) reintroduction) without being flaky.
+    """
+    transaction_count = 20_000
+    tx_data = {
+        "transactions": [
+            {
+                "type": "BUY" if i % 2 == 0 else "SELL",
+                "ticker": "ABC" if i % 3 == 0 else "XYZ",
+                "units": 10,
+                "date": f"{2000 + (i % 24):04d}-01-01",
+            }
+            for i in range(transaction_count)
+        ]
+    }
+
+    start = time.perf_counter()
+    get_units_as_of(tx_data, "ABC", "2030-01-01")
+    elapsed = time.perf_counter() - start
+
+    assert elapsed < 5.0, f"get_units_as_of took {elapsed:.2f}s for {transaction_count} transactions"
 
 
 def test_rebuild_account_holdings_treats_dividend_singular_like_dividends(tmp_path: Path) -> None:

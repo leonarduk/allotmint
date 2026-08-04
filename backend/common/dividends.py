@@ -233,7 +233,7 @@ def refresh_dividends() -> Dict[str, Any]:
                     if key in existing_keys:
                         continue
                     units_as_of_ex_date = get_units_as_of(data, ticker, decl["ex_date"])
-                    if not units_as_of_ex_date:
+                    if units_as_of_ex_date == 0.0:
                         continue
                     amount_minor = _amount_minor_gbp(ticker, decl["amount_per_share"], units_as_of_ex_date)
                     if amount_minor is None or amount_minor <= 0:

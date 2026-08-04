@@ -288,6 +288,11 @@ def get_units_as_of(tx_data: dict[str, Any], ticker: str, as_of: str) -> float:
     Used by :mod:`backend.common.dividends` to size a dividend by the units
     actually held on its ex-date rather than the (possibly since-changed)
     current holding (#4947).
+
+    O(n) in the number of transactions in ``tx_data`` — it does a single
+    linear scan with no indexing or early exit, so callers computing this
+    for many tickers/dates over the same ``tx_data`` incur O(n) per call
+    rather than amortising the scan.
     """
     TYPE_SIGN = {
         "BUY": 1,

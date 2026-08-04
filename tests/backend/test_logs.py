@@ -12,7 +12,8 @@ def create_app():
 
 
 def test_logs_endpoint_returns_content(tmp_path, monkeypatch):
-    log_file = tmp_path / "backend.log"
+    log_file = tmp_path / "logs" / "backend.log"
+    log_file.parent.mkdir(parents=True, exist_ok=True)
     log_file.write_text("line1\nline2\n", encoding="utf-8")
     monkeypatch.setattr(config, "repo_root", tmp_path)
     app = create_app()
@@ -32,7 +33,8 @@ def test_logs_endpoint_missing_file(tmp_path, monkeypatch):
 
 
 def test_logs_endpoint_respects_lines_parameter(tmp_path, monkeypatch):
-    log_file = tmp_path / "backend.log"
+    log_file = tmp_path / "logs" / "backend.log"
+    log_file.parent.mkdir(parents=True, exist_ok=True)
     log_file.write_text("""line1
 line2
 line3

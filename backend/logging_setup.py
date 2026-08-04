@@ -87,12 +87,20 @@ def setup_logging() -> None:
     if not root_logger.handlers:
         log_config = config.log_config
         if log_config:
+            base = config.repo_root or Path.cwd()
             config_path = Path(log_config)
             if not config_path.is_absolute():
-                base = config.repo_root or Path.cwd()
                 config_path = base / config_path
 
             if config_path.exists():
+                try:
+                    (base / "logs").mkdir(parents=True, exist_ok=True)
+                except OSError:
+                    # Best-effort: read-only deployment targets (e.g. Lambda)
+                    # cannot create logs/. fileConfig is attempted below and
+                    # its failure will surface if the fileHandler also can't
+                    # open logs/backend.log.
+                    pass
                 logging.config.fileConfig(config_path, disable_existing_loggers=False)
 
     _attach_redact_token_filter(root_logger)

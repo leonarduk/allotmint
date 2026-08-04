@@ -78,12 +78,12 @@ def setup_logging() -> None:
             if config_path.exists():
                 try:
                     (base / "logs").mkdir(parents=True, exist_ok=True)
+                    logging.config.fileConfig(config_path, disable_existing_loggers=False)
                 except OSError:
-                    # Best-effort: some deployment targets (e.g. a read-only
-                    # filesystem) can't create it, and logging.ini's fileHandler
-                    # will simply fail to open below if it truly needs the dir.
+                    # Best-effort: read-only deployment targets (e.g. Lambda)
+                    # cannot create logs/ or open the fileHandler. The app
+                    # continues with console logging only.
                     pass
-                logging.config.fileConfig(config_path, disable_existing_loggers=False)
 
     if config.log_format == "json":
         _switch_console_handler_to_json(root_logger)

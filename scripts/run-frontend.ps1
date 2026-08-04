@@ -30,7 +30,9 @@ npm run dev 2>&1 | ForEach-Object {
   Add-Content -Path $logFile -Value $line
 }
 
-# npm is a native command, so $LASTEXITCODE reflects its exit code even
-# though it ran as the pipeline source rather than the final stage; propagate
-# it explicitly so callers (CI, other scripts) can detect a dev-server crash.
-exit $LASTEXITCODE
+# Capture npm's exit code immediately after the pipeline. Although
+# ForEach-Object is a cmdlet that does not overwrite $LASTEXITCODE,
+# capturing it into a named variable is safer and makes intent explicit
+# for CI/scripts that check the exit code.
+$npmExitCode = $LASTEXITCODE
+exit $npmExitCode

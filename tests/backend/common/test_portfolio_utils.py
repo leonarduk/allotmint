@@ -1,6 +1,7 @@
 import inspect
 import json
 import sys
+import threading
 import types
 from datetime import UTC, datetime
 
@@ -914,3 +915,56 @@ def test_securities_are_not_built_at_import_time(monkeypatch):
 
     portfolio_utils.get_security_meta("BBB.L")
     assert calls == [None]  # second call reuses the already-built dict
+
+
+def test_get_security_meta_thread_safe_first_call_builds_once(monkeypatch):
+    """Concurrent first calls to get_security_meta() must build _SECURITIES
+    exactly once, not once per racing thread.
+
+    Regression guard mirroring issue #5104 (the ``_S3_HEAD_MISS_CACHE`` race)
+    for the analogous double-checked-locking lazy-init here: without
+    ``_SECURITIES_LOCK`` serialising the build, multiple threads could all
+    observe ``_SECURITIES is None`` before any of them finishes building it,
+    each redundantly calling ``_build_securities_from_portfolios()`` (which
+    itself issues S3 GetObject calls per ticker) and racing to overwrite the
+    module-level dict.
+    """
+    monkeypatch.setattr(portfolio_utils, "_SECURITIES", None)
+
+    calls: list[None] = []
+    calls_lock = threading.Lock()
+    all_started = threading.Event()
+    started_count = [0]
+    started_count_lock = threading.Lock()
+    real_build = portfolio_utils._build_securities_from_portfolios
+
+    def spy_build():
+        with calls_lock:
+            calls.append(None)
+        # Hold the lock briefly so any thread that hasn't yet reached its
+        # first (unlocked) `_SECURITIES is None` check has time to do so
+        # concurrently with this build, genuinely exercising the race that
+        # double-checked locking guards against, rather than the threads
+        # simply never overlapping.
+        all_started.wait(timeout=5)
+        return real_build()
+
+    monkeypatch.setattr(portfolio_utils, "_build_securities_from_portfolios", spy_build)
+    monkeypatch.setattr(portfolio_utils, "list_portfolios", lambda: [])
+    monkeypatch.setattr(portfolio_utils, "list_virtual_portfolios", lambda: [])
+
+    def worker():
+        with started_count_lock:
+            started_count[0] += 1
+            if started_count[0] == 10:
+                all_started.set()
+        portfolio_utils.get_security_meta("AAA.L")
+
+    threads = [threading.Thread(target=worker) for _ in range(10)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=5)
+
+    assert len(calls) == 1
+    assert portfolio_utils._SECURITIES == {}

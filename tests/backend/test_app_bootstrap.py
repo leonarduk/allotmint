@@ -301,6 +301,53 @@ async def test_lifecycle_service_metadata_update_is_time_bounded(
     ), "Expected a metadata-update timeout warning but got: " + str([r.message for r in caplog.records])
 
 
+@pytest.mark.asyncio
+async def test_snapshot_load_timeout_value_is_respected(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+):
+    """The timeout must fire at the configured value, not just eventually (#5432).
+
+    A regression that changed _SNAPSHOT_LOAD_TIMEOUT_SECONDS handling (e.g. by
+    ignoring it or hardcoding a different value) would still pass the existing
+    "is_time_bounded" tests as long as *a* timeout eventually occurs. This test
+    measures elapsed wall-clock time to pin down the actual configured value.
+    """
+    configured_timeout = 0.3
+    monkeypatch.setattr("backend.bootstrap.startup._SNAPSHOT_LOAD_TIMEOUT_SECONDS", configured_timeout)
+
+    def _hang():
+        time.sleep(100)
+        return ({"ABC": 1}, "ts")
+
+    monkeypatch.setattr("backend.common.portfolio_utils._load_snapshot", _hang)
+    monkeypatch.setattr(
+        "backend.common.portfolio_utils.refresh_snapshot_in_memory",
+        lambda snapshot, ts: None,
+    )
+    monkeypatch.setattr(
+        "backend.common.instrument_api.update_latest_prices_from_snapshot",
+        lambda snapshot: None,
+    )
+    monkeypatch.setattr("backend.common.instrument_api.prime_latest_prices", lambda: None)
+    monkeypatch.setattr("backend.common.portfolio_utils.refresh_snapshot_async", lambda days: None)
+    monkeypatch.setattr(config, "skip_snapshot_warm", False, raising=False)
+
+    service = AppLifecycleService(cfg=config)
+    app = app_module.create_app()
+
+    start = time.monotonic()
+    with caplog.at_level(logging.WARNING):
+        await asyncio.wait_for(service.startup(app), timeout=5.0)
+    elapsed = time.monotonic() - start
+
+    # Generous tolerance to avoid CI flakiness while still catching gross
+    # deviations (e.g. the timeout being ignored or set to a different value).
+    assert (
+        configured_timeout <= elapsed < configured_timeout + 2.0
+    ), f"expected timeout around {configured_timeout}s, took {elapsed}s"
+
+
 def test_create_app_skips_snapshot_warm_when_disabled(monkeypatch: pytest.MonkeyPatch):
     """_warm_snapshot is skipped when skip_snapshot_warm=True.
 

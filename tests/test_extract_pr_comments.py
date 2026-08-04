@@ -14,9 +14,7 @@ if str(SCRIPTS_DIR) not in sys.path:
 
 
 def load_extract_pr_comments():
-    spec = importlib.util.spec_from_file_location(
-        "extract_pr_comments_test", SCRIPTS_DIR / "extract_pr_comments.py"
-    )
+    spec = importlib.util.spec_from_file_location("extract_pr_comments_test", SCRIPTS_DIR / "extract_pr_comments.py")
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -82,7 +80,7 @@ def test_format_top_level_comment_with_missing_user_key(mod):
 
 
 def test_format_inline_comment_with_valid_user(mod):
-    """A valid 'user' dict still extracts the login."""
+    """A valid 'user' dict still extracts the login, and path/line are propagated (#5322)."""
     comment = {
         "id": 5,
         "user": {"login": "octocat"},
@@ -93,6 +91,31 @@ def test_format_inline_comment_with_valid_user(mod):
     }
     result = mod.format_inline_comment(comment, {})
     assert result["author"] == "octocat"
+    assert result["path"] == "app.py"
+    assert result["line"] == 10
+
+
+def test_format_top_level_comment_with_valid_user(mod):
+    """format_top_level_comment's full output shape for a normal comment (#5322).
+
+    The existing None-user/missing-user tests only cover the author field;
+    nothing previously asserted the full mapping (id, type, created_at, body)
+    for the ordinary case, unlike format_inline_comment's valid-user test.
+    """
+    comment = {
+        "id": 6,
+        "user": {"login": "octocat"},
+        "created_at": "2026-06-18T17:00:00Z",
+        "body": "LGTM.",
+    }
+    result = mod.format_top_level_comment(comment)
+    assert result == {
+        "id": 6,
+        "author": "octocat",
+        "type": "top-level",
+        "created_at": "2026-06-18T17:00:00Z",
+        "body": "LGTM.",
+    }
 
 
 # --- fetch_paginated() truncation tests ---
@@ -185,3 +208,40 @@ def test_process_comments_propagates_truncated(mod):
 
     assert comments == []
     assert truncated is True
+
+
+def test_process_comments_deduplicates_by_id(mod):
+    """Two comments sharing an id must collapse to one, keeping the first-seen (#5322).
+
+    Nothing previously exercised process_comments' own dedup-by-id step
+    directly -- the existing truncation test only passes empty comment lists.
+    """
+    since = mod.parse_iso_datetime("2020-01-01T00:00:00Z")
+    duplicate_inline = [
+        {
+            "id": 42,
+            "user": {"login": "octocat"},
+            "path": "app.py",
+            "line": 1,
+            "created_at": "2026-06-18T17:00:00Z",
+            "body": "first",
+        },
+        {
+            "id": 42,
+            "user": {"login": "octocat"},
+            "path": "app.py",
+            "line": 1,
+            "created_at": "2026-06-18T17:00:01Z",
+            "body": "duplicate, should be dropped",
+        },
+    ]
+    with (
+        patch.object(mod, "fetch_reviews", return_value=({}, False)),
+        patch.object(mod, "fetch_inline_comments", return_value=(duplicate_inline, False)),
+        patch.object(mod, "fetch_top_level_comments", return_value=([], False)),
+    ):
+        comments, truncated = mod.process_comments("owner", "repo", 1, since, False)
+
+    assert len(comments) == 1
+    assert comments[0]["body"] == "first"
+    assert truncated is False

@@ -251,6 +251,81 @@ describe("Support page", () => {
     ).not.toBeChecked();
   });
 
+  it("saves the dataquality tab toggle and persists it after save", async () => {
+    mockGetConfig.mockResolvedValueOnce({
+      flag: true,
+      theme: "system",
+      tabs: {
+        group: true,
+        owner: true,
+        instrument: true,
+        trading: true,
+        support: true,
+        reports: true,
+        allocation: true,
+        scenario: true,
+        market: true,
+        rebalance: true,
+        pension: true,
+        dataquality: false,
+      },
+    });
+    mockGetConfig.mockResolvedValueOnce({
+      flag: true,
+      theme: "system",
+      tabs: {
+        group: true,
+        owner: true,
+        instrument: true,
+        trading: true,
+        support: true,
+        reports: true,
+        allocation: true,
+        scenario: true,
+        market: true,
+        rebalance: true,
+        pension: true,
+        dataquality: true,
+      },
+    });
+    mockUpdateConfig.mockResolvedValue(undefined);
+
+    render(<Support />, { wrapper: MemoryRouter });
+    await expandSection(en.support.config.title);
+
+    const dataquality = await screen.findByRole("checkbox", {
+      name: /^dataquality$/i,
+    });
+    expect(dataquality).not.toBeChecked();
+
+    await act(async () => {
+      await userEvent.click(dataquality);
+    });
+    expect(dataquality).toBeChecked();
+
+    const saveButton = screen.getByRole("button", {
+      name: en.support.config.save,
+    });
+    await act(async () => {
+      await userEvent.click(saveButton);
+    });
+
+    expect(mockUpdateConfig).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ui: expect.objectContaining({
+          tabs: expect.objectContaining({ dataquality: true }),
+        }),
+      }),
+    );
+
+    expect(
+      await screen.findByText(en.support.status.saved),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByRole("checkbox", { name: /^dataquality$/i }),
+    ).toBeChecked();
+  });
+
   it("separates switches from other parameters", async () => {
     render(<Support />, { wrapper: MemoryRouter });
     await expandSection(en.support.config.title);

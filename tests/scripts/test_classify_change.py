@@ -528,6 +528,26 @@ rename to backend/n_review_issue.py
 """
         assert backend_dev_tools_only(diff) is False
 
+    def test_dev_tools_and_dev_tools_tests_together_is_narrow(self) -> None:
+        """A diff touching both narrow globs (and nothing else) stays narrow (#5826)."""
+        diff = """\
+diff --git a/scripts/developer_tools/n_review_issue.py b/scripts/developer_tools/n_review_issue.py
+index abc123..def456 100644
+--- a/scripts/developer_tools/n_review_issue.py
++++ b/scripts/developer_tools/n_review_issue.py
+@@ -1 +1 @@
+-x = 1
++x = 2
+diff --git a/tests/scripts/test_n_review_issue.py b/tests/scripts/test_n_review_issue.py
+index abc123..def456 100644
+--- a/tests/scripts/test_n_review_issue.py
++++ b/tests/scripts/test_n_review_issue.py
+@@ -1 +1 @@
+-x = 1
++x = 2
+"""
+        assert backend_dev_tools_only(diff) is True
+
     def test_frontend_only_diff_is_not_narrow(self) -> None:
         """No backend path at all means the narrow flag doesn't apply."""
         diff = """\

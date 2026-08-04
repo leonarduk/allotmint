@@ -425,6 +425,12 @@ describe('Menu', () => {
 
     fireEvent.mouseDown(hamburger);
     expect(hamburger).toHaveAttribute('aria-expanded', 'true');
+
+    // Clicking the <nav> wrapper itself -- the element mobileMenuRef directly
+    // references -- is the most direct test of the containment boundary (#5490).
+    const nav = document.querySelector('nav');
+    fireEvent.mouseDown(nav as HTMLElement);
+    expect(hamburger).toHaveAttribute('aria-expanded', 'true');
   });
 
   it.each([

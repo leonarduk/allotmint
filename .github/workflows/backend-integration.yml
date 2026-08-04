@@ -104,6 +104,11 @@ jobs:
         if: env.BACKEND_DEV_TOOLS_ONLY != 'true'
         env:
           ALLOTMINT_SKIP_SNAPSHOT_WARM: 'true'
+          # No Ollama server runs in CI. Pointing at an unreachable endpoint
+          # (rather than leaving it unset, which would default to
+          # localhost:11434) makes that explicit and catches any test that
+          # accidentally assumes a live Ollama server is reachable (#5816).
+          OLLAMA_ENDPOINT: 'http://127.0.0.1:1'
         run: |
           python -m coverage erase
           pytest tests --ignore=tests/live --cov=backend --cov-report=xml --cov-report=term --cov-fail-under=80 -q
@@ -116,6 +121,10 @@ jobs:
         if: env.BACKEND_DEV_TOOLS_ONLY == 'true'
         env:
           ALLOTMINT_SKIP_SNAPSHOT_WARM: 'true'
+          # See the OLLAMA_ENDPOINT comment on "Run tests" above (#5816) --
+          # this suite covers the ollama_common helpers, so it's the step
+          # most likely to accidentally depend on a live Ollama server.
+          OLLAMA_ENDPOINT: 'http://127.0.0.1:1'
         run: pytest tests/scripts --no-cov -q
 
       - name: Upload backend coverage reports to Codecov

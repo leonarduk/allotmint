@@ -92,9 +92,7 @@ class TestIsSafeRelativePath:
         assert is_safe_relative_path("/etc/passwd") is False
 
     def test_accepts_plain_relative_path(self):
-        assert (
-            is_safe_relative_path("scripts/developer_tools/f_implement_issue_with_aider.py") is True
-        )
+        assert is_safe_relative_path("scripts/developer_tools/f_implement_issue_with_aider.py") is True
 
 
 class TestExtractFilePathsFromIssue:
@@ -152,6 +150,23 @@ class TestExtractFilePathsFromIssue:
         body = f"## Files Affected\n- `{file_a}`\n- `{file_b}`\n"
         assert set(extract_file_paths_from_issue(body)) == {file_a, file_b}
 
+    def test_backtick_wrapped_path_with_space_is_not_matched(self):
+        """Paths containing a space are outside the supported character class (#5852).
+
+        The path regex's character class ([a-zA-Z0-9._/\\-]+) deliberately
+        excludes whitespace, so a backtick-wrapped path with an embedded
+        space (e.g. from a file genuinely named with a space) is not
+        extracted. This pins down that known, intentional limitation rather
+        than leaving it undocumented.
+        """
+        body = "## Files Affected\n- `scripts/my script/f_implement_issue_with_aider.py`\n"
+        assert extract_file_paths_from_issue(body) == []
+
+    def test_backtick_wrapped_path_with_special_characters_is_not_matched(self):
+        """Paths with characters outside [a-zA-Z0-9._/-] are not extracted (#5852)."""
+        body = "## Files Affected\n- `scripts/weird(name)/f_implement_issue_with_aider.py`\n"
+        assert extract_file_paths_from_issue(body) == []
+
 
 class TestResolveFilesToEdit:
     def test_prefers_files_affected_section_over_whole_body(self):
@@ -167,9 +182,7 @@ class TestResolveFilesToEdit:
         real_file = "scripts/developer_tools/f_implement_issue_with_aider.py"
         body = f"See {real_file} for details."
 
-        result = resolve_files_to_edit(
-            "title", body, "http://x", "model", files_affected="totally/made/up/path.py"
-        )
+        result = resolve_files_to_edit("title", body, "http://x", "model", files_affected="totally/made/up/path.py")
         assert result == [real_file]
         mock_fetch.assert_not_called()
 
@@ -177,9 +190,7 @@ class TestResolveFilesToEdit:
     def test_asks_ollama_when_nothing_found_anywhere(self, mock_fetch):
         mock_fetch.return_value = "[]"
 
-        result = resolve_files_to_edit(
-            "title", "no files here", "http://x", "model", files_affected="also none here"
-        )
+        result = resolve_files_to_edit("title", "no files here", "http://x", "model", files_affected="also none here")
         assert result == []
         mock_fetch.assert_called_once()
 
@@ -480,9 +491,7 @@ class TestMainOrdering:
     @mock.patch("f_implement_issue_with_aider.fetch_issue_from_github")
     @mock.patch("f_implement_issue_with_aider.get_repo_info")
     @mock.patch("f_implement_issue_with_aider.validate_ollama_connection", return_value=False)
-    def test_exits_before_any_github_io_when_ollama_down(
-        self, mock_validate, mock_repo_info, mock_fetch
-    ):
+    def test_exits_before_any_github_io_when_ollama_down(self, mock_validate, mock_repo_info, mock_fetch):
         with pytest.raises(SystemExit) as exc_info:
             main(["-i", "42"])
 
@@ -491,13 +500,9 @@ class TestMainOrdering:
         mock_fetch.assert_not_called()
 
     @mock.patch("f_implement_issue_with_aider.os.chdir")
-    @mock.patch(
-        "f_implement_issue_with_aider.get_repo_root", side_effect=ValueError("not a git repo")
-    )
+    @mock.patch("f_implement_issue_with_aider.get_repo_root", side_effect=ValueError("not a git repo"))
     @mock.patch("f_implement_issue_with_aider.validate_ollama_connection", return_value=True)
-    def test_exits_cleanly_when_repo_root_cannot_be_determined(
-        self, mock_validate, mock_get_repo_root, mock_chdir
-    ):
+    def test_exits_cleanly_when_repo_root_cannot_be_determined(self, mock_validate, mock_get_repo_root, mock_chdir):
         with pytest.raises(SystemExit) as exc_info:
             main(["-i", "42"])
 

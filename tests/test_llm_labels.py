@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -217,3 +218,36 @@ def test_value_label_map_is_stable() -> None:
         "high": "High Value",
     }
     assert mod.DEFAULT_VALUE_LABEL == "Low Value"
+
+
+@pytest.mark.parametrize(
+    ("body", "expected_label"),
+    [
+        ("**Value**\n**High Value** — security fix", "High Value"),
+        ("This is a Medium Value issue.", "Medium Value"),
+        ("No value mentioned", "Low Value"),
+        ("", "Low Value"),
+    ],
+)
+def test_cli_value_label(body: str, expected_label: str) -> None:
+    """The workflow YAML shells out to this CLI instead of re-implementing
+    the extraction regex in bash; verify that path end-to-end."""
+    result = subprocess.run(
+        [sys.executable, str(SCRIPTS_DIR / "llm_labels.py"), "value-label"],
+        input=body,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert result.stdout.strip() == expected_label
+
+
+def test_cli_rejects_unknown_command() -> None:
+    result = subprocess.run(
+        [sys.executable, str(SCRIPTS_DIR / "llm_labels.py"), "bogus"],
+        input="",
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 2
+    assert "usage" in result.stderr.lower()

@@ -55,6 +55,18 @@ def test_ensure_owner_access_noop_when_auth_disabled(monkeypatch):
     assert calls["count"] == 0
 
 
+def test_ensure_owner_access_no_log_when_disable_auth(monkeypatch, caplog):
+    """The disable_auth early return must precede the denial log (#5431)."""
+
+    monkeypatch.setattr(config, "disable_auth", True)
+    monkeypatch.setattr(authz, "load_person_meta", lambda owner, root=None: {})
+
+    with caplog.at_level("WARNING", logger="backend.common.authz"):
+        authz.ensure_owner_access(None, "alice")
+
+    assert caplog.records == []
+
+
 def test_ensure_owner_access_allows_authorized(monkeypatch):
     monkeypatch.setattr(config, "disable_auth", False)
     monkeypatch.setattr(authz, "load_person_meta", lambda owner, root=None: {"email": "alice@example.com"})
@@ -98,9 +110,7 @@ def test_ensure_owner_access_denial_is_logged(monkeypatch, caplog):
     assert "identity_present=False" in message
 
 
-def test_ensure_owner_access_denial_log_reports_identity_present_when_unauthorized(
-    monkeypatch, caplog
-):
+def test_ensure_owner_access_denial_log_reports_identity_present_when_unauthorized(monkeypatch, caplog):
     """A present-but-unauthorized identity is distinguished from no identity
     at all in the log, since they're different failure modes (wrong account
     vs. genuinely anonymous caller).

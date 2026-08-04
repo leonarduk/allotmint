@@ -32,6 +32,14 @@ class TestRefuseIfMainBranch:
             refuse_if_main_branch("main")
         assert exc_info.value.code == 1
 
+    def test_raises_on_main_with_expected_message(self, capsys):
+        """Pin the exact guidance text so a future edit can't silently regress it (#5834)."""
+        with pytest.raises(SystemExit):
+            refuse_if_main_branch("main")
+        err = capsys.readouterr().err
+        assert "Refusing to commit directly to 'main'" in err
+        assert "git checkout -b fix/<issue-number>-short-description" in err
+
     def test_allows_other_branches(self):
         refuse_if_main_branch("fix/4445-thing")
 

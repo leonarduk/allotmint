@@ -368,9 +368,7 @@ def test_get_approve_expired_token_renders_error_page(client, monkeypatch):
 
     store_dir = signup_requests.signup_requests_dir(tmp_path)
     long_ago = datetime.now(timezone.utc) - timedelta(days=8)
-    record, token = signup_requests.create_signup_request(
-        "Jane Doe", "jane@example.com", "", store_dir, now=long_ago
-    )
+    record, token = signup_requests.create_signup_request("Jane Doe", "jane@example.com", "", store_dir, now=long_ago)
 
     resp = test_client.get(f"/signup/approve?id={record.id}&token={token}")
     assert resp.status_code == 400
@@ -533,6 +531,23 @@ def test_create_router_warns_when_returning_unprotected_router():
         result = signup_module.create_router(limiter, rate_limit=None)
 
     assert result is signup_module.router
+
+
+def test_create_router_warning_points_to_caller_not_signup_module():
+    """The warning's stacklevel must attribute it to the caller (#5407).
+
+    stacklevel=2 skips the warn() call's own frame (inside signup.py) and
+    reports the immediate caller's frame instead, so developers are pointed
+    at their own misconfigured call site rather than library internals.
+    """
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always", RuntimeWarning)
+        signup_module.create_router()
+
+    assert len(caught) == 1
+    assert caught[0].filename != signup_module.__file__
+    assert caught[0].filename == __file__
 
 
 def test_create_router_does_not_warn_when_properly_configured():

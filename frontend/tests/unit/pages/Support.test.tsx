@@ -27,6 +27,7 @@ vi.mock("@/api", async () => {
 
 import Support from "@/pages/Support";
 import en from "@/locales/en/translation.json";
+import { setAuthToken, UNAUTHORIZED_EVENT } from "@/api";
 
 async function expandSection(title: string) {
   const heading = await screen.findByRole("heading", { name: title });
@@ -39,6 +40,7 @@ async function expandSection(title: string) {
 beforeEach(() => {
   (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
   vi.clearAllMocks();
+  setAuthToken(null);
   mockFetch.mockResolvedValue({ ok: true, text: async () => "log entry" });
   vi.stubGlobal("fetch", mockFetch);
   mockGetConfig.mockResolvedValue({
@@ -411,8 +413,28 @@ describe("Support page", () => {
   it("loads logs and renders them", async () => {
     render(<Support />, { wrapper: MemoryRouter });
     await expandSection(en.support.logs.title);
-    expect(mockFetch).toHaveBeenCalledWith("/logs");
+    const call = mockFetch.mock.calls.find(([url]) =>
+      String(url).endsWith("/logs"),
+    );
+    expect(call).toBeDefined();
     expect(await screen.findByText("log entry")).toBeInTheDocument();
+  });
+
+  it("sends the Authorization header when loading logs (issue #6111)", async () => {
+    setAuthToken("test-logs-token");
+    try {
+      render(<Support />, { wrapper: MemoryRouter });
+      await expandSection(en.support.logs.title);
+      await screen.findByText("log entry");
+      const call = mockFetch.mock.calls.find(([url]) =>
+        String(url).endsWith("/logs"),
+      );
+      expect(call).toBeDefined();
+      const headers = call?.[1]?.headers as Headers;
+      expect(headers.get("Authorization")).toBe("Bearer test-logs-token");
+    } finally {
+      setAuthToken(null);
+    }
   });
 
   it("shows error message when logs fetch fails", async () => {
@@ -421,6 +443,26 @@ describe("Support page", () => {
     await expandSection(en.support.logs.title);
     expect(await screen.findByText(en.support.logs.error)).toBeInTheDocument();
     expect(screen.getByText(en.support.logs.empty)).toBeInTheDocument();
+  });
+
+  it("surfaces a 401 on the logs endpoint as an error state, not silently (issue #6111)", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      statusText: "Unauthorized",
+      json: () => Promise.resolve({ detail: "Session expired" }),
+    });
+    const handler = vi.fn();
+    window.addEventListener(UNAUTHORIZED_EVENT, handler);
+    try {
+      render(<Support />, { wrapper: MemoryRouter });
+      await expandSection(en.support.logs.title);
+      expect(await screen.findByText(en.support.logs.error)).toBeInTheDocument();
+      expect(screen.getByText(en.support.logs.empty)).toBeInTheDocument();
+      expect(handler).toHaveBeenCalledTimes(1);
+    } finally {
+      window.removeEventListener(UNAUTHORIZED_EVENT, handler);
+    }
   });
 });
 

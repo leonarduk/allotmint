@@ -194,7 +194,18 @@ export function createClient(
     (globalThis as any).google?.accounts?.id?.disableAutoSelect?.();
   }
 
-  async function fetchJson<T>(url: string, init: RequestInit = {}): Promise<T> {
+  // Builds and sends an authenticated request: resolves relative paths against
+  // the configured base, applies the CWE-918 client-side-request-forgery
+  // guards (origin + path-prefix checks), attaches the Cognito bearer token
+  // and CSRF header, and on a non-2xx response dispatches UNAUTHORIZED_EVENT
+  // for 401s and throws an Error carrying the backend's `detail` message when
+  // available. Returns the raw `Response` on success so callers can parse the
+  // body however is appropriate (JSON via fetchJson, plain text via
+  // fetchText, etc.) without duplicating this security-sensitive logic.
+  async function sendAuthenticated(
+    url: string,
+    init: RequestInit = {},
+  ): Promise<Response> {
     // Support relative paths by resolving against the provided base URL.
     const resolvedBase = resolveBase();
     // Validate the base eagerly so a mis-configured API_BASE surfaces as a clear error
@@ -267,10 +278,23 @@ export function createClient(
       (err as any).headers = res.headers;
       throw err;
     }
+    return res;
+  }
+
+  async function fetchJson<T>(url: string, init: RequestInit = {}): Promise<T> {
+    const res = await sendAuthenticated(url, init);
     return res.json() as Promise<T>;
   }
 
-  return { setAuthToken, getStoredAuthToken, login, logout, fetchJson };
+  // Same authenticated request/error handling as fetchJson, but parses the
+  // successful response body as text instead of JSON — needed for endpoints
+  // like GET /logs that return PlainTextResponse rather than JSON (#6111).
+  async function fetchText(url: string, init: RequestInit = {}): Promise<string> {
+    const res = await sendAuthenticated(url, init);
+    return res.text();
+  }
+
+  return { setAuthToken, getStoredAuthToken, login, logout, fetchJson, fetchText };
 }
 
 // Use a dynamic fetch that resolves to the current global fetch implementation
@@ -288,6 +312,7 @@ export const getStoredAuthToken = defaultClient.getStoredAuthToken;
 export const login = defaultClient.login;
 export const logout = defaultClient.logout;
 export const fetchJson = defaultClient.fetchJson;
+export const fetchText = defaultClient.fetchText;
 
 /* ------------------------------------------------------------------ */
 /* API wrappers                                                        */
@@ -1686,6 +1711,17 @@ export const checkPortfolioHealth = () =>
     `${API_BASE}/support/portfolio-health`,
     { method: "POST" },
   );
+
+/**
+ * Fetch recent backend log output for the Support page's Logs panel.
+ *
+ * Routed through the authenticated {@link fetchText} path (not a raw
+ * `fetch`) so it attaches the Cognito bearer token — otherwise API Gateway's
+ * Cognito authorizer rejects the request with 401 before it ever reaches the
+ * Lambda on AWS deployments (#6111). `GET /logs` returns `PlainTextResponse`,
+ * so this uses fetchText rather than fetchJson.
+ */
+export const getLogs = () => fetchText(`${API_BASE}/logs`);
 
 // ───────────── Account signup ─────────────
 export interface AccountSignupRequest {

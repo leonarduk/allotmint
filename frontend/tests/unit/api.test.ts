@@ -4,6 +4,8 @@ import {
   API_BASE,
   createClient,
   fetchJson,
+  fetchText,
+  getLogs,
   setAuthToken,
   setApiBase,
   login,
@@ -106,6 +108,57 @@ describe("unauthorized event (issue #4674)", () => {
     // @ts-expect-error: replacing global fetch with mock
     global.fetch = mockFetch;
     await expect(fetchJson("/owners")).rejects.toThrow("HTTP 500");
+  });
+});
+
+describe("fetchText / getLogs (issue #6111)", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    setAuthToken(null);
+    setApiBase(DEFAULT_API_BASE);
+  });
+
+  it("parses the response body as text rather than JSON", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, text: () => Promise.resolve("log line one\nlog line two") });
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+    const text = await fetchText("/logs");
+    expect(text).toBe("log line one\nlog line two");
+  });
+
+  it("attaches the Authorization header, same as fetchJson", async () => {
+    setAuthToken("logs-token");
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, text: () => Promise.resolve("") });
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+    await getLogs();
+    const args = mockFetch.mock.calls[0];
+    expect(args[0]).toBe(`${API_BASE}/logs`);
+    const headers = args[1].headers as Headers;
+    expect(headers.get("Authorization")).toBe("Bearer logs-token");
+  });
+
+  it("dispatches UNAUTHORIZED_EVENT and rejects with the backend detail on a 401", async () => {
+    const handler = vi.fn();
+    window.addEventListener(UNAUTHORIZED_EVENT, handler);
+    try {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        statusText: "Unauthorized",
+        json: () => Promise.resolve({ detail: "Session expired" }),
+      });
+      // @ts-expect-error: replacing global fetch with mock
+      global.fetch = mockFetch;
+      await expect(fetchText("/logs")).rejects.toThrow("Session expired");
+      expect(handler).toHaveBeenCalledTimes(1);
+    } finally {
+      window.removeEventListener(UNAUTHORIZED_EVENT, handler);
+    }
   });
 });
 

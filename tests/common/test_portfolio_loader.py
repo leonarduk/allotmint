@@ -137,9 +137,15 @@ def test_get_units_as_of_large_transaction_log_performance() -> None:
     }
 
     start = time.perf_counter()
-    get_units_as_of(tx_data, "ABC", "2030-01-01")
+    result = get_units_as_of(tx_data, "ABC", "2030-01-01")
     elapsed = time.perf_counter() - start
 
+    # ABC transactions occur where i % 3 == 0 (6,667 of the 20k). Of those,
+    # i % 6 == 0 are BUYs (3,334) and i % 6 == 3 are SELLs (3,333), each of
+    # 10 units, so the net is (3334 - 3333) * 10 = 10.0. Asserting this
+    # confirms the timed call actually performed the full scan rather than
+    # short-circuiting.
+    assert result == pytest.approx(10.0)
     assert elapsed < 5.0, f"get_units_as_of took {elapsed:.2f}s for {transaction_count} transactions"
 
 

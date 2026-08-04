@@ -113,34 +113,62 @@ def test_get_units_as_of_reflects_a_removal_before_cutoff() -> None:
     assert get_units_as_of(tx_data, "ABC", "2024-02-01") == pytest.approx(170.0)
 
 
+def _tx_data_of_size(n: int) -> dict:
+    return {
+        "transactions": [
+            {
+                "type": "BUY",
+                "ticker": f"TICK{i % 50}",
+                "units": 10,
+                "date": f"2020-{(i % 12) + 1:02d}-01",
+            }
+            for i in range(n)
+        ]
+    }
+
+
+def _time_lookups(tx_data: dict, lookups: int) -> float:
+    import time
+
+    start = time.perf_counter()
+    for i in range(lookups):
+        get_units_as_of(tx_data, f"TICK{i % 50}", "2024-01-01")
+    return time.perf_counter() - start
+
+
 def test_get_units_as_of_scans_large_transaction_log_quickly() -> None:
     """Guard the O(n)-scan cost documented on get_units_as_of.
 
-    Regenerates dividends.py's usage pattern (one get_units_as_of call per
-    ticker/date against the same tx_data) at a size (10k transactions, 50
-    lookups) well above real account volumes, and asserts it completes in a
-    time budget generous enough to not be flaky on slow CI runners but tight
-    enough to catch an accidental change to worse-than-linear behavior.
+    Rather than asserting an absolute wall-clock budget (flaky on loaded CI
+    runners, and doesn't actually distinguish O(n) from e.g. O(n^2) at a
+    single fixed size), this compares timing at two transaction-log sizes 10x
+    apart. A per-lookup cost that's O(n) in the transaction count should grow
+    roughly 10x; this allows generous headroom (25x) for scheduling noise
+    while still catching an accidental change to worse-than-linear behavior
+    (e.g. O(n^2) would grow ~100x). Also serves as the >10k-transaction
+    benchmark requested for get_units_as_of (#5327 follow-up, issue #6021).
     """
-    import time
+    small = _tx_data_of_size(1_000)
+    large = _tx_data_of_size(10_000)
+    lookups = 50
 
-    transactions = [
-        {
-            "type": "BUY",
-            "ticker": f"TICK{i % 50}",
-            "units": 10,
-            "date": f"2020-{(i % 12) + 1:02d}-01",
-        }
-        for i in range(10_000)
-    ]
-    tx_data = {"transactions": transactions}
+    # Warm up interpreter/caches once before timing either size.
+    _time_lookups(small, lookups)
 
-    start = time.perf_counter()
-    for i in range(50):
-        get_units_as_of(tx_data, f"TICK{i}", "2024-01-01")
-    elapsed = time.perf_counter() - start
+    small_elapsed = _time_lookups(small, lookups)
+    large_elapsed = _time_lookups(large, lookups)
 
-    assert elapsed < 2.0, f"50 lookups over 10k transactions took {elapsed:.2f}s, expected < 2s"
+    # Guard against a near-zero denominator making the ratio meaningless on
+    # an extremely fast run.
+    if small_elapsed < 1e-4:
+        return
+
+    ratio = large_elapsed / small_elapsed
+    assert ratio < 25, (
+        f"get_units_as_of scaled {ratio:.1f}x for a 10x larger transaction "
+        f"log ({small_elapsed:.4f}s -> {large_elapsed:.4f}s), suggesting "
+        "worse-than-linear behavior"
+    )
 
 
 def test_rebuild_account_holdings_treats_dividend_singular_like_dividends(tmp_path: Path) -> None:

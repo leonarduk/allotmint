@@ -30,6 +30,10 @@ def is_nan(value: Any) -> bool:
         return math.isnan(value)
     try:
         result = pd.isna(value)
+        return bool(result)
     except (TypeError, ValueError):
+        # pd.isna raises for some inputs (e.g. dict keys it can't hash) and
+        # bool() raises on a multi-element array-like result (ambiguous
+        # truth value) -- either way, not a scalar "is this NaN" question,
+        # so treat as not-missing rather than propagating the exception.
         return False
-    return bool(result)

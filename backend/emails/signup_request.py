@@ -4,6 +4,9 @@ Reuses the SES pattern established in :mod:`backend.emails.weekly_report`
 (``boto3.client("ses")`` and the ``WEEKLY_REPORT_FROM`` sender). The recipient
 is the admin address configured by the caller (``SIGNUP_ADMIN_EMAIL``).
 
+New AWS accounts start with SES in sandbox mode, which only delivers to
+verified addresses -- see docs/ses-sandbox-setup.md before deploying this.
+
 All visitor-supplied fields are HTML-escaped before being placed in the email
 body so a hostile name/note cannot inject markup into the admin's inbox.
 """

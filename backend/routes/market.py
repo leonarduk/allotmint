@@ -86,6 +86,9 @@ def _get_headline_max_age() -> timedelta:
     return timedelta(hours=hours)
 
 
+# Read once at module import time: HEADLINE_MAX_AGE_HOURS is not re-read on
+# each request, so changing the env var requires restarting the process for
+# the new value to take effect.
 HEADLINE_MAX_AGE = _get_headline_max_age()
 
 

@@ -209,6 +209,14 @@ prepares aider's inputs and hands off control.
 **Requirements:** a running local Ollama server (the script fails fast with
 "Ollama serve must be running" if it isn't); `aider` on PATH.
 
+**Minimum model size:** `.aider.conf.yml` sets `timeout: 1800` (30 minutes)
+for aider's own completion calls, raised from litellm's 600s default because
+a 14B local model can exceed it once the repo-map and prompt fill the large
+context window in `.aider.model.settings.yml`. Models smaller than ~14B
+parameters (e.g. 7B models on CPU-only hardware) are more likely to still hit
+this timeout on larger issues; if you're consistently timing out, either pick
+a larger/faster model or raise `timeout` in `.aider.conf.yml`.
+
 ## h_run_ci_checks.py
 
 Run the credential-free integration and validation steps from the most relevant
@@ -486,6 +494,10 @@ refuses to propose the change rather than risk silently dropping details.
 
 **Requirements:** `gh` CLI authenticated against the target repo; either a
 running local Ollama server or a `DEEPSEEK_API_KEY`, depending on `--model`.
+`DEEPSEEK_API_KEY` is loaded from a `.env` file in the repo root (not the
+current working directory) -- running the script from
+`scripts/developer_tools/` picks this up automatically, or set the variable
+directly in your shell environment.
 
 ## p_add_issue_to_pr.py
 

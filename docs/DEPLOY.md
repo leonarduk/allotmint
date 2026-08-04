@@ -7,7 +7,7 @@ Copy `.env.example` to `.env` and supply the following values:
 | Variable | Purpose |
 | --- | --- |
 | `ALPHA_VANTAGE_KEY` | API key for market data |
-| `HEADLINE_MAX_AGE_HOURS` | Optional maximum age of Market Overview headlines; defaults to 72 hours |
+| `HEADLINE_MAX_AGE_HOURS` | Optional maximum age of Market Overview headlines; defaults to 72 hours. Read once at process/module startup -- changing it requires a restart to take effect |
 | `SNS_TOPIC_ARN` | Optional SNS topic for alerts |
 | `TELEGRAM_BOT_TOKEN` | Optional Telegram bot token for alerts |
 | `TELEGRAM_CHAT_ID` | Telegram chat for alerts |
@@ -22,6 +22,20 @@ Copy `.env.example` to `.env` and supply the following values:
 | `GOOGLE_CLIENT_ID` | OAuth client ID when Google sign-in is enabled |
 | `JWT_SECRET` | Secret used to sign and verify JWT tokens |
 | `BUDGET_ALERT_EMAIL` | Optional email recipient for the monthly AWS budget alert |
+| `SNAPSHOT_LOAD_TIMEOUT_SECONDS` | Optional per-call timeout (seconds) for the two cold-start snapshot warmup calls (S3 read + metadata scan) in `backend/bootstrap/startup.py`; defaults to `10` |
+
+## Feature flags
+
+The `ui:` block in `config.yaml` (and `config.lambda.yaml` for the deployed
+backend) controls opt-in UI features. All of the following default to
+`false` and must be explicitly set to `true` to enable:
+
+| Flag | Purpose |
+| --- | --- |
+| `enable_family_mvp` | Enables the family MVP feature. Defaults to `false` as of PR #5872 (previously defaulted to `true`) -- operators relying on the old default must now set this explicitly. |
+| `enable_compliance_workflows` | Enables compliance workflow features. |
+| `enable_advanced_analytics` | Enables advanced analytics features. |
+| `enable_reporting_extended` | Enables extended reporting features. |
 
 ## GitHub Actions secrets required for AWS deployment
 

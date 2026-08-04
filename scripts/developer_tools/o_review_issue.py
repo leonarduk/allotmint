@@ -35,6 +35,7 @@ from llm_common import (  # noqa: E402
 
 REPO_ROOT_ENV_FILE = Path(__file__).resolve().parent.parent.parent / ".env"
 
+
 def load_env_file(env_path: Path = REPO_ROOT_ENV_FILE) -> None:
     """Load local dev secrets (e.g. DEEPSEEK_API_KEY) from a repo-root .env file.
 
@@ -549,7 +550,14 @@ def prompt_for_disposition() -> tuple[str, str | None]:
 def main() -> int:
     """Run the interactive issue-review flow."""
     parser = argparse.ArgumentParser(
-        description="Review and refresh a GitHub issue using a local or cloud LLM"
+        description="Review and refresh a GitHub issue using a local or cloud LLM",
+        epilog=(
+            "For --model cloud, DEEPSEEK_API_KEY is loaded from a .env file in the "
+            "repo root (see load_env_file() above) -- running this script from "
+            "scripts/developer_tools/ picks it up automatically. A .env file in the "
+            "current working directory is not used. Set DEEPSEEK_API_KEY directly in "
+            "your shell environment instead if you don't want a repo-root .env file."
+        ),
     )
     parser.add_argument("issue_id", type=int, nargs="?", help="GitHub issue number to review")
     parser.add_argument("--model", choices=[LOCAL, CLOUD], help="Model source (skips the prompt)")

@@ -101,7 +101,9 @@ def _list_directory_s3(rel_path: str) -> dict[str, Any]:
         try:
             resp = client.list_objects_v2(**params)
         except (ClientError, BotoCoreError) as exc:
-            logger.warning("S3 list failed for s3://%s/%s: %s", bucket, sanitise_log_value(prefix), exc)
+            logger.warning(
+                "S3 list failed for s3://%s/%s: %s", sanitise_log_value(bucket), sanitise_log_value(prefix), exc
+            )
             raise HTTPException(status_code=502, detail="Failed to list S3 data") from exc
 
         for common in resp.get("CommonPrefixes", []):
@@ -165,10 +167,10 @@ def _read_file_s3(rel_path: str) -> dict[str, Any]:
         code = exc.response.get("Error", {}).get("Code", "")
         if code in {"404", "NoSuchKey", "NotFound"}:
             raise HTTPException(status_code=404, detail="File not found") from exc
-        logger.warning("S3 head failed for s3://%s/%s: %s", bucket, sanitise_log_value(key), exc)
+        logger.warning("S3 head failed for s3://%s/%s: %s", sanitise_log_value(bucket), sanitise_log_value(key), exc)
         raise HTTPException(status_code=502, detail="Failed to read file from S3") from exc
     except BotoCoreError as exc:
-        logger.warning("S3 head failed for s3://%s/%s: %s", bucket, sanitise_log_value(key), exc)
+        logger.warning("S3 head failed for s3://%s/%s: %s", sanitise_log_value(bucket), sanitise_log_value(key), exc)
         raise HTTPException(status_code=502, detail="Failed to read file from S3") from exc
 
     size = head["ContentLength"]
@@ -180,7 +182,7 @@ def _read_file_s3(rel_path: str) -> dict[str, Any]:
         obj = client.get_object(**get_kwargs)
         raw = obj["Body"].read()
     except (ClientError, BotoCoreError) as exc:
-        logger.warning("S3 read failed for s3://%s/%s: %s", bucket, sanitise_log_value(key), exc)
+        logger.warning("S3 read failed for s3://%s/%s: %s", sanitise_log_value(bucket), sanitise_log_value(key), exc)
         raise HTTPException(status_code=502, detail="Failed to read file from S3") from exc
 
     try:

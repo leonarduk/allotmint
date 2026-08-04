@@ -46,7 +46,7 @@ const assertNoPageOverflow = async (page: Page) => {
   expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth);
 };
 
-const assertScrollableTable = async (table: Locator, viewportWidth: number) => {
+const assertScrollableTable = async (table: Locator) => {
   const wrapper = table.locator('..');
   await expect(wrapper).toHaveClass(/(?:^|\s)overflow-x-auto(?:\s|$)/);
   const dimensions = await wrapper.evaluate((element) => ({
@@ -55,17 +55,18 @@ const assertScrollableTable = async (table: Locator, viewportWidth: number) => {
     scrollWidth: element.scrollWidth,
   }));
   expect(dimensions.overflowX).toBe('auto');
-  // At narrow viewports (≤768px) the table content is guaranteed to
-  // overflow the wrapper — verify the scroll bar is actually needed.
-  // At wider viewports the content may fit; still require
-  // scrollWidth ≥ clientWidth to catch collapsed-layout regressions.
-  if (viewportWidth <= 768) {
-    expect(dimensions.scrollWidth).toBeGreaterThan(dimensions.clientWidth);
-  } else {
-    expect(dimensions.scrollWidth).toBeGreaterThanOrEqual(
-      dimensions.clientWidth
-    );
-  }
+  expect(dimensions.scrollWidth).toBeGreaterThan(dimensions.clientWidth);
+};
+
+/**
+ * Produce a deliberately long alphanumeric string with no hyphens,
+ * spaces, or punctuation so the browser cannot break it across lines.
+ * This forces the table column to expand beyond the scroll wrapper
+ * width even at the widest test viewport (xl = 1280px, container ≈ 992px).
+ */
+const forceOverflow = (base: string, times = 4): string => {
+  const token = base.replaceAll(/[^a-zA-Z0-9]/g, '');
+  return Array.from({ length: times }, () => token).join('');
 };
 
 const preparePage = async (page: Page) => {
@@ -88,41 +89,41 @@ const preparePage = async (page: Page) => {
       body: JSON.stringify(groupPortfolio),
     })
   );
-  // Provide enough rows with wide values that the admin tables are
-  // guaranteed to overflow their scroll wrappers at every tested viewport
-  // (especially lg and xl, where a single short row would fit without
-  // scrolling and cause scrollWidth === clientWidth).
+  // InstrumentAdmin: inputs default to size≈20 in most browsers, but the
+  // table uses table-layout:auto — hyphenated strings with no spaces force
+  // columns wider than the container, guaranteeing overflow at every
+  // viewport.
   const instrumentAdminRows = [
     {
       ticker: 'AAAAAAA.L',
       exchange: 'LSE',
-      name: 'Very Long Instrument Name Number One Plc',
-      region: 'United Kingdom',
-      sector: 'Technology Hardware & Equipment',
+      name: forceOverflow('Very-Long-Instrument-Name-Number-One-Plc'),
+      region: forceOverflow('United-Kingdom'),
+      sector: forceOverflow('Technology-Hardware-and-Equipment'),
       grouping: 'ISA',
     },
     {
       ticker: 'BBBBBBB.N',
       exchange: 'NYSE',
-      name: 'Another Excessively Long Instrument Name Two Corporation',
-      region: 'United States of America',
-      sector: 'Financial Services & Insurance',
+      name: forceOverflow('Another-Excessively-Long-Instrument-Name-Two-Corp'),
+      region: forceOverflow('United-States-of-America'),
+      sector: forceOverflow('Financial-Services-and-Insurance'),
       grouping: 'GIA',
     },
     {
       ticker: 'CCCCCCC.L',
       exchange: 'LSE',
-      name: 'Third Instrument With A Very Very Long Descriptive Name Three Holdings Ltd',
-      region: 'European Union',
-      sector: 'Healthcare & Biotechnology Research',
+      name: forceOverflow('Third-Instrument-Very-Very-Long-Descriptive-Name-Three-Holdings-Ltd'),
+      region: forceOverflow('European-Union'),
+      sector: forceOverflow('Healthcare-and-Biotechnology-Research'),
       grouping: 'SIPP',
     },
     {
       ticker: 'DDDDDDD.N',
       exchange: 'NASDAQ',
-      name: 'Fourth Instrument Name Is Also Quite Extensive Four REIT',
-      region: 'Asia Pacific Region',
-      sector: 'Real Estate Investment Trust Services',
+      name: forceOverflow('Fourth-Instrument-Name-Also-Quite-Extensive-Four-REIT'),
+      region: forceOverflow('Asia-Pacific-Region'),
+      sector: forceOverflow('Real-Estate-Investment-Trust-Services'),
       grouping: 'ISA',
     },
   ];
@@ -133,60 +134,60 @@ const preparePage = async (page: Page) => {
       body: JSON.stringify(instrumentAdminRows),
     })
   );
-  // These values must be long enough to push the table past its container
-  // width at every viewport (especially lg=1024px where the container is
-  // ~960px). The Actions column with three buttons also helps, but the
-  // primary driver is wide name, source, and exchange string content.
+  // DataAdmin: text content wraps on spaces, so use hyphenated strings
+  // (no spaces) for name, latest_source, and main_source. These are the
+  // widest columns and the hyphenation prevents the browser from
+  // compressing them, guaranteeing scrollWidth > clientWidth.
   const timeseriesAdminRows = [
     {
       ticker: 'AAAAAAA',
       exchange: 'LSE',
-      name: 'Very Long Instrument Name Number One Plc With Additional Words For Width Testing Purposes',
+      name: forceOverflow('Very-Long-Instrument-Name-Number-One-Plc'),
       earliest: '2025-01-01',
       latest: '2026-01-15',
       completeness: 100,
-      latest_source: 'Deterministic feed source alpha channel primary backup mirror',
-      main_source: 'Deterministic feed source alpha channel primary backup mirror',
+      latest_source: forceOverflow('deterministic-feed-source-alpha-primary'),
+      main_source: forceOverflow('deterministic-feed-source-alpha-primary'),
     },
     {
       ticker: 'BBBBBBB',
       exchange: 'NYSE',
-      name: 'Another Excessively Long Instrument Name Two Corporation International Holdings Group',
+      name: forceOverflow('Another-Excessively-Long-Instrument-Name-Two-Corporation'),
       earliest: '2024-06-01',
       latest: '2026-03-22',
       completeness: 98.5,
-      latest_source: 'Streaming provider beta live channel realtime data subscription service',
-      main_source: 'Streaming provider beta live channel realtime data subscription service',
+      latest_source: forceOverflow('streaming-provider-beta-live-channel'),
+      main_source: forceOverflow('streaming-provider-beta-live-channel'),
     },
     {
       ticker: 'CCCCCCC',
       exchange: 'LSE',
-      name: 'Third Instrument With A Very Very Long Descriptive Name Three Holdings And Investments Trust Plc',
+      name: forceOverflow('Third-Instrument-Very-Very-Long-Descriptive-Name-Three-Holdings'),
       earliest: '2025-03-15',
       latest: '2026-05-10',
       completeness: 100,
-      latest_source: 'Batch ingestion pipeline gamma workflow processing engine',
-      main_source: 'Batch ingestion pipeline gamma workflow processing engine',
+      latest_source: forceOverflow('batch-ingestion-pipeline-gamma-workflow-engine'),
+      main_source: forceOverflow('batch-ingestion-pipeline-gamma-workflow-engine'),
     },
     {
       ticker: 'DDDDDDD',
       exchange: 'NASDAQ',
-      name: 'Fourth Instrument Name Is Also Quite Extensive Four Limited Company Registered',
+      name: forceOverflow('Fourth-Instrument-Name-Also-Quite-Extensive-Four-Limited'),
       earliest: '2024-11-20',
       latest: '2026-07-01',
       completeness: 95.25,
-      latest_source: 'Manual import delta workflow process scheduled job runner',
-      main_source: 'Manual import delta workflow process scheduled job runner',
+      latest_source: forceOverflow('manual-import-delta-workflow-scheduled-runner'),
+      main_source: forceOverflow('manual-import-delta-workflow-scheduled-runner'),
     },
     {
       ticker: 'EEEEEEE',
       exchange: 'NYSE',
-      name: 'Fifth Instrument With An Incredibly Long Descriptive Name For Overflow Guarantee Five Fund LLC',
+      name: forceOverflow('Fifth-Instrument-Incredibly-Long-Descriptive-Name-Five-Fund'),
       earliest: '2025-07-10',
       latest: '2026-08-01',
       completeness: 97.8,
-      latest_source: 'Automated ETL pipeline epsilon daily batch extraction layer',
-      main_source: 'Automated ETL pipeline epsilon daily batch extraction layer',
+      latest_source: forceOverflow('automated-etl-pipeline-epsilon-batch-extraction'),
+      main_source: forceOverflow('automated-etl-pipeline-epsilon-batch-extraction'),
     },
   ];
   await page.route('**/timeseries/admin', (route) =>
@@ -240,7 +241,7 @@ for (const viewport of VIEWPORTS) {
         await page.goto(new URL(path, baseUrl).toString());
         const table = page.locator('table');
         await expect(table).toBeVisible();
-        await assertScrollableTable(table, viewport.width);
+        await assertScrollableTable(table);
         await assertNoPageOverflow(page);
       }
     });

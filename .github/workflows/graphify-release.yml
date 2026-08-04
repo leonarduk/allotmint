@@ -9,6 +9,7 @@ permissions:
 
 env:
   HAS_DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY != '' }}
+  DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
 
 jobs:
   graphify:

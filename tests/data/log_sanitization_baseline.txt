@@ -25,7 +25,7 @@ backend/auth.py:537
 # provider is always a hardcoded literal ("Google"/"Cognito") passed by the
 # caller, never attacker-controlled; email/token on the same call are already
 # wrapped in sanitise_log_value.
-backend/auth.py:560
+backend/auth.py:569
 backend/bootstrap/isolation.py:89
 backend/bootstrap/startup.py:92
 backend/common/accounts_store.py:244
@@ -132,6 +132,15 @@ backend/reports.py:1630
 # DEFAULT_HEADLINE_MAX_AGE_HOURS is a module-level float constant (the
 # hardcoded 72-hour fallback), never attacker-controlled; the other arg on
 # each of these two calls is already wrapped in sanitise_log_value.
+backend/routes/data_explorer.py:103
+backend/routes/data_explorer.py:167
+backend/routes/data_explorer.py:170
+backend/routes/data_explorer.py:182
+# these S3 branch calls follow the same pattern already grandfathered for
+# backend/common/accounts_store.py: bucket is a fixed env-configured name and
+# prefix/key are already wrapped in sanitise_log_value; the trailing `exc` is
+# a botocore ClientError/BotoCoreError whose str() carries no attacker-
+# controlled request path (the key/prefix that could is already wrapped).
 backend/routes/market.py:72
 backend/routes/market.py:80
 backend/routes/market.py:164

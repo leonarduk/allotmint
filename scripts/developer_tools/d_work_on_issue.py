@@ -179,7 +179,7 @@ def main() -> None:
     # Write issue to markdown file (preserve original content without reformatting)
     issue_file = Path(f".issue-{args.issue_id}.md")
     content = f"{title}\n\n{body}\n"
-    issue_file.write_text(content)
+    issue_file.write_text(content, encoding="utf-8")
     print(f"Wrote issue to {issue_file}")
     print(f"\n[OK] Ready to work on issue #{args.issue_id}")
 

@@ -104,8 +104,8 @@ backend/common/transaction_reconciliation.py:66
 backend/common/transaction_reconciliation.py:134
 backend/common/transaction_reconciliation.py:176
 backend/common/transaction_reconciliation.py:186
-backend/config.py:271
-backend/config.py:274
+backend/config.py:276
+backend/config.py:279
 backend/lambda_api/dividend_refresh.py:27
 backend/lambda_api/pension_report.py:206
 backend/lambda_api/pension_report.py:231
@@ -134,10 +134,10 @@ backend/reports.py:1630
 # each of these two calls is already wrapped in sanitise_log_value.
 backend/routes/market.py:72
 backend/routes/market.py:80
-backend/routes/market.py:166
-backend/routes/market.py:174
-backend/routes/market.py:183
-backend/routes/market.py:190
+backend/routes/market.py:164
+backend/routes/market.py:170
+backend/routes/market.py:179
+backend/routes/market.py:184
 backend/routes/signup.py:139
 backend/routes/signup.py:252
 backend/routes/support.py:69

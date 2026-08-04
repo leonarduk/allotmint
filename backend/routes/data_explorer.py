@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 
 from backend.auth import get_current_user
 from backend.config import config
@@ -96,7 +97,19 @@ async def list_directory(path: str = Query("")) -> dict[str, Any]:
     }
 
 
-@router.get("/file")
+class FilePreviewResponse(BaseModel):
+    """Response shape for GET /data-explorer/file."""
+
+    path: str
+    size: int
+    modified: str
+    truncated: bool = Field(
+        description="True when the file exceeds MAX_PREVIEW_BYTES and content was cut off at that limit"
+    )
+    content: str
+
+
+@router.get("/file", response_model=FilePreviewResponse)
 async def read_file(path: str = Query(...)) -> dict[str, Any]:
     """Return a text preview of a single file under the data root."""
 

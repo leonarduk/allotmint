@@ -92,19 +92,51 @@ def _step_run(step: dict) -> str:
     return step.get("run", "") or ""
 
 
+def _step_name(step: dict) -> str:
+    return step.get("name", "") or ""
+
+
+def _find_step_index(
+    steps: list[dict],
+    *,
+    name_contains: tuple[str, ...] = (),
+    run_contains: tuple[str, ...] = (),
+    name_startswith: tuple[str, ...] = (),
+) -> int | None:
+    """Return the index of the first step matching any of the given name/run
+    substrings (or name prefixes), or None if no step matches.
+
+    Shared by the deploy-lambda.yml and ci.yml step-order regression tests so
+    both express "find the step that does X" the same way rather than
+    duplicating the enumerate/match loop.
+    """
+    for i, step in enumerate(steps):
+        name = _step_name(step)
+        run = _step_run(step)
+        if (
+            any(s in name for s in name_contains)
+            or any(s in run for s in run_contains)
+            or any(name.startswith(s) for s in name_startswith)
+        ):
+            return i
+    return None
+
+
 def test_frontend_smoke_builds_preview_before_running_playwright() -> None:
     workflow = yaml.safe_load(CI_WORKFLOW_PATH.read_text(encoding="utf-8"))
 
     smoke_job = workflow["jobs"]["frontend-smoke"]
     steps = smoke_job["steps"]
 
-    build_idx = next(
-        i for i, step in enumerate(steps) if "build:preview" in _step_run(step)
-    )
-    playwright_idx = next(
-        i for i, step in enumerate(steps) if "playwright test" in _step_run(step)
-    )
+    build_idx = _find_step_index(steps, run_contains=("build:preview",))
+    playwright_idx = _find_step_index(steps, run_contains=("playwright test",))
 
+    assert build_idx is not None, (
+        "frontend-smoke job has no step running 'npm run build:preview'"
+    )
+    assert playwright_idx is not None, (
+        "frontend-smoke job has no step running a Playwright test command"
+    )
     assert build_idx < playwright_idx, (
         "frontend-smoke must run 'npm run build:preview' before the Playwright "
         "test step, otherwise smoke tests would run against a stale/missing build"
@@ -127,10 +159,6 @@ def test_deploy_workflow_verify_smoke_tests_references_existing_job() -> None:
         )
 
 
-def _step_name(step: dict) -> str:
-    return step.get("name", "") or ""
-
-
 def test_deploy_lambda_step_order() -> None:
     """The deploy job in deploy-lambda.yml must build before it deploys.
 
@@ -142,16 +170,12 @@ def test_deploy_lambda_step_order() -> None:
     workflow = yaml.safe_load(DEPLOY_WORKFLOW_PATH.read_text(encoding="utf-8"))
     steps = workflow["jobs"]["deploy"]["steps"]
 
-    build_idx: int | None = None
-    deploy_idx: int | None = None
-
-    for i, step in enumerate(steps):
-        name = _step_name(step)
-        run = _step_run(step)
-        if build_idx is None and ("Build frontend" in name or "npm run build" in run):
-            build_idx = i
-        if deploy_idx is None and ("cdk deploy" in run or name.startswith("Deploy ")):
-            deploy_idx = i
+    build_idx = _find_step_index(
+        steps, name_contains=("Build frontend",), run_contains=("npm run build",)
+    )
+    deploy_idx = _find_step_index(
+        steps, run_contains=("cdk deploy",), name_startswith=("Deploy ",)
+    )
 
     assert build_idx is not None, (
         "deploy job has no step that builds the frontend "

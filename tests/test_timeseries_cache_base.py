@@ -19,7 +19,7 @@ def import_cache():
 def patch_s3_client(monkeypatch, cache, client):
     created_clients = []
 
-    def fake_client(service):
+    def fake_client(service, **_kwargs):
         assert service == "s3"
         created_clients.append(service)
         return client
@@ -204,7 +204,7 @@ def test_has_cached_meta_timeseries_returns_false_when_s3_client_creation_fails(
     cache = import_cache()
     created_clients = []
 
-    def fake_client(service):
+    def fake_client(service, **_kwargs):
         assert service == "s3"
         created_clients.append(service)
         raise cache.BotoCoreError()
@@ -349,7 +349,7 @@ def test_s3_client_is_singleton_across_calls(monkeypatch):
 
     created = []
 
-    def fake_client(service):
+    def fake_client(service, **_kwargs):
         assert service == "s3"
         client = object()
         created.append(client)

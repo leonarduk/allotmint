@@ -113,6 +113,36 @@ def test_get_units_as_of_reflects_a_removal_before_cutoff() -> None:
     assert get_units_as_of(tx_data, "ABC", "2024-02-01") == pytest.approx(170.0)
 
 
+def test_get_units_as_of_scans_large_transaction_log_quickly() -> None:
+    """Guard the O(n)-scan cost documented on get_units_as_of.
+
+    Regenerates dividends.py's usage pattern (one get_units_as_of call per
+    ticker/date against the same tx_data) at a size (10k transactions, 50
+    lookups) well above real account volumes, and asserts it completes in a
+    time budget generous enough to not be flaky on slow CI runners but tight
+    enough to catch an accidental change to worse-than-linear behavior.
+    """
+    import time
+
+    transactions = [
+        {
+            "type": "BUY",
+            "ticker": f"TICK{i % 50}",
+            "units": 10,
+            "date": f"2020-{(i % 12) + 1:02d}-01",
+        }
+        for i in range(10_000)
+    ]
+    tx_data = {"transactions": transactions}
+
+    start = time.perf_counter()
+    for i in range(50):
+        get_units_as_of(tx_data, f"TICK{i}", "2024-01-01")
+    elapsed = time.perf_counter() - start
+
+    assert elapsed < 2.0, f"50 lookups over 10k transactions took {elapsed:.2f}s, expected < 2s"
+
+
 def test_rebuild_account_holdings_treats_dividend_singular_like_dividends(tmp_path: Path) -> None:
     """Regression test for #4948: the sign table must recognise both
     ``DIVIDEND`` (written by backend/common/dividends.py) and the legacy

@@ -13,6 +13,7 @@ import json
 import logging
 import math
 import os
+import threading
 from collections import defaultdict
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -462,6 +463,11 @@ def _build_securities_from_portfolios() -> Dict[str, Dict]:
 # that cost off requests that never need security metadata, matching the
 # _PRICE_SNAPSHOT precedent below (issue #5082, cf. issue #2975).
 _SECURITIES: Dict[str, Dict] | None = None
+# RLock (not Lock): _build_securities_from_portfolios() calls into
+# list_portfolios()/list_virtual_portfolios(), and a future change to either
+# could end up calling get_security_meta() again before _SECURITIES is set.
+# A plain Lock would deadlock that case; RLock lets the same thread re-enter.
+_SECURITIES_LOCK = threading.RLock()
 
 
 def get_security_meta(ticker: str) -> Dict | None:
@@ -471,7 +477,9 @@ def get_security_meta(ticker: str) -> Dict | None:
     """
     global _SECURITIES
     if _SECURITIES is None:
-        _SECURITIES = _build_securities_from_portfolios()
+        with _SECURITIES_LOCK:
+            if _SECURITIES is None:
+                _SECURITIES = _build_securities_from_portfolios()
     t = ticker.upper()
     meta = _SECURITIES.get(t)
     if meta:

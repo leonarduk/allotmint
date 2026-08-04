@@ -13,6 +13,11 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BACKEND_ROOT = REPO_ROOT / "backend"
 EXCLUDED_FILES = {BACKEND_ROOT / "logging_setup.py"}
+# Logging methods checked for unsanitised user-controlled values.
+# `debug` and `exception` were added to cover bare logger.* calls with
+# user-controlled values (see PR #5835), alongside the originally-checked
+# `info`/`warning`/`error`. To extend the lint to another logging method,
+# add it here and update tests/data/log_sanitization_baseline.txt accordingly.
 LOG_METHODS = {"warning", "error", "info", "debug", "exception"}
 
 

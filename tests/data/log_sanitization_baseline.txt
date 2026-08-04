@@ -134,10 +134,10 @@ backend/reports.py:1630
 # each of these two calls is already wrapped in sanitise_log_value.
 backend/routes/market.py:72
 backend/routes/market.py:80
-backend/routes/market.py:163
-backend/routes/market.py:171
-backend/routes/market.py:180
-backend/routes/market.py:187
+backend/routes/market.py:166
+backend/routes/market.py:174
+backend/routes/market.py:183
+backend/routes/market.py:190
 backend/routes/signup.py:139
 backend/routes/signup.py:252
 backend/routes/support.py:69

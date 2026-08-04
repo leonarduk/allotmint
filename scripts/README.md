@@ -487,6 +487,35 @@ refuses to propose the change rather than risk silently dropping details.
 **Requirements:** `gh` CLI authenticated against the target repo; either a
 running local Ollama server or a `DEEPSEEK_API_KEY`, depending on `--model`.
 
+## n_add_issue_to_pr.py
+
+Retroactively link open PRs to a GitHub issue. Every PR is supposed to close
+an issue, but one opened without going through `d_work_on_issue.py` /
+`k_publish-pr.ps1` can slip through without a `Closes #NNNN` reference. This
+script finds open PRs whose body doesn't reference an issue via a
+Closes/Fixes/Resolves keyword, creates a matching issue from the PR's own
+title/body, and appends `Closes #<new-issue>` to the PR description so
+merging it auto-closes the new issue.
+
+```bash
+python scripts/developer_tools/n_add_issue_to_pr.py
+python scripts/developer_tools/n_add_issue_to_pr.py --yes
+python scripts/developer_tools/n_add_issue_to_pr.py --pr 1234 --yes
+```
+
+Defaults to dry-run (prints what it would do). Pass `--yes` to actually
+create issues and edit PRs. Never touches a PR whose body already references
+an issue.
+
+Optional flags:
+- `--repo owner/name`: Operate on a different repository. Defaults to the
+  `origin` git remote, falling back to `leonarduk/allotmint`.
+- `--pr NNNN`: Operate on a single PR instead of scanning all open PRs.
+- `--limit N`: Maximum number of open PRs to fetch when scanning (default 200).
+
+**Requirements:** `gh` CLI must be installed and authenticated with a token
+that can create issues and edit PRs on the target repo.
+
 ## reconcile_drawdown.py
 
 Inspect max drawdowns and dump holding price data when the portfolio suffers a

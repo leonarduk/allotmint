@@ -7,9 +7,11 @@ independently of any frontend. Never fetches new data or mutates the cache.
 
 import logging
 import re
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 
 from backend.logging_setup import sanitise_log_value
 from backend.timeseries.cache import (
@@ -41,7 +43,22 @@ def _validate_symbol(value: str, *, kind: str) -> str:
     return upper
 
 
-@router.get("/timeseries")
+class TimeseriesQualityResponse(BaseModel):
+    """Response body for GET /data-quality/timeseries.
+
+    ``positions`` items are ``TimeseriesQuality`` TypedDicts (see
+    backend/timeseries/quality.py); left as ``dict`` here rather than fully
+    typed so this schema doesn't drift out of sync with that TypedDict.
+    """
+
+    count: int = Field(description="Number of ticker/exchange pairs included in ``positions``")
+    positions: list[dict[str, Any]] = Field(description="Per-ticker data quality metrics")
+    truncated: bool = Field(
+        description="True if max_results cut off the pair list before all cached tickers were processed"
+    )
+
+
+@router.get("/timeseries", response_model=TimeseriesQualityResponse)
 async def get_timeseries_quality(
     ticker: str | None = Query(None, description="Filter to a single ticker (must be provided with exchange)"),
     exchange: str | None = Query(None, description="Filter to a single exchange (must be provided with ticker)"),

@@ -262,6 +262,16 @@ No review generated because the filtered diff was empty.
         review_text = "**SKIP** — no diff available"
         assert extract_verdict(review_text) == "SKIP"
 
+    def test_skip_with_trailing_prose_not_confused_with_skipped(self) -> None:
+        """**SKIP** followed by prose containing "SKIPPED" must still resolve to SKIP (#5758).
+
+        The word-boundary in _LINE_VERDICT_RE and the fixed-token match in
+        _BOLD_VERDICT_RE must not let a longer word like "SKIPPED" elsewhere
+        in the prose be mistaken for a bare "SKIP" verdict.
+        """
+        review_text = "**SKIP** because no diff\n\nThis run was SKIPPED due to an empty diff."
+        assert extract_verdict(review_text) == "SKIP"
+
     def test_backtick_wrapped_skip(self) -> None:
         """Test backtick-wrapped **`SKIP`** format."""
         review_text = "**`SKIP`** — empty diff"

@@ -1,6 +1,7 @@
 import json
 import os
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -90,6 +91,27 @@ def test_load_env_file_sets_missing_vars(monkeypatch, tmp_path):
     assert os.environ["DEEPSEEK_API_KEY"] == "from-env-file"
 
 
+def test_load_env_file_noop_when_dotenv_package_unavailable(monkeypatch, tmp_path):
+    """load_env_file must be a documented no-op when python-dotenv isn't installed (#5775).
+
+    python-dotenv is a dev-only dependency; some CI jobs only install
+    backend/requirements.txt. Setting sys.modules["dotenv"] = None forces the
+    `from dotenv import load_dotenv` import inside load_env_file to raise
+    ImportError, exercising that except branch regardless of whether dotenv
+    actually happens to be installed in the test environment.
+    """
+    import sys
+
+    monkeypatch.setitem(sys.modules, "dotenv", None)
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    env_file = tmp_path / ".env"
+    env_file.write_text("DEEPSEEK_API_KEY=from-env-file\n", encoding="utf-8")
+
+    n.load_env_file(env_file)  # must not raise
+
+    assert "DEEPSEEK_API_KEY" not in os.environ
+
+
 def test_load_env_file_missing_file_is_a_noop(monkeypatch, tmp_path):
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
     n.load_env_file(tmp_path / "does_not_exist.env")
@@ -115,17 +137,37 @@ def test_run_review_returns_none_on_empty_response(monkeypatch):
 
 def test_fetch_issue_parses_gh_json(monkeypatch):
     payload = json.dumps({"number": 42, "title": "T", "body": "B", "state": "OPEN", "url": "u"})
-    monkeypatch.setattr(
-        n.subprocess, "run", lambda *a, **k: _FakeResult(returncode=0, stdout=payload)
-    )
+    monkeypatch.setattr(n.subprocess, "run", lambda *a, **k: _FakeResult(returncode=0, stdout=payload))
     issue = n.fetch_issue("owner", "repo", 42)
     assert issue == {"number": 42, "title": "T", "body": "B", "state": "OPEN", "url": "u"}
 
 
+def test_fetch_issue_parses_non_ascii_gh_json(monkeypatch):
+    """fetch_issue must handle non-ASCII issue text and request utf-8 decoding (#5811, #5819).
+
+    Windows consoles often default to a legacy codepage (e.g. cp1252) rather
+    than UTF-8, which would mangle or crash on non-ASCII gh output unless the
+    subprocess call explicitly requests utf-8 decoding.
+    """
+    title = "Fix “curly quotes” \U0001f41b in café"
+    body = "Résumé: 日本語 — emoji \U0001f680"
+    payload = json.dumps({"number": 7, "title": title, "body": body, "state": "OPEN", "url": "u"})
+    captured_kwargs = {}
+
+    def fake_run(*args, **kwargs):
+        captured_kwargs.update(kwargs)
+        return _FakeResult(returncode=0, stdout=payload)
+
+    monkeypatch.setattr(n.subprocess, "run", fake_run)
+    issue = n.fetch_issue("owner", "repo", 7)
+
+    assert issue["title"] == title
+    assert issue["body"] == body
+    assert captured_kwargs.get("encoding") == "utf-8"
+
+
 def test_fetch_issue_exits_on_gh_failure(monkeypatch):
-    monkeypatch.setattr(
-        n.subprocess, "run", lambda *a, **k: _FakeResult(returncode=1, stderr="not found")
-    )
+    monkeypatch.setattr(n.subprocess, "run", lambda *a, **k: _FakeResult(returncode=1, stderr="not found"))
     try:
         n.fetch_issue("owner", "repo", 42)
         raise AssertionError("expected SystemExit")
@@ -142,10 +184,26 @@ def test_update_issue_dry_run_skips_gh_call(monkeypatch):
 
 
 def test_update_issue_reports_failure(monkeypatch):
-    monkeypatch.setattr(
-        n.subprocess, "run", lambda *a, **k: _FakeResult(returncode=1, stderr="boom")
-    )
+    monkeypatch.setattr(n.subprocess, "run", lambda *a, **k: _FakeResult(returncode=1, stderr="boom"))
     assert n.update_issue("owner", "repo", 1, "title", "body", dry_run=False) is False
+
+
+def test_update_issue_writes_non_ascii_body_as_utf8(monkeypatch, tmp_path):
+    """update_issue's body-file temp write must round-trip non-ASCII text (#5811, #5819)."""
+    title = "Fix “curly quotes” \U0001f41b in café"
+    body = "Résumé: 日本語 — emoji \U0001f680"
+    written_paths = []
+
+    def fake_run(args, **kwargs):
+        body_path = args[args.index("--body-file") + 1]
+        written_paths.append(body_path)
+        assert Path(body_path).read_text(encoding="utf-8") == body
+        assert title in args
+        return _FakeResult(returncode=0)
+
+    monkeypatch.setattr(n.subprocess, "run", fake_run)
+    assert n.update_issue("owner", "repo", 1, title, body, dry_run=False) is True
+    assert written_paths
 
 
 def test_update_issue_success(monkeypatch):
@@ -267,9 +325,7 @@ def test_post_unresolved_files_comment_success(monkeypatch):
 
 
 def test_post_unresolved_files_comment_reports_failure(monkeypatch):
-    monkeypatch.setattr(
-        n.subprocess, "run", lambda *a, **k: _FakeResult(returncode=1, stderr="boom")
-    )
+    monkeypatch.setattr(n.subprocess, "run", lambda *a, **k: _FakeResult(returncode=1, stderr="boom"))
     assert n.post_unresolved_files_comment("owner", "repo", 1, dry_run=False) is False
 
 
@@ -299,9 +355,7 @@ def test_find_repo_file_hints_resolves_powershell_and_bash_scripts(git_repo):
     (git_repo / "deploy.sh").write_text("echo hi\n", encoding="utf-8")
     subprocess.run(["git", "add", "-A"], cwd=git_repo, check=True)
     subprocess.run(["git", "commit", "-q", "-m", "add scripts"], cwd=git_repo, check=True)
-    hints = n.find_repo_file_hints(
-        "The script `deploy.ps1` and `deploy.sh` both need work.", git_repo
-    )
+    hints = n.find_repo_file_hints("The script `deploy.ps1` and `deploy.sh` both need work.", git_repo)
     assert hints == {"deploy.ps1": ["deploy.ps1"], "deploy.sh": ["deploy.sh"]}
 
 
@@ -323,9 +377,7 @@ def test_find_repo_file_hints_skips_ambiguous_filename(git_repo):
     other_dir.mkdir()
     (other_dir / "config.py").write_text("VALUE = 1\n", encoding="utf-8")
     subprocess.run(["git", "add", "-A"], cwd=git_repo, check=True)
-    subprocess.run(
-        ["git", "commit", "-q", "-m", "add duplicate basename"], cwd=git_repo, check=True
-    )
+    subprocess.run(["git", "commit", "-q", "-m", "add duplicate basename"], cwd=git_repo, check=True)
     (git_repo / "config.py").write_text("VALUE = 2\n", encoding="utf-8")
     subprocess.run(["git", "add", "-A"], cwd=git_repo, check=True)
     subprocess.run(["git", "commit", "-q", "-m", "add root config.py"], cwd=git_repo, check=True)
@@ -336,11 +388,27 @@ def test_find_repo_file_hints_skips_ambiguous_symbol(git_repo):
     # The same symbol name is defined in two different files -- ambiguous, so unresolved.
     other_dir = git_repo / "other"
     other_dir.mkdir()
-    (other_dir / "helpers.py").write_text(
-        "def widget_test_stub_symbol():\n    pass\n", encoding="utf-8"
-    )
+    (other_dir / "helpers.py").write_text("def widget_test_stub_symbol():\n    pass\n", encoding="utf-8")
     subprocess.run(["git", "add", "-A"], cwd=git_repo, check=True)
     subprocess.run(["git", "commit", "-q", "-m", "add duplicate symbol"], cwd=git_repo, check=True)
+    hints = n.find_repo_file_hints("Fix `widget_test_stub_symbol` retry handling.", git_repo)
+    assert hints == {}
+
+
+def test_find_repo_file_hints_skips_symbol_defined_in_three_files(git_repo):
+    """A symbol defined in 3+ files is just as ambiguous as 2 (#5854)."""
+    other_dir = git_repo / "other"
+    other_dir.mkdir()
+    (other_dir / "helpers.py").write_text("def widget_test_stub_symbol():\n    pass\n", encoding="utf-8")
+    third_dir = git_repo / "third"
+    third_dir.mkdir()
+    (third_dir / "more_helpers.py").write_text("def widget_test_stub_symbol():\n    pass\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=git_repo, check=True)
+    subprocess.run(
+        ["git", "commit", "-q", "-m", "add second and third duplicate symbol"],
+        cwd=git_repo,
+        check=True,
+    )
     hints = n.find_repo_file_hints("Fix `widget_test_stub_symbol` retry handling.", git_repo)
     assert hints == {}
 
@@ -385,9 +453,7 @@ def test_format_file_hints_renders_bullet_list():
 
 
 def test_build_review_prompt_includes_file_hints_section():
-    prompt = n.build_review_prompt(
-        "title", "## What\nbody", file_hints={"fetch_paginated": ["scripts/foo.py"]}
-    )
+    prompt = n.build_review_prompt("title", "## What\nbody", file_hints={"fetch_paginated": ["scripts/foo.py"]})
     assert "Known repository file locations" in prompt
     assert "`fetch_paginated` -> `scripts/foo.py`" in prompt
 
@@ -398,9 +464,7 @@ def test_build_review_prompt_no_file_hints_section_by_default():
 
 
 def test_apply_known_file_paths_replaces_model_guess():
-    body = (
-        "## What\nsome text\n\n## Files Affected\n- `fetch_paginated.py`\n\n## Constraints\nnone\n"
-    )
+    body = "## What\nsome text\n\n## Files Affected\n- `fetch_paginated.py`\n\n## Constraints\nnone\n"
     hints = {"fetch_paginated": ["scripts/build_tools/extract_pr_comments.py"]}
     result = n.apply_known_file_paths(body, hints)
     assert "- `scripts/build_tools/extract_pr_comments.py`" in result

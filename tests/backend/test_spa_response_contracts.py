@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from typing import List
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from pydantic import TypeAdapter
+from pydantic import TypeAdapter, ValidationError
 
 from backend.config import Config as RealConfig
 from backend.contracts_spa import (
@@ -159,3 +160,14 @@ def test_target_spa_endpoints_match_contracts(monkeypatch, tmp_path):
     TypeAdapter(List[GroupSummaryContract]).validate_python(groups_payload)
     PortfolioContract.model_validate(portfolio_payload)
     TypeAdapter(List[TransactionContract]).validate_python(transactions_payload)
+
+    # Negative case (#5952): prove the strict tabs contract actually rejects
+    # drift, rather than just passing on the current, correct real payload.
+    # Without this, the contract test could be silently neutered (e.g. by an
+    # accidental extra="ignore" on ConfigTabsContract) and nothing above
+    # would catch it.
+    tampered_config_payload = dict(config_payload)
+    tampered_config_payload["tabs"] = dict(config_payload["tabs"])
+    tampered_config_payload["tabs"]["not_a_real_tab"] = True
+    with pytest.raises(ValidationError):
+        ConfigContract.model_validate(tampered_config_payload)

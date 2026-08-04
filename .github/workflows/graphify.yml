@@ -16,6 +16,7 @@ jobs:
     name: Build knowledge graph
     runs-on: ubuntu-latest
     continue-on-error: true  # Must never fail the workflow run itself
+    timeout-minutes: 30
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -39,6 +40,7 @@ jobs:
       - name: Semantic extraction (DeepSeek)
         if: env.HAS_DEEPSEEK_API_KEY == 'true'
         continue-on-error: true
+        timeout-minutes: 15
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
         run: graphify extract . --backend deepseek

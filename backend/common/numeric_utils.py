@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import math
-from typing import Optional
+from typing import Any, Optional
 
 
-def clean_price(value: object) -> Optional[float]:
+def clean_price(value: Any) -> Optional[float]:
     """Coerce ``value`` to ``float``, treating ``None``/NaN as "no price".
 
     Centralises the "fetch a price, guard against NaN" pattern repeated

@@ -1,6 +1,8 @@
 import inspect
 import json
 import sys
+import threading
+import time
 import types
 from datetime import UTC, datetime
 
@@ -914,3 +916,58 @@ def test_securities_are_not_built_at_import_time(monkeypatch):
 
     portfolio_utils.get_security_meta("BBB.L")
     assert calls == [None]  # second call reuses the already-built dict
+
+
+def test_get_security_meta_thread_safe_first_call_builds_once(monkeypatch):
+    """Concurrent first calls to get_security_meta() must build _SECURITIES
+    exactly once, not once per racing thread.
+
+    Regression guard mirroring issue #5104 (the ``_S3_HEAD_MISS_CACHE`` race)
+    for the analogous double-checked-locking lazy-init here: without
+    ``_SECURITIES_LOCK`` serialising the build, multiple threads could all
+    observe ``_SECURITIES is None`` before any of them finishes building it,
+    each redundantly calling ``_build_securities_from_portfolios()`` (which
+    itself issues S3 GetObject calls per ticker) and racing to overwrite the
+    module-level dict.
+    """
+    monkeypatch.setattr(portfolio_utils, "_SECURITIES", None)
+
+    calls: list[None] = []
+    calls_lock = threading.Lock()
+    # A Barrier (unlike a counter+Event) blocks every worker from calling
+    # get_security_meta() until all 10 have arrived, so no thread's call can
+    # start before another's -- a real guarantee that all 10 race the
+    # unlocked `_SECURITIES is None` check together, rather than relying on
+    # scheduling luck.
+    start_barrier = threading.Barrier(10)
+    build_release = threading.Event()
+    real_build = portfolio_utils._build_securities_from_portfolios
+
+    def spy_build():
+        with calls_lock:
+            calls.append(None)
+        # Keep the winning thread inside the lock until every other thread
+        # has had ample time (far more than a GIL switch interval) to run
+        # its own unlocked check and block on _SECURITIES_LOCK, so the race
+        # double-checked locking guards against is genuinely exercised.
+        build_release.wait(timeout=5)
+        return real_build()
+
+    monkeypatch.setattr(portfolio_utils, "_build_securities_from_portfolios", spy_build)
+    monkeypatch.setattr(portfolio_utils, "list_portfolios", lambda: [])
+    monkeypatch.setattr(portfolio_utils, "list_virtual_portfolios", lambda: [])
+
+    def worker():
+        start_barrier.wait(timeout=5)
+        portfolio_utils.get_security_meta("AAA.L")
+
+    threads = [threading.Thread(target=worker) for _ in range(10)]
+    for t in threads:
+        t.start()
+    time.sleep(0.2)
+    build_release.set()
+    for t in threads:
+        t.join(timeout=5)
+
+    assert len(calls) == 1
+    assert portfolio_utils._SECURITIES == {}

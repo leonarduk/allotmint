@@ -7,6 +7,7 @@ import {
   getOwners,
   updateConfig,
   checkPortfolioHealth,
+  getLogs,
   type Finding,
   refreshPrices,
 } from "../api";
@@ -245,9 +246,7 @@ export default function Support() {
     setLogsLoading(true);
     setLogsError(null);
     try {
-      const res = await fetch(`${API_BASE}/logs`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const text = await res.text();
+      const text = await getLogs();
       setLogs(text);
     } catch {
       setLogs("");

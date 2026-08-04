@@ -514,17 +514,17 @@ def test_backend_error_alarm_exists(template):
     )
 
 
-def test_portfolio_group_all_5xx_alarm_uses_route_specific_log_metric(template):
+def test_portfolio_group_5xx_alarm_uses_path_specific_log_metric(template):
     template.has_resource_properties(
         "AWS::Logs::MetricFilter",
         {
             "FilterPattern": (
-                '{ ($.routeKey = "GET /portfolio-group/all") && ($.status = 5*) }'
+                '{ ($.path = "/portfolio-group*") && ($.status = 5*) }'
             ),
             "MetricTransformations": [
                 {
                     "DefaultValue": 0,
-                    "MetricName": "PortfolioGroupAll5xx",
+                    "MetricName": "PortfolioGroup5xx",
                     "MetricNamespace": "AllotMint/BackendApi",
                     "MetricValue": "1",
                 }
@@ -537,7 +537,7 @@ def test_portfolio_group_all_5xx_alarm_uses_route_specific_log_metric(template):
             "ComparisonOperator": "GreaterThanThreshold",
             "DatapointsToAlarm": 2,
             "EvaluationPeriods": 2,
-            "MetricName": "PortfolioGroupAll5xx",
+            "MetricName": "PortfolioGroup5xx",
             "Namespace": "AllotMint/BackendApi",
             "Period": 60,
             "Statistic": "Sum",
@@ -547,7 +547,7 @@ def test_portfolio_group_all_5xx_alarm_uses_route_specific_log_metric(template):
     )
 
 
-def test_portfolio_group_all_5xx_alarm_notifies_operational_topic(template):
+def test_portfolio_group_5xx_alarm_notifies_operational_topic(template):
     topics = template.find_resources("AWS::SNS::Topic")
     assert len(topics) == 1
     topic_logical_id = next(iter(topics))
@@ -556,7 +556,7 @@ def test_portfolio_group_all_5xx_alarm_notifies_operational_topic(template):
     route_alarms = [
         alarm
         for alarm in alarms.values()
-        if alarm.get("Properties", {}).get("MetricName") == "PortfolioGroupAll5xx"
+        if alarm.get("Properties", {}).get("MetricName") == "PortfolioGroup5xx"
     ]
     assert len(route_alarms) == 1
     assert route_alarms[0]["Properties"]["AlarmActions"] == [
@@ -1001,6 +1001,11 @@ def test_backend_api_stage_has_access_logging(template):
     )
     assert "$context.status" in fmt, "Access log format must include $context.status"
     assert "$context.routeKey" in fmt, "Access log format must include $context.routeKey"
+    assert "$context.path" in fmt, (
+        "Access log format must include $context.path: portfolio-group routes "
+        "are only registered via the ANY /{proxy+} catch-all, so routeKey alone "
+        "cannot distinguish them for the PortfolioGroup5xx metric filter"
+    )
     assert "$context.identity.sourceIp" in fmt, (
         "Access log format must include $context.identity.sourceIp for debugging context"
     )
@@ -1097,8 +1102,8 @@ def test_backend_lambda_error_alarm_output_exists(template):
     template.has_output("BackendLambdaErrorAlarmName", {})
 
 
-def test_portfolio_group_all_5xx_alarm_output_exists(template):
-    template.has_output("PortfolioGroupAll5xxAlarmName", {})
+def test_portfolio_group_5xx_alarm_output_exists(template):
+    template.has_output("PortfolioGroup5xxAlarmName", {})
 
 
 # ---------------------------------------------------------------------------

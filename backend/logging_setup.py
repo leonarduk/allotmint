@@ -56,6 +56,23 @@ def _switch_console_handler_to_json(root_logger: logging.Logger) -> None:
             handler.setFormatter(formatter)
 
 
+def _attach_redact_token_filter(root_logger: logging.Logger) -> None:
+    """Attach ``RedactTokenFilter`` to every handler on the root logger.
+
+    ``logging.config.fileConfig`` (used to load ``backend/logging.ini``) has
+    no support for the ini's ``filters=`` handler directive -- that key is a
+    ``dictConfig``-only feature -- so the ini's ``filters=redactToken`` lines
+    on ``consoleHandler``/``fileHandler``/``telegramHandler`` are silently
+    ignored and the Telegram token is never redacted from emitted log output.
+    Attach the filter here in code instead, once per handler.
+    """
+    from backend.utils.telegram_utils import RedactTokenFilter
+
+    for handler in root_logger.handlers:
+        if not any(isinstance(f, RedactTokenFilter) for f in handler.filters):
+            handler.addFilter(RedactTokenFilter())
+
+
 def setup_logging() -> None:
     """Configure application logging from configuration file.
 
@@ -84,6 +101,8 @@ def setup_logging() -> None:
                     # will simply fail to open below if it truly needs the dir.
                     pass
                 logging.config.fileConfig(config_path, disable_existing_loggers=False)
+
+    _attach_redact_token_filter(root_logger)
 
     if config.log_format == "json":
         _switch_console_handler_to_json(root_logger)

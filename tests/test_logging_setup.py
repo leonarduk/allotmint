@@ -36,7 +36,9 @@ def test_setup_logging_relative_path(monkeypatch):
 
     try:
         logging_setup.setup_logging()
-        file_config_mock.assert_called_once_with(Path("/repo/logging.ini"), disable_existing_loggers=False)
+        file_config_mock.assert_called_once_with(
+            Path("/repo/logging.ini"), disable_existing_loggers=False
+        )
     finally:
         root_logger.handlers = original_handlers
 
@@ -160,6 +162,53 @@ def test_setup_logging_leaves_plain_text_formatter_when_log_format_unset(monkeyp
 
     monkeypatch.setattr(logging_setup.config, "log_config", "logging.ini")
     monkeypatch.setattr(logging_setup.config, "log_format", None)
+    monkeypatch.setattr(Path, "exists", lambda self: True)
+
+    stream_handler = logging.StreamHandler()
+    plain_formatter = logging.Formatter("%(message)s")
+    stream_handler.setFormatter(plain_formatter)
+
+    def fake_file_config(*args, **kwargs):
+        root_logger.handlers = [stream_handler]
+
+    monkeypatch.setattr(logging.config, "fileConfig", fake_file_config)
+
+    try:
+        logging_setup.setup_logging()
+        assert stream_handler.formatter is plain_formatter
+    finally:
+        root_logger.handlers = original_handlers
+
+
+def test_attach_redact_token_filter_adds_filter_to_each_handler_once():
+    """fileConfig has no support for the ini's ``filters=`` handler directive,
+    so ``setup_logging`` must attach RedactTokenFilter itself; calling it
+    twice must not stack duplicate filter instances on the same handler."""
+    from backend.utils.telegram_utils import RedactTokenFilter
+
+    root_logger = logging.getLogger("test.redact_filter.root")
+    handler_a = logging.StreamHandler()
+    handler_b = logging.StreamHandler()
+    root_logger.handlers = [handler_a, handler_b]
+
+    logging_setup._attach_redact_token_filter(root_logger)
+    logging_setup._attach_redact_token_filter(root_logger)
+
+    for handler in (handler_a, handler_b):
+        redact_filters = [f for f in handler.filters if isinstance(f, RedactTokenFilter)]
+        assert len(redact_filters) == 1
+
+
+def test_setup_logging_leaves_plain_text_formatter_when_log_format_is_non_json_value(monkeypatch):
+    """LOG_FORMAT set to an explicit non-"json" value (e.g. "text") must not
+    switch the formatter either -- only the exact string "json" triggers the
+    switch (#5956)."""
+    root_logger = logging.getLogger()
+    original_handlers = root_logger.handlers[:]
+    root_logger.handlers = []
+
+    monkeypatch.setattr(logging_setup.config, "log_config", "logging.ini")
+    monkeypatch.setattr(logging_setup.config, "log_format", "text")
     monkeypatch.setattr(Path, "exists", lambda self: True)
 
     stream_handler = logging.StreamHandler()

@@ -1,14 +1,17 @@
-"""End-to-end coverage for LOG_FORMAT=json against the real backend/logging.ini.
+"""End-to-end coverage for LOG_FORMAT against the real backend/logging.ini.
 
 The unit tests in ``test_logging_setup.py`` all mock ``logging.config.fileConfig``,
 so they never exercise the actual ini file shipped in the repo. This module
 loads it for real and asserts on genuine stdout output, closing the gap
-flagged independently by issues #5950, #5958, #5962 and #5965.
+flagged independently by issues #5950, #5958, #5962, #5965, #5924, #5970,
+#5984 and #5986.
 """
 
 import json
 import logging
 from pathlib import Path
+
+import pytest
 
 import backend.logging_setup as logging_setup
 
@@ -37,7 +40,10 @@ def test_real_logging_ini_with_log_format_json_emits_only_valid_json_lines(monke
     LOG_FORMAT=json and verify every line written to real stdout is valid,
     parseable JSON -- no plain-text lines mixed in."""
     root_logger = logging.getLogger()
-    restored_loggers = {"": root_logger, **{name: logging.getLogger(name) for name in _RESTORED_LOGGER_NAMES}}
+    restored_loggers = {
+        "": root_logger,
+        **{name: logging.getLogger(name) for name in _RESTORED_LOGGER_NAMES},
+    }
     saved_state = {name: _snapshot_logger(logger) for name, logger in restored_loggers.items()}
 
     monkeypatch.setattr(logging_setup.config, "log_config", "backend/logging.ini")

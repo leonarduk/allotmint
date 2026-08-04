@@ -35,6 +35,18 @@ MAX_PREVIEW_BYTES = 200_000
 # else (parquet, binary caches, etc.) is rejected rather than streamed raw.
 PREVIEWABLE_EXTENSIONS = {".json", ".csv", ".txt", ".log", ".yaml", ".yml", ".md"}
 
+# Friendly message shown to the user in place of the (technically accurate but
+# unhelpful-looking) 415 for a file type that isn't in PREVIEWABLE_EXTENSIONS,
+# e.g. clicking a binary VCS object like `.git/index`.
+NOT_PREVIEWABLE_DETAIL = "This file type can't be previewed here (binary or unsupported format)."
+
+# VCS/IDE housekeeping folders that belong to the tooling around the data
+# repo, not the data itself. Excluded from the local tree listing so they
+# don't clutter (or get clicked into) alongside real data folders. Kept as a
+# narrow, named set rather than "skip anything starting with a dot" since
+# legitimate dotfiles/dotfolders could exist in the data repo.
+EXCLUDED_LOCAL_DIR_NAMES = {".git", ".idea"}
+
 
 def _reject_unsafe_relative_path(rel_path: str) -> str:
     """Normalise ``rel_path`` to a clean, root-relative path, or reject it.
@@ -161,7 +173,7 @@ def _read_file_s3(rel_path: str) -> dict[str, Any]:
     if not key:
         raise HTTPException(status_code=400, detail="Invalid path")
     if Path(key).suffix.lower() not in PREVIEWABLE_EXTENSIONS:
-        raise HTTPException(status_code=415, detail="File type is not previewable")
+        raise HTTPException(status_code=415, detail=NOT_PREVIEWABLE_DETAIL)
 
     client = _s3_client()
     try:
@@ -238,6 +250,8 @@ async def list_directory(path: str = Query("")) -> dict[str, Any]:
 
     entries: list[dict[str, Any]] = []
     for child in sorted(target.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower())):
+        if child.is_dir() and child.name in EXCLUDED_LOCAL_DIR_NAMES:
+            continue
         try:
             stat_result = child.stat()
         except OSError:
@@ -283,7 +297,7 @@ async def read_file(path: str = Query(...)) -> dict[str, Any]:
     if not target.exists() or not target.is_file():
         raise HTTPException(status_code=404, detail="File not found")
     if target.suffix.lower() not in PREVIEWABLE_EXTENSIONS:
-        raise HTTPException(status_code=415, detail="File type is not previewable")
+        raise HTTPException(status_code=415, detail=NOT_PREVIEWABLE_DETAIL)
 
     stat_result = target.stat()
     try:

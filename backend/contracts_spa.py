@@ -76,6 +76,19 @@ class ConfigContract(SpaContractBase):
     affects this test/contract-validation model; it does not redact the
     live API response. This is tracked for a dedicated fix rather than
     handled in this contract (see issue #5953).
+    ``serialise_config()`` also exposes internal/backend-only settings (rate
+    limits, file paths, etc.) that the SPA never reads, so extra top-level
+    fields are ignored here. ``tabs`` is still validated strictly via
+    ``ConfigTabsContract`` since tab-name drift is what previously broke the
+    SPA (see #5871).
+
+    NOTE: ``extra="ignore"`` here is a validation convenience, not a security
+    boundary — it only relaxes what this *test-time* contract checks, it does
+    not redact anything from the real HTTP response. Secrets (API keys,
+    tokens, SNS ARNs) must never reach ``serialise_config()``'s return value
+    in the first place; they are stripped explicitly in
+    ``backend.routes.config._SECRET_CONFIG_FIELDS`` before this contract is
+    ever applied (see #5953).
     """
 
     model_config = ConfigDict(extra="ignore")

@@ -149,6 +149,8 @@ def test_target_spa_endpoints_match_contracts(monkeypatch, tmp_path):
     )
 
     config_payload = client.get("/config").json()
+    for secret_field in config_routes._SECRET_CONFIG_FIELDS:
+        assert secret_field not in config_payload
     owners_payload = client.get("/owners").json()
     groups_payload = client.get("/groups").json()
     portfolio_payload = client.get("/portfolio/alice").json()

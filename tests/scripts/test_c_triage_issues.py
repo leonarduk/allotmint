@@ -135,10 +135,42 @@ def test_run_gh_retries_transient_failure_then_succeeds(monkeypatch):
 def test_run_gh_gives_up_after_max_retries(monkeypatch):
     sleeps = []
     monkeypatch.setattr(h.time, "sleep", lambda seconds: sleeps.append(seconds))
-    monkeypatch.setattr(h.subprocess, "run", lambda args, **kwargs: _FakeResult(1, "", "boom"))
+    monkeypatch.setattr(
+        h.subprocess, "run", lambda args, **kwargs: _FakeResult(1, "", "connection reset by peer")
+    )
     result = h.run_gh(["issue", "list"])
     assert result.returncode == 1
     assert len(sleeps) == h.GH_RETRY_ATTEMPTS - 1
+
+
+def test_run_gh_does_not_retry_permanent_error(monkeypatch):
+    sleeps = []
+    monkeypatch.setattr(h.time, "sleep", lambda seconds: sleeps.append(seconds))
+    calls = []
+
+    def fake_run(args, **kwargs):
+        calls.append(args)
+        return _FakeResult(1, "", "issue not found (404)")
+
+    monkeypatch.setattr(h.subprocess, "run", fake_run)
+    result = h.run_gh(["issue", "close", "999"])
+    assert result.returncode == 1
+    assert len(calls) == 1
+    assert sleeps == []
+
+
+def test_is_transient_gh_error_matches_known_network_patterns():
+    assert h.is_transient_gh_error("Post: context deadline exceeded (Client.Timeout)")
+    assert h.is_transient_gh_error("net/http: TLS handshake timeout")
+    assert h.is_transient_gh_error("unexpected EOF")
+    assert h.is_transient_gh_error("read: connection reset by peer")
+    assert h.is_transient_gh_error("x509: certificate signed by unknown authority: SSL error")
+
+
+def test_is_transient_gh_error_rejects_permanent_errors():
+    assert not h.is_transient_gh_error("HTTP 404: Not Found")
+    assert not h.is_transient_gh_error("could not determine base repo: authentication failed")
+    assert not h.is_transient_gh_error("unknown flag: --bogus")
 
 
 def test_close_issue_dry_run_does_not_call_gh(monkeypatch):

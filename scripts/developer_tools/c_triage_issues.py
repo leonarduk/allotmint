@@ -43,6 +43,14 @@ REPO_NAME = "allotmint"
 CONSOLIDATOR_MILESTONE = "Backend Hardening & Test Coverage"
 GH_RETRY_ATTEMPTS = 3
 GH_RETRY_BACKOFF_SECONDS = 2
+TRANSIENT_ERROR_PATTERNS = (
+    "timeout",
+    "timed out",
+    "eof",
+    "connection reset by peer",
+    "tls handshake",
+    "ssl",
+)
 
 SCOPE_APART_PATTERN = re.compile(
     r"(?:tracked separately as|out of scope:?)\s*#(\d+)", re.IGNORECASE
@@ -63,12 +71,24 @@ class Issue:
     body: str = ""
 
 
+def is_transient_gh_error(stderr: str) -> bool:
+    """Return True if `stderr` looks like a network-level (retryable) failure.
+
+    Application-level errors (bad arguments, auth failures, 404s, etc.) don't
+    match any of these patterns and are treated as permanent.
+    """
+    lowered = stderr.lower()
+    return any(pattern in lowered for pattern in TRANSIENT_ERROR_PATTERNS)
+
+
 def run_gh(args: list[str]) -> subprocess.CompletedProcess[str]:
     """Run a `gh` CLI command scoped to REPO_OWNER/REPO_NAME. Never raises.
 
     Retries transient failures (network blips, GraphQL timeouts) up to
     GH_RETRY_ATTEMPTS times with a linear backoff before returning the last
-    failing result to the caller.
+    failing result to the caller. Permanent (application-level) errors, as
+    identified by `is_transient_gh_error`, are returned immediately without
+    retrying.
     """
     result = None
     for attempt in range(1, GH_RETRY_ATTEMPTS + 1):
@@ -80,6 +100,13 @@ def run_gh(args: list[str]) -> subprocess.CompletedProcess[str]:
             check=False,
         )
         if result.returncode == 0:
+            return result
+        if not is_transient_gh_error(result.stderr):
+            print(
+                f"ERROR: gh {' '.join(args)} failed with a permanent error, not retrying: "
+                f"{result.stderr.strip()}",
+                file=sys.stderr,
+            )
             return result
         if attempt < GH_RETRY_ATTEMPTS:
             wait_seconds = GH_RETRY_BACKOFF_SECONDS * attempt

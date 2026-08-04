@@ -5,7 +5,7 @@ on:
     types: [published]
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   HAS_DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY != '' }}
@@ -49,3 +49,56 @@ jobs:
           name: graphify-${{ github.ref_name }}
           path: graphify-out/
           retention-days: 90
+
+      # Workflow artifacts expire after 90 days and are only reachable from
+      # the Actions run page. Mirror the output into a dedicated branch as
+      # plain files (not a zip) so past knowledge graphs stay retrievable
+      # from the repo itself and readable directly, per release tag.
+      - name: Persist graphify output to graphify-output branch
+        if: always()
+        run: |
+          set -euo pipefail
+          TAG="${{ github.ref_name }}"
+          OUTPUT_DIR="graphify-out"
+
+          if [ ! -d "$OUTPUT_DIR" ]; then
+            echo "No $OUTPUT_DIR directory found, skipping persistence."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          WORKTREE_DIR="$(mktemp -d)"
+          git worktree add --detach "$WORKTREE_DIR" HEAD
+
+          cd "$WORKTREE_DIR"
+          if git ls-remote --exit-code --heads origin graphify-output >/dev/null 2>&1; then
+            git fetch origin graphify-output
+            git checkout -B graphify-output origin/graphify-output
+          else
+            git checkout --orphan graphify-output
+            git rm -rf . >/dev/null 2>&1 || true
+          fi
+
+          mkdir -p "graphify/$TAG"
+          cp -r "$GITHUB_WORKSPACE/$OUTPUT_DIR/." "graphify/$TAG/"
+
+          git add "graphify/$TAG"
+          if git diff --cached --quiet; then
+            echo "No changes to persist for $TAG."
+            exit 0
+          fi
+          git commit -m "Add graphify output for $TAG"
+
+          for attempt in 1 2 3; do
+            if git push origin HEAD:graphify-output; then
+              exit 0
+            fi
+            echo "Push attempt $attempt failed, fetching and rebasing..."
+            git fetch origin graphify-output
+            git rebase origin/graphify-output
+          done
+
+          echo "Failed to push graphify output after 3 attempts."
+          exit 1

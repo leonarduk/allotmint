@@ -27,6 +27,9 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Install OpenAI
+        run: pip install openai~=2.48.0
+
       - name: Install Graphify
         run: pip install graphifyy==0.9.32
 

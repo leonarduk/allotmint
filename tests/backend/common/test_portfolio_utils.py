@@ -2,6 +2,7 @@ import inspect
 import json
 import sys
 import threading
+import time
 import types
 from datetime import UTC, datetime
 
@@ -933,20 +934,23 @@ def test_get_security_meta_thread_safe_first_call_builds_once(monkeypatch):
 
     calls: list[None] = []
     calls_lock = threading.Lock()
-    all_started = threading.Event()
-    started_count = [0]
-    started_count_lock = threading.Lock()
+    # A Barrier (unlike a counter+Event) blocks every worker from calling
+    # get_security_meta() until all 10 have arrived, so no thread's call can
+    # start before another's -- a real guarantee that all 10 race the
+    # unlocked `_SECURITIES is None` check together, rather than relying on
+    # scheduling luck.
+    start_barrier = threading.Barrier(10)
+    build_release = threading.Event()
     real_build = portfolio_utils._build_securities_from_portfolios
 
     def spy_build():
         with calls_lock:
             calls.append(None)
-        # Hold the lock briefly so any thread that hasn't yet reached its
-        # first (unlocked) `_SECURITIES is None` check has time to do so
-        # concurrently with this build, genuinely exercising the race that
-        # double-checked locking guards against, rather than the threads
-        # simply never overlapping.
-        all_started.wait(timeout=5)
+        # Keep the winning thread inside the lock until every other thread
+        # has had ample time (far more than a GIL switch interval) to run
+        # its own unlocked check and block on _SECURITIES_LOCK, so the race
+        # double-checked locking guards against is genuinely exercised.
+        build_release.wait(timeout=5)
         return real_build()
 
     monkeypatch.setattr(portfolio_utils, "_build_securities_from_portfolios", spy_build)
@@ -954,15 +958,14 @@ def test_get_security_meta_thread_safe_first_call_builds_once(monkeypatch):
     monkeypatch.setattr(portfolio_utils, "list_virtual_portfolios", lambda: [])
 
     def worker():
-        with started_count_lock:
-            started_count[0] += 1
-            if started_count[0] == 10:
-                all_started.set()
+        start_barrier.wait(timeout=5)
         portfolio_utils.get_security_meta("AAA.L")
 
     threads = [threading.Thread(target=worker) for _ in range(10)]
     for t in threads:
         t.start()
+    time.sleep(0.2)
+    build_release.set()
     for t in threads:
         t.join(timeout=5)
 

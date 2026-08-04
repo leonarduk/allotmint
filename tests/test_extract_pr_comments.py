@@ -142,6 +142,67 @@ def test_fetch_paginated_invalid_json_returns_truncated(mod):
     assert truncated is True
 
 
+# --- fetch_paginated(strict=True) tests ---
+
+
+def test_fetch_paginated_strict_first_page_failure_raises(mod):
+    """strict=True raises FetchPaginatedError when the very first page fails."""
+    with patch.object(mod, "run_gh_command", return_value=("", 1)):
+        with pytest.raises(mod.FetchPaginatedError, match="failed"):
+            mod.fetch_paginated("owner", "repo", "/some/endpoint", strict=True)
+
+
+def test_fetch_paginated_strict_partial_failure_raises_after_collecting_items(mod):
+    """strict=True raises even after some items were already collected."""
+    responses = [
+        (json.dumps([{"id": 1}]), 0),
+        ("", 1),
+    ]
+    with patch.object(mod, "run_gh_command", side_effect=responses):
+        with pytest.raises(mod.FetchPaginatedError, match="collecting 1 items"):
+            mod.fetch_paginated("owner", "repo", "/some/endpoint", strict=True)
+
+
+def test_fetch_paginated_strict_invalid_json_raises(mod):
+    """strict=True raises FetchPaginatedError on a JSON parse failure."""
+    responses = [
+        (json.dumps([{"id": 1}]), 0),
+        ("not json", 0),
+    ]
+    with patch.object(mod, "run_gh_command", side_effect=responses):
+        with pytest.raises(mod.FetchPaginatedError, match="Failed to parse JSON"):
+            mod.fetch_paginated("owner", "repo", "/some/endpoint", strict=True)
+
+
+def test_fetch_paginated_strict_exhausts_multiple_pages_before_failing(mod):
+    """strict=True still raises after several successful pages precede the failure,
+    i.e. the retry/page cap does not swallow an eventual failure."""
+    responses = [
+        (json.dumps([{"id": 1}]), 0),
+        (json.dumps([{"id": 2}]), 0),
+        (json.dumps([{"id": 3}]), 0),
+        ("", 1),
+    ]
+    with patch.object(mod, "run_gh_command", side_effect=responses):
+        with pytest.raises(mod.FetchPaginatedError, match="collecting 3 items"):
+            mod.fetch_paginated("owner", "repo", "/some/endpoint", strict=True)
+
+
+def test_fetch_paginated_strict_success_returns_items_untruncated(mod):
+    """strict=True does not affect the success path: items are returned normally."""
+    pages = [
+        json.dumps([{"id": 1}, {"id": 2}]),
+        json.dumps([]),
+    ]
+    with patch.object(mod, "run_gh_command", side_effect=[(p, 0) for p in pages]):
+        items, truncated = mod.fetch_paginated(
+            "owner", "repo", "/some/endpoint", strict=True
+        )
+
+    assert items == [{"id": 1}, {"id": 2}]
+    assert truncated is False
+
+
 # --- write_output() truncated-flag placement tests ---
 
 

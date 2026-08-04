@@ -868,6 +868,49 @@ def test_token_route_uses_http_none_authorizer(template):
         )
 
 
+def test_options_proxy_route_uses_http_none_authorizer(template):
+    """Positively assert that OPTIONS /{proxy+} — the CORS preflight route
+    that covers every Cognito-JWT-protected endpoint behind the catch-all
+    (e.g. GET /owners, GET /portfolio-group/{slug}) — is registered with
+    HttpNoneAuthorizer (AuthorizationType NONE), not just absent from the
+    Cognito-authorizer set.
+
+    This is the regression guard for issue #3945: browser CORS preflight
+    requests never carry an Authorization header, so if this route were
+    ever put behind the JWT authorizer, every authenticated endpoint would
+    start failing preflight with 401 before the real (GET/POST/etc.) request
+    was even sent — a failure mode that only shows up as a broken frontend,
+    not as an API Gateway error on the "real" route itself.
+
+    test_backend_api_routes_require_cognito_authorizer above already proves
+    OPTIONS /{proxy+} is unauthenticated via a negative check (it is part of
+    the UNAUTHENTICATED_ROUTES set). This test documents and enforces the
+    specific intended authorizer directly, mirroring
+    test_signup_routes_use_http_none_authorizer and
+    test_token_route_uses_http_none_authorizer above.
+    """
+    routes = template.find_resources("AWS::ApiGatewayV2::Route")
+    assert routes, "Expected at least one API Gateway route"
+
+    options_proxy_routes = {
+        resource["Properties"].get("RouteKey", logical_id): resource["Properties"]
+        for logical_id, resource in routes.items()
+        if resource["Properties"].get("RouteKey", "") == "OPTIONS /{proxy+}"
+    }
+    assert set(options_proxy_routes) == {"OPTIONS /{proxy+}"}
+
+    for route_key, properties in options_proxy_routes.items():
+        assert properties.get("AuthorizationType") == "NONE", (
+            f"Route {route_key} must use HttpNoneAuthorizer (AuthorizationType "
+            f"NONE) so CORS preflight requests are not rejected with 401 "
+            f"before the real request is sent (#3945), got "
+            f"{properties.get('AuthorizationType')!r}"
+        )
+        assert "AuthorizerId" not in properties, (
+            f"Route {route_key} must not reference an authorizer resource"
+        )
+
+
 # ---------------------------------------------------------------------------
 # CORS configuration (issue #4828)
 # ---------------------------------------------------------------------------

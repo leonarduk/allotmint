@@ -93,6 +93,49 @@ HEADER
   grep -q -- "--remove-label Changes Requested" "$CALL_LOG"
 }
 
+@test "ENABLE_CLAUDE=false excludes Claude from the required set" {
+  export ENABLE_CLAUDE="false"
+  write_fake_gh "sha123" "true" \
+    "GPT AI code review=success" \
+    "DeepSeek AI code review=success"
+
+  run bash "$SCRIPT" 42
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"enabled reviewers: GPT AI code review DeepSeek AI code review"* ]]
+  [[ "$output" != *"Claude AI code review:"* ]]
+  grep -q -- "--remove-label Changes Requested" "$CALL_LOG"
+}
+
+@test "ENABLE_DEEPSEEK=false excludes DeepSeek from the required set" {
+  export ENABLE_DEEPSEEK="false"
+  write_fake_gh "sha123" "true" \
+    "Claude AI code review=success" \
+    "GPT AI code review=success"
+
+  run bash "$SCRIPT" 42
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"enabled reviewers: Claude AI code review GPT AI code review"* ]]
+  [[ "$output" != *"DeepSeek AI code review:"* ]]
+  grep -q -- "--remove-label Changes Requested" "$CALL_LOG"
+}
+
+@test "two disabled reviewers leaves only the remaining one's conclusion required" {
+  export ENABLE_CLAUDE="false"
+  export ENABLE_GPT="false"
+  # Only DeepSeek is enabled and it's still pending, so the label must stay.
+  write_fake_gh "sha123" "true" \
+    "DeepSeek AI code review=pending"
+
+  run bash "$SCRIPT" 42
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"enabled reviewers: DeepSeek AI code review"* ]]
+  [[ "$output" == *"leaving 'Changes Requested' label as-is"* ]]
+  ! grep -q -- "--remove-label" "$CALL_LOG"
+}
+
 @test "a disabled reviewer's pending check-run does not block label removal" {
   export ENABLE_GPT="false"
   # The GPT check-run doesn't exist at all (job skipped), which the fake gh

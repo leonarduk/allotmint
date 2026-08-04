@@ -47,6 +47,36 @@ def test_derived_cost_basis_close_px_caches_and_window(monkeypatch):
     assert calls[0][1] == dt.date(2024, 1, 10)  # end_date (Wednesday)
 
 
+def test_derived_cost_basis_close_px_nan_guard_returns_none_and_does_not_cache(monkeypatch):
+    """If the scaled close price resolves to NaN, the NaN guard must return
+    None instead of caching/propagating NaN (which would poison downstream
+    cost-basis arithmetic, e.g. ``units * NaN`` -> NaN)."""
+
+    calls = []
+
+    def fake_load(ticker, exchange, start_date, end_date):
+        calls.append((start_date, end_date))
+        return pd.DataFrame({"Date": [start_date], "Close": [float("nan")]})
+
+    monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", fake_load)
+    # A scaling override that would otherwise turn a real price into a value;
+    # applied to NaN it should still be NaN, and the guard should catch it.
+    monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *a, **k: 0.5)
+
+    acq = dt.date(2024, 1, 8)  # Monday
+    cache: Dict[str, float] = {}
+    result = holding_utils._derived_cost_basis_close_px("ABC", "L", acq, cache)
+
+    assert result is None
+    # The NaN guard must not populate the cache with a NaN (or any) value for
+    # this key, so a subsequent lookup keeps trying rather than trusting a
+    # poisoned cached value.
+    key = f"ABC.L_{acq}"
+    assert key not in cache
+    # Confirms the guard actually executed the lookup rather than short-circuiting.
+    assert len(calls) == 1
+
+
 def test_load_latest_prices_resolution_scaling_and_missing(monkeypatch):
     def fake_resolve(full, result):
         return ("ABC", "L") if full == "ABC" else None

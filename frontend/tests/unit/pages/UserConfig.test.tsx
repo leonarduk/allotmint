@@ -1,4 +1,4 @@
-import { render, screen, act, waitFor } from "@testing-library/react";
+import { render, screen, act, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
@@ -6,6 +6,8 @@ const mockGetOwners = vi.hoisted(() => vi.fn());
 const mockGetUserConfig = vi.hoisted(() => vi.fn());
 const mockGetApprovals = vi.hoisted(() => vi.fn());
 const mockUpdateUserConfig = vi.hoisted(() => vi.fn());
+const mockAddApproval = vi.hoisted(() => vi.fn());
+const mockRemoveApproval = vi.hoisted(() => vi.fn());
 
 vi.mock("@/api", () => ({
   API_BASE: "",
@@ -13,8 +15,8 @@ vi.mock("@/api", () => ({
   getUserConfig: mockGetUserConfig,
   getApprovals: mockGetApprovals,
   updateUserConfig: mockUpdateUserConfig,
-  addApproval: vi.fn(),
-  removeApproval: vi.fn(),
+  addApproval: mockAddApproval,
+  removeApproval: mockRemoveApproval,
 }));
 
 import UserConfig from "@/pages/UserConfig";
@@ -210,6 +212,120 @@ describe("UserConfig page", () => {
     const select = await screen.findByRole("combobox");
     await act(async () => {
       await userEvent.selectOptions(select, "alex");
+    });
+
+    expect(await screen.findByText(/session has expired/i)).toBeInTheDocument();
+  });
+
+  it("shows a permission-specific message when adding an approval 403s (#5215)", async () => {
+    mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
+    mockGetUserConfig.mockResolvedValue({});
+    mockGetApprovals.mockResolvedValue({ approvals: [] });
+    const forbidden = new Error("HTTP 403 - Forbidden (/accounts/alex/approvals)");
+    (forbidden as any).status = 403;
+    mockAddApproval.mockRejectedValue(forbidden);
+
+    render(<UserConfig />);
+
+    const select = await screen.findByRole("combobox");
+    await act(async () => {
+      await userEvent.selectOptions(select, "alex");
+    });
+
+    const tickerInput = await screen.findByPlaceholderText("Ticker");
+    const dateInput = document.querySelector('input[type="date"]') as HTMLInputElement;
+    await act(async () => {
+      await userEvent.type(tickerInput, "ABC");
+      fireEvent.change(dateInput, { target: { value: "2024-01-01" } });
+    });
+    const addButton = screen.getByRole("button", { name: /add/i });
+    await act(async () => {
+      await userEvent.click(addButton);
+    });
+
+    expect(
+      await screen.findByText(/don't have permission to view or manage approvals/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/^Failed to add approval$/)).not.toBeInTheDocument();
+  });
+
+  it("shows a session-expiry message when adding an approval 401s (#5215)", async () => {
+    mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
+    mockGetUserConfig.mockResolvedValue({});
+    mockGetApprovals.mockResolvedValue({ approvals: [] });
+    const unauthorized = new Error("HTTP 401 - Unauthorized (/accounts/alex/approvals)");
+    (unauthorized as any).status = 401;
+    mockAddApproval.mockRejectedValue(unauthorized);
+
+    render(<UserConfig />);
+
+    const select = await screen.findByRole("combobox");
+    await act(async () => {
+      await userEvent.selectOptions(select, "alex");
+    });
+
+    const tickerInput = await screen.findByPlaceholderText("Ticker");
+    const dateInput = document.querySelector('input[type="date"]') as HTMLInputElement;
+    await act(async () => {
+      await userEvent.type(tickerInput, "ABC");
+      fireEvent.change(dateInput, { target: { value: "2024-01-01" } });
+    });
+    const addButton = screen.getByRole("button", { name: /add/i });
+    await act(async () => {
+      await userEvent.click(addButton);
+    });
+
+    expect(await screen.findByText(/session has expired/i)).toBeInTheDocument();
+  });
+
+  it("shows a permission-specific message when removing an approval 403s (#5215)", async () => {
+    mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
+    mockGetUserConfig.mockResolvedValue({});
+    mockGetApprovals.mockResolvedValue({
+      approvals: [{ ticker: "ABC", approved_on: "2024-01-01" }],
+    });
+    const forbidden = new Error("HTTP 403 - Forbidden (/accounts/alex/approvals)");
+    (forbidden as any).status = 403;
+    mockRemoveApproval.mockRejectedValue(forbidden);
+
+    render(<UserConfig />);
+
+    const select = await screen.findByRole("combobox");
+    await act(async () => {
+      await userEvent.selectOptions(select, "alex");
+    });
+
+    const removeButton = await screen.findByRole("button", { name: /remove/i });
+    await act(async () => {
+      await userEvent.click(removeButton);
+    });
+
+    expect(
+      await screen.findByText(/don't have permission to view or manage approvals/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/^Failed to remove approval$/)).not.toBeInTheDocument();
+  });
+
+  it("shows a session-expiry message when removing an approval 401s (#5215)", async () => {
+    mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
+    mockGetUserConfig.mockResolvedValue({});
+    mockGetApprovals.mockResolvedValue({
+      approvals: [{ ticker: "ABC", approved_on: "2024-01-01" }],
+    });
+    const unauthorized = new Error("HTTP 401 - Unauthorized (/accounts/alex/approvals)");
+    (unauthorized as any).status = 401;
+    mockRemoveApproval.mockRejectedValue(unauthorized);
+
+    render(<UserConfig />);
+
+    const select = await screen.findByRole("combobox");
+    await act(async () => {
+      await userEvent.selectOptions(select, "alex");
+    });
+
+    const removeButton = await screen.findByRole("button", { name: /remove/i });
+    await act(async () => {
+      await userEvent.click(removeButton);
     });
 
     expect(await screen.findByText(/session has expired/i)).toBeInTheDocument();

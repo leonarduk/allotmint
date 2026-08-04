@@ -66,11 +66,11 @@ def test_resolve_writable_store_uses_s3_in_aws(monkeypatch):
 
 
 def test_resolve_writable_store_falls_back_local_without_bucket(
-    monkeypatch, tmp_path, caplog
+    monkeypatch, tmp_path, caplog, reset_warning_flag
 ):
     monkeypatch.setattr(transactions_module.config, "app_env", "aws")
     monkeypatch.delenv(data_loader.DATA_BUCKET_ENV, raising=False)
-    monkeypatch.setattr(transactions_module, "_warned_missing_data_bucket", False)
+    reset_warning_flag(transactions_module, "_warned_missing_data_bucket")
 
     request = _make_request({"accounts_root": tmp_path})
     with caplog.at_level("WARNING", logger="transactions"):
@@ -97,11 +97,11 @@ def test_resolve_writable_store_no_warning_outside_aws(monkeypatch, tmp_path, ca
 
 
 def test_resolve_writable_store_warns_only_once_per_process(
-    monkeypatch, tmp_path, caplog
+    monkeypatch, tmp_path, caplog, reset_warning_flag
 ):
     monkeypatch.setattr(transactions_module.config, "app_env", "aws")
     monkeypatch.delenv(data_loader.DATA_BUCKET_ENV, raising=False)
-    monkeypatch.setattr(transactions_module, "_warned_missing_data_bucket", False)
+    reset_warning_flag(transactions_module, "_warned_missing_data_bucket")
 
     with caplog.at_level("WARNING", logger="transactions"):
         for _ in range(3):

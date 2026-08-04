@@ -455,6 +455,14 @@ def test_calculate_portfolio_impact_tolerates_bank_transaction_fields():
     assert transactions._calculate_portfolio_impact({"price_gbp": None, "units": None}) == 0.0
 
 
+def test_calculate_portfolio_impact_tolerates_price_only_none():
+    assert transactions._calculate_portfolio_impact({"price_gbp": None, "units": 10}) == 0.0
+
+
+def test_calculate_portfolio_impact_tolerates_units_only_none():
+    assert transactions._calculate_portfolio_impact({"price_gbp": 1.5, "units": None}) == 0.0
+
+
 def test_import_transactions_rolls_back_when_later_write_fails(tmp_path, monkeypatch):
     client = _make_client(tmp_path, monkeypatch)
     posted_before = list(transactions._POSTED_TRANSACTIONS)

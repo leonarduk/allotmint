@@ -127,3 +127,29 @@ def test_job_skips_for_dependabot() -> None:
 
 def test_job_skips_when_review_disabled_via_repo_var() -> None:
     assert _job_runs("alice", "synchronize", enable_var="false") is False
+
+
+def test_unlabeled_deep_review_required_with_other_label_present_reverts_to_defaults() -> None:
+    """Removing 'Deep Review Required' re-triggers the job even if an unrelated
+    label ('bug') is still present on the PR, and the model/token overrides
+    then resolve back to the script defaults.
+
+    The job's `if:` condition gates on `github.event.label.name` -- the single
+    label that was just added or removed by this specific event -- not on the
+    full set of labels currently on the PR (see the comment above `ai-review`'s
+    `if:` in deepseek-pr-review.yml). So an unrelated label coexisting on the
+    PR must not affect either the job's own re-run decision or the downstream
+    model selection once 'Deep Review Required' has actually been removed.
+    This exercises both the `if:` gate (_job_runs) and the `with:` ternaries
+    (_resolve_model_and_tokens) together for that combined scenario, which
+    neither test_job_re_evaluates_when_deep_review_required_label_removed nor
+    test_job_skips_when_unrelated_label_added_or_removed covers on its own.
+    """
+    assert _job_runs("alice", "unlabeled", label_name=REQUIRED_LABEL) is True
+
+    # After removal, the PR's remaining labels no longer include the required
+    # one -- only the unrelated "bug" label -- so contains(...) is false and
+    # the ternaries fall back to empty overrides (script defaults apply).
+    model, tokens = _resolve_model_and_tokens(["bug"])
+    assert model == ""
+    assert tokens == ""

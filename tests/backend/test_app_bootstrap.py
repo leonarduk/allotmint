@@ -14,6 +14,18 @@ from backend.bootstrap.startup import AppLifecycleService
 from backend.config import config
 
 
+def test_create_app_configures_logging(monkeypatch: pytest.MonkeyPatch):
+    """create_app() must call setup_logging() so LOG_FORMAT=json actually
+    takes effect for the real entrypoints (issue #4681) -- previously
+    setup_logging() existed but was never invoked by production code."""
+    called = []
+    monkeypatch.setattr(app_module, "setup_logging", lambda: called.append(True))
+
+    app_module.create_app()
+
+    assert called == [True]
+
+
 def test_create_app_test_isolation_copies_accounts_root(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     repo_root = tmp_path / "repo"
     accounts_root = repo_root / "data" / "accounts"

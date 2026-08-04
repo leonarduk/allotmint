@@ -31,6 +31,10 @@ BACKEND_LIST_PREFIXES = (
     # Writable per-owner account documents (manual holdings / transactions);
     # separate from the read-only accounts/ demo prefix (issue #4275).
     WRITABLE_ACCOUNTS_PREFIX,
+    # Root/empty prefix: the Data Explorer's root tree view calls
+    # list_objects_v2(Prefix="", Delimiter="/"), which needs an explicit ""
+    # entry in the StringLike condition (issue #6110).
+    "",
 )
 # accounts/ is required because refresh_prices() → list_all_unique_tickers() →
 # list_portfolios() → S3DataProvider.list_plots() calls list_objects_v2 on that prefix.
@@ -168,8 +172,19 @@ def _conditions_for_s3_action(
 
 
 def _expected_prefix_condition(prefixes: tuple[str, ...]) -> dict:
+    """Build the expected StringLike s3:prefix condition value for `prefixes`.
+
+    Mirrors _grant_bucket_access's ordering exactly: a literal "" entry
+    (root-level ListBucket, issue #6110) is emitted first as a bare "" —
+    never with a "/*" suffix — followed by each remaining prefix's
+    `prefix`/`prefix/*` pair in tuple order.
+    """
     expected_prefix_entries: list[str] = []
+    if "" in prefixes:
+        expected_prefix_entries.append("")
     for prefix in prefixes:
+        if prefix == "":
+            continue
         expected_prefix_entries.extend([prefix, f"{prefix}/*"])
     return {"StringLike": {"s3:prefix": expected_prefix_entries}}
 
@@ -332,6 +347,13 @@ def test_all_lambdas_have_scoped_timeseries_cache_permissions() -> None:
 
 
 def test_grant_bucket_access_requires_list_prefix_when_allow_list_enabled() -> None:
+    """A literal "" (bare string or as a tuple entry) is deliberately exempt:
+    it's the explicit root-listing sentinel (issue #6110), covered separately
+    by test_grant_bucket_access_accepts_root_prefix_sentinel below.
+    "   " is NOT exempt — it normalizes to empty only after stripping
+    whitespace, so unlike the literal "" sentinel it still carries no usable
+    prefix and must still raise (see the docstring on _grant_bucket_access).
+    """
     app = App()
     stack = BackendLambdaStack(app, "GrantBucketAccessValidationStack")
     fn = _lambda.Function(
@@ -342,7 +364,7 @@ def test_grant_bucket_access_requires_list_prefix_when_allow_list_enabled() -> N
         handler="index.handler",
     )
 
-    for invalid_prefix in (None, "", "   ", (), ("",)):
+    for invalid_prefix in (None, "   ", ()):
         try:
             BackendLambdaStack._grant_bucket_access(
                 fn,
@@ -357,6 +379,37 @@ def test_grant_bucket_access_requires_list_prefix_when_allow_list_enabled() -> N
         raise AssertionError(
             f"Expected ValueError for allow_list=True with list_prefix={invalid_prefix!r}"
         )
+
+
+def test_grant_bucket_access_accepts_root_prefix_sentinel() -> None:
+    """A literal "" list_prefix entry grants ListBucket conditioned on the
+    exact empty s3:prefix value only — never a "/*" wildcard variant — so it
+    authorizes root-level, non-recursive listing without widening access to
+    the rest of the bucket (issue #6110)."""
+    app = App()
+    stack = BackendLambdaStack(app, "GrantBucketAccessRootPrefixStack")
+    fn = _lambda.Function(
+        stack,
+        "GrantBucketAccessRootPrefixFn",
+        runtime=_lambda.Runtime.PYTHON_3_11,
+        code=_lambda.Code.from_inline("def handler(event, context):\n    return None\n"),
+        handler="index.handler",
+    )
+
+    BackendLambdaStack._grant_bucket_access(
+        fn,
+        bucket_name="unit-test-bucket",
+        allow_read=False,
+        allow_put=False,
+        allow_list=True,
+        list_prefix=("",),
+    )
+
+    template = Template.from_stack(stack).to_json()
+    role_logical_id = _role_logical_id_for_lambda(template, "GrantBucketAccessRootPrefixFn")
+    conditions = _conditions_for_s3_action(template, role_logical_id, "s3:ListBucket")
+    assert len(conditions) == 1, "Expected exactly one ListBucket statement"
+    assert conditions[0] == {"StringLike": {"s3:prefix": [""]}}
 
 
 def test_grant_bucket_access_accepts_multiple_list_prefixes() -> None:

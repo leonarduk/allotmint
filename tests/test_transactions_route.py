@@ -471,8 +471,20 @@ def test_import_transactions_rolls_back_when_later_write_fails(tmp_path, monkeyp
     # tests) rather than snapshotting whatever pre-existing state happens to
     # be there -- a before/after equality check against polluted state can
     # spuriously pass or fail depending on test execution order.
-    monkeypatch.setattr(transactions, "_POSTED_TRANSACTIONS", [])
-    monkeypatch.setattr(transactions, "_PORTFOLIO_IMPACT", defaultdict(float))
+    #
+    # Seeding a *known non-empty* baseline (rather than resetting to empty)
+    # keeps the test's original intent: it must prove rollback removes only
+    # this import's rows and leaves unrelated pre-existing entries (e.g. from
+    # a prior legitimate import for another owner) untouched -- starting from
+    # empty would let a rollback bug that wipes *all* global state pass
+    # unnoticed, since "empty in, empty out" is indistinguishable from a
+    # correct partial rollback.
+    pre_existing_posted = [
+        {"owner": "bob", "account": "isa", "ticker": "AAA", "units": 1, "price_gbp": 1},
+    ]
+    pre_existing_impact = defaultdict(float, {"bob": 42.0})
+    monkeypatch.setattr(transactions, "_POSTED_TRANSACTIONS", list(pre_existing_posted))
+    monkeypatch.setattr(transactions, "_PORTFOLIO_IMPACT", pre_existing_impact)
     sample = [
         transactions.Transaction(owner="alice", account="isa", ticker="PFE", price_gbp=2, units=3),
         transactions.Transaction(owner="alice", account="isa", ticker="MSFT", price_gbp=5, units=2),
@@ -498,8 +510,8 @@ def test_import_transactions_rolls_back_when_later_write_fails(tmp_path, monkeyp
 
     stored = json.loads((tmp_path / "alice" / "isa_transactions.json").read_text())
     assert stored["transactions"] == []
-    assert transactions._POSTED_TRANSACTIONS == []
-    assert dict(transactions._PORTFOLIO_IMPACT) == {}
+    assert transactions._POSTED_TRANSACTIONS == pre_existing_posted
+    assert dict(transactions._PORTFOLIO_IMPACT) == {"bob": 42.0}
 
 
 def test_import_transactions_empty_parse_does_not_require_writable_store(tmp_path, monkeypatch):

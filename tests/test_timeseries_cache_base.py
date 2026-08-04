@@ -280,6 +280,91 @@ def test_s3_meta_cache_invalidates_when_last_modified_changes(monkeypatch):
     assert len(loads) == 2
 
 
+def test_load_meta_timeseries_rechecks_after_negative_cache_ttl_expires(monkeypatch):
+    """The negative cache consulted by ``_invalidate_meta_caches_if_stale``
+    (via ``_s3_object_mtime``) must expire after ``_S3_HEAD_MISS_TTL_SECONDS``
+    so a ticker whose data later appears in S3 is re-checked by
+    ``load_meta_timeseries`` instead of being treated as permanently missing.
+
+    This exercises the same negative-cache TTL as
+    ``test_has_cached_meta_timeseries_rechecks_after_negative_cache_ttl_expires``
+    but through the ``load_meta_timeseries`` / ``_invalidate_meta_caches_if_stale``
+    path rather than ``has_cached_meta_timeseries``.
+    """
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", "s3://bucket/timeseries")
+    cache = import_cache()
+    assert cache._S3_HEAD_MISS_TTL_SECONDS == 60.0
+
+    calls = []
+    missing = True
+    last_modified = datetime(2026, 5, 8, 12, 0, tzinfo=timezone.utc)
+
+    class FakeS3:
+        def head_object(self, *, Bucket, Key):
+            calls.append((Bucket, Key))
+            if missing:
+                raise cache.ClientError(
+                    {"Error": {"Code": "404", "Message": "Not Found"}},
+                    "HeadObject",
+                )
+            return {"LastModified": last_modified}
+
+    patch_s3_client(monkeypatch, cache, FakeS3())
+
+    loads = []
+
+    def fake_rolling_cache(*_args, **_kwargs):
+        loads.append(1)
+        return _frame(float(len(loads)))
+
+    monkeypatch.setattr(cache, "_rolling_cache", fake_rolling_cache)
+
+    current_time = [1000.0]
+    monkeypatch.setattr(cache.time, "monotonic", lambda: current_time[0])
+
+    # First call: confirmed missing, one live HeadObject call.
+    cache.load_meta_timeseries("MISSING", "L", 5)
+    assert len(calls) == 1
+
+    # Still within the negative-cache TTL: no new HeadObject call.
+    current_time[0] += 59
+    cache.load_meta_timeseries("MISSING", "L", 5)
+    assert len(calls) == 1
+
+    # TTL has elapsed and the object now exists: the stale "missing" verdict
+    # must not be trusted forever -- the next call must re-check S3.
+    current_time[0] += 2
+    missing = False
+    cache.load_meta_timeseries("MISSING", "L", 5)
+    assert len(calls) == 2
+
+
+def test_s3_client_is_singleton_across_calls(monkeypatch):
+    """``_s3_client`` is ``lru_cache``-wrapped so every caller shares one
+    boto3 S3 client instance instead of constructing a new one per call.
+    """
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", "s3://bucket/timeseries")
+    cache = import_cache()
+    cache._s3_client.cache_clear()
+
+    created = []
+
+    def fake_client(service):
+        assert service == "s3"
+        client = object()
+        created.append(client)
+        return client
+
+    monkeypatch.setattr(cache.boto3, "client", fake_client)
+
+    first = cache._s3_client()
+    second = cache._s3_client()
+    third = cache._s3_client()
+
+    assert first is second is third
+    assert len(created) == 1
+
+
 def test_local_meta_cache_still_invalidates_when_file_mtime_changes(monkeypatch, tmp_path):
     monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
     cache = import_cache()

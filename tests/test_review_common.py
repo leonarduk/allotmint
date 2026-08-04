@@ -58,3 +58,43 @@ def test_emit_empty_diff_notice_parses_as_skip(
     notice = capsys.readouterr().out
 
     assert extract_verdict_mod.extract_verdict(notice) == "SKIP"
+
+
+@pytest.mark.parametrize("provider", ["Claude", "GPT", "DeepSeek"])
+def test_genuine_request_changes_verdict_fails_workflow(
+    review_common, extract_verdict_mod, capsys, tmp_path, provider
+) -> None:
+    """A real, non-empty REQUEST CHANGES review must still fail the workflow via extract_verdict.py.
+
+    Mirrors the actual `_ai-pr-review.yml` pipeline: `finalize_review` prints the model's review
+    text to stdout (which the workflow redirects into a file), and a *separate* step later runs
+    `extract_verdict.py` against that file to decide the job's exit code. This is distinct from
+    the empty-review path (`finalize_review` failing because the model returned nothing, or
+    extract_verdict.py's own "review output was empty" branch) covered by
+    `test_main_empty_file` in `tests/test_extract_verdict.py` and by
+    `test_emit_empty_diff_notice_parses_as_skip` above — here the review body is genuine and
+    non-empty, so `finalize_review` succeeds (exit 0) and the *verdict itself* is what must fail
+    the job.
+    """
+    review_text = (
+        "### 1. Acceptance criteria\n"
+        "Not fully met — see bug below.\n\n"
+        "### 2. Bugs and logic errors\n"
+        "Unhandled exception when the input list is empty (line 42).\n\n"
+        "**REQUEST CHANGES** — fix the empty-list edge case before merging"
+    )
+
+    # finalize_review succeeds and prints the review verbatim, exactly like the workflow step
+    # that writes the model's response to the review file the extractor later reads.
+    assert review_common.finalize_review(review_text, "ERROR: empty review") == 0
+    printed_review = capsys.readouterr().out
+
+    review_file = tmp_path / "review.md"
+    review_file.write_text(printed_review, encoding="utf-8")
+
+    result = extract_verdict_mod.main(str(review_file), provider)
+
+    assert result == 1
+    captured = capsys.readouterr()
+    assert f"[-] {provider} review: CHANGES REQUESTED" in captured.out
+    assert "review output was empty" not in captured.err

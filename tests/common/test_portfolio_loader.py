@@ -75,6 +75,44 @@ def test_get_units_as_of_ignores_other_tickers() -> None:
     }
 
     assert get_units_as_of(tx_data, "ABC", "2024-06-01") == pytest.approx(100.0)
+
+
+def test_get_units_as_of_reflects_a_transfer_in_before_cutoff() -> None:
+    tx_data = {
+        "transactions": [
+            {"type": "BUY", "ticker": "ABC", "units": 100, "date": "2024-01-01"},
+            {"type": "TRANSFER_IN", "ticker": "ABC", "units": 50, "date": "2024-02-01"},
+        ]
+    }
+
+    assert get_units_as_of(tx_data, "ABC", "2024-01-15") == pytest.approx(100.0)
+    assert get_units_as_of(tx_data, "ABC", "2024-02-01") == pytest.approx(150.0)
+
+
+def test_get_units_as_of_reflects_a_transfer_out_before_cutoff() -> None:
+    tx_data = {
+        "transactions": [
+            {"type": "BUY", "ticker": "ABC", "units": 200, "date": "2024-01-01"},
+            {"type": "TRANSFER_OUT", "ticker": "ABC", "units": 75, "date": "2024-02-01"},
+        ]
+    }
+
+    assert get_units_as_of(tx_data, "ABC", "2024-01-15") == pytest.approx(200.0)
+    assert get_units_as_of(tx_data, "ABC", "2024-02-01") == pytest.approx(125.0)
+
+
+def test_get_units_as_of_reflects_a_removal_before_cutoff() -> None:
+    tx_data = {
+        "transactions": [
+            {"type": "BUY", "ticker": "ABC", "units": 200, "date": "2024-01-01"},
+            {"type": "REMOVAL", "ticker": "ABC", "units": 30, "date": "2024-02-01"},
+        ]
+    }
+
+    assert get_units_as_of(tx_data, "ABC", "2024-01-15") == pytest.approx(200.0)
+    assert get_units_as_of(tx_data, "ABC", "2024-02-01") == pytest.approx(170.0)
+
+
 def test_rebuild_account_holdings_treats_dividend_singular_like_dividends(tmp_path: Path) -> None:
     """Regression test for #4948: the sign table must recognise both
     ``DIVIDEND`` (written by backend/common/dividends.py) and the legacy

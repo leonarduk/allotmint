@@ -165,3 +165,58 @@ def test_deploy_lambda_step_order() -> None:
         "Build step must run before the first deploy step in the deploy job. "
         f"Found build at index {build_idx}, deploy at index {deploy_idx}."
     )
+
+
+def test_verify_smoke_tests_job_declared_after_its_dependency_chain() -> None:
+    """verify-smoke-tests must be declared after check-ci, deploy, and smoke-test.
+
+    PyYAML's safe_load preserves mapping key order for Python 3.7+, so the
+    `jobs` dict's iteration order mirrors the job declaration order in the
+    YAML file itself. This guards the human-readable top-to-bottom flow of
+    deploy-lambda.yml (check-ci -> deploy -> smoke-test -> verify-smoke-tests):
+    if verify-smoke-tests were accidentally moved above one of its
+    dependencies in the file, the `needs:` wiring would still be functionally
+    correct (GitHub Actions doesn't care about declaration order), but the
+    file would become confusing to read top-to-bottom and easy to
+    misunderstand during review. This is a structural/readability check
+    distinct from test_deploy_workflow_verify_smoke_tests_references_existing_job
+    above, which only checks the needs: reference is valid, not the file
+    ordering.
+    """
+    workflow = yaml.safe_load(DEPLOY_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    job_order = list(workflow["jobs"].keys())
+
+    expected_chain = ["check-ci", "deploy", "smoke-test", "verify-smoke-tests"]
+    for job_id in expected_chain:
+        assert job_id in job_order, f"Expected job {job_id!r} not found in deploy-lambda.yml"
+
+    actual_indices = [job_order.index(job_id) for job_id in expected_chain]
+    assert actual_indices == sorted(actual_indices), (
+        "Jobs in deploy-lambda.yml must be declared in dependency order "
+        f"(check-ci, deploy, smoke-test, verify-smoke-tests) for readability, "
+        f"but found declaration order {job_order}"
+    )
+
+
+def test_verify_smoke_tests_transitively_depends_on_deploy_and_check_ci() -> None:
+    """verify-smoke-tests's needs: chain must resolve all the way back to check-ci.
+
+    verify-smoke-tests directly needs only smoke-test (see
+    test_deploy_workflow_verify_smoke_tests_references_existing_job above),
+    but the gate is only meaningful if that chain is unbroken back to the
+    first job. If smoke-test's own needs: were ever changed to drop deploy
+    (or deploy's needs: dropped check-ci), verify-smoke-tests could pass
+    without the CI-gate or the actual deploy ever having run.
+    """
+    workflow = yaml.safe_load(DEPLOY_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    jobs = workflow["jobs"]
+
+    def needs_of(job_id: str) -> list[str]:
+        needs = jobs[job_id].get("needs")
+        if needs is None:
+            return []
+        return [needs] if isinstance(needs, str) else list(needs)
+
+    assert "smoke-test" in needs_of("verify-smoke-tests")
+    assert "deploy" in needs_of("smoke-test")
+    assert "check-ci" in needs_of("deploy")

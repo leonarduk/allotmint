@@ -121,6 +121,39 @@ def test_api_console_accessible_when_auth_disabled(monkeypatch):
     assert "text/html" in resp.headers["content-type"]
 
 
+def test_api_console_admin_allowlist_enforced_when_auth_disabled(monkeypatch):
+    """ADMIN_EMAILS must still be enforced when disable_auth=True and the
+    caller presents no valid token.
+
+    DISABLE_AUTH=true is set on the production Lambda (API Gateway handles
+    Cognito auth upstream), so this combination is the real production
+    configuration whenever ADMIN_EMAILS is also set. This test exercises the
+    dependency chain end-to-end (no dependency_overrides, matching
+    ``test_api_console_no_auth_local_dev``) with a missing/invalid bearer
+    token to confirm the admin allowlist gate is not silently bypassed just
+    because auth is disabled.
+    """
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    monkeypatch.setattr(config, "snapshot_warm_days", 30)
+    monkeypatch.setattr(config, "disable_auth", True)
+    monkeypatch.setattr(config, "local_login_email", None)
+    monkeypatch.setenv("ADMIN_EMAILS", "admin@example.com")
+    with patch("backend.common.portfolio_utils.refresh_snapshot_async"):
+        app = create_app()
+        with TestClient(app, raise_server_exceptions=False) as client:
+            # No Authorization header at all: missing token.
+            resp_missing = client.get("/api-console")
+            # An invalid/garbage bearer token that cannot be decoded.
+            resp_invalid = client.get(
+                "/api-console",
+                headers={"Authorization": "Bearer not-a-real-token"},
+            )
+    # Neither request authenticates as an admin, so both must be rejected
+    # rather than falling through to the local-dev bypass.
+    assert resp_missing.status_code == 403
+    assert resp_invalid.status_code in (401, 403)
+
+
 @pytest.mark.parametrize("admin_emails,disable_auth,email,expected_status", [
     # allowlist configured: enforced regardless of disable_auth
     ("admin@example.com", False, "admin@example.com", 200),
@@ -326,3 +359,78 @@ def test_openapi_json_still_accessible(monkeypatch):
             resp = client.get("/openapi.json")
     assert resp.status_code == 200
     assert resp.json()["info"]["title"] == "Allotmint API"
+
+
+def test_health_returns_expected_body_without_auth_header(monkeypatch):
+    """GET /health must positively return its documented body with no
+    Authorization header at all, not merely avoid a 401.
+
+    Auth is deliberately left enabled (disable_auth=False) so this test
+    proves the route itself carries no auth dependency, rather than passing
+    only because auth checks were disabled for the whole app (#5329).
+    """
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    monkeypatch.setattr(config, "snapshot_warm_days", 30)
+    monkeypatch.setattr(config, "disable_auth", False)
+    monkeypatch.setattr(config, "app_env", "test-env")
+    monkeypatch.setenv("JWT_SECRET", "test-secret")
+    with patch("backend.common.portfolio_utils.refresh_snapshot_async"):
+        app = create_app()
+        with TestClient(app) as client:
+            assert "Authorization" not in client.headers
+            resp = client.get("/health")
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "ok", "env": "test-env"}
+
+
+def test_config_get_returns_expected_body_without_auth_header(monkeypatch):
+    """GET /config must positively return the serialised configuration with
+    no Authorization header, since it is the frontend's pre-auth bootstrap
+    endpoint used to determine whether auth is required at all (#5329).
+    """
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    monkeypatch.setattr(config, "snapshot_warm_days", 30)
+    monkeypatch.setattr(config, "disable_auth", False)
+    # google_auth_enabled/google_client_id are re-derived from the environment
+    # by load_runtime_config() on every create_app() call (they are not in
+    # backend/bootstrap/config.py's _OVERRIDE_ATTRS), so set them via env vars
+    # rather than monkeypatch.setattr(config, ...), which would be discarded.
+    monkeypatch.setenv("GOOGLE_AUTH_ENABLED", "true")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "client-123")
+    monkeypatch.setenv("JWT_SECRET", "test-secret")
+    with patch("backend.common.portfolio_utils.refresh_snapshot_async"):
+        app = create_app()
+        with TestClient(app) as client:
+            assert "Authorization" not in client.headers
+            resp = client.get("/config")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["disable_auth"] is False
+    assert body["google_auth_enabled"] is True
+    assert body["google_client_id"] == "client-123"
+
+
+def test_token_google_exchanges_token_without_auth_header(monkeypatch):
+    """POST /token/google must positively exchange a Google ID token for an
+    app JWT with no Authorization header present, since callers reach this
+    endpoint with no session of their own yet (#5329, see also #4240).
+
+    The Google verification itself is mocked out (as in
+    tests/test_google_auth.py::test_google_token_flow) so the test exercises
+    the route's response shape without depending on live Google network
+    calls.
+    """
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    monkeypatch.setattr(config, "snapshot_warm_days", 30)
+    monkeypatch.setattr(config, "disable_auth", False)
+    monkeypatch.setenv("JWT_SECRET", "test-secret")
+    monkeypatch.setattr(auth, "verify_google_token", lambda token: "user@example.com")
+    with patch("backend.common.portfolio_utils.refresh_snapshot_async"):
+        app = create_app()
+        with TestClient(app) as client:
+            assert "Authorization" not in client.headers
+            resp = client.post("/token/google", json={"token": "google-id-token"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["token_type"] == "bearer"
+    assert isinstance(body["access_token"], str) and body["access_token"]

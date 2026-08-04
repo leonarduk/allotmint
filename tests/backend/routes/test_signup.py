@@ -2,6 +2,7 @@ import json
 import warnings
 
 import pytest
+from botocore.exceptions import ClientError, ParamValidationError
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from slowapi import Limiter
@@ -11,6 +12,31 @@ from slowapi.util import get_remote_address
 
 from backend.common import signup_requests
 from backend.routes import signup as signup_module
+
+
+def _ses_message_rejected() -> ClientError:
+    return ClientError(
+        {"Error": {"Code": "MessageRejected", "Message": "Email address is not verified"}},
+        "SendEmail",
+    )
+
+
+def _ses_throttling() -> ClientError:
+    return ClientError(
+        {"Error": {"Code": "Throttling", "Message": "Maximum sending rate exceeded"}},
+        "SendEmail",
+    )
+
+
+def _ses_generic_config_error() -> ParamValidationError:
+    return ParamValidationError(report="Invalid type for parameter Source")
+
+
+_SES_FAILURE_MODES = [
+    pytest.param(_ses_message_rejected, id="message-rejected"),
+    pytest.param(_ses_throttling, id="throttling"),
+    pytest.param(_ses_generic_config_error, id="generic-config"),
+]
 
 
 @pytest.fixture
@@ -130,6 +156,48 @@ def test_email_send_failure_is_not_swallowed(client, monkeypatch):
 
     resp = test_client.post("/signup/request", json={"name": "Jane", "email": "jane@example.com"})
     assert resp.status_code == 502
+
+
+@pytest.mark.parametrize("make_error", _SES_FAILURE_MODES)
+def test_email_send_ses_failure_returns_502_and_logs(client, monkeypatch, caplog, make_error):
+    """#5375: MessageRejected, throttling, and generic/config SES failures must
+    all surface as a 502 with the error logged (with the request id for
+    context), matching the generic-RuntimeError case above.
+
+    The pending-request record is written to disk *before* the admin email is
+    attempted (see ``_post_signup_request_impl``), so -- unlike the approval
+    flow -- an SES failure here does NOT roll back the persisted request; the
+    record legitimately remains on disk as still-pending. That is the actual,
+    intentional behaviour, not an oversight: the visitor's request is not
+    lost just because the admin notification failed to send.
+    """
+    test_client, tmp_path = client
+
+    def boom(admin_email, notification):
+        raise make_error()
+
+    monkeypatch.setattr(signup_module, "send_signup_admin_email", boom)
+
+    with caplog.at_level("ERROR"):
+        resp = test_client.post(
+            "/signup/request", json={"name": "Jane", "email": "jane@example.com"}
+        )
+
+    assert resp.status_code == 502
+    assert resp.json()["detail"] == "failed to notify administrator"
+
+    # Logged with request-id context, at ERROR level (logger.exception).
+    error_records = [r for r in caplog.records if r.levelname == "ERROR"]
+    assert any("Failed to send signup admin email for request" in r.message for r in error_records)
+
+    # The pending request record was already persisted before the email
+    # attempt and is NOT rolled back -- this is the handler's actual current
+    # behaviour (see backend/routes/signup.py:_post_signup_request_impl).
+    store = tmp_path / "signup_requests"
+    files = list(store.glob("*.json"))
+    assert len(files) == 1
+    saved = json.loads(files[0].read_text())
+    assert saved["status"] == "pending"
 
 
 # ---------------------------------------------------------------------------
@@ -318,6 +386,50 @@ def test_approve_user_email_failure_is_not_swallowed(client, monkeypatch):
     request_id, token = _pending_request(tmp_path)
     resp = test_client.post(f"/signup/approve?id={request_id}&token={token}")
     assert resp.status_code == 502
+
+
+@pytest.mark.parametrize("make_error", _SES_FAILURE_MODES)
+def test_approve_user_email_ses_failure_returns_502_and_logs(client, monkeypatch, caplog, make_error):
+    """#5375: MessageRejected, throttling, and generic/config SES failures on
+    the approval-notification email must all surface as a 502 with the error
+    logged (with the request id for context).
+
+    By the time the user-notification email is attempted, the owner has
+    already been provisioned and the single-use token already consumed (see
+    ``approve_signup_request``'s docstring: 'the user has already been
+    provisioned by this point'). So an SES failure here intentionally does
+    NOT undo the provisioning or un-consume the token -- asserting otherwise
+    would contradict the handler's documented design.
+    """
+    test_client, tmp_path = client
+    store = _stub_store(monkeypatch)
+    monkeypatch.setenv("SIGNUP_LOGIN_URL", "https://allotmint.example/login")
+
+    def boom(user_email, name, login_url):
+        raise make_error()
+
+    monkeypatch.setattr(signup_module, "send_signup_approved_email", boom)
+
+    request_id, token = _pending_request(tmp_path)
+
+    with caplog.at_level("ERROR"):
+        resp = test_client.post(f"/signup/approve?id={request_id}&token={token}")
+
+    assert resp.status_code == 502
+    assert resp.json()["detail"] == "failed to notify user"
+
+    # Logged with request-id context, at ERROR level (logger.exception).
+    error_records = [r for r in caplog.records if r.levelname == "ERROR"]
+    assert any("Failed to send login-ready email for request" in r.message for r in error_records)
+
+    # Provisioning and token consumption are NOT rolled back -- this is the
+    # handler's documented, intentional behaviour (email failure must not
+    # silently undo an already-granted account).
+    person = json.loads((tmp_path / "accounts" / "jane" / "person.json").read_text())
+    assert person["email"] == "jane@example.com"
+    assert store.ensured == ["jane"]
+    store_dir = signup_requests.signup_requests_dir(tmp_path)
+    assert json.loads((store_dir / f"{request_id}.json").read_text())["status"] == "approved"
 
 
 def test_get_approve_is_a_safe_confirmation_page(client, monkeypatch):

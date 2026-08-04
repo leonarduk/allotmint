@@ -354,6 +354,57 @@ describe("Portfolio page", () => {
     expect((await screen.findByText(/Approx Total:/)).textContent).toMatch(/200/);
   });
 
+  it("shows the newer request's error when both stale and newer requests fail", async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: "alice", accounts: [] },
+      { owner: "bob", accounts: [] },
+    ]);
+
+    const alice = deferred<Portfolio>();
+    const bob = deferred<Portfolio>();
+    mockGetPortfolio.mockImplementation((owner: string) =>
+      owner === "alice" ? alice.promise : bob.promise,
+    );
+
+    render(
+      <HelmetProvider>
+        <MemoryRouter initialEntries={["/portfolio"]}>
+          <OwnerOnlyRouteProvider>
+            <Routes>
+              <Route path="/portfolio" element={<PortfolioPage />} />
+            </Routes>
+          </OwnerOnlyRouteProvider>
+        </MemoryRouter>
+      </HelmetProvider>,
+    );
+
+    const ownerSelect = await screen.findByLabelText(/Owner/i);
+    await userEvent.selectOptions(ownerSelect, "alice");
+    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("alice"));
+
+    await userEvent.selectOptions(ownerSelect, "bob");
+    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("bob"));
+
+    // Both requests fail -- the stale (alice) request first, then the
+    // newer (bob) request. The stale failure must not surface, and once
+    // the newer request also fails, its error must be the one shown, with
+    // loading cleared.
+    await act(async () => {
+      alice.reject(new Error("stale alice failure"));
+      await expect(alice.promise).rejects.toThrow("stale alice failure");
+    });
+    expect(screen.queryByText("Failed to load portfolio")).not.toBeInTheDocument();
+
+    await act(async () => {
+      bob.reject(new Error("bob failed"));
+      await expect(bob.promise).rejects.toThrow("bob failed");
+    });
+
+    expect(await screen.findByText("Failed to load portfolio")).toBeInTheDocument();
+    expect(screen.queryByText(/^Loading…$/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Approx Total:/)).not.toBeInTheDocument();
+  });
+
   it("shows available owners excluding demo entries", async () => {
     mockGetOwners.mockResolvedValueOnce([
       { owner: "demo", accounts: [] },

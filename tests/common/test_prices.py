@@ -488,3 +488,67 @@ def test_refresh_prices_partial_null_preserves_existing_prices(
     assert price_cache.get("BBB.L") == pytest.approx(20.0), (
         "_price_cache must contain preserved seed price for null-returning ticker"
     )
+
+
+def test_refresh_prices_filters_nan_zero_and_negative_prices(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """End-to-end NaN/zero/negative guard: mock the underlying price fetches
+    (``_load_latest_prices`` / ``load_live_prices``) so ``get_price_snapshot``
+    runs for real, then verify ``refresh_prices``'s write-boundary filter
+    keeps only finite, strictly-positive prices — preserving any existing
+    seed value for tickers whose freshly-fetched price is NaN, zero, or
+    negative."""
+
+    tickers = ["NAN.L", "ZERO.L", "NEG.L", "OK.L"]
+    seed = {
+        "NAN.L": {"last_price": 10.0, "price_currency": "GBP"},
+        "ZERO.L": {"last_price": 20.0, "price_currency": "GBP"},
+        "NEG.L": {"last_price": 30.0, "price_currency": "GBP"},
+    }
+    output_path = tmp_path / "prices.json"
+    output_path.write_text(json.dumps(seed))
+
+    now = datetime.now(UTC)
+    # Live prices supply a NaN and a negative price directly; last-close
+    # fallback supplies a zero price for the ticker with no live entry.
+    monkeypatch.setattr(
+        prices,
+        "load_live_prices",
+        lambda t: {
+            "NAN.L": {"price": float("nan"), "timestamp": now},
+            "NEG.L": {"price": -5.0, "timestamp": now},
+            "OK.L": {"price": 12.0, "timestamp": now},
+        },
+    )
+    monkeypatch.setattr(
+        prices,
+        "_load_latest_prices",
+        lambda t: {"ZERO.L": 0.0},
+    )
+    monkeypatch.setattr(prices.instrument_api, "_resolve_full_ticker", lambda full, latest: None)
+    monkeypatch.setattr(prices, "_close_on", lambda *a, **k: None)
+    monkeypatch.setattr(prices, "list_all_unique_tickers", lambda: tickers)
+    monkeypatch.setattr(prices, "refresh_snapshot_in_memory", Mock())
+    monkeypatch.setattr(prices, "check_price_alerts", Mock())
+    monkeypatch.setattr(prices.config, "prices_json", output_path)
+    monkeypatch.setattr(prices, "_price_cache", {})
+
+    result = prices.refresh_prices()
+
+    snapshot = result["snapshot"]
+    # get_price_snapshot's own NaN guard converts the NaN live price to None...
+    assert snapshot["NAN.L"]["last_price"] is None
+    # ...but zero and negative prices are not filtered at that layer, only
+    # at refresh_prices's write-boundary filter.
+    assert snapshot["ZERO.L"]["last_price"] == pytest.approx(0.0)
+    assert snapshot["NEG.L"]["last_price"] == pytest.approx(-5.0)
+    assert snapshot["OK.L"]["last_price"] == pytest.approx(12.0)
+
+    written = json.loads(output_path.read_text())
+    # NaN/zero/negative fetched prices must not overwrite the seed values.
+    assert written["NAN.L"]["last_price"] == pytest.approx(10.0)
+    assert written["ZERO.L"]["last_price"] == pytest.approx(20.0)
+    assert written["NEG.L"]["last_price"] == pytest.approx(30.0)
+    # A genuinely valid fresh price is persisted.
+    assert written["OK.L"]["last_price"] == pytest.approx(12.0)

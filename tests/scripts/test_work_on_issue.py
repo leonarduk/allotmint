@@ -59,7 +59,9 @@ def _run_main(monkeypatch, tmp_path, cli_args, sleep_mock):
         lambda owner, repo, issue_id, token: {"title": "Some Issue Title", "body": "body text"},
     )
     monkeypatch.setattr("d_work_on_issue.get_main_branch_sha", lambda owner, repo: "deadbeef")
-    monkeypatch.setattr("d_work_on_issue.create_branch", lambda owner, repo, branch_name, sha, token: None)
+    monkeypatch.setattr(
+        "d_work_on_issue.create_branch", lambda owner, repo, branch_name, sha, token: None
+    )
 
     run_calls: list[list[str]] = []
 
@@ -102,3 +104,34 @@ class TestFetchDelay:
         _run_main(monkeypatch, tmp_path, ["4445"], sleep_mock)
 
         sleep_mock.assert_called_once()
+
+
+class TestIssueFileEncoding:
+    def test_writes_unicode_body_as_utf8(self, monkeypatch, tmp_path):
+        """GitHub issue bodies commonly contain non-ASCII punctuation (e.g. non-breaking
+        hyphens); writing with the platform default encoding fails with UnicodeEncodeError
+        on Windows (cp1252) unless UTF-8 is specified explicitly."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(sys, "argv", ["d_work_on_issue.py", "4445"])
+        monkeypatch.setattr("d_work_on_issue.time.sleep", mock.MagicMock())
+        monkeypatch.setattr("d_work_on_issue.get_repo_info", lambda: ("leonarduk", "allotmint"))
+        unicode_body = "multi‑domain project — see notes"
+        issue_response = {"title": "Some Issue Title", "body": unicode_body}
+        monkeypatch.setattr(
+            "d_work_on_issue.fetch_issue",
+            lambda owner, repo, issue_id, token: issue_response,
+        )
+        monkeypatch.setattr("d_work_on_issue.get_main_branch_sha", lambda owner, repo: "deadbeef")
+        monkeypatch.setattr(
+            "d_work_on_issue.create_branch",
+            lambda owner, repo, branch_name, sha, token: None,
+        )
+        monkeypatch.setattr(
+            "d_work_on_issue.subprocess.run",
+            lambda cmd, **kwargs: mock.MagicMock(returncode=0, stdout=""),
+        )
+
+        main()
+
+        issue_file = tmp_path / ".issue-4445.md"
+        assert issue_file.read_text(encoding="utf-8") == f"Some Issue Title\n\n{unicode_body}\n"

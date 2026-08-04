@@ -4,6 +4,10 @@
 
 - Backend uses Python's `logging` module. The main configuration lives in `backend/logging.ini`.
 - A minimal top-level `logging.ini` only overrides noisy third-party loggers such as `yfinance`.
+- Set `LOG_FORMAT=json` to switch the console handler to structured JSON output (see
+  `backend/logging_setup.py`). This applies even when `fileConfig` is skipped because the root
+  logger already has handlers (e.g. uvicorn configured logging first). Any other value, or
+  leaving it unset, keeps the default plain-text format.
 - When deployed on AWS Lambda, logs are written to explicit CDK-managed CloudWatch log groups.
   Discover the deployed names from the `BackendLambdaStack` outputs:
   `BackendLambdaLogGroupName`, `PriceRefreshLambdaLogGroupName`, and

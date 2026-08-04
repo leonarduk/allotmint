@@ -144,9 +144,7 @@ def _fetch_sectors() -> List[SectorPayload]:
         return out
 
     if invalid_payload or not data:
-        logger.warning(
-            "Falling back to US sector ETF data because LSE sector payload is empty/invalid"
-        )
+        logger.warning("Falling back to US sector ETF data because LSE sector payload is empty/invalid")
     return _fetch_us_sector_etf_changes()
 
 
@@ -163,9 +161,7 @@ def _fetch_us_sector_etf_changes() -> List[SectorPayload]:
     out: List[SectorPayload] = []
     for sector, symbol in US_SECTOR_ETFS.items():
         if symbol not in closes:
-            logger.warning(
-                "Skipping sector fallback for %s because %s close data is missing", sector, symbol
-            )
+            logger.warning("Skipping sector fallback for %s because %s close data is missing", sector, symbol)
             continue
 
         try:
@@ -180,9 +176,7 @@ def _fetch_us_sector_etf_changes() -> List[SectorPayload]:
             previous_close = float(series.iloc[-2])
             latest_close = float(series.iloc[-1])
             if previous_close == 0:
-                logger.warning(
-                    "Skipping sector fallback for %s because previous close is zero", sector
-                )
+                logger.warning("Skipping sector fallback for %s because previous close is zero", sector)
                 continue
             pct_change = ((latest_close - previous_close) / previous_close) * 100
             out.append({"sector": sector, "change": pct_change, "source": "us_etf"})
@@ -234,12 +228,7 @@ def _fetch_uk_sectors() -> List[SectorPayload]:
         if not isinstance(entry, dict):
             continue
 
-        name = (
-            entry.get("name")
-            or entry.get("sector")
-            or entry.get("sectorName")
-            or entry.get("label")
-        )
+        name = entry.get("name") or entry.get("sector") or entry.get("sectorName") or entry.get("label")
         if not name:
             continue
 
@@ -346,9 +335,7 @@ def _fetch_headlines() -> List[Dict[str, Any]]:
         try:
             items = get_cached_news(sym)
         except RuntimeError:
-            logger.warning(
-                "News quota exhausted while building market headlines; returning partial data"
-            )
+            logger.warning("News quota exhausted while building market headlines; returning partial data")
             break
 
         if not items:
@@ -391,6 +378,15 @@ async def market_overview(
     # the sum of all three. `_safe` still runs inside each thread, so an
     # exception in one fetcher only replaces that fetcher's own result with
     # its default and doesn't affect the others or fail the gather.
+    #
+    # `run_in_executor(None, ...)` uses the event loop's *default* executor,
+    # a single process-wide `ThreadPoolExecutor` shared by every coroutine in
+    # this process that doesn't pass its own executor. Under concurrent
+    # traffic, requests here compete for the same worker threads as any other
+    # blocking work offloaded elsewhere in the app - a burst of slow fetchers
+    # can starve unrelated `run_in_executor(None, ...)` calls of workers. If
+    # this becomes a bottleneck, give this route (or the app) a dedicated
+    # `ThreadPoolExecutor` instead of relying on the shared default.
     loop = asyncio.get_running_loop()
     indexes, sectors, headlines = await asyncio.gather(
         loop.run_in_executor(None, _safe, _fetch_indexes, {}),

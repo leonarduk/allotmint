@@ -8,8 +8,8 @@ name: Dependabot Auto-Merge
 # branch's required status checks (see .github/rulesets/default-branch-protection.json)
 # before the merge actually happens, so this does not bypass CI.
 #
-# Repo setting "Allow auto-merge" must be enabled for this to take effect --
-# see docs/CONTRIBUTING.md.
+# Repo setting "Allow auto-merge" (API/Terraform field: `allow_auto_merge`)
+# must be enabled for this to take effect -- see docs/BRANCH_PROTECTION.md.
 #
 # See issue #5540 -- follow-up from PR #5538 (manual "tar" patch bump).
 

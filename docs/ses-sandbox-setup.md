@@ -7,6 +7,14 @@ verified identities. Deploying the signup flow without verifying the relevant
 addresses first causes SES to reject every email with a `MessageRejected`
 error, and the affected requests will silently never notify anyone.
 
+## Sending limits in sandbox mode
+
+While in sandbox mode, SES also caps sending volume: a maximum of **200
+emails per 24-hour period**, at a rate of no more than 1 email per second.
+These limits are separate from the verified-identity restriction above and
+apply account-wide, not per-address. They are lifted when the account moves
+out of sandbox mode (see "Moving out of sandbox mode" below).
+
 ## Addresses that must be verified
 
 While the SES account is in sandbox mode, verify:

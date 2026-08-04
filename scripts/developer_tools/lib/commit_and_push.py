@@ -189,7 +189,13 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "Ollama model name, only used when --model-source=local "
-            "(default: OLLAMA_MODEL env var or 'qwen2.5-coder:7b')"
+            "(default: OLLAMA_MODEL env var or 'qwen2.5-coder:7b'). "
+            "--model-source is not required alongside --model: it already "
+            "defaults to 'local' (see add_model_source_arg), which is the "
+            "only source --model applies to. Passing --model with an "
+            "explicit --model-source cloud is accepted but ignored with a "
+            "warning below, rather than rejected, so cloud runs stay usable "
+            "without having to drop a leftover --model flag."
         ),
     )
     add_model_source_arg(parser)

@@ -239,6 +239,14 @@ def create_app() -> FastAPI:
         an allowlisted subset of its claims (sub, email, exp, iss, token_use,
         aud), and whether its email matches the backend allowed-emails set.
 
+        The ``_`` parameter is ``str | None`` (not ``str``) because
+        ``require_admin`` returns ``None`` in local dev: when ``ADMIN_EMAILS``
+        is unset and ``disable_auth`` is true, ``require_admin`` allows the
+        request through without an authenticated user rather than raising, so
+        this endpoint can be exercised without Cognito configured locally.
+        In any other environment (an allowlist configured, or auth not
+        disabled) ``require_admin`` raises 403 before ``_`` could be ``None``.
+
         Limitation: when the API Gateway Cognito JWT authorizer rejects a
         request it never reaches the Lambda, so this endpoint cannot diagnose
         gateway-level 401s — those are visible in API Gateway access logs in

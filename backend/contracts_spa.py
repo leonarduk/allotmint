@@ -59,6 +59,23 @@ class ConfigContract(SpaContractBase):
     top-level fields are ignored here. ``tabs`` is still validated strictly
     via ``ConfigTabsContract`` since tab-name drift is what previously broke
     the SPA (see #5871).
+
+    Fields deliberately left out of this contract (present on
+    ``backend.config.Config`` but not validated/consumed here) include
+    ``rate_limit_per_minute``, ``signup_rate_limit``, ``portfolio_xml_path``,
+    ``transactions_output_root``, ``repo_root``, ``data_root``,
+    ``accounts_root``, and similar file-path/limit settings -- none of these
+    are secrets, so ``extra="ignore"`` is a reasonable relaxation for them.
+
+    However, ``backend.config.Config`` *also* holds real secrets --
+    ``telegram_bot_token``, ``alpha_vantage_key``, ``yahoo_news_key``,
+    ``google_news_key`` -- and ``routes/config.py:read_config`` returns
+    ``serialise_config()``'s full dict (typed ``Dict[str, Any]``, not this
+    contract) directly as the HTTP response body, so these are not actually
+    filtered out before reaching the client. ``extra="ignore"`` here only
+    affects this test/contract-validation model; it does not redact the
+    live API response. This is tracked for a dedicated fix rather than
+    handled in this contract (see issue #5953).
     """
 
     model_config = ConfigDict(extra="ignore")

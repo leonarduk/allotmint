@@ -208,7 +208,18 @@ def extract_file_paths_from_issue(
 ) -> list[str]:
     """Extract file paths mentioned in the issue body.
 
-    Looks for paths that exist in the repo (basic heuristic).
+    Looks for paths that exist in the repo (basic heuristic). Supported
+    formats (see the `pattern` regex below for the exact extension list):
+
+    - Bare paths, e.g. ``backend/app.py`` or ``src/foo.ts``.
+    - Markdown link paths, e.g. ``[backend/app.py](https://...)``.
+    - Backtick-wrapped bullets, e.g. ``- `backend/app.py``` -- the "Files
+      Affected" convention produced by every issue template in this repo.
+
+    Paths must be relative (no leading ``/`` or ``\\``, no ``..`` segments --
+    see :func:`is_safe_relative_path`) and must exist on disk relative to the
+    current working directory to be returned; anything else is silently
+    skipped rather than raising, since the input is free-form issue text.
     """
     paths = []
 

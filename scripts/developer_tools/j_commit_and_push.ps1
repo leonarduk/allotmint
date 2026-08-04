@@ -1,6 +1,10 @@
 param(
     [string]$Message = $null,
     [string[]]$Files = $null,
+    # --no-llm is the canonical flag (via the alias on $NoLlm).
+    # -NoOllama is kept for backward compatibility only.
+    # If both are passed, both --no-ollama and --no-llm are forwarded to the Python CLI;
+    # this is acceptable and the CLI handles both flags.
     [switch]$NoOllama = $false,
     [alias("no-llm")]
     [switch]$NoLlm = $false,
@@ -29,6 +33,8 @@ Skip the LLM and use a plain default commit message.
 
 .PARAMETER Model
 Ollama model name, only used when --model-source=local (default: OLLAMA_MODEL env var or 'qwen2.5-coder:7b').
+ModelSource does not need to be passed alongside Model: the underlying Python script already defaults
+model-source to 'local'. Passing -Model with -ModelSource cloud is accepted but ignored, with a warning.
 
 .PARAMETER ModelSource
 Specify the source of the model being committed and pushed.

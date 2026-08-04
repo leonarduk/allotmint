@@ -193,7 +193,12 @@ def branch_is_ahead_of_main(branch: str, default_branch: str) -> bool:
 
 
 def push_to_remote(branch: str) -> bool:
-    """Push the branch to remote."""
+    """Push the branch to remote.
+
+    Always passes `-u` so the branch's upstream is set on the first push,
+    not just on subsequent ones -- callers don't need the branch to already
+    be tracking upstream before calling this.
+    """
     try:
         subprocess.run(["git", "push", "-u", "origin", branch], check=True)
         return True

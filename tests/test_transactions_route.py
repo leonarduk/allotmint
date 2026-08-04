@@ -1,5 +1,6 @@
 import json
 import sys
+from collections import defaultdict
 from types import SimpleNamespace
 
 import pytest
@@ -465,8 +466,13 @@ def test_calculate_portfolio_impact_tolerates_units_only_none():
 
 def test_import_transactions_rolls_back_when_later_write_fails(tmp_path, monkeypatch):
     client = _make_client(tmp_path, monkeypatch)
-    posted_before = list(transactions._POSTED_TRANSACTIONS)
-    impact_before = dict(transactions._PORTFOLIO_IMPACT)
+    # Isolate from _POSTED_TRANSACTIONS/_PORTFOLIO_IMPACT state left behind by
+    # other tests in this module (they're process-global, not reset between
+    # tests) rather than snapshotting whatever pre-existing state happens to
+    # be there -- a before/after equality check against polluted state can
+    # spuriously pass or fail depending on test execution order.
+    monkeypatch.setattr(transactions, "_POSTED_TRANSACTIONS", [])
+    monkeypatch.setattr(transactions, "_PORTFOLIO_IMPACT", defaultdict(float))
     sample = [
         transactions.Transaction(owner="alice", account="isa", ticker="PFE", price_gbp=2, units=3),
         transactions.Transaction(owner="alice", account="isa", ticker="MSFT", price_gbp=5, units=2),
@@ -492,8 +498,8 @@ def test_import_transactions_rolls_back_when_later_write_fails(tmp_path, monkeyp
 
     stored = json.loads((tmp_path / "alice" / "isa_transactions.json").read_text())
     assert stored["transactions"] == []
-    assert transactions._POSTED_TRANSACTIONS == posted_before
-    assert dict(transactions._PORTFOLIO_IMPACT) == impact_before
+    assert transactions._POSTED_TRANSACTIONS == []
+    assert dict(transactions._PORTFOLIO_IMPACT) == {}
 
 
 def test_import_transactions_empty_parse_does_not_require_writable_store(tmp_path, monkeypatch):

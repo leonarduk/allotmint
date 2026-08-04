@@ -55,6 +55,7 @@ ACCESS_LOG_FORMAT = json.dumps(
     {
         "requestId": "$context.requestId",
         "routeKey": "$context.routeKey",
+        "path": "$context.path",
         "status": "$context.status",
         "errorMessage": "$context.error.message",
         "authorizerError": "$context.authorizer.error",
@@ -1115,19 +1116,27 @@ class BackendLambdaStack(Stack):
             treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
         )
 
-        # HTTP API metrics are emitted per API/stage, not per route. Derive a
-        # route-specific metric from the structured access log so failures of
-        # this comparatively expensive aggregation endpoint are not hidden by
-        # otherwise healthy API traffic (issue #5523).
+        # HTTP API metrics are emitted per API/stage, not per route. All
+        # portfolio-group endpoints (/portfolio-group/{slug} and its
+        # /instruments, /sectors, /regions, /exposure, /movers,
+        # /instrument/{ticker} sub-resources - see backend/routes/portfolio.py)
+        # are registered only via the ANY /{proxy+} catch-all, so
+        # $context.routeKey for those requests is always the literal string
+        # "ANY /{proxy+}", never the specific method+path. A metric filter
+        # keyed on routeKey can therefore never match real portfolio-group
+        # traffic; $context.path (the actual request path, logged above)
+        # is used instead so failures of this comparatively expensive
+        # aggregation endpoint family are not hidden by otherwise healthy API
+        # traffic (issue #5494, follow-up from #5491).
         portfolio_group_5xx_metric = logs.MetricFilter(
             self,
-            "PortfolioGroupAll5xxMetricFilter",
+            "PortfolioGroup5xxMetricFilter",
             log_group=access_log_group,
             filter_pattern=logs.FilterPattern.literal(
-                '{ ($.routeKey = "GET /portfolio-group/all") && ($.status = 5*) }'
+                '{ ($.path = "/portfolio-group*") && ($.status = 5*) }'
             ),
             metric_namespace="AllotMint/BackendApi",
-            metric_name="PortfolioGroupAll5xx",
+            metric_name="PortfolioGroup5xx",
             metric_value="1",
             default_value=0,
         )
@@ -1138,7 +1147,7 @@ class BackendLambdaStack(Stack):
             )
         portfolio_group_5xx_alarm = cloudwatch.Alarm(
             self,
-            "PortfolioGroupAll5xxAlarm",
+            "PortfolioGroup5xxAlarm",
             metric=portfolio_group_5xx_metric.metric(
                 statistic="Sum", period=Duration.minutes(1)
             ),
@@ -1201,6 +1210,6 @@ class BackendLambdaStack(Stack):
         CfnOutput(self, "BackendLambdaErrorAlarmName", value=backend_error_alarm.alarm_name)
         CfnOutput(
             self,
-            "PortfolioGroupAll5xxAlarmName",
+            "PortfolioGroup5xxAlarmName",
             value=portfolio_group_5xx_alarm.alarm_name,
         )

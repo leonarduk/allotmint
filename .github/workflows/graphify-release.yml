@@ -1,0 +1,47 @@
+name: Graphify Knowledge Graph
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+env:
+  HAS_DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY != '' }}
+
+jobs:
+  graphify:
+    name: Build knowledge graph
+    runs-on: ubuntu-latest
+    continue-on-error: true  # Must never block a release
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Install Graphify
+        run: pip install graphifyy==0.9.32
+
+      - name: Build knowledge graph
+        run: graphify .
+
+      - name: Semantic extraction (DeepSeek)
+        if: env.HAS_DEEPSEEK_API_KEY == 'true'
+        continue-on-error: true
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: graphify extract . --backend deepseek
+
+      - name: Upload graphify output
+        uses: actions/upload-artifact@v7
+        with:
+          name: graphify-${{ github.ref_name }}
+          path: graphify-out/
+          retention-days: 90

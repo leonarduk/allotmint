@@ -78,3 +78,5 @@ coverage.xml
 /scripts/developer_tools/scripts/developer_tools/.coverage
 /scripts/developer_tools/test-results/junit.xml
 /.issue-*.md
+/frontend/test-results/.last-run.json
+/frontend/test-results/

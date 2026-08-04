@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
-import math
 from functools import lru_cache
 from typing import Any, Dict, List, Mapping, Optional, Tuple
 
@@ -26,6 +25,7 @@ from backend.common.constants import ACCOUNTS, HOLDINGS, OWNER
 from backend.common.group_portfolio import build_group_portfolio
 from backend.common.holding_utils import load_latest_prices
 from backend.common.instruments import list_group_definitions
+from backend.common.numeric_utils import clean_price
 from backend.common.portfolio_utils import get_security_meta, list_all_unique_tickers
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
@@ -389,8 +389,7 @@ def _close_on(sym: str, ex: str, d: dt.date) -> Optional[float]:
         col = "close" if "close" in df.columns else ("Close" if "Close" in df.columns else None)
     if not col:
         return None
-    price = float(df[col].iloc[0])
-    return None if math.isnan(price) else price
+    return clean_price(df[col].iloc[0])
 
 
 def price_change_pct(ticker: str, days: int) -> Optional[float]:

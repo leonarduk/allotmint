@@ -28,7 +28,6 @@ from __future__ import annotations
 
 import json
 import logging
-import math
 import os
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -40,6 +39,7 @@ from backend.common import instrument_api
 from backend.common.currency import CurrencyNormaliser
 from backend.common.holding_utils import load_latest_prices as _load_latest_prices
 from backend.common.holding_utils import load_live_prices
+from backend.common.numeric_utils import clean_price
 from backend.common.portfolio_loader import list_portfolios
 from backend.common.portfolio_utils import (
     DATA_BUCKET_ENV,
@@ -85,11 +85,10 @@ def _close_on(sym: str, exch: str, d: date) -> Optional[float]:
         return None
 
     try:
-        value = float(df[close_col].iloc[0])
+        value = clean_price(df[close_col].iloc[0])
     except Exception:
         return None
-
-    if math.isnan(value):
+    if value is None:
         return None
 
     if close_col.lower() != "close_gbp":
@@ -140,17 +139,14 @@ def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
         price_currency: Optional[str]
 
         if live_info:
-            live_price = live_info.get("price")
-            price = float(live_price) if live_price is not None else None
-            if price is not None and math.isnan(price):
-                price = None
+            price = clean_price(live_info.get("price"))
             ts = live_info.get("timestamp")
             if ts:
                 is_stale = (now - ts) > timedelta(minutes=15)
             # load_live_prices converts to GBP internally
             price_currency = "GBP"
-        elif last_close is not None and not math.isnan(float(last_close)):
-            price = float(last_close)
+        elif (cleaned_last_close := clean_price(last_close)) is not None:
+            price = cleaned_last_close
             # no timestamp -> treat as stale
             # _load_latest_prices already normalises to GBP.
             price_currency = "GBP"

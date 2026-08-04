@@ -1,14 +1,17 @@
-"""End-to-end coverage for LOG_FORMAT=json against the real backend/logging.ini.
+"""End-to-end coverage for LOG_FORMAT against the real backend/logging.ini.
 
 The unit tests in ``test_logging_setup.py`` all mock ``logging.config.fileConfig``,
 so they never exercise the actual ini file shipped in the repo. This module
 loads it for real and asserts on genuine stdout output, closing the gap
-flagged independently by issues #5950, #5958, #5962 and #5965.
+flagged independently by issues #5950, #5958, #5962, #5965, #5924, #5970,
+#5984 and #5986.
 """
 
 import json
 import logging
 from pathlib import Path
+
+import pytest
 
 import backend.logging_setup as logging_setup
 
@@ -37,7 +40,10 @@ def test_real_logging_ini_with_log_format_json_emits_only_valid_json_lines(monke
     LOG_FORMAT=json and verify every line written to real stdout is valid,
     parseable JSON -- no plain-text lines mixed in."""
     root_logger = logging.getLogger()
-    restored_loggers = {"": root_logger, **{name: logging.getLogger(name) for name in _RESTORED_LOGGER_NAMES}}
+    restored_loggers = {
+        "": root_logger,
+        **{name: logging.getLogger(name) for name in _RESTORED_LOGGER_NAMES},
+    }
     saved_state = {name: _snapshot_logger(logger) for name, logger in restored_loggers.items()}
 
     monkeypatch.setattr(logging_setup.config, "log_config", "backend/logging.ini")
@@ -60,6 +66,114 @@ def test_real_logging_ini_with_log_format_json_emits_only_valid_json_lines(monke
             assert payload["level"] == "INFO"
             assert payload["logger"] == "app.e2e.json_smoke"
             assert "timestamp" in payload
+    finally:
+        for name, logger in restored_loggers.items():
+            _restore_logger(logger, saved_state[name])
+        (REPO_ROOT / "backend.log").unlink(missing_ok=True)
+
+
+def test_real_logging_ini_with_log_format_unset_emits_plain_text_lines(monkeypatch, capsys):
+    """Load the real backend/logging.ini with LOG_FORMAT unset and verify stdout
+    still carries the plain-text "standard" formatter output, not JSON (#5984,
+    #5949, #5923: the ini's default behaviour must survive untouched)."""
+    root_logger = logging.getLogger()
+    restored_loggers = {
+        "": root_logger,
+        **{name: logging.getLogger(name) for name in _RESTORED_LOGGER_NAMES},
+    }
+    saved_state = {name: _snapshot_logger(logger) for name, logger in restored_loggers.items()}
+
+    monkeypatch.setattr(logging_setup.config, "log_config", "backend/logging.ini")
+    monkeypatch.setattr(logging_setup.config, "repo_root", REPO_ROOT)
+    monkeypatch.setattr(logging_setup.config, "log_format", None)
+    root_logger.handlers = []
+
+    try:
+        logging_setup.setup_logging()
+
+        emitting_logger = logging.getLogger("app.e2e.plain_text_smoke")
+        emitting_logger.info("hello from the end-to-end plain-text logging test")
+
+        captured_lines = [line for line in capsys.readouterr().out.splitlines() if line.strip()]
+
+        assert captured_lines, "expected at least one line written to stdout"
+        for line in captured_lines:
+            with pytest.raises(ValueError):
+                json.loads(line)
+            assert " - app.e2e.plain_text_smoke - INFO - " in line
+            assert line.endswith("hello from the end-to-end plain-text logging test")
+    finally:
+        for name, logger in restored_loggers.items():
+            _restore_logger(logger, saved_state[name])
+        (REPO_ROOT / "backend.log").unlink(missing_ok=True)
+
+
+def test_real_logging_ini_uvicorn_access_logger_emits_json(monkeypatch, capsys):
+    """With LOG_FORMAT=json, the uvicorn.access logger -- wired in backend/logging.ini
+    to the same shared consoleHandler as root -- must also emit JSON, not just the
+    app's own loggers (#5986)."""
+    root_logger = logging.getLogger()
+    restored_loggers = {
+        "": root_logger,
+        **{name: logging.getLogger(name) for name in _RESTORED_LOGGER_NAMES},
+    }
+    saved_state = {name: _snapshot_logger(logger) for name, logger in restored_loggers.items()}
+
+    monkeypatch.setattr(logging_setup.config, "log_config", "backend/logging.ini")
+    monkeypatch.setattr(logging_setup.config, "repo_root", REPO_ROOT)
+    monkeypatch.setattr(logging_setup.config, "log_format", "json")
+    root_logger.handlers = []
+
+    try:
+        logging_setup.setup_logging()
+
+        uvicorn_access_logger = logging.getLogger("uvicorn.access")
+        uvicorn_access_logger.info("127.0.0.1 - GET /health 200")
+
+        captured_lines = [line for line in capsys.readouterr().out.splitlines() if line.strip()]
+
+        assert captured_lines, "expected at least one line written to stdout"
+        for line in captured_lines:
+            payload = json.loads(line)
+            assert payload["logger"] == "uvicorn.access"
+            assert payload["level"] == "INFO"
+            assert payload["message"] == "127.0.0.1 - GET /health 200"
+    finally:
+        for name, logger in restored_loggers.items():
+            _restore_logger(logger, saved_state[name])
+        (REPO_ROOT / "backend.log").unlink(missing_ok=True)
+
+
+def test_real_logging_ini_redacts_telegram_token_in_json_output(monkeypatch, capsys):
+    """RedactTokenFilter is wired into backend/logging.ini's consoleHandler via
+    filters=redactToken; verify it still redacts the telegram token once that
+    handler's formatter has been switched to JSON (#5924)."""
+    root_logger = logging.getLogger()
+    restored_loggers = {
+        "": root_logger,
+        **{name: logging.getLogger(name) for name in _RESTORED_LOGGER_NAMES},
+    }
+    saved_state = {name: _snapshot_logger(logger) for name, logger in restored_loggers.items()}
+
+    monkeypatch.setattr(logging_setup.config, "log_config", "backend/logging.ini")
+    monkeypatch.setattr(logging_setup.config, "repo_root", REPO_ROOT)
+    monkeypatch.setattr(logging_setup.config, "log_format", "json")
+    monkeypatch.setattr(logging_setup.config, "telegram_bot_token", "super-secret-token")
+    root_logger.handlers = []
+
+    try:
+        logging_setup.setup_logging()
+
+        emitting_logger = logging.getLogger("app.e2e.redact_smoke")
+        emitting_logger.info("token=super-secret-token")
+
+        captured_lines = [line for line in capsys.readouterr().out.splitlines() if line.strip()]
+
+        assert captured_lines, "expected at least one line written to stdout"
+        for line in captured_lines:
+            payload = json.loads(line)
+            assert "super-secret-token" not in payload["message"]
+            assert payload["message"] == "token=***"
     finally:
         for name, logger in restored_loggers.items():
             _restore_logger(logger, saved_state[name])

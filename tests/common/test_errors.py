@@ -3,6 +3,7 @@ import logging
 
 import pytest
 
+from backend.common import errors as errors_module
 from backend.common.errors import (
     OWNER_NOT_FOUND,
     OwnerNotFoundError,
@@ -10,9 +11,44 @@ from backend.common.errors import (
     ValidationFailure,
     handle_app_error,
     handle_owner_not_found,
+    log_owner_not_found,
     raise_owner_not_found,
     to_http_exception,
 )
+
+
+def test_log_owner_not_found_strips_newlines_but_keeps_quotes_in_diagnostics(caplog):
+    """Special characters (quotes, newlines) in a diagnostic value must not
+    break or truncate the log line: newlines are stripped by
+    ``sanitise_log_value`` (CWE-117 log injection defence), but quotes are
+    left untouched -- they aren't part of what that helper sanitises (#5884)."""
+    with caplog.at_level(logging.WARNING, logger="backend.common.errors"):
+        log_owner_not_found("ghost", note='has "quotes" and\nnewlines\r\nhere')
+
+    assert 'owner lookup: no owner found for owner=ghost (note=has "quotes" andnewlineshere)' in caplog.text
+
+
+def test_log_owner_not_found_sanitises_each_value_exactly_once(monkeypatch, caplog):
+    """Regression for #5879/#5880: the assembled ``suffix`` string must not be
+    passed through ``sanitise_log_value`` a second time on top of the
+    per-diagnostic-value sanitisation already applied when building it."""
+    call_count = 0
+    real_sanitise = errors_module.sanitise_log_value
+
+    def counting_sanitise(value):
+        nonlocal call_count
+        call_count += 1
+        return real_sanitise(value)
+
+    monkeypatch.setattr(errors_module, "sanitise_log_value", counting_sanitise)
+
+    with caplog.at_level(logging.WARNING, logger="backend.common.errors"):
+        log_owner_not_found("ghost", diag_a="x", diag_b="y")
+
+    # once for `owner`, once per diagnostic value -- never once more for the
+    # assembled suffix string as a whole.
+    assert call_count == 3
+    assert "owner lookup: no owner found for owner=ghost (diag_a=x, diag_b=y)" in caplog.text
 
 
 def test_raise_owner_not_found(caplog):

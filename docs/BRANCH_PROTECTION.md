@@ -140,6 +140,19 @@ in the "Checks" tab of long-lived PRs; see the inline comments in
 `conflict-check.yml` for the full investigation history (issue #3738, PR
 #3731).
 
+## Dependabot auto-merge
+
+`.github/workflows/dependabot-auto-merge.yml` calls `gh pr merge --auto` for
+Dependabot PRs that bump a frontend *dev* dependency by a patch version only
+(`dependabot/fetch-metadata` reports `update-type: version-update:semver-patch`
+and `dependency-type: direct:development`, and the head ref matches
+`dependabot/npm_and_yarn/frontend/*`). `--auto` only enables auto-merge --
+GitHub still waits for every required status check above before merging, so
+this does not weaken the gate. Production dependency bumps and minor/major
+updates are unaffected and still require manual review. The repo's
+"Allow auto-merge" setting (`allow_auto_merge`) must stay enabled for this to
+have any effect. See issue #5540.
+
 ## CodeQL
 
 CodeQL should be added to the required-check set only after its exact check

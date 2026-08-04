@@ -1,0 +1,43 @@
+name: Dependabot Auto-Merge
+
+# Auto-merges Dependabot pull requests that bump a frontend *dev* dependency
+# by a patch version only. Everything else -- production dependencies, minor
+# or major bumps, non-frontend ecosystems -- is left for manual review.
+#
+# `gh pr merge --auto` only *enables* auto-merge: GitHub still waits for the
+# branch's required status checks (see .github/rulesets/default-branch-protection.json)
+# before the merge actually happens, so this does not bypass CI.
+#
+# Repo setting "Allow auto-merge" must be enabled for this to take effect --
+# see docs/CONTRIBUTING.md.
+#
+# See issue #5540 -- follow-up from PR #5538 (manual "tar" patch bump).
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Enable auto-merge for frontend dev-dependency patch bumps
+        if: |
+          steps.metadata.outputs.update-type == 'version-update:semver-patch' &&
+          steps.metadata.outputs.dependency-type == 'direct:development' &&
+          startsWith(github.event.pull_request.head.ref, 'dependabot/npm_and_yarn/frontend/')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: gh pr merge --auto --squash "$PR_URL"

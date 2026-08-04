@@ -57,7 +57,11 @@ data/*
 
 # Logs
 backend.log
-/logs/
+# Keep the directory itself tracked (via logs/.gitkeep) so it exists on a
+# fresh checkout, even for entry points that don't create it themselves
+# (e.g. invoking uvicorn directly with --log-config backend/logging.ini).
+/logs/*
+!/logs/.gitkeep
 /tests/.coverage
 /.coverage
 /.coveragerc

@@ -76,7 +76,13 @@ def setup_logging() -> None:
                 config_path = base / config_path
 
             if config_path.exists():
-                (base / "logs").mkdir(parents=True, exist_ok=True)
+                try:
+                    (base / "logs").mkdir(parents=True, exist_ok=True)
+                except OSError:
+                    # Best-effort: some deployment targets (e.g. a read-only
+                    # filesystem) can't create it, and logging.ini's fileHandler
+                    # will simply fail to open below if it truly needs the dir.
+                    pass
                 logging.config.fileConfig(config_path, disable_existing_loggers=False)
 
     if config.log_format == "json":

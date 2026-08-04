@@ -29,3 +29,8 @@ npm run dev 2>&1 | ForEach-Object {
   Write-Host $_
   Add-Content -Path $logFile -Value $line
 }
+
+# npm is a native command, so $LASTEXITCODE reflects its exit code even
+# though it ran as the pipeline source rather than the final stage; propagate
+# it explicitly so callers (CI, other scripts) can detect a dev-server crash.
+exit $LASTEXITCODE

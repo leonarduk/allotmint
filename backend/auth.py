@@ -334,11 +334,20 @@ async def get_current_user(token: str | None = Depends(oauth2_scheme)) -> str:
         # no caller to authenticate. Raise explicitly rather than falling
         # through to _user_from_token(None), whose own "no token" rejection
         # happens to produce the same status code today but is not a
-        # substitute for this terminal case (#4795).
+        # substitute for this terminal case (#4795). The detail message is
+        # deliberately actionable (rather than a generic "Invalid
+        # authentication credentials") since this specific case is the
+        # out-of-the-box state of a fresh local checkout with disable_auth=true
+        # and no override picked yet — a bare 401 left first-time users with no
+        # indication that Support -> Local login override needed configuring
+        # (#6058).
         current_user.set(None)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication credentials",
+            detail=(
+                "No local login override is configured. Go to Support -> "
+                "Local login override and select a user to continue in local/demo mode."
+            ),
         )
     token_str = token if isinstance(token, str) else None
     return _user_from_token(token_str)

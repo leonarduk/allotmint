@@ -77,6 +77,15 @@ describe("Support page", () => {
     expect(await screen.findByText(en.support.environment)).toBeInTheDocument();
   });
 
+  it("links to the Data Explorer (issue #6058)", async () => {
+    render(<Support />, { wrapper: MemoryRouter });
+    await expandSection(en.support.dataExplorer.title);
+    const link = await screen.findByRole("link", {
+      name: en.support.dataExplorer.link,
+    });
+    expect(link).toHaveAttribute("href", "/data-explorer");
+  });
+
   it("shows owner selector", async () => {
     render(<Support />, { wrapper: MemoryRouter });
     await expandSection(en.support.notifications.title);

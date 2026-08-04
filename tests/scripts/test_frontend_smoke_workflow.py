@@ -116,9 +116,12 @@ def test_frontend_smoke_builds_preview_before_running_playwright() -> None:
     build_idx = _first_step_index(steps, lambda step: "build:preview" in _step_run(step))
     playwright_idx = _first_step_index(steps, lambda step: "playwright test" in _step_run(step))
 
-    assert (
-        build_idx is not None and playwright_idx is not None
-    ), "frontend-smoke must have both a build:preview step and a Playwright test step"
+    assert build_idx is not None, (
+        "frontend-smoke job has no step running 'npm run build:preview'"
+    )
+    assert playwright_idx is not None, (
+        "frontend-smoke job has no step running a Playwright test command"
+    )
     assert build_idx < playwright_idx, (
         "frontend-smoke must run 'npm run build:preview' before the Playwright "
         "test step, otherwise smoke tests would run against a stale/missing build"

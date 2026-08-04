@@ -13,6 +13,7 @@ import pandas as pd
 
 from backend.common import portfolio as portfolio_mod
 from backend.common import portfolio_utils
+from backend.common.numeric_utils import is_nan
 from backend.config import config
 
 
@@ -24,7 +25,7 @@ def _clamp_loss_fraction(loss_fraction: float) -> float:
     loss fractions before converting them back into monetary VaR contributions.
     """
 
-    if pd.isna(loss_fraction):
+    if is_nan(loss_fraction):
         return float("nan")
     return min(max(float(loss_fraction), 0.0), 1.0)
 
@@ -133,7 +134,7 @@ def compute_portfolio_var(owner: str, days: int = 365, confidence: float = 0.95,
         return {"window_days": days, "confidence": confidence, "1d": None, "10d": None}
 
     quantile_1d = returns.quantile(1 - confidence)
-    if pd.isna(quantile_1d):
+    if is_nan(quantile_1d):
         var_1d = None
     else:
         var_1d_loss_pct = _clamp_loss_fraction(-(quantile_1d))
@@ -144,7 +145,7 @@ def compute_portfolio_var(owner: str, days: int = 365, confidence: float = 0.95,
         var_10d = None
     else:
         quantile_10d = ten_day_returns.quantile(1 - confidence)
-        if pd.isna(quantile_10d):
+        if is_nan(quantile_10d):
             var_10d = None
         else:
             var_10d_loss_pct = _clamp_loss_fraction(-(quantile_10d))
@@ -405,7 +406,7 @@ def compute_sharpe_ratio(owner: str, days: int = 365) -> float | None:
     daily_rf = rf / trading_days
     excess = returns - daily_rf
     std = excess.std(ddof=1)
-    if std == 0 or pd.isna(std):
+    if std == 0 or is_nan(std):
         return None
 
     sharpe = (excess.mean() / std) * np.sqrt(trading_days)

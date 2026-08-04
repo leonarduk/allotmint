@@ -423,6 +423,21 @@ export default function Support() {
         )}
       </SectionCard>
 
+      <SectionCard title={t("support.dataExplorer.title", "Data Explorer")}>
+        <p className="mb-2 text-sm text-gray-600">
+          {t(
+            "support.dataExplorer.description",
+            "Browse the backend data area (local files, or S3 in the AWS deployment) to inspect account, price, and timeseries data.",
+          )}
+        </p>
+        <Link
+          to="/data-explorer"
+          className="inline-block rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+        >
+          {t("support.dataExplorer.link", "Open Data Explorer")}
+        </Link>
+      </SectionCard>
+
       <SectionCard title={t("support.environment")} items={envEntries}>
         <table className="w-full table-auto text-sm">
           <tbody>

@@ -706,6 +706,52 @@ def _route_authorizer_map(template: dict) -> dict[str, dict]:
     }
 
 
+UNAUTHENTICATED_ROUTES = {
+    "GET /health",
+    "GET /config",
+    "POST /token",
+    "POST /token/google",
+    "POST /signup/request",
+    "GET /signup/approve",
+    "POST /signup/approve",
+    "GET /signup/reject",
+    "POST /signup/reject",
+    "OPTIONS /",
+    "OPTIONS /{proxy+}",
+}
+
+
+def _assert_routes_use_http_none_authorizer(
+    route_authorizer_map: dict, select, expected_route_keys: set
+) -> None:
+    """Positively assert that the routes matching ``select`` are registered
+    with HttpNoneAuthorizer (AuthorizationType NONE, no AuthorizerId).
+
+    Shared by the /signup/*, POST /token, and OPTIONS /{proxy+} tests below
+    (#5329 follow-up) so each just states which routes it expects instead of
+    repeating the set-equality + per-route AuthorizationType/AuthorizerId
+    assertions. A route being unauthenticated only proves it is *absent*
+    from the Cognito-JWT set (see test_backend_api_routes_require_cognito_authorizer
+    below); this positively confirms the specific authorizer used instead.
+    """
+    matched = {
+        route_key: properties
+        for route_key, properties in route_authorizer_map.items()
+        if select(route_key)
+    }
+    assert set(matched) == expected_route_keys, (
+        f"Unexpected route set: {set(matched)}, expected {expected_route_keys}"
+    )
+    for route_key, properties in matched.items():
+        assert properties.get("AuthorizationType") == "NONE", (
+            f"Route {route_key} must use HttpNoneAuthorizer (AuthorizationType "
+            f"NONE), got {properties.get('AuthorizationType')!r}"
+        )
+        assert "AuthorizerId" not in properties, (
+            f"Route {route_key} must not reference an authorizer resource"
+        )
+
+
 def test_backend_api_routes_require_cognito_authorizer(template):
     """All API Gateway routes must require Cognito JWT authorization except
     /health, GET /config, POST /token, POST /token/google, the public
@@ -744,20 +790,6 @@ def test_backend_api_routes_require_cognito_authorizer(template):
     Asserts the full route set so that adding any other unprotected route will
     fail this test rather than silently bypassing the authorizer.
     """
-    UNAUTHENTICATED_ROUTES = {
-        "GET /health",
-        "GET /config",
-        "POST /token",
-        "POST /token/google",
-        "POST /signup/request",
-        "GET /signup/approve",
-        "POST /signup/approve",
-        "GET /signup/reject",
-        "POST /signup/reject",
-        "OPTIONS /",
-        "OPTIONS /{proxy+}",
-    }
-
     route_authorizer_map = _route_authorizer_map(template)
     assert route_authorizer_map, "Expected at least one API Gateway route"
 
@@ -810,12 +842,6 @@ def test_signup_routes_use_http_none_authorizer(template):
     route_authorizer_map = _route_authorizer_map(template)
     assert route_authorizer_map, "Expected at least one API Gateway route"
 
-    signup_routes = {
-        route_key: properties
-        for route_key, properties in route_authorizer_map.items()
-        if "/signup/" in route_key
-    }
-
     expected_route_keys = {
         "POST /signup/request",
         "GET /signup/approve",
@@ -823,18 +849,9 @@ def test_signup_routes_use_http_none_authorizer(template):
         "GET /signup/reject",
         "POST /signup/reject",
     }
-    assert set(signup_routes) == expected_route_keys, (
-        f"Unexpected /signup/* route set: {set(signup_routes)}"
+    _assert_routes_use_http_none_authorizer(
+        route_authorizer_map, lambda k: "/signup/" in k, expected_route_keys
     )
-
-    for route_key, properties in signup_routes.items():
-        assert properties.get("AuthorizationType") == "NONE", (
-            f"Route {route_key} must use HttpNoneAuthorizer (AuthorizationType "
-            f"NONE), got {properties.get('AuthorizationType')!r}"
-        )
-        assert "AuthorizerId" not in properties, (
-            f"Route {route_key} must not reference an authorizer resource"
-        )
 
 
 def test_token_route_uses_http_none_authorizer(template):
@@ -848,24 +865,12 @@ def test_token_route_uses_http_none_authorizer(template):
     mirroring test_signup_routes_use_http_none_authorizer (audit follow-up
     from #4798, issue #4800).
     """
-    routes = template.find_resources("AWS::ApiGatewayV2::Route")
-    assert routes, "Expected at least one API Gateway route"
+    route_authorizer_map = _route_authorizer_map(template)
+    assert route_authorizer_map, "Expected at least one API Gateway route"
 
-    token_routes = {
-        resource["Properties"].get("RouteKey", logical_id): resource["Properties"]
-        for logical_id, resource in routes.items()
-        if resource["Properties"].get("RouteKey", "") == "POST /token"
-    }
-    assert set(token_routes) == {"POST /token"}
-
-    for route_key, properties in token_routes.items():
-        assert properties.get("AuthorizationType") == "NONE", (
-            f"Route {route_key} must use HttpNoneAuthorizer (AuthorizationType "
-            f"NONE), got {properties.get('AuthorizationType')!r}"
-        )
-        assert "AuthorizerId" not in properties, (
-            f"Route {route_key} must not reference an authorizer resource"
-        )
+    _assert_routes_use_http_none_authorizer(
+        route_authorizer_map, lambda k: k == "POST /token", {"POST /token"}
+    )
 
 
 def test_options_proxy_route_uses_http_none_authorizer(template):
@@ -889,26 +894,14 @@ def test_options_proxy_route_uses_http_none_authorizer(template):
     test_signup_routes_use_http_none_authorizer and
     test_token_route_uses_http_none_authorizer above.
     """
-    routes = template.find_resources("AWS::ApiGatewayV2::Route")
-    assert routes, "Expected at least one API Gateway route"
+    route_authorizer_map = _route_authorizer_map(template)
+    assert route_authorizer_map, "Expected at least one API Gateway route"
 
-    options_proxy_routes = {
-        resource["Properties"].get("RouteKey", logical_id): resource["Properties"]
-        for logical_id, resource in routes.items()
-        if resource["Properties"].get("RouteKey", "") == "OPTIONS /{proxy+}"
-    }
-    assert set(options_proxy_routes) == {"OPTIONS /{proxy+}"}
-
-    for route_key, properties in options_proxy_routes.items():
-        assert properties.get("AuthorizationType") == "NONE", (
-            f"Route {route_key} must use HttpNoneAuthorizer (AuthorizationType "
-            f"NONE) so CORS preflight requests are not rejected with 401 "
-            f"before the real request is sent (#3945), got "
-            f"{properties.get('AuthorizationType')!r}"
-        )
-        assert "AuthorizerId" not in properties, (
-            f"Route {route_key} must not reference an authorizer resource"
-        )
+    _assert_routes_use_http_none_authorizer(
+        route_authorizer_map,
+        lambda k: k == "OPTIONS /{proxy+}",
+        {"OPTIONS /{proxy+}"},
+    )
 
 
 # ---------------------------------------------------------------------------

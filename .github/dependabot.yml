@@ -27,6 +27,10 @@ updates:
       - "chore"
 
   # Frontend npm workspace: React/Vite app dependencies in frontend/.
+  # Patch-level bumps of direct dev dependencies from this entry are
+  # auto-merged by .github/workflows/dependabot-auto-merge.yml once required
+  # status checks pass; production deps and minor/major bumps still need a
+  # manual review. See issue #5540.
   - package-ecosystem: "npm"
     directory: "/frontend"
     schedule:

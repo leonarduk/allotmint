@@ -104,6 +104,16 @@ class BackendLambdaStack(Stack):
         snapshot path) for least privilege. ``put_prefix`` is independent of
         ``list_prefix`` — a caller may need to list one set of prefixes but
         write only to a narrower one (issue #5013).
+
+        A literal ``""`` entry in ``list_prefix`` is treated as an explicit
+        request for root-level ``s3:ListBucket`` access (e.g.
+        ``list_objects_v2(Prefix="", Delimiter="/")``, as used by the Data
+        Explorer's root tree view). It contributes only the exact ``""``
+        value to the ``StringLike`` condition on ``s3:prefix`` — never a
+        ``"/*"`` wildcard variant — so it authorizes only that literal empty
+        prefix, not recursive/bucket-wide listing (issue #6110). Whitespace
+        or ``"/"``-only entries are still stripped and ignored, same as
+        before; only an exact ``""`` string opts in to the root grant.
         """
 
         if bucket is None and bucket_name is None:
@@ -166,12 +176,24 @@ class BackendLambdaStack(Stack):
             else:
                 raw_prefixes = list(list_prefix)
 
-            normalized_prefixes = [prefix.strip().strip("/") for prefix in raw_prefixes]
+            # A literal "" entry explicitly requests root-level ListBucket
+            # (e.g. the Data Explorer's list_objects_v2(Prefix="") root tree
+            # view — issue #6110). It is intentionally kept separate from the
+            # generic strip/filter below so it survives normalization instead
+            # of being silently dropped as "empty".
+            include_root = "" in raw_prefixes
+
+            normalized_prefixes = [prefix.strip().strip("/") for prefix in raw_prefixes if prefix != ""]
             normalized_prefixes = [prefix for prefix in normalized_prefixes if prefix]
-            if not normalized_prefixes:
+            if not normalized_prefixes and not include_root:
                 raise ValueError("list_prefix is required when allow_list=True")
 
             prefix_conditions: list[str] = []
+            if include_root:
+                # Only the exact empty prefix — never "/*" — so this grants
+                # solely the root, non-recursive listing, not bucket-wide
+                # access.
+                prefix_conditions.append("")
             for prefix in normalized_prefixes:
                 prefix_conditions.append(prefix)
                 prefix_conditions.append(f"{prefix}/*")
@@ -328,6 +350,18 @@ class BackendLambdaStack(Stack):
                 # this prefix is required by AccountsStore list/iter paths;
                 # object-level Get/Put are already granted bucket-wide below.
                 WRITABLE_ACCOUNTS_PREFIX,
+                # Root/empty prefix: the Data Explorer's root tree view calls
+                # GET /data-explorer/tree with no path, which
+                # backend/routes/data_explorer.py::_list_directory_s3("")
+                # turns into list_objects_v2(Prefix="", Delimiter="/"). None
+                # of the prefixes above match an empty s3:prefix condition
+                # value, so without this entry S3 returns AccessDenied and
+                # the route surfaces it as an HTTP 502 (issue #6110). This
+                # "" entry is handled specially by _grant_bucket_access,
+                # which adds only the exact "" condition value (no "/*"
+                # wildcard), so it grants root-level listing only — not
+                # recursive or bucket-wide access.
+                "",
             ),
             # price_refresh needs accounts/ to call list_objects_v2 via
             # S3DataProvider.list_plots() → list_all_unique_tickers() → list_portfolios().
@@ -465,6 +499,7 @@ class BackendLambdaStack(Stack):
         # - queries/         (saved query listing)
         # - timeseries/meta/ (timeseries admin listing)
         # - transactions/    (report transaction exports)
+        # - "" (root)        (Data Explorer root tree listing, issue #6110)
         self._grant_bucket_access(
             backend_fn,
             bucket=data_bucket,

@@ -10,9 +10,7 @@ from backend.config import reload_config
 
 def test_send_message_requires_config(monkeypatch, caplog):
     telegram_utils.RECENT_MESSAGES.clear()
-    monkeypatch.setattr(
-        telegram_utils.config.config, "telegram_bot_token", None, raising=False
-    )
+    monkeypatch.setattr(telegram_utils.config.config, "telegram_bot_token", None, raising=False)
     monkeypatch.setattr(telegram_utils.config.config, "telegram_chat_id", None, raising=False)
     # should log missing config and return
     with caplog.at_level(logging.DEBUG):
@@ -157,9 +155,10 @@ def test_handles_http_429(monkeypatch, caplog):
 
     monkeypatch.setattr(telegram_utils.time, "sleep", lambda s: None)
 
-    with patch(
-        "backend.utils.telegram_utils.requests.post", fake_post
-    ), caplog.at_level(logging.WARNING):
+    with (
+        patch("backend.utils.telegram_utils.requests.post", fake_post),
+        caplog.at_level(logging.WARNING),
+    ):
         telegram_utils.send_message("rate")
 
     assert len(calls) == 2
@@ -205,25 +204,27 @@ def test_uses_retry_after_header(monkeypatch):
         telegram_utils.send_message("rate")
 
     assert sleeps == [5]
-    assert (
-        telegram_utils._NEXT_ALLOWED_TIME
-        == start + 5 + telegram_utils.RATE_LIMIT_SECONDS
-    )
+    assert telegram_utils._NEXT_ALLOWED_TIME == start + 5 + telegram_utils.RATE_LIMIT_SECONDS
 
 
 def test_handles_timeout(monkeypatch, caplog):
     telegram_utils.RECENT_MESSAGES.clear()
     telegram_utils._NEXT_ALLOWED_TIME = 0
     monkeypatch.setattr(telegram_utils.config.config, "offline_mode", False)
-    monkeypatch.setattr(telegram_utils.config.config, "telegram_bot_token", "T")
+    # A single-letter token like "T" collides with "Timeout"/"Telegram" in the
+    # log message once RedactTokenFilter is actually wired onto handlers
+    # (see backend/logging_setup.py:_attach_redact_token_filter), corrupting
+    # the very substring this test asserts on.
+    monkeypatch.setattr(telegram_utils.config.config, "telegram_bot_token", "TESTTOKEN123")
     monkeypatch.setattr(telegram_utils.config.config, "telegram_chat_id", "C")
 
     def fake_post(url, data, timeout):
         raise telegram_utils.req_exc.Timeout()
 
-    with patch(
-        "backend.utils.telegram_utils.requests.post", fake_post
-    ), caplog.at_level(logging.WARNING):
+    with (
+        patch("backend.utils.telegram_utils.requests.post", fake_post),
+        caplog.at_level(logging.WARNING),
+    ):
         telegram_utils.send_message("timeout")
 
     assert any("timeout" in r.message.lower() for r in caplog.records)
@@ -294,7 +295,9 @@ def test_invalid_retry_after(monkeypatch):
 
     responses = iter(
         [
-            SimpleNamespace(status_code=429, headers={"Retry-After": "bad"}, raise_for_status=lambda: None),
+            SimpleNamespace(
+                status_code=429, headers={"Retry-After": "bad"}, raise_for_status=lambda: None
+            ),
             SimpleNamespace(status_code=200, headers={}, raise_for_status=lambda: None),
         ]
     )
@@ -318,7 +321,10 @@ def test_raise_for_status(monkeypatch, caplog):
 
         return SimpleNamespace(status_code=400, headers={}, raise_for_status=boom)
 
-    with patch("backend.utils.telegram_utils.requests.post", fake_post), caplog.at_level(logging.WARNING):
+    with (
+        patch("backend.utils.telegram_utils.requests.post", fake_post),
+        caplog.at_level(logging.WARNING),
+    ):
         telegram_utils.send_message("hi")
 
 
@@ -337,10 +343,13 @@ def test_send_message_skips_gracefully_when_env_vars_absent(monkeypatch, caplog)
     cfg = reload_config()
     monkeypatch.setattr(telegram_utils.config, "config", cfg)
 
-    with patch(
-        "backend.utils.telegram_utils.requests.post",
-        side_effect=AssertionError("requests.post must not be called without credentials"),
-    ), caplog.at_level(logging.DEBUG):
+    with (
+        patch(
+            "backend.utils.telegram_utils.requests.post",
+            side_effect=AssertionError("requests.post must not be called without credentials"),
+        ),
+        caplog.at_level(logging.DEBUG),
+    ):
         telegram_utils.send_message("should not be sent")
 
     assert "Missing Telegram configuration" in caplog.text

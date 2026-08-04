@@ -22,6 +22,17 @@ from backend.logging_setup import sanitise_log_value
 _TRUE_STRINGS = {"1", "true", "yes"}
 _FALSE_STRINGS = {"0", "false", "no"}
 
+# Secret/credential fields on backend.config.Config that must never leave the
+# process in an HTTP response body. GET /config returns the full serialised
+# Config to the SPA, so these are redacted before serialise_config() returns.
+_SECRET_CONFIG_FIELDS = (
+    "telegram_bot_token",
+    "alpha_vantage_key",
+    "yahoo_news_key",
+    "google_news_key",
+    "sns_topic_arn",
+)
+
 
 def _normalise_google_auth_flag(value: Any) -> bool | None | Any:
     if isinstance(value, bool) or value is None:
@@ -60,6 +71,8 @@ def serialise_config(cfg: config_module.Config) -> ConfigContract:
     Save config to pydantic ConfigContract
     """
     data = asdict(cfg)
+    for secret_field in _SECRET_CONFIG_FIELDS:
+        data.pop(secret_field, None)
     tabs = data.get("tabs")
     if isinstance(tabs, dict):
         serialised_tabs = {

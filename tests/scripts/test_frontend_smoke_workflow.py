@@ -13,6 +13,27 @@ DEPLOY_WORKFLOW_PATH = (
 )
 
 
+def _step_name(step: dict) -> str:
+    return step.get("name", "") or ""
+
+
+def _step_run(step: dict) -> str:
+    return step.get("run", "") or ""
+
+
+def _first_step_index(steps: list[dict], matcher) -> int | None:
+    """Return the index of the first step in ``steps`` for which ``matcher(step)`` is truthy.
+
+    Shared by the step-ordering tests below (frontend-smoke build-before-playwright,
+    deploy-lambda build-before-deploy), which all scan a workflow job's steps for
+    the first one matching some name/run substring (#5324 follow-up).
+    """
+    for i, step in enumerate(steps):
+        if matcher(step):
+            return i
+    return None
+
+
 def test_frontend_smoke_build_preview_before_playwright() -> None:
     """The frontend-smoke job must build before running Playwright tests.
 
@@ -22,19 +43,15 @@ def test_frontend_smoke_build_preview_before_playwright() -> None:
     indices, so unrelated prepended or inserted steps don't break it.
     """
     workflow = yaml.safe_load(CI_WORKFLOW_PATH.read_text(encoding="utf-8"))
-    job = workflow["jobs"]["frontend-smoke"]
-    steps = job["steps"]
+    steps = workflow["jobs"]["frontend-smoke"]["steps"]
 
-    build_idx: int | None = None
-    playwright_idx: int | None = None
-
-    for i, step in enumerate(steps):
-        name = step.get("name", "")
-        run = step.get("run", "")
-        if "Build preview" in name or "build:preview" in run:
-            build_idx = i
-        if "Run frontend smoke tests" in name or "playwright test" in run:
-            playwright_idx = i
+    build_idx = _first_step_index(
+        steps, lambda step: "Build preview" in _step_name(step) or "build:preview" in _step_run(step)
+    )
+    playwright_idx = _first_step_index(
+        steps,
+        lambda step: "Run frontend smoke tests" in _step_name(step) or "playwright test" in _step_run(step),
+    )
 
     assert build_idx is not None, (
         "frontend-smoke job has no step that builds the frontend "
@@ -88,8 +105,6 @@ def test_verify_smoke_tests_needs_existing_job() -> None:
     assert "smoke-test" in needed_jobs, (
         f"verify-smoke-tests must need smoke-test, but needs: is {needed_jobs}"
     )
-def _step_run(step: dict) -> str:
-    return step.get("run", "") or ""
 
 
 def test_frontend_smoke_builds_preview_before_running_playwright() -> None:
@@ -98,13 +113,12 @@ def test_frontend_smoke_builds_preview_before_running_playwright() -> None:
     smoke_job = workflow["jobs"]["frontend-smoke"]
     steps = smoke_job["steps"]
 
-    build_idx = next(
-        i for i, step in enumerate(steps) if "build:preview" in _step_run(step)
-    )
-    playwright_idx = next(
-        i for i, step in enumerate(steps) if "playwright test" in _step_run(step)
-    )
+    build_idx = _first_step_index(steps, lambda step: "build:preview" in _step_run(step))
+    playwright_idx = _first_step_index(steps, lambda step: "playwright test" in _step_run(step))
 
+    assert (
+        build_idx is not None and playwright_idx is not None
+    ), "frontend-smoke must have both a build:preview step and a Playwright test step"
     assert build_idx < playwright_idx, (
         "frontend-smoke must run 'npm run build:preview' before the Playwright "
         "test step, otherwise smoke tests would run against a stale/missing build"
@@ -127,10 +141,6 @@ def test_deploy_workflow_verify_smoke_tests_references_existing_job() -> None:
         )
 
 
-def _step_name(step: dict) -> str:
-    return step.get("name", "") or ""
-
-
 def test_deploy_lambda_step_order() -> None:
     """The deploy job in deploy-lambda.yml must build before it deploys.
 
@@ -142,16 +152,12 @@ def test_deploy_lambda_step_order() -> None:
     workflow = yaml.safe_load(DEPLOY_WORKFLOW_PATH.read_text(encoding="utf-8"))
     steps = workflow["jobs"]["deploy"]["steps"]
 
-    build_idx: int | None = None
-    deploy_idx: int | None = None
-
-    for i, step in enumerate(steps):
-        name = _step_name(step)
-        run = _step_run(step)
-        if build_idx is None and ("Build frontend" in name or "npm run build" in run):
-            build_idx = i
-        if deploy_idx is None and ("cdk deploy" in run or name.startswith("Deploy ")):
-            deploy_idx = i
+    build_idx = _first_step_index(
+        steps, lambda step: "Build frontend" in _step_name(step) or "npm run build" in _step_run(step)
+    )
+    deploy_idx = _first_step_index(
+        steps, lambda step: "cdk deploy" in _step_run(step) or _step_name(step).startswith("Deploy ")
+    )
 
     assert build_idx is not None, (
         "deploy job has no step that builds the frontend "

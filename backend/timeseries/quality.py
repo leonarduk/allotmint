@@ -12,6 +12,7 @@ from typing import TypedDict
 
 import pandas as pd
 
+from backend.common.numeric_utils import is_nan
 from backend.utils.uk_holidays import uk_business_days_between
 
 DEFAULT_GAP_THRESHOLD_DAYS = 1
@@ -120,7 +121,7 @@ def find_outliers(
     for pos, value in enumerate(close):
         mean = rolling_mean.iloc[pos]
         std = rolling_std.iloc[pos]
-        if pd.isna(value) or pd.isna(mean) or pd.isna(std) or std == 0:
+        if is_nan(value) or is_nan(mean) or is_nan(std) or std == 0:
             continue
         z_score = abs(value - mean) / std
         if z_score > sigma:

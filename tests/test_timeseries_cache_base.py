@@ -1,4 +1,5 @@
 import importlib
+import logging
 import os
 import sys
 import threading
@@ -19,7 +20,7 @@ def import_cache():
 def patch_s3_client(monkeypatch, cache, client):
     created_clients = []
 
-    def fake_client(service):
+    def fake_client(service, **_kwargs):
         assert service == "s3"
         created_clients.append(service)
         return client
@@ -204,7 +205,7 @@ def test_has_cached_meta_timeseries_returns_false_when_s3_client_creation_fails(
     cache = import_cache()
     created_clients = []
 
-    def fake_client(service):
+    def fake_client(service, **_kwargs):
         assert service == "s3"
         created_clients.append(service)
         raise cache.BotoCoreError()
@@ -223,6 +224,100 @@ def test_s3_cache_object_exists_returns_false_for_invalid_path(monkeypatch):
     assert cache._s3_cache_object_exists("s3://") is False
     assert cache._s3_cache_object_exists("s3:///nokey") is False
     assert cache._s3_cache_object_exists("s3://bucket") is False
+
+
+def test_s3_head_object_returns_response_and_clears_miss_cache_on_success(monkeypatch):
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", "s3://bucket/timeseries")
+    cache = import_cache()
+
+    class FakeS3:
+        def head_object(self, *, Bucket, Key):
+            assert Bucket == "bucket"
+            assert Key == "key"
+            return {"LastModified": "irrelevant"}
+
+    patch_s3_client(monkeypatch, cache, FakeS3())
+    with cache._S3_HEAD_MISS_CACHE_LOCK:
+        cache._S3_HEAD_MISS_CACHE["s3://bucket/key"] = cache.time.monotonic()
+
+    resp = cache._s3_head_object("s3://bucket/key", "bucket", "key")
+
+    assert resp == {"LastModified": "irrelevant"}
+    assert "s3://bucket/key" not in cache._S3_HEAD_MISS_CACHE
+
+
+def test_s3_head_object_registers_miss_on_404(monkeypatch):
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", "s3://bucket/timeseries")
+    cache = import_cache()
+
+    class FakeS3:
+        def head_object(self, *, Bucket, Key):
+            raise cache.ClientError(
+                {"Error": {"Code": "404", "Message": "Not Found"}}, "HeadObject"
+            )
+
+    patch_s3_client(monkeypatch, cache, FakeS3())
+
+    resp = cache._s3_head_object("s3://bucket/key", "bucket", "key")
+
+    assert resp is None
+    assert "s3://bucket/key" in cache._S3_HEAD_MISS_CACHE
+
+
+def test_s3_head_object_non_404_client_error_does_not_register_miss(monkeypatch, caplog):
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", "s3://bucket/timeseries")
+    cache = import_cache()
+
+    class FakeS3:
+        def head_object(self, *, Bucket, Key):
+            raise cache.ClientError(
+                {"Error": {"Code": "AccessDenied", "Message": "Denied"}}, "HeadObject"
+            )
+
+    patch_s3_client(monkeypatch, cache, FakeS3())
+
+    with caplog.at_level(logging.WARNING):
+        resp = cache._s3_head_object("s3://bucket/key", "bucket", "key")
+
+    assert resp is None
+    assert "s3://bucket/key" not in cache._S3_HEAD_MISS_CACHE
+    assert any(r.levelno == logging.WARNING for r in caplog.records)
+
+
+def test_s3_head_object_respects_log_as_error_override(monkeypatch, caplog):
+    """_s3_cache_object_exists passes log_as_error=True to preserve its
+    pre-refactor severity for non-404 errors (previously logger.error)."""
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", "s3://bucket/timeseries")
+    cache = import_cache()
+
+    class FakeS3:
+        def head_object(self, *, Bucket, Key):
+            raise cache.ClientError(
+                {"Error": {"Code": "AccessDenied", "Message": "Denied"}}, "HeadObject"
+            )
+
+    patch_s3_client(monkeypatch, cache, FakeS3())
+
+    with caplog.at_level(logging.WARNING):
+        resp = cache._s3_head_object("s3://bucket/key", "bucket", "key", log_as_error=True)
+
+    assert resp is None
+    assert any(r.levelno == logging.ERROR for r in caplog.records)
+
+
+def test_s3_head_object_boto_core_error_returns_none(monkeypatch):
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", "s3://bucket/timeseries")
+    cache = import_cache()
+
+    class FakeS3:
+        def head_object(self, *, Bucket, Key):
+            raise cache.BotoCoreError()
+
+    patch_s3_client(monkeypatch, cache, FakeS3())
+
+    resp = cache._s3_head_object("s3://bucket/key", "bucket", "key")
+
+    assert resp is None
 
 
 def _frame(close: float) -> pd.DataFrame:
@@ -349,7 +444,7 @@ def test_s3_client_is_singleton_across_calls(monkeypatch):
 
     created = []
 
-    def fake_client(service):
+    def fake_client(service, **_kwargs):
         assert service == "s3"
         client = object()
         created.append(client)
@@ -363,6 +458,35 @@ def test_s3_client_is_singleton_across_calls(monkeypatch):
 
     assert first is second is third
     assert len(created) == 1
+
+
+def test_s3_client_uses_bounded_connect_and_read_timeouts(monkeypatch):
+    """_s3_client must pass a Config with short timeouts/limited retries.
+
+    boto3's own defaults (connect_timeout=60s, no read_timeout, 3 retries)
+    would let a single stalled HeadObject call block a cold Lambda
+    invocation for minutes; regression guard for that fix.
+    """
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", "s3://bucket/timeseries")
+    cache = import_cache()
+    cache._s3_client.cache_clear()
+
+    received_kwargs = {}
+
+    def fake_client(service, **kwargs):
+        assert service == "s3"
+        received_kwargs.update(kwargs)
+        return object()
+
+    monkeypatch.setattr(cache.boto3, "client", fake_client)
+
+    cache._s3_client()
+
+    config = received_kwargs.get("config")
+    assert config is not None, "boto3.client('s3', ...) must be called with a config kwarg"
+    assert config.connect_timeout <= 5
+    assert config.read_timeout <= 10
+    assert config.retries.get("max_attempts", 999) <= 3
 
 
 def test_local_meta_cache_still_invalidates_when_file_mtime_changes(monkeypatch, tmp_path):

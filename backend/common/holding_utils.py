@@ -3,7 +3,6 @@ from __future__ import annotations
 import datetime as dt
 import inspect
 import logging
-import math
 from datetime import timedelta
 from typing import Any, Dict, Optional
 
@@ -20,6 +19,7 @@ from backend.common.constants import (
 )
 from backend.common.currency import CurrencyNormaliser
 from backend.common.instruments import get_instrument_meta
+from backend.common.numeric_utils import is_nan
 from backend.common.user_config import UserConfig
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
@@ -287,7 +287,7 @@ def _derived_cost_basis_close_px(
         return None
 
     px = float(df[col].iloc[0])
-    if math.isnan(px):
+    if is_nan(px):
         return None
     cache[key] = px
     return px
@@ -329,11 +329,11 @@ def _get_price_for_date_scaled(
     except (ValueError, TypeError, KeyError, IndexError):
         return None, None
 
-    if math.isnan(price):
+    if is_nan(price):
         return None, None
 
     src = df.iloc[0].get("Source")
-    if pd.isna(src):
+    if is_nan(src):
         src = None
     return price, src
 
@@ -565,7 +565,7 @@ def enrich_holding(
 
         snap = pu._PRICE_SNAPSHOT.get(full) or pu._PRICE_SNAPSHOT.get(ticker)
         snap_price = snap.get("last_price") if isinstance(snap, dict) else None
-        if snap_price is not None and not math.isnan(float(snap_price)):
+        if not is_nan(snap_price):
             px = float(snap["last_price"])
             last_price_time = snap.get("last_price_time")
             is_stale = bool(snap.get("is_stale", False))

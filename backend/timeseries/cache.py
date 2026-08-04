@@ -25,6 +25,7 @@ from urllib.parse import quote
 import boto3
 import pandas as pd
 import requests
+from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 
 from backend.common.instruments import get_instrument_meta
@@ -373,10 +374,23 @@ def _s3_object_recently_confirmed_missing(cache: str) -> bool:
     return missed_at is not None and time.monotonic() - missed_at < _S3_HEAD_MISS_TTL_SECONDS
 
 
+# boto3's defaults (connect_timeout=60s, no read_timeout, 3 retries) let a
+# single stalled HeadObject call block a cold Lambda invocation for minutes.
+# These metadata checks are advisory (every caller already has a local/
+# provider fallback on failure), so fail fast instead: a couple of seconds is
+# enough for a healthy S3 endpoint, and one retry is enough to ride out a
+# transient blip without risking the Lambda's own timeout budget.
+_S3_CLIENT_CONFIG = Config(
+    connect_timeout=3,
+    read_timeout=5,
+    retries={"max_attempts": 2, "mode": "standard"},
+)
+
+
 @lru_cache(maxsize=1)
 def _s3_client():
     """Return the shared boto3 S3 client used by cache metadata checks."""
-    return boto3.client("s3")
+    return boto3.client("s3", config=_S3_CLIENT_CONFIG)
 
 
 def _split_s3_cache_uri(cache: str) -> tuple[str, str] | None:
@@ -386,6 +400,45 @@ def _split_s3_cache_uri(cache: str) -> tuple[str, str] | None:
         logger.warning("Invalid S3 timeseries cache path: %s", _sanitize_for_log(cache))
         return None
     return bucket, key
+
+
+def _s3_head_object(cache: str, bucket: str, key: str, *, log_as_error: bool = False) -> dict | None:
+    """Call HeadObject for ``cache``, maintaining the negative-cache as a side effect.
+
+    Shared by :func:`_s3_object_mtime` and :func:`_s3_cache_object_exists` so
+    the "miss -> record in negative cache -> return None" / "hit -> clear
+    negative cache -> return response" behavior is defined once. A genuine
+    404 registers the miss in ``_S3_HEAD_MISS_CACHE``; any other AWS error is
+    logged (WARNING by default, matching the original :func:`_s3_object_mtime`
+    behavior) and treated the same as a miss so callers fall back gracefully
+    rather than raising. ``log_as_error=True`` preserves the ERROR severity
+    :func:`_s3_cache_object_exists` used before this helper was extracted.
+    Uses ``logger.warning``/``logger.error`` directly (not ``logger.log``) so
+    the CWE-117 log-sanitization scanner (tests/test_log_sanitization_audit.py)
+    still tracks these call sites.
+    """
+    try:
+        resp = _s3_client().head_object(Bucket=bucket, Key=key)
+    except ClientError as exc:
+        error_code = exc.response.get("Error", {}).get("Code")
+        if error_code in {"404", "NoSuchKey", "NotFound"}:
+            with _S3_HEAD_MISS_CACHE_LOCK:
+                _S3_HEAD_MISS_CACHE[cache] = time.monotonic()
+        elif log_as_error:
+            logger.error("Unable to read S3 cache metadata for %s: %s", _sanitize_for_log(cache), exc)
+        else:
+            logger.warning("Unable to read S3 cache metadata for %s: %s", _sanitize_for_log(cache), exc)
+        return None
+    except BotoCoreError as exc:  # pragma: no cover - defensive AWS path
+        if log_as_error:
+            logger.error("Unable to read S3 cache metadata for %s: %s", _sanitize_for_log(cache), exc)
+        else:
+            logger.warning("Unable to read S3 cache metadata for %s: %s", _sanitize_for_log(cache), exc)
+        return None
+
+    with _S3_HEAD_MISS_CACHE_LOCK:
+        _S3_HEAD_MISS_CACHE.pop(cache, None)
+    return resp
 
 
 def _s3_object_mtime(cache: str) -> float | None:
@@ -412,22 +465,10 @@ def _s3_object_mtime(cache: str) -> float | None:
     if cached_mtime is not None:
         return cached_mtime
 
-    try:
-        resp = _s3_client().head_object(Bucket=bucket, Key=key)
-    except ClientError as exc:
-        error_code = exc.response.get("Error", {}).get("Code")
-        if error_code in {"404", "NoSuchKey", "NotFound"}:
-            with _S3_HEAD_MISS_CACHE_LOCK:
-                _S3_HEAD_MISS_CACHE[cache] = time.monotonic()
-        else:
-            logger.warning("Unable to read S3 cache metadata for %s: %s", _sanitize_for_log(cache), exc)
-        return 0.0
-    except BotoCoreError as exc:  # pragma: no cover - defensive AWS path
-        logger.warning("Unable to read S3 cache metadata for %s: %s", _sanitize_for_log(cache), exc)
+    resp = _s3_head_object(cache, bucket, key)
+    if resp is None:
         return 0.0
 
-    with _S3_HEAD_MISS_CACHE_LOCK:
-        _S3_HEAD_MISS_CACHE.pop(cache, None)
     last_modified = resp.get("LastModified")
     if not hasattr(last_modified, "timestamp"):
         logger.warning("S3 cache metadata for %s is missing LastModified", _sanitize_for_log(cache))
@@ -704,22 +745,7 @@ def _s3_cache_object_exists(cache: str) -> bool:
     if _s3_object_recently_confirmed_missing(cache):
         return False
 
-    try:
-        _s3_client().head_object(Bucket=bucket, Key=key)
-    except ClientError as exc:
-        error_code = exc.response.get("Error", {}).get("Code")
-        if error_code in {"404", "NoSuchKey", "NotFound"}:
-            with _S3_HEAD_MISS_CACHE_LOCK:
-                _S3_HEAD_MISS_CACHE[cache] = time.monotonic()
-            return False
-        logger.error("Unable to check S3 timeseries cache object %s: %s", _sanitize_for_log(cache), exc)
-        return False
-    except BotoCoreError as exc:
-        logger.error("AWS client error checking S3 timeseries cache object %s: %s", _sanitize_for_log(cache), exc)
-        return False
-    with _S3_HEAD_MISS_CACHE_LOCK:
-        _S3_HEAD_MISS_CACHE.pop(cache, None)
-    return True
+    return _s3_head_object(cache, bucket, key, log_as_error=True) is not None
 
 
 def has_cached_meta_timeseries(ticker: str, exchange: str) -> bool:

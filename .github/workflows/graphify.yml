@@ -86,8 +86,12 @@ jobs:
             BODY="$BODY."
           fi
 
-          gh pr create \
+          if ! gh pr create \
             --base main \
             --head "$BRANCH" \
             --title "Update graphify knowledge graph" \
-            --body "$BODY"
+            --body "$BODY"; then
+            echo "PR creation failed, deleting orphaned branch $BRANCH."
+            git push origin --delete "$BRANCH" || true
+            exit 1
+          fi

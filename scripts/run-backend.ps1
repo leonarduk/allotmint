@@ -415,6 +415,13 @@ $tmpPortFile = Join-Path $portFileDir ".backend.port.$PID.tmp"
 Set-Content -Path $tmpPortFile -Value $port -NoNewline
 Move-Item -Path $tmpPortFile -Destination $portFile -Force
 
+# backend/logging.ini's fileHandler writes to logs/backend.log (relative to
+# $REPO_ROOT, since we already Set-Location'd there); uvicorn's --log-config
+# loads that ini directly, ahead of any Python-level setup, so the directory
+# must exist before uvicorn starts or FileHandler will fail to open it.
+$logsDir = Join-Path $REPO_ROOT 'logs'
+New-Item -ItemType Directory -Force -Path $logsDir | Out-Null
+
 $logConfig = Get-ConfigValue $cfg @('paths','log_config') 'backend/logging.ini'
 $resolvedLogConfig = $null
 if (Test-Path $logConfig) {

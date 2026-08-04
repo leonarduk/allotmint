@@ -63,4 +63,4 @@ def test_real_logging_ini_with_log_format_json_emits_only_valid_json_lines(monke
     finally:
         for name, logger in restored_loggers.items():
             _restore_logger(logger, saved_state[name])
-        (REPO_ROOT / "backend.log").unlink(missing_ok=True)
+        (REPO_ROOT / "logs" / "backend.log").unlink(missing_ok=True)

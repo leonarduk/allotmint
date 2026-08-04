@@ -16,7 +16,11 @@
 - Ensure environment variables like `DATA_BUCKET` or API keys are correctly set.
 
 ## Log Locations
-- Backend logs are written to `backend.log` as configured in `backend/logging.ini`.
+- Backend logs are written to `logs/backend.log` (JSON lines) as configured in
+  `backend/logging.ini`. `scripts/run-backend.ps1` creates the `logs/` folder
+  before starting the server.
+- Frontend dev-server output is written to `logs/frontend.log` by
+  `scripts/run-frontend.ps1`, in addition to streaming to the console.
 - The `run_with_error_summary.py` helper records errors in `error_summary.log`.
 - A root-level `logging.ini` exists only to tune third-party loggers like `yfinance`.
 

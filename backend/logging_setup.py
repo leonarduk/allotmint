@@ -70,12 +70,13 @@ def setup_logging() -> None:
     if not root_logger.handlers:
         log_config = config.log_config
         if log_config:
+            base = config.repo_root or Path.cwd()
             config_path = Path(log_config)
             if not config_path.is_absolute():
-                base = config.repo_root or Path.cwd()
                 config_path = base / config_path
 
             if config_path.exists():
+                (base / "logs").mkdir(parents=True, exist_ok=True)
                 logging.config.fileConfig(config_path, disable_existing_loggers=False)
 
     if config.log_format == "json":

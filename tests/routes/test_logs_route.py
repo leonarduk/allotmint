@@ -17,7 +17,8 @@ def client(tmp_path, monkeypatch):
 
 @pytest.fixture()
 def log_file(tmp_path):
-    path = tmp_path / "backend.log"
+    path = tmp_path / "logs" / "backend.log"
+    path.parent.mkdir(parents=True, exist_ok=True)
     yield path
     if path.exists():
         path.unlink()

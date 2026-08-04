@@ -296,7 +296,7 @@ def classify_file(file_diff: FileDiff) -> bool:
     doc_old = is_doc_path(file_diff.old_path)
     # Checked ahead of the doc-path short-circuit below: a permission-bit
     # change carries no content diff, so a doc path alone can't vouch for
-    # it being safe -- e.g. flipping docs/deploy.md to executable is still
+    # it being safe -- e.g. flipping docs/DEPLOY.md to executable is still
     # a behavioural change worth running the full suite over.
     if file_diff.mode_change:
         return False

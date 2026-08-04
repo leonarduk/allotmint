@@ -132,6 +132,11 @@ class Config:
     allowed_emails: Optional[List[str]] = None
     local_login_email: Optional[str] = None
     relative_view_enabled: Optional[bool] = None
+    # Defaults to False (was True before PR #5872 / #5881): a True default made
+    # `/` unexpectedly redirect to `/portfolio/<owner>` on every local and
+    # deployed environment instead of landing on the group dashboard
+    # (`?group=all`). Set to True only for deployments that explicitly want
+    # the family MVP feature (per-owner landing page) enabled.
     enable_family_mvp: bool = False
     enable_compliance_workflows: bool = False
     enable_advanced_analytics: bool = False

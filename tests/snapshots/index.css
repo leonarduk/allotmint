@@ -96,6 +96,12 @@ h1 {
     line-height: 1.1;
 }
 
+/* Global element defaults go in Tailwind's `base` layer so utility classes
+   (which Tailwind places in its own, higher-priority layer) always win over
+   these bare-selector rules regardless of source order. Add future global
+   style additions -- unclassed element defaults like this `button` block --
+   inside this same `@layer base { ... }` block rather than as bare rules
+   elsewhere in this file, to keep that override guarantee. */
 @layer base {
     button {
         border-radius: 8px;

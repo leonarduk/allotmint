@@ -42,9 +42,7 @@ _moneyhub_client_instance: MoneyhubClient | None = None
 
 def _moneyhub_configured() -> bool:
     """Whether Moneyhub OAuth client credentials are present in the environment."""
-    return bool(os.environ.get("MONEYHUB_CLIENT_ID")) and bool(
-        os.environ.get("MONEYHUB_CLIENT_SECRET")
-    )
+    return bool(os.environ.get("MONEYHUB_CLIENT_ID")) and bool(os.environ.get("MONEYHUB_CLIENT_SECRET"))
 
 
 def check_moneyhub_configured() -> None:
@@ -411,9 +409,7 @@ def _format_transaction_response(
     return payload
 
 
-def _prepare_updated_transaction(
-    existing: Mapping[str, object], update: Mapping[str, object]
-) -> Dict[str, object]:
+def _prepare_updated_transaction(existing: Mapping[str, object], update: Mapping[str, object]) -> Dict[str, object]:
     managed_fields = {"ticker", "date", "price_gbp", "units", "fees", "comments", "reason"}
     updated = dict(existing)
     for field in managed_fields:
@@ -426,9 +422,7 @@ def _prepare_updated_transaction(
     return updated
 
 
-def _transactions_from_doc(
-    owner: str, account_raw: str, data: Mapping[str, Any]
-) -> List[Transaction]:
+def _transactions_from_doc(owner: str, account_raw: str, data: Mapping[str, Any]) -> List[Transaction]:
     results: List[Transaction] = []
     account = account_raw.lower()
     transactions = data.get("transactions", []) or []
@@ -470,18 +464,12 @@ def _load_all_transactions(store: Optional["AccountsStore"] = None) -> List[Tran
                 if not isinstance(data, dict):
                     continue
                 owner = str(data.get("owner") or path.parent.name)
-                account_raw = str(
-                    data.get("account_type") or path.stem.replace("_transactions", "")
-                )
-                merged[(owner.lower(), account_raw.lower())] = _transactions_from_doc(
-                    owner, account_raw, data
-                )
+                account_raw = str(data.get("account_type") or path.stem.replace("_transactions", ""))
+                merged[(owner.lower(), account_raw.lower())] = _transactions_from_doc(owner, account_raw, data)
 
     if store is not None:
         for owner, account_raw, data in store.iter_transaction_documents():
-            merged[(owner.lower(), account_raw.lower())] = _transactions_from_doc(
-                owner, account_raw, data
-            )
+            merged[(owner.lower(), account_raw.lower())] = _transactions_from_doc(owner, account_raw, data)
 
     results: List[Transaction] = []
     for txs in merged.values():
@@ -517,9 +505,7 @@ def _find_transaction_account(owner: str, account: str, store: "AccountsStore") 
 
 
 @contextmanager
-def _locked_transactions_data(
-    owner: str, account: str, store: "AccountsStore"
-) -> Iterator[Tuple[dict, None]]:
+def _locked_transactions_data(owner: str, account: str, store: "AccountsStore") -> Iterator[Tuple[dict, None]]:
     default = {"owner": owner, "account_type": account, "transactions": []}
     with store.edit_document(owner, f"{account}_transactions.json", default=default) as data:
         data.setdefault("owner", owner)
@@ -561,9 +547,7 @@ async def transactions_with_compliance(
     """Return transactions for ``owner`` annotated with compliance warnings."""
 
     store, _ = resolve_writable_store(request)
-    txs = [
-        t.model_dump() for t in _load_all_transactions(store) if t.owner.lower() == owner.lower()
-    ]
+    txs = [t.model_dump() for t in _load_all_transactions(store) if t.owner.lower() == owner.lower()]
     if account:
         txs = [t for t in txs if (t.get("account") or "").lower() == account.lower()]
     norm_ticker = normalise_filter_ticker(
@@ -596,9 +580,7 @@ def _validate_component(value: str, field: str) -> str:
     return value
 
 
-def _persist_transaction(
-    store: "AccountsStore", owner: str, account: str, tx_data: Dict[str, Any]
-) -> Dict[str, Any]:
+def _persist_transaction(store: "AccountsStore", owner: str, account: str, tx_data: Dict[str, Any]) -> Dict[str, Any]:
     """Append ``tx_data`` to owner/account's transaction log and rebuild the portfolio.
 
     Shared by :func:`create_transaction` (single, request-validated write) and
@@ -633,9 +615,7 @@ def _persist_transaction(
     return _format_transaction_response(owner, account, tx_data, tx_id)
 
 
-def _rollback_persisted_transaction(
-    store: "AccountsStore", persisted: Mapping[str, Any]
-) -> Tuple[str, str]:
+def _rollback_persisted_transaction(store: "AccountsStore", persisted: Mapping[str, Any]) -> Tuple[str, str]:
     """Remove one transaction previously returned by ``_persist_transaction``."""
     owner, account, index = _parse_transaction_id(str(persisted["id"]))
     with _locked_transactions_data(owner, account, store) as (data, _file):
@@ -814,11 +794,7 @@ def _tx_data_from_parsed(row: Transaction) -> Dict[str, Any]:
     tx_data = row.model_dump(mode="json", exclude={"owner", "account", "id"})
     price = tx_data.get("price")
     price_gbp = tx_data.get("price_gbp")
-    if (
-        price is not None
-        and price_gbp is not None
-        and Decimal(str(price)) != Decimal(str(price_gbp))
-    ):
+    if price is not None and price_gbp is not None and Decimal(str(price)) != Decimal(str(price_gbp)):
         raise ValueError(f"Conflicting values for price ({price}) and price_gbp ({price_gbp})")
     if price_gbp is None:
         tx_data["price_gbp"] = price
@@ -898,7 +874,13 @@ async def import_transactions(
     return {"persisted": persisted, "skipped": skipped}
 
 
-@router.post("/transactions/import/moneyhub")
+@router.post(
+    "/transactions/import/moneyhub",
+    responses={
+        403: {"description": "Caller is not authorized for the given `owner` (see `ensure_owner_access`)."},
+        424: {"description": "Owner has not completed the Moneyhub OAuth consent flow."},
+    },
+)
 async def import_moneyhub_transactions(
     request: Request,
     owner: str = Form(...),
@@ -1033,11 +1015,7 @@ async def create_manual_holding(request: Request, payload: ManualHoldingCreate) 
 
         holdings = account_payload.setdefault("holdings", [])
         for index, existing in enumerate(holdings):
-            existing_ticker = (
-                str(existing.get("ticker") or "").strip().upper()
-                if isinstance(existing, Mapping)
-                else ""
-            )
+            existing_ticker = str(existing.get("ticker") or "").strip().upper() if isinstance(existing, Mapping) else ""
             if existing_ticker == ticker:
                 holdings[index] = holding
                 break

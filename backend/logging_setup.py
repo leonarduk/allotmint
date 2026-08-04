@@ -95,12 +95,13 @@ def setup_logging() -> None:
             if config_path.exists():
                 try:
                     (base / "logs").mkdir(parents=True, exist_ok=True)
-                    logging.config.fileConfig(config_path, disable_existing_loggers=False)
                 except OSError:
                     # Best-effort: read-only deployment targets (e.g. Lambda)
-                    # cannot create logs/ or open the fileHandler. The app
-                    # continues with console logging only.
+                    # cannot create logs/. fileConfig is attempted below and
+                    # its failure will surface if the fileHandler also can't
+                    # open logs/backend.log.
                     pass
+                logging.config.fileConfig(config_path, disable_existing_loggers=False)
 
     _attach_redact_token_filter(root_logger)
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -90,6 +91,8 @@ class LocalDataProvider:
 
 
 class S3DataProvider:
+    _client_lock = threading.Lock()
+
     def __init__(self, bucket: Optional[str] = None) -> None:
         self.bucket = bucket or os.getenv(DATA_BUCKET_ENV)
         if not self.bucket:
@@ -103,19 +106,26 @@ class S3DataProvider:
         client per call adds ~100-200ms of cold-start overhead each time
         (credential resolution, endpoint discovery). Reusing a single
         client eliminates this overhead on every account/person-meta load.
+
+        Uses double-checked locking so concurrent callers on the same
+        instance (e.g. Lambda execution environment reuse) can't both pass
+        the initial None check and race to create duplicate clients.
         """
         if self._cached_client is not None:
             return self._cached_client
-        try:
-            import boto3  # type: ignore
-        except Exception as exc:  # pragma: no cover - import failure is environment-specific
-            raise ProviderUnavailable("boto3 is not available") from exc
-        try:
-            client = boto3.client("s3")
-        except Exception as exc:  # pragma: no cover - client creation is environment-specific
-            raise ProviderUnavailable("Unable to create S3 client") from exc
-        self._cached_client = client
-        return client
+        with self._client_lock:
+            if self._cached_client is not None:
+                return self._cached_client
+            try:
+                import boto3  # type: ignore
+            except Exception as exc:  # pragma: no cover - import failure is environment-specific
+                raise ProviderUnavailable("boto3 is not available") from exc
+            try:
+                client = boto3.client("s3")
+            except Exception as exc:  # pragma: no cover - client creation is environment-specific
+                raise ProviderUnavailable("Unable to create S3 client") from exc
+            self._cached_client = client
+            return client
 
     def load_account(self, owner: str, account: str) -> AccountObject:
         key = f"{PLOTS_PREFIX}{owner}/{account}.json"

@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import json
+import threading
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -10,6 +12,7 @@ from backend.common.data_providers import (
     InvalidPayload,
     LocalDataProvider,
     MissingData,
+    S3DataProvider,
 )
 
 
@@ -103,3 +106,51 @@ def test_load_person_meta_valid(accounts_root: Path, provider: LocalDataProvider
     obj = provider.load_person_meta("carol", accounts_root)
     assert obj.owner == "carol"
     assert obj.metadata.get("full_name") == "Carol"
+
+
+# ---------------------------------------------------------------------------
+# S3DataProvider._client — thread-safe caching
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def s3_provider(monkeypatch: pytest.MonkeyPatch) -> S3DataProvider:
+    monkeypatch.setenv("DATA_BUCKET", "test-bucket")
+    return S3DataProvider()
+
+
+def test_client_returns_cached_instance_on_subsequent_calls(s3_provider: S3DataProvider) -> None:
+    with patch("boto3.client") as mock_boto_client:
+        mock_boto_client.return_value = object()
+        first = s3_provider._client()
+        second = s3_provider._client()
+    assert first is second
+    mock_boto_client.assert_called_once_with("s3")
+
+
+def test_client_creation_is_thread_safe_under_concurrent_calls(s3_provider: S3DataProvider) -> None:
+    created_clients = []
+
+    def _slow_client(*_args, **_kwargs):
+        # Simulate the latency of real client construction so concurrent
+        # threads are likely to race inside _client() without the lock.
+        threading.Event().wait(0.01)
+        client = object()
+        created_clients.append(client)
+        return client
+
+    with patch("boto3.client", side_effect=_slow_client) as mock_boto_client:
+        results: list[object] = [None] * 20  # type: ignore[list-item]
+
+        def _call(index: int) -> None:
+            results[index] = s3_provider._client()
+
+        threads = [threading.Thread(target=_call, args=(i,)) for i in range(len(results))]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+    assert mock_boto_client.call_count == 1
+    assert len(created_clients) == 1
+    assert all(result is created_clients[0] for result in results)

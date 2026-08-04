@@ -75,6 +75,22 @@ async def test_read_config_exposes_auth_enabled_bootstrap_fields(monkeypatch: py
     assert result["local_login_email"] is None
 
 
+async def test_read_config_redacts_secret_fields(monkeypatch: pytest.MonkeyPatch) -> None:
+    dummy_config = routes_config.config_module.Config(
+        sns_topic_arn="arn:aws:sns:eu-west-1:123456789012:alerts",
+        telegram_bot_token="123456:ABC-DEF-super-secret-token",
+        alpha_vantage_key="alpha-vantage-secret-key",
+        yahoo_news_key="yahoo-news-secret-key",
+        google_news_key="google-news-secret-key",
+    )
+    monkeypatch.setattr(routes_config.config_module, "config", dummy_config)
+
+    result = await routes_config.read_config()
+
+    for secret_field in routes_config._SECRET_CONFIG_FIELDS:
+        assert secret_field not in result
+
+
 async def test_read_config_exposes_auth_disabled_local_login_fields(monkeypatch: pytest.MonkeyPatch) -> None:
     dummy_config = routes_config.config_module.Config(
         google_auth_enabled=False,

@@ -86,6 +86,7 @@ def test_allowed_emails_includes_viewer_emails(monkeypatch, tmp_path):
     """
 
     monkeypatch.setattr(config, "app_env", "local")
+    monkeypatch.setattr(config, "allowed_emails", None, raising=False)
     root = tmp_path / "accounts"
     owner_dir = root / "alice"
     owner_dir.mkdir(parents=True)
@@ -106,6 +107,7 @@ def test_allowed_emails_includes_viewer_emails_from_s3(monkeypatch):
     """
 
     monkeypatch.setattr(config, "app_env", "aws")
+    monkeypatch.setattr(config, "allowed_emails", None, raising=False)
     monkeypatch.setenv("DATA_BUCKET", "test-bucket")
 
     class _FakeS3Client:

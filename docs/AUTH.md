@@ -158,6 +158,32 @@ bearer token is never logged.
 
 ## Account creation
 
+### Bootstrapping the first owner account (AWS)
+
+On a fresh AWS deployment there are no owner accounts in S3 yet, so
+`_allowed_emails()` (`backend/auth.py`) — consulted by `get_current_user` /
+`_resolve_identity_when_auth_disabled` on every protected route, including
+Cognito-authenticated ones — has nothing to admit. Historically this meant
+even the deployment's own owner got a 403 `"Unauthorized email"`, with no way
+to bootstrap in: the signup-approval flow below requires already being able
+to use the tool (#6130).
+
+`_allowed_emails()` now always includes a **bootstrap allowlist** sourced from
+`config.allowed_emails`, in addition to whatever is provisioned in S3/locally:
+
+- `config.lambda.yaml`'s `auth.allowed_emails` ships with the deployment
+  owner's email pre-seeded, so it works out of the box.
+- Setting the `ALLOWED_EMAILS` env var (comma-separated emails) overrides the
+  yaml value entirely — set it as the `ALLOWED_EMAILS` GitHub Actions secret
+  to rotate the owner list without a code change; `cdk/stacks/backend_lambda_stack.py`
+  passes it through to the Lambda when present.
+- This is a fix, not a broadening: it is still an explicit, small allowlist —
+  it does not open access to arbitrary Cognito users, and per-owner data
+  access is still gated separately by `ensure_owner_access`.
+- If the S3 owner listing fails (e.g. a transient AWS error), the bootstrap
+  allowlist alone is still honoured rather than rejecting everyone, so a
+  transient error can't lock the owner out.
+
 Two distinct paths can create an owner's data directory:
 
 ### Admin-provisioned (signup-approval flow)

@@ -55,6 +55,12 @@ jobs:
       # main is protected (PR required), so the generated graph can't be
       # pushed directly. Open a PR instead; a human merges it like any other
       # change. Skips cleanly if a run produces no diff against main.
+      #
+      # graphify also writes a cache/ dir (gitignored, see #6131) and a
+      # dated snapshot subfolder (graphify-out/<date>/) duplicating the
+      # same files. We only want one flat folder of current results, not
+      # split by date/tag, so the top-level result files are added
+      # explicitly instead of the whole directory.
       - name: Open PR with graphify output
         env:
           GH_TOKEN: ${{ github.token }}
@@ -63,15 +69,22 @@ jobs:
           OUTPUT_DIR="graphify-out"
           BRANCH="graphify-update-${{ github.run_id }}"
 
-          if [ ! -d "$OUTPUT_DIR" ]; then
-            echo "No $OUTPUT_DIR directory found, skipping PR."
+          RESULT_FILES=()
+          for f in graph.json manifest.json .graphify_analysis.json; do
+            if [ -f "$OUTPUT_DIR/$f" ]; then
+              RESULT_FILES+=("$OUTPUT_DIR/$f")
+            fi
+          done
+
+          if [ ${#RESULT_FILES[@]} -eq 0 ]; then
+            echo "No graphify result files found in $OUTPUT_DIR, skipping PR."
             exit 0
           fi
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add "$OUTPUT_DIR"
+          git add "${RESULT_FILES[@]}"
           if git diff --cached --quiet; then
             echo "No changes to persist, skipping PR."
             exit 0

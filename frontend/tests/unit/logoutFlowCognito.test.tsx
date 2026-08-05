@@ -117,6 +117,13 @@ describe('Logout flow: Cognito mode (#4802)', () => {
       name: i18n.t('app.menuCategories.preferences'),
     });
     fireEvent.click(preferencesToggle);
+    // Wait for the category panel to actually report itself open before
+    // querying for the menuitem inside it, so a genuine "menu never
+    // opened" failure is distinguishable from a "menuitem not found"
+    // timeout instead of racing both in a single findByRole (#6126).
+    await waitFor(() =>
+      expect(preferencesToggle).toHaveAttribute('aria-expanded', 'true')
+    );
     const logoutButton = await screen.findByRole(
       'menuitem',
       { name: i18n.t('app.logout') },
@@ -208,6 +215,13 @@ describe('Logout flow: Cognito mode (#4802)', () => {
       name: i18n.t('app.menuCategories.preferences'),
     });
     fireEvent.click(preferencesToggle);
+    // Wait for the category panel to actually report itself open before
+    // querying for the menuitem inside it, so a genuine "menu never
+    // opened" failure is distinguishable from a "menuitem not found"
+    // timeout instead of racing both in a single findByRole (#6126).
+    await waitFor(() =>
+      expect(preferencesToggle).toHaveAttribute('aria-expanded', 'true')
+    );
     const logoutButton = await screen.findByRole(
       'menuitem',
       { name: i18n.t('app.logout') },

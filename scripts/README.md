@@ -191,11 +191,17 @@ The script:
    extracts any file paths already mentioned in the issue body
 3. If no file paths are found, asks a local Ollama model to suggest which
    repo files are relevant
-4. Prints the resulting file list, plus a trimmed prompt for confirmation
-   (title, `What`, `How`, `Constraints`, `Success`) -- `Why`, `Files
-   Affected`, and `Failure` are left out since they aren't actionable for
-   a coding LLM or are already covered by the file list
-5. On confirmation, adds the files to `aider` and hands off interactive
+4. If `graphify-out/.graphify_analysis.json` exists in the checkout, looks up
+   the resolved files against it and appends a short hint noting any that are
+   high fan-in "god object" hotspots or share a knowledge-graph community with
+   other symbols -- silently skipped if the file is absent (it's only
+   refreshed manually, see [Regenerating the graphify knowledge graph
+   locally](#regenerating-the-graphify-knowledge-graph-locally) below)
+5. Prints the resulting file list, plus a trimmed prompt for confirmation
+   (title, `What`, `How`, `Constraints`, `Success`, graphify hint) -- `Why`,
+   `Files Affected`, and `Failure` are left out since they aren't actionable
+   for a coding LLM or are already covered by the file list
+6. On confirmation, adds the files to `aider` and hands off interactive
    control to it
 
 Optional flags:
@@ -216,6 +222,27 @@ context window in `.aider.model.settings.yml`. Models smaller than ~14B
 parameters (e.g. 7B models on CPU-only hardware) are more likely to still hit
 this timeout on larger issues; if you're consistently timing out, either pick
 a larger/faster model or raise `timeout` in `.aider.conf.yml`.
+
+### Regenerating the graphify knowledge graph locally
+
+`graphify-out/graph.json`, `manifest.json`, and `.graphify_analysis.json` are
+committed to `main`, but only refreshed manually by running
+[`.github/workflows/graphify.yml`](../.github/workflows/graphify.yml) via
+`workflow_dispatch` -- they can lag behind the current tree. To regenerate
+them locally against your working copy instead of waiting on that workflow:
+
+```bash
+pip install graphifyy
+graphify .
+```
+
+This writes `graphify-out/graph.json`, `graphify-out/manifest.json`, and
+`graphify-out/.graphify_analysis.json` (the file `f_implement_issue_with_aider.py`
+reads for its hint). Add `--backend deepseek` to `graphify extract .` for the
+semantic "surprises" extraction pass too, which requires a `DEEPSEEK_API_KEY`.
+Do not commit a locally regenerated graph over the checked-in one outside of
+the workflow's own PR flow -- see `.github/workflows/graphify.yml` for how
+that's kept as a single, reviewable change.
 
 ## h_run_ci_checks.py
 

@@ -20,6 +20,16 @@ This repository has a Python/FastAPI backend, a React/Vite frontend, AWS CDK inf
 - `docs/`: operational docs, smoke test notes, deployment notes, and user-facing setup details.
 - Contributor onboarding runbook: `docs/CONTRIBUTOR_RUNBOOK.md` for the supported local, auth-enabled, test, smoke, and deployment-oriented paths.
 
+### Codebase knowledge graph (graphify)
+
+Before reading a large, unfamiliar slice of the codebase file-by-file, check whether `graphify-out/` already has a head start:
+
+- `graphify-out/.graphify_analysis.json` — architectural summary: `gods` (high fan-in "god object" hotspots), `communities` (module clusters), `cohesion`, and `surprises` (semantic anomalies). Grep or `jq` specific fields instead of reading the whole file.
+- `graphify-out/manifest.json` — per-file AST/semantic hashes.
+- `graphify-out/graph.json` — the full dependency graph (tens of MB). **Never** load this wholesale into a context window; query specific nodes/edges instead.
+
+These files are refreshed **manually**, not continuously: a maintainer runs `.github/workflows/graphify.yml` via `workflow_dispatch`, which opens a PR into `main` with the regenerated output. Treat them as a helpful orientation aid — e.g. before a large refactor, check whether the files you're about to touch show up in `gods` or share a `communities` cluster — not as always-current ground truth; verify anything load-bearing against the actual source.
+
 ## 2. Entrypoints and runtime expectations
 
 ### Backend

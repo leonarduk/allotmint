@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import sys
 from pathlib import Path
@@ -12,11 +13,14 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "scripts" / "developer_tools"))
 
 from f_implement_issue_with_aider import (  # noqa: E402
+    _normalize_symbol_prefix,
     confirm_with_user,
     extract_file_paths_from_issue,
     fetch_issue_from_github,
     formulate_aider_prompt,
+    graphify_hint_for_files,
     is_safe_relative_path,
+    load_graphify_analysis,
     load_issue_from_file,
     main,
     parse_issue_body,
@@ -233,6 +237,67 @@ class TestResolveFilesToEdit:
         mock_fetch.assert_not_called()
 
 
+class TestNormalizeSymbolPrefix:
+    def test_converts_path_to_underscore_prefix(self):
+        assert _normalize_symbol_prefix("backend/app.py") == "backend_app"
+
+    def test_strips_extension_and_lowercases(self):
+        assert _normalize_symbol_prefix("frontend/src/api.ts") == "frontend_src_api"
+
+    def test_collapses_non_alnum_runs(self):
+        assert _normalize_symbol_prefix("scripts/dev-tools/f_foo.py") == "scripts_dev_tools_f_foo"
+
+
+class TestLoadGraphifyAnalysis:
+    def test_returns_none_when_file_missing(self, tmp_path):
+        assert load_graphify_analysis(str(tmp_path / "nope.json")) is None
+
+    def test_returns_none_on_invalid_json(self, tmp_path):
+        bad = tmp_path / "bad.json"
+        bad.write_text("not json")
+        assert load_graphify_analysis(str(bad)) is None
+
+    def test_loads_valid_json(self, tmp_path):
+        analysis_file = tmp_path / "analysis.json"
+        analysis_file.write_text(json.dumps({"gods": [], "communities": {}}))
+        assert load_graphify_analysis(str(analysis_file)) == {"gods": [], "communities": {}}
+
+
+class TestGraphifyHintForFiles:
+    def test_returns_empty_string_when_analysis_is_none(self):
+        assert graphify_hint_for_files(["backend/app.py"], None) == ""
+
+    def test_returns_empty_string_when_analysis_has_no_matches(self):
+        analysis = {
+            "gods": [{"id": "unrelated_symbol", "label": "x()", "degree": 5}],
+            "communities": {},
+        }
+        assert graphify_hint_for_files(["backend/app.py"], analysis) == ""
+
+    def test_returns_empty_string_for_empty_analysis(self):
+        assert graphify_hint_for_files(["backend/app.py"], {}) == ""
+
+    def test_flags_god_object_hotspot(self):
+        analysis = {
+            "gods": [{"id": "backend_app_create_app", "label": "create_app()", "degree": 224}],
+            "communities": {},
+        }
+        hint = graphify_hint_for_files(["backend/app.py"], analysis)
+        assert "backend/app.py" in hint
+        assert "create_app()" in hint
+        assert "224" in hint
+
+    def test_flags_community_membership(self):
+        analysis = {
+            "gods": [],
+            "communities": {"5": ["frontend_src_api", "frontend_src_api_foo", "other_symbol"]},
+        }
+        hint = graphify_hint_for_files(["frontend/src/api.ts"], analysis)
+        assert "frontend/src/api.ts" in hint
+        assert "community 5" in hint
+        assert "2 other symbols" in hint
+
+
 class TestFormulateAiderPrompt:
     def test_includes_title_and_sections(self):
         sections = {"what": "Do the thing.", "how": "Do it this way."}
@@ -271,6 +336,14 @@ class TestFormulateAiderPrompt:
         assert "Failure:" not in prompt
         assert "It doesn't work." not in prompt
         assert "Success:" in prompt
+
+    def test_appends_graphify_hint_when_provided(self):
+        prompt = formulate_aider_prompt("Issue Title", {"what": "Do it."}, graphify_hint="\nGraphify hints:\n- foo")
+        assert prompt.endswith("Graphify hints:\n- foo")
+
+    def test_omits_graphify_hint_when_empty(self):
+        prompt = formulate_aider_prompt("Issue Title", {"what": "Do it."}, graphify_hint="")
+        assert "Graphify" not in prompt
 
 
 class TestFetchIssueFromGithub:
@@ -456,6 +529,7 @@ class TestMainOrdering:
     """The issue's constraint is to fail early if Ollama isn't running, before
     any other work -- these pin that ordering against a regression."""
 
+    @mock.patch("f_implement_issue_with_aider.load_graphify_analysis", return_value=None)
     @mock.patch("f_implement_issue_with_aider.os.chdir")
     @mock.patch("f_implement_issue_with_aider.get_repo_root", return_value="/repo/root")
     @mock.patch("f_implement_issue_with_aider.run_aider")
@@ -472,6 +546,7 @@ class TestMainOrdering:
         mock_run_aider,
         mock_get_repo_root,
         mock_chdir,
+        mock_load_graphify,
     ):
         calls = []
         mock_validate.side_effect = lambda endpoint: calls.append("ollama") or True
@@ -509,6 +584,7 @@ class TestMainOrdering:
         assert exc_info.value.code == 1
         mock_chdir.assert_not_called()
 
+    @mock.patch("f_implement_issue_with_aider.load_graphify_analysis", return_value=None)
     @mock.patch("f_implement_issue_with_aider.os.chdir")
     @mock.patch("f_implement_issue_with_aider.get_repo_root", return_value="/repo/root")
     @mock.patch("f_implement_issue_with_aider.run_aider")
@@ -523,6 +599,7 @@ class TestMainOrdering:
         mock_run_aider,
         mock_get_repo_root,
         mock_chdir,
+        mock_load_graphify,
     ):
         # Regression test: paths extracted from an issue body (and the files
         # ultimately handed to aider) are resolved relative to the process

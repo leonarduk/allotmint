@@ -88,8 +88,7 @@ def fetch_issue_from_github(
     except requests.RequestException as exc:
         print(f"ERROR: Failed to fetch issue #{issue_id}: {exc}", file=sys.stderr)
         print(
-            "Tip: If GitHub API is unreachable, use -f <file> to load a local "
-            "markdown file instead.",
+            "Tip: If GitHub API is unreachable, use -f <file> to load a local " "markdown file instead.",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -301,9 +300,7 @@ Do not include test files or lock files. Be concise."""
             if isinstance(suggested, list):
                 # Filter to existing, safe (non-traversal) files
                 existing = [
-                    p
-                    for p in suggested
-                    if isinstance(p, str) and is_safe_relative_path(p) and Path(p).exists()
+                    p for p in suggested if isinstance(p, str) and is_safe_relative_path(p) and Path(p).exists()
                 ]
                 if verbose:
                     print(
@@ -357,10 +354,88 @@ def resolve_files_to_edit(
     return suggest_files_with_ollama(title, body, extracted_paths, endpoint, model, verbose)
 
 
+def _normalize_symbol_prefix(path: str) -> str:
+    """Convert a repo-relative file path to the underscore-joined id prefix
+    graphify uses for symbols defined in that file, e.g. "backend/app.py" ->
+    "backend_app"."""
+    stem = Path(path).with_suffix("")
+    return re.sub(r"[^a-z0-9]+", "_", str(stem).lower()).strip("_")
+
+
+def load_graphify_analysis(
+    analysis_path: str = "graphify-out/.graphify_analysis.json",
+    verbose: bool = False,
+) -> dict | None:
+    """Load graphify's precomputed knowledge-graph analysis, if present.
+
+    Returns None (never raises) when the file is missing or unreadable --
+    graphify-out/ is only refreshed manually via workflow_dispatch on
+    .github/workflows/graphify.yml, so it's a helpful-if-present snapshot,
+    not something every checkout is guaranteed to have.
+    """
+    path = Path(analysis_path)
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        if verbose:
+            print(f"[DEBUG] Could not read graphify analysis: {exc}", file=sys.stderr)
+        return None
+
+
+def graphify_hint_for_files(files: list[str], analysis: dict | None) -> str:
+    """Build a short prompt hint from graphify's analysis for the given files:
+    whether any is a high fan-in "god object" hotspot, and which knowledge-graph
+    community it belongs to. Returns "" when there's nothing to say (no
+    analysis available, or none of the files are flagged) -- this is a hint,
+    not a required section of the prompt.
+    """
+    if not analysis:
+        return ""
+
+    gods = {g["id"]: g for g in analysis.get("gods", []) if isinstance(g, dict) and "id" in g}
+    communities = analysis.get("communities", {})
+
+    lines = []
+    for file in files:
+        prefix = _normalize_symbol_prefix(file)
+        if not prefix:
+            continue
+
+        for god_id, god in gods.items():
+            if god_id == prefix or god_id.startswith(f"{prefix}_"):
+                lines.append(
+                    f"- {file}: high fan-in hotspot ('{god.get('label', god_id)}', "
+                    f"degree {god.get('degree', '?')}) -- changes here have broad blast radius."
+                )
+
+        for community_id, members in communities.items():
+            if not isinstance(members, list):
+                continue
+            if any(m == prefix or m.startswith(f"{prefix}_") for m in members):
+                lines.append(
+                    f"- {file}: in knowledge-graph community {community_id} with "
+                    f"{len(members) - 1} other symbols -- check for related usages."
+                )
+                break
+
+    if not lines:
+        return ""
+
+    return "\n".join(
+        [
+            "\nGraphify knowledge-graph hints (precomputed, may be stale -- verify against the actual source):",
+            *lines,
+        ]
+    )
+
+
 def formulate_aider_prompt(
     issue_title: str,
     parsed_sections: dict[str, str],
     verbose: bool = False,
+    graphify_hint: str = "",
 ) -> str:
     """Formulate the prompt to pass to Aider based on parsed issue sections."""
     prompt_lines = [issue_title]
@@ -379,6 +454,9 @@ def formulate_aider_prompt(
             if content:
                 section_title = section.replace("_", " ").title()
                 prompt_lines.append(f"\n{section_title}:\n{content}")
+
+    if graphify_hint:
+        prompt_lines.append(graphify_hint)
 
     prompt = "\n".join(prompt_lines)
 
@@ -450,24 +528,19 @@ def run_aider(files: list[str], prompt: str, verbose: bool = False) -> None:
         print("ERROR: No files to add to Aider; aborting.", file=sys.stderr)
         sys.exit(1)
 
-    message_file = tempfile.NamedTemporaryFile(
-        mode="w", suffix=".md", delete=False, encoding="utf-8"
-    )
+    message_file = tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False, encoding="utf-8")
     try:
         message_file.write(prompt)
         message_file.close()
         if verbose:
             print(f"[DEBUG] Applying initial prompt to {len(files)} files...", file=sys.stderr)
-        initial = _run_aider(
-            ["aider", "--edit-format", "whole", "--message-file", message_file.name, *files]
-        )
+        initial = _run_aider(["aider", "--edit-format", "whole", "--message-file", message_file.name, *files])
     finally:
         Path(message_file.name).unlink(missing_ok=True)
 
     if initial.returncode != 0:
         print(
-            f"ERROR: aider exited with status {initial.returncode} "
-            "while applying the initial prompt",
+            f"ERROR: aider exited with status {initial.returncode} " "while applying the initial prompt",
             file=sys.stderr,
         )
         sys.exit(initial.returncode)
@@ -532,17 +605,18 @@ def main(argv: list[str] | None = None) -> None:
     # Parse issue structure
     parsed = parse_issue_body(body, args.verbose)
 
-    files = resolve_files_to_edit(
-        title, body, endpoint, model, args.verbose, parsed.get("files_affected", "")
-    )
+    files = resolve_files_to_edit(title, body, endpoint, model, args.verbose, parsed.get("files_affected", ""))
     if not files:
         print(
             "WARNING: No files found or suggested. Proceeding with empty file list.",
             file=sys.stderr,
         )
 
-    # Formulate prompt
-    prompt = formulate_aider_prompt(title, parsed, args.verbose)
+    # Formulate prompt, folding in a short hint from graphify's precomputed
+    # knowledge graph (god-object hotspots / community membership) when
+    # graphify-out/ is present in this checkout.
+    graphify_hint = graphify_hint_for_files(files, load_graphify_analysis(verbose=args.verbose))
+    prompt = formulate_aider_prompt(title, parsed, args.verbose, graphify_hint)
 
     # Confirm with user
     if not confirm_with_user(files, prompt, args.no_confirm, args.verbose):

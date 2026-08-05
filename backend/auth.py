@@ -82,19 +82,40 @@ def _emails_for_person_meta(meta: Any) -> Set[str]:
     return emails
 
 
+def _configured_allowed_emails() -> Set[str]:
+    """Return the bootstrap allowlist from ``config.allowed_emails``.
+
+    Sourced from ``config.lambda.yaml``'s ``auth.allowed_emails`` (or the
+    ``ALLOWED_EMAILS`` env var, which overrides it -- see
+    :func:`backend.config.load_config`). Unlike the S3/local-provisioned
+    account emails below, this set is always available even before any owner
+    account has been created, so it lets a deployment's designated owner(s)
+    authenticate on a fresh deployment with zero provisioned accounts (#6130).
+    """
+
+    configured = getattr(config, "allowed_emails", None)
+    if not configured:
+        return set()
+    return {email.strip().lower() for email in configured if isinstance(email, str) and email.strip()}
+
+
 def _allowed_emails() -> Set[str]:
     """Return the set of configured account emails.
 
     Includes both each owner's own email and their configured viewer emails
     (see :func:`_emails_for_person_meta`), so identity resolution accepts the
     same callers ``ensure_owner_access`` would later authorize for that owner.
+    Also always includes :func:`_configured_allowed_emails`, the deployment's
+    bootstrap allowlist, so the owner(s) can authenticate even before any
+    account has been provisioned.
 
     When running in AWS, owner metadata is loaded from S3. If this request
-    fails, the exception is logged and an empty set is returned so that login
-    attempts are rejected cleanly.
+    fails, the exception is logged and the bootstrap allowlist alone is
+    returned (rather than clearing it) so the owner is not locked out by a
+    transient S3 error.
     """
 
-    emails: Set[str] = set()
+    emails: Set[str] = _configured_allowed_emails()
 
     if config.app_env == "aws":
         owners: Set[str] = set()
@@ -126,7 +147,7 @@ def _allowed_emails() -> Set[str]:
                         break
             except (BotoCoreError, ClientError):
                 logger.exception("Failed to list allowed emails from S3")
-                return set()
+                return emails
         for owner in owners:
             try:
                 meta = load_person_metadata(owner)
@@ -149,7 +170,7 @@ def _allowed_emails() -> Set[str]:
 
     if not root.exists():
         logger.warning("Accounts root %s does not exist", root)
-        return set()
+        return emails
 
     for owner_dir in root.iterdir():
         if not owner_dir.is_dir():

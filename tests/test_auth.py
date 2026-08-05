@@ -60,6 +60,7 @@ def test_allowed_emails_local_relative_root(monkeypatch, tmp_path):
     (accounts / "notes.txt").write_text("ignore")
 
     monkeypatch.setattr(auth.config, "app_env", "local", raising=False)
+    monkeypatch.setattr(auth.config, "allowed_emails", None, raising=False)
     monkeypatch.setattr(auth.config, "accounts_root", "accounts", raising=False)
     monkeypatch.setattr(auth.config, "repo_root", repo_root, raising=False)
 
@@ -86,6 +87,7 @@ def test_allowed_emails_local_fallback_handles_errors(monkeypatch, tmp_path):
     (fallback_root / "bob").mkdir()
 
     monkeypatch.setattr(auth.config, "app_env", "local", raising=False)
+    monkeypatch.setattr(auth.config, "allowed_emails", None, raising=False)
     monkeypatch.setattr(auth.config, "accounts_root", None, raising=False)
     monkeypatch.setattr(auth.config, "repo_root", repo_root, raising=False)
 
@@ -109,6 +111,7 @@ def test_allowed_emails_local_fallback_handles_errors(monkeypatch, tmp_path):
 
 def test_allowed_emails_aws_s3_error(monkeypatch, caplog):
     monkeypatch.setattr(auth.config, "app_env", "aws", raising=False)
+    monkeypatch.setattr(auth.config, "allowed_emails", None, raising=False)
     monkeypatch.setenv(dl.DATA_BUCKET_ENV, "bucket")
 
     class FakeS3:
@@ -126,6 +129,69 @@ def test_allowed_emails_aws_s3_error(monkeypatch, caplog):
 
     assert emails == set()
     assert any("Failed to list allowed emails from S3" in record.message for record in caplog.records)
+
+
+def test_allowed_emails_bootstrap_allowlist_survives_s3_error(monkeypatch, caplog):
+    """The configured bootstrap owner must still get in even if S3 fails (#6130).
+
+    A transient S3 error must not lock out the deployment's configured owner
+    email(s) -- only the S3-provisioned portion of the set is lost.
+    """
+
+    monkeypatch.setattr(auth.config, "app_env", "aws", raising=False)
+    monkeypatch.setattr(auth.config, "allowed_emails", ["Owner@Example.com"], raising=False)
+    monkeypatch.setenv(dl.DATA_BUCKET_ENV, "bucket")
+
+    class FakeS3:
+        def list_objects_v2(self, **kwargs):  # noqa: ARG002 - kwargs for API parity
+            raise auth.BotoCoreError()
+
+    monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=lambda name: FakeS3()))
+
+    with caplog.at_level("ERROR"):
+        emails = auth._allowed_emails()
+
+    assert emails == {"owner@example.com"}
+
+
+def test_allowed_emails_bootstrap_allowlist_when_no_accounts_provisioned(monkeypatch):
+    """A fresh AWS deployment with zero S3 accounts must still admit the configured owner (#6130)."""
+
+    monkeypatch.setattr(auth.config, "app_env", "aws", raising=False)
+    monkeypatch.setattr(auth.config, "allowed_emails", ["owner@example.com"], raising=False)
+    monkeypatch.delenv(dl.DATA_BUCKET_ENV, raising=False)
+
+    assert auth._allowed_emails() == {"owner@example.com"}
+
+
+def test_configured_allowed_emails_normalizes_list(monkeypatch):
+    """``config.allowed_emails`` (already a ``list[str]``, however sourced --
+    config.lambda.yaml's yaml list or the ALLOWED_EMAILS env var, both parsed
+    by ``_parse_str_list`` in backend/config.py) must become a lower-cased,
+    whitespace-trimmed set, not be iterated character-by-character (#6130).
+
+    Deliberately does not exercise ``reload_config()``: config.py's parsing of
+    ALLOWED_EMAILS into a list is already covered by
+    tests/test_config.py::test_allowed_emails_env_override, and re-entering
+    ``reload_config()`` here would trip its unrelated "preserve a
+    monkeypatched allowed_emails across reload" bookkeeping (backend/config.py
+    ``_allowed_emails_overridden``) whenever an earlier test in this file has
+    already monkeypatched ``config.allowed_emails`` directly -- this test's
+    job is only ``_configured_allowed_emails()``'s own aggregation logic.
+    """
+
+    monkeypatch.setattr(
+        auth.config,
+        "allowed_emails",
+        [" Owner@Example.com", "Second@Example.com ", "", "   "],
+        raising=False,
+    )
+    assert auth._configured_allowed_emails() == {"owner@example.com", "second@example.com"}
+
+
+def test_configured_allowed_emails_empty_when_unset(monkeypatch):
+    monkeypatch.setattr(auth.config, "allowed_emails", None, raising=False)
+    assert auth._configured_allowed_emails() == set()
 
 
 def test_create_and_decode_token_round_trip():

@@ -22,7 +22,13 @@ auth:
   demo_identity: demo
   smoke_identity: demo
   local_login_email: ""
-  allowed_emails: []
+  # Bootstrap allowlist consulted by `_allowed_emails()` (backend/auth.py) in
+  # addition to any owner accounts already provisioned in S3. Without this,
+  # a fresh deployment with no S3 accounts yet has no one who can pass
+  # `_allowed_emails()` -- including its own owner (#6130). Overridden by the
+  # ALLOWED_EMAILS env var if set (see backend/config.py).
+  allowed_emails:
+    - steveleonard11@gmail.com
 
 server:
   app_env: aws                      # overridden by APP_ENV env var

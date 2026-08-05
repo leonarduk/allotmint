@@ -285,6 +285,11 @@ class BackendLambdaStack(Stack):
         signup_login_url = self.node.try_get_context("signup_login_url") or os.getenv(
             "SIGNUP_LOGIN_URL", ""
         )
+        # Bootstrap allowlist for backend.auth._allowed_emails() (#6130): lets a
+        # deployment's designated owner(s) authenticate before any account is
+        # provisioned in S3. Optional -- when unset, config.lambda.yaml's
+        # baked-in `auth.allowed_emails` default applies instead.
+        allowed_emails = self.node.try_get_context("allowed_emails") or os.getenv("ALLOWED_EMAILS", "")
         # SES sender identity used as the `Source` for signup/pension-report
         # emails (backend/emails/*.py's `_SENDER_EMAIL`, from `WEEKLY_REPORT_FROM`,
         # defaulting to "no-reply@allotmint.com"). Used below to scope the
@@ -469,6 +474,8 @@ class BackendLambdaStack(Stack):
             backend_env["SIGNUP_APPROVAL_BASE_URL"] = signup_approval_base_url
         if signup_login_url:
             backend_env["SIGNUP_LOGIN_URL"] = signup_login_url
+        if allowed_emails:
+            backend_env["ALLOWED_EMAILS"] = allowed_emails
 
         backend_log_group = self._lambda_log_group(self, "BackendLambdaLogGroup")
         backend_fn = _lambda.DockerImageFunction(

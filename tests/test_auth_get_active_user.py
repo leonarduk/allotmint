@@ -261,6 +261,7 @@ def test_allowed_emails_missing_accounts_root(
 ) -> None:
     monkeypatch.setattr(auth.config, "disable_auth", False, raising=False)
     monkeypatch.setattr(auth.config, "app_env", None, raising=False)
+    monkeypatch.setattr(auth.config, "allowed_emails", None, raising=False)
 
     missing_root = tmp_path / "missing"
     monkeypatch.setattr(auth.config, "accounts_root", missing_root, raising=False)

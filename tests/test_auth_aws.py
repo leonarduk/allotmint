@@ -10,6 +10,7 @@ from backend.common.account_models import PersonMetadata
 
 def test_allowed_emails_from_s3(monkeypatch):
     monkeypatch.setattr(auth.config, "app_env", "aws", raising=False)
+    monkeypatch.setattr(auth.config, "allowed_emails", None, raising=False)
     monkeypatch.setenv(dl.DATA_BUCKET_ENV, "bucket")
 
     def fake_client(name):
@@ -51,6 +52,7 @@ def test_allowed_emails_from_s3(monkeypatch):
 
 def test_allowed_emails_logs_s3_error(monkeypatch, caplog):
     monkeypatch.setattr(auth.config, "app_env", "aws", raising=False)
+    monkeypatch.setattr(auth.config, "allowed_emails", None, raising=False)
     monkeypatch.setenv(dl.DATA_BUCKET_ENV, "bucket")
 
     class FakeS3:
@@ -72,6 +74,7 @@ def test_allowed_emails_logs_s3_error(monkeypatch, caplog):
 
 def test_allowed_emails_s3_handles_pagination(monkeypatch):
     monkeypatch.setattr(auth.config, "app_env", "aws", raising=False)
+    monkeypatch.setattr(auth.config, "allowed_emails", None, raising=False)
     monkeypatch.setenv(dl.DATA_BUCKET_ENV, "bucket")
 
     calls: list[dict[str, object]] = []
@@ -110,6 +113,7 @@ def test_allowed_emails_s3_handles_pagination(monkeypatch):
 
 def test_allowed_emails_s3_filters_invalid_entries(monkeypatch):
     monkeypatch.setattr(auth.config, "app_env", "aws", raising=False)
+    monkeypatch.setattr(auth.config, "allowed_emails", None, raising=False)
     monkeypatch.setenv(dl.DATA_BUCKET_ENV, "bucket")
 
     class FakeS3:

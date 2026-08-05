@@ -185,6 +185,7 @@ See `docs/DEPLOY.md` ("Critical: `GITHUB_DEPLOY_ROLE_ARN` environment variable f
 | --- | --- | --- |
 | `SMOKE_TEST_USERNAME` | Username for authenticated smoke test runs | `SMOKE_TEST_USERNAME=test-user@example.com` |
 | `SMOKE_TEST_PASSWORD` | Password for authenticated smoke test runs | `SMOKE_TEST_PASSWORD=<secure-password>` |
+| `ALLOWED_EMAILS` | Rotates the bootstrap owner allowlist without a code change (see [docs/AUTH.md](AUTH.md#bootstrapping-the-first-owner-account-aws)) | `ALLOWED_EMAILS=owner@example.com` |
 
 **Validating deployment configuration:**
 

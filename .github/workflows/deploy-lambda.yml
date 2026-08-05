@@ -506,6 +506,10 @@ jobs:
           CDK_OUTDIR: /tmp/cdk.out.${{ github.run_id }}.${{ github.run_attempt }}
           FRONTEND_ORIGIN: ${{ env.FRONTEND_ORIGIN }}
           CORS_ORIGINS: ${{ env.CORS_ORIGINS }}
+          # Optional (#6130): rotates the bootstrap owner allowlist without a
+          # code change. Falls back to config.lambda.yaml's baked-in default
+          # when this secret is not set.
+          ALLOWED_EMAILS: ${{ secrets.ALLOWED_EMAILS }}
         run: >
           npx cdk deploy BackendLambdaStack --require-approval never
           --parameters BackendLambdaStack:UiAuthUserPoolId="$UI_AUTH_USER_POOL_ID"

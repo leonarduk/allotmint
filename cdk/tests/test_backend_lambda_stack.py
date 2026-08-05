@@ -313,6 +313,23 @@ def test_backend_lambda_has_metadata_bucket_env_vars(template):
     )
 
 
+def test_backend_lambda_has_log_group_name_env_var(template):
+    """BackendLambda must have BACKEND_LOG_GROUP_NAME so
+    backend/routes/logs.py::_read_cloudwatch_logs() knows which CloudWatch log
+    group to query for GET /logs on AWS, where there is no writable
+    logs/backend.log to fall back to (issue #6140)."""
+    template.has_resource_properties(
+        "AWS::Lambda::Function",
+        {
+            "Environment": {
+                "Variables": assertions.Match.object_like(
+                    {"BACKEND_LOG_GROUP_NAME": assertions.Match.any_value()}
+                )
+            }
+        },
+    )
+
+
 def test_backend_lambda_timeout_is_at_least_30s(template):
     """BackendLambda must have a timeout > the 3 s default to survive cold starts."""
     functions = template.find_resources("AWS::Lambda::Function")

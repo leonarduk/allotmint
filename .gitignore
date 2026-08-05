@@ -73,6 +73,11 @@ jenkins_home/
 .aider*
 !.aiderignore
 
+# Graphify's internal incremental-build cache (hundreds of small per-file
+# blobs, not meaningful output) — only graph.json/manifest.json etc. from
+# graphify-out/ should ever be committed, see #6119.
+graphify-out/cache/
+
 # Offline issue sync
 issues/
 /scripts/developer_tools/.issue-*.md

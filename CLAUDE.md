@@ -11,6 +11,7 @@ This file gives Claude-style coding agents a fast, practical overview for workin
 - Local backend app: `backend.local_api.main:app`
 - Frontend app entry: `frontend/src/main.tsx`
 - Primary backend tests: top-level `tests/`
+- Codebase knowledge graph: `graphify-out/` (see High-signal warnings below)
 
 ## Most useful commands
 
@@ -39,6 +40,7 @@ npm run smoke:test:codex:poc
 - Never use `git commit -am`; always stage specific files explicitly. The `-a` flag will sweep in any lock file changes from local `npm ci` or `npm install` runs, which can strip platform-specific optional deps (e.g. Linux `@emnapi` entries) and break CI.
 - Be cautious around `data/`, auth toggles, and smoke-test identities; these often affect local demos and automated flows.
 - Preserve cross-platform workflow parity when touching scripts because the repo uses both bash and PowerShell helpers.
+- Before deep-reading an unfamiliar area, check `graphify-out/.graphify_analysis.json` for `gods` (fan-in hotspots) and `communities` (module clusters) — it's a precomputed orientation aid. It's refreshed **manually** via `workflow_dispatch` on `.github/workflows/graphify.yml`, so treat it as a snapshot, not live truth. Never load `graphify-out/graph.json` (tens of MB) wholesale into context — grep/`jq` specific entries instead.
 
 ## Branch, issue, and PR policy
 

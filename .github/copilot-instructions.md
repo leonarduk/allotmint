@@ -19,6 +19,7 @@ Read `AGENTS.md` for full repository guidance. Use these short rules while gener
 - Be careful when changing `data/`, auth defaults, or smoke-test flows; these are tightly coupled to local development and demos.
 - Preserve bash/PowerShell parity when editing shared developer workflows.
 - For Codex browser-testing setup and POC commands, see `docs/CODEX_PLAYWRIGHT_MCP.md`.
+- Before deep-reading an unfamiliar area, check `graphify-out/.graphify_analysis.json` (`gods` hotspots, `communities` clusters) as a precomputed orientation aid — it's refreshed manually via `workflow_dispatch` on `.github/workflows/graphify.yml`, so treat it as a snapshot, not live truth. Never load `graphify-out/graph.json` (tens of MB) wholesale into context.
 
 ## Code quality invariants (non-negotiable)
 

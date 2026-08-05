@@ -23,6 +23,9 @@
   `scripts/run-frontend.ps1`, in addition to streaming to the console.
 - The `run_with_error_summary.py` helper records errors in `error_summary.log`.
 - A root-level `logging.ini` exists only to tune third-party loggers like `yfinance`.
+- On AWS, the Support page's Logs panel (`GET /logs`) reads recent output from
+  the BackendLambda's CloudWatch log group instead of a local file — the
+  Lambda filesystem has no `logs/backend.log`. See `backend/routes/logs.py`.
 
 ## Escalation Contacts
 - **Primary**: steveleonard11@gmail.com

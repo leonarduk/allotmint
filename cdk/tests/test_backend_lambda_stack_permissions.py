@@ -949,6 +949,53 @@ def test_no_logs_grant_to_deploy_role_when_github_deploy_role_arn_absent(monkeyp
     )
 
 
+def test_backend_lambda_gets_filter_log_events_on_own_log_group() -> None:
+    """BackendLambda's own execution role must be granted logs:FilterLogEvents
+    scoped to its own log group so GET /logs
+    (backend/routes/logs.py::_read_cloudwatch_logs()) can read recent backend
+    output on AWS instead of getting AccessDeniedException. See issue #6140."""
+    template = _stack_template()
+    backend_role = _role_logical_id_for_lambda(template, "BackendLambda")
+
+    filter_log_events_resources: list[str] = []
+    for resource in template["Resources"].values():
+        if resource.get("Type") != "AWS::IAM::Policy":
+            continue
+        roles = resource.get("Properties", {}).get("Roles", [])
+        role_refs = {
+            r["Ref"] for r in roles if isinstance(r, dict) and isinstance(r.get("Ref"), str)
+        }
+        if backend_role not in role_refs:
+            continue
+        policy_doc = resource.get("Properties", {}).get("PolicyDocument", {})
+        for stmt in policy_doc.get("Statement", []):
+            actions = stmt.get("Action", [])
+            if isinstance(actions, str):
+                actions = [actions]
+            if "logs:FilterLogEvents" not in actions:
+                continue
+            resources = stmt.get("Resource", [])
+            if isinstance(resources, (str, dict)):
+                resources = [resources]
+            filter_log_events_resources.extend(
+                r if isinstance(r, str) else str(r) for r in resources
+            )
+
+    assert filter_log_events_resources, (
+        "Expected BackendLambda's own role to be granted logs:FilterLogEvents, "
+        f"got no matching statements for role {backend_role}"
+    )
+    for resource in filter_log_events_resources:
+        assert "*" not in resource, (
+            f"Expected logs:FilterLogEvents resource to be scoped to the BackendLambda "
+            f"log group ARN (no wildcard), got: {resource}"
+        )
+        assert "BackendLambdaLogGroup" in resource, (
+            f"Expected logs:FilterLogEvents resource to reference the BackendLambda "
+            f"log group, got: {resource}"
+        )
+
+
 def _fallback_string_literal(source_path: Path, assigned_name: str) -> str:
     """Statically extract the fallback string literal assigned to ``assigned_name``.
 

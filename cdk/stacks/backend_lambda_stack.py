@@ -481,6 +481,11 @@ class BackendLambdaStack(Stack):
             memory_size=1024,
         )
         backend_fn.add_environment("APP_ENV", env)
+        # Read by backend/routes/logs.py::_read_cloudwatch_logs() so GET /logs
+        # can surface recent backend output on AWS, where there is no writable
+        # logs/backend.log to read (the Lambda filesystem is read-only and
+        # stdout/stderr go to CloudWatch instead). See issue #6140.
+        backend_fn.add_environment("BACKEND_LOG_GROUP_NAME", backend_log_group.log_group_name)
 
         moneyhub_token_store = MoneyhubTokenStore(self, "MoneyhubTokenStore")
         moneyhub_token_store.grant_read_write(backend_fn)
@@ -509,6 +514,18 @@ class BackendLambdaStack(Stack):
             list_prefix=lambda_list_prefixes["backend"],
         )
         self._grant_timeseries_cache_access(backend_fn, bucket=data_bucket, allow_put=True)
+
+        # Lets GET /logs (backend/routes/logs.py::_read_cloudwatch_logs()) read
+        # the Lambda's own recent output on AWS, where there is no writable
+        # logs/backend.log to fall back to (issue #6140). Scoped to this
+        # Lambda's own log group only, mirroring the read-only scoping already
+        # granted to the CI deploy role below (issue #3742).
+        backend_fn.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["logs:FilterLogEvents"],
+                resources=[backend_log_group.log_group_arn],
+            )
+        )
 
         # SES send permission for signup admin/user notification emails (#5367).
         # The Lambda calls ses:SendEmail to notify the admin of new account

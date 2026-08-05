@@ -184,6 +184,11 @@ to use the tool (#6130).
   allowlist alone is still honoured rather than rejecting everyone, so a
   transient error can't lock the owner out.
 
+This deployment's owner is pre-seeded directly in `config.lambda.yaml`, but
+that's a one-time step for *this* repo, not a requirement going forward: a
+future deployment (or rotating this one's owner) only needs the
+`ALLOWED_EMAILS` GitHub Actions secret set, no code change.
+
 Two distinct paths can create an owner's data directory:
 
 ### Admin-provisioned (signup-approval flow)

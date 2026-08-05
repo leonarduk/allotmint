@@ -164,6 +164,36 @@ def test_allowed_emails_bootstrap_allowlist_when_no_accounts_provisioned(monkeyp
     assert auth._allowed_emails() == {"owner@example.com"}
 
 
+def test_configured_allowed_emails_normalizes_list(monkeypatch):
+    """``config.allowed_emails`` (already a ``list[str]``, however sourced --
+    config.lambda.yaml's yaml list or the ALLOWED_EMAILS env var, both parsed
+    by ``_parse_str_list`` in backend/config.py) must become a lower-cased,
+    whitespace-trimmed set, not be iterated character-by-character (#6130).
+
+    Deliberately does not exercise ``reload_config()``: config.py's parsing of
+    ALLOWED_EMAILS into a list is already covered by
+    tests/test_config.py::test_allowed_emails_env_override, and re-entering
+    ``reload_config()`` here would trip its unrelated "preserve a
+    monkeypatched allowed_emails across reload" bookkeeping (backend/config.py
+    ``_allowed_emails_overridden``) whenever an earlier test in this file has
+    already monkeypatched ``config.allowed_emails`` directly -- this test's
+    job is only ``_configured_allowed_emails()``'s own aggregation logic.
+    """
+
+    monkeypatch.setattr(
+        auth.config,
+        "allowed_emails",
+        [" Owner@Example.com", "Second@Example.com ", "", "   "],
+        raising=False,
+    )
+    assert auth._configured_allowed_emails() == {"owner@example.com", "second@example.com"}
+
+
+def test_configured_allowed_emails_empty_when_unset(monkeypatch):
+    monkeypatch.setattr(auth.config, "allowed_emails", None, raising=False)
+    assert auth._configured_allowed_emails() == set()
+
+
 def test_create_and_decode_token_round_trip():
     token = auth.create_access_token("user@example.com")
     assert auth.decode_token(token) == "user@example.com"

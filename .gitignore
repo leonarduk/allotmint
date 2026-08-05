@@ -77,6 +77,10 @@ jenkins_home/
 # blobs, not meaningful output) — only graph.json/manifest.json etc. from
 # graphify-out/ should ever be committed, see #6119.
 graphify-out/cache/
+# graphify also writes a dated snapshot subfolder duplicating the same
+# files (graphify-out/2026-08-05/, etc). We only want one flat folder of
+# current results, not split by date, see #6131.
+graphify-out/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/
 
 # Offline issue sync
 issues/

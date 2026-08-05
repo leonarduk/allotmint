@@ -10,5 +10,13 @@
  * exceed the default even though the menu genuinely opens (#5734). Use
  * this constant instead of a bare `{ timeout: <number> }` so the value
  * stays consistent and any future retuning only happens in one place.
+ *
+ * A fixed 3000ms still occasionally proved too tight on contended CI
+ * runners even after #5734 (#6126), while the same test file reliably
+ * passes locally. Rather than blindly raising the value for every
+ * environment, scale it up only under CI (`process.env.CI`, set by GitHub
+ * Actions and honored elsewhere in this repo, e.g. `playwright.config.ts`)
+ * so local runs stay fast to fail while CI gets the extra headroom it
+ * actually needs.
  */
-export const MENU_INTERACTION_TIMEOUT_MS = 3000;
+export const MENU_INTERACTION_TIMEOUT_MS = process.env.CI ? 8000 : 3000;

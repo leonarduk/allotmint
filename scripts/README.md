@@ -333,7 +333,7 @@ Optional flags:
 - `-m/--message TEXT`: Commit message override (skips LLM generation)
 - `-f/--files FILE [FILE ...]`: Specific files to stage (default: all changed files)
 - `--no-llm` (alias `--no-ollama`): Skip the LLM and use a plain default commit message
-- `--model-source {local,cloud}`: Which model to use (default: `local`)
+- `--model-source {local,cloud,remote}`: Which model to use (default: `local`)
 - `--model MODEL`: Ollama model name, only used with `--model-source local` (default: env var `OLLAMA_MODEL` or `qwen2.5-coder:7b`)
 - `--no-push`: Commit only; skip pushing to `origin`
 
@@ -348,7 +348,7 @@ bash scripts/bash/commit-and-push.sh -m "Fix bug in auth" --no-ollama
 ```
 
 **Requirements:**
-- A model is optional but recommended for better commit messages; without one reachable (or with `--no-llm`), a plain default message is used. `--model-source cloud` requires `DEEPSEEK_API_KEY`.
+- A model is optional but recommended for better commit messages; without one reachable (or with `--no-llm`), a plain default message is used. `--model-source cloud` requires `DEEPSEEK_API_KEY`; `--model-source remote` requires `REMOTE_LLM_ENDPOINT`.
 
 ## m_dependabot_auto_merge.py
 
@@ -487,16 +487,16 @@ naming rules — required contexts are check-run names (`test`), not the
 
 ## o_review_issue.py
 
-Review and refresh a single GitHub issue with a local or cloud LLM before work
-starts on it, so a stale or vague issue gets corrected instead of misread.
-Fetches the issue, asks the chosen model to bring the title/body up to date
-while preserving the original section structure, shows a diff of the proposed
-change, and only calls `gh issue edit` after you approve it. The local/cloud
-model switch lives in `developer_tools/lib/llm_common.py` and is shared by
-`b_create_issue.py`, `c_triage_issues.py`, `h_local_review.py`,
-`k_pr_review.py`, and `lib/commit_and_push.py` -- all of them accept
-`--model-source {local,cloud}` (or, for `b_create_issue.py`, an interactive
-prompt) to pick the same way.
+Review and refresh a single GitHub issue with a local, cloud, or remote LLM
+before work starts on it, so a stale or vague issue gets corrected instead of
+misread. Fetches the issue, asks the chosen model to bring the title/body up
+to date while preserving the original section structure, shows a diff of the
+proposed change, and only calls `gh issue edit` after you approve it. The
+local/cloud/remote model switch lives in `developer_tools/lib/llm_common.py`
+and is shared by `b_create_issue.py`, `c_triage_issues.py`,
+`i_local_review.py`, `l_pr_review.py`, and `lib/commit_and_push.py` -- all of
+them accept `--model-source {local,cloud,remote}` (or, for `b_create_issue.py`,
+an interactive prompt) to pick the same way.
 
 ```bash
 python scripts/developer_tools/o_review_issue.py 5695
@@ -509,8 +509,11 @@ python scripts/developer_tools/o_review_issue.py
 ```
 
 Optional flags:
-- `--model {local,cloud}`: `local` uses Ollama (see `OLLAMA_ENDPOINT`/`OLLAMA_MODEL`
-  above); `cloud` uses DeepSeek and requires `DEEPSEEK_API_KEY` to be set.
+- `--model {local,cloud,remote}`: `local` uses Ollama (see
+  `OLLAMA_ENDPOINT`/`OLLAMA_MODEL` above); `cloud` uses DeepSeek and requires
+  `DEEPSEEK_API_KEY` to be set; `remote` talks to a self-hosted
+  OpenAI-compatible endpoint (vLLM/SGLang/TGI) and requires
+  `REMOTE_LLM_ENDPOINT` to be set — see the Remote LLM section below.
 - `--yes`: skip the confirmation prompt and update the issue if changes are proposed.
 - `--dry-run`: show the proposed diff and confirmation flow, but never call
   `gh issue edit`.
@@ -520,11 +523,61 @@ If the model's revised body is far shorter than the original, the script
 refuses to propose the change rather than risk silently dropping details.
 
 **Requirements:** `gh` CLI authenticated against the target repo; either a
-running local Ollama server or a `DEEPSEEK_API_KEY`, depending on `--model`.
+running local Ollama server, a `DEEPSEEK_API_KEY`, or a configured
+`REMOTE_LLM_ENDPOINT`, depending on `--model`.
 `DEEPSEEK_API_KEY` is loaded from a `.env` file in the repo root (not the
 current working directory) -- running the script from
 `scripts/developer_tools/` picks this up automatically, or set the variable
 directly in your shell environment.
+
+### Remote LLM (self-hosted OpenAI-compatible endpoint)
+
+The scripts support a third model source (`remote`) that talks to any
+inference server exposing an OpenAI-compatible `/v1/chat/completions` endpoint
+— this covers vLLM, SGLang, TGI, and similar engines. It is useful for
+pointing the `developer_tools` scripts at a rented GPU instance (e.g. on
+[vast.ai](https://vast.ai)) that can serve multiple concurrent requests more
+cheaply than per-token cloud billing while staying faster than a single local
+Ollama call.
+
+**Setup:**
+
+```
+# In repo-root .env (or export in shell)
+REMOTE_LLM_ENDPOINT=https://your-instance.example.com
+REMOTE_LLM_MODEL=deepseek-ai/DeepSeek-V3
+REMOTE_LLM_API_KEY=optional-bearer-token
+```
+
+- `REMOTE_LLM_ENDPOINT` — base URL of the remote inference server (required).
+  The client POSTs to `{endpoint}/v1/chat/completions`.
+- `REMOTE_LLM_MODEL` — model name to pass in the chat-completions payload
+  (required; defaults to a placeholder that will produce an obvious error if
+  unset).
+- `REMOTE_LLM_API_KEY` — optional bearer token sent as an `Authorization:
+  Bearer <key>` header. Use this when the endpoint sits behind an auth layer
+  (recommended).
+
+**Security:** If the rented instance is reached over the public internet,
+bind it behind a tunnel with its own authentication rather than exposing the
+raw port directly. Recommended approaches:
+
+- [Tailscale](https://tailscale.com/kb/1270/internet-access) — point
+  `REMOTE_LLM_ENDPOINT` at the instance's Tailscale hostname (`https://<host>`)
+  and the built-in WireGuard layer provides encryption and auth.
+- [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)
+  — run `cloudflared` on the instance and front it with Cloudflare Access for
+  identity-aware auth.
+- SSH tunnel — forward the remote port locally with `ssh -L` and set
+  `REMOTE_LLM_ENDPOINT=http://localhost:<local-port>`.
+
+A bearer API key alone on an unencrypted, publicly-reachable port is **not**
+sufficient; always combine it with a tunnel that provides transport encryption.
+
+To use the same endpoint with an interactive client (e.g. Kun Desktop's
+"Custom OpenAI API" provider), point it at the same `REMOTE_LLM_ENDPOINT`
+value — the OpenAI-compatible schema means no code change is needed on the
+client side.
 
 ## p_add_issue_to_pr.py
 

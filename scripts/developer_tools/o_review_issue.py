@@ -27,6 +27,7 @@ from issue_review import parse_review_response  # noqa: E402
 from llm_common import (  # noqa: E402
     CLOUD,
     LOCAL,
+    MODEL_SOURCES,
     describe_model_source,
     fetch_review,
     prompt_for_model_source,
@@ -560,7 +561,11 @@ def main() -> int:
         ),
     )
     parser.add_argument("issue_id", type=int, nargs="?", help="GitHub issue number to review")
-    parser.add_argument("--model", choices=[LOCAL, CLOUD], help="Model source (skips the prompt)")
+    parser.add_argument(
+        "--model",
+        choices=MODEL_SOURCES,
+        help="Model source (skips the prompt)",
+    )
     parser.add_argument(
         "--yes",
         action="store_true",

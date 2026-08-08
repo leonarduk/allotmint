@@ -18,8 +18,9 @@ Two classifications are produced from a single ``git diff``:
 ``backend-dev-tools-only``
     True when the backend area is affected *and* every backend-affecting
     path is confined to ``tests/scripts/**`` -- local-only script tests
-    with no import relationship to ``backend/``. Not an area gate on its own: it only tells the backend job
-    it can run ``tests/scripts`` instead of the full suite.
+    with no import relationship to ``backend/``. Not an area gate on its
+    own: it only tells the backend job it can run ``tests/scripts``
+    instead of the full suite.
 
 The classifier is intentionally conservative: false negatives (running a
 suite that the change could not have broken) are cheap, false positives

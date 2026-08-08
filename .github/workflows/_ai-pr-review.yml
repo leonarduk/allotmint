@@ -107,7 +107,7 @@ jobs:
           ISSUE_BODY: ${{ steps.issue.outputs.body }}
         run: |
           git fetch origin "$BASE_REF"
-          DIFF=$(python3 -m cicaid_devtools.lib.prepare_review_diff \
+          DIFF=$(python3 -m cicaid_devtools.lib.review_diff \
             --base-ref "$BASE_REF" \
             --pr-title "$PR_TITLE" \
             --issue-body "$ISSUE_BODY")
@@ -128,7 +128,7 @@ jobs:
           if [ -n "$DISCUSSION_MAX_CHARS" ]; then
             MAX_CHARS_ARGS=(--max-chars "$DISCUSSION_MAX_CHARS")
           fi
-          DISCUSSION=$(python3 -m cicaid_devtools.lib.prepare_review_discussion \
+          DISCUSSION=$(python3 -m cicaid_devtools.lib.review_discussion \
             --repo "${{ github.repository }}" \
             --pr-number "${{ github.event.pull_request.number }}" \
             --provider-name "${{ inputs.provider_name }}" \
@@ -145,7 +145,7 @@ jobs:
         env:
           DIFF_OUTPUT: ${{ steps.diff.outputs.diff }}
         run: |
-          VERIFIED=$(python3 -m cicaid_devtools.lib.extract_verified_symbols \
+          VERIFIED=$(python3 -m cicaid_devtools.lib.verified_symbols \
             --diff "$DIFF_OUTPUT")
           DELIM="EOF_$(uuidgen | tr -d '-')"
           {
@@ -251,9 +251,9 @@ jobs:
           create_label_if_missing "local-14b" "1d76db" "Doable by a local LLM (qwen2.5-coder:14b); too hard for 7b"
 
           # Extract titles to a file, then create issues via Python subprocess (no shell injection)
-          python3 -m cicaid_devtools.lib.extract_followups /tmp/${{ inputs.provider_id }}_review_body.md \
+          python3 -m cicaid_devtools.lib.followups /tmp/${{ inputs.provider_id }}_review_body.md \
             > /tmp/followups.json
-          python3 -m cicaid_devtools.lib.create_followup_issues \
+          python3 -m cicaid_devtools.lib.followup_issues \
             /tmp/followups.json "${PR_NUMBER}" /tmp/${{ inputs.provider_id }}_review_body.md
 
       - name: Add 'Changes Requested' label if review failed

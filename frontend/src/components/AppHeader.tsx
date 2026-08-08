@@ -32,9 +32,8 @@ export default function AppHeader({
   return (
     <>
       <div
+        className="flex-wrap-row"
         style={{
-          display: 'flex',
-          flexWrap: 'wrap',
           alignItems: 'center',
           gap: '0.5rem',
           margin: '1rem 0',

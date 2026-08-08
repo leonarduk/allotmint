@@ -56,6 +56,7 @@ ACCESS_LOG_FORMAT = json.dumps(
         "requestId": "$context.requestId",
         "routeKey": "$context.routeKey",
         "path": "$context.path",
+        "httpMethod": "$context.httpMethod",
         "status": "$context.status",
         "errorMessage": "$context.error.message",
         "authorizerError": "$context.authorizer.error",

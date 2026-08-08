@@ -76,6 +76,11 @@ body {
     min-height: 100vh;
 }
 
+.flex-wrap-row {
+    display: flex;
+    flex-wrap: wrap;
+}
+
 /*
  * Native form controls do not consistently inherit the page colour scheme.
  * Browsers can retain dark-theme text while rendering a white control surface.

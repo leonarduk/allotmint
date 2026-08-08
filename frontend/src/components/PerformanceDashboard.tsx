@@ -209,9 +209,8 @@ export function PerformanceDashboard({ owner, asOf }: Props) {
         </div>
       </div>
       <div
+        className="flex-wrap-row"
         style={{
-          display: "flex",
-          flexWrap: "wrap",
           gap: "1rem",
           marginBottom: "1rem",
         }}

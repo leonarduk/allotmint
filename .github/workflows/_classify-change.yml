@@ -35,8 +35,8 @@ on:
         value: ${{ jobs.classify.outputs.shell }}
       backend-dev-tools-only:
         description: >-
-          Backend area is affected, but only via scripts/developer_tools/** or
-          tests/scripts/** -- the backend job can run tests/scripts instead of
+          Backend area is affected, but only via tests/scripts/** -- the backend
+          job can run tests/scripts instead of
           the full suite. Not an area gate; see scripts/classify_change.py.
         value: ${{ jobs.classify.outputs.backend-dev-tools-only }}
 

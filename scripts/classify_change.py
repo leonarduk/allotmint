@@ -17,10 +17,10 @@ Two classifications are produced from a single ``git diff``:
 
 ``backend-dev-tools-only``
     True when the backend area is affected *and* every backend-affecting
-    path is confined to ``scripts/developer_tools/**`` or ``tests/scripts/**``
-    -- local-only dev-tools CLI helpers with no import relationship to
-    ``backend/``. Not an area gate on its own: it only tells the backend job
-    it can run ``tests/scripts`` instead of the full suite.
+    path is confined to ``tests/scripts/**`` -- local-only script tests
+    with no import relationship to ``backend/``. Not an area gate on its
+    own: it only tells the backend job it can run ``tests/scripts``
+    instead of the full suite.
 
 The classifier is intentionally conservative: false negatives (running a
 suite that the change could not have broken) are cheap, false positives
@@ -188,15 +188,11 @@ def areas_for_path(path: str) -> frozenset[str]:
 
 
 # Paths whose only backend-relevant coverage lives in `tests/scripts/`: the
-# local-only dev-tools CLI helpers (issue triage, PR review, aider
-# integration) and their tests, neither of which is imported by `backend/`.
+# local-only script tests, which are not imported by `backend/`.
 # When every backend-affecting path in a diff matches one of these globs,
 # `backend-integration.yml` can run `pytest tests/scripts` instead of the
 # full backend suite -- see issue #5823.
-_NARROW_BACKEND_GLOBS: tuple[str, ...] = (
-    "scripts/developer_tools/**",
-    "tests/scripts/**",
-)
+_NARROW_BACKEND_GLOBS: tuple[str, ...] = ("tests/scripts/**",)
 _COMPILED_NARROW_BACKEND_RULES: tuple[re.Pattern[str], ...] = tuple(
     _glob_to_regex(pattern) for pattern in _NARROW_BACKEND_GLOBS
 )

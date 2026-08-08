@@ -1,5 +1,5 @@
 #!/bin/bash
-# Commit local changes (with an Ollama-drafted message) and push to origin.
+# Commit local changes with cicaid and push to origin.
 
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
 if [ -z "$REPO_ROOT" ]; then
@@ -7,6 +7,5 @@ if [ -z "$REPO_ROOT" ]; then
     exit 1
 fi
 
-# Pass all arguments to the Python script
-python "$REPO_ROOT/scripts/developer_tools/j_commit_and_push.py" "$@"
-exit $?
+cd "$REPO_ROOT" || exit 1
+exec cicaid commit-and-push "$@"

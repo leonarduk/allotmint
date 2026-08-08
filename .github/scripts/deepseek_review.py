@@ -1,145 +1,69 @@
 """DeepSeek AI code review script called by deepseek-pr-review.yml.
 
-DeepSeek provides an OpenAI-compatible chat completions API at
-https://api.deepseek.com/v1/chat/completions. The integration reuses the
-shared `review_common` helpers so the prompt, verdict format, and error
-handling stay identical across all three reviewers.
+This module delegates entirely to ``cidaid_devtools.lib.deepseek_review``,
+passing an allotmint-specific ``RepoProfile`` so the prompt persona, stack
+description, known facts, and dimension‑3 safety checks match allotmint
+rather than cicaid's defaults.
 """
 
 from __future__ import annotations
 
-import os
 import sys
-from typing import Any
 
-from review_common import (
-    build_prompt,
-    emit_empty_diff_notice,
-    fetch_review,
-    finalize_review,
-    load_review_context,
+from cicaid_devtools.lib.deepseek_review import main as _cidaid_main
+from cicaid_devtools.lib.review_common import RepoProfile
+
+ALLOTMINT_REPO_PROFILE = RepoProfile(
+    name="allotmint",
+    persona="a family investment management app",
+    stack_paragraph=(
+        "The stack is Python/FastAPI backend + React/Vite TypeScript frontend "
+        "+ AWS Lambda/CDK infrastructure.\n"
+        "Key constraints: preserve portfolio/compliance correctness, keep "
+        "backend/frontend contracts aligned, and avoid regressions in "
+        "CI/deployment workflows."
+    ),
+    diff_file_types=(
+        "Python, TypeScript, JavaScript, JSON, Markdown, HTML, "
+        "config files, shell scripts (.sh), PowerShell scripts (.ps1)"
+    ),
+    dimension_2_body=(
+        "Blocking only: incorrect behaviour, unhandled edge cases, off-by-one "
+        "errors, or security/data-loss risks. For documentation PRs: factual "
+        "errors or dangerously misleading statements."
+    ),
+    dimension_3_title="API, data, and workflow safety",
+    dimension_3_body=(
+        "- Backend/frontend payload shapes misaligned?\n"
+        "- Could this break local smoke tests, deployment workflows, or repo "
+        "scripts?\n"
+        "- Secrets, permissions, or CI assumptions mishandled?"
+    ),
+    known_facts=(
+        "- **`actions/checkout@v6` and `actions/setup-node@v6` are correct.** "
+        "Dependabot bumped both from v4 to v6 in PRs #2954/#2953; they are "
+        "the repo-wide convention. Do not flag them as non-existent or wrong.\n"
+        "- **`api.getVarBreakdown()` returns camelCase keys** (`varDate`, "
+        "`varLossPercent`, `scenarios`, `breakdown`). The function in "
+        "`frontend/src/api.ts` transforms the snake_case backend response "
+        "before returning. Test mocks that use camelCase for this function "
+        "are correct.\n"
+        "- **`recomputeValueAtRisk` is fire-and-forget** in "
+        "`ValueAtRisk.tsx`. After calling it, the component does not re-fetch "
+        "`getValueAtRisk`; a period change or page refresh triggers the next "
+        "fetch. Tests asserting `getValueAtRisk` is called only once after a "
+        "recompute are correct.\n"
+        "- **`frontend/package-lock.json` contains Linux-specific optional "
+        "peer deps** (e.g. `@emnapi/core`, `@emnapi/runtime`) that do not "
+        "appear when the lock file is regenerated on Windows. Do not suggest "
+        "regenerating or normalising the lock file on a non-Linux machine."
+    ),
 )
-
-DEFAULT_DEEPSEEK_MODEL = "deepseek-v4-flash"
-DEFAULT_MAX_TOKENS = 4096
-
-
-def get_deepseek_model() -> str:
-    """Return the DeepSeek model ID to call for advisory reviews.
-
-    Defaults to `deepseek-v4-flash` (the latest DeepSeek-V3 alias). Set
-    `DEEPSEEK_MODEL` to override (e.g. to `deepseek-reasoner` for a deeper
-    review). An unset or empty value falls back to the default.
-    """
-    return os.environ.get("DEEPSEEK_MODEL") or DEFAULT_DEEPSEEK_MODEL
-
-
-def get_max_tokens() -> int:
-    """Return the max_tokens budget for DeepSeek review responses."""
-    raw = os.environ.get("DEEPSEEK_MAX_TOKENS", str(DEFAULT_MAX_TOKENS))
-    try:
-        value = int(raw)
-    except ValueError:
-        return DEFAULT_MAX_TOKENS
-    return max(256, value)
-
-
-def extract_deepseek_review(data: dict[str, Any]) -> tuple[str, dict[str, Any]]:
-    """Extract review text from DeepSeek chat-completions responses.
-
-    DeepSeek's API is OpenAI-compatible: the response shape is always
-    `{"choices": [{"message": {"content": "<string>"}}]}` — unlike Anthropic's
-    content-block format, DeepSeek never returns `content` as a list, so no
-    list-handling branch is needed here.
-
-    Thinking-capable models (e.g. `deepseek-v4-flash`, `deepseek-reasoner`)
-    also return a `reasoning_content` field holding the chain-of-thought. If
-    `max_tokens` is exhausted before the model finishes reasoning, `content`
-    comes back empty even though the response itself is large — this used to
-    fail with no clue why (#5697). `fetch_deepseek_review` disables thinking
-    mode to avoid this, but if a response still comes back with reasoning and
-    no content, surface that explicitly instead of a bare empty-review error.
-    """
-    choices = data.get("choices", [])
-    if not choices:
-        return "", {}
-
-    choice = choices[0]
-    message = choice.get("message", {})
-    content = message.get("content", "")
-    review = content.strip() if isinstance(content, str) else ""
-
-    if not review:
-        reasoning = message.get("reasoning_content") or ""
-        finish_reason = choice.get("finish_reason")
-        if reasoning:
-            print(
-                "WARNING: DeepSeek response contained only reasoning_content "
-                f"({len(reasoning)} chars, finish_reason={finish_reason!r}) and no "
-                "final content — the model likely ran out of max_tokens while "
-                "thinking. Consider raising DEEPSEEK_MAX_TOKENS.",
-                file=sys.stderr,
-            )
-
-    return review, {}
-
-
-def fetch_deepseek_review(api_key: str, prompt: str) -> str:
-    """Call DeepSeek and return the advisory review body.
-
-    The workflow is expected to provide `DEEPSEEK_API_KEY`; HTTP errors are
-    surfaced with a non-zero exit code so the advisory workflow can post a
-    skip/failure notice instead of silently succeeding.
-    """
-    model = get_deepseek_model()
-    payload: dict[str, Any] = {
-        "model": model,
-        "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": get_max_tokens(),
-        "temperature": 0.2,
-    }
-    if model != "deepseek-reasoner":
-        # Thinking-capable models (the default deepseek-v4-flash) default to
-        # thinking mode "on" with high effort, which can burn the entire
-        # max_tokens budget on reasoning_content and leave `content` empty
-        # (see #5697 — reviews were failing with a 200 response and no visible
-        # reason). PR review is a straightforward advisory task that doesn't
-        # need chain-of-thought, so disable it for a reliable final answer
-        # within budget. Skip this for deepseek-reasoner (opted into via the
-        # "Deep Review Required" label with a larger token budget) since
-        # reasoning is that model's whole purpose and disabling isn't
-        # documented as supported for it.
-        payload["thinking"] = {"type": "disabled"}
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-    }
-
-    review, _extra = fetch_review(
-        "https://api.deepseek.com/v1/chat/completions",
-        headers,
-        payload,
-        extract_deepseek_review,
-        "DeepSeek",
-    )
-    return review
 
 
 def main() -> int:
-    """Run the advisory DeepSeek review flow."""
-    context = load_review_context("DEEPSEEK_API_KEY")
-    if not context.diff.strip():
-        return emit_empty_diff_notice("DeepSeek")
-
-    prompt = build_prompt(
-        context.pr_title,
-        context.diff,
-        context.issue_body,
-        context.discussion,
-        context.verified_facts,
-    )
-    review = fetch_deepseek_review(context.api_key, prompt)
-    return finalize_review(review, "ERROR: DeepSeek API returned an empty review")
+    """Run the advisory DeepSeek review flow with the allotmint repo profile."""
+    return _cidaid_main(repo_profile=ALLOTMINT_REPO_PROFILE)
 
 
 if __name__ == "__main__":

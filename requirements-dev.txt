@@ -17,4 +17,4 @@ pandas-stubs==3.0.5.260730
 
 # Shared repository automation (issue, PR, review, and CI helper commands).
 # Pin the release asset so developer and CI installs use the same tested CLI.
-cicaid-devtools[dotenv] @ https://github.com/leonarduk/cicaid/releases/download/v0.4.7/cicaid_devtools-0.4.7-py3-none-any.whl
+cicaid-devtools[dotenv] @ https://github.com/leonarduk/cicaid/releases/download/v0.5.2/cicaid_devtools-0.5.2-py3-none-any.whl

@@ -1,60 +1,69 @@
-"""GPT AI code review script called by gpt-pr-review.yml."""
+"""GPT AI code review script called by gpt-pr-review.yml.
+
+This module delegates entirely to ``cidaid_devtools.lib.gpt_review``,
+passing an allotmint-specific ``RepoProfile`` so the prompt persona, stack
+description, known facts, and dimension‑3 safety checks match allotmint
+rather than cicaid's defaults.
+"""
 
 from __future__ import annotations
 
-from typing import Any
+import sys
 
-from review_common import build_prompt, emit_empty_diff_notice, fetch_review, finalize_review, load_review_context
+from cicaid_devtools.lib.gpt_review import main as _cidaid_main
+from cicaid_devtools.lib.review_common import RepoProfile
 
-
-def extract_openai_review(data: dict[str, Any]) -> tuple[str, dict[str, Any]]:
-    """Extract review text from OpenAI chat-completions responses."""
-    choices = data.get("choices", [])
-    if not choices:
-        return "", {}
-
-    message = choices[0].get("message", {})
-    content = message.get("content", "")
-    if isinstance(content, list):
-        review = "\n".join(part.get("text", "") for part in content if part.get("type") == "text").strip()
-    elif isinstance(content, str):
-        review = content.strip()
-    else:
-        review = ""
-    return review, {}
-
-
-def fetch_openai_review(api_key: str, prompt: str) -> str:
-    """Call OpenAI and return the advisory review body.
-
-    The workflow is expected to provide `OPENAI_API_KEY`; HTTP errors are surfaced with a non-zero
-    exit code so the advisory workflow can post a skip/failure notice instead of silently succeeding.
-    """
-    payload = {
-        "model": "gpt-4o-mini",
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.2,
-    }
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-    }
-
-    review, _extra = fetch_review(
-        "https://api.openai.com/v1/chat/completions", headers, payload, extract_openai_review, "OpenAI"
-    )
-    return review
+ALLOTMINT_REPO_PROFILE = RepoProfile(
+    name="allotmint",
+    persona="a family investment management app",
+    stack_paragraph=(
+        "The stack is Python/FastAPI backend + React/Vite TypeScript frontend "
+        "+ AWS Lambda/CDK infrastructure.\n"
+        "Key constraints: preserve portfolio/compliance correctness, keep "
+        "backend/frontend contracts aligned, and avoid regressions in "
+        "CI/deployment workflows."
+    ),
+    diff_file_types=(
+        "Python, TypeScript, JavaScript, JSON, Markdown, HTML, "
+        "config files, shell scripts (.sh), PowerShell scripts (.ps1)"
+    ),
+    dimension_2_body=(
+        "Blocking only: incorrect behaviour, unhandled edge cases, off-by-one "
+        "errors, or security/data-loss risks. For documentation PRs: factual "
+        "errors or dangerously misleading statements."
+    ),
+    dimension_3_title="API, data, and workflow safety",
+    dimension_3_body=(
+        "- Backend/frontend payload shapes misaligned?\n"
+        "- Could this break local smoke tests, deployment workflows, or repo "
+        "scripts?\n"
+        "- Secrets, permissions, or CI assumptions mishandled?"
+    ),
+    known_facts=(
+        "- **`actions/checkout@v6` and `actions/setup-node@v6` are correct.** "
+        "Dependabot bumped both from v4 to v6 in PRs #2954/#2953; they are "
+        "the repo-wide convention. Do not flag them as non-existent or wrong.\n"
+        "- **`api.getVarBreakdown()` returns camelCase keys** (`varDate`, "
+        "`varLossPercent`, `scenarios`, `breakdown`). The function in "
+        "`frontend/src/api.ts` transforms the snake_case backend response "
+        "before returning. Test mocks that use camelCase for this function "
+        "are correct.\n"
+        "- **`recomputeValueAtRisk` is fire-and-forget** in "
+        "`ValueAtRisk.tsx`. After calling it, the component does not re-fetch "
+        "`getValueAtRisk`; a period change or page refresh triggers the next "
+        "fetch. Tests asserting `getValueAtRisk` is called only once after a "
+        "recompute are correct.\n"
+        "- **`frontend/package-lock.json` contains Linux-specific optional "
+        "peer deps** (e.g. `@emnapi/core`, `@emnapi/runtime`) that do not "
+        "appear when the lock file is regenerated on Windows. Do not suggest "
+        "regenerating or normalising the lock file on a non-Linux machine."
+    ),
+)
 
 
 def main() -> int:
-    """Run the advisory GPT review flow."""
-    context = load_review_context("OPENAI_API_KEY")
-    if not context.diff.strip():
-        return emit_empty_diff_notice("GPT")
-
-    prompt = build_prompt(context.pr_title, context.diff, context.issue_body, context.discussion, context.verified_facts)
-    review = fetch_openai_review(context.api_key, prompt)
-    return finalize_review(review, "ERROR: OpenAI API returned an empty review")
+    """Run the advisory GPT review flow with the allotmint repo profile."""
+    return _cidaid_main(repo_profile=ALLOTMINT_REPO_PROFILE)
 
 
 if __name__ == "__main__":

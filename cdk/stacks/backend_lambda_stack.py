@@ -365,7 +365,8 @@ class BackendLambdaStack(Stack):
                 # "" entry is handled specially by _grant_bucket_access,
                 # which adds only the exact "" condition value (no "/*"
                 # wildcard), so it grants root-level listing only — not
-                # recursive or bucket-wide access.
+                # recursive or bucket-wide access (umbrella issue #6109;
+                # root-listing follow-up #6110).
                 "",
             ),
             # price_refresh needs accounts/ to call list_objects_v2 via

@@ -288,7 +288,8 @@ export function createClient(
 
   // Same authenticated request/error handling as fetchJson, but parses the
   // successful response body as text instead of JSON — needed for endpoints
-  // like GET /logs that return PlainTextResponse rather than JSON (#6111).
+  // like GET /logs that return PlainTextResponse rather than JSON
+  // (umbrella issue #6109; authenticated-logs follow-up #6111).
   async function fetchText(url: string, init: RequestInit = {}): Promise<string> {
     const res = await sendAuthenticated(url, init);
     return res.text();

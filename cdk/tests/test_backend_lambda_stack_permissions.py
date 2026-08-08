@@ -33,7 +33,7 @@ BACKEND_LIST_PREFIXES = (
     WRITABLE_ACCOUNTS_PREFIX,
     # Root/empty prefix: the Data Explorer's root tree view calls
     # list_objects_v2(Prefix="", Delimiter="/"), which needs an explicit ""
-    # entry in the StringLike condition (issue #6110).
+    # entry in the StringLike condition (umbrella issue #6109; #6110).
     "",
 )
 # accounts/ is required because refresh_prices() → list_all_unique_tickers() →

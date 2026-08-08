@@ -358,7 +358,8 @@ def test_read_file_rejects_unsupported_extension(monkeypatch, tmp_path):
 
 
 def test_read_file_rejects_binary_file_with_no_extension_friendly_message(monkeypatch, tmp_path):
-    # Regression for #6112: a file like `.git/index` has no recognised
+    # Regression for umbrella issue #6109 / follow-up #6112: a file like
+    # `.git/index` has no recognised
     # extension at all, but the 415 detail should still read as a friendly
     # in-app message rather than a bare technical string.
     git_dir = tmp_path / ".git"

@@ -156,284 +156,36 @@ python scripts/import_transactions.py hargreaves path/to/export.csv --owner alic
 Rows with no resolvable owner/account (no fallback given, and the row doesn't carry its
 own) are reported as skipped rather than persisted or silently dropped.
 
-## work_on_issue.py
+## Shared developer automation (cicaid)
 
-Automate GitHub issue checkout: create a branch, check it out locally, and save the issue body to a markdown file in one command.
-
-```bash
-python scripts/developer_tools/d_work_on_issue.py 4445
-```
-
-The script:
-1. Fetches the issue details from GitHub
-2. Creates a branch named `fix/issue-4445-{slug}` in the remote repo
-3. Checks out the new branch locally
-4. Writes the issue title and body to `.issue-4445.md`
-
-Optional flags:
-- `--token TOKEN`: GitHub personal access token (also reads `GITHUB_TOKEN` env var). Required for branch creation (unauthenticated requests will fail with 401/403).
-
-## developer_tools/f_implement_issue_with_aider.py
-
-Extract the prompt needed from a GitHub issue (or a local markdown file) to
-run in [aider](https://aider.chat), so working a task locally doesn't require
-manually copying the issue text and guessing which files to hand to aider.
+The issue, pull-request, review, commit, and local CI automation that previously
+lived in this repository is maintained by the shared
+[`cicaid-devtools`](https://github.com/leonarduk/cicaid) package. It is installed
+by `requirements-dev.txt`. After installing the development dependencies, run:
 
 ```bash
-python scripts/developer_tools/f_implement_issue_with_aider.py -i 4445
-python scripts/developer_tools/f_implement_issue_with_aider.py -f .issue-4445.md
+cicaid --help
+cicaid work-on-issue 4445
+cicaid implement-issue-with-aider --issue 4445
+cicaid run-ci-checks --list
+cicaid local-review
+cicaid commit-and-push
+cicaid publish-pr
 ```
 
-The script:
-1. Fetches the issue from GitHub (`-i <issue_id>`) or loads it from a local
-   markdown file (`-f <file_name>`)
-2. Parses the structured `What`/`Why`/`How`/`Constraints`/etc. sections and
-   extracts any file paths already mentioned in the issue body
-3. If no file paths are found, asks a local Ollama model to suggest which
-   repo files are relevant
-4. If `graphify-out/.graphify_analysis.json` exists in the checkout, looks up
-   the resolved files against it and appends a short hint noting any that are
-   high fan-in "god object" hotspots or share a knowledge-graph community with
-   other symbols -- silently skipped if the file is absent (it's only
-   refreshed manually, see [Regenerating the graphify knowledge graph
-   locally](#regenerating-the-graphify-knowledge-graph-locally) below)
-5. Prints the resulting file list, plus a trimmed prompt for confirmation
-   (title, `What`, `How`, `Constraints`, `Success`, graphify hint) -- `Why`,
-   `Files Affected`, and `Failure` are left out since they aren't actionable
-   for a coding LLM or are already covered by the file list
-6. On confirmation, adds the files to `aider` and hands off interactive
-   control to it
-
-Optional flags:
-- `-v/--verbose`: print additional debug/thinking output
-- `--no-confirm`: skip the confirmation prompt and proceed straight to aider
-- `--token TOKEN`: GitHub personal access token (also reads `GITHUB_TOKEN` env var)
-
-The script never runs tests, commits code, or creates PRs itself -- it only
-prepares aider's inputs and hands off control.
-
-**Requirements:** a running local Ollama server (the script fails fast with
-"Ollama serve must be running" if it isn't); `aider` on PATH.
-
-**Minimum model size:** `.aider.conf.yml` sets `timeout: 1800` (30 minutes)
-for aider's own completion calls, raised from litellm's 600s default because
-a 14B local model can exceed it once the repo-map and prompt fill the large
-context window in `.aider.model.settings.yml`. Models smaller than ~14B
-parameters (e.g. 7B models on CPU-only hardware) are more likely to still hit
-this timeout on larger issues; if you're consistently timing out, either pick
-a larger/faster model or raise `timeout` in `.aider.conf.yml`.
+Each command auto-detects the current repository. See the cicaid README for the
+complete command list, arguments, LLM provider configuration, and PowerShell
+wrapper templates. Keep shared automation changes in cicaid rather than adding
+repo-local copies here.
 
 ### Regenerating the graphify knowledge graph locally
 
 `graphify-out/graph.json`, `manifest.json`, and `.graphify_analysis.json` are
 committed to `main`, but only refreshed manually by running
 [`.github/workflows/graphify.yml`](../.github/workflows/graphify.yml) via
-`workflow_dispatch` -- they can lag behind the current tree. To regenerate
-them locally against your working copy instead of waiting on that workflow:
-
-```bash
-pip install graphifyy
-graphify .
-```
-
-This writes `graphify-out/graph.json`, `graphify-out/manifest.json`, and
-`graphify-out/.graphify_analysis.json` (the file `f_implement_issue_with_aider.py`
-reads for its hint). Add `--backend deepseek` to `graphify extract .` for the
-semantic "surprises" extraction pass too, which requires a `DEEPSEEK_API_KEY`.
-Do not commit a locally regenerated graph over the checked-in one outside of
-the workflow's own PR flow -- see `.github/workflows/graphify.yml` for how
-that's kept as a single, reviewable change.
-
-## h_run_ci_checks.py
-
-Run the credential-free integration and validation steps from the most relevant
-GitHub Actions workflows before pushing. With no arguments, the script presents
-an interactive menu:
-
-```bash
-python scripts/developer_tools/h_run_ci_checks.py
-```
-
-For automation or non-interactive shells, select one or more groups explicitly:
-
-```bash
-python scripts/developer_tools/h_run_ci_checks.py --list
-python scripts/developer_tools/h_run_ci_checks.py --check backend --check frontend
-python scripts/developer_tools/h_run_ci_checks.py --all --keep-going
-python scripts/developer_tools/h_run_ci_checks.py --all --dry-run
-```
-
-The groups mirror backend integration, frontend, infrastructure/workflow-lint,
-developer-script (bats/shellcheck), and backend dependency-conflict
-jobs. The runner assumes their dependencies are already installed, runs from
-the repository root regardless of the caller's current directory, stops at
-the first failure by default, and propagates a failing exit status. Cloud
-deployment and other secret-dependent jobs are intentionally not offered as
-local checks.
-
-## publish_pr.py
-
-Automate PR publishing: commit changes, push to remote, and create a PR with auto-filled body sections. Optionally uses Ollama to generate thoughtful PR descriptions.
-
-```bash
-python scripts/developer_tools/publish_pr.py
-```
-
-The script:
-1. Extracts the issue ID from the branch name (e.g., `fix/issue-4445-slug` → `4445`)
-2. Commits changed files with a default or custom message
-3. Pushes the branch to remote
-4. Fetches the issue title and body from GitHub
-5. If Ollama is running locally, uses it to generate PR body sections
-6. If Ollama is unavailable, uses structured placeholders
-7. Creates a PR with `Closes #<issue-id>` for auto-linking
-
-Optional flags:
-- `-m/--message TEXT`: Custom commit message (default: 'Work on issue #NNNN')
-- `-f/--files FILE [FILE ...]`: Specific files to commit (default: all changed files)
-- `--no-ollama`: Skip Ollama and use placeholder PR body
-- `--model MODEL`: Ollama model name (default: env var `OLLAMA_MODEL` or `mistral`)
-
-On Windows, use the PowerShell wrapper:
-```powershell
-./scripts/publish-pr.ps1 -Message "Fix bug in auth" -NoOllama
-```
-
-Or on Linux/Mac:
-```bash
-bash scripts/bash/publish-pr.sh -m "Fix bug in auth" --no-ollama
-```
-
-**Requirements:**
-- Branch name must follow pattern: `fix/issue-NNNN-*`, `feat/issue-NNNN-*`, or `docs/issue-NNNN-*`
-- `gh` CLI must be installed and authenticated
-- Ollama is optional but recommended for better PR descriptions
-
-## developer_tools/lib/commit_and_push.py
-
-Commit local changes and push to `origin`, using a local or cloud LLM (via
-`developer_tools/lib/llm_common.py`, same local/cloud switch as
-`n_review_issue.py`) to draft the commit message from the diff. This is a
-lighter-weight alternative to `publish_pr.py` for when you just want to commit
-and push -- e.g. an incremental push onto a branch that already has an open
-PR -- without also creating/updating a PR.
-
-```bash
-python scripts/developer_tools/lib/commit_and_push.py
-```
-
-The script:
-1. Stages changed files (all changes by default, or specific files via `--files`)
-2. Asks the chosen model (`local` Ollama by default, or `cloud` DeepSeek via `--model-source cloud`) to draft a commit message from the staged diff
-3. If that model is unavailable or `--no-llm` is passed, falls back to a plain default message
-4. Appends a `Refs #<issue-id>` trailer with the issue ID extracted from the branch name (e.g. `fix/issue-4445-slug` -> `4445`), if one isn't already present in the message
-5. Commits, then pushes the branch to `origin` (skip with `--no-push`)
-
-Optional flags:
-- `-m/--message TEXT`: Commit message override (skips LLM generation)
-- `-f/--files FILE [FILE ...]`: Specific files to stage (default: all changed files)
-- `--no-llm` (alias `--no-ollama`): Skip the LLM and use a plain default commit message
-- `--model-source {local,cloud,remote}`: Which model to use (default: `local`)
-- `--model MODEL`: Ollama model name, only used with `--model-source local` (default: env var `OLLAMA_MODEL` or `qwen2.5-coder:7b`)
-- `--no-push`: Commit only; skip pushing to `origin`
-
-On Windows, use the PowerShell wrapper:
-```powershell
-./scripts/developer_tools/j_commit_and_push.ps1 -Message "Fix bug in auth" -NoOllama
-```
-
-Or on Linux/Mac:
-```bash
-bash scripts/bash/commit-and-push.sh -m "Fix bug in auth" --no-ollama
-```
-
-**Requirements:**
-- A model is optional but recommended for better commit messages; without one reachable (or with `--no-llm`), a plain default message is used. `--model-source cloud` requires `DEEPSEEK_API_KEY`; `--model-source remote` requires `REMOTE_LLM_ENDPOINT`.
-
-## m_dependabot_auto_merge.py
-
-Auto-merge open Dependabot pull requests once their checks have all passed, then
-delete the branch. A PR that is green but only out-of-date with `main` (no real
-conflicts) is handled specially: GitHub branch protection generally requires the
-head branch to be up-to-date before merging, so a plain `gh pr merge` on such a
-PR is rejected outright. By default, this script force-merges it instead with
-`gh pr merge --admin`, bypassing branch-protection enforcement for that one
-merge only -- checks still have to have passed first, `--admin` just gets past
-the "not up to date" rule, so a behind PR is never left stuck with the default
-strategy. `--behind-strategy` selects an alternative instead: `update-branch`
-defers the actual merge to a later run once CI re-passes, and `skip` leaves the
-PR alone entirely -- neither of those two guarantees it won't stay stuck.
-
-```bash
-python scripts/developer_tools/m_dependabot_auto_merge.py
-python scripts/developer_tools/m_dependabot_auto_merge.py --yes
-python scripts/developer_tools/m_dependabot_auto_merge.py --yes --behind-strategy update-branch
-```
-
-The script:
-1. Lists open PRs authored by `dependabot[bot]`
-2. Skips any PR whose checks haven't all completed successfully, or that has a
-   real merge conflict (`mergeable_state == dirty`)
-3. Merges (squash) and deletes the branch for every remaining PR that's fully
-   up to date with `main`; for one that's only behind, handles it per
-   `--behind-strategy` (force-merge, update the branch, or skip)
-
-Defaults to dry-run (prints what it would do). Pass `--yes` to actually merge
-and delete branches. Never touches non-Dependabot PRs or protected branches
-(`main`/`master`).
-
-Optional flags:
-- `--repo owner/name`: Operate on a different repository. Defaults to the
-  `origin` git remote, falling back to `leonarduk/allotmint`.
-- `--behind-strategy {admin,update-branch,skip}` (default `admin`): how to
-  handle a green PR that's only blocked by being behind `main`.
-  - `admin`: force-merge with `gh pr merge --admin`, bypassing the
-    "must be up to date" branch-protection rule for that merge.
-  - `update-branch`: merge `main` into the PR branch first
-    (`gh pr update-branch`) and leave the actual merge to a later run, once
-    CI re-passes and the PR reports `mergeable_state == clean`. Run the
-    script periodically (e.g. on a schedule) for this follow-up to happen.
-  - `skip`: leave the PR alone entirely.
-
-**Requirements:**
-- `gh` CLI must be installed and authenticated with a token that can merge PRs
-  and delete branches on the target repo (`repo` scope).
-
-## work_on_pr.py
-
-Like `work_on_issue.py`, but for picking up an existing pull request instead
-of starting a new one: fetches the PR from GitHub and checks out its branch
-locally (creating a local tracking branch if needed).
-
-Dependencies: This script requires the requests library. 
-If it is not already installed, run pip install requests.
-
-
-```bash
-python scripts/developer_tools/e_work_on_pr.py 4512
-```
-
-Omit the PR number to list all open pull requests and choose one
-interactively:
-
-```bash
-python scripts/developer_tools/e_work_on_pr.py
-```
-
-The script:
-1. Fetches from `origin`
-2. Looks up the PR (by number, or via an interactive prompt over open PRs)
-3. Fetches the PR's head branch and checks it out locally, adding a
-   throwaway remote to fetch from the contributor's fork first if the PR
-   comes from one (the remote is removed again once the branch is checked
-   out)
-
-Optional flags:
-- `--token TOKEN`: GitHub personal access token (also reads `GITHUB_TOKEN`
-  env var). Increases the API rate limit and is required for private repos.
-
-Uses only `requests` and plain `git` -- no `gh` CLI or special GitHub scopes
-required.
+`workflow_dispatch`. To regenerate locally, run `pip install graphifyy` and
+`graphify .`. Do not commit locally regenerated output outside the workflow's
+own PR flow.
 
 ## classify_change.py
 
@@ -484,131 +236,6 @@ python scripts/check_live_branch_protection.py --repo leonarduk/allotmint
 See [docs/BRANCH_PROTECTION.md](../docs/BRANCH_PROTECTION.md) for the context
 naming rules — required contexts are check-run names (`test`), not the
 `Workflow / Job` labels the Actions UI displays.
-
-## o_review_issue.py
-
-Review and refresh a single GitHub issue with a local, cloud, or remote LLM
-before work starts on it, so a stale or vague issue gets corrected instead of
-misread. Fetches the issue, asks the chosen model to bring the title/body up
-to date while preserving the original section structure, shows a diff of the
-proposed change, and only calls `gh issue edit` after you approve it. The
-local/cloud/remote model switch lives in `developer_tools/lib/llm_common.py`
-and is shared by `b_create_issue.py`, `c_triage_issues.py`,
-`i_local_review.py`, `l_pr_review.py`, and `lib/commit_and_push.py` -- all of
-them accept `--model-source {local,cloud,remote}` (or, for `b_create_issue.py`,
-an interactive prompt) to pick the same way.
-
-```bash
-python scripts/developer_tools/o_review_issue.py 5695
-```
-
-Omit the issue number or `--model` to be prompted interactively:
-
-```bash
-python scripts/developer_tools/o_review_issue.py
-```
-
-Optional flags:
-- `--model {local,cloud,remote}`: `local` uses Ollama (see
-  `OLLAMA_ENDPOINT`/`OLLAMA_MODEL` above); `cloud` uses DeepSeek and requires
-  `DEEPSEEK_API_KEY` to be set; `remote` talks to a self-hosted
-  OpenAI-compatible endpoint (vLLM/SGLang/TGI) and requires
-  `REMOTE_LLM_ENDPOINT` to be set — see the Remote LLM section below.
-- `--yes`: skip the confirmation prompt and update the issue if changes are proposed.
-- `--dry-run`: show the proposed diff and confirmation flow, but never call
-  `gh issue edit`.
-- `--verbose`: print the raw model response.
-
-If the model's revised body is far shorter than the original, the script
-refuses to propose the change rather than risk silently dropping details.
-
-**Requirements:** `gh` CLI authenticated against the target repo; either a
-running local Ollama server, a `DEEPSEEK_API_KEY`, or a configured
-`REMOTE_LLM_ENDPOINT`, depending on `--model`.
-`DEEPSEEK_API_KEY` is loaded from a `.env` file in the repo root (not the
-current working directory) -- running the script from
-`scripts/developer_tools/` picks this up automatically, or set the variable
-directly in your shell environment.
-
-### Remote LLM (self-hosted OpenAI-compatible endpoint)
-
-The scripts support a third model source (`remote`) that talks to any
-inference server exposing an OpenAI-compatible `/v1/chat/completions` endpoint
-— this covers vLLM, SGLang, TGI, and similar engines. It is useful for
-pointing the `developer_tools` scripts at a rented GPU instance (e.g. on
-[vast.ai](https://vast.ai)) that can serve multiple concurrent requests more
-cheaply than per-token cloud billing while staying faster than a single local
-Ollama call.
-
-**Setup:**
-
-```
-# In repo-root .env (or export in shell)
-REMOTE_LLM_ENDPOINT=https://your-instance.example.com
-REMOTE_LLM_MODEL=deepseek-ai/DeepSeek-V3
-REMOTE_LLM_API_KEY=optional-bearer-token
-```
-
-- `REMOTE_LLM_ENDPOINT` — base URL of the remote inference server (required).
-  The client POSTs to `{endpoint}/v1/chat/completions`.
-- `REMOTE_LLM_MODEL` — model name to pass in the chat-completions payload
-  (required; defaults to a placeholder that will produce an obvious error if
-  unset).
-- `REMOTE_LLM_API_KEY` — optional bearer token sent as an `Authorization:
-  Bearer <key>` header. Use this when the endpoint sits behind an auth layer
-  (recommended).
-
-**Security:** If the rented instance is reached over the public internet,
-bind it behind a tunnel with its own authentication rather than exposing the
-raw port directly. Recommended approaches:
-
-- [Tailscale](https://tailscale.com/kb/1270/internet-access) — point
-  `REMOTE_LLM_ENDPOINT` at the instance's Tailscale hostname (`https://<host>`)
-  and the built-in WireGuard layer provides encryption and auth.
-- [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)
-  — run `cloudflared` on the instance and front it with Cloudflare Access for
-  identity-aware auth.
-- SSH tunnel — forward the remote port locally with `ssh -L` and set
-  `REMOTE_LLM_ENDPOINT=http://localhost:<local-port>`.
-
-A bearer API key alone on an unencrypted, publicly-reachable port is **not**
-sufficient; always combine it with a tunnel that provides transport encryption.
-
-To use the same endpoint with an interactive client (e.g. Kun Desktop's
-"Custom OpenAI API" provider), point it at the same `REMOTE_LLM_ENDPOINT`
-value — the OpenAI-compatible schema means no code change is needed on the
-client side.
-
-## p_add_issue_to_pr.py
-
-Retroactively link open PRs to an issue. Every PR is supposed to close an
-issue, but one opened by hand (or by an external contributor) can slip
-through without a `Closes #NNNN` reference. This script scans open PRs,
-skips any whose body already references an issue via a closing keyword
-(`Closes`/`Fixes`/`Resolves`, case-insensitive), and for the rest creates a
-new issue from the PR's own title/body/changed-files (using the standard
-`bug_report.md` template sections) before appending `Closes #<issue_id>` to
-the PR description.
-
-```bash
-python scripts/developer_tools/p_add_issue_to_pr.py
-```
-
-Defaults to dry-run, printing which PRs would get a new issue without
-creating or editing anything:
-
-```bash
-python scripts/developer_tools/p_add_issue_to_pr.py --yes
-```
-
-Optional flags:
-- `--repo owner/name`: target a repo other than the `origin` git remote.
-- `--pr NNNN`: only check/process a single PR instead of scanning all open PRs.
-- `--label LABEL`: label to apply to created issues (repeatable). Defaults to
-  `bug` and `Medium Value`.
-
-**Requirements:** `gh` CLI authenticated with a token that can create issues
-and edit PR descriptions on the target repo (repo scope covers this).
 
 ## reconcile_drawdown.py
 

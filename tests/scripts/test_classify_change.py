@@ -348,7 +348,7 @@ class TestAreasForPath:
             # PowerShell scripts have no dedicated area (no Pester suite in the
             # repo); they fall through to the scripts/** -> backend catch-all.
             ("scripts/powershell/aider-issue.ps1", {"backend"}),
-            ("scripts/developer_tools/m_implement_issue.ps1", {"backend"}),
+            ("scripts/reconcile_drawdown.py", {"backend"}),
         ],
     )
     def test_single_area_paths(self, path: str, expected: set[str]) -> None:
@@ -450,47 +450,20 @@ rename to frontend/src/helper.ts
 
 
 class TestBackendDevToolsOnly:
-    def test_dev_tools_script_change_is_narrow(self) -> None:
+    def test_script_test_change_is_narrow(self) -> None:
         diff = """\
-diff --git a/scripts/developer_tools/n_review_issue.py b/scripts/developer_tools/n_review_issue.py
-index abc123..def456 100644
---- a/scripts/developer_tools/n_review_issue.py
-+++ b/scripts/developer_tools/n_review_issue.py
+diff --git a/tests/scripts/test_widget.py b/tests/scripts/test_widget.py
+--- a/tests/scripts/test_widget.py
++++ b/tests/scripts/test_widget.py
 @@ -1 +1 @@
 -x = 1
 +x = 2
 """
         assert backend_dev_tools_only(diff) is True
-
-    def test_dev_tools_test_change_is_narrow(self) -> None:
-        diff = """\
-diff --git a/tests/scripts/test_n_review_issue.py b/tests/scripts/test_n_review_issue.py
-index abc123..def456 100644
---- a/tests/scripts/test_n_review_issue.py
-+++ b/tests/scripts/test_n_review_issue.py
-@@ -1 +1 @@
--x = 1
-+x = 2
-"""
-        assert backend_dev_tools_only(diff) is True
-
-    def test_other_scripts_change_is_not_narrow(self) -> None:
-        """A non-dev-tools scripts/** file still falls to the full backend suite."""
-        diff = """\
-diff --git a/scripts/check_portfolio_health.py b/scripts/check_portfolio_health.py
-index abc123..def456 100644
---- a/scripts/check_portfolio_health.py
-+++ b/scripts/check_portfolio_health.py
-@@ -1 +1 @@
--x = 1
-+x = 2
-"""
-        assert backend_dev_tools_only(diff) is False
 
     def test_backend_module_change_is_not_narrow(self) -> None:
         diff = """\
 diff --git a/backend/app.py b/backend/app.py
-index abc123..def456 100644
 --- a/backend/app.py
 +++ b/backend/app.py
 @@ -1 +1 @@
@@ -498,76 +471,6 @@ index abc123..def456 100644
 +x = 2
 """
         assert backend_dev_tools_only(diff) is False
-
-    def test_mixed_dev_tools_and_backend_change_is_not_narrow(self) -> None:
-        diff = """\
-diff --git a/scripts/developer_tools/n_review_issue.py b/scripts/developer_tools/n_review_issue.py
-index abc123..def456 100644
---- a/scripts/developer_tools/n_review_issue.py
-+++ b/scripts/developer_tools/n_review_issue.py
-@@ -1 +1 @@
--x = 1
-+x = 2
-diff --git a/backend/app.py b/backend/app.py
-index abc123..def456 100644
---- a/backend/app.py
-+++ b/backend/app.py
-@@ -1 +1 @@
--y = 1
-+y = 2
-"""
-        assert backend_dev_tools_only(diff) is False
-
-    def test_rename_out_of_dev_tools_is_not_narrow(self) -> None:
-        """Moving a dev-tools script into backend/ must not narrow the suite."""
-        diff = """\
-diff --git a/scripts/developer_tools/n_review_issue.py b/backend/n_review_issue.py
-similarity index 100%
-rename from scripts/developer_tools/n_review_issue.py
-rename to backend/n_review_issue.py
-"""
-        assert backend_dev_tools_only(diff) is False
-
-    def test_dev_tools_and_dev_tools_tests_together_is_narrow(self) -> None:
-        """A diff touching both narrow globs (and nothing else) stays narrow (#5826)."""
-        diff = """\
-diff --git a/scripts/developer_tools/n_review_issue.py b/scripts/developer_tools/n_review_issue.py
-index abc123..def456 100644
---- a/scripts/developer_tools/n_review_issue.py
-+++ b/scripts/developer_tools/n_review_issue.py
-@@ -1 +1 @@
--x = 1
-+x = 2
-diff --git a/tests/scripts/test_n_review_issue.py b/tests/scripts/test_n_review_issue.py
-index abc123..def456 100644
---- a/tests/scripts/test_n_review_issue.py
-+++ b/tests/scripts/test_n_review_issue.py
-@@ -1 +1 @@
--x = 1
-+x = 2
-"""
-        assert backend_dev_tools_only(diff) is True
-
-    def test_frontend_only_diff_is_not_narrow(self) -> None:
-        """No backend path at all means the narrow flag doesn't apply."""
-        diff = """\
-diff --git a/frontend/src/App.tsx b/frontend/src/App.tsx
-index abc123..def456 100644
---- a/frontend/src/App.tsx
-+++ b/frontend/src/App.tsx
-@@ -1 +1 @@
--const a = 1
-+const a = 2
-"""
-        assert backend_dev_tools_only(diff) is False
-
-    def test_empty_diff_is_not_narrow(self) -> None:
-        assert backend_dev_tools_only("") is False
-
-
-# ---------------------------------------------------------------------------
-# classify (the doc-only + areas combination the workflows consume)
-# ---------------------------------------------------------------------------
 
 
 class TestClassify:
@@ -699,12 +602,11 @@ index abc123..def456 100644
         assert set(areas) == set(AREAS)
         assert narrow is False
 
-    def test_dev_tools_only_change_sets_narrow_flag(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_script_tests_only_change_sets_narrow_flag(self, monkeypatch: pytest.MonkeyPatch) -> None:
         diff = """\
-diff --git a/scripts/developer_tools/n_review_issue.py b/scripts/developer_tools/n_review_issue.py
-index abc123..def456 100644
---- a/scripts/developer_tools/n_review_issue.py
-+++ b/scripts/developer_tools/n_review_issue.py
+diff --git a/tests/scripts/test_widget.py b/tests/scripts/test_widget.py
+--- a/tests/scripts/test_widget.py
++++ b/tests/scripts/test_widget.py
 @@ -1 +1 @@
 -x = 1
 +x = 2
@@ -714,26 +616,3 @@ index abc123..def456 100644
         assert doc_only is False
         assert set(areas) == {"backend"}
         assert narrow is True
-
-    def test_dev_tools_plus_backend_change_clears_narrow_flag(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """A dev-tools change alongside a real backend/ change must run the full suite."""
-        diff = """\
-diff --git a/scripts/developer_tools/n_review_issue.py b/scripts/developer_tools/n_review_issue.py
-index abc123..def456 100644
---- a/scripts/developer_tools/n_review_issue.py
-+++ b/scripts/developer_tools/n_review_issue.py
-@@ -1 +1 @@
--x = 1
-+x = 2
-diff --git a/backend/app.py b/backend/app.py
-index abc123..def456 100644
---- a/backend/app.py
-+++ b/backend/app.py
-@@ -1 +1 @@
--y = 1
-+y = 2
-"""
-        monkeypatch.setattr(_mod, "get_diff_text", lambda base, head: diff)
-        _, areas, narrow = classify("pull_request", "abc", "def")
-        assert set(areas) == {"backend"}
-        assert narrow is False

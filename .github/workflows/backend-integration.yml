@@ -32,9 +32,8 @@ jobs:
       AWS_REGION: ${{ secrets.AWS_REGION }}
       DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
       # 'true' only when every backend-affecting path is confined to
-      # scripts/developer_tools/** or tests/scripts/** (see #5823) -- those
-      # helpers have no import relationship to backend/, so the narrow
-      # tests/scripts suite gives equivalent coverage without paying for the
+      # tests/scripts/**. Those tests have no import relationship to backend/,
+      # so the narrow suite gives equivalent coverage without paying for the
       # full ~3500-test backend suite. `== 'true'` (not `!= 'false'`) is the
       # correct polarity here: a missing/empty classifier output must run the
       # FULL suite, not skip it, matching the job-level fail-safe above.
@@ -77,8 +76,8 @@ jobs:
           aws s3 sync "s3://$DATA_BUCKET/" data/
 
       - name: Type-check backend
-        # Skipped when the change is confined to scripts/developer_tools/** /
-        # tests/scripts/** (see BACKEND_DEV_TOOLS_ONLY above): those paths
+        # Skipped when the change is confined to tests/scripts/** (see
+        # BACKEND_DEV_TOOLS_ONLY above): those paths
         # can't affect backend/, so a fresh mypy run over backend/ can't
         # produce a different result than the last run that touched it.
         if: env.BACKEND_DEV_TOOLS_ONLY != 'true'
@@ -114,17 +113,13 @@ jobs:
           pytest tests --ignore=tests/live --cov=backend --cov-report=xml --cov-report=term --cov-fail-under=80 -q
           pytest tests/test_backend_api.py::test_health tests/test_accounts_api.py --cov=backend --cov-append --cov-report=xml --cov-report=term --cov-fail-under=80 -q
 
-      # Narrow suite for a scripts/developer_tools/**-only change: equivalent
+      # Narrow suite for a tests/scripts/**-only change: equivalent
       # coverage without paying for the full backend suite or its 80%
-      # backend/ coverage gate, which a dev-tools-only diff can't move.
-      - name: Run dev-tools test suite
+      # backend/ coverage gate, which a script-test-only diff cannot move.
+      - name: Run script test suite
         if: env.BACKEND_DEV_TOOLS_ONLY == 'true'
         env:
           ALLOTMINT_SKIP_SNAPSHOT_WARM: 'true'
-          # See the OLLAMA_ENDPOINT comment on "Run tests" above (#5816) --
-          # this suite covers the ollama_common helpers, so it's the step
-          # most likely to accidentally depend on a live Ollama server.
-          OLLAMA_ENDPOINT: 'http://127.0.0.1:1'
         run: pytest tests/scripts --no-cov -q
 
       - name: Upload backend coverage reports to Codecov

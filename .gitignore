@@ -84,13 +84,9 @@ graphify-out/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/
 
 # Offline issue sync
 issues/
-/scripts/developer_tools/.issue-*.md
-/scripts/developer_tools/local_review_*.md
 /data/queries/test-query.json
 
 coverage.xml
-/scripts/developer_tools/scripts/developer_tools/.coverage
-/scripts/developer_tools/test-results/junit.xml
 /.issue-*.md
 /frontend/test-results/.last-run.json
 /frontend/test-results/

@@ -35,7 +35,10 @@ def test_stale_legacy_reference_is_reported_outside_readmes(tmp_path: Path) -> N
     (tmp_path / guide).write_text(f"See {LEGACY_DIAGRAM}", encoding="utf-8")
     (tmp_path / readme).write_text(f"See {LEGACY_DIAGRAM}", encoding="utf-8")
 
-    assert find_stale_legacy_references(tmp_path, [guide, readme]) == [guide]
+    stale, unreadable = find_stale_legacy_references(tmp_path, [guide, readme])
+
+    assert stale == [guide]
+    assert unreadable == []
 
 
 def test_legacy_reference_is_not_stale_while_diagram_exists(tmp_path: Path) -> None:
@@ -45,4 +48,51 @@ def test_legacy_reference_is_not_stale_while_diagram_exists(tmp_path: Path) -> N
     (tmp_path / diagram).write_text("<svg/>", encoding="utf-8")
     (tmp_path / guide).write_text(str(diagram), encoding="utf-8")
 
-    assert find_stale_legacy_references(tmp_path, [diagram, guide]) == []
+    stale, unreadable = find_stale_legacy_references(tmp_path, [diagram, guide])
+
+    assert stale == []
+    assert unreadable == []
+
+
+def test_sibling_relative_legacy_reference_is_detected(tmp_path: Path) -> None:
+    guide = Path("docs/deploy.md")
+    (tmp_path / "docs").mkdir()
+    (tmp_path / guide).write_text("See ./aws-architecture.svg for context", encoding="utf-8")
+
+    stale, unreadable = find_stale_legacy_references(tmp_path, [guide])
+
+    assert stale == [guide]
+    assert unreadable == []
+
+
+def test_bare_filename_outside_docs_is_not_a_sibling_match(tmp_path: Path) -> None:
+    notes = Path("frontend/notes.md")
+    (tmp_path / "frontend").mkdir()
+    (tmp_path / notes).write_text("See aws-architecture.svg for context", encoding="utf-8")
+
+    stale, unreadable = find_stale_legacy_references(tmp_path, [notes])
+
+    assert stale == []
+    assert unreadable == []
+
+
+def test_unreadable_candidate_is_reported_not_silently_skipped(tmp_path: Path) -> None:
+    guide = Path("docs/deploy.md")
+    (tmp_path / "docs").mkdir()
+    (tmp_path / guide).write_bytes(b"\xff\xfe\x00 not valid utf-8")
+
+    stale, unreadable = find_stale_legacy_references(tmp_path, [guide])
+
+    assert stale == []
+    assert unreadable == [guide]
+
+
+def test_known_binary_formats_are_skipped_without_being_reported(tmp_path: Path) -> None:
+    image = Path("docs/diagram.png")
+    (tmp_path / "docs").mkdir()
+    (tmp_path / image).write_bytes(b"\x89PNG\r\n\x1a\n not valid utf-8")
+
+    stale, unreadable = find_stale_legacy_references(tmp_path, [image])
+
+    assert stale == []
+    assert unreadable == []

@@ -15,7 +15,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 # Build this value from fragments so the audit does not report its own source.
 LEGACY_DIAGRAM = "docs/" + "aws-architecture.svg"
+LEGACY_DIAGRAM_PATH = Path(LEGACY_DIAGRAM)
 SCRIPT_SUFFIXES = frozenset({".js", ".mjs", ".ps1", ".py", ".sh", ".ts"})
+# Formats that legitimately hold non-UTF-8 bytes; scanning them for a text
+# reference always fails, so they are skipped rather than reported as unreadable.
+BINARY_SUFFIXES = frozenset({".gif", ".ico", ".jpg", ".jpeg", ".parquet", ".pdf", ".png", ".svg"})
 
 
 def _normalise_name(value: str) -> str:
@@ -57,22 +61,43 @@ def find_unreproducible_diagrams(files: list[Path]) -> list[Path]:
     return [path for path in diagrams if not has_regenerator(path, files)]
 
 
-def find_stale_legacy_references(root: Path, files: list[Path]) -> list[Path]:
-    """Find non-README files that refer to the removed legacy AWS diagram."""
+def _legacy_reference_variants(path: Path) -> frozenset[str]:
+    """Return the substrings that indicate `path` references the legacy diagram.
+
+    A file living alongside the diagram (i.e. also under `docs/`) may link to
+    it with a sibling-relative path such as `aws-architecture.svg` or
+    `./aws-architecture.svg`, not just the repository-root spelling.
+    """
+    variants = {LEGACY_DIAGRAM, f"/{LEGACY_DIAGRAM}"}
+    if path.parent == LEGACY_DIAGRAM_PATH.parent:
+        variants.add(LEGACY_DIAGRAM_PATH.name)
+        variants.add(f"./{LEGACY_DIAGRAM_PATH.name}")
+    return frozenset(variants)
+
+
+def find_stale_legacy_references(root: Path, files: list[Path]) -> tuple[list[Path], list[Path]]:
+    """Find non-README files that refer to the removed legacy AWS diagram.
+
+    Returns a `(stale, unreadable)` pair: `unreadable` lists tracked candidate
+    files that could not be scanned, so an incomplete scan stays visible
+    instead of silently reporting zero warnings.
+    """
     if (root / LEGACY_DIAGRAM).exists():
-        return []
+        return [], []
 
     stale: list[Path] = []
+    unreadable: list[Path] = []
     for path in files:
-        if path.name.lower().startswith("readme") or path.suffix.lower() == ".svg":
+        if path.name.lower().startswith("readme") or path.suffix.lower() in BINARY_SUFFIXES:
             continue
         try:
             content = (root / path).read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
+            unreadable.append(path)
             continue
-        if LEGACY_DIAGRAM in content:
+        if any(variant in content for variant in _legacy_reference_variants(path)):
             stale.append(path)
-    return stale
+    return stale, unreadable
 
 
 def main() -> int:
@@ -88,11 +113,20 @@ def main() -> int:
             f"generate_{diagram.stem.replace('-', '_')} with a supported script suffix."
         )
 
-    for reference in find_stale_legacy_references(ROOT, files):
+    stale_references, unreadable_candidates = find_stale_legacy_references(ROOT, files)
+
+    for reference in stale_references:
         findings += 1
         print(
             f"::warning file={reference}::Stale reference to removed "
             f"{LEGACY_DIAGRAM}. Update or remove the reference."
+        )
+
+    for path in unreadable_candidates:
+        findings += 1
+        print(
+            f"::warning file={path}::Could not scan for a stale reference to "
+            f"{LEGACY_DIAGRAM}; the file is not valid UTF-8 text."
         )
 
     print(f"Architecture diagram audit complete ({findings} warning(s)).")

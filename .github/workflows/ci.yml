@@ -46,6 +46,8 @@ jobs:
         run: pytest tests/test_review_common.py -v --no-cov
       - name: Check package-lock.json cross-OS platform coverage
         run: python scripts/check_lockfile_platform_coverage.py
+      - name: Audit architecture diagram reproducibility and references
+        run: python scripts/check_architecture_diagrams.py
 
   frontend-checks:
     name: Frontend lint, type-check and unit tests

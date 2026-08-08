@@ -506,9 +506,8 @@ export function InstrumentDetail({
         </div>
       )}
       <div
+        className="flex-wrap-row"
         style={{
-          display: "flex",
-          flexWrap: "wrap",
           justifyContent: "space-between",
           alignItems: "center",
           marginBottom: "0.2rem",

@@ -725,9 +725,8 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   return (
     <div style={{ marginTop: "1rem" }}>
       <div
+        className="flex-wrap-row"
         style={{
-          display: "flex",
-          flexWrap: "wrap",
           justifyContent: "space-between",
           alignItems: "flex-end",
           gap: "1rem",
@@ -821,9 +820,8 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
 
       {isAllPositions && enableAdvancedAnalytics && (
         <div
+          className="flex-wrap-row"
           style={{
-            display: "flex",
-            flexWrap: "wrap",
             gap: "2rem",
             marginBottom: "1rem",
             padding: "0.75rem 1rem",

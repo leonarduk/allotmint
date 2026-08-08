@@ -37,7 +37,8 @@ PREVIEWABLE_EXTENSIONS = {".json", ".csv", ".txt", ".log", ".yaml", ".yml", ".md
 
 # Friendly message shown to the user in place of the (technically accurate but
 # unhelpful-looking) 415 for a file type that isn't in PREVIEWABLE_EXTENSIONS,
-# e.g. clicking a binary VCS object like `.git/index`.
+# e.g. clicking a binary VCS object like `.git/index` (umbrella issue #6109;
+# local-explorer follow-up #6112).
 NOT_PREVIEWABLE_DETAIL = "This file type can't be previewed here (binary or unsupported format)."
 
 # VCS/IDE housekeeping folders that belong to the tooling around the data

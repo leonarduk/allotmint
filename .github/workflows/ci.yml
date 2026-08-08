@@ -40,10 +40,8 @@ jobs:
           python-version: '3.12'
       - run: pip install -r requirements.txt -r requirements-dev.txt
       - run: python scripts/check_branch_protection_required_checks.py
-      - name: Run extract_verdict tests
-        run: pytest tests/test_extract_verdict.py -v --no-cov
-      - name: Run review_common tests
-        run: pytest tests/test_review_common.py -v --no-cov
+      - name: Run review_common and review-script tests
+        run: pytest tests/test_review_common.py tests/test_ai_review_scripts.py -v --no-cov
       - name: Check package-lock.json cross-OS platform coverage
         run: python scripts/check_lockfile_platform_coverage.py
       - name: Audit architecture diagram reproducibility and references

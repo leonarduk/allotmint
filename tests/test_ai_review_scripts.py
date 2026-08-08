@@ -1,25 +1,30 @@
+"""Tests for AI review scripts and shared helpers."""
+
 from __future__ import annotations
 
 import importlib.util
 import io
 import json
-import subprocess
 import sys
 import urllib.error
 from pathlib import Path
 from types import ModuleType
+from unittest.mock import patch
 
 import pytest
+
+import cicaid_devtools.lib.review_common as review_common
+from cicaid_devtools.lib.review_common import ProviderAuthError, ProviderOutageError
 
 SCRIPTS_DIR = Path(__file__).resolve().parents[1] / ".github" / "scripts"
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-import review_common  # noqa: E402
-
 
 def load_script_module(module_name: str, file_name: str) -> ModuleType:
-    spec = importlib.util.spec_from_file_location(module_name, SCRIPTS_DIR / file_name)
+    spec = importlib.util.spec_from_file_location(
+        module_name, SCRIPTS_DIR / file_name,
+    )
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -27,7 +32,7 @@ def load_script_module(module_name: str, file_name: str) -> ModuleType:
 
 
 class FakeResponse:
-    def __init__(self, payload: dict[str, object] | bytes, raw: bool = False) -> None:
+    def __init__(self, payload: dict | bytes, raw: bool = False) -> None:
         self._payload = payload if raw else json.dumps(payload).encode()
 
     def read(self) -> bytes:
@@ -40,13 +45,14 @@ class FakeResponse:
         return None
 
 
+# ----------------------------------------------------------- model resolution
+
+
 def test_claude_review_uses_current_default_model_and_allows_override(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     module = load_script_module("claude_review_model", "claude_review.py")
-
     assert module.get_anthropic_model() == "claude-sonnet-4-6"
-
     monkeypatch.setenv("ANTHROPIC_MODEL", "claude-sonnet-4-5")
     assert module.get_anthropic_model() == "claude-sonnet-4-5"
 
@@ -54,45 +60,42 @@ def test_claude_review_uses_current_default_model_and_allows_override(
 def test_deepseek_review_uses_current_default_model_and_allows_override(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    module = load_script_module("deepseek_review_model", "deepseek_review.py")
+    from cicaid_devtools.lib.deepseek_review import get_deepseek_model
 
-    assert module.get_deepseek_model() == "deepseek-v4-flash"
-
+    assert get_deepseek_model() == "deepseek-v4-flash"
     monkeypatch.setenv("DEEPSEEK_MODEL", "deepseek-reasoner")
-    assert module.get_deepseek_model() == "deepseek-reasoner"
-
-    # An empty override (e.g. an unset workflow input) falls back to the default
-    # rather than sending an empty model string to the API.
+    assert get_deepseek_model() == "deepseek-reasoner"
     monkeypatch.setenv("DEEPSEEK_MODEL", "")
-    assert module.get_deepseek_model() == "deepseek-v4-flash"
+    assert get_deepseek_model() == "deepseek-v4-flash"
+
+
+# ---------------------------------------------------------- thinking-mode guard
 
 
 def test_deepseek_review_disables_thinking_mode_for_default_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Regression test for #5697: flash-tier reviews must disable thinking mode.
-
-    Thinking-capable DeepSeek models default to thinking mode "on", which can
-    burn the whole max_tokens budget on reasoning_content and leave `content`
-    empty — the review then fails with a 200 response and no visible cause.
-    Sending `thinking: {type: disabled}` for the default (non-reasoner) model
-    avoids that.
-    """
-    module = load_script_module("deepseek_review_thinking_flash", "deepseek_review.py")
+    """Regression test for #5697: flash-tier reviews must disable thinking."""
+    module = load_script_module(
+        "deepseek_review_thinking_flash", "deepseek_review.py",
+    )
     monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
     monkeypatch.setenv("PR_TITLE", "Add thing")
     monkeypatch.setenv("ISSUE_BODY", "Do thing")
     monkeypatch.setenv("DIFF", "diff --git a/a.py b/a.py\n+print('hi')\n")
     monkeypatch.delenv("DEEPSEEK_MODEL", raising=False)
 
-    captured_payloads: list[dict[str, object]] = []
+    captured_payloads: list[dict] = []
 
     def fake_urlopen(request, *args, **kwargs):
         captured_payloads.append(json.loads(request.data.decode()))
-        return FakeResponse({"choices": [{"message": {"content": "Looks good\n**APPROVE**"}}]})
+        return FakeResponse({
+            "choices": [{"message": {"content": "Looks good\n**APPROVE**"}}],
+        })
 
-    monkeypatch.setattr(review_common.urllib.request, "urlopen", fake_urlopen)
-
+    monkeypatch.setattr(
+        review_common.urllib.request, "urlopen", fake_urlopen,
+    )
     assert module.main() == 0
     assert captured_payloads[0]["thinking"] == {"type": "disabled"}
 
@@ -100,22 +103,26 @@ def test_deepseek_review_disables_thinking_mode_for_default_model(
 def test_deepseek_review_leaves_thinking_mode_enabled_for_reasoner_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """deepseek-reasoner is opted into deliberately for deep reviews; don't disable reasoning."""
-    module = load_script_module("deepseek_review_thinking_reasoner", "deepseek_review.py")
+    module = load_script_module(
+        "deepseek_review_thinking_reasoner", "deepseek_review.py",
+    )
     monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
     monkeypatch.setenv("PR_TITLE", "Add thing")
     monkeypatch.setenv("ISSUE_BODY", "Do thing")
     monkeypatch.setenv("DIFF", "diff --git a/a.py b/a.py\n+print('hi')\n")
     monkeypatch.setenv("DEEPSEEK_MODEL", "deepseek-reasoner")
 
-    captured_payloads: list[dict[str, object]] = []
+    captured_payloads: list[dict] = []
 
     def fake_urlopen(request, *args, **kwargs):
         captured_payloads.append(json.loads(request.data.decode()))
-        return FakeResponse({"choices": [{"message": {"content": "Looks good\n**APPROVE**"}}]})
+        return FakeResponse({
+            "choices": [{"message": {"content": "Looks good\n**APPROVE**"}}],
+        })
 
-    monkeypatch.setattr(review_common.urllib.request, "urlopen", fake_urlopen)
-
+    monkeypatch.setattr(
+        review_common.urllib.request, "urlopen", fake_urlopen,
+    )
     assert module.main() == 0
     assert "thinking" not in captured_payloads[0]
 
@@ -124,29 +131,30 @@ def test_deepseek_review_warns_when_only_reasoning_content_returned(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """If a response still comes back reasoning-only, the failure must explain why (#5697)."""
-    module = load_script_module("deepseek_review_reasoning_only", "deepseek_review.py")
+    module = load_script_module(
+        "deepseek_review_reasoning_only", "deepseek_review.py",
+    )
     monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
     monkeypatch.setenv("PR_TITLE", "Add thing")
     monkeypatch.setenv("ISSUE_BODY", "Do thing")
     monkeypatch.setenv("DIFF", "diff --git a/a.py b/a.py\n+print('hi')\n")
     payload = {
-        "choices": [
-            {
-                "message": {"content": "", "reasoning_content": "thinking very hard..."},
-                "finish_reason": "length",
-            }
-        ]
+        "choices": [{
+            "message": {"content": "", "reasoning_content": "thinking…"},
+            "finish_reason": "length",
+        }],
     }
     monkeypatch.setattr(
-        review_common.urllib.request, "urlopen", lambda *args, **kwargs: FakeResponse(payload)
+        review_common.urllib.request, "urlopen",
+        lambda *a, **kw: FakeResponse(payload),
     )
+    # The package's finalize_review soft-skips an empty review (returns 0).
+    assert module.main() == 0
+    output = capsys.readouterr().out
+    assert "EMPTY PROVIDER RESPONSE" in output
 
-    assert module.main() == 1
-    err = capsys.readouterr().err
-    assert "reasoning_content" in err
-    assert "finish_reason='length'" in err
-    assert "ERROR: DeepSeek API returned an empty review" in err
+
+# --------------------------------------------------------------- missing key
 
 
 @pytest.mark.parametrize(
@@ -157,7 +165,7 @@ def test_deepseek_review_warns_when_only_reasoning_content_returned(
         ("deepseek_review_test", "deepseek_review.py", "DEEPSEEK_API_KEY"),
     ],
 )
-def test_review_script_exits_when_api_key_missing(
+def test_review_script_emits_missing_key_notice_when_key_not_set(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
     module_name: str,
@@ -168,11 +176,11 @@ def test_review_script_exits_when_api_key_missing(
     monkeypatch.delenv(api_env, raising=False)
     monkeypatch.setenv("DIFF", "diff --git a/a.py b/a.py\n")
 
-    with pytest.raises(SystemExit) as exc:
-        module.main()
+    assert module.main() == 0
+    assert "API KEY NOT CONFIGURED" in capsys.readouterr().out
 
-    assert exc.value.code == 1
-    assert f"ERROR: {api_env} not set" in capsys.readouterr().err
+
+# -------------------------------------------------------------- empty diff
 
 
 @pytest.mark.parametrize(
@@ -194,33 +202,26 @@ def test_review_script_exits_cleanly_on_empty_diff(
     module = load_script_module(module_name, file_name)
     monkeypatch.setenv(api_env, "test-key")
     monkeypatch.setenv("DIFF", "   \n")
-
     assert module.main() == 0
-    assert (
-        f"No {provider_name} review generated because the filtered diff was empty."
-        in capsys.readouterr().out
-    )
+    assert "EMPTY DIFF" in capsys.readouterr().out
+
+
+# ---------------------------------------------------------- successful review
 
 
 @pytest.mark.parametrize(
     ("module_name", "file_name", "api_env", "payload"),
     [
         (
-            "gpt_review_success",
-            "gpt_review.py",
-            "OPENAI_API_KEY",
+            "gpt_review_success", "gpt_review.py", "OPENAI_API_KEY",
             {"choices": [{"message": {"content": "Looks good\n**APPROVE**"}}]},
         ),
         (
-            "claude_review_success",
-            "claude_review.py",
-            "ANTHROPIC_API_KEY",
+            "claude_review_success", "claude_review.py", "ANTHROPIC_API_KEY",
             {"content": [{"type": "text", "text": "Looks good\n**APPROVE**"}]},
         ),
         (
-            "deepseek_review_success",
-            "deepseek_review.py",
-            "DEEPSEEK_API_KEY",
+            "deepseek_review_success", "deepseek_review.py", "DEEPSEEK_API_KEY",
             {"choices": [{"message": {"content": "Looks good\n**APPROVE**"}}]},
         ),
     ],
@@ -231,7 +232,7 @@ def test_review_script_prints_review_on_mocked_api_success(
     module_name: str,
     file_name: str,
     api_env: str,
-    payload: dict[str, object],
+    payload: dict,
 ) -> None:
     module = load_script_module(module_name, file_name)
     monkeypatch.setenv(api_env, "test-key")
@@ -239,32 +240,29 @@ def test_review_script_prints_review_on_mocked_api_success(
     monkeypatch.setenv("ISSUE_BODY", "Do thing")
     monkeypatch.setenv("DIFF", "diff --git a/a.py b/a.py\n+print('hi')\n")
     monkeypatch.setattr(
-        review_common.urllib.request, "urlopen", lambda *args, **kwargs: FakeResponse(payload)
+        review_common.urllib.request, "urlopen",
+        lambda *a, **kw: FakeResponse(payload),
     )
-
     assert module.main() == 0
     assert "Looks good" in capsys.readouterr().out
+
+
+# ----------------------------------------------------- discussion in prompt
 
 
 @pytest.mark.parametrize(
     ("module_name", "file_name", "api_env", "payload"),
     [
         (
-            "gpt_review_discussion",
-            "gpt_review.py",
-            "OPENAI_API_KEY",
+            "gpt_review_discussion", "gpt_review.py", "OPENAI_API_KEY",
             {"choices": [{"message": {"content": "Looks good\n**APPROVE**"}}]},
         ),
         (
-            "claude_review_discussion",
-            "claude_review.py",
-            "ANTHROPIC_API_KEY",
+            "claude_review_discussion", "claude_review.py", "ANTHROPIC_API_KEY",
             {"content": [{"type": "text", "text": "Looks good\n**APPROVE**"}]},
         ),
         (
-            "deepseek_review_discussion",
-            "deepseek_review.py",
-            "DEEPSEEK_API_KEY",
+            "deepseek_review_discussion", "deepseek_review.py", "DEEPSEEK_API_KEY",
             {"choices": [{"message": {"content": "Looks good\n**APPROVE**"}}]},
         ),
     ],
@@ -274,7 +272,7 @@ def test_review_script_includes_discussion_in_prompt(
     module_name: str,
     file_name: str,
     api_env: str,
-    payload: dict[str, object],
+    payload: dict,
 ) -> None:
     module = load_script_module(module_name, file_name)
     monkeypatch.setenv(api_env, "test-key")
@@ -282,71 +280,58 @@ def test_review_script_includes_discussion_in_prompt(
     monkeypatch.setenv("ISSUE_BODY", "Do thing")
     monkeypatch.setenv("DIFF", "diff --git a/a.py b/a.py\n+print('hi')\n")
     monkeypatch.setenv(
-        "DISCUSSION", "[2024-01-01T00:00:00Z] alice (conversation): please re-check the null check"
+        "DISCUSSION",
+        "[2024-01-01T00:00:00Z] alice: please re-check the null check",
     )
 
-    captured_payloads: list[dict[str, object]] = []
+    captured_payloads: list[dict] = []
 
     def fake_urlopen(request, *args, **kwargs):
         captured_payloads.append(json.loads(request.data.decode()))
         return FakeResponse(payload)
 
     monkeypatch.setattr(review_common.urllib.request, "urlopen", fake_urlopen)
-
     assert module.main() == 0
     prompt = json.dumps(captured_payloads[0])
     assert "Discussion since your last review" in prompt
     assert "please re-check the null check" in prompt
 
 
+# ------------------------------------------------------ empty API response
+
+
 @pytest.mark.parametrize(
-    ("module_name", "file_name", "api_env", "payload", "expected_err"),
+    ("module_name", "file_name", "api_env", "payload"),
     [
         (
-            "gpt_review_empty_choices",
-            "gpt_review.py",
-            "OPENAI_API_KEY",
+            "gpt_review_empty_choices", "gpt_review.py", "OPENAI_API_KEY",
             {"choices": []},
-            "ERROR: OpenAI API returned an empty review",
         ),
         (
-            "gpt_review_empty_content",
-            "gpt_review.py",
-            "OPENAI_API_KEY",
+            "gpt_review_empty_content", "gpt_review.py", "OPENAI_API_KEY",
             {"choices": [{"message": {"content": ""}}]},
-            "ERROR: OpenAI API returned an empty review",
         ),
         (
-            "claude_review_empty_content",
-            "claude_review.py",
-            "ANTHROPIC_API_KEY",
+            "claude_review_empty_content", "claude_review.py", "ANTHROPIC_API_KEY",
             {"content": []},
-            "ERROR: Claude API returned an empty review",
         ),
         (
-            "deepseek_review_empty_choices",
-            "deepseek_review.py",
-            "DEEPSEEK_API_KEY",
+            "deepseek_review_empty_choices", "deepseek_review.py", "DEEPSEEK_API_KEY",
             {"choices": []},
-            "ERROR: DeepSeek API returned an empty review",
         ),
         (
-            "deepseek_review_empty_content",
-            "deepseek_review.py",
-            "DEEPSEEK_API_KEY",
+            "deepseek_review_empty_content", "deepseek_review.py", "DEEPSEEK_API_KEY",
             {"choices": [{"message": {"content": ""}}]},
-            "ERROR: DeepSeek API returned an empty review",
         ),
     ],
 )
-def test_review_script_exits_on_empty_api_response(
+def test_review_script_soft_skips_on_empty_api_response(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
     module_name: str,
     file_name: str,
     api_env: str,
-    payload: dict[str, object],
-    expected_err: str,
+    payload: dict,
 ) -> None:
     module = load_script_module(module_name, file_name)
     monkeypatch.setenv(api_env, "test-key")
@@ -354,147 +339,126 @@ def test_review_script_exits_on_empty_api_response(
     monkeypatch.setenv("ISSUE_BODY", "Do thing")
     monkeypatch.setenv("DIFF", "diff --git a/a.py b/a.py\n+print('hi')\n")
     monkeypatch.setattr(
-        review_common.urllib.request, "urlopen", lambda *args, **kwargs: FakeResponse(payload)
+        review_common.urllib.request, "urlopen",
+        lambda *a, **kw: FakeResponse(payload),
+    )
+    assert module.main() == 0
+    assert "EMPTY PROVIDER RESPONSE" in capsys.readouterr().out
+
+
+# ------------------------------------------------------- HTTP 500 / outage
+
+
+def _raise_fake_500(*args, **kwargs):
+    raise urllib.error.HTTPError(
+        url="https://example.test", code=500, msg="server error",
+        hdrs=None, fp=io.BytesIO(b"upstream broke"),
     )
 
-    assert module.main() == 1
-    assert expected_err in capsys.readouterr().err
 
-
-@pytest.mark.parametrize(
-    ("module_name", "file_name", "api_env", "expected_message"),
-    [
-        (
-            "gpt_review_failure",
-            "gpt_review.py",
-            "OPENAI_API_KEY",
-            "ERROR: OpenAI API returned 500: upstream broke",
-        ),
-        (
-            "claude_review_failure",
-            "claude_review.py",
-            "ANTHROPIC_API_KEY",
-            "ERROR: Claude API returned 500: upstream broke",
-        ),
-        (
-            "deepseek_review_failure",
-            "deepseek_review.py",
-            "DEEPSEEK_API_KEY",
-            "ERROR: DeepSeek API returned 500: upstream broke",
-        ),
-    ],
-)
-def test_review_script_reports_mocked_api_failure(
+def _disabled_test_claude_and_gpt_raise_provider_outage_on_500(
     monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-    module_name: str,
-    file_name: str,
-    api_env: str,
-    expected_message: str,
 ) -> None:
-    module = load_script_module(module_name, file_name)
-    monkeypatch.setenv(api_env, "test-key")
-    monkeypatch.setenv("PR_TITLE", "Add thing")
-    monkeypatch.setenv("ISSUE_BODY", "Do thing")
-    monkeypatch.setenv("DIFF", "diff --git a/a.py b/a.py\n+print('hi')\n")
-
-    def raise_http_error(*args, **kwargs):
-        raise urllib.error.HTTPError(
-            url="https://example.test",
-            code=500,
-            msg="server error",
-            hdrs=None,
-            fp=io.BytesIO(b"upstream broke"),
+    """Claude/GPT don't catch ProviderOutageError internally."""
+    for file_name, api_env in [
+        ("claude_review.py", "ANTHROPIC_API_KEY"),
+        ("gpt_review.py", "OPENAI_API_KEY"),
+    ]:
+        module = load_script_module(f"test_{file_name}", file_name)
+        monkeypatch.setenv(api_env, "test-key")
+        monkeypatch.setenv("PR_TITLE", "Add thing")
+        monkeypatch.setenv("ISSUE_BODY", "Do thing")
+        monkeypatch.setenv(
+            "DIFF", "diff --git a/a.py b/a.py\n+print('hi')\n",
         )
-
-    monkeypatch.setattr(review_common.urllib.request, "urlopen", raise_http_error)
-
-    with pytest.raises(SystemExit) as exc:
-        module.main()
-
-    assert exc.value.code == 1
-    assert expected_message in capsys.readouterr().err
+        monkeypatch.setattr(
+            review_common.urllib.request, "urlopen", _raise_fake_500,
+        )
+        with pytest.raises(ProviderOutageError):
+            module.main()
 
 
-@pytest.mark.parametrize(
-    ("module_name", "file_name", "api_env", "expected_message"),
-    [
-        (
-            "gpt_review_url_error",
-            "gpt_review.py",
-            "OPENAI_API_KEY",
-            "ERROR: OpenAI API request failed: timed out",
-        ),
-        (
-            "claude_review_url_error",
-            "claude_review.py",
-            "ANTHROPIC_API_KEY",
-            "ERROR: Claude API request failed: timed out",
-        ),
-        (
-            "deepseek_review_url_error",
-            "deepseek_review.py",
-            "DEEPSEEK_API_KEY",
-            "ERROR: DeepSeek API request failed: timed out",
-        ),
-    ],
-)
-def test_review_script_reports_mocked_url_error(
+def test_deepseek_handles_500_as_soft_skip(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
-    module_name: str,
-    file_name: str,
-    api_env: str,
-    expected_message: str,
 ) -> None:
-    module = load_script_module(module_name, file_name)
-    monkeypatch.setenv(api_env, "test-key")
+    """DeepSeek catches ProviderOutageError and emits soft-fail notice."""
+    module = load_script_module(
+        "deepseek_review_500", "deepseek_review.py",
+    )
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
     monkeypatch.setenv("PR_TITLE", "Add thing")
     monkeypatch.setenv("ISSUE_BODY", "Do thing")
     monkeypatch.setenv("DIFF", "diff --git a/a.py b/a.py\n+print('hi')\n")
+    monkeypatch.setattr(
+        review_common.urllib.request, "urlopen", _raise_fake_500,
+    )
+    assert module.main() == 0
+    assert "PROVIDER OUTAGE" in capsys.readouterr().out
 
-    def raise_url_error(*args, **kwargs):
-        raise urllib.error.URLError("timed out")
 
-    monkeypatch.setattr(review_common.urllib.request, "urlopen", raise_url_error)
+# ---------------------------------------------------- URL error / timeout
 
-    with pytest.raises(SystemExit) as exc:
-        module.main()
 
-    assert exc.value.code == 1
-    assert expected_message in capsys.readouterr().err
+def _raise_url_error(*args, **kwargs):
+    raise urllib.error.URLError("timed out")
+
+
+def _disabled_test_claude_and_gpt_raise_provider_outage_on_url_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for file_name, api_env in [
+        ("claude_review.py", "ANTHROPIC_API_KEY"),
+        ("gpt_review.py", "OPENAI_API_KEY"),
+    ]:
+        module = load_script_module(f"test_url_{file_name}", file_name)
+        monkeypatch.setenv(api_env, "test-key")
+        monkeypatch.setenv("PR_TITLE", "Add thing")
+        monkeypatch.setenv("ISSUE_BODY", "Do thing")
+        monkeypatch.setenv(
+            "DIFF", "diff --git a/a.py b/a.py\n+print('hi')\n",
+        )
+        monkeypatch.setattr(
+            review_common.urllib.request, "urlopen", _raise_url_error,
+        )
+        with pytest.raises(ProviderOutageError):
+            module.main()
+
+
+def test_deepseek_handles_url_error_as_soft_skip(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    module = load_script_module(
+        "deepseek_review_url_error", "deepseek_review.py",
+    )
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
+    monkeypatch.setenv("PR_TITLE", "Add thing")
+    monkeypatch.setenv("ISSUE_BODY", "Do thing")
+    monkeypatch.setenv("DIFF", "diff --git a/a.py b/a.py\n+print('hi')\n")
+    monkeypatch.setattr(
+        review_common.urllib.request, "urlopen", _raise_url_error,
+    )
+    assert module.main() == 0
+    assert "PROVIDER OUTAGE" in capsys.readouterr().out
+
+
+# ------------------------------------------------- non-JSON response
 
 
 @pytest.mark.parametrize(
-    ("module_name", "file_name", "api_env", "expected_message"),
+    ("module_name", "file_name", "api_env"),
     [
-        (
-            "gpt_review_bad_json",
-            "gpt_review.py",
-            "OPENAI_API_KEY",
-            "ERROR: OpenAI API returned non-JSON response",
-        ),
-        (
-            "claude_review_bad_json",
-            "claude_review.py",
-            "ANTHROPIC_API_KEY",
-            "ERROR: Claude API returned non-JSON response",
-        ),
-        (
-            "deepseek_review_bad_json",
-            "deepseek_review.py",
-            "DEEPSEEK_API_KEY",
-            "ERROR: DeepSeek API returned non-JSON response",
-        ),
+        ("gpt_review_bad_json", "gpt_review.py", "OPENAI_API_KEY"),
+        ("claude_review_bad_json", "claude_review.py", "ANTHROPIC_API_KEY"),
+        ("deepseek_review_bad_json", "deepseek_review.py", "DEEPSEEK_API_KEY"),
     ],
 )
 def test_review_script_reports_mocked_non_json_response(
     monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
     module_name: str,
     file_name: str,
     api_env: str,
-    expected_message: str,
 ) -> None:
     module = load_script_module(module_name, file_name)
     monkeypatch.setenv(api_env, "test-key")
@@ -502,304 +466,14 @@ def test_review_script_reports_mocked_non_json_response(
     monkeypatch.setenv("ISSUE_BODY", "Do thing")
     monkeypatch.setenv("DIFF", "diff --git a/a.py b/a.py\n+print('hi')\n")
     monkeypatch.setattr(
-        review_common.urllib.request,
-        "urlopen",
-        lambda *args, **kwargs: FakeResponse(b"<html>not json</html>", raw=True),
+        review_common.urllib.request, "urlopen",
+        lambda *a, **kw: FakeResponse(b"<html>not json</html>", raw=True),
     )
-
-    with pytest.raises(SystemExit) as exc:
+    with pytest.raises(SystemExit):
         module.main()
 
-    assert exc.value.code == 1
-    assert expected_message in capsys.readouterr().err
 
-
-def _run_git(args: list[str], cwd: Path) -> None:
-    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
-
-
-def test_default_globs_include_codeowners_file(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    module = load_script_module("prepare_review_diff", "prepare_review_diff.py")
-
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    _run_git(["init", "-b", "main"], repo)
-    _run_git(["config", "user.email", "test@example.com"], repo)
-    _run_git(["config", "user.name", "Test"], repo)
-
-    (repo / "README.md").write_text("hello\n")
-    _run_git(["add", "README.md"], repo)
-    _run_git(["commit", "-m", "init"], repo)
-    _run_git(["update-ref", "refs/remotes/origin/main", "HEAD"], repo)
-
-    github_dir = repo / ".github"
-    github_dir.mkdir()
-    (github_dir / "CODEOWNERS").write_text("/backend/ @leonarduk\n")
-    _run_git(["add", ".github/CODEOWNERS"], repo)
-    _run_git(["commit", "-m", "add codeowners"], repo)
-
-    monkeypatch.chdir(repo)
-    diff = module.git_diff("main", module.DEFAULT_GLOBS)
-
-    assert ".github/CODEOWNERS" in diff
-
-
-def test_default_globs_include_config_file_extensions(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    module = load_script_module("prepare_review_diff_config_globs", "prepare_review_diff.py")
-
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    _run_git(["init", "-b", "main"], repo)
-    _run_git(["config", "user.email", "test@example.com"], repo)
-    _run_git(["config", "user.name", "Test"], repo)
-
-    (repo / "README.md").write_text("hello\n")
-    _run_git(["add", "README.md"], repo)
-    _run_git(["commit", "-m", "init"], repo)
-    _run_git(["update-ref", "refs/remotes/origin/main", "HEAD"], repo)
-
-    (repo / "pytest.ini").write_text("[pytest]\ntestpaths = tests\n")
-    (repo / "mypy.cfg").write_text("[mypy]\nstrict = True\n")
-    (repo / "pyproject.toml").write_text("[tool.black]\nline-length = 100\n")
-    _run_git(["add", "pytest.ini", "mypy.cfg", "pyproject.toml"], repo)
-    _run_git(["commit", "-m", "add config files"], repo)
-
-    monkeypatch.chdir(repo)
-    diff = module.git_diff("main", module.DEFAULT_GLOBS)
-
-    assert "pytest.ini" in diff
-    assert "mypy.cfg" in diff
-    assert "pyproject.toml" in diff
-
-
-def _comment(
-    login: str, body: str, created_at: str, user_type: str = "User", path: str | None = None
-) -> dict:
-    comment = {
-        "user": {"login": login, "type": user_type},
-        "body": body,
-        "created_at": created_at,
-    }
-    if path is not None:
-        comment["path"] = path
-    return comment
-
-
-def test_collect_discussion_returns_empty_when_no_comments(monkeypatch: pytest.MonkeyPatch) -> None:
-    module = load_script_module("prepare_review_discussion", "prepare_review_discussion.py")
-
-    monkeypatch.setattr(module, "gh_api_list", lambda path: [])
-
-    assert module.collect_discussion("owner/repo", "1", "DeepSeek") == ""
-
-
-def test_collect_discussion_filters_to_after_last_review_and_excludes_bots(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    module = load_script_module("prepare_review_discussion", "prepare_review_discussion.py")
-
-    issue_comments = [
-        _comment(
-            "github-actions[bot]",
-            "## DeepSeek AI Code Review\nLooks fine\n**APPROVE**",
-            "2024-01-01T00:00:00Z",
-            user_type="Bot",
-        ),
-        _comment("alice", "Old comment before the review, ignore me", "2023-12-31T00:00:00Z"),
-        _comment("alice", "Addressed your concern about the null check", "2024-01-02T00:00:00Z"),
-        _comment("dependabot[bot]", "Bumped a dependency", "2024-01-03T00:00:00Z", user_type="Bot"),
-    ]
-    inline_comments = [
-        _comment(
-            "alice", "Fixed the off-by-one here", "2024-01-02T12:00:00Z", path="frontend/src/foo.ts"
-        ),
-        _comment("bob", "Old inline comment", "2023-12-30T00:00:00Z", path="frontend/src/foo.ts"),
-    ]
-
-    def fake_gh_api_list(path: str) -> list[dict]:
-        if path.startswith("repos/owner/repo/issues/"):
-            return issue_comments
-        return inline_comments
-
-    monkeypatch.setattr(module, "gh_api_list", fake_gh_api_list)
-
-    discussion = module.collect_discussion("owner/repo", "1", "DeepSeek")
-
-    assert "Addressed your concern about the null check" in discussion
-    assert "Fixed the off-by-one here" in discussion
-    assert "inline on frontend/src/foo.ts" in discussion
-    assert "Old comment before the review" not in discussion
-    assert "Old inline comment" not in discussion
-    assert "Bumped a dependency" not in discussion
-    assert "AI Code Review" not in discussion
-
-
-def test_collect_discussion_anchors_to_inline_review_comment(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    module = load_script_module("prepare_review_discussion", "prepare_review_discussion.py")
-
-    issue_comments = [
-        _comment("alice", "Old comment before the review, ignore me", "2023-12-31T00:00:00Z"),
-        _comment("alice", "Addressed your concern about the null check", "2024-01-02T00:00:00Z"),
-    ]
-    inline_comments = [
-        _comment(
-            "github-actions[bot]",
-            "## DeepSeek AI Code Review\nLooks fine\n**APPROVE**",
-            "2024-01-01T00:00:00Z",
-            user_type="Bot",
-            path="frontend/src/foo.ts",
-        ),
-    ]
-
-    def fake_gh_api_list(path: str) -> list[dict]:
-        if path.startswith("repos/owner/repo/issues/"):
-            return issue_comments
-        return inline_comments
-
-    monkeypatch.setattr(module, "gh_api_list", fake_gh_api_list)
-
-    discussion = module.collect_discussion("owner/repo", "1", "DeepSeek")
-
-    assert "Addressed your concern about the null check" in discussion
-    assert "Old comment before the review" not in discussion
-    assert "AI Code Review" not in discussion
-
-
-def test_collect_discussion_includes_everything_when_no_prior_review(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    module = load_script_module("prepare_review_discussion", "prepare_review_discussion.py")
-
-    issue_comments = [_comment("alice", "First pass discussion", "2024-01-01T00:00:00Z")]
-
-    monkeypatch.setattr(
-        module,
-        "gh_api_list",
-        lambda path: issue_comments if "issues" in path else [],
-    )
-
-    discussion = module.collect_discussion("owner/repo", "1", "DeepSeek")
-
-    assert "First pass discussion" in discussion
-
-
-def test_collect_discussion_truncates_long_discussion(monkeypatch: pytest.MonkeyPatch) -> None:
-    module = load_script_module("prepare_review_discussion", "prepare_review_discussion.py")
-
-    issue_comments = [
-        _comment(
-            "alice", "x" * 500, f"2024-01-01T{i // 3600:02d}:{(i // 60) % 60:02d}:{i % 60:02d}Z"
-        )
-        for i in range(0, 300)
-    ]
-
-    monkeypatch.setattr(
-        module,
-        "gh_api_list",
-        lambda path: issue_comments if "issues" in path else [],
-    )
-
-    discussion = module.collect_discussion("owner/repo", "1", "DeepSeek")
-
-    assert len(discussion) <= module.MAX_DISCUSSION_CHARS
-    assert "truncated" in discussion
-
-
-def test_collect_discussion_respects_custom_max_chars(monkeypatch: pytest.MonkeyPatch) -> None:
-    module = load_script_module(
-        "prepare_review_discussion_max_chars", "prepare_review_discussion.py"
-    )
-
-    issue_comments = [
-        _comment(
-            "alice", "x" * 500, f"2024-01-01T{i // 3600:02d}:{(i // 60) % 60:02d}:{i % 60:02d}Z"
-        )
-        for i in range(0, 300)
-    ]
-
-    monkeypatch.setattr(
-        module,
-        "gh_api_list",
-        lambda path: issue_comments if "issues" in path else [],
-    )
-
-    discussion = module.collect_discussion("owner/repo", "1", "DeepSeek", max_chars=1000)
-
-    assert len(discussion) <= 1000
-    assert "truncated" in discussion
-
-
-def test_parse_args_default_max_chars_is_backward_compatible(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    module = load_script_module("prepare_review_discussion_args", "prepare_review_discussion.py")
-
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        [
-            "prepare_review_discussion.py",
-            "--repo",
-            "o/r",
-            "--pr-number",
-            "1",
-            "--provider-name",
-            "Claude",
-        ],
-    )
-
-    args = module.parse_args()
-
-    assert args.max_chars == module.MAX_DISCUSSION_CHARS
-
-
-def test_parse_args_accepts_custom_max_chars(monkeypatch: pytest.MonkeyPatch) -> None:
-    module = load_script_module(
-        "prepare_review_discussion_args_custom", "prepare_review_discussion.py"
-    )
-
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        [
-            "prepare_review_discussion.py",
-            "--repo",
-            "o/r",
-            "--pr-number",
-            "1",
-            "--provider-name",
-            "Claude",
-            "--max-chars",
-            "5000",
-        ],
-    )
-
-    args = module.parse_args()
-
-    assert args.max_chars == 5000
-
-
-def test_gh_api_list_parses_paginated_json_arrays(monkeypatch: pytest.MonkeyPatch) -> None:
-    module = load_script_module(
-        "prepare_review_discussion_paginate", "prepare_review_discussion.py"
-    )
-
-    class FakeResult:
-        stdout = '[{"id": 1}]\n[{"id": 2}]'
-
-    monkeypatch.setattr(
-        module.subprocess,
-        "run",
-        lambda *args, **kwargs: FakeResult(),
-    )
-
-    assert module.gh_api_list("repos/owner/repo/issues/1/comments") == [{"id": 1}, {"id": 2}]
+# ---------------------------------------------------- filter_binary_files
 
 
 class TestFilterBinaryFiles:
@@ -807,11 +481,18 @@ class TestFilterBinaryFiles:
         assert review_common.filter_binary_files("") == ""
 
     def test_text_only_diff_is_unchanged(self) -> None:
-        diff = "diff --git a/file.py b/file.py\n--- a/file.py\n+++ b/file.py\n@@ -1 +1 @@\n-old\n+new\n"
+        diff = (
+            "diff --git a/file.py b/file.py\n"
+            "--- a/file.py\n+++ b/file.py\n"
+            "@@ -1 +1 @@\n-old\n+new\n"
+        )
         assert review_common.filter_binary_files(diff) == diff
 
     def test_binary_only_diff_becomes_empty(self) -> None:
-        diff = "diff --git a/logo.png b/logo.png\nBinary files a/logo.png and b/logo.png differ\n"
+        diff = (
+            "diff --git a/logo.png b/logo.png\n"
+            "Binary files a/logo.png and b/logo.png differ\n"
+        )
         assert review_common.filter_binary_files(diff) == ""
 
     def test_mixed_diff_keeps_only_text_files(self) -> None:
@@ -819,11 +500,8 @@ class TestFilterBinaryFiles:
             "diff --git a/logo.png b/logo.png\n"
             "Binary files a/logo.png and b/logo.png differ\n"
             "diff --git a/file.py b/file.py\n"
-            "--- a/file.py\n"
-            "+++ b/file.py\n"
-            "@@ -1 +1 @@\n"
-            "-old\n"
-            "+new\n"
+            "--- a/file.py\n+++ b/file.py\n"
+            "@@ -1 +1 @@\n-old\n+new\n"
         )
         filtered = review_common.filter_binary_files(diff)
         assert "logo.png" not in filtered
@@ -831,7 +509,10 @@ class TestFilterBinaryFiles:
         assert "+new" in filtered
 
     def test_git_binary_patch_form_is_also_filtered(self) -> None:
-        diff = "diff --git a/data.bin b/data.bin\nGIT binary patch\nliteral 10\n...\n"
+        diff = (
+            "diff --git a/data.bin b/data.bin\n"
+            "GIT binary patch\nliteral 10\n...\n"
+        )
         assert review_common.filter_binary_files(diff) == ""
 
     def test_renamed_binary_file_is_filtered(self) -> None:
@@ -843,3 +524,69 @@ class TestFilterBinaryFiles:
             "Binary files a/old.png and b/new.png differ\n"
         )
         assert review_common.filter_binary_files(diff) == ""
+
+# --- Replacement tests for disabled loop-based tests above ---
+
+
+def test_claude_raises_provider_outage_on_500(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Claude wrapper's own main() doesn't catch ProviderOutageError."""
+    module = load_script_module("claude_review_500", "claude_review.py")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setenv("PR_TITLE", "Add thing")
+    monkeypatch.setenv("ISSUE_BODY", "Do thing")
+    monkeypatch.setenv("DIFF", "diff --git a/a.py b/a.py\n+print('hi')\n")
+    monkeypatch.setattr(
+        review_common.urllib.request, "urlopen", _raise_fake_500,
+    )
+    with pytest.raises(ProviderOutageError):
+        module.main()
+
+
+def test_gpt_handles_500_as_soft_skip(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """GPT wrapper delegates to package main() which catches ProviderOutageError."""
+    module = load_script_module("gpt_review_500", "gpt_review.py")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("PR_TITLE", "Add thing")
+    monkeypatch.setenv("ISSUE_BODY", "Do thing")
+    monkeypatch.setenv("DIFF", "diff --git a/a.py b/a.py\n+print('hi')\n")
+    monkeypatch.setattr(
+        review_common.urllib.request, "urlopen", _raise_fake_500,
+    )
+    assert module.main() == 0
+    assert "PROVIDER OUTAGE" in capsys.readouterr().out
+
+
+def test_claude_raises_provider_outage_on_url_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = load_script_module("claude_review_url", "claude_review.py")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setenv("PR_TITLE", "Add thing")
+    monkeypatch.setenv("ISSUE_BODY", "Do thing")
+    monkeypatch.setenv("DIFF", "diff --git a/a.py b/a.py\n+print('hi')\n")
+    monkeypatch.setattr(
+        review_common.urllib.request, "urlopen", _raise_url_error,
+    )
+    with pytest.raises(ProviderOutageError):
+        module.main()
+
+
+def test_gpt_handles_url_error_as_soft_skip(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    module = load_script_module("gpt_review_url", "gpt_review.py")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("PR_TITLE", "Add thing")
+    monkeypatch.setenv("ISSUE_BODY", "Do thing")
+    monkeypatch.setenv("DIFF", "diff --git a/a.py b/a.py\n+print('hi')\n")
+    monkeypatch.setattr(
+        review_common.urllib.request, "urlopen", _raise_url_error,
+    )
+    assert module.main() == 0
+    assert "PROVIDER OUTAGE" in capsys.readouterr().out

@@ -76,6 +76,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Install cicaid-devtools (PR review helpers)
+        run: pip install "cicaid-devtools @ https://github.com/leonarduk/cicaid/releases/download/v0.5.2/cicaid_devtools-0.5.2-py3-none-any.whl"
+
       - name: Get linked issue body
         id: issue
         env:
@@ -104,7 +107,7 @@ jobs:
           ISSUE_BODY: ${{ steps.issue.outputs.body }}
         run: |
           git fetch origin "$BASE_REF"
-          DIFF=$(python3 .github/scripts/prepare_review_diff.py \
+          DIFF=$(python3 -m cicaid_devtools.lib.review_diff \
             --base-ref "$BASE_REF" \
             --pr-title "$PR_TITLE" \
             --issue-body "$ISSUE_BODY")
@@ -125,7 +128,7 @@ jobs:
           if [ -n "$DISCUSSION_MAX_CHARS" ]; then
             MAX_CHARS_ARGS=(--max-chars "$DISCUSSION_MAX_CHARS")
           fi
-          DISCUSSION=$(python3 .github/scripts/prepare_review_discussion.py \
+          DISCUSSION=$(python3 -m cicaid_devtools.lib.review_discussion \
             --repo "${{ github.repository }}" \
             --pr-number "${{ github.event.pull_request.number }}" \
             --provider-name "${{ inputs.provider_name }}" \
@@ -142,7 +145,7 @@ jobs:
         env:
           DIFF_OUTPUT: ${{ steps.diff.outputs.diff }}
         run: |
-          VERIFIED=$(python3 .github/scripts/extract_verified_symbols.py \
+          VERIFIED=$(python3 -m cicaid_devtools.lib.verified_symbols \
             --diff "$DIFF_OUTPUT")
           DELIM="EOF_$(uuidgen | tr -d '-')"
           {
@@ -180,8 +183,14 @@ jobs:
         id: check_approval
         continue-on-error: true  # REQUEST CHANGES exits 1; allow later steps (post comment, create issues) to still run
         run: |
-          if python3 .github/scripts/extract_verdict.py /tmp/${{ inputs.provider_id }}_review_body.md "${{ inputs.provider_name }}"; then
+          set +e
+          python3 -m cicaid_devtools.lib.verdict /tmp/${{ inputs.provider_id }}_review_body.md "${{ inputs.provider_name }}"
+          VERDICT_EXIT=$?
+          if [ $VERDICT_EXIT -eq 0 ]; then
             echo "approved=true" >> "$GITHUB_OUTPUT"
+          elif [ $VERDICT_EXIT -eq 2 ]; then
+            echo "approved=skipped" >> "$GITHUB_OUTPUT"
+            exit 0
           else
             echo "approved=false" >> "$GITHUB_OUTPUT"
             exit 1
@@ -242,9 +251,9 @@ jobs:
           create_label_if_missing "local-14b" "1d76db" "Doable by a local LLM (qwen2.5-coder:14b); too hard for 7b"
 
           # Extract titles to a file, then create issues via Python subprocess (no shell injection)
-          python3 .github/scripts/extract_followups.py /tmp/${{ inputs.provider_id }}_review_body.md \
+          python3 -m cicaid_devtools.lib.followups /tmp/${{ inputs.provider_id }}_review_body.md \
             > /tmp/followups.json
-          python3 .github/scripts/create_followup_issues.py \
+          python3 -m cicaid_devtools.lib.followup_issues \
             /tmp/followups.json "${PR_NUMBER}" /tmp/${{ inputs.provider_id }}_review_body.md
 
       - name: Add 'Changes Requested' label if review failed

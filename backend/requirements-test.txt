@@ -9,3 +9,6 @@ pytest-asyncio~=1.4.0
 # contract validation; it is not a Lambda runtime dep but is needed to run the
 # full backend test suite in the lambda-compat job.
 jsonschema~=4.26.0
+# cicaid-devtools is imported by tests/test_ai_review_scripts.py and
+# tests/test_review_common.py. Not a Lambda runtime dep — test-only.
+cicaid-devtools @ https://github.com/leonarduk/cicaid/releases/download/v0.5.2/cicaid_devtools-0.5.2-py3-none-any.whl

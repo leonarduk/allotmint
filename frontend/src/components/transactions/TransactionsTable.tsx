@@ -87,7 +87,10 @@ export function TransactionsTable({
         <button type="button" onClick={onBulkDelete} disabled={!hasSelection}>
           Delete selected{hasSelection ? ` (${selectedCount})` : ""}
         </button>
-        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.5rem" }}>
+        <div
+          className="flex-wrap-row"
+          style={{ alignItems: "center", gap: "0.5rem" }}
+        >
           <span>{showingRangeLabel}</span>
           <button type="button" onClick={onPreviousPage} disabled={isFirstPage}>
             Previous

@@ -13,9 +13,8 @@ export default function SummaryBar({ owners, owner, onOwnerChange, onRefresh }: 
   const { t } = useTranslation();
   return (
     <div
+      className="flex-wrap-row"
       style={{
-        display: "flex",
-        flexWrap: "wrap",
         justifyContent: "space-between",
         alignItems: "center",
         marginBottom: "1rem",

@@ -127,18 +127,28 @@ def _known_owners(accounts_root) -> KnownOwnerSet:
 async def compliance_for_owner(owner: str, request: Request):
     """Return compliance warnings and status for an owner."""
     accounts_root = resolve_accounts_root(request)
+    owners = _known_owners(accounts_root)
     owner_dir = resolve_owner_directory(accounts_root, owner)
     if not owner_dir:
-        raise_owner_not_found(owner)
-    owner = owner_dir.name
-    owners = _known_owners(accounts_root)
+        # AWS owners are discovered from S3 by ``list_plots`` and need not
+        # have a directory in Lambda's local filesystem.  Treat the provider
+        # listing as authoritative and evaluate an empty transaction history
+        # when no local compliance files are present.
+        if owner.lower() not in owners:
+            raise_owner_not_found(owner, total_owners_discovered=len(owners))
+    else:
+        owner = owner_dir.name
     if owners and owner.lower() not in owners:
         raise_owner_not_found(owner, total_owners_discovered=len(owners))
     try:
         # ``check_owner`` now returns additional fields such as
         # ``hold_countdowns`` and ``trades_remaining`` which are
         # forwarded directly to the client.
-        return compliance.check_owner(owner, accounts_root)
+        return compliance.check_owner(
+            owner,
+            accounts_root,
+            scaffold_missing=owner_dir is None,
+        )
     except FileNotFoundError as exc:
         logger.warning("accounts for %s not found: %s", sanitise_log_value(owner), sanitise_log_value(exc))
         raise_owner_not_found(owner)

@@ -111,6 +111,65 @@ describe("unauthorized event (issue #4674)", () => {
   });
 });
 
+describe("transient backend failures (issue #6193)", () => {
+  it("retries transient failures for safe requests", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, status: 503, statusText: "Service Unavailable" })
+      .mockResolvedValueOnce({ ok: true, status: 200, json: () => Promise.resolve({ ok: true }) });
+    const { fetchJson: testFetchJson } = createClient(
+      "http://localhost:8000",
+      null,
+      mockFetch as unknown as typeof fetch,
+      { transientRetryDelaysMs: [0] },
+    );
+
+    await expect(testFetchJson("/portfolio-group/all/regions")).resolves.toEqual({ ok: true });
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows a user-friendly message after transient retries are exhausted", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+      statusText: "Service Unavailable",
+      json: () => Promise.resolve({ message: "Service Unavailable" }),
+    });
+    const { fetchJson: testFetchJson } = createClient(
+      "http://localhost:8000",
+      null,
+      mockFetch as unknown as typeof fetch,
+      { transientRetryDelaysMs: [0, 0] },
+    );
+
+    await expect(testFetchJson("/compliance/alex")).rejects.toMatchObject({
+      message: "The backend service is temporarily unavailable. Please try again.",
+      status: 503,
+    });
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not retry unsafe requests", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+      statusText: "Service Unavailable",
+      json: () => Promise.resolve({}),
+    });
+    const { fetchJson: testFetchJson } = createClient(
+      "http://localhost:8000",
+      null,
+      mockFetch as unknown as typeof fetch,
+      { transientRetryDelaysMs: [0, 0] },
+    );
+
+    await expect(testFetchJson("/trades", { method: "POST" })).rejects.toThrow(
+      "temporarily unavailable",
+    );
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("fetchText / getLogs (issue #6111)", () => {
   beforeEach(() => {
     localStorage.clear();

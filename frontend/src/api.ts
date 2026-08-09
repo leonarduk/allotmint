@@ -140,28 +140,25 @@ const wait = (delayMs: number) =>
 const isSafeRequest = (init: RequestInit) =>
   !init.method || ["GET", "HEAD", "OPTIONS"].includes(init.method.toUpperCase());
 
+// Retries only on transient HTTP status codes (502/503/504), not on thrown/rejected
+// fetch calls — a network-level exception (offline, CORS, DNS) isn't fixed by
+// retrying, and swallowing it here would hide real errors from callers.
 async function fetchWithTransientRetry(
   fetchImpl: typeof fetch,
   url: string,
   init: RequestInit,
   retryDelaysMs: readonly number[],
 ): Promise<Response> {
-  let lastNetworkError: unknown;
-  for (let attempt = 0; attempt <= retryDelaysMs.length; attempt += 1) {
-    try {
-      const response = await fetchImpl(url, init);
-      if (!TRANSIENT_HTTP_STATUSES.has(response.status) || attempt === retryDelaysMs.length) {
-        return response;
-      }
-    } catch (error) {
-      lastNetworkError = error;
-      if (attempt === retryDelaysMs.length) throw error;
-    }
+  let response = await fetchImpl(url, init);
+  for (
+    let attempt = 0;
+    attempt < retryDelaysMs.length && TRANSIENT_HTTP_STATUSES.has(response.status);
+    attempt += 1
+  ) {
     await wait(retryDelaysMs[attempt]);
+    response = await fetchImpl(url, init);
   }
-  throw lastNetworkError instanceof Error
-    ? lastNetworkError
-    : new Error("The backend service could not be reached.");
+  return response;
 }
 
 const defaultGetCsrfToken = () =>

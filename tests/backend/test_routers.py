@@ -42,7 +42,7 @@ def test_compliance_routes(monkeypatch):
 
     monkeypatch.setattr(
         "backend.common.compliance.check_owner",
-        lambda owner, root: {"owner": owner, "warnings": []},
+        lambda owner, root, scaffold_missing=False: {"owner": owner, "warnings": []},
     )
     with TestClient(app) as client:
         resp = client.get("/compliance/alice")

@@ -978,6 +978,35 @@ async def import_holdings(
         raise HTTPException(status_code=400, detail=f"Failed to import file: {exc}")
 
 
+@router.post("/holdings/reconcile")
+async def reconcile_holdings(
+    request: Request,
+    owner: str = Form(...),
+    account: str = Form(...),
+    provider: str = Form(...),
+    file: UploadFile = File(...),
+) -> dict[str, object]:
+    """Return the difference between a broker export and stored holdings.
+
+    This endpoint deliberately uses only the store's read API and the pure
+    reconciliation helper; applying the reported changes remains explicit.
+    """
+    owner = _validate_component(owner, "owner")
+    account = _normalise_account_file_name(_validate_component(account, "account"))
+    store, _ = resolve_writable_store(request)
+    document = store.read_document(owner, f"{account}.json") or {}
+    raw_holdings = document.get("holdings")
+    stored_holdings = raw_holdings if isinstance(raw_holdings, list) else []
+    data = await file.read()
+    try:
+        diff = update_holdings_from_csv.reconcile_from_csv(provider, data, stored_holdings)
+    except importers.UnknownProvider as exc:
+        raise HTTPException(status_code=400, detail=f"Unknown provider: {exc}")
+    except Exception as exc:  # pragma: no cover - parsing errors
+        raise HTTPException(status_code=400, detail=f"Failed to reconcile file: {exc}")
+    return {"owner": owner, "account": account, "provider": provider, **diff}
+
+
 @router.post("/holdings/manual")
 async def create_manual_holding(request: Request, payload: ManualHoldingCreate) -> dict[str, Any]:
     """Create a manual holding for the authenticated owner.

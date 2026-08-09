@@ -192,11 +192,49 @@ async def test_compliance_for_owner_missing_directory(tmp_path, monkeypatch, fas
         "resolve_owner_directory",
         lambda root, owner: None,
     )
+    monkeypatch.setattr(compliance_module, "_known_owners", lambda root: set())
 
     with pytest.raises(OwnerNotFoundError) as excinfo:
         await compliance_module.compliance_for_owner("alice", request)
 
     assert excinfo.value.status_code == 404
+
+
+@pytest.mark.anyio
+async def test_compliance_for_remote_owner_without_local_directory(
+    tmp_path, monkeypatch, fastapi_request
+):
+    app, request = fastapi_request
+    accounts_root = tmp_path / "accounts"
+
+    monkeypatch.setattr(
+        compliance_module,
+        "resolve_accounts_root",
+        lambda req: accounts_root,
+    )
+    monkeypatch.setattr(
+        compliance_module,
+        "resolve_owner_directory",
+        lambda root, owner: None,
+    )
+    monkeypatch.setattr(
+        compliance_module,
+        "_known_owners",
+        lambda root: {"alice"},
+    )
+
+    calls = []
+
+    def check_owner(owner, root, *, scaffold_missing=False):
+        calls.append((owner, root, scaffold_missing))
+        return {"owner": owner, "warnings": []}
+
+    monkeypatch.setattr(compliance_module.compliance, "check_owner", check_owner)
+
+    result = await compliance_module.compliance_for_owner("alice", request)
+
+    assert result == {"owner": "alice", "warnings": []}
+    assert calls == [("alice", accounts_root, True)]
 
 
 @pytest.mark.anyio

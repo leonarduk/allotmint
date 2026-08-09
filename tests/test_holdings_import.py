@@ -4,17 +4,12 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from backend.importers import hargreaves
-from backend.utils import update_holdings_from_csv
 from backend.app import create_app
 from backend.config import config
+from backend.importers import hargreaves
+from backend.utils import update_holdings_from_csv
 
-
-SAMPLE_CSV = (
-    "Code,Stock,Units held,Price (pence),Cost (£)\n"
-    "AAA,Alpha,10,150,15\n"
-    "BBB,Beta,5,200,10\n"
-)
+SAMPLE_CSV = "Code,Stock,Units held,Price (pence),Cost (£)\n" "AAA,Alpha,10,150,15\n" "BBB,Beta,5,200,10\n"
 
 
 def test_hargreaves_parse():
@@ -77,3 +72,43 @@ def test_holdings_import_endpoint(client: TestClient, tmp_path: Path):
     acct_file = tmp_path / "alice" / "isa.json"
     assert Path(body["path"]).resolve() == acct_file.resolve()
     assert acct_file.exists()
+
+
+def test_holdings_reconcile_hargreaves_is_read_only(client: TestClient, tmp_path: Path):
+    account_file = tmp_path / "alice" / "isa.json"
+    account_file.parent.mkdir(parents=True)
+    original = {
+        "owner": "alice",
+        "account_type": "isa",
+        "currency": "GBP",
+        "holdings": [
+            {"ticker": "AAA.L", "units": 8, "current_price_gbp": 1.4},
+            {"ticker": "OLD.L", "units": 2, "current_price_gbp": 3},
+            {"ticker": "CASH.GBP", "units": 100, "cost_basis_gbp": 100},
+        ],
+    }
+    account_file.write_text(json.dumps(original, indent=2))
+    broker_csv = (
+        "Code,Stock,Units held,Price (pence),Cost (£)\n"
+        "AAA,Alpha,10,150,15\n"
+        "NEW,New holding,5,200,10\n"
+        "CASH.GBP,Cash,110,100,110\n"
+    )
+
+    before = account_file.read_bytes()
+    response = client.post(
+        "/holdings/reconcile",
+        data={"provider": "hargreaves", "owner": "alice", "account": "ISA"},
+        files={"file": ("holdings.csv", broker_csv.encode(), "text/csv")},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["added"] == [{"ticker": "NEW.L", "units": 5.0, "value_gbp": 10.0}]
+    assert body["removed"] == [{"ticker": "OLD.L", "units": 2.0, "value_gbp": 6.0}]
+    assert body["quantity_changed"] == [{"ticker": "AAA.L", "stored_units": 8.0, "imported_units": 10.0, "delta": 2.0}]
+    assert body["value_changed"] == [
+        {"ticker": "AAA.L", "stored_value_gbp": 11.2, "imported_value_gbp": 15.0, "delta_gbp": 3.8}
+    ]
+    assert body["cash_balance"] == {"stored_gbp": 100.0, "imported_gbp": 110.0, "delta_gbp": 10.0}
+    assert account_file.read_bytes() == before

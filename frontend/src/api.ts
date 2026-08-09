@@ -131,6 +131,39 @@ export type StorageLike = {
   removeItem(key: string): void;
 };
 
+const TRANSIENT_HTTP_STATUSES = new Set([502, 503, 504]);
+const DEFAULT_TRANSIENT_RETRY_DELAYS_MS = [250, 750];
+
+const wait = (delayMs: number) =>
+  new Promise<void>((resolve) => globalThis.setTimeout(resolve, delayMs));
+
+const isSafeRequest = (init: RequestInit) =>
+  !init.method || ["GET", "HEAD", "OPTIONS"].includes(init.method.toUpperCase());
+
+async function fetchWithTransientRetry(
+  fetchImpl: typeof fetch,
+  url: string,
+  init: RequestInit,
+  retryDelaysMs: readonly number[],
+): Promise<Response> {
+  let lastNetworkError: unknown;
+  for (let attempt = 0; attempt <= retryDelaysMs.length; attempt += 1) {
+    try {
+      const response = await fetchImpl(url, init);
+      if (!TRANSIENT_HTTP_STATUSES.has(response.status) || attempt === retryDelaysMs.length) {
+        return response;
+      }
+    } catch (error) {
+      lastNetworkError = error;
+      if (attempt === retryDelaysMs.length) throw error;
+    }
+    await wait(retryDelaysMs[attempt]);
+  }
+  throw lastNetworkError instanceof Error
+    ? lastNetworkError
+    : new Error("The backend service could not be reached.");
+}
+
 const defaultGetCsrfToken = () =>
   typeof document === "undefined"
     ? null
@@ -154,12 +187,18 @@ export function createClient(
   base: string | (() => string),
   token: string | null = null,
   fetchImpl: typeof fetch = fetch,
-  opts: { getCsrfToken?: () => string | null; storage?: StorageLike } = {},
+  opts: {
+    getCsrfToken?: () => string | null;
+    storage?: StorageLike;
+    transientRetryDelaysMs?: readonly number[];
+  } = {},
 ) {
   const resolveBase = () => (typeof base === "function" ? base() : base);
   let authToken = token;
   const getCsrfToken = opts.getCsrfToken ?? defaultGetCsrfToken;
   const storage = opts.storage;
+  const transientRetryDelaysMs =
+    opts.transientRetryDelaysMs ?? DEFAULT_TRANSIENT_RETRY_DELAYS_MS;
   const TOKEN_STORAGE_KEY = "authToken";
 
   const setAuthToken = (t: string | null) => {
@@ -252,11 +291,14 @@ export function createClient(
     if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
     const csrf = getCsrfToken();
     if (csrf) headers.set("X-CSRFToken", csrf);
-    const res = await fetchImpl(safeUrl, {
+    const requestInit = {
       ...init,
       headers,
       credentials: "include",
-    });
+    } satisfies RequestInit;
+    const res = isSafeRequest(init)
+      ? await fetchWithTransientRetry(fetchImpl, safeUrl, requestInit, transientRetryDelaysMs)
+      : await fetchImpl(safeUrl, requestInit);
     if (!res.ok) {
       if (res.status === 401 && typeof window !== "undefined") {
         window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
@@ -264,10 +306,16 @@ export function createClient(
       // Prefer the backend's `detail` message (e.g. actionable 401 guidance)
       // over the generic status text, so admin screens can surface it as-is
       // instead of a bare "HTTP 401 - Unauthorized" (#6058).
-      let message = `HTTP ${res.status} - ${res.statusText} (${safeUrl})`;
+      let message = TRANSIENT_HTTP_STATUSES.has(res.status)
+        ? "The backend service is temporarily unavailable. Please try again."
+        : `HTTP ${res.status} - ${res.statusText} (${safeUrl})`;
       try {
         const body = await res.json();
-        if (typeof body?.detail === "string" && body.detail.trim()) {
+        if (
+          !TRANSIENT_HTTP_STATUSES.has(res.status) &&
+          typeof body?.detail === "string" &&
+          body.detail.trim()
+        ) {
           message = body.detail;
         }
       } catch {

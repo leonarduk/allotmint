@@ -164,6 +164,7 @@
     "view": "Ver"
   },
   "group": {
+    "loadError": "No pudimos cargar tu cartera. Inténtalo de nuevo más tarde.",
     "atAGlance": "De un vistazo",
     "pricingAsOf": "Precios al {{date}}",
     "pricingDatePickerLabel": "Cambiar fecha de precios",

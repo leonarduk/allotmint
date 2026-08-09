@@ -164,6 +164,7 @@
     "view": "Ver"
   },
   "group": {
+    "loadError": "Não foi possível carregar seu portfólio. Tente novamente mais tarde.",
     "atAGlance": "Visão geral",
     "pricingAsOf": "Preços em {{date}}",
     "pricingDatePickerLabel": "Alterar data de preços",

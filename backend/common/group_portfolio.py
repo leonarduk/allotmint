@@ -30,6 +30,14 @@ from backend.utils.pricing_dates import PricingDateCalculator
 logger = logging.getLogger("group_portfolio")
 
 
+def _normalise_account_currency(value: object) -> str:
+    """Return a non-empty account currency suitable for the SPA contract."""
+
+    if isinstance(value, str) and value.strip():
+        return value.strip().upper()
+    return "GBP"
+
+
 def _trade_counts_for_owner(owner: str, today: dt.date) -> tuple[int, int]:
     """Return (trades_this_month, trades_remaining) for an owner."""
 
@@ -152,6 +160,7 @@ def build_group_portfolio(slug: str, *, pricing_date: date | None = None) -> Dic
             owner = pf[OWNER]
             acct_copy = dict(acct)
             acct_copy[OWNER] = owner
+            acct_copy["currency"] = _normalise_account_currency(acct_copy.get("currency"))
 
             holdings = acct_copy.get(HOLDINGS, [])
             acct_copy[HOLDINGS] = [

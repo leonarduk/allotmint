@@ -194,6 +194,7 @@
     "view": "View"
   },
   "group": {
+    "loadError": "We couldn’t load your portfolio. Please try again later.",
     "atAGlance": "At a glance",
     "pricingAsOf": "Pricing as of {{date}}",
     "pricingDatePickerLabel": "Change pricing date",

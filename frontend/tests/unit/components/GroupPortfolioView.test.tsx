@@ -938,9 +938,8 @@ describe("GroupPortfolioView", () => {
     });
     vi.spyOn(global, "fetch").mockRejectedValueOnce(new Error("boom"));
     renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
-    await waitFor(() =>
-      screen.getByText(`${i18n.t("common.error")}: boom`)
-    );
+    await waitFor(() => screen.getByText(i18n.t("group.loadError")));
+    expect(screen.queryByText(/boom/)).not.toBeInTheDocument();
   });
 
   it.each(locales)("renders loading message in %s", async (lng) => {

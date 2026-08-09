@@ -164,6 +164,7 @@
     "view": "Visualizza"
   },
   "group": {
+    "loadError": "Non è stato possibile caricare il portafoglio. Riprova più tardi.",
     "atAGlance": "A colpo d'occhio",
     "pricingAsOf": "Prezzi al {{date}}",
     "pricingDatePickerLabel": "Cambia data dei prezzi",

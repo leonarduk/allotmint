@@ -164,6 +164,7 @@
     "view": "Ansehen"
   },
   "group": {
+    "loadError": "Ihr Portfolio konnte nicht geladen werden. Bitte versuchen Sie es später erneut.",
     "atAGlance": "Auf einen Blick",
     "pricingAsOf": "Preisstand vom {{date}}",
     "pricingDatePickerLabel": "Preisstand ändern",

@@ -696,8 +696,8 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   if (!slug) return <p>{t("group.select")}</p>;
   if (portfolioError)
     return (
-      <p style={{ color: "red" }}>
-        {t("common.error")}: {portfolioError.message}
+      <p role="alert" style={{ color: "red" }}>
+        {t("group.loadError")}
       </p>
     );
   if (loading || !portfolio) return <p>{t("common.loading")}</p>;

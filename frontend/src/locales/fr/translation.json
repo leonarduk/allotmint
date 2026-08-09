@@ -164,6 +164,7 @@
     "view": "Voir"
   },
   "group": {
+    "loadError": "Nous n’avons pas pu charger votre portefeuille. Veuillez réessayer plus tard.",
     "atAGlance": "En un coup d'œil",
     "pricingAsOf": "Tarification au {{date}}",
     "pricingDatePickerLabel": "Changer la date de tarification",

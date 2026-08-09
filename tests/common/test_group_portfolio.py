@@ -29,7 +29,10 @@ def test_list_groups_returns_expected_defaults():
 
 def test_list_groups_does_not_load_portfolio_contents():
     """Group discovery must not issue one data load per owner or account."""
-    owner_rows = [OwnerSummaryRecord(owner=f"owner-{index}", accounts=[f"account-{index}"]) for index in range(1_000)]
+    owner_rows = [
+        OwnerSummaryRecord(owner=f"owner-{index}", accounts=[f"account-{index}"])
+        for index in range(1_000)
+    ]
 
     started_at = time.perf_counter()
     with (
@@ -50,6 +53,7 @@ def test_build_group_portfolio_merges_accounts_and_totals():
             "owner": "Lucy",
             ACCOUNTS: [
                 {
+                    "currency": " usd ",
                     HOLDINGS: [
                         {"ticker": "AAA", "market_value_gbp": 100.0},
                         {"ticker": "BBB", "market_value_gbp": 50.0},
@@ -61,6 +65,7 @@ def test_build_group_portfolio_merges_accounts_and_totals():
             "owner": "Steve",
             ACCOUNTS: [
                 {
+                    "currency": None,
                     HOLDINGS: [
                         {"ticker": "CCC", "market_value_gbp": 200.0},
                     ]
@@ -92,8 +97,10 @@ def test_build_group_portfolio_merges_accounts_and_totals():
 
     first, second = result[ACCOUNTS]
     assert first[OWNER] == "Lucy"
+    assert first["currency"] == "USD"
     assert first["value_estimate_gbp"] == 150.0
     assert second[OWNER] == "Steve"
+    assert second["currency"] == "GBP"
     assert second["value_estimate_gbp"] == 200.0
 
     assert result["total_value_estimate_gbp"] == 350.0

@@ -5,6 +5,8 @@ set -euo pipefail
 # This script performs objective checks and writes durable evidence artifacts
 # suitable for attaching to the GitHub issue.
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 API_BASE="${API_BASE:-http://localhost:8001}"
 OWNER="${OWNER:-}"
 GROUP_SLUG="${GROUP_SLUG:-}"
@@ -325,7 +327,7 @@ PY
 
 check_var_structure() {
   local json_file="$1"
-  python3 scripts/qa/var_payload_validator.py "$json_file"
+  python3 "$SCRIPT_DIR/var_payload_validator.py" "$json_file"
 }
 
 check_audit_report_sections() {

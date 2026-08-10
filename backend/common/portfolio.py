@@ -70,7 +70,7 @@ def _load_trades_aws(owner: str) -> List[Dict[str, Any]]:
         body = obj.get("Body")
         if not body:
             return []
-        data = body.read().decode("utf-8").splitlines()
+        data = body.read().decode(encoding="utf-8", errors="replace").splitlines()
         return list(csv.DictReader(data))
     except (ClientError, BotoCoreError) as exc:
         logger.warning(

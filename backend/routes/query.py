@@ -170,7 +170,7 @@ def _load_query_s3(slug: str) -> dict:
             Bucket=bucket, Key=f"{QUERIES_PREFIX}{slug}.json"
         )
         body = obj.get("Body")
-        txt = body.read().decode("utf-8") if body else ""
+        txt = body.read().decode(encoding="utf-8", errors="replace") if body else ""
     except Exception as exc:  # pragma: no cover - defensive
         raise HTTPException(404, "Query not found") from exc
     if not txt:

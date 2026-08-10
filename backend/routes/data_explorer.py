@@ -217,7 +217,7 @@ def _read_file_s3(rel_path: str) -> dict[str, Any]:
         raise HTTPException(status_code=502, detail="Failed to read file from S3") from exc
 
     try:
-        content = raw.decode("utf-8")
+        content = raw.decode(encoding="utf-8", errors="replace")
     except UnicodeDecodeError as exc:
         raise HTTPException(status_code=415, detail="File is not valid UTF-8 text") from exc
 
@@ -312,7 +312,7 @@ async def read_file(path: str = Query(...)) -> dict[str, Any]:
     if truncated:
         raw = raw[:MAX_PREVIEW_BYTES]
     try:
-        content = raw.decode("utf-8")
+        content = raw.decode(encoding="utf-8", errors="replace")
     except UnicodeDecodeError as exc:
         raise HTTPException(status_code=415, detail="File is not valid UTF-8 text") from exc
 

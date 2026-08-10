@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import csv
 import io
-from typing import List
+from typing import List, Any
 import logging
 
 from backend.routes.transactions import Transaction
@@ -40,21 +40,13 @@ def parse(data: bytes) -> List[Transaction]:
 
         holdings: List[Transaction] = []
 
-        holdings.append(
-            # TODO we maybe need a position object not Transaction
-            Transaction(
-                owner="",
-                account="",
-
-                # TODO handle other currencies
-                ticker="CASH.GBP",
-
-                price=1,
-                units=cash,
-                amount_minor=cash,
+        if cash:
+            holdings.append(
+                add_position(ticker="CASH.GBP",
+                             price=1.0,
+                             units=cash,
+                             amount_minor=cash)
             )
-        )
-
         reader = csv.DictReader(io.StringIO(text))
 
 
@@ -66,21 +58,31 @@ def parse(data: bytes) -> List[Transaction]:
             cost = _to_float(row.get("Cost (£)") or row.get("Cost"))
             amount_minor = cost * 100 if cost is not None else None
             holdings.append(
-                # TODO we maybe need a position object not Transaction
-                Transaction(
-                    owner="",
-                    account="",
-                    ticker=code or None,
-                    price=price,
-                    units=units,
-                    amount_minor=amount_minor,
-                )
+                add_position(ticker=code,
+                             price=price,
+                             units=units,
+                             amount_minor=amount_minor)
             )
         return holdings
     except csv.Error as e:
         logger.error("Failed to parse Hargreaves Lansdown holdings: %s",
                      sanitise_log_value(e))
         raise e
+
+
+def add_position(amount_minor: float | None,
+                 ticker: str,
+                 price: float | None,
+                 units: float | None) -> Any:
+    # TODO we maybe need a position object not Transaction
+    return Transaction(
+        owner="",
+        account="",
+        ticker=ticker or None,
+        price=price,
+        units=units,
+        amount_minor=amount_minor,
+    )
 
 
 def skip_non_datatable_rows(text: str) -> tuple[str, int]:
@@ -95,7 +97,7 @@ def skip_non_datatable_rows(text: str) -> tuple[str, int]:
     data = []
     cash = 0
     for line in lines:
-        if "Total cash" in line:
+        if "Total cash:" in line:
             cash += _to_float(line.strip().replace("Total cash:", "").replace('"',"").replace(",",""))
 
         if not line:
@@ -105,9 +107,10 @@ def skip_non_datatable_rows(text: str) -> tuple[str, int]:
         if not ignore:
             data.append(line)
 
-    # Remove totals line if present at end
-    if "Totals" in data[len(data) - 1]:
-        data.pop(len(data) - 1)
+    if data:
+        # Remove totals line if present at end
+        if "Totals" in data[len(data) - 1]:
+            data.pop(len(data) - 1)
 
     logger.debug("Returning %d rows", len(data))
     text = "\n".join(data)

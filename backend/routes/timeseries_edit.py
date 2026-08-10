@@ -86,7 +86,7 @@ async def post_timeseries_edit(
     try:
         if "text/csv" in content_type:
             body = await request.body()
-            df = pd.read_csv(io.StringIO(body.decode()))
+            df = pd.read_csv(io.StringIO(body.decode(encoding="utf-8", errors="replace")))
         else:
             payload = await request.json()
             if isinstance(payload, list):

@@ -228,7 +228,7 @@ def _load_snapshot() -> tuple[Dict[str, Dict], datetime | None]:
                 obj = s3.get_object(Bucket=bucket, Key=PRICES_S3_KEY)
                 body = obj.get("Body")
                 if body:
-                    data = json.loads(body.read().decode("utf-8"))
+                    data = json.loads(body.read().decode(encoding="utf-8", errors="replace"))
                     ts = obj.get("LastModified")
                     return data, ts if isinstance(ts, datetime) else None
                 logger.error(

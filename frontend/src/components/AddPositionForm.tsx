@@ -119,8 +119,8 @@ export function AddPositionForm({
             onChange={(e) => setAccount(e.target.value)}
             className="mt-1 w-full rounded border border-gray-700 bg-gray-800 p-2 text-white"
           >
-            {accounts.map((acct) => (
-              <option key={acct} value={acct}>
+            {accounts.map((acct, index) => (
+              <option key={`${acct}-${index}`} value={acct}>
                 {acct}
               </option>
             ))}

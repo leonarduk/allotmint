@@ -110,18 +110,38 @@ def test_warning_and_error_exception_messages_are_sanitised() -> None:
                 and bool(self.exception_names)
             )
             if is_relevant_log:
-                for argument in node.args[1:]:
-                    uses_exception = any(
-                        isinstance(child, ast.Name) and child.id in self.exception_names for child in ast.walk(argument)
-                    )
-                    is_sanitised = any(
-                        isinstance(child, ast.Call)
-                        and isinstance(child.func, ast.Name)
-                        and child.func.id in {"sanitise_log_value", "_sanitize_for_log"}
-                        for child in ast.walk(argument)
-                    )
-                    if uses_exception and not is_sanitised:
+                sanitiser_names = {
+                    "sanitise_log_value",
+                    "sanitise_exception_traceback",
+                    "_sanitize_for_log",
+                }
+
+                class UnsafeExceptionReference(ast.NodeVisitor):
+                    found = False
+
+                    def visit_Call(self, child: ast.Call) -> None:  # noqa: N802
+                        if isinstance(child.func, ast.Name) and child.func.id in sanitiser_names:
+                            return
+                        self.generic_visit(child)
+
+                    def visit_Name(self, child: ast.Name) -> None:  # noqa: N802
+                        if child.id in self_exception_names:
+                            self.found = True
+
+                self_exception_names = self.exception_names
+                for argument in node.args:
+                    reference = UnsafeExceptionReference()
+                    reference.visit(argument)
+                    if reference.found:
                         violations.append(f"{self.relative_path}:{node.lineno}")
+
+                raw_traceback = any(
+                    keyword.arg == "exc_info"
+                    and not (isinstance(keyword.value, ast.Constant) and keyword.value.value is False)
+                    for keyword in node.keywords
+                )
+                if raw_traceback:
+                    violations.append(f"{self.relative_path}:{node.lineno}")
             self.generic_visit(node)
 
     for source_path in sorted((REPO_ROOT / "backend").rglob("*.py")):

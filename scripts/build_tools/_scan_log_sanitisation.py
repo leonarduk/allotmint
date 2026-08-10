@@ -32,9 +32,9 @@ def _is_safe_arg(node: ast.expr) -> bool:
         return False
     if isinstance(node, ast.Call):
         func = node.func
-        if isinstance(func, ast.Name) and func.id == "sanitise_log_value":
+        if isinstance(func, ast.Name) and func.id in {"sanitise_log_value", "sanitise_exception_traceback"}:
             return True
-        if isinstance(func, ast.Attribute) and func.attr == "sanitise_log_value":
+        if isinstance(func, ast.Attribute) and func.attr in {"sanitise_log_value", "sanitise_exception_traceback"}:
             return True
     return False
 

@@ -25,7 +25,7 @@ from datetime import UTC, datetime
 from backend.common.portfolio_utils import DATA_BUCKET_ENV, PRICES_S3_KEY
 from backend.common.prices import refresh_prices
 from backend.config import config
-from backend.logging_setup import sanitise_log_value
+from backend.logging_setup import sanitise_exception_traceback, sanitise_log_value
 
 try:  # trading agent is optional; skip if missing
     import trading_agent  # type: ignore
@@ -77,9 +77,9 @@ def lambda_handler(event, context):
         result = refresh_prices()
     except Exception as exc:
         logger.error(
-            "Price refresh failed; seeding empty snapshot to suppress cold-start warnings: %s",
+            "Price refresh failed; seeding empty snapshot to suppress cold-start warnings: %s; traceback: %s",
             sanitise_log_value(exc),
-            exc_info=True,
+            sanitise_exception_traceback(exc),
         )
         try:
             _seed_empty_snapshot()

@@ -137,7 +137,7 @@ check_health_latency() {
     record_failure "P1" "step1" "Backend /health returned HTTP $status"
     return 1
   fi
-  python3 - "$latency" <<'PY'
+  if ! python3 - "$latency" <<'PY'
 import sys
 try:
     lat = float(sys.argv[1])
@@ -147,6 +147,10 @@ except ValueError:
 if lat >= 2.0:
     sys.exit(1)
 PY
+  then
+    record_failure "P1" "step1" "Backend /health latency >= 2s"
+    return 1
+  fi
 }
 
 capture_step1_artifacts() {
@@ -646,9 +650,7 @@ main() {
   fi
 
   # Step 1
-  if ! check_health_latency; then
-    record_failure "P1" "step1" "Backend /health latency >= 2s"
-  fi
+  check_health_latency || true
   capture_step1_artifacts
 
   # Step 2

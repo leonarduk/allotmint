@@ -784,7 +784,7 @@ async def delete_transaction(request: Request, tx_id: str) -> dict:
 def _tx_data_from_parsed(row: Transaction) -> Dict[str, Any]:
     """Normalise a parsed import ``Transaction`` into the persisted-record shape.
 
-    Importers set ``price``/``reason_to_buy`` (degiro/hargreaves) while the
+    Importers set ``price``/``reason_to_buy`` (hargreaves) while the
     persisted shape (matching ``TransactionCreate``) uses
     ``price_gbp``/``reason`` -- coalesce rather than storing both. Bank-style
     rows (Moneyhub) carry no ticker/price/units at all; those fields persist

@@ -29,7 +29,7 @@ describe('CsvImportForm', () => {
     expect(submit).toBeDisabled();
     expect(reconcile).toBeDisabled();
 
-    await userEvent.selectOptions(screen.getByLabelText('Provider'), 'degiro');
+    await userEvent.selectOptions(screen.getByLabelText('Provider'), 'hargreaves');
     expect(submit).toBeDisabled();
 
     const fileInput = screen.getByLabelText('CSV file');
@@ -98,7 +98,7 @@ describe('CsvImportForm', () => {
     });
 
     render(<CsvImportForm owner="alice" accountTypes={['ISA']} />);
-    await userEvent.selectOptions(screen.getByLabelText('Provider'), 'degiro');
+    await userEvent.selectOptions(screen.getByLabelText('Provider'), 'hargreaves');
     await userEvent.upload(screen.getByLabelText('CSV file'), csvFile);
     await userEvent.click(screen.getByRole('button', { name: /Reconcile/ }));
 
@@ -119,7 +119,7 @@ describe('CsvImportForm', () => {
     });
 
     render(<CsvImportForm owner="alice" accountTypes={['ISA', 'SIPP']} />);
-    await userEvent.selectOptions(screen.getByLabelText('Provider'), 'degiro');
+    await userEvent.selectOptions(screen.getByLabelText('Provider'), 'hargreaves');
     await userEvent.upload(screen.getByLabelText('CSV file'), csvFile);
     await userEvent.click(screen.getByRole('button', { name: /Reconcile/ }));
     await screen.findByRole('status', { name: 'Reconciliation preview' });
@@ -142,7 +142,7 @@ describe('CsvImportForm', () => {
     );
 
     render(<CsvImportForm owner="alice" accountTypes={['ISA', 'SIPP']} />);
-    await userEvent.selectOptions(screen.getByLabelText('Provider'), 'degiro');
+    await userEvent.selectOptions(screen.getByLabelText('Provider'), 'hargreaves');
     await userEvent.upload(screen.getByLabelText('CSV file'), csvFile);
     await userEvent.click(screen.getByRole('button', { name: /Reconcile/ }));
 
@@ -201,7 +201,7 @@ describe('CsvImportForm', () => {
 
     render(<CsvImportForm owner="alice" accountTypes={['ISA']} />);
 
-    await userEvent.selectOptions(screen.getByLabelText('Provider'), 'degiro');
+    await userEvent.selectOptions(screen.getByLabelText('Provider'), 'hargreaves');
     await userEvent.upload(screen.getByLabelText('CSV file'), csvFile);
     await userEvent.click(screen.getByRole('button', { name: 'Import' }));
 

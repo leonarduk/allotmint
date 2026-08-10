@@ -136,7 +136,7 @@ describe("PortfolioView", () => {
         render(<PortfolioView data={mockOwner} onPositionAdded={onPositionAdded} />);
 
         fireEvent.change(screen.getByLabelText(/provider/i), {
-            target: { value: "degiro" },
+            target: { value: "hargreaves" },
         });
         const file = new File(["ticker,qty\nAAPL,1"], "holdings.csv", { type: "text/csv" });
         fireEvent.change(screen.getByLabelText(/csv file/i), {

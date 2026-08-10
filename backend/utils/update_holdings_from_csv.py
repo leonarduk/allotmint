@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Any, List, Mapping
 
 from backend import importers
-from backend.common import portfolio_loader
 from backend.common.path_utils import safe_join
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
@@ -125,6 +124,34 @@ def reconcile_from_csv(
     }
 
 
+def _aggregate_for_storage(raw_holdings: List[Mapping[str, object]], provider: str) -> List[dict[str, object]]:
+    """Collapse per-row parsed holdings into one entry per ticker.
+
+    Reuses :func:`_index_holdings` (the same aggregation reconcile relies on)
+    for ``units``/``value_gbp`` so a CSV with more than one row for a ticker
+    (e.g. a repeated cash line) produces a single position instead of
+    duplicates. ``cost_basis_gbp`` is summed separately since reconcile's
+    diff output has no use for it and ``_index_holdings`` doesn't carry it.
+    """
+    indexed = _index_holdings(raw_holdings, provider)
+    cost_basis_gbp: dict[str, float] = {}
+    for raw in raw_holdings:
+        ticker = _normalise_ticker(raw.get("ticker"), provider)
+        if ticker not in indexed:
+            continue
+        cost_basis_gbp[ticker] = cost_basis_gbp.get(ticker, 0.0) + _number(raw.get("cost_basis_gbp"))
+
+    return [
+        {
+            "ticker": ticker,
+            "units": indexed[ticker]["units"],
+            "value_gbp": round(float(indexed[ticker]["value_gbp"]), 2),
+            "cost_basis_gbp": round(cost_basis_gbp.get(ticker, 0.0), 2),
+        }
+        for ticker in sorted(indexed)
+    ]
+
+
 def update_from_csv(
     owner: str,
     account: str,
@@ -133,6 +160,8 @@ def update_from_csv(
 ) -> dict[str, str]:
     """Parse ``data`` from ``provider`` and update ``owner``/``account`` holdings.
 
+    Merges the parsed holdings into the existing stored document (preserving
+    any other fields already on it) rather than overwriting it wholesale.
     Returns a mapping containing the path to the written holdings file. A
     dictionary is returned instead of a plain string so callers (and tests)
     can easily extend the response with additional metadata in the future
@@ -140,28 +169,35 @@ def update_from_csv(
     """
 
     transactions: List[Any] = importers.parse(provider, data)
-
-    holdings = [_to_holding(t) for t in transactions if t.ticker]
-
-    payload = {
-        "owner": owner,
-        "account_type": account,
-        "currency": "GBP",
-        "last_updated": date.today().isoformat(),
-        "holdings": holdings,
-    }
+    raw_holdings = [_to_holding(t) for t in transactions if t.ticker]
+    holdings = _aggregate_for_storage(raw_holdings, provider)
 
     try:
         base_dir = safe_join(Path(config.accounts_root), owner)
         acct_path = safe_join(base_dir, f"{account}.json")
     except ValueError as exc:
         raise ValueError(f"Invalid path component: {exc}") from exc
+
+    existing: dict[str, Any] = {}
+    if acct_path.exists():
+        try:
+            loaded = json.loads(acct_path.read_text())
+        except (OSError, json.JSONDecodeError):
+            logger.warning("Failed to read existing holdings at %s; overwriting", sanitise_log_value(acct_path))
+        else:
+            if isinstance(loaded, dict):
+                existing = loaded
+
+    payload = {
+        **existing,
+        "owner": owner,
+        "account_type": account,
+        "currency": existing.get("currency", "GBP"),
+        "last_updated": date.today().isoformat(),
+        "holdings": holdings,
+    }
+
     base_dir.mkdir(parents=True, exist_ok=True)
     acct_path.write_text(json.dumps(payload, indent=2))
-
-    try:
-        portfolio_loader.rebuild_account_holdings(owner, account)
-    except Exception:  # pragma: no cover - rebuild errors are non-fatal
-        pass
 
     return {"path": str(acct_path)}

@@ -101,6 +101,21 @@ def test_sanitise_log_value_strips_newline_from_exception():
     assert "evil" in sanitised
 
 
+def test_sanitise_exception_traceback_strips_newlines():
+    """Formatted tracebacks must not allow an exception to forge log lines."""
+    from backend.logging_setup import sanitise_exception_traceback
+
+    try:
+        raise RuntimeError("provider failed\r\nforged warning")
+    except RuntimeError as exc:
+        sanitised = sanitise_exception_traceback(exc)
+
+    assert "\r" not in sanitised
+    assert "\n" not in sanitised
+    assert "RuntimeError: provider failedforged warning" in sanitised
+    assert "Traceback (most recent call last)" in sanitised
+
+
 def test_sanitise_log_value_or_sentinel_precedence():
     """
     Regression: `sanitise_log_value(x or '<empty>')` correctly substitutes

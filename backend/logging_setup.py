@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import logging.config
+import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict
@@ -25,6 +26,11 @@ def sanitise_log_value(value: object) -> str:
     via CWE-117 (log injection).
     """
     return str(value).replace("\r", "").replace("\n", "")
+
+
+def sanitise_exception_traceback(exc: BaseException) -> str:
+    """Return ``exc`` and its traceback as one log-safe line."""
+    return sanitise_log_value("".join(traceback.format_exception(type(exc), exc, exc.__traceback__)))
 
 
 class JSONFormatter(JsonFormatter):

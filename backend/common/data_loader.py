@@ -13,6 +13,8 @@ from pathlib import Path, PureWindowsPath
 from threading import RLock
 from typing import Any, Dict, List, Optional, Tuple
 
+from pydantic import ValidationError
+
 from backend.common.account_models import AccountRecord, OwnerSummaryRecord, PersonMetadata
 from backend.common.data_providers import (
     DATA_BUCKET_ENV,
@@ -28,8 +30,7 @@ from backend.common.path_utils import safe_join
 from backend.common.virtual_portfolio import VirtualPortfolio
 from backend.config import config
 from backend.config import demo_identity as get_demo_identity
-from backend.logging_setup import sanitise_log_value
-from pydantic import ValidationError
+from backend.logging_setup import sanitise_exception_traceback, sanitise_log_value
 
 logger = logging.getLogger(__name__)
 
@@ -1061,8 +1062,9 @@ def load_account(
             if not os.getenv(DATA_BUCKET_ENV):
                 raise MissingData(str(exc)) from exc
             logger.warning(
-                "Failed to load account data: %s; falling back to local file",
+                "Failed to load account data: %s; falling back to local file; traceback: %s",
                 sanitise_log_value(str(exc)),
+                sanitise_exception_traceback(exc),
                 extra={
                     "event": "data_loader.account_provider_unavailable",
                     "owner": sanitise_log_value(owner),
@@ -1070,7 +1072,6 @@ def load_account(
                     "fallback_to_local": bool(local_root),
                     "provider": "s3",
                 },
-                exc_info=True,
             )
             if not local_root:
                 raise

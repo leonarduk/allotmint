@@ -16,7 +16,42 @@ import {
   getPensionForecast,
   getConfig,
   UNAUTHORIZED_EVENT,
+  reconcileHoldingsCsv,
 } from "@/api";
+
+describe("holdings CSV reconciliation", () => {
+  it("posts multipart fields to the read-only reconciliation endpoint", async () => {
+    const response = {
+      added: [],
+      removed: [],
+      quantity_changed: [],
+      value_changed: [],
+      cash_balance: { stored_gbp: 1, imported_gbp: 2, delta_gbp: 1 },
+    };
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(response),
+    });
+    global.fetch = mockFetch;
+    const file = new File(["ticker,units"], "holdings.csv", {
+      type: "text/csv",
+    });
+
+    await expect(
+      reconcileHoldingsCsv("alice", "ISA", "degiro", file),
+    ).resolves.toEqual(response);
+
+    const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`${DEFAULT_API_BASE}/holdings/reconcile`);
+    expect(init.method).toBe("POST");
+    expect(init.body).toBeInstanceOf(FormData);
+    const body = init.body as FormData;
+    expect(body.get("owner")).toBe("alice");
+    expect(body.get("account")).toBe("ISA");
+    expect(body.get("provider")).toBe("degiro");
+    expect(body.get("file")).toBe(file);
+  });
+});
 
 describe("auth token handling", () => {
   beforeEach(() => {

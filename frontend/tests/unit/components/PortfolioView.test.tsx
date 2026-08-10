@@ -12,6 +12,7 @@ vi.mock("@/api", () => ({
   getVarBreakdown: vi.fn().mockResolvedValue([]),
   createAccount: vi.fn(),
   importHoldingsCsv: vi.fn(),
+  reconcileHoldingsCsv: vi.fn(),
 }));
 
 vi.mock("@/components/PerformanceDashboard", () => ({

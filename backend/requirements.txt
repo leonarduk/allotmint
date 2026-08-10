@@ -1,9 +1,9 @@
-uvicorn~=0.52.0
+uvicorn~=0.52.1
 jinja2~=3.1.6
 fastapi~=0.141.1
 slowapi~=0.1.10
 mangum~=0.21.0
-boto3>=1.43.62
+boto3>=1.43.66
 pandas~=3.0.5
 yfinance~=1.5.2
 selenium~=4.46.0
@@ -11,7 +11,7 @@ httpx~=0.28.1
 lxml~=6.1.1
 beautifulsoup4~=4.15.0
 soupsieve~=2.9
-packaging~=26.2
+packaging~=26.3
 typing_extensions>=4.16.0
 h11~=0.16.0
 PyYAML~=6.0.3
@@ -37,7 +37,7 @@ pyarrow~=25.0.0
 numexpr~=2.14.2
 python-dateutil~=2.9.0post0
 certifi~=2026.7.22
-starlette~=1.3.1  # >=1.3.1 fixes CVE-2026-54283 (urlencoded form-data limits bypass)
+starlette~=1.4.1  # >=1.3.1 fixes CVE-2026-54283 (urlencoded form-data limits bypass)
 
 pydantic~=2.13.4
 requests>=2.34.2,<3
@@ -45,18 +45,18 @@ peewee~=4.3.0
 reportlab~=5.0.0
 PyJWT~=2.13.0
 python-multipart~=0.0.32
-google-auth~=2.56.2
+google-auth~=2.56.3
 redis~=8.1.0
 python-json-logger~=4.1.0
 annotated-types~=0.8.0
 anyio~=4.14.0
 botocore~=1.43.62
-curl-cffi>=0.15,<0.16  # yfinance~=1.5.1 requires curl_cffi>=0.15
+curl-cffi>=0.16.0,<0.17  # yfinance~=1.5.1 requires curl_cffi>=0.15
 frozendict~=2.4.7
 google-auth-httplib2~=0.4.0
 google-auth-oauthlib~=1.4.0
 jmespath~=1.1.0
-jsonschema~=4.23.0
+jsonschema~=4.26.0
 multitasking~=0.0.13
 pillow>=12.3.0,<13.0  # transitive dep of reportlab~=5.0.0 (image support); already pulled into the Lambda build regardless
 platformdirs~=4.11.0

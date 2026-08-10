@@ -109,14 +109,13 @@ jobs:
       - name: Run bats tests for deploy shell scripts
         run: npx --yes bats@1.13.0 tests/bash/*.bats
 
-  # Not redundant with lambda-compat below despite both installing
-  # backend/requirements.txt: this job is a pure dependency-resolution check
-  # (pip install --dry-run, no packages actually installed, no tests run)
-  # that also asserts no duplicate package names in the requirements file --
-  # both fast, install-free checks lambda-compat doesn't perform. lambda-compat
-  # does a full real install plus the entire pytest suite, which is slower and
-  # gives no earlier signal on a dependency conflict than this job already
-  # gives. Keep both (issue #4467).
+  # Not redundant with lambda-compat below. This job checks both dependency
+  # entry points: backend/requirements.txt gets a fast resolution/duplicate
+  # check, while root requirements.txt gets a real install in a separate clean
+  # venv followed by an application import. The latter catches missing root
+  # dependencies that a pre-populated GitHub runner could otherwise mask.
+  # lambda-compat does a full install plus the entire pytest suite against the
+  # Lambda-specific dependency set. Keep both (issues #4467 and #6018).
   validate-backend-deps:
     name: Validate backend/requirements.txt (dry-run)
     needs: classify-change
@@ -169,6 +168,14 @@ jobs:
             echo "::error file=backend/requirements.txt::Dependency conflict detected — Docker build will fail. Check pip output above for the conflicting packages."
             exit 1
           fi
+      - name: Verify root requirements can start the backend in a fresh venv
+        env:
+          ALLOTMINT_SKIP_SNAPSHOT_WARM: 'true'
+        run: |
+          python -m venv .venv-root-startup
+          .venv-root-startup/bin/pip install --upgrade pip
+          .venv-root-startup/bin/pip install -r requirements.txt
+          .venv-root-startup/bin/python -c 'from backend.local_api.main import app; assert app is not None'
 
   lambda-compat:
     name: Lambda-compat pytest (backend/requirements.txt)

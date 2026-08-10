@@ -1,14 +1,13 @@
+from pathlib import Path
 from typing import Dict
 
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
 from backend import alerts as alert_utils
-from pathlib import Path
-
 from backend.common import data_loader
 from backend.common.alerts import get_recent_alerts
-from backend.common.errors import OWNER_NOT_FOUND, OwnerNotFoundError
+from backend.common.errors import OwnerNotFoundError, raise_owner_not_found
 from backend.routes._accounts import resolve_accounts_root, resolve_owner_directory
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
@@ -38,7 +37,7 @@ def _validate_owner(user: str, request: Request) -> None:
             request.app.state.accounts_root = Path(fallback_root).expanduser().resolve(strict=False)
             return
 
-    raise OwnerNotFoundError(OWNER_NOT_FOUND, extra={"owner": user})
+    raise_owner_not_found(user)
 
 
 @router.get("/")

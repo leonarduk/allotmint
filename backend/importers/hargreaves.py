@@ -36,11 +36,28 @@ def parse(data: bytes) -> List[Transaction]:
 
     try:
         text = data.decode("utf-8", errors="replace")
-        text = skip_non_datatable_rows(text)
+        text, cash = skip_non_datatable_rows(text)
+
+        holdings: List[Transaction] = []
+
+        holdings.append(
+            # TODO we maybe need a position object not Transaction
+            Transaction(
+                owner="",
+                account="",
+
+                # TODO handle other currencies
+                ticker="CASH.GBP",
+
+                price=1,
+                units=cash,
+                amount_minor=cash,
+            )
+        )
 
         reader = csv.DictReader(io.StringIO(text))
 
-        holdings: List[Transaction] = []
+
         for row in reader:
             code = (row.get("Code") or row.get("code") or "").strip()
             units = _to_float(row.get("Units held") or row.get("Units"))
@@ -66,7 +83,7 @@ def parse(data: bytes) -> List[Transaction]:
         raise e
 
 
-def skip_non_datatable_rows(text: str) -> str:
+def skip_non_datatable_rows(text: str) -> tuple[str, int]:
     """
     Hargreaves Lansdown files have a pre-amble and footer we want to ignore.
     """
@@ -76,7 +93,11 @@ def skip_non_datatable_rows(text: str) -> str:
 
     ignore = True
     data = []
+    cash = 0
     for line in lines:
+        if "Total cash" in line:
+            cash += _to_float(line.strip().replace("Total cash:", "").replace('"',"").replace(",",""))
+
         if not line:
             ignore = True
         if line.startswith("Code"):
@@ -90,4 +111,4 @@ def skip_non_datatable_rows(text: str) -> str:
 
     logger.debug("Returning %d rows", len(data))
     text = "\n".join(data)
-    return text
+    return text, cash

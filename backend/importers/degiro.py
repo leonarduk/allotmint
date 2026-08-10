@@ -20,7 +20,7 @@ def _to_float(value: str | None) -> float | None:
 
 def parse(data: bytes) -> List[Transaction]:
     """Parse a CSV export from DeGiro into transactions."""
-    text = data.decode("utf-8")
+    text = data.decode(encoding="utf-8", errors="replace")
     reader = csv.DictReader(io.StringIO(text))
     transactions: List[Transaction] = []
     for row in reader:

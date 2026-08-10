@@ -110,16 +110,21 @@ jobs:
           # review_diff's DEFAULT_GLOBS (Python/YAML/shell/etc.) omits the
           # frontend's TS/TSX/JS/JSX/JSON/CSS/HTML extensions, so a
           # frontend-only PR (e.g. #6279) produced an empty filtered diff and
-          # the AI review had nothing to look at. Pass allotmint's full stack
-          # explicitly so both backend and frontend changes are picked up.
+          # the AI review had nothing to look at. review_diff has no
+          # "extend defaults" flag -- any paths passed here fully replace
+          # DEFAULT_GLOBS -- so this list is DEFAULT_GLOBS (see
+          # cicaid_devtools/lib/review_diff.py) plus allotmint's frontend
+          # stack, kept as a superset so non-frontend PRs never regress to an
+          # empty diff again (#6280).
           DIFF=$(python3 -m cicaid_devtools.lib.review_diff \
             --base-ref "$BASE_REF" \
             --pr-title "$PR_TITLE" \
             --issue-body "$ISSUE_BODY" \
             -- \
-            "*.py" "*.ts" "*.tsx" "*.js" "*.jsx" "*.json" "*.css" "*.scss" "*.html" \
-            "*.toml" "*.md" "*.yml" "*.yaml" "*.sh" "*.cfg" "*.ini" "Dockerfile" \
-            "*.xml" "*.properties" "*.ps1" "*.txt")
+            "*.py" "*.toml" "*.md" "*.yml" "*.yaml" "*.sh" "*.cfg" "*.ini" \
+            "Dockerfile" "*.java" "*.xml" "*.properties" "*.ps1" "*.txt" \
+            "*.ts" "*.tsx" "*.js" "*.jsx" "*.mjs" "*.cjs" "*.json" "*.css" \
+            "*.scss" "*.html")
           DELIM="EOF_$(uuidgen | tr -d '-')"
           {
             echo "diff<<$DELIM"

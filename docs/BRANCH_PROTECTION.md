@@ -34,6 +34,7 @@ gh api "repos/leonarduk/allotmint/commits/<pr-head-sha>/check-runs?per_page=100"
 | `Frontend lint, type-check and unit tests` | `ci.yml` job `frontend-checks` |
 | `CDK infrastructure tests` | `ci.yml` job `cdk-tests` |
 | `Validate backend/requirements.txt (dry-run)` | `ci.yml` job `validate-backend-deps` |
+| `Backend lint (ruff, black)` | `ci.yml` job `backend-lint` |
 | `Lambda-compat pytest (backend/requirements.txt)` | `ci.yml` job `lambda-compat` |
 | `Frontend smoke tests (preview build)` | `ci.yml` job `frontend-smoke` |
 | `integration-tests` | `backend-integration.yml` |

@@ -177,6 +177,23 @@ jobs:
           .venv-root-startup/bin/pip install -r requirements.txt
           .venv-root-startup/bin/python -c 'from backend.local_api.main import app; assert app is not None'
 
+  backend-lint:
+    name: Backend lint (ruff, black)
+    needs: classify-change
+    if: "!cancelled() && needs.classify-change.outputs.backend != 'false'"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install backend and development dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+      - name: Ruff check
+        run: ruff check --config backend/pyproject.toml backend tests
+      - name: Black check
+        run: black --check --config backend/pyproject.toml backend tests
+
   lambda-compat:
     name: Lambda-compat pytest (backend/requirements.txt)
     needs: classify-change

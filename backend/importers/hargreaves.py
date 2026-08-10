@@ -8,6 +8,7 @@ from typing import List
 import logging
 
 from backend.routes.transactions import Transaction
+from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
 
@@ -57,5 +58,6 @@ def parse(data: bytes) -> List[Transaction]:
             )
         return transactions
     except csv.Error as e:
-        logger.error("Failed to parse Hargreaves Lansdown holdings: %s", e)
+        logger.error("Failed to parse Hargreaves Lansdown holdings: %s",
+                     sanitise_log_value(e))
         raise e

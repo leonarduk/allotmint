@@ -55,11 +55,11 @@ backend/common/instrument_api.py:415
 backend/common/instrument_groups.py:52
 backend/common/instrument_groups.py:55
 backend/common/instruments.py:36
-backend/common/instruments.py:41
-backend/common/instruments.py:84
-backend/common/instruments.py:88
-backend/common/instruments.py:496
-backend/common/instruments.py:525
+backend/common/instruments.py:39
+backend/common/instruments.py:82
+backend/common/instruments.py:86
+backend/common/instruments.py:500
+backend/common/instruments.py:530
 backend/common/portfolio.py:81
 backend/common/portfolio.py:115
 # raw/d_raw/amount_minor are logged with %r (repr), which already escapes

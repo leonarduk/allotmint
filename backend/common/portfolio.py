@@ -78,7 +78,7 @@ def _load_trades_aws(owner: str) -> List[Dict[str, Any]]:
             sanitise_log_value(key), sanitise_log_value(bucket), sanitise_log_value(exc),
         )
     except ImportError as exc:
-        logger.warning("boto3 not available for S3 trades fetch: %s", exc)
+        logger.warning("boto3 not available for S3 trades fetch: %s", sanitise_log_value(exc))
     return []
 
 
@@ -112,7 +112,7 @@ def list_owners(
             if slug and (not current_user or identity_can_access_owner(current_user, slug, data)):
                 owners.append(slug)
         except (OSError, json.JSONDecodeError) as exc:
-            logger.warning("Skipping owner file %s: %s", pf, exc)
+            logger.warning("Skipping owner file %s: %s", pf, sanitise_log_value(exc))
             continue
     return owners
 

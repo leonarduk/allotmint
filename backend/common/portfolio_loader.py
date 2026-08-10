@@ -155,7 +155,11 @@ def rebuild_account_holdings(
         return {}
 
     if not isinstance(tx_data, dict):
-        log.error("Malformed transaction file %s: expected object, got %s", sanitise_log_value(tx_path), type(tx_data).__name__)
+        log.error(
+            "Malformed transaction file %s: expected object, got %s",
+            sanitise_log_value(tx_path),
+            type(tx_data).__name__,
+        )
         return {}
 
     out = compute_holdings_from_transactions(tx_data, owner, account)
@@ -168,7 +172,7 @@ def rebuild_account_holdings(
     try:
         acct_path.write_text(json.dumps(out, indent=2))
     except OSError as exc:
-        log.error("Failed to write holdings to %s: %s", acct_path, exc)
+        log.error("Failed to write holdings to %s: %s", acct_path, sanitise_log_value(exc))
     return out
 
 

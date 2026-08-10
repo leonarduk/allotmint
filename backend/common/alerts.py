@@ -4,6 +4,7 @@ from hashlib import sha256
 from typing import Dict, List, Set
 
 from backend.config import config
+from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger("alerts")
 
@@ -75,7 +76,7 @@ def publish_sns_alert(alert: Dict) -> None:
         logger.warning("SNS topic ARN set but boto3 not installed")
         return
     except Exception as exc:
-        logger.warning("SNS publish failed: %s", exc)
+        logger.warning("SNS publish failed: %s", sanitise_log_value(exc))
         return
 
     if instrument is not None and state is not None:

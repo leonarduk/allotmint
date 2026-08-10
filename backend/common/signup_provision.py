@@ -68,10 +68,10 @@ def _read_person_email(owner_dir: Path) -> str:
     try:
         data = json.loads(person_path.read_text())
     except OSError as exc:
-        logger.warning("Could not read %s: %s", person_path, exc)
+        logger.warning("Could not read %s: %s", person_path, sanitise_log_value(exc))
         return ""
     except json.JSONDecodeError as exc:
-        logger.warning("Malformed person.json at %s: %s", person_path, exc)
+        logger.warning("Malformed person.json at %s: %s", person_path, sanitise_log_value(exc))
         return ""
     if not isinstance(data, dict):
         logger.warning("person.json at %s is not an object", person_path)

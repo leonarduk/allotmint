@@ -25,6 +25,7 @@ from datetime import UTC, datetime
 from backend.common.portfolio_utils import DATA_BUCKET_ENV, PRICES_S3_KEY
 from backend.common.prices import refresh_prices
 from backend.config import config
+from backend.logging_setup import sanitise_log_value
 
 try:  # trading agent is optional; skip if missing
     import trading_agent  # type: ignore
@@ -60,7 +61,7 @@ def _seed_empty_snapshot() -> None:
         )
         logger.info("Seeded empty price snapshot to s3://%s/%s", bucket, PRICES_S3_KEY)
     except Exception as exc:  # pragma: no cover - upload failure is non-fatal
-        logger.warning("Failed to seed empty price snapshot to S3: %s", exc)
+        logger.warning("Failed to seed empty price snapshot to S3: %s", sanitise_log_value(exc))
 
 
 def lambda_handler(event, context):
@@ -77,13 +78,13 @@ def lambda_handler(event, context):
     except Exception as exc:
         logger.error(
             "Price refresh failed; seeding empty snapshot to suppress cold-start warnings: %s",
-            exc,
+            sanitise_log_value(exc),
             exc_info=True,
         )
         try:
             _seed_empty_snapshot()
         except Exception as seed_exc:  # pragma: no cover - defensive; function is designed not to raise
-            logger.warning("_seed_empty_snapshot raised unexpectedly: %s", seed_exc)
+            logger.warning("_seed_empty_snapshot raised unexpectedly: %s", sanitise_log_value(seed_exc))
         ts = datetime.now(UTC).isoformat().replace("+00:00", "Z")
         result = {"error": str(exc), "tickers": [], "snapshot": {}, "timestamp": ts}
         _refresh_failed = True

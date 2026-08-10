@@ -42,7 +42,7 @@ def load_approvals(owner: str, accounts_root: Optional[Path] = None) -> Dict[str
     try:
         data = json.loads(path.read_text())
     except (OSError, json.JSONDecodeError) as exc:
-        logger.error("failed to read approvals for %s: %s", sanitise_log_value(owner), exc)
+        logger.error("failed to read approvals for %s: %s", sanitise_log_value(owner), sanitise_log_value(exc))
         return {}
     entries = data.get("approvals") if isinstance(data, dict) else data
     if not isinstance(entries, list):
@@ -89,7 +89,12 @@ def save_approvals(
     try:
         path.write_text(json.dumps({"approvals": entries}, indent=2, sort_keys=True))
     except OSError as exc:
-        logger.error("failed to write approvals for %s to %s: %s", sanitise_log_value(owner), path, exc)
+        logger.error(
+            "failed to write approvals for %s to %s: %s",
+            sanitise_log_value(owner),
+            path,
+            sanitise_log_value(exc),
+        )
         raise
 
 

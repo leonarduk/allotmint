@@ -46,13 +46,13 @@ _DEFAULT_SUBSCRIPTIONS_URI = (
 try:
     _SETTINGS_STORAGE = get_storage(os.getenv("ALERT_THRESHOLDS_URI", _DEFAULT_SETTINGS_URI))
 except Exception as exc:  # pragma: no cover - configuration errors
-    logger.error("Failed to initialize settings storage: %s", exc)
+    logger.error("Failed to initialize settings storage: %s", sanitise_log_value(exc))
     _SETTINGS_STORAGE = get_storage(_DEFAULT_SETTINGS_URI)
 
 try:
     _SUBSCRIPTIONS_STORAGE = get_storage(os.getenv("PUSH_SUBSCRIPTIONS_URI", _DEFAULT_SUBSCRIPTIONS_URI))
 except Exception as exc:  # pragma: no cover - configuration errors
-    logger.error("Failed to initialize subscriptions storage: %s", exc)
+    logger.error("Failed to initialize subscriptions storage: %s", sanitise_log_value(exc))
     _SUBSCRIPTIONS_STORAGE = get_storage(_DEFAULT_SUBSCRIPTIONS_URI)
 
 # In-memory cache of settings
@@ -144,7 +144,7 @@ def _load_settings() -> None:
     try:
         data = _SETTINGS_STORAGE.load()
     except Exception as exc:  # pragma: no cover - storage backend failures
-        logger.warning("Failed to load user thresholds: %s", exc)
+        logger.warning("Failed to load user thresholds: %s", sanitise_log_value(exc))
         _USER_THRESHOLDS = {}
         _SETTINGS_LOADED = True
         return
@@ -186,7 +186,7 @@ def _load_subscriptions() -> None:
     try:
         data = _SUBSCRIPTIONS_STORAGE.load()
     except Exception as exc:  # pragma: no cover - storage backend failures
-        logger.warning("Failed to load push subscriptions: %s", exc)
+        logger.warning("Failed to load push subscriptions: %s", sanitise_log_value(exc))
         _PUSH_SUBSCRIPTIONS = {}
         _SUBSCRIPTIONS_LOADED = True
         return
@@ -225,7 +225,7 @@ def _save_settings() -> None:
         _SETTINGS_STORAGE.save(_USER_THRESHOLDS)
     except Exception as exc:  # pragma: no cover - storage backend failures
         # Persistence failure should not block alerting
-        logger.error("Failed to save user thresholds to persistent storage: %s", exc)
+        logger.error("Failed to save user thresholds to persistent storage: %s", sanitise_log_value(exc))
 
 
 def _save_subscriptions() -> None:
@@ -253,7 +253,7 @@ def _save_subscriptions() -> None:
     try:
         _SUBSCRIPTIONS_STORAGE.save(_PUSH_SUBSCRIPTIONS)
     except Exception as exc:  # pragma: no cover - storage backend failures
-        logger.error("Failed to save push subscriptions to persistent storage: %s", exc)
+        logger.error("Failed to save push subscriptions to persistent storage: %s", sanitise_log_value(exc))
 
 
 def get_user_threshold(user: str, default: float = DEFAULT_THRESHOLD_PCT) -> float:
@@ -333,7 +333,7 @@ def send_push_notification(message: str) -> None:
             )
             sent = True
         except Exception as exc:  # pragma: no cover - network errors
-            logger.warning("Web push failed: %s", exc)
+            logger.warning("Web push failed: %s", sanitise_log_value(exc))
 
     if not sent:
         publish_alert({"message": message})

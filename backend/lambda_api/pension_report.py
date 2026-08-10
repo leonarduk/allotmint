@@ -30,7 +30,6 @@ import os
 from typing import Any, Dict, List, Optional, Tuple
 
 from backend.common.alerts import publish_sns_alert
-from backend.logging_setup import sanitise_log_value
 from backend.common.pension import (
     _age_from_dob,
     dc_pension_pot_gbp,
@@ -48,6 +47,7 @@ from backend.common.pension_snapshots import (
 from backend.common.portfolio_loader import list_portfolios
 from backend.common.storage import get_storage
 from backend.emails.pension_report import PensionReport, send_pension_report_email
+from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger("pension_report")
 
@@ -203,7 +203,7 @@ def lambda_handler(event, context):
         target_owners = _load_recipient_owners()
         portfolios = list_portfolios()
     except Exception as exc:
-        logger.error("Pension report failed to initialise: %s", exc, exc_info=True)
+        logger.error("Pension report failed to initialise: %s", sanitise_log_value(exc), exc_info=True)
         publish_sns_alert(
             {
                 "message": f"Pension report Lambda failed to start: {exc}",
@@ -228,7 +228,12 @@ def lambda_handler(event, context):
             send_pension_report_email(email, report)
             sent += 1
         except Exception as exc:
-            logger.error("Pension report failed for owner %s: %s", sanitise_log_value(owner), exc, exc_info=True)
+            logger.error(
+                "Pension report failed for owner %s: %s",
+                sanitise_log_value(owner),
+                sanitise_log_value(exc),
+                exc_info=True,
+            )
             errors.append(f"{owner}: {exc}")
 
     if errors:

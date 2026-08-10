@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends
 from backend.auth import get_current_user
 from backend.common.instruments import get_instrument_meta
 from backend.config import config
+from backend.logging_setup import sanitise_log_value
 from backend.timeseries.cache import (
     _ensure_schema,
     load_meta_timeseries,
@@ -85,7 +86,7 @@ async def timeseries_admin() -> list[dict[str, Any]]:
                         continue
                     df = _ensure_schema(pd.read_parquet(io.BytesIO(body.read())))
                 except (ClientError, ValueError) as exc:  # pragma: no cover - defensive
-                    logger.warning("Failed to load %s from S3: %s", key, exc)
+                    logger.warning("Failed to load %s from S3: %s", key, sanitise_log_value(exc))
                     continue
                 if df.empty:
                     continue
@@ -107,7 +108,7 @@ async def timeseries_admin() -> list[dict[str, Any]]:
         try:
             df = _ensure_schema(pd.read_parquet(path))
         except (OSError, ValueError) as exc:  # pragma: no cover - defensive
-            logger.warning("Failed to load %s: %s", path, exc)
+            logger.warning("Failed to load %s: %s", path, sanitise_log_value(exc))
             continue
         if df.empty:
             continue

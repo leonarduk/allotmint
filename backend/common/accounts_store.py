@@ -241,7 +241,7 @@ class LocalAccountsStore:
                 portfolio_loader.rebuild_account_holdings(owner, account, self.root)
             portfolio_mod.build_owner_portfolio(owner, self.root)
         except FileNotFoundError as exc:
-            logger.warning("Portfolio rebuild failed: %s", exc)
+            logger.warning("Portfolio rebuild failed: %s", sanitise_log_value(exc))
 
 
 @dataclass
@@ -280,10 +280,20 @@ class S3AccountsStore:
             code = exc.response.get("Error", {}).get("Code", "")
             if code in {"NoSuchKey", "404", "NotFound"}:
                 return None
-            logger.warning("S3 read failed for s3://%s/%s: %s", self.bucket, sanitise_log_value(key), exc)
+            logger.warning(
+                "S3 read failed for s3://%s/%s: %s",
+                self.bucket,
+                sanitise_log_value(key),
+                sanitise_log_value(exc),
+            )
             return None
         except BotoCoreError as exc:
-            logger.warning("S3 read failed for s3://%s/%s: %s", self.bucket, sanitise_log_value(key), exc)
+            logger.warning(
+                "S3 read failed for s3://%s/%s: %s",
+                self.bucket,
+                sanitise_log_value(key),
+                sanitise_log_value(exc),
+            )
             return None
         body = obj.get("Body")
         text = body.read().decode("utf-8-sig").strip() if body else ""
@@ -397,7 +407,12 @@ class S3AccountsStore:
             try:
                 resp = client.list_objects_v2(**kwargs)
             except (ClientError, BotoCoreError) as exc:
-                logger.warning("S3 list failed for s3://%s/%s: %s", self.bucket, sanitise_log_value(prefix), exc)
+                logger.warning(
+                    "S3 list failed for s3://%s/%s: %s",
+                    self.bucket,
+                    sanitise_log_value(prefix),
+                    sanitise_log_value(exc),
+                )
                 return
             for entry in resp.get("Contents", []) or []:
                 key = entry.get("Key")

@@ -11,6 +11,7 @@ from typing import Iterable, Mapping
 
 from backend.common.data_loader import resolve_paths
 from backend.config import config
+from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
 
@@ -36,12 +37,12 @@ def _load_json(path: Path) -> Mapping[str, object] | None:
     try:
         text = path.read_text()
     except OSError as exc:
-        logger.warning("Failed to read %s: %s", path, exc)
+        logger.warning("Failed to read %s: %s", path, sanitise_log_value(exc))
         return None
     try:
         return json.loads(text)
     except json.JSONDecodeError as exc:
-        logger.warning("Invalid JSON in %s: %s", path, exc)
+        logger.warning("Invalid JSON in %s: %s", path, sanitise_log_value(exc))
         return None
 
 
@@ -183,5 +184,5 @@ def reconcile_transactions_with_holdings(accounts_root: Path | None = None) -> N
             try:
                 tx_path.write_text(json.dumps(tx_data, indent=2) + "\n")
             except OSError as exc:
-                logger.warning("Failed to update %s: %s", tx_path, exc)
+                logger.warning("Failed to update %s: %s", tx_path, sanitise_log_value(exc))
 

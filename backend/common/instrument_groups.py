@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Iterable, List
 
 from backend.config import config
+from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +50,7 @@ def load_groups() -> List[str]:
     except FileNotFoundError:
         return []
     except json.JSONDecodeError as exc:  # pragma: no cover - defensive
-        logger.warning("Invalid instrument groups JSON %s: %s", path, exc)
+        logger.warning("Invalid instrument groups JSON %s: %s", path, sanitise_log_value(exc))
         return []
     except Exception:  # pragma: no cover - unexpected IO errors
         logger.exception("Failed to load instrument groups from %s", path)

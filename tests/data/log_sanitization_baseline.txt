@@ -15,9 +15,9 @@ backend/alerts.py:194
 backend/alerts.py:228
 backend/alerts.py:256
 backend/alerts.py:336
-backend/app.py:168
-backend/app.py:200
-backend/app.py:219
+backend/app.py:175
+backend/app.py:207
+backend/app.py:226
 backend/auth.py:126
 # accounts-root path comes from server config, not attacker-controlled input.
 backend/auth.py:172

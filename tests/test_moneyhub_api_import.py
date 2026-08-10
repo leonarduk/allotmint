@@ -10,7 +10,11 @@ from backend.common.moneyhub_tokens import TokenSet
 from backend.common.url_validator import InvalidExternalURLError
 from backend.config import config
 from backend.importers import moneyhub_api as moneyhub_mapper
-from backend.integrations.moneyhub_api import MoneyhubAPIError, MoneyhubClient
+from backend.integrations.moneyhub_api import (
+    MoneyhubAPIError,
+    MoneyhubClient,
+    MoneyhubNotConfiguredError,
+)
 from backend.routes import transactions
 
 # ---------------------------------------------------------------------------
@@ -40,7 +44,8 @@ def test_get_moneyhub_client_requires_credentials(monkeypatch, missing_name):
     monkeypatch.delenv(missing_name)
 
     with pytest.raises(
-        RuntimeError, match="MONEYHUB_CLIENT_ID and MONEYHUB_CLIENT_SECRET must be set"
+        MoneyhubNotConfiguredError,
+        match="MONEYHUB_CLIENT_ID and MONEYHUB_CLIENT_SECRET must be set",
     ):
         transactions._get_moneyhub_client()
 
@@ -74,6 +79,28 @@ def test_moneyhub_import_route_returns_503_when_unconfigured(monkeypatch):
 
     assert response.status_code == 503
     assert "MONEYHUB_CLIENT_ID" in response.json()["detail"]
+
+
+def test_moneyhub_configuration_handler_applies_to_every_route(monkeypatch):
+    """Any request path creating the client receives the centralized 503 response."""
+    monkeypatch.setattr(transactions, "_moneyhub_client_instance", None)
+    monkeypatch.delenv("TESTING", raising=False)
+    monkeypatch.delenv("MONEYHUB_CLIENT_ID", raising=False)
+    monkeypatch.delenv("MONEYHUB_CLIENT_SECRET", raising=False)
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+
+    app = create_app()
+
+    @app.get("/_test/moneyhub-client")
+    async def create_moneyhub_client():
+        transactions._get_moneyhub_client()
+        return {"configured": True}
+
+    with TestClient(app) as client:
+        response = client.get("/_test/moneyhub-client")
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "MONEYHUB_CLIENT_ID and MONEYHUB_CLIENT_SECRET must be set"}
 
 
 def test_refresh_access_token_posts_expected_payload(monkeypatch):
@@ -275,9 +302,7 @@ def test_load_token_set_returns_none_when_absent(token_storage):
 
 
 def test_save_and_load_token_set_round_trips(token_storage):
-    token_set = TokenSet(
-        access_token="a", refresh_token="r", expires_at=123.0, account_ids=["acc-1"]
-    )
+    token_set = TokenSet(access_token="a", refresh_token="r", expires_at=123.0, account_ids=["acc-1"])
     moneyhub_tokens.save_token_set("alice", token_set)
 
     loaded = moneyhub_tokens.load_token_set("alice")

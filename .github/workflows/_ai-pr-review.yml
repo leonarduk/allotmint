@@ -107,10 +107,19 @@ jobs:
           ISSUE_BODY: ${{ steps.issue.outputs.body }}
         run: |
           git fetch origin "$BASE_REF"
+          # review_diff's DEFAULT_GLOBS (Python/YAML/shell/etc.) omits the
+          # frontend's TS/TSX/JS/JSX/JSON/CSS/HTML extensions, so a
+          # frontend-only PR (e.g. #6279) produced an empty filtered diff and
+          # the AI review had nothing to look at. Pass allotmint's full stack
+          # explicitly so both backend and frontend changes are picked up.
           DIFF=$(python3 -m cicaid_devtools.lib.review_diff \
             --base-ref "$BASE_REF" \
             --pr-title "$PR_TITLE" \
-            --issue-body "$ISSUE_BODY")
+            --issue-body "$ISSUE_BODY" \
+            -- \
+            "*.py" "*.ts" "*.tsx" "*.js" "*.jsx" "*.json" "*.css" "*.scss" "*.html" \
+            "*.toml" "*.md" "*.yml" "*.yaml" "*.sh" "*.cfg" "*.ini" "Dockerfile" \
+            "*.xml" "*.properties" "*.ps1" "*.txt")
           DELIM="EOF_$(uuidgen | tr -d '-')"
           {
             echo "diff<<$DELIM"

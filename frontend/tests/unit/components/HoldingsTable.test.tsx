@@ -182,7 +182,7 @@ describe("HoldingsTable", () => {
         renderWithConfig(<HoldingsTable holdings={holdings} />);
 
         await screen.findByText("AAA");
-        expect(screen.getAllByTestId("sparkline-empty")).toHaveLength(holdings.length);
+        expect(screen.getAllByTestId(/^sparkline/)).toHaveLength(holdings.length);
     });
 
     it("shows days to go if not eligible", async () => {

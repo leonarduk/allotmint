@@ -218,6 +218,7 @@
     "rangeOption": "{{count}}T",
     "source": "Quelle:",
     "totalRowLabel": "Gesamt",
+    "trendHeader": "Trend ({{range}}T)",
     "view": "Ansicht:",
     "viewPresets": {
       "all": "Alle"

@@ -221,7 +221,7 @@ export function HoldingsTable({
       container.removeEventListener("scroll", updateOverflowCue);
       resizeObserver?.disconnect();
     };
-  }, [sortedRows.length, relativeViewEnabled, visibleColumns]);
+  }, [sortedRows.length, relativeViewEnabled, visibleColumns, showForward7d, showForward30d]);
 
   const rowVirtualizer = useVirtualizer({
     count: sortedRows.length,
@@ -577,6 +577,7 @@ export function HoldingsTable({
                   <Sparkline
                     ticker={h.ticker}
                     days={sparkRange}
+                    width={80}
                     ariaLabel={t("holdingsTable.sparklineAria", { ticker: h.ticker })}
                   />
                 </td>

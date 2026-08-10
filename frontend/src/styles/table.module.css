@@ -120,11 +120,13 @@
 }
 
 @media (max-width: 768px) {
+  .scrollContainer {
+    -webkit-overflow-scrolling: touch;
+  }
+
   .table {
     display: block;
     max-width: 100%;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
   }
 
   .table thead,

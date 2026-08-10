@@ -178,6 +178,16 @@ complete command list, arguments, LLM provider configuration, and PowerShell
 wrapper templates. Keep shared automation changes in cicaid rather than adding
 repo-local copies here.
 
+The repository retains one compatibility command for retroactively adding an
+issue link to open pull requests. It is dry-run by default; pass `--yes` to
+create issues and update PR bodies. Configured labels are checked first, and
+missing labels are reported and skipped rather than aborting the run:
+
+```bash
+python scripts/developer_tools/p_add_issue_to_pr.py
+python scripts/developer_tools/p_add_issue_to_pr.py --yes --label bug
+```
+
 ### Regenerating the graphify knowledge graph locally
 
 `graphify-out/graph.json`, `manifest.json`, and `.graphify_analysis.json` are

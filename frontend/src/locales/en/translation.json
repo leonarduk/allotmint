@@ -204,6 +204,7 @@
   "holdingsTable": {
     "actualPurchaseCost": "Actual purchase cost",
     "clearFilters": "Clear filters",
+    "horizontalScroll": "Scroll holdings columns horizontally",
     "columns": {
       "acquired": "Acquired",
       "ccy": "CCY",

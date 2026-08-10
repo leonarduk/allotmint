@@ -196,9 +196,13 @@ export function HoldingsTable({
   ];
 
   const tableContainerRef = useRef<HTMLDivElement>(null);
+  const topScrollbarRef = useRef<HTMLDivElement>(null);
+  const tableRef = useRef<HTMLTableElement>(null);
   const tableHeaderRef = useRef<HTMLTableSectionElement>(null);
   const [headerHeight, setHeaderHeight] = useState(0);
   const [hasMoreColumns, setHasMoreColumns] = useState(false);
+  const [hasHorizontalOverflow, setHasHorizontalOverflow] = useState(false);
+  const [tableWidth, setTableWidth] = useState(0);
 
   useEffect(() => {
     if (tableHeaderRef.current) {
@@ -208,24 +212,40 @@ export function HoldingsTable({
 
   useEffect(() => {
     const container = tableContainerRef.current;
-    if (!container) return;
+    const topScrollbar = topScrollbarRef.current;
+    const table = tableRef.current;
+    if (!container || !topScrollbar || !table) return;
 
     const updateOverflowCue = () => {
       const remainingScroll =
         container.scrollWidth - container.clientWidth - container.scrollLeft;
       setHasMoreColumns(remainingScroll > 1);
+      setHasHorizontalOverflow(container.scrollWidth - container.clientWidth > 1);
+      setTableWidth(table.scrollWidth);
+    };
+
+    const syncFromTable = () => {
+      topScrollbar.scrollLeft = container.scrollLeft;
+      updateOverflowCue();
+    };
+    const syncFromTopScrollbar = () => {
+      container.scrollLeft = topScrollbar.scrollLeft;
+      updateOverflowCue();
     };
 
     updateOverflowCue();
-    container.addEventListener("scroll", updateOverflowCue, { passive: true });
+    container.addEventListener("scroll", syncFromTable, { passive: true });
+    topScrollbar.addEventListener("scroll", syncFromTopScrollbar, { passive: true });
     const resizeObserver =
       typeof ResizeObserver === "undefined"
         ? null
         : new ResizeObserver(updateOverflowCue);
     resizeObserver?.observe(container);
+    resizeObserver?.observe(table);
 
     return () => {
-      container.removeEventListener("scroll", updateOverflowCue);
+      container.removeEventListener("scroll", syncFromTable);
+      topScrollbar.removeEventListener("scroll", syncFromTopScrollbar);
       resizeObserver?.disconnect();
     };
   }, [sortedRows.length, relativeViewEnabled, visibleColumns, showForward7d, showForward30d]);
@@ -315,11 +335,20 @@ export function HoldingsTable({
         </>
       )}
       {sortedRows.length ? (
-        <div
-          ref={tableContainerRef}
-          className={`${tableStyles.scrollContainer} ${hasMoreColumns ? tableStyles.hasMoreColumns : ""}`}
-        >
-          <table className={`${tableStyles.table} mb-4 w-full`}>
+        <>
+          <div
+            ref={topScrollbarRef}
+            className={`${tableStyles.topScrollbar} ${hasHorizontalOverflow ? "" : tableStyles.topScrollbarHidden}`}
+            aria-label={t("holdingsTable.horizontalScroll")}
+            tabIndex={0}
+          >
+            <div className={tableStyles.topScrollbarContent} style={{ width: tableWidth }} />
+          </div>
+          <div
+            ref={tableContainerRef}
+            className={`${tableStyles.scrollContainer} ${hasMoreColumns ? tableStyles.hasMoreColumns : ""}`}
+          >
+            <table ref={tableRef} className={`${tableStyles.table} mb-4 w-full`}>
         <thead ref={tableHeaderRef}>
           <tr>
             {showAccount && <th className={tableStyles.cell}></th>}
@@ -706,8 +735,9 @@ export function HoldingsTable({
             ))}
           </tr>
         </tfoot>
-        </table>
-        </div>
+            </table>
+          </div>
+        </>
       ) : (
         <EmptyState
           message={t("holdingsTable.noHoldings")}

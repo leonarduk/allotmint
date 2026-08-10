@@ -9,6 +9,27 @@
   scrollbar-gutter: stable;
 }
 
+.topScrollbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  overflow-x: auto;
+  overflow-y: hidden;
+  height: 16px;
+  background: inherit;
+  scrollbar-color: rgba(71, 85, 105, 0.8) rgba(148, 163, 184, 0.2);
+  scrollbar-gutter: stable;
+}
+
+.topScrollbarContent {
+  height: 1px;
+}
+
+.topScrollbarHidden {
+  height: 0;
+  scrollbar-gutter: auto;
+}
+
 .hasMoreColumns {
   box-shadow: inset -14px 0 12px -14px rgba(15, 23, 42, 0.85);
 }

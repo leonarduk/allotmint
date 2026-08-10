@@ -248,6 +248,7 @@
     "rangeOption": "{{count}}d",
     "source": "Source:",
     "totalRowLabel": "Total",
+    "trendHeader": "Trend ({{range}}d)",
     "view": "View:",
     "viewPresets": {
       "all": "All"

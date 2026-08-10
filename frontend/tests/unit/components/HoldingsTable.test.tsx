@@ -157,6 +157,67 @@ describe("HoldingsTable", () => {
         expect(screen.getByRole('columnheader', { name: /Gain %/ })).toBeInTheDocument();
     });
 
+    it("prioritizes financial columns and localizes the trend range", async () => {
+        renderWithConfig(<HoldingsTable holdings={holdings} />);
+
+        const headerRows = await screen.findAllByRole("row");
+        const headers = within(headerRows[1])
+            .getAllByRole("columnheader")
+            .map((header) => header.textContent);
+
+        expect(headers.slice(0, 8)).toEqual([
+            "Ticker ▲",
+            "Name",
+            "Units",
+            "Mkt £",
+            "Gain £",
+            "Gain %",
+            "Px £",
+            "Cost £",
+        ]);
+        expect(screen.getByRole("columnheader", { name: "Trend (30d)" })).toBeInTheDocument();
+    });
+
+    it("keeps footer columns aligned with the header in relative view", async () => {
+        const TestProviderRelative = ({ children }: { children: React.ReactNode }) => (
+            <configContext.Provider
+              value={{
+                ...defaultConfig,
+                relativeViewEnabled: true,
+                setRelativeViewEnabled: () => {},
+                refreshConfig: async () => {},
+                setBaseCurrency: () => {},
+              }}
+            >
+                {children}
+            </configContext.Provider>
+        );
+        render(
+            <TestProviderRelative>
+                <HoldingsTable holdings={holdings} />
+            </TestProviderRelative>,
+        );
+
+        const rows = await screen.findAllByRole("row");
+        const headerColumnCount = within(rows[1]).getAllByRole("columnheader").length;
+
+        const table = screen.getByRole("table");
+        const footerRow = table.querySelector("tfoot tr") as HTMLTableRowElement;
+        const footerColumnCount = Array.from(footerRow.children).reduce(
+            (sum, cell) => sum + (Number(cell.getAttribute("colspan")) || 1),
+            0,
+        );
+
+        expect(footerColumnCount).toBe(headerColumnCount);
+    });
+
+    it("renders one sparkline per holding", async () => {
+        renderWithConfig(<HoldingsTable holdings={holdings} />);
+
+        await screen.findByText("AAA");
+        expect(screen.getAllByTestId(/^sparkline/)).toHaveLength(holdings.length);
+    });
+
     it("shows days to go if not eligible", async () => {
         render(<HoldingsTable holdings={holdings}/>);
         const row = (await screen.findByText("Test Holding")).closest("tr");

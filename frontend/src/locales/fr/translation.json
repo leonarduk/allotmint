@@ -218,6 +218,7 @@
     "rangeOption": "{{count}}j",
     "source": "Source :",
     "totalRowLabel": "Total",
+    "trendHeader": "Tendance ({{range}}j)",
     "view": "Vue :",
     "viewPresets": {
       "all": "Tous"

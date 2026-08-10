@@ -39,7 +39,6 @@ def parse(data: bytes) -> List[Transaction]:
 
         transactions: List[Transaction] = []
         for row in reader:
-            logger.debug("Row: %s", row)
             code = (row.get("Code") or row.get("code") or "").strip()
             units = _to_float(row.get("Units held") or row.get("Units"))
             price_pence = _to_float(row.get("Price (pence)") or row.get("Price"))

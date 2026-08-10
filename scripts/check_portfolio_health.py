@@ -28,7 +28,7 @@ import requests
 from backend.common import approvals, group_portfolio, portfolio, portfolio_utils
 from backend.common.alerts import publish_alert
 
-logger = logging.getLogger("check_portfolio_health")
+logger = logging.getLogger(__name__)
 
 
 def notify_slack(message: str) -> None:

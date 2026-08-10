@@ -11,9 +11,9 @@ from typing import Iterable, Mapping
 
 from backend.common.data_loader import resolve_paths
 from backend.config import config
+from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
-
 
 _METADATA_STEMS = {"person", "config", "notes"}
 _TYPE_SIGN = {
@@ -34,14 +34,15 @@ def _normalise_account_key(raw: str | None, fallback: str) -> str:
 
 def _load_json(path: Path) -> Mapping[str, object] | None:
     try:
+        logger.debug("Loading JSON from %s", sanitise_log_value(path))
         text = path.read_text()
     except OSError as exc:
-        logger.warning("Failed to read %s: %s", path, exc)
+        logger.warning("Failed to read %s: %s", sanitise_log_value(path), sanitise_log_value(exc))
         return None
     try:
         return json.loads(text)
     except json.JSONDecodeError as exc:
-        logger.warning("Invalid JSON in %s: %s", path, exc)
+        logger.warning("Invalid JSON in %s: %s", sanitise_log_value(path), sanitise_log_value(exc))
         return None
 
 
@@ -56,14 +57,12 @@ def _transactions_to_positions(transactions: Iterable[Mapping[str, object]]) -> 
         raw_qty = (
             tx.get("shares")
             if tx.get("shares") is not None
-            else tx.get("units")
-            if tx.get("units") is not None
-            else tx.get("quantity")
+            else tx.get("units") if tx.get("units") is not None else tx.get("quantity")
         )
         try:
             qty = float(raw_qty or 0.0)
         except (TypeError, ValueError):
-            logger.debug("Skipping transaction with invalid quantity: %s", tx)
+            logger.debug("Skipping transaction with invalid quantity: %s", sanitise_log_value(tx))
             continue
 
         if abs(qty) > 1_000_000:
@@ -86,7 +85,9 @@ def reconcile_transactions_with_holdings(accounts_root: Path | None = None) -> N
     paths = resolve_paths(config.repo_root, config.accounts_root)
     root = Path(accounts_root) if accounts_root else paths.accounts_root
 
+    logger.debug("Loading holdings from %s", sanitise_log_value(root))
     if not root.exists():
+        logger.warning("No holdings found in %s", sanitise_log_value(root))
         return
 
     synthetic_date = (date.today() - timedelta(days=365)).isoformat()
@@ -98,6 +99,8 @@ def reconcile_transactions_with_holdings(accounts_root: Path | None = None) -> N
             tx_candidates[stem.lower()] = candidate
 
         for account_file in owner_dir.glob("*.json"):
+            logger.debug("Loading holdings from %s", sanitise_log_value(account_file))
+
             stem = account_file.stem
             lower = stem.lower()
             if lower in _METADATA_STEMS or lower.endswith("_transactions"):
@@ -118,6 +121,7 @@ def reconcile_transactions_with_holdings(accounts_root: Path | None = None) -> N
 
             transactions = list(tx_data.get("transactions") or [])
             if not transactions and not account_data.get("holdings"):
+                logger.debug("Skipping holdings with no transactions")
                 continue
 
             ledger = _transactions_to_positions(transactions)
@@ -131,7 +135,7 @@ def reconcile_transactions_with_holdings(accounts_root: Path | None = None) -> N
                 try:
                     qty = float(item.get("units") or 0.0)
                 except (TypeError, ValueError):
-                    logger.debug("Skipping holding with invalid units: %s", item)
+                    logger.debug("Skipping holding with invalid units: %s", sanitise_log_value(item))
                     continue
                 holdings[ticker] = qty
 
@@ -174,7 +178,10 @@ def reconcile_transactions_with_holdings(accounts_root: Path | None = None) -> N
                 continue
 
             logger.info(
-                "Injecting %d synthetic transaction(s) for %s/%s", len(adjustments), owner_dir.name, stem
+                "Injecting %d synthetic transaction(s) for %s/%s",
+                len(adjustments),
+                sanitise_log_value(owner_dir.name),
+                sanitise_log_value(stem),
             )
 
             transactions.extend(adjustments)
@@ -183,5 +190,4 @@ def reconcile_transactions_with_holdings(accounts_root: Path | None = None) -> N
             try:
                 tx_path.write_text(json.dumps(tx_data, indent=2) + "\n")
             except OSError as exc:
-                logger.warning("Failed to update %s: %s", tx_path, exc)
-
+                logger.warning("Failed to update %s: %s", sanitise_log_value(tx_path), sanitise_log_value(exc))

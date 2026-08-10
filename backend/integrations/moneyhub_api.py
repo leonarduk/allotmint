@@ -20,7 +20,7 @@ import requests
 
 from backend.common.url_validator import validate_external_url
 
-log = logging.getLogger("integrations.moneyhub")
+logger = logging.getLogger(__name__)
 
 
 class MoneyhubAPIError(Exception):

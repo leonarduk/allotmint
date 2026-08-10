@@ -27,7 +27,7 @@ from backend.timeseries.quality import (
 )
 
 router = APIRouter(prefix="/data-quality", tags=["data-quality"])
-logger = logging.getLogger("routes.data_quality")
+logger = logging.getLogger(__name__)
 
 # Same allowlist shape as backend/routes/timeseries_meta.py — bounds
 # user-supplied ticker/exchange segments before they reach a cache file path.

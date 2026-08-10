@@ -39,7 +39,7 @@ def test_notify_slack_failure_logs_warning(monkeypatch, caplog):
 
     monkeypatch.setattr(cph.requests, "post", boom)
 
-    with caplog.at_level(logging.WARNING, logger="check_portfolio_health"):
+    with caplog.at_level(logging.WARNING, logger="scripts.check_portfolio_health"):
         cph.notify_slack("fail please")
 
     assert any("Failed to send Slack notification" in record.message for record in caplog.records)
@@ -89,7 +89,7 @@ def test_main_logs_warning_and_info(monkeypatch, caplog):
 
     monkeypatch.setattr(cph, "run_check", lambda threshold: findings)
 
-    with caplog.at_level(logging.INFO, logger="check_portfolio_health"):
+    with caplog.at_level(logging.INFO, logger="scripts.check_portfolio_health"):
         cph.main()
 
     assert [record.levelname for record in caplog.records] == ["WARNING", "INFO"]

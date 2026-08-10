@@ -4,13 +4,14 @@ import csv
 import logging
 import os
 from datetime import datetime, timedelta, timezone
-from typing import Dict, Any, List
+from typing import Any, Dict, List
 
 from backend.common.alerts import publish_alert
-from backend.common.portfolio import load_trades, _local_trades_path
+from backend.common.portfolio import _local_trades_path, load_trades
 from backend.integrations.broker_api import AlpacaAPI
+from backend.logging_setup import sanitise_log_value
 
-log = logging.getLogger("tasks.trades")
+logger = logging.getLogger(__name__)
 
 
 def persist_trades(owner: str, trades: List[Dict[str, Any]]) -> int:
@@ -75,4 +76,4 @@ def lambda_handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any]:
 if __name__ == "__main__":  # pragma: no cover
     # Manual execution for local testing
     result = lambda_handler({}, None)
-    log.info("Imported %s trades", result.get("count"))
+    logger.info("Imported %s trades", sanitise_log_value(result.get("count")))

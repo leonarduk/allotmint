@@ -27,11 +27,12 @@ from backend.common.instruments import get_instrument_meta
 from backend.common.ticker_utils import normalise_filter_ticker
 from backend.config import config
 from backend.integrations.moneyhub_api import MoneyhubClient, MoneyhubNotConfiguredError
+from backend.logging_setup import sanitise_log_value
 from backend.routes._accounts import resolve_accounts_root
 from backend.utils import update_holdings_from_csv
 
 router = APIRouter(tags=["transactions"])
-log = logging.getLogger("transactions")
+logger = logging.getLogger(__name__)
 
 # resolve_writable_store() has always lived in this module (never in
 # data_loader.py); this flag dedupes its missing-DATA_BUCKET warning to
@@ -56,7 +57,7 @@ def check_moneyhub_configured() -> None:
     built lazily by ``_get_moneyhub_client()`` on first real use.
     """
     if not _moneyhub_configured() and not os.getenv("TESTING"):
-        log.warning(
+        logger.warning(
             "MONEYHUB_CLIENT_ID and/or MONEYHUB_CLIENT_SECRET not set; "
             "Moneyhub live-API transaction import will be unavailable"
         )
@@ -208,9 +209,9 @@ def resolve_writable_store(
         if bucket:
             return S3AccountsStore(bucket=bucket), _RootResolution.WRITABLE
         if not _warned_missing_data_bucket:
-            log.warning(
+            logger.warning(
                 "%s is not set; falling back to local accounts store.",
-                data_loader.DATA_BUCKET_ENV,
+                sanitise_log_value(data_loader.DATA_BUCKET_ENV),
             )
             _warned_missing_data_bucket = True
     root, kind = _resolve_local_root(request)
@@ -386,7 +387,7 @@ def _instrument_name_from_entry(entry: Mapping[str, Any]) -> str | None:
     except ValueError:
         return None
     except Exception:  # pragma: no cover - unexpected lookup failure
-        log.debug("Failed to load instrument metadata for ticker %s", ticker)
+        logger.debug("Failed to load instrument metadata for ticker %s", sanitise_log_value(ticker))
         return None
 
     for key in ("name", "instrument_name", "display_name"):
@@ -990,11 +991,17 @@ async def reconcile_holdings(
     """
     owner = _validate_component(owner, "owner")
     account = _normalise_account_file_name(_validate_component(account, "account"))
+    logger.debug("Reconciling holdings for %s/%s", sanitise_log_value(owner), sanitise_log_value(account))
+
     store, _ = resolve_writable_store(request)
+
     document = store.read_document(owner, f"{account}.json") or {}
     raw_holdings = document.get("holdings")
     stored_holdings = raw_holdings if isinstance(raw_holdings, list) else []
     data = await file.read()
+
+    logger.info("Parsing holdings file: %s", sanitise_log_value(file.filename or ""))
+
     try:
         diff = update_holdings_from_csv.reconcile_from_csv(provider, data, stored_holdings)
     except importers.UnknownProvider as exc:

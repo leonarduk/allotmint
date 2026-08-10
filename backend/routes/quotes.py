@@ -23,7 +23,7 @@ yf = lazy_import("yfinance")
 
 
 router = APIRouter(prefix="/api")
-logger = logging.getLogger("routes.quotes")
+logger = logging.getLogger(__name__)
 
 
 @router.get("/quotes")

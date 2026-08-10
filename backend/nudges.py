@@ -24,7 +24,7 @@ from backend.common.storage import get_storage
 from backend.config import config
 from backend.utils.telegram_utils import redact_token, send_message
 
-logger = logging.getLogger("nudges")
+logger = logging.getLogger(__name__)
 
 _DEFAULT_FREQ_DAYS = 7
 # Allowed reminder frequency range (in days)

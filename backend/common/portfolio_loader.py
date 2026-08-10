@@ -29,7 +29,7 @@ from backend.common.path_utils import safe_join
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
 
-log = logging.getLogger("portfolio_loader")
+logger = logging.getLogger(__name__)
 
 
 # ────────────────────────────────────────────────────────────────
@@ -43,9 +43,9 @@ def _load_accounts_for_owner(owner: str, acct_names: list[str]) -> list[dict]:
             acct = load_account(owner, name)
             accounts.append(acct)
         except FileNotFoundError:
-            log.warning("Account file missing: %s/%s.json", sanitise_log_value(owner), sanitise_log_value(name))
+            logger.warning("Account file missing: %s/%s.json", sanitise_log_value(owner), sanitise_log_value(name))
         except (OSError, ValueError, json.JSONDecodeError) as exc:
-            log.warning(
+            logger.warning(
                 "Failed to parse %s/%s.json -> %s",
                 sanitise_log_value(owner),
                 sanitise_log_value(name),
@@ -142,7 +142,7 @@ def rebuild_account_holdings(
             break
 
     if not tx_path:
-        log.error(
+        logger.error(
             "Transaction file missing: %s",
             sanitise_log_value(owner_dir / f"{account}_transactions.json"),
         )
@@ -151,11 +151,15 @@ def rebuild_account_holdings(
     try:
         tx_data = json.loads(tx_path.read_text())
     except (OSError, json.JSONDecodeError) as exc:
-        log.error("Failed to read %s: %s", sanitise_log_value(tx_path), sanitise_log_value(exc))
+        logger.error("Failed to read %s: %s", sanitise_log_value(tx_path), sanitise_log_value(exc))
         return {}
 
     if not isinstance(tx_data, dict):
-        log.error("Malformed transaction file %s: expected object, got %s", sanitise_log_value(tx_path), type(tx_data).__name__)
+        logger.error(
+            "Malformed transaction file %s: expected object, got %s",
+            sanitise_log_value(tx_path),
+            sanitise_log_value(type(tx_data).__name__),
+        )
         return {}
 
     out = compute_holdings_from_transactions(tx_data, owner, account)
@@ -163,12 +167,12 @@ def rebuild_account_holdings(
     try:
         acct_path = safe_join(owner_dir, f"{account.lower()}.json")
     except ValueError:
-        log.error("Invalid account name: path traversal blocked")
+        logger.error("Invalid account name: path traversal blocked")
         return out
     try:
         acct_path.write_text(json.dumps(out, indent=2))
     except OSError as exc:
-        log.error("Failed to write holdings to %s: %s", acct_path, exc)
+        logger.error("Failed to write holdings to %s: %s", sanitise_log_value(acct_path), sanitise_log_value(exc))
     return out
 
 
@@ -233,7 +237,7 @@ def compute_holdings_from_transactions(
             try:
                 qty = float(raw) if isinstance(raw, (int, float, str)) else 0.0
             except (TypeError, ValueError):
-                log.warning("Skipping unparseable quantity for ticker=%s raw=%r", sanitise_log_value(ticker), raw)
+                logger.warning("Skipping unparseable quantity for ticker=%s raw=%r", sanitise_log_value(ticker), raw)
                 continue
             if abs(qty) > 1_000_000:  # detect PP's 1e8 scaling
                 qty /= SHARE_SCALE
@@ -246,14 +250,16 @@ def compute_holdings_from_transactions(
                     if not acquisition.get(ticker) or d_raw > acquisition[ticker]:
                         acquisition[ticker] = d_raw
                 elif d_raw:
-                    log.warning("Skipping non-ISO date for ticker=%s date=%r", sanitise_log_value(ticker), d_raw)
+                    logger.warning("Skipping non-ISO date for ticker=%s date=%r", sanitise_log_value(ticker), d_raw)
 
         elif ttype in CASH_SIGNS:
             amount_minor = t.get("amount_minor")
             try:
                 amt = float(amount_minor) if isinstance(amount_minor, (int, float, str)) else 0.0
             except (TypeError, ValueError):
-                log.warning("Skipping unparseable amount_minor for ttype=%s raw=%r", ttype, amount_minor)
+                logger.warning(
+                    "Skipping unparseable amount_minor for ttype=%s raw=%r", sanitise_log_value(ttype), amount_minor
+                )
                 continue
             ledger["CASH.GBP"] += (amt / 100.0) * CASH_SIGNS[ttype]
 

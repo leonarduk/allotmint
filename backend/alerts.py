@@ -32,7 +32,7 @@ from backend.common.storage import get_storage
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
 
-logger = logging.getLogger("alerts")
+logger = logging.getLogger(__name__)
 
 # Storage locations for thresholds and push subscriptions.  URIs may point to
 # ``file://`` paths, ``s3://`` objects or ``ssm://`` parameters.
@@ -69,12 +69,12 @@ def _s3_client():
     try:  # pragma: no cover - optional dependency
         import boto3  # type: ignore
     except Exception:
-        logging.getLogger("alerts").error("boto3 not installed; S3 unavailable")
+        logger.error("boto3 not installed; S3 unavailable")
         return None
     try:
         return boto3.client("s3")
     except Exception:  # pragma: no cover - client creation failure
-        logging.getLogger("alerts").exception("Failed to create S3 client")
+        logger.exception("Failed to create S3 client")
         return None
 
 
@@ -220,7 +220,7 @@ def _save_settings() -> None:
                 _USER_THRESHOLDS.update(_parse_thresholds(current))
                 return
             except Exception:
-                logging.getLogger("alerts").exception("Failed to persist alert thresholds to S3")
+                logger.exception("Failed to persist alert thresholds to S3")
     try:
         _SETTINGS_STORAGE.save(_USER_THRESHOLDS)
     except Exception as exc:  # pragma: no cover - storage backend failures
@@ -249,7 +249,7 @@ def _save_subscriptions() -> None:
                 _PUSH_SUBSCRIPTIONS.update(current)
                 return
             except Exception:
-                logging.getLogger("alerts").exception("Failed to persist push subscriptions to S3")
+                logger.exception("Failed to persist push subscriptions to S3")
     try:
         _SUBSCRIPTIONS_STORAGE.save(_PUSH_SUBSCRIPTIONS)
     except Exception as exc:  # pragma: no cover - storage backend failures

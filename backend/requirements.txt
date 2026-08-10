@@ -56,7 +56,7 @@ frozendict~=2.4.7
 google-auth-httplib2~=0.4.0
 google-auth-oauthlib~=1.4.0
 jmespath~=1.1.0
-jsonschema~=4.23.0
+jsonschema~=4.26.0
 multitasking~=0.0.13
 pillow>=12.3.0,<13.0  # transitive dep of reportlab~=5.0.0 (image support); already pulled into the Lambda build regardless
 platformdirs~=4.11.0

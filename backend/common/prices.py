@@ -298,7 +298,7 @@ def refresh_prices() -> Dict:
                     "Uploaded price snapshot to s3://%s/%s", _s3_bucket, PRICES_S3_KEY
                 )
             except Exception as exc:
-                logger.warning("Failed to upload price snapshot to S3: %s", exc)
+                logger.warning("Failed to upload price snapshot to S3: %s", sanitise_log_value(exc))
         else:
             logger.warning("DATA_BUCKET not set; skipping S3 upload of price snapshot")
 

@@ -256,7 +256,7 @@ def _load_snapshot() -> tuple[Dict[str, Dict], datetime | None]:
                         "Failed to fetch price snapshot %s from bucket %s: %s; falling back to local file",
                         PRICES_S3_KEY,
                         bucket,
-                        exc,
+                        sanitise_log_value(exc),
                     )
                 s3_failed = True
             except (BotoCoreError, json.JSONDecodeError) as exc:
@@ -264,13 +264,13 @@ def _load_snapshot() -> tuple[Dict[str, Dict], datetime | None]:
                     "Failed to fetch price snapshot %s from bucket %s: %s; falling back to local file",
                     PRICES_S3_KEY,
                     bucket,
-                    exc,
+                    sanitise_log_value(exc),
                 )
                 s3_failed = True
             except ImportError as exc:
                 logger.warning(
                     "boto3 not available for S3 price snapshot: %s; falling back to local file",
-                    exc,
+                    sanitise_log_value(exc),
                 )
                 s3_failed = True
 
@@ -309,7 +309,7 @@ def _load_snapshot() -> tuple[Dict[str, Dict], datetime | None]:
         ts = datetime.fromtimestamp(_PRICES_PATH.stat().st_mtime)
         return data, ts
     except (OSError, json.JSONDecodeError) as exc:
-        logger.error("Failed to parse snapshot %s: %s", _PRICES_PATH, exc)
+        logger.error("Failed to parse snapshot %s: %s", _PRICES_PATH, sanitise_log_value(exc))
         return {}, None
 
 
@@ -2016,7 +2016,7 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
         else:
             logger.info("Skipping price snapshot write — no timeseries data found")
     except OSError as e:
-        logger.warning("Failed to write latest_prices.json: %s", e)
+        logger.warning("Failed to write latest_prices.json: %s", sanitise_log_value(e))
 
     logger.info("Refreshed %d price entries", len(snapshot))
 

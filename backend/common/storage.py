@@ -26,6 +26,8 @@ from urllib.parse import urlparse
 
 from botocore.exceptions import BotoCoreError, ClientError
 
+from backend.logging_setup import sanitise_log_value
+
 logger = logging.getLogger(__name__)
 
 
@@ -49,7 +51,7 @@ class FileJSONStorage:
         try:
             return json.loads(self.path.read_text())
         except (OSError, json.JSONDecodeError) as exc:
-            logger.warning("Failed to read %s: %s", self.path, exc)
+            logger.warning("Failed to read %s: %s", self.path, sanitise_log_value(exc))
             return {}
 
     def save(self, data: Dict[str, Any]) -> None:
@@ -75,7 +77,7 @@ class S3JSONStorage:
             obj = self._client().get_object(Bucket=self.bucket, Key=self.key)
             return json.loads(obj["Body"].read())
         except (ClientError, BotoCoreError, json.JSONDecodeError) as exc:
-            logger.warning("S3 load failed for %s/%s: %s", self.bucket, self.key, exc)
+            logger.warning("S3 load failed for %s/%s: %s", self.bucket, self.key, sanitise_log_value(exc))
             return {}
 
     def save(self, data: Dict[str, Any]) -> None:
@@ -109,7 +111,7 @@ class ParameterStoreJSONStorage:
             resp = self._client().get_parameter(Name=self.name, WithDecryption=True)
             return json.loads(resp["Parameter"]["Value"])
         except (ClientError, BotoCoreError, json.JSONDecodeError) as exc:
-            logger.warning("Parameter Store load failed for %s: %s", self.name, exc)
+            logger.warning("Parameter Store load failed for %s: %s", self.name, sanitise_log_value(exc))
             return {}
 
     def save(self, data: Dict[str, Any]) -> None:

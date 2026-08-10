@@ -79,7 +79,7 @@ def list_group_definitions() -> Dict[str, Dict[str, Any]]:
         except FileNotFoundError:
             continue
         except Exception as exc:  # pragma: no cover - logged for visibility
-            logger.warning("Failed to load group definition %s: %s", path, exc)
+            logger.warning("Failed to load group definition %s: %s", path, sanitise_log_value(exc))
             continue
 
         if not isinstance(payload, dict):

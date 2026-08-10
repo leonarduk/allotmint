@@ -22,6 +22,7 @@ from backend.common.portfolio_loader import list_portfolios
 from backend.common.portfolio_utils import aggregate_by_ticker
 from backend.common.storage import get_storage
 from backend.config import config
+from backend.logging_setup import sanitise_log_value
 from backend.utils.telegram_utils import redact_token, send_message
 
 logger = logging.getLogger(__name__)
@@ -41,7 +42,7 @@ _DEFAULT_SUBSCRIPTIONS_URI = (
 try:
     _SUBSCRIPTION_STORAGE = get_storage(os.getenv("NUDGE_SUBSCRIPTIONS_URI", _DEFAULT_SUBSCRIPTIONS_URI))
 except Exception as exc:  # pragma: no cover - configuration errors
-    logger.error("Failed to initialise nudge storage: %s", exc)
+    logger.error("Failed to initialise nudge storage: %s", sanitise_log_value(exc))
     _SUBSCRIPTION_STORAGE = get_storage(_DEFAULT_SUBSCRIPTIONS_URI)
 
 # in-memory cache of subscription prefs
@@ -58,7 +59,7 @@ def _load_state() -> None:
     try:
         data = _SUBSCRIPTION_STORAGE.load()
     except Exception as exc:  # pragma: no cover - storage backend failures
-        logger.warning("Failed to load nudge storage: %s", exc)
+        logger.warning("Failed to load nudge storage: %s", sanitise_log_value(exc))
         return
     if not isinstance(data, dict):
         return
@@ -81,7 +82,7 @@ def _save_state() -> None:
             }
         )
     except Exception as exc:  # pragma: no cover - storage backend failures
-        logger.error("Failed to save nudge storage: %s", exc)
+        logger.error("Failed to save nudge storage: %s", sanitise_log_value(exc))
 
 
 def set_user_nudge(user: str, frequency: int, snooze_until: Optional[str] = None) -> None:
@@ -171,7 +172,7 @@ def send_due_nudges() -> None:
             try:
                 send_message(message)
             except Exception as exc:  # pragma: no cover - network errors are rare
-                logger.warning("Telegram send failed: %s", redact_token(str(exc)))
+                logger.warning("Telegram send failed: %s", sanitise_log_value(redact_token(str(exc))))
         _RECENT_NUDGES.append({"id": user, "message": message, "timestamp": now.isoformat()})
         _SUBSCRIPTIONS[user]["last_sent"] = now.isoformat()
     if _RECENT_NUDGES:

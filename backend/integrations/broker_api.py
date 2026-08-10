@@ -67,7 +67,7 @@ class AlpacaAPI:
             resp.raise_for_status()
             data = resp.json()
         except Exception as exc:  # pragma: no cover - network failure
-            log.warning("Alpaca trade fetch failed: %s", exc)
+            logger.warning("Alpaca trade fetch failed: %s", exc)
             return []
 
         trades: List[Dict[str, str]] = []

@@ -646,7 +646,7 @@ async def portfolio_group(slug: str, as_of: str | None = None):
         pricing_date = _resolve_pricing_date(as_of)
         return _build_group_portfolio(slug, pricing_date)
     except Exception as e:
-        log.warning("Failed to load group %s: %s", sanitise_log_value(slug), sanitise_log_value(e))
+        logger.warning("Failed to load group %s: %s", sanitise_log_value(slug), sanitise_log_value(e))
         raise HTTPException(status_code=404, detail="Group not found")
 
 
@@ -817,7 +817,7 @@ async def group_movers(
     try:
         summaries = instrument_api.instrument_summaries_for_group(slug)
     except Exception as e:
-        log.warning(
+        logger.warning(
             "Failed to load instrument summaries for group %s: %s",
             sanitise_log_value(slug),
             sanitise_log_value(e),
@@ -851,7 +851,7 @@ async def get_account(owner: str, account: str, request: Request):
     try:
         data = data_loader.load_account_record(owner, account, root).model_dump(exclude_unset=True)
     except data_loader.ProviderUnavailable as exc:
-        log.warning(
+        logger.warning(
             "portfolio.account_provider_unavailable",
             extra={
                 "event": "portfolio.account_provider_unavailable",
@@ -862,7 +862,7 @@ async def get_account(owner: str, account: str, request: Request):
         )
         raise HTTPException(status_code=503, detail="Account data provider unavailable") from exc
     except data_loader.InvalidPayload as exc:
-        log.warning(
+        logger.warning(
             "portfolio.account_invalid_payload",
             extra={
                 "event": "portfolio.account_invalid_payload",
@@ -964,7 +964,7 @@ async def instrument_detail(
 
 
 async def _do_refresh_prices() -> dict:
-    log.info("Refreshing prices via /prices/refresh")
+    logger.info("Refreshing prices via /prices/refresh")
     result = await asyncio.to_thread(prices.refresh_prices)
     return {"status": "ok", **result}
 

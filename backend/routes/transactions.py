@@ -56,7 +56,7 @@ def check_moneyhub_configured() -> None:
     built lazily by ``_get_moneyhub_client()`` on first real use.
     """
     if not _moneyhub_configured() and not os.getenv("TESTING"):
-        log.warning(
+        logger.warning(
             "MONEYHUB_CLIENT_ID and/or MONEYHUB_CLIENT_SECRET not set; "
             "Moneyhub live-API transaction import will be unavailable"
         )
@@ -208,7 +208,7 @@ def resolve_writable_store(
         if bucket:
             return S3AccountsStore(bucket=bucket), _RootResolution.WRITABLE
         if not _warned_missing_data_bucket:
-            log.warning(
+            logger.warning(
                 "%s is not set; falling back to local accounts store.",
                 data_loader.DATA_BUCKET_ENV,
             )
@@ -386,7 +386,7 @@ def _instrument_name_from_entry(entry: Mapping[str, Any]) -> str | None:
     except ValueError:
         return None
     except Exception:  # pragma: no cover - unexpected lookup failure
-        log.debug("Failed to load instrument metadata for ticker %s", ticker)
+        logger.debug("Failed to load instrument metadata for ticker %s", ticker)
         return None
 
     for key in ("name", "instrument_name", "display_name"):

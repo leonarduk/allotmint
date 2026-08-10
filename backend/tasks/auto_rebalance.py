@@ -19,7 +19,7 @@ async def run_once() -> None:
             actual = {"goal": current, "cash": max(g.target_amount - current, 0.0)}
             trades = suggest_trades(actual, {"goal": 1.0})
             if trades:
-                log.info("Suggested trades for %s/%s: %s", user, g.name, trades)
+                logger.info("Suggested trades for %s/%s: %s", user, g.name, trades)
 
 
 def lambda_handler(_event: Dict[str, Any], _context: Any) -> Dict[str, str]:

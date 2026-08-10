@@ -86,7 +86,9 @@ async def test_list_group_labels_merges_trimmed_metadata(monkeypatch: pytest.Mon
     assert labels == sorted(["Alpha", "Beta", "Gamma"], key=str.casefold)
 
 
-async def test_create_group_handles_duplicates_and_validation(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_create_group_handles_duplicates_and_validation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     store = _GroupStore(["Alpha"])
     monkeypatch.setattr(instrument_admin.instrument_groups, "load_groups", store.load_groups)
     monkeypatch.setattr(instrument_admin.instrument_groups, "add_group", store.add_group)
@@ -142,7 +144,12 @@ async def test_update_instrument_errors_and_merges(
     path_states[("AAA", "NYSE")] = True
 
     def load_meta(exchange: str, ticker: str) -> dict[str, Any]:
-        return {"ticker": f"{ticker}.{exchange}", "exchange": exchange, "name": "Existing", "meta": "keep"}
+        return {
+            "ticker": f"{ticker}.{exchange}",
+            "exchange": exchange,
+            "name": "Existing",
+            "meta": "keep",
+        }
 
     monkeypatch.setattr(instrument_admin, "_load_meta_for_update", load_meta)
 
@@ -180,11 +187,15 @@ async def test_refresh_instrument_offline_guard(
     def original_fetch(_: str) -> dict[str, Any]:  # pragma: no cover - guard prevents execution
         raise AssertionError("should not fetch when offline")
 
-    def fail_load(*_: Any, **__: Any) -> dict[str, Any]:  # pragma: no cover - guard prevents execution
+    def fail_load(
+        *_: Any, **__: Any
+    ) -> dict[str, Any]:  # pragma: no cover - guard prevents execution
         raise AssertionError("should not load metadata when offline")
 
     monkeypatch.setattr(instrument_admin, "_ORIGINAL_FETCH_METADATA", original_fetch, raising=False)
-    monkeypatch.setattr(instrument_admin, "_fetch_metadata_from_yahoo", original_fetch, raising=False)
+    monkeypatch.setattr(
+        instrument_admin, "_fetch_metadata_from_yahoo", original_fetch, raising=False
+    )
     monkeypatch.setattr(instrument_admin, "_load_meta_for_update", fail_load)
     monkeypatch.setattr(instrument_admin.config, "offline_mode", True)
 
@@ -339,3 +350,20 @@ async def test_clear_group_persists_then_skips_when_absent(
     result_second = await instrument_admin.clear_group("NYSE", "EEE")
     assert result_second == {"status": "cleared"}
     assert len(save_calls["saved"]) == first_save_count
+
+
+async def test_resolve_instrument_returns_persisted_ticker(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(instrument_admin, "resolve_instrument_ticker", lambda ticker: f"{ticker}.N")
+
+    assert await instrument_admin.resolve_instrument("msft") == {
+        "status": "resolved",
+        "ticker": "MSFT.N",
+    }
+
+
+async def test_resolve_instrument_flags_sedol_for_manual_mapping() -> None:
+    assert await instrument_admin.resolve_instrument("BMNR1F3") == {
+        "status": "manual_mapping_required",
+        "ticker": "BMNR1F3",
+        "reason": "sedol",
+    }

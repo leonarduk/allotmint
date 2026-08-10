@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, List, Mapping
 
 from backend import importers
+from backend.common.instruments import find_known_instrument_ticker, is_sedol
 from backend.common.path_utils import safe_join
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
@@ -34,6 +35,15 @@ def _normalise_ticker(ticker: object, provider: str) -> str:
     if value in {"CASH", "GBP", "CASH GBP", "CASH.GBP"}:
         return "CASH.GBP"
     if provider.lower() == "hargreaves" and value and "." not in value:
+        if is_sedol(value):
+            logger.warning(
+                "Holding code %s is a SEDOL and needs manual instrument mapping",
+                sanitise_log_value(value),
+            )
+            return value
+        known_ticker = find_known_instrument_ticker(value)
+        if known_ticker:
+            return known_ticker
         return f"{value}.L"
     return value
 
@@ -46,7 +56,9 @@ def _number(value: object) -> float:
 
 def _normalise_holding(holding: Mapping[str, object], provider: str) -> dict[str, float | str]:
     units = _number(holding.get("units"))
-    price = _number(holding.get("current_price_gbp", holding.get("price_gbp", holding.get("price"))))
+    price = _number(
+        holding.get("current_price_gbp", holding.get("price_gbp", holding.get("price")))
+    )
     explicit_value = holding.get("value_gbp", holding.get("market_value_gbp"))
     value = _number(explicit_value) if explicit_value is not None else units * price
     ticker = _normalise_ticker(holding.get("ticker"), provider)
@@ -55,7 +67,9 @@ def _normalise_holding(holding: Mapping[str, object], provider: str) -> dict[str
     return {"ticker": ticker, "units": units, "value_gbp": value}
 
 
-def _index_holdings(holdings: List[Mapping[str, object]], provider: str) -> dict[str, dict[str, float | str]]:
+def _index_holdings(
+    holdings: List[Mapping[str, object]], provider: str
+) -> dict[str, dict[str, float | str]]:
     indexed: dict[str, dict[str, float | str]] = {}
     for raw in holdings:
         normalised = _normalise_holding(raw, provider)
@@ -124,7 +138,9 @@ def reconcile_from_csv(
     }
 
 
-def _aggregate_for_storage(raw_holdings: List[Mapping[str, object]], provider: str) -> List[dict[str, object]]:
+def _aggregate_for_storage(
+    raw_holdings: List[Mapping[str, object]], provider: str
+) -> List[dict[str, object]]:
     """Collapse per-row parsed holdings into one entry per ticker.
 
     Reuses :func:`_index_holdings` (the same aggregation reconcile relies on)
@@ -139,7 +155,9 @@ def _aggregate_for_storage(raw_holdings: List[Mapping[str, object]], provider: s
         ticker = _normalise_ticker(raw.get("ticker"), provider)
         if ticker not in indexed:
             continue
-        cost_basis_gbp[ticker] = cost_basis_gbp.get(ticker, 0.0) + _number(raw.get("cost_basis_gbp"))
+        cost_basis_gbp[ticker] = cost_basis_gbp.get(ticker, 0.0) + _number(
+            raw.get("cost_basis_gbp")
+        )
 
     return [
         {
@@ -183,7 +201,9 @@ def update_from_csv(
         try:
             loaded = json.loads(acct_path.read_text())
         except (OSError, json.JSONDecodeError):
-            logger.warning("Failed to read existing holdings at %s; overwriting", sanitise_log_value(acct_path))
+            logger.warning(
+                "Failed to read existing holdings at %s; overwriting", sanitise_log_value(acct_path)
+            )
         else:
             if isinstance(loaded, dict):
                 existing = loaded

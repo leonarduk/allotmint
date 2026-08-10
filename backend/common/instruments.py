@@ -33,11 +33,17 @@ def _resolve_instruments_dir() -> Path:
 
     fallback_dir = Path(__file__).resolve().parents[2] / "data" / "instruments"
     if fallback_dir.is_dir():
-        logger.debug("Configured instruments directory %s missing; falling back to %s", configured_dir, fallback_dir)
+        logger.debug(
+            "Configured instruments directory %s missing; falling back to %s",
+            configured_dir,
+            fallback_dir,
+        )
         return fallback_dir
 
     logger.warning(
-        "Configured instruments directory %s missing and fallback %s not found", configured_dir, fallback_dir
+        "Configured instruments directory %s missing and fallback %s not found",
+        configured_dir,
+        fallback_dir,
     )
     return configured_dir
 
@@ -58,6 +64,10 @@ METADATA_BUCKET_ENV = "METADATA_BUCKET"
 METADATA_PREFIX_ENV = "METADATA_PREFIX"
 
 _AUTO_CREATE_FAILURES: set[str] = set()
+
+# Keep the canonical exchange names used by the bundled instrument catalogue.
+# ``N`` represents Yahoo symbols that do not need a market suffix.
+RESOLUTION_EXCHANGES = ("L", "N", "DE", "TO", "AX", "F")
 
 
 @lru_cache(maxsize=1)
@@ -195,13 +205,17 @@ def get_instrument_meta(ticker: str) -> Dict[str, Any]:
         # route — that callers must invoke deliberately, not on every read.
         return {}
     except json.JSONDecodeError as exc:
-        logger.warning("Invalid instrument JSON %s: %s", sanitise_log_value(path), sanitise_log_value(exc))
+        logger.warning(
+            "Invalid instrument JSON %s: %s", sanitise_log_value(path), sanitise_log_value(exc)
+        )
         return {}
     except ValueError:
         logger.warning("Invalid ticker format: %s", sanitise_log_value(ticker))
         return {}
     except Exception:
-        logger.exception("Unexpected error loading instrument metadata for %s", sanitise_log_value(ticker))
+        logger.exception(
+            "Unexpected error loading instrument metadata for %s", sanitise_log_value(ticker)
+        )
         raise
 
 
@@ -389,7 +403,11 @@ def _fetch_metadata_from_yahoo(symbol: str, exchange: str) -> Optional[Dict[str,
         if isinstance(fetched, dict):
             info = fetched
     except Exception as exc:  # pragma: no cover - best effort fallback
-        logger.debug("yfinance get_info failed for %s: %s", sanitise_log_value(full_ticker), sanitise_log_value(exc))
+        logger.debug(
+            "yfinance get_info failed for %s: %s",
+            sanitise_log_value(full_ticker),
+            sanitise_log_value(exc),
+        )
         try:
             fetched_attr = getattr(stock, "info", None)
             if isinstance(fetched_attr, dict):
@@ -402,7 +420,11 @@ def _fetch_metadata_from_yahoo(symbol: str, exchange: str) -> Optional[Dict[str,
             )
 
     name = _clean_str(
-        info.get("shortName") or info.get("longName") or info.get("displayName") or info.get("name") or full_ticker,
+        info.get("shortName")
+        or info.get("longName")
+        or info.get("displayName")
+        or info.get("name")
+        or full_ticker,
     )
 
     currency = _clean_str(info.get("currency"), upper=True)
@@ -483,9 +505,74 @@ def _auto_create_instrument_meta(ticker: str) -> Optional[Dict[str, Any]]:
             sanitise_log_value(exc),
         )
     else:
-        logger.info("Auto-created instrument metadata for %s from Yahoo Finance", sanitise_log_value(full))
+        logger.info(
+            "Auto-created instrument metadata for %s from Yahoo Finance", sanitise_log_value(full)
+        )
 
     return payload
+
+
+def _has_informative_metadata(meta: Dict[str, Any]) -> bool:
+    """Return whether metadata contains more than identity/placeholder fields."""
+
+    informative_keys = {key for key, value in meta.items() if value not in (None, "")}
+    return not informative_keys <= {"ticker", "exchange", "name"}
+
+
+def find_known_instrument_ticker(
+    symbol: str, exchanges: tuple[str, ...] = RESOLUTION_EXCHANGES
+) -> Optional[str]:
+    """Return the first already-catalogued market ticker for a bare symbol.
+
+    This helper performs disk/S3 reads only.  It is therefore safe on the CSV
+    import path and lets an explicit resolution performed once benefit all
+    subsequent imports without adding network latency.
+    """
+
+    canonical = (symbol or "").strip().upper()
+    if not canonical or "." in canonical:
+        return canonical or None
+    for exchange in exchanges:
+        candidate = f"{canonical}.{exchange}"
+        if _has_informative_metadata(get_instrument_meta(candidate)):
+            return candidate
+    return None
+
+
+def is_sedol(value: str) -> bool:
+    """Return whether ``value`` has the shape and checksum of a SEDOL code."""
+
+    canonical = (value or "").strip().upper()
+    if not re.fullmatch(r"[0-9B-DF-HJ-NP-TV-Z]{7}", canonical):
+        return False
+    weights = (1, 3, 1, 7, 3, 9, 1)
+    values = (int(char) if char.isdigit() else ord(char) - ord("A") + 10 for char in canonical)
+    return sum(value * weight for value, weight in zip(values, weights)) % 10 == 0
+
+
+def resolve_instrument_ticker(
+    symbol: str, exchanges: tuple[str, ...] = RESOLUTION_EXCHANGES
+) -> Optional[str]:
+    """Explicitly resolve and persist a bare symbol's exchange via Yahoo.
+
+    Existing informative metadata wins in exchange-priority order.  Missing
+    candidates are fetched deliberately through the existing guarded
+    auto-create path.  SEDOL identifiers are not equity tickers and are left
+    for manual mapping to an appropriate fund data source.
+    """
+
+    canonical = (symbol or "").strip().upper()
+    if not canonical or "." in canonical or is_sedol(canonical):
+        return None
+    known = find_known_instrument_ticker(canonical, exchanges)
+    if known:
+        return known
+    for exchange in exchanges:
+        candidate = f"{canonical}.{exchange}"
+        created = _auto_create_instrument_meta(candidate)
+        if created and _has_informative_metadata(created):
+            return candidate
+    return None
 
 
 def delete_instrument_meta(ticker: str, exchange: str) -> None:

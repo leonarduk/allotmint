@@ -9,7 +9,9 @@ from backend.config import config
 from backend.importers import hargreaves
 from backend.utils import update_holdings_from_csv
 
-SAMPLE_CSV = "Code,Stock,Units held,Price (pence),Cost (£)\n" "AAA,Alpha,10,150,15\n" "BBB,Beta,5,200,10\n"
+SAMPLE_CSV = (
+    "Code,Stock,Units held,Price (pence),Cost (£)\n" "AAA,Alpha,10,150,15\n" "BBB,Beta,5,200,10\n"
+)
 
 
 def test_hargreaves_parse():
@@ -53,10 +55,28 @@ def test_update_holdings_from_csv(tmp_path: Path, monkeypatch):
     assert Path(result["path"]).resolve() == acct_file.resolve()
 
 
+def test_hargreaves_import_reuses_resolved_foreign_ticker(monkeypatch):
+    monkeypatch.setattr(
+        update_holdings_from_csv,
+        "find_known_instrument_ticker",
+        lambda ticker: "MSFT.N" if ticker == "MSFT" else None,
+    )
+
+    assert update_holdings_from_csv._normalise_ticker("msft", "hargreaves") == "MSFT.N"
+
+
+def test_hargreaves_import_does_not_force_sedol_onto_lse():
+    assert update_holdings_from_csv._normalise_ticker("BMNR1F3", "hargreaves") == "BMNR1F3"
+
+
 def test_update_holdings_from_csv_aggregates_duplicate_ticker_rows(tmp_path: Path, monkeypatch):
     """Two CSV rows for the same ticker must collapse into one holding (#6264)."""
     monkeypatch.setattr(config, "accounts_root", tmp_path)
-    csv_data = "Code,Stock,Units held,Price (pence),Cost (£)\n" "AAA,Alpha,10,150,15\n" "AAA,Alpha,5,150,7.5\n"
+    csv_data = (
+        "Code,Stock,Units held,Price (pence),Cost (£)\n"
+        "AAA,Alpha,10,150,15\n"
+        "AAA,Alpha,5,150,7.5\n"
+    )
     update_holdings_from_csv.update_from_csv(
         owner="alice", account="isa", provider="hargreaves", data=csv_data.encode()
     )
@@ -175,7 +195,9 @@ def test_holdings_reconcile_hargreaves_is_read_only(client: TestClient, tmp_path
     body = response.json()
     assert body["added"] == [{"ticker": "NEW.L", "units": 5.0, "value_gbp": 10.0}]
     assert body["removed"] == [{"ticker": "OLD.L", "units": 2.0, "value_gbp": 6.0}]
-    assert body["quantity_changed"] == [{"ticker": "AAA.L", "stored_units": 8.0, "imported_units": 10.0, "delta": 2.0}]
+    assert body["quantity_changed"] == [
+        {"ticker": "AAA.L", "stored_units": 8.0, "imported_units": 10.0, "delta": 2.0}
+    ]
     assert body["value_changed"] == [
         {"ticker": "AAA.L", "stored_value_gbp": 11.2, "imported_value_gbp": 15.0, "delta_gbp": 3.8}
     ]

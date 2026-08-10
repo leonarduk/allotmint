@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
-from backend.config import config
+
 from backend.common import instrument_groups
 from backend.common.instruments import (
     _ORIGINAL_FETCH_METADATA,
@@ -14,10 +14,13 @@ from backend.common.instruments import (
     delete_instrument_meta,
     get_instrument_meta,
     instrument_meta_path,
+    is_sedol,
     list_group_definitions,
-    save_instrument_meta,
     list_instruments,
+    resolve_instrument_ticker,
+    save_instrument_meta,
 )
+from backend.config import config
 
 router = APIRouter(
     prefix="/instrument",
@@ -67,12 +70,31 @@ async def create_group(body: dict[str, Any]) -> dict[str, Any]:
     status = "exists" if existed else "created"
     return {"status": status, "group": canonical, "groups": groups}
 
+
+@router.post("/admin/resolve/{ticker}")
+async def resolve_instrument(ticker: str) -> dict[str, str]:
+    """Resolve a bare broker symbol and persist its discovered metadata."""
+
+    canonical = ticker.strip().upper()
+    if is_sedol(canonical):
+        return {"status": "manual_mapping_required", "ticker": canonical, "reason": "sedol"}
+    try:
+        resolved = resolve_instrument_ticker(canonical)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not resolved:
+        raise HTTPException(status_code=404, detail="No supported exchange resolved this ticker")
+    return {"status": "resolved", "ticker": resolved}
+
+
 @router.get("/admin/groupings")
 async def list_instrument_groupings() -> list[dict[str, Any]]:
     """Return shared instrument grouping definitions."""
 
     catalogue = list_group_definitions()
-    return sorted((dict(entry) for entry in catalogue.values()), key=lambda item: item.get("id", ""))
+    return sorted(
+        (dict(entry) for entry in catalogue.values()), key=lambda item: item.get("id", "")
+    )
 
 
 @router.get("/admin/{exchange}/{ticker}")
@@ -160,10 +182,7 @@ async def refresh_instrument(
     if not exists:
         raise HTTPException(status_code=404, detail="Instrument not found")
 
-    if (
-        config.offline_mode
-        and _fetch_metadata_from_yahoo is _ORIGINAL_FETCH_METADATA
-    ):
+    if config.offline_mode and _fetch_metadata_from_yahoo is _ORIGINAL_FETCH_METADATA:
         raise HTTPException(status_code=503, detail="Metadata refresh disabled in offline mode")
 
     preview = True
@@ -283,4 +302,3 @@ async def clear_group(exchange: str, ticker: str) -> dict[str, Any]:
     if changed:
         save_instrument_meta(ticker, exchange, meta)
     return {"status": "cleared"}
-

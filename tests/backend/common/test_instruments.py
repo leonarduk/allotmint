@@ -39,7 +39,9 @@ def test_instrument_path_generates_expected_locations(monkeypatch, tmp_path) -> 
 
 
 @pytest.mark.parametrize("ticker", ["BP.", "AV.", "SN.", "bp."])
-def test_instrument_path_treats_trailing_dot_as_no_exchange(monkeypatch, tmp_path, ticker: str) -> None:
+def test_instrument_path_treats_trailing_dot_as_no_exchange(
+    monkeypatch, tmp_path, ticker: str
+) -> None:
     """Real LSE tickers like "BP." split into an empty (not None) exchange
     part; that must resolve the same as the bare symbol, not raise (#6266).
     """
@@ -122,7 +124,9 @@ def test_get_instrument_meta_falls_back_to_local_on_s3_error(monkeypatch, tmp_pa
     assert "falling back to local file" in caplog.text
 
 
-def test_save_instrument_meta_writes_uploads_and_clears_cache(monkeypatch, tmp_path, caplog) -> None:
+def test_save_instrument_meta_writes_uploads_and_clears_cache(
+    monkeypatch, tmp_path, caplog
+) -> None:
     monkeypatch.setattr(instruments, "_INSTRUMENTS_DIR", tmp_path)
     monkeypatch.setenv(instruments.METADATA_BUCKET_ENV, "bucket")
     monkeypatch.setenv(instruments.METADATA_PREFIX_ENV, "prefix")
@@ -396,7 +400,9 @@ def test_fetch_metadata_from_yahoo_builds_normalized_payload(monkeypatch) -> Non
 
 
 @pytest.mark.parametrize("fast_info_kind", ["object", "dict"])
-def test_fetch_metadata_from_yahoo_falls_back_to_info_and_fast_info(monkeypatch, fast_info_kind: str) -> None:
+def test_fetch_metadata_from_yahoo_falls_back_to_info_and_fast_info(
+    monkeypatch, fast_info_kind: str
+) -> None:
     def build_fast_info():
         if fast_info_kind == "object":
             return SimpleNamespace(currency="usd")
@@ -468,11 +474,55 @@ def test_auto_create_instrument_meta_merges_payload(monkeypatch, tmp_path) -> No
     assert saved == [("ZZZ", "L", expected)]
 
 
+def test_resolve_instrument_ticker_tries_london_then_us(monkeypatch) -> None:
+    monkeypatch.setattr(instruments, "get_instrument_meta", lambda _ticker: {})
+    attempted: list[str] = []
+
+    def fake_create(ticker: str):
+        attempted.append(ticker)
+        if ticker == "MSFT.N":
+            return {"ticker": ticker, "exchange": "N", "currency": "USD"}
+        return None
+
+    monkeypatch.setattr(instruments, "_auto_create_instrument_meta", fake_create)
+
+    assert instruments.resolve_instrument_ticker("msft", ("L", "N")) == "MSFT.N"
+    assert attempted == ["MSFT.L", "MSFT.N"]
+
+
+def test_resolve_instrument_ticker_reuses_metadata_without_fetch(monkeypatch) -> None:
+    monkeypatch.setattr(
+        instruments,
+        "get_instrument_meta",
+        lambda ticker: {"ticker": ticker, "currency": "USD"} if ticker == "PFE.N" else {},
+    )
+    monkeypatch.setattr(
+        instruments,
+        "_auto_create_instrument_meta",
+        lambda _ticker: (_ for _ in ()).throw(AssertionError("must not fetch")),
+    )
+
+    assert instruments.resolve_instrument_ticker("PFE", ("L", "N")) == "PFE.N"
+
+
+def test_sedol_is_not_resolved_as_equity(monkeypatch) -> None:
+    monkeypatch.setattr(
+        instruments,
+        "_auto_create_instrument_meta",
+        lambda _ticker: (_ for _ in ()).throw(AssertionError("must not fetch")),
+    )
+
+    assert instruments.is_sedol("BMNR1F3") is True
+    assert instruments.resolve_instrument_ticker("BMNR1F3") is None
+
+
 def test_auto_create_respects_offline_and_failure_cache(monkeypatch) -> None:
     monkeypatch.delenv("TESTING", raising=False)
     monkeypatch.setattr(instruments, "_AUTO_CREATE_FAILURES", set())
     monkeypatch.setattr(instruments.config, "offline_mode", True)
-    monkeypatch.setattr(instruments, "_fetch_metadata_from_yahoo", instruments._ORIGINAL_FETCH_METADATA)
+    monkeypatch.setattr(
+        instruments, "_fetch_metadata_from_yahoo", instruments._ORIGINAL_FETCH_METADATA
+    )
 
     assert instruments._auto_create_instrument_meta("YYY.L") is None
 

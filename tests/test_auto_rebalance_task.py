@@ -32,9 +32,7 @@ def test_lambda_handler_suggests_trades(monkeypatch, caplog):
         result = auto.lambda_handler({}, None)
 
     assert result == {"status": "ok"}
-    assert any(
-        "Suggested trades for alice/vacation" in rec.message for rec in caplog.records
-    )
+    assert any("Suggested 1 trade(s) for alice/vacation" in rec.message for rec in caplog.records)
 
 
 def test_schedule_runs_once(monkeypatch):

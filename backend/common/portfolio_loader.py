@@ -155,7 +155,11 @@ def rebuild_account_holdings(
         return {}
 
     if not isinstance(tx_data, dict):
-        logger.error("Malformed transaction file %s: expected object, got %s", sanitise_log_value(tx_path), type(tx_data).__name__)
+        logger.error(
+            "Malformed transaction file %s: expected object, got %s",
+            sanitise_log_value(tx_path),
+            sanitise_log_value(type(tx_data).__name__),
+        )
         return {}
 
     out = compute_holdings_from_transactions(tx_data, owner, account)
@@ -168,7 +172,7 @@ def rebuild_account_holdings(
     try:
         acct_path.write_text(json.dumps(out, indent=2))
     except OSError as exc:
-        logger.error("Failed to write holdings to %s: %s", acct_path, exc)
+        logger.error("Failed to write holdings to %s: %s", sanitise_log_value(acct_path), sanitise_log_value(exc))
     return out
 
 
@@ -253,7 +257,9 @@ def compute_holdings_from_transactions(
             try:
                 amt = float(amount_minor) if isinstance(amount_minor, (int, float, str)) else 0.0
             except (TypeError, ValueError):
-                logger.warning("Skipping unparseable amount_minor for ttype=%s raw=%r", ttype, amount_minor)
+                logger.warning(
+                    "Skipping unparseable amount_minor for ttype=%s raw=%r", sanitise_log_value(ttype), amount_minor
+                )
                 continue
             ledger["CASH.GBP"] += (amt / 100.0) * CASH_SIGNS[ttype]
 

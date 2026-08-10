@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from importlib import import_module
-from typing import Dict, List, Callable, TYPE_CHECKING
-
 import logging
+from importlib import import_module
+from typing import TYPE_CHECKING, Callable, Dict, List
+
+from backend.logging_setup import sanitise_log_value
+
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
@@ -38,10 +40,10 @@ def parse(provider: str, data: bytes) -> List[Transaction]:
     """
     module_path = _IMPORTER_PATHS.get(provider.lower())
     if not module_path:
-        logger.warning(f"no module path for provider {provider}")
+        logger.warning("no module path for provider %s", sanitise_log_value(provider))
         raise UnknownProvider(provider)
 
-    logger.info(f"importing {provider} from {module_path}")
+    logger.info("importing %s from %s", sanitise_log_value(provider), sanitise_log_value(module_path))
 
     module: Callable[[bytes], List[Transaction]] = import_module(module_path)
     return module.parse(data)  # type: ignore[attr-defined]

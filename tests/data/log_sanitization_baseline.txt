@@ -62,6 +62,13 @@ backend/common/instruments.py:496
 backend/common/instruments.py:525
 backend/common/portfolio.py:81
 backend/common/portfolio.py:115
+# raw/d_raw/amount_minor are logged with %r (repr), which already escapes
+# real newlines as the literal two-character sequence \n -- wrapping in
+# sanitise_log_value would call str() first and lose the type info (int vs
+# str vs None) these warnings exist to show.
+backend/common/portfolio_loader.py:240
+backend/common/portfolio_loader.py:253
+backend/common/portfolio_loader.py:260
 backend/common/portfolio_utils.py:217
 backend/common/portfolio_utils.py:234
 backend/common/portfolio_utils.py:247
@@ -98,12 +105,9 @@ backend/common/signup_requests.py:378
 backend/common/storage.py:52
 backend/common/storage.py:78
 backend/common/storage.py:112
-backend/common/transaction_reconciliation.py:39
-backend/common/transaction_reconciliation.py:44
-backend/common/transaction_reconciliation.py:66
-backend/common/transaction_reconciliation.py:134
-backend/common/transaction_reconciliation.py:176
-backend/common/transaction_reconciliation.py:186
+# len(adjustments) is always an int (a count of synthetic transactions just
+# built in this function) and can't carry attacker-controlled string content.
+backend/common/transaction_reconciliation.py:180
 backend/config.py:276
 backend/config.py:279
 backend/lambda_api/dividend_refresh.py:27

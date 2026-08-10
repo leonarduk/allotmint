@@ -16,6 +16,7 @@ from typing import Dict, List, Protocol
 import requests
 
 from backend.common.url_validator import validate_external_url
+from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +68,7 @@ class AlpacaAPI:
             resp.raise_for_status()
             data = resp.json()
         except Exception as exc:  # pragma: no cover - network failure
-            logger.warning("Alpaca trade fetch failed: %s", exc)
+            logger.warning("Alpaca trade fetch failed: %s", sanitise_log_value(exc))
             return []
 
         trades: List[Dict[str, str]] = []

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import date
 from pathlib import Path
 from typing import Any, List, Mapping
@@ -11,13 +12,9 @@ from backend import importers
 from backend.common import portfolio_loader
 from backend.common.path_utils import safe_join
 from backend.config import config
+from backend.logging_setup import sanitise_log_value
 
-import logging
 logger = logging.getLogger(__name__)
-
-def _sanitize_for_log(value: object) -> str:
-    """Return a single-line, log-safe string representation of ``value``."""
-    return "".join(ch for ch in str(value) if ch >= " " and ch != "\x7f")
 
 
 def _to_holding(tx: Any) -> dict[str, object]:
@@ -78,7 +75,7 @@ def reconcile_from_csv(
     stored_holdings: List[Mapping[str, object]],
 ) -> dict[str, object]:
     """Compare a broker export with stored holdings without modifying either."""
-    logger.info("reconcile from csv - Provider %s", _sanitize_for_log(provider))
+    logger.info("reconcile from csv - Provider %s", sanitise_log_value(provider))
 
     transactions: List[Any] = importers.parse(provider, data)
     imported = _index_holdings([_to_holding(tx) for tx in transactions if tx.ticker], provider)

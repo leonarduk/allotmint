@@ -12,14 +12,17 @@ Implementation note: sanitise_log_value(value) calls str(value) before the
 replace() calls, so it is safe for any type including pathlib.Path, Exception,
 None, and numeric types.  Tests below verify this explicitly.
 
-Logger names used in caplog.at_level() calls match the explicit string names
-passed to logging.getLogger() in each module (not __name__):
-  alphavantage_timeseries  → fetch_alphavantage_timeseries.py
-  meta_timeseries          → fetch_meta_timeseries.py
-  portfolio_loader         → portfolio_loader.py
-  routes.portfolio         → routes/portfolio.py
-  portfolio_utils          → portfolio_utils.py
-  data_loader              → data_loader.py (logger = logging.getLogger(__name__))
+Logger names used in caplog.at_level() calls match logging.getLogger(__name__)
+in each module -- i.e. the module's dotted import path:
+  backend.timeseries.fetch_alphavantage_timeseries  → fetch_alphavantage_timeseries.py
+  backend.timeseries.fetch_meta_timeseries          → fetch_meta_timeseries.py
+  backend.common.portfolio_loader                   → portfolio_loader.py
+  backend.routes.portfolio                          → routes/portfolio.py
+  data_loader                                        → data_loader.py (logger = logging.getLogger(__name__))
+
+All of the above were standardised from ad hoc explicit string names (e.g.
+"alphavantage_timeseries") to __name__ as part of issue #6236; the
+caplog.at_level() targets below were updated to match.
 """
 
 import logging
@@ -128,7 +131,7 @@ def test_alphavantage_skipped_ticker_log_no_injection(caplog):
     malicious_ticker = "VOD\nINJECTED"
     malicious_exchange = "L\nFAKE"
 
-    with caplog.at_level(logging.DEBUG, logger="alphavantage_timeseries"):
+    with caplog.at_level(logging.DEBUG, logger="backend.timeseries.fetch_alphavantage_timeseries"):
         with patch(
             "backend.timeseries.fetch_alphavantage_timeseries.is_valid_ticker",
             return_value=False,
@@ -160,7 +163,7 @@ def test_meta_timeseries_invalid_ticker_pattern_log_no_injection(caplog):
     # The newline makes the ticker fail _TICKER_RE, so the "looks invalid" warning fires.
     malicious_ticker = "TICK\nINJECT"
 
-    with caplog.at_level(logging.WARNING, logger="meta_timeseries"):
+    with caplog.at_level(logging.WARNING, logger="backend.timeseries.fetch_meta_timeseries"):
         import pandas as pd
 
         from backend.timeseries.fetch_meta_timeseries import fetch_meta_timeseries
@@ -204,7 +207,7 @@ def test_portfolio_loader_missing_tx_file_no_injection(caplog, tmp_path):
 
     malicious_account = "savings\nINJECT"
 
-    with caplog.at_level(logging.ERROR, logger="portfolio_loader"):
+    with caplog.at_level(logging.ERROR, logger="backend.common.portfolio_loader"):
         owner_dir = tmp_path / "owner"
         owner_dir.mkdir()
         result = rebuild_account_holdings("owner", malicious_account, accounts_root=tmp_path)
@@ -252,7 +255,7 @@ def test_get_account_provider_unavailable_no_log_injection(caplog, monkeypatch, 
     client = _portfolio_test_client(tmp_path)
 
     # %0A is the URL-encoded form of '\n'; FastAPI decodes it before the handler sees it.
-    with caplog.at_level(logging.WARNING, logger="routes.portfolio"):
+    with caplog.at_level(logging.WARNING, logger="backend.routes.portfolio"):
         resp = client.get("/account/alice%0AINJECT/isa%0AINJECT")
 
     assert resp.status_code == 503
@@ -278,7 +281,7 @@ def test_get_account_invalid_payload_no_log_injection(caplog, monkeypatch, tmp_p
 
     client = _portfolio_test_client(tmp_path)
 
-    with caplog.at_level(logging.WARNING, logger="routes.portfolio"):
+    with caplog.at_level(logging.WARNING, logger="backend.routes.portfolio"):
         resp = client.get("/account/bob%0AINJECT/sipp%0AINJECT")
 
     assert resp.status_code == 502
@@ -347,7 +350,7 @@ def test_portfolio_utils_ticker_log_no_injection(caplog):
     are discarded while rebuilding the portfolio series.  Verify that injected
     newlines in a ticker string do not reach the log.
 
-    The logger name is 'portfolio_utils' (explicit string, not __name__).
+    The logger name is 'backend.common.portfolio_utils' (logging.getLogger(__name__)).
     """
     from backend.logging_setup import sanitise_log_value
 
@@ -355,8 +358,8 @@ def test_portfolio_utils_ticker_log_no_injection(caplog):
     malicious_exchange = "L\nFAKE"
 
     # Simulate the log call made in _rebuild_portfolio_series_from_timeseries.
-    logger = logging.getLogger("portfolio_utils")
-    with caplog.at_level(logging.WARNING, logger="portfolio_utils"):
+    logger = logging.getLogger("backend.common.portfolio_utils")
+    with caplog.at_level(logging.WARNING, logger="backend.common.portfolio_utils"):
         logger.warning(
             "Discarding %d non-numeric closes for %s.%s while rebuilding portfolio series",
             3,

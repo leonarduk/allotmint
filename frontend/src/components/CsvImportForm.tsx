@@ -1,4 +1,10 @@
-import { useId, useState, type ChangeEvent, type FormEvent } from 'react';
+import {
+  useId,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+} from 'react';
 import {
   importHoldingsCsv,
   reconcileHoldingsCsv,
@@ -138,10 +144,29 @@ export function CsvImportForm({ owner, accountTypes, onImported }: Props) {
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
   const formId = useId();
+  // Bumped whenever account/provider/file change so a reconcile/import
+  // response that resolves after the inputs moved on can detect it's stale
+  // and avoid overwriting the newer selection with an old preview.
+  const requestIdRef = useRef(0);
+
+  const invalidatePreview = () => {
+    requestIdRef.current += 1;
+    setStatus({ kind: 'idle' });
+  };
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     setFile(e.target.files?.[0] ?? null);
-    setStatus({ kind: 'idle' });
+    invalidatePreview();
+  };
+
+  const handleAccountChange = (e: ChangeEvent<HTMLSelectElement>) => {
+    setAccount(e.target.value);
+    invalidatePreview();
+  };
+
+  const handleProviderChange = (e: ChangeEvent<HTMLSelectElement>) => {
+    setProvider(e.target.value);
+    invalidatePreview();
   };
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -150,6 +175,8 @@ export function CsvImportForm({ owner, accountTypes, onImported }: Props) {
     const action = (e.nativeEvent as SubmitEvent).submitter?.getAttribute(
       'value'
     );
+    const requestId = ++requestIdRef.current;
+    const isStale = () => requestIdRef.current !== requestId;
 
     if (action === 'reconcile') {
       setStatus({ kind: 'submitting', action: 'reconcile' });
@@ -160,8 +187,10 @@ export function CsvImportForm({ owner, accountTypes, onImported }: Props) {
           provider,
           file
         );
+        if (isStale()) return;
         setStatus({ kind: 'reconciled', result });
       } catch (err) {
+        if (isStale()) return;
         setStatus({ kind: 'error', message: extractErrorMessage(err) });
       }
       return;
@@ -170,10 +199,15 @@ export function CsvImportForm({ owner, accountTypes, onImported }: Props) {
     setStatus({ kind: 'submitting', action: 'import' });
     try {
       const result = await importHoldingsCsv(owner, account, provider, file);
+      // The write already happened on the backend, so the parent must
+      // refresh regardless of whether this request is still current —
+      // only the local status/file reset below is conditional on that.
+      onImported?.();
+      if (isStale()) return;
       setStatus({ kind: 'imported', path: result.path });
       setFile(null);
-      onImported?.();
     } catch (err) {
+      if (isStale()) return;
       setStatus({ kind: 'error', message: extractErrorMessage(err) });
     }
   };
@@ -197,7 +231,7 @@ export function CsvImportForm({ owner, accountTypes, onImported }: Props) {
           <select
             id={`${formId}-account`}
             value={account}
-            onChange={(e) => setAccount(e.target.value)}
+            onChange={handleAccountChange}
             className="rounded border border-gray-700 bg-gray-800 p-1 text-white"
           >
             {accountTypes.map((type) => (
@@ -217,7 +251,7 @@ export function CsvImportForm({ owner, accountTypes, onImported }: Props) {
           <select
             id={`${formId}-provider`}
             value={provider}
-            onChange={(e) => setProvider(e.target.value)}
+            onChange={handleProviderChange}
             className="rounded border border-gray-700 bg-gray-800 p-1 text-white"
           >
             <option value="">Select provider…</option>

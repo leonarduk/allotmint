@@ -1,8 +1,12 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { CsvImportForm } from '@/components/CsvImportForm';
-import { importHoldingsCsv, reconcileHoldingsCsv } from '@/api';
+import {
+  importHoldingsCsv,
+  reconcileHoldingsCsv,
+  type ReconcileHoldingsCsvResponse,
+} from '@/api';
 
 vi.mock('@/api', () => ({
   importHoldingsCsv: vi.fn(),
@@ -75,6 +79,62 @@ describe('CsvImportForm', () => {
     expect(preview).toHaveTextContent('OLD.L');
     expect(preview).toHaveTextContent('AAA.L');
     expect(preview).toHaveTextContent('£100.00 → £110.00 (+£10.00)');
+  });
+
+  it('clears a completed preview when the account changes', async () => {
+    vi.mocked(reconcileHoldingsCsv).mockResolvedValue({
+      added: [{ ticker: 'NEW.L', units: 5, value_gbp: 10 }],
+      removed: [],
+      quantity_changed: [],
+      value_changed: [],
+      cash_balance: { stored_gbp: 0, imported_gbp: 0, delta_gbp: 0 },
+    });
+
+    render(<CsvImportForm owner="alice" accountTypes={['ISA', 'SIPP']} />);
+    await userEvent.selectOptions(screen.getByLabelText('Provider'), 'degiro');
+    await userEvent.upload(screen.getByLabelText('CSV file'), csvFile);
+    await userEvent.click(screen.getByRole('button', { name: /Reconcile/ }));
+    await screen.findByRole('status', { name: 'Reconciliation preview' });
+
+    await userEvent.selectOptions(screen.getByLabelText('Account'), 'SIPP');
+
+    expect(
+      screen.queryByRole('status', { name: 'Reconciliation preview' })
+    ).not.toBeInTheDocument();
+  });
+
+  it('ignores a reconcile response that resolves after the account changed', async () => {
+    let resolveReconcile:
+      | ((value: ReconcileHoldingsCsvResponse) => void)
+      | undefined;
+    vi.mocked(reconcileHoldingsCsv).mockReturnValue(
+      new Promise((resolve) => {
+        resolveReconcile = resolve;
+      })
+    );
+
+    render(<CsvImportForm owner="alice" accountTypes={['ISA', 'SIPP']} />);
+    await userEvent.selectOptions(screen.getByLabelText('Provider'), 'degiro');
+    await userEvent.upload(screen.getByLabelText('CSV file'), csvFile);
+    await userEvent.click(screen.getByRole('button', { name: /Reconcile/ }));
+
+    // The account changes while the reconcile request for "ISA" is still in flight.
+    await userEvent.selectOptions(screen.getByLabelText('Account'), 'SIPP');
+
+    await act(async () => {
+      resolveReconcile?.({
+        added: [{ ticker: 'STALE.L', units: 1, value_gbp: 1 }],
+        removed: [],
+        quantity_changed: [],
+        value_changed: [],
+        cash_balance: { stored_gbp: 0, imported_gbp: 0, delta_gbp: 0 },
+      });
+      await Promise.resolve();
+    });
+
+    expect(
+      screen.queryByRole('status', { name: 'Reconciliation preview' })
+    ).not.toBeInTheDocument();
   });
 
   it('submits the selected account, provider and file as multipart data', async () => {

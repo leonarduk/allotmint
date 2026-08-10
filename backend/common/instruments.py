@@ -59,6 +59,11 @@ METADATA_PREFIX_ENV = "METADATA_PREFIX"
 
 _AUTO_CREATE_FAILURES: set[str] = set()
 
+# Ordered from the market most commonly used by Hargreaves Lansdown exports to
+# progressively less common foreign markets.  ``US`` deliberately represents
+# Yahoo's suffix-less NASDAQ/NYSE symbols.
+TICKER_RESOLUTION_EXCHANGES = ("L", "US", "DE", "TO", "PARIS", "ASX", "F")
+
 
 @lru_cache(maxsize=1)
 def list_group_definitions() -> Dict[str, Dict[str, Any]]:
@@ -486,6 +491,44 @@ def _auto_create_instrument_meta(ticker: str) -> Optional[Dict[str, Any]]:
         logger.info("Auto-created instrument metadata for %s from Yahoo Finance", sanitise_log_value(full))
 
     return payload
+
+
+def _has_informative_metadata(metadata: Dict[str, Any]) -> bool:
+    """Return whether metadata contains more than identity placeholders."""
+    informative_keys = {key for key, value in metadata.items() if value not in (None, "")}
+    return not informative_keys <= {"ticker", "exchange", "name"}
+
+
+def resolve_instrument_ticker(
+    ticker: str,
+    *,
+    exchanges: tuple[str, ...] = TICKER_RESOLUTION_EXCHANGES,
+    create_missing: bool = False,
+) -> Optional[str]:
+    """Resolve a bare symbol to a persisted, informative instrument ticker.
+
+    Existing metadata is checked before any live lookup, making this safe for
+    the CSV import path.  A deliberate reconciliation/backfill operation can
+    set ``create_missing`` to try Yahoo in exchange-priority order; successful
+    metadata is persisted by :func:`_auto_create_instrument_meta`.
+    """
+    symbol = (ticker or "").strip().upper().split(".", 1)[0]
+    if not symbol or symbol == "CASH":
+        return None
+
+    candidates = tuple(f"{symbol}.{exchange.upper()}" for exchange in exchanges)
+    for candidate in candidates:
+        if _has_informative_metadata(get_instrument_meta(candidate)):
+            return candidate
+
+    if not create_missing:
+        return None
+
+    for candidate in candidates:
+        metadata = _auto_create_instrument_meta(candidate)
+        if metadata and _has_informative_metadata(metadata):
+            return candidate
+    return None
 
 
 def delete_instrument_meta(ticker: str, exchange: str) -> None:

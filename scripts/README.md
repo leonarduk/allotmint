@@ -259,3 +259,15 @@ python scripts/reconcile_drawdown.py --group family --ticker VUSA.L --ticker MSF
 
 Price series for each holding is written to `TICKER.EXCHANGE.csv` and `.json`
 in the current directory for manual inspection.
+
+## reconcile_holding_tickers.py
+
+Resolve bare Hargreaves Lansdown holdings against persisted instrument metadata
+and, when permitted by the runtime configuration, Yahoo Finance. The command is
+a dry run unless `--write` is supplied. Unresolvable identifiers (including UK
+fund SEDOLs) are printed as needing a manual mapping instead of being rewritten.
+
+```bash
+python -m scripts.reconcile_holding_tickers data/accounts/alice/isa.json
+python -m scripts.reconcile_holding_tickers --write data/accounts/alice/isa.json
+```

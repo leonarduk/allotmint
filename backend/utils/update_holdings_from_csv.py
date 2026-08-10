@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, List, Mapping
 
 from backend import importers
+from backend.common.instruments import resolve_instrument_ticker
 from backend.common.path_utils import safe_join
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
@@ -34,7 +35,10 @@ def _normalise_ticker(ticker: object, provider: str) -> str:
     if value in {"CASH", "GBP", "CASH GBP", "CASH.GBP"}:
         return "CASH.GBP"
     if provider.lower() == "hargreaves" and value and "." not in value:
-        return f"{value}.L"
+        # Resolution is metadata-only here: importing a CSV must never block on
+        # one network call per holding.  The explicit ticker reconciliation
+        # command persists discoveries, so subsequent imports use them freely.
+        return resolve_instrument_ticker(value) or f"{value}.L"
     return value
 
 

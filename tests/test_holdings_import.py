@@ -53,6 +53,17 @@ def test_update_holdings_from_csv(tmp_path: Path, monkeypatch):
     assert Path(result["path"]).resolve() == acct_file.resolve()
 
 
+def test_hargreaves_import_uses_persisted_foreign_ticker(monkeypatch):
+    monkeypatch.setattr(
+        update_holdings_from_csv,
+        "resolve_instrument_ticker",
+        lambda ticker: "MSFT.US" if ticker == "MSFT" else None,
+    )
+
+    assert update_holdings_from_csv._normalise_ticker("MSFT", "hargreaves") == "MSFT.US"
+    assert update_holdings_from_csv._normalise_ticker("3IN", "hargreaves") == "3IN.L"
+
+
 def test_update_holdings_from_csv_aggregates_duplicate_ticker_rows(tmp_path: Path, monkeypatch):
     """Two CSV rows for the same ticker must collapse into one holding (#6264)."""
     monkeypatch.setattr(config, "accounts_root", tmp_path)

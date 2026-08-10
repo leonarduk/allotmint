@@ -14,7 +14,6 @@ from backend.config import config
 
 import logging
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.DEBUG)
 
 def _to_holding(tx: Any) -> dict[str, object]:
     cost = (tx.amount_minor or 0.0) / 100.0 if tx.amount_minor is not None else 0.0

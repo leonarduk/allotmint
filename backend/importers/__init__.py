@@ -7,7 +7,6 @@ from typing import Dict, List, Callable, TYPE_CHECKING
 
 import logging
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.DEBUG)
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from backend.routes.transactions import Transaction

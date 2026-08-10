@@ -14,8 +14,6 @@ from backend.config import config
 
 logger = logging.getLogger(__name__)
 
-logging.basicConfig(level=logging.DEBUG)
-
 _METADATA_STEMS = {"person", "config", "notes"}
 _TYPE_SIGN = {
     "BUY": 1.0,

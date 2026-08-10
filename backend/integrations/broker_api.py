@@ -17,7 +17,6 @@ import requests
 
 from backend.common.url_validator import validate_external_url
 
-logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 

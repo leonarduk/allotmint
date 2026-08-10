@@ -9,7 +9,6 @@ import logging
 
 from backend.routes.transactions import Transaction
 
-logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 def _to_float(value: str | None) -> float | None:

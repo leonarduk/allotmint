@@ -32,7 +32,6 @@ from backend.utils import update_holdings_from_csv
 
 router = APIRouter(tags=["transactions"])
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.DEBUG)
 
 # resolve_writable_store() has always lived in this module (never in
 # data_loader.py); this flag dedupes its missing-DATA_BUCKET warning to

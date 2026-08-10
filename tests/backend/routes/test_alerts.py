@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, List
@@ -71,7 +72,9 @@ async def test_validate_owner_updates_request_state(monkeypatch: pytest.MonkeyPa
 
 
 @pytest.mark.anyio("asyncio")
-async def test_validate_owner_missing_everywhere(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_validate_owner_missing_everywhere(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
     active_root = Path("/data/active")
     fallback_root = Path("/data/fallback")
     request = _make_request(active_root)
@@ -82,11 +85,14 @@ async def test_validate_owner_missing_everywhere(monkeypatch: pytest.MonkeyPatch
         fallback_succeeds=False,
     )
 
-    with pytest.raises(OwnerNotFoundError) as excinfo:
-        alerts._validate_owner("demo", request)
+    with caplog.at_level(logging.WARNING, logger="backend.common.errors"):
+        with pytest.raises(OwnerNotFoundError) as excinfo:
+            alerts._validate_owner("demo", request)
 
     assert excinfo.value.status_code == 404
     assert excinfo.value.detail == OWNER_NOT_FOUND
+    assert excinfo.value.extra == {"owner": "demo"}
+    assert "owner lookup: no owner found for owner=demo" in caplog.text
     assert call_roots == [active_root, fallback_root]
 
 

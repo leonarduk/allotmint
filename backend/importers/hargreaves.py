@@ -85,7 +85,7 @@ def add_position(amount_minor: float | None,
     )
 
 
-def skip_non_datatable_rows(text: str) -> tuple[str, int]:
+def skip_non_datatable_rows(text: str) -> tuple[str, float]:
     """
     Hargreaves Lansdown files have a pre-amble and footer we want to ignore.
     """
@@ -95,10 +95,14 @@ def skip_non_datatable_rows(text: str) -> tuple[str, int]:
 
     ignore = True
     data = []
-    cash = 0
+    cash = 0.0
     for line in lines:
         if "Total cash:" in line:
-            cash += _to_float(line.strip().replace("Total cash:", "").replace('"',"").replace(",",""))
+            import re
+            total = _to_float(re.sub(r'[^\d.]', '', line.strip()
+                                     .replace("Total cash:", "")))
+            if total:
+                cash += total
 
         if not line:
             ignore = True

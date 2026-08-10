@@ -131,7 +131,7 @@ def _load_settings() -> None:
         if s3:
             try:
                 obj = s3.get_object(Bucket=bucket, Key=_THRESHOLDS_KEY)
-                data = json.loads(obj["Body"].read().decode(encoding="utf-8", errors="replace"))
+                data = json.loads(obj["Body"].read().decode())
                 if isinstance(data, dict):
                     _USER_THRESHOLDS = _parse_thresholds(data)
                 _SETTINGS_LOADED = True
@@ -173,7 +173,7 @@ def _load_subscriptions() -> None:
         if s3:
             try:
                 obj = s3.get_object(Bucket=bucket, Key=_SUBSCRIPTIONS_KEY)
-                data = json.loads(obj["Body"].read().decode(encoding="utf-8", errors="replace"))
+                data = json.loads(obj["Body"].read().decode())
                 if isinstance(data, dict):
                     _PUSH_SUBSCRIPTIONS = _parse_subscriptions(data)
                 _SUBSCRIPTIONS_LOADED = True
@@ -208,7 +208,7 @@ def _save_settings() -> None:
             try:
                 try:
                     obj = s3.get_object(Bucket=bucket, Key=_THRESHOLDS_KEY)
-                    current = json.loads(obj["Body"].read().decode(encoding="utf-8", errors="replace"))
+                    current = json.loads(obj["Body"].read().decode())
                 except Exception:
                     current = {}
                 current.update(_USER_THRESHOLDS)
@@ -237,7 +237,7 @@ def _save_subscriptions() -> None:
             try:
                 try:
                     obj = s3.get_object(Bucket=bucket, Key=_SUBSCRIPTIONS_KEY)
-                    current = json.loads(obj["Body"].read().decode(encoding="utf-8", errors="replace"))
+                    current = json.loads(obj["Body"].read().decode())
                 except Exception:
                     current = {}
                 current.update(_PUSH_SUBSCRIPTIONS)

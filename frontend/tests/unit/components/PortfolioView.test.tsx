@@ -33,45 +33,62 @@ describe("PortfolioView", () => {
                 currency: "GBP",
                 value_estimate_gbp: 0,
                 last_updated: "2025-07-24",
-                holdings: [],
+                holdings: [
+                    { ticker: "SHARED", name: "ISA holding", units: 1, market_value_gbp: 10 },
+                ],
             },
             {
                 account_type: "SIPP",
                 currency: "GBP",
                 value_estimate_gbp: 14925,
                 last_updated: "2025-07-15",
-                holdings: [],
+                holdings: [
+                    { ticker: "SHARED", name: "SIPP holding", units: 2, market_value_gbp: 20 },
+                ],
             },
         ],
     };
 
-    it("renders account blocks", () => {
+    it("renders one tabbed holdings view and identifies source accounts", () => {
         render(<PortfolioView data={mockOwner}/>);
 
-        // Match headings like "ISA (GBP)"
-        const isaBlock = screen.getByText((_, el) => {
-            if (!el) return false;
-            const isHeading = el.tagName.toLowerCase() === "h2";
-            const startsWithIsa = el.textContent?.trim().startsWith("ISA") ?? false;
-            return isHeading && startsWithIsa;
-        });
-
-        expect(isaBlock).toBeInTheDocument();
-
-        expect(screen.getByText(/SIPP.*GBP/)).toBeInTheDocument();
-
+        expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+            "All accounts",
+            "ISA",
+            "SIPP",
+        ]);
+        expect(screen.getByRole("columnheader", { name: "Account" })).toBeInTheDocument();
+        expect(screen.getAllByText("SHARED")).toHaveLength(2);
+        expect(screen.getByText("ISA holding")).toBeInTheDocument();
+        expect(screen.getByText("SIPP holding")).toBeInTheDocument();
     });
 
-    it("updates total when accounts are toggled", () => {
+    it("updates holdings and total when the active account tab changes", () => {
         render(<PortfolioView data={mockOwner}/>);
 
         const total = screen.getByText(/Approx Total:/);
         expect(total).toHaveTextContent("£14,925.00");
 
-        const sippCheckbox = screen.getByRole("checkbox", {name: /sipp/i});
-        fireEvent.click(sippCheckbox);
+        fireEvent.click(screen.getByRole("tab", { name: "ISA" }));
 
         expect(total).toHaveTextContent("£0.00");
+        expect(screen.getByText("ISA holding")).toBeInTheDocument();
+        expect(screen.queryByText("SIPP holding")).not.toBeInTheDocument();
+        expect(screen.queryByRole("columnheader", { name: "Account" })).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole("tab", { name: "SIPP" }));
+        expect(total).toHaveTextContent("£14,925.00");
+        expect(screen.getByText("SIPP holding")).toBeInTheDocument();
+    });
+
+    it("preserves table filter state while switching account tabs", () => {
+        render(<PortfolioView data={mockOwner} />);
+
+        const tickerFilter = screen.getAllByPlaceholderText("Ticker")[0];
+        fireEvent.change(tickerFilter, { target: { value: "SHAR" } });
+        fireEvent.click(screen.getByRole("tab", { name: "ISA" }));
+
+        expect(screen.getAllByPlaceholderText("Ticker")[0]).toHaveValue("SHAR");
     });
 
     it("shows an 'Add account' button for an owner with accounts", () => {
@@ -148,18 +165,19 @@ describe("PortfolioView", () => {
         await waitFor(() => expect(onPositionAdded).toHaveBeenCalledTimes(1));
     });
 
-    it("resets the pre-selected account when the add-position form is collapsed and reopened", () => {
+    it("preserves the active account when the add-position form is collapsed and reopened", () => {
         Element.prototype.scrollIntoView = vi.fn();
         render(<PortfolioView data={mockOwner} />);
 
-        fireEvent.click(screen.getAllByRole("button", { name: /add your first position/i })[1]);
+        fireEvent.click(screen.getByRole("tab", { name: "SIPP" }));
+        fireEvent.click(screen.getByRole("button", { name: /\+ add position/i }));
         const addPositionForm = screen.getByRole("form", { name: /^add position$/i });
         expect(within(addPositionForm).getByLabelText(/account/i)).toHaveValue("SIPP");
 
         fireEvent.click(screen.getByRole("button", { name: /collapse add position form/i }));
         fireEvent.click(screen.getByRole("button", { name: /\+ add position/i }));
 
-        expect(within(screen.getByRole("form", { name: /^add position$/i })).getByLabelText(/account/i)).toHaveValue("ISA");
+        expect(within(screen.getByRole("form", { name: /^add position$/i })).getByLabelText(/account/i)).toHaveValue("SIPP");
     });
 
     it("collapses the add-position form on Escape and ignores other keys", () => {

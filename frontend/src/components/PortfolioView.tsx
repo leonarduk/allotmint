@@ -3,7 +3,8 @@ import type { FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { Portfolio, Account, SectorContribution } from "../types";
-import { AccountBlock } from "./AccountBlock";
+import { HoldingsTable } from "./HoldingsTable";
+import { InstrumentDetail } from "./InstrumentDetail";
 import { AddAccountForm } from "./AddAccountForm";
 import { AddPositionForm } from "./AddPositionForm";
 import { EmptyState } from "./EmptyState";
@@ -13,7 +14,6 @@ import { money } from "../lib/money";
 import { formatDateISO } from "../lib/date";
 import { useConfig } from "../ConfigContext";
 import { complianceForOwner, getOwnerSectorContributions } from "../api";
-import { getGrowthStage } from "../utils/growthStage";
 import lazyWithDelay from "../utils/lazyWithDelay";
 import PortfolioDashboardSkeleton from "./skeletons/PortfolioDashboardSkeleton";
 import TextSkeleton from "./skeletons/TextSkeleton";
@@ -227,7 +227,11 @@ type Props = {
  */
 export function PortfolioView({ data, loading, error, onDateChange, onAccountAdded, onPositionAdded }: Props) {
   const { t } = useTranslation();
-  const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
+  const [activeAccount, setActiveAccount] = useState("all");
+  const [selectedInstrument, setSelectedInstrument] = useState<{
+    ticker: string;
+    name: string;
+  } | null>(null);
   const [hasWarnings, setHasWarnings] = useState(false);
   const [pendingDate, setPendingDate] = useState<string>("");
   const [showAddAccount, setShowAddAccount] = useState(false);
@@ -239,8 +243,13 @@ export function PortfolioView({ data, loading, error, onDateChange, onAccountAdd
   const accountKey = (acct: Account, idx: number) => `${acct.account_type}-${idx}`;
 
   useEffect(() => {
-    setSelectedAccounts(data ? data.accounts.map(accountKey) : []);
-  }, [data]);
+    if (
+      activeAccount !== "all" &&
+      !data?.accounts.some((account, index) => accountKey(account, index) === activeAccount)
+    ) {
+      setActiveAccount("all");
+    }
+  }, [activeAccount, data]);
 
   useEffect(() => {
     setPendingDate(data?.as_of ?? "");
@@ -303,18 +312,26 @@ export function PortfolioView({ data, loading, error, onDateChange, onAccountAdd
   if (error) return <div className="text-error">{error}</div>; // bubble errors
   if (!data) return <div>Select an owner.</div>; // nothing chosen yet
 
-  const allKeys = data.accounts.map(accountKey);
-  const activeSet = new Set(
-    selectedAccounts.length ? selectedAccounts : allKeys
+  const activeAccountIndex = data.accounts.findIndex(
+    (account, index) => accountKey(account, index) === activeAccount,
   );
-
-  const totalValue = data.accounts.reduce(
-    (sum, acct, idx) =>
-      activeSet.has(accountKey(acct, idx))
-        ? sum + acct.value_estimate_gbp
-        : sum,
-    0
+  const scopedAccounts =
+    activeAccount === "all" || activeAccountIndex < 0
+      ? data.accounts
+      : [data.accounts[activeAccountIndex]];
+  const totalValue = scopedAccounts.reduce(
+    (sum, account) => sum + account.value_estimate_gbp,
+    0,
   );
+  const scopedHoldings = scopedAccounts.flatMap((account) => {
+    const originalIndex = data.accounts.indexOf(account);
+    const sourceKey = accountKey(account, originalIndex);
+    return account.holdings.map((holding, holdingIndex) => ({
+      ...holding,
+      source_account: account.account_type,
+      row_key: `${sourceKey}-${holdingIndex}`,
+    }));
+  });
 
   const asOfDate = data.as_of ? new Date(data.as_of) : null;
   const todayIso = formatDateISO(new Date());
@@ -345,7 +362,7 @@ export function PortfolioView({ data, loading, error, onDateChange, onAccountAdd
     onAccountAdded?.();
   };
 
-  const handleAddPositionRequest = (accountType: string) => {
+  const handleAddPositionRequest = (accountType?: string) => {
     setAddPositionAccount(accountType);
     setAddPositionExpanded(true);
     addPositionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -432,7 +449,13 @@ export function PortfolioView({ data, loading, error, onDateChange, onAccountAdd
               ) : (
                 <button
                   type="button"
-                  onClick={() => setAddPositionExpanded(true)}
+                  onClick={() =>
+                    handleAddPositionRequest(
+                      activeAccountIndex >= 0
+                        ? data.accounts[activeAccountIndex].account_type
+                        : undefined,
+                    )
+                  }
                   aria-expanded="false"
                   aria-controls={ADD_POSITION_FORM_ID}
                   className="rounded border border-gray-700 px-3 py-1.5 text-sm text-white hover:border-gray-500 hover:bg-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
@@ -502,45 +525,61 @@ export function PortfolioView({ data, loading, error, onDateChange, onAccountAdd
               )}
             </>
           )}
-          <div className="space-y-4">
-            {data.accounts.map((acct, idx) => {
-              const key = accountKey(acct, idx);
-              const checked = activeSet.has(key);
-              const order: Record<string, number> = {
-                seed: 0,
-                growing: 1,
-                harvest: 2,
-              };
-              const stageInfo = acct.holdings.reduce(
-                (prev, h) => {
-                  const s = getGrowthStage({ daysHeld: h.days_held });
-                  return order[s.stage] > order[prev.stage] ? s : prev;
-                },
-                getGrowthStage({})
-              );
-              return (
-                <div key={key} className="flex items-start">
-                  <span className="mr-2" title={stageInfo.message}>
-                    {stageInfo.icon}
-                  </span>
-                  <AccountBlock
-                    account={acct}
-                    selected={checked}
-                    onToggle={() =>
-                      setSelectedAccounts((prev) =>
-                        prev.includes(key)
-                          ? prev.filter((k) => k !== key)
-                          : [...prev, key]
-                      )
-                    }
-                    showForward7d={showForward7d}
-                    showForward30d={showForward30d}
-                    onAddPosition={() => handleAddPositionRequest(acct.account_type)}
-                  />
-                </div>
-              );
-            })}
-          </div>
+          {data.accounts.length > 0 && (
+            <section aria-label="Portfolio holdings" className="min-w-0">
+              <div
+                role="tablist"
+                aria-label="Portfolio accounts"
+                className="mb-4 flex max-w-full gap-1 overflow-x-auto border-b border-gray-700"
+              >
+                {[
+                  { key: "all", label: "All accounts" },
+                  ...data.accounts.map((account, index) => ({
+                    key: accountKey(account, index),
+                    label: account.account_type,
+                  })),
+                ].map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    role="tab"
+                    aria-selected={activeAccount === tab.key}
+                    onClick={() => setActiveAccount(tab.key)}
+                    className={`shrink-0 border-b-2 px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 ${
+                      activeAccount === tab.key
+                        ? "border-blue-400 font-semibold text-white"
+                        : "border-transparent text-gray-400 hover:text-white"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+              <HoldingsTable
+                holdings={scopedHoldings}
+                showAccount={activeAccount === "all"}
+                onSelectInstrument={(ticker, name) =>
+                  setSelectedInstrument({ ticker, name })
+                }
+                showForward7d={showForward7d}
+                showForward30d={showForward30d}
+                onAddPosition={() =>
+                  handleAddPositionRequest(
+                    activeAccountIndex >= 0
+                      ? data.accounts[activeAccountIndex].account_type
+                      : undefined,
+                  )
+                }
+              />
+              {selectedInstrument && (
+                <InstrumentDetail
+                  ticker={selectedInstrument.ticker}
+                  name={selectedInstrument.name}
+                  onClose={() => setSelectedInstrument(null)}
+                />
+              )}
+            </section>
+          )}
           <div className="mb-6 mt-4">
             {data.accounts.length === 0 ? (
               <EmptyState

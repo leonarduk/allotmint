@@ -20,8 +20,14 @@ import { preloadInstrumentHistory } from "../hooks/useInstrumentHistory";
 
 const VIEW_PRESET_STORAGE_KEY = "holdingsTableViewPreset";
 
+type HoldingsTableRow = Holding & {
+  source_account?: string;
+  row_key?: string;
+};
+
 type Props = {
-  holdings: Holding[];
+  holdings: HoldingsTableRow[];
+  showAccount?: boolean;
   onSelectInstrument?: (ticker: string, name: string) => void;
   showForward7d?: boolean;
   showForward30d?: boolean;
@@ -31,6 +37,7 @@ type Props = {
 
 export function HoldingsTable({
   holdings,
+  showAccount = false,
   onSelectInstrument,
   showForward7d = false,
   showForward30d = false,
@@ -315,6 +322,7 @@ export function HoldingsTable({
           <table className={`${tableStyles.table} mb-4 w-full`}>
         <thead ref={tableHeaderRef}>
           <tr>
+            {showAccount && <th className={tableStyles.cell}></th>}
             <th className={tableStyles.cell}>
               <input
                 placeholder={t("holdingsTable.filters.ticker")}
@@ -389,6 +397,9 @@ export function HoldingsTable({
             </th>
           </tr>
           <tr>
+            {showAccount && (
+              <th className={tableStyles.cell}>Account</th>
+            )}
             <th
               className={`${tableStyles.cell} ${tableStyles.clickable}`}
               onClick={() => handleSort("ticker")}
@@ -475,7 +486,7 @@ export function HoldingsTable({
           {paddingTop > 0 && (
             <tr style={{ height: paddingTop }}>
               <td
-                colSpan={21 + (showForward7d ? 1 : 0) + (showForward30d ? 1 : 0)}
+                colSpan={21 + (showAccount ? 1 : 0) + (showForward7d ? 1 : 0) + (showForward30d ? 1 : 0)}
                 className="p-0 border-0"
               />
             </tr>
@@ -488,7 +499,10 @@ export function HoldingsTable({
               onSelectInstrument?.(h.ticker, h.name ?? h.ticker);
             };
             return (
-              <tr key={h.ticker + h.acquired_date}>
+              <tr key={h.row_key ?? h.ticker + h.acquired_date}>
+                {showAccount && (
+                  <td className={tableStyles.cell}>{h.source_account}</td>
+                )}
                 <td className={tableStyles.cell}>
                   <button
                     type="button"
@@ -629,7 +643,7 @@ export function HoldingsTable({
           {paddingBottom > 0 && (
             <tr style={{ height: paddingBottom }}>
               <td
-                colSpan={21 + (showForward7d ? 1 : 0) + (showForward30d ? 1 : 0)}
+                colSpan={21 + (showAccount ? 1 : 0) + (showForward7d ? 1 : 0) + (showForward30d ? 1 : 0)}
                 className="p-0 border-0"
               />
             </tr>
@@ -637,7 +651,7 @@ export function HoldingsTable({
         </tbody>
         <tfoot>
           <tr>
-            <td className={`${tableStyles.cell} font-semibold`} colSpan={2}>
+            <td className={`${tableStyles.cell} font-semibold`} colSpan={showAccount ? 3 : 2}>
               {t("holdingsTable.totalRowLabel")}
             </td>
             {!relativeViewEnabled && visibleColumns.units && (

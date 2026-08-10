@@ -4,14 +4,12 @@ from __future__ import annotations
 
 import csv
 import io
-import logging
 from typing import List
+import logging
 
-from backend.logging_setup import sanitise_log_value
 from backend.routes.transactions import Transaction
 
 logger = logging.getLogger(__name__)
-
 
 def _to_float(value: str | None) -> float | None:
     """Convert a string to float, ignoring commas and blanks."""
@@ -41,8 +39,8 @@ def parse(data: bytes) -> List[Transaction]:
 
         transactions: List[Transaction] = []
         for row in reader:
+            logger.debug("Row: %s", row)
             code = (row.get("Code") or row.get("code") or "").strip()
-            logger.debug("Parsed holdings row for code=%s", sanitise_log_value(code))
             units = _to_float(row.get("Units held") or row.get("Units"))
             price_pence = _to_float(row.get("Price (pence)") or row.get("Price"))
             price = price_pence / 100 if price_pence is not None else None
@@ -59,6 +57,6 @@ def parse(data: bytes) -> List[Transaction]:
                 )
             )
         return transactions
-    except csv.Error:
-        logger.error("Failed to parse Hargreaves Lansdown holdings CSV")
-        raise
+    except csv.Error as e:
+        logger.error("Failed to parse Hargreaves Lansdown holdings: %s", e)
+        raise e

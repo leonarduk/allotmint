@@ -34,7 +34,7 @@ def _normalise_account_key(raw: str | None, fallback: str) -> str:
 
 def _load_json(path: Path) -> Mapping[str, object] | None:
     try:
-        logger.info("Loading JSON from %s", sanitise_log_value(path))
+        logger.debug("Loading JSON from %s", sanitise_log_value(path))
         text = path.read_text()
     except OSError as exc:
         logger.warning("Failed to read %s: %s", sanitise_log_value(path), sanitise_log_value(exc))
@@ -85,7 +85,7 @@ def reconcile_transactions_with_holdings(accounts_root: Path | None = None) -> N
     paths = resolve_paths(config.repo_root, config.accounts_root)
     root = Path(accounts_root) if accounts_root else paths.accounts_root
 
-    logger.info("Loading holdings from %s", sanitise_log_value(root))
+    logger.debug("Loading holdings from %s", sanitise_log_value(root))
     if not root.exists():
         logger.warning("No holdings found in %s", sanitise_log_value(root))
         return

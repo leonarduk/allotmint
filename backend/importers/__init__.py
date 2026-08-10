@@ -43,9 +43,9 @@ def parse(provider: str, data: bytes) -> List[Transaction]:
         logger.warning("no module path for provider %s", sanitise_log_value(provider))
         raise UnknownProvider(provider)
 
+    module: Callable[[bytes], List[Transaction]] = import_module(module_path)
     logger.info("importing %s from %s", sanitise_log_value(provider), sanitise_log_value(module_path))
 
-    module: Callable[[bytes], List[Transaction]] = import_module(module_path)
     return module.parse(data)  # type: ignore[attr-defined]
 
 

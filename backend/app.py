@@ -16,7 +16,7 @@ from json import JSONDecodeError
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.openapi.docs import get_swagger_ui_html
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
 
 import backend.auth as auth
@@ -28,6 +28,7 @@ from backend.bootstrap import (
     register_routers,
 )
 from backend.config import reload_config
+from backend.integrations.moneyhub_api import MoneyhubNotConfiguredError
 from backend.logging_setup import sanitise_log_value, setup_logging
 
 logger = logging.getLogger(__name__)
@@ -36,6 +37,11 @@ logger = logging.getLogger(__name__)
 class CognitoTokenRequest(BaseModel):
     id_token: str
     client_id: str
+
+
+async def moneyhub_not_configured_handler(_request: Request, exc: MoneyhubNotConfiguredError) -> JSONResponse:
+    """Return a consistent service-unavailable response for Moneyhub routes."""
+    return JSONResponse(status_code=503, content={"detail": str(exc)})
 
 
 def create_app() -> FastAPI:
@@ -59,6 +65,7 @@ def create_app() -> FastAPI:
         docs_url=None,
         lifespan=lifespan,
     )
+    app.add_exception_handler(MoneyhubNotConfiguredError, moneyhub_not_configured_handler)
 
     admin_emails_raw = os.getenv("ADMIN_EMAILS", "")
     admin_set: frozenset[str] = (

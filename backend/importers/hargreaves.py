@@ -62,13 +62,3 @@ def parse(data: bytes) -> List[Transaction]:
     except csv.Error:
         logger.error("Failed to parse Hargreaves Lansdown holdings CSV")
         raise
-
-if __name__ == '__main__':
-    import click
-
-    # Simple text input
-    name = click.prompt('Please enter your name', type=str)
-
-    # Yes/No confirmation
-    if click.confirm('Do you want to continue?', default=True):
-        print('Continuing...')   

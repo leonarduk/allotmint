@@ -15,7 +15,7 @@ from backend.common.user_config import UserConfig, load_user_config
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
 
-logger = logging.getLogger("compliance")
+logger = logging.getLogger(__name__)
 
 
 def _default_settings_payload() -> Dict[str, Any]:

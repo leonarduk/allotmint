@@ -17,7 +17,7 @@ import requests
 
 from backend.common.url_validator import validate_external_url
 
-log = logging.getLogger("integrations.broker")
+logger = logging.getLogger(__name__)
 
 
 class BrokerAPI(Protocol):

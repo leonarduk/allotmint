@@ -40,7 +40,7 @@ from backend.utils.fx_rates import fetch_fx_rate_range
 from backend.utils.pricing_dates import PricingDateCalculator
 from backend.utils.timeseries_helpers import apply_scaling, get_scaling_override
 
-logger = logging.getLogger("portfolio_utils")
+logger = logging.getLogger(__name__)
 
 
 # ──────────────────────────────────────────────────────────────

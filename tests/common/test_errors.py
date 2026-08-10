@@ -92,7 +92,7 @@ def test_handle_owner_not_found_async():
 
 
 def test_handle_app_error_logs_structured_fields(caplog):
-    logger = logging.getLogger("tests.errors")
+    logger = logging.getLogger(__name__)
     exc = ProviderFailure("provider blew up", extra={"provider": "yfinance"})
 
     with caplog.at_level(logging.ERROR, logger="tests.errors"):

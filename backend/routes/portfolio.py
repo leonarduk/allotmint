@@ -41,7 +41,7 @@ from backend.routes._accounts import resolve_accounts_root, resolve_owner_direct
 from backend.utils.pricing_dates import PricingDateCalculator
 from backend.utils.timeseries_helpers import resolve_date_range
 
-log = logging.getLogger("routes.portfolio")
+logger = logging.getLogger(__name__)
 router = APIRouter(tags=["portfolio"])
 public_router = APIRouter(tags=["portfolio"])
 oauth2_optional = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)

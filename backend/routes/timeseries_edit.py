@@ -18,7 +18,7 @@ from backend.timeseries.cache import (
 )
 
 router = APIRouter(prefix="/timeseries", tags=["timeseries"])
-logger = logging.getLogger("routes.timeseries")
+logger = logging.getLogger(__name__)
 
 
 def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> tuple[str, str]:

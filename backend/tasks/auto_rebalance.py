@@ -7,7 +7,7 @@ from typing import Dict, Any
 from backend.common.goals import load_all_goals
 from backend.common.rebalance import suggest_trades
 
-log = logging.getLogger("tasks.auto_rebalance")
+logger = logging.getLogger(__name__)
 
 
 async def run_once() -> None:

@@ -29,7 +29,7 @@ from backend.common.path_utils import safe_join
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
 
-log = logging.getLogger("portfolio_loader")
+logger = logging.getLogger(__name__)
 
 
 # ────────────────────────────────────────────────────────────────

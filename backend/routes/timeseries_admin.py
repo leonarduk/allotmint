@@ -19,7 +19,7 @@ from backend.timeseries.cache import (
 router = APIRouter(
     prefix="/timeseries", tags=["timeseries"], dependencies=[Depends(get_current_user)]
 )
-logger = logging.getLogger("routes.timeseries")
+logger = logging.getLogger(__name__)
 
 
 def _summarize(df: pd.DataFrame, ticker: str, exchange: str) -> dict[str, Any]:

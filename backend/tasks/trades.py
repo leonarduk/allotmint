@@ -10,7 +10,7 @@ from backend.common.alerts import publish_alert
 from backend.common.portfolio import load_trades, _local_trades_path
 from backend.integrations.broker_api import AlpacaAPI
 
-log = logging.getLogger("tasks.trades")
+logger = logging.getLogger(__name__)
 
 
 def persist_trades(owner: str, trades: List[Dict[str, Any]]) -> int:

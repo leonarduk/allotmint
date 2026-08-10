@@ -27,7 +27,7 @@ from backend.common.user_config import load_user_config
 from backend.config import demo_identity as get_demo_identity
 from backend.utils.pricing_dates import PricingDateCalculator
 
-logger = logging.getLogger("group_portfolio")
+logger = logging.getLogger(__name__)
 
 
 def _normalise_account_currency(value: object) -> str:

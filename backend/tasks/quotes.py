@@ -14,7 +14,7 @@ from backend import config_module
 cfg = getattr(config_module, "settings", config_module.config)
 config = cfg
 
-log = logging.getLogger("tasks.quotes")
+logger = logging.getLogger(__name__)
 
 BASE_URL = "https://www.alphavantage.co/query"
 TABLE_NAME = os.environ.get("QUOTES_TABLE", "Quotes")

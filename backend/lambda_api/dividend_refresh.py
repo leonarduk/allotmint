@@ -16,7 +16,7 @@ import logging
 
 from backend.common.dividends import refresh_dividends
 
-logger = logging.getLogger("dividends")
+logger = logging.getLogger(__name__)
 
 
 def lambda_handler(event, context):

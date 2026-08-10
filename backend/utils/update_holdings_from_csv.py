@@ -15,6 +15,11 @@ from backend.config import config
 import logging
 logger = logging.getLogger(__name__)
 
+def _sanitize_for_log(value: object) -> str:
+    """Return a single-line, log-safe string representation of ``value``."""
+    return "".join(ch for ch in str(value) if ch >= " " and ch != "\x7f")
+
+
 def _to_holding(tx: Any) -> dict[str, object]:
     cost = (tx.amount_minor or 0.0) / 100.0 if tx.amount_minor is not None else 0.0
     holding: dict[str, object] = {
@@ -73,7 +78,7 @@ def reconcile_from_csv(
     stored_holdings: List[Mapping[str, object]],
 ) -> dict[str, object]:
     """Compare a broker export with stored holdings without modifying either."""
-    logger.info(f"reconcile from csv - Provider {provider}")
+    logger.info("reconcile from csv - Provider %s", _sanitize_for_log(provider))
 
     transactions: List[Any] = importers.parse(provider, data)
     imported = _index_holdings([_to_holding(tx) for tx in transactions if tx.ticker], provider)

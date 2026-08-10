@@ -580,6 +580,10 @@ def _validate_component(value: str, field: str) -> str:
     return value
 
 
+def _sanitize_for_log(value: object) -> str:
+    return str(value).replace("\r", "").replace("\n", "")
+
+
 def _persist_transaction(store: "AccountsStore", owner: str, account: str, tx_data: Dict[str, Any]) -> Dict[str, Any]:
     """Append ``tx_data`` to owner/account's transaction log and rebuild the portfolio.
 
@@ -992,7 +996,7 @@ async def reconcile_holdings(
     logger.debug(f"Owner: {owner}")
 
     account = _normalise_account_file_name(_validate_component(account, "account"))
-    logger.debug(f"Account: {account}")
+    logger.debug(f"Account: {_sanitize_for_log(account)}")
 
     store, _ = resolve_writable_store(request)
 
@@ -1005,7 +1009,8 @@ async def reconcile_holdings(
     stored_holdings = raw_holdings if isinstance(raw_holdings, list) else []
     data = await file.read()
 
-    logger.info(f"Parsing holdings file: {file}")
+    safe_filename = (file.filename or "").replace("\r", "").replace("\n", "")
+    logger.info("Parsing holdings file: %s", safe_filename)
 
     try:
         diff = update_holdings_from_csv.reconcile_from_csv(provider, data, stored_holdings)

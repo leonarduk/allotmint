@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import csv
 import io
-from typing import List, LiteralString
+from typing import List
 import logging
 
 from backend.routes.transactions import Transaction
@@ -35,7 +35,7 @@ def parse(data: bytes) -> List[Transaction]:
     logger.debug("Parsing Hargreaves Lansdown holdings")
 
     try:
-        text = data.decode("utf-8", errors="ignore")
+        text = data.decode("utf-8", errors="replace")
         text = skip_non_datatable_rows(text)
 
         reader = csv.DictReader(io.StringIO(text))
@@ -66,7 +66,7 @@ def parse(data: bytes) -> List[Transaction]:
         raise e
 
 
-def skip_non_datatable_rows(text: str) -> LiteralString:
+def skip_non_datatable_rows(text: str) -> str:
     """
     Hargreaves Lansdown files have a pre-amble and footer we want to ignore.
     """
@@ -77,12 +77,17 @@ def skip_non_datatable_rows(text: str) -> LiteralString:
     ignore = True
     data = []
     for line in lines:
-        if not line or "Totals" in line:
+        if not line:
             ignore = True
         if line.startswith("Code"):
             ignore = False
         if not ignore:
             data.append(line)
+
+    # Remove totals line if present at end
+    if "Totals" in data[len(data) - 1]:
+        data.pop(len(data) - 1)
+
     logger.debug("Returning %d rows", len(data))
     text = "\n".join(data)
     return text

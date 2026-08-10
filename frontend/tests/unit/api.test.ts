@@ -17,9 +17,20 @@ import {
   getConfig,
   UNAUTHORIZED_EVENT,
   reconcileHoldingsCsv,
+  importHoldingsCsv,
 } from "@/api";
 
+const csvFile = new File(["ticker,units"], "holdings.csv", {
+  type: "text/csv",
+});
+
 describe("holdings CSV reconciliation", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    setAuthToken(null);
+    setApiBase(DEFAULT_API_BASE);
+  });
+
   it("posts multipart fields to the read-only reconciliation endpoint", async () => {
     const response = {
       added: [],
@@ -33,12 +44,9 @@ describe("holdings CSV reconciliation", () => {
       json: () => Promise.resolve(response),
     });
     global.fetch = mockFetch;
-    const file = new File(["ticker,units"], "holdings.csv", {
-      type: "text/csv",
-    });
 
     await expect(
-      reconcileHoldingsCsv("alice", "ISA", "degiro", file),
+      reconcileHoldingsCsv("alice", "ISA", "degiro", csvFile),
     ).resolves.toEqual(response);
 
     const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
@@ -49,7 +57,104 @@ describe("holdings CSV reconciliation", () => {
     expect(body.get("owner")).toBe("alice");
     expect(body.get("account")).toBe("ISA");
     expect(body.get("provider")).toBe("degiro");
-    expect(body.get("file")).toBe(file);
+    expect(body.get("file")).toBe(csvFile);
+    // No explicit Content-Type: the browser must set the multipart boundary itself.
+    const headers = init.headers as Headers;
+    expect(headers.has("Content-Type")).toBe(false);
+  });
+
+  it("routes through the authenticated client, attaching the bearer token", async () => {
+    setAuthToken("token123");
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          added: [],
+          removed: [],
+          quantity_changed: [],
+          value_changed: [],
+          cash_balance: { stored_gbp: 0, imported_gbp: 0, delta_gbp: 0 },
+        }),
+    });
+    global.fetch = mockFetch;
+
+    await reconcileHoldingsCsv("alice", "ISA", "degiro", csvFile);
+
+    const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    const headers = init.headers as Headers;
+    expect(headers.get("Authorization")).toBe("Bearer token123");
+  });
+
+  it("dispatches UNAUTHORIZED_EVENT and rejects on a 401 response", async () => {
+    const handler = vi.fn();
+    window.addEventListener(UNAUTHORIZED_EVENT, handler);
+    try {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        statusText: "Unauthorized",
+        json: () => Promise.resolve({ detail: "Session expired" }),
+      });
+      global.fetch = mockFetch;
+
+      await expect(
+        reconcileHoldingsCsv("alice", "ISA", "degiro", csvFile),
+      ).rejects.toThrow("Session expired");
+      expect(handler).toHaveBeenCalledTimes(1);
+    } finally {
+      window.removeEventListener(UNAUTHORIZED_EVENT, handler);
+    }
+  });
+});
+
+describe("holdings CSV import", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    setAuthToken(null);
+    setApiBase(DEFAULT_API_BASE);
+  });
+
+  it("posts multipart fields to the import endpoint", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ path: "/data/accounts/alice/ISA.json" }),
+    });
+    global.fetch = mockFetch;
+
+    await expect(
+      importHoldingsCsv("alice", "ISA", "degiro", csvFile),
+    ).resolves.toEqual({ path: "/data/accounts/alice/ISA.json" });
+
+    const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`${DEFAULT_API_BASE}/holdings/import`);
+    expect(init.method).toBe("POST");
+    expect(init.body).toBeInstanceOf(FormData);
+    const body = init.body as FormData;
+    expect(body.get("owner")).toBe("alice");
+    expect(body.get("account")).toBe("ISA");
+    expect(body.get("provider")).toBe("degiro");
+    expect(body.get("file")).toBe(csvFile);
+  });
+
+  it("dispatches UNAUTHORIZED_EVENT and rejects on a 401 response", async () => {
+    const handler = vi.fn();
+    window.addEventListener(UNAUTHORIZED_EVENT, handler);
+    try {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        statusText: "Unauthorized",
+        json: () => Promise.resolve({ detail: "Session expired" }),
+      });
+      global.fetch = mockFetch;
+
+      await expect(
+        importHoldingsCsv("alice", "ISA", "degiro", csvFile),
+      ).rejects.toThrow("Session expired");
+      expect(handler).toHaveBeenCalledTimes(1);
+    } finally {
+      window.removeEventListener(UNAUTHORIZED_EVENT, handler);
+    }
   });
 });
 

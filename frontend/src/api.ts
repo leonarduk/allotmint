@@ -1862,70 +1862,28 @@ const createHoldingsCsvFormData = (
 };
 
 /** Preview how a CSV differs from stored holdings without applying changes. */
-export const reconcileHoldingsCsv = async (
+export const reconcileHoldingsCsv = (
   owner: string,
   account: string,
   provider: string,
   file: File,
-): Promise<ReconcileHoldingsCsvResponse> => {
-  const headers = new Headers();
-  const token = getStoredAuthToken();
-  if (token) headers.set("Authorization", `Bearer ${token}`);
-  const csrf = defaultGetCsrfToken();
-  if (csrf) headers.set("X-CSRFToken", csrf);
-
-  const res = await dynamicFetch(`${API_BASE}/holdings/reconcile`, {
+): Promise<ReconcileHoldingsCsvResponse> =>
+  fetchJson<ReconcileHoldingsCsvResponse>(`${API_BASE}/holdings/reconcile`, {
     method: "POST",
-    headers,
-    credentials: "include",
     body: createHoldingsCsvFormData(owner, account, provider, file),
   });
-  if (!res.ok) {
-    let detail = `HTTP ${res.status} - ${res.statusText}`;
-    try {
-      const body = await res.json();
-      if (typeof body?.detail === "string") detail = body.detail;
-    } catch {
-      // response body was not JSON; fall back to the status text above
-    }
-    throw new Error(detail);
-  }
-  return res.json() as Promise<ReconcileHoldingsCsvResponse>;
-};
 
 /**
  * Upload a CSV export of holdings/transactions for `owner`/`account` and have
  * the backend parse it with the given `provider` and persist the result.
  */
-export const importHoldingsCsv = async (
+export const importHoldingsCsv = (
   owner: string,
   account: string,
   provider: string,
   file: File,
-): Promise<ImportHoldingsCsvResponse> => {
-  const formData = createHoldingsCsvFormData(owner, account, provider, file);
-
-  const headers = new Headers();
-  const token = getStoredAuthToken();
-  if (token) headers.set("Authorization", `Bearer ${token}`);
-  const csrf = defaultGetCsrfToken();
-  if (csrf) headers.set("X-CSRFToken", csrf);
-
-  const res = await dynamicFetch(`${API_BASE}/holdings/import`, {
+): Promise<ImportHoldingsCsvResponse> =>
+  fetchJson<ImportHoldingsCsvResponse>(`${API_BASE}/holdings/import`, {
     method: "POST",
-    headers,
-    credentials: "include",
-    body: formData,
+    body: createHoldingsCsvFormData(owner, account, provider, file),
   });
-  if (!res.ok) {
-    let detail = `HTTP ${res.status} - ${res.statusText}`;
-    try {
-      const body = await res.json();
-      if (typeof body?.detail === "string") detail = body.detail;
-    } catch {
-      // response body was not JSON; fall back to the status text above
-    }
-    throw new Error(detail);
-  }
-  return res.json() as Promise<ImportHoldingsCsvResponse>;
-};

@@ -35,7 +35,11 @@ const extractErrorMessage = (err: unknown): string => {
   return 'Failed to process file. Please try again.';
 };
 
-const formatNumber = (value: number) => value.toLocaleString('en-GB');
+// `toLocaleString` defaults to a maximum of 3 fraction digits, which would
+// silently round a genuine fractional-share delta (the backend compares
+// units down to a 1e-9 threshold) down to a misleading "no change".
+const formatNumber = (value: number) =>
+  value.toLocaleString('en-GB', { maximumFractionDigits: 6 });
 const formatGbp = (value: number) =>
   value.toLocaleString('en-GB', { style: 'currency', currency: 'GBP' });
 const formatDelta = (value: number, formatter = formatNumber) =>

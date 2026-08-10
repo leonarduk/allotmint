@@ -81,6 +81,34 @@ describe('CsvImportForm', () => {
     expect(preview).toHaveTextContent('£100.00 → £110.00 (+£10.00)');
   });
 
+  it('preserves a small fractional unit delta instead of showing "+0"', async () => {
+    vi.mocked(reconcileHoldingsCsv).mockResolvedValue({
+      added: [],
+      removed: [],
+      quantity_changed: [
+        {
+          ticker: 'FRAC.L',
+          stored_units: 1.0001,
+          imported_units: 1.0002,
+          delta: 0.0001,
+        },
+      ],
+      value_changed: [],
+      cash_balance: { stored_gbp: 0, imported_gbp: 0, delta_gbp: 0 },
+    });
+
+    render(<CsvImportForm owner="alice" accountTypes={['ISA']} />);
+    await userEvent.selectOptions(screen.getByLabelText('Provider'), 'degiro');
+    await userEvent.upload(screen.getByLabelText('CSV file'), csvFile);
+    await userEvent.click(screen.getByRole('button', { name: /Reconcile/ }));
+
+    const preview = await screen.findByRole('status', {
+      name: 'Reconciliation preview',
+    });
+    expect(preview).toHaveTextContent('1.0001 → 1.0002 (+0.0001)');
+    expect(preview).not.toHaveTextContent('(+0)');
+  });
+
   it('clears a completed preview when the account changes', async () => {
     vi.mocked(reconcileHoldingsCsv).mockResolvedValue({
       added: [{ ticker: 'NEW.L', units: 5, value_gbp: 10 }],

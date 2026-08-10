@@ -27,6 +27,10 @@ class MoneyhubAPIError(Exception):
     """Raised when a Moneyhub API call fails."""
 
 
+class MoneyhubNotConfiguredError(RuntimeError):
+    """Raised when the Moneyhub client cannot be created without credentials."""
+
+
 @dataclass
 class MoneyhubClient:
     """Adapter for the Moneyhub Open Banking transactions API.

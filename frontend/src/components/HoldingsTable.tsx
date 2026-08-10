@@ -19,6 +19,7 @@ import { getGrowthStage } from "../utils/growthStage";
 import { preloadInstrumentHistory } from "../hooks/useInstrumentHistory";
 
 const VIEW_PRESET_STORAGE_KEY = "holdingsTableViewPreset";
+const ESTIMATED_ROW_HEIGHT = 32;
 
 type HoldingsTableRow = Holding & {
   source_account?: string;
@@ -233,7 +234,7 @@ export function HoldingsTable({
   const rowVirtualizer = useVirtualizer({
     count: sortedRows.length,
     getScrollElement: () => tableContainerRef.current,
-    estimateSize: () => 40,
+    estimateSize: () => ESTIMATED_ROW_HEIGHT,
     overscan: 5,
     scrollMargin: headerHeight,
   });
@@ -244,7 +245,11 @@ export function HoldingsTable({
     : 0;
   const items = virtualRows.length
     ? virtualRows
-    : sortedRows.map((_, index) => ({ index, start: index * 40, end: (index + 1) * 40 }));
+    : sortedRows.map((_, index) => ({
+        index,
+        start: index * ESTIMATED_ROW_HEIGHT,
+        end: (index + 1) * ESTIMATED_ROW_HEIGHT,
+      }));
 
   return (
     <>
@@ -503,6 +508,8 @@ export function HoldingsTable({
             };
             return (
               <tr
+                ref={rowVirtualizer.measureElement}
+                data-index={virtualRow.index}
                 key={h.row_key ?? h.ticker + h.acquired_date}
                 onClick={onSelectInstrument ? handleSelect : undefined}
                 className={onSelectInstrument ? tableStyles.clickable : undefined}

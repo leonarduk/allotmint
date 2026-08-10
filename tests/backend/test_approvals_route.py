@@ -56,6 +56,28 @@ def test_approvals_authorization_enforced(tmp_path, monkeypatch):
     assert client.get("/accounts/ghost/approvals").status_code == 403
 
 
+def test_demo_user_can_access_own_approvals_without_a_session(tmp_path, monkeypatch):
+    """Demo mode must not reject an anonymous request for its demo owner."""
+
+    monkeypatch.setattr(config, "disable_auth", True)
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+
+    root = tmp_path / "accounts"
+    owner_dir = _write_owner(root, "demo", "demo@example.com")
+    (owner_dir / "approvals.json").write_text(
+        json.dumps({"approvals": [{"ticker": "PFE", "approved_on": "2024-01-01"}]})
+    )
+
+    app = create_app()
+    app.state.accounts_root = root
+    client = TestClient(app)
+
+    response = client.get("/accounts/demo/approvals")
+
+    assert response.status_code == 200
+    assert response.json() == {"approvals": [{"ticker": "PFE", "approved_on": "2024-01-01"}]}
+
+
 def test_post_approval_request_falls_back_to_default_accounts_root(tmp_path, monkeypatch):
     primary_root = tmp_path / "primary"
     primary_root.mkdir()
@@ -70,7 +92,9 @@ def test_post_approval_request_falls_back_to_default_accounts_root(tmp_path, mon
     virtual_root.mkdir()
 
     def fake_resolve_paths(repo_root_arg, accounts_root_arg):
-        return ResolvedPaths(repo_root=repo_root, accounts_root=fallback_root, virtual_pf_root=virtual_root)
+        return ResolvedPaths(
+            repo_root=repo_root, accounts_root=fallback_root, virtual_pf_root=virtual_root
+        )
 
     monkeypatch.setattr("backend.routes._accounts.data_loader.resolve_paths", fake_resolve_paths)
     monkeypatch.setattr("backend.routes.approvals.data_loader.resolve_paths", fake_resolve_paths)

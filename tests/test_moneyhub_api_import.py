@@ -284,6 +284,18 @@ def test_save_and_load_token_set_round_trips(token_storage):
     assert loaded == token_set
 
 
+def test_load_token_set_wraps_missing_required_field(token_storage):
+    storage_path = token_storage.format(owner="alice")
+    with open(storage_path, "w", encoding="utf-8") as stored_tokens:
+        stored_tokens.write('{"access_token": "a", "expires_at": 123.0}')
+
+    with pytest.raises(
+        moneyhub_tokens.MoneyhubAuthError,
+        match="owner 'alice'.*required field 'refresh_token'",
+    ):
+        moneyhub_tokens.load_token_set("alice")
+
+
 def test_get_valid_access_token_returns_cached_when_not_expired(token_storage):
     token_set = TokenSet(access_token="a", refresh_token="r", expires_at=time.time() + 3600)
     moneyhub_tokens.save_token_set("alice", token_set)

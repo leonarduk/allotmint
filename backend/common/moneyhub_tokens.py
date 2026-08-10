@@ -62,11 +62,22 @@ def _storage_uri(owner: str) -> str:
 
 
 def load_token_set(owner: str) -> Optional[TokenSet]:
-    """Return the stored token set for ``owner``, or ``None`` if absent."""
+    """Return the stored token set for ``owner``, or ``None`` if absent.
+
+    Raises:
+        MoneyhubAuthError: the stored token set is missing a required field.
+    """
     data = get_storage(_storage_uri(owner)).load()
     if not data:
         return None
-    return TokenSet.from_dict(data)
+    try:
+        return TokenSet.from_dict(data)
+    except KeyError as exc:
+        required_field = exc.args[0]
+        raise MoneyhubAuthError(
+            f"Stored Moneyhub token set for owner '{owner}' is missing "
+            f"required field '{required_field}'"
+        ) from exc
 
 
 def save_token_set(owner: str, token_set: TokenSet) -> None:

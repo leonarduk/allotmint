@@ -493,13 +493,20 @@ export function HoldingsTable({
           )}
           {items.map((virtualRow) => {
             const h = sortedRows[virtualRow.index];
+            const handleSelect = () => {
+              onSelectInstrument?.(h.ticker, h.name ?? h.ticker);
+            };
             const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
               event.preventDefault();
               event.stopPropagation();
-              onSelectInstrument?.(h.ticker, h.name ?? h.ticker);
+              handleSelect();
             };
             return (
-              <tr key={h.row_key ?? h.ticker + h.acquired_date}>
+              <tr
+                key={h.row_key ?? h.ticker + h.acquired_date}
+                onClick={onSelectInstrument ? handleSelect : undefined}
+                className={onSelectInstrument ? tableStyles.clickable : undefined}
+              >
                 {showAccount && (
                   <td className={tableStyles.cell}>{h.source_account}</td>
                 )}
@@ -599,7 +606,10 @@ export function HoldingsTable({
                   {isSupportedFx(h.currency) ? (
                     <button
                       type="button"
-                      onClick={() => onSelectInstrument?.(`${h.currency!}GBP.FX`, h.currency!)}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onSelectInstrument?.(`${h.currency!}GBP.FX`, h.currency!);
+                      }}
                       className="link-button"
                     >
                       {h.currency}

@@ -259,9 +259,24 @@ describe("HoldingsTable", () => {
         render(<HoldingsTable holdings={holdings} onSelectInstrument={onSelect}/>);
         await screen.findByRole('button', { name: 'USD' });
         await userEvent.click(screen.getByRole('button', { name: 'USD' }));
+        expect(onSelect).toHaveBeenCalledTimes(1);
         expect(onSelect).toHaveBeenCalledWith('USDGBP.FX', 'USD');
         expect(screen.queryByRole('button', { name: 'GBX' })).toBeNull();
         expect(screen.getByRole('button', { name: 'CAD' })).toBeInTheDocument();
+    });
+
+    it("selects the instrument when clicking the name cell or elsewhere in the row", async () => {
+        const onSelect = vi.fn();
+        render(<HoldingsTable holdings={holdings} onSelectInstrument={onSelect}/>);
+
+        await userEvent.click(await screen.findByText("Alpha"));
+        expect(onSelect).toHaveBeenCalledWith("AAA", "Alpha");
+
+        onSelect.mockClear();
+        const row = (await screen.findByText("Alpha")).closest("tr");
+        expect(row).not.toBeNull();
+        await userEvent.click(row!);
+        expect(onSelect).toHaveBeenCalledWith("AAA", "Alpha");
     });
 
     it("sorts by ticker when header clicked", async () => {

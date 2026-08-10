@@ -1815,43 +1815,75 @@ export interface ImportHoldingsCsvResponse {
   path: string;
 }
 
-/**
- * Upload a CSV export of holdings/transactions for `owner`/`account` and have
- * the backend parse it with the given `provider` and persist the result.
- */
-export const importHoldingsCsv = async (
+export interface ReconciledHolding {
+  ticker: string;
+  units: number;
+  value_gbp: number;
+}
+
+export interface ReconciledQuantityChange {
+  ticker: string;
+  stored_units: number;
+  imported_units: number;
+  delta: number;
+}
+
+export interface ReconciledValueChange {
+  ticker: string;
+  stored_value_gbp: number;
+  imported_value_gbp: number;
+  delta_gbp: number;
+}
+
+export interface ReconcileHoldingsCsvResponse {
+  added: ReconciledHolding[];
+  removed: ReconciledHolding[];
+  quantity_changed: ReconciledQuantityChange[];
+  value_changed: ReconciledValueChange[];
+  cash_balance: {
+    stored_gbp: number;
+    imported_gbp: number;
+    delta_gbp: number;
+  };
+}
+
+const createHoldingsCsvFormData = (
   owner: string,
   account: string,
   provider: string,
   file: File,
-): Promise<ImportHoldingsCsvResponse> => {
+) => {
   const formData = new FormData();
   formData.append("owner", owner);
   formData.append("account", account);
   formData.append("provider", provider);
   formData.append("file", file);
-
-  const headers = new Headers();
-  const token = getStoredAuthToken();
-  if (token) headers.set("Authorization", `Bearer ${token}`);
-  const csrf = defaultGetCsrfToken();
-  if (csrf) headers.set("X-CSRFToken", csrf);
-
-  const res = await dynamicFetch(`${API_BASE}/holdings/import`, {
-    method: "POST",
-    headers,
-    credentials: "include",
-    body: formData,
-  });
-  if (!res.ok) {
-    let detail = `HTTP ${res.status} - ${res.statusText}`;
-    try {
-      const body = await res.json();
-      if (typeof body?.detail === "string") detail = body.detail;
-    } catch {
-      // response body was not JSON; fall back to the status text above
-    }
-    throw new Error(detail);
-  }
-  return res.json() as Promise<ImportHoldingsCsvResponse>;
+  return formData;
 };
+
+/** Preview how a CSV differs from stored holdings without applying changes. */
+export const reconcileHoldingsCsv = (
+  owner: string,
+  account: string,
+  provider: string,
+  file: File,
+): Promise<ReconcileHoldingsCsvResponse> =>
+  fetchJson<ReconcileHoldingsCsvResponse>(`${API_BASE}/holdings/reconcile`, {
+    method: "POST",
+    body: createHoldingsCsvFormData(owner, account, provider, file),
+  });
+
+/**
+ * Upload a CSV export of holdings/transactions for `owner`/`account` and have
+ * the backend parse it with the given `provider` and persist the result.
+ */
+export const importHoldingsCsv = (
+  owner: string,
+  account: string,
+  provider: string,
+  file: File,
+): Promise<ImportHoldingsCsvResponse> =>
+  fetchJson<ImportHoldingsCsvResponse>(`${API_BASE}/holdings/import`, {
+    method: "POST",
+    body: createHoldingsCsvFormData(owner, account, provider, file),
+  });

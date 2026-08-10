@@ -14,6 +14,7 @@ from backend.config import config
 
 logger = logging.getLogger(__name__)
 
+logging.basicConfig(level=logging.DEBUG)
 
 _METADATA_STEMS = {"person", "config", "notes"}
 _TYPE_SIGN = {
@@ -34,11 +35,13 @@ def _normalise_account_key(raw: str | None, fallback: str) -> str:
 
 def _load_json(path: Path) -> Mapping[str, object] | None:
     try:
+        logger.info(f"Loading JSON from {path}")
         text = path.read_text()
     except OSError as exc:
         logger.warning("Failed to read %s: %s", path, exc)
         return None
     try:
+        logger.debug(f"TEXT: {text}")
         return json.loads(text)
     except json.JSONDecodeError as exc:
         logger.warning("Invalid JSON in %s: %s", path, exc)
@@ -86,7 +89,9 @@ def reconcile_transactions_with_holdings(accounts_root: Path | None = None) -> N
     paths = resolve_paths(config.repo_root, config.accounts_root)
     root = Path(accounts_root) if accounts_root else paths.accounts_root
 
+    logger.info(f"Loading holdings from {root}")
     if not root.exists():
+        logger.warning(f"No holdings found in {root}")
         return
 
     synthetic_date = (date.today() - timedelta(days=365)).isoformat()
@@ -98,6 +103,8 @@ def reconcile_transactions_with_holdings(accounts_root: Path | None = None) -> N
             tx_candidates[stem.lower()] = candidate
 
         for account_file in owner_dir.glob("*.json"):
+            logger.debug(f"Loading holdings from {account_file}")
+
             stem = account_file.stem
             lower = stem.lower()
             if lower in _METADATA_STEMS or lower.endswith("_transactions"):
@@ -118,6 +125,7 @@ def reconcile_transactions_with_holdings(accounts_root: Path | None = None) -> N
 
             transactions = list(tx_data.get("transactions") or [])
             if not transactions and not account_data.get("holdings"):
+                logger.debug("Skipping holdings with no transactions")
                 continue
 
             ledger = _transactions_to_positions(transactions)

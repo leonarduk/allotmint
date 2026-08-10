@@ -12,6 +12,9 @@ from backend.common import portfolio_loader
 from backend.common.path_utils import safe_join
 from backend.config import config
 
+import logging
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.DEBUG)
 
 def _to_holding(tx: Any) -> dict[str, object]:
     cost = (tx.amount_minor or 0.0) / 100.0 if tx.amount_minor is not None else 0.0
@@ -71,6 +74,8 @@ def reconcile_from_csv(
     stored_holdings: List[Mapping[str, object]],
 ) -> dict[str, object]:
     """Compare a broker export with stored holdings without modifying either."""
+    logger.info(f"reconcile from csv - Provider {provider}")
+
     transactions: List[Any] = importers.parse(provider, data)
     imported = _index_holdings([_to_holding(tx) for tx in transactions if tx.ticker], provider)
     stored = _index_holdings(stored_holdings, provider)

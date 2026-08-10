@@ -32,6 +32,7 @@ from backend.utils import update_holdings_from_csv
 
 router = APIRouter(tags=["transactions"])
 logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.DEBUG)
 
 # resolve_writable_store() has always lived in this module (never in
 # data_loader.py); this flag dedupes its missing-DATA_BUCKET warning to
@@ -989,12 +990,24 @@ async def reconcile_holdings(
     reconciliation helper; applying the reported changes remains explicit.
     """
     owner = _validate_component(owner, "owner")
+    logger.debug(f"Owner: {owner}")
+
     account = _normalise_account_file_name(_validate_component(account, "account"))
+    logger.debug(f"Account: {account}")
+
     store, _ = resolve_writable_store(request)
+
     document = store.read_document(owner, f"{account}.json") or {}
+    logger.debug(f"Document: {document}")
+
     raw_holdings = document.get("holdings")
+    logger.debug(f"Raw holdings: {raw_holdings}")
+
     stored_holdings = raw_holdings if isinstance(raw_holdings, list) else []
     data = await file.read()
+
+    logger.info(f"Parsing holdings file: {file}")
+
     try:
         diff = update_holdings_from_csv.reconcile_from_csv(provider, data, stored_holdings)
     except importers.UnknownProvider as exc:

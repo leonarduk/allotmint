@@ -242,7 +242,15 @@ export function PortfolioView({ data, loading, error, onDateChange, onAccountAdd
 
   const accountKey = (acct: Account, idx: number) => `${acct.account_type}-${idx}`;
 
+  const lastOwnerRef = useRef<string | null>(null);
+
   useEffect(() => {
+    const owner = data?.owner ?? null;
+    if (owner !== lastOwnerRef.current) {
+      lastOwnerRef.current = owner;
+      setActiveAccount("all");
+      return;
+    }
     if (
       activeAccount !== "all" &&
       !data?.accounts.some((account, index) => accountKey(account, index) === activeAccount)

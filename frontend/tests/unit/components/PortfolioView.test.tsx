@@ -81,6 +81,37 @@ describe("PortfolioView", () => {
         expect(screen.getByText("SIPP holding")).toBeInTheDocument();
     });
 
+    it("resets the active account tab to 'all' when the owner changes even if the new owner has a colliding account key", () => {
+        const otherOwner: Portfolio = {
+            owner: "jane",
+            as_of: "2025-07-29",
+            trades_this_month: 0,
+            trades_remaining: 20,
+            total_value_estimate_gbp: 500,
+            accounts: [
+                {
+                    account_type: "ISA",
+                    currency: "GBP",
+                    value_estimate_gbp: 500,
+                    last_updated: "2025-07-24",
+                    holdings: [
+                        { ticker: "OTHER", name: "Jane ISA holding", units: 1, market_value_gbp: 500 },
+                    ],
+                },
+            ],
+        };
+
+        const { rerender } = render(<PortfolioView data={mockOwner} />);
+        fireEvent.click(screen.getByRole("tab", { name: "ISA" }));
+        expect(screen.getByRole("tab", { name: "ISA" })).toHaveAttribute("aria-selected", "true");
+
+        rerender(<PortfolioView data={otherOwner} />);
+
+        expect(screen.getByRole("tab", { name: "All accounts" })).toHaveAttribute("aria-selected", "true");
+        const total = screen.getByText(/Approx Total:/);
+        expect(total).toHaveTextContent("£500.00");
+    });
+
     it("preserves table filter state while switching account tabs", () => {
         render(<PortfolioView data={mockOwner} />);
 

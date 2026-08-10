@@ -26,7 +26,7 @@ from backend.common.authz import ensure_owner_access
 from backend.common.instruments import get_instrument_meta
 from backend.common.ticker_utils import normalise_filter_ticker
 from backend.config import config
-from backend.integrations.moneyhub_api import MoneyhubClient
+from backend.integrations.moneyhub_api import MoneyhubClient, MoneyhubNotConfiguredError
 from backend.routes._accounts import resolve_accounts_root
 from backend.utils import update_holdings_from_csv
 
@@ -66,10 +66,10 @@ def _get_moneyhub_client() -> MoneyhubClient:
     """Return the process-wide Moneyhub client, creating it on first use.
 
     Raises:
-        RuntimeError: if credentials are unset (and not in ``TESTING`` mode).
-            Callers that reach this from a request handler should catch it
-            and return a 503, since it means the optional Moneyhub feature
-            isn't configured -- not that the request itself is broken.
+        MoneyhubNotConfiguredError: if credentials are unset (and not in
+            ``TESTING`` mode). The application-wide exception handler turns
+            this into a 503 response for every request path that creates the
+            client.
     """
     global _moneyhub_client_instance
 
@@ -77,7 +77,7 @@ def _get_moneyhub_client() -> MoneyhubClient:
         client_id = os.environ.get("MONEYHUB_CLIENT_ID")
         client_secret = os.environ.get("MONEYHUB_CLIENT_SECRET")
         if (not client_id or not client_secret) and not os.getenv("TESTING"):
-            raise RuntimeError("MONEYHUB_CLIENT_ID and MONEYHUB_CLIENT_SECRET must be set")
+            raise MoneyhubNotConfiguredError("MONEYHUB_CLIENT_ID and MONEYHUB_CLIENT_SECRET must be set")
         _moneyhub_client_instance = MoneyhubClient(
             client_id=client_id or "",
             client_secret=client_secret or "",
@@ -908,10 +908,7 @@ async def import_moneyhub_transactions(
     from backend.importers import moneyhub_api as moneyhub_mapper
     from backend.integrations.moneyhub_api import MoneyhubAPIError
 
-    try:
-        client = _get_moneyhub_client()
-    except RuntimeError as exc:
-        raise HTTPException(status_code=503, detail=str(exc))
+    client = _get_moneyhub_client()
     try:
         access_token = moneyhub_tokens.get_valid_access_token(owner, client)
     except moneyhub_tokens.MoneyhubAuthError as exc:

@@ -6,6 +6,13 @@ backend/alerts.py:104
 backend/alerts.py:152
 backend/alerts.py:194
 backend/alerts.py:93
+backend/alerts.py:228
+backend/alerts.py:256
+backend/alerts.py:336
+backend/app.py:175
+backend/app.py:207
+backend/app.py:226
+backend/auth.py:126
 # accounts-root path comes from server config, not attacker-controlled input.
 backend/auth.py:172
 # provider is always a hardcoded literal ("Google"/"Cognito") passed by the

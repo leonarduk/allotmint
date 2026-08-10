@@ -19,6 +19,11 @@ BACKEND_REQUIREMENTS = Path(__file__).resolve().parents[1] / "backend" / "requir
 # into the root requirements.txt used by the local dev server.
 BACKEND_ONLY_ALLOWLIST = {"setuptools"}
 
+# Keep exemptions explicit and narrowly limited to packages that are genuinely
+# needed only by local tooling. Runtime dependencies belong in both files so
+# local development and Lambda/Docker deployments install the same package set.
+ROOT_ONLY_ALLOWLIST: set[str] = set()
+
 _PACKAGE_NAME_RE = re.compile(r"^([A-Za-z0-9_.\-]+)")
 
 
@@ -50,6 +55,22 @@ class RequirementsConsistencyTests(unittest.TestCase):
             "(see issue #6016). Add them to requirements.txt, or add them to "
             "BACKEND_ONLY_ALLOWLIST in this test if they are genuinely "
             "backend-deploy-only tooling that backend/**/*.py never imports.",
+        )
+
+    def test_root_requirements_are_mirrored_in_backend_requirements(self) -> None:
+        root_packages = _parse_package_names(ROOT_REQUIREMENTS)
+        backend_packages = _parse_package_names(BACKEND_REQUIREMENTS)
+
+        missing = root_packages - backend_packages - ROOT_ONLY_ALLOWLIST
+
+        self.assertFalse(
+            missing,
+            f"Package(s) {sorted(missing)} are pinned in requirements.txt but "
+            "missing from backend/requirements.txt. Lambda/Docker deployments "
+            "install only the backend file and must not silently omit packages "
+            "available to the local backend (see issue #6020). Add them to "
+            "backend/requirements.txt, or add them to ROOT_ONLY_ALLOWLIST in "
+            "this test if they are genuinely local-only tooling.",
         )
 
 

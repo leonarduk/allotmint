@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { getInstrumentDetail, getInstrumentIntraday } from "../api";
@@ -14,6 +14,12 @@ import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import ChartSkeleton from "./skeletons/ChartSkeleton";
 import TableRowsSkeleton from "./skeletons/TableRowsSkeleton";
 import TextSkeleton from "./skeletons/TextSkeleton";
+import {
+  clampDrawerWidth,
+  DEFAULT_DRAWER_WIDTH,
+  DRAWER_WIDTH_KEY,
+  MIN_DRAWER_WIDTH,
+} from "./instrumentDetailDrawer";
 import {
   ResponsiveContainer,
   LineChart,
@@ -63,6 +69,14 @@ type PositionsTableProps = {
 // ───────────────── helpers ─────────────────
 const toNum = (v: unknown): number =>
   typeof v === "number" && Number.isFinite(v) ? v : NaN;
+
+const readDrawerWidth = (): number => {
+  if (typeof window === "undefined") return DEFAULT_DRAWER_WIDTH;
+  const storedWidth = Number(window.localStorage.getItem(DRAWER_WIDTH_KEY));
+  return Number.isFinite(storedWidth) && storedWidth > 0
+    ? clampDrawerWidth(storedWidth, window.innerWidth)
+    : clampDrawerWidth(DEFAULT_DRAWER_WIDTH, window.innerWidth);
+};
 
 const fixed = (v: unknown, dp = 2): string => {
   const n = toNum(v);
@@ -207,6 +221,8 @@ export function InstrumentDetail({
 }: Props) {
   const { t } = useTranslation();
   const { baseCurrency } = useConfig();
+  const [drawerWidth, setDrawerWidth] = useState(readDrawerWidth);
+  const dragStart = useRef<{ pointerX: number; width: number } | null>(null);
   const palette = useMemo(
     () => ({
       background: variant === "drawer" ? "#111" : "transparent",
@@ -227,7 +243,8 @@ export function InstrumentDetail({
             top: 0,
             right: 0,
             bottom: 0,
-            width: "420px",
+            width: `${drawerWidth}px`,
+            maxWidth: "100vw",
             background: palette.background,
             color: palette.text,
             padding: "1rem",
@@ -242,8 +259,66 @@ export function InstrumentDetail({
             color: palette.text === "inherit" ? undefined : palette.text,
             padding: 0,
           },
-    [palette.background, palette.text, variant],
+    [drawerWidth, palette.background, palette.text, variant],
   );
+  useEffect(() => {
+    if (variant !== "drawer") return;
+    const handleViewportResize = () => {
+      setDrawerWidth((width) => clampDrawerWidth(width, window.innerWidth));
+    };
+    window.addEventListener("resize", handleViewportResize);
+    return () => window.removeEventListener("resize", handleViewportResize);
+  }, [variant]);
+
+  const persistDrawerWidth = useCallback((width: number) => {
+    window.localStorage.setItem(DRAWER_WIDTH_KEY, String(Math.round(width)));
+  }, []);
+
+  const handleResizePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    dragStart.current = { pointerX: event.clientX, width: drawerWidth };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handleResizePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragStart.current) return;
+    const nextWidth = clampDrawerWidth(
+      dragStart.current.width + dragStart.current.pointerX - event.clientX,
+      window.innerWidth,
+    );
+    setDrawerWidth(nextWidth);
+  };
+
+  const handleResizePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragStart.current) return;
+    const nextWidth = clampDrawerWidth(
+      dragStart.current.width + dragStart.current.pointerX - event.clientX,
+      window.innerWidth,
+    );
+    dragStart.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    setDrawerWidth(nextWidth);
+    persistDrawerWidth(nextWidth);
+  };
+
+  const handleResizeKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    const direction = event.key === "ArrowLeft" ? 1 : -1;
+    const nextWidth = clampDrawerWidth(drawerWidth + direction * 20, window.innerWidth);
+    setDrawerWidth(nextWidth);
+    persistDrawerWidth(nextWidth);
+  };
+
+  const toggleExpanded = () => {
+    const expandedWidth = clampDrawerWidth(window.innerWidth * 0.6, window.innerWidth);
+    const nextWidth = drawerWidth >= expandedWidth - 1
+      ? clampDrawerWidth(DEFAULT_DRAWER_WIDTH, window.innerWidth)
+      : expandedWidth;
+    setDrawerWidth(nextWidth);
+    persistDrawerWidth(nextWidth);
+  };
   const [data, setData] = useState<{
     prices: Price[];
     positions: Position[];
@@ -475,9 +550,46 @@ export function InstrumentDetail({
 
   return (
     <div style={containerStyle}>
+      {variant === "drawer" && (
+        <div
+          role="separator"
+          aria-label="Resize instrument details"
+          aria-orientation="vertical"
+          aria-valuemin={MIN_DRAWER_WIDTH}
+          aria-valuemax={typeof window === "undefined" ? DEFAULT_DRAWER_WIDTH : window.innerWidth}
+          aria-valuenow={Math.round(drawerWidth)}
+          tabIndex={0}
+          onPointerDown={handleResizePointerDown}
+          onPointerMove={handleResizePointerMove}
+          onPointerUp={handleResizePointerUp}
+          onPointerCancel={handleResizePointerUp}
+          onKeyDown={handleResizeKeyDown}
+          style={{
+            position: "absolute",
+            top: 0,
+            bottom: 0,
+            left: 0,
+            width: "10px",
+            cursor: "ew-resize",
+            touchAction: "none",
+          }}
+        />
+      )}
       {onClose && variant === "drawer" && (
-        <button onClick={onClose} style={{ float: "right" }}>
+        <button aria-label="Close instrument details" onClick={onClose} style={{ float: "right" }}>
           ✕
+        </button>
+      )}
+      {variant === "drawer" && (
+        <button
+          type="button"
+          aria-label="Expand or restore instrument details"
+          onClick={toggleExpanded}
+          style={{ float: "right", marginRight: "0.5rem" }}
+        >
+          {drawerWidth >= (typeof window === "undefined" ? 0 : window.innerWidth * 0.6) - 1
+            ? "↘"
+            : "↗"}
         </button>
       )}
       {signal && (

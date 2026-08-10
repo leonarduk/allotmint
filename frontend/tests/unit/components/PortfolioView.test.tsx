@@ -170,10 +170,14 @@ describe("PortfolioView", () => {
         expect(await screen.findByRole("status", { name: /loading/i })).toBeInTheDocument();
     });
 
-    it("shows the CSV import form when accounts exist", () => {
+    it("shows the CSV import form when 'Import CSV' is clicked for an owner with accounts", () => {
         render(<PortfolioView data={mockOwner} />);
 
-        expect(screen.getByText(/import csv/i)).toBeInTheDocument();
+        expect(screen.queryByLabelText(/provider/i)).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole("button", { name: /\+ import csv/i }));
+
+        expect(screen.getByLabelText(/provider/i)).toBeInTheDocument();
     });
 
     it("calls onPositionAdded when CsvImportForm triggers onImported", async () => {
@@ -182,6 +186,7 @@ describe("PortfolioView", () => {
         const onPositionAdded = vi.fn();
 
         render(<PortfolioView data={mockOwner} onPositionAdded={onPositionAdded} />);
+        fireEvent.click(screen.getByRole("button", { name: /\+ import csv/i }));
 
         fireEvent.change(screen.getByLabelText(/provider/i), {
             target: { value: "hargreaves" },
@@ -288,6 +293,8 @@ describe("PortfolioView", () => {
                 <PortfolioView data={mockOwner} />
             </configContext.Provider>,
         );
+
+        fireEvent.click(screen.getByRole("button", { name: /\+ import csv/i }));
 
         expect(screen.getByText(/import csv/i)).toBeInTheDocument();
     });

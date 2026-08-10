@@ -235,6 +235,7 @@ export function PortfolioView({ data, loading, error, onDateChange, onAccountAdd
   const [hasWarnings, setHasWarnings] = useState(false);
   const [pendingDate, setPendingDate] = useState<string>("");
   const [showAddAccount, setShowAddAccount] = useState(false);
+  const [showCsvImport, setShowCsvImport] = useState(false);
   const [addPositionAccount, setAddPositionAccount] = useState<string | undefined>(undefined);
   const [addPositionExpanded, setAddPositionExpanded] = useState(false);
   const addPositionRef = useRef<HTMLDivElement>(null);
@@ -382,6 +383,11 @@ export function PortfolioView({ data, loading, error, onDateChange, onAccountAdd
     onPositionAdded?.();
   };
 
+  const handleCsvImported = () => {
+    setShowCsvImport(false);
+    onPositionAdded?.();
+  };
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
@@ -418,43 +424,29 @@ export function PortfolioView({ data, loading, error, onDateChange, onAccountAdd
           <div className="mb-6 text-lg font-semibold text-white">
             Approx Total: {money(totalValue, baseCurrency)}
           </div>
-          {!familyMvpEnabled && (
-            <div className="mb-6 rounded-lg border border-gray-800 bg-black/20 p-3">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
-                Export portfolio
-              </p>
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleExportCsv}
-                  aria-label="Export portfolio as CSV"
-                  className="rounded border border-gray-700 px-3 py-1 text-white hover:border-gray-500 hover:bg-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
-                >
-                  Export CSV
-                </button>
-                <button
-                  type="button"
-                  onClick={handleExportPdf}
-                  aria-label="Export portfolio as PDF"
-                  className="rounded border border-gray-700 px-3 py-1 text-white hover:border-gray-500 hover:bg-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
-                >
-                  Export PDF
-                </button>
-              </div>
-            </div>
-          )}
           {data.accounts.length > 0 && (
-            <div ref={addPositionRef} className="mb-6">
-              {addPositionExpanded ? (
-                <AddPositionForm
-                  owner={data.owner}
-                  accounts={data.accounts.map((acct) => acct.account_type)}
-                  defaultAccount={addPositionAccount}
-                  onAdded={handlePositionAdded}
-                  onCollapse={handleAddPositionCollapse}
-                  controlsId={ADD_POSITION_FORM_ID}
-                />
-              ) : (
+            <div className="mb-6 flex flex-wrap items-center gap-2">
+              {!familyMvpEnabled && (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleExportCsv}
+                    aria-label="Export portfolio as CSV"
+                    className="rounded border border-gray-700 px-3 py-1.5 text-sm text-white hover:border-gray-500 hover:bg-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
+                  >
+                    Export CSV
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExportPdf}
+                    aria-label="Export portfolio as PDF"
+                    className="rounded border border-gray-700 px-3 py-1.5 text-sm text-white hover:border-gray-500 hover:bg-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
+                  >
+                    Export PDF
+                  </button>
+                </>
+              )}
+              {!addPositionExpanded && (
                 <button
                   type="button"
                   onClick={() =>
@@ -471,14 +463,62 @@ export function PortfolioView({ data, loading, error, onDateChange, onAccountAdd
                   + {t("addPosition.title")}
                 </button>
               )}
+              {!showCsvImport && (
+                <button
+                  type="button"
+                  onClick={() => setShowCsvImport(true)}
+                  className="rounded border border-gray-700 px-3 py-1.5 text-sm text-white hover:border-gray-500 hover:bg-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
+                >
+                  + Import CSV
+                </button>
+              )}
+              {!showAddAccount && (
+                <button
+                  type="button"
+                  onClick={() => setShowAddAccount(true)}
+                  className="rounded border border-gray-700 px-3 py-1.5 text-sm text-white hover:border-gray-500 hover:bg-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
+                >
+                  Add account
+                </button>
+              )}
             </div>
           )}
-          {data.accounts.length > 0 && (
+          <div ref={addPositionRef}>
+            {addPositionExpanded && (
+              <div className="mb-6">
+                <AddPositionForm
+                  owner={data.owner}
+                  accounts={data.accounts.map((acct) => acct.account_type)}
+                  defaultAccount={addPositionAccount}
+                  onAdded={handlePositionAdded}
+                  onCollapse={handleAddPositionCollapse}
+                  controlsId={ADD_POSITION_FORM_ID}
+                />
+              </div>
+            )}
+          </div>
+          {showCsvImport && data.accounts.length > 0 && (
             <div className="mb-6">
               <CsvImportForm
                 owner={data.owner}
                 accountTypes={data.accounts.map((acct) => acct.account_type)}
-                onImported={onPositionAdded}
+                onImported={handleCsvImported}
+              />
+              <button
+                type="button"
+                onClick={() => setShowCsvImport(false)}
+                className="mt-2 text-xs text-gray-400 underline hover:text-white"
+              >
+                Cancel import
+              </button>
+            </div>
+          )}
+          {showAddAccount && (
+            <div className="mb-6">
+              <AddAccountForm
+                owner={data.owner}
+                onCreated={handleAccountCreated}
+                onCancel={() => setShowAddAccount(false)}
               />
             </div>
           )}
@@ -588,41 +628,24 @@ export function PortfolioView({ data, loading, error, onDateChange, onAccountAdd
               )}
             </section>
           )}
-          <div className="mb-6 mt-4">
-            {data.accounts.length === 0 ? (
+          {data.accounts.length === 0 && (
+            <div className="mb-6 mt-4">
               <EmptyState
                 message="Get started by adding your first account (e.g. ISA, SIPP, brokerage or savings)."
                 actions={[
                   { label: "Add account", onClick: () => setShowAddAccount(true) },
                 ]}
               />
-            ) : !showAddAccount ? (
-              <button
-                type="button"
-                onClick={() => setShowAddAccount(true)}
-                className="rounded border border-gray-700 px-3 py-1 text-white hover:border-gray-500 hover:bg-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
-              >
-                Add account
-              </button>
-            ) : null}
-            {showAddAccount && (
-              <div className="mt-3">
-                <AddAccountForm
-                  owner={data.owner}
-                  onCreated={handleAccountCreated}
-                  onCancel={() => setShowAddAccount(false)}
-                />
-              </div>
-            )}
-          </div>
+            </div>
+          )}
         </section>
-        <section className="rounded-lg border border-gray-800 bg-gray-900/70 p-4 md:p-6">
-          {enableAdvancedAnalytics && (
+        {enableAdvancedAnalytics && (
+          <section className="rounded-lg border border-gray-800 bg-gray-900/70 p-4 md:p-6">
             <Suspense fallback={<PortfolioDashboardSkeleton />}>
               <PerformanceDashboard owner={data.owner} asOf={data.as_of} />
             </Suspense>
-          )}
-        </section>
+          </section>
+        )}
       </div>
     </div>
   );

@@ -54,16 +54,22 @@ export const holdingContractSchema = z.object({
   // may not carry an acquisition date.  Making this required would throw at
   // runtime and break the portfolio view for those records.
   acquired_date: z.string().nullable().optional(),
-  price: z.number().optional(),
-  cost_basis_gbp: z.number().optional(),
+  // price/cost_basis_gbp/effective_cost_basis_gbp/market_value_gbp/gain_gbp/
+  // gain_pct are nullable: backend/common/holding_utils.py legitimately
+  // returns null for all of these when a holding has zero units or an
+  // unresolvable price (see the units<=0 and price-unresolved branches of
+  // enrich_holding), so treating them as always-a-number makes
+  // portfolioContractSchema.parse() throw on real accounts.
+  price: nullableNumber.optional(),
+  cost_basis_gbp: nullableNumber.optional(),
   cost_basis_currency: nullableString.optional(),
-  effective_cost_basis_gbp: z.number().optional(),
+  effective_cost_basis_gbp: nullableNumber.optional(),
   effective_cost_basis_currency: nullableString.optional(),
-  market_value_gbp: z.number().optional(),
+  market_value_gbp: nullableNumber.optional(),
   market_value_currency: nullableString.optional(),
-  gain_gbp: z.number().optional(),
+  gain_gbp: nullableNumber.optional(),
   gain_currency: nullableString.optional(),
-  gain_pct: z.number().optional(),
+  gain_pct: nullableNumber.optional(),
   current_price_gbp: nullableNumber.optional(),
   current_price_currency: nullableString.optional(),
   last_price_date: nullableString.optional(),

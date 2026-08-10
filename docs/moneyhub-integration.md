@@ -124,9 +124,9 @@ AllotMint's transaction model is `Transaction` in
 [`backend/routes/transactions.py:33-57`](../backend/routes/transactions.py).
 Provider-specific import already follows a plugin pattern — see
 `backend/importers/__init__.py` (`_IMPORTER_PATHS` dict) and
-`backend/importers/degiro.py` for a worked example — so a `moneyhub`
-importer added in #3425 should register itself the same way as `degiro` and
-`hargreaves` do, rather than introducing a new import mechanism.
+`backend/importers/hargreaves.py` for a worked example — so a `moneyhub`
+importer added in #3425 should register itself the same way `hargreaves`
+does, rather than introducing a new import mechanism.
 
 Moneyhub's transaction resource (per their public Open Banking-derived
 schema) exposes roughly: `id`, `accountId`, `amount` (with `currency`),

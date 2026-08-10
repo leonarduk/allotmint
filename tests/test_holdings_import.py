@@ -47,10 +47,79 @@ def test_update_holdings_from_csv(tmp_path: Path, monkeypatch):
     data = json.loads(acct_file.read_text())
     assert len(data["holdings"]) == 2
     h = {h["ticker"]: h for h in data["holdings"]}
-    assert h["AAA"]["units"] == 10
-    assert h["AAA"]["cost_basis_gbp"] == 15
-    assert h["AAA"]["current_price_gbp"] == pytest.approx(1.5)
+    assert h["AAA.L"]["units"] == 10
+    assert h["AAA.L"]["cost_basis_gbp"] == 15
+    assert h["AAA.L"]["value_gbp"] == pytest.approx(15.0)
     assert Path(result["path"]).resolve() == acct_file.resolve()
+
+
+def test_update_holdings_from_csv_aggregates_duplicate_ticker_rows(tmp_path: Path, monkeypatch):
+    """Two CSV rows for the same ticker must collapse into one holding (#6264)."""
+    monkeypatch.setattr(config, "accounts_root", tmp_path)
+    csv_data = "Code,Stock,Units held,Price (pence),Cost (£)\n" "AAA,Alpha,10,150,15\n" "AAA,Alpha,5,150,7.5\n"
+    update_holdings_from_csv.update_from_csv(
+        owner="alice", account="isa", provider="hargreaves", data=csv_data.encode()
+    )
+    data = json.loads((tmp_path / "alice" / "isa.json").read_text())
+    assert len(data["holdings"]) == 1
+    holding = data["holdings"][0]
+    assert holding["ticker"] == "AAA.L"
+    assert holding["units"] == pytest.approx(15.0)
+    assert holding["cost_basis_gbp"] == pytest.approx(22.5)
+    assert holding["value_gbp"] == pytest.approx(22.5)
+
+
+def test_update_holdings_from_csv_merges_into_existing_document(tmp_path: Path, monkeypatch):
+    """Fields already on the stored document must survive a CSV import (#6264)."""
+    monkeypatch.setattr(config, "accounts_root", tmp_path)
+    acct_dir = tmp_path / "alice"
+    acct_dir.mkdir(parents=True)
+    existing = {
+        "owner": "alice",
+        "account_type": "isa",
+        "currency": "GBP",
+        "last_updated": "2020-01-01",
+        "holdings": [{"ticker": "OLD.L", "units": 1, "value_gbp": 1, "cost_basis_gbp": 1}],
+        "notes": "keep me",
+    }
+    (acct_dir / "isa.json").write_text(json.dumps(existing))
+
+    update_holdings_from_csv.update_from_csv(
+        owner="alice", account="isa", provider="hargreaves", data=SAMPLE_CSV.encode()
+    )
+
+    data = json.loads((acct_dir / "isa.json").read_text())
+    assert data["notes"] == "keep me"
+    assert {h["ticker"] for h in data["holdings"]} == {"AAA.L", "BBB.L"}
+    assert data["last_updated"] != "2020-01-01"
+
+
+def test_update_from_csv_is_not_clobbered_by_stale_transactions_file(tmp_path: Path, monkeypatch):
+    """Regression test for #6263: importing a CSV must not be silently
+    overwritten by a rebuild from an unrelated, stale ``*_transactions.json``
+    ledger for the same account.
+    """
+    monkeypatch.setattr(config, "accounts_root", tmp_path)
+    owner_dir = tmp_path / "alice"
+    owner_dir.mkdir(parents=True)
+    stale_tx = {
+        "transactions": [
+            {"type": "BUY", "ticker": "OLD", "units": 999, "date": "2020-01-01"},
+        ]
+    }
+    (owner_dir / "isa_transactions.json").write_text(json.dumps(stale_tx))
+
+    update_holdings_from_csv.update_from_csv(
+        owner="alice",
+        account="isa",
+        provider="hargreaves",
+        data=SAMPLE_CSV.encode(),
+    )
+
+    data = json.loads((owner_dir / "isa.json").read_text())
+    tickers = {h["ticker"] for h in data["holdings"]}
+    assert tickers == {"AAA.L", "BBB.L"}
+    assert "OLD" not in tickers
 
 
 @pytest.fixture()

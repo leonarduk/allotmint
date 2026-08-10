@@ -12,10 +12,7 @@ import {
 } from '../api';
 
 /** Provider keys supported by `backend/importers`, excluding the `test` stub. */
-const PROVIDERS = [
-  { value: 'degiro', label: 'DEGIRO' },
-  { value: 'hargreaves', label: 'Hargreaves Lansdown' },
-];
+const PROVIDERS = [{ value: 'hargreaves', label: 'Hargreaves Lansdown' }];
 
 type Props = {
   owner: string;

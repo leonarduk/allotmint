@@ -43,7 +43,7 @@ def _load_accounts_for_owner(owner: str, acct_names: list[str]) -> list[dict]:
             acct = load_account(owner, name)
             accounts.append(acct)
         except FileNotFoundError:
-            logf.warning("Account file missing: %s/%s.json", sanitise_log_value(owner), sanitise_log_value(name))
+            logger.warning("Account file missing: %s/%s.json", sanitise_log_value(owner), sanitise_log_value(name))
         except (OSError, ValueError, json.JSONDecodeError) as exc:
             logger.warning(
                 "Failed to parse %s/%s.json -> %s",

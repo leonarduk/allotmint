@@ -415,6 +415,7 @@ test.describe('bootstrap to portfolio happy path', () => {
           trades_this_month: 0,
           trades_remaining: 10,
           total_value_estimate_gbp: 1000,
+          members: ['demo-owner'],
           accounts: [
             {
               owner: 'demo-owner',

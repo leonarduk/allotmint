@@ -80,14 +80,19 @@ describe("useRouteMode", () => {
   ] as const)(
     "derives mode and complete URL scope from %s",
     async (entry, expectedMode, expectedOwner, expectedAccount) => {
-      window.history.pushState({}, "", entry);
-      const wrapper = ({ children }: { children: ReactNode }) => (
-        <MemoryRouter initialEntries={[entry]}>{children}</MemoryRouter>
-      );
-      const { result } = renderHook(() => useRouteMode(), { wrapper });
-      await waitFor(() => expect(result.current.mode).toBe(expectedMode));
-      expect(result.current.selectedOwner).toBe(expectedOwner);
-      expect(result.current.selectedAccount).toBe(expectedAccount);
+      const previousUrl = window.location.href;
+      try {
+        window.history.pushState({}, "", entry);
+        const wrapper = ({ children }: { children: ReactNode }) => (
+          <MemoryRouter initialEntries={[entry]}>{children}</MemoryRouter>
+        );
+        const { result } = renderHook(() => useRouteMode(), { wrapper });
+        await waitFor(() => expect(result.current.mode).toBe(expectedMode));
+        expect(result.current.selectedOwner).toBe(expectedOwner);
+        expect(result.current.selectedAccount).toBe(expectedAccount);
+      } finally {
+        window.history.replaceState({}, "", previousUrl);
+      }
     },
   );
   it.each(["/", "/?owner=x", "/?owner=x&account=y"])(

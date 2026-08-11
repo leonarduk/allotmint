@@ -203,6 +203,11 @@
   },
   "holdingsTable": {
     "actualPurchaseCost": "Actual purchase cost",
+    "displayMode": {
+      "flat": "Flat",
+      "label": "Holdings display mode",
+      "rollup": "Rollup"
+    },
     "clearFilters": "Clear filters",
     "horizontalScroll": "Scroll holdings columns horizontally",
     "columns": {

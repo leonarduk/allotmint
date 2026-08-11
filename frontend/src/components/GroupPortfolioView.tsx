@@ -14,6 +14,7 @@ import type {
   SectorContribution,
   RegionContribution,
   InstrumentSummary,
+  InstrumentGroupDefinition,
   OwnerSummary,
 } from "../types";
 import {
@@ -24,9 +25,11 @@ import {
   getGroupSectorContributions,
   getGroupRegionContributions,
   getGroupInstruments,
+  listInstrumentGroupingDefinitions,
 } from "../api";
 import * as api from "../api";
-import { InstrumentTable } from "./InstrumentTable";
+import { HoldingsTable } from "./HoldingsTable";
+import { InstrumentDetail } from "./InstrumentDetail";
 import { TopMoversSummary } from "./TopMoversSummary";
 import { money, percent, percentOrNa } from "../lib/money";
 import PortfolioSummary, { computePortfolioTotals } from "./PortfolioSummary";
@@ -55,6 +58,7 @@ import {
 } from "recharts";
 import type { PieLabelRenderProps } from "recharts";
 import { BadgeCheck, LineChart, Shield } from "lucide-react";
+import { toRollupRows, toScopedHoldingRows } from "../lib/rollupAdapter";
 import { OwnerPortfolioActions } from "./OwnerPortfolioActions";
 
 const PIE_COLORS = [
@@ -250,6 +254,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     relativeViewEnabled,
     baseCurrency,
     enableAdvancedAnalytics = true,
+    familyMvpEnabled,
   } = useConfig();
   const [asOfOverride, setAsOfOverride] = useState<string | null>(null);
   const [instrumentRefreshVersion, setInstrumentRefreshVersion] = useState(0);
@@ -293,6 +298,17 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   const [instrumentRows, setInstrumentRows] = useState<InstrumentSummary[] | null>(null);
   const [instrumentLoading, setInstrumentLoading] = useState(false);
   const [instrumentError, setInstrumentError] = useState<Error | null>(null);
+  const [requestedDisplayMode, setRequestedDisplayMode] = useState<
+    "flat" | "rollup"
+  >("flat");
+  const displayMode = familyMvpEnabled ? "flat" : requestedDisplayMode;
+  const [selectedInstrument, setSelectedInstrument] = useState<{
+    ticker: string;
+    name: string;
+  } | null>(null);
+  const [groupDefinitions, setGroupDefinitions] = useState<
+    InstrumentGroupDefinition[]
+  >([]);
   const instrumentKeyRef = useRef<string | null>(null);
   const lastPortfolioAsOfRef = useRef<string | null>(null);
   const [expandedOwners, setExpandedOwners] = useState<Set<string>>(new Set());
@@ -405,7 +421,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   }, [portfolio?.as_of, asOfOverride]);
 
   useEffect(() => {
-    if (!slug) {
+    if (!slug || displayMode !== "rollup") {
       setInstrumentRows(null);
       setInstrumentLoading(false);
       setInstrumentError(null);
@@ -452,8 +468,23 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     accountFilter,
     loadGroupInstruments,
     asOfOverride,
+    displayMode,
     instrumentRefreshVersion,
   ]);
+
+  useEffect(() => {
+    let cancelled = false;
+    listInstrumentGroupingDefinitions()
+      .then((definitions) => {
+        if (!cancelled) setGroupDefinitions(definitions);
+      })
+      .catch((err) => {
+        console.error("Failed to load instrument grouping definitions", err);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const tickers = portfolio?.accounts?.flatMap((acct) =>
@@ -511,6 +542,19 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
       return true;
     });
   }, [portfolio, activeOwner, activeAccountType]);
+
+  const scopedRows = useMemo(
+    () => toScopedHoldingRows(filteredAccounts),
+    [filteredAccounts],
+  );
+  const rollupRows = useMemo(
+    () => toRollupRows(scopedRows, instrumentRows ?? []),
+    [scopedRows, instrumentRows],
+  );
+  const showAccount = useMemo(
+    () => new Set(filteredAccounts.map((account) => account.account_type)).size > 1,
+    [filteredAccounts],
+  );
 
   const totals = useMemo(
     () => computePortfolioTotals(filteredAccounts),
@@ -1267,6 +1311,31 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
         </div>
       )}
 
+      {!familyMvpEnabled && (
+        <fieldset
+          style={{
+            display: "flex",
+            gap: "0.75rem",
+            marginBottom: "1rem",
+            border: 0,
+            padding: 0,
+          }}
+        >
+          <legend className="sr-only">{t("holdingsTable.displayMode.label")}</legend>
+          {(["flat", "rollup"] as const).map((mode) => (
+            <label key={mode}>
+              <input
+                type="radio"
+                name="group-holdings-display-mode"
+                value={mode}
+                checked={displayMode === mode}
+                onChange={() => setRequestedDisplayMode(mode)}
+              />{" "}
+              {t(`holdingsTable.displayMode.${mode}`)}
+            </label>
+          ))}
+        </fieldset>
+      )}
       {activeOwner && portfolio && (
         <OwnerPortfolioActions
           owner={activeOwner}
@@ -1281,15 +1350,12 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
         />
       )}
 
-      {instrumentError && (
+      {displayMode === "rollup" && instrumentError && (
         <p style={{ color: "red" }}>
           {t("common.error")}: {instrumentError.message}
         </p>
       )}
-      {instrumentLoading && !instrumentRows && (
-        <p>{t("common.loading")}</p>
-      )}
-      {instrumentRows && (
+      {hasFilteredAccounts && (
         <div
           style={{
             display: "flex",
@@ -1315,7 +1381,27 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
               {portfolioInsight.message}
             </div>
           )}
-          <InstrumentTable rows={instrumentRows} />
+          <HoldingsTable
+            holdings={displayMode === "rollup" ? rollupRows : scopedRows}
+            rollupMode={displayMode === "rollup"}
+            showAccount={showAccount}
+            groupingMode={displayMode === "rollup" ? "category" : "flat"}
+            categoryDefinitions={groupDefinitions}
+            onSelectInstrument={(ticker, name) =>
+              setSelectedInstrument({ ticker, name })
+            }
+            selectedTicker={selectedInstrument?.ticker}
+          />
+          {displayMode === "rollup" && instrumentLoading && !instrumentRows && (
+            <p>{t("common.loading")}</p>
+          )}
+          {selectedInstrument && (
+            <InstrumentDetail
+              ticker={selectedInstrument.ticker}
+              name={selectedInstrument.name}
+              onClose={() => setSelectedInstrument(null)}
+            />
+          )}
         </div>
       )}
     </div>

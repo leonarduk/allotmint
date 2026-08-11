@@ -60,6 +60,8 @@ import type { PieLabelRenderProps } from "recharts";
 import { BadgeCheck, LineChart, Shield } from "lucide-react";
 import { toRollupRows, toScopedHoldingRows } from "../lib/rollupAdapter";
 import { OwnerPortfolioActions } from "./OwnerPortfolioActions";
+import { useLocation, useNavigate } from "react-router-dom";
+import { readRouteScopeQuery } from "../routes/registry";
 
 const PIE_COLORS = [
   "#8884d8",
@@ -249,6 +251,9 @@ type Props = {
  * Component
  * ────────────────────────────────────────────────────────── */
 export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const routeScope = readRouteScopeQuery(location.search);
   const { t } = useTranslation();
   const {
     relativeViewEnabled,
@@ -293,8 +298,8 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   const [maxDrawdown, setMaxDrawdown] = useState<number | null>(null);
   const [error, setError] = useState<Error | null>(null);
   const [contribTab, setContribTab] = useState<"sector" | "region">("sector");
-  const [activeOwner, setActiveOwner] = useState<string | null>(null);
-  const [activeAccountType, setActiveAccountType] = useState<string | null>(null);
+  const activeOwner: string | null = routeScope.owner || null;
+  const activeAccountType: string | null = routeScope.account || null;
   const [instrumentRows, setInstrumentRows] = useState<InstrumentSummary[] | null>(null);
   const [instrumentLoading, setInstrumentLoading] = useState(false);
   const [instrumentError, setInstrumentError] = useState<Error | null>(null);
@@ -325,9 +330,32 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   );
 
   useEffect(() => {
-    setActiveOwner(null);
     setAsOfOverride(null);
   }, [slug]);
+
+  const handleOwnerChange = useCallback(
+    (owner: string | null, options?: { replace?: boolean }) => {
+      if (!owner) {
+        navigate({ pathname: "/", search: "" }, options);
+        return;
+      }
+      navigate(
+        { pathname: "/", search: new URLSearchParams({ owner }).toString() },
+        options,
+      );
+    },
+    [navigate],
+  );
+
+  const handleAccountTypeChange = useCallback(
+    (accountType: string | null, options?: { replace?: boolean }) => {
+      if (!activeOwner) return;
+      const params = new URLSearchParams({ owner: activeOwner });
+      if (accountType) params.set("account", accountType);
+      navigate({ pathname: "/", search: params.toString() }, options);
+    },
+    [activeOwner, navigate],
+  );
 
   const ownerTabs = useMemo<
     { value: string; label: string; accountTypes: string[] }[]
@@ -364,23 +392,26 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   );
 
   useEffect(() => {
+    if (!portfolio || ownerTabs.length === 0) return;
     if (activeOwner && !ownerTabs.some((tab) => tab.value === activeOwner)) {
-      setActiveOwner(null);
+      handleOwnerChange(null, { replace: true });
     }
-  }, [activeOwner, ownerTabs]);
+  }, [activeOwner, handleOwnerChange, ownerTabs, portfolio]);
 
   useEffect(() => {
-    setActiveAccountType(null);
-  }, [activeOwner]);
+    if (!activeOwner && activeAccountType) {
+      handleOwnerChange(null, { replace: true });
+    }
+  }, [activeAccountType, activeOwner, handleOwnerChange]);
 
   useEffect(() => {
     if (!activeOwner) return;
     const owner = ownerTabs.find((tab) => tab.value === activeOwner);
     if (!owner) return;
     if (activeAccountType && !owner.accountTypes.includes(activeAccountType)) {
-      setActiveAccountType(null);
+      handleAccountTypeChange(null, { replace: true });
     }
-  }, [activeOwner, activeAccountType, ownerTabs]);
+  }, [activeOwner, activeAccountType, handleAccountTypeChange, ownerTabs]);
 
   const ownerFilter = activeOwner ?? undefined;
   const accountFilter =
@@ -1224,7 +1255,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
           type="button"
           role="tab"
           aria-selected={activeOwner === null}
-          onClick={() => setActiveOwner(null)}
+          onClick={() => handleOwnerChange(null)}
           style={{
             padding: "0.5rem 0.75rem",
             borderRadius: "4px",
@@ -1242,7 +1273,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
             type="button"
             role="tab"
             aria-selected={activeOwner === tab.value}
-            onClick={() => setActiveOwner(tab.value)}
+            onClick={() => handleOwnerChange(tab.value)}
             style={{
               padding: "0.5rem 0.75rem",
               borderRadius: "4px",
@@ -1273,7 +1304,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
             type="button"
             role="tab"
             aria-selected={activeAccountType === null}
-            onClick={() => setActiveAccountType(null)}
+            onClick={() => handleAccountTypeChange(null)}
             style={{
               padding: "0.5rem 0.75rem",
               borderRadius: "4px",
@@ -1294,7 +1325,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                 type="button"
                 role="tab"
                 aria-selected={activeAccountType === type}
-                onClick={() => setActiveAccountType(type)}
+                onClick={() => handleAccountTypeChange(type)}
                 style={{
                   padding: "0.5rem 0.75rem",
                   borderRadius: "4px",

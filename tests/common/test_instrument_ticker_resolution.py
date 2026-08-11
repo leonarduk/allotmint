@@ -5,9 +5,7 @@ def test_resolver_prefers_existing_metadata_without_creating(monkeypatch):
     monkeypatch.setattr(
         instruments,
         "get_instrument_meta",
-        lambda ticker: (
-            {"ticker": ticker, "exchange": "US", "currency": "USD"} if ticker == "MSFT.US" else {}
-        ),
+        lambda ticker: ({"ticker": ticker, "exchange": "US", "currency": "USD"} if ticker == "MSFT.US" else {}),
     )
     create = monkeypatch.setattr(instruments, "_auto_create_instrument_meta", lambda ticker: None)
 
@@ -27,10 +25,7 @@ def test_resolver_explicitly_creates_and_persists_first_valid_candidate(monkeypa
 
     monkeypatch.setattr(instruments, "_auto_create_instrument_meta", create)
 
-    assert (
-        instruments.resolve_instrument_ticker("ADBE.L", exchanges=("L", "US"), create_missing=True)
-        == "ADBE.US"
-    )
+    assert instruments.resolve_instrument_ticker("ADBE.L", exchanges=("L", "US"), create_missing=True) == "ADBE.US"
     assert attempted == ["ADBE.L", "ADBE.US"]
 
 
@@ -52,9 +47,7 @@ def test_resolver_honours_persisted_exchange_alias_not_in_canonical_list(monkeyp
     monkeypatch.setattr(
         instruments,
         "get_instrument_meta",
-        lambda ticker: (
-            {"ticker": ticker, "exchange": "N", "currency": "USD"} if ticker == "PFE.N" else {}
-        ),
+        lambda ticker: ({"ticker": ticker, "exchange": "N", "currency": "USD"} if ticker == "PFE.N" else {}),
     )
 
     assert instruments.resolve_instrument_ticker("PFE", exchanges=("L", "US")) == "PFE.N"

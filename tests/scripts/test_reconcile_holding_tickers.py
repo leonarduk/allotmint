@@ -56,9 +56,7 @@ def test_reconcile_account_file_dry_run_does_not_create_missing_metadata(tmp_pat
 def test_reconcile_account_file_missing_holdings_key_is_a_noop(tmp_path, monkeypatch):
     path = tmp_path / "person.json"
     path.write_text(json.dumps({"owner": "alice"}))
-    monkeypatch.setattr(
-        reconcile_holding_tickers, "resolve_instrument_ticker", lambda *args, **kwargs: None
-    )
+    monkeypatch.setattr(reconcile_holding_tickers, "resolve_instrument_ticker", lambda *args, **kwargs: None)
 
     result = reconcile_holding_tickers.reconcile_account_file(path, write=True)
 
@@ -123,11 +121,7 @@ def test_reconcile_account_file_second_run_does_not_overwrite_backup(tmp_path, m
     backup_path = path.with_suffix(path.suffix + ".bak")
     assert backup_path.read_text() == original_text
 
-    path.write_text(
-        json.dumps(
-            {"holdings": [{"ticker": "MSFT.US", "units": 2}, {"ticker": "ADBE.L", "units": 1}]}
-        )
-    )
+    path.write_text(json.dumps({"holdings": [{"ticker": "MSFT.US", "units": 2}, {"ticker": "ADBE.L", "units": 1}]}))
     monkeypatch.setattr(
         reconcile_holding_tickers,
         "resolve_instrument_ticker",
@@ -154,9 +148,7 @@ def test_main_rejects_write_with_no_paths_and_no_all_flag(monkeypatch, capsys):
 def test_main_allows_write_with_no_paths_when_all_flag_set(tmp_path, monkeypatch):
     account_dir = tmp_path / "alice"
     account_dir.mkdir()
-    (account_dir / "isa.json").write_text(
-        json.dumps({"holdings": [{"ticker": "MSFT.L", "units": 1}]})
-    )
+    (account_dir / "isa.json").write_text(json.dumps({"holdings": [{"ticker": "MSFT.L", "units": 1}]}))
     monkeypatch.setattr(reconcile_holding_tickers.config, "accounts_root", tmp_path)
     monkeypatch.setattr(
         reconcile_holding_tickers,

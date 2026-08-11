@@ -112,7 +112,15 @@ describe('page manifest', () => {
       owner: 'Steve Smith',
       account: 'isa',
     });
-    expect(deriveModeFromLocation('/', '?owner=Steve%20Smith')).toBe('owner');
+    expect(deriveModeFromLocation('/', '?owner=Steve%20Smith')).toBe('group');
     expect(deriveModeFromLocation('/', '?account=isa')).toBe('group');
+    expect(
+      deriveModeFromLocation('/portfolio/steve', '?account=isa')
+    ).toBe('owner');
+    // A conflicting `?owner=` query must not override pathname-mode routing:
+    // /portfolio/:owner stays in 'owner' mode regardless of the query string.
+    expect(
+      deriveModeFromLocation('/portfolio/steve', '?owner=other')
+    ).toBe('owner');
   });
 });

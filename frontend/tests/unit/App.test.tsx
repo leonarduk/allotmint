@@ -883,7 +883,9 @@ describe("App", () => {
 
     await user.click(await screen.findByRole("link", { name: /steve/i }));
 
-    await waitFor(() => expect(locationUpdates.at(-1)).toBe("/?owner=steve"));
+    await waitFor(() =>
+      expect(locationUpdates.at(-1)).toBe("/portfolio/steve"),
+    );
     await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("steve"));
 
     expect(locationUpdates).not.toContain("/portfolio/alice");
@@ -1150,10 +1152,10 @@ describe("App", () => {
     await waitFor(() =>
       expect(screen.getByTestId("active-route-marker")).toHaveAttribute(
         "data-pathname",
-        "/",
+        "/portfolio/bob",
       ),
     );
-    expect(router.state.location.search).toBe("?owner=bob");
+    expect(router.state.location.search).toBe("");
     await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("bob"));
     expect(
       screen.getByTestId("active-route-marker").getAttribute("data-pathname")?.startsWith("/performance"),

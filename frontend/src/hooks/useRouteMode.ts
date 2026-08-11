@@ -12,6 +12,8 @@ interface RouteState {
   setMode: (mode: Mode) => void;
   selectedOwner: string;
   setSelectedOwner: (owner: string) => void;
+  selectedAccount: string;
+  setSelectedAccount: (account: string) => void;
   selectedGroup: string;
   setSelectedGroup: (group: string) => void;
 }
@@ -20,12 +22,17 @@ function deriveInitialState() {
   const scope = readRouteScopeQuery(window.location.search);
   const route = deriveRouteFromPathname(window.location.pathname);
   const mode = deriveModeFromLocation(window.location.pathname, window.location.search);
-  const owner = mode === 'owner' ? route.slug || scope.owner || '' : route.mode === 'performance' ? route.slug : '';
+  const owner =
+    route.mode === 'owner' || route.mode === 'performance'
+      ? route.slug || scope.owner || ''
+      : scope.owner ?? '';
   const group = route.mode === 'instrument' ? route.slug : normaliseGroupSlug(scope.group);
+  const account = scope.account ?? '';
 
   return {
     mode,
     owner,
+    account,
     group,
   };
 }
@@ -39,6 +46,7 @@ export function useRouteMode(): RouteState {
   const initial = deriveInitialState();
   const [mode, setMode] = useState<Mode>(initial.mode);
   const [selectedOwner, setSelectedOwner] = useState(initial.owner);
+  const [selectedAccount, setSelectedAccount] = useState(initial.account);
   const [selectedGroup, setSelectedGroup] = useState(initial.group);
 
   useEffect(() => {
@@ -65,7 +73,10 @@ export function useRouteMode(): RouteState {
     setMode(nextMode);
 
     if (nextMode === 'owner' || nextMode === 'performance') {
-      setSelectedOwner(route.slug || scope.owner || '');
+      const nextOwner = route.slug || scope.owner || '';
+      const nextAccount = scope.account ?? '';
+      if (selectedOwner !== nextOwner) setSelectedOwner(nextOwner);
+      if (selectedAccount !== nextAccount) setSelectedAccount(nextAccount);
       return;
     }
 
@@ -90,16 +101,21 @@ export function useRouteMode(): RouteState {
     }
 
     if (nextMode === 'group') {
-      setSelectedOwner('');
+      const nextOwner = scope.owner ?? '';
+      const nextAccount = scope.account ?? '';
+      if (selectedOwner !== nextOwner) setSelectedOwner(nextOwner);
+      if (selectedAccount !== nextAccount) setSelectedAccount(nextAccount);
       setSelectedGroup(normaliseGroupSlug(scope.group));
     }
-  }, [disabledTabs, groups, location.pathname, location.search, navigate, selectedGroup, selectedOwner, tabs]);
+  }, [disabledTabs, groups, location.pathname, location.search, navigate, selectedAccount, selectedGroup, selectedOwner, tabs]);
 
   return {
     mode,
     setMode,
     selectedOwner,
     setSelectedOwner,
+    selectedAccount,
+    setSelectedAccount,
     selectedGroup,
     setSelectedGroup,
   };

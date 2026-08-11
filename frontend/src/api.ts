@@ -1018,6 +1018,12 @@ export const saveTimeseries = (ticker: string, exchange: string, rows: PriceEntr
     body: JSON.stringify(rows),
   });
 
+export const moveTimeseries = (ticker: string, sourceExchange: string, destinationExchange: string) =>
+  fetchJson<{ status: string; rows: number; ticker: string; exchange: string }>(
+    `${API_BASE}/timeseries/edit/move?ticker=${encodeURIComponent(ticker)}&source_exchange=${encodeURIComponent(sourceExchange)}&destination_exchange=${encodeURIComponent(destinationExchange)}`,
+    { method: "POST" },
+  );
+
 export const getInstrumentMetadata = (ticker: string, exchange: string) =>
   fetchJson<(InstrumentMetadata & Record<string, unknown>) | null>(
     `${API_BASE}/instrument/admin/${encodeURIComponent(exchange)}/${encodeURIComponent(ticker)}`,

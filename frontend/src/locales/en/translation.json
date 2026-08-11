@@ -716,12 +716,16 @@
     },
     "exchange": "Exchange",
     "load": "Load",
+    "move": "Move to {{exchange}}",
+    "moveHelp": "Move the loaded series to the selected exchange. The original is removed only after the move succeeds.",
     "applyScaling": "Apply scaling",
     "scaleFactor": "Scale factor",
     "scaleVolume": "Scale volume",
     "save": "Save",
     "status": {
       "loaded": "Loaded {{count}} rows",
+      "moved": "Moved {{ticker}} from {{source}} to {{destination}}",
+      "noData": "No data exists for {{ticker}}.{{exchange}} yet",
       "saved": "Saved {{count}} rows",
       "scaled": "Applied {{factor}}× scaling to {{count}} rows{{volumeNote}}",
       "volumeIncluded": " (including volume)"

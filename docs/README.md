@@ -10,6 +10,7 @@ If you are onboarding, start with:
 ## Canonical documentation
 
 ### Core contributor and operations docs
+
 - [`CONTRIBUTOR_RUNBOOK.md`](CONTRIBUTOR_RUNBOOK.md) — contributor onboarding and day-to-day development flow.
 - [`CODEX_PLAYWRIGHT_MCP.md`](CODEX_PLAYWRIGHT_MCP.md) — exact Playwright MCP registration steps for Codex.
 - [`DEPLOY.md`](DEPLOY.md) — deployment workflow and operational deployment notes.
@@ -20,6 +21,8 @@ If you are onboarding, start with:
 - [`TECHNICAL_SUPPORT.md`](TECHNICAL_SUPPORT.md) — support/debug runbook.
 
 ### Product and feature reference docs
+
+- [`decisions/6517-market-list-surfaces.md`](decisions/6517-market-list-surfaces.md) — decision to retain Watchlist, Movers, and Screener as distinct workflows.
 - [`REPORT_WORKFLOW.md`](REPORT_WORKFLOW.md) — report generation and lifecycle notes.
 - [`transactions.md`](transactions.md) — transaction import and handling reference.
 - [`value_at_risk.md`](value_at_risk.md) — VaR model and implementation notes.

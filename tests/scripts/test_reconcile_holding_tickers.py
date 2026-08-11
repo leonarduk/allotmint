@@ -21,11 +21,15 @@ def test_reconcile_account_file_updates_equity_and_flags_fund(tmp_path, monkeypa
         lambda ticker, create_missing: "MSFT.US" if ticker == "MSFT" and create_missing else None,
     )
 
+    original_text = path.read_text()
     result = reconcile_holding_tickers.reconcile_account_file(path, write=True)
 
     assert result == {"changed": ["MSFT.L -> MSFT.US"], "unresolved": ["BMNR1F3.L"]}
     holdings = json.loads(path.read_text())["holdings"]
     assert [holding["ticker"] for holding in holdings] == ["MSFT.US", "BMNR1F3.L"]
+
+    backup_path = path.with_suffix(path.suffix + ".bak")
+    assert backup_path.read_text() == original_text
 
 
 def test_reconcile_account_file_dry_run_does_not_create_missing_metadata(tmp_path, monkeypatch):

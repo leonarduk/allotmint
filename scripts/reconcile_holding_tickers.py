@@ -32,6 +32,8 @@ def reconcile_account_file(path: Path, *, write: bool = False) -> dict[str, list
             changed.append(f"{ticker} -> {resolved}")
 
     if write and changed:
+        backup_path = path.with_suffix(path.suffix + ".bak")
+        backup_path.write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
         path.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
     return {"changed": changed, "unresolved": unresolved}
 

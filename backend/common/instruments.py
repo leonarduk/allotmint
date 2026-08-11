@@ -521,6 +521,10 @@ def resolve_instrument_ticker(
 ) -> Optional[str]:
     """Resolve a bare symbol to a persisted, informative instrument ticker.
 
+    ``ticker`` is expected to be a bare symbol without an exchange suffix
+    (e.g. ``"MSFT"``); any ``.SUFFIX`` present is stripped and ignored, it is
+    not treated as a preferred candidate.
+
     Existing metadata is checked before any live lookup, making this safe for
     the CSV import path. Persisted exchange aliases not in ``exchanges`` are
     also considered, so already-backfilled metadata under a non-canonical

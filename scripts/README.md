@@ -264,8 +264,11 @@ in the current directory for manual inspection.
 
 Resolve bare Hargreaves Lansdown holdings against persisted instrument metadata
 and, when permitted by the runtime configuration, Yahoo Finance. The command is
-a dry run unless `--write` is supplied. Unresolvable identifiers (including UK
-fund SEDOLs) are printed as needing a manual mapping instead of being rewritten.
+a dry run unless `--write` is supplied — a dry run only reads existing
+metadata and never fetches from Yahoo or writes files. Unresolvable
+identifiers (including UK fund SEDOLs) are printed as needing a manual
+mapping instead of being rewritten. When `--write` changes an account file, a
+sibling `.bak` copy of the original is written alongside it first.
 
 ```bash
 python -m scripts.reconcile_holding_tickers data/accounts/alice/isa.json

@@ -99,6 +99,30 @@ describe("InstrumentDetail", () => {
     expect(separator.parentElement).toHaveStyle({ zIndex: "1000", background: "#111" });
   });
 
+  it("links from the drawer to the full research page", async () => {
+    mockGetInstrumentDetail.mockResolvedValue({ prices: [], positions: [], currency: null });
+    mockGetInstrumentIntraday.mockResolvedValue([]);
+
+    const { rerender } = render(
+      <MemoryRouter>
+        <InstrumentDetail ticker="ABC.L" name="ABC" onClose={() => {}} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("link", { name: "View full page" })).toHaveAttribute(
+      "href",
+      "/research/ABC.L",
+    );
+
+    rerender(
+      <MemoryRouter>
+        <InstrumentDetail ticker="ABC.L" name="ABC" variant="standalone" />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByRole("link", { name: "View full page" })).not.toBeInTheDocument();
+  });
+
   it("shows accessible loading skeletons before the instrument detail resolves", async () => {
     let resolveDetail: (value: { prices: unknown[]; positions: unknown[]; currency: null }) => void;
     mockGetInstrumentDetail.mockReturnValue(

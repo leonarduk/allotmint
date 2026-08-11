@@ -6,11 +6,19 @@ import i18n from "@/i18n";
 import { configContext, type AppConfig } from "@/ConfigContext";
 import { useState } from "react";
 import * as api from "@/api";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import type { OwnerSummary } from "@/types";
 import { buildPortfolioCsv } from "@/lib/portfolioExport";
 vi.mock("@/components/TopMoversSummary", () => ({
   TopMoversSummary: () => <div data-testid="top-movers-summary" />,
+}));
+vi.mock("@/components/InstrumentDetail", () => ({
+  InstrumentDetail: ({ ticker, onClose }: { ticker: string; onClose: () => void }) => (
+    <aside>
+      <span>Details for {ticker}</span>
+      <button type="button" onClick={onClose}>Close instrument details</button>
+    </aside>
+  ),
 }));
 
 const RECHARTS_DIMENSION_WARNING_PATTERN = /width\((?:0|-1)\)|height\((?:0|-1)\)/;
@@ -1173,5 +1181,154 @@ describe("GroupPortfolioView", () => {
     await waitFor(() => expect(portfolioRequestCount()).toBe(initialRequests + 3));
     await new Promise((resolve) => window.setTimeout(resolve, 50));
     expect(portfolioRequestCount()).toBe(initialRequests + 3);
+  });
+
+  it("hides the display-mode toggle and keeps flat mode forced in family MVP even with duplicate lots", async () => {
+    const mockPortfolio = {
+      name: "At a glance",
+      accounts: [
+        {
+          owner: "alice",
+          account_type: "isa",
+          value_estimate_gbp: 50,
+          holdings: [{ ticker: "AAA", units: 1, market_value_gbp: 50 }],
+        },
+        {
+          owner: "alice",
+          account_type: "sipp",
+          value_estimate_gbp: 100,
+          holdings: [{ ticker: "AAA", units: 2, market_value_gbp: 100 }],
+        },
+      ],
+    };
+    const fetchMock = mockAllFetches(mockPortfolio);
+
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />, {
+      familyMvpEnabled: true,
+    });
+
+    // Two distinct lots for the same ticker must render as two rows; a forced
+    // rollup would incorrectly collapse them into one aggregated row.
+    expect(await screen.findAllByRole("button", { name: "AAA" })).toHaveLength(2);
+    expect(screen.queryByRole("radio", { name: "Rollup" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: "Flat" })).not.toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(([input]) =>
+        toUrlString(input as RequestInfo | URL).endsWith("/instruments"),
+      ),
+    ).toBe(false);
+  });
+
+  it("falls back to Ungrouped and still shows correct money for a rollup ticker missing instrument enrichment", async () => {
+    const user = userEvent.setup();
+    const mockPortfolio = {
+      name: "At a glance",
+      accounts: [
+        {
+          owner: "alice",
+          account_type: "isa",
+          value_estimate_gbp: 100,
+          holdings: [
+            { ticker: "AAA", units: 1, market_value_gbp: 60, gain_gbp: 0 },
+            { ticker: "BBB", units: 1, market_value_gbp: 40, gain_gbp: 0 },
+          ],
+        },
+      ],
+    };
+    // BBB is deliberately absent from the instruments payload to simulate a
+    // join miss (§3: the row still shows correct money).
+    const instruments = {
+      [instrumentKey()]: [
+        { ticker: "AAA", name: "Alpha", units: 1, market_value_gbp: 60, gain_gbp: 0, grouping: "Equity" },
+      ],
+    };
+    const fetchMock = mockAllFetches(mockPortfolio, { instruments });
+
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+
+    await user.click(await screen.findByRole("radio", { name: "Rollup" }));
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(([input]) =>
+          toUrlString(input as RequestInfo | URL).endsWith("/instruments"),
+        ),
+      ).toBe(true),
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Toggle Ungrouped" }));
+    const bbbRow = (await screen.findByRole("button", { name: "BBB" })).closest("tr")!;
+    expect(within(bbbRow).getAllByText("£40.00").length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole("button", { name: "Toggle Equity" }));
+    const aaaRow = (await screen.findByRole("button", { name: "AAA" })).closest("tr")!;
+    expect(within(aaaRow).getAllByText("£60.00").length).toBeGreaterThan(0);
+  });
+
+  it("opens the InstrumentDetail drawer on ticker click without navigating away", async () => {
+    const user = userEvent.setup();
+    const mockPortfolio = {
+      name: "At a glance",
+      accounts: [
+        {
+          owner: "alice",
+          account_type: "isa",
+          value_estimate_gbp: 60,
+          holdings: [{ ticker: "ZZZ", units: 1, market_value_gbp: 60 }],
+        },
+      ],
+    };
+    mockAllFetches(mockPortfolio);
+
+    const LocationDisplay = () => {
+      const location = useLocation();
+      return <div data-testid="location-display">{location.pathname}</div>;
+    };
+
+    render(
+      <MemoryRouter initialEntries={["/portfolio/all"]}>
+        <TestProvider>
+          <GroupPortfolioView slug="all" owners={ownerFixtures} />
+        </TestProvider>
+        <LocationDisplay />
+      </MemoryRouter>,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "ZZZ" }));
+
+    expect(screen.getByText("Details for ZZZ")).toBeInTheDocument();
+    expect(screen.getByTestId("location-display")).toHaveTextContent("/portfolio/all");
+
+    await user.click(screen.getByRole("button", { name: "Close instrument details" }));
+    expect(screen.queryByText("Details for ZZZ")).not.toBeInTheDocument();
+  });
+
+  it("renders family-level charts and metrics only at All family scope, not at owner scope", async () => {
+    const user = userEvent.setup();
+    const mockPortfolio = {
+      name: "At a glance",
+      accounts: [
+        {
+          owner: "alice",
+          account_type: "isa",
+          value_estimate_gbp: 100,
+          holdings: [
+            { ticker: "AAA", units: 1, market_value_gbp: 100, instrument_type: "equity" },
+          ],
+        },
+      ],
+    };
+    mockAllFetches(mockPortfolio, { metrics: { alpha: 5, trackingError: 2, maxDrawdown: 10 } });
+
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+
+    expect(await screen.findByTestId("top-movers-summary")).toBeInTheDocument();
+    expect(screen.getByText("Alpha vs Benchmark")).toBeInTheDocument();
+    expect(screen.getByText("Tracking Error")).toBeInTheDocument();
+
+    await user.click(await screen.findByRole("tab", { name: "Alice Example" }));
+
+    expect(screen.queryByTestId("top-movers-summary")).not.toBeInTheDocument();
+    expect(screen.queryByText("Alpha vs Benchmark")).not.toBeInTheDocument();
+    expect(screen.queryByText("Tracking Error")).not.toBeInTheDocument();
   });
 });

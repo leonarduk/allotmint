@@ -40,6 +40,7 @@ import Support from './pages/Support';
 import ScenarioTester from './pages/ScenarioTester';
 import UserConfigPage from './pages/UserConfig';
 import BackendUnavailableCard from './components/BackendUnavailableCard';
+import DisabledFeature from './components/DisabledFeature';
 import Reports from './pages/Reports';
 import ReportTemplateCreator from './pages/ReportTemplateCreator';
 import AllocationCharts from './pages/AllocationCharts';
@@ -135,7 +136,7 @@ export function getFamilyMvpRedirectPath(
   //   keep sends the bare root ('/' with no query) to the configured entry flow.
   // - Every other route is left untouched: enabled tabs (search, settings, …)
   //   must be fully navigable. Truly disabled tabs are handled separately by the
-  //   tab gating in the route-sync effect, which redirects them to '/'.
+  //   tab gating in the route-sync effect, which shows an explanatory state.
   // - If every Family MVP tab is disabled, leave route selection to the caller.
   //
   // This is intentionally separate from getOwnerRootRedirectPath, which only
@@ -263,7 +264,7 @@ export default function App({ onLogout }: AppProps) {
   }, [familyMvpEnabled, familyMvpEntryPath, location.pathname, location.search, navigate]);
 
   // Sync route state (mode, selectedOwner, selectedGroup) with the current
-  // location. Waits for config to load so that disabled-tab redirects use
+  // location. Waits for config to load so that disabled-tab gating uses
   // the correct tab config. Also skips the sync when a Family MVP redirect
   // is about to fire, to avoid transient mode flips.
   useEffect(() => {
@@ -289,8 +290,7 @@ export default function App({ onLogout }: AppProps) {
     const isDisabled =
       tabs[newMode] === false || disabledTabs?.includes(newMode);
     if (isDisabled) {
-      setMode('group');
-      navigate('/', { replace: true });
+      setMode(newMode);
       return;
     }
     if (newMode === 'movers' && location.pathname !== '/movers') {
@@ -465,8 +465,7 @@ export default function App({ onLogout }: AppProps) {
   const exportGroupLabel = selectedGroup || 'all';
 
   const portfolioGroupSlug =
-    selectedOwnerGroup?.slug ??
-    (selectedOwner ? selectedOwner : mode === 'group' ? selectedGroup : '');
+    selectedOwnerGroup?.slug ?? (selectedGroup || '');
   const portfolioComplianceOwners = selectedOwnerGroup
     ? selectedOwnerGroup.members
     : selectedOwner
@@ -482,6 +481,13 @@ export default function App({ onLogout }: AppProps) {
   }, [instruments, exportGroupLabel]);
 
   const renderMainContent = () => {
+    const isDisabled =
+      configLoaded &&
+      (tabs[mode] === false || disabledTabs?.includes(mode));
+    if (isDisabled) {
+      return <DisabledFeature />;
+    }
+
     if (backendUnavailable) {
       return <BackendUnavailableCard onRetry={handleRetry} />;
     }

@@ -61,14 +61,14 @@ describe("App", () => {
 
   it.each([
     ["/", "all", ["alice", "bob"], "/", 0],
-    ["/?owner=alice", "alice", ["alice"], "/?owner=alice", 0],
-    ["/?owner=alice&account=isa", "alice", ["alice"], "/?owner=alice&account=isa", 0],
+    ["/?owner=alice", "all", ["alice"], "/?owner=alice", 0],
+    ["/?owner=alice&account=isa", "all", ["alice"], "/?owner=alice&account=isa", 0],
     ["/?account=isa", "all", ["alice", "bob"], "/", 1],
     ["/?owner=family", "family", ["alice", "bob"], "/?owner=family", 0],
-    ["/portfolio/alice", "alice", ["alice"], "/?owner=alice", 1],
+    ["/portfolio/alice", "all", ["alice"], "/?owner=alice", 1],
     [
       "/portfolio/alice/?group=kids&owner=bob&account=isa",
-      "alice",
+      "all",
       ["alice"],
       "/?owner=alice&account=isa",
       1,
@@ -827,7 +827,7 @@ describe("App", () => {
     ).toBeInTheDocument();
   });
 
-  it("hides disabled tabs and prevents navigation", async () => {
+  it("hides disabled tabs and explains disabled deep links", async () => {
     window.history.pushState({}, "", "/movers");
 
     vi.doMock("@/api", async () => {
@@ -869,6 +869,10 @@ describe("App", () => {
     );
 
     expect(screen.queryByRole("link", { name: /movers/i })).toBeNull();
+    expect(
+      await screen.findByText("This feature isn't enabled for this application."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Return home" })).toBeInTheDocument();
   });
 
   it("keeps unknown research owner slugs without redirecting", async () => {

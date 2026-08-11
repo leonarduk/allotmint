@@ -27,6 +27,18 @@ describe("VirtualPortfolio page", () => {
     );
   });
 
+  it("clearly identifies browser-only drafts and links to the saved portfolio", () => {
+    render(<VirtualPortfolio />);
+
+    expect(screen.getByText("Local draft")).toBeInTheDocument();
+    expect(screen.getByText(/not saved to your AllotMint account/i)).toBeInTheDocument();
+    expect(screen.getByText(/cannot currently be transferred automatically/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open saved portfolio" })).toHaveAttribute(
+      "href",
+      "/portfolio",
+    );
+  });
+
   it("adds multiple accounts and holdings", () => {
     render(<VirtualPortfolio />);
 

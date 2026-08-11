@@ -26,8 +26,8 @@ Additional runtime settings are supplied via environment variables. Copy
 - `ALPHA_VANTAGE_KEY`: API key for Alpha Vantage data (example: `demo`).
 - `SNS_TOPIC_ARN`: publish alerts to an AWS SNS topic (e.g.
   `arn:aws:sns:us-east-1:123456789012:allotmint`).
-- `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`: forward alerts to Telegram
-  (e.g. `123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZ` and `123456789`).
+- `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`: forward alerts to Telegram;
+  set these only in an untracked `.env` file or the deployment secret store; never commit their values.
 - `DATA_BUCKET`: S3 bucket containing account data when running in AWS.
 - `METADATA_BUCKET` and `METADATA_PREFIX`: S3 bucket and key prefix for instrument metadata.
 

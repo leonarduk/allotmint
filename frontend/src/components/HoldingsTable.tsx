@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, type MouseEvent } from "react";
+import { Fragment, useState, useEffect, useRef, useMemo, type MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import type { Holding } from "../types";
 import { money, percent } from "../lib/money";
@@ -20,6 +20,19 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import Sparkline from "./Sparkline";
 import { getGrowthStage } from "../utils/growthStage";
 import { preloadInstrumentHistory } from "../hooks/useInstrumentHistory";
+import type { InstrumentGroupDefinition } from "../types";
+import type { RollupRow } from "../lib/rollupAdapter";
+import {
+  buildCategoryLookup,
+  calculateGroupTotals,
+  createGroups,
+  sanitizeGroupKey,
+} from "./instrumentTable/utils";
+import type {
+  GroupedRows,
+  GroupingMode,
+  RowWithCost,
+} from "./instrumentTable/types";
 
 const VIEW_PRESET_STORAGE_KEY = "holdingsTableViewPreset";
 const ESTIMATED_ROW_HEIGHT = 32;
@@ -27,16 +40,21 @@ const ESTIMATED_ROW_HEIGHT = 32;
 type HoldingsTableRow = Holding & {
   source_account?: string;
   row_key?: string;
+  grouping?: string | null;
+  change_7d_pct?: number | null;
+  change_30d_pct?: number | null;
 };
 
 type Props = {
-  holdings: HoldingsTableRow[];
+  holdings: HoldingsTableRow[] | RollupRow[];
   showAccount?: boolean;
   onSelectInstrument?: (ticker: string, name: string) => void;
   selectedTicker?: string;
   showForward7d?: boolean;
   showForward30d?: boolean;
   onAddPosition?: () => void;
+  groupingMode?: GroupingMode;
+  categoryDefinitions?: InstrumentGroupDefinition[];
 };
 
 
@@ -48,7 +66,12 @@ export function HoldingsTable({
   showForward7d = false,
   showForward30d = false,
   onAddPosition,
+  groupingMode = "flat",
+  categoryDefinitions = [],
 }: Props) {
+  // RollupRow is the adapter's deliberately presentation-neutral shape. Its
+  // nullable lot-only fields are rendered the same way as absent Holding fields.
+  const holdingRows = holdings as HoldingsTableRow[];
   const { t } = useTranslation();
   const { relativeViewEnabled, baseCurrency, familyMvpEnabled } = useConfig();
   let navigate: (path: string) => void = () => {};
@@ -62,7 +85,7 @@ export function HoldingsTable({
 
   const viewPresets = useMemo(() => {
     const instrumentTypes = new Map<string, string>();
-    holdings.forEach(({ instrument_type: instrumentType }) => {
+    holdingRows.forEach(({ instrument_type: instrumentType }) => {
       const trimmedType = instrumentType?.trim();
       if (trimmedType) {
         instrumentTypes.set(trimmedType.toLocaleLowerCase(), trimmedType);
@@ -76,7 +99,7 @@ export function HoldingsTable({
         value: instrumentType,
       })),
     ];
-  }, [holdings, t]);
+  }, [holdingRows, t]);
 
   const [filters, dispatchFilters] = useFilterReducer();
 
@@ -103,11 +126,11 @@ export function HoldingsTable({
   }, [viewPreset, viewPresets]);
 
   useEffect(() => {
-    const tickers = Array.from(new Set(holdings.map((h) => h.ticker)));
+    const tickers = Array.from(new Set(holdingRows.map((h) => h.ticker)));
     if (tickers.length) {
       preloadInstrumentHistory(tickers, sparkRange).catch(() => {});
     }
-  }, [holdings, sparkRange]);
+  }, [holdingRows, sparkRange]);
 
   const toggleColumn = (key: keyof typeof visibleColumns) => {
     setVisibleColumns((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -140,7 +163,7 @@ export function HoldingsTable({
   }, [viewPreset, dispatchFilters]);
 
   // derive cost/market/gain/gain_pct
-  const computed = holdings.map((h) => {
+  const computed = holdingRows.map((h) => {
     const cost =
       (h.cost_basis_gbp ?? 0) > 0
         ? h.cost_basis_gbp ?? 0
@@ -207,6 +230,54 @@ export function HoldingsTable({
   );
   const totalGainPct = totals.cost ? (totals.gain / totals.cost) * 100 : 0;
 
+  const categoryLookup = useMemo(
+    () => buildCategoryLookup(categoryDefinitions),
+    [categoryDefinitions],
+  );
+  const hasCategories = categoryLookup.categories.size > 0;
+
+  // Category mode requires categoryDefinitions; fall back to 'group' when the
+  // caller requests 'category' without providing definitions (matching
+  // InstrumentTable's useInstrumentTableState behaviour).
+  const effectiveGroupingMode: GroupingMode =
+    groupingMode === "category" && !hasCategories ? "group" : groupingMode;
+
+  const groups = useMemo(() => {
+    const groupingRows = sortedRows.map((row, index) => ({
+      ...row,
+      __holdingsIndex: index,
+      cost: row.cost,
+      market_value_gbp: row.market,
+      gain_gbp: row.gain,
+      change_7d_pct: row.change_7d_pct ?? row.forward_7d_change_pct ?? null,
+      change_30d_pct: row.change_30d_pct ?? row.forward_30d_change_pct ?? null,
+    })) as RowWithCost[];
+
+    return createGroups(
+      groupingRows,
+      sortKey as keyof RowWithCost,
+      asc,
+      effectiveGroupingMode,
+      {
+        ungroupedLabel: t("instrumentTable.ungrouped", { defaultValue: "Ungrouped" }),
+        uncategorisedLabel: t("instrumentTable.uncategorised", {
+          defaultValue: "Uncategorised",
+        }),
+      },
+      categoryLookup,
+    );
+  }, [asc, categoryLookup, effectiveGroupingMode, sortKey, sortedRows, t]);
+  const overallGroupTotals = useMemo(
+    () =>
+      calculateGroupTotals(
+        groups.flatMap((group) => group.rows),
+        t("holdingsTable.totalRowLabel"),
+      ),
+    [groups, t],
+  );
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set());
+  const showGroupHeaders = effectiveGroupingMode !== "flat";
+
   const columnLabels: [keyof typeof visibleColumns, string][] = [
     ["units", t("holdingsTable.columns.units")],
     ["cost", t("holdingsTable.columns.cost")],
@@ -270,14 +341,19 @@ export function HoldingsTable({
     };
   }, [sortedRows.length, relativeViewEnabled, visibleColumns, showForward7d, showForward30d]);
 
+  // Grouped mode disables the virtualizer (count=0) so that all group headers
+  // and their rows remain addressable in the DOM regardless of expand/collapse
+  // state. This renders every row at once — acceptable for the typical grouped
+  // view size (tens of groups) but should be revisited before wiring this mode
+  // to pages that display hundreds of holdings.
   const rowVirtualizer = useVirtualizer({
-    count: sortedRows.length,
+    count: showGroupHeaders ? 0 : sortedRows.length,
     getScrollElement: () => tableContainerRef.current,
     estimateSize: () => ESTIMATED_ROW_HEIGHT,
     overscan: 5,
     scrollMargin: headerHeight,
   });
-  const virtualRows = rowVirtualizer.getVirtualItems();
+  const virtualRows = showGroupHeaders ? [] : rowVirtualizer.getVirtualItems();
   const paddingTop = virtualRows.length ? virtualRows[0].start : 0;
   const paddingBottom = virtualRows.length
     ? rowVirtualizer.getTotalSize() - virtualRows[virtualRows.length - 1].end
@@ -289,6 +365,91 @@ export function HoldingsTable({
         start: index * ESTIMATED_ROW_HEIGHT,
         end: (index + 1) * ESTIMATED_ROW_HEIGHT,
       }));
+
+  const renderGroupHeader = (group: GroupedRows, expanded: boolean) => {
+    const groupDomId = `holdings-group-${sanitizeGroupKey(group.key)}`;
+    const groupWeight = overallGroupTotals.marketValue
+      ? (group.totals.marketValue / overallGroupTotals.marketValue) * 100
+      : 0;
+
+    return (
+      <tr key={`group-${group.key}`} className={tableStyles.groupRow}>
+        {showAccount && <td className={`${tableStyles.cell} ${tableStyles.groupCell}`}>—</td>}
+        <th
+          scope="row"
+          className={`${tableStyles.cell} ${tableStyles.groupCell}`}
+          colSpan={2}
+        >
+          <button
+            type="button"
+            className={tableStyles.groupToggle}
+            onClick={() =>
+              setExpandedGroups((previous) => {
+                const next = new Set(previous);
+                if (next.has(group.key)) next.delete(group.key);
+                else next.add(group.key);
+                return next;
+              })
+            }
+            aria-expanded={expanded}
+            aria-controls={groupDomId}
+            aria-label={t("instrumentTable.groupToggle", {
+              group: group.label,
+              defaultValue: `Toggle ${group.label}`,
+            })}
+          >
+            <span aria-hidden="true" className={tableStyles.groupToggleIcon}>
+              {expanded ? "−" : "+"}
+            </span>
+            <span>{group.label}</span>
+            <span className={tableStyles.groupCount}>({group.rows.length})</span>
+          </button>
+        </th>
+        {!relativeViewEnabled && visibleColumns.units && (
+          <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
+            {new Intl.NumberFormat(i18n.language).format(group.totals.units)}
+          </td>
+        )}
+        {!relativeViewEnabled && visibleColumns.market && (
+          <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
+            {money(group.totals.marketValue, baseCurrency)}
+          </td>
+        )}
+        {!relativeViewEnabled && visibleColumns.gain && (
+          <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
+            {money(group.totals.gain, baseCurrency)}
+          </td>
+        )}
+        {visibleColumns.gain_pct && (
+          <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
+            {percent(group.totals.gainPct, 1)}
+          </td>
+        )}
+        <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>—</td>
+        {!relativeViewEnabled && visibleColumns.cost && (
+          <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
+            {money(group.totals.cost, baseCurrency)}
+          </td>
+        )}
+        {showForward7d && (
+          <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
+            {percent(group.totals.change7dPct, 1)}
+          </td>
+        )}
+        {showForward30d && (
+          <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
+            {percent(group.totals.change30dPct, 1)}
+          </td>
+        )}
+        <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
+          {percent(groupWeight, 1)}
+        </td>
+        {Array.from({ length: 7 }, (_, index) => (
+          <td key={index} className={`${tableStyles.cell} ${tableStyles.groupCell}`}>—</td>
+        ))}
+      </tr>
+    );
+  };
 
   return (
     <>
@@ -509,6 +670,20 @@ export function HoldingsTable({
           )}
           {items.map((virtualRow) => {
             const h = sortedRows[virtualRow.index];
+            const group = showGroupHeaders
+              ? groups.find((candidate) =>
+                  candidate.rows.some(
+                    (row) =>
+                      (row as RowWithCost & { __holdingsIndex: number }).__holdingsIndex ===
+                      virtualRow.index,
+                  ),
+                )
+              : undefined;
+            const isFirstGroupRow =
+              (group?.rows[0] as (RowWithCost & { __holdingsIndex: number }) | undefined)
+                ?.__holdingsIndex === virtualRow.index;
+            const expanded = group ? expandedGroups.has(group.key) : true;
+            if (group && !expanded && !isFirstGroupRow) return null;
             const isSelected = h.ticker === selectedTicker;
             const handleSelect = () => {
               onSelectInstrument?.(h.ticker, h.name ?? h.ticker);
@@ -518,10 +693,11 @@ export function HoldingsTable({
               event.stopPropagation();
               handleSelect();
             };
-            return (
+            const holdingRow = (
               <tr
                 ref={rowVirtualizer.measureElement}
                 data-index={virtualRow.index}
+                id={group && isFirstGroupRow ? `holdings-group-${sanitizeGroupKey(group.key)}` : undefined}
                 key={h.row_key ?? h.ticker + h.acquired_date}
                 onClick={onSelectInstrument ? handleSelect : undefined}
                 aria-selected={isSelected || undefined}
@@ -655,24 +831,41 @@ export function HoldingsTable({
                   {h.days_held ?? "—"}
                 </td>
                 <td className={`${tableStyles.cell} ${tableStyles.center}`}>
-                  {(() => {
-                    const stage = getGrowthStage({ daysHeld: h.days_held });
-                    return <span title={stage.message}>{stage.icon}</span>;
-                  })()}
+                  {h.days_held != null
+                    ? (() => {
+                        const stage = getGrowthStage({ daysHeld: h.days_held });
+                        return <span title={stage.message}>{stage.icon}</span>;
+                      })()
+                    : "—"}
                 </td>
                 <td
-                  className={`${tableStyles.cell} ${tableStyles.center} ${h.sell_eligible ? 'text-positive' : 'text-warning'}`}
+                  className={`${tableStyles.cell} ${tableStyles.center} ${
+                    h.sell_eligible == null
+                      ? ""
+                      : h.sell_eligible
+                        ? "text-positive"
+                        : "text-warning"
+                  }`}
                   title={
                     h.next_eligible_sell_date
                       ? formatDateISO(new Date(h.next_eligible_sell_date))
                       : undefined
                   }
                 >
-                  {h.sell_eligible
-                    ? `✓ ${t("holdingsTable.eligible")}`
-                    : `✗ ${h.days_until_eligible ?? ""}`}
+                  {h.sell_eligible == null
+                    ? "—"
+                    : h.sell_eligible
+                      ? `✓ ${t("holdingsTable.eligible")}`
+                      : `✗ ${h.days_until_eligible ?? ""}`}
                 </td>
               </tr>
+            );
+            if (!group) return holdingRow;
+            return (
+              <Fragment key={`section-${group.key}-${h.row_key ?? virtualRow.index}`}>
+                {isFirstGroupRow && renderGroupHeader(group, expanded)}
+                {expanded && holdingRow}
+              </Fragment>
             );
           })}
           {paddingBottom > 0 && (

@@ -83,6 +83,7 @@ describe("App", () => {
   ])(
     "renders %s through the merged portfolio with the canonical URL",
     async (entry, expectedSlug, expectedComplianceOwners, expectedUrl, expectedNavigationCount) => {
+      const mockGetPortfolio = vi.fn();
       vi.doMock("@/components/GroupPortfolioView", () => ({
         GroupPortfolioView: ({ slug }: { slug: string }) => {
           const location = useLocation();
@@ -105,7 +106,7 @@ describe("App", () => {
             { slug: "all", name: "All", members: ["alice", "bob"] },
             { slug: "family", name: "Family", members: ["alice", "bob"] },
           ]),
-          getPortfolio: vi.fn(),
+          getPortfolio: mockGetPortfolio,
           getGroupInstruments: vi.fn().mockResolvedValue([]),
         };
       });
@@ -141,6 +142,7 @@ describe("App", () => {
         ]),
       );
       expect(navigationCount).toBe(expectedNavigationCount);
+      expect(mockGetPortfolio).not.toHaveBeenCalled();
       unsubscribe();
       unmount();
       vi.doUnmock("@/components/GroupPortfolioView");
@@ -494,7 +496,7 @@ describe("App", () => {
     expect(mockComplianceWarnings.mock.calls).toContainEqual([["alex"]]);
   });
 
-  it("fetches the owner portfolio as soon as groups resolve, without waiting for owners (#5094)", async () => {
+  it("does not fetch the legacy owner portfolio while owners resolve", async () => {
     window.history.pushState({}, "", "/portfolio/alice");
 
     let resolveOwners:
@@ -557,14 +559,13 @@ describe("App", () => {
       </MemoryRouter>,
     );
 
-    // getGroups already resolved (empty array) but getOwners is still pending —
-    // the portfolio fetch must not wait on it.
-    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("alice"));
+    // The merged view owns portfolio loading; App must not start the legacy request.
+    expect(mockGetPortfolio).not.toHaveBeenCalled();
 
     resolveOwners?.([]);
   });
 
-  it("keeps the legacy owner fetch working while owners resolve", async () => {
+  it("keeps owner navigation working without the legacy fetch", async () => {
     window.history.pushState({}, "", "/portfolio/alice");
 
     let resolveOwners:
@@ -641,12 +642,9 @@ describe("App", () => {
 
     render(<RouterProvider router={router} />);
 
-    // Initial fetch for alice fires with no "as of" filter.
-    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("alice"));
+    expect(mockGetPortfolio).not.toHaveBeenCalled();
 
-    // Switch owners via direct navigation while getOwners is still pending.
-    // The fetch is retained for the later cleanup child and must continue to
-    // follow pathname-based owner navigation while the owners request is pending.
+    // Owner navigation remains independent of the pending owners request.
     await act(async () => {
       await router.navigate("/portfolio/bob");
     });
@@ -960,8 +958,7 @@ describe("App", () => {
     );
 
     expect(locationUpdates).not.toContain("/portfolio/alice");
-    expect(mockGetPortfolio).toHaveBeenCalledOnce();
-    expect(mockGetPortfolio).toHaveBeenCalledWith("steve");
+    expect(mockGetPortfolio).not.toHaveBeenCalled();
   });
 
   it("stays on the portfolio route when switching owners from the portfolio page", async () => {
@@ -1075,7 +1072,7 @@ describe("App", () => {
     });
     await user.selectOptions(portfolioSelector as HTMLSelectElement, "bob");
 
-    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("bob"));
+    expect(mockGetPortfolio).not.toHaveBeenCalled();
     await waitFor(() =>
       expect(locationUpdates.at(-1)?.startsWith("/portfolio")).toBe(true),
     );
@@ -1274,7 +1271,7 @@ describe("App", () => {
     render(<RouterProvider router={router} />);
 
     await waitFor(() => expect(router.state.location.pathname).toBe("/portfolio/alice"));
-    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("alice"));
+    expect(mockGetPortfolio).not.toHaveBeenCalled();
   });
 
   it("redirects /portfolio to the owner matching the logged-in user's email, not the first owner", async () => {
@@ -1340,7 +1337,7 @@ describe("App", () => {
     render(<RouterProvider router={router} />);
 
     await waitFor(() => expect(router.state.location.pathname).toBe("/portfolio/bob"));
-    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("bob"));
+    expect(mockGetPortfolio).not.toHaveBeenCalled();
   });
 
   it("redirects /performance to the first owner when multiple owners are available", async () => {
@@ -1582,7 +1579,7 @@ describe("App", () => {
 
     await waitFor(() => expect(locationUpdates).toContain("/portfolio/alice"));
     expect(locationUpdates.filter((path) => path === "/portfolio/alice")).toHaveLength(1);
-    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("alice"));
+    expect(mockGetPortfolio).not.toHaveBeenCalled();
   });
 
   it("redirects once owners load asynchronously on /performance root", async () => {
@@ -1713,7 +1710,7 @@ describe("App", () => {
       </MemoryRouter>,
     );
 
-    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("bob"));
+    expect(mockGetPortfolio).not.toHaveBeenCalled();
     expect(locationUpdates).toContain("/portfolio/bob");
     expect(locationUpdates).not.toContain("/portfolio/alice");
   });
@@ -1774,97 +1771,6 @@ describe("App", () => {
     );
     expect(locationUpdates).toContain("/performance/bob");
     expect(locationUpdates).not.toContain("/performance/alice");
-  });
-
-  it("reuses cached portfolio data when returning from research", async () => {
-    window.history.pushState({}, "", "/portfolio/alice");
-    globalThis.AbortSignal = window.AbortSignal;
-
-    const renderStates: Array<{ loading: boolean; owner: string | null }> = [];
-
-    vi.doMock("@/components/PortfolioView", () => ({
-      PortfolioView: ({
-        data,
-        loading,
-      }: {
-        data: Portfolio | null;
-        loading?: boolean;
-      }) => {
-        renderStates.push({ loading: Boolean(loading), owner: data?.owner ?? null });
-        return (
-          <div data-testid="portfolio-view">
-            {loading ? "loading" : data?.owner ?? "none"}
-          </div>
-        );
-      },
-    }));
-
-    const mockGetOwners = vi
-      .fn()
-      .mockResolvedValue([{ owner: "alice", accounts: [] }]);
-    const mockGetGroups = vi.fn().mockResolvedValue([]);
-    const mockGetPortfolio = vi.fn().mockResolvedValue({
-      owner: "alice",
-      as_of: "2024-01-01T00:00:00.000Z",
-      trades_this_month: 0,
-      trades_remaining: 0,
-      total_value_estimate_gbp: 0,
-      accounts: [],
-    });
-
-    vi.doMock("@/api", async () => {
-      const actual = await vi.importActual<typeof import("@/api")>("@/api");
-      return {
-        ...actual,
-        getOwners: mockGetOwners,
-        getGroups: mockGetGroups,
-        getPortfolio: mockGetPortfolio,
-        getGroupInstruments: vi.fn().mockResolvedValue([]),
-        getGroupPortfolio: vi.fn(),
-        getGroupAlphaVsBenchmark: vi.fn(),
-        getGroupTrackingError: vi.fn(),
-        getGroupMaxDrawdown: vi.fn(),
-        getGroupSectorContributions: vi.fn(),
-        getGroupRegionContributions: vi.fn(),
-        getGroupMovers: vi.fn(),
-        getCachedGroupInstruments: vi.fn(),
-        listInstrumentMetadata: vi.fn().mockResolvedValue([]),
-        listInstrumentGroups: vi.fn().mockResolvedValue([]),
-        listInstrumentGroupingDefinitions: vi.fn().mockResolvedValue([]),
-        refreshPrices: vi.fn(),
-        getAlerts: vi.fn().mockResolvedValue([]),
-        getNudges: vi.fn().mockResolvedValue([]),
-        getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
-        getCompliance: vi
-          .fn()
-          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
-        complianceForOwner: vi
-          .fn()
-          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
-        getTimeseries: vi.fn().mockResolvedValue([]),
-        saveTimeseries: vi.fn(),
-        refetchTimeseries: vi.fn(),
-        rebuildTimeseriesCache: vi.fn(),
-        getTradingSignals: vi.fn().mockResolvedValue([]),
-        getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
-        getValueAtRisk: vi.fn().mockResolvedValue({ var: {} }),
-        recomputeValueAtRisk: vi.fn(),
-        getVarBreakdown: vi.fn().mockResolvedValue([]),
-      };
-    });
-
-    const { default: App } = await import("@/App");
-
-    render(
-      <MemoryRouter initialEntries={["/portfolio/alice"]}>
-        <App />
-      </MemoryRouter>,
-    );
-
-    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledTimes(1));
-
-    expect(mockGetPortfolio).toHaveBeenCalledTimes(1);
-    expect(renderStates).toHaveLength(0);
   });
 
   it("allows navigation to enabled tabs", async () => {

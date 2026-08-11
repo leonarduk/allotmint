@@ -2,24 +2,21 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
   Suspense,
   type CSSProperties,
 } from 'react';
 import { Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { getGroupInstruments, getGroups, getOwners, getPortfolio } from './api';
+import { getGroupInstruments, getGroups, getOwners } from './api';
 
 import type {
   GroupSummary,
   InstrumentSummary,
   OwnerSummary,
-  Portfolio,
 } from './types';
 
 import { OwnerSelector } from './components/OwnerSelector';
-import { PortfolioView as _PortfolioView } from './components/PortfolioView';
 import { GroupPortfolioView } from './components/GroupPortfolioView';
 import { InstrumentTable } from './components/InstrumentTable';
 import { TransactionsPage } from './components/TransactionsPage';
@@ -198,25 +195,11 @@ export default function App({ onLogout }: AppProps) {
 
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
   const [groups, setGroups] = useState<GroupSummary[]>([]);
-  // Retain the legacy portfolio fetch/cache until its dedicated cleanup child.
-  const [_portfolio, setPortfolio] = useState<Portfolio | null>(null);
-  const [portfolioAsOf, setPortfolioAsOf] = useState<string | null>(null);
   // Full catalogue stored in state — never truncated here.
   const [instruments, setInstruments] = useState<InstrumentSummary[]>([]);
 
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-
-  const portfolioCache = useRef(
-    new Map<
-      string,
-      {
-        data: Portfolio;
-        fetchedAt: number;
-        lastRefresh: string | null;
-      }
-    >()
-  );
 
   const [backendUnavailable, setBackendUnavailable] = useState(false);
   const [retryNonce, setRetryNonce] = useState(0);
@@ -244,16 +227,11 @@ export default function App({ onLogout }: AppProps) {
   );
 
   const handleLogout = useCallback(() => {
-    portfolioCache.current.clear();
-    setPortfolio(null);
     onLogout?.();
   }, [onLogout]);
 
   const ownersReq = useFetchWithRetry(getOwners, 500, 5, retryNonce);
   const groupsReq = useFetchWithRetry(getGroups, 500, 5, retryNonce);
-  // The portfolio fetch below only needs `selectedOwnerIsGroup`, which is
-  // derived from groupsReq.data alone — it must not wait on ownersReq (#5094).
-  const groupsCatalogReady = groupsReq.data !== null;
   const selectedOwnerGroup = useMemo(
     () =>
       selectedOwner && groupsReq.data
@@ -268,8 +246,6 @@ export default function App({ onLogout }: AppProps) {
         : null,
     [groupsReq.data, selectedGroup]
   );
-  const selectedOwnerIsGroup = selectedOwnerGroup !== null;
-
   // Redirect the bare root to the Family MVP entry path (the only Family MVP
   // redirect that remains — see getFamilyMvpRedirectPath, #4641). Fires on every
   // location change and whenever the config (and therefore familyMvpEnabled /
@@ -468,44 +444,6 @@ export default function App({ onLogout }: AppProps) {
   ]);
 
   // data fetching based on route
-  useEffect(() => {
-    if (mode === 'owner' && selectedOwner && groupsCatalogReady && !selectedOwnerIsGroup) {
-      const cacheKey = `${selectedOwner}::${portfolioAsOf ?? ''}::${lastRefresh ?? ''}`;
-      const cached = portfolioCache.current.get(cacheKey);
-
-      if (cached) {
-        setPortfolio(cached.data);
-        setErr(null);
-        setLoading(false);
-        return;
-      }
-
-      setLoading(true);
-      setErr(null);
-      const request = portfolioAsOf
-        ? getPortfolio(selectedOwner, { asOf: portfolioAsOf })
-        : getPortfolio(selectedOwner);
-
-      request
-        .then((data) => {
-          portfolioCache.current.set(cacheKey, {
-            data,
-            fetchedAt: Date.now(),
-            lastRefresh,
-          });
-          setPortfolio(data);
-        })
-        .catch((e) => setErr(String(e)))
-        .finally(() => setLoading(false));
-    }
-  }, [mode, selectedOwner, portfolioAsOf, lastRefresh, selectedOwnerIsGroup, groupsCatalogReady]);
-
-  useEffect(() => {
-    if (mode === 'owner' && selectedOwner && groupsCatalogReady) {
-      setPortfolioAsOf(null);
-    }
-  }, [mode, selectedOwner, groupsCatalogReady]);
-
   useEffect(() => {
     if (mode === 'instrument' && selectedGroup) {
       setLoading(true);

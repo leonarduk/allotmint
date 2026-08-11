@@ -122,7 +122,8 @@ describe('Logout flow: Cognito mode (#4802)', () => {
     // opened" failure is distinguishable from a "menuitem not found"
     // timeout instead of racing both in a single findByRole (#6126).
     await waitFor(() =>
-      expect(preferencesToggle).toHaveAttribute('aria-expanded', 'true')
+      expect(preferencesToggle).toHaveAttribute('aria-expanded', 'true'),
+      { timeout: MENU_INTERACTION_TIMEOUT_MS }
     );
     const logoutButton = await screen.findByRole(
       'menuitem',
@@ -220,7 +221,8 @@ describe('Logout flow: Cognito mode (#4802)', () => {
     // opened" failure is distinguishable from a "menuitem not found"
     // timeout instead of racing both in a single findByRole (#6126).
     await waitFor(() =>
-      expect(preferencesToggle).toHaveAttribute('aria-expanded', 'true')
+      expect(preferencesToggle).toHaveAttribute('aria-expanded', 'true'),
+      { timeout: MENU_INTERACTION_TIMEOUT_MS }
     );
     const logoutButton = await screen.findByRole(
       'menuitem',

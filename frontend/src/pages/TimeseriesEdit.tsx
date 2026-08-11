@@ -3,6 +3,7 @@ import type { ChangeEvent } from "react";
 import {
   getInstrumentMetadata,
   getTimeseries,
+  moveTimeseries,
   saveTimeseries,
   searchInstruments,
 } from "../api";
@@ -80,6 +81,10 @@ export function TimeseriesEdit() {
   const [rows, setRows] = useState<PriceEntry[]>([]);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loadedSeries, setLoadedSeries] = useState<{
+    ticker: string;
+    exchange: ExchangeCode;
+  } | null>(null);
   const [suggestions, setSuggestions] = useState<
     { ticker: string; name: string }[]
   >([]);
@@ -279,9 +284,43 @@ export function TimeseriesEdit() {
       const data = (await getTimeseries(ticker, exchange)) ?? [];
       const arr = Array.isArray(data) ? data : [];
       setRows(arr);
-      setStatus(t("timeseriesEdit.status.loaded", { count: arr.length }));
+      setLoadedSeries(arr.length ? { ticker, exchange } : null);
+      setStatus(
+        arr.length
+          ? t("timeseriesEdit.status.loaded", { count: arr.length })
+          : t("timeseriesEdit.status.noData", { ticker, exchange }),
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function handleMove() {
+    if (!loadedSeries || loadedSeries.ticker !== ticker || loadedSeries.exchange === exchange) return;
+    setError(null);
+    try {
+      const source = loadedSeries.exchange;
+      await moveTimeseries(ticker, source, exchange);
+      const data = (await getTimeseries(ticker, exchange)) ?? [];
+      const arr = Array.isArray(data) ? data : [];
+      setRows(arr);
+      setLoadedSeries(arr.length ? { ticker, exchange } : null);
+      setStatus(
+        t("timeseriesEdit.status.moved", {
+          ticker,
+          source,
+          destination: exchange,
+        }),
+      );
+    } catch (e) {
+      setLoadedSeries(null);
+      setRows([]);
+      const status = (e as { status?: number })?.status;
+      if (status === 409) {
+        setError(t("timeseriesEdit.status.moveConflict", { exchange }));
+      } else {
+        setError(e instanceof Error ? e.message : String(e));
+      }
     }
   }
   function handleFile(e: ChangeEvent<HTMLInputElement>) {
@@ -410,6 +449,18 @@ export function TimeseriesEdit() {
         </label>{" "}
         <button data-testid="load-button" onClick={handleLoad} disabled={!ticker}>
           {t("timeseriesEdit.load")}
+        </button>
+        <button
+          data-testid="move-button"
+          onClick={handleMove}
+          disabled={
+            !loadedSeries ||
+            loadedSeries.ticker !== ticker ||
+            loadedSeries.exchange === exchange
+          }
+          title={t("timeseriesEdit.moveHelp")}
+        >
+          {t("timeseriesEdit.move", { exchange })}
         </button>
       </div>
       <div className="mb-3 flex flex-wrap items-end gap-4 text-sm">

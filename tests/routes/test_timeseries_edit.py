@@ -1,5 +1,6 @@
 import pandas as pd
 import pytest
+from botocore.exceptions import ClientError
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -111,3 +112,192 @@ def test_get_missing_file(tmp_path, monkeypatch):
     resp = client.get("/timeseries/edit?ticker=NOPE&exchange=L")
     assert resp.status_code == 200
     assert resp.json() == []
+
+
+def test_move_timeseries_removes_source_without_duplication(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+    data = [{"Date": "2024-01-01", "Close": 1.5}]
+    assert client.post("/timeseries/edit?ticker=IONQ&exchange=L", json=data).status_code == 200
+
+    resp = client.post("/timeseries/edit/move?ticker=IONQ&source_exchange=L&destination_exchange=N")
+
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "ok", "rows": 1, "ticker": "IONQ", "exchange": "N"}
+    assert client.get("/timeseries/edit?ticker=IONQ&exchange=L").json() == []
+    assert len(client.get("/timeseries/edit?ticker=IONQ&exchange=N").json()) == 1
+
+
+def test_move_timeseries_refuses_to_overwrite_destination(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+    data = [{"Date": "2024-01-01", "Close": 1.5}]
+    client.post("/timeseries/edit?ticker=IONQ&exchange=L", json=data)
+    client.post("/timeseries/edit?ticker=IONQ&exchange=N", json=data)
+
+    resp = client.post("/timeseries/edit/move?ticker=IONQ&source_exchange=L&destination_exchange=N")
+
+    assert resp.status_code == 409
+    assert client.get("/timeseries/edit?ticker=IONQ&exchange=L").json()
+
+
+def test_move_timeseries_missing_source_returns_404(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+
+    resp = client.post("/timeseries/edit/move?ticker=IONQ&source_exchange=L&destination_exchange=N")
+
+    assert resp.status_code == 404
+
+
+class _FakeS3Client:
+    def __init__(self, *, fail_delete=False):
+        self.fail_delete = fail_delete
+        self.deleted = []
+        self.puts = []
+
+    def put_object(self, **kwargs):
+        self.puts.append(kwargs)
+
+    def delete_object(self, Bucket, Key):  # noqa: N803 - matches boto3 signature
+        if self.fail_delete and Key.endswith("-L.parquet"):
+            raise RuntimeError("simulated S3 delete failure")
+        self.deleted.append((Bucket, Key))
+
+
+class _FakeDataFrame:
+    def __init__(self, rows):
+        self._rows = rows
+        self.empty = not rows
+        self.to_parquet_calls = []
+
+    def to_parquet(self, destination, index=False):
+        self.to_parquet_calls.append(destination)
+
+    def __len__(self):
+        return len(self._rows)
+
+
+def _setup_s3_move(monkeypatch, *, fake_client, source_exists=True, destination_exists=False):
+    fake_df = _FakeDataFrame([{"Close": 1.5}])
+    monkeypatch.setattr(
+        timeseries_edit,
+        "meta_timeseries_cache_path",
+        lambda ticker, exchange: f"s3://bucket/{ticker}-{exchange}.parquet",
+    )
+    monkeypatch.setattr(
+        timeseries_edit,
+        "has_cached_meta_timeseries",
+        lambda ticker, exchange: destination_exists if exchange == "N" else source_exists,
+    )
+    monkeypatch.setattr(timeseries_edit, "_load_timeseries", lambda ticker, exchange: fake_df)
+    monkeypatch.setattr(timeseries_edit, "_s3_client", lambda: fake_client)
+    return fake_df
+
+
+def test_move_timeseries_s3_success_writes_then_deletes(monkeypatch):
+    fake_client = _FakeS3Client()
+    _setup_s3_move(monkeypatch, fake_client=fake_client)
+
+    rows = timeseries_edit._move_timeseries("IONQ", "L", "N")
+
+    assert rows == 1
+    assert len(fake_client.puts) == 1
+    assert fake_client.puts[0]["IfNoneMatch"] == "*"
+    assert fake_client.deleted == [("bucket", "IONQ-L.parquet")]
+
+
+def test_move_timeseries_s3_delete_failure_reports_error(monkeypatch):
+    from backend.common.errors import InternalServiceError
+
+    fake_client = _FakeS3Client(fail_delete=True)
+    _setup_s3_move(monkeypatch, fake_client=fake_client)
+
+    with pytest.raises(InternalServiceError) as exc:
+        timeseries_edit._move_timeseries("IONQ", "L", "N")
+
+    assert len(fake_client.puts) == 1
+    assert fake_client.deleted == [("bucket", "IONQ-N.parquet")]
+    assert "rolled back" in str(exc.value)
+
+
+def test_move_timeseries_s3_conditional_conflict_returns_409(monkeypatch):
+    class ConflictS3(_FakeS3Client):
+        def put_object(self, **kwargs):
+            raise ClientError({"Error": {"Code": "PreconditionFailed"}}, "PutObject")
+
+    fake_client = ConflictS3()
+    _setup_s3_move(monkeypatch, fake_client=fake_client)
+
+    with pytest.raises(timeseries_edit.HTTPException) as exc:
+        timeseries_edit._move_timeseries("IONQ", "L", "N")
+
+    assert exc.value.status_code == 409
+    assert fake_client.deleted == []
+
+
+def test_load_timeseries_missing_s3_object_returns_empty(monkeypatch):
+    class MissingS3:
+        def head_object(self, **kwargs):
+            raise ClientError({"Error": {"Code": "NoSuchKey"}}, "HeadObject")
+
+    monkeypatch.setattr(timeseries_edit, "meta_timeseries_cache_path", lambda *_: "s3://bucket/missing.parquet")
+    monkeypatch.setattr(timeseries_edit, "_s3_client", lambda: MissingS3())
+
+    assert timeseries_edit._load_timeseries("NOPE", "L").empty
+
+
+def test_load_timeseries_s3_metadata_failure_is_not_a_cache_miss(monkeypatch):
+    class DeniedS3:
+        def head_object(self, **kwargs):
+            raise ClientError({"Error": {"Code": "AccessDenied"}}, "HeadObject")
+
+    monkeypatch.setattr(timeseries_edit, "meta_timeseries_cache_path", lambda *_: "s3://bucket/denied.parquet")
+    monkeypatch.setattr(timeseries_edit, "_s3_client", lambda: DeniedS3())
+
+    with pytest.raises(timeseries_edit.InternalServiceError):
+        timeseries_edit._load_timeseries("NOPE", "L")
+
+
+def test_move_timeseries_case_insensitive_exchange_rejected(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+    data = [{"Date": "2024-01-01", "Close": 1.5}]
+    client.post("/timeseries/edit?ticker=IONQ&exchange=L", json=data)
+
+    resp = client.post("/timeseries/edit/move?ticker=IONQ&source_exchange=l&destination_exchange=L")
+
+    assert resp.status_code == 400
+
+
+def test_load_timeseries_no_such_bucket_raises_error(monkeypatch):
+    """NoSuchBucket is an infrastructure misconfiguration, not a cache miss."""
+
+    class NoBucketS3:
+        def head_object(self, **kwargs):
+            raise ClientError({"Error": {"Code": "NoSuchBucket"}}, "HeadObject")
+
+    monkeypatch.setattr(timeseries_edit, "meta_timeseries_cache_path", lambda *_: "s3://nonexistent-bucket/key.parquet")
+    monkeypatch.setattr(timeseries_edit, "_s3_client", lambda: NoBucketS3())
+
+    with pytest.raises(timeseries_edit.InternalServiceError, match="bucket not found"):
+        timeseries_edit._load_timeseries("NOPE", "L")
+
+
+def test_move_timeseries_local_atomic_no_clobber(tmp_path, monkeypatch):
+    """The atomic os.link path detects a concurrent destination writer."""
+
+    src = tmp_path / "source.parquet"
+    src.write_text("data")
+    dest = tmp_path / "dest.parquet"
+
+    # Simulate a race: os.link fails with FileExistsError even though
+    # no prior exists() check saw the file.
+    real_link = timeseries_edit.os.link
+
+    def racing_link(s, d):
+        # Another writer creates the destination just before our link
+        dest.touch()
+        return real_link(s, d)
+
+    monkeypatch.setattr(timeseries_edit.os, "link", racing_link)
+
+    with pytest.raises(timeseries_edit.HTTPException) as exc:
+        timeseries_edit._move_local_timeseries(str(src), str(dest))
+    assert exc.value.status_code == 409

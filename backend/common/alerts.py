@@ -5,7 +5,7 @@ from typing import Dict, List, Set
 
 from backend.config import config
 
-logger = logging.getLogger("alerts")
+logger = logging.getLogger(__name__)
 
 # Stores alerts published during this process run
 _RECENT_ALERTS: List[Dict] = []

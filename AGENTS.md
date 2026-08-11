@@ -153,6 +153,7 @@ Never submit an issue that is missing any of these sections.
 - If you changed UI behavior, attach screenshots.
 - If you changed operational workflows, mention the exact commands used for validation.
 - **When rebasing a PR branch**: rebase onto the target and force-push to the **same branch name**. The PR updates automatically. Do not create a new branch or a new PR — that duplicates review state and creates noise.
+- **Keep formatting-only changes (a full-file `black`/`isort`/`prettier` run) in a separate commit from functional fixes.** Mixing them buries the real diff in cosmetic noise and breaks `git bisect`. (#6268)
 
 ## 10. Additional AI-facing files in this repo
 

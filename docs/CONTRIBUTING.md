@@ -167,6 +167,14 @@ body (for example: `Closes #1234`).
 lock file changes from `npm ci` or `npm install` that strip platform-specific
 dependencies.
 
+**Keep formatting-only changes separate from functional changes**: running a
+full-file formatter (`black`, `isort`, `prettier`, etc.) as part of a
+functional fix can reformat unrelated lines in the same file, mixing
+cosmetic noise into a diff that's supposed to be about one behavior change.
+Put formatting-only changes in their own commit (or PR) instead of folding
+them into a functional commit — it keeps the diff reviewable and keeps
+`git bisect` pointing at a single logical change. (#6268)
+
 **Frontend optional dependency handling**: `frontend/package-lock.json` pins
 platform-specific optional packages (for example the Linux-only
 `@emnapi/core`/`@emnapi/runtime` entries under `@tailwindcss/oxide-wasm32-wasi`,

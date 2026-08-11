@@ -38,6 +38,17 @@ def test_instrument_path_generates_expected_locations(monkeypatch, tmp_path) -> 
     assert instruments._instrument_path("cash.usd") == tmp_path / "Cash" / "USD.json"
 
 
+@pytest.mark.parametrize("ticker", ["BP.", "AV.", "SN.", "bp."])
+def test_instrument_path_treats_trailing_dot_as_no_exchange(monkeypatch, tmp_path, ticker: str) -> None:
+    """Real LSE tickers like "BP." split into an empty (not None) exchange
+    part; that must resolve the same as the bare symbol, not raise (#6266).
+    """
+    monkeypatch.setattr(instruments, "_INSTRUMENTS_DIR", tmp_path)
+
+    sym = ticker[:-1].upper()
+    assert instruments._instrument_path(ticker) == tmp_path / "Unknown" / f"{sym}.json"
+
+
 @pytest.mark.parametrize("ticker", ["bad$ticker", "abc.ba@d"])
 def test_instrument_path_rejects_invalid_symbols(monkeypatch, tmp_path, ticker: str) -> None:
     monkeypatch.setattr(instruments, "_INSTRUMENTS_DIR", tmp_path)
@@ -260,6 +271,7 @@ def test_instruments_dir_resolution(
         caplog.clear()
         with caplog.at_level("DEBUG"):
             if patch_module_path:
+
                 def fake_resolve(self, *args, **kwargs):  # type: ignore[override]
                     resolved = original_resolve(self, *args, **kwargs)
                     if resolved == module_path:
@@ -344,8 +356,7 @@ def test_save_instrument_meta_handles_read_only_filesystem(monkeypatch, tmp_path
 
     assert result is None
     assert any(
-        "Cannot write instrument metadata" in record.getMessage()
-        and record.levelname == "WARNING"
+        "Cannot write instrument metadata" in record.getMessage() and record.levelname == "WARNING"
         for record in caplog.records
     )
 
@@ -476,6 +487,7 @@ def test_auto_create_respects_offline_and_failure_cache(monkeypatch) -> None:
     assert calls == [("YYY", "L")]
     assert "YYY.L" in instruments._AUTO_CREATE_FAILURES
 
+
 @pytest.mark.xfail(reason="Query fallback mechanism needs investigation")
 def test_auto_create_respects_testing_guard(monkeypatch) -> None:
     monkeypatch.setattr(instruments, "_AUTO_CREATE_FAILURES", set())
@@ -490,6 +502,8 @@ def test_auto_create_respects_testing_guard(monkeypatch) -> None:
         assert instruments._auto_create_instrument_meta("TEST.L") is None
     finally:
         monkeypatch.delenv("TESTING", raising=False)
+
+
 def test_list_group_definitions_loads_json(monkeypatch, tmp_path) -> None:
     root = tmp_path / "instruments" / "groupings"
     root.mkdir(parents=True, exist_ok=True)
@@ -508,6 +522,8 @@ def test_list_group_definitions_loads_json(monkeypatch, tmp_path) -> None:
         assert "invalid" not in defs
     finally:
         instruments.list_group_definitions.cache_clear()
+
+
 @pytest.mark.parametrize(
     "value,upper,expected",
     [
@@ -565,4 +581,3 @@ def test_yahoo_suffix_for_exchange_unknown() -> None:
 )
 def test_build_yahoo_symbol(symbol, exchange, expected) -> None:
     assert instruments._build_yahoo_symbol(symbol, exchange) == expected
-

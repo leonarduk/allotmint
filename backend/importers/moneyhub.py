@@ -74,7 +74,7 @@ def parse(data: bytes) -> List[Transaction]:
             header row (case-insensitively), e.g. a non-Moneyhub CSV was
             uploaded by mistake.
     """
-    text = data.decode("utf-8-sig")
+    text = data.decode(encoding="utf-8-sig", errors="replace")
     reader = csv.DictReader(io.StringIO(text))
     normalised_fieldnames = [(name or "").strip().lower() for name in reader.fieldnames or []]
     missing = REQUIRED_COLUMNS - set(normalised_fieldnames)

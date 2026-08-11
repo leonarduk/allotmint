@@ -38,7 +38,7 @@ from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_per
 from backend.utils.pricing_dates import PricingDateCalculator
 from backend.utils.timeseries_helpers import _nearest_weekday, resolve_date_range
 
-logger = logging.getLogger("instrument_api")
+logger = logging.getLogger(__name__)
 
 
 def _build_exchange_map(tickers: List[str]) -> Dict[str, str]:

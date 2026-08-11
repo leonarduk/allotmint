@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from backend import importers
 from backend.app import create_app
 from backend.config import config
-from backend.importers import degiro, moneyhub
+from backend.importers import moneyhub
 from backend.routes.transactions import Transaction
 
 MONEYHUB_SAMPLE = Path(__file__).parent / "data" / "moneyhub_sample.csv"
@@ -18,16 +18,32 @@ def _make_client(tmp_path, monkeypatch):
     return TestClient(app)
 
 
-def test_import_transactions_csv(tmp_path, monkeypatch):
+def test_import_transactions_full_featured_row(tmp_path, monkeypatch):
+    """A parsed row with price/units/fees/comments/reason_to_buy set must have
+    every field persisted and coalesced correctly (price -> price_gbp,
+    reason_to_buy -> reason). Provider-agnostic: builds the parsed
+    ``Transaction`` directly and stubs ``importers.parse`` rather than relying
+    on a specific provider's CSV parser.
+    """
     client = _make_client(tmp_path, monkeypatch)
-    csv_data = (
-        "owner,account,date,ticker,type,price,units,fees,comments,reason_to_buy\n"
-        "alice,ISA,2024-05-01,PFE,BUY,10.5,2,1.0,test,diversify\n"
+    row = Transaction(
+        owner="alice",
+        account="ISA",
+        date="2024-05-01",
+        ticker="PFE",
+        type="BUY",
+        price=10.5,
+        units=2,
+        fees=1.0,
+        comments="test",
+        reason_to_buy="diversify",
     )
+    monkeypatch.setattr(importers, "parse", lambda provider, data: [row])
+
     resp = client.post(
         "/transactions/import",
-        data={"provider": "degiro"},
-        files={"file": ("tx.csv", csv_data, "text/csv")},
+        data={"provider": "hargreaves"},
+        files={"file": ("tx.csv", b"unused", "text/csv")},
     )
     assert resp.status_code == 200
     data = resp.json()
@@ -85,26 +101,6 @@ def test_import_transactions_skips_rows_with_no_resolvable_owner_account(tmp_pat
     assert len(data["skipped"]) == 1
     assert data["skipped"][0]["skip_reason"] == "missing owner/account"
     assert data["skipped"][0]["ticker"] == "PFE"
-
-
-def test_degiro_to_float_invalid_inputs():
-    assert degiro._to_float("") is None
-    assert degiro._to_float("not-a-number") is None
-    assert degiro._to_float(None) is None
-
-
-def test_degiro_parse_handles_bad_data():
-    csv_data = (
-        "owner,account,date,ticker,type,price,units\n"
-        "bob,ISA,2024-05-02,MSFT,BUY,,oops\n"
-    )
-    txs = degiro.parse(csv_data.encode("utf-8"))
-    assert len(txs) == 1
-    tx = txs[0]
-    assert tx.price is None
-    assert tx.units is None
-    assert tx.fees is None
-    assert tx.amount_minor is None
 
 
 def test_moneyhub_parse_fixture():

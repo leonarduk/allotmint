@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 from importlib import import_module
-from typing import Dict, List, Callable, TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable, Dict, List
+
+from backend.logging_setup import sanitise_log_value
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from backend.routes.transactions import Transaction
@@ -16,7 +21,6 @@ class UnknownProvider(Exception):
 
 
 _IMPORTER_PATHS: Dict[str, str] = {
-    "degiro": "backend.importers.degiro",
     "hargreaves": "backend.importers.hargreaves",
     "moneyhub": "backend.importers.moneyhub",
     "test": "backend.importers.test",
@@ -29,14 +33,18 @@ def parse(provider: str, data: bytes) -> List[Transaction]:
     Parameters
     ----------
     provider:
-        Name of the provider, e.g. ``"degiro"``.
+        Name of the provider, e.g. ``"hargreaves"``.
     data:
         Raw file contents.
     """
     module_path = _IMPORTER_PATHS.get(provider.lower())
     if not module_path:
+        logger.warning("no module path for provider %s", sanitise_log_value(provider))
         raise UnknownProvider(provider)
+
     module: Callable[[bytes], List[Transaction]] = import_module(module_path)
+    logger.info("importing %s from %s", sanitise_log_value(provider), sanitise_log_value(module_path))
+
     return module.parse(data)  # type: ignore[attr-defined]
 
 
@@ -50,8 +58,8 @@ def dedupe_against_existing(candidates: List[Transaction], existing: List[Transa
     ``_build_transaction_id`` in ``backend.routes.transactions``), so it never
     matches across a re-import of the same source row. Candidates without an
     ``external_id`` have no stable key to compare against and are always
-    treated as new (this includes providers like ``degiro``/``hargreaves``
-    that don't set ``external_id`` at all). Shared across import providers
+    treated as new (this includes providers like ``hargreaves`` that don't
+    set ``external_id`` at all). Shared across import providers
     so this scheme isn't reimplemented per-provider -- see issue #3425,
     which independently needs the same dedupe behaviour for the live
     Moneyhub API importer.

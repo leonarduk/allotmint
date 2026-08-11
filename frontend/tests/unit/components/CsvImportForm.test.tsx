@@ -29,13 +29,27 @@ describe('CsvImportForm', () => {
     expect(submit).toBeDisabled();
     expect(reconcile).toBeDisabled();
 
-    await userEvent.selectOptions(screen.getByLabelText('Provider'), 'degiro');
+    await userEvent.selectOptions(screen.getByLabelText('Provider'), 'hargreaves');
     expect(submit).toBeDisabled();
 
     const fileInput = screen.getByLabelText('CSV file');
     await userEvent.upload(fileInput, csvFile);
     expect(submit).toBeEnabled();
     expect(reconcile).toBeEnabled();
+  });
+
+  it('renders duplicate account types without a React key warning', () => {
+    const consoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+
+    render(
+      <CsvImportForm owner="alice" accountTypes={['ISA', 'ISA', 'SIPP']} />
+    );
+
+    expect(screen.getAllByRole('option', { name: /ISA|SIPP/ })).toHaveLength(3);
+    expect(consoleError.mock.calls.flat().join(' ')).not.toContain('same key');
+    consoleError.mockRestore();
   });
 
   it('previews a readable reconciliation without importing', async () => {
@@ -98,7 +112,7 @@ describe('CsvImportForm', () => {
     });
 
     render(<CsvImportForm owner="alice" accountTypes={['ISA']} />);
-    await userEvent.selectOptions(screen.getByLabelText('Provider'), 'degiro');
+    await userEvent.selectOptions(screen.getByLabelText('Provider'), 'hargreaves');
     await userEvent.upload(screen.getByLabelText('CSV file'), csvFile);
     await userEvent.click(screen.getByRole('button', { name: /Reconcile/ }));
 
@@ -119,7 +133,7 @@ describe('CsvImportForm', () => {
     });
 
     render(<CsvImportForm owner="alice" accountTypes={['ISA', 'SIPP']} />);
-    await userEvent.selectOptions(screen.getByLabelText('Provider'), 'degiro');
+    await userEvent.selectOptions(screen.getByLabelText('Provider'), 'hargreaves');
     await userEvent.upload(screen.getByLabelText('CSV file'), csvFile);
     await userEvent.click(screen.getByRole('button', { name: /Reconcile/ }));
     await screen.findByRole('status', { name: 'Reconciliation preview' });
@@ -142,7 +156,7 @@ describe('CsvImportForm', () => {
     );
 
     render(<CsvImportForm owner="alice" accountTypes={['ISA', 'SIPP']} />);
-    await userEvent.selectOptions(screen.getByLabelText('Provider'), 'degiro');
+    await userEvent.selectOptions(screen.getByLabelText('Provider'), 'hargreaves');
     await userEvent.upload(screen.getByLabelText('CSV file'), csvFile);
     await userEvent.click(screen.getByRole('button', { name: /Reconcile/ }));
 
@@ -201,7 +215,7 @@ describe('CsvImportForm', () => {
 
     render(<CsvImportForm owner="alice" accountTypes={['ISA']} />);
 
-    await userEvent.selectOptions(screen.getByLabelText('Provider'), 'degiro');
+    await userEvent.selectOptions(screen.getByLabelText('Provider'), 'hargreaves');
     await userEvent.upload(screen.getByLabelText('CSV file'), csvFile);
     await userEvent.click(screen.getByRole('button', { name: 'Import' }));
 

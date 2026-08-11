@@ -15,7 +15,7 @@ cfg = getattr(config_module, "settings", config_module.config)
 config = cfg
 
 # Setup logger
-logger = logging.getLogger("alphavantage_timeseries")
+logger = logging.getLogger(__name__)
 
 BASE_URL = "https://www.alphavantage.co/query"
 

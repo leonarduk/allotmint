@@ -51,7 +51,7 @@ from backend.common.portfolio_loader import get_units_as_of
 from backend.config import config
 from backend.logging_setup import sanitise_log_value
 
-logger = logging.getLogger("dividends")
+logger = logging.getLogger(__name__)
 
 DIVIDEND_TRANSACTION_TYPE = "DIVIDEND"
 

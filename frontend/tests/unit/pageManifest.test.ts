@@ -112,7 +112,8 @@ describe('page manifest', () => {
       owner: 'Steve Smith',
       account: 'isa',
     });
-    expect(deriveModeFromLocation('/', '?owner=Steve%20Smith')).toBe('owner');
+    expect(deriveModeFromLocation('/', '?owner=Steve%20Smith')).toBe('group');
     expect(deriveModeFromLocation('/', '?account=isa')).toBe('group');
+    expect(deriveModeFromLocation('/portfolio/steve', '')).toBe('owner');
   });
 });

@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 vi.mock("@/api", () => ({ getGroups: vi.fn().mockResolvedValue([]) }));
@@ -7,7 +7,7 @@ import {
   type ConfigContextValue,
 } from "@/ConfigContext";
 import { useRouteMode } from "@/hooks/useRouteMode";
-import { type ReactNode } from "react";
+import { type ReactNode, useRef } from "react";
 
 /** Minimal config with all tabs enabled including trail. */
 const allTabsConfig: ConfigContextValue = {
@@ -76,9 +76,38 @@ describe("useRouteMode", () => {
       <MemoryRouter initialEntries={["/?owner=steve&account=isa"]}>{children}</MemoryRouter>
     );
     const { result } = renderHook(() => useRouteMode(), { wrapper });
-    await waitFor(() => expect(result.current.mode).toBe("owner"));
+    await waitFor(() => expect(result.current.mode).toBe("group"));
     expect(result.current.selectedOwner).toBe("steve");
+    expect(result.current.selectedAccount).toBe("isa");
   });
+  it.each(["/", "/?owner=x", "/?owner=x&account=y"])(
+    "settles without a render loop for %s",
+    async (entry) => {
+      window.history.pushState({}, "", entry);
+      const wrapper = ({ children }: { children: ReactNode }) => (
+        <MemoryRouter initialEntries={[entry]}>{children}</MemoryRouter>
+      );
+      const { result } = renderHook(
+        () => {
+          const renderCount = useRef(0);
+          renderCount.current += 1;
+          return { route: useRouteMode(), renderCount: renderCount.current };
+        },
+        { wrapper },
+      );
+
+      await waitFor(() => expect(result.current.route.mode).toBe("group"));
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      });
+      const settledRenderCount = result.current.renderCount;
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      });
+
+      expect(result.current.renderCount).toBe(settledRenderCount);
+    },
+  );
   it("navigates to first enabled tab when movers is disabled", async () => {
     window.history.pushState({}, "", "/movers");
 

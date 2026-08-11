@@ -410,10 +410,10 @@ export function deriveModeFromPathname(pathname: string): Mode {
   return deriveRouteFromPathname(pathname).mode;
 }
 
-export function deriveModeFromLocation(pathname: string, search: string): Mode {
+export function deriveModeFromLocation(pathname: string, _search: string): Mode {
   const pathnameMode = deriveModeFromPathname(pathname);
   if (pathnameMode !== 'group') return pathnameMode;
-  return readRouteScopeQuery(search).owner ? 'owner' : pathnameMode;
+  return 'group';
 }
 
 export function deriveBootstrapMode(

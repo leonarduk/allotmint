@@ -204,6 +204,7 @@
   "holdingsTable": {
     "actualPurchaseCost": "Actual purchase cost",
     "displayMode": {
+      "category": "Category",
       "flat": "Flat",
       "label": "Holdings display mode",
       "rollup": "Rollup"

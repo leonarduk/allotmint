@@ -518,14 +518,6 @@ describe("GroupPortfolioView", () => {
 
     renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
 
-    await screen.findByRole("radio", { name: "Rollup" });
-    expect(
-      fetchMock.mock.calls.some(([input]) =>
-        toUrlString(input as RequestInfo | URL).endsWith("/instruments"),
-      ),
-    ).toBe(false);
-    await userEvent.click(screen.getByRole("radio", { name: "Rollup" }));
-
     await waitFor(() =>
       expect(
         fetchMock.mock.calls.some(([input]) =>
@@ -1183,6 +1175,36 @@ describe("GroupPortfolioView", () => {
     expect(portfolioRequestCount()).toBe(initialRequests + 3);
   });
 
+  it("defaults to one aggregated row per ticker while keeping account and category views available", async () => {
+    const user = userEvent.setup();
+    mockAllFetches({
+      name: "At a glance",
+      accounts: [
+        {
+          owner: "alice",
+          account_type: "isa",
+          value_estimate_gbp: 50,
+          holdings: [{ ticker: "AAA", units: 1, market_value_gbp: 50 }],
+        },
+        {
+          owner: "alice",
+          account_type: "sipp",
+          value_estimate_gbp: 75,
+          holdings: [{ ticker: "AAA", units: 2, market_value_gbp: 75 }],
+        },
+      ],
+    });
+
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+
+    expect(await screen.findAllByRole("button", { name: "AAA" })).toHaveLength(1);
+    expect(screen.getByRole("radio", { name: "Rollup" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Category" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("radio", { name: "Flat" }));
+    expect(await screen.findAllByRole("button", { name: "AAA" })).toHaveLength(2);
+  });
+
   it("hides the display-mode toggle and keeps flat mode forced in family MVP even with duplicate lots", async () => {
     const mockPortfolio = {
       name: "At a glance",
@@ -1246,7 +1268,6 @@ describe("GroupPortfolioView", () => {
 
     renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
 
-    await user.click(await screen.findByRole("radio", { name: "Rollup" }));
     await waitFor(() =>
       expect(
         fetchMock.mock.calls.some(([input]) =>
@@ -1255,6 +1276,7 @@ describe("GroupPortfolioView", () => {
       ).toBe(true),
     );
 
+    await user.click(screen.getByRole("radio", { name: "Category" }));
     await user.click(await screen.findByRole("button", { name: "Toggle Ungrouped" }));
     const bbbRow = (await screen.findByRole("button", { name: "BBB" })).closest("tr")!;
     expect(within(bbbRow).getAllByText("£40.00").length).toBeGreaterThan(0);

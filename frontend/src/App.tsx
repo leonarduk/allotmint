@@ -466,7 +466,7 @@ export default function App({ onLogout }: AppProps) {
 
   const portfolioGroupSlug =
     selectedOwnerGroup?.slug ??
-    (selectedOwner ? selectedOwner : mode === 'group' ? selectedGroup : '');
+    (selectedGroup || (selectedOwner ? selectedOwner : ''));
   const portfolioComplianceOwners = selectedOwnerGroup
     ? selectedOwnerGroup.members
     : selectedOwner

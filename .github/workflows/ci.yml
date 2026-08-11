@@ -178,28 +178,48 @@ jobs:
           .venv-root-startup/bin/python -c 'from backend.local_api.main import app; assert app is not None'
 
   backend-lint:
-    # Advisory only, not a required check: the current backend/ and tests/
-    # baseline has ~200 pre-existing Ruff findings and ~235 files Black would
-    # reformat (see PR #6261 review). continue-on-error keeps this visible
-    # without blocking merges until that baseline cleanup lands; drop
-    # continue-on-error and register this in the required-checks ruleset in
-    # the same PR that fixes the baseline.
+    # Scoped to this change's files, not the whole tree: the backend/tests
+    # baseline currently has ~200 pre-existing Ruff findings and ~235 files
+    # Black would reformat (see PR #6261 review), so linting everything on
+    # every PR would fail on code the PR never touched. New/edited files are
+    # held to backend/pyproject.toml; untouched pre-existing violations are
+    # not, until a separate cleanup PR fixes the baseline and this job can
+    # lint `backend tests` unscoped again.
     name: Backend lint (ruff, black)
     needs: classify-change
     if: "!cancelled() && needs.classify-change.outputs.backend != 'false'"
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Full history: pull_request mode diffs base...head to find this
+          # PR's changed files, and a shallow clone has no merge base.
+          fetch-depth: 0
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Install backend and development dependencies
         run: pip install -r requirements.txt -r requirements-dev.txt
-      - name: Ruff check
-        run: ruff check --config backend/pyproject.toml backend tests
-      - name: Black check
-        run: black --check --config backend/pyproject.toml backend tests
+      - name: Lint backend/tests Python files touched by this change
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ] && [ -n "$BASE_SHA" ] && [ -n "$HEAD_SHA" ]; then
+            FILES=$(git diff --name-only --diff-filter=ACMR "${BASE_SHA}...${HEAD_SHA}" -- backend tests | grep '\.py$' || true)
+          else
+            # Non-PR event (push to main): no base to diff against, so lint
+            # the whole tree rather than silently skip.
+            FILES=$(git ls-files backend tests | grep '\.py$' || true)
+          fi
+          if [ -z "$FILES" ]; then
+            echo "No backend/tests Python files to lint."
+            exit 0
+          fi
+          echo "$FILES"
+          echo "$FILES" | xargs -d '\n' ruff check --config backend/pyproject.toml
+          echo "$FILES" | xargs -d '\n' black --check --config backend/pyproject.toml
 
   lambda-compat:
     name: Lambda-compat pytest (backend/requirements.txt)

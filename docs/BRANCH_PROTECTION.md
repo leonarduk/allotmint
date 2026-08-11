@@ -34,6 +34,7 @@ gh api "repos/leonarduk/allotmint/commits/<pr-head-sha>/check-runs?per_page=100"
 | `Frontend lint, type-check and unit tests` | `ci.yml` job `frontend-checks` |
 | `CDK infrastructure tests` | `ci.yml` job `cdk-tests` |
 | `Validate backend/requirements.txt (dry-run)` | `ci.yml` job `validate-backend-deps` |
+| `Backend lint (ruff, black)` | `ci.yml` job `backend-lint` |
 | `Lambda-compat pytest (backend/requirements.txt)` | `ci.yml` job `lambda-compat` |
 | `Frontend smoke tests (preview build)` | `ci.yml` job `frontend-smoke` |
 | `integration-tests` | `backend-integration.yml` |
@@ -115,14 +116,17 @@ the required-check ruleset:
 `ai-review / DeepSeek AI code review` is the deliberate exception and *is*
 required.
 
-`Backend lint (ruff, black)` (`ci.yml` job `backend-lint`) is also advisory
-for now: the current `backend/` and `tests/` baseline has ~200 pre-existing
-Ruff findings and ~235 files Black would reformat, so requiring it today
-would block every backend-affecting PR (see PR #6261 review). The job runs
-with `continue-on-error: true` so it stays visible without blocking merges.
-Once the baseline is cleaned up, drop `continue-on-error` and add the
-context back to the ruleset, `EXPECTED_REQUIRED_CHECKS`, and the required
-checks table above in the same PR.
+### Backend lint scoping
+
+`Backend lint (ruff, black)` (`ci.yml` job `backend-lint`) is required, but
+it only lints the `backend/`/`tests/` Python files a PR actually changes
+(diffed via `base...head`), not the whole tree. The current baseline has
+~200 pre-existing Ruff findings and ~235 files Black would reformat (see
+PR #6261 review), so linting everything on every PR would fail on code the
+PR never touched. New and edited files are held to `backend/pyproject.toml`
+today; untouched pre-existing violations are not, until a separate cleanup
+PR fixes the baseline, at which point this job can go back to linting
+`backend tests` unscoped.
 
 ## Merge conflict check-run
 

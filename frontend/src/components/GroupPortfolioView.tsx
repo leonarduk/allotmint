@@ -62,6 +62,7 @@ import { toRollupRows, toScopedHoldingRows } from "../lib/rollupAdapter";
 import { OwnerPortfolioActions } from "./OwnerPortfolioActions";
 import { useLocation, useSearchParams } from "react-router-dom";
 import { readRouteScopeQuery } from "../routes/registry";
+import { useViewportWidth } from "../hooks/useViewportWidth";
 
 const PIE_COLORS = [
   "#8884d8",
@@ -73,6 +74,8 @@ const PIE_COLORS = [
   "#d0ed57",
   "#ffc0cb",
 ];
+
+const INLINE_PIE_LABEL_MIN_WIDTH = 640;
 
 const DAY_CHANGE_BASELINE_EPSILON = 1e-2;
 // Warn when a single holding represents more than this share of the full portfolio.
@@ -251,6 +254,7 @@ type Props = {
  * Component
  * ────────────────────────────────────────────────────────── */
 export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
+  const showInlinePieLabels = useViewportWidth() >= INLINE_PIE_LABEL_MIN_WIDTH;
   const location = useLocation();
   const [, setSearchParams] = useSearchParams();
   const routeScope = readRouteScopeQuery(location.search);
@@ -1000,11 +1004,11 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
               <Pie
                 dataKey="value"
                 data={typeRows}
-                label={(props) => {
+                label={showInlinePieLabels && ((props) => {
                   const { name, percent: slicePercent } = props as PieLabelRenderProps;
                   const labelName = typeof name === "string" ? name : name != null ? String(name) : "";
                   return `${labelName} ${percent((slicePercent ?? 0) * 100)}`;
-                }}
+                })}
               >
                 {typeRows.map((_, idx) => (
                   <Cell

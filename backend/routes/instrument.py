@@ -20,6 +20,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markupsafe import Markup
 
+from backend.common.holding_utils import get_effective_cost_basis_gbp
 from backend.common.instruments import list_instruments
 from backend.common.portfolio_loader import list_portfolios
 from backend.common.portfolio_utils import get_security_meta
@@ -122,6 +123,7 @@ def _positions_for_ticker(tkr: str, last_close: float | None) -> List[Dict[str, 
     """
 
     positions: List[Dict[str, Any]] = []
+    price_cache = {tkr: last_close} if last_close is not None else {}
 
     # Iterate through owners -> accounts -> holdings
     for pf in list_portfolios():
@@ -137,16 +139,19 @@ def _positions_for_ticker(tkr: str, last_close: float | None) -> List[Dict[str, 
 
                 gain_gbp = h.get("gain_gbp")
                 gain_pct = h.get("gain_pct")
-                if gain_gbp is None and mv_gbp is not None:
-                    # fall back to cost basis when explicit gain is missing
-                    cost = h.get("effective_cost_basis_gbp") or h.get("cost_basis_gbp") or h.get("cost_basis")
-                    try:
-                        cost_f = float(cost) if cost is not None else None
-                    except (TypeError, ValueError):
-                        cost_f = None
-                    if cost_f is not None:
-                        gain_gbp = round(mv_gbp - cost_f, 2)
-                        gain_pct = (gain_gbp / cost_f * 100.0) if cost_f else None
+                if mv_gbp is not None and (gain_gbp is None or gain_pct is None):
+                    # Raw account files do not contain the derived gain fields
+                    # returned by the holdings endpoint. Use its canonical cost
+                    # basis calculation so both views report the same result.
+                    cost = get_effective_cost_basis_gbp(
+                        dict(h), price_cache, price_hint=last_close
+                    )
+                    if cost > 0:
+                        calculated_gain = round(mv_gbp - cost, 2)
+                        if gain_gbp is None:
+                            gain_gbp = calculated_gain
+                        if gain_pct is None:
+                            gain_pct = calculated_gain / cost * 100.0
 
                 positions.append(
                     {

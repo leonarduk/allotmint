@@ -1,13 +1,13 @@
+from unittest.mock import patch
+
 import pandas as pd
 import pytest
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
-from unittest.mock import patch
 
-from backend.routes import instrument
 from backend.app import create_app
 from backend.config import config
-
+from backend.routes import instrument
 
 SAMPLE_INSTRUMENTS = [
     {"ticker": "ABC.L", "name": "ABC Company", "sector": "Tech", "region": "UK"},
@@ -114,6 +114,39 @@ def test_positions_for_ticker_gain_and_cost(monkeypatch):
     assert first["unrealised_gain_gbp"] == 5
     assert second["unrealised_gain_gbp"] == pytest.approx(2.0)
     assert second["gain_pct"] == pytest.approx(10.0)
+
+
+def test_positions_for_ticker_derives_gain_from_acquisition_price(monkeypatch):
+    portfolios = [
+        {
+            "owner": "alex",
+            "accounts": [
+                {
+                    "account_type": "isa",
+                    "holdings": [
+                        {
+                            "ticker": "ABC.L",
+                            "units": 2,
+                            "acquired_date": "2024-01-02",
+                        }
+                    ],
+                }
+            ],
+        }
+    ]
+    monkeypatch.setattr(
+        "backend.routes.instrument.list_portfolios", lambda: portfolios
+    )
+    monkeypatch.setattr(
+        "backend.common.holding_utils._derived_cost_basis_close_px",
+        lambda *_args, **_kwargs: 8.0,
+    )
+
+    [position] = instrument._positions_for_ticker("ABC.L", last_close=10.0)
+
+    assert position["market_value_gbp"] == pytest.approx(20.0)
+    assert position["unrealised_gain_gbp"] == pytest.approx(4.0)
+    assert position["gain_pct"] == pytest.approx(25.0)
 
 
 def test_render_html_contains_tables():

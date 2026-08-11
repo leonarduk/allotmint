@@ -180,9 +180,18 @@ type RollupRow = {
 
 **Rules for the always-null fields.**
 
-1. Render as `—`, never as `No`, `0`, or an empty cell. `sell_eligible` is
-   tri-state in rollup mode (`null` = not applicable), and `null` must not
-   collapse to falsy in the cell renderer.
+1. Render as `—`, never as `No`, `0`, or an empty cell. In particular,
+   `sell_eligible` is tri-state across the two row types, so its cell renderer
+   must test `value === null` **before** rendering the existing enabled or
+   disabled state. Do not use a truthiness check that collapses `null` into
+   `false`. This preserves the existing flat-mode rendering while making the
+   rollup-only, not-applicable state explicit:
+
+   | `sell_eligible` value | Meaning | Cell output |
+   | --- | --- | --- |
+   | `null` | Not applicable to a rollup row | `—` |
+   | `true` | The lot is sell eligible | Existing `Yes`/enabled state |
+   | `false` | The lot is not sell eligible | Existing `No`/disabled state |
 2. The **sell-eligible quick filter is disabled** in rollup mode
    (`HoldingsTable.tsx:286-292`) rather than filtering on a fabricated value.
    Sorting by any of these columns is likewise disabled in rollup mode.

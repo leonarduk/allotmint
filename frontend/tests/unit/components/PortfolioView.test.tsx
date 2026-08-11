@@ -102,6 +102,8 @@ describe("PortfolioView", () => {
 
         expect(layout).toHaveClass("grid-cols-1");
         expect(layout?.className).not.toContain("xl:grid-cols-");
+    });
+
     it("highlights the detail row until the instrument drawer is closed", () => {
         render(<PortfolioView data={mockOwner}/>);
 

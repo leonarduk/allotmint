@@ -140,13 +140,13 @@ Use the PowerShell wrapper for convenience:
 Upload a local transaction export to the running backend for parsing and persistence:
 
 ```
-python scripts/import_transactions.py degiro path/to/transactions.csv
+python scripts/import_transactions.py moneyhub path/to/transactions.csv
 ```
 
 Use `--api` to point at a different backend URL. Rows already imported (matched by the
 source provider's stable id, where available) are deduped and never re-persisted.
 
-Degiro and Moneyhub exports carry an owner/account per row; Hargreaves exports don't, so
+Moneyhub exports carry an owner/account per row; Hargreaves exports don't, so
 pass `--owner`/`--account` as a fallback destination for rows that lack their own:
 
 ```

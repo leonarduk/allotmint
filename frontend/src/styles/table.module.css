@@ -3,6 +3,16 @@
   border-collapse: collapse;
 }
 
+.scrollContainer {
+  overflow-x: auto;
+  scrollbar-color: rgba(71, 85, 105, 0.8) rgba(148, 163, 184, 0.2);
+  scrollbar-gutter: stable;
+}
+
+.hasMoreColumns {
+  box-shadow: inset -14px 0 12px -14px rgba(15, 23, 42, 0.85);
+}
+
 .table thead th {
   position: sticky;
   top: 0;
@@ -12,6 +22,19 @@
 
 .cell {
   padding: 4px 6px;
+}
+
+.name {
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trend {
+  width: 5rem;
+  min-width: 5rem;
+  max-width: 5rem;
 }
 
 .right {
@@ -97,11 +120,13 @@
 }
 
 @media (max-width: 768px) {
+  .scrollContainer {
+    -webkit-overflow-scrolling: touch;
+  }
+
   .table {
     display: block;
     max-width: 100%;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
   }
 
   .table thead,

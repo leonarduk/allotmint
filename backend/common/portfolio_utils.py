@@ -40,7 +40,7 @@ from backend.utils.fx_rates import fetch_fx_rate_range
 from backend.utils.pricing_dates import PricingDateCalculator
 from backend.utils.timeseries_helpers import apply_scaling, get_scaling_override
 
-logger = logging.getLogger("portfolio_utils")
+logger = logging.getLogger(__name__)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -228,7 +228,7 @@ def _load_snapshot() -> tuple[Dict[str, Dict], datetime | None]:
                 obj = s3.get_object(Bucket=bucket, Key=PRICES_S3_KEY)
                 body = obj.get("Body")
                 if body:
-                    data = json.loads(body.read().decode("utf-8"))
+                    data = json.loads(body.read().decode(encoding="utf-8", errors="replace"))
                     ts = obj.get("LastModified")
                     return data, ts if isinstance(ts, datetime) else None
                 logger.error(

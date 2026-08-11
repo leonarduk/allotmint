@@ -108,6 +108,22 @@ describe("AddPositionForm", () => {
     expect(screen.queryByRole("button", { name: "Collapse add position form" })).toBeNull();
   });
 
+  it("renders duplicate account types without a React key warning", () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+
+    render(
+      <AddPositionForm owner="alice" accounts={["ISA", "ISA", "SIPP"]} />,
+    );
+
+    expect(
+      screen.getByLabelText("Account").querySelectorAll("option"),
+    ).toHaveLength(3);
+    expect(consoleError.mock.calls.flat().join(" ")).not.toContain("same key");
+    consoleError.mockRestore();
+  });
+
   it("calls onCollapse when the collapse button is clicked", async () => {
     const onCollapse = vi.fn();
     render(<AddPositionForm owner="alice" accounts={["ISA"]} onCollapse={onCollapse} />);

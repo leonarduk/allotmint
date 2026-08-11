@@ -254,7 +254,7 @@ def test_load_latest_prices_defaults_to_l(monkeypatch: pytest.MonkeyPatch, caplo
 
     monkeypatch.setattr(prices, "load_meta_timeseries_range", fake_load)
 
-    with caplog.at_level("DEBUG", logger="prices"):
+    with caplog.at_level("DEBUG", logger="backend.common.prices"):
         result = prices.load_latest_prices([ticker])
 
     assert result == {ticker: pytest.approx(105.0)}
@@ -297,7 +297,7 @@ def test_load_prices_for_tickers_combines_frames(
 
     tickers = ["AAA.L", "BBB.L", "CCC.L"]
 
-    with caplog.at_level("WARNING", logger="prices"):
+    with caplog.at_level("WARNING", logger="backend.common.prices"):
         frame = prices.load_prices_for_tickers(tickers)
 
     assert list(frame["Ticker"]) == ["AAA.L", "CCC.L"]

@@ -19,7 +19,7 @@ from backend.utils.timeseries_helpers import (
 )
 
 router = APIRouter(prefix="/timeseries", tags=["timeseries"])
-logger = logging.getLogger("routes.timeseries")
+logger = logging.getLogger(__name__)
 
 # Allowlist for user-supplied ticker segments and exchange codes.
 # Underscores accommodate normalised internal identifiers; hyphens cover

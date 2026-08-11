@@ -6,6 +6,7 @@ import { AccountBlock } from "@/components/AccountBlock";
 import { HoldingsTable } from "@/components/HoldingsTable";
 import { configContext, type AppConfig } from "@/ConfigContext";
 import type { Portfolio, Account, Holding } from "@/types";
+import tableStyles from "@/styles/table.module.css";
 
 vi.mock("@/components/ValueAtRisk", () => ({
   ValueAtRisk: () => <div />,
@@ -133,8 +134,8 @@ describe("mobile viewport rendering", () => {
       await act(async () => {
         ({ container } = renderWithConfig(<HoldingsTable holdings={holdings} />));
       });
-      const wrapper = container.querySelector("div.overflow-x-auto");
-      await waitFor(() => expect(wrapper).toHaveClass("overflow-x-auto"));
+      const wrapper = container.querySelector(`div.${tableStyles.scrollContainer}`);
+      await waitFor(() => expect(wrapper).toHaveClass(tableStyles.scrollContainer));
       expect(container.querySelector("table")).toHaveClass("mb-4");
     });
   });

@@ -33,9 +33,7 @@ def _resolve_instruments_dir() -> Path:
 
     fallback_dir = Path(__file__).resolve().parents[2] / "data" / "instruments"
     if fallback_dir.is_dir():
-        logger.debug(
-            "Configured instruments directory %s missing; falling back to %s", configured_dir, fallback_dir
-        )
+        logger.debug("Configured instruments directory %s missing; falling back to %s", configured_dir, fallback_dir)
         return fallback_dir
 
     logger.warning(
@@ -112,6 +110,7 @@ def _validate_part(value: str) -> str:
         raise ValueError("invalid ticker or exchange")
     return value
 
+
 def _s3_location() -> tuple[str, str] | None:
     bucket = os.getenv(METADATA_BUCKET_ENV)
     if not bucket:
@@ -141,6 +140,10 @@ def _instrument_path(ticker: str) -> Path:
     instruments_dir = _active_instruments_dir()
     sym, exch = (ticker.split(".", 1) + [None])[:2]
     sym = _validate_part(sym)
+    # A trailing dot with nothing after it (e.g. real LSE tickers like "BP.",
+    # "AV.", "SN.") splits into an empty string, not None -- treat that the
+    # same as no exchange at all rather than failing _validate_part's regex.
+    exch = exch or None
     if exch is not None:
         exch = _validate_part(exch)
     if sym == "CASH":
@@ -362,7 +365,9 @@ def _fetch_metadata_from_yahoo(symbol: str, exchange: str) -> Optional[Dict[str,
     except ValueError as exc:
         logger.debug(
             "Unsupported exchange for Yahoo metadata %s.%s: %s",
-            sanitise_log_value(symbol), sanitise_log_value(exchange), sanitise_log_value(exc),
+            sanitise_log_value(symbol),
+            sanitise_log_value(exchange),
+            sanitise_log_value(exc),
         )
         return None
 
@@ -373,7 +378,8 @@ def _fetch_metadata_from_yahoo(symbol: str, exchange: str) -> Optional[Dict[str,
     except Exception as exc:  # pragma: no cover - network/IO errors
         logger.warning(
             "Failed to initialise yfinance for %s: %s",
-            sanitise_log_value(yahoo_symbol), sanitise_log_value(exc),
+            sanitise_log_value(yahoo_symbol),
+            sanitise_log_value(exc),
         )
         return None
 
@@ -391,15 +397,12 @@ def _fetch_metadata_from_yahoo(symbol: str, exchange: str) -> Optional[Dict[str,
         except Exception as exc_attr:  # pragma: no cover - best effort fallback
             logger.debug(
                 "yfinance info attribute failed for %s: %s",
-                sanitise_log_value(full_ticker), sanitise_log_value(exc_attr),
+                sanitise_log_value(full_ticker),
+                sanitise_log_value(exc_attr),
             )
 
     name = _clean_str(
-        info.get("shortName")
-        or info.get("longName")
-        or info.get("displayName")
-        or info.get("name")
-        or full_ticker,
+        info.get("shortName") or info.get("longName") or info.get("displayName") or info.get("name") or full_ticker,
     )
 
     currency = _clean_str(info.get("currency"), upper=True)
@@ -476,7 +479,8 @@ def _auto_create_instrument_meta(ticker: str) -> Optional[Dict[str, Any]]:
     except Exception as exc:  # pragma: no cover - filesystem errors are rare
         logger.warning(
             "Failed to persist auto-created metadata for %s: %s",
-            sanitise_log_value(full), sanitise_log_value(exc),
+            sanitise_log_value(full),
+            sanitise_log_value(exc),
         )
     else:
         logger.info("Auto-created instrument metadata for %s from Yahoo Finance", sanitise_log_value(full))
@@ -496,6 +500,7 @@ def delete_instrument_meta(ticker: str, exchange: str) -> None:
         logger.warning("Permission denied deleting %s", path)
         return
     get_instrument_meta.cache_clear()
+
 
 # def save_instrument_meta(ticker: str, meta: Dict[str, Any]) -> None:
 #     """Write ``meta`` for ``ticker`` back to disk.
@@ -524,4 +529,3 @@ def list_instruments() -> List[Dict[str, Any]]:
         except Exception:
             logger.warning("Failed to load instrument metadata for %s", p)
     return instruments
-

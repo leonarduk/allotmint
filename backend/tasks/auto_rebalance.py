@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Dict, Any
+from typing import Any, Dict
 
 from backend.common.goals import load_all_goals
 from backend.common.rebalance import suggest_trades
+from backend.logging_setup import sanitise_log_value
 
-log = logging.getLogger("tasks.auto_rebalance")
+logger = logging.getLogger(__name__)
 
 
 async def run_once() -> None:
@@ -19,7 +20,12 @@ async def run_once() -> None:
             actual = {"goal": current, "cash": max(g.target_amount - current, 0.0)}
             trades = suggest_trades(actual, {"goal": 1.0})
             if trades:
-                log.info("Suggested trades for %s/%s: %s", user, g.name, trades)
+                logger.info(
+                    "Suggested %s trade(s) for %s/%s",
+                    sanitise_log_value(len(trades)),
+                    sanitise_log_value(user),
+                    sanitise_log_value(g.name),
+                )
 
 
 def lambda_handler(_event: Dict[str, Any], _context: Any) -> Dict[str, str]:

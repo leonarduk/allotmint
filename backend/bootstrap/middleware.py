@@ -32,7 +32,7 @@ _CORS_ALLOW_HEADERS = [
 def normalize(obj: Any) -> Any:
     """Recursively convert bytes to strings for JSON serialization."""
     if isinstance(obj, bytes):
-        return obj.decode("utf-8")
+        return obj.decode(encoding="utf-8", errors="replace")
     if isinstance(obj, dict):
         return {k: normalize(v) for k, v in obj.items()}
     if isinstance(obj, list):

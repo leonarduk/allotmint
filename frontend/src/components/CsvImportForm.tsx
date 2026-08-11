@@ -12,10 +12,7 @@ import {
 } from '../api';
 
 /** Provider keys supported by `backend/importers`, excluding the `test` stub. */
-const PROVIDERS = [
-  { value: 'degiro', label: 'DEGIRO' },
-  { value: 'hargreaves', label: 'Hargreaves Lansdown' },
-];
+const PROVIDERS = [{ value: 'hargreaves', label: 'Hargreaves Lansdown' }];
 
 type Props = {
   owner: string;
@@ -238,8 +235,8 @@ export function CsvImportForm({ owner, accountTypes, onImported }: Props) {
             onChange={handleAccountChange}
             className="rounded border border-gray-700 bg-gray-800 p-1 text-white"
           >
-            {accountTypes.map((type) => (
-              <option key={type} value={type}>
+            {accountTypes.map((type, index) => (
+              <option key={`${type}-${index}`} value={type}>
                 {type}
               </option>
             ))}

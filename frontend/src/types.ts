@@ -12,16 +12,16 @@ export interface Holding {
   currency?: string | null;
   units: number;
   acquired_date?: string | null;
-  price?: number;
-  cost_basis_gbp?: number;
+  price?: number | null;
+  cost_basis_gbp?: number | null;
   cost_basis_currency?: string | null;
-  effective_cost_basis_gbp?: number;
+  effective_cost_basis_gbp?: number | null;
   effective_cost_basis_currency?: string | null;
-  market_value_gbp?: number;
+  market_value_gbp?: number | null;
   market_value_currency?: string | null;
-  gain_gbp?: number;
+  gain_gbp?: number | null;
   gain_currency?: string | null;
-  gain_pct?: number;
+  gain_pct?: number | null;
   current_price_gbp?: number | null;
   current_price_currency?: string | null;
   /** Date of the last known price for this holding */

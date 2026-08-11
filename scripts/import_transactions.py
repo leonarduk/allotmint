@@ -11,7 +11,7 @@ import requests
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Upload transactions for parsing")
-    parser.add_argument("provider", help="Data provider name, e.g. degiro")
+    parser.add_argument("provider", help="Data provider name, e.g. hargreaves")
     parser.add_argument("file", type=Path, help="CSV/PDF file to upload")
     parser.add_argument(
         "--api", default="http://localhost:8000", help="Base URL of the backend API"
@@ -21,8 +21,8 @@ def main() -> None:
         default=None,
         help=(
             "Fallback owner for rows that don't carry their own (e.g. "
-            "Hargreaves exports never set owner/account; degiro/moneyhub "
-            "usually do). Rows with no resolvable owner/account are reported "
+            "Hargreaves exports never set owner/account; moneyhub usually "
+            "does). Rows with no resolvable owner/account are reported "
             "under 'skipped' rather than persisted (#4965)."
         ),
     )

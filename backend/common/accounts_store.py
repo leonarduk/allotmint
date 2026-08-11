@@ -49,7 +49,7 @@ except ModuleNotFoundError:  # pragma: no cover - Windows
 else:  # pragma: no cover - Unix
     msvcrt = None  # type: ignore[assignment]
 
-logger = logging.getLogger("accounts_store")
+logger = logging.getLogger(__name__)
 
 # Prefix (relative to the data bucket) under which per-owner writable account
 # documents live.  Kept distinct from the read-only ``accounts/`` demo prefix

@@ -31,7 +31,7 @@ try:  # trading agent is optional; skip if missing
 except Exception:  # pragma: no cover - only hit when package missing
     trading_agent = None
 
-logger = logging.getLogger("prices")
+logger = logging.getLogger(__name__)
 
 
 def _seed_empty_snapshot() -> None:

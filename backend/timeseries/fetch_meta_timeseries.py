@@ -52,7 +52,7 @@ from backend.utils.timeseries_helpers import (
     _nearest_weekday,
 )
 
-logger = logging.getLogger("meta_timeseries")
+logger = logging.getLogger(__name__)
 
 # ──────────────────────────────────────────────────────────────
 # Helpers

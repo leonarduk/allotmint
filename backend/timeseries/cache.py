@@ -49,7 +49,7 @@ from backend.utils.timeseries_helpers import (
 
 OFFLINE_MODE = config.offline_mode
 
-logger = logging.getLogger("timeseries_cache")
+logger = logging.getLogger(__name__)
 
 # Simple counter for fetch failures – useful for lightweight monitoring.
 _FAILED_FETCH_COUNT = 0

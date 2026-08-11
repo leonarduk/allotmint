@@ -49,7 +49,7 @@ from backend.common.portfolio_loader import list_portfolios
 from backend.common.storage import get_storage
 from backend.emails.pension_report import PensionReport, send_pension_report_email
 
-logger = logging.getLogger("pension_report")
+logger = logging.getLogger(__name__)
 
 _DEFAULT_RECIPIENTS_URI = "ssm://pension-report-recipients"
 

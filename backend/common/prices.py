@@ -58,7 +58,7 @@ from backend.timeseries.cache import load_meta_timeseries_range
 from backend.utils.pricing_dates import PricingDateCalculator
 from backend.utils.timeseries_helpers import _nearest_weekday
 
-logger = logging.getLogger("prices")
+logger = logging.getLogger(__name__)
 
 
 def _close_on(sym: str, exch: str, d: date) -> Optional[float]:

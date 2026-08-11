@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { getInstrumentDetail, getInstrumentIntraday } from "../api";
@@ -15,11 +15,11 @@ import ChartSkeleton from "./skeletons/ChartSkeleton";
 import TableRowsSkeleton from "./skeletons/TableRowsSkeleton";
 import TextSkeleton from "./skeletons/TextSkeleton";
 import {
-  clampDrawerWidth,
-  DEFAULT_DRAWER_WIDTH,
-  DRAWER_WIDTH_KEY,
+  canExpandDrawer,
+  expandedDrawerWidth,
   MIN_DRAWER_WIDTH,
 } from "./instrumentDetailDrawer";
+import { useInstrumentDetailDrawer } from "./useInstrumentDetailDrawer";
 import {
   ResponsiveContainer,
   LineChart,
@@ -69,14 +69,6 @@ type PositionsTableProps = {
 // ───────────────── helpers ─────────────────
 const toNum = (v: unknown): number =>
   typeof v === "number" && Number.isFinite(v) ? v : NaN;
-
-const readDrawerWidth = (): number => {
-  if (typeof window === "undefined") return DEFAULT_DRAWER_WIDTH;
-  const storedWidth = Number(window.localStorage.getItem(DRAWER_WIDTH_KEY));
-  return Number.isFinite(storedWidth) && storedWidth > 0
-    ? clampDrawerWidth(storedWidth, window.innerWidth)
-    : clampDrawerWidth(DEFAULT_DRAWER_WIDTH, window.innerWidth);
-};
 
 const fixed = (v: unknown, dp = 2): string => {
   const n = toNum(v);
@@ -221,8 +213,15 @@ export function InstrumentDetail({
 }: Props) {
   const { t } = useTranslation();
   const { baseCurrency } = useConfig();
-  const [drawerWidth, setDrawerWidth] = useState(readDrawerWidth);
-  const dragStart = useRef<{ pointerX: number; width: number } | null>(null);
+  const {
+    width: drawerWidth,
+    viewportWidth,
+    handlePointerDown: handleResizePointerDown,
+    handlePointerMove: handleResizePointerMove,
+    handlePointerUp: handleResizePointerUp,
+    handleKeyDown: handleResizeKeyDown,
+    toggleExpanded,
+  } = useInstrumentDetailDrawer(variant === "drawer");
   const palette = useMemo(
     () => ({
       background: variant === "drawer" ? "#111" : "transparent",
@@ -261,64 +260,6 @@ export function InstrumentDetail({
           },
     [drawerWidth, palette.background, palette.text, variant],
   );
-  useEffect(() => {
-    if (variant !== "drawer") return;
-    const handleViewportResize = () => {
-      setDrawerWidth((width) => clampDrawerWidth(width, window.innerWidth));
-    };
-    window.addEventListener("resize", handleViewportResize);
-    return () => window.removeEventListener("resize", handleViewportResize);
-  }, [variant]);
-
-  const persistDrawerWidth = useCallback((width: number) => {
-    window.localStorage.setItem(DRAWER_WIDTH_KEY, String(Math.round(width)));
-  }, []);
-
-  const handleResizePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    dragStart.current = { pointerX: event.clientX, width: drawerWidth };
-    event.currentTarget.setPointerCapture(event.pointerId);
-  };
-
-  const handleResizePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!dragStart.current) return;
-    const nextWidth = clampDrawerWidth(
-      dragStart.current.width + dragStart.current.pointerX - event.clientX,
-      window.innerWidth,
-    );
-    setDrawerWidth(nextWidth);
-  };
-
-  const handleResizePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!dragStart.current) return;
-    const nextWidth = clampDrawerWidth(
-      dragStart.current.width + dragStart.current.pointerX - event.clientX,
-      window.innerWidth,
-    );
-    dragStart.current = null;
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-    setDrawerWidth(nextWidth);
-    persistDrawerWidth(nextWidth);
-  };
-
-  const handleResizeKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-    event.preventDefault();
-    const direction = event.key === "ArrowLeft" ? 1 : -1;
-    const nextWidth = clampDrawerWidth(drawerWidth + direction * 20, window.innerWidth);
-    setDrawerWidth(nextWidth);
-    persistDrawerWidth(nextWidth);
-  };
-
-  const toggleExpanded = () => {
-    const expandedWidth = clampDrawerWidth(window.innerWidth * 0.6, window.innerWidth);
-    const nextWidth = drawerWidth >= expandedWidth - 1
-      ? clampDrawerWidth(DEFAULT_DRAWER_WIDTH, window.innerWidth)
-      : expandedWidth;
-    setDrawerWidth(nextWidth);
-    persistDrawerWidth(nextWidth);
-  };
   const [data, setData] = useState<{
     prices: Price[];
     positions: Position[];
@@ -556,7 +497,7 @@ export function InstrumentDetail({
           aria-label="Resize instrument details"
           aria-orientation="vertical"
           aria-valuemin={MIN_DRAWER_WIDTH}
-          aria-valuemax={typeof window === "undefined" ? DEFAULT_DRAWER_WIDTH : window.innerWidth}
+          aria-valuemax={viewportWidth}
           aria-valuenow={Math.round(drawerWidth)}
           tabIndex={0}
           onPointerDown={handleResizePointerDown}
@@ -565,11 +506,12 @@ export function InstrumentDetail({
           onPointerCancel={handleResizePointerUp}
           onKeyDown={handleResizeKeyDown}
           style={{
-            position: "absolute",
+            position: "fixed",
             top: 0,
             bottom: 0,
-            left: 0,
+            left: `calc(100vw - ${drawerWidth}px)`,
             width: "10px",
+            zIndex: 1,
             cursor: "ew-resize",
             touchAction: "none",
           }}
@@ -580,14 +522,14 @@ export function InstrumentDetail({
           ✕
         </button>
       )}
-      {variant === "drawer" && (
+      {variant === "drawer" && canExpandDrawer(viewportWidth) && (
         <button
           type="button"
           aria-label="Expand or restore instrument details"
           onClick={toggleExpanded}
           style={{ float: "right", marginRight: "0.5rem" }}
         >
-          {drawerWidth >= (typeof window === "undefined" ? 0 : window.innerWidth * 0.6) - 1
+          {drawerWidth >= expandedDrawerWidth(viewportWidth) - 1
             ? "↘"
             : "↗"}
         </button>

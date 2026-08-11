@@ -499,6 +499,14 @@ describe("GroupPortfolioView", () => {
 
     renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
 
+    await screen.findByRole("radio", { name: "Rollup" });
+    expect(
+      fetchMock.mock.calls.some(([input]) =>
+        toUrlString(input as RequestInfo | URL).endsWith("/instruments"),
+      ),
+    ).toBe(false);
+    await userEvent.click(screen.getByRole("radio", { name: "Rollup" }));
+
     await waitFor(() =>
       expect(
         fetchMock.mock.calls.some(([input]) =>

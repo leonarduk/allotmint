@@ -135,17 +135,8 @@ describe("App", () => {
     expect(mockGetGroupPortfolio).toHaveBeenCalledWith("kids", {
       asOf: undefined,
     });
-    await waitFor(() =>
-      expect(mockGetGroupInstruments).toHaveBeenCalledWith(
-        "kids",
-        {
-          account_type: undefined,
-          owner: undefined,
-        },
-        { asOf: undefined },
-      ),
-    );
-  });
+    expect(mockGetGroupInstruments).not.toHaveBeenCalled();
+  }, 10_000);
 
   it("loads /instrument/all rows from group holdings API", async () => {
     window.history.pushState({}, "", "/instrument/all");

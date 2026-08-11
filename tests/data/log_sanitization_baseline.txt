@@ -5,13 +5,6 @@ backend/agent/trading_agent.py:56
 backend/alerts.py:104
 backend/alerts.py:152
 backend/alerts.py:194
-backend/alerts.py:228
-backend/alerts.py:256
-backend/alerts.py:336
-backend/app.py:175
-backend/app.py:207
-backend/app.py:226
-backend/auth.py:126
 backend/alerts.py:93
 # accounts-root path comes from server config, not attacker-controlled input.
 backend/auth.py:172
@@ -48,7 +41,6 @@ backend/common/instruments.py:82
 backend/common/instruments.py:86
 backend/common/instruments.py:500
 backend/common/instruments.py:530
-backend/common/portfolio.py:81
 backend/common/portfolio.py:115
 # raw/d_raw/amount_minor are logged with %r (repr), which already escapes
 # real newlines as the literal two-character sequence \n -- wrapping in
@@ -57,12 +49,6 @@ backend/common/portfolio.py:115
 backend/common/portfolio_loader.py:240
 backend/common/portfolio_loader.py:253
 backend/common/portfolio_loader.py:260
-backend/common/instruments.py:41
-backend/common/instruments.py:496
-backend/common/instruments.py:525
-backend/common/instruments.py:84
-backend/common/instruments.py:88
-backend/common/portfolio.py:115
 backend/common/portfolio_utils.py:1386
 backend/common/portfolio_utils.py:1414
 backend/common/portfolio_utils.py:2010
@@ -93,9 +79,6 @@ backend/common/signup_requests.py:206
 backend/common/signup_requests.py:254
 backend/common/signup_requests.py:274
 backend/common/signup_requests.py:378
-backend/common/storage.py:52
-backend/common/storage.py:78
-backend/common/storage.py:112
 # len(adjustments) is always an int (a count of synthetic transactions just
 # built in this function) and can't carry attacker-controlled string content.
 backend/common/transaction_reconciliation.py:180
@@ -105,47 +88,20 @@ backend/config.py:279
 # parser in this function) and can't carry attacker-controlled string content.
 backend/importers/hargreaves.py:94
 backend/importers/hargreaves.py:119
-backend/lambda_api/dividend_refresh.py:27
-backend/lambda_api/pension_report.py:206
-backend/lambda_api/pension_report.py:231
-backend/lambda_api/price_refresh.py:61
-backend/lambda_api/price_refresh.py:63
-backend/lambda_api/price_refresh.py:78
-backend/lambda_api/price_refresh.py:86
-backend/nudges.py:44
-backend/nudges.py:61
-backend/nudges.py:84
-backend/nudges.py:160
-backend/nudges.py:174
 backend/reports.py:446
 backend/reports.py:452
 backend/reports.py:462
 backend/reports.py:468
-backend/reports.py:522
 backend/reports.py:809
-backend/reports.py:1442
 backend/common/storage.py:114
 backend/common/storage.py:54
 backend/common/storage.py:80
-backend/common/transaction_reconciliation.py:135
-backend/common/transaction_reconciliation.py:177
-backend/common/transaction_reconciliation.py:187
-backend/common/transaction_reconciliation.py:40
-backend/common/transaction_reconciliation.py:45
-backend/common/transaction_reconciliation.py:67
-backend/config.py:276
-backend/config.py:279
 backend/lambda_api/price_refresh.py:62
 backend/nudges.py:161
 backend/reports.py:1518
 backend/reports.py:1604
 backend/reports.py:1615
 backend/reports.py:1630
-backend/reports.py:446
-backend/reports.py:452
-backend/reports.py:462
-backend/reports.py:468
-backend/reports.py:809
 backend/routes/market.py:164
 backend/routes/market.py:170
 backend/routes/market.py:179

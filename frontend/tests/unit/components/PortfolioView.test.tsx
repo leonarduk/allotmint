@@ -85,6 +85,16 @@ describe("PortfolioView", () => {
         expect(within(row).getByText("66.7%")).toBeInTheDocument();
     });
 
+    it("allows the holdings section to use the full portfolio width", () => {
+        render(<PortfolioView data={mockOwner} />);
+
+        const holdings = screen.getByRole("region", { name: "Portfolio holdings" });
+        const layout = holdings.parentElement?.parentElement;
+
+        expect(layout).toHaveClass("grid-cols-1");
+        expect(layout?.className).not.toContain("xl:grid-cols-");
+    });
+
     it("updates holdings and total when the active account tab changes", () => {
         render(<PortfolioView data={mockOwner}/>);
 

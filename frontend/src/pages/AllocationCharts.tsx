@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Link, useSearchParams } from "react-router-dom";
 import { getGroupPortfolio } from "../api";
 import type { Account, GroupPortfolio } from "../types";
 import { translateInstrumentType } from "../lib/instrumentType";
@@ -47,8 +48,12 @@ export type AllocationChartsProps = {
 
 export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
   const { t } = useTranslation();
+  const [searchParams] = useSearchParams();
+  const resolvedSlug = searchParams.get("group") || slug;
+  const requestedView = searchParams.get("view");
+  const initialView = requestedView === "sector" || requestedView === "region" ? requestedView : "asset";
   const { baseCurrency, relativeViewEnabled } = useConfig();
-  const [view, setView] = useState<"asset" | "sector" | "region">("asset");
+  const [view, setView] = useState<"asset" | "sector" | "region">(initialView);
   const [sectorData, setSectorData] = useState<{ name: string; value: number }[]>(
     [],
   );
@@ -85,14 +90,23 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
   useEffect(() => {
     setLoading(true);
     setError(null);
-    getGroupPortfolio(slug)
+    getGroupPortfolio(resolvedSlug)
       .then((p: GroupPortfolio) => {
         setPortfolio(p);
-        setSelectedAccounts(p.accounts.map(accountKey));
+        const owner = searchParams.get("owner");
+        const account = searchParams.get("account");
+        setSelectedAccounts(
+          p.accounts
+            .map((acct, idx) => ({ acct, key: accountKey(acct, idx) }))
+            .filter(({ acct }) =>
+              (!owner || acct.owner === owner) && (!account || acct.account_type === account),
+            )
+            .map(({ key }) => key),
+        );
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false));
-  }, [slug]);
+  }, [resolvedSlug, searchParams]);
 
   useEffect(() => {
     if (!portfolio) return;
@@ -205,6 +219,15 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
         </h1>
         <RelativeViewToggle />
       </div>
+      <p className="mb-4 text-sm text-gray-600">
+        {t("allocation.allocationDescription")}{" "}
+        <Link
+          className="text-blue-600 underline"
+          to={`/?${new URLSearchParams({ group: resolvedSlug }).toString()}`}
+        >
+          {t("allocation.viewContribution")}
+        </Link>
+      </p>
       <div className="mb-4 flex flex-wrap gap-2">
         <button onClick={() => setView("asset")} disabled={view === "asset"}>
           {t("allocation.instrumentTypes", { defaultValue: "Instrument Types" })}

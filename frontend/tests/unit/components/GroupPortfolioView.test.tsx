@@ -137,11 +137,13 @@ const mockAllFetches = (
   options: {
     metrics?: { alpha?: any; trackingError?: any; maxDrawdown?: any };
     instruments?: Record<string, any[]>;
+    sectorContributions?: any[];
+    regionContributions?: any[];
     complianceWarnings?: any[];
     complianceFails?: boolean;
   } = {},
 ) => {
-  const { metrics, instruments = {}, complianceWarnings = [], complianceFails = false } = options;
+  const { metrics, instruments = {}, sectorContributions = [], regionContributions = [], complianceWarnings = [], complianceFails = false } = options;
   const { alpha = 0, trackingError = 0, maxDrawdown = 0 } = metrics ?? {};
   const defaultInstrumentRows =
     instruments[instrumentKey(undefined, undefined)] ?? [];
@@ -244,16 +246,16 @@ const mockAllFetches = (
         json: async () => ({ max_drawdown: maxDrawdown }),
       } as Response);
     }
-    if (url.includes("sector-contributions")) {
+    if (url.includes("/portfolio-group/") && url.includes("/sectors")) {
       return Promise.resolve({
         ok: true,
-        json: async () => [],
+        json: async () => sectorContributions,
       } as Response);
     }
-    if (url.includes("region-contributions")) {
+    if (url.includes("/portfolio-group/") && url.includes("/regions")) {
       return Promise.resolve({
         ok: true,
-        json: async () => [],
+        json: async () => regionContributions,
       } as Response);
     }
     return Promise.resolve({
@@ -266,6 +268,31 @@ const mockAllFetches = (
 };
 
 describe("GroupPortfolioView", () => {
+  it("links gain contribution to the matching allocation dimension", async () => {
+    mockAllFetches(
+      { name: "At a glance", accounts: [] },
+      {
+        sectorContributions: [{ sector: "Technology", gain_gbp: 25 }],
+        regionContributions: [{ region: "UK", gain_gbp: 10 }],
+      },
+    );
+    const user = userEvent.setup();
+
+    renderWithConfig(<GroupPortfolioView slug="family" owners={ownerFixtures} />);
+
+    expect(await screen.findByText("Contribution shows which parts of the portfolio drove gains and losses.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View allocation by industries" })).toHaveAttribute(
+      "href",
+      "/allocation?group=family&view=sector",
+    );
+
+    await user.click(screen.getByRole("button", { name: "Region" }));
+    expect(screen.getByRole("link", { name: "View allocation by regions" })).toHaveAttribute(
+      "href",
+      "/allocation?group=family&view=region",
+    );
+  });
+
   it("shows per-owner totals with percentages in relative view", async () => {
     const mockPortfolio = {
       name: "At a glance",

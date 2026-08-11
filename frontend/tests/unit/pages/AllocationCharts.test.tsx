@@ -1,9 +1,10 @@
 import type { ReactNode } from "react";
-import { fireEvent, render, screen, within, waitFor } from "@testing-library/react";
+import { fireEvent, render as rtlRender, screen, within, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import AllocationCharts from "@/pages/AllocationCharts";
 import * as api from "@/api";
 import type { GroupPortfolio, Holding } from "@/types";
+import { MemoryRouter } from "react-router-dom";
 
 vi.mock("@/api");
 vi.mock("recharts", () => ({
@@ -31,6 +32,9 @@ vi.mock("recharts", () => ({
 }));
 
 const mockGetGroupPortfolio = vi.mocked(api.getGroupPortfolio);
+
+const render = (ui: ReactNode, initialEntry = "/allocation") =>
+  rtlRender(<MemoryRouter initialEntries={[initialEntry]}>{ui}</MemoryRouter>);
 
 const baseHolding: Holding = {
   ticker: "AAA",
@@ -100,6 +104,20 @@ describe("AllocationCharts page", () => {
     render(<AllocationCharts />);
     expect(await screen.findByText("boom")).toBeInTheDocument();
     expect(screen.queryByText(/Loading/)).not.toBeInTheDocument();
+  });
+
+  it("opens a linked allocation dimension for the linked group and scope", async () => {
+    mockGetGroupPortfolio.mockResolvedValueOnce(samplePortfolio);
+
+    render(<AllocationCharts />, "/allocation?group=family&view=sector&owner=alice&account=taxable");
+
+    await waitFor(() => expect(mockGetGroupPortfolio).toHaveBeenCalledWith("family"));
+    expect(screen.getByRole("button", { name: "Industries" })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: "alice - taxable" })).toBeChecked();
+    expect(screen.getByRole("link", { name: "View gain contribution" })).toHaveAttribute(
+      "href",
+      "/?group=family",
+    );
   });
 
   it("keeps valid values across type/sector/region while excluding invalid entries", async () => {

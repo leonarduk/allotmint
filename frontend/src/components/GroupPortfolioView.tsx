@@ -60,7 +60,7 @@ import type { PieLabelRenderProps } from "recharts";
 import { BadgeCheck, LineChart, Shield } from "lucide-react";
 import { toRollupRows, toScopedHoldingRows } from "../lib/rollupAdapter";
 import { OwnerPortfolioActions } from "./OwnerPortfolioActions";
-import { useLocation, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { readRouteScopeQuery } from "../routes/registry";
 
 const PIE_COLORS = [
@@ -416,6 +416,13 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   const ownerFilter = activeOwner ?? undefined;
   const accountFilter =
     activeOwner && activeAccountType ? activeAccountType : undefined;
+
+  const allocationPath = useMemo(() => {
+    const params = new URLSearchParams({ group: slug, view: contribTab });
+    if (activeOwner) params.set("owner", activeOwner);
+    if (activeAccountType) params.set("account", activeAccountType);
+    return `/allocation?${params.toString()}`;
+  }, [activeAccountType, activeOwner, contribTab, slug]);
 
   const handleDateChange = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
@@ -1026,7 +1033,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
       )}
 
       {isAllPositions && enableAdvancedAnalytics && (sectorContrib?.length || regionContrib?.length) && (
-        <div style={{ width: "100%", height: 300, margin: "1rem 0" }}>
+        <section style={{ width: "100%", margin: "1rem 0" }}>
           <div style={{ marginBottom: "0.5rem" }}>
             <button
               onClick={() => setContribTab("sector")}
@@ -1041,37 +1048,51 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
             >
               Region
             </button>
-          </div>
-          <ResponsiveContainer
-            width="100%"
-            height="100%"
-            minWidth={1}
-            minHeight={1}
-            initialDimension={CONTRIBUTION_CHART_INITIAL_DIMENSION}
-          >
-            <BarChart
-              data={
-                (contribTab === "sector"
-                  ? sectorContrib || []
-                  : regionContrib || []) as (SectorContribution | RegionContribution)[]
-              }
+            <Link
+              to={allocationPath}
+              style={{ color: "#60a5fa", fontSize: "0.85rem", marginLeft: "1rem" }}
             >
-              <XAxis dataKey={contribTab === "sector" ? "sector" : "region"} />
-              <YAxis />
-              <Tooltip formatter={(v) => money(v as number | undefined, baseCurrency)} />
-              <Bar dataKey="gain_gbp">
-                {(contribTab === "sector" ? sectorContrib : regionContrib)?.map(
-                  (row, idx) => (
-                    <Cell
-                      key={`cell-bar-${idx}`}
-                      fill={row.gain_gbp >= 0 ? "lightgreen" : "red"}
-                    />
+              {t("allocation.viewAllocation", {
+                dimension: t(`allocation.${contribTab}`).toLowerCase(),
+              })}
+            </Link>
+          </div>
+          <p style={{ color: "#aaa", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>
+            {t("allocation.contributionDescription")}
+          </p>
+          <div style={{ width: "100%", height: 300 }}>
+            <ResponsiveContainer
+              width="100%"
+              height="100%"
+              minWidth={1}
+              minHeight={1}
+              initialDimension={CONTRIBUTION_CHART_INITIAL_DIMENSION}
+            >
+              <BarChart
+                data={
+                  (contribTab === "sector"
+                    ? sectorContrib || []
+                    : regionContrib || []) as (SectorContribution | RegionContribution)[]
+                }
+              >
+                <XAxis dataKey={contribTab === "sector" ? "sector" : "region"} />
+                <YAxis />
+                <Tooltip formatter={(v) => money(v as number | undefined, baseCurrency)} />
+                <Bar dataKey="gain_gbp">
+                  {(contribTab === "sector" ? sectorContrib : regionContrib)?.map(
+                    (row, idx) => (
+                      <Cell
+                        key={`cell-bar-${idx}`}
+                        fill={row.gain_gbp >= 0 ? "lightgreen" : "red"}
+                      />
+                    )
                   )
-                )}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+                  }
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </section>
       )}
 
       {isAllPositions && enableAdvancedAnalytics && <TopMoversSummary slug={slug} />}

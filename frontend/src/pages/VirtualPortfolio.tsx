@@ -312,12 +312,33 @@ export function VirtualPortfolio() {
   return (
     <div className="container mx-auto max-w-5xl space-y-6 p-4">
       <header>
-        <h1 className="text-2xl font-semibold md:text-4xl">Family Manual Portfolio Setup</h1>
+        <p className="mb-2 inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-amber-900">
+          Local draft
+        </p>
+        <h1 className="text-2xl font-semibold md:text-4xl">Family Manual Portfolio Draft</h1>
         <p className="mt-2 text-sm text-slate-600">
-          Add accounts and holdings manually. Entries are saved in this browser and survive page
-          refresh.
+          Explore a possible family portfolio without changing your saved portfolio. This draft is
+          stored only in this browser and is not saved to your AllotMint account.
         </p>
       </header>
+
+      <aside
+        className="rounded border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950"
+        aria-labelledby="local-draft-notice"
+      >
+        <h2 id="local-draft-notice" className="font-semibold">This draft stays separate</h2>
+        <p className="mt-1">
+          Draft accounts and holdings cannot currently be transferred automatically. To keep them
+          in your account, open your saved portfolio and use Add account, Add position, or Import
+          CSV.
+        </p>
+        <a
+          href="/portfolio"
+          className="mt-3 inline-flex rounded bg-slate-900 px-4 py-2 font-medium text-white hover:bg-slate-700"
+        >
+          Open saved portfolio
+        </a>
+      </aside>
 
       {statusMessage && (
         <p className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">

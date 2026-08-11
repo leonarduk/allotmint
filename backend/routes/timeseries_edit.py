@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import logging
 import os
+import shutil
 from pathlib import Path
 
 import pandas as pd
@@ -17,6 +18,7 @@ from backend.timeseries.cache import (
     EXPECTED_COLS,
     _ensure_schema,
     _s3_client,
+    _s3_object_recently_confirmed_missing,
     _split_s3_cache_uri,
     has_cached_meta_timeseries,
     invalidate_s3_cache_metadata,
@@ -74,11 +76,15 @@ def _s3_object_exists(cache: str, ticker: str, exchange: str) -> bool:
     if parsed is None:
         raise InternalServiceError("Invalid S3 timeseries cache path")
     bucket, key = parsed
+
+    if _s3_object_recently_confirmed_missing(cache):
+        return False
+
     try:
         _s3_client().head_object(Bucket=bucket, Key=key)
     except ClientError as exc:
         error_code = exc.response.get("Error", {}).get("Code")
-        if error_code in {"404", "NoSuchKey", "NotFound"}:
+        if error_code in {"404", "NoSuchKey", "NoSuchBucket", "NotFound"}:
             return False
         raise InternalServiceError(
             f"Failed to inspect cached timeseries for {ticker}.{exchange}",
@@ -136,15 +142,19 @@ def _move_s3_timeseries(df: pd.DataFrame, source: str, destination: str) -> None
 def _move_local_timeseries(source: str, destination: str) -> None:
     destination_path = Path(destination)
     destination_path.parent.mkdir(parents=True, exist_ok=True)
+    if destination_path.exists():
+        raise HTTPException(status_code=409, detail="Destination time series already exists")
     try:
-        os.link(source, destination)
-    except FileExistsError as exc:
-        raise HTTPException(status_code=409, detail="Destination time series already exists") from exc
-    try:
-        Path(source).unlink()
-    except Exception:
-        destination_path.unlink(missing_ok=True)
-        raise
+        os.rename(source, destination)
+    except OSError:
+        # Cross-filesystem move: copy then delete.  The destination
+        # existence check above makes this a safe no-clobber path.
+        shutil.copy2(source, destination)
+        try:
+            Path(source).unlink()
+        except Exception:
+            destination_path.unlink(missing_ok=True)
+            raise
 
 
 def _move_timeseries(ticker: str, source_exchange: str, destination_exchange: str) -> int:

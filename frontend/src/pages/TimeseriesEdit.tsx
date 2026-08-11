@@ -313,6 +313,7 @@ export function TimeseriesEdit() {
         }),
       );
     } catch (e) {
+      setLoadedSeries(null);
       const status = (e as { status?: number })?.status;
       if (status === 409) {
         setError(t("timeseriesEdit.status.moveConflict", { exchange }));

@@ -398,10 +398,11 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   }, [activeOwner, handleOwnerChange, loading, ownerTabs, portfolio]);
 
   useEffect(() => {
+    if (loading || !portfolio) return;
     if (!activeOwner && activeAccountType) {
       handleOwnerChange(null, { replace: true });
     }
-  }, [activeAccountType, activeOwner, handleOwnerChange]);
+  }, [activeAccountType, activeOwner, handleOwnerChange, loading, portfolio]);
 
   useEffect(() => {
     if (!activeOwner) return;

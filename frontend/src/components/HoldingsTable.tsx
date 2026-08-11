@@ -9,7 +9,10 @@ import i18n from "../i18n";
 import { useConfig } from "../ConfigContext";
 import { isSupportedFx } from "../lib/fx";
 import { formatDateISO } from "../lib/date";
-import { RelativeViewToggle } from "./RelativeViewToggle";
+import {
+  HoldingsFilterControls,
+  type SparkRange,
+} from "./HoldingsFilterControls";
 import FilterBar, { useFilterReducer, type FilterState } from "./FilterBar";
 import EmptyState from "./EmptyState";
 import { useNavigate } from "react-router-dom";
@@ -57,15 +60,23 @@ export function HoldingsTable({
     // useNavigate() is only used for the EmptyState screener shortcut.
   }
 
-  const viewPresets = useMemo(
-    () => [
+  const viewPresets = useMemo(() => {
+    const instrumentTypes = new Map<string, string>();
+    holdings.forEach(({ instrument_type: instrumentType }) => {
+      const trimmedType = instrumentType?.trim();
+      if (trimmedType) {
+        instrumentTypes.set(trimmedType.toLocaleLowerCase(), trimmedType);
+      }
+    });
+
+    return [
       { label: t("holdingsTable.viewPresets.all"), value: "" },
-      { label: t("instrumentType.etf"), value: "ETF" },
-      { label: t("instrumentType.equity"), value: "Equity" },
-      { label: t("instrumentType.bond"), value: "Bond" },
-    ],
-    [t],
-  );
+      ...Array.from(instrumentTypes.values()).map((instrumentType) => ({
+        label: translateInstrumentType(t, instrumentType),
+        value: instrumentType,
+      })),
+    ];
+  }, [holdings, t]);
 
   const [filters, dispatchFilters] = useFilterReducer();
 
@@ -83,7 +94,13 @@ export function HoldingsTable({
     gain_pct: true,
   });
 
-  const [sparkRange, setSparkRange] = useState<7 | 30 | 180>(30);
+  const [sparkRange, setSparkRange] = useState<SparkRange>(30);
+
+  useEffect(() => {
+    if (viewPreset && !viewPresets.some(({ value }) => value === viewPreset)) {
+      setViewPreset("");
+    }
+  }, [viewPreset, viewPresets]);
 
   useEffect(() => {
     const tickers = Array.from(new Set(holdings.map((h) => h.ticker)));
@@ -279,53 +296,16 @@ export function HoldingsTable({
       {!familyMvpEnabled && (
         <>
           <FilterBar state={filters} dispatch={dispatchFilters} />
-          <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1">
-            <RelativeViewToggle />
-            <span className="flex items-center gap-1">
-              {t("holdingsTable.range")}
-              {[7, 30, 180].map((d) => (
-                <label key={d} className="ml-1">
-                  <input
-                    type="radio"
-                    name="sparkRange"
-                    checked={sparkRange === d}
-                    onChange={() => setSparkRange(d as 7 | 30 | 180)}
-                  />
-                  {t("holdingsTable.rangeOption", { count: d })}
-                </label>
-              ))}
-            </span>
-            <span className="flex items-center gap-1">
-              {t("holdingsTable.view")}
-              {viewPresets.map((p) => (
-                <button
-                  key={p.label}
-                  type="button"
-                  onClick={() => setViewPreset(p.value)}
-                  className={`ml-1 ${viewPreset === p.value ? 'font-bold' : ''} focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500`}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </span>
-            <span className="flex items-center gap-1">
-              {t("holdingsTable.quickFilters")}
-              <button
-                type="button"
-                className="ml-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
-                onClick={() => handleFilterChange("sell_eligible", "true")}
-              >
-                {t("holdingsTable.quickFiltersSellEligible")}
-              </button>
-              <input
-                type="number"
-                placeholder={t("holdingsTable.minimumGainPrompt")}
-                value={filters.gain_pct}
-                onChange={(e) => handleFilterChange("gain_pct", e.target.value)}
-                className="ml-1 w-24"
-              />
-            </span>
-          </div>
+          <HoldingsFilterControls
+            sparkRange={sparkRange}
+            onSparkRangeChange={setSparkRange}
+            viewPresets={viewPresets}
+            viewPreset={viewPreset}
+            onViewPresetChange={setViewPreset}
+            minimumGain={filters.gain_pct}
+            onMinimumGainChange={(value) => handleFilterChange("gain_pct", value)}
+            onSellEligible={() => handleFilterChange("sell_eligible", "true")}
+          />
           <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
             {t("holdingsTable.columnsLabel")}
             {columnLabels.map(([key, label]) => (

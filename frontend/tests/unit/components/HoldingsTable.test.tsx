@@ -391,10 +391,37 @@ describe("HoldingsTable", () => {
           expect(screen.queryByText('AAA')).toBeNull();
       });
 
-      it("shows controls and fallback when no rows match", async () => {
+      it("derives translated view presets from the holdings", async () => {
+          const mixedHoldings: Holding[] = [
+              holdings[0],
+              { ...holdings[0], ticker: "OTHER", instrument_type: "Other" },
+              { ...holdings[0], ticker: "TRUST", instrument_type: "Investment Trust" },
+              { ...holdings[0], ticker: "UNKNOWN", instrument_type: "Commodity" },
+          ];
+
+          render(<HoldingsTable holdings={mixedHoldings} />);
+
+          expect(await screen.findByRole("button", { name: "Equity" })).toBeInTheDocument();
+          expect(screen.getByRole("button", { name: "Other" })).toBeInTheDocument();
+          expect(screen.getByRole("button", { name: "Investment Trust" })).toBeInTheDocument();
+          expect(screen.getByRole("button", { name: "Commodity" })).toBeInTheDocument();
+          expect(screen.queryByRole("button", { name: "Bond" })).toBeNull();
+      });
+
+      it("clears a persisted view preset that is absent from the holdings", async () => {
           localStorage.setItem("holdingsTableViewPreset", "Bond");
           render(<HoldingsTable holdings={holdings} />);
+
+          expect(await screen.findByText("AAA")).toBeInTheDocument();
+          await waitFor(() => expect(screen.getByPlaceholderText("Type")).toHaveValue(""));
+          expect(localStorage.getItem("holdingsTableViewPreset")).toBe("");
+      });
+
+      it("shows controls and fallback when no rows match", async () => {
+          localStorage.setItem("holdingsTableViewPreset", "Equity");
+          render(<HoldingsTable holdings={holdings} />);
           expect(await screen.findByText('View:')).toBeInTheDocument();
+          await userEvent.type(screen.getByPlaceholderText("Ticker"), "missing");
           expect(screen.getByText('No holdings match the current filters.')).toBeInTheDocument();
           expect(screen.getByRole('button', { name: 'Clear filters' })).toBeInTheDocument();
           expect(screen.getByRole('button', { name: 'Open Screener' })).toBeInTheDocument();

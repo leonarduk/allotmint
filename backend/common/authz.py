@@ -11,8 +11,8 @@ but not authorized (e.g. ``/user-config/<owner>`` and
 
 When ``config.disable_auth`` is truthy the API runs in local/demo mode where
 the ``/owners`` listing exposes every owner and no identity is enforced; these
-helpers deliberately no-op in that mode so demo and no-auth flows are not
-restricted.
+helpers deliberately no-op in that mode so anonymous requests for the demo
+owner (including its approvals) are not rejected with a 403.
 """
 
 from __future__ import annotations
@@ -44,7 +44,11 @@ def _allowed_identities(owner: str, meta: Mapping[str, Any]) -> Set[str]:
 
     viewers = meta.get("viewers") if isinstance(meta, Mapping) else None
     if isinstance(viewers, list):
-        allowed.update(viewer.strip().lower() for viewer in viewers if isinstance(viewer, str) and viewer.strip())
+        allowed.update(
+            viewer.strip().lower()
+            for viewer in viewers
+            if isinstance(viewer, str) and viewer.strip()
+        )
     return allowed
 
 

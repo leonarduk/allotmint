@@ -12,6 +12,15 @@ backend/auth.py:172
 # caller, never attacker-controlled; email/token on the same call are already
 # wrapped in sanitise_log_value.
 backend/auth.py:590
+backend/auth.py:178
+backend/auth.py:537
+# provider is always a hardcoded literal ("Google"/"Cognito") passed by the
+# caller, never attacker-controlled; email/token on the same call are already
+# wrapped in sanitise_log_value.
+backend/auth.py:612
+backend/bootstrap/isolation.py:89
+backend/bootstrap/startup.py:92
+backend/common/accounts_store.py:244
 backend/common/accounts_store.py:283
 backend/common/accounts_store.py:291
 backend/common/accounts_store.py:410
@@ -21,6 +30,8 @@ backend/common/approvals.py:92
 # issue #5215 diagnostic: identity is not None (always bool) and len(...)
 # (always int) cannot carry attacker-controlled input.
 backend/common/authz.py:82
+# (always int) can't carry attacker-controlled input.
+backend/common/authz.py:86
 backend/common/compliance.py:198
 backend/common/compliance.py:236
 backend/common/compliance.py:265

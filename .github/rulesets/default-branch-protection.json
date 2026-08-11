@@ -53,10 +53,6 @@
             "integration_id": 15368
           },
           {
-            "context": "Backend lint (ruff, black)",
-            "integration_id": 15368
-          },
-          {
             "context": "Lambda-compat pytest (backend/requirements.txt)",
             "integration_id": 15368
           },

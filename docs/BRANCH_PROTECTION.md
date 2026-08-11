@@ -34,7 +34,6 @@ gh api "repos/leonarduk/allotmint/commits/<pr-head-sha>/check-runs?per_page=100"
 | `Frontend lint, type-check and unit tests` | `ci.yml` job `frontend-checks` |
 | `CDK infrastructure tests` | `ci.yml` job `cdk-tests` |
 | `Validate backend/requirements.txt (dry-run)` | `ci.yml` job `validate-backend-deps` |
-| `Backend lint (ruff, black)` | `ci.yml` job `backend-lint` |
 | `Lambda-compat pytest (backend/requirements.txt)` | `ci.yml` job `lambda-compat` |
 | `Frontend smoke tests (preview build)` | `ci.yml` job `frontend-smoke` |
 | `integration-tests` | `backend-integration.yml` |
@@ -115,6 +114,15 @@ the required-check ruleset:
 
 `ai-review / DeepSeek AI code review` is the deliberate exception and *is*
 required.
+
+`Backend lint (ruff, black)` (`ci.yml` job `backend-lint`) is also advisory
+for now: the current `backend/` and `tests/` baseline has ~200 pre-existing
+Ruff findings and ~235 files Black would reformat, so requiring it today
+would block every backend-affecting PR (see PR #6261 review). The job runs
+with `continue-on-error: true` so it stays visible without blocking merges.
+Once the baseline is cleaned up, drop `continue-on-error` and add the
+context back to the ruleset, `EXPECTED_REQUIRED_CHECKS`, and the required
+checks table above in the same PR.
 
 ## Merge conflict check-run
 

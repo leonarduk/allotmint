@@ -36,7 +36,7 @@ from backend.common import portfolio as portfolio_mod
 from backend.common.account_models import OwnerSummaryRecord, PersonMetadata
 from backend.common.errors import log_owner_not_found
 from backend.config import config, demo_identity
-from backend.logging_setup import sanitise_log_value
+from backend.logging_setup import sanitise_exception_traceback, sanitise_log_value
 from backend.routes._accounts import resolve_accounts_root, resolve_owner_directory
 from backend.utils.pricing_dates import PricingDateCalculator
 from backend.utils.timeseries_helpers import resolve_date_range
@@ -852,24 +852,24 @@ async def get_account(owner: str, account: str, request: Request):
         data = data_loader.load_account_record(owner, account, root).model_dump(exclude_unset=True)
     except data_loader.ProviderUnavailable as exc:
         logger.warning(
-            "portfolio.account_provider_unavailable",
+            "portfolio.account_provider_unavailable; traceback: %s",
+            sanitise_exception_traceback(exc),
             extra={
                 "event": "portfolio.account_provider_unavailable",
                 "owner": sanitise_log_value(owner),
                 "account": sanitise_log_value(account),
             },
-            exc_info=True,
         )
         raise HTTPException(status_code=503, detail="Account data provider unavailable") from exc
     except data_loader.InvalidPayload as exc:
         logger.warning(
-            "portfolio.account_invalid_payload",
+            "portfolio.account_invalid_payload; traceback: %s",
+            sanitise_exception_traceback(exc),
             extra={
                 "event": "portfolio.account_invalid_payload",
                 "owner": sanitise_log_value(owner),
                 "account": sanitise_log_value(account),
             },
-            exc_info=True,
         )
         raise HTTPException(status_code=502, detail="Account data payload is invalid") from exc
     except FileNotFoundError:

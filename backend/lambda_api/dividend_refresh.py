@@ -15,6 +15,7 @@ from __future__ import annotations
 import logging
 
 from backend.common.dividends import refresh_dividends
+from backend.logging_setup import sanitise_exception_traceback, sanitise_log_value
 
 logger = logging.getLogger(__name__)
 
@@ -24,5 +25,9 @@ def lambda_handler(event, context):
     try:
         return refresh_dividends()
     except Exception as exc:
-        logger.error("Dividend refresh failed: %s", exc, exc_info=True)
+        logger.error(
+            "Dividend refresh failed: %s; traceback: %s",
+            sanitise_log_value(exc),
+            sanitise_exception_traceback(exc),
+        )
         return {"error": str(exc), "dividends_created": 0}

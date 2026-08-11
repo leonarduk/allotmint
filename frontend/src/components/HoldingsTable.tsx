@@ -1,4 +1,12 @@
-import { Fragment, useState, useEffect, useRef, useMemo, type MouseEvent } from "react";
+import {
+  Fragment,
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useMemo,
+  type MouseEvent,
+} from "react";
 import { useTranslation } from "react-i18next";
 import type { Holding } from "../types";
 import { money, percent } from "../lib/money";
@@ -304,7 +312,7 @@ export function HoldingsTable({
     }
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const container = tableContainerRef.current;
     const topScrollbar = topScrollbarRef.current;
     const table = tableRef.current;
@@ -494,8 +502,10 @@ export function HoldingsTable({
           <div
             ref={topScrollbarRef}
             className={`${tableStyles.topScrollbar} ${hasHorizontalOverflow ? "" : tableStyles.topScrollbarHidden}`}
+            role="region"
             aria-label={t("holdingsTable.horizontalScroll")}
-            tabIndex={0}
+            aria-hidden={!hasHorizontalOverflow}
+            tabIndex={hasHorizontalOverflow ? 0 : -1}
           >
             <div className={tableStyles.topScrollbarContent} style={{ width: tableWidth }} />
           </div>

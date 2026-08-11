@@ -238,7 +238,7 @@ export default function App({ onLogout }: AppProps) {
     (owner: string) => {
       const trimmedOwner = owner.trim();
       setSelectedOwner(trimmedOwner);
-      navigate(`/portfolio/${encodePathSegment(trimmedOwner)}`);
+      navigate(`/?owner=${encodeURIComponent(trimmedOwner)}`);
     },
     [navigate]
   );

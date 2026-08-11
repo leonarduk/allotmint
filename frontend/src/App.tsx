@@ -19,7 +19,7 @@ import type {
 } from './types';
 
 import { OwnerSelector } from './components/OwnerSelector';
-import { PortfolioView } from './components/PortfolioView';
+import { PortfolioView as _PortfolioView } from './components/PortfolioView';
 import { GroupPortfolioView } from './components/GroupPortfolioView';
 import { InstrumentTable } from './components/InstrumentTable';
 import { TransactionsPage } from './components/TransactionsPage';
@@ -198,7 +198,8 @@ export default function App({ onLogout }: AppProps) {
 
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
   const [groups, setGroups] = useState<GroupSummary[]>([]);
-  const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
+  // Retain the legacy portfolio fetch/cache until its dedicated cleanup child.
+  const [_portfolio, setPortfolio] = useState<Portfolio | null>(null);
   const [portfolioAsOf, setPortfolioAsOf] = useState<string | null>(null);
   // Full catalogue stored in state — never truncated here.
   const [instruments, setInstruments] = useState<InstrumentSummary[]>([]);
@@ -240,20 +241,6 @@ export default function App({ onLogout }: AppProps) {
       navigate(`/portfolio/${encodePathSegment(trimmedOwner)}`);
     },
     [navigate]
-  );
-
-  const handlePortfolioDateChange = useCallback((isoDate: string | null) => {
-    setPortfolioAsOf(isoDate);
-  }, []);
-
-  const handleAccountTypeChange = useCallback(
-    (accountType: string | null) => {
-      if (!selectedOwner) return;
-      const params = new URLSearchParams({ owner: selectedOwner });
-      if (accountType) params.set('account', accountType);
-      navigate(`/?${params.toString()}`, { replace: true });
-    },
-    [navigate, selectedOwner]
   );
 
   const handleLogout = useCallback(() => {
@@ -539,6 +526,15 @@ export default function App({ onLogout }: AppProps) {
   );
   const exportGroupLabel = selectedGroup || 'all';
 
+  const portfolioGroupSlug =
+    selectedOwnerGroup?.slug ??
+    (selectedOwner ? selectedOwner : mode === 'group' ? selectedGroup : '');
+  const portfolioComplianceOwners = selectedOwnerGroup
+    ? selectedOwnerGroup.members
+    : selectedOwner
+      ? [selectedOwner]
+      : (selectedGroupSummary?.members ?? []);
+
   const handleInstrumentExportCsv = useCallback(() => {
     downloadInstrumentsCsv(instruments, exportGroupLabel);
   }, [instruments, exportGroupLabel]);
@@ -609,33 +605,11 @@ export default function App({ onLogout }: AppProps) {
           )}
         </AppHeader>
 
-        {/* INDIVIDUAL OWNER VIEW */}
-        {mode === 'owner' && !selectedOwnerIsGroup && (
+        {/* MERGED OWNER/GROUP PORTFOLIO VIEW */}
+        {(mode === 'owner' || mode === 'group') && portfolioGroupSlug && (
           <>
-            <ComplianceWarnings owners={selectedOwner ? [selectedOwner] : []} />
-            <PortfolioView
-              data={portfolio}
-              loading={loading}
-              error={err}
-              onDateChange={handlePortfolioDateChange}
-              accountType={scopeQuery.account}
-              onAccountTypeChange={handleAccountTypeChange}
-            />
-          </>
-        )}
-
-        {mode === 'owner' && selectedOwnerGroup && (
-          <>
-            <ComplianceWarnings owners={selectedOwnerGroup.members} />
-            <GroupPortfolioView slug={selectedOwnerGroup.slug} owners={owners} />
-          </>
-        )}
-
-        {/* GROUP VIEW */}
-        {mode === 'group' && selectedGroup && (
-          <>
-            <ComplianceWarnings owners={selectedGroupSummary?.members ?? []} />
-            <GroupPortfolioView slug={selectedGroup} owners={owners} />
+            <ComplianceWarnings owners={portfolioComplianceOwners} />
+            <GroupPortfolioView slug={portfolioGroupSlug} owners={owners} />
           </>
         )}
 

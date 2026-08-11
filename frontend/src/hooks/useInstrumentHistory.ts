@@ -83,6 +83,13 @@ export function useInstrumentHistory(ticker: string, days: number) {
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
+    if (!ticker || days <= 0) {
+      setData(null);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
     let active = true;
     const cached = cache.get(ticker)?.get(days) ?? null;
     if (cached) {

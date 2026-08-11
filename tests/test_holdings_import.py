@@ -22,6 +22,36 @@ def test_hargreaves_parse():
     assert first.amount_minor == pytest.approx(1500)
 
 
+@pytest.mark.parametrize(
+    ("heading", "price", "expected"),
+    [
+        ("Price (pence)", "450", 4.5),
+        ("Price (GBX)", "450", 4.5),
+        ("Price (£)", "4.50", 4.5),
+        ("Price (GBP)", "4.50", 4.5),
+    ],
+)
+def test_hargreaves_parse_respects_price_units(heading, price, expected):
+    csv_data = f"Code,Units held,{heading},Value (£),Cost (£)\nBP.,10,{price},45,30\n"
+
+    [holding] = hargreaves.parse(csv_data.encode())
+
+    assert holding.price == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(
+    ("heading", "price"),
+    [("Price (pence)", "4.50"), ("Price (£)", "450")],
+)
+def test_hargreaves_parse_corrects_price_scale_using_market_value(heading, price):
+    """A contradictory HL heading must not inflate a holding by 100x (#6443)."""
+    csv_data = f"Code,Units held,{heading},Value (£),Cost (£)\nBP.,10,{price},45,30\n"
+
+    [holding] = hargreaves.parse(csv_data.encode())
+
+    assert holding.price == pytest.approx(4.5)
+
+
 def test_hargreaves_to_float_variants():
     # None or blank strings should resolve to ``None`` without raising.
     assert hargreaves._to_float(None) is None

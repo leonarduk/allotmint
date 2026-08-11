@@ -64,6 +64,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  window.history.replaceState(null, "", window.location.pathname);
   vi.unstubAllGlobals();
 });
 
@@ -72,6 +73,15 @@ describe("Support page", () => {
     render(<Support />, { wrapper: MemoryRouter });
     const link = await screen.findByRole("link", { name: en.app.userLink });
     expect(link).toHaveAttribute("href", "/");
+  });
+
+  it("opens the local login override for its direct link", async () => {
+    window.history.replaceState(null, "", "#local-login-override");
+    render(<Support />, { wrapper: MemoryRouter });
+
+    expect(
+      await screen.findByLabelText(en.support.localLogin.label),
+    ).toBeVisible();
   });
 
   it("renders environment heading", async () => {
@@ -465,4 +475,3 @@ describe("Support page", () => {
     }
   });
 });
-

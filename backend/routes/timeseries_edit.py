@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 
 import pandas as pd
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 
 from backend.common import instrument_api
@@ -14,6 +14,9 @@ from backend.logging_setup import sanitise_log_value
 from backend.timeseries.cache import (
     EXPECTED_COLS,
     _ensure_schema,
+    _s3_client,
+    _split_s3_cache_uri,
+    has_cached_meta_timeseries,
     meta_timeseries_cache_path,
 )
 
@@ -65,6 +68,37 @@ def _load_timeseries(ticker: str, exchange: str) -> pd.DataFrame:
     return pd.DataFrame(columns=EXPECTED_COLS)
 
 
+def _move_timeseries(ticker: str, source_exchange: str, destination_exchange: str) -> int:
+    source = meta_timeseries_cache_path(ticker, source_exchange)
+    destination = meta_timeseries_cache_path(ticker, destination_exchange)
+    if source == destination:
+        raise HTTPException(status_code=400, detail="Source and destination must differ")
+
+    if not has_cached_meta_timeseries(ticker, source_exchange):
+        raise HTTPException(status_code=404, detail="Source time series does not exist")
+    if has_cached_meta_timeseries(ticker, destination_exchange):
+        raise HTTPException(status_code=409, detail="Destination time series already exists")
+
+    df = _load_timeseries(ticker, source_exchange)
+    if df.empty:
+        raise HTTPException(status_code=404, detail="Source time series does not exist")
+
+    if destination.startswith("s3://"):
+        # pandas/fsspec performs the destination write before the source is
+        # removed, so a failed write cannot destroy the original series.
+        df.to_parquet(destination, index=False)
+        parsed = _split_s3_cache_uri(source)
+        if parsed is None:  # pragma: no cover - guarded by cache path builder
+            raise InternalServiceError("Invalid source cache path")
+        bucket, key = parsed
+        _s3_client().delete_object(Bucket=bucket, Key=key)
+    else:
+        destination_path = Path(destination)
+        destination_path.parent.mkdir(parents=True, exist_ok=True)
+        Path(source).replace(destination_path)
+    return len(df)
+
+
 @router.get("/edit")
 async def get_timeseries_edit(
     ticker: str = Query(...), exchange: str | None = Query(None)
@@ -113,3 +147,22 @@ async def post_timeseries_edit(
         Path(cache).parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(cache, index=False)
     return JSONResponse({"status": "ok", "rows": len(df)})
+
+
+@router.post("/edit/move")
+async def move_timeseries_edit(
+    ticker: str = Query(...),
+    source_exchange: str = Query(...),
+    destination_exchange: str = Query(...),
+) -> JSONResponse:
+    ticker, source_exchange = _resolve_ticker_exchange(ticker, source_exchange)
+    _, destination_exchange = _resolve_ticker_exchange(ticker, destination_exchange)
+    rows = _move_timeseries(ticker, source_exchange, destination_exchange)
+    return JSONResponse(
+        {
+            "status": "ok",
+            "rows": rows,
+            "ticker": ticker,
+            "exchange": destination_exchange,
+        }
+    )

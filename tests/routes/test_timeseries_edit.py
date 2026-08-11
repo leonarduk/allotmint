@@ -111,3 +111,28 @@ def test_get_missing_file(tmp_path, monkeypatch):
     resp = client.get("/timeseries/edit?ticker=NOPE&exchange=L")
     assert resp.status_code == 200
     assert resp.json() == []
+
+
+def test_move_timeseries_removes_source_without_duplication(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+    data = [{"Date": "2024-01-01", "Close": 1.5}]
+    assert client.post("/timeseries/edit?ticker=IONQ&exchange=L", json=data).status_code == 200
+
+    resp = client.post("/timeseries/edit/move?ticker=IONQ&source_exchange=L&destination_exchange=N")
+
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "ok", "rows": 1, "ticker": "IONQ", "exchange": "N"}
+    assert client.get("/timeseries/edit?ticker=IONQ&exchange=L").json() == []
+    assert len(client.get("/timeseries/edit?ticker=IONQ&exchange=N").json()) == 1
+
+
+def test_move_timeseries_refuses_to_overwrite_destination(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+    data = [{"Date": "2024-01-01", "Close": 1.5}]
+    client.post("/timeseries/edit?ticker=IONQ&exchange=L", json=data)
+    client.post("/timeseries/edit?ticker=IONQ&exchange=N", json=data)
+
+    resp = client.post("/timeseries/edit/move?ticker=IONQ&source_exchange=L&destination_exchange=N")
+
+    assert resp.status_code == 409
+    assert client.get("/timeseries/edit?ticker=IONQ&exchange=L").json()

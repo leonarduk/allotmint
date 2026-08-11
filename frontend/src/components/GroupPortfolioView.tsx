@@ -59,6 +59,7 @@ import {
 import type { PieLabelRenderProps } from "recharts";
 import { BadgeCheck, LineChart, Shield } from "lucide-react";
 import { toRollupRows, toScopedHoldingRows } from "../lib/rollupAdapter";
+import { OwnerPortfolioActions } from "./OwnerPortfolioActions";
 
 const PIE_COLORS = [
   "#8884d8",
@@ -256,6 +257,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     familyMvpEnabled,
   } = useConfig();
   const [asOfOverride, setAsOfOverride] = useState<string | null>(null);
+  const [instrumentRefreshVersion, setInstrumentRefreshVersion] = useState(0);
 
   const fetchPortfolio = useCallback(
     () => getGroupPortfolio(slug, { asOf: asOfOverride ?? undefined }),
@@ -265,6 +267,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     data: portfolio,
     loading,
     error: portfolioError,
+    refetch: refetchPortfolio,
   } = useFetch<GroupPortfolio>(fetchPortfolio, [slug, asOfOverride], !!slug);
 
   const fetchSector = useCallback(
@@ -426,7 +429,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     }
     const key = `${slug}::${ownerFilter ?? ""}::${accountFilter ?? ""}::${
       asOfOverride ?? ""
-    }`;
+    }::${instrumentRefreshVersion}`;
     if (instrumentKeyRef.current !== key) {
       instrumentKeyRef.current = key;
       setInstrumentRows(null);
@@ -466,6 +469,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     loadGroupInstruments,
     asOfOverride,
     displayMode,
+    instrumentRefreshVersion,
   ]);
 
   useEffect(() => {
@@ -1254,7 +1258,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
         ))}
       </div>
 
-      {activeOwner && (
+      {activeOwner && portfolio && (
         <div
           role="tablist"
           aria-label={`${activeOwner} accounts`}
@@ -1333,6 +1337,21 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
         </fieldset>
       )}
       {displayMode === "rollup" && instrumentError && (
+      {activeOwner && portfolio && (
+        <OwnerPortfolioActions
+          owner={activeOwner}
+          asOf={portfolio.as_of}
+          accounts={filteredAccounts}
+          activeAccountType={activeAccountType}
+          onDateChange={setAsOfOverride}
+          onMutated={() => {
+            refetchPortfolio();
+            setInstrumentRefreshVersion((version) => version + 1);
+          }}
+        />
+      )}
+
+      {instrumentError && (
         <p style={{ color: "red" }}>
           {t("common.error")}: {instrumentError.message}
         </p>

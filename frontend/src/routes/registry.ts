@@ -114,7 +114,7 @@ export const ROUTE_REGISTRY: RouteRegistryEntry[] = [
     priority: 30,
     defaultPath: (context) => {
       const { owner } = routeContext(context);
-      return owner ? `/portfolio/${owner}` : '/portfolio';
+      return owner ? `/?owner=${encodeURIComponent(owner)}` : '/portfolio';
     },
   },
   {

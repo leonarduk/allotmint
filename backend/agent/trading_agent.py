@@ -6,7 +6,6 @@ import csv
 import json
 import logging
 import math
-import os
 from collections import defaultdict
 from dataclasses import asdict
 from datetime import UTC, date, datetime
@@ -16,20 +15,21 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Set
 import pandas as pd
 
 from backend import alerts as alert_utils
-from backend.common import prices, compliance, indicators
+from backend.common import compliance, indicators, prices
 from backend.common.alerts import publish_alert
 from backend.common.portfolio_loader import list_portfolios
 from backend.common.portfolio_utils import (
-    list_all_unique_tickers,
     compute_owner_performance,
+    list_all_unique_tickers,
 )
 from backend.common.trade_metrics import (
     TRADE_LOG_PATH,
     load_and_compute_metrics,
 )
-from backend.config import config, TradingAgentConfig
+from backend.config import TradingAgentConfig, config
+from backend.logging_setup import sanitise_log_value
 from backend.screener import screen
-from backend.utils.telegram_utils import send_message, redact_token
+from backend.utils.telegram_utils import redact_token, send_message
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +56,7 @@ def load_strategy_config() -> TradingAgentConfig:
                     logger.info("Ignoring unknown strategy preference keys: %s", ", ".join(sorted(unknown)))
                 base.update(filtered)
         except Exception as exc:  # pragma: no cover - file errors are rare
-            logger.warning("Failed to load strategy preferences: %s", exc)
+            logger.warning("Failed to load strategy preferences: %s", sanitise_log_value(exc))
 
     return TradingAgentConfig(**base)
 
@@ -93,7 +93,7 @@ def send_trade_alert(message: str, publish: bool = True) -> None:
         try:
             send_message(message)
         except Exception as exc:  # pragma: no cover - network errors are rare
-            logger.warning("Telegram send failed: %s", redact_token(str(exc)))
+            logger.warning("Telegram send failed: %s", sanitise_log_value(redact_token(str(exc))))
 
 PRICE_DROP_THRESHOLD = -5.0  # percent
 PRICE_GAIN_THRESHOLD = 5.0   # percent

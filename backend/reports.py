@@ -443,13 +443,13 @@ class FileTemplateStore(TemplateStore):
             try:
                 payload = json.loads(path.read_text("utf-8"))
             except (OSError, json.JSONDecodeError) as exc:
-                logger.warning("failed to load report template %s: %s", path, exc)
+                logger.warning("failed to load report template %s: %s", path, sanitise_log_value(exc))
                 continue
             payload.setdefault("template_id", path.stem)
             try:
                 templates.append(_validate_template_payload(payload))
             except ValueError as exc:
-                logger.warning("invalid template definition in %s: %s", path, exc)
+                logger.warning("invalid template definition in %s: %s", path, sanitise_log_value(exc))
         return templates
 
     def get_template(self, template_id: str) -> Dict[str, Any] | None:
@@ -459,13 +459,13 @@ class FileTemplateStore(TemplateStore):
         try:
             payload = json.loads(path.read_text("utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
-            logger.warning("failed to load report template %s: %s", path, exc)
+            logger.warning("failed to load report template %s: %s", path, sanitise_log_value(exc))
             return None
         payload.setdefault("template_id", template_id)
         try:
             return _validate_template_payload(payload)
         except ValueError as exc:
-            logger.warning("invalid template definition in %s: %s", path, exc)
+            logger.warning("invalid template definition in %s: %s", path, sanitise_log_value(exc))
             return None
 
     def create_template(self, definition: Dict[str, Any]) -> None:
@@ -519,7 +519,7 @@ class DynamoTemplateStore(TemplateStore):
             try:
                 templates.append(_validate_template_payload(payload))
             except ValueError as exc:
-                logger.warning("invalid template definition in Dynamo: %s", exc)
+                logger.warning("invalid template definition in Dynamo: %s", sanitise_log_value(exc))
         return templates
 
     def get_template(self, template_id: str) -> Dict[str, Any] | None:
@@ -1439,7 +1439,7 @@ def list_templates(store: TemplateStore | None = None) -> List[ReportTemplate]:
                 continue
             templates[template_id] = _materialise_template(definition, builtin=False)
     except Exception as exc:
-        logger.warning("Failed to list user templates: %s", exc)
+        logger.warning("Failed to list user templates: %s", sanitise_log_value(exc))
     return sorted(templates.values(), key=lambda template: template.template_id)
 
 
@@ -1601,7 +1601,7 @@ def _load_transactions(owner: str) -> List[dict]:
             try:
                 pages = paginator.paginate(Bucket=bucket, Prefix=prefix)
             except (BotoCoreError, ClientError) as exc:
-                logger.warning("failed to paginate S3 objects for prefix %s: %s", prefix, exc)
+                logger.warning("failed to paginate S3 objects for prefix %s: %s", prefix, sanitise_log_value(exc))
                 continue
             for page in pages:
                 for obj in page.get("Contents", []):
@@ -1612,7 +1612,7 @@ def _load_transactions(owner: str) -> List[dict]:
                         body = s3.get_object(Bucket=bucket, Key=key)["Body"].read()
                         data = json.loads(body)
                     except (BotoCoreError, ClientError, json.JSONDecodeError) as exc:
-                        logger.warning("failed to load %s from bucket %s: %s", key, bucket, exc)
+                        logger.warning("failed to load %s from bucket %s: %s", key, bucket, sanitise_log_value(exc))
                         continue
                     txs = data.get("transactions") if isinstance(data, dict) else None
                     if isinstance(txs, list):
@@ -1627,7 +1627,7 @@ def _load_transactions(owner: str) -> List[dict]:
                 with open(path, "r", encoding="utf-8") as fp:
                     data = json.load(fp)
             except (OSError, json.JSONDecodeError) as exc:
-                logger.warning("failed to read %s: %s", path, exc)
+                logger.warning("failed to read %s: %s", path, sanitise_log_value(exc))
                 continue
             txs = data.get("transactions") if isinstance(data, dict) else None
             if isinstance(txs, list):

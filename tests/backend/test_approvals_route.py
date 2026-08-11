@@ -1,7 +1,10 @@
 import json
+from datetime import datetime, timedelta, timezone
 
+import jwt as pyjwt
 from fastapi.testclient import TestClient
 
+from backend import auth
 from backend.app import create_app
 from backend.common.data_loader import ResolvedPaths
 from backend.config import config
@@ -54,6 +57,67 @@ def test_approvals_authorization_enforced(tmp_path, monkeypatch):
     # A non-existent owner is rejected with 403 (not 404): authorization runs
     # before owner resolution so owner existence is not leaked.
     assert client.get("/accounts/ghost/approvals").status_code == 403
+
+
+def test_demo_user_can_access_own_approvals_without_a_session(tmp_path, monkeypatch):
+    """Demo mode must not reject an anonymous request for its demo owner."""
+
+    monkeypatch.setattr(config, "disable_auth", True)
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+
+    root = tmp_path / "accounts"
+    owner_dir = _write_owner(root, "demo", "demo@example.com")
+    (owner_dir / "approvals.json").write_text(
+        json.dumps({"approvals": [{"ticker": "PFE", "approved_on": "2024-01-01"}]})
+    )
+
+    app = create_app()
+    app.state.accounts_root = root
+    client = TestClient(app)
+
+    response = client.get("/accounts/demo/approvals")
+
+    assert response.status_code == 200
+    assert response.json() == {"approvals": [{"ticker": "PFE", "approved_on": "2024-01-01"}]}
+
+
+def test_demo_user_survives_secret_rotation_with_stale_token(tmp_path, monkeypatch):
+    """A cached token from before a backend restart must not 403 in demo mode.
+
+    ``SECRET_KEY`` is an ephemeral value regenerated on every process start
+    when ``disable_auth`` is true (see ``backend/auth.py``), so any JWT issued
+    by a previous run always fails signature verification on the next one.
+    Before the fix this fell through to the unverified-claims path, saw a
+    ``sub`` of ``user@example.com`` (the fixed stub every disable_auth login
+    issues, so it belongs to no real account) not present in the allowlist,
+    and raised a 403 -- causing anonymous/demo mode to appear to "expire" on
+    every restart while a stale token sat in the browser (#5484).
+    """
+
+    monkeypatch.setattr(config, "disable_auth", True)
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+
+    root = tmp_path / "accounts"
+    owner_dir = _write_owner(root, "demo", "demo@example.com")
+    (owner_dir / "approvals.json").write_text(
+        json.dumps({"approvals": [{"ticker": "PFE", "approved_on": "2024-01-01"}]})
+    )
+
+    app = create_app()
+    app.state.accounts_root = root
+    client = TestClient(app)
+
+    stale_token = pyjwt.encode(
+        {"sub": auth.DISABLE_AUTH_STUB_EMAIL, "exp": datetime.now(timezone.utc) + timedelta(minutes=15)},
+        "a-previous-processes-ephemeral-secret",
+        algorithm="HS256",
+    )
+    client.headers.update({"Authorization": f"Bearer {stale_token}"})
+
+    response = client.get("/accounts/demo/approvals")
+
+    assert response.status_code == 200
+    assert response.json() == {"approvals": [{"ticker": "PFE", "approved_on": "2024-01-01"}]}
 
 
 def test_post_approval_request_falls_back_to_default_accounts_root(tmp_path, monkeypatch):

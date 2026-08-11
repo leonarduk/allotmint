@@ -15,6 +15,12 @@ import ChartSkeleton from "./skeletons/ChartSkeleton";
 import TableRowsSkeleton from "./skeletons/TableRowsSkeleton";
 import TextSkeleton from "./skeletons/TextSkeleton";
 import {
+  canExpandDrawer,
+  expandedDrawerWidth,
+  MIN_DRAWER_WIDTH,
+} from "./instrumentDetailDrawer";
+import { useInstrumentDetailDrawer } from "./useInstrumentDetailDrawer";
+import {
   ResponsiveContainer,
   LineChart,
   Line,
@@ -207,6 +213,15 @@ export function InstrumentDetail({
 }: Props) {
   const { t } = useTranslation();
   const { baseCurrency } = useConfig();
+  const {
+    width: drawerWidth,
+    viewportWidth,
+    handlePointerDown: handleResizePointerDown,
+    handlePointerMove: handleResizePointerMove,
+    handlePointerUp: handleResizePointerUp,
+    handleKeyDown: handleResizeKeyDown,
+    toggleExpanded,
+  } = useInstrumentDetailDrawer(variant === "drawer");
   const palette = useMemo(
     () => ({
       background: variant === "drawer" ? "#111" : "transparent",
@@ -227,7 +242,8 @@ export function InstrumentDetail({
             top: 0,
             right: 0,
             bottom: 0,
-            width: "420px",
+            width: `${drawerWidth}px`,
+            maxWidth: "100vw",
             background: palette.background,
             color: palette.text,
             padding: "1rem",
@@ -242,7 +258,7 @@ export function InstrumentDetail({
             color: palette.text === "inherit" ? undefined : palette.text,
             padding: 0,
           },
-    [palette.background, palette.text, variant],
+    [drawerWidth, palette.background, palette.text, variant],
   );
   const [data, setData] = useState<{
     prices: Price[];
@@ -475,9 +491,47 @@ export function InstrumentDetail({
 
   return (
     <div style={containerStyle}>
+      {variant === "drawer" && (
+        <div
+          role="separator"
+          aria-label="Resize instrument details"
+          aria-orientation="vertical"
+          aria-valuemin={MIN_DRAWER_WIDTH}
+          aria-valuemax={viewportWidth}
+          aria-valuenow={Math.round(drawerWidth)}
+          tabIndex={0}
+          onPointerDown={handleResizePointerDown}
+          onPointerMove={handleResizePointerMove}
+          onPointerUp={handleResizePointerUp}
+          onPointerCancel={handleResizePointerUp}
+          onKeyDown={handleResizeKeyDown}
+          style={{
+            position: "fixed",
+            top: 0,
+            bottom: 0,
+            left: `calc(100vw - ${drawerWidth}px)`,
+            width: "10px",
+            zIndex: 1,
+            cursor: "ew-resize",
+            touchAction: "none",
+          }}
+        />
+      )}
       {onClose && variant === "drawer" && (
-        <button onClick={onClose} style={{ float: "right" }}>
+        <button aria-label="Close instrument details" onClick={onClose} style={{ float: "right" }}>
           ✕
+        </button>
+      )}
+      {variant === "drawer" && canExpandDrawer(viewportWidth) && (
+        <button
+          type="button"
+          aria-label="Expand or restore instrument details"
+          onClick={toggleExpanded}
+          style={{ float: "right", marginRight: "0.5rem" }}
+        >
+          {drawerWidth >= expandedDrawerWidth(viewportWidth) - 1
+            ? "↘"
+            : "↗"}
         </button>
       )}
       {signal && (

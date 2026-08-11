@@ -174,6 +174,7 @@
   "holdingsTable": {
     "actualPurchaseCost": "Costo di acquisto effettivo",
     "clearFilters": "Cancella filtri",
+    "horizontalScroll": "Scorri orizzontalmente le colonne delle posizioni",
     "columns": {
       "acquired": "Acquisito",
       "ccy": "CCY",

@@ -4,9 +4,31 @@
 }
 
 .scrollContainer {
-  overflow-x: auto;
+  max-height: min(70vh, 48rem);
+  overflow: auto;
   scrollbar-color: rgba(71, 85, 105, 0.8) rgba(148, 163, 184, 0.2);
   scrollbar-gutter: stable;
+}
+
+.topScrollbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  overflow-x: auto;
+  overflow-y: hidden;
+  height: 16px;
+  background: inherit;
+  scrollbar-color: rgba(71, 85, 105, 0.8) rgba(148, 163, 184, 0.2);
+  scrollbar-gutter: stable;
+}
+
+.topScrollbarContent {
+  height: 1px;
+}
+
+.topScrollbarHidden {
+  height: 0;
+  scrollbar-gutter: auto;
 }
 
 .hasMoreColumns {
@@ -22,6 +44,12 @@
 
 .cell {
   padding: 4px 6px;
+  line-height: 1.25;
+  vertical-align: middle;
+}
+
+.cell svg {
+  display: block;
 }
 
 .name {

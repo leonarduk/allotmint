@@ -245,7 +245,7 @@ def _rolling_cache(
             _sanitize_for_log(ticker),
             _sanitize_for_log(exchange),
             fetch_name,
-            exc,
+            sanitise_log_value(exc),
         )
         logger.debug("Timeseries fetch failure details", exc_info=True)
         if existing.empty:
@@ -425,15 +425,31 @@ def _s3_head_object(cache: str, bucket: str, key: str, *, log_as_error: bool = F
             with _S3_HEAD_MISS_CACHE_LOCK:
                 _S3_HEAD_MISS_CACHE[cache] = time.monotonic()
         elif log_as_error:
-            logger.error("Unable to read S3 cache metadata for %s: %s", _sanitize_for_log(cache), exc)
+            logger.error(
+                "Unable to read S3 cache metadata for %s: %s",
+                _sanitize_for_log(cache),
+                sanitise_log_value(exc),
+            )
         else:
-            logger.warning("Unable to read S3 cache metadata for %s: %s", _sanitize_for_log(cache), exc)
+            logger.warning(
+                "Unable to read S3 cache metadata for %s: %s",
+                _sanitize_for_log(cache),
+                sanitise_log_value(exc),
+            )
         return None
     except BotoCoreError as exc:  # pragma: no cover - defensive AWS path
         if log_as_error:
-            logger.error("Unable to read S3 cache metadata for %s: %s", _sanitize_for_log(cache), exc)
+            logger.error(
+                "Unable to read S3 cache metadata for %s: %s",
+                _sanitize_for_log(cache),
+                sanitise_log_value(exc),
+            )
         else:
-            logger.warning("Unable to read S3 cache metadata for %s: %s", _sanitize_for_log(cache), exc)
+            logger.warning(
+                "Unable to read S3 cache metadata for %s: %s",
+                _sanitize_for_log(cache),
+                sanitise_log_value(exc),
+            )
         return None
 
     with _S3_HEAD_MISS_CACHE_LOCK:
@@ -633,7 +649,7 @@ def _convert_to_base_currency(
                         fx = pd.DataFrame(resp.json())
                         fx["Date"] = pd.to_datetime(fx["Date"])
                 except Exception as exc:  # pragma: no cover - defensive
-                    logger.warning("FX proxy fetch failed for %s: %s", _sanitize_for_log(curr), exc)
+                    logger.warning("FX proxy fetch failed for %s: %s", _sanitize_for_log(curr), sanitise_log_value(exc))
 
             if fx.empty:
                 try:
@@ -703,7 +719,10 @@ def load_meta_timeseries_range(
                 df = _convert_to_base_currency(df, ticker, exchange, s, e, base_currency)
             except ValueError as exc:
                 logger.warning(
-                    "Skipping FX conversion for %s.%s: %s", _sanitize_for_log(ticker), _sanitize_for_log(exchange), exc
+                    "Skipping FX conversion for %s.%s: %s",
+                    _sanitize_for_log(ticker),
+                    _sanitize_for_log(exchange),
+                    sanitise_log_value(exc),
                 )
                 return _empty_ts()
             return df
@@ -794,7 +813,11 @@ def _s3_cached_meta_filenames(base: str) -> list[str]:
                 if key.endswith(".parquet"):
                     names.append(key.rsplit("/", 1)[-1])
     except (BotoCoreError, ClientError) as exc:  # pragma: no cover - defensive AWS path
-        logger.error("Unable to list S3 timeseries cache objects under %s: %s", _sanitize_for_log(meta_prefix), exc)
+        logger.error(
+            "Unable to list S3 timeseries cache objects under %s: %s",
+            _sanitize_for_log(meta_prefix),
+            sanitise_log_value(exc),
+        )
         return []
     return names
 

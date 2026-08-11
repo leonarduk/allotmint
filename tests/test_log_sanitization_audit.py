@@ -82,3 +82,75 @@ def test_find_unwrapped_log_calls_flags_multi_line_debug_and_exception_calls(mon
 
     assert ("backend/multiline_example.py", 7) in results
     assert ("backend/multiline_example.py", 11) in results
+
+
+def test_warning_and_error_exception_messages_are_sanitised() -> None:
+    """Exception text logged at warning/error level must remain on one line (#5362)."""
+    import ast
+
+    violations: list[str] = []
+
+    class ExceptionLogVisitor(ast.NodeVisitor):
+        def __init__(self, relative_path: Path) -> None:
+            self.relative_path = relative_path
+            self.exception_names: list[str] = []
+
+        def visit_ExceptHandler(self, node: ast.ExceptHandler) -> None:  # noqa: N802
+            if node.name is None:
+                self.generic_visit(node)
+                return
+            self.exception_names.append(node.name)
+            self.generic_visit(node)
+            self.exception_names.pop()
+
+        def visit_Call(self, node: ast.Call) -> None:  # noqa: N802
+            is_relevant_log = (
+                isinstance(node.func, ast.Attribute)
+                and node.func.attr in {"warning", "error"}
+                and bool(self.exception_names)
+            )
+            if is_relevant_log:
+                sanitiser_names = {
+                    "sanitise_log_value",
+                    "sanitise_exception_traceback",
+                    "_sanitize_for_log",
+                }
+
+                class UnsafeExceptionReference(ast.NodeVisitor):
+                    found = False
+
+                    def visit_Call(self, child: ast.Call) -> None:  # noqa: N802
+                        if isinstance(child.func, ast.Name) and child.func.id in sanitiser_names:
+                            return
+                        self.generic_visit(child)
+
+                    def visit_Name(self, child: ast.Name) -> None:  # noqa: N802
+                        if child.id in self_exception_names:
+                            self.found = True
+
+                self_exception_names = self.exception_names
+                for argument in node.args:
+                    reference = UnsafeExceptionReference()
+                    reference.visit(argument)
+                    if reference.found:
+                        violations.append(f"{self.relative_path}:{node.lineno}")
+
+                raw_traceback = any(
+                    keyword.arg == "exc_info"
+                    and not (isinstance(keyword.value, ast.Constant) and keyword.value.value is False)
+                    for keyword in node.keywords
+                )
+                if raw_traceback:
+                    violations.append(f"{self.relative_path}:{node.lineno}")
+            self.generic_visit(node)
+
+    for source_path in sorted((REPO_ROOT / "backend").rglob("*.py")):
+        relative_path = source_path.relative_to(REPO_ROOT)
+        tree = ast.parse(source_path.read_text(encoding="utf-8"), filename=str(relative_path))
+        ExceptionLogVisitor(relative_path).visit(tree)
+
+    assert (
+        not violations
+    ), "logger.warning/error exception argument(s) must be wrapped in " "sanitise_log_value(...):\n" + "\n".join(
+        violations
+    )

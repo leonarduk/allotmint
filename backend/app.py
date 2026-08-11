@@ -165,17 +165,17 @@ def create_app() -> FastAPI:
 
         if username is not None:
             if cfg.disable_auth or os.getenv("TESTING"):
-                email = "user@example.com"
+                email = auth.DISABLE_AUTH_STUB_EMAIL
             else:
                 raise HTTPException(status_code=400, detail="Password auth not supported in production")
         elif id_token:
             try:
                 email = auth.authenticate_user(id_token)
             except HTTPException as exc:
-                logger.warning("User authentication failed: %s", exc.detail)
+                logger.warning("User authentication failed: %s", sanitise_log_value(exc.detail))
                 raise
         elif cfg.disable_auth:
-            email = "user@example.com"
+            email = auth.DISABLE_AUTH_STUB_EMAIL
         else:
             raise HTTPException(status_code=400, detail="Missing credentials")
 
@@ -197,14 +197,14 @@ def create_app() -> FastAPI:
     async def google_token(payload: dict):
         token = payload.get("token")
         if cfg.disable_auth:
-            email = "user@example.com"
+            email = auth.DISABLE_AUTH_STUB_EMAIL
         else:
             if not token:
                 raise HTTPException(status_code=400, detail="Missing token")
             try:
                 email = auth.verify_google_token(token)
             except HTTPException as exc:
-                logger.warning("Google token verification failed: %s", exc.detail)
+                logger.warning("Google token verification failed: %s", sanitise_log_value(exc.detail))
                 raise
         jwt_token = auth.create_access_token(email)
         return {"access_token": jwt_token, "token_type": "bearer"}
@@ -214,7 +214,7 @@ def create_app() -> FastAPI:
         token = payload.id_token
         client_id = payload.client_id
         if cfg.disable_auth:
-            email = "user@example.com"
+            email = auth.DISABLE_AUTH_STUB_EMAIL
         else:
             if not isinstance(token, str) or not token:
                 raise HTTPException(status_code=400, detail="Missing ID token")
@@ -223,7 +223,7 @@ def create_app() -> FastAPI:
             try:
                 email = auth.verify_cognito_token(token, client_id)
             except HTTPException as exc:
-                logger.warning("Cognito token verification failed: %s", exc.detail)
+                logger.warning("Cognito token verification failed: %s", sanitise_log_value(exc.detail))
                 raise
         jwt_token = auth.create_access_token(email)
         return {"access_token": jwt_token, "token_type": "bearer"}

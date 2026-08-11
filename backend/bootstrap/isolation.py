@@ -12,6 +12,7 @@ from pathlib import Path
 from backend.common.data_loader import ResolvedPaths, resolve_paths
 from backend.common.transaction_reconciliation import reconcile_transactions_with_holdings
 from backend.config import Config
+from backend.logging_setup import sanitise_log_value
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +87,7 @@ def _isolate_accounts_root(
         isolated_root = temp_root / accounts_root.name
         shutil.copytree(accounts_root, isolated_root, dirs_exist_ok=True)
     except Exception as exc:  # pragma: no cover - best effort cleanup
-        logger.warning("Failed to isolate accounts root for tests: %s", exc)
+        logger.warning("Failed to isolate accounts root for tests: %s", sanitise_log_value(exc))
         return None, None
 
     return isolated_root, temp_root

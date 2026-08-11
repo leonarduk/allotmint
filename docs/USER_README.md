@@ -3,6 +3,13 @@
 ## Overview
 AllotMint helps families track and manage investments like tending an allotment. The app enforces compliance rules (30‑day minimum holding period and monthly trade limits) and presents portfolios and research tools through a web UI backed by a FastAPI backend and React frontend.
 
+### Portfolio URLs
+
+The web UI uses one merged portfolio page. Open `/` for the whole family,
+`/?owner=alex` for one owner, or `/?owner=alex&account=isa` for a single
+account type. Existing `/portfolio/alex` bookmarks remain supported and are
+redirected to `/?owner=alex`; they are not a separate portfolio page.
+
 ## Installation
 1. **Clone the repository** and move into the project directory.
 2. **Backend dependencies**: `pip install -r requirements.txt -r requirements-dev.txt` (installs

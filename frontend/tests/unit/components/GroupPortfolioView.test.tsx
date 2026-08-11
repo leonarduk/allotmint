@@ -1396,4 +1396,31 @@ describe("GroupPortfolioView", () => {
       ),
     );
   });
+
+  it("falls back to family scope when the URL owner is invalid", async () => {
+    mockAllFetches({
+      name: "At a glance",
+      accounts: [
+        { owner: "alice", account_type: "isa", value_estimate_gbp: 100, holdings: [] },
+      ],
+    });
+
+    const RouteDisplay = () => {
+      const location = useLocation();
+      return <output data-testid="scope-route">{`${location.pathname}${location.search}`}</output>;
+    };
+
+    render(
+      <MemoryRouter initialEntries={["/?period=1y&owner=invalid&account=isa"]}>
+        <TestProvider>
+          <GroupPortfolioView slug="all" owners={ownerFixtures} />
+        </TestProvider>
+        <RouteDisplay />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("scope-route")).toHaveTextContent("/?period=1y"),
+    );
+  });
 });

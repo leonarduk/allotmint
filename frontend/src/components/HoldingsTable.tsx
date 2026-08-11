@@ -33,6 +33,7 @@ type Props = {
   holdings: HoldingsTableRow[];
   showAccount?: boolean;
   onSelectInstrument?: (ticker: string, name: string) => void;
+  selectedTicker?: string;
   showForward7d?: boolean;
   showForward30d?: boolean;
   onAddPosition?: () => void;
@@ -43,6 +44,7 @@ export function HoldingsTable({
   holdings,
   showAccount = false,
   onSelectInstrument,
+  selectedTicker,
   showForward7d = false,
   showForward30d = false,
   onAddPosition,
@@ -507,6 +509,7 @@ export function HoldingsTable({
           )}
           {items.map((virtualRow) => {
             const h = sortedRows[virtualRow.index];
+            const isSelected = h.ticker === selectedTicker;
             const handleSelect = () => {
               onSelectInstrument?.(h.ticker, h.name ?? h.ticker);
             };
@@ -521,7 +524,13 @@ export function HoldingsTable({
                 data-index={virtualRow.index}
                 key={h.row_key ?? h.ticker + h.acquired_date}
                 onClick={onSelectInstrument ? handleSelect : undefined}
-                className={onSelectInstrument ? tableStyles.clickable : undefined}
+                aria-selected={isSelected || undefined}
+                className={[
+                  onSelectInstrument ? tableStyles.clickable : undefined,
+                  isSelected ? tableStyles.selected : undefined,
+                ]
+                  .filter(Boolean)
+                  .join(" ") || undefined}
               >
                 {showAccount && (
                   <td className={tableStyles.cell}>{h.source_account}</td>

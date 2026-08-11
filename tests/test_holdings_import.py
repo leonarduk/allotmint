@@ -64,6 +64,18 @@ def test_hargreaves_import_uses_persisted_foreign_ticker(monkeypatch):
     assert update_holdings_from_csv._normalise_ticker("3IN", "hargreaves") == "3IN.L"
 
 
+def test_hargreaves_import_warns_when_falling_back_to_l_suffix(monkeypatch, caplog):
+    """An unresolvable bare ticker must still fall back to .L (CSV import can't
+    block on a live lookup) but should log so it can be reconciled later (#6310)."""
+    monkeypatch.setattr(update_holdings_from_csv, "resolve_instrument_ticker", lambda ticker: None)
+
+    with caplog.at_level("WARNING", logger=update_holdings_from_csv.logger.name):
+        result = update_holdings_from_csv._normalise_ticker("3IN", "hargreaves")
+
+    assert result == "3IN.L"
+    assert any("3IN" in record.getMessage() for record in caplog.records)
+
+
 def test_update_holdings_from_csv_aggregates_duplicate_ticker_rows(tmp_path: Path, monkeypatch):
     """Two CSV rows for the same ticker must collapse into one holding (#6264)."""
     monkeypatch.setattr(config, "accounts_root", tmp_path)

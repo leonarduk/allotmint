@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -33,9 +34,17 @@ def reconcile_account_file(path: Path, *, write: bool = False) -> dict[str, list
 
     if write and changed:
         backup_path = path.with_suffix(path.suffix + ".bak")
-        backup_path.write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
-        path.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+        _atomic_write_text(backup_path, path.read_text(encoding="utf-8"))
+        _atomic_write_text(path, json.dumps(document, indent=2) + "\n")
     return {"changed": changed, "unresolved": unresolved}
+
+
+def _atomic_write_text(path: Path, text: str) -> None:
+    """Write ``text`` to ``path`` via a temp file + rename so a failed write
+    (e.g. disk full) cannot leave ``path`` partially overwritten."""
+    tmp_path = path.with_suffix(path.suffix + ".tmp")
+    tmp_path.write_text(text, encoding="utf-8")
+    os.replace(tmp_path, path)
 
 
 def main() -> int:

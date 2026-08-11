@@ -38,7 +38,15 @@ def _normalise_ticker(ticker: object, provider: str) -> str:
         # Resolution is metadata-only here: importing a CSV must never block on
         # one network call per holding.  The explicit ticker reconciliation
         # command persists discoveries, so subsequent imports use them freely.
-        return resolve_instrument_ticker(value) or f"{value}.L"
+        resolved = resolve_instrument_ticker(value)
+        if resolved is None:
+            logger.warning(
+                "No persisted metadata for bare Hargreaves ticker %s; defaulting to .L. "
+                "Run scripts/reconcile_holding_tickers.py --write if this is a foreign holding.",
+                sanitise_log_value(value),
+            )
+            return f"{value}.L"
+        return resolved
     return value
 
 

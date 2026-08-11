@@ -48,3 +48,33 @@ def test_reconcile_account_file_dry_run_does_not_create_missing_metadata(tmp_pat
 
     assert seen_create_missing == [False]
     assert result == {"changed": [], "unresolved": ["MSFT.L"]}
+
+
+def test_reconcile_account_file_missing_holdings_key_is_a_noop(tmp_path, monkeypatch):
+    path = tmp_path / "person.json"
+    path.write_text(json.dumps({"owner": "alice"}))
+    monkeypatch.setattr(
+        reconcile_holding_tickers, "resolve_instrument_ticker", lambda *args, **kwargs: None
+    )
+
+    result = reconcile_holding_tickers.reconcile_account_file(path, write=True)
+
+    assert result == {"changed": [], "unresolved": []}
+    assert not path.with_suffix(path.suffix + ".bak").exists()
+
+
+def test_reconcile_account_file_already_correct_ticker_is_not_reported(tmp_path, monkeypatch):
+    """A ticker that resolves back to itself is already correct and should be
+    left untouched rather than reported as changed or unresolved."""
+    path = tmp_path / "isa.json"
+    path.write_text(json.dumps({"holdings": [{"ticker": "3IN.L", "units": 1}]}))
+    monkeypatch.setattr(
+        reconcile_holding_tickers,
+        "resolve_instrument_ticker",
+        lambda ticker, create_missing: "3IN.L",
+    )
+
+    result = reconcile_holding_tickers.reconcile_account_file(path, write=True)
+
+    assert result == {"changed": [], "unresolved": []}
+    assert not path.with_suffix(path.suffix + ".bak").exists()

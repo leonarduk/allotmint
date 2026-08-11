@@ -47,6 +47,8 @@ type HoldingsTableRow = Holding & {
 
 type Props = {
   holdings: HoldingsTableRow[] | RollupRow[];
+  // Rollup rows have no per-lot fields, so lot-only filters and sorts are suppressed (§3 rule 2).
+  rollupMode?: boolean;
   showAccount?: boolean;
   onSelectInstrument?: (ticker: string, name: string) => void;
   selectedTicker?: string;
@@ -60,6 +62,7 @@ type Props = {
 
 export function HoldingsTable({
   holdings,
+  rollupMode = false,
   showAccount = false,
   onSelectInstrument,
   selectedTicker,
@@ -205,7 +208,7 @@ export function HoldingsTable({
       const minGain = parseFloat(filters.gain_pct);
       if (!Number.isNaN(minGain) && (h.gain_pct ?? 0) < minGain) return false;
     }
-    if (filters.sell_eligible) {
+    if (!rollupMode && filters.sell_eligible) {
       const expect = filters.sell_eligible === "true";
       if (!!h.sell_eligible !== expect) return false;
     }
@@ -465,7 +468,11 @@ export function HoldingsTable({
             onViewPresetChange={setViewPreset}
             minimumGain={filters.gain_pct}
             onMinimumGainChange={(value) => handleFilterChange("gain_pct", value)}
-            onSellEligible={() => handleFilterChange("sell_eligible", "true")}
+            onSellEligible={
+              rollupMode
+                ? undefined
+                : () => handleFilterChange("sell_eligible", "true")
+            }
           />
           <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
             {t("holdingsTable.columnsLabel")}
@@ -562,15 +569,17 @@ export function HoldingsTable({
             <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
             <th className={tableStyles.cell}></th>
             <th className={`${tableStyles.cell} ${tableStyles.center}`}>
-              <select
-                aria-label={t("holdingsTable.filters.sellEligible")}
-                value={filters.sell_eligible}
-                onChange={(e) => handleFilterChange("sell_eligible", e.target.value)}
-              >
-                <option value="">{t("holdingsTable.filters.all")}</option>
-                <option value="true">{t("holdingsTable.filters.yes")}</option>
-                <option value="false">{t("holdingsTable.filters.no")}</option>
-              </select>
+              {!rollupMode && (
+                <select
+                  aria-label={t("holdingsTable.filters.sellEligible")}
+                  value={filters.sell_eligible}
+                  onChange={(e) => handleFilterChange("sell_eligible", e.target.value)}
+                >
+                  <option value="">{t("holdingsTable.filters.all")}</option>
+                  <option value="true">{t("holdingsTable.filters.yes")}</option>
+                  <option value="false">{t("holdingsTable.filters.no")}</option>
+                </select>
+              )}
             </th>
           </tr>
           <tr>
@@ -649,10 +658,11 @@ export function HoldingsTable({
             <th className={tableStyles.cell}>{t("instrumentTable.columns.type")}</th>
             <th className={tableStyles.cell}>{t("holdingsTable.columns.acquired")}</th>
             <th
-              className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
-              onClick={() => handleSort("days_held")}
+              className={`${tableStyles.cell} ${tableStyles.right}${rollupMode ? "" : ` ${tableStyles.clickable}`}`}
+              onClick={rollupMode ? undefined : () => handleSort("days_held")}
             >
-              {t("holdingsTable.columns.daysHeld")}{sortKey === "days_held" ? (asc ? " ▲" : " ▼") : ""}
+              {t("holdingsTable.columns.daysHeld")}
+              {!rollupMode && sortKey === "days_held" ? (asc ? " ▲" : " ▼") : ""}
             </th>
             <th className={`${tableStyles.cell} ${tableStyles.center}`}>{t("holdingsTable.columns.stage")}</th>
             <th className={`${tableStyles.cell} ${tableStyles.center}`}>{t("holdingsTable.columns.eligible")}</th>

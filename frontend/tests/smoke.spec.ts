@@ -18,7 +18,8 @@ const pensionForecastPath = new URL('/pension/forecast', baseUrl).toString();
 const applyAuth = (page: Page) => applyAuthToken(page, authToken);
 
 // Several non-Family-MVP redirects can change the URL in the preview build:
-// - getOwnerRootRedirectPath redirects bare /portfolio→/portfolio/:owner and
+// - getOwnerRootRedirectPath redirects bare /portfolio→/portfolio/:owner,
+//   which is then canonicalized to /?owner=:owner (→'group'), and redirects
 //   /performance→/performance/:owner when owners are available (→'performance')
 // - FAMILY_MVP_ROUTE_GATES redirect disabled-tab paths (e.g. /trail) to /
 //   (→'group')
@@ -38,7 +39,8 @@ const ACCEPTED_REDIRECT_MODES = ['transactions', 'owner', 'performance', 'group'
 const CONFIG_SETTLE_TIMEOUT_MS = 5000;
 // Once config has resolved, require the URL to stop changing for this long
 // before treating a route as settled — long enough to catch a redirect hop
-// (e.g. bare /portfolio to /portfolio/<owner>), short because at this point
+// (e.g. bare /portfolio through /portfolio/<owner> to /?owner=<owner>), short
+// because at this point
 // the only remaining source of change is synchronous client-side routing.
 const STABLE_WINDOW_MS = 450;
 // How often to re-check the URL while waiting for it to stabilise.
@@ -107,8 +109,8 @@ type RouteConfig = {
 
 const ROUTES: RouteConfig[] = [
   { path: '/', assertion: { kind: 'mode', mode: 'group' } },
-  { path: '/portfolio', assertion: { kind: 'mode', mode: 'owner' } },
-  { path: '/portfolio/demo-owner', assertion: { kind: 'mode', mode: 'owner' } },
+  { path: '/portfolio', assertion: { kind: 'mode', mode: 'group' } },
+  { path: '/portfolio/demo-owner', assertion: { kind: 'mode', mode: 'group' } },
   { path: '/performance', assertion: { kind: 'mode', mode: 'performance' } },
   {
     path: '/performance/demo-owner',
@@ -375,7 +377,7 @@ test.describe('pension forecast routing', () => {
 
 
 test.describe('bootstrap to portfolio happy path', () => {
-  test('keeps /portfolio stable while exposing owner mode and selector state', async ({ page }) => {
+  test('canonicalizes /portfolio to merged owner query scope', async ({ page }) => {
     await applyAuth(page);
 
     await page.route('**/config', async (route) => {
@@ -402,18 +404,20 @@ test.describe('bootstrap to portfolio happy path', () => {
       });
     });
 
-    await page.route('**/portfolio/demo-owner', async (route) => {
+    await page.route('**/portfolio-group/demo-owner', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          owner: 'demo-owner',
+          name: 'Demo Owner',
+          slug: 'demo-owner',
           as_of: '2026-03-22',
           trades_this_month: 0,
           trades_remaining: 10,
           total_value_estimate_gbp: 1000,
           accounts: [
             {
+              owner: 'demo-owner',
               account_type: 'ISA',
               currency: 'GBP',
               value_estimate_gbp: 1000,
@@ -424,17 +428,16 @@ test.describe('bootstrap to portfolio happy path', () => {
       });
     });
 
-    // Navigate to bare /portfolio (not /portfolio/demo-owner) so the
-    // page.goto doesn't match the '**/portfolio/demo-owner' route mock.
-    // The app's renderMainContent will <Navigate> to /portfolio/demo-owner
-    // once owners are loaded, and then the selector becomes visible.
+    // Bare /portfolio first resolves the default owner, then the legacy owner
+    // pathname is canonicalized onto the merged root page.
     await page.goto(new URL('/portfolio', baseUrl).toString());
 
-    // Wait for the redirect to /portfolio/demo-owner to settle.
-    await page.waitForURL('**/portfolio/demo-owner');
+    await page.waitForURL('**/?owner=demo-owner');
 
-    await expect(page.getByTestId('portfolio-owner-selector')).toBeVisible();
-    await expect(getActiveRouteMarker(page)).toHaveAttribute('data-mode', 'owner');
+    await expect(page.getByRole('tab', { name: 'Demo Owner' })).toBeVisible();
+    await expect(page.getByTestId('portfolio-owner-selector')).toHaveCount(0);
+    await expect(getActiveRouteMarker(page)).toHaveAttribute('data-mode', 'group');
+    await expect(getActiveRouteMarker(page)).toHaveAttribute('data-pathname', '/');
   });
 });
 

@@ -9,22 +9,21 @@ interface Props {
 
 export function ComplianceWarnings({ owners }: Props) {
   const fetchCompliance = useCallback(async () => {
-    const entries: Record<string, ComplianceResult> = {};
+    const entries = new Map<string, ComplianceResult>();
     await Promise.all(
       owners.map(async (o) => {
         try {
-          const res = await getCompliance(o);
-          entries[o] = res;
+          entries.set(o, await getCompliance(o));
         } catch {
-          entries[o] = {
+          entries.set(o, {
             owner: o,
             warnings: ["Failed to load warnings"],
             trade_counts: {},
-          };
+          });
         }
       })
     );
-    return entries;
+    return Object.fromEntries(entries) as Record<string, ComplianceResult>;
   }, [owners]);
 
   const { data, loading, error } = useFetch<Record<string, ComplianceResult>>(

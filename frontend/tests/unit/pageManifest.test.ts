@@ -4,11 +4,13 @@ import {
   buildPathForMode,
   deriveBootstrapMode,
   deriveModeFromPathname,
+  deriveModeFromLocation,
   deriveRouteFromPathname,
   menuCategories,
   pageManifest,
   pageManifestByMode,
   pathForMode,
+  readRouteScopeQuery,
   standalonePageRoutes,
   validatePageManifest,
 } from '@/pageManifest';
@@ -102,5 +104,15 @@ describe('page manifest', () => {
       expect(route.lazyComponent).toBeTruthy();
       expect(pageManifestByMode[route.mode]).toBe(route);
     }
+  });
+
+  it('reads bookmarkable owner and account scope from the root URL', () => {
+    expect(readRouteScopeQuery('?group=all&owner=Steve%20Smith&account=isa')).toEqual({
+      group: 'all',
+      owner: 'Steve Smith',
+      account: 'isa',
+    });
+    expect(deriveModeFromLocation('/', '?owner=Steve%20Smith')).toBe('owner');
+    expect(deriveModeFromLocation('/', '?account=isa')).toBe('group');
   });
 });

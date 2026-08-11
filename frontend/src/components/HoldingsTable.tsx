@@ -257,57 +257,57 @@ export function HoldingsTable({
       {!familyMvpEnabled && (
         <>
           <FilterBar state={filters} dispatch={dispatchFilters} />
-          <div className="mb-2">
+          <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1">
             <RelativeViewToggle />
-          </div>
-          <div className="mb-2">
-            {t("holdingsTable.range")}
-            {[7, 30, 180].map((d) => (
-              <label key={d} className="ml-2">
-                <input
-                  type="radio"
-                  name="sparkRange"
-                  checked={sparkRange === d}
-                  onChange={() => setSparkRange(d as 7 | 30 | 180)}
-                />
-                {t("holdingsTable.rangeOption", { count: d })}
-              </label>
-            ))}
-          </div>
-          <div className="mb-2">
-            {t("holdingsTable.view")}
-            {viewPresets.map((p) => (
+            <span className="flex items-center gap-1">
+              {t("holdingsTable.range")}
+              {[7, 30, 180].map((d) => (
+                <label key={d} className="ml-1">
+                  <input
+                    type="radio"
+                    name="sparkRange"
+                    checked={sparkRange === d}
+                    onChange={() => setSparkRange(d as 7 | 30 | 180)}
+                  />
+                  {t("holdingsTable.rangeOption", { count: d })}
+                </label>
+              ))}
+            </span>
+            <span className="flex items-center gap-1">
+              {t("holdingsTable.view")}
+              {viewPresets.map((p) => (
+                <button
+                  key={p.label}
+                  type="button"
+                  onClick={() => setViewPreset(p.value)}
+                  className={`ml-1 ${viewPreset === p.value ? 'font-bold' : ''} focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </span>
+            <span className="flex items-center gap-1">
+              {t("holdingsTable.quickFilters")}
               <button
-                key={p.label}
                 type="button"
-                onClick={() => setViewPreset(p.value)}
-                className={`ml-2 ${viewPreset === p.value ? 'font-bold' : ''} focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500`}
+                className="ml-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+                onClick={() => handleFilterChange("sell_eligible", "true")}
               >
-                {p.label}
+                {t("holdingsTable.quickFiltersSellEligible")}
               </button>
-            ))}
+              <input
+                type="number"
+                placeholder={t("holdingsTable.minimumGainPrompt")}
+                value={filters.gain_pct}
+                onChange={(e) => handleFilterChange("gain_pct", e.target.value)}
+                className="ml-1 w-24"
+              />
+            </span>
           </div>
-          <div className="mb-2">
-            {t("holdingsTable.quickFilters")}
-            <button
-              type="button"
-              className="ml-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
-              onClick={() => handleFilterChange("sell_eligible", "true")}
-            >
-              {t("holdingsTable.quickFiltersSellEligible")}
-            </button>
-            <input
-              type="number"
-              placeholder={t("holdingsTable.minimumGainPrompt")}
-              value={filters.gain_pct}
-              onChange={(e) => handleFilterChange("gain_pct", e.target.value)}
-              className="ml-2"
-            />
-          </div>
-          <div className="mb-2">
+          <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
             {t("holdingsTable.columnsLabel")}
             {columnLabels.map(([key, label]) => (
-              <label key={key} className="ml-2">
+              <label key={key} className="ml-1">
                 <input
                   type="checkbox"
                   checked={visibleColumns[key]}

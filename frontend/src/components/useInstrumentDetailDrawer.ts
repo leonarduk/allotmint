@@ -6,6 +6,7 @@ import {
   DRAWER_WIDTH_KEY,
   expandedDrawerWidth,
 } from "./instrumentDetailDrawer";
+import { useViewportWidth } from "@/hooks/useViewportWidth";
 
 const reportStorageError = (action: "read" | "write", error: unknown) => {
   console.warn(`Unable to ${action} the instrument detail drawer width`, error);
@@ -36,20 +37,13 @@ const persistDrawerWidth = (width: number) => {
 
 export const useInstrumentDetailDrawer = (enabled: boolean) => {
   const [width, setWidth] = useState(readDrawerWidth);
-  const [viewportWidth, setViewportWidth] = useState(() =>
-    typeof window === "undefined" ? DEFAULT_DRAWER_WIDTH : window.innerWidth,
-  );
+  const viewportWidth = useViewportWidth(enabled);
   const dragStart = useRef<{ pointerX: number; width: number } | null>(null);
 
   useEffect(() => {
     if (!enabled) return;
-    const handleViewportResize = () => {
-      setViewportWidth(window.innerWidth);
-      setWidth((currentWidth) => clampDrawerWidth(currentWidth, window.innerWidth));
-    };
-    window.addEventListener("resize", handleViewportResize);
-    return () => window.removeEventListener("resize", handleViewportResize);
-  }, [enabled]);
+    setWidth((currentWidth) => clampDrawerWidth(currentWidth, viewportWidth));
+  }, [enabled, viewportWidth]);
 
   const resizeToPointer = useCallback((clientX: number) => {
     if (!dragStart.current) return null;

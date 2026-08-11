@@ -249,6 +249,7 @@ export function InstrumentDetail({
             padding: "1rem",
             overflowY: "auto" as const,
             boxShadow: "-4px 0 8px rgba(0,0,0,0.5)",
+            zIndex: 1000,
           }
         : {
             position: "relative" as const,

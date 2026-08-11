@@ -313,7 +313,12 @@ export function TimeseriesEdit() {
         }),
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      const status = (e as { status?: number })?.status;
+      if (status === 409) {
+        setError(t("timeseriesEdit.status.moveConflict", { exchange }));
+      } else {
+        setError(e instanceof Error ? e.message : String(e));
+      }
     }
   }
   function handleFile(e: ChangeEvent<HTMLInputElement>) {

@@ -40,9 +40,7 @@ def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> tuple[str, st
         logger.debug("Resolved %s.%s (provided exchange)", sanitise_log_value(sym), sanitise_log_value(ex))
         return sym, ex
 
-    resolved = instrument_api._resolve_full_ticker(
-        t, instrument_api._LATEST_PRICES
-    )
+    resolved = instrument_api._resolve_full_ticker(t, instrument_api._LATEST_PRICES)
     if not resolved:
         logger.debug("Could not infer exchange for %s", sanitise_log_value(t))
         raise ValidationFailure(
@@ -109,9 +107,7 @@ def _move_timeseries(ticker: str, source_exchange: str, destination_exchange: st
 
 
 @router.get("/edit")
-async def get_timeseries_edit(
-    ticker: str = Query(...), exchange: str | None = Query(None)
-) -> JSONResponse:
+async def get_timeseries_edit(ticker: str = Query(...), exchange: str | None = Query(None)) -> JSONResponse:
     ticker, exchange = _resolve_ticker_exchange(ticker, exchange)
     df = _load_timeseries(ticker, exchange)
     if not df.empty:

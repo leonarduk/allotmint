@@ -91,10 +91,14 @@ renders, and make it URL-driven.
 | URL | Scope |
 | --- | --- |
 | `/` | All family |
+| `/?account=isa` (no `owner`) | All family; permanently redirect (301) to `/` |
 | `/?owner=steve` | Single owner, all accounts |
 | `/?owner=steve&account=isa` | Single owner + single account type |
 
-`owner` absent ⇒ family scope. `account` is ignored when `owner` is absent.
+`owner` absent ⇒ family scope. When `account` is present without `owner`, it
+is ignored for scope selection **and removed from the URL with a 301 permanent
+redirect** (`/?account=isa` → `/`). This cleanup prevents stale, ineffective
+parameters from remaining in browser history, bookmarks, or shared links.
 An `owner`/`account` value that does not exist in the loaded group falls back to
 the next-widest valid scope and rewrites the URL (`GroupPortfolioView.tsx:348-364`
 already implements this reconciliation against local state; it moves to the
@@ -199,9 +203,18 @@ type RollupRow = {
 
 **Rules for the always-null fields.**
 
-1. Render as `—`, never as `No`, `0`, or an empty cell. `sell_eligible` is
-   tri-state in rollup mode (`null` = not applicable), and `null` must not
-   collapse to falsy in the cell renderer.
+1. Render as `—`, never as `No`, `0`, or an empty cell. In particular,
+   `sell_eligible` is tri-state across the two row types, so its cell renderer
+   must test `value === null` **before** rendering the existing enabled or
+   disabled state. Do not use a truthiness check that collapses `null` into
+   `false`. This preserves the existing flat-mode rendering while making the
+   rollup-only, not-applicable state explicit:
+
+   | `sell_eligible` value | Meaning | Cell output |
+   | --- | --- | --- |
+   | `null` | Not applicable to a rollup row | `—` |
+   | `true` | The lot is sell eligible | Existing `Yes`/enabled state |
+   | `false` | The lot is not sell eligible | Existing `No`/disabled state |
 2. The **sell-eligible quick filter is disabled** in rollup mode
    (`HoldingsTable.tsx:286-292`) rather than filtering on a fabricated value.
    Sorting by any of these columns is likewise disabled in rollup mode.

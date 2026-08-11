@@ -1,0 +1,138 @@
+import type { Account, Holding, InstrumentSummary } from "../types";
+
+export type ScopedHoldingRow = Holding & {
+  owner: string;
+  source_account: string;
+  row_key: string;
+};
+
+export type RollupRow = {
+  ticker: string;
+  name: string;
+  units: number;
+  cost_basis_gbp: number;
+  market_value_gbp: number;
+  gain_gbp: number;
+  gain_pct: number;
+  weight_pct: number;
+  lot_count: number;
+  owners: string[];
+  accounts: string[];
+  grouping: string | null;
+  exchange: string | null;
+  change_7d_pct: number | null;
+  change_30d_pct: number | null;
+  acquired_date: null;
+  days_held: null;
+  sell_eligible: null;
+  days_until_eligible: null;
+  next_eligible_sell_date: null;
+};
+
+export function toScopedHoldingRows(accounts: Account[]): ScopedHoldingRow[] {
+  let rowIndex = 0;
+
+  return accounts.flatMap((account) => {
+    const owner = account.owner ?? "";
+
+    return account.holdings.map((holding) => {
+      const row = {
+        ...holding,
+        owner,
+        source_account: account.account_type,
+        row_key: `${owner}:${account.account_type}:${holding.ticker}:${rowIndex}`,
+      };
+      rowIndex += 1;
+      return row;
+    });
+  });
+}
+
+type MutableRollup = Omit<
+  RollupRow,
+  | "weight_pct"
+  | "grouping"
+  | "exchange"
+  | "change_7d_pct"
+  | "change_30d_pct"
+> & {
+  ownerSet: Set<string>;
+  accountSet: Set<string>;
+};
+
+function addHolding(
+  grouped: Map<string, MutableRollup>,
+  holding: ScopedHoldingRow,
+): void {
+  const existing = grouped.get(holding.ticker);
+  if (existing) {
+    existing.units += holding.units;
+    existing.cost_basis_gbp += holding.cost_basis_gbp ?? 0;
+    existing.market_value_gbp += holding.market_value_gbp ?? 0;
+    existing.gain_gbp += holding.gain_gbp ?? 0;
+    existing.lot_count += 1;
+    existing.ownerSet.add(holding.owner);
+    existing.accountSet.add(holding.source_account);
+    return;
+  }
+
+  grouped.set(holding.ticker, {
+    ticker: holding.ticker,
+    name: holding.name,
+    units: holding.units,
+    cost_basis_gbp: holding.cost_basis_gbp ?? 0,
+    market_value_gbp: holding.market_value_gbp ?? 0,
+    gain_gbp: holding.gain_gbp ?? 0,
+    gain_pct: 0,
+    lot_count: 1,
+    owners: [],
+    accounts: [],
+    acquired_date: null,
+    days_held: null,
+    sell_eligible: null,
+    days_until_eligible: null,
+    next_eligible_sell_date: null,
+    ownerSet: new Set([holding.owner]),
+    accountSet: new Set([holding.source_account]),
+  });
+}
+
+export function toRollupRows(
+  holdings: ScopedHoldingRow[],
+  instruments: InstrumentSummary[] = [],
+): RollupRow[] {
+  const grouped = new Map<string, MutableRollup>();
+
+  for (const holding of holdings) {
+    addHolding(grouped, holding);
+  }
+
+  const scopedTotal = Array.from(grouped.values()).reduce(
+    (total, row) => total + row.market_value_gbp,
+    0,
+  );
+  const instrumentByTicker = new Map(
+    instruments.map((instrument) => [instrument.ticker, instrument]),
+  );
+
+  return Array.from(grouped.values(), (row) => {
+    const instrument = instrumentByTicker.get(row.ticker);
+    const { ownerSet, accountSet, ...rollup } = row;
+
+    return {
+      ...rollup,
+      gain_pct: row.cost_basis_gbp
+        ? (row.gain_gbp / row.cost_basis_gbp) * 100
+        : 0,
+      weight_pct: scopedTotal
+        ? (row.market_value_gbp / scopedTotal) * 100
+        : 0,
+      owners: Array.from(ownerSet),
+      accounts: Array.from(accountSet),
+      grouping: instrument?.grouping ?? null,
+      exchange: instrument?.exchange ?? null,
+      change_7d_pct: instrument?.change_7d_pct ?? null,
+      change_30d_pct: instrument?.change_30d_pct ?? null,
+    };
+  });
+}

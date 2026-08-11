@@ -1336,7 +1336,6 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
           ))}
         </fieldset>
       )}
-      {displayMode === "rollup" && instrumentError && (
       {activeOwner && portfolio && (
         <OwnerPortfolioActions
           owner={activeOwner}
@@ -1351,7 +1350,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
         />
       )}
 
-      {instrumentError && (
+      {displayMode === "rollup" && instrumentError && (
         <p style={{ color: "red" }}>
           {t("common.error")}: {instrumentError.message}
         </p>

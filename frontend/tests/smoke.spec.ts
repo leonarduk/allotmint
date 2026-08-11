@@ -143,7 +143,7 @@ const ROUTES: RouteConfig[] = [
   { path: '/research/AAA', assertion: { kind: 'mode', mode: 'research' } },
   {
     path: '/virtual',
-    assertion: { kind: 'heading', name: 'Family Manual Portfolio Setup' },
+    assertion: { kind: 'heading', name: 'Family Manual Portfolio Draft' },
     setup: async (page) => {
       let handled = false;
       await page.route('**/virtual-portfolios', async (route) => {

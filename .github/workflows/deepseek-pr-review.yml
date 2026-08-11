@@ -12,8 +12,22 @@ on:
 # still executing when a newer event arrives, so branch protection and the
 # checks UI settle on a single up-to-date result per SHA instead of
 # accumulating stale ones from earlier label toggles or pushes.
+#
+# The group key is only shared across events that can actually produce a
+# review (opened/reopened/synchronize, plus labeled/unlabeled on "Deep
+# Review Required"). A labeled/unlabeled event on any *other* label (e.g. a
+# PR created with "codex" already attached, which fires "opened" and
+# "labeled" back-to-back) is a no-op per the job's `if` below and gets its
+# own unique group via github.run_id, so it can never cancel a real,
+# in-progress review run (#6313). Without this, that no-op run could win
+# the race against the substantive run and leave the PR with no review
+# posted at all.
 concurrency:
-  group: deepseek-pr-review-${{ github.event.pull_request.number }}
+  group: >-
+    ${{ (github.event.action == 'labeled' || github.event.action == 'unlabeled') &&
+    github.event.label.name != 'Deep Review Required' &&
+    format('deepseek-pr-review-noop-{0}', github.run_id) ||
+    format('deepseek-pr-review-{0}', github.event.pull_request.number) }}
   # cancel-in-progress is safe here because this workflow has only one job (ai-review).
   # No other jobs have side effects (deployments, state mutations, cleanup) that would
   # be dangerous to interrupt. If additional jobs are added, reassess this setting.

@@ -314,9 +314,7 @@ describe("App family MVP redirects", () => {
     expect(router.state.location.pathname).toBe("/settings");
   });
 
-  it("still redirects a disabled tab away in Family MVP mode", async () => {
-    // Tab gating remains the source of truth: a disabled tab is unreachable and
-    // is redirected off its route (to '/', then onward to the entry path).
+  it("explains a disabled tab in Family MVP mode", async () => {
     mockConfig({
       configLoaded: true,
       familyMvpEnabled: true,
@@ -334,14 +332,12 @@ describe("App family MVP redirects", () => {
 
     await mockCommonAppDependencies();
 
-    await renderAppAt("/movers");
+    const router = await renderAppAt("/movers");
 
-    // The disabled-tab guard flips the mode off 'movers' (to the default 'group'
-    // view) and the movers content never renders.
-    await waitFor(() => {
-      const marker = screen.getByTestId("active-route-marker");
-      expect(marker).not.toHaveAttribute("data-mode", "movers");
-    });
+    expect(
+      await screen.findByText("This feature isn't enabled for this application."),
+    ).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/movers");
     expect(screen.queryByRole("heading", { name: /movers/i })).not.toBeInTheDocument();
   });
 });

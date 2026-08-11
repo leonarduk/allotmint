@@ -269,3 +269,57 @@ for (const viewport of VIEWPORTS) {
     });
   });
 }
+
+test('mobile holdings keep native table layout while virtual rows scroll', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await preparePage(page);
+
+  const holdings = Array.from({ length: 160 }, (_, index) => ({
+    ticker: `MOB${index.toString().padStart(3, '0')}`,
+    name: `Mobile holding ${index}`,
+    units: index + 1,
+    market_value_gbp: 100 + index,
+    cost_basis_gbp: 80 + index,
+    current_price_gbp: 10,
+    currency: 'GBP',
+    instrument_type: 'Equity',
+    acquired_date: '2025-01-01',
+  }));
+  await page.route('**/portfolio-group/all*', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ...groupPortfolio,
+        accounts: [{ ...groupPortfolio.accounts[0], holdings }],
+      }),
+    })
+  );
+
+  await page.goto(new URL('/', baseUrl).toString());
+  const table = page.getByRole('table');
+  await expect(table).toBeVisible();
+  await expect(table).toHaveCSS('display', 'table');
+
+  const scrollContainer = table.locator('..');
+  await scrollContainer.evaluate((element) => {
+    element.scrollTop = element.scrollHeight / 2;
+    element.dispatchEvent(new Event('scroll'));
+  });
+
+  await expect
+    .poll(() =>
+      scrollContainer.evaluate((element) => {
+        const bounds = element.getBoundingClientRect();
+        return Array.from(
+          element.querySelectorAll('tbody tr[data-index]')
+        ).some((row) => {
+          const rowBounds = row.getBoundingClientRect();
+          return rowBounds.bottom > bounds.top && rowBounds.top < bounds.bottom;
+        });
+      })
+    )
+    .toBe(true);
+});

@@ -11,6 +11,15 @@ Child tasks must cite this document by section number rather than re-deciding
 any of it. If a child task believes a decision here is wrong, it should say so
 in a comment on #6365 and get this document amended — not diverge silently.
 
+Resolved follow-up clarifications:
+
+- [#6385](https://github.com/leonarduk/allotmint/issues/6385): §3 defines the
+  strict tri-state rendering contract for `sell_eligible`, including the
+  distinct `null`, `true`, and `false` outputs.
+- [#6386](https://github.com/leonarduk/allotmint/issues/6386): §1 defines the
+  permanent redirect that removes an `account` query parameter when `owner`
+  is absent.
+
 ---
 
 ## 0. Findings that changed the framing

@@ -827,7 +827,7 @@ describe("App", () => {
     ).toBeInTheDocument();
   });
 
-  it("hides disabled tabs and prevents navigation", async () => {
+  it("hides disabled tabs and explains disabled deep links", async () => {
     window.history.pushState({}, "", "/movers");
 
     vi.doMock("@/api", async () => {
@@ -869,6 +869,10 @@ describe("App", () => {
     );
 
     expect(screen.queryByRole("link", { name: /movers/i })).toBeNull();
+    expect(
+      await screen.findByText("This feature isn't enabled for this application."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Return home" })).toBeInTheDocument();
   });
 
   it("keeps unknown research owner slugs without redirecting", async () => {

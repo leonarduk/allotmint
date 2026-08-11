@@ -31,9 +31,12 @@ and persistence boundary.
 - `uk_sector_endpoint` and `default_sector_region` configure market-sector
   performance, not constituent discovery. They provide no reusable licensing or
   ingestion convention.
-- The graphify snapshot does not identify `backend/common/instruments.py` as a
-  high-fan-in hotspot. It is still manually refreshed and must not replace source
-  inspection when issue 6296 lands.
+- The graphify snapshot identifies `get_instrument_meta()` as a high-fan-in
+  function (degree 52), even though the finding is function-level rather than a
+  verdict on the whole `backend/common/instruments.py` module. Changes around
+  this read/enrichment boundary therefore warrant focused regression testing.
+  The snapshot is manually refreshed and must not replace source inspection when
+  issue 6296 lands.
 
 ## Data-source decision gate
 
@@ -91,6 +94,14 @@ ticker, resolves metadata, validates required fields, and persists through
 `save_instrument_meta()`. Return a structured result such as `created`, `updated`,
 `unchanged`, `skipped`, or `failed` with a reason. Required success fields for
 this issue are non-empty `name`, `currency`, `ticker`, and `exchange`.
+
+Before that service reports `created` or `updated`, strengthen the persistence
+boundary so it exposes the outcome for every configured target. In particular,
+when `METADATA_BUCKET` is configured, an S3 `put_object` failure must be returned
+as an explicit failure or raised to the caller; a successful local write must not
+mask it. The batch must classify that ticker as failed, remain eligible for retry,
+and include the failed target in its report. Tests should cover local-only,
+S3-only/read-only-local, dual-write success, and local-success/S3-failure cases.
 
 Keep membership snapshot storage and metadata enrichment as separate stages. This
 makes source parsing deterministic and testable without Yahoo, and lets a failed

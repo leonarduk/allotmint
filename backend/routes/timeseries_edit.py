@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import logging
 import os
+import re
 import shutil
 from pathlib import Path
 
@@ -28,6 +29,17 @@ from backend.timeseries.cache import (
 router = APIRouter(prefix="/timeseries", tags=["timeseries"])
 logger = logging.getLogger(__name__)
 
+_TICKER_RE = re.compile(r"^[A-Z0-9][A-Z0-9_-]{0,49}$")
+_EXCHANGE_RE = re.compile(r"^[A-Z0-9][A-Z0-9._-]{0,49}$")
+
+
+def _validate_cache_identifier(value: str, *, kind: str) -> str:
+    """Validate an identifier before incorporating it into a cache path."""
+    pattern = _TICKER_RE if kind == "ticker" else _EXCHANGE_RE
+    if not pattern.fullmatch(value):
+        raise ValidationFailure(f"Invalid {kind} format", extra={"field": kind})
+    return value
+
 
 def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> tuple[str, str]:
     t = (ticker or "").upper()
@@ -35,13 +47,15 @@ def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> tuple[str, st
         raise ValidationFailure("Ticker is required", extra={"field": "ticker"})
 
     if exchange:
-        sym = t.split(".", 1)[0]
-        ex = exchange.upper()
+        sym = _validate_cache_identifier(t.split(".", 1)[0], kind="ticker")
+        ex = _validate_cache_identifier(exchange.upper(), kind="exchange")
         logger.debug("Resolved %s.%s (provided exchange)", sanitise_log_value(sym), sanitise_log_value(ex))
         return sym, ex
 
     if "." in t:
         sym, ex = t.split(".", 1)
+        sym = _validate_cache_identifier(sym, kind="ticker")
+        ex = _validate_cache_identifier(ex, kind="exchange")
         logger.debug("Resolved %s.%s (provided exchange)", sanitise_log_value(sym), sanitise_log_value(ex))
         return sym, ex
 
@@ -53,6 +67,8 @@ def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> tuple[str, st
             extra={"field": "exchange", "ticker": ticker},
         )
     sym, ex = resolved
+    sym = _validate_cache_identifier(sym.upper(), kind="ticker")
+    ex = _validate_cache_identifier(ex.upper(), kind="exchange")
     logger.debug("Resolved %s.%s (inferred exchange)", sanitise_log_value(sym), sanitise_log_value(ex))
     return sym, ex
 

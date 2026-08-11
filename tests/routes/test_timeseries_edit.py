@@ -41,6 +41,33 @@ def test_resolve_ticker_exchange_error(monkeypatch):
     assert "could not be inferred" in exc.value.detail
 
 
+@pytest.mark.parametrize(
+    "ticker,exchange",
+    [
+        ("../outside", "L"),
+        ("ABC", "../outside"),
+        ("ABC", ".hidden"),
+        ("ABC/DEF", "L"),
+    ],
+)
+def test_resolve_ticker_exchange_rejects_unsafe_cache_identifiers(ticker, exchange):
+    with pytest.raises(ValidationFailure) as exc:
+        timeseries_edit._resolve_ticker_exchange(ticker, exchange)
+
+    assert exc.value.status_code == 400
+    assert "Invalid" in exc.value.detail
+
+
+def test_unsafe_cache_identifier_never_reaches_path_builder(monkeypatch):
+    def fail_if_called(*_args):
+        raise AssertionError("unsafe identifier reached cache path builder")
+
+    monkeypatch.setattr(timeseries_edit, "meta_timeseries_cache_path", fail_if_called)
+
+    with pytest.raises(ValidationFailure):
+        timeseries_edit._resolve_ticker_exchange("../../etc/passwd", "L")
+
+
 def _make_client(tmp_path, monkeypatch):
     monkeypatch.setattr(cache, "_CACHE_BASE", str(tmp_path))
     app = FastAPI()

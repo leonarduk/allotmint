@@ -59,6 +59,11 @@ METADATA_PREFIX_ENV = "METADATA_PREFIX"
 
 _AUTO_CREATE_FAILURES: set[str] = set()
 
+# Ordered from the market most commonly used by Hargreaves Lansdown exports to
+# progressively less common foreign markets.  ``US`` deliberately represents
+# Yahoo's suffix-less NASDAQ/NYSE symbols.
+TICKER_RESOLUTION_EXCHANGES = ("L", "US", "DE", "TO", "PARIS", "ASX", "F")
+
 
 @lru_cache(maxsize=1)
 def list_group_definitions() -> Dict[str, Dict[str, Any]]:
@@ -272,6 +277,7 @@ def save_instrument_meta(
             )
 
     get_instrument_meta.cache_clear()
+    _persisted_metadata_exchanges.cache_clear()
     return path
 
 
@@ -488,6 +494,75 @@ def _auto_create_instrument_meta(ticker: str) -> Optional[Dict[str, Any]]:
     return payload
 
 
+def _has_informative_metadata(metadata: Dict[str, Any]) -> bool:
+    """Return whether metadata contains more than identity placeholders."""
+    informative_keys = {key for key, value in metadata.items() if value not in (None, "")}
+    return not informative_keys <= {"ticker", "exchange", "name"}
+
+
+@lru_cache(maxsize=2048)
+def _persisted_metadata_exchanges(symbol: str) -> tuple[str, ...]:
+    """Return exchange codes with a persisted local metadata file for ``symbol``.
+
+    Widens resolution beyond :data:`TICKER_RESOLUTION_EXCHANGES` so an existing
+    alias (e.g. Pfizer persisted as ``PFE.N`` rather than ``PFE.US``) is still
+    found. Only scans the local instruments directory; S3-only deployments
+    still fall back to the canonical exchange list checked directly.
+
+    Cached like :func:`get_instrument_meta` (and invalidated alongside it) so
+    a CSV import with many bare tickers does not re-scan the instruments
+    directory once per row.
+    """
+    try:
+        return tuple(sorted(p.parent.name for p in _active_instruments_dir().glob(f"*/{symbol}.json")))
+    except OSError:
+        return ()
+
+
+def resolve_instrument_ticker(
+    ticker: str,
+    *,
+    exchanges: tuple[str, ...] = TICKER_RESOLUTION_EXCHANGES,
+    create_missing: bool = False,
+) -> Optional[str]:
+    """Resolve a bare symbol to a persisted, informative instrument ticker.
+
+    ``ticker`` is expected to be a bare symbol without an exchange suffix
+    (e.g. ``"MSFT"``); any ``.SUFFIX`` present is stripped and ignored, it is
+    not treated as a preferred candidate.
+
+    Existing metadata is checked before any live lookup, making this safe for
+    the CSV import path. Persisted exchange aliases not in ``exchanges`` are
+    also considered, so already-backfilled metadata under a non-canonical
+    exchange code is still honoured. A deliberate reconciliation/backfill
+    operation can set ``create_missing`` to try Yahoo in exchange-priority
+    order; successful metadata is persisted by :func:`_auto_create_instrument_meta`.
+    """
+    symbol = (ticker or "").strip().upper().split(".", 1)[0]
+    if not symbol or symbol == "CASH":
+        return None
+
+    known_exchanges = list(dict.fromkeys(exchanges))
+    for exchange in _persisted_metadata_exchanges(symbol):
+        if exchange not in known_exchanges:
+            known_exchanges.append(exchange)
+
+    for exchange in known_exchanges:
+        candidate = f"{symbol}.{exchange.upper()}"
+        if _has_informative_metadata(get_instrument_meta(candidate)):
+            return candidate
+
+    if not create_missing:
+        return None
+
+    for exchange in exchanges:
+        candidate = f"{symbol}.{exchange.upper()}"
+        metadata = _auto_create_instrument_meta(candidate)
+        if metadata and _has_informative_metadata(metadata):
+            return candidate
+    return None
+
+
 def delete_instrument_meta(ticker: str, exchange: str) -> None:
     """Delete the metadata file for ``ticker`` on ``exchange`` if present."""
 
@@ -500,6 +575,7 @@ def delete_instrument_meta(ticker: str, exchange: str) -> None:
         logger.warning("Permission denied deleting %s", path)
         return
     get_instrument_meta.cache_clear()
+    _persisted_metadata_exchanges.cache_clear()
 
 
 # def save_instrument_meta(ticker: str, meta: Dict[str, Any]) -> None:

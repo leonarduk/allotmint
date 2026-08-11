@@ -48,6 +48,11 @@ backend/common/instrument_groups.py:53
 backend/common/instrument_groups.py:56
 backend/common/instruments.py:36
 backend/common/instruments.py:39
+backend/common/instruments.py:87
+backend/common/instruments.py:91
+backend/common/instruments.py:575
+backend/common/instruments.py:606
+backend/common/portfolio.py:81
 backend/common/instruments.py:82
 backend/common/instruments.py:86
 backend/common/instruments.py:500

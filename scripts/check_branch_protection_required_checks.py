@@ -56,6 +56,7 @@ EXPECTED_REQUIRED_CHECKS = {
     # (see PR #4464).
     "CDK infrastructure tests",
     "Validate backend/requirements.txt (dry-run)",
+    "Backend lint (ruff, black)",
     "Lambda-compat pytest (backend/requirements.txt)",
     "Frontend smoke tests (preview build)",
     "integration-tests",

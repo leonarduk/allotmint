@@ -9,3 +9,10 @@ export const clampDrawerWidth = (width: number, viewportWidth: number): number =
     Math.min(MIN_DRAWER_WIDTH, viewportWidth),
     Math.min(width, viewportWidth - DRAWER_VIEWPORT_MARGIN),
   );
+
+export const expandedDrawerWidth = (viewportWidth: number): number =>
+  clampDrawerWidth(viewportWidth * 0.6, viewportWidth);
+
+export const canExpandDrawer = (viewportWidth: number): boolean =>
+  expandedDrawerWidth(viewportWidth) >
+  clampDrawerWidth(DEFAULT_DRAWER_WIDTH, viewportWidth);

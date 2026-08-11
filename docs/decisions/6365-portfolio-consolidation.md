@@ -281,6 +281,26 @@ assignment is the `InstrumentDetail` drawer, where exactly one ticker is in
 focus and the write is unambiguous. File that as a separate issue after #6365
 lands; do not fold it into a consolidation child task.
 
+### Cleanup outcome (#6382)
+
+After the portfolio-page merge shipped, the remaining call sites were reviewed.
+`InstrumentTable` remains deliberately scoped to the instrument catalogue route
+rather than being migrated to `HoldingsTable`:
+
+- `InstrumentTable` consumes `InstrumentSummary[]`, provides exchange filtering,
+  and owns the `assignInstrumentGroup`, `createInstrumentGroup`, and
+  `clearInstrumentGroup` write workflow.
+- `HoldingsTable` consumes holding/rollup rows and is the sole table used for
+  portfolio presentation. It does not own catalogue mutation.
+
+Moving `/instrument/:group` to `HoldingsTable` would therefore remove the
+group-assignment feature or mix an administrative write path into the portfolio
+table. The two components no longer represent competing portfolio-table
+implementations: one is a catalogue editor and the other is a portfolio viewer.
+Keep the catalogue editor until group assignment has a confirmed replacement
+(such as the `InstrumentDetail` drawer), at which point its route and component
+can be retired together.
+
 ---
 
 ## 5. `familyMvpEnabled` — gates the controls, never the scope selector

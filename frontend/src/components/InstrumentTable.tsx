@@ -39,6 +39,14 @@ type Props = {
   showSparklines?: boolean;
 };
 
+/**
+ * Instrument catalogue editor for `/instrument/:group`.
+ *
+ * This is intentionally separate from HoldingsTable: it consumes catalogue
+ * summaries and owns the instrument-group mutation workflow. Portfolio pages
+ * use HoldingsTable for read-only holding and rollup presentation. See the
+ * cleanup outcome in docs/decisions/6365-portfolio-consolidation.md#cleanup-outcome-6382.
+ */
 export function InstrumentTable({ rows, showGroupTotals = true, showSparklines = true }: Props) {
   const { t } = useTranslation();
   const { relativeViewEnabled, baseCurrency } = useConfig();
@@ -761,4 +769,3 @@ async function handleGroupSelection(
     setPending(null);
   }
 }
-

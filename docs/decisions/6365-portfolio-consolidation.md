@@ -30,10 +30,33 @@ Each merged account is also stamped with its `owner`
 computed per owner.
 
 The consequence: the incompatibility is **rollup-vs-lot**, not
-**group-vs-owner**. `getGroupPortfolio` is a strict superset of
-`getPortfolio(owner)` for every owner in the group, with the single exception
-of `trades_this_month`/`trades_remaining` — and those are already carried
-per owner in `members_summary` (`backend/common/group_portfolio.py:200-240`).
+**group-vs-owner**. For the table-row data used by this decision,
+`getGroupPortfolio` contains the enriched holdings returned by
+`getPortfolio(owner)` for every owner in the group. The endpoint envelopes are
+not literal supersets: the owner endpoint returns `trades_this_month` and
+`trades_remaining` at its top level, while the group endpoint carries those
+values per owner in `members_summary`
+(`backend/common/group_portfolio.py:201-245`).
+
+**Code verification (2026-08-11; follow-up #6384).** This claim was traced
+through both builders before the consolidation child tasks started. The group
+builder loads approvals and user config into owner-keyed maps
+(`backend/common/group_portfolio.py:139-151`) and passes the entries for the
+account's owner to the same `enrich_holding` function used by the owner builder
+(`backend/common/group_portfolio.py:157-176` vs
+`backend/common/portfolio.py:160-176`). `enrich_holding` preserves the input
+`acquired_date` (and supplies a default for a positive non-cash holding that
+lacks one), then derives `days_held` and `sell_eligible`
+(`backend/common/holding_utils.py:505-555`), so those values remain attached to
+each holding inside its owner-stamped account. As in the owner response, an
+acquisition date and `days_held` can be null for cash, zero-unit, or
+unparseable-date holdings. The group builder obtains each
+member's trade counts from `build_owner_portfolio` and copies them into that
+member's `members_summary` entry, with a per-owner fallback when owner details
+cannot be loaded (`backend/common/group_portfolio.py:201-245`). No discrepancy
+was found in the per-owner fields on which §§2-3 depend; the wording above is
+limited to table-row data to avoid implying that the two endpoint envelopes
+are identical.
 
 **Finding B — `InstrumentSummary` cannot be produced on the client.**
 `/portfolio-group/{slug}/instruments` is literally

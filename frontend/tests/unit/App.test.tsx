@@ -1125,7 +1125,7 @@ describe("App", () => {
     });
 
     // Use the real useNavigate so handleOwnerSelectPortfolio can navigate to
-    // /portfolio/bob when the user changes the owner selector.
+    // /?owner=bob when the user changes the owner selector.
     vi.doMock("react-router-dom", async () =>
       vi.importActual<typeof import("react-router-dom")>("react-router-dom"),
     );
@@ -1152,10 +1152,10 @@ describe("App", () => {
     await waitFor(() =>
       expect(screen.getByTestId("active-route-marker")).toHaveAttribute(
         "data-pathname",
-        "/portfolio/bob",
+        "/",
       ),
     );
-    expect(router.state.location.search).toBe("");
+    expect(router.state.location.search).toBe("?owner=bob");
     await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("bob"));
     expect(
       screen.getByTestId("active-route-marker").getAttribute("data-pathname")?.startsWith("/performance"),

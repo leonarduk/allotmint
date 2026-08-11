@@ -64,7 +64,10 @@ describe('page manifest', () => {
     // redirect, which treats '/' with no query as "go to the entry page" (#5075).
     expect(buildPathForMode('group', { group: 'all' })).toBe('/?group=all');
     expect(buildPathForMode('group', { group: 'kids' })).toBe('/?group=kids');
-    expect(buildPathForMode('owner', { owner: 'alex' })).toBe('/portfolio/alex');
+    expect(buildPathForMode('owner', { owner: 'alex' })).toBe('/?owner=alex');
+    expect(buildPathForMode('owner', { owner: 'Alex Smith' })).toBe(
+      '/?owner=Alex%20Smith'
+    );
     expect(buildPathForMode('transactions')).toBe('/input');
     expect(buildPathForMode('pension')).toBe('/pension/forecast');
   });
@@ -85,7 +88,11 @@ describe('page manifest', () => {
       });
       expect(defaultPath.startsWith('/')).toBe(true);
 
-      if (page.routeSegment !== null && page.mode !== 'group') {
+      if (
+        page.routeSegment !== null &&
+        page.mode !== 'group' &&
+        page.mode !== 'owner'
+      ) {
         // 'transactions' mode has routeSegment 'transactions' but its canonical
         // URL is '/input' (the entry screen). The segment and defaultPath are
         // intentionally mismatched — exclude it from the containment check.

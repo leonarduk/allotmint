@@ -165,7 +165,7 @@ def create_app() -> FastAPI:
 
         if username is not None:
             if cfg.disable_auth or os.getenv("TESTING"):
-                email = "user@example.com"
+                email = auth.DISABLE_AUTH_STUB_EMAIL
             else:
                 raise HTTPException(status_code=400, detail="Password auth not supported in production")
         elif id_token:
@@ -175,7 +175,7 @@ def create_app() -> FastAPI:
                 logger.warning("User authentication failed: %s", exc.detail)
                 raise
         elif cfg.disable_auth:
-            email = "user@example.com"
+            email = auth.DISABLE_AUTH_STUB_EMAIL
         else:
             raise HTTPException(status_code=400, detail="Missing credentials")
 
@@ -197,7 +197,7 @@ def create_app() -> FastAPI:
     async def google_token(payload: dict):
         token = payload.get("token")
         if cfg.disable_auth:
-            email = "user@example.com"
+            email = auth.DISABLE_AUTH_STUB_EMAIL
         else:
             if not token:
                 raise HTTPException(status_code=400, detail="Missing token")
@@ -214,7 +214,7 @@ def create_app() -> FastAPI:
         token = payload.id_token
         client_id = payload.client_id
         if cfg.disable_auth:
-            email = "user@example.com"
+            email = auth.DISABLE_AUTH_STUB_EMAIL
         else:
             if not isinstance(token, str) or not token:
                 raise HTTPException(status_code=400, detail="Missing ID token")

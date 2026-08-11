@@ -404,13 +404,13 @@ test.describe('bootstrap to portfolio happy path', () => {
       });
     });
 
-    await page.route('**/portfolio-group/demo-owner', async (route) => {
+    await page.route('**/portfolio-group/all', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          name: 'Demo Owner',
-          slug: 'demo-owner',
+          name: 'All portfolios',
+          slug: 'all',
           as_of: '2026-03-22',
           trades_this_month: 0,
           trades_remaining: 10,

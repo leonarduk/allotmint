@@ -1,6 +1,7 @@
 import pandas as pd
 import pytest
-from fastapi import FastAPI
+from botocore.exceptions import ClientError
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
 from backend.common.errors import ValidationFailure
@@ -147,13 +148,30 @@ def test_move_timeseries_missing_source_returns_404(tmp_path, monkeypatch):
 
 
 class _FakeS3Client:
-    def __init__(self, *, fail_delete=False):
-        self.fail_delete = fail_delete
+    def __init__(self, *, fail_delete_key=None, existing=None):
+        self.fail_delete_key = fail_delete_key
+        self.existing = set(existing or [])
         self.deleted = []
+        self.puts = []
+
+    def head_object(self, Bucket, Key):  # noqa: N803 - matches boto3 signature
+        if Key not in self.existing:
+            raise ClientError({"Error": {"Code": "404"}}, "HeadObject")
+        return {}
+
+    def put_object(self, Bucket, Key, Body, IfNoneMatch):  # noqa: N803 - matches boto3 signature
+        if Key in self.existing:
+            raise ClientError(
+                {"Error": {"Code": "PreconditionFailed"}, "ResponseMetadata": {"HTTPStatusCode": 412}},
+                "PutObject",
+            )
+        self.existing.add(Key)
+        self.puts.append((Bucket, Key, Body, IfNoneMatch))
 
     def delete_object(self, Bucket, Key):  # noqa: N803 - matches boto3 signature
-        if self.fail_delete:
+        if Key == self.fail_delete_key:
             raise RuntimeError("simulated S3 delete failure")
+        self.existing.discard(Key)
         self.deleted.append((Bucket, Key))
 
 
@@ -165,22 +183,18 @@ class _FakeDataFrame:
 
     def to_parquet(self, destination, index=False):
         self.to_parquet_calls.append(destination)
+        destination.write(b"parquet")
 
     def __len__(self):
         return len(self._rows)
 
 
-def _setup_s3_move(monkeypatch, *, fake_client, source_exists=True, destination_exists=False):
+def _setup_s3_move(monkeypatch, *, fake_client):
     fake_df = _FakeDataFrame([{"Close": 1.5}])
     monkeypatch.setattr(
         timeseries_edit,
         "meta_timeseries_cache_path",
         lambda ticker, exchange: f"s3://bucket/{ticker}-{exchange}.parquet",
-    )
-    monkeypatch.setattr(
-        timeseries_edit,
-        "has_cached_meta_timeseries",
-        lambda ticker, exchange: destination_exists if exchange == "N" else source_exists,
     )
     monkeypatch.setattr(timeseries_edit, "_load_timeseries", lambda ticker, exchange: fake_df)
     monkeypatch.setattr(timeseries_edit, "_s3_client", lambda: fake_client)
@@ -188,27 +202,55 @@ def _setup_s3_move(monkeypatch, *, fake_client, source_exists=True, destination_
 
 
 def test_move_timeseries_s3_success_writes_then_deletes(monkeypatch):
-    fake_client = _FakeS3Client()
+    fake_client = _FakeS3Client(existing={"IONQ-L.parquet"})
     fake_df = _setup_s3_move(monkeypatch, fake_client=fake_client)
+    destination = "s3://bucket/IONQ-N.parquet"
+    with cache._S3_HEAD_MISS_CACHE_LOCK:
+        cache._S3_HEAD_MISS_CACHE[destination] = cache.time.monotonic()
 
     rows = timeseries_edit._move_timeseries("IONQ", "L", "N")
 
     assert rows == 1
-    assert fake_df.to_parquet_calls == ["s3://bucket/IONQ-N.parquet"]
+    assert len(fake_df.to_parquet_calls) == 1
+    assert fake_client.puts[0][1:] == ("IONQ-N.parquet", b"parquet", "*")
     assert fake_client.deleted == [("bucket", "IONQ-L.parquet")]
+    assert destination not in cache._S3_HEAD_MISS_CACHE
 
 
-def test_move_timeseries_s3_delete_failure_reports_error(monkeypatch):
+def test_move_timeseries_s3_delete_failure_rolls_back_destination(monkeypatch):
     from backend.common.errors import InternalServiceError
 
-    fake_client = _FakeS3Client(fail_delete=True)
-    fake_df = _setup_s3_move(monkeypatch, fake_client=fake_client)
+    fake_client = _FakeS3Client(fail_delete_key="IONQ-L.parquet", existing={"IONQ-L.parquet"})
+    _setup_s3_move(monkeypatch, fake_client=fake_client)
 
     with pytest.raises(InternalServiceError) as exc:
         timeseries_edit._move_timeseries("IONQ", "L", "N")
 
-    assert fake_df.to_parquet_calls == ["s3://bucket/IONQ-N.parquet"]
-    assert "both now exist" in str(exc.value)
+    assert "destination was rolled back" in str(exc.value)
+    assert fake_client.existing == {"IONQ-L.parquet"}
+
+
+def test_move_timeseries_s3_atomic_destination_conflict(monkeypatch):
+    fake_client = _FakeS3Client(existing={"IONQ-L.parquet", "IONQ-N.parquet"})
+    _setup_s3_move(monkeypatch, fake_client=fake_client)
+
+    with pytest.raises(HTTPException) as exc:
+        timeseries_edit._move_timeseries("IONQ", "L", "N")
+
+    assert exc.value.status_code == 409
+    assert fake_client.deleted == []
+
+
+def test_get_missing_s3_file_returns_empty(monkeypatch):
+    fake_client = _FakeS3Client()
+    monkeypatch.setattr(timeseries_edit, "_s3_client", lambda: fake_client)
+    monkeypatch.setattr(
+        timeseries_edit,
+        "meta_timeseries_cache_path",
+        lambda ticker, exchange: f"s3://bucket/{ticker}-{exchange}.parquet",
+    )
+
+    assert timeseries_edit._load_timeseries("NOPE", "L").empty
 
 
 def test_move_timeseries_case_insensitive_exchange_rejected(tmp_path, monkeypatch):

@@ -374,6 +374,14 @@ def _s3_object_recently_confirmed_missing(cache: str) -> bool:
     return missed_at is not None and time.monotonic() - missed_at < _S3_HEAD_MISS_TTL_SECONDS
 
 
+def invalidate_s3_cache_metadata(cache: str) -> None:
+    """Forget cached S3 presence metadata after this process changes an object."""
+    with _S3_HEAD_MISS_CACHE_LOCK:
+        _S3_HEAD_MISS_CACHE.pop(cache, None)
+    with _S3_MTIME_CACHE_LOCK:
+        _S3_MTIME_CACHE.pop(cache, None)
+
+
 # boto3's defaults (connect_timeout=60s, no read_timeout, 3 retries) let a
 # single stalled HeadObject call block a cold Lambda invocation for minutes.
 # These metadata checks are advisory (every caller already has a local/

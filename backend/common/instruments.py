@@ -67,7 +67,7 @@ _AUTO_CREATE_FAILURES: set[str] = set()
 
 # Keep the canonical exchange names used by the bundled instrument catalogue.
 # ``N`` represents Yahoo symbols that do not need a market suffix.
-RESOLUTION_EXCHANGES = ("L", "N", "DE", "TO", "AX", "F")
+RESOLUTION_EXCHANGES = ("L", "N", "PARIS", "DE", "TO", "AX", "F")
 
 
 @lru_cache(maxsize=1)
@@ -169,6 +169,71 @@ def _instrument_key(ticker: str, prefix: str) -> str:
     return f"{prefix}{rel}"
 
 
+def _ticker_from_catalogue_key(key: str, prefix: str) -> Optional[str]:
+    """Return the ticker represented by an instrument catalogue object key."""
+
+    relative = key.removeprefix(prefix)
+    path = Path(relative)
+    if len(path.parts) != 2 or path.suffix.lower() != ".json":
+        return None
+    exchange, filename = path.parts
+    if exchange in {"Cash", "Unknown", "groupings"}:
+        return None
+    try:
+        return f"{_validate_part(Path(filename).stem)}.{_validate_part(exchange)}"
+    except ValueError:
+        return None
+
+
+@lru_cache(maxsize=1)
+def _catalogued_instrument_tickers() -> frozenset[str]:
+    """Build a process-wide ticker index from local files and one S3 listing.
+
+    Looking up each possible exchange with ``get_object`` makes imports scale
+    with holdings multiplied by exchanges.  An object listing lets misses be
+    rejected locally and limits known S3 instruments to one metadata read.
+    """
+
+    tickers: set[str] = set()
+    instruments_dir = _active_instruments_dir()
+    try:
+        paths = instruments_dir.glob("*/*.json")
+        for path in paths:
+            ticker = _ticker_from_catalogue_key(path.relative_to(instruments_dir).as_posix(), "")
+            if ticker:
+                tickers.add(ticker)
+    except OSError as exc:
+        logger.warning("Failed to index local instrument catalogue: %s", sanitise_log_value(exc))
+
+    s3_loc = _s3_location()
+    if not s3_loc:
+        return frozenset(tickers)
+
+    bucket, prefix = s3_loc
+    continuation_token: Optional[str] = None
+    try:
+        while True:
+            request: Dict[str, Any] = {"Bucket": bucket, "Prefix": prefix}
+            if continuation_token:
+                request["ContinuationToken"] = continuation_token
+            response = _s3_client().list_objects_v2(**request)
+            for item in response.get("Contents", []):
+                ticker = _ticker_from_catalogue_key(str(item.get("Key", "")), prefix)
+                if ticker:
+                    tickers.add(ticker)
+            continuation_token = response.get("NextContinuationToken")
+            if not response.get("IsTruncated") or not continuation_token:
+                break
+    except Exception as exc:
+        logger.warning(
+            "Failed to index S3 instrument catalogue s3://%s/%s: %s",
+            sanitise_log_value(bucket),
+            sanitise_log_value(prefix),
+            sanitise_log_value(exc),
+        )
+    return frozenset(tickers)
+
+
 @lru_cache(maxsize=2048)
 def get_instrument_meta(ticker: str) -> Dict[str, Any]:
     """Return metadata for ``ticker`` from disk or S3.
@@ -205,17 +270,13 @@ def get_instrument_meta(ticker: str) -> Dict[str, Any]:
         # route — that callers must invoke deliberately, not on every read.
         return {}
     except json.JSONDecodeError as exc:
-        logger.warning(
-            "Invalid instrument JSON %s: %s", sanitise_log_value(path), sanitise_log_value(exc)
-        )
+        logger.warning("Invalid instrument JSON %s: %s", sanitise_log_value(path), sanitise_log_value(exc))
         return {}
     except ValueError:
         logger.warning("Invalid ticker format: %s", sanitise_log_value(ticker))
         return {}
     except Exception:
-        logger.exception(
-            "Unexpected error loading instrument metadata for %s", sanitise_log_value(ticker)
-        )
+        logger.exception("Unexpected error loading instrument metadata for %s", sanitise_log_value(ticker))
         raise
 
 
@@ -286,6 +347,7 @@ def save_instrument_meta(
             )
 
     get_instrument_meta.cache_clear()
+    _catalogued_instrument_tickers.cache_clear()
     return path
 
 
@@ -420,11 +482,7 @@ def _fetch_metadata_from_yahoo(symbol: str, exchange: str) -> Optional[Dict[str,
             )
 
     name = _clean_str(
-        info.get("shortName")
-        or info.get("longName")
-        or info.get("displayName")
-        or info.get("name")
-        or full_ticker,
+        info.get("shortName") or info.get("longName") or info.get("displayName") or info.get("name") or full_ticker,
     )
 
     currency = _clean_str(info.get("currency"), upper=True)
@@ -505,9 +563,7 @@ def _auto_create_instrument_meta(ticker: str) -> Optional[Dict[str, Any]]:
             sanitise_log_value(exc),
         )
     else:
-        logger.info(
-            "Auto-created instrument metadata for %s from Yahoo Finance", sanitise_log_value(full)
-        )
+        logger.info("Auto-created instrument metadata for %s from Yahoo Finance", sanitise_log_value(full))
 
     return payload
 
@@ -519,9 +575,7 @@ def _has_informative_metadata(meta: Dict[str, Any]) -> bool:
     return not informative_keys <= {"ticker", "exchange", "name"}
 
 
-def find_known_instrument_ticker(
-    symbol: str, exchanges: tuple[str, ...] = RESOLUTION_EXCHANGES
-) -> Optional[str]:
+def find_known_instrument_ticker(symbol: str, exchanges: tuple[str, ...] = RESOLUTION_EXCHANGES) -> Optional[str]:
     """Return the first already-catalogued market ticker for a bare symbol.
 
     This helper performs disk/S3 reads only.  It is therefore safe on the CSV
@@ -532,9 +586,10 @@ def find_known_instrument_ticker(
     canonical = (symbol or "").strip().upper()
     if not canonical or "." in canonical:
         return canonical or None
+    catalogued = _catalogued_instrument_tickers()
     for exchange in exchanges:
         candidate = f"{canonical}.{exchange}"
-        if _has_informative_metadata(get_instrument_meta(candidate)):
+        if candidate in catalogued and _has_informative_metadata(get_instrument_meta(candidate)):
             return candidate
     return None
 
@@ -550,9 +605,7 @@ def is_sedol(value: str) -> bool:
     return sum(value * weight for value, weight in zip(values, weights)) % 10 == 0
 
 
-def resolve_instrument_ticker(
-    symbol: str, exchanges: tuple[str, ...] = RESOLUTION_EXCHANGES
-) -> Optional[str]:
+def resolve_instrument_ticker(symbol: str, exchanges: tuple[str, ...] = RESOLUTION_EXCHANGES) -> Optional[str]:
     """Explicitly resolve and persist a bare symbol's exchange via Yahoo.
 
     Existing informative metadata wins in exchange-priority order.  Missing
@@ -587,6 +640,7 @@ def delete_instrument_meta(ticker: str, exchange: str) -> None:
         logger.warning("Permission denied deleting %s", path)
         return
     get_instrument_meta.cache_clear()
+    _catalogued_instrument_tickers.cache_clear()
 
 
 # def save_instrument_meta(ticker: str, meta: Dict[str, Any]) -> None:

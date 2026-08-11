@@ -39,9 +39,7 @@ def test_instrument_path_generates_expected_locations(monkeypatch, tmp_path) -> 
 
 
 @pytest.mark.parametrize("ticker", ["BP.", "AV.", "SN.", "bp."])
-def test_instrument_path_treats_trailing_dot_as_no_exchange(
-    monkeypatch, tmp_path, ticker: str
-) -> None:
+def test_instrument_path_treats_trailing_dot_as_no_exchange(monkeypatch, tmp_path, ticker: str) -> None:
     """Real LSE tickers like "BP." split into an empty (not None) exchange
     part; that must resolve the same as the bare symbol, not raise (#6266).
     """
@@ -124,9 +122,7 @@ def test_get_instrument_meta_falls_back_to_local_on_s3_error(monkeypatch, tmp_pa
     assert "falling back to local file" in caplog.text
 
 
-def test_save_instrument_meta_writes_uploads_and_clears_cache(
-    monkeypatch, tmp_path, caplog
-) -> None:
+def test_save_instrument_meta_writes_uploads_and_clears_cache(monkeypatch, tmp_path, caplog) -> None:
     monkeypatch.setattr(instruments, "_INSTRUMENTS_DIR", tmp_path)
     monkeypatch.setenv(instruments.METADATA_BUCKET_ENV, "bucket")
     monkeypatch.setenv(instruments.METADATA_PREFIX_ENV, "prefix")
@@ -400,9 +396,7 @@ def test_fetch_metadata_from_yahoo_builds_normalized_payload(monkeypatch) -> Non
 
 
 @pytest.mark.parametrize("fast_info_kind", ["object", "dict"])
-def test_fetch_metadata_from_yahoo_falls_back_to_info_and_fast_info(
-    monkeypatch, fast_info_kind: str
-) -> None:
+def test_fetch_metadata_from_yahoo_falls_back_to_info_and_fast_info(monkeypatch, fast_info_kind: str) -> None:
     def build_fast_info():
         if fast_info_kind == "object":
             return SimpleNamespace(currency="usd")
@@ -475,6 +469,7 @@ def test_auto_create_instrument_meta_merges_payload(monkeypatch, tmp_path) -> No
 
 
 def test_resolve_instrument_ticker_tries_london_then_us(monkeypatch) -> None:
+    monkeypatch.setattr(instruments, "_catalogued_instrument_tickers", lambda: frozenset())
     monkeypatch.setattr(instruments, "get_instrument_meta", lambda _ticker: {})
     attempted: list[str] = []
 
@@ -491,6 +486,7 @@ def test_resolve_instrument_ticker_tries_london_then_us(monkeypatch) -> None:
 
 
 def test_resolve_instrument_ticker_reuses_metadata_without_fetch(monkeypatch) -> None:
+    monkeypatch.setattr(instruments, "_catalogued_instrument_tickers", lambda: frozenset({"PFE.N"}))
     monkeypatch.setattr(
         instruments,
         "get_instrument_meta",
@@ -503,6 +499,41 @@ def test_resolve_instrument_ticker_reuses_metadata_without_fetch(monkeypatch) ->
     )
 
     assert instruments.resolve_instrument_ticker("PFE", ("L", "N")) == "PFE.N"
+
+
+def test_find_known_instrument_indexes_s3_once_for_catalogue_misses(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(instruments, "_INSTRUMENTS_DIR", tmp_path)
+    monkeypatch.setenv(instruments.METADATA_BUCKET_ENV, "bucket")
+    monkeypatch.setenv(instruments.METADATA_PREFIX_ENV, "instruments")
+    calls: list[dict] = []
+
+    class FakeClient:
+        def list_objects_v2(self, **request):
+            calls.append(request)
+            return {
+                "Contents": [{"Key": "instruments/N/PFE.json"}],
+                "IsTruncated": False,
+            }
+
+        def get_object(self, **_request):
+            return {"Body": io.BytesIO(json.dumps({"ticker": "PFE.N", "currency": "USD"}).encode())}
+
+    monkeypatch.setattr(instruments, "_s3_client", lambda: FakeClient())
+    instruments._catalogued_instrument_tickers.cache_clear()
+    instruments.get_instrument_meta.cache_clear()
+    try:
+        assert instruments.find_known_instrument_ticker("UNKNOWN") is None
+        assert instruments.find_known_instrument_ticker("ALSO_UNKNOWN") is None
+        assert instruments.find_known_instrument_ticker("PFE") == "PFE.N"
+        assert calls == [{"Bucket": "bucket", "Prefix": "instruments/"}]
+    finally:
+        instruments._catalogued_instrument_tickers.cache_clear()
+        instruments.get_instrument_meta.cache_clear()
+
+
+def test_resolution_exchanges_include_paris() -> None:
+    assert "PARIS" in instruments.RESOLUTION_EXCHANGES
+    assert instruments._build_yahoo_symbol("AI", "PARIS") == "AI.PA"
 
 
 def test_sedol_is_not_resolved_as_equity(monkeypatch) -> None:
@@ -520,9 +551,7 @@ def test_auto_create_respects_offline_and_failure_cache(monkeypatch) -> None:
     monkeypatch.delenv("TESTING", raising=False)
     monkeypatch.setattr(instruments, "_AUTO_CREATE_FAILURES", set())
     monkeypatch.setattr(instruments.config, "offline_mode", True)
-    monkeypatch.setattr(
-        instruments, "_fetch_metadata_from_yahoo", instruments._ORIGINAL_FETCH_METADATA
-    )
+    monkeypatch.setattr(instruments, "_fetch_metadata_from_yahoo", instruments._ORIGINAL_FETCH_METADATA)
 
     assert instruments._auto_create_instrument_meta("YYY.L") is None
 

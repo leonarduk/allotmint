@@ -83,6 +83,22 @@ describe("InstrumentDetail", () => {
     mockGetInstrumentIntraday.mockReset();
   });
 
+  it("renders the drawer above page content", async () => {
+    mockGetInstrumentDetail.mockResolvedValue({ prices: [], positions: [], currency: null });
+    mockGetInstrumentIntraday.mockResolvedValue([]);
+
+    render(
+      <MemoryRouter>
+        <InstrumentDetail ticker="ABC.L" name="ABC" onClose={() => {}} />
+      </MemoryRouter>,
+    );
+
+    const separator = await screen.findByRole("separator", {
+      name: "Resize instrument details",
+    });
+    expect(separator.parentElement).toHaveStyle({ zIndex: "1000", background: "#111" });
+  });
+
   it("shows accessible loading skeletons before the instrument detail resolves", async () => {
     let resolveDetail: (value: { prices: unknown[]; positions: unknown[]; currency: null }) => void;
     mockGetInstrumentDetail.mockReturnValue(

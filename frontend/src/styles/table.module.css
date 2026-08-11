@@ -77,6 +77,11 @@
   cursor: pointer;
 }
 
+.selected {
+  background-color: rgba(59, 130, 246, 0.16);
+  box-shadow: inset 3px 0 0 #3b82f6;
+}
+
 .badge {
   margin-left: 0.25rem;
   background-color: #444;

@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { PortfolioView } from "@/components/PortfolioView";
+import { aggregateHoldingsByTicker } from "@/utils/aggregateHoldings";
 import type { Portfolio } from "@/types";
 import { configContext } from "@/ConfigContext";
 
@@ -34,7 +35,7 @@ describe("PortfolioView", () => {
                 value_estimate_gbp: 0,
                 last_updated: "2025-07-24",
                 holdings: [
-                    { ticker: "SHARED", name: "ISA holding", units: 1, market_value_gbp: 10 },
+                    { ticker: "SHARED", name: "Shared holding", units: 1, market_value_gbp: 10, cost_basis_gbp: 8, gain_gbp: 2, gain_pct: 25, day_change_gbp: 1 },
                 ],
             },
             {
@@ -43,13 +44,31 @@ describe("PortfolioView", () => {
                 value_estimate_gbp: 14925,
                 last_updated: "2025-07-15",
                 holdings: [
-                    { ticker: "SHARED", name: "SIPP holding", units: 2, market_value_gbp: 20 },
+                    { ticker: "SHARED", name: "Shared holding", units: 2, market_value_gbp: 20, effective_cost_basis_gbp: 10, gain_gbp: 10, gain_pct: 100, day_change_gbp: 3 },
                 ],
             },
         ],
     };
 
-    it("renders one tabbed holdings view and identifies source accounts", () => {
+    it("sums day change and uses effective cost when aggregating account lots", () => {
+        const [combined] = aggregateHoldingsByTicker(
+            [
+                { ticker: "SHARED", name: "Shared", units: 1, market_value_gbp: 10, cost_basis_gbp: 8, gain_gbp: 2, gain_pct: 25, day_change_gbp: 1, row_key: "isa-0" },
+                { ticker: "SHARED", name: "Shared", units: 2, market_value_gbp: 20, effective_cost_basis_gbp: 10, gain_gbp: 10, gain_pct: 100, day_change_gbp: 3, row_key: "sipp-0" },
+            ],
+            "2025-07-29",
+        );
+
+        expect(combined).toMatchObject({
+            market_value_gbp: 30,
+            cost_basis_gbp: 18,
+            gain_gbp: 12,
+            gain_pct: 12 / 18 * 100,
+            day_change_gbp: 4,
+        });
+    });
+
+    it("combines matching tickers and recomputes totals in the all-accounts tab", () => {
         render(<PortfolioView data={mockOwner}/>);
 
         expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
@@ -57,10 +76,13 @@ describe("PortfolioView", () => {
             "ISA",
             "SIPP",
         ]);
-        expect(screen.getByRole("columnheader", { name: "Account" })).toBeInTheDocument();
-        expect(screen.getAllByText("SHARED")).toHaveLength(2);
-        expect(screen.getByText("ISA holding")).toBeInTheDocument();
-        expect(screen.getByText("SIPP holding")).toBeInTheDocument();
+        expect(screen.queryByRole("columnheader", { name: "Account" })).not.toBeInTheDocument();
+        expect(screen.getAllByText("SHARED")).toHaveLength(1);
+        const row = screen.getByText("SHARED").closest("tr")!;
+        expect(within(row).getByText("3")).toBeInTheDocument();
+        expect(within(row).getByText("£30.00")).toBeInTheDocument();
+        expect(within(row).getByText("£12.00")).toBeInTheDocument();
+        expect(within(row).getByText("66.7%")).toBeInTheDocument();
     });
 
     it("updates holdings and total when the active account tab changes", () => {
@@ -72,13 +94,14 @@ describe("PortfolioView", () => {
         fireEvent.click(screen.getByRole("tab", { name: "ISA" }));
 
         expect(total).toHaveTextContent("£0.00");
-        expect(screen.getByText("ISA holding")).toBeInTheDocument();
-        expect(screen.queryByText("SIPP holding")).not.toBeInTheDocument();
+        expect(screen.getByText("Shared holding")).toBeInTheDocument();
+        expect(screen.getAllByText("SHARED")).toHaveLength(1);
         expect(screen.queryByRole("columnheader", { name: "Account" })).not.toBeInTheDocument();
 
         fireEvent.click(screen.getByRole("tab", { name: "SIPP" }));
         expect(total).toHaveTextContent("£14,925.00");
-        expect(screen.getByText("SIPP holding")).toBeInTheDocument();
+        expect(screen.getByText("Shared holding")).toBeInTheDocument();
+        expect(screen.getAllByText("SHARED")).toHaveLength(1);
     });
 
     it("resets the active account tab to 'all' when the owner changes even if the new owner has a colliding account key", () => {

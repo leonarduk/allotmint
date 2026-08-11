@@ -1,4 +1,4 @@
-import { render, screen, within, act, waitFor } from "@testing-library/react";
+import { render, screen, within, act, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import i18n from "@/i18n";
@@ -471,5 +471,19 @@ describe("HoldingsTable", () => {
           } finally {
               vi.useRealTimers();
           }
+      });
+
+      it("keeps the top and table horizontal scrollbars in sync", () => {
+          render(<HoldingsTable holdings={holdings} />);
+          const tableContainer = screen.getByRole('table').parentElement as HTMLElement;
+          const topScrollbar = screen.getByLabelText('Scroll holdings columns horizontally');
+
+          topScrollbar.scrollLeft = 240;
+          fireEvent.scroll(topScrollbar);
+          expect(tableContainer.scrollLeft).toBe(240);
+
+          tableContainer.scrollLeft = 80;
+          fireEvent.scroll(tableContainer);
+          expect(topScrollbar.scrollLeft).toBe(80);
       });
   });

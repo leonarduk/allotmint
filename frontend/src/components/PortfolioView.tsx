@@ -18,6 +18,7 @@ import lazyWithDelay from "../utils/lazyWithDelay";
 import PortfolioDashboardSkeleton from "./skeletons/PortfolioDashboardSkeleton";
 import TextSkeleton from "./skeletons/TextSkeleton";
 import { useFetch } from "../hooks/useFetch";
+import { aggregateHoldingsByTicker } from "../utils/aggregateHoldings";
 import {
   ResponsiveContainer,
   BarChart,
@@ -332,7 +333,7 @@ export function PortfolioView({ data, loading, error, onDateChange, onAccountAdd
     (sum, account) => sum + account.value_estimate_gbp,
     0,
   );
-  const scopedHoldings = scopedAccounts.flatMap((account) => {
+  const accountHoldings = scopedAccounts.flatMap((account) => {
     const originalIndex = data.accounts.indexOf(account);
     const sourceKey = accountKey(account, originalIndex);
     return account.holdings.map((holding, holdingIndex) => ({
@@ -341,6 +342,10 @@ export function PortfolioView({ data, loading, error, onDateChange, onAccountAdd
       row_key: `${sourceKey}-${holdingIndex}`,
     }));
   });
+  const scopedHoldings =
+    activeAccount === "all"
+      ? aggregateHoldingsByTicker(accountHoldings, data.as_of)
+      : accountHoldings;
 
   const asOfDate = data.as_of ? new Date(data.as_of) : null;
   const todayIso = formatDateISO(new Date());
@@ -605,7 +610,7 @@ export function PortfolioView({ data, loading, error, onDateChange, onAccountAdd
               </div>
               <HoldingsTable
                 holdings={scopedHoldings}
-                showAccount={activeAccount === "all"}
+                showAccount={false}
                 onSelectInstrument={(ticker, name) =>
                   setSelectedInstrument({ ticker, name })
                 }

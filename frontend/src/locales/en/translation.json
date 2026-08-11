@@ -642,6 +642,9 @@
     "tickers": "Tickers",
     "watchlist": "Watchlist:"
   },
+  "dataadmin": {
+    "configureLocalLogin": "Configure local login override"
+  },
   "support": {
     "config": {
       "otherParams": "Other parameters",

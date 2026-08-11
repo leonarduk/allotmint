@@ -230,22 +230,6 @@ def test_telegram_credentials_absent_when_env_unset(monkeypatch):
     assert not cfg.telegram_chat_id
 
 
-# Regression guard: the compromised token from commit 30b8f36 must never appear as a
-# default value loaded from config.yaml, regardless of env-var state.
-# This token was publicly exposed on 2025-07-23 and must be treated as revoked.
-# It is stored here solely as a regression sentinel — not as a usable credential.
-_COMPROMISED_TOKEN = "8491288399:AAGRRuCJtctSQ2igqnW56BxQ3L_c0Jsi_nA"  # noqa: S105
-
-
-def test_compromised_token_not_loaded_as_default(monkeypatch):
-    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
-    cfg = reload_config()
-    assert cfg.telegram_bot_token != _COMPROMISED_TOKEN, (
-        "Compromised Telegram token is still present as a default in config.yaml — "
-        "remove it and ensure the field defaults to an empty string."
-    )
-
-
 def test_allowed_emails_env_override(monkeypatch):
     monkeypatch.setenv("ALLOWED_EMAILS", "TEST@Example.com,Other@Example.com ,")
     cfg = reload_config()

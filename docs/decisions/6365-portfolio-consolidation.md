@@ -68,10 +68,14 @@ renders, and make it URL-driven.
 | URL | Scope |
 | --- | --- |
 | `/` | All family |
+| `/?account=isa` (no `owner`) | All family; permanently redirect (301) to `/` |
 | `/?owner=steve` | Single owner, all accounts |
 | `/?owner=steve&account=isa` | Single owner + single account type |
 
-`owner` absent ⇒ family scope. `account` is ignored when `owner` is absent.
+`owner` absent ⇒ family scope. When `account` is present without `owner`, it
+is ignored for scope selection **and removed from the URL with a 301 permanent
+redirect** (`/?account=isa` → `/`). This cleanup prevents stale, ineffective
+parameters from remaining in browser history, bookmarks, or shared links.
 An `owner`/`account` value that does not exist in the loaded group falls back to
 the next-widest valid scope and rewrites the URL (`GroupPortfolioView.tsx:348-364`
 already implements this reconciliation against local state; it moves to the

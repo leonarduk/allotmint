@@ -38,6 +38,20 @@ describe('CsvImportForm', () => {
     expect(reconcile).toBeEnabled();
   });
 
+  it('renders duplicate account types without a React key warning', () => {
+    const consoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+
+    render(
+      <CsvImportForm owner="alice" accountTypes={['ISA', 'ISA', 'SIPP']} />
+    );
+
+    expect(screen.getAllByRole('option', { name: /ISA|SIPP/ })).toHaveLength(3);
+    expect(consoleError.mock.calls.flat().join(' ')).not.toContain('same key');
+    consoleError.mockRestore();
+  });
+
   it('previews a readable reconciliation without importing', async () => {
     vi.mocked(reconcileHoldingsCsv).mockResolvedValue({
       added: [{ ticker: 'NEW.L', units: 5, value_gbp: 10 }],

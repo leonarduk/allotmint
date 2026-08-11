@@ -1050,4 +1050,30 @@ describe("GroupPortfolioView", () => {
     expect(warnSpy).not.toHaveBeenCalled();
     warnSpy.mockRestore();
   });
+
+  it("shows owner actions only after selecting an owner", async () => {
+    const user = userEvent.setup();
+    mockAllFetches({
+      name: "At a glance",
+      accounts: [{
+        owner: "alice",
+        account_type: "isa",
+        value_estimate_gbp: 100,
+        holdings: [{ ticker: "AAA", name: "Alpha", units: 1, market_value_gbp: 100 }],
+      }],
+    });
+
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+
+    expect(await screen.findByRole("tab", { name: "Alice Example" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Export portfolio as CSV")).not.toBeInTheDocument();
+    expect(screen.queryByText("+ Import CSV")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Alice Example" }));
+
+    expect(screen.getByLabelText("Export portfolio as CSV")).toBeInTheDocument();
+    expect(screen.getByLabelText("Export portfolio as PDF")).toBeInTheDocument();
+    expect(screen.getByText("+ Import CSV")).toBeInTheDocument();
+    expect(screen.getByText("Add account")).toBeInTheDocument();
+  });
 });

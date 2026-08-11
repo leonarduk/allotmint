@@ -55,6 +55,7 @@ import {
 } from "recharts";
 import type { PieLabelRenderProps } from "recharts";
 import { BadgeCheck, LineChart, Shield } from "lucide-react";
+import { OwnerPortfolioActions } from "./OwnerPortfolioActions";
 
 const PIE_COLORS = [
   "#8884d8",
@@ -251,6 +252,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     enableAdvancedAnalytics = true,
   } = useConfig();
   const [asOfOverride, setAsOfOverride] = useState<string | null>(null);
+  const [refreshVersion, setRefreshVersion] = useState(0);
 
   const fetchPortfolio = useCallback(
     () => getGroupPortfolio(slug, { asOf: asOfOverride ?? undefined }),
@@ -260,7 +262,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     data: portfolio,
     loading,
     error: portfolioError,
-  } = useFetch<GroupPortfolio>(fetchPortfolio, [slug, asOfOverride], !!slug);
+  } = useFetch<GroupPortfolio>(fetchPortfolio, [slug, asOfOverride, refreshVersion], !!slug);
 
   const fetchSector = useCallback(
     () => getGroupSectorContributions(slug, { asOf: asOfOverride ?? undefined }),
@@ -410,7 +412,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     }
     const key = `${slug}::${ownerFilter ?? ""}::${accountFilter ?? ""}::${
       asOfOverride ?? ""
-    }`;
+    }::${refreshVersion}`;
     if (instrumentKeyRef.current !== key) {
       instrumentKeyRef.current = key;
       setInstrumentRows(null);
@@ -449,6 +451,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     accountFilter,
     loadGroupInstruments,
     asOfOverride,
+    refreshVersion,
   ]);
 
   useEffect(() => {
@@ -1261,6 +1264,17 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
               </button>
             ))}
         </div>
+      )}
+
+      {activeOwner && (
+        <OwnerPortfolioActions
+          owner={activeOwner}
+          asOf={portfolio.as_of}
+          accounts={filteredAccounts}
+          activeAccountType={activeAccountType}
+          onDateChange={setAsOfOverride}
+          onMutated={() => setRefreshVersion((version) => version + 1)}
+        />
       )}
 
       {instrumentError && (

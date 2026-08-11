@@ -131,6 +131,53 @@ describe("HoldingsTable", () => {
         },
     ];
 
+    const rollupRows: RollupRow[] = [
+        {
+            ticker: "ROLL-A",
+            name: "Rollup Alpha",
+            units: 10,
+            cost_basis_gbp: 500,
+            market_value_gbp: 600,
+            gain_gbp: 100,
+            gain_pct: 20,
+            weight_pct: 60,
+            lot_count: 3,
+            owners: ["Alice"],
+            accounts: ["isa"],
+            grouping: "Growth",
+            exchange: "L",
+            change_7d_pct: 2,
+            change_30d_pct: 5,
+            acquired_date: null,
+            days_held: null,
+            sell_eligible: null,
+            days_until_eligible: null,
+            next_eligible_sell_date: null,
+        },
+        {
+            ticker: "ROLL-Z",
+            name: "Rollup Zeta",
+            units: 5,
+            cost_basis_gbp: 400,
+            market_value_gbp: 400,
+            gain_gbp: 0,
+            gain_pct: 0,
+            weight_pct: 40,
+            lot_count: 2,
+            owners: ["Bob"],
+            accounts: ["sipp"],
+            grouping: "Income",
+            exchange: "L",
+            change_7d_pct: 1,
+            change_30d_pct: 3,
+            acquired_date: null,
+            days_held: null,
+            sell_eligible: null,
+            days_until_eligible: null,
+            next_eligible_sell_date: null,
+        },
+    ];
+
     const TestProvider = ({ children }: { children: React.ReactNode }) => {
         const [relativeViewEnabled, setRelativeViewEnabled] = useState(false);
         return (
@@ -537,6 +584,49 @@ describe("HoldingsTable", () => {
         await userEvent.selectOptions(select, "true");
         expect(screen.getByText("AAA")).toBeInTheDocument();
         expect(screen.queryByText("Test Holding")).toBeNull();
+    });
+
+    it("suppresses lot-only eligibility controls without changing the column count in rollup mode", async () => {
+        const { unmount } = renderWithConfig(<HoldingsTable holdings={holdings} />);
+        const flatHeaderRows = await screen.findAllByRole("row");
+        const flatColumnCount = within(flatHeaderRows[0]).getAllByRole("columnheader").length;
+        unmount();
+
+        renderWithConfig(<HoldingsTable holdings={rollupRows} rollupMode />);
+        const rollupHeaderRows = await screen.findAllByRole("row");
+
+        expect(within(rollupHeaderRows[0]).getAllByRole("columnheader")).toHaveLength(flatColumnCount);
+        expect(screen.queryByLabelText("Sell eligible")).toBeNull();
+        expect(screen.queryByRole("button", { name: "Sell-eligible" })).toBeNull();
+    });
+
+    it("ignores a leftover eligibility filter after switching to rollup mode", async () => {
+        const { rerender } = renderWithConfig(<HoldingsTable holdings={holdings} />);
+        await userEvent.selectOptions(await screen.findByLabelText("Sell eligible"), "true");
+        expect(screen.queryByText("Test Holding")).toBeNull();
+
+        rerender(
+            <TestProvider>
+                <HoldingsTable holdings={rollupRows} rollupMode />
+            </TestProvider>,
+        );
+
+        expect(await screen.findByText("ROLL-A")).toBeInTheDocument();
+        expect(screen.getByText("ROLL-Z")).toBeInTheDocument();
+    });
+
+    it("does not sort by days held in rollup mode", async () => {
+        renderWithConfig(<HoldingsTable holdings={rollupRows} rollupMode />);
+        await screen.findByText("ROLL-A");
+        const daysHeldHeader = screen.getByRole("columnheader", { name: "Days Held" });
+        const tickersBefore = screen.getAllByText(/^ROLL-/).map((cell) => cell.textContent);
+
+        expect(daysHeldHeader.className).not.toContain("clickable");
+        expect(daysHeldHeader).not.toHaveTextContent("▲");
+        expect(daysHeldHeader).not.toHaveTextContent("▼");
+        await userEvent.click(daysHeldHeader);
+
+        expect(screen.getAllByText(/^ROLL-/).map((cell) => cell.textContent)).toEqual(tickersBefore);
     });
 
     it("shows last price date badge when available", async () => {

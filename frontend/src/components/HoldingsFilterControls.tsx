@@ -16,7 +16,7 @@ type Props = {
   onViewPresetChange: (preset: string) => void;
   minimumGain: string;
   onMinimumGainChange: (value: string) => void;
-  onSellEligible: () => void;
+  onSellEligible?: () => void;
 };
 
 export function HoldingsFilterControls({
@@ -63,13 +63,15 @@ export function HoldingsFilterControls({
       </span>
       <span className="flex items-center gap-1">
         {t('holdingsTable.quickFilters')}
-        <button
-          type="button"
-          className="ml-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
-          onClick={onSellEligible}
-        >
-          {t('holdingsTable.quickFiltersSellEligible')}
-        </button>
+        {onSellEligible && (
+          <button
+            type="button"
+            className="ml-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+            onClick={onSellEligible}
+          >
+            {t('holdingsTable.quickFiltersSellEligible')}
+          </button>
+        )}
         <input
           type="number"
           placeholder={t('holdingsTable.minimumGainPrompt')}

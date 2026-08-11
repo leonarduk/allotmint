@@ -413,11 +413,9 @@ export function deriveModeFromPathname(pathname: string): Mode {
 export function deriveModeFromLocation(pathname: string, search: string): Mode {
   const pathnameMode = deriveModeFromPathname(pathname);
   if (pathnameMode !== 'group') return pathnameMode;
-  // Scope query parameters filter the merged group view; they do not select a
-  // different page. Keep `search` in the public signature because callers
-  // derive a mode from a complete location and may pass it unchanged.
-  void search;
-  return 'group';
+  // Keep owner-scoped bookmarks on the owner view until the group view consumes
+  // owner/account route state. Otherwise the scope would be silently ignored.
+  return readRouteScopeQuery(search).owner ? 'owner' : pathnameMode;
 }
 
 export function deriveBootstrapMode(

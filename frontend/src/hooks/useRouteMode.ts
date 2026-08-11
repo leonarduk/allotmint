@@ -70,7 +70,10 @@ export function useRouteMode(): RouteState {
     setMode(nextMode);
 
     if (nextMode === 'owner' || nextMode === 'performance') {
-      setSelectedOwner(route.slug || scope.owner || '');
+      const nextOwner = route.slug || scope.owner || '';
+      const nextAccount = scope.account ?? '';
+      if (selectedOwner !== nextOwner) setSelectedOwner(nextOwner);
+      if (selectedAccount !== nextAccount) setSelectedAccount(nextAccount);
       return;
     }
 

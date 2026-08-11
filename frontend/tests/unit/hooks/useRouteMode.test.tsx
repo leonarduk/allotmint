@@ -76,7 +76,7 @@ describe("useRouteMode", () => {
       <MemoryRouter initialEntries={["/?owner=steve&account=isa"]}>{children}</MemoryRouter>
     );
     const { result } = renderHook(() => useRouteMode(), { wrapper });
-    await waitFor(() => expect(result.current.mode).toBe("group"));
+    await waitFor(() => expect(result.current.mode).toBe("owner"));
     expect(result.current.selectedOwner).toBe("steve");
     expect(result.current.selectedAccount).toBe("isa");
   });
@@ -96,7 +96,9 @@ describe("useRouteMode", () => {
         { wrapper },
       );
 
-      await waitFor(() => expect(result.current.route.mode).toBe("group"));
+      await waitFor(() =>
+        expect(result.current.route.mode).toBe(entry.includes("owner=") ? "owner" : "group"),
+      );
       await act(async () => {
         await new Promise((resolve) => setTimeout(resolve, 50));
       });

@@ -79,7 +79,7 @@ describe("useRouteMode", () => {
       <MemoryRouter initialEntries={["/?owner=steve&account=isa"]}>{children}</MemoryRouter>
     );
     const { result } = renderHook(() => useRouteMode(), { wrapper });
-    await waitFor(() => expect(result.current.mode).toBe("group"));
+    expect(result.current.mode).toBe("group");
     expect(result.current.selectedOwner).toBe("steve");
     expect(result.current.selectedAccount).toBe("isa");
   });

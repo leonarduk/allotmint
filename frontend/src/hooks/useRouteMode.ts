@@ -22,7 +22,10 @@ function deriveInitialState() {
   const scope = readRouteScopeQuery(window.location.search);
   const route = deriveRouteFromPathname(window.location.pathname);
   const mode = deriveModeFromLocation(window.location.pathname, window.location.search);
-  const owner = mode === 'owner' ? route.slug || scope.owner || '' : route.mode === 'performance' ? route.slug : '';
+  const owner =
+    route.mode === 'owner' || route.mode === 'performance'
+      ? route.slug || scope.owner || ''
+      : scope.owner ?? '';
   const group = route.mode === 'instrument' ? route.slug : normaliseGroupSlug(scope.group);
   const account = scope.account ?? '';
 

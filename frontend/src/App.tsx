@@ -552,20 +552,12 @@ export default function App({ onLogout }: AppProps) {
       return <BackendUnavailableCard onRetry={handleRetry} />;
     }
 
-    // Synchronous render-time redirects for legacy portfolio paths and
-    // owner-root/performance-root paths. Using <Navigate> instead of navigate()
+    // Synchronous render-time redirects for owner-root/performance-root paths.
+    // Using <Navigate> instead of navigate()
     // from useEffect avoids deferred-update issues in data-router test environments.
     const redirectSegs = location.pathname.split('/').filter(Boolean);
     const redirectMode = deriveModeFromPathname(location.pathname);
     const redirectScope = readRouteScopeQuery(location.search);
-    if (
-      configLoaded &&
-      redirectMode === 'owner' &&
-      redirectSegs[1]
-    ) {
-      const owner = decodePathSegment(redirectSegs[1]);
-      return <Navigate to={`/?owner=${encodeURIComponent(owner)}`} replace />;
-    }
     if (
       configLoaded &&
       redirectMode === 'group' &&

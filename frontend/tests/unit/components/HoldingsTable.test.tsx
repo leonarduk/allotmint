@@ -218,6 +218,16 @@ describe("HoldingsTable", () => {
         expect(screen.getAllByTestId(/^sparkline/)).toHaveLength(holdings.length);
     });
 
+    it("marks only the row matching the selected ticker as selected", async () => {
+        renderWithConfig(<HoldingsTable holdings={holdings} selectedTicker="XYZ" />);
+
+        const selectedRow = (await screen.findByText("Test Holding")).closest("tr");
+        const otherRow = screen.getByText("Alpha").closest("tr");
+
+        expect(selectedRow).toHaveAttribute("aria-selected", "true");
+        expect(otherRow).not.toHaveAttribute("aria-selected");
+    });
+
     it("shows days to go if not eligible", async () => {
         render(<HoldingsTable holdings={holdings}/>);
         const row = (await screen.findByText("Test Holding")).closest("tr");

@@ -21,6 +21,15 @@ vi.mock("@/components/PerformanceDashboard", () => ({
   default: () => <div data-testid="performance-dashboard" />,
 }));
 
+vi.mock("@/components/InstrumentDetail", () => ({
+  InstrumentDetail: ({ ticker, onClose }: { ticker: string; onClose: () => void }) => (
+    <aside>
+      <span>Details for {ticker}</span>
+      <button type="button" onClick={onClose}>Close instrument details</button>
+    </aside>
+  ),
+}));
+
 describe("PortfolioView", () => {
     const mockOwner: Portfolio = {
         owner: "steve",
@@ -93,6 +102,19 @@ describe("PortfolioView", () => {
 
         expect(layout).toHaveClass("grid-cols-1");
         expect(layout?.className).not.toContain("xl:grid-cols-");
+    it("highlights the detail row until the instrument drawer is closed", () => {
+        render(<PortfolioView data={mockOwner}/>);
+
+        const row = screen.getByText("SHARED").closest("tr")!;
+        fireEvent.click(row);
+
+        expect(screen.getByText("Details for SHARED")).toBeInTheDocument();
+        expect(row).toHaveAttribute("aria-selected", "true");
+
+        fireEvent.click(screen.getByRole("button", { name: "Close instrument details" }));
+
+        expect(screen.queryByText("Details for SHARED")).not.toBeInTheDocument();
+        expect(row).not.toHaveAttribute("aria-selected");
     });
 
     it("updates holdings and total when the active account tab changes", () => {

@@ -53,6 +53,7 @@ import PensionForecast from './pages/PensionForecast';
 import TaxTools from './pages/TaxTools';
 import Alerts from './pages/Alerts';
 import { sanitizeOwners, findOwnerForUser } from './utils/owners';
+import { deriveModeFromLocation, readRouteScopeQuery } from './routes/registry';
 import { useAuth } from './AuthContext';
 import type { UserProfile } from './AuthContext';
 import { isDefaultGroupSlug, normaliseGroupSlug } from './utils/groups';
@@ -163,23 +164,29 @@ export default function App({ onLogout }: AppProps) {
     [configLoaded, tabs, disabledTabs]
   );
 
-  const params = new URLSearchParams(location.search);
+  const scopeQuery = readRouteScopeQuery(location.search);
   const isReportCreationRoute =
     location.pathname === '/reports/new' ||
     location.pathname.startsWith('/reports/new/');
-  const [mode, setMode] = useState(() => deriveModeFromPathname(location.pathname));
+  const [mode, setMode] = useState(() =>
+    deriveModeFromLocation(location.pathname, location.search)
+  );
   const [selectedOwner, setSelectedOwner] = useState(() => {
     const initialPath = location.pathname.split('/').filter(Boolean);
-    const initialMode = deriveModeFromPathname(location.pathname);
+    const initialMode = deriveModeFromLocation(location.pathname, location.search);
     return initialMode === 'owner' || initialMode === 'performance'
-      ? decodePathSegment(initialPath[1] ?? '')
-      : '';
+      ? initialPath[1]
+        ? decodePathSegment(initialPath[1])
+        : scopeQuery.owner ?? ''
+      : initialMode === 'group'
+        ? scopeQuery.owner ?? ''
+        : '';
   });
   const [selectedGroup, setSelectedGroup] = useState(() => {
     const initialPath = location.pathname.split('/').filter(Boolean);
     return deriveModeFromPathname(location.pathname) === 'instrument'
       ? initialPath[1] ?? ''
-      : normaliseGroupSlug(params.get('group'));
+      : normaliseGroupSlug(scopeQuery.group);
   });
 
   const [researchTicker, setResearchTicker] = useState(() => {
@@ -238,6 +245,16 @@ export default function App({ onLogout }: AppProps) {
   const handlePortfolioDateChange = useCallback((isoDate: string | null) => {
     setPortfolioAsOf(isoDate);
   }, []);
+
+  const handleAccountTypeChange = useCallback(
+    (accountType: string | null) => {
+      if (!selectedOwner) return;
+      const params = new URLSearchParams({ owner: selectedOwner });
+      if (accountType) params.set('account', accountType);
+      navigate(`/?${params.toString()}`, { replace: true });
+    },
+    [navigate, selectedOwner]
+  );
 
   const handleLogout = useCallback(() => {
     portfolioCache.current.clear();
@@ -303,8 +320,8 @@ export default function App({ onLogout }: AppProps) {
     }
 
     const segs = location.pathname.split('/').filter(Boolean);
-    const params = new URLSearchParams(location.search);
-    const newMode = deriveModeFromPathname(location.pathname);
+    const scopeQuery = readRouteScopeQuery(location.search);
+    const newMode = deriveModeFromLocation(location.pathname, location.search);
 
     const isDisabled =
       tabs[newMode] === false || disabledTabs?.includes(newMode);
@@ -320,8 +337,11 @@ export default function App({ onLogout }: AppProps) {
     }
     setMode(newMode);
     if (newMode === 'owner' || newMode === 'performance') {
-      if (segs[1]) {
-        setSelectedOwner(decodePathSegment(segs[1]));
+      const queryOwner = newMode === 'owner' ? scopeQuery.owner : null;
+      if (segs[1] || queryOwner) {
+        setSelectedOwner(
+          segs[1] ? decodePathSegment(segs[1]) : queryOwner ?? ''
+        );
       } else if (owners.length > 0) {
         // URL redirect is handled by the render-time <Navigate> in renderMainContent.
         setSelectedOwner(findOwnerForUser(owners, user)?.owner ?? owners[0].owner);
@@ -329,7 +349,8 @@ export default function App({ onLogout }: AppProps) {
     } else if (newMode === 'instrument') {
       setSelectedGroup(segs[1] ?? '');
     } else if (newMode === 'group') {
-      const groupParam = params.get('group');
+      const groupParam = scopeQuery.group;
+      setSelectedOwner(scopeQuery.owner ?? '');
       setSelectedGroup(normaliseGroupSlug(groupParam));
       // Skip this cleanup under Family MVP: stripping `?group=all` down to a
       // bare '/' would immediately re-trigger the entry-path redirect above
@@ -384,14 +405,16 @@ export default function App({ onLogout }: AppProps) {
     }
 
     const segs = location.pathname.split('/').filter(Boolean);
+    const scopeQuery = readRouteScopeQuery(location.search);
     const routeSpecifiesOwner =
-      (segs[0] === 'portfolio' || segs[0] === 'performance') &&
-      Boolean(segs[1]);
+      ((segs[0] === 'portfolio' || segs[0] === 'performance') &&
+        Boolean(segs[1])) ||
+      (segs.length === 0 && Boolean(scopeQuery.owner));
 
     if (!routeSpecifiesOwner) {
       setSelectedOwner('');
     }
-  }, [owners, selectedOwner, setSelectedOwner, location.pathname]);
+  }, [owners, selectedOwner, setSelectedOwner, location.pathname, location.search]);
 
   useEffect(() => {
     if (groupsReq.data) {
@@ -529,11 +552,28 @@ export default function App({ onLogout }: AppProps) {
       return <BackendUnavailableCard onRetry={handleRetry} />;
     }
 
-    // Synchronous render-time redirect for owner-root and performance-root paths
-    // when owners are available. Using <Navigate> instead of navigate() from
-    // useEffect avoids deferred-update issues in data-router test environments.
+    // Synchronous render-time redirects for legacy portfolio paths and
+    // owner-root/performance-root paths. Using <Navigate> instead of navigate()
+    // from useEffect avoids deferred-update issues in data-router test environments.
     const redirectSegs = location.pathname.split('/').filter(Boolean);
     const redirectMode = deriveModeFromPathname(location.pathname);
+    const redirectScope = readRouteScopeQuery(location.search);
+    if (
+      configLoaded &&
+      redirectMode === 'owner' &&
+      redirectSegs[1]
+    ) {
+      const owner = decodePathSegment(redirectSegs[1]);
+      return <Navigate to={`/?owner=${encodeURIComponent(owner)}`} replace />;
+    }
+    if (
+      configLoaded &&
+      redirectMode === 'group' &&
+      redirectScope.account &&
+      !redirectScope.owner
+    ) {
+      return <Navigate to="/" replace />;
+    }
     if (
       configLoaded &&
       !getFamilyMvpRedirectPath(location.pathname, location.search, familyMvpEnabled, familyMvpEntryPath) &&
@@ -576,6 +616,8 @@ export default function App({ onLogout }: AppProps) {
               loading={loading}
               error={err}
               onDateChange={handlePortfolioDateChange}
+              accountType={scopeQuery.account}
+              onAccountTypeChange={handleAccountTypeChange}
             />
           </>
         )}

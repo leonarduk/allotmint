@@ -36,6 +36,21 @@ export interface DerivedRoute {
   slug: string;
 }
 
+export interface RouteScopeQuery {
+  group: string | null;
+  owner: string | null;
+  account: string | null;
+}
+
+export function readRouteScopeQuery(search: string): RouteScopeQuery {
+  const params = new URLSearchParams(search);
+  return {
+    group: params.get('group'),
+    owner: params.get('owner'),
+    account: params.get('account'),
+  };
+}
+
 const lazyPage = (loader: Parameters<typeof lazy>[0]) => lazy(loader);
 const routeContext = ({
   owner,
@@ -393,6 +408,12 @@ export function deriveRouteFromPathname(pathname: string): DerivedRoute {
 
 export function deriveModeFromPathname(pathname: string): Mode {
   return deriveRouteFromPathname(pathname).mode;
+}
+
+export function deriveModeFromLocation(pathname: string, search: string): Mode {
+  const pathnameMode = deriveModeFromPathname(pathname);
+  if (pathnameMode !== 'group') return pathnameMode;
+  return readRouteScopeQuery(search).owner ? 'owner' : pathnameMode;
 }
 
 export function deriveBootstrapMode(

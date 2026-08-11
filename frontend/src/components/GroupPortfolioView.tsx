@@ -263,6 +263,8 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   } = useConfig();
   const [asOfOverride, setAsOfOverride] = useState<string | null>(null);
   const [instrumentRefreshVersion, setInstrumentRefreshVersion] = useState(0);
+  const activeOwner: string | null = routeScope.owner || null;
+  const activeAccountType: string | null = routeScope.account || null;
 
   const fetchPortfolio = useCallback(
     () => getGroupPortfolio(slug, { asOf: asOfOverride ?? undefined }),
@@ -276,8 +278,13 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   } = useFetch<GroupPortfolio>(fetchPortfolio, [slug, asOfOverride], !!slug);
 
   const fetchSector = useCallback(
-    () => getGroupSectorContributions(slug, { asOf: asOfOverride ?? undefined }),
-    [slug, asOfOverride],
+    () =>
+      activeOwner
+        ? api.getOwnerSectorContributions(activeOwner, {
+            asOf: asOfOverride ?? undefined,
+          })
+        : getGroupSectorContributions(slug, { asOf: asOfOverride ?? undefined }),
+    [activeOwner, slug, asOfOverride],
   );
   const fetchRegion = useCallback(
     () => getGroupRegionContributions(slug, { asOf: asOfOverride ?? undefined }),
@@ -285,21 +292,19 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   );
   const { data: sectorContrib } = useFetch<SectorContribution[]>(
     fetchSector,
-    [slug, asOfOverride, enableAdvancedAnalytics],
+    [activeOwner, slug, asOfOverride, enableAdvancedAnalytics],
     !!slug && enableAdvancedAnalytics,
   );
   const { data: regionContrib } = useFetch<RegionContribution[]>(
     fetchRegion,
     [slug, asOfOverride, enableAdvancedAnalytics],
-    !!slug && enableAdvancedAnalytics,
+    !!slug && !activeOwner && enableAdvancedAnalytics,
   );
   const [alpha, setAlpha] = useState<number | null>(null);
   const [trackingError, setTrackingError] = useState<number | null>(null);
   const [maxDrawdown, setMaxDrawdown] = useState<number | null>(null);
   const [error, setError] = useState<Error | null>(null);
   const [contribTab, setContribTab] = useState<"sector" | "region">("sector");
-  const activeOwner: string | null = routeScope.owner || null;
-  const activeAccountType: string | null = routeScope.account || null;
   const [instrumentRows, setInstrumentRows] = useState<InstrumentSummary[] | null>(null);
   const [instrumentLoading, setInstrumentLoading] = useState(false);
   const [instrumentError, setInstrumentError] = useState<Error | null>(null);
@@ -759,6 +764,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   }, []);
 
   const isAllPositions = activeOwner === null;
+  const activeContribTab = isAllPositions ? contribTab : "sector";
   const hasFilteredAccounts = filteredAccounts.length > 0;
   const portfolioInsight = useMemo<PortfolioInsight>(() => {
     // Filtered owner/account slices can look spuriously concentrated, so only surface the
@@ -1025,22 +1031,25 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
         </div>
       )}
 
-      {isAllPositions && enableAdvancedAnalytics && (sectorContrib?.length || regionContrib?.length) && (
+      {enableAdvancedAnalytics &&
+        (sectorContrib?.length || (isAllPositions && regionContrib?.length)) && (
         <div style={{ width: "100%", height: 300, margin: "1rem 0" }}>
           <div style={{ marginBottom: "0.5rem" }}>
             <button
               onClick={() => setContribTab("sector")}
-              disabled={contribTab === "sector"}
+              disabled={activeContribTab === "sector"}
               style={{ marginRight: "0.5rem" }}
             >
               Sector
             </button>
-            <button
-              onClick={() => setContribTab("region")}
-              disabled={contribTab === "region"}
-            >
-              Region
-            </button>
+            {isAllPositions && (
+              <button
+                onClick={() => setContribTab("region")}
+                disabled={activeContribTab === "region"}
+              >
+                Region
+              </button>
+            )}
           </div>
           <ResponsiveContainer
             width="100%"
@@ -1051,16 +1060,16 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
           >
             <BarChart
               data={
-                (contribTab === "sector"
+                (activeContribTab === "sector"
                   ? sectorContrib || []
                   : regionContrib || []) as (SectorContribution | RegionContribution)[]
               }
             >
-              <XAxis dataKey={contribTab === "sector" ? "sector" : "region"} />
+              <XAxis dataKey={activeContribTab === "sector" ? "sector" : "region"} />
               <YAxis />
               <Tooltip formatter={(v) => money(v as number | undefined, baseCurrency)} />
               <Bar dataKey="gain_gbp">
-                {(contribTab === "sector" ? sectorContrib : regionContrib)?.map(
+                {(activeContribTab === "sector" ? sectorContrib : regionContrib)?.map(
                   (row, idx) => (
                     <Cell
                       key={`cell-bar-${idx}`}

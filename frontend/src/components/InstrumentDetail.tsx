@@ -535,6 +535,14 @@ export function InstrumentDetail({
             : "↗"}
         </button>
       )}
+      {variant === "drawer" && (
+        <Link
+          to={`/research/${ticker}`}
+          style={{ color: palette.link, float: "right", marginRight: "0.5rem" }}
+        >
+          View full page
+        </Link>
+      )}
       {signal && (
         <div style={{ marginBottom: "0.5rem" }}>
           <strong>{signal.action.toUpperCase()}</strong> – {signal.reason}

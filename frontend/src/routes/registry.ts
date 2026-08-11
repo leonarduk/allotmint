@@ -410,12 +410,10 @@ export function deriveModeFromPathname(pathname: string): Mode {
   return deriveRouteFromPathname(pathname).mode;
 }
 
-export function deriveModeFromLocation(pathname: string, search: string): Mode {
+export function deriveModeFromLocation(pathname: string, _search: string): Mode {
   const pathnameMode = deriveModeFromPathname(pathname);
   if (pathnameMode !== 'group') return pathnameMode;
-  // Keep owner-scoped bookmarks on the owner view until the group view consumes
-  // owner/account route state. Otherwise the scope would be silently ignored.
-  return readRouteScopeQuery(search).owner ? 'owner' : pathnameMode;
+  return 'group';
 }
 
 export function deriveBootstrapMode(

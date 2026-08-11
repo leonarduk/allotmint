@@ -1,7 +1,10 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { renderHook, waitFor } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 vi.mock("@/api", () => ({ getGroups: vi.fn().mockResolvedValue([]) }));
+vi.mock("@/hooks/useFetch", () => ({
+  default: () => ({ data: [] }),
+}));
 import {
   configContext,
   type ConfigContextValue,
@@ -76,7 +79,7 @@ describe("useRouteMode", () => {
       <MemoryRouter initialEntries={["/?owner=steve&account=isa"]}>{children}</MemoryRouter>
     );
     const { result } = renderHook(() => useRouteMode(), { wrapper });
-    await waitFor(() => expect(result.current.mode).toBe("owner"));
+    await waitFor(() => expect(result.current.mode).toBe("group"));
     expect(result.current.selectedOwner).toBe("steve");
     expect(result.current.selectedAccount).toBe("isa");
   });
@@ -96,18 +99,17 @@ describe("useRouteMode", () => {
         { wrapper },
       );
 
-      await waitFor(() =>
-        expect(result.current.route.mode).toBe(entry.includes("owner=") ? "owner" : "group"),
-      );
-      await act(async () => {
-        await new Promise((resolve) => setTimeout(resolve, 50));
-      });
-      const settledRenderCount = result.current.renderCount;
-      await act(async () => {
-        await new Promise((resolve) => setTimeout(resolve, 50));
+      await waitFor(() => {
+        expect(result.current.route.mode).toBe("group");
+        expect(result.current.route.selectedOwner).toBe(
+          entry.includes("owner=x") ? "x" : "",
+        );
+        expect(result.current.route.selectedAccount).toBe(
+          entry.includes("account=y") ? "y" : "",
+        );
       });
 
-      expect(result.current.renderCount).toBe(settledRenderCount);
+      expect(result.current.renderCount).toBeLessThanOrEqual(2);
     },
   );
   it("navigates to first enabled tab when movers is disabled", async () => {

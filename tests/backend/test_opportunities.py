@@ -39,7 +39,7 @@ def test_opportunities_with_watchlist(monkeypatch):
 
     monkeypatch.setattr(
         "backend.agent.trading_agent.run",
-        lambda notify=False: [
+        lambda tickers, notify=False: [
             {
                 "ticker": "AAA",
                 "action": "BUY",
@@ -102,7 +102,9 @@ def test_opportunities_with_group(monkeypatch):
         },
     )
 
-    monkeypatch.setattr("backend.agent.trading_agent.run", lambda notify=False: [])
+    monkeypatch.setattr(
+        "backend.agent.trading_agent.run", lambda tickers, notify=False: []
+    )
 
     headers = {"Authorization": "Bearer token"}
     with TestClient(app) as client:
@@ -145,7 +147,9 @@ def test_opportunities_allows_group_when_auth_disabled(monkeypatch):
         },
     )
 
-    monkeypatch.setattr("backend.agent.trading_agent.run", lambda notify=False: [])
+    monkeypatch.setattr(
+        "backend.agent.trading_agent.run", lambda tickers, notify=False: []
+    )
 
     try:
         with TestClient(app) as client:

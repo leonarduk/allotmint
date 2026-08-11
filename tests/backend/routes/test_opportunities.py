@@ -137,9 +137,13 @@ async def test_group_flow_populates_context_and_entries(monkeypatch):
         {"ticker": "AAA", "action": "BUY", "reason": "Momentum"},
         {"ticker": "CCC", "action": "SELL", "reason": "Drawdown"},
     ]
-    monkeypatch.setattr(
-        opportunities_module.trading_agent, "run", lambda **_: trading_signals
-    )
+    signal_tickers = []
+
+    def fake_signals(tickers, **_):
+        signal_tickers.extend(tickers)
+        return trading_signals
+
+    monkeypatch.setattr(opportunities_module.trading_agent, "run", fake_signals)
 
     response = await opportunities_module.get_opportunities(
         group="growth",
@@ -161,6 +165,7 @@ async def test_group_flow_populates_context_and_entries(monkeypatch):
     assert response.entries[1].signal.ticker == "AAA"
     assert response.entries[2].signal is None
     assert {signal.ticker for signal in response.signals} == {"AAA", "CCC"}
+    assert signal_tickers == ["AAA", "BBB", "CCC"]
 
 
 def test_group_opportunities_recalculates_weights_and_enriches(monkeypatch):
@@ -187,7 +192,11 @@ def test_group_opportunities_recalculates_weights_and_enriches(monkeypatch):
         fake_calculate,
     )
 
-    movers_payload = {"gainers": [{"ticker": "AAA"}], "losers": [{"ticker": "BBB"}], "anomalies": []}
+    movers_payload = {
+        "gainers": [{"ticker": "AAA"}],
+        "losers": [{"ticker": "BBB"}],
+        "anomalies": [],
+    }
 
     def fake_top_movers(tickers, days, limit, *, min_weight, weights):
         captured.update(
@@ -353,7 +362,9 @@ async def test_watchlist_flow_sorted_and_enriched(monkeypatch):
         {"ticker": "CCC", "action": "SELL", "reason": "Drop"},
     ]
     monkeypatch.setattr(
-        opportunities_module.trading_agent, "run", lambda **_: trading_signals
+        opportunities_module.trading_agent,
+        "run",
+        lambda mover_tickers, **_: trading_signals,
     )
 
     response = await opportunities_module.get_opportunities(

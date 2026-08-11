@@ -11,10 +11,12 @@ from pydantic import BaseModel, Field
 from backend.agent import trading_agent
 from backend.agent.models import TradingSignal
 from backend.auth import decode_token
-from backend.config import config
 from backend.common import instrument_api
+from backend.config import config
 from backend.routes.portfolio import (
     _ALLOWED_DAYS as _PORTFOLIO_ALLOWED_DAYS,
+)
+from backend.routes.portfolio import (
     _calculate_weights_and_market_values,
     _enrich_movers_with_market_values,
 )
@@ -151,7 +153,18 @@ async def get_opportunities(
 
     context.anomalies = list(movers.get("anomalies", []))
 
-    raw_signals = trading_agent.run(notify=False)
+    # Signal generation loads 60 days of history for every requested ticker.
+    # Restrict it to the bounded mover result rather than re-analysing the
+    # entire portfolio universe on every Opportunities page refresh.
+    mover_tickers = {
+        str(row.get("ticker") or "").strip()
+        for side in ("gainers", "losers")
+        for row in movers.get(side, [])
+    }
+    mover_tickers.discard("")
+    raw_signals = (
+        trading_agent.run(sorted(mover_tickers), notify=False) if mover_tickers else []
+    )
     signals = [TradingSignal.model_validate(sig) for sig in raw_signals]
     signal_map = {sig.ticker.upper(): sig for sig in signals}
 

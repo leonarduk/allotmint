@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-import pytest
 
 from backend.routes import opportunities as opportunities_mod
 
@@ -42,7 +42,7 @@ def test_watchlist_sorts_by_abs_change_and_preserves_anomalies(monkeypatch, clie
     monkeypatch.setattr(
         opportunities_mod.trading_agent,
         "run",
-        lambda notify=False: [
+        lambda tickers, notify=False: [
             {
                 "ticker": "DEF",
                 "action": "SELL",
@@ -116,17 +116,23 @@ def test_group_success_decorates_signals(monkeypatch, client):
 
     monkeypatch.setattr(opportunities_mod, "_group_opportunities", fake_group)
 
-    monkeypatch.setattr(
-        opportunities_mod.trading_agent,
-        "run",
-        lambda notify=False: [
+    signal_tickers = []
+
+    def fake_signals(tickers, *, notify=False):
+        signal_tickers.extend(tickers)
+        return [
             {
                 "ticker": "xyz",
                 "action": "BUY",
                 "reason": "Breakout",
                 "confidence": 0.6,
             }
-        ],
+        ]
+
+    monkeypatch.setattr(
+        opportunities_mod.trading_agent,
+        "run",
+        fake_signals,
     )
 
     response = client.get(
@@ -144,6 +150,7 @@ def test_group_success_decorates_signals(monkeypatch, client):
     assert [entry["ticker"] for entry in body["entries"]] == ["XYZ", "ABC"]
     assert body["entries"][0]["signal"]["action"] == "BUY"
     assert body["context"]["anomalies"] == ["HALT"]
+    assert signal_tickers == ["ABC", "XYZ"]
 
 
 def test_invalid_days_rejected(monkeypatch, client):
@@ -169,3 +176,32 @@ def test_empty_tickers_rejected(monkeypatch, client):
 
     assert response.status_code == 400
     assert response.json()["detail"] == "No tickers provided"
+
+
+def test_empty_mover_result_skips_signal_generation(monkeypatch, client):
+    """No movers must not trigger the agent's empty-list all-ticker fallback."""
+
+    monkeypatch.setattr(opportunities_mod, "_PORTFOLIO_ALLOWED_DAYS", {1})
+    monkeypatch.setattr(
+        opportunities_mod.instrument_api,
+        "top_movers",
+        lambda *args, **kwargs: {"gainers": [], "losers": [], "anomalies": []},
+    )
+
+    def unexpected_signal_generation(*args, **kwargs):
+        pytest.fail("trading agent should not run without mover tickers")
+
+    monkeypatch.setattr(
+        opportunities_mod.trading_agent,
+        "run",
+        unexpected_signal_generation,
+    )
+
+    response = client.get(
+        "/opportunities",
+        params={"tickers": "ABC", "days": 1},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["entries"] == []
+    assert response.json()["signals"] == []

@@ -91,7 +91,16 @@ def _move_timeseries(ticker: str, source_exchange: str, destination_exchange: st
         if parsed is None:  # pragma: no cover - guarded by cache path builder
             raise InternalServiceError("Invalid source cache path")
         bucket, key = parsed
-        _s3_client().delete_object(Bucket=bucket, Key=key)
+        try:
+            _s3_client().delete_object(Bucket=bucket, Key=key)
+        except Exception as exc:
+            # The destination copy already succeeded; surface this loudly
+            # rather than reporting "ok" while the source still exists.
+            raise InternalServiceError(
+                f"Moved {ticker} to {destination_exchange} but failed to remove "
+                f"the source series at {source_exchange}; both now exist",
+                extra={"ticker": ticker, "source_exchange": source_exchange},
+            ) from exc
     else:
         destination_path = Path(destination)
         destination_path.parent.mkdir(parents=True, exist_ok=True)

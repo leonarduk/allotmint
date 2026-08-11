@@ -136,3 +136,11 @@ def test_move_timeseries_refuses_to_overwrite_destination(tmp_path, monkeypatch)
 
     assert resp.status_code == 409
     assert client.get("/timeseries/edit?ticker=IONQ&exchange=L").json()
+
+
+def test_move_timeseries_missing_source_returns_404(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+
+    resp = client.post("/timeseries/edit/move?ticker=IONQ&source_exchange=L&destination_exchange=N")
+
+    assert resp.status_code == 404

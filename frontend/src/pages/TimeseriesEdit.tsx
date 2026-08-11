@@ -299,15 +299,19 @@ export function TimeseriesEdit() {
     if (!loadedSeries || loadedSeries.ticker !== ticker || loadedSeries.exchange === exchange) return;
     setError(null);
     try {
-      await moveTimeseries(ticker, loadedSeries.exchange, exchange);
+      const source = loadedSeries.exchange;
+      await moveTimeseries(ticker, source, exchange);
+      const data = (await getTimeseries(ticker, exchange)) ?? [];
+      const arr = Array.isArray(data) ? data : [];
+      setRows(arr);
+      setLoadedSeries(arr.length ? { ticker, exchange } : null);
       setStatus(
         t("timeseriesEdit.status.moved", {
           ticker,
-          source: loadedSeries.exchange,
+          source,
           destination: exchange,
         }),
       );
-      setLoadedSeries({ ticker, exchange });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }

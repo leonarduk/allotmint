@@ -78,3 +78,58 @@ def test_reconcile_account_file_already_correct_ticker_is_not_reported(tmp_path,
 
     assert result == {"changed": [], "unresolved": []}
     assert not path.with_suffix(path.suffix + ".bak").exists()
+
+
+def test_reconcile_account_file_preserves_non_holdings_fields(tmp_path, monkeypatch):
+    path = tmp_path / "sipp.json"
+    path.write_text(
+        json.dumps(
+            {
+                "owner": "alice",
+                "account_type": "SIPP",
+                "holdings": [{"ticker": "MSFT.L", "units": 2}],
+            }
+        )
+    )
+    monkeypatch.setattr(
+        reconcile_holding_tickers,
+        "resolve_instrument_ticker",
+        lambda ticker, create_missing: "MSFT.US",
+    )
+
+    reconcile_holding_tickers.reconcile_account_file(path, write=True)
+
+    document = json.loads(path.read_text())
+    assert document["owner"] == "alice"
+    assert document["account_type"] == "SIPP"
+
+
+def test_reconcile_account_file_second_run_does_not_overwrite_backup(tmp_path, monkeypatch):
+    """A second reconciliation run must not clobber the backup of the
+    original pre-reconciliation state with an already-corrected copy."""
+    path = tmp_path / "sipp.json"
+    original_text = json.dumps({"holdings": [{"ticker": "MSFT.L", "units": 2}]})
+    path.write_text(original_text)
+    monkeypatch.setattr(
+        reconcile_holding_tickers,
+        "resolve_instrument_ticker",
+        lambda ticker, create_missing: "MSFT.US",
+    )
+
+    reconcile_holding_tickers.reconcile_account_file(path, write=True)
+    backup_path = path.with_suffix(path.suffix + ".bak")
+    assert backup_path.read_text() == original_text
+
+    path.write_text(
+        json.dumps(
+            {"holdings": [{"ticker": "MSFT.US", "units": 2}, {"ticker": "ADBE.L", "units": 1}]}
+        )
+    )
+    monkeypatch.setattr(
+        reconcile_holding_tickers,
+        "resolve_instrument_ticker",
+        lambda ticker, create_missing: "ADBE.US",
+    )
+    reconcile_holding_tickers.reconcile_account_file(path, write=True)
+
+    assert backup_path.read_text() == original_text

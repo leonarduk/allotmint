@@ -34,7 +34,10 @@ def reconcile_account_file(path: Path, *, write: bool = False) -> dict[str, list
 
     if write and changed:
         backup_path = path.with_suffix(path.suffix + ".bak")
-        _atomic_write_text(backup_path, path.read_text(encoding="utf-8"))
+        if not backup_path.exists():
+            # Preserve the earliest known-good copy: a second run must not let
+            # a fresh backup overwrite the original pre-reconciliation state.
+            _atomic_write_text(backup_path, path.read_text(encoding="utf-8"))
         _atomic_write_text(path, json.dumps(document, indent=2) + "\n")
     return {"changed": changed, "unresolved": unresolved}
 

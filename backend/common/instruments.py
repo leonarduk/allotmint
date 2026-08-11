@@ -277,6 +277,7 @@ def save_instrument_meta(
             )
 
     get_instrument_meta.cache_clear()
+    _persisted_metadata_exchanges.cache_clear()
     return path
 
 
@@ -499,6 +500,7 @@ def _has_informative_metadata(metadata: Dict[str, Any]) -> bool:
     return not informative_keys <= {"ticker", "exchange", "name"}
 
 
+@lru_cache(maxsize=2048)
 def _persisted_metadata_exchanges(symbol: str) -> tuple[str, ...]:
     """Return exchange codes with a persisted local metadata file for ``symbol``.
 
@@ -506,6 +508,10 @@ def _persisted_metadata_exchanges(symbol: str) -> tuple[str, ...]:
     alias (e.g. Pfizer persisted as ``PFE.N`` rather than ``PFE.US``) is still
     found. Only scans the local instruments directory; S3-only deployments
     still fall back to the canonical exchange list checked directly.
+
+    Cached like :func:`get_instrument_meta` (and invalidated alongside it) so
+    a CSV import with many bare tickers does not re-scan the instruments
+    directory once per row.
     """
     try:
         return tuple(sorted(p.parent.name for p in _active_instruments_dir().glob(f"*/{symbol}.json")))
@@ -569,6 +575,7 @@ def delete_instrument_meta(ticker: str, exchange: str) -> None:
         logger.warning("Permission denied deleting %s", path)
         return
     get_instrument_meta.cache_clear()
+    _persisted_metadata_exchanges.cache_clear()
 
 
 # def save_instrument_meta(ticker: str, meta: Dict[str, Any]) -> None:

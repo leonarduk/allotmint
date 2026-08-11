@@ -58,3 +58,19 @@ def test_resolver_honours_persisted_exchange_alias_not_in_canonical_list(monkeyp
     )
 
     assert instruments.resolve_instrument_ticker("PFE", exchanges=("L", "US")) == "PFE.N"
+
+
+def test_resolver_finds_genuine_lse_ticker_from_real_persisted_metadata(monkeypatch, tmp_path):
+    """Unmocked end-to-end check: a real LSE holding with informative metadata
+    already on disk (e.g. ``3IN.L``) must resolve to itself, not be treated
+    as needing reconciliation (#6310)."""
+    monkeypatch.setattr(instruments, "_INSTRUMENTS_DIR", tmp_path)
+    instruments.get_instrument_meta.cache_clear()
+    instruments._persisted_metadata_exchanges.cache_clear()
+    instruments.save_instrument_meta(
+        "3IN",
+        "L",
+        {"ticker": "3IN.L", "exchange": "L", "name": "3i Infrastructure", "currency": "GBP"},
+    )
+
+    assert instruments.resolve_instrument_ticker("3IN") == "3IN.L"

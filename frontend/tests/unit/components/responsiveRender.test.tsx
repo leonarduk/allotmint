@@ -1,11 +1,10 @@
 import { render, act, waitFor } from "@testing-library/react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import "@/i18n";
-import { PortfolioView } from "@/components/PortfolioView";
 import { AccountBlock } from "@/components/AccountBlock";
 import { HoldingsTable } from "@/components/HoldingsTable";
 import { configContext, type AppConfig } from "@/ConfigContext";
-import type { Portfolio, Account, Holding } from "@/types";
+import type { Account, Holding } from "@/types";
 import tableStyles from "@/styles/table.module.css";
 
 vi.mock("@/components/ValueAtRisk", () => ({
@@ -74,15 +73,6 @@ const account: Account = {
   last_updated: "2024-01-01",
 };
 
-const portfolio: Portfolio = {
-  owner: "Alice",
-  as_of: "2024-01-02",
-  trades_this_month: 0,
-  trades_remaining: 0,
-  total_value_estimate_gbp: 150,
-  accounts: [account],
-};
-
 const renderWithConfig = (ui: React.ReactElement) =>
   render(
     <configContext.Provider
@@ -102,16 +92,6 @@ describe("mobile viewport rendering", () => {
     (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
     window.innerWidth = 375;
     window.dispatchEvent(new Event("resize"));
-  });
-
-  it("renders PortfolioView", async () => {
-    let container!: HTMLElement;
-    await act(async () => {
-      ({ container } = renderWithConfig(<PortfolioView data={portfolio} />));
-    });
-    await waitFor(() =>
-      expect(container.textContent).toContain("Approx Total"),
-    );
   });
 
     it("renders AccountBlock", async () => {

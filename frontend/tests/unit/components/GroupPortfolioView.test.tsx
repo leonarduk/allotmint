@@ -8,6 +8,7 @@ import { useState } from "react";
 import * as api from "@/api";
 import { MemoryRouter } from "react-router-dom";
 import type { OwnerSummary } from "@/types";
+import { buildPortfolioCsv } from "@/lib/portfolioExport";
 vi.mock("@/components/TopMoversSummary", () => ({
   TopMoversSummary: () => <div data-testid="top-movers-summary" />,
 }));
@@ -81,12 +82,13 @@ const defaultConfig: AppConfig = {
   },
 };
 
-const TestProvider = ({ children }: { children: React.ReactNode }) => {
+const TestProvider = ({ children, config = {} }: { children: React.ReactNode; config?: Partial<AppConfig> }) => {
   const [relativeViewEnabled, setRelativeViewEnabled] = useState(false);
   return (
     <configContext.Provider
       value={{
         ...defaultConfig,
+        ...config,
         relativeViewEnabled,
         setRelativeViewEnabled,
         refreshConfig: async () => {},
@@ -98,10 +100,10 @@ const TestProvider = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
-const renderWithConfig = (ui: React.ReactElement) =>
+const renderWithConfig = (ui: React.ReactElement, config: Partial<AppConfig> = {}) =>
   render(
     <MemoryRouter>
-      <TestProvider>{ui}</TestProvider>
+      <TestProvider config={config}>{ui}</TestProvider>
     </MemoryRouter>
   );
 
@@ -127,9 +129,10 @@ const mockAllFetches = (
   options: {
     metrics?: { alpha?: any; trackingError?: any; maxDrawdown?: any };
     instruments?: Record<string, any[]>;
+    complianceWarnings?: any[];
   } = {},
 ) => {
-  const { metrics, instruments = {} } = options;
+  const { metrics, instruments = {}, complianceWarnings = [] } = options;
   const { alpha = 0, trackingError = 0, maxDrawdown = 0 } = metrics ?? {};
   const defaultInstrumentRows =
     instruments[instrumentKey(undefined, undefined)] ?? [];
@@ -180,6 +183,12 @@ const mockAllFetches = (
         ok: true,
         json: async () => rows,
       } as Response);
+    }
+    if (url.includes("/compliance/")) {
+      return Promise.resolve({ ok: true, json: async () => ({ warnings: complianceWarnings }) } as Response);
+    }
+    if (url.endsWith("/accounts")) {
+      return Promise.resolve({ ok: true, json: async () => ({ status: "created", owner: "alice", account: "isa", currency: "GBP" }) } as Response);
     }
     if (url.includes("/instrument/admin/groups")) {
       return Promise.resolve({
@@ -1075,5 +1084,69 @@ describe("GroupPortfolioView", () => {
     expect(screen.getByLabelText("Export portfolio as PDF")).toBeInTheDocument();
     expect(screen.getByText("+ Import CSV")).toBeInTheDocument();
     expect(screen.getByText("Add account")).toBeInTheDocument();
+  });
+
+  it("builds owner export CSV with every account in source order", () => {
+    expect(buildPortfolioCsv({ owner: "alice", as_of: "2026-08-11", accounts: [
+      { owner: "alice", account_type: "isa", currency: "GBP", value_estimate_gbp: 10, holdings: [{ ticker: "ISA1", name: "ISA holding", units: 1, market_value_gbp: 10 }] },
+      { owner: "alice", account_type: "sipp", currency: "GBP", value_estimate_gbp: 20, holdings: [{ ticker: "SIP1", name: "SIPP holding", units: 2, market_value_gbp: 20 }] },
+    ] })).toBe(
+      '"owner","as_of","account_type","ticker","name","units","currency","market_value_gbp","gain_gbp","gain_pct"\r\n' +
+      '"alice","2026-08-11","isa","ISA1","ISA holding","1","GBP","10","",""\r\n' +
+      '"alice","2026-08-11","sipp","SIP1","SIPP holding","2","GBP","20","",""\r\n',
+    );
+  });
+
+  it("keeps owner tabs but hides exports in family MVP mode", async () => {
+    const user = userEvent.setup();
+    mockAllFetches({ accounts: [{ owner: "alice", account_type: "isa", value_estimate_gbp: 0, holdings: [] }] });
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />, { familyMvpEnabled: true });
+    const ownerTab = await screen.findByRole("tab", { name: "Alice Example" });
+    await user.click(ownerTab);
+    expect(ownerTab).toBeInTheDocument();
+    expect(screen.queryByLabelText("Export portfolio as CSV")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Export portfolio as PDF")).not.toBeInTheDocument();
+    expect(screen.getByText("+ Import CSV")).toBeInTheDocument();
+  });
+
+  it("shows owner compliance warnings only after selecting that owner", async () => {
+    const user = userEvent.setup();
+    mockAllFetches(
+      { accounts: [{ owner: "alice", account_type: "isa", value_estimate_gbp: 0, holdings: [] }] },
+      { complianceWarnings: [{ code: "limit", message: "Warning" }] },
+    );
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+    expect(screen.queryByText("View compliance warnings")).not.toBeInTheDocument();
+    await user.click(await screen.findByRole("tab", { name: "Alice Example" }));
+    expect(await screen.findByRole("link", { name: "View compliance warnings" })).toHaveAttribute("href", "/compliance/alice");
+  });
+
+  it("refetches after position, import, and account mutations", async () => {
+    const user = userEvent.setup();
+    Element.prototype.scrollIntoView = vi.fn();
+    const fetchMock = mockAllFetches({ accounts: [{ owner: "alice", account_type: "isa", value_estimate_gbp: 0, holdings: [] }] });
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+    await user.click(await screen.findByRole("tab", { name: "Alice Example" }));
+
+    await user.click(screen.getByRole("button", { name: /add position/i }));
+    const positionForm = screen.getByRole("form", { name: /^add position$/i });
+    await user.type(within(positionForm).getByLabelText(/ticker/i), "VWRL");
+    await user.type(within(positionForm).getByLabelText(/^units$/i), "1");
+    await user.type(within(positionForm).getByLabelText(/price/i), "100");
+    await user.click(within(positionForm).getByRole("button", { name: /^add position$/i }));
+    await screen.findByRole("tab", { name: "Alice Example" });
+
+    await user.click(screen.getByRole("button", { name: /import csv/i }));
+    await user.selectOptions(screen.getByLabelText(/provider/i), "hargreaves");
+    await user.upload(screen.getByLabelText(/csv file/i), new File(["ticker,qty\nVWRL,1"], "holdings.csv", { type: "text/csv" }));
+    await user.click(screen.getByRole("button", { name: /^import$/i }));
+    await screen.findByRole("tab", { name: "Alice Example" });
+
+    await user.click(screen.getByRole("button", { name: /^add account$/i }));
+    await user.click(screen.getByRole("button", { name: /^add account$/i }));
+    await waitFor(() => expect(fetchMock.mock.calls.filter(([input]) => {
+      const url = toUrlString(input as RequestInfo | URL);
+      return url.includes("/portfolio-group/all") && !url.includes("/instruments");
+    }).length).toBeGreaterThanOrEqual(4));
   });
 });

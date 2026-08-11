@@ -511,6 +511,14 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     });
   }, [portfolio, activeOwner, activeAccountType]);
 
+  const activeOwnerAccounts = useMemo(
+    () =>
+      (portfolio?.accounts ?? []).filter(
+        (account) => account.owner === activeOwner,
+      ),
+    [portfolio, activeOwner],
+  );
+
   const totals = useMemo(
     () => computePortfolioTotals(filteredAccounts),
     [filteredAccounts],
@@ -1270,7 +1278,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
         <OwnerPortfolioActions
           owner={activeOwner}
           asOf={portfolio.as_of}
-          accounts={filteredAccounts}
+          accounts={activeOwnerAccounts}
           activeAccountType={activeAccountType}
           onDateChange={setAsOfOverride}
           onMutated={() => setRefreshVersion((version) => version + 1)}

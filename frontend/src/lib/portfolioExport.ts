@@ -1,5 +1,7 @@
 import type { Portfolio } from "../types";
 
+export type PortfolioExportData = Pick<Portfolio, "owner" | "as_of" | "accounts">;
+
 export const CSV_HEADERS = [
   "owner", "as_of", "account_type", "ticker", "name", "units", "currency",
   "market_value_gbp", "gain_gbp", "gain_pct",
@@ -13,7 +15,7 @@ const escapeCsvCell = (value: string | number | null | undefined): string => {
   return `"${cell.replaceAll('"', '""')}"`;
 };
 
-export const buildPortfolioCsv = (portfolio: Portfolio): string => {
+export const buildPortfolioCsv = (portfolio: PortfolioExportData): string => {
   const rows = portfolio.accounts.flatMap((account) =>
     account.holdings.map((holding) => [
       portfolio.owner, portfolio.as_of, account.account_type, holding.ticker,
@@ -27,7 +29,7 @@ export const buildPortfolioCsv = (portfolio: Portfolio): string => {
   ].join("\r\n")}\r\n`;
 };
 
-export const downloadPortfolioCsv = (portfolio: Portfolio): void => {
+export const downloadPortfolioCsv = (portfolio: PortfolioExportData): void => {
   const blob = new Blob([buildPortfolioCsv(portfolio)], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -50,7 +52,7 @@ const formatNumber = (value: number | null | undefined): string =>
     ? ""
     : value.toLocaleString(undefined, { maximumFractionDigits: 2 });
 
-export const buildPortfolioPrintHtml = (portfolio: Portfolio): string => {
+export const buildPortfolioPrintHtml = (portfolio: PortfolioExportData): string => {
   const holdingsRows = portfolio.accounts.flatMap((account) =>
     account.holdings.map((holding) => `<tr>${[
       account.account_type, holding.ticker, holding.name, formatNumber(holding.units),
@@ -64,7 +66,7 @@ export const buildPortfolioPrintHtml = (portfolio: Portfolio): string => {
   return `<!doctype html><html><head><meta charset="utf-8" /><title>${escapeHtml(portfolio.owner)} portfolio ${escapeHtml(portfolio.as_of)}</title><style>@page { size: A4; margin: 12mm; } body { font-family: Inter, Arial, sans-serif; margin: 0; color: #111827; } h1 { margin: 0 0 8px; font-size: 20px; } p { margin: 0 0 14px; color: #374151; } table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 11px; } th, td { border: 1px solid #d1d5db; padding: 6px; text-align: left; vertical-align: top; word-break: break-word; } th { background: #f3f4f6; font-weight: 700; }</style></head><body><h1>Portfolio export: ${escapeHtml(portfolio.owner)}</h1><p>As of ${escapeHtml(portfolio.as_of)} • Generated ${escapeHtml(new Date().toLocaleString())}</p><table><thead><tr><th>Account</th><th>Ticker</th><th>Name</th><th>Units</th><th>Currency</th><th>Market Value (GBP)</th><th>Gain (GBP)</th><th>Gain %</th></tr></thead><tbody>${tableBody}</tbody></table></body></html>`;
 };
 
-export const printPortfolioPdf = (portfolio: Portfolio): void => {
+export const printPortfolioPdf = (portfolio: PortfolioExportData): void => {
   const iframe = document.createElement("iframe");
   Object.assign(iframe.style, { position: "fixed", right: "0", bottom: "0", width: "0", height: "0", border: "0" });
   iframe.setAttribute("aria-hidden", "true");

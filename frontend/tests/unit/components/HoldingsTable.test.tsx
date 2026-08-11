@@ -23,9 +23,12 @@ vi.mock("@/components/TopMoversSummary", () => ({
     TopMoversSummary: () => <div data-testid="top-movers-summary" />,
 }));
 import { HoldingsTable } from "@/components/HoldingsTable";
+import { InstrumentTable } from "@/components/InstrumentTable";
 import { GroupPortfolioView } from "@/components/GroupPortfolioView";
 import { configContext, type AppConfig } from "@/ConfigContext";
 import { getGroupPortfolio } from "@/api";
+import type { InstrumentSummary } from "@/types";
+import type { RollupRow } from "@/lib/rollupAdapter";
 
 const defaultConfig: AppConfig = {
     relativeViewEnabled: false,
@@ -208,6 +211,193 @@ describe("HoldingsTable", () => {
 
         expect(await screen.findByRole("button", { name: "AAA" })).toBeInTheDocument();
         expect(screen.queryByRole("button", { name: /Toggle / })).toBeNull();
+    });
+
+    it("falls back to group mode when category mode is requested without definitions", async () => {
+        const groupedHoldings = holdings.map((holding) => ({
+            ...holding,
+            grouping: holding.ticker === "XYZ" ? "Technology" : "Income",
+        }));
+
+        renderWithConfig(
+            <HoldingsTable holdings={groupedHoldings} groupingMode="category" />,
+        );
+
+        // Falls back to 'group' mode → meaningful headers, not "Uncategorised"
+        expect(
+            await screen.findByRole("button", { name: "Toggle Income" }),
+        ).toBeInTheDocument();
+        expect(
+            screen.getByRole("button", { name: "Toggle Technology" }),
+        ).toBeInTheDocument();
+    });
+
+    it("uses category definitions when provided in category mode", async () => {
+        const groupedHoldings = holdings.map((holding) => ({
+            ...holding,
+            grouping: holding.ticker === "XYZ" ? "tech" : "dividend",
+        }));
+
+        renderWithConfig(
+            <HoldingsTable
+                holdings={groupedHoldings}
+                groupingMode="category"
+                categoryDefinitions={[
+                    {
+                        id: "tech-group",
+                        name: "tech",
+                        category: "growth",
+                        category_name: "Growth Assets",
+                    },
+                    {
+                        id: "div-group",
+                        name: "dividend",
+                        category: "income",
+                        category_name: "Income Assets",
+                    },
+                ]}
+            />,
+        );
+
+        // Category resolution: "tech" → "Growth Assets", "dividend" → "Income Assets"
+        expect(
+            await screen.findByRole("button", { name: /Toggle Growth Assets/ }),
+        ).toBeInTheDocument();
+        expect(
+            screen.getByRole("button", { name: /Toggle Income Assets/ }),
+        ).toBeInTheDocument();
+    });
+
+    it("produces group totals matching InstrumentTable for equivalent data", async () => {
+        const parityInstruments: InstrumentSummary[] = [
+            {
+                ticker: "P1",
+                name: "Parity One",
+                grouping: "Alpha",
+                currency: "GBP",
+                instrument_type: "Equity",
+                units: 10,
+                market_value_gbp: 500,
+                gain_gbp: 100,
+            },
+            {
+                ticker: "P2",
+                name: "Parity Two",
+                grouping: "Alpha",
+                currency: "GBP",
+                instrument_type: "Equity",
+                units: 5,
+                market_value_gbp: 500,
+                gain_gbp: -50,
+            },
+            {
+                ticker: "P3",
+                name: "Parity Three",
+                grouping: "Beta",
+                currency: "GBP",
+                instrument_type: "Equity",
+                units: 3,
+                market_value_gbp: 300,
+                gain_gbp: 30,
+            },
+        ];
+
+        const parityHoldings = parityInstruments.map((inst) => ({
+            ticker: inst.ticker,
+            name: inst.name,
+            grouping: inst.grouping,
+            currency: inst.currency ?? "GBP",
+            instrument_type: inst.instrument_type ?? "Equity",
+            units: inst.units,
+            price: 0,
+            cost_basis_gbp: inst.market_value_gbp - inst.gain_gbp,
+            market_value_gbp: inst.market_value_gbp,
+            gain_gbp: inst.gain_gbp,
+            current_price_gbp: 100,
+            latest_source: "Feed",
+            acquired_date: "2024-01-01",
+            last_price_date: "2024-01-01",
+            days_held: 100,
+            sell_eligible: true,
+            days_until_eligible: 0,
+        }));
+
+        const { unmount } = renderWithConfig(
+            <MemoryRouter>
+                <InstrumentTable rows={parityInstruments} />
+            </MemoryRouter>,
+        );
+
+        // Capture InstrumentTable group header totals
+        await screen.findByRole("button", { name: /Toggle Alpha/i });
+        const itAlphaRow = screen.getByRole("button", { name: /Toggle Alpha/i }).closest("tr")!;
+        const itAlphaMarket = within(itAlphaRow).getByText("£1,000.00").textContent;
+        const itAlphaGainCell = within(itAlphaRow).getByText(/£50\.00/);
+        const itAlphaGain = itAlphaGainCell.textContent;
+        const itBetaRow = screen.getByRole("button", { name: /Toggle Beta/i }).closest("tr")!;
+        const itBetaMarket = within(itBetaRow).getByText("£300.00").textContent;
+
+        unmount();
+
+        renderWithConfig(
+            <HoldingsTable holdings={parityHoldings} groupingMode="group" />,
+        );
+
+        await screen.findByRole("button", { name: "Toggle Alpha" });
+        const htAlphaRow = screen.getByRole("button", { name: "Toggle Alpha" }).closest("tr")!;
+        const htAlphaMarket = within(htAlphaRow).getByText("£1,000.00").textContent;
+        const htAlphaGainCell = within(htAlphaRow).getByText(/£50\.00/);
+        const htAlphaGain = htAlphaGainCell.textContent;
+        // InstrumentTable annotates gain with ▲/▼ prefix (formatSignedMoney);
+        // HoldingsTable does not. Strip prefix for fair comparison.
+        const stripPrefix = (text: string | null) => (text ?? "").replace(/^[▲▼]/, "");
+        const htBetaRow = screen.getByRole("button", { name: "Toggle Beta" }).closest("tr")!;
+        const htBetaMarket = within(htBetaRow).getByText("£300.00").textContent;
+
+        expect(htAlphaMarket).toBe(itAlphaMarket);
+        expect(stripPrefix(htAlphaGain)).toBe(stripPrefix(itAlphaGain));
+        expect(htBetaMarket).toBe(itBetaMarket);
+    });
+
+    it("renders — for growth stage and eligibility when data is null (rollup rows)", async () => {
+        const rollupRows: RollupRow[] = [
+            {
+                ticker: "ROLL",
+                name: "Rollup Co",
+                units: 10,
+                cost_basis_gbp: 500,
+                market_value_gbp: 600,
+                gain_gbp: 100,
+                gain_pct: 20,
+                weight_pct: 10,
+                lot_count: 3,
+                owners: ["Alice"],
+                accounts: ["isa"],
+                grouping: "Growth",
+                exchange: "L",
+                change_7d_pct: 2,
+                change_30d_pct: 5,
+                acquired_date: null,
+                days_held: null,
+                sell_eligible: null,
+                days_until_eligible: null,
+                next_eligible_sell_date: null,
+            },
+        ];
+
+        renderWithConfig(
+            <HoldingsTable holdings={rollupRows} groupingMode="group" />,
+        );
+
+        await screen.findByRole("button", { name: "Toggle Growth" });
+        // Expand the group to see the row
+        await userEvent.click(screen.getByRole("button", { name: "Toggle Growth" }));
+
+        const row = screen.getByText("Rollup Co").closest("tr")!;
+        // Stage and eligibility cells should show "—" for null rollup fields
+        const cells = within(row).getAllByText("—");
+        // days_held cell, stage cell, eligibility cell, and acquired_date cell
+        expect(cells.length).toBeGreaterThanOrEqual(3);
     });
 
     it("keeps footer columns aligned with the header in relative view", async () => {

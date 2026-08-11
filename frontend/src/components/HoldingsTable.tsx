@@ -20,6 +20,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import Sparkline from "./Sparkline";
 import { getGrowthStage } from "../utils/growthStage";
 import { preloadInstrumentHistory } from "../hooks/useInstrumentHistory";
+import type { InstrumentGroupDefinition } from "../types";
 import type { RollupRow } from "../lib/rollupAdapter";
 import {
   buildCategoryLookup,
@@ -53,6 +54,7 @@ type Props = {
   showForward30d?: boolean;
   onAddPosition?: () => void;
   groupingMode?: GroupingMode;
+  categoryDefinitions?: InstrumentGroupDefinition[];
 };
 
 
@@ -65,6 +67,7 @@ export function HoldingsTable({
   showForward30d = false,
   onAddPosition,
   groupingMode = "flat",
+  categoryDefinitions = [],
 }: Props) {
   // RollupRow is the adapter's deliberately presentation-neutral shape. Its
   // nullable lot-only fields are rendered the same way as absent Holding fields.
@@ -227,6 +230,18 @@ export function HoldingsTable({
   );
   const totalGainPct = totals.cost ? (totals.gain / totals.cost) * 100 : 0;
 
+  const categoryLookup = useMemo(
+    () => buildCategoryLookup(categoryDefinitions),
+    [categoryDefinitions],
+  );
+  const hasCategories = categoryLookup.categories.size > 0;
+
+  // Category mode requires categoryDefinitions; fall back to 'group' when the
+  // caller requests 'category' without providing definitions (matching
+  // InstrumentTable's useInstrumentTableState behaviour).
+  const effectiveGroupingMode: GroupingMode =
+    groupingMode === "category" && !hasCategories ? "group" : groupingMode;
+
   const groups = useMemo(() => {
     const groupingRows = sortedRows.map((row, index) => ({
       ...row,
@@ -238,22 +253,20 @@ export function HoldingsTable({
       change_30d_pct: row.change_30d_pct ?? row.forward_30d_change_pct ?? null,
     })) as RowWithCost[];
 
-    // HoldingsTable does not own group definitions. In category mode, callers
-    // without category metadata therefore get the shared "uncategorised" rollup.
     return createGroups(
       groupingRows,
       sortKey as keyof RowWithCost,
       asc,
-      groupingMode,
+      effectiveGroupingMode,
       {
         ungroupedLabel: t("instrumentTable.ungrouped", { defaultValue: "Ungrouped" }),
         uncategorisedLabel: t("instrumentTable.uncategorised", {
           defaultValue: "Uncategorised",
         }),
       },
-      buildCategoryLookup([]),
+      categoryLookup,
     );
-  }, [asc, groupingMode, sortKey, sortedRows, t]);
+  }, [asc, categoryLookup, effectiveGroupingMode, sortKey, sortedRows, t]);
   const overallGroupTotals = useMemo(
     () =>
       calculateGroupTotals(
@@ -263,7 +276,7 @@ export function HoldingsTable({
     [groups, t],
   );
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set());
-  const showGroupHeaders = groupingMode !== "flat";
+  const showGroupHeaders = effectiveGroupingMode !== "flat";
 
   const columnLabels: [keyof typeof visibleColumns, string][] = [
     ["units", t("holdingsTable.columns.units")],
@@ -328,6 +341,11 @@ export function HoldingsTable({
     };
   }, [sortedRows.length, relativeViewEnabled, visibleColumns, showForward7d, showForward30d]);
 
+  // Grouped mode disables the virtualizer (count=0) so that all group headers
+  // and their rows remain addressable in the DOM regardless of expand/collapse
+  // state. This renders every row at once — acceptable for the typical grouped
+  // view size (tens of groups) but should be revisited before wiring this mode
+  // to pages that display hundreds of holdings.
   const rowVirtualizer = useVirtualizer({
     count: showGroupHeaders ? 0 : sortedRows.length,
     getScrollElement: () => tableContainerRef.current,
@@ -813,28 +831,38 @@ export function HoldingsTable({
                   {h.days_held ?? "—"}
                 </td>
                 <td className={`${tableStyles.cell} ${tableStyles.center}`}>
-                  {(() => {
-                    const stage = getGrowthStage({ daysHeld: h.days_held });
-                    return <span title={stage.message}>{stage.icon}</span>;
-                  })()}
+                  {h.days_held != null
+                    ? (() => {
+                        const stage = getGrowthStage({ daysHeld: h.days_held });
+                        return <span title={stage.message}>{stage.icon}</span>;
+                      })()
+                    : "—"}
                 </td>
                 <td
-                  className={`${tableStyles.cell} ${tableStyles.center} ${h.sell_eligible ? 'text-positive' : 'text-warning'}`}
+                  className={`${tableStyles.cell} ${tableStyles.center} ${
+                    h.sell_eligible == null
+                      ? ""
+                      : h.sell_eligible
+                        ? "text-positive"
+                        : "text-warning"
+                  }`}
                   title={
                     h.next_eligible_sell_date
                       ? formatDateISO(new Date(h.next_eligible_sell_date))
                       : undefined
                   }
                 >
-                  {h.sell_eligible
-                    ? `✓ ${t("holdingsTable.eligible")}`
-                    : `✗ ${h.days_until_eligible ?? ""}`}
+                  {h.sell_eligible == null
+                    ? "—"
+                    : h.sell_eligible
+                      ? `✓ ${t("holdingsTable.eligible")}`
+                      : `✗ ${h.days_until_eligible ?? ""}`}
                 </td>
               </tr>
             );
             if (!group) return holdingRow;
             return (
-              <Fragment key={`section-${group.key}`}>
+              <Fragment key={`section-${group.key}-${h.row_key ?? virtualRow.index}`}>
                 {isFirstGroupRow && renderGroupHeader(group, expanded)}
                 {expanded && holdingRow}
               </Fragment>

@@ -1,4 +1,4 @@
-import { useEffect, useState, type DependencyList } from "react";
+import { useCallback, useEffect, useState, type DependencyList } from "react";
 import errorToast from "../utils/errorToast";
 
 /**
@@ -19,6 +19,8 @@ export function useFetch<T>(
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const [refreshVersion, setRefreshVersion] = useState(0);
+  const refetch = useCallback(() => setRefreshVersion((version) => version + 1), []);
 
   useEffect(() => {
     if (!enabled) {
@@ -51,9 +53,9 @@ export function useFetch<T>(
     };
   },
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  [enabled, fn, ...deps]);
+  [enabled, fn, refreshVersion, ...deps]);
 
-  return { data, loading, error };
+  return { data, loading, error, refetch };
 }
 
 export default useFetch;

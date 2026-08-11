@@ -130,9 +130,10 @@ const mockAllFetches = (
     metrics?: { alpha?: any; trackingError?: any; maxDrawdown?: any };
     instruments?: Record<string, any[]>;
     complianceWarnings?: any[];
+    complianceFails?: boolean;
   } = {},
 ) => {
-  const { metrics, instruments = {}, complianceWarnings = [] } = options;
+  const { metrics, instruments = {}, complianceWarnings = [], complianceFails = false } = options;
   const { alpha = 0, trackingError = 0, maxDrawdown = 0 } = metrics ?? {};
   const defaultInstrumentRows =
     instruments[instrumentKey(undefined, undefined)] ?? [];
@@ -185,6 +186,7 @@ const mockAllFetches = (
       } as Response);
     }
     if (url.includes("/compliance/")) {
+      if (complianceFails) return Promise.reject(new Error("compliance unavailable"));
       return Promise.resolve({ ok: true, json: async () => ({ warnings: complianceWarnings }) } as Response);
     }
     if (url.endsWith("/accounts")) {
@@ -1121,12 +1123,28 @@ describe("GroupPortfolioView", () => {
     expect(await screen.findByRole("link", { name: "View compliance warnings" })).toHaveAttribute("href", "/compliance/alice");
   });
 
+  it("surfaces compliance lookup failures", async () => {
+    const user = userEvent.setup();
+    mockAllFetches(
+      { accounts: [{ owner: "alice", account_type: "isa", value_estimate_gbp: 0, holdings: [] }] },
+      { complianceFails: true },
+    );
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+    await user.click(await screen.findByRole("tab", { name: "Alice Example" }));
+    expect(await screen.findByText("Unable to load compliance warnings.")).toHaveAttribute("role", "alert");
+  });
+
   it("refetches after position, import, and account mutations", async () => {
     const user = userEvent.setup();
     Element.prototype.scrollIntoView = vi.fn();
     const fetchMock = mockAllFetches({ accounts: [{ owner: "alice", account_type: "isa", value_estimate_gbp: 0, holdings: [] }] });
     renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
     await user.click(await screen.findByRole("tab", { name: "Alice Example" }));
+    const portfolioRequestCount = () => fetchMock.mock.calls.filter(([input]) => {
+      const url = toUrlString(input as RequestInfo | URL);
+      return url.includes("/portfolio-group/all") && !url.includes("/instruments");
+    }).length;
+    const initialRequests = portfolioRequestCount();
 
     await user.click(screen.getByRole("button", { name: /add position/i }));
     const positionForm = screen.getByRole("form", { name: /^add position$/i });
@@ -1144,9 +1162,8 @@ describe("GroupPortfolioView", () => {
 
     await user.click(screen.getByRole("button", { name: /^add account$/i }));
     await user.click(screen.getByRole("button", { name: /^add account$/i }));
-    await waitFor(() => expect(fetchMock.mock.calls.filter(([input]) => {
-      const url = toUrlString(input as RequestInfo | URL);
-      return url.includes("/portfolio-group/all") && !url.includes("/instruments");
-    }).length).toBeGreaterThanOrEqual(4));
+    await waitFor(() => expect(portfolioRequestCount()).toBe(initialRequests + 3));
+    await new Promise((resolve) => window.setTimeout(resolve, 50));
+    expect(portfolioRequestCount()).toBe(initialRequests + 3);
   });
 });

@@ -252,7 +252,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     enableAdvancedAnalytics = true,
   } = useConfig();
   const [asOfOverride, setAsOfOverride] = useState<string | null>(null);
-  const [refreshVersion, setRefreshVersion] = useState(0);
+  const [instrumentRefreshVersion, setInstrumentRefreshVersion] = useState(0);
 
   const fetchPortfolio = useCallback(
     () => getGroupPortfolio(slug, { asOf: asOfOverride ?? undefined }),
@@ -262,7 +262,8 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     data: portfolio,
     loading,
     error: portfolioError,
-  } = useFetch<GroupPortfolio>(fetchPortfolio, [slug, asOfOverride, refreshVersion], !!slug);
+    refetch: refetchPortfolio,
+  } = useFetch<GroupPortfolio>(fetchPortfolio, [slug, asOfOverride], !!slug);
 
   const fetchSector = useCallback(
     () => getGroupSectorContributions(slug, { asOf: asOfOverride ?? undefined }),
@@ -412,7 +413,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     }
     const key = `${slug}::${ownerFilter ?? ""}::${accountFilter ?? ""}::${
       asOfOverride ?? ""
-    }::${refreshVersion}`;
+    }::${instrumentRefreshVersion}`;
     if (instrumentKeyRef.current !== key) {
       instrumentKeyRef.current = key;
       setInstrumentRows(null);
@@ -451,7 +452,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     accountFilter,
     loadGroupInstruments,
     asOfOverride,
-    refreshVersion,
+    instrumentRefreshVersion,
   ]);
 
   useEffect(() => {
@@ -510,14 +511,6 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
       return true;
     });
   }, [portfolio, activeOwner, activeAccountType]);
-
-  const activeOwnerAccounts = useMemo(
-    () =>
-      (portfolio?.accounts ?? []).filter(
-        (account) => account.owner === activeOwner,
-      ),
-    [portfolio, activeOwner],
-  );
 
   const totals = useMemo(
     () => computePortfolioTotals(filteredAccounts),
@@ -1221,7 +1214,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
         ))}
       </div>
 
-      {activeOwner && (
+      {activeOwner && portfolio && (
         <div
           role="tablist"
           aria-label={`${activeOwner} accounts`}
@@ -1274,14 +1267,17 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
         </div>
       )}
 
-      {activeOwner && (
+      {activeOwner && portfolio && (
         <OwnerPortfolioActions
           owner={activeOwner}
           asOf={portfolio.as_of}
-          accounts={activeOwnerAccounts}
+          accounts={filteredAccounts}
           activeAccountType={activeAccountType}
           onDateChange={setAsOfOverride}
-          onMutated={() => setRefreshVersion((version) => version + 1)}
+          onMutated={() => {
+            refetchPortfolio();
+            setInstrumentRefreshVersion((version) => version + 1);
+          }}
         />
       )}
 

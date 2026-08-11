@@ -17,6 +17,7 @@ export function OwnerPortfolioActions({ owner, asOf, accounts, activeAccountType
   const { t } = useTranslation();
   const { familyMvpEnabled, enableAdvancedAnalytics = true } = useConfig();
   const [hasWarnings, setHasWarnings] = useState(false);
+  const [complianceError, setComplianceError] = useState(false);
   const [showAccount, setShowAccount] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showPosition, setShowPosition] = useState(false);
@@ -33,7 +34,13 @@ export function OwnerPortfolioActions({ owner, asOf, accounts, activeAccountType
   }, [showPosition, collapsePosition]);
   useEffect(() => {
     let cancelled = false;
-    complianceForOwner(owner).then((result) => { if (!cancelled) setHasWarnings(result.warnings.length > 0); }).catch(() => { if (!cancelled) setHasWarnings(false); });
+    setComplianceError(false);
+    complianceForOwner(owner).then((result) => { if (!cancelled) setHasWarnings(result.warnings.length > 0); }).catch(() => {
+      if (!cancelled) {
+        setHasWarnings(false);
+        setComplianceError(true);
+      }
+    });
     return () => { cancelled = true; };
   }, [owner]);
 
@@ -55,6 +62,7 @@ export function OwnerPortfolioActions({ owner, asOf, accounts, activeAccountType
     {showImport && accounts.length > 0 && <div className="mb-6"><CsvImportForm owner={owner} accountTypes={accountTypes} onImported={finishMutation} /><button type="button" onClick={() => setShowImport(false)} className="mt-2 text-xs text-gray-400 underline">Cancel import</button></div>}
     {showAccount && <div className="mb-6"><AddAccountForm owner={owner} onCreated={finishMutation} onCancel={() => setShowAccount(false)} /></div>}
     {hasWarnings && <div className="mb-4"><Link to={`/compliance/${owner}`} className="text-blue-400 hover:text-blue-300">View compliance warnings</Link></div>}
+    {complianceError && <p role="alert" className="mb-4 text-sm text-red-400">Unable to load compliance warnings.</p>}
     {enableAdvancedAnalytics && <div className="rounded-lg border border-gray-800 bg-black/30 p-4"><ValueAtRisk owner={owner} onDateChange={onDateChange} /></div>}
   </section>;
 }

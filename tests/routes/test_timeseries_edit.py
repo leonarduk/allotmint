@@ -144,3 +144,78 @@ def test_move_timeseries_missing_source_returns_404(tmp_path, monkeypatch):
     resp = client.post("/timeseries/edit/move?ticker=IONQ&source_exchange=L&destination_exchange=N")
 
     assert resp.status_code == 404
+
+
+class _FakeS3Client:
+    def __init__(self, *, fail_delete=False):
+        self.fail_delete = fail_delete
+        self.deleted = []
+
+    def delete_object(self, Bucket, Key):  # noqa: N803 - matches boto3 signature
+        if self.fail_delete:
+            raise RuntimeError("simulated S3 delete failure")
+        self.deleted.append((Bucket, Key))
+
+
+class _FakeDataFrame:
+    def __init__(self, rows):
+        self._rows = rows
+        self.empty = not rows
+        self.to_parquet_calls = []
+
+    def to_parquet(self, destination, index=False):
+        self.to_parquet_calls.append(destination)
+
+    def __len__(self):
+        return len(self._rows)
+
+
+def _setup_s3_move(monkeypatch, *, fake_client, source_exists=True, destination_exists=False):
+    fake_df = _FakeDataFrame([{"Close": 1.5}])
+    monkeypatch.setattr(
+        timeseries_edit,
+        "meta_timeseries_cache_path",
+        lambda ticker, exchange: f"s3://bucket/{ticker}-{exchange}.parquet",
+    )
+    monkeypatch.setattr(
+        timeseries_edit,
+        "has_cached_meta_timeseries",
+        lambda ticker, exchange: destination_exists if exchange == "N" else source_exists,
+    )
+    monkeypatch.setattr(timeseries_edit, "_load_timeseries", lambda ticker, exchange: fake_df)
+    monkeypatch.setattr(timeseries_edit, "_s3_client", lambda: fake_client)
+    return fake_df
+
+
+def test_move_timeseries_s3_success_writes_then_deletes(monkeypatch):
+    fake_client = _FakeS3Client()
+    fake_df = _setup_s3_move(monkeypatch, fake_client=fake_client)
+
+    rows = timeseries_edit._move_timeseries("IONQ", "L", "N")
+
+    assert rows == 1
+    assert fake_df.to_parquet_calls == ["s3://bucket/IONQ-N.parquet"]
+    assert fake_client.deleted == [("bucket", "IONQ-L.parquet")]
+
+
+def test_move_timeseries_s3_delete_failure_reports_error(monkeypatch):
+    from backend.common.errors import InternalServiceError
+
+    fake_client = _FakeS3Client(fail_delete=True)
+    fake_df = _setup_s3_move(monkeypatch, fake_client=fake_client)
+
+    with pytest.raises(InternalServiceError) as exc:
+        timeseries_edit._move_timeseries("IONQ", "L", "N")
+
+    assert fake_df.to_parquet_calls == ["s3://bucket/IONQ-N.parquet"]
+    assert "both now exist" in str(exc.value)
+
+
+def test_move_timeseries_case_insensitive_exchange_rejected(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+    data = [{"Date": "2024-01-01", "Close": 1.5}]
+    client.post("/timeseries/edit?ticker=IONQ&exchange=L", json=data)
+
+    resp = client.post("/timeseries/edit/move?ticker=IONQ&source_exchange=l&destination_exchange=L")
+
+    assert resp.status_code == 400

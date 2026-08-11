@@ -725,6 +725,7 @@
     "status": {
       "loaded": "Loaded {{count}} rows",
       "moved": "Moved {{ticker}} from {{source}} to {{destination}}",
+      "moveConflict": "A series already exists at exchange {{exchange}}. Load it first to review before overwriting.",
       "noData": "No data exists for {{ticker}}.{{exchange}} yet",
       "saved": "Saved {{count}} rows",
       "scaled": "Applied {{factor}}× scaling to {{count}} rows{{volumeNote}}",

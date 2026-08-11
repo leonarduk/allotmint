@@ -1331,4 +1331,69 @@ describe("GroupPortfolioView", () => {
     expect(screen.queryByText("Alpha vs Benchmark")).not.toBeInTheDocument();
     expect(screen.queryByText("Tracking Error")).not.toBeInTheDocument();
   });
+
+  it("keeps the current path and unrelated query parameters when changing scope", async () => {
+    const user = userEvent.setup();
+    mockAllFetches({
+      name: "At a glance",
+      accounts: [
+        { owner: "alice", account_type: "isa", value_estimate_gbp: 100, holdings: [] },
+      ],
+    });
+
+    const RouteDisplay = () => {
+      const location = useLocation();
+      return <output data-testid="scope-route">{`${location.pathname}${location.search}`}</output>;
+    };
+
+    render(
+      <MemoryRouter initialEntries={["/portfolio/all?period=1y"]}>
+        <TestProvider>
+          <GroupPortfolioView slug="all" owners={ownerFixtures} />
+        </TestProvider>
+        <RouteDisplay />
+      </MemoryRouter>,
+    );
+
+    await user.click(await screen.findByRole("tab", { name: "Alice Example" }));
+    expect(screen.getByTestId("scope-route")).toHaveTextContent(
+      "/portfolio/all?period=1y&owner=alice",
+    );
+
+    await user.click(screen.getByRole("tab", { name: "isa" }));
+    expect(screen.getByTestId("scope-route")).toHaveTextContent(
+      "/portfolio/all?period=1y&owner=alice&account=isa",
+    );
+  });
+
+  it("removes an invalid account without dropping other URL state", async () => {
+    mockAllFetches({
+      name: "At a glance",
+      accounts: [
+        { owner: "alice", account_type: "isa", value_estimate_gbp: 100, holdings: [] },
+      ],
+    });
+
+    const RouteDisplay = () => {
+      const location = useLocation();
+      return <output data-testid="scope-route">{`${location.pathname}${location.search}`}</output>;
+    };
+
+    render(
+      <MemoryRouter
+        initialEntries={["/portfolio/all?period=1y&owner=alice&account=invalid"]}
+      >
+        <TestProvider>
+          <GroupPortfolioView slug="all" owners={ownerFixtures} />
+        </TestProvider>
+        <RouteDisplay />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("scope-route")).toHaveTextContent(
+        "/portfolio/all?period=1y&owner=alice",
+      ),
+    );
+  });
 });

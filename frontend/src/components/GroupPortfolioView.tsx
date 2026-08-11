@@ -60,7 +60,7 @@ import type { PieLabelRenderProps } from "recharts";
 import { BadgeCheck, LineChart, Shield } from "lucide-react";
 import { toRollupRows, toScopedHoldingRows } from "../lib/rollupAdapter";
 import { OwnerPortfolioActions } from "./OwnerPortfolioActions";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useSearchParams } from "react-router-dom";
 import { readRouteScopeQuery } from "../routes/registry";
 
 const PIE_COLORS = [
@@ -251,8 +251,8 @@ type Props = {
  * Component
  * ────────────────────────────────────────────────────────── */
 export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
-  const navigate = useNavigate();
   const location = useLocation();
+  const [, setSearchParams] = useSearchParams();
   const routeScope = readRouteScopeQuery(location.search);
   const { t } = useTranslation();
   const {
@@ -335,26 +335,25 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
 
   const handleOwnerChange = useCallback(
     (owner: string | null, options?: { replace?: boolean }) => {
-      if (!owner) {
-        navigate({ pathname: "/", search: "" }, options);
-        return;
-      }
-      navigate(
-        { pathname: "/", search: new URLSearchParams({ owner }).toString() },
-        options,
-      );
+      const params = new URLSearchParams(location.search);
+      if (owner) params.set("owner", owner);
+      else params.delete("owner");
+      params.delete("account");
+      setSearchParams(params, options);
     },
-    [navigate],
+    [location.search, setSearchParams],
   );
 
   const handleAccountTypeChange = useCallback(
     (accountType: string | null, options?: { replace?: boolean }) => {
       if (!activeOwner) return;
-      const params = new URLSearchParams({ owner: activeOwner });
+      const params = new URLSearchParams(location.search);
+      params.set("owner", activeOwner);
       if (accountType) params.set("account", accountType);
-      navigate({ pathname: "/", search: params.toString() }, options);
+      else params.delete("account");
+      setSearchParams(params, options);
     },
-    [activeOwner, navigate],
+    [activeOwner, location.search, setSearchParams],
   );
 
   const ownerTabs = useMemo<
@@ -392,11 +391,11 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   );
 
   useEffect(() => {
-    if (!portfolio || ownerTabs.length === 0) return;
+    if (loading || !portfolio || ownerTabs.length === 0) return;
     if (activeOwner && !ownerTabs.some((tab) => tab.value === activeOwner)) {
       handleOwnerChange(null, { replace: true });
     }
-  }, [activeOwner, handleOwnerChange, ownerTabs, portfolio]);
+  }, [activeOwner, handleOwnerChange, loading, ownerTabs, portfolio]);
 
   useEffect(() => {
     if (!activeOwner && activeAccountType) {

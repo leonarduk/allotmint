@@ -5,7 +5,7 @@ import type { Mode } from '../modes';
 import useFetch from './useFetch';
 import { getGroups } from '../api';
 import { normaliseGroupSlug } from '../utils/groups';
-import { buildPathForMode, deriveRouteFromPathname } from '../pageManifest';
+import { buildPathForMode, deriveModeFromLocation, deriveRouteFromPathname, readRouteScopeQuery } from '../pageManifest';
 
 interface RouteState {
   mode: Mode;
@@ -17,13 +17,14 @@ interface RouteState {
 }
 
 function deriveInitialState() {
-  const params = new URLSearchParams(window.location.search);
+  const scope = readRouteScopeQuery(window.location.search);
   const route = deriveRouteFromPathname(window.location.pathname);
-  const owner = route.mode === 'owner' || route.mode === 'performance' ? route.slug : '';
-  const group = route.mode === 'instrument' ? route.slug : normaliseGroupSlug(params.get('group'));
+  const mode = deriveModeFromLocation(window.location.pathname, window.location.search);
+  const owner = mode === 'owner' ? route.slug || scope.owner || '' : route.mode === 'performance' ? route.slug : '';
+  const group = route.mode === 'instrument' ? route.slug : normaliseGroupSlug(scope.group);
 
   return {
-    mode: route.mode,
+    mode,
     owner,
     group,
   };
@@ -41,9 +42,9 @@ export function useRouteMode(): RouteState {
   const [selectedGroup, setSelectedGroup] = useState(initial.group);
 
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
+    const scope = readRouteScopeQuery(location.search);
     const route = deriveRouteFromPathname(location.pathname);
-    const nextMode = route.mode;
+    const nextMode = deriveModeFromLocation(location.pathname, location.search);
     const isDisabled = tabs[nextMode] === false || disabledTabs?.includes(nextMode);
 
     if (isDisabled) {
@@ -64,7 +65,7 @@ export function useRouteMode(): RouteState {
     setMode(nextMode);
 
     if (nextMode === 'owner' || nextMode === 'performance') {
-      setSelectedOwner(route.slug);
+      setSelectedOwner(route.slug || scope.owner || '');
       return;
     }
 
@@ -89,7 +90,8 @@ export function useRouteMode(): RouteState {
     }
 
     if (nextMode === 'group') {
-      setSelectedGroup(normaliseGroupSlug(params.get('group')));
+      setSelectedOwner('');
+      setSelectedGroup(normaliseGroupSlug(scope.group));
     }
   }, [disabledTabs, groups, location.pathname, location.search, navigate, selectedGroup, selectedOwner, tabs]);
 

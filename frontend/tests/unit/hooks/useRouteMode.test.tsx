@@ -70,6 +70,15 @@ describe("useRouteMode", () => {
     await waitFor(() => expect(result.current.route.mode).toBe("group"));
     expect(result.current.route.selectedGroup).toBe("kids");
   });
+  it("uses owner scope from the root query string", async () => {
+    window.history.pushState({}, "", "/?owner=steve&account=isa");
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <MemoryRouter initialEntries={["/?owner=steve&account=isa"]}>{children}</MemoryRouter>
+    );
+    const { result } = renderHook(() => useRouteMode(), { wrapper });
+    await waitFor(() => expect(result.current.mode).toBe("owner"));
+    expect(result.current.selectedOwner).toBe("steve");
+  });
   it("navigates to first enabled tab when movers is disabled", async () => {
     window.history.pushState({}, "", "/movers");
 

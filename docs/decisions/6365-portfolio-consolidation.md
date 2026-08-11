@@ -213,11 +213,19 @@ type RollupRow = {
 **Rules for the always-null fields.**
 
 1. Render as `—`, never as `No`, `0`, or an empty cell. In particular,
-   `sell_eligible` is tri-state across the two row types, so its cell renderer
-   must test `value === null` **before** rendering the existing enabled or
-   disabled state. Do not use a truthiness check that collapses `null` into
-   `false`. This preserves the existing flat-mode rendering while making the
-   rollup-only, not-applicable state explicit:
+   `sell_eligible` is tri-state across the two row types. Its renderer must use
+   the following explicit branch order (or equivalent logic):
+
+   ```ts
+   if (value === null) return "—";
+   return value ? existingEnabledState : existingDisabledState;
+   ```
+
+   The strict `value === null` comparison **must run before** the existing
+   boolean rendering. Do not use `if (!value)` or any other truthiness check
+   for the not-applicable branch, because that would collapse `null` and
+   `false` into the same output. This preserves the existing flat-mode
+   rendering while making the rollup-only, not-applicable state explicit:
 
    | `sell_eligible` value | Meaning | Cell output |
    | --- | --- | --- |

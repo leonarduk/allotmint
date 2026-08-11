@@ -31,9 +31,18 @@ and persistence boundary.
 - `uk_sector_endpoint` and `default_sector_region` configure market-sector
   performance, not constituent discovery. They provide no reusable licensing or
   ingestion convention.
-- The graphify snapshot does not identify `backend/common/instruments.py` as a
-  high-fan-in hotspot. It is still manually refreshed and must not replace source
-  inspection when issue 6296 lands.
+- The graphify snapshot's `gods` list identifies `get_instrument_meta()` in
+  `backend/common/instruments.py` as a high-fan-in hotspot (degree 52). Any
+  change to the enrichment boundary around this function carries broad blast
+  radius and needs corresponding test coverage; the snapshot is still manually
+  refreshed and must not replace source inspection when issue 6296 lands.
+- `save_instrument_meta()` currently catches S3 `put_object` failures, logs a
+  warning, and still returns the local write path. A batch enrichment service
+  built directly on this contract could report `created`/`updated` and skip
+  retries even though the S3 target was never updated. Before implementation,
+  the persistence boundary must surface (return or raise) the S3 outcome
+  separately from the local write result, so the enrichment service can report
+  `failed` when the production target was not updated.
 
 ## Data-source decision gate
 
@@ -91,6 +100,13 @@ ticker, resolves metadata, validates required fields, and persists through
 `save_instrument_meta()`. Return a structured result such as `created`, `updated`,
 `unchanged`, `skipped`, or `failed` with a reason. Required success fields for
 this issue are non-empty `name`, `currency`, `ticker`, and `exchange`.
+
+`save_instrument_meta()` must be changed to surface S3 write failures (return
+or raise the outcome) rather than swallowing them behind a warning log and the
+local write path, as it does today. The enrichment service must treat a failed
+S3 write as `failed`, even when the local filesystem write succeeded, so a
+batch run cannot report success while the configured production target
+(`METADATA_BUCKET`) silently did not receive the update.
 
 Keep membership snapshot storage and metadata enrichment as separate stages. This
 makes source parsing deterministic and testable without Yahoo, and lets a failed

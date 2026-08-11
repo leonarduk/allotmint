@@ -84,8 +84,13 @@ def _s3_object_exists(cache: str, ticker: str, exchange: str) -> bool:
         _s3_client().head_object(Bucket=bucket, Key=key)
     except ClientError as exc:
         error_code = exc.response.get("Error", {}).get("Code")
-        if error_code in {"404", "NoSuchKey", "NoSuchBucket", "NotFound"}:
+        if error_code in {"404", "NoSuchKey", "NotFound"}:
             return False
+        if error_code == "NoSuchBucket":
+            raise InternalServiceError(
+                f"S3 bucket not found for {ticker}.{exchange}; check infrastructure configuration",
+                extra={"ticker": ticker, "exchange": exchange},
+            )
         raise InternalServiceError(
             f"Failed to inspect cached timeseries for {ticker}.{exchange}",
             extra={"ticker": ticker, "exchange": exchange},
@@ -142,19 +147,27 @@ def _move_s3_timeseries(df: pd.DataFrame, source: str, destination: str) -> None
 def _move_local_timeseries(source: str, destination: str) -> None:
     destination_path = Path(destination)
     destination_path.parent.mkdir(parents=True, exist_ok=True)
-    if destination_path.exists():
-        raise HTTPException(status_code=409, detail="Destination time series already exists")
     try:
-        os.rename(source, destination)
+        # Atomic no-clobber via hard link: fails with FileExistsError
+        # if the destination already exists, eliminating the TOCTOU
+        # race that os.rename has on POSIX (silent overwrite).
+        os.link(source, destination)
+    except FileExistsError:
+        raise HTTPException(status_code=409, detail="Destination time series already exists")
     except OSError:
-        # Cross-filesystem move: copy then delete.  The destination
-        # existence check above makes this a safe no-clobber path.
-        shutil.copy2(source, destination)
+        # Cross-filesystem: copy to a staging file in the destination
+        # directory, then atomically link within the same filesystem.
+        staging = destination_path.with_name("." + destination_path.name + ".tmp")
+        shutil.copy2(source, staging)
         try:
-            Path(source).unlink()
-        except Exception:
-            destination_path.unlink(missing_ok=True)
-            raise
+            try:
+                os.link(staging, destination)
+            except FileExistsError:
+                raise HTTPException(status_code=409, detail="Destination time series already exists")
+        finally:
+            staging.unlink(missing_ok=True)
+    # Destination confirmed; remove the source.
+    Path(source).unlink()
 
 
 def _move_timeseries(ticker: str, source_exchange: str, destination_exchange: str) -> int:

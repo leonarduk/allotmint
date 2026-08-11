@@ -264,3 +264,40 @@ def test_move_timeseries_case_insensitive_exchange_rejected(tmp_path, monkeypatc
     resp = client.post("/timeseries/edit/move?ticker=IONQ&source_exchange=l&destination_exchange=L")
 
     assert resp.status_code == 400
+
+
+def test_load_timeseries_no_such_bucket_raises_error(monkeypatch):
+    """NoSuchBucket is an infrastructure misconfiguration, not a cache miss."""
+
+    class NoBucketS3:
+        def head_object(self, **kwargs):
+            raise ClientError({"Error": {"Code": "NoSuchBucket"}}, "HeadObject")
+
+    monkeypatch.setattr(timeseries_edit, "meta_timeseries_cache_path", lambda *_: "s3://nonexistent-bucket/key.parquet")
+    monkeypatch.setattr(timeseries_edit, "_s3_client", lambda: NoBucketS3())
+
+    with pytest.raises(timeseries_edit.InternalServiceError, match="bucket not found"):
+        timeseries_edit._load_timeseries("NOPE", "L")
+
+
+def test_move_timeseries_local_atomic_no_clobber(tmp_path, monkeypatch):
+    """The atomic os.link path detects a concurrent destination writer."""
+
+    src = tmp_path / "source.parquet"
+    src.write_text("data")
+    dest = tmp_path / "dest.parquet"
+
+    # Simulate a race: os.link fails with FileExistsError even though
+    # no prior exists() check saw the file.
+    real_link = timeseries_edit.os.link
+
+    def racing_link(s, d):
+        # Another writer creates the destination just before our link
+        dest.touch()
+        return real_link(s, d)
+
+    monkeypatch.setattr(timeseries_edit.os, "link", racing_link)
+
+    with pytest.raises(timeseries_edit.HTTPException) as exc:
+        timeseries_edit._move_local_timeseries(str(src), str(dest))
+    assert exc.value.status_code == 409

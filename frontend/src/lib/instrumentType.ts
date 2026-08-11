@@ -8,6 +8,7 @@ const TYPE_KEYS: Record<string, string> = {
   fund: "instrumentType.fund",
   "investment trust": "instrumentType.investmentTrust",
   "real estate": "instrumentType.realEstate",
+  other: "instrumentType.other",
 };
 
 export function translateInstrumentType(t: TFunction, type?: string | null) {
@@ -15,5 +16,5 @@ export function translateInstrumentType(t: TFunction, type?: string | null) {
     return t("instrumentType.other", { defaultValue: t("common.other") });
   }
   const key = TYPE_KEYS[type.toLowerCase()];
-  return t(key || "instrumentType.other", { defaultValue: type });
+  return key ? t(key, { defaultValue: type }) : type;
 }

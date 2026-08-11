@@ -13,7 +13,7 @@ import type { TabPluginId } from '../tabPlugins';
 import { SUPPORT_TABS } from '../tabPlugins';
 import {
   buildPathForMode,
-  deriveModeFromPathname,
+  deriveModeFromLocation,
   getMenuEntries,
   MENU_CATEGORY_ORDER,
 } from '../pageManifest';
@@ -49,7 +49,7 @@ export default function Menu({
   // caller doesn't thread one through explicitly, so the control stays
   // reachable regardless of where Menu is mounted (#4751).
   const effectiveLogout = onLogout ?? contextLogout ?? undefined;
-  const mode = deriveModeFromPathname(location.pathname) as TabPluginId;
+  const mode = deriveModeFromLocation(location.pathname, location.search) as TabPluginId;
   const isSupportMode = (SUPPORT_TABS as readonly string[]).includes(mode);
   const inSupport = mode === 'support';
   // Support link is shown whenever the support tab is enabled. It stays gated on

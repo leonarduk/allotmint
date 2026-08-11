@@ -246,6 +246,16 @@ export default function App({ onLogout }: AppProps) {
     setPortfolioAsOf(isoDate);
   }, []);
 
+  const handleAccountTypeChange = useCallback(
+    (accountType: string | null) => {
+      if (!selectedOwner) return;
+      const params = new URLSearchParams({ owner: selectedOwner });
+      if (accountType) params.set('account', accountType);
+      navigate(`/?${params.toString()}`, { replace: true });
+    },
+    [navigate, selectedOwner]
+  );
+
   const handleLogout = useCallback(() => {
     portfolioCache.current.clear();
     setPortfolio(null);
@@ -606,6 +616,8 @@ export default function App({ onLogout }: AppProps) {
               loading={loading}
               error={err}
               onDateChange={handlePortfolioDateChange}
+              accountType={scopeQuery.account}
+              onAccountTypeChange={handleAccountTypeChange}
             />
           </>
         )}

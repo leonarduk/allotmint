@@ -217,6 +217,8 @@ type Props = {
   onDateChange?: (isoDate: string | null) => void;
   onAccountAdded?: () => void;
   onPositionAdded?: () => void;
+  accountType?: string | null;
+  onAccountTypeChange?: (accountType: string | null) => void;
 };
 
 /**
@@ -226,7 +228,7 @@ type Props = {
  * relies on its parent for data fetching. Conditional branches early-return to
  * keep the JSX at the bottom easy to follow.
  */
-export function PortfolioView({ data, loading, error, onDateChange, onAccountAdded, onPositionAdded }: Props) {
+export function PortfolioView({ data, loading, error, onDateChange, onAccountAdded, onPositionAdded, accountType, onAccountTypeChange }: Props) {
   const { t } = useTranslation();
   const [activeAccount, setActiveAccount] = useState("all");
   const [selectedInstrument, setSelectedInstrument] = useState<{
@@ -260,6 +262,21 @@ export function PortfolioView({ data, loading, error, onDateChange, onAccountAdd
       setActiveAccount("all");
     }
   }, [activeAccount, data]);
+
+  useEffect(() => {
+    if (!data || !accountType) return;
+    const accountIndex = data.accounts.findIndex(
+      (account) => account.account_type.toLowerCase() === accountType.toLowerCase(),
+    );
+    if (accountIndex < 0) {
+      setActiveAccount("all");
+      onAccountTypeChange?.(null);
+      return;
+    }
+    const account = data.accounts[accountIndex];
+    setActiveAccount(accountKey(account, accountIndex));
+    if (account.account_type !== accountType) onAccountTypeChange?.(account.account_type);
+  }, [accountType, data, onAccountTypeChange]);
 
   useEffect(() => {
     setPendingDate(data?.as_of ?? "");
@@ -597,7 +614,10 @@ export function PortfolioView({ data, loading, error, onDateChange, onAccountAdd
                     type="button"
                     role="tab"
                     aria-selected={activeAccount === tab.key}
-                    onClick={() => setActiveAccount(tab.key)}
+                    onClick={() => {
+                      setActiveAccount(tab.key);
+                      onAccountTypeChange?.(tab.key === "all" ? null : tab.label);
+                    }}
                     className={`shrink-0 border-b-2 px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 ${
                       activeAccount === tab.key
                         ? "border-blue-400 font-semibold text-white"

@@ -1,12 +1,17 @@
 import asyncio
-from datetime import timedelta
-from types import SimpleNamespace
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
+import jwt as pyjwt
 import pytest
 from fastapi import HTTPException, Request
 
 from backend import auth
+
+
+def _future_exp():
+    return datetime.now(timezone.utc) + timedelta(minutes=15)
 
 
 def test_create_and_decode_token():
@@ -34,10 +39,39 @@ def test_get_current_user_valid():
 
 def test_get_current_user_local_override(monkeypatch):
     monkeypatch.setattr(auth.config, "disable_auth", True, raising=False)
-    monkeypatch.setattr(
-        auth.config, "local_login_email", "local@example.com", raising=False
-    )
+    monkeypatch.setattr(auth.config, "local_login_email", "local@example.com", raising=False)
     assert asyncio.run(auth.get_current_user(None)) == "local@example.com"
+
+
+def test_resolve_identity_when_auth_disabled_stale_stub_token_falls_back(monkeypatch):
+    """A signature-invalid token carrying the disable_auth stub email is
+    treated as a stale self-issued token (secret rotated on restart), not a
+    foreign caller -- it falls back to the local login identity instead of a
+    403 (#5484)."""
+
+    monkeypatch.setattr(auth.config, "local_login_email", "local@example.com", raising=False)
+    stale_token = pyjwt.encode(
+        {"sub": auth.DISABLE_AUTH_STUB_EMAIL, "exp": _future_exp()},
+        "a-different-secret-from-this-processes-SECRET_KEY",
+        algorithm="HS256",
+    )
+    assert auth._resolve_identity_when_auth_disabled(stale_token) == "local@example.com"
+
+
+def test_resolve_identity_when_auth_disabled_rejects_unrecognized_email(monkeypatch):
+    """A signature-invalid token for a real, unprovisioned email is still
+    rejected -- only the disable_auth stub email gets the stale-token
+    fallback."""
+
+    monkeypatch.setattr(auth, "_allowed_emails", lambda: {"alice@example.com"})
+    foreign_token = pyjwt.encode(
+        {"sub": "someone-else@example.com", "exp": _future_exp()},
+        "a-different-secret-from-this-processes-SECRET_KEY",
+        algorithm="HS256",
+    )
+    with pytest.raises(HTTPException) as exc:
+        auth._resolve_identity_when_auth_disabled(foreign_token)
+    assert exc.value.status_code == 403
 
 
 def test_verify_google_token_success(monkeypatch):
@@ -158,9 +192,7 @@ def test_allowed_emails_local(monkeypatch, tmp_path):
 
 def test_get_active_user_returns_local_override(monkeypatch):
     monkeypatch.setattr(auth.config, "disable_auth", True, raising=False)
-    monkeypatch.setattr(
-        auth.config, "local_login_email", "helper@example.com", raising=False
-    )
+    monkeypatch.setattr(auth.config, "local_login_email", "helper@example.com", raising=False)
 
     result = asyncio.run(auth.get_active_user(Request(scope={"type": "http"})))
     assert result == "helper@example.com"

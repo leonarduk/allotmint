@@ -50,6 +50,12 @@ if not SECRET_KEY:
         raise RuntimeError("JWT_SECRET environment variable is required")
 ALGORITHM = "HS256"
 
+# Sentinel email the ``/token*`` endpoints in ``backend/app.py`` issue for every
+# login when ``config.disable_auth`` is true, regardless of what credentials (if
+# any) were presented. A backend JWT carrying this ``sub`` is therefore always
+# self-issued by this same process, never a genuine external identity.
+DISABLE_AUTH_STUB_EMAIL = "user@example.com"
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 
 # Context variable storing the username of the authenticated user.
@@ -319,6 +325,19 @@ def _resolve_identity_when_auth_disabled(token: str | None) -> str | None:
     silently collapsing every caller into the shared local/demo identity.
     Only a request with no token at all (bare local dev, no client-side auth)
     falls back to the configured local login identity.
+
+    One exception: when ``decode_token`` cannot verify the token's signature,
+    the unverified claims are checked for :data:`DISABLE_AUTH_STUB_EMAIL`. In
+    disable_auth mode ``SECRET_KEY`` is an ephemeral value regenerated on every
+    process restart (see the module-level warning above), so a browser holding
+    a JWT issued by a previous run always fails signature verification here
+    even though it is unmistakably our own token, not a foreign caller — the
+    ``/token*`` endpoints only ever sign that one sentinel email while auth is
+    disabled. Treating that specific case as equivalent to "no token" (rather
+    than a hard 403) fixes anonymous/demo mode expiring on every backend
+    restart while a stale token is cached client-side (#5484); genuinely
+    unrecognized emails (e.g. a real, unprovisioned Cognito identity) are
+    still rejected below.
     """
     if isinstance(token, str) and token:
         user = decode_token(token)
@@ -330,6 +349,9 @@ def _resolve_identity_when_auth_disabled(token: str | None) -> str | None:
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid authentication credentials",
             )
+        if email.lower() == DISABLE_AUTH_STUB_EMAIL:
+            identity = local_login_identity()
+            return identity
         if email.lower() not in _allowed_emails():
             logger.warning(
                 "Unauthorized identity on disable_auth path for %s",

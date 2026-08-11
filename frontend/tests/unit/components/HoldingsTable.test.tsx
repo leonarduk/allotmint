@@ -178,6 +178,38 @@ describe("HoldingsTable", () => {
         expect(screen.getByRole("columnheader", { name: "Trend (30d)" })).toBeInTheDocument();
     });
 
+    it("renders shared group totals and expands grouped holdings", async () => {
+        const groupedHoldings = holdings.map((holding) => ({
+            ...holding,
+            grouping: holding.ticker === "XYZ" ? "Technology" : "Income",
+        }));
+
+        renderWithConfig(
+            <HoldingsTable holdings={groupedHoldings} groupingMode="group" />,
+        );
+
+        const incomeToggle = screen.getByRole("button", { name: "Toggle Income" });
+        expect(incomeToggle).toHaveAttribute("aria-expanded", "false");
+        const incomeRow = incomeToggle.closest("tr");
+        expect(incomeRow).not.toBeNull();
+        expect(within(incomeRow!).getByText("£180.00")).toBeInTheDocument();
+        expect(within(incomeRow!).getByText("£50.00")).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "AAA" })).toBeNull();
+
+        await userEvent.click(incomeToggle);
+
+        expect(incomeToggle).toHaveAttribute("aria-expanded", "true");
+        expect(screen.getByRole("button", { name: "AAA" })).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "XYZ" })).toBeNull();
+    });
+
+    it("keeps the existing flat rendering when groupingMode is omitted", async () => {
+        renderWithConfig(<HoldingsTable holdings={holdings} />);
+
+        expect(await screen.findByRole("button", { name: "AAA" })).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: /Toggle / })).toBeNull();
+    });
+
     it("keeps footer columns aligned with the header in relative view", async () => {
         const TestProviderRelative = ({ children }: { children: React.ReactNode }) => (
             <configContext.Provider

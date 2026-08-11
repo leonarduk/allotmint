@@ -1,4 +1,7 @@
 import json
+import sys
+
+import pytest
 
 from scripts import reconcile_holding_tickers
 
@@ -133,3 +136,35 @@ def test_reconcile_account_file_second_run_does_not_overwrite_backup(tmp_path, m
     reconcile_holding_tickers.reconcile_account_file(path, write=True)
 
     assert backup_path.read_text() == original_text
+
+
+def test_main_rejects_write_with_no_paths_and_no_all_flag(monkeypatch, capsys):
+    """--write with no explicit paths would rewrite every account file; that
+    must require an explicit --all to guard against an accidental bulk
+    write (#6310)."""
+    monkeypatch.setattr(sys, "argv", ["reconcile_holding_tickers", "--write"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        reconcile_holding_tickers.main()
+
+    assert exc_info.value.code == 2
+    assert "--all" in capsys.readouterr().err
+
+
+def test_main_allows_write_with_no_paths_when_all_flag_set(tmp_path, monkeypatch):
+    account_dir = tmp_path / "alice"
+    account_dir.mkdir()
+    (account_dir / "isa.json").write_text(
+        json.dumps({"holdings": [{"ticker": "MSFT.L", "units": 1}]})
+    )
+    monkeypatch.setattr(reconcile_holding_tickers.config, "accounts_root", tmp_path)
+    monkeypatch.setattr(
+        reconcile_holding_tickers,
+        "resolve_instrument_ticker",
+        lambda ticker, create_missing: "MSFT.US",
+    )
+    monkeypatch.setattr(sys, "argv", ["reconcile_holding_tickers", "--write", "--all"])
+
+    assert reconcile_holding_tickers.main() == 0
+    holdings = json.loads((account_dir / "isa.json").read_text())["holdings"]
+    assert holdings[0]["ticker"] == "MSFT.US"

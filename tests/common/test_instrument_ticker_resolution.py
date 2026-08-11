@@ -74,3 +74,25 @@ def test_resolver_finds_genuine_lse_ticker_from_real_persisted_metadata(monkeypa
     )
 
     assert instruments.resolve_instrument_ticker("3IN") == "3IN.L"
+
+
+def test_persisted_metadata_exchanges_degrades_gracefully_on_oserror(monkeypatch):
+    """A filesystem error scanning the instruments directory (e.g. a transient
+    permission or mount issue) must not raise out of the resolver — it should
+    behave as if no aliases were found (#6310)."""
+
+    class _RaisingDir:
+        def glob(self, pattern):
+            raise OSError("simulated filesystem error")
+
+    monkeypatch.setattr(instruments, "_active_instruments_dir", lambda: _RaisingDir())
+    instruments._persisted_metadata_exchanges.cache_clear()
+    try:
+        assert instruments._persisted_metadata_exchanges("MSFT") == ()
+
+        monkeypatch.setattr(instruments, "get_instrument_meta", lambda ticker: {})
+        assert instruments.resolve_instrument_ticker("MSFT", exchanges=("L", "US")) is None
+    finally:
+        # This test poisons the module-level lru_cache with a fake result for
+        # "MSFT" under a fake directory; clear it so later tests see real state.
+        instruments._persisted_metadata_exchanges.cache_clear()

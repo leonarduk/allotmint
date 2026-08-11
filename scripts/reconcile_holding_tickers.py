@@ -44,9 +44,14 @@ def reconcile_account_file(path: Path, *, write: bool = False) -> dict[str, list
 
 def _atomic_write_text(path: Path, text: str) -> None:
     """Write ``text`` to ``path`` via a temp file + rename so a failed write
-    (e.g. disk full) cannot leave ``path`` partially overwritten."""
+    (e.g. disk full) cannot leave ``path`` partially overwritten. The temp
+    file is fsync'd before the rename so the new content survives a crash
+    immediately after this call returns."""
     tmp_path = path.with_suffix(path.suffix + ".tmp")
-    tmp_path.write_text(text, encoding="utf-8")
+    with tmp_path.open("w", encoding="utf-8") as fh:
+        fh.write(text)
+        fh.flush()
+        os.fsync(fh.fileno())
     os.replace(tmp_path, path)
 
 
@@ -60,8 +65,19 @@ def main() -> int:
     parser.add_argument(
         "--write", action="store_true", help="Write resolved tickers back to account files"
     )
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        help="Required alongside --write with no explicit paths, to confirm "
+        "writing every account file under the accounts root is intentional",
+    )
     args = parser.parse_args()
     paths = args.paths or sorted(config.accounts_root.glob("*/*.json"))
+
+    if args.write and not args.paths and not args.all:
+        parser.error(
+            "--write with no explicit paths also requires --all (writes every account file)"
+        )
 
     for path in paths:
         result = reconcile_account_file(path, write=args.write)

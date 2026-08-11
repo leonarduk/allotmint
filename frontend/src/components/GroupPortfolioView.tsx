@@ -29,7 +29,7 @@ import {
 } from "../api";
 import * as api from "../api";
 import { HoldingsTable } from "./HoldingsTable";
-import InstrumentDetail from "./InstrumentDetail";
+import { InstrumentDetail } from "./InstrumentDetail";
 import { TopMoversSummary } from "./TopMoversSummary";
 import { money, percent, percentOrNa } from "../lib/money";
 import PortfolioSummary, { computePortfolioTotals } from "./PortfolioSummary";

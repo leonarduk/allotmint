@@ -1,5 +1,6 @@
 import pandas as pd
 import pytest
+from botocore.exceptions import ClientError
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -150,9 +151,13 @@ class _FakeS3Client:
     def __init__(self, *, fail_delete=False):
         self.fail_delete = fail_delete
         self.deleted = []
+        self.puts = []
+
+    def put_object(self, **kwargs):
+        self.puts.append(kwargs)
 
     def delete_object(self, Bucket, Key):  # noqa: N803 - matches boto3 signature
-        if self.fail_delete:
+        if self.fail_delete and Key.endswith("-L.parquet"):
             raise RuntimeError("simulated S3 delete failure")
         self.deleted.append((Bucket, Key))
 
@@ -189,12 +194,13 @@ def _setup_s3_move(monkeypatch, *, fake_client, source_exists=True, destination_
 
 def test_move_timeseries_s3_success_writes_then_deletes(monkeypatch):
     fake_client = _FakeS3Client()
-    fake_df = _setup_s3_move(monkeypatch, fake_client=fake_client)
+    _setup_s3_move(monkeypatch, fake_client=fake_client)
 
     rows = timeseries_edit._move_timeseries("IONQ", "L", "N")
 
     assert rows == 1
-    assert fake_df.to_parquet_calls == ["s3://bucket/IONQ-N.parquet"]
+    assert len(fake_client.puts) == 1
+    assert fake_client.puts[0]["IfNoneMatch"] == "*"
     assert fake_client.deleted == [("bucket", "IONQ-L.parquet")]
 
 
@@ -202,13 +208,52 @@ def test_move_timeseries_s3_delete_failure_reports_error(monkeypatch):
     from backend.common.errors import InternalServiceError
 
     fake_client = _FakeS3Client(fail_delete=True)
-    fake_df = _setup_s3_move(monkeypatch, fake_client=fake_client)
+    _setup_s3_move(monkeypatch, fake_client=fake_client)
 
     with pytest.raises(InternalServiceError) as exc:
         timeseries_edit._move_timeseries("IONQ", "L", "N")
 
-    assert fake_df.to_parquet_calls == ["s3://bucket/IONQ-N.parquet"]
-    assert "both now exist" in str(exc.value)
+    assert len(fake_client.puts) == 1
+    assert fake_client.deleted == [("bucket", "IONQ-N.parquet")]
+    assert "rolled back" in str(exc.value)
+
+
+def test_move_timeseries_s3_conditional_conflict_returns_409(monkeypatch):
+    class ConflictS3(_FakeS3Client):
+        def put_object(self, **kwargs):
+            raise ClientError({"Error": {"Code": "PreconditionFailed"}}, "PutObject")
+
+    fake_client = ConflictS3()
+    _setup_s3_move(monkeypatch, fake_client=fake_client)
+
+    with pytest.raises(timeseries_edit.HTTPException) as exc:
+        timeseries_edit._move_timeseries("IONQ", "L", "N")
+
+    assert exc.value.status_code == 409
+    assert fake_client.deleted == []
+
+
+def test_load_timeseries_missing_s3_object_returns_empty(monkeypatch):
+    class MissingS3:
+        def head_object(self, **kwargs):
+            raise ClientError({"Error": {"Code": "NoSuchKey"}}, "HeadObject")
+
+    monkeypatch.setattr(timeseries_edit, "meta_timeseries_cache_path", lambda *_: "s3://bucket/missing.parquet")
+    monkeypatch.setattr(timeseries_edit, "_s3_client", lambda: MissingS3())
+
+    assert timeseries_edit._load_timeseries("NOPE", "L").empty
+
+
+def test_load_timeseries_s3_metadata_failure_is_not_a_cache_miss(monkeypatch):
+    class DeniedS3:
+        def head_object(self, **kwargs):
+            raise ClientError({"Error": {"Code": "AccessDenied"}}, "HeadObject")
+
+    monkeypatch.setattr(timeseries_edit, "meta_timeseries_cache_path", lambda *_: "s3://bucket/denied.parquet")
+    monkeypatch.setattr(timeseries_edit, "_s3_client", lambda: DeniedS3())
+
+    with pytest.raises(timeseries_edit.InternalServiceError):
+        timeseries_edit._load_timeseries("NOPE", "L")
 
 
 def test_move_timeseries_case_insensitive_exchange_rejected(tmp_path, monkeypatch):

@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import io
 import logging
+import os
 from pathlib import Path
 
 import pandas as pd
+from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 
@@ -17,6 +19,7 @@ from backend.timeseries.cache import (
     _s3_client,
     _split_s3_cache_uri,
     has_cached_meta_timeseries,
+    invalidate_s3_cache_metadata,
     meta_timeseries_cache_path,
 )
 
@@ -54,7 +57,7 @@ def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> tuple[str, st
 
 def _load_timeseries(ticker: str, exchange: str) -> pd.DataFrame:
     cache = meta_timeseries_cache_path(ticker, exchange)
-    exists = cache.startswith("s3://") or Path(cache).exists()
+    exists = _s3_object_exists(cache, ticker, exchange) if cache.startswith("s3://") else Path(cache).exists()
     if exists:
         try:
             return _ensure_schema(pd.read_parquet(cache))
@@ -66,15 +69,93 @@ def _load_timeseries(ticker: str, exchange: str) -> pd.DataFrame:
     return pd.DataFrame(columns=EXPECTED_COLS)
 
 
+def _s3_object_exists(cache: str, ticker: str, exchange: str) -> bool:
+    parsed = _split_s3_cache_uri(cache)
+    if parsed is None:
+        raise InternalServiceError("Invalid S3 timeseries cache path")
+    bucket, key = parsed
+    try:
+        _s3_client().head_object(Bucket=bucket, Key=key)
+    except ClientError as exc:
+        error_code = exc.response.get("Error", {}).get("Code")
+        if error_code in {"404", "NoSuchKey", "NotFound"}:
+            return False
+        raise InternalServiceError(
+            f"Failed to inspect cached timeseries for {ticker}.{exchange}",
+            extra={"ticker": ticker, "exchange": exchange},
+        ) from exc
+    except BotoCoreError as exc:
+        raise InternalServiceError(
+            f"Failed to inspect cached timeseries for {ticker}.{exchange}",
+            extra={"ticker": ticker, "exchange": exchange},
+        ) from exc
+    return True
+
+
+def _parquet_bytes(df: pd.DataFrame) -> bytes:
+    output = io.BytesIO()
+    df.to_parquet(output, index=False)
+    return output.getvalue()
+
+
+def _create_s3_destination(df: pd.DataFrame, destination: str) -> tuple[str, str]:
+    parsed = _split_s3_cache_uri(destination)
+    if parsed is None:
+        raise InternalServiceError("Invalid destination cache path")
+    bucket, key = parsed
+    try:
+        _s3_client().put_object(Bucket=bucket, Key=key, Body=_parquet_bytes(df), IfNoneMatch="*")
+    except ClientError as exc:
+        if exc.response.get("Error", {}).get("Code") in {"412", "PreconditionFailed", "ConditionalRequestConflict"}:
+            raise HTTPException(status_code=409, detail="Destination time series already exists") from exc
+        raise InternalServiceError("Failed to create destination time series") from exc
+    invalidate_s3_cache_metadata(destination)
+    return bucket, key
+
+
+def _move_s3_timeseries(df: pd.DataFrame, source: str, destination: str) -> None:
+    destination_bucket, destination_key = _create_s3_destination(df, destination)
+    parsed_source = _split_s3_cache_uri(source)
+    if parsed_source is None:  # pragma: no cover - guarded by cache path builder
+        raise InternalServiceError("Invalid source cache path")
+    source_bucket, source_key = parsed_source
+    try:
+        _s3_client().delete_object(Bucket=source_bucket, Key=source_key)
+    except Exception as exc:
+        try:
+            _s3_client().delete_object(Bucket=destination_bucket, Key=destination_key)
+        except Exception as rollback_exc:
+            raise InternalServiceError(
+                "Failed to remove source and roll back destination time series"
+            ) from rollback_exc
+        invalidate_s3_cache_metadata(destination)
+        raise InternalServiceError("Failed to remove source time series; destination was rolled back") from exc
+    invalidate_s3_cache_metadata(source)
+
+
+def _move_local_timeseries(source: str, destination: str) -> None:
+    destination_path = Path(destination)
+    destination_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        os.link(source, destination)
+    except FileExistsError as exc:
+        raise HTTPException(status_code=409, detail="Destination time series already exists") from exc
+    try:
+        Path(source).unlink()
+    except Exception:
+        destination_path.unlink(missing_ok=True)
+        raise
+
+
 def _move_timeseries(ticker: str, source_exchange: str, destination_exchange: str) -> int:
     source = meta_timeseries_cache_path(ticker, source_exchange)
     destination = meta_timeseries_cache_path(ticker, destination_exchange)
     if source == destination:
         raise HTTPException(status_code=400, detail="Source and destination must differ")
 
-    if not has_cached_meta_timeseries(ticker, source_exchange):
+    if not source.startswith("s3://") and not has_cached_meta_timeseries(ticker, source_exchange):
         raise HTTPException(status_code=404, detail="Source time series does not exist")
-    if has_cached_meta_timeseries(ticker, destination_exchange):
+    if not destination.startswith("s3://") and has_cached_meta_timeseries(ticker, destination_exchange):
         raise HTTPException(status_code=409, detail="Destination time series already exists")
 
     df = _load_timeseries(ticker, source_exchange)
@@ -82,27 +163,9 @@ def _move_timeseries(ticker: str, source_exchange: str, destination_exchange: st
         raise HTTPException(status_code=404, detail="Source time series does not exist")
 
     if destination.startswith("s3://"):
-        # pandas/fsspec performs the destination write before the source is
-        # removed, so a failed write cannot destroy the original series.
-        df.to_parquet(destination, index=False)
-        parsed = _split_s3_cache_uri(source)
-        if parsed is None:  # pragma: no cover - guarded by cache path builder
-            raise InternalServiceError("Invalid source cache path")
-        bucket, key = parsed
-        try:
-            _s3_client().delete_object(Bucket=bucket, Key=key)
-        except Exception as exc:
-            # The destination copy already succeeded; surface this loudly
-            # rather than reporting "ok" while the source still exists.
-            raise InternalServiceError(
-                f"Moved {ticker} to {destination_exchange} but failed to remove "
-                f"the source series at {source_exchange}; both now exist",
-                extra={"ticker": ticker, "source_exchange": source_exchange},
-            ) from exc
+        _move_s3_timeseries(df, source, destination)
     else:
-        destination_path = Path(destination)
-        destination_path.parent.mkdir(parents=True, exist_ok=True)
-        Path(source).replace(destination_path)
+        _move_local_timeseries(source, destination)
     return len(df)
 
 
@@ -151,6 +214,8 @@ async def post_timeseries_edit(
     if not cache.startswith("s3://"):
         Path(cache).parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(cache, index=False)
+    if cache.startswith("s3://"):
+        invalidate_s3_cache_metadata(cache)
     return JSONResponse({"status": "ok", "rows": len(df)})
 
 
@@ -160,8 +225,11 @@ async def move_timeseries_edit(
     source_exchange: str = Query(...),
     destination_exchange: str = Query(...),
 ) -> JSONResponse:
-    ticker, source_exchange = _resolve_ticker_exchange(ticker, source_exchange)
-    _, destination_exchange = _resolve_ticker_exchange(ticker, destination_exchange)
+    requested_ticker = ticker
+    ticker, source_exchange = _resolve_ticker_exchange(requested_ticker, source_exchange)
+    destination_ticker, destination_exchange = _resolve_ticker_exchange(requested_ticker, destination_exchange)
+    if destination_ticker != ticker:
+        raise ValidationFailure("Source and destination resolve to different tickers")
     rows = _move_timeseries(ticker, source_exchange, destination_exchange)
     return JSONResponse(
         {

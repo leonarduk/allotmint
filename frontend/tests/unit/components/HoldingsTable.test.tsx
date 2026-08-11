@@ -822,10 +822,21 @@ describe("HoldingsTable", () => {
           }
       });
 
-      it("keeps the top and table horizontal scrollbars in sync", () => {
+      it("shows an accessible top scrollbar for overflowing holdings columns", () => {
+          const clientWidth = vi.spyOn(HTMLElement.prototype, "clientWidth", "get");
+          const scrollWidth = vi.spyOn(HTMLElement.prototype, "scrollWidth", "get");
+          clientWidth.mockReturnValue(600);
+          scrollWidth.mockReturnValue(1200);
+
           render(<HoldingsTable holdings={holdings} />);
           const tableContainer = screen.getByRole('table').parentElement as HTMLElement;
-          const topScrollbar = screen.getByLabelText('Scroll holdings columns horizontally');
+          const topScrollbar = screen.getByRole('region', {
+              name: 'Scroll holdings columns horizontally',
+          });
+
+          expect(topScrollbar).toHaveAttribute("tabindex", "0");
+          expect(topScrollbar).toHaveAttribute("aria-hidden", "false");
+          expect(topScrollbar.firstElementChild).toHaveStyle({ width: "1200px" });
 
           topScrollbar.scrollLeft = 240;
           fireEvent.scroll(topScrollbar);
@@ -834,5 +845,8 @@ describe("HoldingsTable", () => {
           tableContainer.scrollLeft = 80;
           fireEvent.scroll(tableContainer);
           expect(topScrollbar.scrollLeft).toBe(80);
+
+          clientWidth.mockRestore();
+          scrollWidth.mockRestore();
       });
   });

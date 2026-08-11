@@ -14,7 +14,6 @@ import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import {
   BrowserRouter,
-  Navigate,
   Route,
   Routes,
   useLocation,
@@ -38,6 +37,7 @@ import { logConfigFetchFailure } from './configFetchLogging';
 import LoginPage from './LoginPage';
 import { UserProvider, useUser } from './UserContext';
 import ErrorBoundary from './ErrorBoundary';
+import DisabledFeature from './components/DisabledFeature';
 import { loadStoredAuthUser, loadStoredUserProfile } from './authStorage';
 import { RouteProvider } from './RouteContext';
 import { clearCognitoSession, cognitoLogout, ensureAwsUiAuth, extractTokenExchangeErrorReason, getCognitoSessionExpiresAt, getStoredCognitoIdToken, refreshCognitoSession, UserCancelledError, type AwsUiAuthConfig } from './awsUiAuth';
@@ -479,7 +479,7 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
                   <Route
                     key={`disabled-${path}`}
                     path={path}
-                    element={<Navigate to="/" replace />}
+                    element={<DisabledFeature />}
                   />,
                 ]
           )}

@@ -158,8 +158,10 @@
   }
 
   .table {
-    display: block;
-    max-width: 100%;
+    /* Keep native table layout so virtual spacer rows contribute only their
+       requested height. The scroll container already clips wide columns. */
+    min-width: 100%;
+    width: max-content;
   }
 
   .table thead,

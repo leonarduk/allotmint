@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   listTimeseries,
   refetchTimeseries,
@@ -45,7 +45,23 @@ export default function DataAdmin() {
   }, []);
 
   if (error) {
-    return <p style={{ color: "red" }}>{error}</p>;
+    const needsLocalLogin = error.includes(
+      "No local login override is configured",
+    );
+
+    return (
+      <div className="container mx-auto max-w-5xl p-4" role="alert">
+        <p className="text-red-600">{error}</p>
+        {needsLocalLogin && (
+          <Link
+            className="mt-2 inline-block text-blue-600 hover:underline"
+            to="/support#local-login-override"
+          >
+            {t("dataadmin.configureLocalLogin")}
+          </Link>
+        )}
+      </div>
+    );
   }
 
   const handleRefetch = (ticker: string, exchange: string) => {

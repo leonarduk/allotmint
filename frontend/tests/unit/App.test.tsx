@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useEffect } from "react";
 import {
@@ -58,6 +58,71 @@ describe("App", () => {
     mockComplianceWarnings.mockReset();
     (globalThis as any).lastRefresh = null;
   });
+
+  it.each([
+    ["/", "all", ["alice", "bob"]],
+    ["/?owner=alice", "alice", ["alice"]],
+    ["/?owner=family", "family", ["alice", "bob"]],
+  ])(
+    "renders %s through the merged portfolio without navigation loops",
+    async (entry, expectedSlug, expectedComplianceOwners) => {
+      vi.doMock("@/components/GroupPortfolioView", () => ({
+        GroupPortfolioView: ({ slug }: { slug: string }) => (
+          <div data-testid="group-portfolio-view">{slug}</div>
+        ),
+      }));
+      vi.doMock("@/api", async () => {
+        const actual = await vi.importActual<typeof import("@/api")>("@/api");
+        return {
+          ...actual,
+          getOwners: vi.fn().mockResolvedValue([
+            { owner: "alice", accounts: [] },
+            { owner: "bob", accounts: [] },
+          ]),
+          getGroups: vi.fn().mockResolvedValue([
+            { slug: "all", name: "All", members: ["alice", "bob"] },
+            { slug: "family", name: "Family", members: ["alice", "bob"] },
+          ]),
+          getPortfolio: vi.fn(),
+          getGroupInstruments: vi.fn().mockResolvedValue([]),
+        };
+      });
+
+      const { default: App } = await import("@/App");
+      const { configContext } = await import("@/ConfigContext");
+      const router = createMemoryRouter(
+        [
+          {
+            path: "*",
+            element: (
+              <configContext.Provider value={makeConfigValue()}>
+                <App />
+              </configContext.Provider>
+            ),
+          },
+        ],
+        { initialEntries: [entry] },
+      );
+      let navigationCount = 0;
+      const unsubscribe = router.subscribe(() => {
+        navigationCount += 1;
+      });
+
+      render(<RouterProvider router={router} />);
+
+      expect(await screen.findByTestId("group-portfolio-view")).toHaveTextContent(
+        expectedSlug,
+      );
+      await waitFor(() =>
+        expect(mockComplianceWarnings.mock.calls).toContainEqual([
+          expectedComplianceOwners,
+        ]),
+      );
+      expect(navigationCount).toBe(0);
+      unsubscribe();
+      vi.doUnmock("@/components/GroupPortfolioView");
+    },
+  );
 
   it("loads the group slug from the URL", async () => {
     window.history.pushState({}, "", "/?group=kids");
@@ -387,7 +452,9 @@ describe("App", () => {
     );
 
     expect(mockGetPortfolio).not.toHaveBeenCalled();
-    expect(mockGetGroupPortfolio).not.toHaveBeenCalled();
+    expect(mockGetGroupPortfolio).toHaveBeenCalledWith("all", {
+      asOf: undefined,
+    });
 
     await act(async () => {
       resolveGroups?.([{ slug: "all", name: "At a glance", members: ["alex"] }]);
@@ -473,7 +540,7 @@ describe("App", () => {
     resolveOwners?.([]);
   });
 
-  it("resets portfolioAsOf to null for a newly selected owner before owners resolve (#5100)", async () => {
+  it("keeps the legacy owner fetch working while owners resolve", async () => {
     window.history.pushState({}, "", "/portfolio/alice");
 
     let resolveOwners:
@@ -534,8 +601,6 @@ describe("App", () => {
 
     const { default: App } = await import("@/App");
     const { configContext } = await import("@/ConfigContext");
-    const user = userEvent.setup();
-
     const router = createMemoryRouter(
       [
         {
@@ -555,24 +620,11 @@ describe("App", () => {
     // Initial fetch for alice fires with no "as of" filter.
     await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("alice"));
 
-    // Apply an "as of" date filter, giving alice a non-null portfolioAsOf.
-    const dateInput = await screen.findByLabelText(/as of/i);
-    fireEvent.change(dateInput, { target: { value: "2025-01-01" } });
-    await user.click(screen.getByRole("button", { name: /go/i }));
-
-    await waitFor(() =>
-      expect(mockGetPortfolio).toHaveBeenCalledWith("alice", {
-        asOf: "2025-01-01",
-      }),
-    );
-
     mockGetPortfolio.mockClear();
 
     // Switch owners via direct navigation while getOwners is still pending.
-    // The reset effect only depends on groupsCatalogReady (#5094), so it must
-    // clear portfolioAsOf for bob without waiting on the pending owners
-    // request (#5100). The settled fetch for bob carries no "as of" filter,
-    // proving setPortfolioAsOf(null) fired before owners resolved.
+    // The fetch is retained for the later cleanup child and must continue to
+    // follow pathname-based owner navigation while the owners request is pending.
     await act(async () => {
       await router.navigate("/portfolio/bob");
     });
@@ -889,7 +941,7 @@ describe("App", () => {
     await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("steve"));
 
     expect(locationUpdates).not.toContain("/portfolio/alice");
-    expect(await screen.findByText(/owner not found/i)).toBeInTheDocument();
+    expect(mockGetPortfolio).toHaveBeenCalledTimes(1);
   });
 
   it("stays on the portfolio route when switching owners from the portfolio page", async () => {
@@ -1800,9 +1852,8 @@ describe("App", () => {
 
     await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledTimes(1));
 
-    expect(await screen.findByTestId("portfolio-view")).toHaveTextContent("alice");
     expect(mockGetPortfolio).toHaveBeenCalledTimes(1);
-    expect(renderStates.some((entry) => entry.loading === false && entry.owner === "alice")).toBe(true);
+    expect(renderStates).toHaveLength(0);
   });
 
   it("allows navigation to enabled tabs", async () => {

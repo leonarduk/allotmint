@@ -42,3 +42,19 @@ def test_resolver_rejects_placeholder_metadata(monkeypatch):
     )
 
     assert instruments.resolve_instrument_ticker("BMNR1F3", exchanges=("L", "US")) is None
+
+
+def test_resolver_honours_persisted_exchange_alias_not_in_canonical_list(monkeypatch):
+    """Metadata persisted under a non-canonical exchange (e.g. ``N`` for NYSE)
+    must still be found instead of falling through to an incorrect ``.L``
+    ticker (#6310)."""
+    monkeypatch.setattr(instruments, "_persisted_metadata_exchanges", lambda symbol: ("N",))
+    monkeypatch.setattr(
+        instruments,
+        "get_instrument_meta",
+        lambda ticker: (
+            {"ticker": ticker, "exchange": "N", "currency": "USD"} if ticker == "PFE.N" else {}
+        ),
+    )
+
+    assert instruments.resolve_instrument_ticker("PFE", exchanges=("L", "US")) == "PFE.N"

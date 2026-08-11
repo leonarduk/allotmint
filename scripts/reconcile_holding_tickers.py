@@ -22,7 +22,9 @@ def reconcile_account_file(path: Path, *, write: bool = False) -> dict[str, list
         if not ticker.endswith(".L"):
             continue
         symbol = ticker.removesuffix(".L")
-        resolved = resolve_instrument_ticker(symbol, create_missing=True)
+        # Only try (and persist) live Yahoo lookups when actually writing;
+        # a dry run must not mutate instrument metadata as a side effect.
+        resolved = resolve_instrument_ticker(symbol, create_missing=write)
         if resolved is None:
             unresolved.append(ticker)
         elif resolved != ticker:

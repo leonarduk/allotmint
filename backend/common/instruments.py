@@ -499,6 +499,20 @@ def _has_informative_metadata(metadata: Dict[str, Any]) -> bool:
     return not informative_keys <= {"ticker", "exchange", "name"}
 
 
+def _persisted_metadata_exchanges(symbol: str) -> tuple[str, ...]:
+    """Return exchange codes with a persisted local metadata file for ``symbol``.
+
+    Widens resolution beyond :data:`TICKER_RESOLUTION_EXCHANGES` so an existing
+    alias (e.g. Pfizer persisted as ``PFE.N`` rather than ``PFE.US``) is still
+    found. Only scans the local instruments directory; S3-only deployments
+    still fall back to the canonical exchange list checked directly.
+    """
+    try:
+        return tuple(sorted(p.parent.name for p in _active_instruments_dir().glob(f"*/{symbol}.json")))
+    except OSError:
+        return ()
+
+
 def resolve_instrument_ticker(
     ticker: str,
     *,
@@ -508,23 +522,31 @@ def resolve_instrument_ticker(
     """Resolve a bare symbol to a persisted, informative instrument ticker.
 
     Existing metadata is checked before any live lookup, making this safe for
-    the CSV import path.  A deliberate reconciliation/backfill operation can
-    set ``create_missing`` to try Yahoo in exchange-priority order; successful
-    metadata is persisted by :func:`_auto_create_instrument_meta`.
+    the CSV import path. Persisted exchange aliases not in ``exchanges`` are
+    also considered, so already-backfilled metadata under a non-canonical
+    exchange code is still honoured. A deliberate reconciliation/backfill
+    operation can set ``create_missing`` to try Yahoo in exchange-priority
+    order; successful metadata is persisted by :func:`_auto_create_instrument_meta`.
     """
     symbol = (ticker or "").strip().upper().split(".", 1)[0]
     if not symbol or symbol == "CASH":
         return None
 
-    candidates = tuple(f"{symbol}.{exchange.upper()}" for exchange in exchanges)
-    for candidate in candidates:
+    known_exchanges = list(dict.fromkeys(exchanges))
+    for exchange in _persisted_metadata_exchanges(symbol):
+        if exchange not in known_exchanges:
+            known_exchanges.append(exchange)
+
+    for exchange in known_exchanges:
+        candidate = f"{symbol}.{exchange.upper()}"
         if _has_informative_metadata(get_instrument_meta(candidate)):
             return candidate
 
     if not create_missing:
         return None
 
-    for candidate in candidates:
+    for exchange in exchanges:
+        candidate = f"{symbol}.{exchange.upper()}"
         metadata = _auto_create_instrument_meta(candidate)
         if metadata and _has_informative_metadata(metadata):
             return candidate

@@ -614,6 +614,7 @@ export function PortfolioView({ data, loading, error, onDateChange, onAccountAdd
                 onSelectInstrument={(ticker, name) =>
                   setSelectedInstrument({ ticker, name })
                 }
+                selectedTicker={selectedInstrument?.ticker}
                 showForward7d={showForward7d}
                 showForward30d={showForward30d}
                 onAddPosition={() =>

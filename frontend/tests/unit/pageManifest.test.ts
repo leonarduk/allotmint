@@ -117,5 +117,10 @@ describe('page manifest', () => {
     expect(
       deriveModeFromLocation('/portfolio/steve', '?account=isa')
     ).toBe('owner');
+    // A conflicting `?owner=` query must not override pathname-mode routing:
+    // /portfolio/:owner stays in 'owner' mode regardless of the query string.
+    expect(
+      deriveModeFromLocation('/portfolio/steve', '?owner=other')
+    ).toBe('owner');
   });
 });

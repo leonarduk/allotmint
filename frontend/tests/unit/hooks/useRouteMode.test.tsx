@@ -83,6 +83,16 @@ describe("useRouteMode", () => {
     expect(result.current.selectedOwner).toBe("steve");
     expect(result.current.selectedAccount).toBe("isa");
   });
+  it("populates selectedAccount for owner-mode pathname routes", async () => {
+    window.history.pushState({}, "", "/portfolio/steve?account=isa");
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <MemoryRouter initialEntries={["/portfolio/steve?account=isa"]}>{children}</MemoryRouter>
+    );
+    const { result } = renderHook(() => useRouteMode(), { wrapper });
+    await waitFor(() => expect(result.current.mode).toBe("owner"));
+    expect(result.current.selectedOwner).toBe("steve");
+    expect(result.current.selectedAccount).toBe("isa");
+  });
   it.each(["/", "/?owner=x", "/?owner=x&account=y"])(
     "settles without a render loop for %s",
     async (entry) => {

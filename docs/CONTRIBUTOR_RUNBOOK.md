@@ -519,6 +519,10 @@ Only run the deploy commands when you intentionally want to deploy; they are lis
 - **Frontend cannot reach backend**: set `VITE_ALLOTMINT_API_BASE` explicitly and confirm the backend is listening on the configured host/port.
 - **Unexpected demo user or owner**: check `LOCAL_LOGIN_EMAIL`, `DISABLE_AUTH`, `auth.demo_identity`, and `auth.smoke_identity`.
 - **Missing data or empty portfolio**: confirm the active `DATA_ROOT` and whether your dataset includes the expected owner under `accounts/`.
+- **Unexpected portfolio scope**: the merged portfolio lives at `/`; inspect the
+  `owner` and `account` query parameters rather than treating
+  `/portfolio/:owner` as a separate page. Legacy owner URLs redirect to the
+  equivalent `/?owner=...` scope.
 - **Smoke preflight fails**: start the local backend/frontend or set `SMOKE_URL` to a reachable deployment.
 - **Google auth errors locally**: verify `GOOGLE_AUTH_ENABLED=true`, `DISABLE_AUTH=false`, and a non-empty `GOOGLE_CLIENT_ID`.
 - **Price snapshot absent after deploy (`[WARNING] Price snapshot not yet seeded`)**: the CDK Trigger automatically invokes `PriceRefreshLambda` synchronously during `cdk deploy BackendLambdaStack`, blocking until the snapshot is written. If the warning still appears, the Trigger Lambda likely timed out or the price-refresh Lambda failed. Check `PriceRefreshLambdaLogGroup` in CloudWatch and re-trigger manually: `aws lambda invoke --function-name <PriceRefreshLambda-physical-name> /dev/null`.

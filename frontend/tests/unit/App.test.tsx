@@ -66,6 +66,13 @@ describe("App", () => {
     ["/?account=isa", "all", ["alice", "bob"], "/", 1],
     ["/?owner=family", "family", ["alice", "bob"], "/?owner=family", 0],
     ["/portfolio/alice", "alice", ["alice"], "/?owner=alice", 1],
+    [
+      "/portfolio/alice/?group=kids&owner=bob&account=isa",
+      "alice",
+      ["alice"],
+      "/?owner=alice&account=isa",
+      1,
+    ],
   ])(
     "renders %s through the merged portfolio with the canonical URL",
     async (entry, expectedSlug, expectedComplianceOwners, expectedUrl, expectedNavigationCount) => {

@@ -114,6 +114,8 @@ describe('page manifest', () => {
     });
     expect(deriveModeFromLocation('/', '?owner=Steve%20Smith')).toBe('group');
     expect(deriveModeFromLocation('/', '?account=isa')).toBe('group');
-    expect(deriveModeFromLocation('/portfolio/steve', '')).toBe('owner');
+    expect(
+      deriveModeFromLocation('/portfolio/steve', '?account=isa')
+    ).toBe('owner');
   });
 });

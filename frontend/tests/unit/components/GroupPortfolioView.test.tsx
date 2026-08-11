@@ -1303,7 +1303,6 @@ describe("GroupPortfolioView", () => {
   });
 
   it("renders family-level charts and metrics only at All family scope, not at owner scope", async () => {
-    const user = userEvent.setup();
     const mockPortfolio = {
       name: "At a glance",
       accounts: [
@@ -1319,13 +1318,28 @@ describe("GroupPortfolioView", () => {
     };
     mockAllFetches(mockPortfolio, { metrics: { alpha: 5, trackingError: 2, maxDrawdown: 10 } });
 
-    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+    const { unmount } = render(
+      <MemoryRouter initialEntries={["/"]}>
+        <TestProvider>
+          <GroupPortfolioView slug="all" owners={ownerFixtures} />
+        </TestProvider>
+      </MemoryRouter>,
+    );
 
     expect(await screen.findByTestId("top-movers-summary")).toBeInTheDocument();
     expect(screen.getByText("Alpha vs Benchmark")).toBeInTheDocument();
     expect(screen.getByText("Tracking Error")).toBeInTheDocument();
 
-    await user.click(await screen.findByRole("tab", { name: "Alice Example" }));
+    unmount();
+    render(
+      <MemoryRouter initialEntries={["/?owner=alice"]}>
+        <TestProvider>
+          <GroupPortfolioView slug="all" owners={ownerFixtures} />
+        </TestProvider>
+      </MemoryRouter>,
+    );
+
+    await screen.findByRole("tab", { name: "Alice Example" });
 
     expect(screen.queryByTestId("top-movers-summary")).not.toBeInTheDocument();
     expect(screen.queryByText("Alpha vs Benchmark")).not.toBeInTheDocument();
@@ -1347,7 +1361,7 @@ describe("GroupPortfolioView", () => {
     };
 
     render(
-      <MemoryRouter initialEntries={["/portfolio/all?period=1y"]}>
+      <MemoryRouter initialEntries={["/?period=1y"]}>
         <TestProvider>
           <GroupPortfolioView slug="all" owners={ownerFixtures} />
         </TestProvider>
@@ -1357,12 +1371,12 @@ describe("GroupPortfolioView", () => {
 
     await user.click(await screen.findByRole("tab", { name: "Alice Example" }));
     expect(screen.getByTestId("scope-route")).toHaveTextContent(
-      "/portfolio/all?period=1y&owner=alice",
+      "/?period=1y&owner=alice",
     );
 
     await user.click(screen.getByRole("tab", { name: "isa" }));
     expect(screen.getByTestId("scope-route")).toHaveTextContent(
-      "/portfolio/all?period=1y&owner=alice&account=isa",
+      "/?period=1y&owner=alice&account=isa",
     );
   });
 
@@ -1394,6 +1408,33 @@ describe("GroupPortfolioView", () => {
       expect(screen.getByTestId("scope-route")).toHaveTextContent(
         "/portfolio/all?period=1y&owner=alice",
       ),
+    );
+  });
+
+  it("falls back to family scope when the URL owner is invalid", async () => {
+    mockAllFetches({
+      name: "At a glance",
+      accounts: [
+        { owner: "alice", account_type: "isa", value_estimate_gbp: 100, holdings: [] },
+      ],
+    });
+
+    const RouteDisplay = () => {
+      const location = useLocation();
+      return <output data-testid="scope-route">{`${location.pathname}${location.search}`}</output>;
+    };
+
+    render(
+      <MemoryRouter initialEntries={["/?period=1y&owner=invalid&account=isa"]}>
+        <TestProvider>
+          <GroupPortfolioView slug="all" owners={ownerFixtures} />
+        </TestProvider>
+        <RouteDisplay />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("scope-route")).toHaveTextContent("/?period=1y"),
     );
   });
 });

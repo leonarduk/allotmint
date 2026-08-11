@@ -73,26 +73,28 @@ describe("useRouteMode", () => {
     await waitFor(() => expect(result.current.route.mode).toBe("group"));
     expect(result.current.route.selectedGroup).toBe("kids");
   });
-  it("uses owner scope from the root query string", async () => {
-    window.history.pushState({}, "", "/?owner=steve&account=isa");
-    const wrapper = ({ children }: { children: ReactNode }) => (
-      <MemoryRouter initialEntries={["/?owner=steve&account=isa"]}>{children}</MemoryRouter>
-    );
-    const { result } = renderHook(() => useRouteMode(), { wrapper });
-    expect(result.current.mode).toBe("group");
-    expect(result.current.selectedOwner).toBe("steve");
-    expect(result.current.selectedAccount).toBe("isa");
-  });
-  it("populates selectedAccount for owner-mode pathname routes", async () => {
-    window.history.pushState({}, "", "/portfolio/steve?account=isa");
-    const wrapper = ({ children }: { children: ReactNode }) => (
-      <MemoryRouter initialEntries={["/portfolio/steve?account=isa"]}>{children}</MemoryRouter>
-    );
-    const { result } = renderHook(() => useRouteMode(), { wrapper });
-    await waitFor(() => expect(result.current.mode).toBe("owner"));
-    expect(result.current.selectedOwner).toBe("steve");
-    expect(result.current.selectedAccount).toBe("isa");
-  });
+  it.each([
+    ["/?owner=steve&account=isa", "group", "steve", "isa"],
+    ["/?account=isa", "group", "", "isa"],
+    ["/portfolio/steve?account=isa", "owner", "steve", "isa"],
+  ] as const)(
+    "derives mode and complete URL scope from %s",
+    async (entry, expectedMode, expectedOwner, expectedAccount) => {
+      const previousUrl = window.location.href;
+      try {
+        window.history.pushState({}, "", entry);
+        const wrapper = ({ children }: { children: ReactNode }) => (
+          <MemoryRouter initialEntries={[entry]}>{children}</MemoryRouter>
+        );
+        const { result } = renderHook(() => useRouteMode(), { wrapper });
+        await waitFor(() => expect(result.current.mode).toBe(expectedMode));
+        expect(result.current.selectedOwner).toBe(expectedOwner);
+        expect(result.current.selectedAccount).toBe(expectedAccount);
+      } finally {
+        window.history.replaceState({}, "", previousUrl);
+      }
+    },
+  );
   it.each(["/", "/?owner=x", "/?owner=x&account=y"])(
     "settles without a render loop for %s",
     async (entry) => {

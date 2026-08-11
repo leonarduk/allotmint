@@ -552,18 +552,20 @@ export default function App({ onLogout }: AppProps) {
     // Using <Navigate> instead of navigate()
     // from useEffect avoids deferred-update issues in data-router test environments.
     //
-    // NOTE: this used to also redirect explicit `/portfolio/:owner` paths to
-    // `/?owner=...`. That redirect was removed deliberately, not as an
-    // oversight: deriveModeFromLocation now always resolves a group-mode
-    // pathname (including bare '/') to 'group' regardless of `?owner=`
-    // (#6458), so bouncing `/portfolio/:owner` through the query-string form
-    // would flip it into group mode and drop the dedicated owner view.
-    // Leaving `/portfolio/:owner` as pathname-mode routing keeps that
-    // navigation path working via deriveModeFromPathname, which is
-    // unaffected by the query-string change.
     const redirectSegs = location.pathname.split('/').filter(Boolean);
     const redirectMode = deriveModeFromPathname(location.pathname);
     const redirectScope = readRouteScopeQuery(location.search);
+    if (
+      configLoaded &&
+      redirectSegs[0] === 'portfolio' &&
+      redirectSegs.length === 2
+    ) {
+      const params = new URLSearchParams(location.search);
+      params.delete('group');
+      params.set('owner', decodePathSegment(redirectSegs[1]));
+      const search = params.toString();
+      return <Navigate to={`/${search ? `?${search}` : ''}`} replace />;
+    }
     if (
       configLoaded &&
       redirectMode === 'group' &&

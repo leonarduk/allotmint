@@ -130,4 +130,23 @@ describe('page manifest', () => {
       deriveModeFromLocation('/portfolio/steve', '?owner=other')
     ).toBe('owner');
   });
+
+  it('keeps the owner registry entry while making root query scope canonical', () => {
+    expect(pageManifestByMode.owner.routeSegment).toBe('portfolio');
+    expect(buildPathForMode('owner', { owner: 'Steve Smith' })).toBe(
+      '/?owner=Steve%20Smith'
+    );
+
+    expect(deriveModeFromLocation('/', '?owner=steve&account=isa')).toBe(
+      'group'
+    );
+    expect(deriveModeFromLocation('/portfolio/steve', '?account=isa')).toBe(
+      'owner'
+    );
+    expect(readRouteScopeQuery('?owner=steve&account=isa')).toEqual({
+      group: null,
+      owner: 'steve',
+      account: 'isa',
+    });
+  });
 });

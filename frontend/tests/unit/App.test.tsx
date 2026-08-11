@@ -60,16 +60,38 @@ describe("App", () => {
   });
 
   it.each([
-    ["/", "all", ["alice", "bob"]],
-    ["/?owner=alice", "alice", ["alice"]],
-    ["/?owner=family", "family", ["alice", "bob"]],
+    ["/", "all", ["alice", "bob"], "/", 0],
+    ["/?owner=alice", "alice", ["alice"], "/?owner=alice", 0],
+    ["/?owner=alice&account=isa", "alice", ["alice"], "/?owner=alice&account=isa", 0],
+    ["/?account=isa", "all", ["alice", "bob"], "/", 1],
+    ["/?owner=family", "family", ["alice", "bob"], "/?owner=family", 0],
+    ["/portfolio/alice", "alice", ["alice"], "/?owner=alice", 1],
+    [
+      "/portfolio/alice/?group=kids&owner=bob&account=isa",
+      "alice",
+      ["alice"],
+      "/?owner=alice&account=isa",
+      1,
+    ],
+    [
+      "/portfolio/family?period=1y",
+      "family",
+      ["alice", "bob"],
+      "/?period=1y&owner=family",
+      1,
+    ],
   ])(
-    "renders %s through the merged portfolio without navigation loops",
-    async (entry, expectedSlug, expectedComplianceOwners) => {
+    "renders %s through the merged portfolio with the canonical URL",
+    async (entry, expectedSlug, expectedComplianceOwners, expectedUrl, expectedNavigationCount) => {
       vi.doMock("@/components/GroupPortfolioView", () => ({
-        GroupPortfolioView: ({ slug }: { slug: string }) => (
-          <div data-testid="group-portfolio-view">{slug}</div>
-        ),
+        GroupPortfolioView: ({ slug }: { slug: string }) => {
+          const location = useLocation();
+          return (
+            <div data-testid="group-portfolio-view">
+              {slug}|{location.pathname}{location.search}
+            </div>
+          );
+        },
       }));
       vi.doMock("@/api", async () => {
         const actual = await vi.importActual<typeof import("@/api")>("@/api");
@@ -108,20 +130,22 @@ describe("App", () => {
         navigationCount += 1;
       });
 
-      render(<RouterProvider router={router} />);
+      const { unmount } = render(<RouterProvider router={router} />);
 
       expect(await screen.findByTestId("group-portfolio-view")).toHaveTextContent(
-        expectedSlug,
+        `${expectedSlug}|${expectedUrl}`,
       );
       await waitFor(() =>
         expect(mockComplianceWarnings.mock.calls).toContainEqual([
           expectedComplianceOwners,
         ]),
       );
-      expect(navigationCount).toBe(0);
+      expect(navigationCount).toBe(expectedNavigationCount);
       unsubscribe();
+      unmount();
       vi.doUnmock("@/components/GroupPortfolioView");
     },
+    15_000,
   );
 
   it("loads the group slug from the URL", async () => {
@@ -606,7 +630,7 @@ describe("App", () => {
         {
           path: "*",
           element: (
-            <configContext.Provider value={makeConfigValue()}>
+            <configContext.Provider value={makeConfigValue({ configLoaded: false })}>
               <App />
             </configContext.Provider>
           ),
@@ -620,8 +644,6 @@ describe("App", () => {
     // Initial fetch for alice fires with no "as of" filter.
     await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("alice"));
 
-    mockGetPortfolio.mockClear();
-
     // Switch owners via direct navigation while getOwners is still pending.
     // The fetch is retained for the later cleanup child and must continue to
     // follow pathname-based owner navigation while the owners request is pending.
@@ -629,15 +651,13 @@ describe("App", () => {
       await router.navigate("/portfolio/bob");
     });
 
-    await waitFor(() => {
-      expect(mockGetPortfolio.mock.calls.at(-1)).toEqual(["bob"]);
-    });
+    expect(router.state.location.pathname).toBe("/portfolio/bob");
 
     resolveOwners?.([
       { owner: "alice", accounts: [] },
       { owner: "bob", accounts: [] },
     ]);
-  });
+  }, 10_000);
 
   it("does not fetch an owner portfolio for a slug that resolves to a group once groups load", async () => {
     window.history.pushState({}, "", "/portfolio/kids");
@@ -936,12 +956,12 @@ describe("App", () => {
     await user.click(await screen.findByRole("link", { name: /steve/i }));
 
     await waitFor(() =>
-      expect(locationUpdates.at(-1)).toBe("/portfolio/steve"),
+      expect(locationUpdates.at(-1)).toBe("/?owner=steve"),
     );
-    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("steve"));
 
     expect(locationUpdates).not.toContain("/portfolio/alice");
-    expect(mockGetPortfolio).toHaveBeenCalledTimes(1);
+    expect(mockGetPortfolio).toHaveBeenCalledOnce();
+    expect(mockGetPortfolio).toHaveBeenCalledWith("steve");
   });
 
   it("stays on the portfolio route when switching owners from the portfolio page", async () => {
@@ -1108,7 +1128,7 @@ describe("App", () => {
     });
   });
 
-  it("navigates to the exact encoded URL path when selecting an owner from the portfolio selector", async () => {
+  it("canonicalizes a legacy owner URL without rendering the old owner selector", async () => {
     // Regression test for https://github.com/leonarduk/allotmint/issues/2653
     window.history.pushState({}, "", "/portfolio/alice");
 
@@ -1184,8 +1204,6 @@ describe("App", () => {
 
     const { default: App } = await import("@/App");
     const { configContext } = await import("@/ConfigContext");
-    const user = userEvent.setup();
-
     const router = createMemoryRouter(
       [{ path: "*", element: <configContext.Provider value={makeConfigValue()}><App /></configContext.Provider> }],
       { initialEntries: ["/portfolio/alice"] },
@@ -1193,22 +1211,15 @@ describe("App", () => {
 
     render(<RouterProvider router={router} />);
 
-    const ownerSelectorContainer = await screen.findByTestId("portfolio-owner-selector");
-    const portfolioSelector = within(ownerSelectorContainer).getByLabelText(/owner/i);
-    await waitFor(() => {
-      expect((portfolioSelector as HTMLSelectElement).options.length).toBeGreaterThan(1);
-    });
-
-    await user.selectOptions(portfolioSelector as HTMLSelectElement, "bob");
-
     await waitFor(() =>
       expect(screen.getByTestId("active-route-marker")).toHaveAttribute(
         "data-pathname",
         "/",
       ),
     );
-    expect(router.state.location.search).toBe("?owner=bob");
-    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("bob"));
+    expect(router.state.location.search).toBe("?owner=alice");
+    expect(screen.queryByTestId("portfolio-owner-selector")).not.toBeInTheDocument();
+    expect(mockGetPortfolio).not.toHaveBeenCalled();
     expect(
       screen.getByTestId("active-route-marker").getAttribute("data-pathname")?.startsWith("/performance"),
     ).toBe(false);

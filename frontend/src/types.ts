@@ -608,6 +608,23 @@ export interface TradingSignal {
   factors?: string[];
 }
 
+export interface TradingAgentSettings {
+  rsi_buy: number;
+  rsi_sell: number;
+  rsi_window: number;
+  ma_short_window: number;
+  ma_long_window: number;
+  pe_max: number | null;
+  de_max: number | null;
+  min_sharpe: number | null;
+  max_volatility: number | null;
+}
+
+export interface TradingPageData {
+  signals: TradingSignal[];
+  settings: TradingAgentSettings;
+}
+
 export interface OpportunityEntry extends MoverRow {
   side: 'gainers' | 'losers';
   signal?: TradingSignal | null;

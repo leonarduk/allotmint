@@ -2,11 +2,13 @@ from __future__ import annotations
 
 """Routes exposing trading agent functionality."""
 
+from dataclasses import asdict
 from typing import List
 import logging
 import os
 
 from fastapi import APIRouter
+from pydantic import BaseModel
 
 from backend import alerts as alert_utils
 from backend.agent import trading_agent
@@ -18,6 +20,27 @@ from backend.utils.telegram_utils import send_message, redact_token
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/trading-agent", tags=["trading-agent"])
+
+
+class TradingAgentSettings(BaseModel):
+    """Public, non-secret thresholds used to generate trading signals."""
+
+    rsi_buy: float
+    rsi_sell: float
+    rsi_window: int
+    ma_short_window: int
+    ma_long_window: int
+    pe_max: float | None
+    de_max: float | None
+    min_sharpe: float | None
+    max_volatility: float | None
+
+
+@router.get("/settings", response_model=TradingAgentSettings)
+async def settings() -> TradingAgentSettings:
+    """Return the active signal thresholds without exposing server config."""
+
+    return TradingAgentSettings.model_validate(asdict(config.trading_agent))
 
 
 @router.get(

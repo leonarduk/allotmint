@@ -6,7 +6,7 @@ import useFetchWithRetry from '@/hooks/useFetchWithRetry';
 import type { TradingSignal } from '@/types';
 
 vi.mock('@/api', () => ({
-  getTradingSignals: vi.fn(),
+  getTradingPageData: vi.fn(),
 }));
 
 vi.mock('@/hooks/useFetchWithRetry');
@@ -50,7 +50,23 @@ function mockFetchState(overrides: {
   error?: Error | null;
 }) {
   mockUseFetchWithRetry.mockReturnValue({
-    data: overrides.data ?? null,
+    data:
+      overrides.data === undefined
+        ? null
+        : {
+            signals: overrides.data ?? [],
+            settings: {
+              rsi_buy: 30,
+              rsi_sell: 70,
+              rsi_window: 14,
+              ma_short_window: 20,
+              ma_long_window: 50,
+              pe_max: null,
+              de_max: null,
+              min_sharpe: null,
+              max_volatility: null,
+            },
+          },
     loading: overrides.loading ?? false,
     error: overrides.error ?? null,
     attempt: 0,
@@ -87,7 +103,14 @@ describe('Trading page', () => {
 
     render(<Trading />);
 
-    expect(await screen.findByText('No signals.')).toBeInTheDocument();
+    expect(await screen.findByText('No signals right now')).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Trading signals' })
+    ).toBeInTheDocument();
+    expect(screen.getByText('RSI buy below')).toBeInTheDocument();
+    expect(
+      screen.getByText(/No tracked instrument currently crosses/)
+    ).toBeInTheDocument();
     expect(screen.queryByText(/backend unavailable/i)).not.toBeInTheDocument();
   });
 
@@ -98,14 +121,14 @@ describe('Trading page', () => {
 
     const retryButton = await screen.findByRole('button', { name: /retry/i });
     expect(screen.getByText(/backend unavailable/i)).toBeInTheDocument();
-    expect(screen.queryByText('No signals.')).not.toBeInTheDocument();
+    expect(screen.queryByText('No signals right now')).not.toBeInTheDocument();
 
     fireEvent.click(retryButton);
     expect(mockUseFetchWithRetry).toHaveBeenLastCalledWith(
       expect.any(Function),
       500,
       5,
-      1,
+      1
     );
   });
 });

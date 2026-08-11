@@ -165,3 +165,24 @@ def test_no_signals(monkeypatch):
     )
     assert resp.status_code == 200
     assert resp.json() == []
+
+
+def test_settings_returns_active_thresholds(monkeypatch):
+    monkeypatch.setattr(
+        "backend.routes.trading_agent.config.trading_agent.rsi_buy", 27.5
+    )
+
+    response = make_client().get("/trading-agent/settings")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "rsi_buy": 27.5,
+        "rsi_sell": 70.0,
+        "rsi_window": 14,
+        "ma_short_window": 20,
+        "ma_long_window": 50,
+        "pe_max": None,
+        "de_max": None,
+        "min_sharpe": None,
+        "max_volatility": None,
+    }

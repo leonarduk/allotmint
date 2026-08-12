@@ -151,7 +151,10 @@ def _positions_for_ticker(tkr: str, last_close: float | None) -> List[Dict[str, 
                         h.get(EFFECTIVE_COST_BASIS_GBP) or h.get(COST_BASIS_GBP) or h.get("cost_basis")
                     )
                     cost = get_effective_cost_basis_gbp(normalised, price_cache, price_hint=last_close)
-                    if cost > 0:
+                    # The helper never returns None, but keep the guard explicit
+                    # so a future signature change cannot introduce a TypeError
+                    # or a divide-by-zero in the gain percentage below.
+                    if cost is not None and cost > 0:
                         calculated_gain = round(mv_gbp - cost, 2)
                         if gain_gbp is None:
                             gain_gbp = calculated_gain

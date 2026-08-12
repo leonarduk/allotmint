@@ -133,6 +133,31 @@ def test_positions_for_ticker_derives_gain_from_acquisition_price(monkeypatch):
     assert position["gain_pct"] == pytest.approx(25.0)
 
 
+def test_positions_for_ticker_zero_cost_leaves_gain_unchanged(monkeypatch):
+    # A zero/unknown cost basis must not fabricate a gain: the position keeps
+    # whatever gain fields the raw file carried (here: none).
+    portfolios = [
+        {
+            "owner": "alex",
+            "accounts": [
+                {
+                    "account_type": "isa",
+                    "holdings": [{"ticker": "ABC.L", "units": 2}],
+                }
+            ],
+        }
+    ]
+    monkeypatch.setattr("backend.routes.instrument.list_portfolios", lambda: portfolios)
+
+    # A zero close price leaves the derived cost basis at 0, so the gain
+    # calculation is skipped instead of dividing by zero.
+    [position] = instrument._positions_for_ticker("ABC.L", last_close=0.0)
+
+    assert position["market_value_gbp"] == 0.0
+    assert position["unrealised_gain_gbp"] is None
+    assert position["gain_pct"] is None
+
+
 def test_render_html_contains_tables():
     df = _make_df()
     positions = [

@@ -77,7 +77,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install cicaid-devtools (PR review helpers)
-        run: pip install "cicaid-devtools @ https://github.com/leonarduk/cicaid/releases/download/v0.8.3/cicaid_devtools-0.8.3-py3-none-any.whl"
+        run: pip install --retries 10 "cicaid-devtools @ https://github.com/leonarduk/cicaid/releases/download/v0.8.3/cicaid_devtools-0.8.3-py3-none-any.whl"
 
       - name: Get linked issue body
         id: issue

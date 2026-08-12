@@ -54,7 +54,7 @@ jobs:
         # requirements.txt and requirements-dev.txt live at the repo root
         # (confirmed: no requirements files exist under cdk/ or backend/).
         # No working-directory override is needed.
-        run: pip install -r requirements.txt -r requirements-dev.txt
+        run: pip install --retries 10 -r requirements.txt -r requirements-dev.txt
 
       - name: CDK synth (dry-run)
         # aws-cdk is declared in the root package.json (installed by the root
@@ -100,7 +100,7 @@ jobs:
         # Expected: 023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757
         # 'continue-on-error' is intentionally absent so any finding fails the job.
         run: |
-          curl -fsSL -o /tmp/actionlint.tar.gz \
+          curl -fsSL --retry 5 --retry-delay 5 -o /tmp/actionlint.tar.gz \
             https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz
           echo "023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757  /tmp/actionlint.tar.gz" | sha256sum -c -
           tar -xzf /tmp/actionlint.tar.gz -C /tmp actionlint

@@ -1,10 +1,8 @@
 import json
 
-import pytest
 from fastapi.testclient import TestClient
 
 from backend.app import create_app
-
 
 
 def make_client() -> TestClient:
@@ -61,12 +59,8 @@ def test_notify_email(monkeypatch):
     def fake_push(msg: str) -> None:
         pushed["message"] = msg
 
-    monkeypatch.setattr(
-        "backend.routes.trading_agent.publish_alert", fake_publish
-    )
-    monkeypatch.setattr(
-        "backend.routes.trading_agent.alert_utils.send_push_notification", fake_push
-    )
+    monkeypatch.setattr("backend.routes.trading_agent.publish_alert", fake_publish)
+    monkeypatch.setattr("backend.routes.trading_agent.alert_utils.send_push_notification", fake_push)
 
     client = make_client()
     resp = client.get("/trading-agent/signals", params={"notify_email": "true"})
@@ -150,12 +144,8 @@ def test_no_signals(monkeypatch):
     def boom(*_):
         raise AssertionError("should not be called")
 
-    monkeypatch.setattr(
-        "backend.routes.trading_agent.publish_alert", boom
-    )
-    monkeypatch.setattr(
-        "backend.routes.trading_agent.alert_utils.send_push_notification", boom
-    )
+    monkeypatch.setattr("backend.routes.trading_agent.publish_alert", boom)
+    monkeypatch.setattr("backend.routes.trading_agent.alert_utils.send_push_notification", boom)
     monkeypatch.setattr("backend.routes.trading_agent.send_message", boom)
 
     client = make_client()
@@ -173,9 +163,7 @@ def test_settings_returns_active_thresholds(monkeypatch):
     client = make_client()
     # Patch after create_app(): reload_config() replaces config.trading_agent
     # with a fresh instance parsed from config.yaml.
-    monkeypatch.setattr(
-        "backend.routes.trading_agent.config.trading_agent.rsi_buy", 27.5
-    )
+    monkeypatch.setattr("backend.routes.trading_agent.config.trading_agent.rsi_buy", 27.5)
 
     response = client.get("/trading-agent/settings")
 
@@ -195,9 +183,7 @@ def test_settings_returns_active_thresholds(monkeypatch):
 
 def test_settings_uses_effective_strategy_prefs(monkeypatch, tmp_path):
     """strategy_prefs.json overrides must be reflected, matching /signals."""
-    (tmp_path / "strategy_prefs.json").write_text(
-        json.dumps({"rsi_buy": 25.0, "pe_max": 12.5}), encoding="utf-8"
-    )
+    (tmp_path / "strategy_prefs.json").write_text(json.dumps({"rsi_buy": 25.0, "pe_max": 12.5}), encoding="utf-8")
     client = make_client()
     monkeypatch.setattr("backend.routes.trading_agent.config.repo_root", tmp_path)
 
@@ -213,12 +199,8 @@ def test_settings_uses_effective_strategy_prefs(monkeypatch, tmp_path):
 def test_settings_accepts_disabled_rsi_thresholds(monkeypatch):
     """Disabled RSI thresholds (null) must not 500 the settings endpoint."""
     client = make_client()
-    monkeypatch.setattr(
-        "backend.routes.trading_agent.config.trading_agent.rsi_buy", None
-    )
-    monkeypatch.setattr(
-        "backend.routes.trading_agent.config.trading_agent.rsi_sell", None
-    )
+    monkeypatch.setattr("backend.routes.trading_agent.config.trading_agent.rsi_buy", None)
+    monkeypatch.setattr("backend.routes.trading_agent.config.trading_agent.rsi_sell", None)
 
     response = client.get("/trading-agent/settings")
 

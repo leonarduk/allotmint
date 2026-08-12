@@ -1,3 +1,5 @@
+import json
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -168,11 +170,14 @@ def test_no_signals(monkeypatch):
 
 
 def test_settings_returns_active_thresholds(monkeypatch):
+    client = make_client()
+    # Patch after create_app(): reload_config() replaces config.trading_agent
+    # with a fresh instance parsed from config.yaml.
     monkeypatch.setattr(
         "backend.routes.trading_agent.config.trading_agent.rsi_buy", 27.5
     )
 
-    response = make_client().get("/trading-agent/settings")
+    response = client.get("/trading-agent/settings")
 
     assert response.status_code == 200
     assert response.json() == {
@@ -186,3 +191,37 @@ def test_settings_returns_active_thresholds(monkeypatch):
         "min_sharpe": None,
         "max_volatility": None,
     }
+
+
+def test_settings_uses_effective_strategy_prefs(monkeypatch, tmp_path):
+    """strategy_prefs.json overrides must be reflected, matching /signals."""
+    (tmp_path / "strategy_prefs.json").write_text(
+        json.dumps({"rsi_buy": 25.0, "pe_max": 12.5}), encoding="utf-8"
+    )
+    client = make_client()
+    monkeypatch.setattr("backend.routes.trading_agent.config.repo_root", tmp_path)
+
+    response = client.get("/trading-agent/settings")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["rsi_buy"] == 25.0
+    assert body["pe_max"] == 12.5
+    assert body["rsi_sell"] == 70.0
+
+
+def test_settings_accepts_disabled_rsi_thresholds(monkeypatch):
+    """Disabled RSI thresholds (null) must not 500 the settings endpoint."""
+    client = make_client()
+    monkeypatch.setattr(
+        "backend.routes.trading_agent.config.trading_agent.rsi_buy", None
+    )
+    monkeypatch.setattr(
+        "backend.routes.trading_agent.config.trading_agent.rsi_sell", None
+    )
+
+    response = client.get("/trading-agent/settings")
+
+    assert response.status_code == 200
+    assert response.json()["rsi_buy"] is None
+    assert response.json()["rsi_sell"] is None

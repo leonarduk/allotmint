@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { axe } from 'jest-axe';
 import Trading from '@/pages/Trading';
 import useFetchWithRetry from '@/hooks/useFetchWithRetry';
-import type { TradingSignal } from '@/types';
+import type { TradingAgentSettings, TradingSignal } from '@/types';
 
 vi.mock('@/api', () => ({
   getTradingPageData: vi.fn(),
@@ -44,8 +44,21 @@ const sampleSignal: TradingSignal = {
   instrument_type: 'equity',
 };
 
+const defaultSettings: TradingAgentSettings = {
+  rsi_buy: 30,
+  rsi_sell: 70,
+  rsi_window: 14,
+  ma_short_window: 20,
+  ma_long_window: 50,
+  pe_max: null,
+  de_max: null,
+  min_sharpe: null,
+  max_volatility: null,
+};
+
 function mockFetchState(overrides: {
   data?: TradingSignal[] | null;
+  settings?: Partial<TradingAgentSettings>;
   loading?: boolean;
   error?: Error | null;
 }) {
@@ -55,17 +68,7 @@ function mockFetchState(overrides: {
         ? null
         : {
             signals: overrides.data ?? [],
-            settings: {
-              rsi_buy: 30,
-              rsi_sell: 70,
-              rsi_window: 14,
-              ma_short_window: 20,
-              ma_long_window: 50,
-              pe_max: null,
-              de_max: null,
-              min_sharpe: null,
-              max_volatility: null,
-            },
+            settings: { ...defaultSettings, ...overrides.settings },
           },
     loading: overrides.loading ?? false,
     error: overrides.error ?? null,
@@ -112,6 +115,32 @@ describe('Trading page', () => {
       screen.getByText(/No tracked instrument currently crosses/)
     ).toBeInTheDocument();
     expect(screen.queryByText(/backend unavailable/i)).not.toBeInTheDocument();
+  });
+
+  it('renders "Not enabled" for null (disabled) thresholds', async () => {
+    mockFetchState({
+      data: [],
+      settings: { rsi_buy: null, rsi_sell: null },
+    });
+
+    render(<Trading />);
+
+    await screen.findByText('No signals right now');
+    // rsi_buy, rsi_sell and the four optional filters are all disabled.
+    expect(screen.getAllByText('Not enabled')).toHaveLength(6);
+  });
+
+  it('renders the signals table when signals exist', async () => {
+    mockFetchState({ data: [sampleSignal] });
+
+    render(<Trading />);
+
+    expect(await screen.findByText('AAA')).toBeInTheDocument();
+    expect(screen.getByRole('table')).toBeInTheDocument();
+    expect(screen.getByText('Buy')).toBeInTheDocument();
+    expect(screen.getByText('cheap')).toBeInTheDocument();
+    expect(screen.queryByText('No signals right now')).not.toBeInTheDocument();
+    expect(screen.getByText('1 active signals')).toBeInTheDocument();
   });
 
   it('shows a retryable backend-unavailable state on failure, distinct from the empty state', async () => {

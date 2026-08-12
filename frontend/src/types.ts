@@ -609,8 +609,8 @@ export interface TradingSignal {
 }
 
 export interface TradingAgentSettings {
-  rsi_buy: number;
-  rsi_sell: number;
+  rsi_buy: number | null;
+  rsi_sell: number | null;
   rsi_window: number;
   ma_short_window: number;
   ma_long_window: number;

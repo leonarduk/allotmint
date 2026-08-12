@@ -25,8 +25,8 @@ router = APIRouter(prefix="/trading-agent", tags=["trading-agent"])
 class TradingAgentSettings(BaseModel):
     """Public, non-secret thresholds used to generate trading signals."""
 
-    rsi_buy: float
-    rsi_sell: float
+    rsi_buy: float | None
+    rsi_sell: float | None
     rsi_window: int
     ma_short_window: int
     ma_long_window: int
@@ -40,7 +40,9 @@ class TradingAgentSettings(BaseModel):
 async def settings() -> TradingAgentSettings:
     """Return the active signal thresholds without exposing server config."""
 
-    return TradingAgentSettings.model_validate(asdict(config.trading_agent))
+    return TradingAgentSettings.model_validate(
+        asdict(trading_agent.load_strategy_config())
+    )
 
 
 @router.get(

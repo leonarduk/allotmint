@@ -20,6 +20,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markupsafe import Markup
 
+from backend.common.constants import COST_BASIS_GBP, EFFECTIVE_COST_BASIS_GBP, UNITS
 from backend.common.holding_utils import get_effective_cost_basis_gbp
 from backend.common.instruments import list_instruments
 from backend.common.portfolio_loader import list_portfolios
@@ -141,11 +142,15 @@ def _positions_for_ticker(tkr: str, last_close: float | None) -> List[Dict[str, 
                 gain_pct = h.get("gain_pct")
                 if mv_gbp is not None and (gain_gbp is None or gain_pct is None):
                     # Raw account files do not contain the derived gain fields
-                    # returned by the holdings endpoint. Use its canonical cost
-                    # basis calculation so both views report the same result.
-                    cost = get_effective_cost_basis_gbp(
-                        dict(h), price_cache, price_hint=last_close
+                    # returned by the holdings endpoint. Map their legacy field
+                    # names onto the canonical ones, then reuse its cost basis
+                    # calculation so both views report the same result.
+                    normalised = dict(h)
+                    normalised[UNITS] = h.get(UNITS) or h.get("quantity")
+                    normalised[COST_BASIS_GBP] = (
+                        h.get(EFFECTIVE_COST_BASIS_GBP) or h.get(COST_BASIS_GBP) or h.get("cost_basis")
                     )
+                    cost = get_effective_cost_basis_gbp(normalised, price_cache, price_hint=last_close)
                     if cost > 0:
                         calculated_gain = round(mv_gbp - cost, 2)
                         if gain_gbp is None:

@@ -13,4 +13,4 @@ pytest-asyncio~=1.4.0
 # unresolvable (jsonschema~=4.23.0 vs ~=4.26.0).
 # cicaid-devtools is imported by tests/test_ai_review_scripts.py and
 # tests/test_review_common.py. Not a Lambda runtime dep — test-only.
-cicaid-devtools @ https://github.com/leonarduk/cicaid/releases/download/v0.5.2/cicaid_devtools-0.5.2-py3-none-any.whl
+cicaid-devtools @ https://github.com/leonarduk/cicaid/releases/download/v0.8.3/cicaid_devtools-0.8.3-py3-none-any.whl

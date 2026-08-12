@@ -195,8 +195,8 @@ jobs:
 
       - name: Install backend dependencies
         run: |
-          pip install -r requirements.txt
-          pip install -r requirements-dev.txt
+          pip install --retries 10 -r requirements.txt
+          pip install --retries 10 -r requirements-dev.txt
 
       - name: Verify required AWS secrets
         run: |

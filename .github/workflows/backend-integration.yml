@@ -54,8 +54,8 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -r requirements-dev.txt
+          pip install --retries 10 -r requirements.txt
+          pip install --retries 10 -r requirements-dev.txt
 
       # Optional: sync real S3 fixture data when credentials are available.
       # Skipped on forks and any env where the OIDC role / DATA_BUCKET secret

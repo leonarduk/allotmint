@@ -637,7 +637,7 @@ export default function App({ onLogout }: AppProps) {
         {mode === 'timeseries' && <TimeseriesEdit />}
         {mode === 'virtual' && (
           <Suspense fallback={<PortfolioDashboardSkeleton label={t('app.loading')} />}>
-            <VirtualPortfolio />
+            <VirtualPortfolio owner={selectedOwner} />
           </Suspense>
         )}
         {mode === 'instrumentadmin' && <InstrumentAdmin />}

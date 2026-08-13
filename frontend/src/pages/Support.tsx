@@ -367,7 +367,10 @@ export default function Support() {
       </header>
 
       <div id="local-login-override">
-        <SectionCard title={t("support.localLogin.title", "Local login override")}>
+        <SectionCard
+          title={t("support.localLogin.title", "Local login override")}
+          defaultOpen={window.location.hash === "#local-login-override"}
+        >
         <p className="mb-2 text-sm text-gray-600">
           {t(
             "support.localLogin.description",

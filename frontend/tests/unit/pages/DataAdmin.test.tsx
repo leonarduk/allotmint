@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi } from "vitest";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 
 const mockListTimeseries = vi.hoisted(() => vi.fn());
 
@@ -45,23 +46,42 @@ describe("DataAdmin page", () => {
   });
 
   it("links a missing local login error to the relevant support control", async () => {
+    const user = userEvent.setup();
     mockListTimeseries.mockRejectedValue(
       new Error(
         "No local login override is configured. Go to Support -> Local login override and select a user to continue in local/demo mode.",
       ),
     );
 
+    const LocationDisplay = () => {
+      const location = useLocation();
+      return (
+        <div data-testid="location-display">
+          {location.pathname}
+          {location.hash}
+        </div>
+      );
+    };
+
     render(
-      <MemoryRouter>
+      <MemoryRouter initialEntries={["/dataadmin"]}>
         <DataAdmin />
+        <LocationDisplay />
       </MemoryRouter>,
     );
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "No local login override is configured",
     );
-    expect(
-      screen.getByRole("link", { name: "Configure local login override" }),
-    ).toHaveAttribute("href", "/support#local-login-override");
+    const link = screen.getByRole("link", {
+      name: "Configure local login override",
+    });
+    expect(link).toHaveAttribute("href", "/support#local-login-override");
+
+    await user.click(link);
+
+    expect(screen.getByTestId("location-display")).toHaveTextContent(
+      "/support#local-login-override",
+    );
   });
 });

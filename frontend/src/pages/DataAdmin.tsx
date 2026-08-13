@@ -48,7 +48,6 @@ export default function DataAdmin() {
     const needsLocalLogin = error.includes(
       "No local login override is configured",
     );
-
     return (
       <div className="container mx-auto max-w-5xl p-4" role="alert">
         <p className="text-red-600">{error}</p>

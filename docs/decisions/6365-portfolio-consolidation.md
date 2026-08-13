@@ -301,6 +301,10 @@ Keep the catalogue editor until group assignment has a confirmed replacement
 (such as the `InstrumentDetail` drawer), at which point its route and component
 can be retired together.
 
+The longer-term component boundary, shared grouping primitives, and deliberate
+route-specific defaults are recorded in
+[`6507-grouped-table-boundary.md`](6507-grouped-table-boundary.md).
+
 ---
 
 ## 5. `familyMvpEnabled` — gates the controls, never the scope selector

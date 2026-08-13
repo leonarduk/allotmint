@@ -547,7 +547,19 @@
   },
   "trading": {
     "noPositions": "Nessuna posizione.",
-    "noSignals": "Nessun segnali."
+    "noSignals": "Nessun segnali.",
+    "eyebrow": "Supporto alle decisioni",
+    "title": "Segnali di trading",
+    "description": "Consulta i segnali generati da momentum, trend e filtri di rischio opzionali. I segnali sono informativi e non costituiscono istruzioni di trading.",
+    "signalCount": "{{count}} segnali attivi",
+    "settings": {
+      "title": "Soglie di strategia attive",
+      "description": "Queste impostazioni gestite dal server determinano quando può essere generato un segnale.",
+      "readOnly": "Solo lettura"
+    },
+    "signalsTitle": "Segnali correnti",
+    "noSignalsTitle": "Nessun segnale al momento",
+    "noSignalsDescription": "Nessuno strumento monitorato supera attualmente le soglie attive. I segnali compaiono quando le condizioni RSI o di media mobile sono soddisfatte e passano anche i filtri di valutazione e rischio abilitati."
   },
   "trail": {
     "allDone": "Tutte le attività Trail sono completate — ottimo lavoro!",

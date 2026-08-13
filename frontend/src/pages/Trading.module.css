@@ -1,0 +1,95 @@
+.page {
+  display: grid;
+  gap: 1.5rem;
+  padding: 1rem;
+}
+.header {
+  align-items: flex-start;
+  display: flex;
+  gap: 2rem;
+  justify-content: space-between;
+}
+.header h1,
+.sectionHeading h2 {
+  margin: 0;
+}
+.eyebrow {
+  color: var(--color-primary, #2563eb);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  margin: 0 0 0.35rem;
+  text-transform: uppercase;
+}
+.intro,
+.sectionHeading p,
+.emptyState p {
+  color: var(--color-text-muted, #596579);
+  line-height: 1.55;
+  margin: 0.5rem 0 0;
+  max-width: 48rem;
+}
+.signalCount,
+.readOnly {
+  background: #e8f0ff;
+  border-radius: 999px;
+  color: #174ea6;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 0.45rem 0.75rem;
+  white-space: nowrap;
+}
+.settings {
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border, #d8dee9);
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+}
+.sectionHeading {
+  align-items: flex-start;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+.thresholdGrid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  margin: 1.25rem 0 0;
+}
+.threshold {
+  background: var(--color-background, #f6f8fb);
+  border-radius: 0.5rem;
+  padding: 0.8rem;
+}
+.threshold dt {
+  color: var(--color-text-muted, #596579);
+  font-size: 0.78rem;
+}
+.threshold dd {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0.3rem 0 0;
+}
+.emptyState {
+  background: var(--color-background, #f6f8fb);
+  border: 1px dashed var(--color-border, #b8c2d1);
+  border-radius: 0.75rem;
+  padding: 2rem;
+  text-align: center;
+}
+.emptyState h3 {
+  margin: 0;
+}
+@media (max-width: 640px) {
+  .header,
+  .sectionHeading {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  .signalCount,
+  .readOnly {
+    align-self: flex-start;
+  }
+}

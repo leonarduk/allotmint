@@ -366,7 +366,8 @@ export default function Support() {
         </p>
       </header>
 
-      <SectionCard title={t("support.localLogin.title", "Local login override")}>
+      <div id="local-login-override">
+        <SectionCard title={t("support.localLogin.title", "Local login override")}>
         <p className="mb-2 text-sm text-gray-600">
           {t(
             "support.localLogin.description",
@@ -420,7 +421,8 @@ export default function Support() {
               : t("support.status.error")}
           </p>
         )}
-      </SectionCard>
+        </SectionCard>
+      </div>
 
       <SectionCard title={t("support.dataExplorer.title", "Data Explorer")}>
         <p className="mb-2 text-sm text-gray-600">

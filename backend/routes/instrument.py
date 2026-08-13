@@ -20,6 +20,8 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markupsafe import Markup
 
+from backend.common.constants import COST_BASIS_GBP, EFFECTIVE_COST_BASIS_GBP, UNITS
+from backend.common.holding_utils import get_effective_cost_basis_gbp
 from backend.common.instruments import list_instruments
 from backend.common.portfolio_loader import list_portfolios
 from backend.common.portfolio_utils import get_security_meta
@@ -122,6 +124,7 @@ def _positions_for_ticker(tkr: str, last_close: float | None) -> List[Dict[str, 
     """
 
     positions: List[Dict[str, Any]] = []
+    price_cache = {tkr: last_close} if last_close is not None else {}
 
     # Iterate through owners -> accounts -> holdings
     for pf in list_portfolios():
@@ -137,16 +140,26 @@ def _positions_for_ticker(tkr: str, last_close: float | None) -> List[Dict[str, 
 
                 gain_gbp = h.get("gain_gbp")
                 gain_pct = h.get("gain_pct")
-                if gain_gbp is None and mv_gbp is not None:
-                    # fall back to cost basis when explicit gain is missing
-                    cost = h.get("effective_cost_basis_gbp") or h.get("cost_basis_gbp") or h.get("cost_basis")
-                    try:
-                        cost_f = float(cost) if cost is not None else None
-                    except (TypeError, ValueError):
-                        cost_f = None
-                    if cost_f is not None:
-                        gain_gbp = round(mv_gbp - cost_f, 2)
-                        gain_pct = (gain_gbp / cost_f * 100.0) if cost_f else None
+                if mv_gbp is not None and (gain_gbp is None or gain_pct is None):
+                    # Raw account files do not contain the derived gain fields
+                    # returned by the holdings endpoint. Map their legacy field
+                    # names onto the canonical ones, then reuse its cost basis
+                    # calculation so both views report the same result.
+                    normalised = dict(h)
+                    normalised[UNITS] = h.get(UNITS) or h.get("quantity")
+                    normalised[COST_BASIS_GBP] = (
+                        h.get(EFFECTIVE_COST_BASIS_GBP) or h.get(COST_BASIS_GBP) or h.get("cost_basis")
+                    )
+                    cost = get_effective_cost_basis_gbp(normalised, price_cache, price_hint=last_close)
+                    # The helper never returns None, but keep the guard explicit
+                    # so a future signature change cannot introduce a TypeError
+                    # or a divide-by-zero in the gain percentage below.
+                    if cost is not None and cost > 0:
+                        calculated_gain = round(mv_gbp - cost, 2)
+                        if gain_gbp is None:
+                            gain_gbp = calculated_gain
+                        if gain_pct is None:
+                            gain_pct = calculated_gain / cost * 100.0
 
                 positions.append(
                     {
@@ -178,9 +191,7 @@ def _render_html(
     """Render a minimal HTML page summarising price and position data."""
     prices_tbl = Markup(df[["Date", "Close"]].tail(30).to_html(index=False, escape=True, classes="prices"))
     pos_tbl = (
-        Markup(pd.DataFrame(positions).to_html(index=False, escape=True, classes="positions"))
-        if positions
-        else None
+        Markup(pd.DataFrame(positions).to_html(index=False, escape=True, classes="positions")) if positions else None
     )
 
     begin, end = _as_iso(df.iloc[0]["Date"]), _as_iso(df.iloc[-1]["Date"])
@@ -208,9 +219,7 @@ async def instrument(
     start_date: Annotated[Optional[date], Query(description="Start date YYYY-MM-DD; overrides days")] = None,
     end_date: Annotated[Optional[date], Query(description="End date YYYY-MM-DD; overrides today")] = None,
     format: str = Query("html", pattern="^(html|json)$"),
-    base_currency: str | None = Query(
-        None, description="Reporting currency for prices"
-    ),
+    base_currency: str | None = Query(None, description="Reporting currency for prices"),
 ):
     """Return price history and portfolio positions for a ticker.
 
@@ -246,9 +255,7 @@ async def instrument(
 
     native_currency = currency or ("GBP" if is_gbp_ticker else None)
 
-    base_currency = (
-        base_currency or getattr(config, "base_currency", None) or "GBP"
-    ).upper()
+    base_currency = (base_currency or getattr(config, "base_currency", None) or "GBP").upper()
 
     if df.empty:
         positions = _positions_for_ticker(ticker.upper(), None)
@@ -416,32 +423,22 @@ async def instrument(
                     df.drop(columns=["Rate"], inplace=True)
                     cols.append(col_name)
                     rename[col_name] = f"close_{base_lower}"
-                    assigns[f"close_{base_lower}"] = (
-                        lambda d, c=f"close_{base_lower}": d[c].astype(float)
-                    )
+                    assigns[f"close_{base_lower}"] = lambda d, c=f"close_{base_lower}": d[c].astype(float)
                     pair = f"{base_currency}GBP"
                     fx_links[pair] = f"/timeseries/meta?ticker={pair}"
             except Exception:
                 pass
 
         system_base = getattr(config, "base_currency", "").upper()
-        if (
-            system_base == "USD"
-            and "Close_gbp" in df.columns
-            and "Close_usd" not in df.columns
-        ):
+        if system_base == "USD" and "Close_gbp" in df.columns and "Close_usd" not in df.columns:
             start_fx = df["Date"].dt.date.min()
             end_fx = df["Date"].dt.date.max()
             try:
-                fx_usd = fetch_fx_rate_range("USD", "GBP", start_fx, end_fx).rename(
-                    columns={"Rate": "Rate_usd"}
-                )
+                fx_usd = fetch_fx_rate_range("USD", "GBP", start_fx, end_fx).rename(columns={"Rate": "Rate_usd"})
                 if not fx_usd.empty:
                     fx_usd["Date"] = pd.to_datetime(fx_usd["Date"])
                     df = df.merge(fx_usd, on="Date", how="left")
-                    df["Close_usd"] = df["Close_gbp"] / pd.to_numeric(
-                        df["Rate_usd"], errors="coerce"
-                    )
+                    df["Close_usd"] = df["Close_gbp"] / pd.to_numeric(df["Rate_usd"], errors="coerce")
                     df.drop(columns=["Rate_usd"], inplace=True)
                     cols.append("Close_usd")
                     rename["Close_usd"] = "close_usd"
@@ -450,12 +447,7 @@ async def instrument(
             except Exception:
                 pass
 
-        prices = (
-            df[cols]
-            .rename(columns=rename)
-            .assign(**assigns)
-            .to_dict(orient="records")
-        )
+        prices = df[cols].rename(columns=rename).assign(**assigns).to_dict(orient="records")
         mini = {"7": prices[-7:], "30": prices[-30:], "180": prices[-180:]}
         payload = {
             "ticker": ticker,
@@ -481,7 +473,7 @@ async def instrument(
             ticker=ticker,
             df=df,
             positions=positions,
-    window_days=window_days,
+            window_days=window_days,
         )
     )
 

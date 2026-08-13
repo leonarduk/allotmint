@@ -1,13 +1,13 @@
+from unittest.mock import patch
+
 import pandas as pd
 import pytest
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
-from unittest.mock import patch
 
-from backend.routes import instrument
 from backend.app import create_app
 from backend.config import config
-
+from backend.routes import instrument
 
 SAMPLE_INSTRUMENTS = [
     {"ticker": "ABC.L", "name": "ABC Company", "sector": "Tech", "region": "UK"},
@@ -37,23 +37,18 @@ def _make_df() -> pd.DataFrame:
 # /instrument/search
 # ---------------------------------------------------------------------------
 
+
 def test_search_valid_and_filters(monkeypatch):
     app = FastAPI()
     app.include_router(instrument.router)
-    monkeypatch.setattr(
-        "backend.routes.instrument.list_instruments", lambda: SAMPLE_INSTRUMENTS
-    )
+    monkeypatch.setattr("backend.routes.instrument.list_instruments", lambda: SAMPLE_INSTRUMENTS)
     client = TestClient(app)
     resp = client.get("/instrument/search", params={"q": "alpha"})
     assert resp.status_code == 200
     assert resp.json() == [SAMPLE_INSTRUMENTS[2]]
 
-    resp_sector = client.get(
-        "/instrument/search", params={"q": "c", "sector": "Finance"}
-    )
-    resp_region = client.get(
-        "/instrument/search", params={"q": "c", "region": "US"}
-    )
+    resp_sector = client.get("/instrument/search", params={"q": "c", "sector": "Finance"})
+    resp_region = client.get("/instrument/search", params={"q": "c", "region": "US"})
     assert resp_sector.json() == [SAMPLE_INSTRUMENTS[1]]
     assert resp_region.json() == [SAMPLE_INSTRUMENTS[1]]
 
@@ -61,24 +56,17 @@ def test_search_valid_and_filters(monkeypatch):
 def test_search_invalid_inputs(monkeypatch):
     app = FastAPI()
     app.include_router(instrument.router)
-    monkeypatch.setattr(
-        "backend.routes.instrument.list_instruments", lambda: SAMPLE_INSTRUMENTS
-    )
+    monkeypatch.setattr("backend.routes.instrument.list_instruments", lambda: SAMPLE_INSTRUMENTS)
     client = TestClient(app)
     assert client.get("/instrument/search").status_code == 400
-    assert (
-        client.get("/instrument/search", params={"q": "a", "sector": ""}).status_code
-        == 400
-    )
-    assert (
-        client.get("/instrument/search", params={"q": "a", "region": ""}).status_code
-        == 400
-    )
+    assert client.get("/instrument/search", params={"q": "a", "sector": ""}).status_code == 400
+    assert client.get("/instrument/search", params={"q": "a", "region": ""}).status_code == 400
 
 
 # ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
+
 
 def test_validate_ticker_accepts():
     assert instrument._validate_ticker("ABC.L") is None
@@ -105,15 +93,69 @@ def test_positions_for_ticker_gain_and_cost(monkeypatch):
             ],
         }
     ]
-    monkeypatch.setattr(
-        "backend.routes.instrument.list_portfolios", lambda: portfolios
-    )
+    monkeypatch.setattr("backend.routes.instrument.list_portfolios", lambda: portfolios)
     positions = instrument._positions_for_ticker("ABC.L", last_close=11.0)
     assert len(positions) == 2
     first, second = positions
     assert first["unrealised_gain_gbp"] == 5
     assert second["unrealised_gain_gbp"] == pytest.approx(2.0)
     assert second["gain_pct"] == pytest.approx(10.0)
+
+
+def test_positions_for_ticker_derives_gain_from_acquisition_price(monkeypatch):
+    portfolios = [
+        {
+            "owner": "alex",
+            "accounts": [
+                {
+                    "account_type": "isa",
+                    "holdings": [
+                        {
+                            "ticker": "ABC.L",
+                            "units": 2,
+                            "acquired_date": "2024-01-02",
+                        }
+                    ],
+                }
+            ],
+        }
+    ]
+    monkeypatch.setattr("backend.routes.instrument.list_portfolios", lambda: portfolios)
+    monkeypatch.setattr(
+        "backend.common.holding_utils._derived_cost_basis_close_px",
+        lambda *_args, **_kwargs: 8.0,
+    )
+
+    [position] = instrument._positions_for_ticker("ABC.L", last_close=10.0)
+
+    assert position["market_value_gbp"] == pytest.approx(20.0)
+    assert position["unrealised_gain_gbp"] == pytest.approx(4.0)
+    assert position["gain_pct"] == pytest.approx(25.0)
+
+
+def test_positions_for_ticker_zero_cost_leaves_gain_unchanged(monkeypatch):
+    # A zero/unknown cost basis must not fabricate a gain: the position keeps
+    # whatever gain fields the raw file carried (here: none).
+    portfolios = [
+        {
+            "owner": "alex",
+            "accounts": [
+                {
+                    "account_type": "isa",
+                    "holdings": [{"ticker": "ABC.L", "units": 2}],
+                }
+            ],
+        }
+    ]
+    monkeypatch.setattr("backend.routes.instrument.list_portfolios", lambda: portfolios)
+
+    # A zero close price leaves the derived cost basis at 0, so the gain
+    # calculation is skipped instead of dividing by zero.
+    [position] = instrument._positions_for_ticker("ABC.L", last_close=0.0)
+
+    assert position["market_value_gbp"] == 0.0
+    assert position["unrealised_gain_gbp"] is None
+    assert position["gain_pct"] is None
 
 
 def test_render_html_contains_tables():
@@ -129,13 +171,14 @@ def test_render_html_contains_tables():
         }
     ]
     html = instrument._render_html("ABC.L", df, positions, window_days=30)
-    assert "class=\"dataframe prices\"" in html
-    assert "class=\"dataframe positions\"" in html
+    assert 'class="dataframe prices"' in html
+    assert 'class="dataframe positions"' in html
 
 
 # ---------------------------------------------------------------------------
 # /instrument route
 # ---------------------------------------------------------------------------
+
 
 def test_instrument_route_json_html_and_base_currency(monkeypatch):
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
@@ -150,24 +193,17 @@ def test_instrument_route_json_html_and_base_currency(monkeypatch):
     portfolios = [
         {
             "owner": "alex",
-            "accounts": [
-                {"account_type": "isa", "holdings": [{"ticker": "ABC.L", "units": 2}]}
-            ],
+            "accounts": [{"account_type": "isa", "holdings": [{"ticker": "ABC.L", "units": 2}]}],
         }
     ]
-    with patch(
-        "backend.routes.instrument.load_meta_timeseries_range", return_value=df
-    ), patch(
-        "backend.routes.instrument.list_portfolios", return_value=portfolios
-    ), patch(
-        "backend.routes.instrument.get_security_meta", return_value={"currency": "GBP"}
-    ), patch(
-        "backend.routes.instrument.fetch_fx_rate_range", return_value=fx_df
+    with (
+        patch("backend.routes.instrument.load_meta_timeseries_range", return_value=df),
+        patch("backend.routes.instrument.list_portfolios", return_value=portfolios),
+        patch("backend.routes.instrument.get_security_meta", return_value={"currency": "GBP"}),
+        patch("backend.routes.instrument.fetch_fx_rate_range", return_value=fx_df),
     ):
         client = _auth_client(app)
-        resp_json = client.get(
-            "/instrument?ticker=ABC.L&days=1&format=json&base_currency=USD"
-        )
+        resp_json = client.get("/instrument?ticker=ABC.L&days=1&format=json&base_currency=USD")
         resp_html = client.get("/instrument?ticker=ABC.L&days=1&format=html")
 
     assert resp_json.status_code == 200
@@ -196,9 +232,7 @@ def test_instrument_route_close_only_prices_populates_positions(monkeypatch):
             "accounts": [
                 {
                     "account_type": "general",
-                    "holdings": [
-                        {"ticker": "XYZ.N", "units": 2, "cost_basis_gbp": 150.0}
-                    ],
+                    "holdings": [{"ticker": "XYZ.N", "units": 2, "cost_basis_gbp": 150.0}],
                 }
             ],
         }
@@ -211,15 +245,14 @@ def test_instrument_route_close_only_prices_populates_positions(monkeypatch):
         rate = 0.8 if (base, quote) == ("USD", "GBP") else 1.0
         return pd.DataFrame({"Date": dates, "Rate": [rate] * len(dates)})
 
-    with patch(
-        "backend.routes.instrument.load_meta_timeseries_range", return_value=df
-    ), patch(
-        "backend.routes.instrument.list_portfolios", return_value=portfolios
-    ), patch(
-        "backend.routes.instrument.get_security_meta",
-        return_value={"currency": "USD"},
-    ), patch(
-        "backend.routes.instrument.fetch_fx_rate_range", side_effect=fake_fx
+    with (
+        patch("backend.routes.instrument.load_meta_timeseries_range", return_value=df),
+        patch("backend.routes.instrument.list_portfolios", return_value=portfolios),
+        patch(
+            "backend.routes.instrument.get_security_meta",
+            return_value={"currency": "USD"},
+        ),
+        patch("backend.routes.instrument.fetch_fx_rate_range", side_effect=fake_fx),
     ):
         client = _auth_client(app)
         resp = client.get("/instrument?ticker=XYZ.N&days=2&format=json")

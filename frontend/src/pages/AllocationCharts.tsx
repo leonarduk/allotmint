@@ -8,6 +8,7 @@ import { money } from "../lib/money";
 import { useConfig } from "../ConfigContext";
 import { RelativeViewToggle } from "../components/RelativeViewToggle";
 import ChartSkeleton from "../components/skeletons/ChartSkeleton";
+import { useViewportWidth } from "../hooks/useViewportWidth";
 import {
   PieChart,
   Pie,
@@ -28,6 +29,8 @@ const COLORS = [
   "#d0ed57",
   "#ffc0cb",
 ];
+
+const INLINE_PIE_LABEL_MIN_WIDTH = 640;
 
 const toFiniteNumber = (value: unknown): number => {
   const numeric = typeof value === "number" ? value : Number(value);
@@ -70,6 +73,7 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const allToggleRef = useRef<HTMLInputElement>(null);
+  const showInlinePieLabels = useViewportWidth() >= INLINE_PIE_LABEL_MIN_WIDTH;
   const supportsResizeObserver =
     typeof window !== "undefined" && typeof window.ResizeObserver === "function";
 
@@ -282,7 +286,7 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
                 cy="50%"
                 outerRadius="80%"
                 // "percent" may be undefined for empty datasets; default it to 0
-                label={(props) => {
+                label={showInlinePieLabels && ((props) => {
                   const { name, value, percent: slicePercent } = props as PieLabelRenderProps;
                   const labelName = typeof name === "string" ? name : name != null ? String(name) : "";
                   const percentValue = (slicePercent ?? 0) * 100;
@@ -296,7 +300,7 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
                   return relativeViewEnabled
                     ? `${labelName}: ${percentValue.toFixed(2)}%`
                     : `${labelName}: ${money(numericValue, baseCurrency)} (${percentValue.toFixed(2)}%)`;
-                }}
+                })}
               >
                 {chartData.map((_, index) => (
                   <Cell

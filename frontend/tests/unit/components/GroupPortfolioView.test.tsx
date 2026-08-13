@@ -137,13 +137,20 @@ const mockAllFetches = (
   options: {
     metrics?: { alpha?: any; trackingError?: any; maxDrawdown?: any };
     instruments?: Record<string, any[]>;
-    sectorContributions?: any[];
-    regionContributions?: any[];
     complianceWarnings?: any[];
     complianceFails?: boolean;
+    sectorContributions?: any[];
+    regionContributions?: any[];
   } = {},
 ) => {
-  const { metrics, instruments = {}, sectorContributions = [], regionContributions = [], complianceWarnings = [], complianceFails = false } = options;
+  const {
+    metrics,
+    instruments = {},
+    complianceWarnings = [],
+    complianceFails = false,
+    sectorContributions = [],
+    regionContributions = [],
+  } = options;
   const { alpha = 0, trackingError = 0, maxDrawdown = 0 } = metrics ?? {};
   const defaultInstrumentRows =
     instruments[instrumentKey(undefined, undefined)] ?? [];
@@ -205,13 +212,19 @@ const mockAllFetches = (
     if (url.includes("/instrument/admin/groups")) {
       return Promise.resolve({
         ok: true,
-        json: async () => [],
+        json: async () => sectorContributions,
+      } as Response);
+    }
+    if (url.includes("/portfolio/") && url.includes("/sectors")) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => sectorContributions,
       } as Response);
     }
     if (url.includes("/instrument/admin/groupings")) {
       return Promise.resolve({
         ok: true,
-        json: async () => [],
+        json: async () => regionContributions,
       } as Response);
     }
     if (url.includes("/portfolio-group/") && url.includes("/movers")) {
@@ -1371,6 +1384,46 @@ describe("GroupPortfolioView", () => {
     expect(screen.queryByTestId("top-movers-summary")).not.toBeInTheDocument();
     expect(screen.queryByText("Alpha vs Benchmark")).not.toBeInTheDocument();
     expect(screen.queryByText("Tracking Error")).not.toBeInTheDocument();
+  });
+
+  it("renders owner sector contributions from the owner-scoped endpoint", async () => {
+    const getOwnerSectorContributions = vi
+      .spyOn(api, "getOwnerSectorContributions")
+      .mockResolvedValue([{ sector: "Technology", gain_gbp: 12 }]);
+    const fetchMock = mockAllFetches(
+      {
+        name: "At a glance",
+        accounts: [
+          { owner: "alice", account_type: "isa", value_estimate_gbp: 100, holdings: [] },
+        ],
+      },
+      {
+        sectorContributions: [{ sector: "Technology", gain_gbp: 12 }],
+        regionContributions: [{ region: "Europe", gain_gbp: 8 }],
+      },
+    );
+
+    render(
+      <MemoryRouter initialEntries={["/?owner=alice"]}>
+        <TestProvider>
+          <GroupPortfolioView slug="all" owners={ownerFixtures} />
+        </TestProvider>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Technology")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sector" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Region" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Europe")).not.toBeInTheDocument();
+    expect(getOwnerSectorContributions).toHaveBeenCalledWith(
+      "alice",
+      { asOf: undefined },
+    );
+    expect(
+      fetchMock.mock.calls.some(([input]) =>
+        toUrlString(input).includes("region-contributions"),
+      ),
+    ).toBe(false);
   });
 
   it("keeps the current path and unrelated query parameters when changing scope", async () => {

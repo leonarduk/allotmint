@@ -14,8 +14,8 @@ vi.mock("recharts", () => ({
   PieChart: ({ children }: { children: ReactNode }) => (
     <div data-testid="pie-chart">{children}</div>
   ),
-  Pie: ({ data, children }: { data: Array<{ name: string; value: number }>; children: ReactNode }) => (
-    <div data-testid="pie-slices">
+  Pie: ({ data, children, label }: { data: Array<{ name: string; value: number }>; children: ReactNode; label?: unknown }) => (
+    <div data-testid="pie-slices" data-inline-labels={Boolean(label)}>
       {data.length === 0 ? (
         <span data-testid="no-slices">no-slices</span>
       ) : (
@@ -97,6 +97,30 @@ describe("AllocationCharts page", () => {
     resolveFn!(samplePortfolio);
     expect(await screen.findByText(/Instrument Types/)).toBeInTheDocument();
     expect(screen.queryByRole("status", { name: /Loading/ })).not.toBeInTheDocument();
+  });
+
+  it("uses the legend instead of inline labels on mobile viewports", async () => {
+    mockGetGroupPortfolio.mockResolvedValueOnce(samplePortfolio);
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 375 });
+
+    render(<AllocationCharts />);
+
+    expect(await screen.findByTestId("pie-slices")).toHaveAttribute(
+      "data-inline-labels",
+      "false",
+    );
+  });
+
+  it("restores inline labels when the viewport grows", async () => {
+    mockGetGroupPortfolio.mockResolvedValueOnce(samplePortfolio);
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 375 });
+    render(<AllocationCharts />);
+    const pie = await screen.findByTestId("pie-slices");
+
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 800 });
+    fireEvent(window, new Event("resize"));
+
+    expect(pie).toHaveAttribute("data-inline-labels", "true");
   });
 
   it("displays an error message when API call fails", async () => {

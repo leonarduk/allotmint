@@ -31,7 +31,7 @@ describe('Root Family MVP route gating', () => {
     localStorage.clear();
   });
 
-  it('redirects disabled input route to a safe fallback', async () => {
+  it('explains a disabled reports route without discarding the URL', async () => {
     vi.doMock('react-dom/client', () => ({
       createRoot: () => ({ render: vi.fn() }),
     }));
@@ -53,7 +53,10 @@ describe('Root Family MVP route gating', () => {
       default: AppShellPath,
     }));
 
-    await renderRootAt('/input');
-    expect(await screen.findByTestId('app-shell-path')).toHaveTextContent('/');
+    await renderRootAt('/reports');
+    expect(
+      await screen.findByText("This feature isn't enabled for this application.")
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId('app-shell-path')).not.toBeInTheDocument();
   });
 });

@@ -313,8 +313,8 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   const [instrumentLoading, setInstrumentLoading] = useState(false);
   const [instrumentError, setInstrumentError] = useState<Error | null>(null);
   const [requestedDisplayMode, setRequestedDisplayMode] = useState<
-    "flat" | "rollup"
-  >("flat");
+    "flat" | "rollup" | "category"
+  >("rollup");
   const displayMode = familyMvpEnabled ? "flat" : requestedDisplayMode;
   const [selectedInstrument, setSelectedInstrument] = useState<{
     ticker: string;
@@ -468,7 +468,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   }, [portfolio?.as_of, asOfOverride]);
 
   useEffect(() => {
-    if (!slug || displayMode !== "rollup") {
+    if (!slug || displayMode === "flat") {
       setInstrumentRows(null);
       setInstrumentLoading(false);
       setInstrumentError(null);
@@ -1386,7 +1386,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
           }}
         >
           <legend className="sr-only">{t("holdingsTable.displayMode.label")}</legend>
-          {(["flat", "rollup"] as const).map((mode) => (
+          {(["rollup", "flat", "category"] as const).map((mode) => (
             <label key={mode}>
               <input
                 type="radio"
@@ -1414,7 +1414,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
         />
       )}
 
-      {displayMode === "rollup" && instrumentError && (
+      {displayMode !== "flat" && instrumentError && (
         <p style={{ color: "red" }}>
           {t("common.error")}: {instrumentError.message}
         </p>
@@ -1446,17 +1446,17 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
             </div>
           )}
           <HoldingsTable
-            holdings={displayMode === "rollup" ? rollupRows : scopedRows}
-            rollupMode={displayMode === "rollup"}
+            holdings={displayMode === "flat" ? scopedRows : rollupRows}
+            rollupMode={displayMode !== "flat"}
             showAccount={showAccount}
-            groupingMode={displayMode === "rollup" ? "category" : "flat"}
+            groupingMode={displayMode === "category" ? "category" : "flat"}
             categoryDefinitions={groupDefinitions}
             onSelectInstrument={(ticker, name) =>
               setSelectedInstrument({ ticker, name })
             }
             selectedTicker={selectedInstrument?.ticker}
           />
-          {displayMode === "rollup" && instrumentLoading && !instrumentRows && (
+          {displayMode !== "flat" && instrumentLoading && !instrumentRows && (
             <p>{t("common.loading")}</p>
           )}
           {selectedInstrument && (

@@ -157,14 +157,10 @@ async def get_opportunities(
     # Restrict it to the bounded mover result rather than re-analysing the
     # entire portfolio universe on every Opportunities page refresh.
     mover_tickers = {
-        str(row.get("ticker") or "").strip()
-        for side in ("gainers", "losers")
-        for row in movers.get(side, [])
+        str(row.get("ticker") or "").strip() for side in ("gainers", "losers") for row in movers.get(side, [])
     }
     mover_tickers.discard("")
-    raw_signals = (
-        trading_agent.run(sorted(mover_tickers), notify=False) if mover_tickers else []
-    )
+    raw_signals = trading_agent.run(sorted(mover_tickers), notify=False) if mover_tickers else []
     signals = [TradingSignal.model_validate(sig) for sig in raw_signals]
     signal_map = {sig.ticker.upper(): sig for sig in signals}
 

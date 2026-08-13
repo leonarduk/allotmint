@@ -92,19 +92,13 @@ def test_opportunities_with_group(monkeypatch):
     monkeypatch.setattr(
         "backend.common.instrument_api.top_movers",
         lambda tickers, days, limit, min_weight=0.0, weights=None: {
-            "gainers": [
-                {"ticker": "AAA", "name": "Alpha", "change_pct": 2.0, "market_value_gbp": 1000.0}
-            ],
-            "losers": [
-                {"ticker": "BBB", "name": "Beta", "change_pct": -1.0, "market_value_gbp": 500.0}
-            ],
+            "gainers": [{"ticker": "AAA", "name": "Alpha", "change_pct": 2.0, "market_value_gbp": 1000.0}],
+            "losers": [{"ticker": "BBB", "name": "Beta", "change_pct": -1.0, "market_value_gbp": 500.0}],
             "anomalies": [],
         },
     )
 
-    monkeypatch.setattr(
-        "backend.agent.trading_agent.run", lambda tickers, notify=False: []
-    )
+    monkeypatch.setattr("backend.agent.trading_agent.run", lambda tickers, notify=False: [])
 
     headers = {"Authorization": "Bearer token"}
     with TestClient(app) as client:
@@ -137,19 +131,13 @@ def test_opportunities_allows_group_when_auth_disabled(monkeypatch):
     monkeypatch.setattr(
         "backend.common.instrument_api.top_movers",
         lambda tickers, days, limit, min_weight=0.0, weights=None: {
-            "gainers": [
-                {"ticker": "AAA", "name": "Alpha", "change_pct": 2.0, "market_value_gbp": 1000.0}
-            ],
-            "losers": [
-                {"ticker": "BBB", "name": "Beta", "change_pct": -1.0, "market_value_gbp": 500.0}
-            ],
+            "gainers": [{"ticker": "AAA", "name": "Alpha", "change_pct": 2.0, "market_value_gbp": 1000.0}],
+            "losers": [{"ticker": "BBB", "name": "Beta", "change_pct": -1.0, "market_value_gbp": 500.0}],
             "anomalies": [],
         },
     )
 
-    monkeypatch.setattr(
-        "backend.agent.trading_agent.run", lambda tickers, notify=False: []
-    )
+    monkeypatch.setattr("backend.agent.trading_agent.run", lambda tickers, notify=False: [])
 
     try:
         with TestClient(app) as client:

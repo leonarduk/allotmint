@@ -222,9 +222,7 @@ def test_group_opportunities_recalculates_weights_and_enriches(monkeypatch):
         fake_enrich,
     )
 
-    result = opportunities_module._group_opportunities(
-        "growth", days=5, limit=3, min_weight=2.5
-    )
+    result = opportunities_module._group_opportunities("growth", days=5, limit=3, min_weight=2.5)
 
     assert captured["calculate_rows"] == summaries
     assert captured["tickers"] == ["AAA", "BBB"]

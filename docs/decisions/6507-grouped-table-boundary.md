@@ -74,4 +74,3 @@ Reconsider this decision only if instrument-group editing moves out of the
 catalogue table and both routes converge on the same row model and interaction
 contract. At that point retiring a route-specific component is preferable to
 adding more configuration to a shared renderer.
-

@@ -43,9 +43,13 @@
     "title": "Alert Settings"
   },
   "allocation": {
+    "allocationDescription": "Allocation shows how current portfolio value is distributed.",
+    "contributionDescription": "Contribution shows which parts of the portfolio drove gains and losses.",
     "instrumentTypes": "Instrument Types",
     "region": "Regions",
-    "sector": "Industries"
+    "sector": "Industries",
+    "viewAllocation": "View allocation by {{dimension}}",
+    "viewContribution": "View gain contribution"
   },
   "app": {
     "close": "Close",

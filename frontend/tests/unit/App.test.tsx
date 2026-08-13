@@ -226,7 +226,15 @@ describe("App", () => {
     expect(mockGetGroupPortfolio).toHaveBeenCalledWith("kids", {
       asOf: undefined,
     });
-    expect(mockGetGroupInstruments).not.toHaveBeenCalled();
+    // Holdings default to the aggregated rollup view, so instruments are
+    // fetched with the group slug and no scope filters.
+    await waitFor(() =>
+      expect(mockGetGroupInstruments).toHaveBeenCalledWith(
+        "kids",
+        { owner: undefined, account_type: undefined },
+        { asOf: undefined },
+      ),
+    );
   }, 10_000);
 
   it("loads /instrument/all rows from group holdings API", async () => {
@@ -1031,7 +1039,7 @@ describe("App", () => {
         getGroupSectorContributions: vi.fn(),
         getGroupRegionContributions: vi.fn(),
         getGroupMovers: vi.fn(),
-        getCachedGroupInstruments: vi.fn(),
+        getCachedGroupInstruments: undefined,
         getAlerts: vi.fn().mockResolvedValue([]),
         getNudges: vi.fn().mockResolvedValue([]),
         getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
@@ -1172,7 +1180,7 @@ describe("App", () => {
         getGroupSectorContributions: vi.fn(),
         getGroupRegionContributions: vi.fn(),
         getGroupMovers: vi.fn(),
-        getCachedGroupInstruments: vi.fn(),
+        getCachedGroupInstruments: undefined,
         getAlerts: vi.fn().mockResolvedValue([]),
         getNudges: vi.fn().mockResolvedValue([]),
         getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),

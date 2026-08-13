@@ -1316,7 +1316,7 @@ describe("GroupPortfolioView", () => {
       ).toBe(true),
     );
 
-    await user.click(screen.getByRole("radio", { name: "Category" }));
+    await user.click(await screen.findByRole("radio", { name: "Category" }));
     await user.click(await screen.findByRole("button", { name: "Toggle Ungrouped" }));
     const bbbRow = (await screen.findByRole("button", { name: "BBB" })).closest("tr")!;
     expect(within(bbbRow).getAllByText("£40.00").length).toBeGreaterThan(0);

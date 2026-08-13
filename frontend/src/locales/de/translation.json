@@ -609,7 +609,19 @@
   },
   "trading": {
     "noPositions": "Keine Positionen.",
-    "noSignals": "Keine Signale."
+    "noSignals": "Keine Signale.",
+    "eyebrow": "Entscheidungshilfe",
+    "title": "Handelssignale",
+    "description": "Prüfen Sie Signale, die aus Momentum-, Trend- und optionalen Risikofiltern generiert werden. Signale sind rein informativ und keine Handelsanweisungen.",
+    "signalCount": "{{count}} aktive Signale",
+    "settings": {
+      "title": "Aktive Strategie-Schwellenwerte",
+      "description": "Diese vom Server verwalteten Einstellungen legen fest, wann ein Signal generiert werden kann.",
+      "readOnly": "Nur lesen"
+    },
+    "signalsTitle": "Aktuelle Signale",
+    "noSignalsTitle": "Derzeit keine Signale",
+    "noSignalsDescription": "Kein überwachtes Instrument überschreitet derzeit die aktiven Schwellenwerte. Signale erscheinen, wenn die RSI- oder Gleitendurchschnittsbedingungen erfüllt sind und alle aktivierten Bewertungs- und Risikofilter ebenfalls erfüllt werden."
   },
   "trail": {
     "allDone": "Alle Trail-Aufgaben erledigt – großartig!",

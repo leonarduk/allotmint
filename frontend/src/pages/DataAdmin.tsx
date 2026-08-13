@@ -49,14 +49,14 @@ export default function DataAdmin() {
       "No local login override is configured",
     );
     return (
-      <div className="container mx-auto max-w-5xl p-4">
+      <div className="container mx-auto max-w-5xl p-4" role="alert">
         <p className="text-red-600">{error}</p>
         {needsLocalLogin && (
           <Link
+            className="mt-2 inline-block text-blue-600 hover:underline"
             to="/support#local-login-override"
-            className="mt-3 inline-block text-blue-600 hover:underline"
           >
-            Configure local login override
+            {t("dataadmin.configureLocalLogin")}
           </Link>
         )}
       </div>

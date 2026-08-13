@@ -642,6 +642,9 @@
     "tickers": "Tickers",
     "watchlist": "Watchlist:"
   },
+  "dataadmin": {
+    "configureLocalLogin": "Configure local login override"
+  },
   "support": {
     "config": {
       "otherParams": "Other parameters",
@@ -741,7 +744,19 @@
   },
   "trading": {
     "noPositions": "No positions.",
-    "noSignals": "No signals."
+    "noSignals": "No signals.",
+    "eyebrow": "Decision support",
+    "title": "Trading signals",
+    "description": "Review signals generated from momentum, trend and optional risk filters. Signals are informational and are not trade instructions.",
+    "signalCount": "{{count}} active signals",
+    "settings": {
+      "title": "Active strategy thresholds",
+      "description": "These server-managed settings determine when a signal can be generated.",
+      "readOnly": "Read only"
+    },
+    "signalsTitle": "Current signals",
+    "noSignalsTitle": "No signals right now",
+    "noSignalsDescription": "No tracked instrument currently crosses the active thresholds. Signals appear when RSI or moving-average conditions are met and any enabled valuation and risk filters also pass."
   },
   "trail": {
     "allDone": "All Trail tasks are complete — fantastic work!",

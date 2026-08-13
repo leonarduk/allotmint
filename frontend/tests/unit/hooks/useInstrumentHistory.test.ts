@@ -27,6 +27,17 @@ describe('useInstrumentHistory', () => {
     vi.useRealTimers();
   });
 
+  it.each([
+    { ticker: '', days: 7 },
+    { ticker: 'ABC', days: 0 },
+    { ticker: 'ABC', days: -1 },
+  ])('does not fetch without a valid ticker and day range', ({ ticker, days }) => {
+    const { result } = renderHook(() => useInstrumentHistory(ticker, days));
+
+    expect(mockGetInstrumentDetail).not.toHaveBeenCalled();
+    expect(result.current).toEqual({ data: null, loading: false, error: null });
+  });
+
   it('retries on HTTP 429 responses and succeeds', async () => {
     vi.useFakeTimers();
     mockGetInstrumentDetail

@@ -15,6 +15,7 @@ import {
   getPortfolio,
   getPensionForecast,
   getConfig,
+  getTradingPageData,
   UNAUTHORIZED_EVENT,
   reconcileHoldingsCsv,
   importHoldingsCsv,
@@ -805,5 +806,54 @@ describe("pension forecast", () => {
     const url = mockFetch.mock.calls[0][0] as string;
     expect(url).toContain("contribution_monthly=100");
     expect(url).not.toContain("contribution_annual");
+  });
+});
+
+describe("trading page data", () => {
+  it("fetches signals and settings and combines them", async () => {
+    const signals = [{ ticker: "AAA", action: "BUY", reason: "r" }];
+    const settings = {
+      rsi_buy: 30,
+      rsi_sell: 70,
+      rsi_window: 14,
+      ma_short_window: 20,
+      ma_long_window: 50,
+      pe_max: null,
+      de_max: null,
+      min_sharpe: null,
+      max_volatility: null,
+    };
+    const mockFetch = vi.fn((url: string) =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve(
+            url.endsWith("/trading-agent/settings") ? settings : signals,
+          ),
+      }),
+    );
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+
+    await expect(getTradingPageData()).resolves.toEqual({ signals, settings });
+
+    const calledUrls = mockFetch.mock.calls.map(([url]) => url as string);
+    expect(calledUrls).toContain(`${API_BASE}/trading-agent/signals`);
+    expect(calledUrls).toContain(`${API_BASE}/trading-agent/settings`);
+  });
+
+  it("rejects when either endpoint fails", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        statusText: "Service Unavailable",
+      })
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({}) });
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+
+    await expect(getTradingPageData()).rejects.toThrow();
   });
 });

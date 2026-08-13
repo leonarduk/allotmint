@@ -143,3 +143,45 @@ The first full run of this skill against this repo (2026-08-11) found 20 issues 
 one session, 13 of which were fixed within the same day by parallel work — see
 issues #6492–#6534, #6573 and PR #6496 for calibration on the level of detail and
 evidence expected per finding.
+
+## Tool mapping for non-Claude agents (Kun / Codex)
+
+The procedure above is tool-agnostic; only the tool names are Claude-specific.
+Non-Claude agents should follow the same methodology with this mapping, and flag
+gaps honestly — never fabricate console/network evidence you could not collect.
+
+When the Playwright MCP server is connected (Kun: configured in `~/.kun/mcp.json`
+as server id `playwright`, `npx -y @playwright/mcp@latest`), prefer its
+`mcp_playwright_browser_*` tools for console/network/viewport evidence; otherwise
+the rows marked "requires Playwright MCP" are unavailable.
+
+| Claude tool (as written above) | Equivalent here | Notes |
+|---|---|---|
+| `mcp__Claude_Browser__preview_start` / Browser pane | `browser_use` `open` / `snapshot` / `screenshot` / `click` / `type` / `press` / `scroll` / `wait` / `tabs` | Same fallback rule: if screenshot fails with "pane not displayed", fall back to `snapshot` + page text for the rest of the session. |
+| `get_page_text` / `read_page` | `browser_use` `snapshot` (accessible-name tree) | Re-snapshot after every navigation; build locators only from the latest snapshot. |
+| `read_console_messages({onlyErrors})` | `mcp_playwright_browser_console_messages` (pass `level: "error"` for onlyErrors) | Requires Playwright MCP; otherwise **not available** — say so in the issue. |
+| `read_network_requests` | `mcp_playwright_browser_network_requests`, then `mcp_playwright_browser_network_request` for per-request details | Requires Playwright MCP; see #6573 for the duplicate-request pattern to look for. |
+| `javascript_tool` (click by text when refs are unreliable) | `browser_use` `click` on the role/name ref from the latest snapshot; `mcp_playwright_browser_run_code_unsafe` only as a last resort | `browser_run_code_unsafe` executes arbitrary JS in the MCP process (RCE-equivalent) — never use it without explicit user approval; prefer `browser_use` clicks. |
+| `resize_window({preset:"mobile"/"tablet"})` | `mcp_playwright_browser_resize` (mobile = 375×812, tablet = 768×1024) | Requires Playwright MCP. |
+| `resize_window({colorScheme:"light"})` | No exact equivalent in the connected MCP catalog — check available tools for theme emulation; otherwise note the gap in the issue. | |
+| `mcp__github__search_issues` | `mcp_github_search_issues`, or `gh issue list --search` (gh CLI is authed as leonarduk) | |
+| `mcp__github__create_issue` | `mcp_github_create_issue`, or `gh issue create` | |
+| `mcp__github__add_issue_comment` | `mcp_github_add_issue_comment`, or `gh issue comment` | |
+| `mcp__github__update_issue` | `mcp_github_update_issue`, or `gh issue edit` | |
+
+### Capability gaps to state in issues, not hide
+
+- Console and network evidence comes from the Playwright MCP server
+  (`mcp_playwright_browser_*`). When it is connected, quote real console/network
+  findings (e.g. the #6573 redundant-request class). When it is **not**
+  connected, write `"no console/network evidence — verified visually/DOM only"`
+  in `## How` rather than implying it was checked.
+- Mobile/tablet passes are available via `mcp_playwright_browser_resize` when
+  the MCP is connected; light-theme emulation has no exact equivalent — if a
+  theme check can't be done, say so in the issue instead of pretending it was.
+
+### Trigger note
+
+Repo-local skills are not auto-activated by non-Claude agents (their skill
+catalogs are global). Read this file explicitly before any QA/issue work; an
+`AGENTS.md` pointer to this skill is the reliable way to trigger it.

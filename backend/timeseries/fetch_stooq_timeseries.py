@@ -25,12 +25,20 @@ STOOQ_DISABLED_UNTIL: date = date.min
 
 def get_stooq_suffix(exchange: str) -> str:
     exchange_map = {
-        "L": ".UK", "LSE": ".UK", "UK": ".UK", "LON": ".UK", "XLON": ".UK",
-        "NASDAQ": ".US", "NYSE": ".US", "US": ".US", "AMEX": ".US",
-        "XETRA": ".DE", "DE": ".DE",
+        "L": ".UK",
+        "LSE": ".UK",
+        "UK": ".UK",
+        "LON": ".UK",
+        "XLON": ".UK",
+        "NASDAQ": ".US",
+        "NYSE": ".US",
+        "US": ".US",
+        "AMEX": ".US",
+        "XETRA": ".DE",
+        "DE": ".DE",
         "F": ".F",
-        "TO" : ".TO", "TSX": ".TO"
-
+        "TO": ".TO",
+        "TSX": ".TO",
     }
     suffix = exchange_map.get(exchange.upper())
     if suffix is None:
@@ -42,12 +50,7 @@ def format_date(d: date) -> str:
     return d.strftime("%Y%m%d")
 
 
-def fetch_stooq_timeseries_range(
-    ticker: str,
-    exchange: str,
-    start_date: date,
-    end_date: date
-) -> pd.DataFrame:
+def fetch_stooq_timeseries_range(ticker: str, exchange: str, start_date: date, end_date: date) -> pd.DataFrame:
     """
     Fetch historical Stooq data using date range.
     """
@@ -67,17 +70,14 @@ def fetch_stooq_timeseries_range(
 
     logger.debug(
         "Preparing request for ticker=%s, exchange=%s, full_ticker=%s, start_date=%s, end_date=%s",
-        sanitise_log_value(ticker), sanitise_log_value(exchange),
-        sanitise_log_value(full_ticker), start_date, end_date,
+        sanitise_log_value(ticker),
+        sanitise_log_value(exchange),
+        sanitise_log_value(full_ticker),
+        start_date,
+        end_date,
     )
 
-    params = {
-        "s": full_ticker,
-        "d1": format_date(start_date),
-        "d2": format_date(end_date),
-        "i": "d",
-        "d": "d"
-    }
+    params = {"s": full_ticker, "d1": format_date(start_date), "d2": format_date(end_date), "i": "d", "d": "d"}
 
     logger.debug("Fetching Stooq data with URL: %s and params: %s", BASE_URL, sanitise_log_value(params))
     try:
@@ -98,13 +98,13 @@ def fetch_stooq_timeseries_range(
         if df.empty:
             raise RuntimeError("No data returned from Stooq")
 
-        if 'Date' not in df.columns or 'Close' not in df.columns:
+        if "Date" not in df.columns or "Close" not in df.columns:
             raise ValueError(f"Unexpected format for {full_ticker}: columns = {df.columns.tolist()}")
 
         df["Date"] = pd.to_datetime(df["Date"]).dt.date
-        df.sort_values('Date', inplace=True)
-        df['Volume'] = df.get('Volume', None)
-        df['Ticker'] = ticker
+        df.sort_values("Date", inplace=True)
+        df["Volume"] = df.get("Volume", None)
+        df["Ticker"] = ticker
 
         logger.info("Fetched %d rows for %s", len(df), sanitise_log_value(full_ticker))
 
@@ -128,11 +128,16 @@ def fetch_stooq_timeseries(ticker: str, exchange: str, days: int = 365) -> pd.Da
     start = today - timedelta(days=days)
     logger.debug(
         "Fetching trailing %d days of data for %s on %s",
-        days, sanitise_log_value(ticker), sanitise_log_value(exchange),
+        days,
+        sanitise_log_value(ticker),
+        sanitise_log_value(exchange),
     )
     logger.debug(
         "Preparing request for ticker=%s, exchange=%s, start_date=%s, end_date=%s",
-        sanitise_log_value(ticker), sanitise_log_value(exchange), start, today,
+        sanitise_log_value(ticker),
+        sanitise_log_value(exchange),
+        start,
+        today,
     )
     return fetch_stooq_timeseries_range(ticker, exchange, start, today)
 

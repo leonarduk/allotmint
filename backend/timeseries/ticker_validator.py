@@ -28,11 +28,7 @@ def is_valid_ticker(ticker: str, exchange: str) -> bool:
     meta = get_instrument_meta(full)
     if not meta:
         return False
-    informative_keys = {
-        key
-        for key, value in meta.items()
-        if value not in (None, "")
-    }
+    informative_keys = {key for key, value in meta.items() if value not in (None, "")}
     if informative_keys <= {"ticker", "exchange", "name"}:
         return False
     return True
@@ -49,5 +45,7 @@ def record_skipped_ticker(ticker: str, exchange: str, *, reason: str = "") -> No
     except Exception as exc:
         logger.warning(
             "Failed to record skipped ticker %s.%s: %s",
-            sanitise_log_value(ticker), sanitise_log_value(exchange), sanitise_log_value(exc),
+            sanitise_log_value(ticker),
+            sanitise_log_value(exchange),
+            sanitise_log_value(exc),
         )

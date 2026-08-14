@@ -66,9 +66,7 @@ def test_fetch_yahoo_timeseries_range_normalizes(mock_ticker_cls):
         "backend.timeseries.fetch_yahoo_timeseries.is_valid_ticker",
         return_value=True,
     ):
-        df = fetch_yahoo_timeseries_range(
-            "abc", "l", start_date=date(2024, 1, 1), end_date=date(2024, 1, 1)
-        )
+        df = fetch_yahoo_timeseries_range("abc", "l", start_date=date(2024, 1, 1), end_date=date(2024, 1, 1))
     assert list(df.columns) == STANDARD_COLUMNS
     assert df.loc[0, "Date"] == date(2024, 1, 1)
     assert df.loc[0, "Open"] == 1.12
@@ -87,9 +85,7 @@ def test_fetch_yahoo_timeseries_range_empty(mock_ticker_cls):
         return_value=True,
     ):
         with pytest.raises(ValueError):
-            fetch_yahoo_timeseries_range(
-                "abc", "l", start_date=date(2024, 1, 1), end_date=date(2024, 1, 2)
-            )
+            fetch_yahoo_timeseries_range("abc", "l", start_date=date(2024, 1, 1), end_date=date(2024, 1, 2))
 
 
 @patch("backend.timeseries.fetch_yahoo_timeseries.yf.Ticker")
@@ -102,9 +98,7 @@ def test_fetch_yahoo_timeseries_range_exception(mock_ticker_cls):
         return_value=True,
     ):
         with pytest.raises(Exception):
-            fetch_yahoo_timeseries_range(
-                "abc", "l", start_date=date(2024, 1, 1), end_date=date(2024, 1, 2)
-            )
+            fetch_yahoo_timeseries_range("abc", "l", start_date=date(2024, 1, 1), end_date=date(2024, 1, 2))
 
 
 @patch("backend.timeseries.fetch_yahoo_timeseries.yf.Ticker")
@@ -145,9 +139,7 @@ def test_fetch_yahoo_timeseries_period_no_normalize_preserves_datetime(mock_tick
     raw.index.name = "Datetime"
     mock_stock.history.return_value = raw
     mock_ticker_cls.return_value = mock_stock
-    df = fetch_yahoo_timeseries_period(
-        "abc", "l", period="5d", interval="5m", normalize=False
-    )
+    df = fetch_yahoo_timeseries_period("abc", "l", period="5d", interval="5m", normalize=False)
     assert df.loc[0, "Date"] == pd.Timestamp("2024-01-01 10:30:00")
 
 
@@ -167,4 +159,3 @@ def test_fetch_yahoo_timeseries_period_exception(mock_ticker_cls):
     mock_ticker_cls.return_value = mock_stock
     with pytest.raises(Exception):
         fetch_yahoo_timeseries_period("abc", "l", period="1mo", interval="1d")
-

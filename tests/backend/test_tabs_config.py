@@ -4,14 +4,16 @@ from backend.config import ConfigValidationError, TabsConfig, validate_tabs
 
 
 def test_validate_tabs_accepts_new_keys():
-    tabs = validate_tabs({
-        "market": False,
-        "allocation": True,
-        "rebalance": False,
-        "pension": True,
-        "alertsettings": True,
-        "research": True,
-    })
+    tabs = validate_tabs(
+        {
+            "market": False,
+            "allocation": True,
+            "rebalance": False,
+            "pension": True,
+            "alertsettings": True,
+            "research": True,
+        }
+    )
     assert isinstance(tabs, TabsConfig)
     assert tabs.market is False
     assert tabs.allocation is True

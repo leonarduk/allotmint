@@ -40,6 +40,7 @@ def test_mark_complete_updates_xp_and_streak(quests, monkeypatch):
             @classmethod
             def today(cls):
                 return day
+
         monkeypatch.setattr(quests, "date", DummyDate)
 
     # Day one: complete both quests

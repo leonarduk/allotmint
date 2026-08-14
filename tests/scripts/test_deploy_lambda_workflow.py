@@ -46,9 +46,7 @@ def test_deploy_workflow_verify_price_snapshot_fails_hard_on_non_404() -> None:
     deploy_job = workflow["jobs"]["deploy"]
     steps = deploy_job["steps"]
 
-    verify_step = next(
-        step for step in steps if step.get("name") == "Verify price snapshot seeded in S3"
-    )
+    verify_step = next(step for step in steps if step.get("name") == "Verify price snapshot seeded in S3")
 
     run_script = verify_step["run"]
 
@@ -91,7 +89,7 @@ def test_deploy_workflow_verify_price_snapshot_fails_hard_on_non_404() -> None:
     assert "head_exit=" in head_exit_statement, (
         "head_exit must be captured in the same statement as the "
         "head_output subshell (e.g. `&& head_exit=0 || head_exit=$?` "
-        "immediately after the closing `)\"`), not via a later, separate "
+        'immediately after the closing `)"`), not via a later, separate '
         "statement that could capture a different command's exit code"
     )
     # Explicitly verify the ordering, not just co-occurrence: head_output's
@@ -102,9 +100,9 @@ def test_deploy_workflow_verify_price_snapshot_fails_hard_on_non_404() -> None:
     head_output_pos = capture_block.index("head_output=")
     head_exit_pos = capture_block.index("head_exit=")
     assert head_output_pos < capture_end <= head_exit_pos, (
-        "head_output must be fully assigned (subshell closed) before "
-        "head_exit is captured"
+        "head_output must be fully assigned (subshell closed) before " "head_exit is captured"
     )
+
 
 def test_deploy_workflow_verify_price_snapshot_retries_transient_s3_errors() -> None:
     workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
@@ -112,9 +110,7 @@ def test_deploy_workflow_verify_price_snapshot_retries_transient_s3_errors() -> 
     deploy_job = workflow["jobs"]["deploy"]
     steps = deploy_job["steps"]
 
-    verify_step = next(
-        step for step in steps if step.get("name") == "Verify price snapshot seeded in S3"
-    )
+    verify_step = next(step for step in steps if step.get("name") == "Verify price snapshot seeded in S3")
     run_script = verify_step["run"]
 
     # Transient S3 errors (throttling, 5xx, timeouts) must be retried with
@@ -176,9 +172,7 @@ def test_deploy_workflow_cognito_retry_documents_why_it_remains() -> None:
     deploy_job = workflow["jobs"]["deploy"]
     steps = deploy_job["steps"]
 
-    reconcile_step = next(
-        step for step in steps if step.get("name") == "Reconcile UiAuthClient OAuth configuration"
-    )
+    reconcile_step = next(step for step in steps if step.get("name") == "Reconcile UiAuthClient OAuth configuration")
     run_script = reconcile_step["run"]
 
     assert "cognito_retry() {" in run_script

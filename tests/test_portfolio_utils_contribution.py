@@ -1,5 +1,6 @@
-import backend.common.portfolio_utils as portfolio_utils
 import pytest
+
+import backend.common.portfolio_utils as portfolio_utils
 
 
 def test_aggregate_by_sector_and_region():

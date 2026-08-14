@@ -154,21 +154,24 @@ def test_api_console_admin_allowlist_enforced_when_auth_disabled(monkeypatch):
     assert resp_invalid.status_code in (401, 403)
 
 
-@pytest.mark.parametrize("admin_emails,disable_auth,email,expected_status", [
-    # allowlist configured: enforced regardless of disable_auth
-    ("admin@example.com", False, "admin@example.com", 200),
-    ("admin@example.com", False, "other@example.com", 403),
-    # DISABLE_AUTH=true is set on the production Lambda (API GW handles Cognito auth)
-    # and must NOT bypass the admin allowlist when ADMIN_EMAILS is configured.
-    ("admin@example.com", True, "admin@example.com", 200),
-    ("admin@example.com", True, "other@example.com", 403),
-    # case-insensitivity: both sides are lowercased before comparison
-    ("Admin@Example.COM", False, "admin@example.com", 200),
-    # no allowlist in prod-like env: deny all (misconfiguration guard)
-    ("", False, "anyone@example.com", 403),
-    # no allowlist + disable_auth=True → local dev bypass, allow through
-    ("", True, "anyone@example.com", 200),
-])
+@pytest.mark.parametrize(
+    "admin_emails,disable_auth,email,expected_status",
+    [
+        # allowlist configured: enforced regardless of disable_auth
+        ("admin@example.com", False, "admin@example.com", 200),
+        ("admin@example.com", False, "other@example.com", 403),
+        # DISABLE_AUTH=true is set on the production Lambda (API GW handles Cognito auth)
+        # and must NOT bypass the admin allowlist when ADMIN_EMAILS is configured.
+        ("admin@example.com", True, "admin@example.com", 200),
+        ("admin@example.com", True, "other@example.com", 403),
+        # case-insensitivity: both sides are lowercased before comparison
+        ("Admin@Example.COM", False, "admin@example.com", 200),
+        # no allowlist in prod-like env: deny all (misconfiguration guard)
+        ("", False, "anyone@example.com", 403),
+        # no allowlist + disable_auth=True → local dev bypass, allow through
+        ("", True, "anyone@example.com", 200),
+    ],
+)
 def test_api_console_admin_check(monkeypatch, admin_emails, disable_auth, email, expected_status):
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
     monkeypatch.setattr(config, "snapshot_warm_days", 30)

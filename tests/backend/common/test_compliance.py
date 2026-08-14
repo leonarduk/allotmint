@@ -1,5 +1,6 @@
 import json
-from datetime import date as real_date, datetime as real_datetime
+from datetime import date as real_date
+from datetime import datetime as real_datetime
 
 import pytest
 
@@ -64,9 +65,7 @@ def test_load_transactions_missing_owner_raises(tmp_path):
     with pytest.raises(FileNotFoundError):
         compliance.load_transactions(owner, accounts_root=accounts_root)
 
-    records = compliance.load_transactions(
-        owner, accounts_root=accounts_root, scaffold_missing=True
-    )
+    compliance.load_transactions(owner, accounts_root=accounts_root, scaffold_missing=True)
 
     assert not (accounts_root / owner).exists()
 
@@ -148,9 +147,7 @@ def test_check_transactions_logs_sanitised_invalid_share_count(monkeypatch, stub
     assert "ABCinjected" in message
 
 
-def test_check_transactions_sanitises_ticker_when_shares_valid(
-    monkeypatch, stubbed_env, caplog
-):
+def test_check_transactions_sanitises_ticker_when_shares_valid(monkeypatch, stubbed_env, caplog):
     """CRLF in ``ticker`` is sanitised even when ``shares`` is valid.
 
     Complements test_check_transactions_logs_sanitised_invalid_share_count,
@@ -178,14 +175,10 @@ def test_check_transactions_sanitises_ticker_when_shares_valid(
     with caplog.at_level("INFO"):
         result = compliance._check_transactions("alice", txs)
 
-    assert not any(
-        "invalid share count" in r.getMessage() for r in caplog.records
-    )
+    assert not any("invalid share count" in r.getMessage() for r in caplog.records)
 
     ticker_records = [
-        r
-        for r in caplog.records
-        if "HOLD_DAYS_MIN" in r.getMessage() or "APPROVAL_REQUIRED" in r.getMessage()
+        r for r in caplog.records if "HOLD_DAYS_MIN" in r.getMessage() or "APPROVAL_REQUIRED" in r.getMessage()
     ]
     assert ticker_records
     for record in ticker_records:

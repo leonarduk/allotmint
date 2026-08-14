@@ -1,13 +1,14 @@
-import pytest
 from datetime import UTC, datetime, timedelta
+
+import pytest
 
 from backend import config
 from backend.screener import (
+    Fundamentals,
     _parse_float,
     _parse_int,
     fetch_fundamentals,
     screen,
-    Fundamentals,
 )
 
 

@@ -18,9 +18,7 @@ def test_list_owners_skips_bad_json(tmp_path, caplog):
 def test_list_owners_filters_by_viewer(tmp_path):
     alice = tmp_path / "alice"
     alice.mkdir()
-    (alice / "person.json").write_text(
-        json.dumps({"owner": "alice", "viewers": ["bob"]})
-    )
+    (alice / "person.json").write_text(json.dumps({"owner": "alice", "viewers": ["bob"]}))
     bob = tmp_path / "bob"
     bob.mkdir()
     (bob / "person.json").write_text(json.dumps({"owner": "bob"}))
@@ -33,9 +31,7 @@ def test_list_owners_matches_email_case_insensitively(tmp_path):
     """Aligns with /owners: identities matching an owner's email are authorized."""
     alice = tmp_path / "alice"
     alice.mkdir()
-    (alice / "person.json").write_text(
-        json.dumps({"owner": "alice", "email": "Alice@Example.com"})
-    )
+    (alice / "person.json").write_text(json.dumps({"owner": "alice", "email": "Alice@Example.com"}))
     bob = tmp_path / "bob"
     bob.mkdir()
     (bob / "person.json").write_text(json.dumps({"owner": "bob"}))

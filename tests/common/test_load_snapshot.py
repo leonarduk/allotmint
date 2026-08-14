@@ -114,9 +114,7 @@ def _make_fake_s3_modules(fail: bool):
     return fake_boto3, fake_exc
 
 
-def test_load_snapshot_aws_s3_and_local_both_missing_logs_error(
-    tmp_path, monkeypatch, caplog
-):
+def test_load_snapshot_aws_s3_and_local_both_missing_logs_error(tmp_path, monkeypatch, caplog):
     """ERROR (not WARNING) when S3 fails and local fallback file is also absent."""
     missing = tmp_path / "missing.json"
     fake_boto3, fake_exc = _make_fake_s3_modules(fail=True)
@@ -140,9 +138,7 @@ def test_load_snapshot_aws_s3_and_local_both_missing_logs_error(
     assert "Price snapshot not found" not in caplog.text
 
 
-def test_load_snapshot_aws_s3_fails_no_local_path_configured_logs_error(
-    monkeypatch, caplog
-):
+def test_load_snapshot_aws_s3_fails_no_local_path_configured_logs_error(monkeypatch, caplog):
     """ERROR when S3 fails and prices_json is not configured at all."""
     fake_boto3, fake_exc = _make_fake_s3_modules(fail=True)
 
@@ -248,14 +244,10 @@ def test_load_snapshot_nosuchkey_logs_warning_not_error(tmp_path, monkeypatch, c
     assert "Failed to fetch price snapshot" not in caplog.text
     assert "No price data available" not in caplog.text
     records = [r for r in caplog.records if r.levelno >= logging.ERROR]
-    assert records == [], (
-        f"Expected no ERROR logs for NoSuchKey; got: {[r.message for r in records]}"
-    )
+    assert records == [], f"Expected no ERROR logs for NoSuchKey; got: {[r.message for r in records]}"
 
 
-def test_load_snapshot_nosuchkey_no_local_path_logs_single_warning(
-    monkeypatch, caplog
-):
+def test_load_snapshot_nosuchkey_no_local_path_logs_single_warning(monkeypatch, caplog):
     """NoSuchKey + no local path configured: single WARNING, no ERROR."""
     fake_boto3, fake_exc = _make_no_such_key_s3_modules()
 
@@ -276,9 +268,7 @@ def test_load_snapshot_nosuchkey_no_local_path_logs_single_warning(
     warning_texts = [r.message for r in caplog.records if r.levelno == logging.WARNING]
     error_texts = [r.message for r in caplog.records if r.levelno >= logging.ERROR]
     assert error_texts == [], f"Expected no ERROR logs for NoSuchKey; got: {error_texts}"
-    assert any("not yet" in m for m in warning_texts), (
-        f"Expected a 'not yet seeded' warning; got: {warning_texts}"
-    )
+    assert any("not yet" in m for m in warning_texts), f"Expected a 'not yet seeded' warning; got: {warning_texts}"
 
 
 def test_load_snapshot_botocore_error_logs_error(tmp_path, monkeypatch, caplog):
@@ -316,9 +306,7 @@ def test_load_snapshot_botocore_error_logs_error(tmp_path, monkeypatch, caplog):
     assert "not yet present" not in caplog.text
 
 
-def test_load_snapshot_non_aws_missing_local_logs_only_warning(
-    tmp_path, monkeypatch, caplog
-):
+def test_load_snapshot_non_aws_missing_local_logs_only_warning(tmp_path, monkeypatch, caplog):
     """Non-AWS env: missing local file logs WARNING, not ERROR."""
     missing = tmp_path / "missing.json"
 
@@ -357,7 +345,7 @@ def test_seed_prices_file_loads_demo_holdings(tmp_path, monkeypatch):
     for ticker in ("VWRL.L", "ERNS.L", "PFE.N"):
         assert ticker in data, f"Seed prices must include demo holding {ticker}"
         entry = data[ticker]
-        assert entry.get("last_price") is not None and entry["last_price"] > 0, (
-            f"{ticker} must have a positive last_price"
-        )
+        assert (
+            entry.get("last_price") is not None and entry["last_price"] > 0
+        ), f"{ticker} must have a positive last_price"
         assert entry.get("price_currency") == "GBP", f"{ticker} price must be in GBP"

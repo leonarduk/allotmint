@@ -4,9 +4,8 @@ from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 
-from backend.app import create_app
 import backend.routes.query as qr
-
+from backend.app import create_app
 
 BASE_QUERY = {
     "start": "2025-01-01",
@@ -40,9 +39,7 @@ def test_s3_save_load_and_list(monkeypatch):
             assert kwargs["Prefix"] == qr.QUERIES_PREFIX
             return {"Contents": [{"Key": k} for k in storage.keys()]}
 
-        return SimpleNamespace(
-            put_object=put_object, get_object=get_object, list_objects_v2=list_objects_v2
-        )
+        return SimpleNamespace(put_object=put_object, get_object=get_object, list_objects_v2=list_objects_v2)
 
     monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=fake_client))
 
@@ -71,4 +68,3 @@ def test_s3_save_load_and_list(monkeypatch):
     resp = client.get("/custom-query/saved", params={"detailed": "0"})
     assert resp.status_code == 200
     assert resp.json() == [slug]
-

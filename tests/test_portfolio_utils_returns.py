@@ -1,7 +1,8 @@
+import datetime as dt
+from datetime import date, timedelta
+
 import pandas as pd
 import pytest
-from datetime import date, timedelta
-import datetime as dt
 
 from backend.common import instrument_api
 from backend.common import portfolio_utils as pu
@@ -48,9 +49,7 @@ def test_compute_time_weighted_return_requires_two_points(monkeypatch):
         "_portfolio_value_series",
         lambda owner, days=365, *, pricing_date=None, **_: series,
     )
-    monkeypatch.setattr(
-        pu, "load_transactions", lambda owner, *, scaffold_missing=False: []
-    )
+    monkeypatch.setattr(pu, "load_transactions", lambda owner, *, scaffold_missing=False: [])
 
     assert pu.compute_time_weighted_return("owner") is None
 
@@ -74,9 +73,7 @@ def test_compute_xirr_simple_contribution(monkeypatch, one_year_series):
         {"date": "2023-12-01", "type": "deposit", "amount_minor": 1000},
         {"date": "2025-02-01", "kind": "WITHDRAWAL", "amount_minor": 1000},
     ]
-    monkeypatch.setattr(
-        pu, "load_transactions", lambda owner, *, scaffold_missing=False: transactions
-    )
+    monkeypatch.setattr(pu, "load_transactions", lambda owner, *, scaffold_missing=False: transactions)
 
     result = pu.compute_xirr("owner")
 
@@ -89,9 +86,7 @@ def test_compute_xirr_requires_cashflows(monkeypatch, one_year_series):
         "_portfolio_value_series",
         lambda owner, days=365, *, pricing_date=None, **_: one_year_series,
     )
-    monkeypatch.setattr(
-        pu, "load_transactions", lambda owner, *, scaffold_missing=False: []
-    )
+    monkeypatch.setattr(pu, "load_transactions", lambda owner, *, scaffold_missing=False: [])
 
     assert pu.compute_xirr("owner") is None
 
@@ -135,6 +130,7 @@ def test_compute_cash_apy_empty(monkeypatch):
     monkeypatch.setattr(pu, "_cash_value_series", lambda owner, days=365: empty_series)
 
     assert pu.compute_cash_apy("owner") is None
+
 
 @pytest.fixture
 def sample_portfolio():
@@ -278,12 +274,8 @@ def test_compute_owner_performance_respects_flagged_and_cash(monkeypatch):
     monkeypatch.setattr(pu, "load_meta_timeseries", fake_load_meta_timeseries)
 
     excluded = pu.compute_owner_performance("owner", days=10, include_flagged=False, include_cash=False)
-    included_flagged = pu.compute_owner_performance(
-        "owner", days=10, include_flagged=True, include_cash=False
-    )
-    included_cash = pu.compute_owner_performance(
-        "owner", days=10, include_flagged=False, include_cash=True
-    )
+    included_flagged = pu.compute_owner_performance("owner", days=10, include_flagged=True, include_cash=False)
+    included_cash = pu.compute_owner_performance("owner", days=10, include_flagged=False, include_cash=True)
 
     assert [row["value"] for row in excluded["history"]] == [10.0, 11.0]
     assert [row["value"] for row in included_flagged["history"]] == [15.0, 17.0]
@@ -350,9 +342,7 @@ def test_compute_owner_performance_filters_single_day_zero(monkeypatch):
 
 
 def test_compute_owner_performance_drops_partial_close_nans(monkeypatch):
-    portfolio = {
-        "accounts": [{"holdings": [{"ticker": "NAN.L", "units": 2}, {"ticker": "CASH.GBP", "units": 1}]}]
-    }
+    portfolio = {"accounts": [{"holdings": [{"ticker": "NAN.L", "units": 2}, {"ticker": "CASH.GBP", "units": 1}]}]}
     monkeypatch.setattr(
         pu.portfolio_mod,
         "build_owner_portfolio",
@@ -413,9 +403,7 @@ def test_detect_single_day_flash_crash_keeps_real_downtrend():
 
 
 def test_detect_single_day_flash_crash_removes_two_day_rebound_drop():
-    idx = pd.Index(
-        [date(2024, 1, 1), date(2024, 1, 2), date(2024, 1, 3), date(2024, 1, 4)]
-    )
+    idx = pd.Index([date(2024, 1, 1), date(2024, 1, 2), date(2024, 1, 3), date(2024, 1, 4)])
     values = pd.Series([20000.0, 6000.0, 5500.0, 19950.0], index=idx)
 
     cleaned, issues = pu._detect_single_day_flash_crash(values)
@@ -491,9 +479,7 @@ def test_detect_single_day_flash_crash_short_series_noop():
 
 
 def test_detect_single_day_flash_crash_ignores_nan_in_window():
-    idx = pd.Index(
-        [date(2024, 1, 1), date(2024, 1, 2), date(2024, 1, 3), date(2024, 1, 4)]
-    )
+    idx = pd.Index([date(2024, 1, 1), date(2024, 1, 2), date(2024, 1, 3), date(2024, 1, 4)])
     values = pd.Series([1000.0, float("nan"), 50.0, 1001.0], index=idx)
 
     cleaned, issues = pu._detect_single_day_flash_crash(values)

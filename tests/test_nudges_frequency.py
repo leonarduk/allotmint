@@ -57,4 +57,3 @@ def test_iter_due_users_respects_snooze(tmp_path, monkeypatch):
     later = now + nudge_utils.timedelta(days=2)
     due_users_later = set(nudge_utils.iter_due_users(later))
     assert due_users_later == {"new", "due", "snoozed"}
-

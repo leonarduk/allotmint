@@ -74,14 +74,10 @@ def validate_external_url(url: str, *, allow_http: bool = False) -> None:
     config load time, so that values modified after startup are also caught.
     """
     parsed = urlparse(url)
-    allowed_schemes: frozenset[str] = (
-        frozenset({"https", "http"}) if allow_http else frozenset({"https"})
-    )
+    allowed_schemes: frozenset[str] = frozenset({"https", "http"}) if allow_http else frozenset({"https"})
     if parsed.scheme not in allowed_schemes:
         allowed_desc = "https or http" if allow_http else "https"
-        raise InvalidExternalURLError(
-            f"Disallowed URL scheme {parsed.scheme!r}; only {allowed_desc} is permitted"
-        )
+        raise InvalidExternalURLError(f"Disallowed URL scheme {parsed.scheme!r}; only {allowed_desc} is permitted")
 
     hostname = parsed.hostname
     if not hostname:
@@ -90,11 +86,7 @@ def validate_external_url(url: str, *, allow_http: bool = False) -> None:
     # Strip a trailing dot (valid DNS absolute-name syntax) before the
     # blocked-hostname check, so "localhost." cannot bypass the list.
     if hostname.lower().rstrip(".") in _BLOCKED_HOSTNAMES:
-        raise InvalidExternalURLError(
-            f"Hostname {hostname!r} is not permitted for external requests"
-        )
+        raise InvalidExternalURLError(f"Hostname {hostname!r} is not permitted for external requests")
 
     if _is_private_address(hostname):
-        raise InvalidExternalURLError(
-            f"IP address {hostname!r} is in a private or reserved range"
-        )
+        raise InvalidExternalURLError(f"IP address {hostname!r} is in a private or reserved range")

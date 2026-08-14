@@ -1,10 +1,10 @@
 from pathlib import Path
+
 import numpy as np
 import pandas as pd
 from lxml import html
 
 from backend.utils.html_render import render_timeseries_html
-
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 

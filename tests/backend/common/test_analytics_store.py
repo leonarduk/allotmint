@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -59,7 +59,7 @@ def test_load_events_skips_invalid_rows_and_normalises(monkeypatch: pytest.Monke
 
     lines = [
         "",  # blank line should be ignored
-        "{\"source\": \"broken\"",  # invalid JSON skipped
+        '{"source": "broken"',  # invalid JSON skipped
         json.dumps(
             {
                 "source": "valid",

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from collections import Counter
 from datetime import datetime, timezone
-import json
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -134,11 +134,7 @@ async def get_funnel(source: str) -> FunnelSummary:
     first = min(evt.occurred_at for evt in events)
     last = max(evt.occurred_at for evt in events)
     funnel_steps = [FunnelStep(event=step, count=counts.get(step, 0)) for step in _FUNNEL_STEPS[source]]
-    other_events = {
-        name: count
-        for name, count in counts.items()
-        if name not in _FUNNEL_STEPS[source]
-    }
+    other_events = {name: count for name, count in counts.items() if name not in _FUNNEL_STEPS[source]}
 
     return FunnelSummary(
         source=source,
@@ -149,4 +145,3 @@ async def get_funnel(source: str) -> FunnelSummary:
         steps=funnel_steps,
         other_events=other_events or None,
     )
-

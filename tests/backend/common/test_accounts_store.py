@@ -265,9 +265,7 @@ def test_s3_store_rebuild_portfolio(s3_store) -> None:
     assert tickers == {"ABC", "CASH.GBP"}
 
 
-def test_s3_store_rebuild_portfolio_missing_transactions(
-    s3_store, caplog: pytest.LogCaptureFixture
-) -> None:
+def test_s3_store_rebuild_portfolio_missing_transactions(s3_store, caplog: pytest.LogCaptureFixture) -> None:
     """S3 rebuild warns and returns early when no transaction document exists."""
     store, _ = s3_store
     caplog.set_level(logging.WARNING, logger="accounts_store")
@@ -287,6 +285,8 @@ def test_local_store_rebuild_portfolio_none_root(
     store.rebuild_portfolio("alex", "isa")
 
     assert "no local root" in caplog.text
+
+
 # S3AccountsStore — full write-then-read integration (issue #4316)
 # ---------------------------------------------------------------------------
 
@@ -324,9 +324,7 @@ class TestS3Integration:
 
         # 2. Write a manual holding document (mirrors ``_locked_account_holdings_data``).
         holding = {"ticker": "AAPL", "units": 10, "price": 150.0}
-        with store.edit_document(
-            owner, f"{account_slug}.json", default={}, trailing_newline=True
-        ) as data:
+        with store.edit_document(owner, f"{account_slug}.json", default={}, trailing_newline=True) as data:
             data["owner"] = owner
             data["account_type"] = account_slug
             data["currency"] = "GBP"
@@ -385,9 +383,7 @@ class TestS3Integration:
         store.ensure_owner(owner)
 
         # Initial write.
-        with store.edit_document(
-            owner, f"{account_slug}.json", default={}, trailing_newline=True
-        ) as data:
+        with store.edit_document(owner, f"{account_slug}.json", default={}, trailing_newline=True) as data:
             data["holdings"] = [{"ticker": "MSFT", "units": 20, "price": 300.0}]
 
         doc = store.read_document(owner, f"{account_slug}.json")
@@ -396,9 +392,7 @@ class TestS3Integration:
         assert doc["holdings"][0]["ticker"] == "MSFT"
 
         # Update: replace MSFT holding.
-        with store.edit_document(
-            owner, f"{account_slug}.json", default={}, trailing_newline=True
-        ) as data:
+        with store.edit_document(owner, f"{account_slug}.json", default={}, trailing_newline=True) as data:
             holdings = data.setdefault("holdings", [])
             ticker = "MSFT"
             new_holding = {"ticker": ticker, "units": 25, "price": 310.0}

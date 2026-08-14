@@ -252,9 +252,7 @@ def test_s3_head_object_registers_miss_on_404(monkeypatch):
 
     class FakeS3:
         def head_object(self, *, Bucket, Key):
-            raise cache.ClientError(
-                {"Error": {"Code": "404", "Message": "Not Found"}}, "HeadObject"
-            )
+            raise cache.ClientError({"Error": {"Code": "404", "Message": "Not Found"}}, "HeadObject")
 
     patch_s3_client(monkeypatch, cache, FakeS3())
 
@@ -270,9 +268,7 @@ def test_s3_head_object_non_404_client_error_does_not_register_miss(monkeypatch,
 
     class FakeS3:
         def head_object(self, *, Bucket, Key):
-            raise cache.ClientError(
-                {"Error": {"Code": "AccessDenied", "Message": "Denied"}}, "HeadObject"
-            )
+            raise cache.ClientError({"Error": {"Code": "AccessDenied", "Message": "Denied"}}, "HeadObject")
 
     patch_s3_client(monkeypatch, cache, FakeS3())
 
@@ -292,9 +288,7 @@ def test_s3_head_object_respects_log_as_error_override(monkeypatch, caplog):
 
     class FakeS3:
         def head_object(self, *, Bucket, Key):
-            raise cache.ClientError(
-                {"Error": {"Code": "AccessDenied", "Message": "Denied"}}, "HeadObject"
-            )
+            raise cache.ClientError({"Error": {"Code": "AccessDenied", "Message": "Denied"}}, "HeadObject")
 
     patch_s3_client(monkeypatch, cache, FakeS3())
 

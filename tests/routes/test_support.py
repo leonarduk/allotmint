@@ -82,9 +82,7 @@ def test_portfolio_health_handles_run_check_errors(monkeypatch):
 
     # Mark the cache as stale so the next request triggers a refresh attempt.
     assert support._portfolio_health_cache is not None
-    support._portfolio_health_cache.generated_at = (
-        support._now() - support._portfolio_health_ttl - timedelta(seconds=1)
-    )
+    support._portfolio_health_cache.generated_at = support._now() - support._portfolio_health_ttl - timedelta(seconds=1)
     stale_generated_at = support._portfolio_health_cache.generated_at.isoformat()
 
     # First retry kicks off the failing background task.

@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 from backend.common import clean_accounts
-from backend.common.clean_accounts import simplify_account_file, KEEP_FIELDS
+from backend.common.clean_accounts import KEEP_FIELDS, simplify_account_file
 
 
 def test_simplify_account_file(tmp_path: Path):

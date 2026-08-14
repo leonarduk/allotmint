@@ -1,6 +1,8 @@
 import sys
 import types
+
 import pytest
+
 import backend.alerts as alerts
 
 

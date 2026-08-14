@@ -76,15 +76,12 @@ def serialise_config(cfg: config_module.Config) -> ConfigContract:
     tabs = data.get("tabs")
     if isinstance(tabs, dict):
         serialised_tabs = {
-            ("trade-compliance" if key == "trade_compliance" else key): value
-            for key, value in tabs.items()
+            ("trade-compliance" if key == "trade_compliance" else key): value for key, value in tabs.items()
         }
         data["tabs"] = serialised_tabs
     disabled = data.get("disabled_tabs")
     if isinstance(disabled, list):
-        data["disabled_tabs"] = [
-            "trade-compliance" if item == "trade_compliance" else item for item in disabled
-        ]
+        data["disabled_tabs"] = ["trade-compliance" if item == "trade_compliance" else item for item in disabled]
     raw = data.pop("aws_ui_auth", None)
     if isinstance(raw, dict) and raw.get("enabled"):
         data["awsUiAuth"] = {
@@ -226,9 +223,7 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
     has_changes = data != existing_data
 
     persisted_data = deepcopy(data)
-    persisted_auth_section = (
-        persisted_data.get("auth", {}) if isinstance(persisted_data, dict) else {}
-    )
+    persisted_auth_section = persisted_data.get("auth", {}) if isinstance(persisted_data, dict) else {}
     if not isinstance(persisted_auth_section, dict):
         persisted_auth_section = {}
         persisted_data["auth"] = persisted_auth_section

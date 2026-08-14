@@ -20,6 +20,7 @@ def _alert_signature(alert: Dict) -> str:
     message = alert.get("message", "")
     return sha256(f"{ticker}|{message}".encode()).hexdigest()
 
+
 # Track last published state and time per instrument to throttle alerts and only
 # emit notifications when the state changes (e.g. threshold crossed vs. not).
 _LAST_ALERT_STATE: Dict[str, bool] = {}
@@ -37,14 +38,13 @@ def publish_sns_alert(alert: Dict) -> None:
     alerts are throttled to one per instrument per hour and are only published
     when the state changes.
     """
-    
+
     signature = _alert_signature(alert)
     if signature in _RECENT_ALERT_SIGNATURES:
         logger.info("Duplicate alert skipped: %s", alert)
         return
 
     _RECENT_ALERT_SIGNATURES.add(signature)
-
 
     instrument = alert.get("instrument")
     state = alert.get("state")

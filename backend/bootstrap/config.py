@@ -22,9 +22,7 @@ def load_runtime_config() -> Config:
 
     prev_cfg = config_module.config
     overrides = {
-        attr: getattr(prev_cfg, attr, None)
-        for attr in _OVERRIDE_ATTRS
-        if getattr(prev_cfg, attr, None) is not None
+        attr: getattr(prev_cfg, attr, None) for attr in _OVERRIDE_ATTRS if getattr(prev_cfg, attr, None) is not None
     }
 
     cfg = reload_config()

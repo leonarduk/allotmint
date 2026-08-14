@@ -1,5 +1,6 @@
+from datetime import datetime
+
 import pandas as pd
-from datetime import datetime, timedelta
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -16,9 +17,11 @@ def test_intraday_route(monkeypatch):
             return pd.DataFrame({"Close": [1.0, 2.0, 3.0]}, index=idx)
 
     captured = {}
+
     def fake_ticker(t):
         captured["ticker"] = t
         return FakeTicker()
+
     monkeypatch.setattr(instrument, "yf", type("YF", (), {"Ticker": fake_ticker}))
 
     app = FastAPI()

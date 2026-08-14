@@ -83,8 +83,6 @@ def test_send_signup_approved_email_propagates_ses_failures(make_error):
         client_factory.return_value = ses_client
 
         with pytest.raises(type(make_error())):
-            send_signup_approved_email(
-                "jane@example.com", "Jane Doe", "https://allotmint.example/login"
-            )
+            send_signup_approved_email("jane@example.com", "Jane Doe", "https://allotmint.example/login")
 
     ses_client.send_email.assert_called_once()

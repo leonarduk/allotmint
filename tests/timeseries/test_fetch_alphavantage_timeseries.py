@@ -73,9 +73,7 @@ def test_fetch_range_http_rate_limit(monkeypatch):
 
     monkeypatch.setattr(av.requests, "get", fake_get)
     with pytest.raises(AlphaVantageRateLimitError) as exc:
-        fetch_alphavantage_timeseries_range(
-            "AAA", "US", date(2024, 1, 1), date(2024, 1, 2), api_key="demo"
-        )
+        fetch_alphavantage_timeseries_range("AAA", "US", date(2024, 1, 1), date(2024, 1, 2), api_key="demo")
     assert exc.value.retry_after == 11
 
 
@@ -87,9 +85,7 @@ def test_fetch_range_missing_timeseries(monkeypatch):
 
     monkeypatch.setattr(av.requests, "get", fake_get)
     with pytest.raises(ValueError) as exc:
-        fetch_alphavantage_timeseries_range(
-            "AAA", "US", date(2024, 1, 1), date(2024, 1, 2), api_key="demo"
-        )
+        fetch_alphavantage_timeseries_range("AAA", "US", date(2024, 1, 1), date(2024, 1, 2), api_key="demo")
     assert "Unexpected response" in str(exc.value)
 
 
@@ -101,9 +97,7 @@ def test_fetch_range_note_rate_limit(monkeypatch):
 
     monkeypatch.setattr(av.requests, "get", fake_get)
     with pytest.raises(AlphaVantageRateLimitError) as exc:
-        fetch_alphavantage_timeseries_range(
-            "AAA", "US", date(2024, 1, 1), date(2024, 1, 2), api_key="demo"
-        )
+        fetch_alphavantage_timeseries_range("AAA", "US", date(2024, 1, 1), date(2024, 1, 2), api_key="demo")
     assert exc.value.retry_after == 60
 
 
@@ -131,9 +125,7 @@ def test_fetch_range_success(monkeypatch):
 
     monkeypatch.setattr(av.requests, "get", lambda *a, **k: FakeResp(payload=payload))
 
-    df = fetch_alphavantage_timeseries_range(
-        "AAA", "US", date(2024, 1, 1), date(2024, 1, 2), api_key="demo"
-    )
+    df = fetch_alphavantage_timeseries_range("AAA", "US", date(2024, 1, 1), date(2024, 1, 2), api_key="demo")
     assert not df.empty
     assert list(df.columns) == [
         "Date",
@@ -152,9 +144,7 @@ def test_fetch_range_invalid_ticker(monkeypatch):
     monkeypatch.setattr(av, "is_valid_ticker", lambda *a, **k: False)
     monkeypatch.setattr(av, "record_skipped_ticker", lambda *a, **k: None)
 
-    df = fetch_alphavantage_timeseries_range(
-        "BAD", "US", date(2024, 1, 1), date(2024, 1, 2), api_key="demo"
-    )
+    df = fetch_alphavantage_timeseries_range("BAD", "US", date(2024, 1, 1), date(2024, 1, 2), api_key="demo")
     assert df.empty
 
 
@@ -162,9 +152,7 @@ def test_fetch_range_disabled(monkeypatch):
     _patch_validation(monkeypatch)
     monkeypatch.setattr(av.config, "alpha_vantage_enabled", False)
 
-    df = fetch_alphavantage_timeseries_range(
-        "AAA", "US", date(2024, 1, 1), date(2024, 1, 2)
-    )
+    df = fetch_alphavantage_timeseries_range("AAA", "US", date(2024, 1, 1), date(2024, 1, 2))
     assert df.empty
 
 
@@ -186,6 +174,4 @@ def test_fetch_range_rejects_private_base_url(monkeypatch, bad_url: str) -> None
     _patch_validation(monkeypatch)
     monkeypatch.setattr(av, "BASE_URL", bad_url)
     with pytest.raises(InvalidExternalURLError):
-        fetch_alphavantage_timeseries_range(
-            "AAA", "US", date(2024, 1, 1), date(2024, 1, 2), api_key="demo"
-        )
+        fetch_alphavantage_timeseries_range("AAA", "US", date(2024, 1, 1), date(2024, 1, 2), api_key="demo")

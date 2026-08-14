@@ -21,14 +21,10 @@ class ThresholdPayload(BaseModel):
 def _validate_owner(user: str, current_user: str) -> None:
     """Ensure requests only act on the authenticated user's settings."""
     if user != current_user:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Owner mismatch"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Owner mismatch")
 
 
-async def _resolve_identity(
-    request: Request, current_user: str | None
-) -> str:
+async def _resolve_identity(request: Request, current_user: str | None) -> str:
     """Return the identity for the current request.
 
     The alert routes primarily rely on :func:`backend.auth.get_active_user` so
@@ -81,4 +77,3 @@ async def set_threshold(
     _validate_owner(user, identity)
     alert_utils.set_user_threshold(identity, payload.threshold)
     return {"threshold": payload.threshold}
-

@@ -2,6 +2,7 @@ import json
 import sys
 from datetime import UTC, date, datetime
 from types import SimpleNamespace
+
 import pytest
 
 import backend.reports as reports
@@ -112,14 +113,23 @@ def test_dynamo_template_store_list_and_get(monkeypatch, caplog):
             if not params:
                 return {
                     "Items": [
-                        {"definition": json.dumps({"template_id": "custom", "name": "Custom", "description": "", "sections": [
-                            {
-                                "id": "metrics",
-                                "title": "Metrics",
-                                "source": "performance.metrics",
-                                "columns": [{"key": "metric", "label": "Metric"}],
-                            }
-                        ]})},
+                        {
+                            "definition": json.dumps(
+                                {
+                                    "template_id": "custom",
+                                    "name": "Custom",
+                                    "description": "",
+                                    "sections": [
+                                        {
+                                            "id": "metrics",
+                                            "title": "Metrics",
+                                            "source": "performance.metrics",
+                                            "columns": [{"key": "metric", "label": "Metric"}],
+                                        }
+                                    ],
+                                }
+                            )
+                        },
                         {"definition": "not json"},
                         {"definition": json.dumps({"template_id": "invalid", "name": "", "sections": []})},
                     ],
@@ -127,14 +137,23 @@ def test_dynamo_template_store_list_and_get(monkeypatch, caplog):
                 }
             return {
                 "Items": [
-                    {"definition": json.dumps({"template_id": "other", "name": "Other", "description": "", "sections": [
-                        {
-                            "id": "metrics",
-                            "title": "Metrics",
-                            "source": "performance.metrics",
-                            "columns": [{"key": "metric", "label": "Metric"}],
-                        }
-                    ]})}
+                    {
+                        "definition": json.dumps(
+                            {
+                                "template_id": "other",
+                                "name": "Other",
+                                "description": "",
+                                "sections": [
+                                    {
+                                        "id": "metrics",
+                                        "title": "Metrics",
+                                        "source": "performance.metrics",
+                                        "columns": [{"key": "metric", "label": "Metric"}],
+                                    }
+                                ],
+                            }
+                        )
+                    }
                 ]
             }
 
@@ -147,19 +166,21 @@ def test_dynamo_template_store_list_and_get(monkeypatch, caplog):
                 return {"Item": {"definition": json.dumps({"template_id": "baddef", "name": "", "sections": []})}}
             return {
                 "Item": {
-                    "definition": json.dumps({
-                        "template_id": Key["template_id"],
-                        "name": "Loaded",
-                        "description": "",
-                        "sections": [
-                            {
-                                "id": "metrics",
-                                "title": "Metrics",
-                                "source": "performance.metrics",
-                                "columns": [{"key": "metric", "label": "Metric"}],
-                            }
-                        ],
-                    })
+                    "definition": json.dumps(
+                        {
+                            "template_id": Key["template_id"],
+                            "name": "Loaded",
+                            "description": "",
+                            "sections": [
+                                {
+                                    "id": "metrics",
+                                    "title": "Metrics",
+                                    "source": "performance.metrics",
+                                    "columns": [{"key": "metric", "label": "Metric"}],
+                                }
+                            ],
+                        }
+                    )
                 }
             }
 
@@ -249,26 +270,70 @@ def test_user_template_management_errors(monkeypatch):
     monkeypatch.setattr(reports, "get_template_store", lambda: store)
 
     with pytest.raises(ValueError):
-        reports.create_user_template({"template_id": reports.DEFAULT_TEMPLATE_ID, "name": "Built-in", "sections": [
-            {"id": "metrics", "title": "Metrics", "source": "performance.metrics", "columns": [{"key": "metric"}]}
-        ]})
+        reports.create_user_template(
+            {
+                "template_id": reports.DEFAULT_TEMPLATE_ID,
+                "name": "Built-in",
+                "sections": [
+                    {
+                        "id": "metrics",
+                        "title": "Metrics",
+                        "source": "performance.metrics",
+                        "columns": [{"key": "metric"}],
+                    }
+                ],
+            }
+        )
 
     store.get_template = lambda template_id: {"template_id": template_id}
     with pytest.raises(ValueError):
-        reports.create_user_template({"template_id": "custom", "name": "Custom", "sections": [
-            {"id": "metrics", "title": "Metrics", "source": "performance.metrics", "columns": [{"key": "metric"}]}
-        ]})
+        reports.create_user_template(
+            {
+                "template_id": "custom",
+                "name": "Custom",
+                "sections": [
+                    {
+                        "id": "metrics",
+                        "title": "Metrics",
+                        "source": "performance.metrics",
+                        "columns": [{"key": "metric"}],
+                    }
+                ],
+            }
+        )
 
     store.get_template = lambda template_id: None
     with pytest.raises(ValueError):
-        reports.update_user_template(reports.DEFAULT_TEMPLATE_ID, {"name": "Built-in", "sections": [
-            {"id": "metrics", "title": "Metrics", "source": "performance.metrics", "columns": [{"key": "metric"}]}
-        ]})
+        reports.update_user_template(
+            reports.DEFAULT_TEMPLATE_ID,
+            {
+                "name": "Built-in",
+                "sections": [
+                    {
+                        "id": "metrics",
+                        "title": "Metrics",
+                        "source": "performance.metrics",
+                        "columns": [{"key": "metric"}],
+                    }
+                ],
+            },
+        )
 
     with pytest.raises(FileNotFoundError):
-        reports.update_user_template("missing", {"name": "Custom", "sections": [
-            {"id": "metrics", "title": "Metrics", "source": "performance.metrics", "columns": [{"key": "metric"}]}
-        ]})
+        reports.update_user_template(
+            "missing",
+            {
+                "name": "Custom",
+                "sections": [
+                    {
+                        "id": "metrics",
+                        "title": "Metrics",
+                        "source": "performance.metrics",
+                        "columns": [{"key": "metric"}],
+                    }
+                ],
+            },
+        )
 
     store.get_template = lambda template_id: None
     with pytest.raises(ValueError):
@@ -350,10 +415,14 @@ def test_get_template_store_returns_dynamo(monkeypatch):
 
 
 def test_compile_summary_filters_history(monkeypatch):
-    monkeypatch.setattr(reports, "_load_transactions", lambda owner: [
-        {"date": "2024-01-01", "type": "SELL", "amount_minor": 1000},
-        {"date": "invalid", "type": "DIVIDEND", "amount_minor": 200},
-    ])
+    monkeypatch.setattr(
+        reports,
+        "_load_transactions",
+        lambda owner: [
+            {"date": "2024-01-01", "type": "SELL", "amount_minor": 1000},
+            {"date": "invalid", "type": "DIVIDEND", "amount_minor": 200},
+        ],
+    )
 
     performance = {
         "history": [
@@ -615,10 +684,7 @@ def test_report_to_pdf_formats_values_and_optional_watermark(monkeypatch):
     assert any("45.32%" in value for value in drawn_values)
     assert not any("0.4532" in value for value in drawn_values)
     assert not any("4,532.00%" in value for value in drawn_values)
-    assert any(
-        name == "drawCentredString" and args[-1] == "SAMPLE"
-        for name, args, _ in calls
-    )
+    assert any(name == "drawCentredString" and args[-1] == "SAMPLE" for name, args, _ in calls)
 
 
 def test_report_to_pdf_key_findings_wrap_across_pages(monkeypatch):
@@ -829,29 +895,17 @@ def test_portfolio_section_builders_use_monkeypatched_dependencies(monkeypatch):
     monkeypatch.setattr(
         reports.risk,
         "compute_portfolio_var",
-        lambda owner, confidence=0.95, include_cash=True: {"1d": 0.12}
-        if confidence == 0.95
-        else {"1d": 0.2},
+        lambda owner, confidence=0.95, include_cash=True: {"1d": 0.12} if confidence == 0.95 else {"1d": 0.2},
     )
     monkeypatch.setattr(reports.risk, "compute_sharpe_ratio", lambda owner: 1.75)
 
     context = reports.ReportContext(owner="alice", start=None, end=None)
 
-    overview = reports._build_portfolio_overview_section(
-        context, reports.AUDIT_REPORT_TEMPLATE.sections[0]
-    )
-    sectors = reports._build_portfolio_sectors_section(
-        context, reports.AUDIT_REPORT_TEMPLATE.sections[1]
-    )
-    regions = reports._build_portfolio_regions_section(
-        context, reports.AUDIT_REPORT_TEMPLATE.sections[2]
-    )
-    concentration = reports._build_portfolio_concentration_section(
-        context, reports.AUDIT_REPORT_TEMPLATE.sections[3]
-    )
-    var_rows = reports._build_portfolio_var_section(
-        context, reports.AUDIT_REPORT_TEMPLATE.sections[4]
-    )
+    overview = reports._build_portfolio_overview_section(context, reports.AUDIT_REPORT_TEMPLATE.sections[0])
+    sectors = reports._build_portfolio_sectors_section(context, reports.AUDIT_REPORT_TEMPLATE.sections[1])
+    regions = reports._build_portfolio_regions_section(context, reports.AUDIT_REPORT_TEMPLATE.sections[2])
+    concentration = reports._build_portfolio_concentration_section(context, reports.AUDIT_REPORT_TEMPLATE.sections[3])
+    var_rows = reports._build_portfolio_var_section(context, reports.AUDIT_REPORT_TEMPLATE.sections[4])
 
     assert overview == [{"total_value_gbp": 1234.56, "holdings_count": 2, "accounts_count": 1}]
     assert sectors == [{"sector": "Technology", "value": 700.0, "weight": 1.0}]
@@ -931,9 +985,7 @@ def test_portfolio_section_builders_return_declared_schema_keys(monkeypatch):
 
     sectors = reports._build_portfolio_sectors_section(context, reports.AUDIT_REPORT_TEMPLATE.sections[1])
     regions = reports._build_portfolio_regions_section(context, reports.AUDIT_REPORT_TEMPLATE.sections[2])
-    concentration = reports._build_portfolio_concentration_section(
-        context, reports.AUDIT_REPORT_TEMPLATE.sections[3]
-    )
+    concentration = reports._build_portfolio_concentration_section(context, reports.AUDIT_REPORT_TEMPLATE.sections[3])
 
     assert set(sectors[0]) == {"sector", "value", "weight"}
     assert set(regions[0]) == {"region", "value", "weight"}
@@ -941,27 +993,19 @@ def test_portfolio_section_builders_return_declared_schema_keys(monkeypatch):
 
 
 def test_audit_concentration_hhi_uses_full_holding_set(monkeypatch):
-    tickers = [
-        {"ticker": f"T{i:02d}", "market_value_gbp": float(120 - i)}
-        for i in range(12)
-    ]
+    tickers = [{"ticker": f"T{i:02d}", "market_value_gbp": float(120 - i)} for i in range(12)]
     monkeypatch.setattr(
         reports,
         "_portfolio_snapshot",
-        lambda owner, pricing_date=None: {
-            "accounts": [{"holdings": [{"ticker": row["ticker"]} for row in tickers]}]
-        },
+        lambda owner, pricing_date=None: {"accounts": [{"holdings": [{"ticker": row["ticker"]} for row in tickers]}]},
     )
     monkeypatch.setattr(reports.portfolio_utils, "aggregate_by_ticker", lambda pf: tickers)
     context = reports.ReportContext(owner="alice", start=None, end=None)
 
-    concentration = reports._build_portfolio_concentration_section(
-        context, reports.AUDIT_REPORT_TEMPLATE.sections[3]
-    )
+    concentration = reports._build_portfolio_concentration_section(context, reports.AUDIT_REPORT_TEMPLATE.sections[3])
 
     expected_hhi = sum(
-        (row["market_value_gbp"] / sum(item["market_value_gbp"] for item in tickers)) ** 2
-        for row in tickers
+        (row["market_value_gbp"] / sum(item["market_value_gbp"] for item in tickers)) ** 2 for row in tickers
     )
     assert len(concentration) == 10
     assert all(row["hhi"] == pytest.approx(expected_hhi) for row in concentration)
@@ -1040,9 +1084,7 @@ def test_audit_portfolio_var_builder_returns_empty_when_risk_data_missing(monkey
     monkeypatch.setattr(
         reports.risk,
         "compute_portfolio_var",
-        lambda owner, confidence=0.95, include_cash=True: (_ for _ in ()).throw(
-            FileNotFoundError("missing risk data")
-        ),
+        lambda owner, confidence=0.95, include_cash=True: (_ for _ in ()).throw(FileNotFoundError("missing risk data")),
     )
     monkeypatch.setattr(
         reports.risk,
@@ -1146,27 +1188,18 @@ def test_build_report_document_audit_template_dispatches_real_builders(monkeypat
     monkeypatch.setattr(
         reports.risk,
         "compute_portfolio_var",
-        lambda owner, confidence=0.95, include_cash=True: {
-            "1d": 10.0 if confidence == 0.95 else 20.0
-        },
+        lambda owner, confidence=0.95, include_cash=True: {"1d": 10.0 if confidence == 0.95 else 20.0},
     )
     monkeypatch.setattr(reports.risk, "compute_sharpe_ratio", lambda owner: 1.11)
 
     document = reports.build_report_document("audit-report", "alice")
 
-    rows_by_source = {
-        section.schema.source: list(section.rows)
-        for section in document.sections
-    }
+    rows_by_source = {section.schema.source: list(section.rows) for section in document.sections}
     assert rows_by_source["portfolio.overview"] == [
         {"total_value_gbp": 200.0, "holdings_count": 2, "accounts_count": 1}
     ]
-    assert rows_by_source["portfolio.sectors"] == [
-        {"sector": "Technology", "value": 120.0, "weight": 1.0}
-    ]
-    assert rows_by_source["portfolio.regions"] == [
-        {"region": "North America", "value": 120.0, "weight": 1.0}
-    ]
+    assert rows_by_source["portfolio.sectors"] == [{"sector": "Technology", "value": 120.0, "weight": 1.0}]
+    assert rows_by_source["portfolio.regions"] == [{"region": "North America", "value": 120.0, "weight": 1.0}]
     assert rows_by_source["portfolio.concentration"][0]["ticker"] == "AAA"
     assert rows_by_source["portfolio.var"] == [
         {"metric": "VaR (95%)", "value": 10.0, "units": "GBP"},

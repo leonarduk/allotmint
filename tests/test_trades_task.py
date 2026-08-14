@@ -38,9 +38,7 @@ def test_lambda_handler_saves_and_alerts(monkeypatch, tmp_path):
 
     result = trades.lambda_handler({"owner": "bob"}, None)
     assert result == {"count": 2}
-    assert alerts == [
-        {"ticker": "IMPORT", "change_pct": 0.0, "message": "Imported 2 trades for bob"}
-    ]
+    assert alerts == [{"ticker": "IMPORT", "change_pct": 0.0, "message": "Imported 2 trades for bob"}]
 
     csv_path = tmp_path / "bob" / "trades.csv"
     with csv_path.open() as f:

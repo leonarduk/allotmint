@@ -1,13 +1,14 @@
-import pandas as pd
-import pytest
 from datetime import date
 
+import pandas as pd
+import pytest
+
 import backend.timeseries.fetch_alphavantage_timeseries as av
-from backend.timeseries.fetch_alphavantage_timeseries import (
-    fetch_alphavantage_timeseries_range,
-    AlphaVantageRateLimitError,
-)
 import backend.timeseries.fetch_meta_timeseries as fm
+from backend.timeseries.fetch_alphavantage_timeseries import (
+    AlphaVantageRateLimitError,
+    fetch_alphavantage_timeseries_range,
+)
 
 
 class _Resp429:
@@ -38,9 +39,7 @@ def test_http_429_raises_rate_limit_error(monkeypatch):
     monkeypatch.setattr(av.requests, "get", lambda *a, **k: _Resp429())
 
     with pytest.raises(AlphaVantageRateLimitError) as exc:
-        fetch_alphavantage_timeseries_range(
-            "AAA", "US", date(2024, 1, 1), date(2024, 1, 2), api_key="demo"
-        )
+        fetch_alphavantage_timeseries_range("AAA", "US", date(2024, 1, 1), date(2024, 1, 2), api_key="demo")
     assert exc.value.retry_after == 12
 
 
@@ -50,9 +49,7 @@ def test_note_field_triggers_rate_limit(monkeypatch):
     monkeypatch.setattr(av.requests, "get", lambda *a, **k: _RespNote())
 
     with pytest.raises(AlphaVantageRateLimitError) as exc:
-        fetch_alphavantage_timeseries_range(
-            "AAA", "US", date(2024, 1, 1), date(2024, 1, 2), api_key="demo"
-        )
+        fetch_alphavantage_timeseries_range("AAA", "US", date(2024, 1, 1), date(2024, 1, 2), api_key="demo")
     assert exc.value.retry_after == 60
 
 
@@ -85,8 +82,6 @@ def test_meta_timeseries_handles_av_rate_limit(monkeypatch):
 
     monkeypatch.setattr(fm, "fetch_ft_timeseries", fake_ft)
 
-    df = fm.fetch_meta_timeseries(
-        "AAA", "L", start_date=date(2024, 1, 1), end_date=date(2024, 1, 2)
-    )
+    df = fm.fetch_meta_timeseries("AAA", "L", start_date=date(2024, 1, 1), end_date=date(2024, 1, 2))
     assert not df.empty
     assert df["Source"].iloc[0] == "FT"

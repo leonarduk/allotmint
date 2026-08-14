@@ -1,4 +1,3 @@
-from backend.common import instruments
 import io
 import json
 import sys
@@ -6,6 +5,8 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+
+from backend.common import instruments
 
 
 def test_missing_file_returns_empty(monkeypatch, tmp_path):
@@ -48,6 +49,7 @@ def test_save_and_delete_instrument_meta(monkeypatch, tmp_path):
     instruments.delete_instrument_meta("ABC", "L")
     assert not path.exists()
     assert instruments.get_instrument_meta("ABC.L") == {}
+
 
 def test_get_instrument_meta_from_s3(monkeypatch):
     monkeypatch.setenv(instruments.METADATA_BUCKET_ENV, "bucket")
@@ -100,6 +102,7 @@ def test_save_instrument_meta_uploads_s3(monkeypatch, tmp_path):
     assert uploaded["Bucket"] == "bucket"
     assert uploaded["Key"] == "meta/L/ABC.json"
     assert json.loads(uploaded["Body"].decode()) == {"bar": 2}
+
 
 def test_get_instrument_meta_known_records(caplog):
     tickers = {

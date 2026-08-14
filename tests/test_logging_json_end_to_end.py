@@ -11,8 +11,6 @@ import json
 import logging
 from pathlib import Path
 
-import pytest
-
 import backend.logging_setup as logging_setup
 
 REPO_ROOT = Path(__file__).resolve().parents[1]

@@ -49,9 +49,7 @@ def test_compliance_owner_route(tmp_path, monkeypatch):
 
 def test_validate_trade(tmp_path, monkeypatch):
     app = _setup_app(tmp_path)
-    monkeypatch.setattr(
-        "backend.common.compliance.get_instrument_meta", lambda t: {"instrumentType": "ETF"}
-    )
+    monkeypatch.setattr("backend.common.compliance.get_instrument_meta", lambda t: {"instrumentType": "ETF"})
     monkeypatch.setattr(compliance.config, "approval_exempt_types", ["ETF"])
     with TestClient(app) as client:
         resp = client.post(

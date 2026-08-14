@@ -15,9 +15,7 @@ def import_cache():
     return importlib.import_module("backend.timeseries.cache")
 
 
-def _seed_existing_parquet(
-    cache, cache_path: str, days: int, *, include_window_end: bool = False
-) -> pd.DataFrame:
+def _seed_existing_parquet(cache, cache_path: str, days: int, *, include_window_end: bool = False) -> pd.DataFrame:
     """Populate ``cache_path`` with deterministic sample data and return expected slice."""
 
     base_today = datetime.today().date()
@@ -86,7 +84,6 @@ def test_merge_skips_empty_frames(monkeypatch, tmp_path):
     assert result["Volume"].iloc[0] == 100
 
 
-
 def test_ensure_schema_missing_date(caplog):
     """Missing Date column should return empty frame with schema and log warning."""
     cache = import_cache()
@@ -139,9 +136,9 @@ def test_ensure_schema_normalises_date_to_ms(date_input, input_id):
         }
     )
     result = cache._ensure_schema(df)
-    assert result["Date"].dtype == "datetime64[ms]", (
-        f"input_id={input_id}: expected datetime64[ms], got {result['Date'].dtype}"
-    )
+    assert (
+        result["Date"].dtype == "datetime64[ms]"
+    ), f"input_id={input_id}: expected datetime64[ms], got {result['Date'].dtype}"
 
 
 def test_rolling_cache_serves_cached_slice_on_fetch_failure(monkeypatch, tmp_path):

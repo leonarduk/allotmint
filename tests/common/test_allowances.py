@@ -1,5 +1,5 @@
-import json
 import datetime as dt
+import json
 
 from backend.common.allowances import (
     current_tax_year,
@@ -37,16 +37,12 @@ def test_load_yearly_contributions_non_numeric(tmp_path):
 def test_remaining_allowances_clamps_and_custom_limits(tmp_path):
     allowances_dir = tmp_path / "allowances"
     allowances_dir.mkdir()
-    (allowances_dir / "carol.json").write_text(
-        json.dumps({"2024-2025": {"ISA": 25_000}})
-    )
+    (allowances_dir / "carol.json").write_text(json.dumps({"2024-2025": {"ISA": 25_000}}))
 
     # Exceeds default ISA limit -> remaining is clamped to zero
     default_res = remaining_allowances("carol", "2024-2025", root=tmp_path)
     assert default_res["ISA"] == {"used": 25_000.0, "limit": 20_000.0, "remaining": 0.0}
 
     # Custom limit is honoured
-    custom_res = remaining_allowances(
-        "carol", "2024-2025", limits={"ISA": 30_000}, root=tmp_path
-    )
+    custom_res = remaining_allowances("carol", "2024-2025", limits={"ISA": 30_000}, root=tmp_path)
     assert custom_res["ISA"] == {"used": 25_000.0, "limit": 30_000.0, "remaining": 5_000.0}

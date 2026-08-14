@@ -41,10 +41,7 @@ def test_apply_scaling_noop(scale):
 
 
 def test_get_scaling_override_prefers_requested(tmp_path, monkeypatch):
-    assert (
-        th.get_scaling_override("ABC.L", "L", requested_scaling=3.0)
-        == 3.0
-    )
+    assert th.get_scaling_override("ABC.L", "L", requested_scaling=3.0) == 3.0
 
 
 def test_get_scaling_override_reads_override_file(tmp_path, monkeypatch):
@@ -63,8 +60,7 @@ def test_get_scaling_override_reads_override_file(tmp_path, monkeypatch):
 def test_get_scaling_override_currency_detection(monkeypatch):
     monkeypatch.setattr(th.config, "repo_root", Path("/nonexistent"))
 
-    from backend.common import instruments
-    from backend.common import portfolio_utils
+    from backend.common import instruments, portfolio_utils
 
     monkeypatch.setattr(instruments, "get_instrument_meta", lambda ticker: {"currency": "GBp"})
     monkeypatch.setattr(
@@ -81,8 +77,7 @@ def test_get_scaling_override_currency_detection(monkeypatch):
 def test_get_scaling_override_falls_back_to_security_meta(monkeypatch):
     monkeypatch.setattr(th.config, "repo_root", Path("/nonexistent"))
 
-    from backend.common import instruments
-    from backend.common import portfolio_utils
+    from backend.common import instruments, portfolio_utils
 
     monkeypatch.setattr(instruments, "get_instrument_meta", lambda ticker: {})
     monkeypatch.setattr(
@@ -99,16 +94,14 @@ def test_get_scaling_override_falls_back_to_security_meta(monkeypatch):
 def test_handle_timeseries_response_empty_df():
     df = pd.DataFrame()
 
-    response = th.handle_timeseries_response(
-        df, format="html", title="Title", subtitle="Sub"
-    )
+    response = th.handle_timeseries_response(df, format="html", title="Title", subtitle="Sub")
 
     assert response.status_code == 404
     assert response.body == b"<h1>No data found</h1>"
 
 
 def test_handle_timeseries_response_json_includes_metadata():
-    df = pd.DataFrame([{ "Close": 10 }])
+    df = pd.DataFrame([{"Close": 10}])
 
     response = th.handle_timeseries_response(
         df,
@@ -124,14 +117,14 @@ def test_handle_timeseries_response_json_includes_metadata():
 
 
 def test_handle_timeseries_response_csv(tmp_path):
-    df = pd.DataFrame([
-        {"Date": "2024-01-01", "Close": 10},
-        {"Date": "2024-01-02", "Close": 11},
-    ])
-
-    response = th.handle_timeseries_response(
-        df, format="csv", title="Title", subtitle="Sub"
+    df = pd.DataFrame(
+        [
+            {"Date": "2024-01-01", "Close": 10},
+            {"Date": "2024-01-02", "Close": 11},
+        ]
     )
+
+    response = th.handle_timeseries_response(df, format="csv", title="Title", subtitle="Sub")
 
     assert response.media_type == "text/csv"
     assert "Date,Close" in response.body.decode()
@@ -144,11 +137,9 @@ def test_handle_timeseries_response_html(monkeypatch):
         "render_timeseries_html",
         lambda df, title, subtitle: marker,
     )
-    df = pd.DataFrame([{ "Close": 10 }])
+    df = pd.DataFrame([{"Close": 10}])
 
-    response = th.handle_timeseries_response(
-        df, format="htmlish", title="Title", subtitle="Sub"
-    )
+    response = th.handle_timeseries_response(df, format="htmlish", title="Title", subtitle="Sub")
 
     assert response is marker
 
@@ -156,9 +147,9 @@ def test_handle_timeseries_response_html(monkeypatch):
 @pytest.mark.parametrize(
     "input_date, forward, expected",
     [
-        (date(2024, 1, 6), True, date(2024, 1, 8)),   # Saturday -> Monday
+        (date(2024, 1, 6), True, date(2024, 1, 8)),  # Saturday -> Monday
         (date(2024, 1, 7), False, date(2024, 1, 5)),  # Sunday -> Friday
-        (date(2024, 1, 8), True, date(2024, 1, 8)),   # Weekday unchanged
+        (date(2024, 1, 8), True, date(2024, 1, 8)),  # Weekday unchanged
     ],
 )
 def test_nearest_weekday(input_date, forward, expected):

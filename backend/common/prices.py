@@ -76,10 +76,7 @@ def _close_on(sym: str, exch: str, d: date) -> Optional[float]:
 
     name_map = {c.lower(): c for c in df.columns}
     close_col = (
-        name_map.get("close_gbp")
-        or name_map.get("close")
-        or name_map.get("adj close")
-        or name_map.get("adj_close")
+        name_map.get("close_gbp") or name_map.get("close") or name_map.get("adj close") or name_map.get("adj_close")
     )
     if not close_col:
         return None
@@ -271,8 +268,7 @@ def refresh_prices() -> Dict:
     else:
         merged = existing
         logger.info(
-            "Skipping local snapshot write — no valid prices fetched"
-            " (offline mode or data-source unavailable)"
+            "Skipping local snapshot write — no valid prices fetched" " (offline mode or data-source unavailable)"
         )
 
     # ---- persist to S3 (primary store read by all Lambda instances) ---------
@@ -294,9 +290,7 @@ def refresh_prices() -> Dict:
                     Body=json.dumps(merged, indent=2).encode("utf-8"),
                     ContentType="application/json",
                 )
-                logger.info(
-                    "Uploaded price snapshot to s3://%s/%s", _s3_bucket, PRICES_S3_KEY
-                )
+                logger.info("Uploaded price snapshot to s3://%s/%s", _s3_bucket, PRICES_S3_KEY)
             except Exception as exc:
                 logger.warning("Failed to upload price snapshot to S3: %s", sanitise_log_value(exc))
         else:

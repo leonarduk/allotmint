@@ -1,6 +1,7 @@
 import json
-from fastapi.testclient import TestClient
+
 import pytest
+from fastapi.testclient import TestClient
 
 from backend.app import create_app
 from backend.config import config

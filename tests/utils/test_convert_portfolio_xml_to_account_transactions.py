@@ -134,8 +134,8 @@ def test_billion_laughs_xml_rejected(tmp_path):
         '<?xml version="1.0"?>'
         "<!DOCTYPE lolz ["
         '  <!ENTITY lol "lol">'
-        "  <!ENTITY lol2 \"&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;\">"
-        "  <!ENTITY lol3 \"&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;\">"
+        '  <!ENTITY lol2 "&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;">'
+        '  <!ENTITY lol3 "&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;">'
         "]>"
         "<lolz>&lol3;</lolz>"
     )

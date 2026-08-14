@@ -18,13 +18,11 @@ def _setup_config(monkeypatch, tmp_path, content: str = "auth:\n  google_auth_en
     return config_path
 
 
-
 def test_deep_merge_nested_dicts():
     dst = {"a": {"b": 1, "c": {"d": 2}}}
     src = {"a": {"b": 3, "c": {"e": 4}}, "f": 5}
     routes_config.deep_merge(dst, src)
     assert dst == {"a": {"b": 3, "c": {"d": 2, "e": 4}}, "f": 5}
-
 
 
 def test_update_config_writes_and_merges(monkeypatch, tmp_path):
@@ -41,7 +39,6 @@ def test_update_config_writes_and_merges(monkeypatch, tmp_path):
 
     monkeypatch.undo()
     reload_config()
-
 
 
 def test_update_config_accepts_research_tab(monkeypatch, tmp_path):
@@ -70,7 +67,6 @@ def test_update_config_env_invalid_google_auth(monkeypatch, tmp_path):
 
     monkeypatch.undo()
     reload_config()
-
 
 
 def test_update_config_env_requires_client_id(monkeypatch, tmp_path):

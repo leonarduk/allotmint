@@ -43,9 +43,7 @@ def test_file_storage_save_and_load(tmp_path: Path) -> None:
     assert storage.load() == payload
 
 
-def test_file_storage_invalid_json_logs_warning(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
+def test_file_storage_invalid_json_logs_warning(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
     path = tmp_path / "invalid.json"
     path.write_text("{not-valid-json}")
     storage = FileJSONStorage(path=path)

@@ -1,5 +1,6 @@
-import pandas as pd
 from datetime import date
+
+import pandas as pd
 
 from backend.timeseries import fetch_meta_timeseries
 

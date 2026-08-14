@@ -1,7 +1,5 @@
-import importlib
 import asyncio
-
-import pytest
+import importlib
 
 from backend.routes import trail as trail_module
 
@@ -47,6 +45,7 @@ def test_complete_task_authenticated_preserves_full_response(monkeypatch):
     result = asyncio.run(trail_module.complete_task("t4", current_user="alice"))
     assert result is payload
 
+
 def test_complete_task_demo_passthrough(monkeypatch):
     monkeypatch.setattr(trail_module.config, "disable_auth", True)
     importlib.reload(trail_module)
@@ -64,7 +63,6 @@ def test_complete_task_authenticated_passthrough(monkeypatch):
 
     payload = {"tasks": ["exists"], "streak": 5}
     monkeypatch.setattr(trail_module.trail, "mark_complete", lambda user, tid: payload)
-
 
     result = asyncio.run(trail_module.complete_task("t4", current_user="alice"))
     assert result is payload

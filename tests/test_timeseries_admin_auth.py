@@ -1,9 +1,8 @@
 from pathlib import Path
-from importlib import reload
 
 import pytest
-from pytest import MonkeyPatch
 from fastapi.testclient import TestClient
+from pytest import MonkeyPatch
 
 import backend.config as config
 from backend.app import create_app

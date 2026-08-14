@@ -1,12 +1,11 @@
 from types import SimpleNamespace
 
-import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from backend.routes import quotes as quotes_module
 from backend.bootstrap.middleware import register_middleware
 from backend.config import config
+from backend.routes import quotes as quotes_module
 
 
 def _make_client():

@@ -36,9 +36,7 @@ def test_setup_logging_relative_path(monkeypatch):
 
     try:
         logging_setup.setup_logging()
-        file_config_mock.assert_called_once_with(
-            Path("/repo/logging.ini"), disable_existing_loggers=False
-        )
+        file_config_mock.assert_called_once_with(Path("/repo/logging.ini"), disable_existing_loggers=False)
     finally:
         root_logger.handlers = original_handlers
 

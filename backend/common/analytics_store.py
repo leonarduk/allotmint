@@ -9,9 +9,9 @@ path resolution, locking or serialisation concerns.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
-from datetime import datetime, timezone
 import json
+from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from threading import Lock
 from typing import Any, Dict, Iterator, List, Optional
@@ -114,4 +114,3 @@ def clear_events() -> None:
     if path.exists():
         with _LOCK:
             path.unlink()
-

@@ -60,9 +60,7 @@ def test_portfolio_health_empty_cache(monkeypatch):
     assert resp.status_code == 200
     payload = resp.json()
     assert payload["status"] == "ok"
-    assert payload["findings"] == [
-        {"type": "owner", "message": "Owner foo max drawdown unavailable"}
-    ]
+    assert payload["findings"] == [{"type": "owner", "message": "Owner foo max drawdown unavailable"}]
     generated = datetime.fromisoformat(payload["generated_at"])
     assert isinstance(generated, datetime)
     assert "stale" not in payload

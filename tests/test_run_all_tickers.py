@@ -1,5 +1,6 @@
-import pandas as pd
 from unittest.mock import patch
+
+import pandas as pd
 
 from backend.timeseries.fetch_meta_timeseries import run_all_tickers
 
@@ -40,12 +41,9 @@ def test_run_all_tickers_resolves_exchange_from_metadata():
         calls.append((sym, ex, days))
         return pd.DataFrame({"Date": [1], "Close": [2]})
 
-    with patch(
-        "backend.timeseries.cache.load_meta_timeseries", side_effect=fake_load
-    ) as mock_load:
+    with patch("backend.timeseries.cache.load_meta_timeseries", side_effect=fake_load) as mock_load:
         out = run_all_tickers(["GSK"], days=3)
 
     assert out == ["GSK"]
     assert calls == [("GSK", "L", 3)]
     mock_load.assert_called_once()
-

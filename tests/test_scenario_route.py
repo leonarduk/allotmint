@@ -1,6 +1,7 @@
-from fastapi.testclient import TestClient
-from pathlib import Path
 import json
+from pathlib import Path
+
+from fastapi.testclient import TestClient
 
 from backend.app import create_app
 from backend.common.account_models import OwnerSummaryRecord
@@ -56,9 +57,7 @@ def test_historical_scenario_route(monkeypatch):
         total = portfolio.get("total_value_estimate_gbp") or 0.0
         return {h: {"total_value_estimate_gbp": total} for h in horizons}
 
-    monkeypatch.setattr(
-        scenario_route, "apply_historical_event", fake_apply_historical_event
-    )
+    monkeypatch.setattr(scenario_route, "apply_historical_event", fake_apply_historical_event)
     monkeypatch.setattr(
         scenario_route,
         "list_plots",
@@ -113,4 +112,3 @@ def test_events_route():
     with events_path.open() as fh:
         expected = [{"id": e["id"], "name": e["name"]} for e in json.load(fh)]
     assert data == expected
-

@@ -1,5 +1,5 @@
 import pytest
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 
 from backend.app import create_app
 from backend.common.account_models import OwnerSummaryRecord
@@ -8,9 +8,7 @@ from backend.common.account_models import OwnerSummaryRecord
 @pytest.mark.asyncio
 async def test_auth_alerts_portfolio(monkeypatch):
     app = create_app()
-    monkeypatch.setattr(
-        "backend.common.alerts.get_recent_alerts", lambda: [{"message": "hi"}]
-    )
+    monkeypatch.setattr("backend.common.alerts.get_recent_alerts", lambda: [{"message": "hi"}])
     monkeypatch.setattr(
         "backend.common.data_loader.list_plots",
         lambda root, current_user=None: [
@@ -20,9 +18,7 @@ async def test_auth_alerts_portfolio(monkeypatch):
     )
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        token_resp = await client.post(
-            "/token", data={"username": "testuser", "password": "password"}
-        )
+        token_resp = await client.post("/token", data={"username": "testuser", "password": "password"})
         token = token_resp.json()["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
         alerts_resp = await client.get("/alerts/", headers=headers)

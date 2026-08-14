@@ -20,7 +20,6 @@ import logging
 import re
 import secrets
 import threading
-
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -172,9 +171,7 @@ def create_signup_request(
     return record, token
 
 
-def _enforce_cap_unlocked(
-    directory: Path, max_pending: int, *, now: datetime | None = None
-) -> None:
+def _enforce_cap_unlocked(directory: Path, max_pending: int, *, now: datetime | None = None) -> None:
     """Remove oldest pending requests until the count is within ``max_pending``.
 
     Must be called with ``_PERSIST_LOCK`` already held.  Only removes pending
@@ -212,9 +209,7 @@ def _enforce_cap_unlocked(
                 pass
 
 
-def _enforce_cap(
-    store_dir: Path, max_pending: int, *, now: datetime | None = None
-) -> None:
+def _enforce_cap(store_dir: Path, max_pending: int, *, now: datetime | None = None) -> None:
     """Acquire ``_PERSIST_LOCK`` and enforce the pending-request cap."""
 
     directory = Path(store_dir)

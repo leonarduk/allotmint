@@ -95,7 +95,8 @@ def fetch_yahoo_timeseries_range(ticker: str, exchange: str, start_date: date, e
     if not is_valid_ticker(ticker, exchange):
         logger.info(
             "Skipping Yahoo fetch for unrecognized ticker %s.%s",
-            sanitise_log_value(ticker), sanitise_log_value(exchange),
+            sanitise_log_value(ticker),
+            sanitise_log_value(exchange),
         )
         record_skipped_ticker(ticker, exchange, reason="unknown")
         return pd.DataFrame(columns=STANDARD_COLUMNS)
@@ -141,7 +142,9 @@ def fetch_yahoo_timeseries_period(
     safe_interval = sanitise_log_value(interval)
     logger.debug(
         "Fetching Yahoo data for %s with period=%r, interval=%r",
-        sanitise_log_value(full_ticker), safe_period, safe_interval,
+        sanitise_log_value(full_ticker),
+        safe_period,
+        safe_interval,
     )
 
     try:

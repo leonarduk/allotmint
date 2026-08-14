@@ -1,4 +1,5 @@
 """Shared fixtures for tests under tests/backend/routes/."""
+
 from __future__ import annotations
 
 import pytest

@@ -1,11 +1,12 @@
-import pandas as pd
-import pytest
-import requests
 from datetime import date
 from types import SimpleNamespace
 
-from backend.timeseries import fetch_stooq_timeseries as fst
+import pandas as pd
+import pytest
+import requests
+
 from backend.timeseries import fetch_meta_timeseries
+from backend.timeseries import fetch_stooq_timeseries as fst
 
 
 def _csv_response():
@@ -90,20 +91,22 @@ def test_meta_timeseries_handles_stooq_rate_limit(monkeypatch):
     monkeypatch.setattr(fetch_meta_timeseries, "fetch_stooq_timeseries_range", raise_limit)
 
     def fake_ft(ticker, days):
-        return pd.DataFrame({
-            "Date": [date(2024, 1, 1)],
-            "Open": [1.0],
-            "High": [1.0],
-            "Low": [1.0],
-            "Close": [1.0],
-            "Volume": [0],
-            "Ticker": [ticker],
-            "Source": ["FT"],
-        })
+        return pd.DataFrame(
+            {
+                "Date": [date(2024, 1, 1)],
+                "Open": [1.0],
+                "High": [1.0],
+                "Low": [1.0],
+                "Close": [1.0],
+                "Volume": [0],
+                "Ticker": [ticker],
+                "Source": ["FT"],
+            }
+        )
 
     monkeypatch.setattr(fetch_meta_timeseries, "fetch_ft_timeseries", fake_ft)
 
-    df = fetch_meta_timeseries.fetch_meta_timeseries("AAA", "L", start_date=date(2024,1,1), end_date=date(2024,1,2))
+    df = fetch_meta_timeseries.fetch_meta_timeseries("AAA", "L", start_date=date(2024, 1, 1), end_date=date(2024, 1, 2))
     assert not df.empty
     assert df["Source"].iloc[0] == "FT"
 
@@ -118,8 +121,6 @@ def test_stooq_timeout_returns_empty(monkeypatch, caplog):
 
     monkeypatch.setattr(fst.requests, "get", timeout_get)
     with caplog.at_level("WARNING"):
-        df = fst.fetch_stooq_timeseries_range(
-            "AAA", "L", date(2024, 1, 1), date(2024, 1, 2)
-        )
+        df = fst.fetch_stooq_timeseries_range("AAA", "L", date(2024, 1, 1), date(2024, 1, 2))
     assert df.empty
     assert "timed out" in caplog.text.lower()

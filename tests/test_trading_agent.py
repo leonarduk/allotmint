@@ -1,9 +1,10 @@
 import json
-import pytest
 import shutil
-from backend.common import portfolio_utils
-from backend.agent.trading_agent import send_trade_alert, run, generate_signals as ta_generate_signals
+
 from backend.agent import trading_agent
+from backend.agent.trading_agent import generate_signals as ta_generate_signals
+from backend.agent.trading_agent import run, send_trade_alert
+from backend.common import portfolio_utils
 
 # Alias to match the terminology of "generate_signals"
 generate_signals = portfolio_utils.check_price_alerts
@@ -37,11 +38,7 @@ def test_generate_signals_buy_sell_actions(monkeypatch):
 
 def test_generate_signals_emits_alerts(monkeypatch):
     snapshot = {"AAA.L": {"last_price": 110.0}}
-    portfolio = {
-        "accounts": [
-            {"holdings": [{"ticker": "AAA", "units": 1, "cost_gbp": 100}]}
-        ]
-    }
+    portfolio = {"accounts": [{"holdings": [{"ticker": "AAA", "units": 1, "cost_gbp": 100}]}]}
     monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", snapshot)
     monkeypatch.setattr(portfolio_utils, "list_portfolios", lambda: [portfolio])
 
@@ -112,12 +109,8 @@ def test_send_trade_alert_with_telegram(monkeypatch):
     published = {}
     telegram_msgs = []
 
-    monkeypatch.setattr(
-        "backend.agent.trading_agent.publish_alert", lambda alert: published.update(alert)
-    )
-    monkeypatch.setattr(
-        "backend.agent.trading_agent.send_message", lambda msg: telegram_msgs.append(msg)
-    )
+    monkeypatch.setattr("backend.agent.trading_agent.publish_alert", lambda alert: published.update(alert))
+    monkeypatch.setattr("backend.agent.trading_agent.send_message", lambda msg: telegram_msgs.append(msg))
     monkeypatch.setattr(trading_agent.config, "telegram_bot_token", "T")
     monkeypatch.setattr(trading_agent.config, "telegram_chat_id", "C")
 
@@ -134,12 +127,8 @@ def test_send_trade_alert_no_publish_with_telegram(monkeypatch):
     def fake_publish(alert):
         published["called"] = True
 
-    monkeypatch.setattr(
-        "backend.agent.trading_agent.publish_alert", fake_publish
-    )
-    monkeypatch.setattr(
-        "backend.agent.trading_agent.send_message", lambda msg: telegram_msgs.append(msg)
-    )
+    monkeypatch.setattr("backend.agent.trading_agent.publish_alert", fake_publish)
+    monkeypatch.setattr("backend.agent.trading_agent.send_message", lambda msg: telegram_msgs.append(msg))
     monkeypatch.setattr(trading_agent.config, "telegram_bot_token", "T")
     monkeypatch.setattr(trading_agent.config, "telegram_chat_id", "C")
 
@@ -172,12 +161,8 @@ def test_run_defaults_to_all_known_tickers(monkeypatch):
         "backend.agent.trading_agent.prices.load_prices_for_tickers",
         fake_load_prices,
     )
-    monkeypatch.setattr(
-        "backend.agent.trading_agent.publish_alert", lambda alert: None
-    )
-    monkeypatch.setattr(
-        "backend.agent.trading_agent.list_portfolios", lambda: [{"owner": "alice"}]
-    )
+    monkeypatch.setattr("backend.agent.trading_agent.publish_alert", lambda alert: None)
+    monkeypatch.setattr("backend.agent.trading_agent.list_portfolios", lambda: [{"owner": "alice"}])
     monkeypatch.setattr(
         "backend.agent.trading_agent.compliance.check_trade",
         lambda trade: {"owner": trade.get("owner"), "warnings": []},
@@ -190,9 +175,7 @@ def test_run_defaults_to_all_known_tickers(monkeypatch):
 
 def test_run_sends_telegram_when_not_aws(monkeypatch):
     # Trigger a BUY signal for ticker AAA
-    monkeypatch.setattr(
-        "backend.agent.trading_agent.list_all_unique_tickers", lambda: ["AAA"]
-    )
+    monkeypatch.setattr("backend.agent.trading_agent.list_all_unique_tickers", lambda: ["AAA"])
 
     def fake_load_prices(tickers, days=60):
         import pandas as pd
@@ -200,24 +183,16 @@ def test_run_sends_telegram_when_not_aws(monkeypatch):
         data = {"Ticker": ["AAA"] * 7, "close": [1, 1, 1, 1, 1, 1, 2]}
         return pd.DataFrame(data)
 
-    monkeypatch.setattr(
-        "backend.agent.trading_agent.prices.load_prices_for_tickers", fake_load_prices
-    )
-    monkeypatch.setattr(
-        "backend.agent.trading_agent.publish_alert", lambda alert: None
-    )
-    monkeypatch.setattr(
-        "backend.agent.trading_agent.list_portfolios", lambda: [{"owner": "alice"}]
-    )
+    monkeypatch.setattr("backend.agent.trading_agent.prices.load_prices_for_tickers", fake_load_prices)
+    monkeypatch.setattr("backend.agent.trading_agent.publish_alert", lambda alert: None)
+    monkeypatch.setattr("backend.agent.trading_agent.list_portfolios", lambda: [{"owner": "alice"}])
     monkeypatch.setattr(
         "backend.agent.trading_agent.compliance.check_trade",
         lambda trade: {"owner": trade.get("owner"), "warnings": []},
     )
 
     sent: list[str] = []
-    monkeypatch.setattr(
-        "backend.agent.trading_agent.send_message", lambda msg: sent.append(msg)
-    )
+    monkeypatch.setattr("backend.agent.trading_agent.send_message", lambda msg: sent.append(msg))
     monkeypatch.setattr(trading_agent.config, "telegram_bot_token", "T")
     monkeypatch.setattr(trading_agent.config, "telegram_chat_id", "C")
     monkeypatch.setattr(trading_agent.config, "app_env", "local")
@@ -228,9 +203,7 @@ def test_run_sends_telegram_when_not_aws(monkeypatch):
 
 
 def test_run_compliance_gates_actions(monkeypatch):
-    monkeypatch.setattr(
-        "backend.agent.trading_agent.list_all_unique_tickers", lambda: ["AAA"]
-    )
+    monkeypatch.setattr("backend.agent.trading_agent.list_all_unique_tickers", lambda: ["AAA"])
 
     def fake_load_prices(tickers, days=60):
         import pandas as pd
@@ -238,24 +211,16 @@ def test_run_compliance_gates_actions(monkeypatch):
         data = {"Ticker": ["AAA"] * 7, "close": [1, 1, 1, 1, 1, 1, 2]}
         return pd.DataFrame(data)
 
-    monkeypatch.setattr(
-        "backend.agent.trading_agent.prices.load_prices_for_tickers", fake_load_prices
-    )
-    monkeypatch.setattr(
-        "backend.agent.trading_agent.list_portfolios", lambda: [{"owner": "alice"}]
-    )
+    monkeypatch.setattr("backend.agent.trading_agent.prices.load_prices_for_tickers", fake_load_prices)
+    monkeypatch.setattr("backend.agent.trading_agent.list_portfolios", lambda: [{"owner": "alice"}])
 
     def fake_check(trade):
         return {"owner": trade["owner"], "warnings": ["blocked"]}
 
-    monkeypatch.setattr(
-        "backend.agent.trading_agent.compliance.check_trade", fake_check
-    )
+    monkeypatch.setattr("backend.agent.trading_agent.compliance.check_trade", fake_check)
 
     published: list = []
-    monkeypatch.setattr(
-        "backend.agent.trading_agent.publish_alert", lambda alert: published.append(alert)
-    )
+    monkeypatch.setattr("backend.agent.trading_agent.publish_alert", lambda alert: published.append(alert))
 
     signals = run()
 
@@ -264,9 +229,7 @@ def test_run_compliance_gates_actions(monkeypatch):
 
 
 def test_run_skips_signal_when_compliance_blocks(monkeypatch):
-    monkeypatch.setattr(
-        "backend.agent.trading_agent.list_all_unique_tickers", lambda: ["AAA", "BBB"]
-    )
+    monkeypatch.setattr("backend.agent.trading_agent.list_all_unique_tickers", lambda: ["AAA", "BBB"])
 
     def fake_load_prices(tickers, days=60):
         import pandas as pd
@@ -277,12 +240,8 @@ def test_run_skips_signal_when_compliance_blocks(monkeypatch):
         }
         return pd.DataFrame(data)
 
-    monkeypatch.setattr(
-        "backend.agent.trading_agent.prices.load_prices_for_tickers", fake_load_prices
-    )
-    monkeypatch.setattr(
-        "backend.agent.trading_agent.list_portfolios", lambda: [{"owner": "alice"}]
-    )
+    monkeypatch.setattr("backend.agent.trading_agent.prices.load_prices_for_tickers", fake_load_prices)
+    monkeypatch.setattr("backend.agent.trading_agent.list_portfolios", lambda: [{"owner": "alice"}])
 
     calls: list[str] = []
 
@@ -293,20 +252,12 @@ def test_run_skips_signal_when_compliance_blocks(monkeypatch):
             return {"owner": owner, "warnings": []}
         return {"owner": owner, "warnings": ["limit"]}
 
-    monkeypatch.setattr(
-        "backend.agent.trading_agent.compliance.check_trade", fake_check
-    )
+    monkeypatch.setattr("backend.agent.trading_agent.compliance.check_trade", fake_check)
 
     published: list = []
-    monkeypatch.setattr(
-        "backend.agent.trading_agent.publish_alert", lambda alert: published.append(alert)
-    )
-    monkeypatch.setattr(
-        "backend.agent.trading_agent.send_message", lambda msg: None
-    )
-    monkeypatch.setattr(
-        "backend.agent.trading_agent._log_trade", lambda *a, **k: None
-    )
+    monkeypatch.setattr("backend.agent.trading_agent.publish_alert", lambda alert: published.append(alert))
+    monkeypatch.setattr("backend.agent.trading_agent.send_message", lambda msg: None)
+    monkeypatch.setattr("backend.agent.trading_agent._log_trade", lambda *a, **k: None)
 
     signals = run()
 
@@ -339,8 +290,7 @@ def test_run_uses_rsi_and_fundamentals(monkeypatch):
 
         data = {
             "Ticker": ["AAA"] * 15 + ["BBB"] * 5,
-            "close": [15, 14, 13, 12, 11, 10, 9, 8, 5, 5, 5, 5, 5, 5, 5]
-            + [10, 11, 12, 13, 14],
+            "close": [15, 14, 13, 12, 11, 10, 9, 8, 5, 5, 5, 5, 5, 5, 5] + [10, 11, 12, 13, 14],
         }
         return pd.DataFrame(data)
 
@@ -476,5 +426,3 @@ def test_alert_on_drawdown_handles_value_error(monkeypatch):
     trading_agent._alert_on_drawdown()
 
     assert alerts == []
-
-

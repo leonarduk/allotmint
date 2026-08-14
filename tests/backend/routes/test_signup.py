@@ -179,9 +179,7 @@ def test_email_send_ses_failure_returns_502_and_logs(client, monkeypatch, caplog
     monkeypatch.setattr(signup_module, "send_signup_admin_email", boom)
 
     with caplog.at_level("ERROR"):
-        resp = test_client.post(
-            "/signup/request", json={"name": "Jane", "email": "jane@example.com"}
-        )
+        resp = test_client.post("/signup/request", json={"name": "Jane", "email": "jane@example.com"})
 
     assert resp.status_code == 502
     assert resp.json()["detail"] == "failed to notify administrator"

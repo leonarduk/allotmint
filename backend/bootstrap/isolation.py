@@ -74,9 +74,7 @@ def _configured_root_uses_global_fallback(configured_root: object) -> bool:
         return True
 
 
-def _isolate_accounts_root(
-    paths: ResolvedPaths, accounts_root: Path
-) -> tuple[Path | None, Path | None]:
+def _isolate_accounts_root(paths: ResolvedPaths, accounts_root: Path) -> tuple[Path | None, Path | None]:
     try:
         accounts_root.relative_to(paths.repo_root)
     except ValueError:

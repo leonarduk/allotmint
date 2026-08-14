@@ -1,15 +1,15 @@
-from datetime import date
 import importlib
+from datetime import date
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 import backend.routes as routes_pkg
+from backend.auth import get_current_user
 from backend.common import goals as goals_mod
 from backend.common.storage import get_storage
 from backend.routes import goals as goals_route
-from backend.auth import get_current_user
 
 
 def _app(tmp_path, monkeypatch, *, active_user: str | None = "alice", disable_auth: bool = False):
@@ -24,6 +24,7 @@ def _app(tmp_path, monkeypatch, *, active_user: str | None = "alice", disable_au
         # Override before including router
         async def override_user():
             return active_user
+
         app.dependency_overrides[get_current_user] = override_user
     app.include_router(module.router)
     return TestClient(app)

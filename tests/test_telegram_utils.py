@@ -295,9 +295,7 @@ def test_invalid_retry_after(monkeypatch):
 
     responses = iter(
         [
-            SimpleNamespace(
-                status_code=429, headers={"Retry-After": "bad"}, raise_for_status=lambda: None
-            ),
+            SimpleNamespace(status_code=429, headers={"Retry-After": "bad"}, raise_for_status=lambda: None),
             SimpleNamespace(status_code=200, headers={}, raise_for_status=lambda: None),
         ]
     )

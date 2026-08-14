@@ -6,11 +6,8 @@ from pathlib import Path
 
 import yaml
 
-
 CI_WORKFLOW_PATH = Path(__file__).resolve().parents[2] / ".github" / "workflows" / "ci.yml"
-DEPLOY_WORKFLOW_PATH = (
-    Path(__file__).resolve().parents[2] / ".github" / "workflows" / "deploy-lambda.yml"
-)
+DEPLOY_WORKFLOW_PATH = Path(__file__).resolve().parents[2] / ".github" / "workflows" / "deploy-lambda.yml"
 
 
 def _step_name(step: dict) -> str:
@@ -84,9 +81,7 @@ def test_verify_smoke_tests_needs_existing_job() -> None:
     verify_job = workflow["jobs"]["verify-smoke-tests"]
     needed = verify_job.get("needs")
 
-    assert needed is not None, (
-        "verify-smoke-tests job must declare a needs: dependency on smoke-test"
-    )
+    assert needed is not None, "verify-smoke-tests job must declare a needs: dependency on smoke-test"
 
     # needs: can be a string or a list — normalise to a list for comparison.
     needed_jobs = [needed] if isinstance(needed, str) else list(needed)
@@ -102,9 +97,7 @@ def test_verify_smoke_tests_needs_existing_job() -> None:
     # Explicitly verify that smoke-test (the job that runs the actual smoke
     # checks) is among the needed jobs — this is the critical dependency
     # that validates pass/fail propagation.
-    assert "smoke-test" in needed_jobs, (
-        f"verify-smoke-tests must need smoke-test, but needs: is {needed_jobs}"
-    )
+    assert "smoke-test" in needed_jobs, f"verify-smoke-tests must need smoke-test, but needs: is {needed_jobs}"
 
 
 def test_frontend_smoke_builds_preview_before_running_playwright() -> None:
@@ -116,12 +109,8 @@ def test_frontend_smoke_builds_preview_before_running_playwright() -> None:
     build_idx = _first_step_index(steps, lambda step: "build:preview" in _step_run(step))
     playwright_idx = _first_step_index(steps, lambda step: "playwright test" in _step_run(step))
 
-    assert build_idx is not None, (
-        "frontend-smoke job has no step running 'npm run build:preview'"
-    )
-    assert playwright_idx is not None, (
-        "frontend-smoke job has no step running a Playwright test command"
-    )
+    assert build_idx is not None, "frontend-smoke job has no step running 'npm run build:preview'"
+    assert playwright_idx is not None, "frontend-smoke job has no step running a Playwright test command"
     assert build_idx < playwright_idx, (
         "frontend-smoke must run 'npm run build:preview' before the Playwright "
         "test step, otherwise smoke tests would run against a stale/missing build"

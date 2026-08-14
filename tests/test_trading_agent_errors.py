@@ -1,7 +1,4 @@
 import pandas as pd
-import pytest
-
-import pandas as pd
 
 from backend.agent import trading_agent
 

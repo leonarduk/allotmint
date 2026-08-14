@@ -176,9 +176,7 @@ def test_fetch_sectors_does_not_fall_back_when_lse_valid(monkeypatch):
 
 
 def test_fetch_us_sector_etf_changes_from_download(monkeypatch):
-    columns = pd.MultiIndex.from_product(
-        [["Close"], ["XLB", "XLE", "XLF"]], names=["Price", "Ticker"]
-    )
+    columns = pd.MultiIndex.from_product([["Close"], ["XLB", "XLE", "XLF"]], names=["Price", "Ticker"])
     frame = pd.DataFrame(
         [[100.0, 50.0, 10.0], [110.0, 55.0, 11.0]],
         columns=columns,
@@ -202,9 +200,7 @@ def test_fetch_us_sector_etf_changes_from_download(monkeypatch):
 
 
 def test_fetch_us_sector_etf_changes_partial_missing(monkeypatch):
-    columns = pd.MultiIndex.from_product(
-        [["Close"], ["XLB", "XLE", "XLF"]], names=["Price", "Ticker"]
-    )
+    columns = pd.MultiIndex.from_product([["Close"], ["XLB", "XLE", "XLF"]], names=["Price", "Ticker"])
     frame = pd.DataFrame(
         [[100.0, None, 10.0], [110.0, None, None]],
         columns=columns,
@@ -302,9 +298,7 @@ def test_fetch_headlines_propagates_stale_flag_from_get_cached_news(monkeypatch)
 def test_market_overview_default_region_handles_fetch_failures(monkeypatch):
     client = _client()
     monkeypatch.setattr(market.cfg, "default_sector_region", "US", raising=False)
-    monkeypatch.setattr(
-        market, "_fetch_uk_sectors", lambda: pytest.fail("UK sectors fetch should not be used")
-    )
+    monkeypatch.setattr(market, "_fetch_uk_sectors", lambda: pytest.fail("UK sectors fetch should not be used"))
     calls = []
 
     def boom_indexes():
@@ -340,9 +334,7 @@ def test_market_overview_uk_region_handles_fetch_errors(monkeypatch):
         "_fetch_indexes",
         lambda: {"Dow Jones": {"value": 100.0, "change": 1.5}},
     )
-    monkeypatch.setattr(
-        market, "_fetch_sectors", lambda: pytest.fail("US sector fetch should not be used")
-    )
+    monkeypatch.setattr(market, "_fetch_sectors", lambda: pytest.fail("US sector fetch should not be used"))
     calls = []
 
     def boom_uk():

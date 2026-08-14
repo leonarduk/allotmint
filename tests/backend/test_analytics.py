@@ -3,14 +3,12 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from backend import config as config_module
 from backend.common import analytics_store
 from backend.routes.analytics import router as analytics_router
-
 
 
 @pytest.fixture

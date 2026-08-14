@@ -6,6 +6,7 @@ from backend.common.url_validator import InvalidExternalURLError, validate_exter
 
 # ── scheme enforcement ────────────────────────────────────────────────────────
 
+
 def test_https_url_passes():
     validate_external_url("https://api.example.com/query?key=abc")
 
@@ -30,6 +31,7 @@ def test_no_scheme_rejected():
 
 
 # ── blocked hostnames ─────────────────────────────────────────────────────────
+
 
 def test_localhost_rejected():
     with pytest.raises(InvalidExternalURLError, match="not permitted"):
@@ -61,6 +63,7 @@ def test_ip6_loopback_rejected():
 
 
 # ── private IP ranges ─────────────────────────────────────────────────────────
+
 
 @pytest.mark.parametrize(
     "url",
@@ -103,6 +106,7 @@ def test_abbreviated_ipv4_rejected(url: str) -> None:
 
 # ── valid public endpoints ────────────────────────────────────────────────────
 
+
 @pytest.mark.parametrize(
     "url",
     [
@@ -119,6 +123,7 @@ def test_public_url_passes(url: str) -> None:
 
 # ── allow_http does not bypass IP-range check ─────────────────────────────────
 
+
 def test_allow_http_does_not_bypass_ip_check():
     # allow_http=True relaxes the scheme requirement only; private IPs must
     # still be rejected so that an attacker cannot reach internal services
@@ -133,6 +138,7 @@ def test_allow_http_does_not_bypass_localhost_check():
 
 
 # ── missing hostname ──────────────────────────────────────────────────────────
+
 
 def test_no_hostname_rejected():
     with pytest.raises(InvalidExternalURLError, match="no hostname"):

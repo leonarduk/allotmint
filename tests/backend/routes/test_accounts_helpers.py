@@ -41,7 +41,9 @@ def restore_config() -> None:
         config.accounts_root = original_accounts_root
 
 
-def test_resolve_accounts_root_cached_directory_and_config_fallback(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_resolve_accounts_root_cached_directory_and_config_fallback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """The cached state is preferred when valid, otherwise configuration paths are used."""
 
     request = make_request()

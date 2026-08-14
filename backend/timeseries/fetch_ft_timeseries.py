@@ -63,9 +63,7 @@ def fetch_ft_timeseries_range(
     user_agent: Optional[str] = None,
 ) -> pd.DataFrame:
     template = (
-        url_template
-        or config.ft_url_template
-        or "https://markets.ft.com/data/funds/tearsheet/historical?s={ticker}"
+        url_template or config.ft_url_template or "https://markets.ft.com/data/funds/tearsheet/historical?s={ticker}"
     )
     url = template.format(ticker=ticker)
     logger.info("Navigating to %s", sanitise_log_value(url))

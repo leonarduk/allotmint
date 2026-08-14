@@ -1,7 +1,7 @@
 """Regression tests for Lambda Dockerfile and requirements dependency hygiene (issue #2810)."""
 
-from pathlib import Path
 import unittest
+from pathlib import Path
 
 DOCKERFILE = Path(__file__).resolve().parents[1] / "backend" / "Dockerfile.lambda"
 REQUIREMENTS = Path(__file__).resolve().parents[1] / "backend" / "requirements.txt"

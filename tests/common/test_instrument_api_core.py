@@ -42,7 +42,7 @@ def test_prime_latest_prices_populates(monkeypatch):
 
 
 def test_price_and_changes_unresolved(monkeypatch):
-    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda t, l: None)
+    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda t, loc: None)
     ia._price_and_changes.cache_clear()
     res = ia._price_and_changes("FOO")
     assert res["last_price_gbp"] is None
@@ -50,9 +50,10 @@ def test_price_and_changes_unresolved(monkeypatch):
 
 
 def test_price_and_changes_snapshot(monkeypatch):
-    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda t, l: ("ABC", "L"))
+    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda t, loc: ("ABC", "L"))
     monkeypatch.setattr(ia, "price_change_pct", lambda t, d: 1.0)
     from backend.common import portfolio_utils as pu
+
     monkeypatch.setattr(
         pu,
         "_PRICE_SNAPSHOT",
@@ -66,9 +67,10 @@ def test_price_and_changes_snapshot(monkeypatch):
 
 
 def test_price_and_changes_fallback(monkeypatch):
-    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda t, l: ("ABC", "L"))
+    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda t, loc: ("ABC", "L"))
     monkeypatch.setattr(ia, "price_change_pct", lambda t, d: 2.0)
     from backend.common import portfolio_utils as pu
+
     monkeypatch.setattr(pu, "_PRICE_SNAPSHOT", {})
     monkeypatch.setattr(ia, "_close_on", lambda s, e, d: 50.0)
     ia._price_and_changes.cache_clear()

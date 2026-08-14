@@ -66,6 +66,7 @@ def apply_price_shock(portfolio: Dict[str, Any], ticker: str, pct_change: float)
     )
     return shocked
 
+
 def _scale_portfolio(portfolio: Dict[str, Any], horizons: Iterable[int] | None = None) -> Dict[int, Dict[str, Any]]:
     """Scale ``portfolio`` by a simple factor for each horizon."""
 
@@ -193,10 +194,7 @@ def apply_historical_event_portfolio(
 
     baseline = float(portfolio.get("total_value_estimate_gbp") or 0.0)
     if baseline == 0.0:
-        baseline = sum(
-            float(a.get("value_estimate_gbp") or 0.0)
-            for a in portfolio.get("accounts", [])
-        )
+        baseline = sum(float(a.get("value_estimate_gbp") or 0.0) for a in portfolio.get("accounts", []))
 
     proxy_val = getattr(event, "proxy", None)
     if proxy_val is None and isinstance(event, dict):

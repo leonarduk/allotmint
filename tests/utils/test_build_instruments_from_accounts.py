@@ -1,10 +1,11 @@
 import json
+
 import pytest
 
 from backend.utils.build_instruments_from_accounts import (
-    split_ticker,
     best_name,
     infer_currency,
+    split_ticker,
 )
 
 

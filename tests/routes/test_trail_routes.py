@@ -14,6 +14,7 @@ def test_trail_routes(tmp_path, monkeypatch, disable_auth):
     import backend.app as app_mod
     import backend.quests.trail as trail_module
     import backend.routes.trail as trail_route_module
+
     importlib.reload(trail_module)
     importlib.reload(trail_route_module)
     importlib.reload(app_mod)
@@ -54,7 +55,4 @@ def test_trail_routes(tmp_path, monkeypatch, disable_auth):
         persisted_payload = resp.json()
         assert persisted_payload["xp"] == final_payload["xp"]
         assert persisted_payload["streak"] == final_payload["streak"]
-        assert (
-            persisted_payload["daily_totals"][today]["completed"]
-            == len(daily_task_ids)
-        )
+        assert persisted_payload["daily_totals"][today]["completed"] == len(daily_task_ids)

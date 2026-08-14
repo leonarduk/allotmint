@@ -12,9 +12,7 @@ def _fake_df(start, end):
     return pd.DataFrame({"Date": dates, "Close": [1.0 + i * 0.1 for i in range(len(dates))]})
 
 
-@pytest.mark.parametrize(
-    "base,quote", [("USD", "GBP"), ("CHF", "GBP"), ("JPY", "GBP"), ("CAD", "GBP")]
-)
+@pytest.mark.parametrize("base,quote", [("USD", "GBP"), ("CHF", "GBP"), ("JPY", "GBP"), ("CAD", "GBP")])
 def test_fetch_fx_rate_range_success(monkeypatch, base, quote):
     start = dt.date(2024, 1, 1)
     end = dt.date(2024, 1, 3)
@@ -82,6 +80,3 @@ def test_fetch_fx_rate_same_currency():
     fetch_fx_rate_range.cache_clear()
     df = fetch_fx_rate_range("USD", "USD", start, end)
     assert list(df["Rate"]) == [1.0, 1.0, 1.0]
-
-
-

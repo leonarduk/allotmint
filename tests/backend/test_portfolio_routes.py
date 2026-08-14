@@ -92,9 +92,7 @@ def test_portfolio_var_owner_missing(monkeypatch, tmp_path):
     client = _client(monkeypatch, tmp_path)
     monkeypatch.setattr(
         "backend.routes.portfolio.risk.compute_portfolio_var",
-        lambda owner, days=365, confidence=0.95, include_cash=True: (_ for _ in ()).throw(
-            FileNotFoundError()
-        ),
+        lambda owner, days=365, confidence=0.95, include_cash=True: (_ for _ in ()).throw(FileNotFoundError()),
     )
     resp = client.get("/var/alice")
     assert resp.status_code == 404

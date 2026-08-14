@@ -1,10 +1,8 @@
-from datetime import date
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 from fastapi import HTTPException
-from fastapi.testclient import TestClient
 from starlette.requests import Request
 
 from backend.common.account_models import PersonMetadata

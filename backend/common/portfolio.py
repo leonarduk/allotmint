@@ -75,7 +75,9 @@ def _load_trades_aws(owner: str) -> List[Dict[str, Any]]:
     except (ClientError, BotoCoreError) as exc:
         logger.warning(
             "Failed to fetch trades %s from bucket %s: %s",
-            sanitise_log_value(key), sanitise_log_value(bucket), sanitise_log_value(exc),
+            sanitise_log_value(key),
+            sanitise_log_value(bucket),
+            sanitise_log_value(exc),
         )
     except ImportError as exc:
         logger.warning("boto3 not available for S3 trades fetch: %s", sanitise_log_value(exc))

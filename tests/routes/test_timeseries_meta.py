@@ -16,9 +16,7 @@ def _client_with_df(monkeypatch, df):
 
     import backend.routes.timeseries_meta as ts_meta
 
-    monkeypatch.setattr(
-        ts_meta, "load_meta_timeseries_range", lambda *a, **k: df.copy()
-    )
+    monkeypatch.setattr(ts_meta, "load_meta_timeseries_range", lambda *a, **k: df.copy())
     monkeypatch.setattr(ts_meta.pd, "to_datetime", lambda x: x)
 
     from backend.app import create_app
@@ -60,9 +58,7 @@ def test_resolve_missing_ticker_error():
 def test_resolve_cannot_infer_exchange(monkeypatch):
     import backend.routes.timeseries_meta as ts_meta
 
-    monkeypatch.setattr(
-        ts_meta.instrument_api, "_resolve_full_ticker", lambda t, latest: None
-    )
+    monkeypatch.setattr(ts_meta.instrument_api, "_resolve_full_ticker", lambda t, latest: None)
     with pytest.raises(HTTPException):
         ts_meta._resolve_ticker_exchange("xyz", None)
 
@@ -96,12 +92,15 @@ def test_resolve_dotted_ticker_no_exchange():
     assert ex == "L"
 
 
-@pytest.mark.parametrize("ticker_input,exchange_input", [
-    ("<script>alert(1)</script>", "L"),
-    ("ABC", "<img src=x onerror=alert(1)>"),
-    ("ABC&foo=bar", "L"),
-    ("ABC\"onload=x", "L"),
-])
+@pytest.mark.parametrize(
+    "ticker_input,exchange_input",
+    [
+        ("<script>alert(1)</script>", "L"),
+        ("ABC", "<img src=x onerror=alert(1)>"),
+        ("ABC&foo=bar", "L"),
+        ('ABC"onload=x', "L"),
+    ],
+)
 def test_resolve_rejects_unsafe_ticker_exchange(ticker_input, exchange_input):
     """User-supplied exchange path rejects payloads that fail the regex allowlist."""
     import backend.routes.timeseries_meta as ts_meta
@@ -111,11 +110,14 @@ def test_resolve_rejects_unsafe_ticker_exchange(ticker_input, exchange_input):
     assert exc_info.value.status_code == 400
 
 
-@pytest.mark.parametrize("bad_dotted_ticker", [
-    "<script>.L",      # XSS payload in the sym segment
-    "ABC.<img>",       # XSS payload in the exchange segment
-    "ABC&foo=bar.L",   # injection attempt in the sym segment
-])
+@pytest.mark.parametrize(
+    "bad_dotted_ticker",
+    [
+        "<script>.L",  # XSS payload in the sym segment
+        "ABC.<img>",  # XSS payload in the exchange segment
+        "ABC&foo=bar.L",  # injection attempt in the sym segment
+    ],
+)
 def test_resolve_rejects_unsafe_dotted_ticker_no_exchange(bad_dotted_ticker):
     """The 'if . in t' branch validates sym/ex derived from the dotted ticker.
 
@@ -133,16 +135,17 @@ def test_resolve_rejects_unsafe_dotted_ticker_no_exchange(bad_dotted_ticker):
 def test_timeseries_meta_json_rejects_xss_ticker(monkeypatch):
     df = _sample_df()
     client = _client_with_df(monkeypatch, df)
-    resp = client.get(
-        "/timeseries/meta?ticker=%3Cscript%3Ealert(1)%3C%2Fscript%3E&exchange=L&format=json"
-    )
+    resp = client.get("/timeseries/meta?ticker=%3Cscript%3Ealert(1)%3C%2Fscript%3E&exchange=L&format=json")
     assert resp.status_code == 400
 
 
-@pytest.mark.parametrize("ticker,exchange", [
-    ("BRK_B", "NYSE"),   # underscore in ticker symbol — allowed by widened regex
-    ("FUND_ETF", "L"),   # underscore in fund identifier — allowed
-])
+@pytest.mark.parametrize(
+    "ticker,exchange",
+    [
+        ("BRK_B", "NYSE"),  # underscore in ticker symbol — allowed by widened regex
+        ("FUND_ETF", "L"),  # underscore in fund identifier — allowed
+    ],
+)
 def test_resolve_accepts_underscore_ticker(ticker, exchange):
     """Underscores are explicitly permitted (some providers use them as separators)."""
     import backend.routes.timeseries_meta as ts_meta
@@ -152,10 +155,13 @@ def test_resolve_accepts_underscore_ticker(ticker, exchange):
     assert ex == exchange.upper()
 
 
-@pytest.mark.parametrize("ticker,exchange", [
-    ("A" * 51, "L"),   # ticker segment exceeds 50-char limit
-    ("AAPL", "X" * 51),   # exchange code exceeds 50-char limit
-])
+@pytest.mark.parametrize(
+    "ticker,exchange",
+    [
+        ("A" * 51, "L"),  # ticker segment exceeds 50-char limit
+        ("AAPL", "X" * 51),  # exchange code exceeds 50-char limit
+    ],
+)
 def test_resolve_rejects_oversized_segments(ticker, exchange):
     """Segments longer than 50 characters are rejected."""
     import backend.routes.timeseries_meta as ts_meta
@@ -165,20 +171,23 @@ def test_resolve_rejects_oversized_segments(ticker, exchange):
     assert exc_info.value.status_code == 400
 
 
-@pytest.mark.parametrize("char,should_match", [
-    ("A", True),
-    ("Z", True),
-    ("0", True),
-    ("9", True),
-    ("_", True),
-    ("-", True),
-    (".", False),
-    (" ", False),
-    ("@", False),
-    ("!", False),
-    ("/", False),
-    ("$", False),
-])
+@pytest.mark.parametrize(
+    "char,should_match",
+    [
+        ("A", True),
+        ("Z", True),
+        ("0", True),
+        ("9", True),
+        ("_", True),
+        ("-", True),
+        (".", False),
+        (" ", False),
+        ("@", False),
+        ("!", False),
+        ("/", False),
+        ("$", False),
+    ],
+)
 def test_ticker_symbol_regex_pins_character_class(char, should_match):
     """Pin the [A-Z0-9_-] allowlist of _TICKER_SYMBOL_RE.
 
@@ -217,9 +226,7 @@ def test_timeseries_meta_formats_with_scaling(fmt, monkeypatch):
     df = _sample_df()
     client = _client_with_df(monkeypatch, df)
 
-    resp = client.get(
-        f"/timeseries/meta?ticker=ABC&exchange=L&format={fmt}&scaling=2"
-    )
+    resp = client.get(f"/timeseries/meta?ticker=ABC&exchange=L&format={fmt}&scaling=2")
     assert resp.status_code == 200
 
     if fmt == "json":
@@ -304,10 +311,7 @@ def _multi_day_df():
 def test_explicit_start_and_end_date(monkeypatch):
     """Both dates supplied: response reflects the provided bounds."""
     client = _client_with_df(monkeypatch, _multi_day_df())
-    resp = client.get(
-        "/timeseries/meta?ticker=ABC&exchange=L&format=json"
-        "&start_date=2024-01-01&end_date=2024-01-03"
-    )
+    resp = client.get("/timeseries/meta?ticker=ABC&exchange=L&format=json" "&start_date=2024-01-01&end_date=2024-01-03")
     assert resp.status_code == 200
     data = resp.json()
     assert data["from"] == "2024-01-01"
@@ -317,9 +321,7 @@ def test_explicit_start_and_end_date(monkeypatch):
 def test_open_start_only_end_date(monkeypatch):
     """Only end_date supplied: response uses end_date and days-derived start."""
     client = _client_with_df(monkeypatch, _multi_day_df())
-    resp = client.get(
-        "/timeseries/meta?ticker=ABC&exchange=L&format=json&end_date=2024-01-03"
-    )
+    resp = client.get("/timeseries/meta?ticker=ABC&exchange=L&format=json&end_date=2024-01-03")
     assert resp.status_code == 200
     assert resp.json()["to"] == "2024-01-03"
 
@@ -327,9 +329,7 @@ def test_open_start_only_end_date(monkeypatch):
 def test_open_end_only_start_date(monkeypatch):
     """Only start_date supplied: response uses start_date and yesterday as end."""
     client = _client_with_df(monkeypatch, _multi_day_df())
-    resp = client.get(
-        "/timeseries/meta?ticker=ABC&exchange=L&format=json&start_date=2024-01-01"
-    )
+    resp = client.get("/timeseries/meta?ticker=ABC&exchange=L&format=json&start_date=2024-01-01")
     assert resp.status_code == 200
     assert resp.json()["from"] == "2024-01-01"
 
@@ -346,20 +346,14 @@ def test_neither_date_param_uses_days(monkeypatch):
 def test_invalid_range_returns_422(monkeypatch):
     """start_date after end_date must return HTTP 422 (FastAPI validation convention)."""
     client = _client_with_df(monkeypatch, _multi_day_df())
-    resp = client.get(
-        "/timeseries/meta?ticker=ABC&exchange=L&format=json"
-        "&start_date=2024-01-10&end_date=2024-01-01"
-    )
+    resp = client.get("/timeseries/meta?ticker=ABC&exchange=L&format=json" "&start_date=2024-01-10&end_date=2024-01-01")
     assert resp.status_code == 422
 
 
 def test_single_day_range(monkeypatch):
     """start_date == end_date is a valid single-day window; must not raise."""
     client = _client_with_df(monkeypatch, _multi_day_df())
-    resp = client.get(
-        "/timeseries/meta?ticker=ABC&exchange=L&format=json"
-        "&start_date=2024-01-02&end_date=2024-01-02"
-    )
+    resp = client.get("/timeseries/meta?ticker=ABC&exchange=L&format=json" "&start_date=2024-01-02&end_date=2024-01-02")
     assert resp.status_code == 200
     data = resp.json()
     assert data["from"] == "2024-01-02"
@@ -373,19 +367,14 @@ def test_malformed_date_returns_4xx(monkeypatch):
     to 400 rather than the default 422, so either status is accepted here.
     """
     client = _client_with_df(monkeypatch, _multi_day_df())
-    resp = client.get(
-        "/timeseries/meta?ticker=ABC&exchange=L&format=json&start_date=not-a-date"
-    )
+    resp = client.get("/timeseries/meta?ticker=ABC&exchange=L&format=json&start_date=not-a-date")
     assert resp.status_code in (400, 422)
 
 
 def test_html_shows_date_range(monkeypatch):
     """HTML output subtitle must contain the resolved date range."""
     client = _client_with_df(monkeypatch, _multi_day_df())
-    resp = client.get(
-        "/timeseries/meta?ticker=ABC&exchange=L&format=html"
-        "&start_date=2024-01-01&end_date=2024-01-03"
-    )
+    resp = client.get("/timeseries/meta?ticker=ABC&exchange=L&format=html" "&start_date=2024-01-01&end_date=2024-01-03")
     assert resp.status_code == 200
     assert "2024-01-01" in resp.text
     assert "2024-01-03" in resp.text
@@ -399,10 +388,7 @@ def test_csv_with_date_range(monkeypatch):
     path returns early, so the CSV `if` must still be reached independently.
     """
     client = _client_with_df(monkeypatch, _multi_day_df())
-    resp = client.get(
-        "/timeseries/meta?ticker=ABC&exchange=L&format=csv"
-        "&start_date=2024-01-01&end_date=2024-01-03"
-    )
+    resp = client.get("/timeseries/meta?ticker=ABC&exchange=L&format=csv" "&start_date=2024-01-01&end_date=2024-01-03")
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("text/csv")
     assert "Date,Open,High,Low,Close,Volume" in resp.text
@@ -437,10 +423,7 @@ def test_explicit_start_date_ignores_days(monkeypatch):
     from backend.app import create_app
 
     client = TestClient(create_app())
-    resp = client.get(
-        "/timeseries/meta?ticker=ABC&exchange=L&format=json"
-        "&start_date=2024-01-02&days=0"
-    )
+    resp = client.get("/timeseries/meta?ticker=ABC&exchange=L&format=json" "&start_date=2024-01-02&days=0")
     assert resp.status_code == 200
     # days=0 must NOT override the explicit start_date with the 1900 sentinel
     assert captured["start_date"] == date(2024, 1, 2)
@@ -478,10 +461,7 @@ def test_load_called_with_resolved_dates(monkeypatch):
         return _multi_day_df().copy()
 
     client = _client_with_spy(monkeypatch, _spy)
-    client.get(
-        "/timeseries/meta?ticker=ABC&exchange=L&format=json"
-        "&start_date=2024-01-01&end_date=2024-01-03"
-    )
+    client.get("/timeseries/meta?ticker=ABC&exchange=L&format=json" "&start_date=2024-01-01&end_date=2024-01-03")
     assert captured["start_date"] == date(2024, 1, 1)
     assert captured["end_date"] == date(2024, 1, 3)
 
@@ -498,10 +478,7 @@ def test_end_date_with_days_derives_start(monkeypatch):
         return _multi_day_df().copy()
 
     client = _client_with_spy(monkeypatch, _spy)
-    client.get(
-        "/timeseries/meta?ticker=ABC&exchange=L&format=json"
-        "&end_date=2024-01-03&days=2"
-    )
+    client.get("/timeseries/meta?ticker=ABC&exchange=L&format=json" "&end_date=2024-01-03&days=2")
     assert captured["end_date"] == date(2024, 1, 3)
     assert captured["start_date"] == date(2024, 1, 3) - timedelta(days=2)
 
@@ -518,10 +495,7 @@ def test_days_zero_with_end_date_means_all_history(monkeypatch):
         return _multi_day_df().copy()
 
     client = _client_with_spy(monkeypatch, _spy)
-    client.get(
-        "/timeseries/meta?ticker=ABC&exchange=L&format=json"
-        "&end_date=2024-01-03&days=0"
-    )
+    client.get("/timeseries/meta?ticker=ABC&exchange=L&format=json" "&end_date=2024-01-03&days=0")
     assert captured["end_date"] == date(2024, 1, 3)
     assert captured["start_date"] == date(1900, 1, 1)  # "all history" sentinel
 
@@ -545,13 +519,14 @@ def test_days_zero_with_end_date_means_all_history(monkeypatch):
 # test_timeseries_meta_formats_with_scaling[html] above.
 
 
-@pytest.mark.parametrize("ticker,exchange", [
-    ("<script>alert(1)</script>", "L"),
-    ("ABC", '"><img src=x onerror=alert(1)>'),
-])
-def test_timeseries_meta_html_user_input_xss_rejected_by_validation(
-    ticker, exchange, monkeypatch
-):
+@pytest.mark.parametrize(
+    "ticker,exchange",
+    [
+        ("<script>alert(1)</script>", "L"),
+        ("ABC", '"><img src=x onerror=alert(1)>'),
+    ],
+)
+def test_timeseries_meta_html_user_input_xss_rejected_by_validation(ticker, exchange, monkeypatch):
     """Input validation rejects XSS payloads before they reach the HTML renderer.
 
     _TICKER_SYMBOL_RE / _EXCHANGE_CODE_RE return 400 for these inputs.
@@ -568,10 +543,13 @@ def test_timeseries_meta_html_user_input_xss_rejected_by_validation(
     assert "application/json" in resp.headers.get("content-type", "")
 
 
-@pytest.mark.parametrize("xss_ticker,escaped_fragment", [
-    ("<script>alert(1)</script>", "&lt;script&gt;"),
-    ('"><img src=x onerror=alert(1)>', "&lt;img"),
-])
+@pytest.mark.parametrize(
+    "xss_ticker,escaped_fragment",
+    [
+        ("<script>alert(1)</script>", "&lt;script&gt;"),
+        ('"><img src=x onerror=alert(1)>', "&lt;img"),
+    ],
+)
 def test_timeseries_html_xss_not_reflected(xss_ticker, escaped_fragment, monkeypatch):
     """/timeseries/html has no input validation; output escaping must prevent injection.
 
@@ -654,11 +632,20 @@ def test_timeseries_html_xss_ticker_column_in_dataframe_is_escaped(monkeypatch):
     the table cell — deliberately isolated to test that specific layer.
     """
     xss = "<script>alert(1)</script>"
-    df = pd.DataFrame([{
-        "Date": "2024-01-01",
-        "Open": 1.0, "High": 2.0, "Low": 0.5, "Close": 1.5,
-        "Volume": 100, "Ticker": xss, "Source": "Yahoo",
-    }])
+    df = pd.DataFrame(
+        [
+            {
+                "Date": "2024-01-01",
+                "Open": 1.0,
+                "High": 2.0,
+                "Low": 0.5,
+                "Close": 1.5,
+                "Volume": 100,
+                "Ticker": xss,
+                "Source": "Yahoo",
+            }
+        ]
+    )
     client = _html_client(monkeypatch, df)
     # ticker param is benign; injection surface is the DataFrame Ticker column only
     resp = client.get(
@@ -704,7 +691,7 @@ def test_timeseries_meta_csv_output_not_html_escaped(monkeypatch):
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("text/csv")
     assert "Date,Open,High,Low,Close,Volume" in resp.text  # headers intact, no entity encoding
-    assert "&lt;" not in resp.text   # no HTML-escaped angle brackets
+    assert "&lt;" not in resp.text  # no HTML-escaped angle brackets
     assert "&amp;" not in resp.text  # no HTML-escaped ampersands
 
 

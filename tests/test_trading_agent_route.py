@@ -1,10 +1,10 @@
-from fastapi.testclient import TestClient
-
-from backend.app import create_app
-import backend.routes.trading_agent as ta
 import asyncio
 import logging
-import pytest
+
+from fastapi.testclient import TestClient
+
+import backend.routes.trading_agent as ta
+from backend.app import create_app
 
 
 def test_trading_agent_signals_route(monkeypatch):
@@ -18,9 +18,7 @@ def test_trading_agent_signals_route(monkeypatch):
             "ignored": True,
         }
     ]
-    monkeypatch.setattr(
-        "backend.agent.trading_agent.run", lambda **_: fake_signals
-    )
+    monkeypatch.setattr("backend.agent.trading_agent.run", lambda **_: fake_signals)
     app = create_app()
     with TestClient(app) as client:
         token = client.post("/token", json={"id_token": "good"}).json()["access_token"]

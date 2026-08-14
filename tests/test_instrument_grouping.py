@@ -22,6 +22,7 @@ def _prepare_group_portfolio(monkeypatch, portfolio, meta_map):
         "build_group_portfolio",
         lambda slug, *, pricing_date=None: portfolio,
     )
+
     def _fake_build_group_portfolio(slug: str, *, pricing_date=None):
         return portfolio
 

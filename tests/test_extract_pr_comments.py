@@ -218,9 +218,7 @@ def test_fetch_paginated_strict_success_returns_items_untruncated(mod):
         json.dumps([]),
     ]
     with patch.object(mod, "run_gh_command", side_effect=[(p, 0) for p in pages]):
-        items, truncated = mod.fetch_paginated(
-            "owner", "repo", "/some/endpoint", strict=True
-        )
+        items, truncated = mod.fetch_paginated("owner", "repo", "/some/endpoint", strict=True)
 
     assert items == [{"id": 1}, {"id": 2}]
     assert truncated is False

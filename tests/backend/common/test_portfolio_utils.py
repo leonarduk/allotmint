@@ -227,10 +227,7 @@ def test_load_snapshot_local_missing_file(monkeypatch, tmp_path):
 
 
 def test_first_nonempty_str_returns_trimmed_value():
-    assert (
-        portfolio_utils._first_nonempty_str(None, "   ", "  result  ", "other")
-        == "result"
-    )
+    assert portfolio_utils._first_nonempty_str(None, "   ", "  result  ", "other") == "result"
 
 
 def test_first_nonempty_str_returns_none_when_missing():
@@ -289,9 +286,7 @@ def test_aggregate_by_ticker_uses_shared_grouping(monkeypatch):
 
     definitions = {"shared": {"id": "shared", "name": "Shared Group"}}
     monkeypatch.setattr(ia, "list_group_definitions", lambda: definitions)
-    monkeypatch.setattr(
-        ia, "_resolve_full_ticker", lambda ticker, latest: (ticker.split(".")[0], "L")
-    )
+    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda ticker, latest: (ticker.split(".")[0], "L"))
     monkeypatch.setattr(ia, "price_change_pct", lambda *args, **kwargs: None)
 
     monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {})
@@ -316,9 +311,7 @@ def test_aggregate_by_ticker_uses_shared_grouping(monkeypatch):
 
     from backend.common import instrument_api
 
-    monkeypatch.setattr(
-        instrument_api, "_resolve_full_ticker", lambda ticker, latest: (ticker, "L")
-    )
+    monkeypatch.setattr(instrument_api, "_resolve_full_ticker", lambda ticker, latest: (ticker, "L"))
     monkeypatch.setattr(instrument_api, "price_change_pct", lambda *args, **kwargs: None)
 
     rows = portfolio_utils.aggregate_by_ticker(portfolio, base_currency="GBP")
@@ -350,9 +343,7 @@ def test_aggregate_by_ticker_prefers_cost_basis(monkeypatch):
         ]
     }
 
-    monkeypatch.setattr(
-        ia, "_resolve_full_ticker", lambda ticker, latest: (ticker.split(".")[0], "L")
-    )
+    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda ticker, latest: (ticker.split(".")[0], "L"))
     monkeypatch.setattr(ia, "price_change_pct", lambda *args, **kwargs: None)
     monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {}, raising=False)
     monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda ticker: {})
@@ -384,9 +375,7 @@ def test_aggregate_by_ticker_uses_zero_snapshot_price(monkeypatch):
         ]
     }
 
-    monkeypatch.setattr(
-        ia, "_resolve_full_ticker", lambda ticker, latest: (ticker.split(".")[0], "L")
-    )
+    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda ticker, latest: (ticker.split(".")[0], "L"))
     monkeypatch.setattr(ia, "price_change_pct", lambda *args, **kwargs: None)
     monkeypatch.setattr(
         portfolio_utils,
@@ -624,9 +613,7 @@ def test_aggregate_by_ticker_security_meta_and_default_fallback(monkeypatch):
         ]
     }
 
-    monkeypatch.setattr(
-        ia, "_resolve_full_ticker", lambda ticker, latest: (ticker.split(".")[0], "L")
-    )
+    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda ticker, latest: (ticker.split(".")[0], "L"))
     monkeypatch.setattr(ia, "price_change_pct", lambda *args, **kwargs: None)
 
     def fake_resolve_grouping_details(*sources, current=None):
@@ -657,9 +644,7 @@ def test_aggregate_by_ticker_security_meta_and_default_fallback(monkeypatch):
         "AAA.L": {},
     }
 
-    monkeypatch.setattr(
-        portfolio_utils, "get_security_meta", lambda ticker: security_meta.get(ticker, {})
-    )
+    monkeypatch.setattr(portfolio_utils, "get_security_meta", lambda ticker: security_meta.get(ticker, {}))
 
     rows = portfolio_utils.aggregate_by_ticker(portfolio, base_currency="GBP")
     rows_by_ticker = {row["ticker"]: row for row in rows}

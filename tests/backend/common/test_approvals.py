@@ -34,9 +34,7 @@ def test_load_approvals_handles_variants_and_invalid_rows(tmp_path):
 
     dict_owner = "dict-owner"
     dict_dir = _owner_dir(tmp_path, dict_owner)
-    (dict_dir / "approvals.json").write_text(
-        json.dumps({"approvals": [{"ticker": "msft", "date": "2024-04-02"}]})
-    )
+    (dict_dir / "approvals.json").write_text(json.dumps({"approvals": [{"ticker": "msft", "date": "2024-04-02"}]}))
 
     malformed_owner = "broken-owner"
     malformed_dir = _owner_dir(tmp_path, malformed_owner)
@@ -53,13 +51,9 @@ def test_load_approvals_handles_variants_and_invalid_rows(tmp_path):
         "MSFT": date(2024, 4, 2)
     }, "dict payloads should be supported and tickers uppercased"
 
-    assert (
-        load_approvals(malformed_owner, tmp_path) == {}
-    ), "malformed JSON should yield an empty approvals map"
+    assert load_approvals(malformed_owner, tmp_path) == {}, "malformed JSON should yield an empty approvals map"
 
-    assert (
-        load_approvals(empty_owner, tmp_path) == {}
-    ), "missing approvals file should return empty map"
+    assert load_approvals(empty_owner, tmp_path) == {}, "missing approvals file should return empty map"
 
 
 def test_trading_days_and_validity_calculations(monkeypatch):

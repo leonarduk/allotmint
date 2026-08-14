@@ -74,6 +74,5 @@ def test_concentration_insight_weights_reflect_aggregated_duplicates():
 
     # Explicitly verify the raw aggregated value
     assert market_values["AAA"] == pytest.approx(150.0), (
-        "market_values['AAA'] should be 100+50=150; "
-        f"got {market_values['AAA']} — last-write-wins regression"
+        "market_values['AAA'] should be 100+50=150; " f"got {market_values['AAA']} — last-write-wins regression"
     )

@@ -92,4 +92,3 @@ def add_group(name: str) -> List[str]:
         save_groups(groups)
         groups = load_groups()
     return groups
-

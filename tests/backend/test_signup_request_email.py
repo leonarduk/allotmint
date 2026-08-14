@@ -34,9 +34,7 @@ def test_render_includes_request_details_and_links():
 
 
 def test_render_escapes_hostile_input():
-    html = render_signup_admin_email(
-        _notification(name="<script>alert(1)</script>", note="<img src=x onerror=y>")
-    )
+    html = render_signup_admin_email(_notification(name="<script>alert(1)</script>", note="<img src=x onerror=y>"))
     assert "<script>" not in html
     assert "<img" not in html
     assert "&lt;script&gt;" in html

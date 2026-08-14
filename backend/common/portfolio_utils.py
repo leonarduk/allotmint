@@ -161,8 +161,7 @@ def _normalize_currency_code(currency: str | None) -> str:
     raw = (currency or "").strip()
     if not raw:
         logger.warning(
-            "_normalize_currency_code received empty/missing currency; defaulting to GBP. "
-            "Check instrument metadata."
+            "_normalize_currency_code received empty/missing currency; defaulting to GBP. " "Check instrument metadata."
         )
         return "GBP"
     if raw == "GBp":
@@ -238,9 +237,7 @@ def _load_snapshot() -> tuple[Dict[str, Dict], datetime | None]:
                 )
                 s3_failed = True
             except ClientError as exc:
-                error_code = (
-                    getattr(exc, "response", {}).get("Error", {}).get("Code", "")
-                )
+                error_code = getattr(exc, "response", {}).get("Error", {}).get("Code", "")
                 if error_code == "NoSuchKey":
                     # Key absent — normal on a fresh deployment before the first
                     # scheduled price-refresh run. Log at WARNING, not ERROR.
@@ -276,9 +273,7 @@ def _load_snapshot() -> tuple[Dict[str, Dict], datetime | None]:
 
     if config.prices_json is None:
         if s3_not_found:
-            logger.warning(
-                "Price snapshot not yet seeded; portfolio prices unavailable until first refresh"
-            )
+            logger.warning("Price snapshot not yet seeded; portfolio prices unavailable until first refresh")
         elif s3_failed:
             logger.error(
                 "No price data available: S3 snapshot unavailable and no local fallback configured. "
@@ -543,9 +538,7 @@ def list_all_unique_tickers() -> List[str]:
 # ──────────────────────────────────────────────────────────────
 # Core aggregation
 # ──────────────────────────────────────────────────────────────
-def aggregate_by_ticker(
-    portfolio: dict | VirtualPortfolio, base_currency: str = "GBP"
-) -> List[dict]:
+def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str = "GBP") -> List[dict]:
     """Collapse a nested portfolio tree into one row per ticker,
     enriched with latest-price snapshot.
 
@@ -657,13 +650,11 @@ def aggregate_by_ticker(
                     "is_stale": None,
                     "change_7d_pct": None,
                     "change_30d_pct": None,
-                    "instrument_type": instrument_meta.get("instrumentType")
-                    or instrument_meta.get("instrument_type"),
+                    "instrument_type": instrument_meta.get("instrumentType") or instrument_meta.get("instrument_type"),
                     "cost_currency": base_currency,
                     "market_value_currency": base_currency,
                     "gain_currency": base_currency,
-                    "_grouping_from_fallback": bool(initial_grouping)
-                    and grouping_source in _GROUPING_FALLBACK_SOURCES,
+                    "_grouping_from_fallback": bool(initial_grouping) and grouping_source in _GROUPING_FALLBACK_SOURCES,
                 },
             )
             row["exchange"] = exch
@@ -682,11 +673,7 @@ def aggregate_by_ticker(
             _update_row_field(row, "region", instrument_meta.get("region"), "instrument_meta")
 
             security_meta: Dict[str, Any] | None = None
-            if (
-                row.get("currency") is None
-                or row.get("sector") is None
-                or row.get("region") is None
-            ):
+            if row.get("currency") is None or row.get("sector") is None or row.get("region") is None:
                 security_meta = get_security_meta(full_tkr) or {}
                 _update_row_field(row, "currency", security_meta.get("currency"), "security_meta")
                 _update_row_field(row, "sector", security_meta.get("sector"), "security_meta")
@@ -713,9 +700,7 @@ def aggregate_by_ticker(
                             ("instrument_meta_currency", instrument_meta.get("currency")),
                         ]
                     )
-                    grouping_value, grouping_label = _first_nonempty_str_with_source(
-                        *grouping_pairs
-                    )
+                    grouping_value, grouping_label = _first_nonempty_str_with_source(*grouping_pairs)
                     if grouping_value:
                         row["grouping"] = grouping_value
                         row["_grouping_from_fallback"] = grouping_label in _GROUPING_FALLBACK_SOURCES
@@ -783,9 +768,7 @@ def aggregate_by_ticker(
                         row["is_stale"] = snap.get("is_stale")
                         row["market_value_gbp"] = round(row["units"] * gbp_price, 2)
                         row["gain_gbp"] = (
-                            round(row["market_value_gbp"] - row["cost_gbp"], 2)
-                            if row["cost_gbp"]
-                            else row["gain_gbp"]
+                            round(row["market_value_gbp"] - row["cost_gbp"], 2) if row["cost_gbp"] else row["gain_gbp"]
                         )
                         row["_snapshot_native_price"] = native_price
                         row["_snapshot_native_currency"] = native_currency
@@ -911,9 +894,7 @@ def aggregate_by_ticker(
     return list(rows.values())
 
 
-def _aggregate_by_field(
-    portfolio: dict | VirtualPortfolio, field: str, base_currency: str = "GBP"
-) -> List[dict]:
+def _aggregate_by_field(portfolio: dict | VirtualPortfolio, field: str, base_currency: str = "GBP") -> List[dict]:
     """Helper to aggregate ticker rows by ``field`` (e.g. sector/region)."""
     rows = aggregate_by_ticker(portfolio, base_currency)
     groups: Dict[str, dict] = {}
@@ -949,16 +930,12 @@ def _aggregate_by_field(
     return list(groups.values())
 
 
-def aggregate_by_sector(
-    portfolio: dict | VirtualPortfolio, base_currency: str = "GBP"
-) -> List[dict]:
+def aggregate_by_sector(portfolio: dict | VirtualPortfolio, base_currency: str = "GBP") -> List[dict]:
     """Return aggregated holdings grouped by sector with return contribution."""
     return _aggregate_by_field(portfolio, "sector", base_currency)
 
 
-def aggregate_by_region(
-    portfolio: dict | VirtualPortfolio, base_currency: str = "GBP"
-) -> List[dict]:
+def aggregate_by_region(portfolio: dict | VirtualPortfolio, base_currency: str = "GBP") -> List[dict]:
     """Return aggregated holdings grouped by region with return contribution."""
     return _aggregate_by_field(portfolio, "region", base_currency)
 
@@ -1132,12 +1109,8 @@ def compute_owner_performance(
                 "date": raw_date.isoformat(),
                 "value": round(float(row.value), 2),
                 "daily_return": (float(row.daily_return) if pd.notna(row.daily_return) else None),
-                "weekly_return": (
-                    float(row.weekly_return) if pd.notna(row.weekly_return) else None
-                ),
-                "cumulative_return": (
-                    float(row.cumulative_return) if pd.notna(row.cumulative_return) else None
-                ),
+                "weekly_return": (float(row.weekly_return) if pd.notna(row.weekly_return) else None),
+                "cumulative_return": (float(row.cumulative_return) if pd.notna(row.cumulative_return) else None),
                 "running_max": round(float(row.running_max), 2),
                 "drawdown": (float(row.drawdown) if pd.notna(row.drawdown) else None),
             }
@@ -1243,11 +1216,7 @@ def _detect_single_day_flash_crash(
     repaired = values.astype(float).copy()
     issues: List[Dict[str, Any]] = []
     repaired_indices: set[Any] = set()
-    jump_threshold = (
-        rebound_drop_pct_threshold
-        if rebound_jump_pct_threshold is None
-        else rebound_jump_pct_threshold
-    )
+    jump_threshold = rebound_drop_pct_threshold if rebound_jump_pct_threshold is None else rebound_jump_pct_threshold
 
     epsilon = 1e-9
     for start_idx in range(0, len(values) - 1):
@@ -1280,9 +1249,7 @@ def _detect_single_day_flash_crash(
             window_min = float(finite_window.min())
             window_max = float(finite_window.max())
             max_neighbor = max(prev, nxt)
-            resembles_zero_glitch = (
-                window_min <= absolute_threshold or window_min <= min_neighbor * relative_threshold
-            )
+            resembles_zero_glitch = window_min <= absolute_threshold or window_min <= min_neighbor * relative_threshold
             drop_pct = 1 - (window_min / min_neighbor)
             jump_pct = (window_max / max_neighbor) - 1 if max_neighbor > epsilon else 0.0
             large_short_lived_drop = drop_pct >= rebound_drop_pct_threshold
@@ -1486,9 +1453,7 @@ def _alpha_vs_benchmark(
                 "date": idx.isoformat() if hasattr(idx, "isoformat") else str(idx),
                 "portfolio_cumulative_return": float(port_cum_series.loc[idx]),
                 "benchmark_cumulative_return": float(bench_cum_series.loc[idx]),
-                "excess_cumulative_return": float(
-                    port_cum_series.loc[idx] - bench_cum_series.loc[idx]
-                ),
+                "excess_cumulative_return": float(port_cum_series.loc[idx] - bench_cum_series.loc[idx]),
             }
         )
 
@@ -1600,11 +1565,7 @@ def _max_drawdown(
         if trough_date is not None:
             trough_val = float(total.loc[trough_date])
             trough_info = {
-                "date": (
-                    trough_date.isoformat()
-                    if hasattr(trough_date, "isoformat")
-                    else str(trough_date)
-                ),
+                "date": (trough_date.isoformat() if hasattr(trough_date, "isoformat") else str(trough_date)),
                 "value": trough_val,
                 "drawdown": float(drawdown.loc[trough_date]),
             }
@@ -1615,11 +1576,7 @@ def _max_drawdown(
                 if not peak_date_candidates.empty:
                     peak_date = peak_date_candidates.index[0]
                     peak_info = {
-                        "date": (
-                            peak_date.isoformat()
-                            if hasattr(peak_date, "isoformat")
-                            else str(peak_date)
-                        ),
+                        "date": (peak_date.isoformat() if hasattr(peak_date, "isoformat") else str(peak_date)),
                         "value": peak_value,
                     }
 
@@ -1654,9 +1611,7 @@ def compute_group_alpha_vs_benchmark(
     *,
     include_breakdown: bool = False,
 ) -> float | None | tuple[float | None, dict[str, Any]]:
-    value, breakdown = _alpha_vs_benchmark(
-        slug, benchmark, days, group=True, include_breakdown=include_breakdown
-    )
+    value, breakdown = _alpha_vs_benchmark(slug, benchmark, days, group=True, include_breakdown=include_breakdown)
     if include_breakdown:
         return value, breakdown
     return value
@@ -1689,9 +1644,7 @@ def compute_group_tracking_error(
     *,
     include_breakdown: bool = False,
 ) -> float | None | tuple[float | None, dict[str, Any]]:
-    value, breakdown = _tracking_error(
-        slug, benchmark, days, group=True, include_breakdown=include_breakdown
-    )
+    value, breakdown = _tracking_error(slug, benchmark, days, group=True, include_breakdown=include_breakdown)
     if include_breakdown:
         return value, breakdown
     return value
@@ -1704,9 +1657,7 @@ def compute_max_drawdown(
     include_breakdown: bool = False,
     pricing_date: date | None = None,
 ) -> float | None | tuple[float | None, dict[str, Any]]:
-    value, breakdown = _max_drawdown(
-        owner, days, include_breakdown=include_breakdown, pricing_date=pricing_date
-    )
+    value, breakdown = _max_drawdown(owner, days, include_breakdown=include_breakdown, pricing_date=pricing_date)
     if include_breakdown:
         return value, breakdown
     return value
@@ -1718,9 +1669,7 @@ def compute_group_max_drawdown(
     *,
     include_breakdown: bool = False,
 ) -> float | None | tuple[float | None, dict[str, Any]]:
-    value, breakdown = _max_drawdown(
-        slug, days, group=True, include_breakdown=include_breakdown
-    )
+    value, breakdown = _max_drawdown(slug, days, group=True, include_breakdown=include_breakdown)
     if include_breakdown:
         return value, breakdown
     return value
@@ -1840,9 +1789,7 @@ def compute_xirr(owner: str, days: int = 365, *, pricing_date: date | None = Non
         try:
             df = float(
                 sum(
-                    -((d - start).days / 365.0)
-                    * amt
-                    / (1.0 + rate) ** ((d - start).days / 365.0 + 1)
+                    -((d - start).days / 365.0) * amt / (1.0 + rate) ** ((d - start).days / 365.0 + 1)
                     for d, amt in flows
                 )
             )
@@ -2010,8 +1957,7 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
             logger.info("Wrote %d prices to %s", len(merged), _PRICES_PATH)
         elif not _PRICES_PATH:
             logger.info(
-                "Price snapshot path not configured; skipping write"
-                " (expected when config.prices_json is unset)"
+                "Price snapshot path not configured; skipping write" " (expected when config.prices_json is unset)"
             )
         else:
             logger.info("Skipping price snapshot write — no timeseries data found")

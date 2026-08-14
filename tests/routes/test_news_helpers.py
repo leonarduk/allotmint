@@ -337,4 +337,3 @@ def test_get_cached_news_reuses_fresh_cache(monkeypatch):
     ]
     assert len(scheduled) == 1
     _assert_refresh_call(scheduled[0], page="news_CACHED", delay=42.0)
-

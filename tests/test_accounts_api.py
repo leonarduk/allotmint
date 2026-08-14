@@ -5,10 +5,10 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from backend.config import config
+import backend.app as app_mod
 import backend.common.prices as prices
 from backend.common import portfolio_utils
-import backend.app as app_mod
+from backend.config import config
 
 
 @pytest.fixture(scope="session")
@@ -26,10 +26,7 @@ def client():
 
 
 def sample_accounts():
-    root = Path(
-        config.accounts_root
-        or (Path(__file__).resolve().parents[1] / "data" / "accounts")
-    )
+    root = Path(config.accounts_root or (Path(__file__).resolve().parents[1] / "data" / "accounts"))
     if not root.exists():
         pytest.skip("accounts sample data unavailable", allow_module_level=True)
     metadata_stems = {
@@ -62,19 +59,12 @@ def test_owners_endpoint_matches_sample_data(client):
     resp = client.get("/owners")
     assert resp.status_code == 200
     payload = resp.json()
-    owners_by_lower = {
-        entry["owner"].casefold(): (entry["owner"], set(entry.get("accounts", [])))
-        for entry in payload
-    }
+    owners_by_lower = {entry["owner"].casefold(): (entry["owner"], set(entry.get("accounts", []))) for entry in payload}
 
     sample = list(sample_accounts())
     demo_lower = config.demo_identity.casefold()
 
-    non_demo = [
-        (owner, accounts)
-        for owner, accounts in sample
-        if owner.casefold() != demo_lower
-    ]
+    non_demo = [(owner, accounts) for owner, accounts in sample if owner.casefold() != demo_lower]
 
     if non_demo:
         assert demo_lower not in owners_by_lower
@@ -112,15 +102,11 @@ def test_account_route_adds_missing_account_type(tmp_path):
     acct = "missing"
     acct_dir = tmp_path / owner
     acct_dir.mkdir()
-    (acct_dir / f"{acct}.json").write_text(
-        json.dumps({"currency": "GBP", "holdings": []})
-    )
+    (acct_dir / f"{acct}.json").write_text(json.dumps({"currency": "GBP", "holdings": []}))
 
     demo_dir = tmp_path / "demo"
     demo_dir.mkdir()
-    (demo_dir / "demo.json").write_text(
-        json.dumps({"currency": "GBP", "holdings": []})
-    )
+    (demo_dir / "demo.json").write_text(json.dumps({"currency": "GBP", "holdings": []}))
 
     old_root = config.accounts_root
     config.accounts_root = tmp_path

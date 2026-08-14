@@ -1,6 +1,8 @@
-import pandas as pd
-import backend.timeseries.fetch_meta_timeseries as fmt
 from unittest.mock import patch
+
+import pandas as pd
+
+import backend.timeseries.fetch_meta_timeseries as fmt
 
 
 def _df():

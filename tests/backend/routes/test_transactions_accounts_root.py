@@ -47,19 +47,13 @@ def test_require_writable_store_rejects_matching_global_root(monkeypatch, tmp_pa
 
     request = _build_request()
 
-    monkeypatch.setattr(
-        transactions_module.config, "accounts_root", configured_dir.as_posix()
-    )
+    monkeypatch.setattr(transactions_module.config, "accounts_root", configured_dir.as_posix())
     monkeypatch.setattr(
         transactions_module.data_loader,
         "resolve_paths",
-        lambda *_args, **_kwargs: SimpleNamespace(
-            accounts_root=configured_dir.resolve()
-        ),
+        lambda *_args, **_kwargs: SimpleNamespace(accounts_root=configured_dir.resolve()),
     )
-    monkeypatch.setattr(
-        transactions_module, "resolve_accounts_root", lambda _req: configured_dir
-    )
+    monkeypatch.setattr(transactions_module, "resolve_accounts_root", lambda _req: configured_dir)
 
     with pytest.raises(HTTPException) as excinfo:
         transactions_module._require_writable_store(request)
@@ -101,9 +95,7 @@ def test_require_writable_store_rejects_nonexistent_configured_root(monkeypatch,
 
 
 @pytest.mark.parametrize("state_global_flag", [False, True])
-def test_require_writable_store_rejects_invalid_resolution(
-    monkeypatch, tmp_path, state_global_flag
-):
+def test_require_writable_store_rejects_invalid_resolution(monkeypatch, tmp_path, state_global_flag):
     configured_dir = tmp_path / "configured"
     configured_dir.mkdir()
 
@@ -116,9 +108,7 @@ def test_require_writable_store_rejects_invalid_resolution(
 
     request = _build_request(state)
 
-    monkeypatch.setattr(
-        transactions_module.config, "accounts_root", configured_dir.as_posix()
-    )
+    monkeypatch.setattr(transactions_module.config, "accounts_root", configured_dir.as_posix())
     monkeypatch.setattr(
         transactions_module.data_loader,
         "resolve_paths",
@@ -128,14 +118,10 @@ def test_require_writable_store_rejects_invalid_resolution(
     if state_global_flag:
         valid_dir = tmp_path / "valid"
         valid_dir.mkdir()
-        monkeypatch.setattr(
-            transactions_module, "resolve_accounts_root", lambda _req: valid_dir
-        )
+        monkeypatch.setattr(transactions_module, "resolve_accounts_root", lambda _req: valid_dir)
     else:
         missing_dir = tmp_path / "missing"
-        monkeypatch.setattr(
-            transactions_module, "resolve_accounts_root", lambda _req: missing_dir
-        )
+        monkeypatch.setattr(transactions_module, "resolve_accounts_root", lambda _req: missing_dir)
 
     with pytest.raises(HTTPException) as excinfo:
         transactions_module._require_writable_store(request)

@@ -85,18 +85,15 @@ def send_trade_alert(message: str, publish: bool = True) -> None:
             logger.info("SNS topic ARN not configured; skipping publish")
         alert_utils.send_push_notification(message)
 
-    if (
-        config.telegram_bot_token
-        and config.telegram_chat_id
-        and config.app_env != "aws"
-    ):
+    if config.telegram_bot_token and config.telegram_chat_id and config.app_env != "aws":
         try:
             send_message(message)
         except Exception as exc:  # pragma: no cover - network errors are rare
             logger.warning("Telegram send failed: %s", sanitise_log_value(redact_token(str(exc))))
 
+
 PRICE_DROP_THRESHOLD = -5.0  # percent
-PRICE_GAIN_THRESHOLD = 5.0   # percent
+PRICE_GAIN_THRESHOLD = 5.0  # percent
 DRAWDOWN_ALERT_THRESHOLD = 0.2  # 20% decline; set to 0 to disable
 
 
@@ -146,14 +143,8 @@ def generate_signals(snapshot: Dict[str, Dict]) -> List[Dict]:
         # risk filters
         sharpe = info.get("sharpe")
         volatility = info.get("volatility")
-        if (
-            cfg.min_sharpe is not None
-            and sharpe is not None
-            and sharpe < cfg.min_sharpe
-        ) or (
-            cfg.max_volatility is not None
-            and volatility is not None
-            and volatility > cfg.max_volatility
+        if (cfg.min_sharpe is not None and sharpe is not None and sharpe < cfg.min_sharpe) or (
+            cfg.max_volatility is not None and volatility is not None and volatility > cfg.max_volatility
         ):
             continue
 
@@ -218,10 +209,7 @@ def generate_signals(snapshot: Dict[str, Dict]) -> List[Dict]:
                     "BUY",
                     indicator_name,
                     "RSI suggests the instrument is oversold.",
-                    (
-                        f"The {cfg.rsi_window}-day RSI is {rsi:.2f}, below"
-                        f" the buy threshold of {cfg.rsi_buy:.0f}."
-                    ),
+                    (f"The {cfg.rsi_window}-day RSI is {rsi:.2f}, below" f" the buy threshold of {cfg.rsi_buy:.0f}."),
                     confidence,
                 )
             elif cfg.rsi_sell is not None and rsi >= cfg.rsi_sell:
@@ -231,10 +219,7 @@ def generate_signals(snapshot: Dict[str, Dict]) -> List[Dict]:
                     "SELL",
                     indicator_name,
                     "RSI points to overbought conditions.",
-                    (
-                        f"The {cfg.rsi_window}-day RSI is {rsi:.2f}, above"
-                        f" the sell threshold of {cfg.rsi_sell:.0f}."
-                    ),
+                    (f"The {cfg.rsi_window}-day RSI is {rsi:.2f}, above" f" the sell threshold of {cfg.rsi_sell:.0f}."),
                     confidence,
                 )
             elif rsi < 30:
@@ -243,10 +228,7 @@ def generate_signals(snapshot: Dict[str, Dict]) -> List[Dict]:
                     "BUY",
                     indicator_name,
                     "RSI indicates the price may be oversold.",
-                    (
-                        f"The {cfg.rsi_window}-day RSI is {rsi:.2f}, below"
-                        " the commonly used oversold level of 30."
-                    ),
+                    (f"The {cfg.rsi_window}-day RSI is {rsi:.2f}, below" " the commonly used oversold level of 30."),
                     confidence,
                 )
             elif rsi > 70:
@@ -255,17 +237,12 @@ def generate_signals(snapshot: Dict[str, Dict]) -> List[Dict]:
                     "SELL",
                     indicator_name,
                     "RSI indicates the price may be overbought.",
-                    (
-                        f"The {cfg.rsi_window}-day RSI is {rsi:.2f}, above"
-                        " the typical overbought level of 70."
-                    ),
+                    (f"The {cfg.rsi_window}-day RSI is {rsi:.2f}, above" " the typical overbought level of 70."),
                     confidence,
                 )
 
         if ma_short is not None and ma_long is not None:
-            indicator_name = (
-                f"{cfg.ma_short_window}- vs {cfg.ma_long_window}-day MA crossover"
-            )
+            indicator_name = f"{cfg.ma_short_window}- vs {cfg.ma_long_window}-day MA crossover"
             if ma_short > ma_long:
                 add_reason(
                     "BUY",
@@ -343,15 +320,9 @@ def generate_signals(snapshot: Dict[str, Dict]) -> List[Dict]:
         indicator_phrase = _join_with_and(indicator_names)
         count = len(best_reasons)
         if count == 1:
-            reason_text = (
-                f"{indicator_phrase or 'Indicator'} supports a"
-                f" {best_action.lower()} opportunity."
-            )
+            reason_text = f"{indicator_phrase or 'Indicator'} supports a" f" {best_action.lower()} opportunity."
         else:
-            reason_text = (
-                f"{count} indicators ({indicator_phrase}) support a"
-                f" {best_action.lower()} opportunity."
-            )
+            reason_text = f"{count} indicators ({indicator_phrase}) support a" f" {best_action.lower()} opportunity."
         factor_details = [reason["detail"] for reason in best_reasons if reason.get("detail")]
         rationale_text = " ".join(factor_details).strip()
 
@@ -370,7 +341,6 @@ def generate_signals(snapshot: Dict[str, Dict]) -> List[Dict]:
     return signals
 
 
-  
 def _log_trade(ticker: str, action: str, price: float, ts: Optional[datetime] = None) -> None:
     """Append a trade record to the trade log.
 
@@ -381,9 +351,7 @@ def _log_trade(ticker: str, action: str, price: float, ts: Optional[datetime] = 
     header = not TRADE_LOG_PATH.exists()
     TRADE_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
     with TRADE_LOG_PATH.open("a", newline="") as f:
-        writer = csv.DictWriter(
-            f, fieldnames=["timestamp", "ticker", "action", "price"]
-        )
+        writer = csv.DictWriter(f, fieldnames=["timestamp", "ticker", "action", "price"])
         if header:
             writer.writeheader()
         writer.writerow(
@@ -394,6 +362,7 @@ def _log_trade(ticker: str, action: str, price: float, ts: Optional[datetime] = 
                 "price": price,
             }
         )
+
 
 def _alert_on_drawdown(threshold: float = DRAWDOWN_ALERT_THRESHOLD) -> None:
     """Emit an alert if any portfolio drawdown exceeds ``threshold``."""
@@ -410,9 +379,7 @@ def _alert_on_drawdown(threshold: float = DRAWDOWN_ALERT_THRESHOLD) -> None:
         if max_dd is None or not (-1.0 <= max_dd <= 0.0):
             continue
         if abs(max_dd) >= threshold:
-            send_trade_alert(
-                f"{owner} portfolio drawdown {max_dd*100:.2f}% exceeds {threshold*100:.2f}%"
-            )
+            send_trade_alert(f"{owner} portfolio drawdown {max_dd*100:.2f}% exceeds {threshold*100:.2f}%")
 
 
 def run(tickers: Optional[Iterable[str]] = None, *, notify: bool = True) -> List[Dict]:
@@ -508,9 +475,7 @@ def run(tickers: Optional[Iterable[str]] = None, *, notify: bool = True) -> List
         if buy_tickers:
             fundamentals = screen(buy_tickers, **fundamental_params)
             allowed = {f.ticker for f in fundamentals}
-        signals = [
-            s for s in signals if s["action"] != "BUY" or s["ticker"] in allowed
-        ]
+        signals = [s for s in signals if s["action"] != "BUY" or s["ticker"] in allowed]
     allowed_signals: List[Dict] = []
     for sig in signals:
         blocked = False
@@ -523,9 +488,7 @@ def run(tickers: Optional[Iterable[str]] = None, *, notify: bool = True) -> List
             }
             result = compliance.check_trade(trade)
             if result.get("warnings"):
-                logger.warning(
-                    "Compliance warnings for %s: %s", owner, result["warnings"]
-                )
+                logger.warning("Compliance warnings for %s: %s", owner, result["warnings"])
                 blocked = True
                 break
         if blocked:

@@ -75,8 +75,7 @@ def load_token_set(owner: str) -> Optional[TokenSet]:
     except KeyError as exc:
         required_field = exc.args[0]
         raise MoneyhubAuthError(
-            f"Stored Moneyhub token set for owner '{owner}' is missing "
-            f"required field '{required_field}'"
+            f"Stored Moneyhub token set for owner '{owner}' is missing " f"required field '{required_field}'"
         ) from exc
 
 
@@ -103,9 +102,7 @@ def get_valid_access_token(owner: str, client: MoneyhubClient) -> str:
     try:
         refreshed = client.refresh_access_token(token_set.refresh_token)
     except MoneyhubAPIError as exc:
-        raise MoneyhubAuthError(
-            f"Moneyhub token refresh failed for owner '{owner}': {exc}"
-        ) from exc
+        raise MoneyhubAuthError(f"Moneyhub token refresh failed for owner '{owner}': {exc}") from exc
 
     new_token_set = TokenSet(
         access_token=refreshed["access_token"],

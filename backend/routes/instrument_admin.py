@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
-from backend.config import config
+
 from backend.common import instrument_groups
 from backend.common.instruments import (
     _ORIGINAL_FETCH_METADATA,
@@ -15,9 +15,10 @@ from backend.common.instruments import (
     get_instrument_meta,
     instrument_meta_path,
     list_group_definitions,
-    save_instrument_meta,
     list_instruments,
+    save_instrument_meta,
 )
+from backend.config import config
 
 router = APIRouter(
     prefix="/instrument",
@@ -66,6 +67,7 @@ async def create_group(body: dict[str, Any]) -> dict[str, Any]:
     existed = any(g.casefold() == key for g in existing)
     status = "exists" if existed else "created"
     return {"status": status, "group": canonical, "groups": groups}
+
 
 @router.get("/admin/groupings")
 async def list_instrument_groupings() -> list[dict[str, Any]]:
@@ -142,9 +144,7 @@ async def update_instrument(exchange: str, ticker: str, body: dict[str, Any]) ->
 
 
 @router.post("/admin/{exchange}/{ticker}/refresh")
-async def refresh_instrument(
-    exchange: str, ticker: str, body: dict[str, Any] | None = None
-) -> dict[str, Any]:
+async def refresh_instrument(exchange: str, ticker: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
     """Fetch fresh metadata for an instrument and optionally persist it."""
 
     try:
@@ -160,10 +160,7 @@ async def refresh_instrument(
     if not exists:
         raise HTTPException(status_code=404, detail="Instrument not found")
 
-    if (
-        config.offline_mode
-        and _fetch_metadata_from_yahoo is _ORIGINAL_FETCH_METADATA
-    ):
+    if config.offline_mode and _fetch_metadata_from_yahoo is _ORIGINAL_FETCH_METADATA:
         raise HTTPException(status_code=503, detail="Metadata refresh disabled in offline mode")
 
     preview = True
@@ -283,4 +280,3 @@ async def clear_group(exchange: str, ticker: str) -> dict[str, Any]:
     if changed:
         save_instrument_meta(ticker, exchange, meta)
     return {"status": "cleared"}
-

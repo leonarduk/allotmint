@@ -3,8 +3,8 @@ import datetime as dt
 import pandas as pd
 import pytest
 
-from backend.common.constants import ACQUIRED_DATE, COST_BASIS_GBP, TICKER, UNITS
 from backend.common import holding_utils as hu
+from backend.common.constants import ACQUIRED_DATE, COST_BASIS_GBP, TICKER, UNITS
 from backend.common.holding_utils import EFFECTIVE_COST_BASIS_GBP
 
 
@@ -72,9 +72,7 @@ def test_gbx_scaling_defaults_apply_without_override(monkeypatch):
         lambda sym, *_args: (sym.split(".", 1)[0], exchange),
     )
     monkeypatch.setattr(instrument_api, "price_change_pct", lambda *_a, **_k: None)
-    monkeypatch.setattr(
-        instrument_api, "_resolve_grouping_details", lambda *_a, **_k: (None, None)
-    )
+    monkeypatch.setattr(instrument_api, "_resolve_grouping_details", lambda *_a, **_k: (None, None))
 
     frame = pd.DataFrame(
         {
@@ -156,9 +154,9 @@ def test_enrich_holding_market_value_set_from_price_snapshot(monkeypatch):
     today = dt.date(2026, 5, 16)
     result = hu.enrich_holding(holding, today, price_cache={})
 
-    assert result["market_value_gbp"] == pytest.approx(975.0), (
-        "market_value_gbp must not be None when price snapshot has data"
-    )
+    assert result["market_value_gbp"] == pytest.approx(
+        975.0
+    ), "market_value_gbp must not be None when price snapshot has data"
     assert result["gain_gbp"] is not None
     assert result["current_price_gbp"] == pytest.approx(97.5)
 

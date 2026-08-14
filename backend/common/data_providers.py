@@ -130,7 +130,9 @@ class S3DataProvider:
     def load_account(self, owner: str, account: str) -> AccountObject:
         key = f"{PLOTS_PREFIX}{owner}/{account}.json"
         obj = self._get_object(key)
-        return AccountObject(owner=owner, account=account, data=_parse_json_body(obj.get("Body"), f"s3://{self.bucket}/{key}"))
+        return AccountObject(
+            owner=owner, account=account, data=_parse_json_body(obj.get("Body"), f"s3://{self.bucket}/{key}")
+        )
 
     def load_person_meta(self, owner: str) -> OwnerMetadata:
         key = f"{PLOTS_PREFIX}{owner}/person.json"

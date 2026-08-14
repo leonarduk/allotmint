@@ -7,11 +7,10 @@ import sys
 from datetime import UTC, date, datetime, timedelta
 from types import SimpleNamespace
 from typing import Dict, List
+from unittest.mock import Mock
 
 import pandas as pd
 import pytest
-
-from unittest.mock import Mock
 
 from backend.common import prices
 
@@ -370,17 +369,13 @@ def test_refresh_prices_writes_json_and_updates_cache(tmp_path, monkeypatch: pyt
     alerts_mock.assert_called_once_with()
 
 
-def test_refresh_prices_skips_write_when_all_prices_null(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_refresh_prices_skips_write_when_all_prices_null(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Offline/no-data refresh must not overwrite a valid seed file with all-null prices."""
     seed = {"VWRL.L": {"last_price": 97.5, "price_currency": "GBP"}}
     output_path = tmp_path / "prices.json"
     output_path.write_text(json.dumps(seed))
 
-    null_snapshot = {
-        "VWRL.L": {"last_price": None, "price_currency": None, "is_stale": True}
-    }
+    null_snapshot = {"VWRL.L": {"last_price": None, "price_currency": None, "is_stale": True}}
     monkeypatch.setattr(prices, "list_all_unique_tickers", lambda: ["VWRL.L"])
     monkeypatch.setattr(prices, "get_price_snapshot", lambda _: null_snapshot)
     monkeypatch.setattr(prices, "refresh_snapshot_in_memory", Mock())
@@ -390,9 +385,9 @@ def test_refresh_prices_skips_write_when_all_prices_null(
 
     prices.refresh_prices()
 
-    assert json.loads(output_path.read_text()) == seed, (
-        "Seed file must not be overwritten when every fetched price is None"
-    )
+    assert (
+        json.loads(output_path.read_text()) == seed
+    ), "Seed file must not be overwritten when every fetched price is None"
 
 
 def test_refresh_prices_uploads_existing_snapshot_to_s3_when_all_prices_null(
@@ -409,9 +404,7 @@ def test_refresh_prices_uploads_existing_snapshot_to_s3_when_all_prices_null(
     output_path = tmp_path / "prices.json"
     output_path.write_text(json.dumps(seed))
 
-    null_snapshot = {
-        "VWRL.L": {"last_price": None, "price_currency": None, "is_stale": True}
-    }
+    null_snapshot = {"VWRL.L": {"last_price": None, "price_currency": None, "is_stale": True}}
     monkeypatch.setattr(prices, "list_all_unique_tickers", lambda: ["VWRL.L"])
     monkeypatch.setattr(prices, "get_price_snapshot", lambda _: null_snapshot)
     monkeypatch.setattr(prices, "refresh_snapshot_in_memory", Mock())
@@ -438,9 +431,7 @@ def test_refresh_prices_uploads_existing_snapshot_to_s3_when_all_prices_null(
     assert put_calls[0]["ContentType"] == "application/json"
 
 
-def test_refresh_prices_partial_null_preserves_existing_prices(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_refresh_prices_partial_null_preserves_existing_prices(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Partial-outage refresh updates valid prices and preserves existing ones for null tickers."""
     seed = {
         "AAA.L": {"last_price": 10.0, "price_currency": "GBP"},
@@ -470,29 +461,23 @@ def test_refresh_prices_partial_null_preserves_existing_prices(
     prices.refresh_prices()
 
     result = json.loads(output_path.read_text())
-    assert result["AAA.L"]["last_price"] == pytest.approx(11.5), (
-        "Successfully-fetched price must be updated"
-    )
-    assert result["BBB.L"]["last_price"] == pytest.approx(20.0), (
-        "Seed price for null-returning ticker must be preserved"
-    )
+    assert result["AAA.L"]["last_price"] == pytest.approx(11.5), "Successfully-fetched price must be updated"
+    assert result["BBB.L"]["last_price"] == pytest.approx(
+        20.0
+    ), "Seed price for null-returning ticker must be preserved"
 
     assert len(in_memory_calls) == 1, "refresh_snapshot_in_memory must be called once"
     in_mem = in_memory_calls[0]
-    assert in_mem["AAA.L"]["last_price"] == pytest.approx(11.5), (
-        "In-memory snapshot must contain updated price"
-    )
-    assert in_mem["BBB.L"]["last_price"] == pytest.approx(20.0), (
-        "In-memory snapshot must contain preserved seed price, not None"
-    )
-    assert price_cache.get("BBB.L") == pytest.approx(20.0), (
-        "_price_cache must contain preserved seed price for null-returning ticker"
-    )
+    assert in_mem["AAA.L"]["last_price"] == pytest.approx(11.5), "In-memory snapshot must contain updated price"
+    assert in_mem["BBB.L"]["last_price"] == pytest.approx(
+        20.0
+    ), "In-memory snapshot must contain preserved seed price, not None"
+    assert price_cache.get("BBB.L") == pytest.approx(
+        20.0
+    ), "_price_cache must contain preserved seed price for null-returning ticker"
 
 
-def test_refresh_prices_filters_nan_zero_and_negative_prices(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_refresh_prices_filters_nan_zero_and_negative_prices(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     """End-to-end NaN/zero/negative guard: mock the underlying price fetches
     (``_load_latest_prices`` / ``load_live_prices``) so ``get_price_snapshot``
     runs for real, then verify ``refresh_prices``'s write-boundary filter

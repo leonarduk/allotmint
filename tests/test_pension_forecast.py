@@ -1,7 +1,5 @@
 import datetime as dt
 
-import datetime as dt
-
 from backend.common.pension import forecast_pension
 
 

@@ -157,9 +157,7 @@ def test_performance_summary_success(client, monkeypatch):
         assert owner == "alice"
         return result
 
-    monkeypatch.setattr(
-        portfolio_utils, "compute_owner_performance", fake
-    )
+    monkeypatch.setattr(portfolio_utils, "compute_owner_performance", fake)
     resp = client.get("/performance/alice")
     assert resp.status_code == 200
     assert resp.json() == {"owner": "alice", **result}
@@ -169,9 +167,7 @@ def test_performance_summary_not_found(client, monkeypatch):
     def fake(*args, **kwargs):
         raise FileNotFoundError
 
-    monkeypatch.setattr(
-        portfolio_utils, "compute_owner_performance", fake
-    )
+    monkeypatch.setattr(portfolio_utils, "compute_owner_performance", fake)
     resp = client.get("/performance/missing")
     assert resp.status_code == 404
     assert resp.json()["detail"] == "Owner not found"
@@ -224,9 +220,7 @@ def test_group_alpha_handles_near_zero_benchmark(client, monkeypatch):
             }
         )
 
-    monkeypatch.setattr(
-        portfolio_utils, "_portfolio_value_series", fake_portfolio_value_series
-    )
+    monkeypatch.setattr(portfolio_utils, "_portfolio_value_series", fake_portfolio_value_series)
     monkeypatch.setattr(portfolio_utils, "load_meta_timeseries", fake_load_meta_timeseries)
 
     resp = client.get("/performance-group/test-group/alpha")

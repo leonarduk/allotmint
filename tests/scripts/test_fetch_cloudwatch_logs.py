@@ -25,9 +25,7 @@ def _make_stub_aws(tmp_path: Path, stdout: str, exit_code: int) -> Path:
     stub_dir.mkdir()
     stub = stub_dir / "aws"
     stub.write_text(
-        "#!/usr/bin/env bash\n"
-        f"printf '%s' {os.fsdecode(_shell_quote(stdout))}\n"
-        f"exit {exit_code}\n",
+        "#!/usr/bin/env bash\n" f"printf '%s' {os.fsdecode(_shell_quote(stdout))}\n" f"exit {exit_code}\n",
         encoding="utf-8",
     )
     stub.chmod(stub.stat().st_mode | stat.S_IEXEC)
@@ -91,9 +89,7 @@ def test_no_log_events_prints_placeholder(tmp_path: Path) -> None:
 def test_aws_cli_failure_still_exits_zero_under_set_dash_e(tmp_path: Path) -> None:
     # A failing `aws` call must not abort the script via `set -e` before the
     # exit_code handling below it runs; this diagnostic step always exits 0.
-    stub_dir = _make_stub_aws(
-        tmp_path, stdout="AccessDeniedException: not authorized", exit_code=254
-    )
+    stub_dir = _make_stub_aws(tmp_path, stdout="AccessDeniedException: not authorized", exit_code=254)
 
     result = _run_script("my-log-group", "600", stub_dir=stub_dir)
 

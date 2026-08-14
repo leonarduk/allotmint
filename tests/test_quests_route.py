@@ -7,8 +7,8 @@ from fastapi.testclient import TestClient
 from backend.auth import get_current_user
 from backend.config import config
 
-
 # Helper ----------------------------------------------------------------------
+
 
 def _build_app(tmp_path, monkeypatch) -> FastAPI:
     """Return a FastAPI app with quests storage isolated to ``tmp_path``."""
@@ -32,6 +32,7 @@ def _client_for(user: str, tmp_path, monkeypatch) -> TestClient:
 
 
 # Tests -----------------------------------------------------------------------
+
 
 def test_complete_quest_success(tmp_path, monkeypatch):
     """Completing a valid quest returns updated progress."""

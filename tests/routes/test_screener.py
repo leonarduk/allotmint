@@ -1,6 +1,5 @@
 import asyncio
 
-import pytest
 from fastapi import BackgroundTasks, FastAPI
 from fastapi.testclient import TestClient
 

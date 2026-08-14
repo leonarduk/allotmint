@@ -1,9 +1,9 @@
-import pandas as pd
-import pytest
-from fastapi.testclient import TestClient
 from types import SimpleNamespace
 
+import pandas as pd
 import yfinance as yf
+from fastapi.testclient import TestClient
+
 from backend.app import create_app
 from backend.config import config
 
@@ -28,6 +28,7 @@ def _client(monkeypatch, history_result):
     app = create_app()
     # Ensure timeseries API router is available
     from backend.timeseries.timeseries_api import router as ts_router
+
     app.include_router(ts_router)
     return TestClient(app)
 

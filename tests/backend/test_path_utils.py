@@ -1,4 +1,5 @@
 """Tests for path_utils: safe_join path-traversal guard and sanitize_for_log."""
+
 from __future__ import annotations
 
 from pathlib import Path

@@ -6,9 +6,7 @@ import backend.routes.portfolio as portfolio
 from backend.local_api.main import app
 
 client = TestClient(app)
-token = client.post(
-    "/token", data={"username": "testuser", "password": "password"}
-).json()["access_token"]
+token = client.post("/token", data={"username": "testuser", "password": "password"}).json()["access_token"]
 client.headers.update({"Authorization": f"Bearer {token}"})
 
 
@@ -46,7 +44,7 @@ def test_group_movers_weighted(monkeypatch):
     data = resp.json()
     assert [g["ticker"] for g in data["gainers"]] == ["AAA"]
     assert data["gainers"][0]["market_value_gbp"] == 100.0
-    assert [l["ticker"] for l in data["losers"]] == ["BBB"]
+    assert [loser["ticker"] for loser in data["losers"]] == ["BBB"]
     assert data["losers"][0]["market_value_gbp"] == 50.0
 
 

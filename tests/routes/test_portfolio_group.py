@@ -1,4 +1,3 @@
-import pytest
 from fastapi.testclient import TestClient
 
 from backend.local_api.main import app
@@ -71,14 +70,10 @@ def test_group_instruments_filters_accounts(monkeypatch):
         captured_portfolio.update(portfolio)
         return {"aggregated": True}
 
-    monkeypatch.setattr(
-        portfolio_module.group_portfolio, "build_group_portfolio", fake_group
-    )
+    monkeypatch.setattr(portfolio_module.group_portfolio, "build_group_portfolio", fake_group)
     monkeypatch.setattr(portfolio_module, "_normalise_filter_values", spy_normalise)
     monkeypatch.setattr(portfolio_module, "_account_matches_filters", spy_match)
-    monkeypatch.setattr(
-        portfolio_module.portfolio_utils, "aggregate_by_ticker", fake_aggregate
-    )
+    monkeypatch.setattr(portfolio_module.portfolio_utils, "aggregate_by_ticker", fake_aggregate)
 
     client = _auth_client()
     response = client.get(

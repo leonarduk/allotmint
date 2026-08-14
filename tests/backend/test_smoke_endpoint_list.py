@@ -3,19 +3,19 @@ import re
 from pathlib import Path
 
 import pytest
-
-from backend.app import create_app
 from fastapi.routing import APIRoute
 
-SMOKE_FILE = Path(__file__).resolve().parents[2] / 'scripts' / 'frontend-backend-smoke.ts'
+from backend.app import create_app
+
+SMOKE_FILE = Path(__file__).resolve().parents[2] / "scripts" / "frontend-backend-smoke.ts"
 
 
 def load_smoke_endpoints():
     text = SMOKE_FILE.read_text()
     match = re.search(r"smokeEndpoints: SmokeEndpoint\[] = (\[.*?\]) as const;", text, re.DOTALL)
-    assert match, 'smokeEndpoints array not found'
+    assert match, "smokeEndpoints array not found"
     data = json.loads(match.group(1))
-    return {(item['method'], item['path']) for item in data}
+    return {(item["method"], item["path"]) for item in data}
 
 
 def list_backend_routes():
@@ -32,4 +32,4 @@ def list_backend_routes():
 def test_smoke_endpoint_list_up_to_date():
     smoke = load_smoke_endpoints()
     backend = list_backend_routes()
-    assert smoke == backend, 'Update scripts/frontend-backend-smoke.ts for new routes'
+    assert smoke == backend, "Update scripts/frontend-backend-smoke.ts for new routes"

@@ -17,9 +17,7 @@ from pathlib import Path
 
 import yaml
 
-WORKFLOW_PATH = (
-    Path(__file__).resolve().parents[2] / ".github" / "workflows" / "deepseek-pr-review.yml"
-)
+WORKFLOW_PATH = Path(__file__).resolve().parents[2] / ".github" / "workflows" / "deepseek-pr-review.yml"
 
 REQUIRED_LABEL = "Deep Review Required"
 
@@ -75,9 +73,7 @@ def test_no_labels_select_empty_overrides_so_script_defaults_apply() -> None:
     assert tokens == ""
 
 
-def _job_runs(
-    actor: str, action: str, enable_var: str | None = None, label_name: str | None = None
-) -> bool:
+def _job_runs(actor: str, action: str, enable_var: str | None = None, label_name: str | None = None) -> bool:
     """Evaluate the ai-review job's `if:` condition for a simulated event."""
     condition = _ai_review_job()["if"]
 
@@ -86,9 +82,7 @@ def _job_runs(
     blocked_actor = actor_match.group(1)
 
     disabled_match = re.search(r"vars\.ENABLE_DEEPSEEK_REVIEW != '([^']+)'", condition)
-    assert (
-        disabled_match
-    ), f"Could not find ENABLE_DEEPSEEK_REVIEW gate in job condition: {condition!r}"
+    assert disabled_match, f"Could not find ENABLE_DEEPSEEK_REVIEW gate in job condition: {condition!r}"
     disabled_value = disabled_match.group(1)
 
     required_label_match = re.search(r"github\.event\.label\.name == '([^']+)'", condition)

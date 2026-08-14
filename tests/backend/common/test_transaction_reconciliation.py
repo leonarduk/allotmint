@@ -146,5 +146,3 @@ def test_reconcile_transactions_with_holdings_adds_synthetic_entries(tmp_path: P
         "units": 2.0,
         "synthetic": True,
     }
-
-

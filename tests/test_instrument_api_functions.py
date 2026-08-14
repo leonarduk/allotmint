@@ -78,7 +78,7 @@ def test_timeseries_for_ticker_renames_columns(monkeypatch):
     df = pd.DataFrame({"Date": pd.to_datetime(["2023-01-08"]), "Close_gbp": [2.0]})
 
     monkeypatch.setattr(ia.dt, "date", FixedDate)
-    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda t, l: ("XYZ", "L"))
+    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda t, loc: ("XYZ", "L"))
     monkeypatch.setattr(ia, "has_cached_meta_timeseries", lambda s, e: True)
     monkeypatch.setattr(ia, "load_meta_timeseries_range", lambda s, e, start_date, end_date: df)
 
@@ -97,7 +97,7 @@ def test_timeseries_for_ticker_mini_slices(monkeypatch):
     df = pd.DataFrame({"date": dates, "close": range(200)})
 
     monkeypatch.setattr(ia.dt, "date", FixedDate)
-    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda t, l: ("XYZ", "L"))
+    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda t, loc: ("XYZ", "L"))
     monkeypatch.setattr(ia, "has_cached_meta_timeseries", lambda s, e: True)
     monkeypatch.setattr(ia, "load_meta_timeseries_range", lambda s, e, start_date, end_date: df)
 
@@ -112,7 +112,7 @@ def test_timeseries_for_ticker_inverted_range_returns_empty(monkeypatch):
     """Inverted start/end (start > end) returns the empty payload without hitting the cache."""
     calls: list[str] = []
 
-    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda t, l: ("XYZ", "L"))
+    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda t, loc: ("XYZ", "L"))
     monkeypatch.setattr(ia, "has_cached_meta_timeseries", lambda s, e: True)
     monkeypatch.setattr(
         ia,
@@ -123,9 +123,8 @@ def test_timeseries_for_ticker_inverted_range_returns_empty(monkeypatch):
     res = ia.timeseries_for_ticker(
         "XYZ",
         start_date=dt.date(2024, 6, 1),
-        end_date=dt.date(2024, 1, 1),   # end before start
+        end_date=dt.date(2024, 1, 1),  # end before start
     )
 
     assert res == {"prices": [], "mini": {"7": [], "30": [], "180": []}}
     assert calls == [], "load_meta_timeseries_range must not be called for an inverted range"
-

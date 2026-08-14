@@ -1,5 +1,4 @@
 import pytest
-from fastapi import HTTPException
 
 from backend.common.errors import OwnerNotFoundError
 from backend.routes import metrics

@@ -14,8 +14,6 @@ from backend.timeseries.fetch_meta_timeseries import (
     _metadata_entry_exists_in_directory,
     _resolve_cache_exchange,
     _resolve_loader_exchange,
-    _resolve_ticker_exchange,
-    _metadata_entry_exists,
     _sanitize_metadata_symbol,
     fetch_meta_timeseries,
 )
@@ -158,9 +156,7 @@ def test_resolve_symbol_exchange_details(
     monkeypatch.setattr(meta, "_resolve_exchange_from_metadata", _fake_resolve)
 
     with caplog.at_level("DEBUG"):
-        symbol, resolved_exchange, metadata_exchange = meta._resolve_symbol_exchange_details(
-            ticker, exchange_arg
-        )
+        symbol, resolved_exchange, metadata_exchange = meta._resolve_symbol_exchange_details(ticker, exchange_arg)
 
     base_symbol = re.split(r"[._]", ticker, 1)[0]
     assert captured_symbols == [base_symbol]
@@ -194,10 +190,7 @@ def test_resolve_ticker_exchange_precedence():
     ],
 )
 def test_resolve_loader_exchange(ticker, exchange_arg, resolved_exchange, expected):
-    assert (
-        _resolve_loader_exchange(ticker, exchange_arg, ticker.split(".")[0], resolved_exchange)
-        == expected
-    )
+    assert _resolve_loader_exchange(ticker, exchange_arg, ticker.split(".")[0], resolved_exchange) == expected
 
 
 def test_metadata_entry_exists_requires_symbol_and_exchange(tmp_path):
@@ -246,9 +239,7 @@ def test_metadata_entry_exists_skips_problem_directories(tmp_path, monkeypatch):
         pytest.param("ABC", "", "Q", "", "", id="resolved_without_sources"),
     ],
 )
-def test_resolve_cache_exchange(
-    ticker, exchange_arg, resolved_exchange, metadata_exchange, expected, caplog
-):
+def test_resolve_cache_exchange(ticker, exchange_arg, resolved_exchange, metadata_exchange, expected, caplog):
     with caplog.at_level("DEBUG"):
         result = _resolve_cache_exchange(
             ticker,
@@ -322,9 +313,11 @@ def test_coverage_ratio_partial_and_empty():
 def test_fetch_meta_timeseries_invalid_ticker():
     import backend.timeseries.fetch_meta_timeseries as meta
 
-    with patch.object(meta, "is_valid_ticker", return_value=False) as valid_mock, \
-        patch.object(meta, "record_skipped_ticker") as record_mock, \
-        patch.object(meta, "fetch_yahoo_timeseries_range") as yahoo_mock:
+    with (
+        patch.object(meta, "is_valid_ticker", return_value=False) as valid_mock,
+        patch.object(meta, "record_skipped_ticker") as record_mock,
+        patch.object(meta, "fetch_yahoo_timeseries_range") as yahoo_mock,
+    ):
         df = meta.fetch_meta_timeseries("ABC", "L")
 
     assert df.empty
@@ -371,11 +364,13 @@ def test_fetch_meta_timeseries_yahoo_only():
 
     import backend.timeseries.fetch_meta_timeseries as meta
 
-    with patch.object(meta, "fetch_yahoo_timeseries_range", return_value=yahoo_df) as yahoo_mock, \
-        patch.object(meta, "fetch_stooq_timeseries_range") as stooq_mock, \
-        patch.object(meta, "fetch_ft_df") as ft_mock, \
-        patch.object(meta, "is_valid_ticker", return_value=True), \
-        patch.object(meta, "config", SimpleNamespace(alpha_vantage_enabled=False)):
+    with (
+        patch.object(meta, "fetch_yahoo_timeseries_range", return_value=yahoo_df) as yahoo_mock,
+        patch.object(meta, "fetch_stooq_timeseries_range") as stooq_mock,
+        patch.object(meta, "fetch_ft_df") as ft_mock,
+        patch.object(meta, "is_valid_ticker", return_value=True),
+        patch.object(meta, "config", SimpleNamespace(alpha_vantage_enabled=False)),
+    ):
         df = meta.fetch_meta_timeseries("ABC", "L", start_date=start, end_date=end)
 
     assert df.equals(yahoo_df)
@@ -392,11 +387,13 @@ def test_fetch_meta_timeseries_yahoo_stooq_merge():
 
     import backend.timeseries.fetch_meta_timeseries as meta
 
-    with patch.object(meta, "fetch_yahoo_timeseries_range", return_value=yahoo_df) as yahoo_mock, \
-        patch.object(meta, "fetch_stooq_timeseries_range", return_value=stooq_df) as stooq_mock, \
-        patch.object(meta, "fetch_ft_df") as ft_mock, \
-        patch.object(meta, "is_valid_ticker", return_value=True), \
-        patch.object(meta, "config", SimpleNamespace(alpha_vantage_enabled=False)):
+    with (
+        patch.object(meta, "fetch_yahoo_timeseries_range", return_value=yahoo_df) as yahoo_mock,
+        patch.object(meta, "fetch_stooq_timeseries_range", return_value=stooq_df) as stooq_mock,
+        patch.object(meta, "fetch_ft_df") as ft_mock,
+        patch.object(meta, "is_valid_ticker", return_value=True),
+        patch.object(meta, "config", SimpleNamespace(alpha_vantage_enabled=False)),
+    ):
         df = meta.fetch_meta_timeseries("ABC", "L", start_date=start, end_date=end)
 
     assert df["Source"].tolist() == ["Yahoo", "Yahoo", "Stooq"]
@@ -413,11 +410,13 @@ def test_fetch_meta_timeseries_coverage_shortfall():
 
     import backend.timeseries.fetch_meta_timeseries as meta
 
-    with patch.object(meta, "fetch_yahoo_timeseries_range", return_value=yahoo_df) as yahoo_mock, \
-        patch.object(meta, "fetch_stooq_timeseries_range", return_value=stooq_df) as stooq_mock, \
-        patch.object(meta, "fetch_ft_df", return_value=pd.DataFrame(columns=STANDARD_COLUMNS)) as ft_mock, \
-        patch.object(meta, "is_valid_ticker", return_value=True), \
-        patch.object(meta, "config", SimpleNamespace(alpha_vantage_enabled=False)):
+    with (
+        patch.object(meta, "fetch_yahoo_timeseries_range", return_value=yahoo_df) as yahoo_mock,
+        patch.object(meta, "fetch_stooq_timeseries_range", return_value=stooq_df) as stooq_mock,
+        patch.object(meta, "fetch_ft_df", return_value=pd.DataFrame(columns=STANDARD_COLUMNS)) as ft_mock,
+        patch.object(meta, "is_valid_ticker", return_value=True),
+        patch.object(meta, "config", SimpleNamespace(alpha_vantage_enabled=False)),
+    ):
         df = meta.fetch_meta_timeseries("ABC", "L", start_date=start, end_date=end)
 
     expected = set(pd.bdate_range(start, end).date)
@@ -434,14 +433,14 @@ def test_fetch_meta_timeseries_min_coverage_threshold():
 
     import backend.timeseries.fetch_meta_timeseries as meta
 
-    with patch.object(meta, "fetch_yahoo_timeseries_range", return_value=yahoo_df) as yahoo_mock, \
-        patch.object(meta, "fetch_stooq_timeseries_range") as stooq_mock, \
-        patch.object(meta, "fetch_ft_df") as ft_mock, \
-        patch.object(meta, "is_valid_ticker", return_value=True), \
-        patch.object(meta, "config", SimpleNamespace(alpha_vantage_enabled=False)):
-        df = meta.fetch_meta_timeseries(
-            "ABC", "L", start_date=start, end_date=end, min_coverage=0.5
-        )
+    with (
+        patch.object(meta, "fetch_yahoo_timeseries_range", return_value=yahoo_df) as yahoo_mock,
+        patch.object(meta, "fetch_stooq_timeseries_range") as stooq_mock,
+        patch.object(meta, "fetch_ft_df") as ft_mock,
+        patch.object(meta, "is_valid_ticker", return_value=True),
+        patch.object(meta, "config", SimpleNamespace(alpha_vantage_enabled=False)),
+    ):
+        df = meta.fetch_meta_timeseries("ABC", "L", start_date=start, end_date=end, min_coverage=0.5)
 
     assert df.equals(yahoo_df)
     yahoo_mock.assert_called_once()
@@ -467,15 +466,15 @@ def test_fetch_meta_timeseries_isin_returns_ft_without_other_sources():
 
     import backend.timeseries.fetch_meta_timeseries as meta
 
-    with patch.object(meta, "is_valid_ticker", return_value=True), \
-        patch.object(meta, "_is_isin", return_value=True) as isin_mock, \
-        patch.object(meta, "fetch_ft_df", return_value=ft_df) as ft_mock, \
-        patch.object(meta, "fetch_yahoo_timeseries_range") as yahoo_mock, \
-        patch.object(meta, "fetch_stooq_timeseries_range") as stooq_mock, \
-        patch.object(meta, "config", SimpleNamespace(alpha_vantage_enabled=True)):
-        df = meta.fetch_meta_timeseries(
-            "US1234567890", start_date=start, end_date=end
-        )
+    with (
+        patch.object(meta, "is_valid_ticker", return_value=True),
+        patch.object(meta, "_is_isin", return_value=True) as isin_mock,
+        patch.object(meta, "fetch_ft_df", return_value=ft_df) as ft_mock,
+        patch.object(meta, "fetch_yahoo_timeseries_range") as yahoo_mock,
+        patch.object(meta, "fetch_stooq_timeseries_range") as stooq_mock,
+        patch.object(meta, "config", SimpleNamespace(alpha_vantage_enabled=True)),
+    ):
+        df = meta.fetch_meta_timeseries("US1234567890", start_date=start, end_date=end)
 
     assert df.equals(ft_df)
     isin_mock.assert_called_once()
@@ -487,12 +486,15 @@ def test_fetch_meta_timeseries_isin_returns_ft_without_other_sources():
 def test_fetch_meta_timeseries_alpha_vantage_rate_limit(monkeypatch):
     start = date(2024, 1, 1)
     end = date(2024, 1, 4)
-    fallback_df = _make_df([
-        "2024-01-01",
-        "2024-01-02",
-        "2024-01-03",
-        "2024-01-04",
-    ], "FT")
+    fallback_df = _make_df(
+        [
+            "2024-01-01",
+            "2024-01-02",
+            "2024-01-03",
+            "2024-01-04",
+        ],
+        "FT",
+    )
 
     import backend.timeseries.fetch_meta_timeseries as meta
 
@@ -503,24 +505,26 @@ def test_fetch_meta_timeseries_alpha_vantage_rate_limit(monkeypatch):
 
     monkeypatch.setattr(meta.time, "sleep", fake_sleep)
 
-    with patch.object(meta, "is_valid_ticker", return_value=True), \
+    with (
+        patch.object(meta, "is_valid_ticker", return_value=True),
         patch.object(
             meta,
             "fetch_yahoo_timeseries_range",
             return_value=pd.DataFrame(columns=STANDARD_COLUMNS),
-        ) as yahoo_mock, \
+        ) as yahoo_mock,
         patch.object(
             meta,
             "fetch_stooq_timeseries_range",
             return_value=pd.DataFrame(columns=STANDARD_COLUMNS),
-        ) as stooq_mock, \
+        ) as stooq_mock,
         patch.object(
             meta,
             "fetch_alphavantage_timeseries_range",
             side_effect=meta.AlphaVantageRateLimitError("limit", retry_after=5),
-        ) as av_mock, \
-        patch.object(meta, "fetch_ft_df", return_value=fallback_df) as ft_mock, \
-        patch.object(meta, "config", SimpleNamespace(alpha_vantage_enabled=True)):
+        ) as av_mock,
+        patch.object(meta, "fetch_ft_df", return_value=fallback_df) as ft_mock,
+        patch.object(meta, "config", SimpleNamespace(alpha_vantage_enabled=True)),
+    ):
         df = meta.fetch_meta_timeseries("ABC", "L", start_date=start, end_date=end)
 
     assert df.equals(fallback_df)
@@ -529,26 +533,6 @@ def test_fetch_meta_timeseries_alpha_vantage_rate_limit(monkeypatch):
     stooq_mock.assert_called_once()
     av_mock.assert_called_once()
     ft_mock.assert_called_once()
-
-
-@pytest.mark.parametrize(
-    "symbol, expected",
-    [
-        ("AAPL", "AAPL"),
-        ("aapl", "AAPL"),
-        ("  aapl  ", "AAPL"),
-        ("BRK.B", "BRK.B"),
-        ("BTC-USD", "BTC-USD"),
-        ("VOD_L", "VOD_L"),
-        ("", ""),
-        ("../../../etc/passwd", ""),
-        ("AAPL\x00.json", ""),
-        ("ABC/DEF", ""),
-        ("ABC DEF", ""),
-    ],
-)
-def test_sanitize_metadata_symbol(symbol, expected):
-    assert _sanitize_metadata_symbol(symbol) == expected
 
 
 def test_metadata_entry_exists_rejects_path_traversal_in_exchange(tmp_path):
@@ -560,7 +544,10 @@ def test_metadata_entry_exists_rejects_path_traversal_in_exchange(tmp_path):
 
     assert _metadata_entry_exists("ABC", "../instruments/L", directories) is False
     assert _metadata_entry_exists("ABC", "L", directories) is True
+
+
 # ── _sanitize_metadata_symbol ────────────────────────────────────────────────
+
 
 @pytest.mark.parametrize(
     "value, expected",
@@ -577,6 +564,7 @@ def test_metadata_entry_exists_rejects_path_traversal_in_exchange(tmp_path):
         pytest.param("ABC\x00DEF", "", id="null_byte_rejected"),
         pytest.param("ABC/DEF", "", id="forward_slash_rejected"),
         pytest.param("ABC\\DEF", "", id="backslash_rejected"),
+        pytest.param("ABC DEF", "", id="embedded_space_rejected"),
         pytest.param("", "", id="empty_rejected"),
         pytest.param("   ", "", id="whitespace_only_rejected"),
         pytest.param("1234", "1234", id="numeric_only_valid"),
@@ -638,4 +626,3 @@ def test_resolve_exchange_rejects_traversal_symbol():
     # before _instrument_dirs() or any Path operations are reached.
     assert meta._resolve_exchange_from_metadata("../L/ABC") == ""
     meta._resolve_exchange_from_metadata_cached.cache_clear()
-

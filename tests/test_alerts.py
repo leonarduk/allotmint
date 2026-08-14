@@ -106,8 +106,10 @@ def test_publish_failure_does_not_throttle(monkeypatch):
 
     def failing_client(name):
         assert name == "sns"
+
         def publish(**kwargs):
             raise Exception("boom")
+
         return SimpleNamespace(publish=publish)
 
     monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=failing_client))
@@ -120,7 +122,9 @@ def test_publish_failure_does_not_throttle(monkeypatch):
 
     def success_client(name):
         assert name == "sns"
-        return SimpleNamespace(publish=lambda TopicArn, Message: sent.update({"TopicArn": TopicArn, "Message": Message}))
+        return SimpleNamespace(
+            publish=lambda TopicArn, Message: sent.update({"TopicArn": TopicArn, "Message": Message})
+        )
 
     monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=success_client))
 

@@ -12,6 +12,7 @@ def test_tax_harvest_route(monkeypatch):
         lambda positions, threshold: dummy_trades,
     )
     from backend.app import create_app
+
     app = create_app()
     with TestClient(app) as client:
         resp = client.post(
@@ -30,10 +31,9 @@ def test_tax_allowances_route(monkeypatch):
     monkeypatch.setattr(config, "disable_auth", True)
     monkeypatch.setattr("backend.routes.tax.current_tax_year", lambda: 2024)
     allowances = {"isa": {"limit": 20000, "used": 5000, "remaining": 15000}}
-    monkeypatch.setattr(
-        "backend.routes.tax.remaining_allowances", lambda owner, ty: allowances
-    )
+    monkeypatch.setattr("backend.routes.tax.remaining_allowances", lambda owner, ty: allowances)
     from backend.app import create_app
+
     app = create_app()
     with TestClient(app) as client:
         resp = client.get("/tax/allowances")
@@ -65,6 +65,7 @@ def test_tax_allowances_route_with_auth(monkeypatch):
     )
 
     from backend.app import create_app
+
     app = create_app()
     # Override get_current_user so the auth path returns "alice" without a real token
     app.dependency_overrides[auth_module.get_current_user] = lambda: "alice"

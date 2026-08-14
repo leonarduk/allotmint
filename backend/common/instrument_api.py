@@ -1,4 +1,3 @@
-
 # backend/common/instrument_api.py
 """
 Instrument-level helpers for AllotMint
@@ -211,8 +210,7 @@ def update_latest_prices_from_snapshot(snapshot: Dict[str, Dict[str, Any]]) -> N
     _LATEST_PRICES = {
         t: float(info.get("last_price"))
         for t, info in snapshot.items()
-        if isinstance(info, dict)
-        and info.get("last_price") is not None
+        if isinstance(info, dict) and info.get("last_price") is not None
     }
 
 
@@ -326,10 +324,7 @@ def intraday_timeseries_for_ticker(ticker: str) -> Dict[str, Any]:
     inst_type = meta.get("instrument_type") or meta.get("instrumentType")
     if inst_type and inst_type.lower() in {"pension"}:
         daily = timeseries_for_ticker(ticker, days=2)["prices"]
-        prices = [
-            {"timestamp": f"{p['date']}T00:00:00", "price": float(p["close"])}
-            for p in daily
-        ]
+        prices = [{"timestamp": f"{p['date']}T00:00:00", "price": float(p["close"])} for p in daily]
         last_time = prices[-1]["timestamp"] if prices else None
         return {"prices": prices, "last_price_time": last_time}
 
@@ -341,19 +336,14 @@ def intraday_timeseries_for_ticker(ticker: str) -> Dict[str, Any]:
     df = None
     for interval in ("5m", "15m"):
         try:
-            df = fetch_yahoo_timeseries_period(
-                sym, ex, period="5d", interval=interval, normalize=False
-            )
+            df = fetch_yahoo_timeseries_period(sym, ex, period="5d", interval=interval, normalize=False)
             if not df.empty:
                 break
         except Exception:
             df = None
     if df is None or df.empty or "Date" not in df.columns:
         daily = timeseries_for_ticker(ticker, days=2)["prices"]
-        prices = [
-            {"timestamp": f"{p['date']}T00:00:00", "price": float(p["close"])}
-            for p in daily
-        ]
+        prices = [{"timestamp": f"{p['date']}T00:00:00", "price": float(p["close"])} for p in daily]
         last_time = prices[-1]["timestamp"] if prices else None
         return {"prices": prices, "last_price_time": last_time}
 
@@ -365,10 +355,7 @@ def intraday_timeseries_for_ticker(ticker: str) -> Dict[str, Any]:
     df = df[df["Date"] >= cutoff]
     col = "Close_gbp" if "Close_gbp" in df.columns else "Close"
 
-    prices = [
-        {"timestamp": r["Date"].to_pydatetime().isoformat(), "price": float(r[col])}
-        for _, r in df.iterrows()
-    ]
+    prices = [{"timestamp": r["Date"].to_pydatetime().isoformat(), "price": float(r[col])} for _, r in df.iterrows()]
     last_time = prices[-1]["timestamp"] if prices else None
     return {"prices": prices, "last_price_time": last_time}
 

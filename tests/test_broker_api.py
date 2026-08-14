@@ -37,13 +37,8 @@ def test_recent_trades_parsing_and_headers(monkeypatch):
     monkeypatch.setattr(requests, "get", fake_get)
     trades = api.recent_trades(since)
 
-    assert trades == [
-        {"date": "2024-03-05", "ticker": "ABC", "units": "2", "price": "42.5"}
-    ]
-    assert (
-        called["url"]
-        == "https://paper-api.alpaca.markets/v2/account/activities/trades"
-    )
+    assert trades == [{"date": "2024-03-05", "ticker": "ABC", "units": "2", "price": "42.5"}]
+    assert called["url"] == "https://paper-api.alpaca.markets/v2/account/activities/trades"
     assert called["params"] == {"after": since.isoformat()}
     assert called["headers"] == {
         "APCA-API-KEY-ID": "key",

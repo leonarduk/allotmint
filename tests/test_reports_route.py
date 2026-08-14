@@ -117,8 +117,7 @@ def test_reports_pdf(client, monkeypatch):
 
 def test_audit_report_json_smoke_includes_all_sections(client, monkeypatch):
     section_data = tuple(
-        reports.ReportSectionData(schema=schema, rows=())
-        for schema in reports.AUDIT_REPORT_TEMPLATE.sections
+        reports.ReportSectionData(schema=schema, rows=()) for schema in reports.AUDIT_REPORT_TEMPLATE.sections
     )
     document = reports.ReportDocument(
         template=reports.AUDIT_REPORT_TEMPLATE,
@@ -148,8 +147,7 @@ def test_audit_report_json_smoke_includes_all_sections(client, monkeypatch):
 
 def test_audit_report_pdf_smoke_returns_pdf_prefix(client, monkeypatch):
     section_data = tuple(
-        reports.ReportSectionData(schema=schema, rows=())
-        for schema in reports.AUDIT_REPORT_TEMPLATE.sections
+        reports.ReportSectionData(schema=schema, rows=()) for schema in reports.AUDIT_REPORT_TEMPLATE.sections
     )
     document = reports.ReportDocument(
         template=reports.AUDIT_REPORT_TEMPLATE,
@@ -310,9 +308,7 @@ def test_create_template_endpoint(client, monkeypatch):
                 "id": "metrics",
                 "title": "Metrics",
                 "source": "performance.metrics",
-                "columns": [
-                    {"key": "metric", "label": "Metric", "type": "string"}
-                ],
+                "columns": [{"key": "metric", "label": "Metric", "type": "string"}],
             }
         ],
     }
@@ -357,9 +353,7 @@ def test_update_template_endpoint(client, monkeypatch):
                 "id": "metrics",
                 "title": "Metrics",
                 "source": "performance.metrics",
-                "columns": [
-                    {"key": "metric", "label": "Metric", "type": "string"}
-                ],
+                "columns": [{"key": "metric", "label": "Metric", "type": "string"}],
             }
         ],
     }
@@ -381,9 +375,7 @@ def test_update_template_endpoint_not_found(client, monkeypatch):
                 "id": "metrics",
                 "title": "Metrics",
                 "source": "performance.metrics",
-                "columns": [
-                    {"key": "metric", "label": "Metric", "type": "string"}
-                ],
+                "columns": [{"key": "metric", "label": "Metric", "type": "string"}],
             }
         ],
     }
@@ -407,9 +399,7 @@ def test_update_template_endpoint_validation_error(client, monkeypatch):
                 "id": "metrics",
                 "title": "Metrics",
                 "source": "performance.metrics",
-                "columns": [
-                    {"key": "metric", "label": "Metric", "type": "string"}
-                ],
+                "columns": [{"key": "metric", "label": "Metric", "type": "string"}],
             }
         ],
     }

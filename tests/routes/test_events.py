@@ -21,9 +21,7 @@ def create_client() -> TestClient:
 
 def test_list_events_filters_extra_fields(monkeypatch, tmp_path):
     fixture = tmp_path / "custom.json"
-    fixture.write_text(
-        json.dumps([{"id": "custom", "name": "Custom", "ignored": "value"}])
-    )
+    fixture.write_text(json.dumps([{"id": "custom", "name": "Custom", "ignored": "value"}]))
 
     with monkeypatch.context() as patcher:
         patcher.setattr(events_module, "_events_path", fixture, raising=False)

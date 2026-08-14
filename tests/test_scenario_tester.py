@@ -1,13 +1,13 @@
 import datetime as dt
+from datetime import date
 
 import pandas as pd
 import pytest
-import backend.utils.scenario_tester as sc_tester
-from backend.utils.scenario_tester import apply_price_shock, apply_historical_returns
-from backend.utils import scenario_tester as sc
-import backend.common.prices as prices
-from datetime import date
 
+import backend.common.prices as prices
+import backend.utils.scenario_tester as sc_tester
+from backend.utils import scenario_tester as sc
+from backend.utils.scenario_tester import apply_historical_returns, apply_price_shock
 
 
 def test_price_shock_uses_cached_price_for_missing_current_price(monkeypatch):
@@ -77,7 +77,7 @@ def test_apply_historical_event_uses_proxy_for_missing(monkeypatch):
             df = idx
         else:
             return pd.DataFrame()
-        return df.loc[:pd.to_datetime(end_date)]
+        return df.loc[: pd.to_datetime(end_date)]
 
     monkeypatch.setattr(sc_tester, "load_meta_timeseries_range", fake_load)
     monkeypatch.setattr(sc_tester, "get_scaling_override", lambda *a, **k: 1.0)
@@ -90,6 +90,7 @@ def test_apply_historical_event_uses_proxy_for_missing(monkeypatch):
     assert result["ABC.L"][365] == pytest.approx(2.0)
     assert result["MISSING.L"][365] == pytest.approx(2.0)
 
+
 def test_apply_historical_event_scales_portfolio(monkeypatch):
     portfolio = {"accounts": [{"holdings": [{"ticker": "AAA.L"}]}]}
     df = pd.DataFrame(
@@ -98,7 +99,7 @@ def test_apply_historical_event_scales_portfolio(monkeypatch):
     )
 
     def fake_load(ticker, exchange, start_date, end_date):
-        return df.loc[:pd.to_datetime(end_date)]
+        return df.loc[: pd.to_datetime(end_date)]
 
     monkeypatch.setattr(sc, "load_meta_timeseries_range", fake_load)
 
@@ -111,6 +112,7 @@ def test_apply_historical_event_scales_portfolio(monkeypatch):
 
     assert returns["AAA.L"][1] == pytest.approx(-0.1)
     assert returns["AAA.L"][5] == pytest.approx(-0.2)
+
 
 def test_historical_event_falls_back_to_proxy(monkeypatch):
     portfolio = {"accounts": [{"holdings": [{"ticker": "AAA.L"}]}]}

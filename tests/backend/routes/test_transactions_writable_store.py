@@ -48,9 +48,7 @@ class _FakeS3:
         self.objects[Key] = Body
 
     def list_objects_v2(self, Bucket: str, Prefix: str, **_kwargs):  # noqa: N803
-        contents = [
-            {"Key": key} for key in sorted(self.objects) if key.startswith(Prefix)
-        ]
+        contents = [{"Key": key} for key in sorted(self.objects) if key.startswith(Prefix)]
         return {"Contents": contents, "IsTruncated": False}
 
 
@@ -65,9 +63,7 @@ def test_resolve_writable_store_uses_s3_in_aws(monkeypatch):
     assert store.bucket == "data-bucket"
 
 
-def test_resolve_writable_store_falls_back_local_without_bucket(
-    monkeypatch, tmp_path, caplog, reset_warning_flag
-):
+def test_resolve_writable_store_falls_back_local_without_bucket(monkeypatch, tmp_path, caplog, reset_warning_flag):
     monkeypatch.setattr(transactions_module.config, "app_env", "aws")
     monkeypatch.delenv(data_loader.DATA_BUCKET_ENV, raising=False)
     reset_warning_flag(transactions_module, "_warned_missing_data_bucket")
@@ -78,9 +74,7 @@ def test_resolve_writable_store_falls_back_local_without_bucket(
 
     assert not isinstance(store, S3AccountsStore)
     assert store.local_root == tmp_path.resolve()
-    assert any(
-        data_loader.DATA_BUCKET_ENV in record.message for record in caplog.records
-    )
+    assert any(data_loader.DATA_BUCKET_ENV in record.message for record in caplog.records)
 
 
 def test_resolve_writable_store_no_warning_outside_aws(monkeypatch, tmp_path, caplog):
@@ -91,29 +85,19 @@ def test_resolve_writable_store_no_warning_outside_aws(monkeypatch, tmp_path, ca
     with caplog.at_level("WARNING", logger="transactions"):
         transactions_module.resolve_writable_store(request)
 
-    assert not any(
-        data_loader.DATA_BUCKET_ENV in record.message for record in caplog.records
-    )
+    assert not any(data_loader.DATA_BUCKET_ENV in record.message for record in caplog.records)
 
 
-def test_resolve_writable_store_warns_only_once_per_process(
-    monkeypatch, tmp_path, caplog, reset_warning_flag
-):
+def test_resolve_writable_store_warns_only_once_per_process(monkeypatch, tmp_path, caplog, reset_warning_flag):
     monkeypatch.setattr(transactions_module.config, "app_env", "aws")
     monkeypatch.delenv(data_loader.DATA_BUCKET_ENV, raising=False)
     reset_warning_flag(transactions_module, "_warned_missing_data_bucket")
 
     with caplog.at_level("WARNING", logger="transactions"):
         for _ in range(3):
-            transactions_module.resolve_writable_store(
-                _make_request({"accounts_root": tmp_path})
-            )
+            transactions_module.resolve_writable_store(_make_request({"accounts_root": tmp_path}))
 
-    warnings = [
-        record
-        for record in caplog.records
-        if data_loader.DATA_BUCKET_ENV in record.message
-    ]
+    warnings = [record for record in caplog.records if data_loader.DATA_BUCKET_ENV in record.message]
     assert len(warnings) == 1
 
 
@@ -129,9 +113,7 @@ async def test_create_manual_holding_persists_to_s3(monkeypatch):
         lambda _req: (S3AccountsStore(bucket="data-bucket", client=fake), transactions_module._RootResolution.WRITABLE),
     )
 
-    payload = transactions_module.ManualHoldingCreate(
-        owner="alice", account="ISA", ticker="aaa", value_gbp=1000
-    )
+    payload = transactions_module.ManualHoldingCreate(owner="alice", account="ISA", ticker="aaa", value_gbp=1000)
     result = await transactions_module.create_manual_holding(_make_request(), payload)
 
     assert result["status"] == "saved"
@@ -155,9 +137,7 @@ async def test_create_transaction_persists_to_s3(monkeypatch):
         "resolve_writable_store",
         lambda _req: (S3AccountsStore(bucket="data-bucket", client=fake), transactions_module._RootResolution.WRITABLE),
     )
-    monkeypatch.setattr(
-        transactions_module, "_rebuild_portfolio", lambda *a, **k: None
-    )
+    monkeypatch.setattr(transactions_module, "_rebuild_portfolio", lambda *a, **k: None)
 
     from datetime import date
 

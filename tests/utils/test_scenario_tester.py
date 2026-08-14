@@ -6,7 +6,6 @@ import pytest
 import backend.utils.scenario_tester as sc_tester
 
 
-
 def test_apply_price_shock_falls_back_to_get_price(monkeypatch):
     portfolio = {
         "accounts": [
@@ -161,10 +160,7 @@ def test_forward_returns_empty(monkeypatch):
 
 def test_forward_returns_with_data(monkeypatch):
     event_date = dt.date(2024, 1, 1)
-    dates = [
-        event_date + dt.timedelta(days=d)
-        for d in [0, 1, 7, 30, 90, 365]
-    ]
+    dates = [event_date + dt.timedelta(days=d) for d in [0, 1, 7, 30, 90, 365]]
     prices = [100, 110, 120, 130, 140, 200]
     df = pd.DataFrame({"Date": dates, "Close_gbp": prices}).set_index("Date")
 
@@ -183,10 +179,7 @@ def test_forward_returns_with_data(monkeypatch):
 
 def test_forward_returns_nonfinite_prices(monkeypatch):
     event_date = dt.date(2024, 1, 1)
-    dates = [
-        event_date + dt.timedelta(days=d)
-        for d in [0, 1, 7, 30, 90, 365]
-    ]
+    dates = [event_date + dt.timedelta(days=d) for d in [0, 1, 7, 30, 90, 365]]
     prices = [100, float("nan"), 120, float("inf"), 140, 200]
     df = pd.DataFrame({"Date": dates, "Close_gbp": prices}).set_index("Date")
 

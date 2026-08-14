@@ -76,9 +76,7 @@ def shared_provider_dataset(tmp_path: Path) -> dict[str, object]:
     for owner, payload in owners.items():
         aws_objects[f"accounts/{owner}/person.json"] = json.dumps(payload["person"]).encode("utf-8")
         for account, account_payload in payload["accounts"].items():
-            aws_objects[f"accounts/{owner}/{account}.json"] = json.dumps(account_payload).encode(
-                "utf-8"
-            )
+            aws_objects[f"accounts/{owner}/{account}.json"] = json.dumps(account_payload).encode("utf-8")
 
     return {
         "accounts_root": accounts_root,

@@ -25,9 +25,7 @@ from backend.timeseries.cache import load_meta_timeseries_range
 router = APIRouter(prefix="/custom-query", tags=["query"])
 
 QUERIES_DIR = config.data_root / "queries"
-REPO_QUERIES_DIR = (
-    (config.repo_root or Path(__file__).resolve().parents[2]) / "data" / "queries"
-)
+REPO_QUERIES_DIR = (config.repo_root or Path(__file__).resolve().parents[2]) / "data" / "queries"
 DATA_BUCKET_ENV = "DATA_BUCKET"
 QUERIES_PREFIX = "queries/"
 
@@ -166,9 +164,7 @@ def _load_query_s3(slug: str) -> dict:
     try:
         import boto3  # type: ignore
 
-        obj = boto3.client("s3").get_object(
-            Bucket=bucket, Key=f"{QUERIES_PREFIX}{slug}.json"
-        )
+        obj = boto3.client("s3").get_object(Bucket=bucket, Key=f"{QUERIES_PREFIX}{slug}.json")
         body = obj.get("Body")
         txt = body.read().decode(encoding="utf-8", errors="replace") if body else ""
     except Exception as exc:  # pragma: no cover - defensive

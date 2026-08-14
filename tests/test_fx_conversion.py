@@ -206,6 +206,7 @@ def test_memoized_range_offline_no_cache_returns_empty(monkeypatch):
     assert df.empty
     assert calls["n"] == 1
 
+
 def test_offline_mode_uses_fx_cache(tmp_path, monkeypatch):
     start = dt.date(2024, 1, 1)
     end = dt.date(2024, 1, 2)
@@ -255,6 +256,7 @@ def test_offline_falls_back_to_live_loader(tmp_path, monkeypatch):
 
     df = cache.load_meta_timeseries_range("T", "L", start, end)
     assert list(df["Close"].astype(float)) == [1.0, 2.0]
+
 
 def test_offline_mode_fetch_fallback(monkeypatch, tmp_path):
     start = dt.date(2024, 1, 1)

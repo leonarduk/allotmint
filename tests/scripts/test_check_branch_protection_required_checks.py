@@ -127,9 +127,7 @@ def _write_ruleset(path: Path, contexts: list[str]) -> None:
                 "rules": [
                     {
                         "type": "required_status_checks",
-                        "parameters": {
-                            "required_status_checks": [{"context": c} for c in contexts]
-                        },
+                        "parameters": {"required_status_checks": [{"context": c} for c in contexts]},
                     }
                 ],
             }
@@ -160,8 +158,6 @@ def test_context_from_disabled_workflow_fails(
     contexts = [*_mod.EXPECTED_REQUIRED_CHECKS, "dependency-review"]
     _write_ruleset(ruleset, contexts)
     monkeypatch.setattr(_mod, "RULESET_PATH", ruleset)
-    monkeypatch.setattr(
-        _mod, "EXPECTED_REQUIRED_CHECKS", _mod.EXPECTED_REQUIRED_CHECKS | {"dependency-review"}
-    )
+    monkeypatch.setattr(_mod, "EXPECTED_REQUIRED_CHECKS", _mod.EXPECTED_REQUIRED_CHECKS | {"dependency-review"})
     assert _mod.main() == 1
     assert "disabled workflows" in capsys.readouterr().err

@@ -2,20 +2,17 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
+from backend import quests
 from backend.auth import (
     get_active_user,
-    get_current_user,
     resolve_current_user_override,
 )
 from backend.config import config, demo_identity
-from backend import quests
 
 router = APIRouter(prefix="/quests", tags=["quests"])
 
 
-async def require_active_user(
-    request: Request, current_user: str | None = Depends(get_active_user)
-) -> str:
+async def require_active_user(request: Request, current_user: str | None = Depends(get_active_user)) -> str:
     """Resolve the authenticated user or raise ``401`` when missing."""
 
     if current_user:
@@ -28,9 +25,7 @@ async def require_active_user(
     if config.disable_auth:
         return demo_identity()
 
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required"
-    )
+    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
 
 
 @router.get("/today")

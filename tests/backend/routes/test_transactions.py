@@ -42,9 +42,7 @@ def reset_transactions_state():
     transactions_module._PORTFOLIO_IMPACT.clear()
 
 
-def _seed_transactions_file(
-    accounts_root: Path, owner: str, account: str, transactions: list[dict]
-) -> Path:
+def _seed_transactions_file(accounts_root: Path, owner: str, account: str, transactions: list[dict]) -> Path:
     owner_dir = accounts_root / owner
     owner_dir.mkdir(parents=True, exist_ok=True)
     file_path = owner_dir / f"{account}_transactions.json"
@@ -75,13 +73,9 @@ def test_require_writable_store_rejects_global_cache(monkeypatch, tmp_path):
     accounts_dir = tmp_path / "accounts"
     accounts_dir.mkdir()
 
-    request = _make_request(
-        {"accounts_root": accounts_dir, "accounts_root_is_global": True}
-    )
+    request = _make_request({"accounts_root": accounts_dir, "accounts_root_is_global": True})
 
-    monkeypatch.setattr(
-        transactions_module.config, "accounts_root", accounts_dir.as_posix()
-    )
+    monkeypatch.setattr(transactions_module.config, "accounts_root", accounts_dir.as_posix())
 
     fallback_dir = tmp_path / "fallback"
     fallback_dir.mkdir()
@@ -92,9 +86,7 @@ def test_require_writable_store_rejects_global_cache(monkeypatch, tmp_path):
         lambda *_args, **_kwargs: dummy_paths,
     )
 
-    monkeypatch.setattr(
-        transactions_module, "resolve_accounts_root", lambda _req: accounts_dir
-    )
+    monkeypatch.setattr(transactions_module, "resolve_accounts_root", lambda _req: accounts_dir)
 
     with pytest.raises(HTTPException) as excinfo:
         transactions_module._require_writable_store(request)
@@ -108,9 +100,7 @@ def test_require_writable_store_missing_resolved_path(monkeypatch, tmp_path):
 
     request = _make_request({})
 
-    monkeypatch.setattr(
-        transactions_module.config, "accounts_root", configured_dir.as_posix()
-    )
+    monkeypatch.setattr(transactions_module.config, "accounts_root", configured_dir.as_posix())
 
     global_dir = tmp_path / "global"
     global_dir.mkdir()
@@ -121,9 +111,7 @@ def test_require_writable_store_missing_resolved_path(monkeypatch, tmp_path):
     )
 
     missing_dir = tmp_path / "missing"
-    monkeypatch.setattr(
-        transactions_module, "resolve_accounts_root", lambda _req: missing_dir
-    )
+    monkeypatch.setattr(transactions_module, "resolve_accounts_root", lambda _req: missing_dir)
 
     with pytest.raises(HTTPException) as excinfo:
         transactions_module._require_writable_store(request)
@@ -139,9 +127,7 @@ def test_require_writable_store_rejects_matching_global_root(monkeypatch, tmp_pa
 
     request = _make_request({})
 
-    monkeypatch.setattr(
-        transactions_module.config, "accounts_root", configured_dir.as_posix()
-    )
+    monkeypatch.setattr(transactions_module.config, "accounts_root", configured_dir.as_posix())
 
     monkeypatch.setattr(
         transactions_module.data_loader,
@@ -257,9 +243,7 @@ def test_instrument_name_from_entry(monkeypatch):
         assert ticker == "ABC"
         return {"display_name": "  Looked Up Name  "}
 
-    monkeypatch.setattr(
-        transactions_module, "get_instrument_meta", fake_get_meta
-    )
+    monkeypatch.setattr(transactions_module, "get_instrument_meta", fake_get_meta)
 
     fallback_resolved = transactions_module._instrument_name_from_entry(lookup_entry)
 
@@ -270,15 +254,11 @@ def test_instrument_name_from_entry(monkeypatch):
     def raise_value_error(_ticker: str):
         raise ValueError("bad ticker")
 
-    monkeypatch.setattr(
-        transactions_module, "get_instrument_meta", raise_value_error
-    )
+    monkeypatch.setattr(transactions_module, "get_instrument_meta", raise_value_error)
 
     assert transactions_module._instrument_name_from_entry(failing_entry) is None
 
-    monkeypatch.setattr(
-        transactions_module, "get_instrument_meta", lambda _ticker: {}
-    )
+    monkeypatch.setattr(transactions_module, "get_instrument_meta", lambda _ticker: {})
 
     assert transactions_module._instrument_name_from_entry(failing_entry) is None
 
@@ -292,9 +272,7 @@ def test_format_transaction_response_injects_instrument_name(monkeypatch):
         lambda payload: "Resolved Instrument",
     )
 
-    payload = transactions_module._format_transaction_response(
-        "alice", "primary", tx_data, "tx-1"
-    )
+    payload = transactions_module._format_transaction_response("alice", "primary", tx_data, "tx-1")
 
     assert payload == {
         "owner": "alice",
@@ -315,9 +293,7 @@ def test_format_transaction_response_omits_missing_instrument_name(monkeypatch):
         lambda payload: None,
     )
 
-    payload = transactions_module._format_transaction_response(
-        "alice", "primary", tx_data
-    )
+    payload = transactions_module._format_transaction_response("alice", "primary", tx_data)
 
     assert payload == {
         "owner": "alice",
@@ -457,9 +433,7 @@ async def test_update_and_delete_transactions_flow(monkeypatch, tmp_path):
     accounts_root.mkdir(parents=True, exist_ok=True)
 
     monkeypatch.setattr(transactions_module.config, "accounts_root", accounts_root)
-    monkeypatch.setattr(
-        transactions_module, "_rebuild_portfolio", lambda *args, **kwargs: None
-    )
+    monkeypatch.setattr(transactions_module, "_rebuild_portfolio", lambda *args, **kwargs: None)
 
     initial_entry = {
         "date": "2024-01-01",
@@ -468,9 +442,7 @@ async def test_update_and_delete_transactions_flow(monkeypatch, tmp_path):
         "units": 2.0,
         "ticker": "AAA",
     }
-    original_file = _seed_transactions_file(
-        accounts_root, "alice", "primary", [initial_entry]
-    )
+    original_file = _seed_transactions_file(accounts_root, "alice", "primary", [initial_entry])
 
     with TestClient(create_app()) as client:
         move_payload = {
@@ -493,9 +465,7 @@ async def test_update_and_delete_transactions_flow(monkeypatch, tmp_path):
         assert original_after_move["transactions"] == []
 
         destination_file = accounts_root / "bob" / "savings_transactions.json"
-        destination_after_move = json.loads(
-            destination_file.read_text(encoding="utf-8")
-        )
+        destination_after_move = json.loads(destination_file.read_text(encoding="utf-8"))
         assert len(destination_after_move["transactions"]) == 1
         moved_entry = destination_after_move["transactions"][0]
         assert moved_entry["reason"] == "Move to new account"
@@ -514,14 +484,10 @@ async def test_update_and_delete_transactions_flow(monkeypatch, tmp_path):
             "units": 5.0,
             "reason": "Adjust units",
         }
-        in_place_response = client.put(
-            f"/transactions/{moved_payload['id']}", json=in_place_payload
-        )
+        in_place_response = client.put(f"/transactions/{moved_payload['id']}", json=in_place_payload)
         assert in_place_response.status_code == 200
 
-        updated_destination = json.loads(
-            destination_file.read_text(encoding="utf-8")
-        )
+        updated_destination = json.loads(destination_file.read_text(encoding="utf-8"))
         assert len(updated_destination["transactions"]) == 1
         updated_entry = updated_destination["transactions"][0]
         assert updated_entry["price_gbp"] == pytest.approx(9.0)
@@ -538,9 +504,7 @@ async def test_update_and_delete_transactions_flow(monkeypatch, tmp_path):
         final_original = json.loads(original_file.read_text(encoding="utf-8"))
         assert final_original["transactions"] == []
 
-        final_destination = json.loads(
-            destination_file.read_text(encoding="utf-8")
-        )
+        final_destination = json.loads(destination_file.read_text(encoding="utf-8"))
         assert final_destination["transactions"] == []
 
         assert transactions_module._PORTFOLIO_IMPACT["bob"] == pytest.approx(0.0)
@@ -553,9 +517,7 @@ async def test_update_transaction_out_of_range_index(monkeypatch, tmp_path):
     accounts_root.mkdir(parents=True, exist_ok=True)
 
     monkeypatch.setattr(transactions_module.config, "accounts_root", accounts_root)
-    monkeypatch.setattr(
-        transactions_module, "_rebuild_portfolio", lambda *args, **kwargs: None
-    )
+    monkeypatch.setattr(transactions_module, "_rebuild_portfolio", lambda *args, **kwargs: None)
 
     entry = {
         "date": "2024-01-01",
@@ -564,9 +526,7 @@ async def test_update_transaction_out_of_range_index(monkeypatch, tmp_path):
         "units": 2.0,
         "ticker": "AAA",
     }
-    original_file = _seed_transactions_file(
-        accounts_root, "alice", "primary", [entry]
-    )
+    original_file = _seed_transactions_file(accounts_root, "alice", "primary", [entry])
 
     with TestClient(create_app()) as client:
         response = client.put(
@@ -596,9 +556,7 @@ async def test_update_transaction_pending_entry_guard(monkeypatch, tmp_path):
     accounts_root.mkdir(parents=True, exist_ok=True)
 
     monkeypatch.setattr(transactions_module.config, "accounts_root", accounts_root)
-    monkeypatch.setattr(
-        transactions_module, "_rebuild_portfolio", lambda *args, **kwargs: None
-    )
+    monkeypatch.setattr(transactions_module, "_rebuild_portfolio", lambda *args, **kwargs: None)
 
     entry = {
         "date": "2024-01-01",
@@ -649,4 +607,3 @@ async def test_update_transaction_pending_entry_guard(monkeypatch, tmp_path):
     assert response.status_code == 500
     assert response.json()["detail"] == "Failed to update transaction"
     assert not transactions_module._PORTFOLIO_IMPACT
-

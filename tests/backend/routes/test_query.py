@@ -7,9 +7,7 @@ from backend.routes import query
 
 
 @pytest.mark.anyio
-async def test_list_saved_queries_returns_rich_entries(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+async def test_list_saved_queries_returns_rich_entries(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     saved_dir = tmp_path / "queries"
     saved_dir.mkdir()
 

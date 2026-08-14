@@ -215,9 +215,7 @@ def test_owner_metrics_with_as_of(monkeypatch):
         captured["pricing_date"] = pricing_date
         return 0.42, {"series": []}
 
-    monkeypatch.setattr(
-        portfolio_utils, "compute_alpha_vs_benchmark", fake
-    )
+    monkeypatch.setattr(portfolio_utils, "compute_alpha_vs_benchmark", fake)
     client = _auth_client()
     resp = client.get(
         "/performance/alice/alpha",

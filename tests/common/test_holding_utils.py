@@ -16,6 +16,7 @@ def test_is_pence_currency_wrapper(raw_currency):
 def test_is_pence_currency_wrapper_false_for_gbp():
     assert not holding_utils._is_pence_currency("GBP")
 
+
 def test_close_column_selection():
     df = pd.DataFrame({"CLOSE_GBP": [1], "Close": [2], "Adj Close": [3]})
     assert holding_utils._close_column(df) == "CLOSE_GBP"
@@ -129,9 +130,7 @@ def test_load_latest_prices_does_not_double_convert_close_gbp(monkeypatch):
     monkeypatch.setattr(
         holding_utils,
         "load_meta_timeseries_range",
-        lambda *args, **kwargs: pd.DataFrame(
-            {"Date": [dt.date(2024, 1, 1)], "Close": [100.0], "Close_gbp": [79.0]}
-        ),
+        lambda *args, **kwargs: pd.DataFrame({"Date": [dt.date(2024, 1, 1)], "Close": [100.0], "Close_gbp": [79.0]}),
     )
     monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *a, **k: 1.0)
     monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {"currency": "USD"})
@@ -153,9 +152,7 @@ def test_load_latest_prices_close_gbp_not_rescaled(monkeypatch):
     monkeypatch.setattr(
         holding_utils,
         "load_meta_timeseries_range",
-        lambda *args, **kwargs: pd.DataFrame(
-            {"Date": [dt.date(2024, 1, 1)], "Close": [283.4], "Close_gbp": [2.834]}
-        ),
+        lambda *args, **kwargs: pd.DataFrame({"Date": [dt.date(2024, 1, 1)], "Close": [283.4], "Close_gbp": [2.834]}),
     )
     monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *a, **k: 0.01)
     monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {"currency": "GBX"})
@@ -178,20 +175,14 @@ def test_load_latest_prices_gbx_pence_no_scaling_override(monkeypatch, raw_curre
     monkeypatch.setattr(
         holding_utils,
         "load_meta_timeseries_range",
-        lambda *args, **kwargs: pd.DataFrame(
-            {"Date": [dt.date(2024, 1, 1)], "Close": [10_000.0]}
-        ),
+        lambda *args, **kwargs: pd.DataFrame({"Date": [dt.date(2024, 1, 1)], "Close": [10_000.0]}),
     )
     # scale=1.0: no scaling override present, so our code must divide by 100
     monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *a, **k: 1.0)
-    monkeypatch.setattr(
-        holding_utils, "get_instrument_meta", lambda *_: {"currency": raw_currency}
-    )
+    monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {"currency": raw_currency})
 
     def _boom_fx(*args, **kwargs):
-        raise AssertionError(
-            f"_fx_to_base must not be called for pence currency {raw_currency!r}"
-        )
+        raise AssertionError(f"_fx_to_base must not be called for pence currency {raw_currency!r}")
 
     monkeypatch.setattr(holding_utils, "_fx_to_base", _boom_fx)
 
@@ -213,15 +204,11 @@ def test_load_latest_prices_gbx_pence_with_scaling_override(monkeypatch):
     monkeypatch.setattr(
         holding_utils,
         "load_meta_timeseries_range",
-        lambda *args, **kwargs: pd.DataFrame(
-            {"Date": [dt.date(2024, 1, 1)], "Close": [10_000.0]}
-        ),
+        lambda *args, **kwargs: pd.DataFrame({"Date": [dt.date(2024, 1, 1)], "Close": [10_000.0]}),
     )
     # scale=0.01: standard GBX override — apply_scaling handles pence->pounds
     monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *a, **k: 0.01)
-    monkeypatch.setattr(
-        holding_utils, "get_instrument_meta", lambda *_: {"currency": "GBX"}
-    )
+    monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {"currency": "GBX"})
 
     def _boom_fx(*args, **kwargs):
         raise AssertionError("_fx_to_base must not be called for GBX")
@@ -251,15 +238,11 @@ def test_load_latest_prices_gbx_non_pence_factor_scale_still_converts(monkeypatc
     monkeypatch.setattr(
         holding_utils,
         "load_meta_timeseries_range",
-        lambda *args, **kwargs: pd.DataFrame(
-            {"Date": [dt.date(2024, 1, 1)], "Close": [200.0]}
-        ),
+        lambda *args, **kwargs: pd.DataFrame({"Date": [dt.date(2024, 1, 1)], "Close": [200.0]}),
     )
     # scale=0.5: non-unity but NOT the pence factor; pence->GBP must still run
     monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *a, **k: 0.5)
-    monkeypatch.setattr(
-        holding_utils, "get_instrument_meta", lambda *_: {"currency": "GBX"}
-    )
+    monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {"currency": "GBX"})
 
     def _boom_fx(*args, **kwargs):
         raise AssertionError("_fx_to_base must not be called for GBX")
@@ -284,9 +267,7 @@ def test_load_live_prices_gbx_non_pence_factor_scale_still_converts(monkeypatch)
         def json(self):
             return {
                 "quoteResponse": {
-                    "result": [
-                        {"symbol": "HFEL.L", "regularMarketPrice": 200.0, "regularMarketTime": ts}
-                    ]
+                    "result": [{"symbol": "HFEL.L", "regularMarketPrice": 200.0, "regularMarketTime": ts}]
                 }
             }
 
@@ -319,9 +300,7 @@ def test_load_latest_prices_non_pence_scale_point_zero_one_still_fx_converts(mon
     monkeypatch.setattr(
         holding_utils,
         "load_meta_timeseries_range",
-        lambda *args, **kwargs: pd.DataFrame(
-            {"Date": [dt.date(2024, 1, 1)], "Close": [100.0]}
-        ),
+        lambda *args, **kwargs: pd.DataFrame({"Date": [dt.date(2024, 1, 1)], "Close": [100.0]}),
     )
     # 100.0 * 0.01 = 1.0 USD after apply_scaling, then FX 0.8 => 0.8 GBP.
     monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *a, **k: 0.01)
@@ -456,9 +435,7 @@ def test_load_live_prices_gbx_with_scaling_override_not_double_converted(monkeyp
         def json(self):
             return {
                 "quoteResponse": {
-                    "result": [
-                        {"symbol": "HFEL.L", "regularMarketPrice": 10_000.0, "regularMarketTime": ts}
-                    ]
+                    "result": [{"symbol": "HFEL.L", "regularMarketPrice": 10_000.0, "regularMarketTime": ts}]
                 }
             }
 

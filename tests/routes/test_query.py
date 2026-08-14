@@ -62,9 +62,7 @@ def test_slugify_handles_special_characters():
 
 def test_save_query_local(monkeypatch, tmp_path):
     monkeypatch.setattr(query, "QUERIES_DIR", tmp_path)
-    q = query.CustomQuery(
-        start=date(2020, 1, 1), end=date(2020, 1, 2), tickers=["ABC.L"]
-    )
+    q = query.CustomQuery(start=date(2020, 1, 1), end=date(2020, 1, 2), tickers=["ABC.L"])
     query._save_query_local("sample", q)
     saved = json.loads((tmp_path / "sample.json").read_text())
     assert saved["tickers"] == ["ABC.L"]
@@ -83,9 +81,7 @@ def mock_s3(monkeypatch):
 
         def list_objects_v2(self, Bucket, Prefix, ContinuationToken=None):
             contents = [
-                {"Key": key}
-                for (bucket, key), _ in self.storage.items()
-                if bucket == Bucket and key.startswith(Prefix)
+                {"Key": key} for (bucket, key), _ in self.storage.items() if bucket == Bucket and key.startswith(Prefix)
             ]
             return {"Contents": contents}
 
@@ -100,9 +96,7 @@ def mock_s3(monkeypatch):
 
 def test_s3_helpers(monkeypatch, mock_s3):
     monkeypatch.setenv(query.DATA_BUCKET_ENV, "bucket")
-    q = query.CustomQuery(
-        start=date(2020, 1, 1), end=date(2020, 1, 2), tickers=["ABC.L"]
-    )
+    q = query.CustomQuery(start=date(2020, 1, 1), end=date(2020, 1, 2), tickers=["ABC.L"])
     query._save_query_s3("s3-query", q)
     assert ("bucket", f"{query.QUERIES_PREFIX}s3-query.json") in mock_s3
     assert query._list_queries_s3() == ["s3-query"]
@@ -265,10 +259,7 @@ def test_run_query_xlsx(monkeypatch):
     }
     resp = client.post("/custom-query/run", json=body)
     assert resp.status_code == 200
-    assert (
-        resp.headers["content-type"]
-        == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+    assert resp.headers["content-type"] == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     assert resp.content.startswith(b"PK")
     zf = zipfile.ZipFile(io.BytesIO(resp.content))
     sheet = zf.read("xl/worksheets/sheet1.xml")
@@ -290,9 +281,7 @@ def test_saved_and_load_local(monkeypatch, tmp_path):
     assert resp.status_code == 200
     saved_entries = resp.json()
     assert any(
-        entry.get("id") == "sample"
-        and entry.get("name") == "sample"
-        and entry.get("params") == data
+        entry.get("id") == "sample" and entry.get("name") == "sample" and entry.get("params") == data
         for entry in saved_entries
     )
     resp = client.get("/custom-query/saved", params={"detailed": "0"})
@@ -306,9 +295,7 @@ def test_saved_and_load_local(monkeypatch, tmp_path):
 def test_saved_and_load_aws(monkeypatch, mock_s3):
     monkeypatch.setattr(query.config, "app_env", "aws")
     monkeypatch.setenv(query.DATA_BUCKET_ENV, "bucket")
-    q = query.CustomQuery(
-        start=date(2020, 1, 1), end=date(2020, 1, 2), tickers=["ABC.L"]
-    )
+    q = query.CustomQuery(start=date(2020, 1, 1), end=date(2020, 1, 2), tickers=["ABC.L"])
     query._save_query_s3("remote", q)
     client = make_client()
     resp = client.get("/custom-query/saved")
@@ -317,9 +304,7 @@ def test_saved_and_load_aws(monkeypatch, mock_s3):
     expected_params = q.model_dump(mode="json")
     expected_params.pop("name", None)
     assert any(
-        entry.get("id") == "remote"
-        and entry.get("name") == "remote"
-        and entry.get("params") == expected_params
+        entry.get("id") == "remote" and entry.get("name") == "remote" and entry.get("params") == expected_params
         for entry in saved_entries
     )
     resp = client.get("/custom-query/saved", params={"detailed": "0"})

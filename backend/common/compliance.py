@@ -230,9 +230,7 @@ def _check_transactions(owner: str, txs: List[Dict[str, Any]], accounts_root: Op
             acq = last_buy.get(ticker)
             if acq and (d - acq).days < (ucfg.hold_days_min or 0):
                 days = (d - acq).days
-                warnings.append(
-                    f"Sold {ticker} after {days} days (min {ucfg.hold_days_min})"
-                )
+                warnings.append(f"Sold {ticker} after {days} days (min {ucfg.hold_days_min})")
                 logger.info(
                     "%s HOLD_DAYS_MIN %s %s",
                     datetime.now(UTC).isoformat(),
@@ -241,23 +239,15 @@ def _check_transactions(owner: str, txs: List[Dict[str, Any]], accounts_root: Op
                 )
 
             meta = get_instrument_meta(ticker)
-            instr_type = (
-                meta.get("instrumentType") or meta.get("instrument_type") or ""
-            ).upper()
-            asset_class = (
-                meta.get("assetClass") or meta.get("asset_class") or ""
-            ).upper()
+            instr_type = (meta.get("instrumentType") or meta.get("instrument_type") or "").upper()
+            asset_class = (meta.get("assetClass") or meta.get("asset_class") or "").upper()
             sector = (meta.get("sector") or "").upper()
             is_commodity = asset_class == "COMMODITY" or sector == "COMMODITY"
             is_etf = instr_type == "ETF"
             exempt_type = instr_type in exempt_types
             if is_etf and is_commodity:
                 exempt_type = False
-            needs_approval = not (
-                ticker in exempt_tickers
-                or ticker.split(".")[0] in exempt_tickers
-                or exempt_type
-            )
+            needs_approval = not (ticker in exempt_tickers or ticker.split(".")[0] in exempt_tickers or exempt_type)
             if needs_approval:
                 appr = approvals.get(ticker) or approvals.get(ticker.split(".")[0])
                 if not (appr and is_approval_valid(appr, d)):
@@ -302,9 +292,7 @@ def check_owner(
     scaffold_missing: bool = False,
 ) -> Dict[str, Any]:
     """Return compliance warnings for an owner."""
-    txs = load_transactions(
-        owner, accounts_root, scaffold_missing=scaffold_missing
-    )
+    txs = load_transactions(owner, accounts_root, scaffold_missing=scaffold_missing)
     return _check_transactions(owner, txs, accounts_root)
 
 
@@ -322,9 +310,7 @@ def check_trade(
     owner = trade.get("owner")
     if not owner:
         raise ValueError("owner is required")
-    txs = load_transactions(
-        owner, accounts_root, scaffold_missing=scaffold_missing
-    )
+    txs = load_transactions(owner, accounts_root, scaffold_missing=scaffold_missing)
     txs.append(trade)
     return _check_transactions(owner, txs, accounts_root)
 

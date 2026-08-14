@@ -538,7 +538,8 @@ class DynamoTemplateStore(TemplateStore):
         except ValueError as exc:
             logger.warning(
                 "invalid template definition for %s: %s",
-                sanitise_log_value(template_id), sanitise_log_value(exc),
+                sanitise_log_value(template_id),
+                sanitise_log_value(exc),
             )
             return None
 
@@ -594,9 +595,7 @@ def _validate_template_id(template_id: str) -> str:
     if not candidate:
         raise ValueError("template_id is required")
     if not _TEMPLATE_ID_RE.fullmatch(candidate):
-        raise ValueError(
-            "template_id must contain only letters, numbers, dashes or underscores (max 64 chars)"
-        )
+        raise ValueError("template_id must contain only letters, numbers, dashes or underscores (max 64 chars)")
     return candidate
 
 
@@ -607,9 +606,7 @@ def _validate_section_id(section_id: str) -> str:
     if not candidate:
         raise ValueError("section id is required")
     if not _SECTION_ID_RE.fullmatch(candidate):
-        raise ValueError(
-            "section id must contain only letters, numbers, dashes or underscores (max 64 chars)"
-        )
+        raise ValueError("section id must contain only letters, numbers, dashes or underscores (max 64 chars)")
     return candidate
 
 
@@ -666,7 +663,8 @@ class ReportContext:
         except (FileNotFoundError, ValueError) as exc:
             logger.warning(
                 "failed to build owner portfolio for %s: %s",
-                sanitise_log_value(self.owner), sanitise_log_value(exc),
+                sanitise_log_value(self.owner),
+                sanitise_log_value(exc),
             )
             fallback_portfolio = self._portfolio
             if (
@@ -723,9 +721,7 @@ def _round_if_number(value: Any, digits: int) -> Optional[float]:
     return round(number, digits)
 
 
-def _normalise_transaction(
-    item: Dict[str, Any], start: Optional[date], end: Optional[date]
-) -> Dict[str, Any] | None:
+def _normalise_transaction(item: Dict[str, Any], start: Optional[date], end: Optional[date]) -> Dict[str, Any] | None:
     date_str = item.get("date")
     tx_date: Optional[date]
     tx_date = None
@@ -753,9 +749,7 @@ def _normalise_transaction(
             break
     tx_type = (item.get("type") or "").upper()
     return {
-        "date": (
-            tx_date.isoformat() if tx_date else (date_str if isinstance(date_str, str) else None)
-        ),
+        "date": (tx_date.isoformat() if tx_date else (date_str if isinstance(date_str, str) else None)),
         "type": tx_type,
         "description": description,
         "amount_gbp": round(amount, 2),
@@ -819,9 +813,7 @@ def _parse_key_findings_text(content: str, *, source_name: str = "key findings")
     return findings
 
 
-def _build_key_findings_section(
-    context: ReportContext, section: ReportSectionSchema
-) -> Sequence[Dict[str, Any]]:
+def _build_key_findings_section(context: ReportContext, section: ReportSectionSchema) -> Sequence[Dict[str, Any]]:
     owner_root = config.data_root / "accounts" / context.owner
     candidates = (
         owner_root / "key_findings.md",
@@ -837,9 +829,7 @@ def _build_key_findings_section(
 SectionBuilder = Callable[[ReportContext, ReportSectionSchema], Sequence[Dict[str, Any]]]
 
 
-def _build_metrics_section(
-    context: ReportContext, section: ReportSectionSchema
-) -> Sequence[Dict[str, Any]]:
+def _build_metrics_section(context: ReportContext, section: ReportSectionSchema) -> Sequence[Dict[str, Any]]:
     summary = context.summary()
     rows = [
         {"metric": "Owner", "value": summary.owner, "units": ""},
@@ -882,9 +872,7 @@ def _build_metrics_section(
     return rows
 
 
-def _build_history_section(
-    context: ReportContext, section: ReportSectionSchema
-) -> Sequence[Dict[str, Any]]:
+def _build_history_section(context: ReportContext, section: ReportSectionSchema) -> Sequence[Dict[str, Any]]:
     history_rows: List[Dict[str, Any]] = []
     for row in context.summary().history:
         history_rows.append(
@@ -900,15 +888,11 @@ def _build_history_section(
     return history_rows
 
 
-def _build_transactions_section(
-    context: ReportContext, section: ReportSectionSchema
-) -> Sequence[Dict[str, Any]]:
+def _build_transactions_section(context: ReportContext, section: ReportSectionSchema) -> Sequence[Dict[str, Any]]:
     return context.transactions()
 
 
-def _build_allocation_section(
-    context: ReportContext, section: ReportSectionSchema
-) -> Sequence[Dict[str, Any]]:
+def _build_allocation_section(context: ReportContext, section: ReportSectionSchema) -> Sequence[Dict[str, Any]]:
     return context.allocation()
 
 
@@ -1015,9 +999,7 @@ def _extract_var_value(payload: Any) -> float | None:
     return _safe_float(payload)
 
 
-def _build_portfolio_overview_section(
-    context: ReportContext, section: ReportSectionSchema
-) -> Sequence[Dict[str, Any]]:
+def _build_portfolio_overview_section(context: ReportContext, section: ReportSectionSchema) -> Sequence[Dict[str, Any]]:
     if _is_audit_overview_section(section):
         portfolio = context.portfolio()
         return [
@@ -1102,9 +1084,7 @@ def _build_portfolio_overview_section(
     return rows
 
 
-def _build_portfolio_sectors_section(
-    context: ReportContext, section: ReportSectionSchema
-) -> Sequence[Dict[str, Any]]:
+def _build_portfolio_sectors_section(context: ReportContext, section: ReportSectionSchema) -> Sequence[Dict[str, Any]]:
     if _is_audit_value_weight_section(section):
         portfolio = context.portfolio()
         rows = portfolio_utils.aggregate_by_sector(portfolio) or []
@@ -1137,9 +1117,7 @@ def _build_portfolio_sectors_section(
     return out
 
 
-def _build_portfolio_regions_section(
-    context: ReportContext, section: ReportSectionSchema
-) -> Sequence[Dict[str, Any]]:
+def _build_portfolio_regions_section(context: ReportContext, section: ReportSectionSchema) -> Sequence[Dict[str, Any]]:
     if _is_audit_value_weight_section(section):
         portfolio = context.portfolio()
         rows = portfolio_utils.aggregate_by_region(portfolio) or []
@@ -1241,9 +1219,7 @@ def _build_portfolio_concentration_section(
     return holding_rows + [summary_row]
 
 
-def _build_portfolio_var_section(
-    context: ReportContext, section: ReportSectionSchema
-) -> Sequence[Dict[str, Any]]:
+def _build_portfolio_var_section(context: ReportContext, section: ReportSectionSchema) -> Sequence[Dict[str, Any]]:
     """Unified VaR section builder — single code path for all templates.
 
     Guards on owner_portfolio() being available so VaR is only attempted when
@@ -1262,9 +1238,7 @@ def _build_portfolio_var_section(
     rows: List[Dict[str, Any]] = []
     for confidence, metric in ((0.95, "VaR (95%)"), (0.99, "VaR (99%)")):
         try:
-            payload = risk.compute_portfolio_var(
-                context.owner, confidence=confidence, include_cash=False
-            )
+            payload = risk.compute_portfolio_var(context.owner, confidence=confidence, include_cash=False)
         except (FileNotFoundError, ValueError):
             continue
         rows.append(
@@ -1424,9 +1398,7 @@ def _materialise_template(definition: Dict[str, Any], *, builtin: bool) -> Repor
 
 
 def list_templates(store: TemplateStore | None = None) -> List[ReportTemplate]:
-    templates: Dict[str, ReportTemplate] = {
-        template.template_id: template for template in iter_builtin_templates()
-    }
+    templates: Dict[str, ReportTemplate] = {template.template_id: template for template in iter_builtin_templates()}
     store = store or get_template_store()
     try:
         for definition in store.list_templates():
@@ -1458,9 +1430,7 @@ def get_template(template_id: str, store: TemplateStore | None = None) -> Report
     return _materialise_template(definition, builtin=False)
 
 
-def create_user_template(
-    definition: Dict[str, Any], store: TemplateStore | None = None
-) -> ReportTemplate:
+def create_user_template(definition: Dict[str, Any], store: TemplateStore | None = None) -> ReportTemplate:
     payload = _validate_template_payload(definition)
     if get_builtin_template(payload["template_id"]):
         raise ValueError("Cannot overwrite built-in template")
@@ -1686,9 +1656,7 @@ def _compile_summary(
     return data, perf
 
 
-def compile_report(
-    owner: str, start: Optional[date] = None, end: Optional[date] = None
-) -> ReportData:
+def compile_report(owner: str, start: Optional[date] = None, end: Optional[date] = None) -> ReportData:
     data, _perf = _compile_summary(owner, start=start, end=end)
     return data
 
@@ -1831,11 +1799,7 @@ def report_to_pdf(document: ReportDocument) -> bytes:
         c.drawString(40, height - 220, "CONFIDENTIAL")
         # Render user-visible parameters, excluding internal PDF rendering keys
         # such as "watermark" which would otherwise leak into the visible report.
-        visible_params = {
-            k: v
-            for k, v in document.parameters.items()
-            if k not in _PDF_INTERNAL_PARAM_KEYS
-        }
+        visible_params = {k: v for k, v in document.parameters.items() if k not in _PDF_INTERNAL_PARAM_KEYS}
         if visible_params:
             y = height - 245
             c.setFont("Helvetica", 10)
@@ -1875,10 +1839,7 @@ def report_to_pdf(document: ReportDocument) -> bytes:
         line_word_count = 1
         for word in words[1:]:
             candidate = f"{line} {word}"
-            if (
-                c.stringWidth(candidate, "Helvetica", 11) <= max_width
-                or line_word_count < min_words_before_wrap
-            ):
+            if c.stringWidth(candidate, "Helvetica", 11) <= max_width or line_word_count < min_words_before_wrap:
                 line = candidate
                 line_word_count += 1
             else:
@@ -1907,11 +1868,7 @@ def report_to_pdf(document: ReportDocument) -> bytes:
         return y
 
     def _draw_key_findings_section(section: ReportSectionData, y: float) -> float:
-        findings = [
-            str(row.get("finding", "")).strip()
-            for row in section.rows
-            if str(row.get("finding", "")).strip()
-        ]
+        findings = [str(row.get("finding", "")).strip() for row in section.rows if str(row.get("finding", "")).strip()]
 
         def _restart_key_findings_page() -> float:
             next_y = _start_content_page()
@@ -1960,20 +1917,14 @@ def report_to_pdf(document: ReportDocument) -> bytes:
         if Table is None:
             c.setFont("Helvetica", 9)
             for row in section.rows:
-                line = " | ".join(
-                    _format_cell_value(column, row.get(column.key))
-                    for column in section.schema.columns
-                )
+                line = " | ".join(_format_cell_value(column, row.get(column.key)) for column in section.schema.columns)
                 c.drawString(40, y, line)
                 y -= 12
             return y - 10
 
         headers = [column.label for column in section.schema.columns]
         body_rows = [
-            [
-                _format_cell_value(column, row.get(column.key))
-                for column in section.schema.columns
-            ]
+            [_format_cell_value(column, row.get(column.key)) for column in section.schema.columns]
             for row in section.rows
         ]
         if body_rows:
@@ -1994,9 +1945,7 @@ def report_to_pdf(document: ReportDocument) -> bytes:
         )
         for row_idx in range(1, len(table_data)):
             if row_idx % 2 == 0:
-                table_style.add(
-                    "BACKGROUND", (0, row_idx), (-1, row_idx), colors.HexColor("#F7F9FC")
-                )
+                table_style.add("BACKGROUND", (0, row_idx), (-1, row_idx), colors.HexColor("#F7F9FC"))
         for idx, column in enumerate(section.schema.columns):
             if column.type == "number" or column.key.lower() in {"value", "amount_gbp", "price"}:
                 table_style.add("ALIGN", (idx, 1), (idx, -1), "RIGHT")

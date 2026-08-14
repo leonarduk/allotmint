@@ -1,11 +1,11 @@
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from backend.routes.virtual_portfolio import router
 from backend.common.virtual_portfolio import (
     VirtualPortfolio,
     VirtualPortfolioSummary,
 )
+from backend.routes.virtual_portfolio import router
 
 
 def create_app():

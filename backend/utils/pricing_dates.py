@@ -27,9 +27,7 @@ class PricingDateCalculator:
     ) -> None:
         self._weekday_func = weekday_func or _nearest_weekday
         self._explicit_reporting_date = (
-            self.resolve_weekday(reporting_date, forward=False)
-            if reporting_date is not None
-            else None
+            self.resolve_weekday(reporting_date, forward=False) if reporting_date is not None else None
         )
         if today is None and self._explicit_reporting_date is not None:
             today = self._explicit_reporting_date + dt.timedelta(days=1)

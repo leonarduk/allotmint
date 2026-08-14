@@ -1,8 +1,9 @@
 import sys
 from types import SimpleNamespace
 
-import backend.common.portfolio as portfolio
 from botocore.exceptions import ClientError
+
+import backend.common.portfolio as portfolio
 
 
 def test_load_trades_aws_success(monkeypatch):

@@ -8,9 +8,9 @@ from backend.common.data_loader import ProviderUnavailable, list_plots
 from backend.common.portfolio import build_owner_portfolio
 from backend.utils.scenario_tester import (
     _HORIZONS,
-    apply_historical_event_portfolio as apply_historical_event,
     apply_price_shock,
 )
+from backend.utils.scenario_tester import apply_historical_event_portfolio as apply_historical_event
 
 router = APIRouter(tags=["scenario"])
 
@@ -57,9 +57,7 @@ def run_scenario(
 def run_historical_scenario(
     event_id: str | None = Query(None, description="Historical event identifier"),
     date: str | None = Query(None, description="Event date (YYYY-MM-DD)"),
-    horizons: List[str] = Query(
-        ..., description="Event horizons as day counts or tokens like '1w'"
-    ),
+    horizons: List[str] = Query(..., description="Event horizons as day counts or tokens like '1w'"),
 ):
     """Calculate shocked portfolio values for a historical event.
 
@@ -109,17 +107,10 @@ def run_historical_scenario(
             baseline = sum(a.get("value_estimate_gbp") or 0.0 for a in pf.get("accounts", []))
             pf["total_value_estimate_gbp"] = baseline
 
-        shocked = apply_historical_event(
-            pf, event_id=event_id, date=date, horizons=parsed
-        )
+        shocked = apply_historical_event(pf, event_id=event_id, date=date, horizons=parsed)
         horizon_map = {}
         for label, days in label_pairs:
-            shocked_pf = (
-                shocked.get(days)
-                or shocked.get(label)
-                or shocked.get(str(days))
-                or {}
-            )
+            shocked_pf = shocked.get(days) or shocked.get(label) or shocked.get(str(days)) or {}
             val = shocked_pf.get("total_value_estimate_gbp")
             if val is None:
                 val = shocked_pf.get("total_value_gbp")

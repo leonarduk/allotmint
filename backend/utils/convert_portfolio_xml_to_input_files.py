@@ -3,10 +3,11 @@ import os
 from datetime import date, datetime
 from pathlib import Path
 
+from positions import extract_holdings_from_transactions
+
 from backend.common.approvals import is_approval_valid, load_approvals
 from backend.common.instruments import get_instrument_meta
 from backend.config import config
-from positions import extract_holdings_from_transactions
 
 
 def normalize_account(account: str) -> tuple[str, str]:
@@ -50,9 +51,7 @@ def generate_json_holdings(xml_path: str, output_base_dir: str | Path = config.a
             meta_tkr = str(row.get("ticker", "")).strip().upper()
             meta = get_instrument_meta(meta_tkr)
             instr_type = (meta.get("instrumentType") or meta.get("instrument_type") or "").upper()
-            asset_class = (
-                meta.get("assetClass") or meta.get("asset_class") or ""
-            ).upper()
+            asset_class = (meta.get("assetClass") or meta.get("asset_class") or "").upper()
             sector = (meta.get("sector") or "").upper()
             is_commodity = asset_class == "COMMODITY" or sector == "COMMODITY"
             is_etf = instr_type == "ETF"

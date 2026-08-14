@@ -36,9 +36,7 @@ def test_resolve_accounts_root_uses_cached_state(tmp_path: Path) -> None:
     assert request.app.state.accounts_root == tmp_path
 
 
-def test_resolve_accounts_root_falls_back_to_global_directory(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_resolve_accounts_root_falls_back_to_global_directory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """When configured paths are missing the helper should use the global fallback."""
 
     from backend.common import data_loader
@@ -122,9 +120,7 @@ def test_resolve_accounts_root_handles_deleted_cached_directory(
             return SimpleNamespace(accounts_root=tmp_path / "missing-from-config")
         if repo_root is None and accounts_root is None:
             return SimpleNamespace(accounts_root=fallback_root)
-        raise AssertionError(
-            f"Unexpected resolve_paths call: {repo_root!r}, {accounts_root!r}"
-        )
+        raise AssertionError(f"Unexpected resolve_paths call: {repo_root!r}, {accounts_root!r}")
 
     monkeypatch.setattr(data_loader, "resolve_paths", fake_resolve_paths)
 

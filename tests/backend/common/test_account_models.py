@@ -37,9 +37,7 @@ class TestOwnerSummaryRecord:
             OwnerSummaryRecord.model_validate({"owner": "alice", "accounts": "isa"})
 
     def test_duplicate_accounts_are_deduped_case_insensitively(self) -> None:
-        record = OwnerSummaryRecord.model_validate(
-            {"owner": "alice", "accounts": ["isa", "ISA", "Isa", "sipp"]}
-        )
+        record = OwnerSummaryRecord.model_validate({"owner": "alice", "accounts": ["isa", "ISA", "Isa", "sipp"]})
 
         assert record.accounts == ["isa", "sipp"]
 

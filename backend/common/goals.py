@@ -2,18 +2,16 @@ from __future__ import annotations
 
 """Goal tracking helpers."""
 
+import os
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from typing import Dict, List
-import os
 
-from backend.common.storage import get_storage, JSONStorage
+from backend.common.storage import JSONStorage, get_storage
 from backend.config import config
 
-_DEFAULT_GOALS_URI = (
-    f"file://{(config.repo_root or Path(__file__).resolve().parents[1]) / 'data' / 'goals.json'}"
-)
+_DEFAULT_GOALS_URI = f"file://{(config.repo_root or Path(__file__).resolve().parents[1]) / 'data' / 'goals.json'}"
 
 try:
     _STORAGE: JSONStorage = get_storage(os.getenv("GOALS_STORAGE_URI", _DEFAULT_GOALS_URI))
@@ -51,6 +49,7 @@ class Goal:
 
 
 # persistence helpers ---------------------------------------------------------
+
 
 def _load_raw() -> Dict[str, List[Dict[str, object]]]:
     data = _STORAGE.load()

@@ -1,6 +1,6 @@
+import pytest
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.testclient import TestClient
-import pytest
 
 import backend.routes.nudges as nudges
 from backend.common.account_models import OwnerSummaryRecord
@@ -73,9 +73,7 @@ def test_snooze_calls_snooze_user(tmp_path, monkeypatch):
 
 def test_list_nudges_gets_recent_nudges(tmp_path, monkeypatch):
     nudges_list = [{"id": 1}]
-    monkeypatch.setattr(
-        nudges.nudge_utils, "get_recent_nudges", lambda limit=50: nudges_list
-    )
+    monkeypatch.setattr(nudges.nudge_utils, "get_recent_nudges", lambda limit=50: nudges_list)
     client = make_client(tmp_path, monkeypatch)
     resp = client.get("/nudges/")
     assert resp.status_code == 200

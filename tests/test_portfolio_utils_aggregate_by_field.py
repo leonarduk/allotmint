@@ -1,6 +1,7 @@
+import pytest
+
 import backend.common.portfolio_utils as portfolio_utils
 from backend.common import instrument_api
-import pytest
 
 
 def _sample_portfolio():

@@ -1,5 +1,4 @@
 import pandas as pd
-import pytest
 
 from backend.common import portfolio_utils as pu
 

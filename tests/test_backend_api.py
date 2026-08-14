@@ -69,9 +69,7 @@ def mock_group_portfolio(monkeypatch):
             "total_value_estimate_gbp": 100.0,
         }
 
-    monkeypatch.setattr(
-        "backend.common.group_portfolio.build_group_portfolio", _build
-    )
+    monkeypatch.setattr("backend.common.group_portfolio.build_group_portfolio", _build)
 
 
 @pytest.fixture
@@ -98,9 +96,7 @@ def mock_timeseries_for_ticker(monkeypatch):
         mini = {"7": prices[-7:], "30": prices[-30:], "180": prices[-180:]}
         return {"prices": prices, "mini": mini}
 
-    monkeypatch.setattr(
-        "backend.common.instrument_api.timeseries_for_ticker", _fake_timeseries
-    )
+    monkeypatch.setattr("backend.common.instrument_api.timeseries_for_ticker", _fake_timeseries)
 
 
 @pytest.fixture
@@ -110,9 +106,7 @@ def mock_positions_for_ticker(monkeypatch):
     def _fake_positions(group_slug: str, ticker: str):
         return [{"gain_pct": 0.0}]
 
-    monkeypatch.setattr(
-        "backend.common.instrument_api.positions_for_ticker", _fake_positions
-    )
+    monkeypatch.setattr("backend.common.instrument_api.positions_for_ticker", _fake_positions)
 
 
 def validate_timeseries(prices):
@@ -342,9 +336,7 @@ def test_prices_live_missing_timestamp(client, monkeypatch):
 
 
 def test_prices_live_defaults_to_portfolio_universe(client, monkeypatch):
-    monkeypatch.setattr(
-        "backend.common.portfolio_utils.list_all_unique_tickers", lambda: ["STUB.L"]
-    )
+    monkeypatch.setattr("backend.common.portfolio_utils.list_all_unique_tickers", lambda: ["STUB.L"])
     monkeypatch.setattr("backend.common.holding_utils.load_live_prices", lambda t: {})
     monkeypatch.setattr("backend.common.holding_utils.load_latest_prices", lambda t: {})
 
@@ -396,6 +388,7 @@ def _post_sample_tx(client, owner: str, account: str, **overrides):
     payload.update(overrides)
     return client.post("/transactions", json=payload)
 
+
 @pytest.mark.xfail(reason="To fix")
 def test_post_transaction_persists_and_updates_portfolio(client):
     owners = _get_owners(client)
@@ -423,6 +416,7 @@ def test_post_transaction_persists_and_updates_portfolio(client):
 
     after = client.get(f"/portfolio/{owner}").json()["total_value_estimate_gbp"]
     assert after == pytest.approx(before + 10.0)
+
 
 @pytest.mark.parametrize(
     "field,value",
@@ -555,26 +549,62 @@ def test_hash_params_helper(monkeypatch):
     monkeypatch.setattr("backend.screener.fetch_fundamentals", mock_fetch)
 
     symbols = ["AAA", "BBB"]
-    page1, call1 = _hash_params(symbols, peg_max=1, pe_max=None, de_max=None, lt_de_max=None,
-                                interest_coverage_min=None, current_ratio_min=None,
-                                quick_ratio_min=None, fcf_min=None, eps_min=None,
-                                gross_margin_min=None, operating_margin_min=None,
-                                net_margin_min=None, ebitda_margin_min=None, roa_min=None,
-                                roe_min=0.15, roi_min=None, dividend_yield_min=None,
-                                dividend_payout_ratio_max=None, beta_max=None,
-                                shares_outstanding_min=None, float_shares_min=None,
-                                market_cap_min=None, high_52w_max=None, low_52w_min=None,
-                                avg_volume_min=None)
-    page2, _ = _hash_params(symbols, peg_max=1, pe_max=None, de_max=None, lt_de_max=None,
-                             interest_coverage_min=None, current_ratio_min=None,
-                             quick_ratio_min=None, fcf_min=None, eps_min=None,
-                             gross_margin_min=None, operating_margin_min=None,
-                             net_margin_min=None, ebitda_margin_min=None, roa_min=None,
-                             roe_min=0.15, roi_min=None, dividend_yield_min=None,
-                             dividend_payout_ratio_max=None, beta_max=None,
-                             shares_outstanding_min=None, float_shares_min=None,
-                             market_cap_min=None, high_52w_max=None, low_52w_min=None,
-                             avg_volume_min=None)
+    page1, call1 = _hash_params(
+        symbols,
+        peg_max=1,
+        pe_max=None,
+        de_max=None,
+        lt_de_max=None,
+        interest_coverage_min=None,
+        current_ratio_min=None,
+        quick_ratio_min=None,
+        fcf_min=None,
+        eps_min=None,
+        gross_margin_min=None,
+        operating_margin_min=None,
+        net_margin_min=None,
+        ebitda_margin_min=None,
+        roa_min=None,
+        roe_min=0.15,
+        roi_min=None,
+        dividend_yield_min=None,
+        dividend_payout_ratio_max=None,
+        beta_max=None,
+        shares_outstanding_min=None,
+        float_shares_min=None,
+        market_cap_min=None,
+        high_52w_max=None,
+        low_52w_min=None,
+        avg_volume_min=None,
+    )
+    page2, _ = _hash_params(
+        symbols,
+        peg_max=1,
+        pe_max=None,
+        de_max=None,
+        lt_de_max=None,
+        interest_coverage_min=None,
+        current_ratio_min=None,
+        quick_ratio_min=None,
+        fcf_min=None,
+        eps_min=None,
+        gross_margin_min=None,
+        operating_margin_min=None,
+        net_margin_min=None,
+        ebitda_margin_min=None,
+        roa_min=None,
+        roe_min=0.15,
+        roi_min=None,
+        dividend_yield_min=None,
+        dividend_payout_ratio_max=None,
+        beta_max=None,
+        shares_outstanding_min=None,
+        float_shares_min=None,
+        market_cap_min=None,
+        high_52w_max=None,
+        low_52w_min=None,
+        avg_volume_min=None,
+    )
     assert page1 == page2
     payload = call1()
     assert [d["ticker"] for d in payload] == ["AAA"]

@@ -47,9 +47,7 @@ def test_get_storage_unknown_scheme():
 
 
 def _client_error(operation):
-    return ClientError(
-        {"Error": {"Code": "TestException", "Message": "boom"}}, operation
-    )
+    return ClientError({"Error": {"Code": "TestException", "Message": "boom"}}, operation)
 
 
 def test_s3_load_client_error(monkeypatch):

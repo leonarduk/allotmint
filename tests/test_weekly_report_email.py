@@ -1,5 +1,3 @@
-import pytest
-
 from backend.emails import weekly_report
 
 

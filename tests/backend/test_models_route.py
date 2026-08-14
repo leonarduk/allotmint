@@ -12,8 +12,5 @@ def test_models_route_returns_available_models():
         resp = client.get("/v1/models")
 
     assert resp.status_code == 200
-    expected = {
-        "data": [{"id": name, "object": "model"} for name in models.MODEL_NAMES]
-    }
+    expected = {"data": [{"id": name, "object": "model"} for name in models.MODEL_NAMES]}
     assert resp.json() == expected
-

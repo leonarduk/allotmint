@@ -18,9 +18,9 @@ import pytest
 os.environ.setdefault("TESTING", "1")
 os.environ.setdefault("DATA_ROOT", str(Path(__file__).resolve().parent.parent / "data"))
 
-from backend.config import config
-from backend import auth as auth_module
 from backend import app as app_module
+from backend import auth as auth_module
+from backend.config import config
 
 _real_verify_google_token = auth_module.verify_google_token
 
@@ -34,9 +34,7 @@ def pytest_pyfunc_call(pyfuncitem):
         return None
 
     call_kwargs = {
-        name: value
-        for name, value in pyfuncitem.funcargs.items()
-        if name in pyfuncitem._fixtureinfo.argnames
+        name: value for name, value in pyfuncitem.funcargs.items() if name in pyfuncitem._fixtureinfo.argnames
     }
 
     loop = asyncio.new_event_loop()

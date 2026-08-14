@@ -1,14 +1,13 @@
-import os
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
-from backend import config as backend_config
-from backend.local_api.main import app
 from backend import alerts as alert_utils
+from backend import config as backend_config
 from backend.common import data_loader
 from backend.common.storage import get_storage
+from backend.local_api.main import app
 
 
 @pytest.fixture

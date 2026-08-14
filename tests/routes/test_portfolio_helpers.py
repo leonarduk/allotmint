@@ -6,7 +6,6 @@ from starlette.requests import Request
 
 from backend.common.account_models import PersonMetadata
 from backend.routes import portfolio as portfolio_routes
-from backend.common import data_loader
 
 
 def _make_request_with_root(tmp_path: Path) -> Request:

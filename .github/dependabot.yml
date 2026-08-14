@@ -14,7 +14,6 @@ updates:
       day: "monday"
     labels:
       - "dependencies"
-      - "chore"
 
   # Root npm workspace: package.json and package-lock.json in the repo root.
   - package-ecosystem: "npm"
@@ -24,7 +23,6 @@ updates:
       day: "monday"
     labels:
       - "dependencies"
-      - "chore"
 
   # Frontend npm workspace: React/Vite app dependencies in frontend/.
   # Patch-level bumps of direct dev dependencies from this entry are
@@ -38,7 +36,6 @@ updates:
       day: "monday"
     labels:
       - "dependencies"
-      - "chore"
 
   # Root Python dependencies: requirements.txt plus requirements-dev.txt.
   - package-ecosystem: "pip"
@@ -48,7 +45,6 @@ updates:
       day: "monday"
     labels:
       - "dependencies"
-      - "chore"
 
   # CDK Python dependencies: infrastructure requirements in cdk/.
   - package-ecosystem: "pip"
@@ -58,7 +54,6 @@ updates:
       day: "monday"
     labels:
       - "dependencies"
-      - "chore"
 
   # Backend Python dependencies: runtime deps in backend/requirements*.txt.
   - package-ecosystem: "pip"
@@ -68,4 +63,3 @@ updates:
       day: "monday"
     labels:
       - "dependencies"
-      - "chore"

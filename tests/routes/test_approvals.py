@@ -7,17 +7,16 @@ import os
 from pathlib import Path
 from typing import Any
 
+import pytest
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
-import pytest
 
-import backend.routes.approvals as approvals
 import backend.routes._accounts as account_utils
+import backend.routes.approvals as approvals
 from backend.common.data_loader import ResolvedPaths
 from backend.common.errors import AppError
 from backend.config import config
-
 
 _DEFAULT = object()
 
@@ -78,9 +77,7 @@ def test_get_approvals_success(tmp_path: Path) -> None:
     client = make_client(tmp_path)
     resp = client.get("/accounts/bob/approvals")
     assert resp.status_code == 200
-    assert resp.json() == {
-        "approvals": [{"ticker": "ADM.L", "approved_on": "2024-06-04"}]
-    }
+    assert resp.json() == {"approvals": [{"ticker": "ADM.L", "approved_on": "2024-06-04"}]}
 
 
 def test_post_approval_request_success(tmp_path: Path) -> None:
@@ -133,12 +130,8 @@ def test_post_approval_request_owner_dir_case_insensitive(tmp_path: Path) -> Non
     assert resp.status_code == 200
 
 
-def test_post_approval_request_accounts_root_fallback(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    state_root, default_missing, owner_dir, calls = configure_accounts_root_fallback(
-        tmp_path, monkeypatch
-    )
+def test_post_approval_request_accounts_root_fallback(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    state_root, default_missing, owner_dir, calls = configure_accounts_root_fallback(tmp_path, monkeypatch)
 
     client = make_client(tmp_path, accounts_root=state_root)
     resp = client.post("/accounts/bob/approval-requests", json={"ticker": "adm.l"})
@@ -158,9 +151,7 @@ def test_post_approval_request_accounts_root_fallback(
         ({"approved_on": "not-a-date"}, "invalid approved_on"),
     ],
 )
-def test_post_approval_invalid_or_missing_approved_on(
-    tmp_path: Path, payload: dict[str, str], detail: str
-) -> None:
+def test_post_approval_invalid_or_missing_approved_on(tmp_path: Path, payload: dict[str, str], detail: str) -> None:
     (tmp_path / "bob").mkdir()
     client = make_client(tmp_path)
     data = {"ticker": "ADM.L", **payload}
@@ -172,26 +163,16 @@ def test_post_approval_invalid_or_missing_approved_on(
 def test_post_approval_success(tmp_path: Path) -> None:
     (tmp_path / "bob").mkdir()
     client = make_client(tmp_path)
-    resp = client.post(
-        "/accounts/bob/approvals", json={"ticker": "adm.l", "approved_on": "2024-06-04"}
-    )
+    resp = client.post("/accounts/bob/approvals", json={"ticker": "adm.l", "approved_on": "2024-06-04"})
     assert resp.status_code == 200
-    assert resp.json()["approvals"] == [
-        {"ticker": "ADM.L", "approved_on": "2024-06-04"}
-    ]
+    assert resp.json()["approvals"] == [{"ticker": "ADM.L", "approved_on": "2024-06-04"}]
 
 
-def test_post_approval_accounts_root_fallback(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    state_root, default_missing, owner_dir, calls = configure_accounts_root_fallback(
-        tmp_path, monkeypatch
-    )
+def test_post_approval_accounts_root_fallback(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    state_root, default_missing, owner_dir, calls = configure_accounts_root_fallback(tmp_path, monkeypatch)
 
     client = make_client(tmp_path, accounts_root=state_root)
-    resp = client.post(
-        "/accounts/bob/approvals", json={"ticker": "adm.l", "approved_on": "2024-06-04"}
-    )
+    resp = client.post("/accounts/bob/approvals", json={"ticker": "adm.l", "approved_on": "2024-06-04"})
 
     assert resp.status_code == 200
     saved_path = owner_dir / "approvals.json"
@@ -204,9 +185,7 @@ def test_post_approval_accounts_root_fallback(
 
 def test_post_approval_missing_owner(tmp_path: Path) -> None:
     client = make_client(tmp_path)
-    resp = client.post(
-        "/accounts/missing/approvals", json={"ticker": "ADM.L", "approved_on": "2024-06-04"}
-    )
+    resp = client.post("/accounts/missing/approvals", json={"ticker": "ADM.L", "approved_on": "2024-06-04"})
     assert resp.status_code == 404
     assert resp.json() == {"detail": "Owner not found"}
 
@@ -219,9 +198,7 @@ def test_post_approval_write_failure(tmp_path: Path, monkeypatch: pytest.MonkeyP
         raise OSError("db down")
 
     monkeypatch.setattr(approvals, "upsert_approval", boom)
-    resp = client.post(
-        "/accounts/bob/approvals", json={"ticker": "ADM.L", "approved_on": "2024-06-04"}
-    )
+    resp = client.post("/accounts/bob/approvals", json={"ticker": "ADM.L", "approved_on": "2024-06-04"})
     assert resp.status_code == 500
     assert "Internal Server Error" in resp.text
 
@@ -229,9 +206,7 @@ def test_post_approval_write_failure(tmp_path: Path, monkeypatch: pytest.MonkeyP
 def test_delete_approval_route_success(tmp_path: Path) -> None:
     (tmp_path / "bob").mkdir()
     client = make_client(tmp_path)
-    client.post(
-        "/accounts/bob/approvals", json={"ticker": "ADM.L", "approved_on": "2024-06-04"}
-    )
+    client.post("/accounts/bob/approvals", json={"ticker": "ADM.L", "approved_on": "2024-06-04"})
     resp = client.request("DELETE", "/accounts/bob/approvals", json={"ticker": "ADM.L"})
     assert resp.status_code == 200
     assert resp.json()["approvals"] == []
@@ -240,22 +215,14 @@ def test_delete_approval_route_success(tmp_path: Path) -> None:
 def test_delete_approval_route_nonexistent_ticker(tmp_path: Path) -> None:
     (tmp_path / "bob").mkdir()
     client = make_client(tmp_path)
-    client.post(
-        "/accounts/bob/approvals", json={"ticker": "ADM.L", "approved_on": "2024-06-04"}
-    )
+    client.post("/accounts/bob/approvals", json={"ticker": "ADM.L", "approved_on": "2024-06-04"})
     resp = client.request("DELETE", "/accounts/bob/approvals", json={"ticker": "XYZ"})
     assert resp.status_code == 200
-    assert resp.json()["approvals"] == [
-        {"ticker": "ADM.L", "approved_on": "2024-06-04"}
-    ]
+    assert resp.json()["approvals"] == [{"ticker": "ADM.L", "approved_on": "2024-06-04"}]
 
 
-def test_delete_approval_accounts_root_fallback(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    state_root, default_missing, owner_dir, calls = configure_accounts_root_fallback(
-        tmp_path, monkeypatch
-    )
+def test_delete_approval_accounts_root_fallback(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    state_root, default_missing, owner_dir, calls = configure_accounts_root_fallback(tmp_path, monkeypatch)
     saved_path = owner_dir / "approvals.json"
     saved_path.write_text(
         json.dumps(

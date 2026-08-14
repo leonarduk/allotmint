@@ -101,9 +101,7 @@ def test_compute_and_store_metrics_writes_file(monkeypatch, tmp_path):
     ]
 
     as_of = dt.date(2024, 1, 31)
-    metrics_data = metrics.compute_and_store_metrics(
-        "owner", txs, as_of=as_of, portfolio_value=100
-    )
+    metrics_data = metrics.compute_and_store_metrics("owner", txs, as_of=as_of, portfolio_value=100)
 
     metrics_path = tmp_path / "owner_metrics.json"
     assert metrics_path.exists()
@@ -112,9 +110,5 @@ def test_compute_and_store_metrics_writes_file(monkeypatch, tmp_path):
     assert stored == metrics_data
     assert metrics_data["owner"] == "owner"
     assert metrics_data["as_of"] == as_of.isoformat()
-    assert metrics_data["turnover"] == metrics.calculate_portfolio_turnover(
-        "owner", txs, portfolio_value=100
-    )
-    assert metrics_data["average_holding_period"] == metrics.calculate_average_holding_period(
-        "owner", txs, as_of=as_of
-    )
+    assert metrics_data["turnover"] == metrics.calculate_portfolio_turnover("owner", txs, portfolio_value=100)
+    assert metrics_data["average_holding_period"] == metrics.calculate_average_holding_period("owner", txs, as_of=as_of)

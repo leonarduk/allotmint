@@ -61,9 +61,7 @@ def register_middleware(app: FastAPI, cfg: Config) -> None:
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
 
     default_cors = ["http://localhost:3000", "http://localhost:5173"]
-    cors_origins = _validate_cors_origins(
-        list(dict.fromkeys((cfg.cors_origins or []) + default_cors))
-    )
+    cors_origins = _validate_cors_origins(list(dict.fromkeys((cfg.cors_origins or []) + default_cors)))
     app.add_middleware(
         CORSMiddleware,
         allow_origins=cors_origins,
@@ -87,9 +85,7 @@ def register_middleware(app: FastAPI, cfg: Config) -> None:
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(_: Request, exc: RequestValidationError):
         status = 422 if exc.body is not None else 400
-        return JSONResponse(
-            status_code=status, content={"detail": _sanitize_error_details(exc.errors())}
-        )
+        return JSONResponse(status_code=status, content={"detail": _sanitize_error_details(exc.errors())})
 
 
 def _validate_cors_origins(origins: list[str]) -> list[str]:

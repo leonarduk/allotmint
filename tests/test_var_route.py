@@ -2,9 +2,9 @@ import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
+from backend.app import create_app
 from backend.common import portfolio as portfolio_mod
 from backend.common import portfolio_utils
-from backend.app import create_app
 
 
 def _auth_client():

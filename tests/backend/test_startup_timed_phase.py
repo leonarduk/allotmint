@@ -14,6 +14,7 @@ in (see ``AppLifecycleService._warm_snapshot``). It must:
 * tolerate a ``None`` or non-string phase name via ``sanitise_log_value``
   rather than raising while trying to log.
 """
+
 from __future__ import annotations
 
 import json
@@ -37,12 +38,9 @@ def test_timed_phase_logs_duration_and_reraises_on_exception(
             with _timed_phase("exploding_phase"):
                 raise ValueError("boom")
 
-    phase_records = [
-        record for record in caplog.records if getattr(record, "phase", None) == "exploding_phase"
-    ]
-    assert len(phase_records) == 1, (
-        "Expected exactly one 'cold_start_phase' log for the failing phase, got: "
-        + str([r.message for r in caplog.records])
+    phase_records = [record for record in caplog.records if getattr(record, "phase", None) == "exploding_phase"]
+    assert len(phase_records) == 1, "Expected exactly one 'cold_start_phase' log for the failing phase, got: " + str(
+        [r.message for r in caplog.records]
     )
     record = phase_records[0]
     assert record.levelno == logging.INFO

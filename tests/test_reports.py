@@ -156,22 +156,16 @@ def test_build_report_document_uses_context(monkeypatch):
     )
     performance = {"history": history, "reporting_date": "2024-01-01", "max_drawdown": -0.1}
 
-    monkeypatch.setattr(
-        reports, "_compile_summary", lambda owner, start, end: (summary, performance)
-    )
+    monkeypatch.setattr(reports, "_compile_summary", lambda owner, start, end: (summary, performance))
     monkeypatch.setattr(
         reports,
         "_load_transactions",
-        lambda owner: [
-            {"date": "2024-01-01", "type": "SELL", "amount_minor": 1000, "currency": "GBP"}
-        ],
+        lambda owner: [{"date": "2024-01-01", "type": "SELL", "amount_minor": 1000, "currency": "GBP"}],
     )
     monkeypatch.setattr(
         reports.portfolio_utils,
         "portfolio_value_breakdown",
-        lambda owner, date: [
-            {"ticker": "ABC", "exchange": "L", "units": 2, "price": 10.5, "value": 21.0}
-        ],
+        lambda owner, date: [{"ticker": "ABC", "exchange": "L", "units": 2, "price": 10.5, "value": 21.0}],
     )
 
     document = reports.build_report_document("performance-summary", "alice")
@@ -186,6 +180,7 @@ def test_build_report_document_uses_context(monkeypatch):
 # ---------------------------------------------------------------------------
 # Helpers shared across portfolio section tests
 # ---------------------------------------------------------------------------
+
 
 def _portfolio_template():
     return reports.ReportTemplate(
@@ -213,6 +208,7 @@ def _preloaded_context(portfolio: dict) -> reports.ReportContext:
 # ---------------------------------------------------------------------------
 # Happy-path integration test
 # ---------------------------------------------------------------------------
+
 
 def test_portfolio_section_builders(monkeypatch):
     portfolio_payload = {
@@ -302,16 +298,13 @@ def test_portfolio_section_builders(monkeypatch):
     monkeypatch.setattr(reports.risk, "compute_sharpe_ratio", lambda owner: 1.23456)
     monkeypatch.setattr(reports, "get_template", lambda template_id, store=None: _portfolio_template())
 
-    document = reports.build_report_document(
-        "portfolio-insights", "alice", end=date(2024, 1, 31)
-    )
+    document = reports.build_report_document("portfolio-insights", "alice", end=date(2024, 1, 31))
     sources = {section.schema.source: section.rows for section in document.sections}
 
     overview_rows = sources["portfolio.overview"]
     assert any(row["label"] == "Total portfolio value" and row["value"] == 1000.0 for row in overview_rows)
     assert any(
-        row["category"] == "asset_class" and row["label"] == "Equity" and row["value"] == 700.0
-        for row in overview_rows
+        row["category"] == "asset_class" and row["label"] == "Equity" and row["value"] == 700.0 for row in overview_rows
     )
 
     sectors_rows = sources["portfolio.sectors"]
@@ -346,6 +339,7 @@ def test_portfolio_section_builders(monkeypatch):
 # Overview builder edge cases
 # ---------------------------------------------------------------------------
 
+
 def test_overview_empty_accounts(monkeypatch):
     """Overview with no accounts produces only summary rows (no account/asset_class rows)."""
     ctx = _preloaded_context({"total_value_estimate_gbp": 500.0, "accounts": []})
@@ -360,16 +354,20 @@ def test_overview_empty_accounts(monkeypatch):
 
 def test_overview_non_dict_account_entries_are_skipped(monkeypatch):
     """Non-dict entries in the accounts list must be skipped in both passes without raising."""
-    ctx = _preloaded_context({
-        "total_value_estimate_gbp": 200.0,
-        "accounts": [
-            "not-a-dict",
-            None,
-            {"account_type": "ISA", "value_estimate_gbp": 200.0, "holdings": [
-                {"asset_class": "Equity", "market_value_gbp": 200.0}
-            ]},
-        ],
-    })
+    ctx = _preloaded_context(
+        {
+            "total_value_estimate_gbp": 200.0,
+            "accounts": [
+                "not-a-dict",
+                None,
+                {
+                    "account_type": "ISA",
+                    "value_estimate_gbp": 200.0,
+                    "holdings": [{"asset_class": "Equity", "market_value_gbp": 200.0}],
+                },
+            ],
+        }
+    )
     result = reports._build_portfolio_overview_section(ctx, reports.PORTFOLIO_OVERVIEW_SECTION)
     account_rows = [r for r in result if r["category"] == "account"]
     # Only the dict account should produce a row
@@ -384,6 +382,7 @@ def test_overview_non_dict_account_entries_are_skipped(monkeypatch):
 # ---------------------------------------------------------------------------
 # Sectors / regions edge cases
 # ---------------------------------------------------------------------------
+
 
 def test_sectors_weight_pct_sums_to_100(monkeypatch):
     """weight_pct values across all sector rows should sum to 100%."""
@@ -436,14 +435,12 @@ def test_sectors_zero_total_value_yields_none_weight(monkeypatch):
 # Concentration edge cases
 # ---------------------------------------------------------------------------
 
+
 def test_concentration_n_holdings_is_total_not_top_n(monkeypatch):
     """n_holdings in the summary row must reflect total portfolio holding count,
     not the capped top-10 slice."""
     # 12 holdings: top-10 slice != total
-    tickers = [
-        {"ticker": f"T{i:02d}.L", "market_value_gbp": float(100 - i * 5)}
-        for i in range(12)
-    ]
+    tickers = [{"ticker": f"T{i:02d}.L", "market_value_gbp": float(100 - i * 5)} for i in range(12)]
     monkeypatch.setattr(
         reports.portfolio_utils,
         "aggregate_by_ticker",
@@ -464,9 +461,7 @@ def test_concentration_n_holdings_is_total_not_top_n(monkeypatch):
     expected_hhi = sum((t["market_value_gbp"] / total_value) ** 2 for t in tickers)
     assert summary["hhi"] == pytest.approx(expected_hhi, abs=1e-6)
     # top_n_weight_pct covers only the top-10 by value
-    top10_weight = sum(sorted(
-        [t["market_value_gbp"] for t in tickers], reverse=True
-    )[:10]) / total_value * 100.0
+    top10_weight = sum(sorted([t["market_value_gbp"] for t in tickers], reverse=True)[:10]) / total_value * 100.0
     assert summary["top_n_weight_pct"] == pytest.approx(top10_weight, abs=1e-4)
 
 
@@ -474,10 +469,12 @@ def test_concentration_n_holdings_is_total_not_top_n(monkeypatch):
 # VaR edge cases
 # ---------------------------------------------------------------------------
 
+
 def test_portfolio_var_partial_failure_one_confidence_level(monkeypatch):
     """If 0.95 raises but 0.99 succeeds, the section returns only the 0.99 rows."""
-    monkeypatch.setattr(reports.portfolio_mod, "build_owner_portfolio",
-                        lambda owner, pricing_date=None: {"accounts": []})
+    monkeypatch.setattr(
+        reports.portfolio_mod, "build_owner_portfolio", lambda owner, pricing_date=None: {"accounts": []}
+    )
 
     call_count = {"n": 0}
 
@@ -504,13 +501,18 @@ def test_portfolio_var_partial_failure_one_confidence_level(monkeypatch):
 
 def test_portfolio_var_omits_sharpe_row_when_sharpe_fails(monkeypatch):
     """When VaR succeeds but compute_sharpe_ratio raises, no Sharpe row is appended."""
-    monkeypatch.setattr(reports.portfolio_mod, "build_owner_portfolio",
-                        lambda owner, pricing_date=None: {"accounts": []})
+    monkeypatch.setattr(
+        reports.portfolio_mod, "build_owner_portfolio", lambda owner, pricing_date=None: {"accounts": []}
+    )
     monkeypatch.setattr(
         reports,
         "risk",
         SimpleNamespace(
-            compute_portfolio_var=lambda owner, confidence, include_cash=True: {"confidence": confidence, "1d": 10.0, "10d": 20.0},
+            compute_portfolio_var=lambda owner, confidence, include_cash=True: {
+                "confidence": confidence,
+                "1d": 10.0,
+                "10d": 20.0,
+            },
             compute_sharpe_ratio=Mock(side_effect=ValueError("no returns")),
         ),
     )
@@ -522,8 +524,9 @@ def test_portfolio_var_omits_sharpe_row_when_sharpe_fails(monkeypatch):
 
 def test_portfolio_var_returns_empty_when_var_rows_unavailable(monkeypatch):
     """VaR builder returns [] when both confidence-level calls raise."""
-    monkeypatch.setattr(reports.portfolio_mod, "build_owner_portfolio",
-                        lambda owner, pricing_date=None: {"accounts": []})
+    monkeypatch.setattr(
+        reports.portfolio_mod, "build_owner_portfolio", lambda owner, pricing_date=None: {"accounts": []}
+    )
     monkeypatch.setattr(
         reports,
         "risk",
@@ -540,6 +543,7 @@ def test_portfolio_var_returns_empty_when_var_rows_unavailable(monkeypatch):
 # ---------------------------------------------------------------------------
 # Caching / module-missing paths
 # ---------------------------------------------------------------------------
+
 
 def test_owner_portfolio_failure_is_cached_once_per_report_build(monkeypatch):
     call_count = {"count": 0}
@@ -603,6 +607,7 @@ def test_portfolio_sections_return_empty_when_optional_modules_missing(monkeypat
 # ---------------------------------------------------------------------------
 # Template store / existing tests
 # ---------------------------------------------------------------------------
+
 
 def test_list_template_metadata_merges_user_templates(tmp_path):
     reports.get_template_store.cache_clear()
@@ -922,12 +927,8 @@ def test_audit_report_portfolio_sections_use_requested_end_snapshot(monkeypatch)
     assert list(rows_by_source["portfolio.overview"]) == [
         {"total_value_gbp": 500.0, "holdings_count": 1, "accounts_count": 1}
     ]
-    assert list(rows_by_source["portfolio.sectors"]) == [
-        {"sector": "dated", "value": 500.0, "weight": 1.0}
-    ]
-    assert list(rows_by_source["portfolio.regions"]) == [
-        {"region": "dated", "value": 500.0, "weight": 1.0}
-    ]
+    assert list(rows_by_source["portfolio.sectors"]) == [{"sector": "dated", "value": 500.0, "weight": 1.0}]
+    assert list(rows_by_source["portfolio.regions"]) == [{"region": "dated", "value": 500.0, "weight": 1.0}]
     assert rows_by_source["portfolio.concentration"][0]["ticker"] == "dated"
     assert observed_pricing_dates == [requested_end]
 
@@ -1143,8 +1144,7 @@ def test_build_key_findings_section_skips_standalone_separator_line(tmp_path, mo
     owner_dir = tmp_path / "accounts" / "demo-owner"
     owner_dir.mkdir(parents=True)
     (owner_dir / "key_findings.md").write_text(
-        "---\n"
-        "- Portfolio is well-diversified across 4 regions and 8 sectors.\n",
+        "---\n" "- Portfolio is well-diversified across 4 regions and 8 sectors.\n",
         encoding="utf-8",
     )
 
@@ -1166,9 +1166,7 @@ def test_build_key_findings_section_skips_setext_heading_preamble(tmp_path, monk
     owner_dir = tmp_path / "accounts" / "demo-owner"
     owner_dir.mkdir(parents=True)
     (owner_dir / "key_findings.md").write_text(
-        "Summary\n"
-        "-------\n"
-        "- Portfolio is well-diversified across 4 regions and 8 sectors.\n",
+        "Summary\n" "-------\n" "- Portfolio is well-diversified across 4 regions and 8 sectors.\n",
         encoding="utf-8",
     )
 
@@ -1190,8 +1188,7 @@ def test_build_key_findings_section_keeps_numbered_finding_before_separator(tmp_
     owner_dir = tmp_path / "accounts" / "demo-owner"
     owner_dir.mkdir(parents=True)
     (owner_dir / "key_findings.md").write_text(
-        "1. Cash drag is elevated versus target corridor.\n"
-        "----------------\n",
+        "1. Cash drag is elevated versus target corridor.\n" "----------------\n",
         encoding="utf-8",
     )
 
@@ -1213,9 +1210,7 @@ def test_build_key_findings_section_skips_setext_heading_with_equals(tmp_path, m
     owner_dir = tmp_path / "accounts" / "demo-owner"
     owner_dir.mkdir(parents=True)
     (owner_dir / "key_findings.md").write_text(
-        "Summary\n"
-        "=======\n"
-        "- Portfolio is well-diversified across 4 regions and 8 sectors.\n",
+        "Summary\n" "=======\n" "- Portfolio is well-diversified across 4 regions and 8 sectors.\n",
         encoding="utf-8",
     )
 
@@ -1237,9 +1232,7 @@ def test_build_key_findings_section_allows_findings_after_interleaved_heading(tm
     owner_dir = tmp_path / "accounts" / "demo-owner"
     owner_dir.mkdir(parents=True)
     (owner_dir / "key_findings.md").write_text(
-        "- Finding one.\n"
-        "## Sub-section\n"
-        "- Finding two.\n",
+        "- Finding one.\n" "## Sub-section\n" "- Finding two.\n",
         encoding="utf-8",
     )
 
@@ -1329,10 +1322,7 @@ def test_build_key_findings_section_skips_empty_entries_after_trimming(tmp_path,
     owner_dir = tmp_path / "accounts" / "demo-owner"
     owner_dir.mkdir(parents=True)
     (owner_dir / "key_findings.md").write_text(
-        "- \n"
-        "* \n"
-        "2.   \n"
-        "- ok\n",
+        "- \n" "* \n" "2.   \n" "- ok\n",
         encoding="utf-8",
     )
 
@@ -1368,9 +1358,7 @@ def test_build_key_findings_section_reads_txt_fallback(tmp_path, monkeypatch):
 
     rows = reports._build_key_findings_section(context, schema)
 
-    assert rows == [
-        {"finding": "Cash drag is 6.4% above the 2.0% target corridor"}
-    ]
+    assert rows == [{"finding": "Cash drag is 6.4% above the 2.0% target corridor"}]
 
 
 def test_key_findings_source_is_registered_for_template_validation():
@@ -1472,11 +1460,7 @@ def test_audit_template_is_registered_with_expected_sections():
 
 def test_audit_template_sources_are_all_registered():
     template = reports.BUILTIN_TEMPLATES["audit-report"]
-    missing = [
-        section.source
-        for section in template.sections
-        if section.source not in reports.SECTION_BUILDERS
-    ]
+    missing = [section.source for section in template.sections if section.source not in reports.SECTION_BUILDERS]
     assert missing == []
 
 
@@ -1590,9 +1574,7 @@ def test_audit_risk_section_includes_var_and_sharpe(monkeypatch):
     monkeypatch.setattr(
         reports,
         "portfolio_mod",
-        SimpleNamespace(
-            build_owner_portfolio=lambda owner, pricing_date=None: {"accounts": []}
-        ),
+        SimpleNamespace(build_owner_portfolio=lambda owner, pricing_date=None: {"accounts": []}),
     )
 
     rows = reports._build_portfolio_var_section(
@@ -1635,15 +1617,9 @@ def test_build_report_document_omits_empty_var_section_for_audit_report(monkeypa
         "build_owner_portfolio",
         lambda owner, pricing_date=None: {"total_value_estimate_gbp": 0.0, "accounts": []},
     )
-    monkeypatch.setattr(
-        reports.portfolio_utils, "aggregate_by_sector", lambda portfolio: []
-    )
-    monkeypatch.setattr(
-        reports.portfolio_utils, "aggregate_by_region", lambda portfolio: []
-    )
-    monkeypatch.setattr(
-        reports.portfolio_utils, "aggregate_by_ticker", lambda portfolio: []
-    )
+    monkeypatch.setattr(reports.portfolio_utils, "aggregate_by_sector", lambda portfolio: [])
+    monkeypatch.setattr(reports.portfolio_utils, "aggregate_by_region", lambda portfolio: [])
+    monkeypatch.setattr(reports.portfolio_utils, "aggregate_by_ticker", lambda portfolio: [])
     monkeypatch.setattr(reports.config, "data_root", tmp_path, raising=False)
 
     document = reports.build_report_document("audit-report", "alice")

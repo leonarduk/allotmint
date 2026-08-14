@@ -1,5 +1,3 @@
-import pytest
-
 from backend.common import virtual_portfolio
 
 

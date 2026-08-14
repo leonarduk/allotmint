@@ -16,9 +16,7 @@ def test_limited_disposition_prompt_aborts_after_maximum_feedback(monkeypatch) -
 
     assert limited_prompt() == ("abort", None)
     assert prompt.call_count == n_review_issue.MAX_FEEDBACK_RETRIES + 1
-    log_error.assert_called_once_with(
-        "Maximum feedback retries reached; aborting without applying the review."
-    )
+    log_error.assert_called_once_with("Maximum feedback retries reached; aborting without applying the review.")
 
 
 def test_limited_disposition_prompt_preserves_apply_and_abort() -> None:

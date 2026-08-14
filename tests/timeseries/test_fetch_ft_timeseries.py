@@ -72,13 +72,9 @@ def test_fetch_ft_timeseries_range_cookie_banner(monkeypatch):
         def until(self, condition):
             return True
 
-    monkeypatch.setattr(
-        "backend.timeseries.fetch_ft_timeseries.webdriver.Chrome", lambda *a, **k: driver
-    )
+    monkeypatch.setattr("backend.timeseries.fetch_ft_timeseries.webdriver.Chrome", lambda *a, **k: driver)
     monkeypatch.setattr("backend.timeseries.fetch_ft_timeseries.WebDriverWait", FakeWait)
-    monkeypatch.setattr(
-        "backend.timeseries.fetch_ft_timeseries.time.sleep", lambda *a, **k: None
-    )
+    monkeypatch.setattr("backend.timeseries.fetch_ft_timeseries.time.sleep", lambda *a, **k: None)
 
     df = fetch_ft_timeseries_range("TEST:GBP", date(2024, 1, 1), date(2024, 1, 2))
 
@@ -112,9 +108,7 @@ def test_fetch_ft_timeseries_range_find_element_failure(monkeypatch):
         def until(self, condition):
             return True
 
-    monkeypatch.setattr(
-        "backend.timeseries.fetch_ft_timeseries.webdriver.Chrome", lambda *a, **k: driver
-    )
+    monkeypatch.setattr("backend.timeseries.fetch_ft_timeseries.webdriver.Chrome", lambda *a, **k: driver)
     monkeypatch.setattr("backend.timeseries.fetch_ft_timeseries.WebDriverWait", FakeWait)
 
     df = fetch_ft_timeseries_range("TEST:GBP", date(2024, 1, 1), date(2024, 1, 2))
@@ -127,4 +121,3 @@ def test_fetch_ft_timeseries_range_find_element_failure(monkeypatch):
 def test_fetch_ft_timeseries_non_isin_returns_empty_df():
     df = fetch_ft_timeseries("PFE")
     assert df.empty
-

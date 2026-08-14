@@ -4,8 +4,8 @@ from datetime import date
 
 import pytest
 
-from backend.common.storage import get_storage
 from backend.common import goals as goals_mod
+from backend.common.storage import get_storage
 
 
 @pytest.fixture

@@ -36,7 +36,7 @@ git worktree add ../<repo>-fix-<issue-number> -b fix/issue-<N>-<short-slug> orig
 ```
 
 Branch naming: `fix/issue-NNNN-short-description`, `feat/issue-NNNN-...`,
-`docs/...`, or `chore/...` per `docs/CONTRIBUTING.md`.
+or `docs/...` per `docs/CONTRIBUTING.md`.
 
 If you stashed in step 1, apply *only the relevant files* into the new worktree:
 

@@ -7,9 +7,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from backend import config as backend_config
 from backend.app import create_app
 from backend.common import data_loader
-from backend import config as backend_config
 from backend.local_api.main import app
 
 
@@ -28,6 +28,7 @@ def client():
         yield client
     finally:
         backend_config.offline_mode = previous
+
 
 # Shared mock data
 mock_owners = [
@@ -106,15 +107,13 @@ def test_owners(client, mock_list_plots):
             continue
 
         if accounts_root is None:
-            pytest.fail(
-                f"Unexpected synthetic accounts {sorted(extras)} for owner '{owner}'"
-            )
+            pytest.fail(f"Unexpected synthetic accounts {sorted(extras)} for owner '{owner}'")
 
         owner_dir = accounts_root / owner
         for account in extras:
-            assert (owner_dir / f"{account}.json").exists(), (
-                f"Unexpected synthetic account '{account}' for owner '{owner}'"
-            )
+            assert (
+                owner_dir / f"{account}.json"
+            ).exists(), f"Unexpected synthetic account '{account}' for owner '{owner}'"
 
 
 def test_groups(client, mock_list_groups):
@@ -259,9 +258,10 @@ def test_openapi_no_duplicate_operation_ids():
     refresh_path = schema.get("paths", {}).get("/prices/refresh", {})
     assert refresh_path, "Expected /prices/refresh path in OpenAPI schema"
     refresh_ops = {m: refresh_path[m].get("operationId") for m in ("get", "post") if m in refresh_path}
-    assert refresh_ops == {"get": "refresh_prices_get", "post": "refresh_prices_post"}, (
-        f"Unexpected refresh_prices operationIds: {refresh_ops}"
-    )
+    assert refresh_ops == {
+        "get": "refresh_prices_get",
+        "post": "refresh_prices_post",
+    }, f"Unexpected refresh_prices operationIds: {refresh_ops}"
     assert len(operation_ids) == len(set(operation_ids)), "Found duplicate operationIds in OpenAPI schema"
 
 

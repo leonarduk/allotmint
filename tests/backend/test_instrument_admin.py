@@ -40,9 +40,7 @@ def test_update_instrument_preserves_existing_fields(monkeypatch):
         saved["args"] = (ticker, exchange)
         saved["payload"] = payload
 
-    monkeypatch.setattr(
-        instrument_admin, "instrument_meta_path", fake_instrument_meta_path
-    )
+    monkeypatch.setattr(instrument_admin, "instrument_meta_path", fake_instrument_meta_path)
     monkeypatch.setattr(instrument_admin, "get_instrument_meta", fake_get_instrument_meta)
     monkeypatch.setattr(instrument_admin, "save_instrument_meta", fake_save_instrument_meta)
 
@@ -89,12 +87,12 @@ def test_refresh_instrument_preview(monkeypatch):
         assert exchange == "NYSE"
         return {"name": "Alpha Corp", "currency": "GBP", "instrument_type": "EQUITY"}
 
-    monkeypatch.setattr(
-        instrument_admin, "instrument_meta_path", fake_instrument_meta_path
-    )
+    monkeypatch.setattr(instrument_admin, "instrument_meta_path", fake_instrument_meta_path)
     monkeypatch.setattr(instrument_admin, "get_instrument_meta", fake_get_instrument_meta)
     monkeypatch.setattr(
-        instrument_admin, "_fetch_metadata_from_yahoo", fake_fetch,
+        instrument_admin,
+        "_fetch_metadata_from_yahoo",
+        fake_fetch,
     )
     monkeypatch.setattr(
         instrument_admin,
@@ -140,9 +138,7 @@ def test_refresh_instrument_confirm(monkeypatch):
         stored["args"] = (ticker, exchange)
         stored["payload"] = payload
 
-    monkeypatch.setattr(
-        instrument_admin, "instrument_meta_path", fake_instrument_meta_path
-    )
+    monkeypatch.setattr(instrument_admin, "instrument_meta_path", fake_instrument_meta_path)
     monkeypatch.setattr(instrument_admin, "get_instrument_meta", fake_get_instrument_meta)
     monkeypatch.setattr(instrument_admin, "_fetch_metadata_from_yahoo", fake_fetch)
     monkeypatch.setattr(instrument_admin, "save_instrument_meta", fake_save)

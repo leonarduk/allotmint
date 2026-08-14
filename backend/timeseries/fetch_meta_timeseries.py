@@ -8,6 +8,7 @@ and merges the first successful result. Helpers return snapshots
     supplement from Stooq, Alpha Vantage, then FT.
   - Added ticker sanity-check and quieter logging for expected fall-backs.
 """
+
 from __future__ import annotations
 
 import logging
@@ -86,9 +87,7 @@ def _sanitize_metadata_symbol(value: str) -> str:
             # Warn rather than debug: no valid ticker or exchange MIC exceeds
             # _METADATA_SYMBOL_MAX_LEN chars, so an oversized value is likely
             # unexpected data in production rather than normal operation.
-            logger.warning(
-                "Rejected oversized metadata identifier (len=%d)", len(cleaned)
-            )
+            logger.warning("Rejected oversized metadata identifier (len=%d)", len(cleaned))
         return ""
     if not _METADATA_SAFE_RE.match(cleaned):
         logger.debug("Rejected unsafe metadata identifier: %r", sanitise_log_value(cleaned))
@@ -169,9 +168,7 @@ def _resolve_exchange_from_metadata(symbol: str) -> str:
 
 
 @lru_cache(maxsize=2048)
-def _resolve_exchange_from_metadata_cached(
-    symbol: str, directories: tuple[str, ...]
-) -> tuple[str, str]:
+def _resolve_exchange_from_metadata_cached(symbol: str, directories: tuple[str, ...]) -> tuple[str, str]:
     """Cached helper that scopes lookups to the active instrument directories.
 
     Callers are responsible for sanitizing ``symbol`` before calling this
@@ -200,9 +197,10 @@ def _resolve_exchange_from_metadata_cached(
             continue
     return "", ""
 
+
 def _metadata_entry_exists_in_directory(symbol: str, directory: Path) -> bool:
     """Return ``True`` if *symbol* metadata exists in the provided directory.
-    
+
     Unlike ``_resolve_exchange_from_metadata_cached`` (which is ``@lru_cache``
     decorated and therefore requires the caller to pre-sanitize so that the
     cache key is the clean value), this function is not cached and may be
@@ -230,9 +228,7 @@ def _metadata_entry_exists_in_directory(symbol: str, directory: Path) -> bool:
         return False
 
 
-def _metadata_entry_exists(
-    symbol: str, exchange: str, directories: tuple[str, ...]
-) -> bool:
+def _metadata_entry_exists(symbol: str, exchange: str, directories: tuple[str, ...]) -> bool:
     """Return ``True`` when metadata for *symbol* exists under *exchange*."""
 
     symbol = _sanitize_metadata_symbol(symbol)
@@ -264,9 +260,7 @@ def _metadata_entry_exists(
     return False
 
 
-def _resolve_symbol_exchange_details(
-    ticker: str, exchange: str | None
-) -> Tuple[str, str, str]:
+def _resolve_symbol_exchange_details(ticker: str, exchange: str | None) -> Tuple[str, str, str]:
     """Return symbol, resolved exchange and metadata exchange."""
 
     sym, suffix = (re.split(r"[._]", ticker, 1) + [""])[:2]
@@ -275,7 +269,9 @@ def _resolve_symbol_exchange_details(
     if suffix and provided and suffix != provided:
         logger.debug(
             "Exchange mismatch for %s: suffix %s vs argument %s",
-            sanitise_log_value(ticker), sanitise_log_value(suffix), sanitise_log_value(provided),
+            sanitise_log_value(ticker),
+            sanitise_log_value(suffix),
+            sanitise_log_value(provided),
         )
     resolved = suffix or provided
 
@@ -304,9 +300,7 @@ def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> Tuple[str, st
     return sym, ex
 
 
-def _resolve_loader_exchange(
-    ticker: str, exchange_arg: str | None, symbol: str, resolved_exchange: str
-) -> str:
+def _resolve_loader_exchange(ticker: str, exchange_arg: str | None, symbol: str, resolved_exchange: str) -> str:
     """Return the exchange to use when fetching cached data."""
 
     parts = re.split(r"[._]", ticker, 1)
@@ -335,9 +329,7 @@ def _resolve_cache_exchange(
 ) -> str:
     """Return the exchange code to use when reading from the cache."""
 
-    loader_exchange = _resolve_loader_exchange(
-        ticker, exchange_arg, symbol, resolved_exchange
-    )
+    loader_exchange = _resolve_loader_exchange(ticker, exchange_arg, symbol, resolved_exchange)
     explicit_exchange = _explicit_exchange_from_ticker(ticker)
     provided_exchange = (exchange_arg or "").strip().upper()
 
@@ -350,11 +342,7 @@ def _resolve_cache_exchange(
                 sanitise_log_value(metadata_exchange or "<empty>"),
             )
 
-        if (
-            provided_exchange
-            and not explicit_exchange
-            and provided_exchange != metadata_exchange
-        ):
+        if provided_exchange and not explicit_exchange and provided_exchange != metadata_exchange:
             logger.debug(
                 "Cache exchange override for %s: metadata %s vs argument %s",
                 sanitise_log_value(symbol),
@@ -389,12 +377,12 @@ def _merge(sources: List[pd.DataFrame]) -> pd.DataFrame:
     return df.sort_values("Date").reset_index(drop=True)
 
 
-def _coverage_ratio(df: pd.DataFrame,
-                    expected: set[date]) -> float:
+def _coverage_ratio(df: pd.DataFrame, expected: set[date]) -> float:
     if df.empty or not expected:
         return 0.0
     present = set(pd.to_datetime(df["Date"]).dt.date)
     return len(present & expected) / len(expected)
+
 
 # ──────────────────────────────────────────────────────────────
 # Core fetch
@@ -405,7 +393,7 @@ def fetch_meta_timeseries(
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
     *,
-    min_coverage: float = 0.95,          # 95 % of trading days
+    min_coverage: float = 0.95,  # 95 % of trading days
 ) -> pd.DataFrame:
     """
     Fetch price history from Yahoo, Stooq, FT - only as much as needed.
@@ -425,7 +413,9 @@ def fetch_meta_timeseries(
     ticker, exchange = _resolve_ticker_exchange(ticker, exchange)
     logger.debug(
         "Resolved %s to %s.%s",
-        sanitise_log_value(raw_ticker), sanitise_log_value(ticker), sanitise_log_value(exchange),
+        sanitise_log_value(raw_ticker),
+        sanitise_log_value(ticker),
+        sanitise_log_value(exchange),
     )
 
     if end_date is None:
@@ -434,7 +424,7 @@ def fetch_meta_timeseries(
         start_date = end_date - timedelta(days=365)
 
     start_date = _nearest_weekday(start_date, forward=False)
-    end_date   = _nearest_weekday(end_date,   forward=True)
+    end_date = _nearest_weekday(end_date, forward=True)
 
     if ticker.upper() == "CASH" or exchange.upper() == "CASH":
         dates = pd.bdate_range(start_date, end_date)
@@ -471,8 +461,7 @@ def fetch_meta_timeseries(
 
     # ── 1 · Yahoo ─────────────────────────────────────────────
     try:
-        yahoo = fetch_yahoo_timeseries_range(ticker, exchange,
-                                             start_date, end_date)
+        yahoo = fetch_yahoo_timeseries_range(ticker, exchange, start_date, end_date)
         if not yahoo.empty:
             data.append(yahoo)
             if _coverage_ratio(yahoo, expected_dates) >= min_coverage:
@@ -480,13 +469,14 @@ def fetch_meta_timeseries(
     except Exception as exc:
         logger.debug(
             "Yahoo miss for %s.%s: %s",
-            sanitise_log_value(ticker), sanitise_log_value(exchange), sanitise_log_value(exc),
+            sanitise_log_value(ticker),
+            sanitise_log_value(exchange),
+            sanitise_log_value(exc),
         )
 
     # ── 2 · Stooq (fill gaps only if needed) ──────────────────
     try:
-        stooq = fetch_stooq_timeseries_range(ticker, exchange,
-                                             start_date, end_date)
+        stooq = fetch_stooq_timeseries_range(ticker, exchange, start_date, end_date)
         if not stooq.empty:
             combined = _merge([*data, stooq])
             if _coverage_ratio(combined, expected_dates) >= min_coverage:
@@ -495,20 +485,22 @@ def fetch_meta_timeseries(
     except StooqRateLimitError as exc:
         logger.debug(
             "Stooq rate limit for %s.%s: %s",
-            sanitise_log_value(ticker), sanitise_log_value(exchange), sanitise_log_value(exc),
+            sanitise_log_value(ticker),
+            sanitise_log_value(exchange),
+            sanitise_log_value(exc),
         )
     except Exception as exc:
         logger.debug(
             "Stooq miss for %s.%s: %s",
-            sanitise_log_value(ticker), sanitise_log_value(exchange), sanitise_log_value(exc),
+            sanitise_log_value(ticker),
+            sanitise_log_value(exchange),
+            sanitise_log_value(exc),
         )
 
     # ── 3 · Alpha Vantage (fill gaps if still needed) ─────────
     if config.alpha_vantage_enabled:
         try:
-            av = fetch_alphavantage_timeseries_range(
-                ticker, exchange, start_date, end_date
-            )
+            av = fetch_alphavantage_timeseries_range(ticker, exchange, start_date, end_date)
             if not av.empty:
                 combined = _merge([*data, av])
                 if _coverage_ratio(combined, expected_dates) >= min_coverage:
@@ -517,19 +509,24 @@ def fetch_meta_timeseries(
         except AlphaVantageRateLimitError as exc:
             logger.debug(
                 "Alpha Vantage rate limit for %s.%s: %s",
-                sanitise_log_value(ticker), sanitise_log_value(exchange), sanitise_log_value(exc),
+                sanitise_log_value(ticker),
+                sanitise_log_value(exchange),
+                sanitise_log_value(exc),
             )
             if exc.retry_after:
                 time.sleep(exc.retry_after)
         except Exception as exc:
             logger.debug(
                 "Alpha Vantage miss for %s.%s: %s",
-                sanitise_log_value(ticker), sanitise_log_value(exchange), sanitise_log_value(exc),
+                sanitise_log_value(ticker),
+                sanitise_log_value(exchange),
+                sanitise_log_value(exc),
             )
     else:
         logger.debug(
             "Alpha Vantage disabled; skipping for %s.%s",
-            sanitise_log_value(ticker), sanitise_log_value(exchange),
+            sanitise_log_value(ticker),
+            sanitise_log_value(exchange),
         )
 
     # ── 4 · FT fallback – last resort ─────────────────────────
@@ -539,8 +536,7 @@ def fetch_meta_timeseries(
         data.append(ft_df)
 
     if not data:
-        logger.info("No data sources succeeded for %s.%s",
-                    sanitise_log_value(ticker), sanitise_log_value(exchange))
+        logger.info("No data sources succeeded for %s.%s", sanitise_log_value(ticker), sanitise_log_value(exchange))
         return pd.DataFrame(columns=STANDARD_COLUMNS)
 
     df = _merge(data)
@@ -562,11 +558,10 @@ def fetch_ft_df(ticker, end_date, start_date):
         logger.debug("FT miss for %s: %s", sanitise_log_value(ticker), sanitise_log_value(exc))
         return pd.DataFrame(columns=STANDARD_COLUMNS)
 
+
 # ──────────────────────────────────────────────────────────────
 # Cache-aware batch helpers (local import) ─────────────────────
-def run_all_tickers(
-    tickers: List[str], exchange: str = "", days: int = 365
-) -> List[str]:
+def run_all_tickers(tickers: List[str], exchange: str = "", days: int = 365) -> List[str]:
     """Warm-up helper - returns tickers that produced data.
 
     ``tickers`` may contain base symbols ("VOD") or full tickers ("VOD.L").
@@ -594,7 +589,9 @@ def run_all_tickers(
         sym, ex, meta_exchange = _resolve_symbol_exchange_details(t, exchange)
         logger.debug(
             "run_all_tickers resolved %s -> %s.%s",
-            sanitise_log_value(t), sanitise_log_value(sym), sanitise_log_value(ex),
+            sanitise_log_value(t),
+            sanitise_log_value(sym),
+            sanitise_log_value(ex),
         )
         cache_exchange = _resolve_cache_exchange(t, exchange, sym, ex, meta_exchange)
         try:
@@ -602,23 +599,22 @@ def run_all_tickers(
                 ok.append(t)
         except Exception as exc:
             logger.warning("[WARN] %s: %s", sanitise_log_value(t), sanitise_log_value(exc))
-    logger.info(
-        "Bulk warm-up complete: %d updated, %d skipped", len(ok), len(tickers) - len(ok)
-    )
+    logger.info("Bulk warm-up complete: %d updated, %d skipped", len(ok), len(tickers) - len(ok))
     return ok
 
 
-def load_timeseries_data(
-    tickers: List[str], exchange: str = "", days: int = 365
-) -> Dict[str, pd.DataFrame]:
+def load_timeseries_data(tickers: List[str], exchange: str = "", days: int = 365) -> Dict[str, pd.DataFrame]:
     """Return {ticker: dataframe} using the parquet cache."""
     from backend.timeseries.cache import load_meta_timeseries
+
     out: dict[str, pd.DataFrame] = {}
     for t in tickers:
         sym, ex, meta_exchange = _resolve_symbol_exchange_details(t, exchange)
         logger.debug(
             "load_timeseries_data resolved %s -> %s.%s",
-            sanitise_log_value(t), sanitise_log_value(sym), sanitise_log_value(ex),
+            sanitise_log_value(t),
+            sanitise_log_value(sym),
+            sanitise_log_value(ex),
         )
         cache_exchange = _resolve_cache_exchange(t, exchange, sym, ex, meta_exchange)
         try:
@@ -627,9 +623,7 @@ def load_timeseries_data(
                 out[t] = df
         except Exception as exc:
             logger.warning("Load fail %s: %s", sanitise_log_value(t), sanitise_log_value(exc))
-    logger.info(
-        "Bulk load complete: %d updated, %d skipped", len(out), len(tickers) - len(out)
-    )
+    logger.info("Bulk load complete: %d updated, %d skipped", len(out), len(tickers) - len(out))
     return out
 
 

@@ -5,7 +5,6 @@ from fastapi.testclient import TestClient
 
 from backend.app import create_app
 from backend.common.approvals import load_approvals, save_approvals
-
 from backend.common.compliance import check_owner
 from backend.common.holding_utils import enrich_holding
 from backend.config import config
@@ -51,9 +50,7 @@ def test_enrich_holding_weekend_anniversary(monkeypatch):
         lambda *a, **k: (1.0, None),
     )
     calc = PricingDateCalculator(today=today)
-    expected_next_date = calc.resolve_weekday(
-        acq_date + timedelta(days=config.hold_days_min), forward=True
-    )
+    expected_next_date = calc.resolve_weekday(acq_date + timedelta(days=config.hold_days_min), forward=True)
 
     out = enrich_holding(holding, today, {}, {})
     assert out["sell_eligible"] is False
@@ -134,9 +131,7 @@ def test_approvals_endpoints(tmp_path):
         data = resp.json()
         assert data["approvals"][0]["ticker"] == "ADM.L"
 
-        resp = client.request(
-            "DELETE", "/accounts/bob/approvals", json={"ticker": "ADM.L"}
-        )
+        resp = client.request("DELETE", "/accounts/bob/approvals", json={"ticker": "ADM.L"})
         assert resp.status_code == 200
         assert resp.json() == {"approvals": []}
     finally:

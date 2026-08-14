@@ -53,9 +53,7 @@ def fetch_fx_rate_range(base: str, quote: str, start_date: date, end_date: date)
 
     try:
         ticker = yf.Ticker(pair)
-        df = ticker.history(
-            start=start_date, end=end_date + timedelta(days=1), interval="1d"
-        )
+        df = ticker.history(start=start_date, end=end_date + timedelta(days=1), interval="1d")
         if not df.empty:
             df.reset_index(inplace=True)
             df["Date"] = pd.to_datetime(df["Date"]).dt.date

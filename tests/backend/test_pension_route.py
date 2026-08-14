@@ -1,7 +1,5 @@
 from pathlib import Path
-from unittest.mock import patch
 
-import pytest
 from pytest import MonkeyPatch
 
 from backend.common.account_models import PersonMetadata
@@ -34,6 +32,7 @@ def test_pension_forecast_counts_prefixed_sipp_accounts(monkeypatch: MonkeyPatch
     monkeypatch.setattr("backend.routes.pension.resolve_accounts_root", lambda req: Path("."))
 
     from unittest.mock import MagicMock
+
     from starlette.requests import Request
 
     app = MagicMock()

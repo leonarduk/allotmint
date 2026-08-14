@@ -2,8 +2,8 @@ from datetime import date
 
 import pytest
 
-from backend import config as cfg
 import backend.timeseries.fetch_alphavantage_timeseries as av
+from backend import config as cfg
 from backend.timeseries.fetch_alphavantage_timeseries import (
     fetch_alphavantage_timeseries_range,
 )
@@ -48,8 +48,6 @@ def test_information_field_propagated_when_disabled(monkeypatch):
     monkeypatch.setattr(requests, "get", fake_get)
 
     with pytest.raises(ValueError) as exc:
-        fetch_alphavantage_timeseries_range(
-            "IBM", "US", date(2024, 1, 1), date(2024, 1, 10), api_key="demo"
-        )
+        fetch_alphavantage_timeseries_range("IBM", "US", date(2024, 1, 1), date(2024, 1, 10), api_key="demo")
 
     assert str(exc.value) == "disabled"

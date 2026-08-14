@@ -77,15 +77,11 @@ def is_approval_valid(approved_on: date | None, as_of: date, days: int | None = 
     return as_of <= expiry
 
 
-def save_approvals(
-    owner: str, approvals: Dict[str, date], accounts_root: Path | None = None
-) -> None:
+def save_approvals(owner: str, approvals: Dict[str, date], accounts_root: Path | None = None) -> None:
     """Persist ``approvals`` for ``owner`` to ``approvals.json``."""
 
     path = approvals_path(owner, accounts_root)
-    entries = [
-        {"ticker": t.upper(), "approved_on": d.isoformat()} for t, d in approvals.items()
-    ]
+    entries = [{"ticker": t.upper(), "approved_on": d.isoformat()} for t, d in approvals.items()]
     try:
         path.write_text(json.dumps({"approvals": entries}, indent=2, sort_keys=True))
     except OSError as exc:
@@ -116,9 +112,7 @@ def upsert_approval(
     return approvals
 
 
-def delete_approval(
-    owner: str, ticker: str, accounts_root: Path | None = None
-) -> Dict[str, date]:
+def delete_approval(owner: str, ticker: str, accounts_root: Path | None = None) -> Dict[str, date]:
     """Remove ``ticker`` from approvals and return the updated mapping."""
 
     approvals = load_approvals(owner, accounts_root)
@@ -133,4 +127,3 @@ def delete_approval(
         )
         raise
     return approvals
-

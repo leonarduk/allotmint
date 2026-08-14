@@ -8,7 +8,7 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from backend.app import create_app
-from backend.common.accounts_store import LocalAccountsStore, WRITABLE_ACCOUNTS_PREFIX
+from backend.common.accounts_store import WRITABLE_ACCOUNTS_PREFIX, LocalAccountsStore
 from backend.config import config
 from backend.routes import transactions
 
@@ -667,9 +667,7 @@ def test_create_manual_holding_updates_existing_ticker_in_account(tmp_path, monk
     assert saved["holdings"] == [{"ticker": "VUSA.L", "units": 3.0, "price": 100.0}]
 
 
-def test_create_manual_holding_with_value_takes_precedence_over_units_and_price(
-    tmp_path, monkeypatch
-):
+def test_create_manual_holding_with_value_takes_precedence_over_units_and_price(tmp_path, monkeypatch):
     client = _make_client(tmp_path, monkeypatch)
     payload = {
         "owner": "alice",
@@ -946,9 +944,7 @@ class _FakeS3Client:
             raise FileNotFoundError(Key)
         return {"Body": _FakeStreamingBody(self._objects[key])}
 
-    def list_objects_v2(
-        self, Bucket: str, Prefix: str, ContinuationToken: str | None = None, **kwargs: object
-    ) -> dict:
+    def list_objects_v2(self, Bucket: str, Prefix: str, ContinuationToken: str | None = None, **kwargs: object) -> dict:
         contents: list[dict[str, str]] = []
         for (b, k), _ in self._objects.items():
             if b == Bucket and k.startswith(Prefix):
@@ -1007,19 +1003,11 @@ def test_post_manual_holding_s3_aws_returns_2xx_and_writes_to_writable_prefix(
 
     # ── assert: object written under writable prefix ─────────────
     writable_key = f"{WRITABLE_ACCOUNTS_PREFIX}/alice/isa.json"
-    assert fake_s3._has_key("fake-bucket", writable_key), (
-        f"Expected s3://fake-bucket/{writable_key} to exist"
-    )
+    assert fake_s3._has_key("fake-bucket", writable_key), f"Expected s3://fake-bucket/{writable_key} to exist"
 
     # ── assert: global accounts/ prefix is untouched ─────────────
-    global_keys = sum(
-        1
-        for (b, k) in fake_s3._objects
-        if b == "fake-bucket" and k.startswith("accounts/")
-    )
-    assert global_keys == 0, (
-        f"Global accounts/ prefix must be untouched, found {global_keys} keys"
-    )
+    global_keys = sum(1 for (b, k) in fake_s3._objects if b == "fake-bucket" and k.startswith("accounts/"))
+    assert global_keys == 0, f"Global accounts/ prefix must be untouched, found {global_keys} keys"
 
 
 def test_get_manual_holdings_s3_aws_returns_created_holding(

@@ -1,8 +1,8 @@
 from fastapi.testclient import TestClient
 
+import backend.routes.news as news
 from backend.app import create_app
 from backend.utils import page_cache
-import backend.routes.news as news
 
 
 def test_news_quota_enforced(monkeypatch, tmp_path):

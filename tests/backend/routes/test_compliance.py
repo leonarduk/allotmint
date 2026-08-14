@@ -3,7 +3,6 @@ import types
 import pytest
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
-from fastapi.testclient import TestClient
 
 from backend.common.account_models import OwnerSummaryRecord
 from backend.common.errors import AppError, OwnerNotFoundError
@@ -88,9 +87,7 @@ def test_known_owners_falls_back_to_directory_iteration(tmp_path, monkeypatch):
     monkeypatch.setattr(
         compliance_module.data_loader,
         "resolve_paths",
-        lambda *_, **__: types.SimpleNamespace(
-            accounts_root=tmp_path / "no_demo"
-        ),
+        lambda *_, **__: types.SimpleNamespace(accounts_root=tmp_path / "no_demo"),
     )
 
     owners = compliance_module._known_owners(accounts_root)
@@ -201,9 +198,7 @@ async def test_compliance_for_owner_missing_directory(tmp_path, monkeypatch, fas
 
 
 @pytest.mark.anyio
-async def test_compliance_for_remote_owner_without_local_directory(
-    tmp_path, monkeypatch, fastapi_request
-):
+async def test_compliance_for_remote_owner_without_local_directory(tmp_path, monkeypatch, fastapi_request):
     app, request = fastapi_request
     accounts_root = tmp_path / "accounts"
 
@@ -524,9 +519,7 @@ async def test_validate_trade_scaffolds_missing_directory(tmp_path, monkeypatch,
 
 
 @pytest.mark.anyio
-async def test_validate_trade_scaffolds_when_owner_discovery_fails(
-    tmp_path, monkeypatch
-):
+async def test_validate_trade_scaffolds_when_owner_discovery_fails(tmp_path, monkeypatch):
     request = PayloadRequest(
         {
             "owner": " demo ",

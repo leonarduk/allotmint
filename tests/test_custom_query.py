@@ -3,8 +3,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from backend.config import config
 import backend.timeseries.cache as ts_cache
+from backend.config import config
 from backend.routes.query import Metric
 
 
@@ -25,6 +25,7 @@ def client():
     finally:
         config.data_root = orig_root
         ts_cache._CACHE_BASE = orig_cache_base
+
 
 BASE_QUERY = {
     "start": "2025-01-01",

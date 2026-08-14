@@ -1,5 +1,6 @@
-import backend.common.data_loader as dl
 from pathlib import Path
+
+import backend.common.data_loader as dl
 
 
 def test_resolve_paths_accepts_windows_accounts_root(monkeypatch):

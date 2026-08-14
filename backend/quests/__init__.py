@@ -26,9 +26,7 @@ QUEST_DEFINITIONS = [
 QUEST_IDS = {q["id"] for q in QUEST_DEFINITIONS}
 
 # Storage setup ---------------------------------------------------------------
-_DEFAULT_QUESTS_URI = (
-    f"file://{(config.repo_root or Path(__file__).resolve().parents[1]) / 'data' / 'quests.json'}"
-)
+_DEFAULT_QUESTS_URI = f"file://{(config.repo_root or Path(__file__).resolve().parents[1]) / 'data' / 'quests.json'}"
 _QUESTS_STORAGE = get_storage(os.getenv("QUESTS_URI", _DEFAULT_QUESTS_URI))
 
 # In-memory cache of quest progress keyed by user
@@ -61,17 +59,14 @@ def _save() -> None:
 
 # Public API -----------------------------------------------------------------
 
+
 def get_quests(user: str) -> Dict:
     """Return today's quests and progress for ``user``."""
     _load()
     today = date.today().isoformat()
-    user_data = _DATA.setdefault(
-        user, {"xp": 0, "streak": 0, "last_completed_day": "", "completed": {}}
-    )
+    user_data = _DATA.setdefault(user, {"xp": 0, "streak": 0, "last_completed_day": "", "completed": {}})
     completed_today = set(user_data["completed"].get(today, []))
-    quests = [
-        {**q, "completed": q["id"] in completed_today} for q in QUEST_DEFINITIONS
-    ]
+    quests = [{**q, "completed": q["id"] in completed_today} for q in QUEST_DEFINITIONS]
     return {"quests": quests, "xp": user_data["xp"], "streak": user_data["streak"]}
 
 
@@ -86,9 +81,7 @@ def mark_complete(user: str, quest_id: str) -> Dict:
     _load()
     today = date.today()
     today_str = today.isoformat()
-    user_data = _DATA.setdefault(
-        user, {"xp": 0, "streak": 0, "last_completed_day": "", "completed": {}}
-    )
+    user_data = _DATA.setdefault(user, {"xp": 0, "streak": 0, "last_completed_day": "", "completed": {}})
     completed = set(user_data["completed"].get(today_str, []))
     if quest_id in completed:
         return get_quests(user)

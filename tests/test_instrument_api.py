@@ -125,10 +125,12 @@ def test_intraday_timeseries_success(monkeypatch):
 
     df = pd.DataFrame(
         {
-            "Date": pd.to_datetime([
-                "2024-01-02 10:00:00",
-                "2024-01-02 11:45:00",
-            ]),
+            "Date": pd.to_datetime(
+                [
+                    "2024-01-02 10:00:00",
+                    "2024-01-02 11:45:00",
+                ]
+            ),
             "Close": [10.0, 11.0],
         }
     )

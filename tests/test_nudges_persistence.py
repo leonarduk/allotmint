@@ -1,5 +1,3 @@
-import pytest
-
 from backend import nudges as nudge_utils
 from backend.common.storage import get_storage
 

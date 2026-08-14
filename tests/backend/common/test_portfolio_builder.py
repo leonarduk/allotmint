@@ -55,9 +55,7 @@ def fixture_portfolio_stubs(monkeypatch, today):
             holdings=list(base_holdings),
         )
 
-    def fake_enrich_holding(
-        holding, as_of, price_cache, approvals, ucfg, *, calc=None
-    ):  # noqa: ARG001
+    def fake_enrich_holding(holding, as_of, price_cache, approvals, ucfg, *, calc=None):  # noqa: ARG001
         return {
             **holding,
             "market_value_gbp": holding["base_value"],
@@ -113,9 +111,7 @@ def test_build_owner_portfolio_requires_plot(monkeypatch, today):
     "discovered_plots",
     [[], [OwnerSummaryRecord(owner="other", accounts=["account-one"])]],
 )
-def test_build_owner_portfolio_logs_total_plot_count_on_miss(
-    monkeypatch, today, caplog, discovered_plots
-):
+def test_build_owner_portfolio_logs_total_plot_count_on_miss(monkeypatch, today, caplog, discovered_plots):
     """Regression test for #5286.
 
     When an owner has no matching plot, log how many plots were discovered in
@@ -131,7 +127,6 @@ def test_build_owner_portfolio_logs_total_plot_count_on_miss(
             build_owner_portfolio("nope")
 
     expected_message = (
-        "build_owner_portfolio: no plot found for owner=nope "
-        f"(total plots discovered={len(discovered_plots)})"
+        "build_owner_portfolio: no plot found for owner=nope " f"(total plots discovered={len(discovered_plots)})"
     )
     assert expected_message in caplog.messages

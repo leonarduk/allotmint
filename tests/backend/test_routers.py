@@ -6,14 +6,14 @@ from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
 import backend.routes as routes_pkg
-from backend.routes import compliance, trading_agent, rebalance
+from backend.routes import compliance, rebalance, trading_agent
 
 
 def test_all_routes_registered():
     missing = []
     for _, name, _ in pkgutil.iter_modules(routes_pkg.__path__):
         # Skip private/helper modules that start with underscore
-        if name.startswith('_'):
+        if name.startswith("_"):
             continue
         module = importlib.import_module(f"backend.routes.{name}")
         router = getattr(module, "router", None)
@@ -32,9 +32,10 @@ def test_compliance_routes(monkeypatch):
         "backend.routes.compliance.resolve_owner_directory",
         lambda root, owner: Path(f"/fake/{owner}") if owner == "alice" else None,
     )
-    
+
     # Mock _known_owners to return alice as a known owner
     from backend.routes.compliance import KnownOwnerSet
+
     monkeypatch.setattr(
         "backend.routes.compliance._known_owners",
         lambda root: KnownOwnerSet(["alice"], active_root_has_entries=True),
@@ -123,9 +124,7 @@ def test_rebalance_route(monkeypatch):
 
 def test_agent_stats_route(monkeypatch):
     fake_metrics = {"win_rate": 0.5, "average_profit": 1.23}
-    monkeypatch.setattr(
-        "backend.common.trade_metrics.load_and_compute_metrics", lambda: fake_metrics
-    )
+    monkeypatch.setattr("backend.common.trade_metrics.load_and_compute_metrics", lambda: fake_metrics)
     agent = importlib.import_module("backend.routes.agent")
     importlib.reload(agent)
     app = FastAPI()

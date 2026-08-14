@@ -1,11 +1,10 @@
 import logging
-from datetime import date
 
 import pandas as pd
 import pytest
 
-from backend.common import portfolio_utils
 from backend.common import portfolio as portfolio_mod
+from backend.common import portfolio_utils
 
 
 @pytest.fixture

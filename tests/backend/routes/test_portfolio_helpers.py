@@ -35,8 +35,7 @@ def test_collect_account_stems_filters_metadata_and_transactions(tmp_path: Path)
     assert normalised == {"brokerage", "isa"}
     assert all(not stem.casefold().endswith("_transactions") for stem in stems)
     assert all(
-        stem.casefold()
-        not in {"person", "config", "notes", "settings", "approvals", "approval_requests"}
+        stem.casefold() not in {"person", "config", "notes", "settings", "approvals", "approval_requests"}
         for stem in stems
     )
 

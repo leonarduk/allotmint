@@ -1,10 +1,11 @@
 from datetime import date
+
 import pytest
+import requests
 
 from backend import config as cfg
-from backend.timeseries.fetch_alphavantage_timeseries import fetch_alphavantage_timeseries_range
 from backend.tasks.quotes import fetch_quote
-import requests
+from backend.timeseries.fetch_alphavantage_timeseries import fetch_alphavantage_timeseries_range
 
 
 def test_alphavantage_timeseries_disabled(monkeypatch):

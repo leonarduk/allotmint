@@ -2,8 +2,9 @@ from __future__ import annotations
 
 """Pydantic models used by the trading agent."""
 
-from pydantic import BaseModel, ConfigDict
 from typing import List, Literal, Optional
+
+from pydantic import BaseModel, ConfigDict
 
 
 class TradingSignal(BaseModel):

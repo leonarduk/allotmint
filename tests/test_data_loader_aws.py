@@ -5,10 +5,11 @@ import os
 import sys
 from types import SimpleNamespace
 
+import pytest
+from botocore.exceptions import ClientError
+
 import backend.common.data_loader as dl
 from backend.logging_setup import sanitise_log_value
-from botocore.exceptions import ClientError
-import pytest
 
 
 @pytest.fixture
@@ -257,7 +258,7 @@ def test_load_account_from_s3(monkeypatch):
         def get_object(Bucket, Key):
             assert Bucket == "bucket"
             assert Key == "accounts/Alice/ISA.json"
-            return {"Body": io.BytesIO(b"{\"balance\": 10}")}
+            return {"Body": io.BytesIO(b'{"balance": 10}')}
 
         return SimpleNamespace(get_object=get_object)
 
@@ -272,7 +273,7 @@ def test_load_account_falls_back_to_local(tmp_path, monkeypatch, caplog, cleanup
 
     owner_dir = tmp_path / "owner"
     owner_dir.mkdir()
-    (owner_dir / "account.json").write_text("{\"value\": 7}")
+    (owner_dir / "account.json").write_text('{"value": 7}')
 
     def fake_client(name):
         assert name == "s3"
@@ -295,9 +296,7 @@ def test_load_account_falls_back_to_local(tmp_path, monkeypatch, caplog, cleanup
     )
 
 
-def test_load_account_falls_back_sanitises_log_fields(
-    tmp_path, monkeypatch, caplog, cleanup_boto3_module
-):
+def test_load_account_falls_back_sanitises_log_fields(tmp_path, monkeypatch, caplog, cleanup_boto3_module):
     """Owner/account values are sanitised before being logged on fallback.
 
     Regression test for #4009: a malicious owner/account containing CRLF
@@ -328,9 +327,7 @@ def test_load_account_falls_back_sanitises_log_fields(
         with pytest.raises(FileNotFoundError):
             dl.load_account(owner, account, data_root=tmp_path)
 
-    warning_records = [
-        r for r in caplog.records if "falling back to local file" in r.getMessage()
-    ]
+    warning_records = [r for r in caplog.records if "falling back to local file" in r.getMessage()]
     assert len(warning_records) == 1
     record = warning_records[0]
 
@@ -380,10 +377,7 @@ def test_load_account_missing_bucket(monkeypatch):
     with pytest.raises(FileNotFoundError) as exc:
         dl.load_account("owner", "acct")
 
-    assert (
-        str(exc.value)
-        == f"Missing {dl.DATA_BUCKET_ENV} env var for AWS account loading"
-    )
+    assert str(exc.value) == f"Missing {dl.DATA_BUCKET_ENV} env var for AWS account loading"
 
 
 def test_load_account_empty_payload(monkeypatch, cleanup_boto3_module):
@@ -437,11 +431,13 @@ def test_load_account_s3_unavailable_no_fallback(monkeypatch, cleanup_boto3_modu
 
         def get_object(Bucket, Key):
             from botocore.exceptions import BotoCoreError
+
             raise BotoCoreError()
 
         return SimpleNamespace(get_object=get_object)
 
     monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=fake_client))
+
     # Force local_root to None so the exception is not swallowed by a local fallback.
     def _raise(*a, **kw):
         raise RuntimeError("no path")
@@ -501,7 +497,7 @@ def test_load_person_meta_from_s3(monkeypatch):
 
         def get_object(Bucket, Key):
             if Key == "accounts/Alice/person.json":
-                return {"Body": io.BytesIO(b"{\"dob\": \"1980\"}")}
+                return {"Body": io.BytesIO(b'{"dob": "1980"}')}
             raise ClientError({"Error": {"Code": "NoSuchKey"}}, "get_object")
 
         return SimpleNamespace(get_object=get_object)
@@ -543,9 +539,7 @@ def test_load_person_meta_boto_failure(monkeypatch, cleanup_boto3_module):
     assert dl.load_person_meta("Alice") == {}
 
 
-def test_load_person_meta_s3_unavailable_falls_back_to_local(
-    tmp_path, monkeypatch, caplog, cleanup_boto3_module
-):
+def test_load_person_meta_s3_unavailable_falls_back_to_local(tmp_path, monkeypatch, caplog, cleanup_boto3_module):
     """When S3 is unavailable but an explicit local fallback exists, local metadata is returned."""
     monkeypatch.setattr(dl.config, "app_env", "aws", raising=False)
     monkeypatch.setenv(dl.DATA_BUCKET_ENV, "bucket")
@@ -574,6 +568,7 @@ def test_load_person_meta_s3_unavailable_falls_back_to_local(
 def test_extract_person_meta_non_list_viewers_drops_key_preserves_rest(monkeypatch):
     """_extract_person_meta drops viewers when not a list but keeps other valid keys."""
     from backend.common.data_providers import _extract_person_meta
+
     # Non-list viewers: key is dropped, other valid fields are preserved.
     assert _extract_person_meta({"viewers": "bad", "dob": "1980"}) == {"dob": "1980"}
     assert _extract_person_meta({"viewers": "bad"}) == {}

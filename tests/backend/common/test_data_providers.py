@@ -1,4 +1,5 @@
 """Tests confirming LocalDataProvider rejects path traversal in owner/account inputs."""
+
 from __future__ import annotations
 
 import json
@@ -9,7 +10,6 @@ from unittest.mock import patch
 import pytest
 
 from backend.common.data_providers import (
-    InvalidPayload,
     LocalDataProvider,
     MissingData,
     S3DataProvider,

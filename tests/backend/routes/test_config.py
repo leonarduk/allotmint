@@ -222,9 +222,7 @@ async def test_update_config_rejects_blank_client_id(monkeypatch: pytest.MonkeyP
     assert calls == [(True, None)]
 
 
-async def test_update_config_validates_with_env_client_id(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+async def test_update_config_validates_with_env_client_id(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     config_path = tmp_path / "config.yaml"
     _write_config(config_path, {"auth": {"google_auth_enabled": True}})
     monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
@@ -283,9 +281,7 @@ async def test_update_config_env_provides_client_id(monkeypatch: pytest.MonkeyPa
     assert written["auth"]["allowed_emails"] == ["user@example.com"]
 
 
-async def test_update_config_noop_payload_preserves_config(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+async def test_update_config_noop_payload_preserves_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     config_path = tmp_path / "config.yaml"
     base_config = {
         "auth": {
@@ -301,16 +297,14 @@ async def test_update_config_noop_payload_preserves_config(
     }
     _write_config(config_path, base_config)
     monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
-    loader = _patch_loader(
-        monkeypatch, _DummyConfig(google_auth_enabled=False, google_client_id=None)
-    )
+    loader = _patch_loader(monkeypatch, _DummyConfig(google_auth_enabled=False, google_client_id=None))
     dummy_config = _DummyConfig(google_auth_enabled=False, google_client_id=None)
     monkeypatch.setattr(routes_config.config_module, "config", dummy_config)
     calls = _spy_validate(monkeypatch)
 
     original_contents = config_path.read_text()
 
-    result = await routes_config.update_config({})
+    await routes_config.update_config({})
 
     assert calls == []
     assert loader.cleared is True
@@ -341,9 +335,7 @@ async def test_update_config_normalises_string_google_auth_flag(
     assert result["google_client_id"] is None
 
 
-async def test_update_config_accepts_string_false_flag(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+async def test_update_config_accepts_string_false_flag(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     config_path = tmp_path / "config.yaml"
     _write_config(config_path, {"auth": {"google_auth_enabled": "false"}})
     monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
@@ -381,9 +373,7 @@ async def test_update_config_empty_payload_env_toggle_requires_client_id(
     }
     _write_config(config_path, base_config)
     monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
-    loader = _patch_loader(
-        monkeypatch, _DummyConfig(google_auth_enabled=False, google_client_id=None)
-    )
+    loader = _patch_loader(monkeypatch, _DummyConfig(google_auth_enabled=False, google_client_id=None))
     dummy_config = _DummyConfig(google_auth_enabled=False, google_client_id=None)
     monkeypatch.setattr(routes_config.config_module, "config", dummy_config)
     calls = _spy_validate(monkeypatch)
@@ -416,9 +406,7 @@ async def test_update_config_treats_blank_google_auth_env_as_absent(
     }
     _write_config(config_path, base_config)
     monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
-    loader = _patch_loader(
-        monkeypatch, _DummyConfig(google_auth_enabled=False, google_client_id=None)
-    )
+    loader = _patch_loader(monkeypatch, _DummyConfig(google_auth_enabled=False, google_client_id=None))
     dummy_config = _DummyConfig(google_auth_enabled=False, google_client_id=None)
     monkeypatch.setattr(routes_config.config_module, "config", dummy_config)
     calls = _spy_validate(monkeypatch)

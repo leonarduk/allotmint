@@ -264,8 +264,20 @@ def test_reload_preserves_monkeypatched_allowed_emails(monkeypatch):
 @pytest.mark.parametrize(
     "config_text",
     [
-        "demo_identity: legacy-demo\nsmoke_identity: legacy-smoke\nauth:\n  demo_identity: section-demo\n  smoke_identity: section-smoke\n",
-        "auth:\n  demo_identity: section-demo\n  smoke_identity: section-smoke\ndemo_identity: legacy-demo\nsmoke_identity: legacy-smoke\n",
+        (
+            "demo_identity: legacy-demo\n"
+            "smoke_identity: legacy-smoke\n"
+            "auth:\n"
+            "  demo_identity: section-demo\n"
+            "  smoke_identity: section-smoke\n"
+        ),
+        (
+            "auth:\n"
+            "  demo_identity: section-demo\n"
+            "  smoke_identity: section-smoke\n"
+            "demo_identity: legacy-demo\n"
+            "smoke_identity: legacy-smoke\n"
+        ),
     ],
 )
 def test_reload_prefers_canonical_auth_section_over_legacy_top_level(monkeypatch, tmp_path, config_text):
@@ -359,13 +371,13 @@ def test_update_config_merges_ui_section(monkeypatch, tmp_path):
 
 def test_aws_ui_auth_disabled_when_only_domain_set(monkeypatch):
     """
-     #4630
+    #4630
 
-     Set UI_AUTH_DOMAIN to a valid domain, leave UI_AUTH_CLIENT_ID unset/empty.
+    Set UI_AUTH_DOMAIN to a valid domain, leave UI_AUTH_CLIENT_ID unset/empty.
 
-     Assert that enabled is False and that the serialized /config response
-     omits awsUiAuth (or includes it with enabled: false depending
-     on the serialization logic — verify against routes/config.py line 71).
+    Assert that enabled is False and that the serialized /config response
+    omits awsUiAuth (or includes it with enabled: false depending
+    on the serialization logic — verify against routes/config.py line 71).
     """
     monkeypatch.setenv("UI_AUTH_DOMAIN", "https://allotmint-123.auth.eu-west-1.amazoncognito.com")
     monkeypatch.setenv("UI_AUTH_CLIENT_ID", "")

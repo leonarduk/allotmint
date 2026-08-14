@@ -1,0 +1,67 @@
+name: Auto-format backend Python
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'tests/**'
+      - 'backend/pyproject.toml'
+      - 'requirements*.txt'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: auto-format-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  format:
+    # Same-repo PR branches only: GITHUB_TOKEN cannot push to fork head branches.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install backend and development dependencies
+        # Same install as the CI lint job: runtime deps (requirements.txt) are
+        # needed too, because pytest collection loads tests/conftest.py which
+        # imports fastapi.
+        run: pip install --retries 10 -r requirements.txt -r requirements-dev.txt
+      - name: Apply black, isort, and safe ruff fixes
+        # Same rules as `make format` plus ruff's safe autofixes. The CI lint
+        # job installs the same requirements-dev.txt at the same commit, so the
+        # formatter versions can never drift from what lint checks against.
+        run: |
+          isort --sp backend/pyproject.toml backend tests
+          black --config backend/pyproject.toml backend tests
+          ruff check --fix --config backend/pyproject.toml backend tests
+      - name: Verify lint is clean before committing
+        # Never push a tree the CI lint job would reject: fail loudly here so
+        # the author fixes remaining (non-autofixable) violations instead of
+        # the bot committing a red tree. The log-sanitization ratchet is
+        # included because reformatting shifts the file:line keys it is keyed
+        # on (see tests/data/log_sanitization_baseline.txt).
+        run: |
+          ruff check --config backend/pyproject.toml backend tests
+          black --check --config backend/pyproject.toml backend tests
+          python -m pytest tests/test_log_sanitization_audit.py -q --no-cov
+      - name: Commit formatting changes to the PR branch
+        # Fixes the PR's own branch (not main), so branch protection and the
+        # required "Backend lint (ruff, black)" check still gate the merge.
+        # The no-diff guard stops this workflow from looping: the re-triggered
+        # run after the push finds nothing to change and exits here.
+        run: |
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "Apply black, isort, and ruff formatting"
+            git push
+          fi

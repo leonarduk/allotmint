@@ -185,10 +185,18 @@ def test_extract_holdings_ignores_invalid(tmp_path):
     <security><name>NoID</name></security>
   </securities>
   <account>
-    <portfolio-transaction type="BUY"><date>2020-01-01</date><shares/><security reference="s1"/></portfolio-transaction>
-    <portfolio-transaction type="BUY"><date>2020-01-01</date><shares>100000000</shares></portfolio-transaction>
-    <portfolio-transaction type="BUY"><date>2020-01-01</date><shares>100000000</shares><security></security></portfolio-transaction>
-    <portfolio-transaction type="BUY"><date>2020-01-01</date><shares>0</shares><security reference="s1"/></portfolio-transaction>
+    <portfolio-transaction type="BUY">
+      <date>2020-01-01</date><shares/><security reference="s1"/>
+    </portfolio-transaction>
+    <portfolio-transaction type="BUY">
+      <date>2020-01-01</date><shares>100000000</shares>
+    </portfolio-transaction>
+    <portfolio-transaction type="BUY">
+      <date>2020-01-01</date><shares>100000000</shares><security></security>
+    </portfolio-transaction>
+    <portfolio-transaction type="BUY">
+      <date>2020-01-01</date><shares>0</shares><security reference="s1"/>
+    </portfolio-transaction>
   </account>
 </root>"""
     path = tmp_path / "invalid.xml"
@@ -205,11 +213,19 @@ def test_extract_dividends_ignores_invalid(tmp_path):
     <security><name>NoID</name></security>
   </securities>
   <account>
-    <portfolio-transaction type="DIVIDEND"><date>2020-02-01</date><amount>5</amount><security reference="s1"/></portfolio-transaction>
+    <portfolio-transaction type="DIVIDEND">
+      <date>2020-02-01</date><amount>5</amount><security reference="s1"/>
+    </portfolio-transaction>
     <portfolio-transaction type="DIVIDEND"><date>2020-01-01</date></portfolio-transaction>
-    <portfolio-transaction type="DIVIDEND"><date>2020-01-01</date><amount>abc</amount><security reference="s1"/></portfolio-transaction>
-    <portfolio-transaction type="DIVIDEND"><date>2020-01-01</date><amount>5</amount></portfolio-transaction>
-    <portfolio-transaction type="DIVIDEND"><date>2020-01-01</date><amount>5</amount><security></security></portfolio-transaction>
+    <portfolio-transaction type="DIVIDEND">
+      <date>2020-01-01</date><amount>abc</amount><security reference="s1"/>
+    </portfolio-transaction>
+    <portfolio-transaction type="DIVIDEND">
+      <date>2020-01-01</date><amount>5</amount>
+    </portfolio-transaction>
+    <portfolio-transaction type="DIVIDEND">
+      <date>2020-01-01</date><amount>5</amount><security></security>
+    </portfolio-transaction>
   </account>
 </root>"""
     path = tmp_path / "divs.xml"

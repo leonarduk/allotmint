@@ -13,6 +13,7 @@ def _make_client(monkeypatch, tmp_path, df):
     monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
     monkeypatch.setattr("backend.timeseries.cache.load_meta_timeseries_range", fake_load)
     import backend.routes.timeseries_meta as ts_meta
+
     monkeypatch.setattr(ts_meta, "load_meta_timeseries_range", fake_load)
     from backend.app import create_app
 
@@ -88,9 +89,7 @@ def test_timeseries_meta_bad_request(monkeypatch, tmp_path):
 )
 def test_timeseries_meta_xss_payload_rejected(params, monkeypatch, tmp_path):
     """XSS payloads in ticker/exchange are rejected; never reflected verbatim (CodeQL #276)."""
-    df = pd.DataFrame(
-        [{"Date": "2024-01-01", "Open": 1.0, "High": 2.0, "Low": 0.5, "Close": 1.5, "Volume": 100}]
-    )
+    df = pd.DataFrame([{"Date": "2024-01-01", "Open": 1.0, "High": 2.0, "Low": 0.5, "Close": 1.5, "Volume": 100}])
     client = _make_client(monkeypatch, tmp_path, df)
     resp = client.get("/timeseries/meta", params=params)
     assert resp.status_code == 400
@@ -108,9 +107,7 @@ def test_timeseries_meta_xss_payload_rejected(params, monkeypatch, tmp_path):
 )
 def test_timeseries_meta_valid_exchange_codes(ticker, exchange, monkeypatch, tmp_path):
     """Valid exchange codes including those with dots are accepted (dot-in-exchange regression)."""
-    df = pd.DataFrame(
-        [{"Date": "2024-01-01", "Open": 1.0, "High": 2.0, "Low": 0.5, "Close": 1.5, "Volume": 100}]
-    )
+    df = pd.DataFrame([{"Date": "2024-01-01", "Open": 1.0, "High": 2.0, "Low": 0.5, "Close": 1.5, "Volume": 100}])
     client = _make_client(monkeypatch, tmp_path, df)
     resp = client.get(
         "/timeseries/meta",

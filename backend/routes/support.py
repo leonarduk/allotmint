@@ -64,10 +64,12 @@ async def _compute_portfolio_health(threshold: float) -> _PortfolioHealthSnapsho
         # Deferred: scripts/ is outside the backend package and not present in the
         # Lambda Docker image, so a module-level import would block Lambda startup.
         from scripts.check_portfolio_health import run_check  # noqa: PLC0415
+
         findings = await asyncio.to_thread(run_check, threshold)
     except Exception:  # pragma: no cover - defensive logging
         logger.exception(
-            "Portfolio health check failed for threshold %.4f", threshold,
+            "Portfolio health check failed for threshold %.4f",
+            threshold,
         )
         raise
     return _PortfolioHealthSnapshot(
@@ -127,19 +129,13 @@ def _format_portfolio_health_response(
 async def post_portfolio_health(req: PortfolioHealthRequest | None = None) -> dict[str, Any]:
     """Run portfolio health check and return structured findings."""
 
-    threshold = (
-        req.threshold
-        if req and req.threshold is not None
-        else float(os.getenv("DRAWDOWN_THRESHOLD", "0.2"))
-    )
+    threshold = req.threshold if req and req.threshold is not None else float(os.getenv("DRAWDOWN_THRESHOLD", "0.2"))
 
     global _portfolio_health_cache
     cache = _portfolio_health_cache
     stale = False
     error: Exception | None = None
-    snapshot: _PortfolioHealthSnapshot | None = (
-        cache if cache and cache.threshold == threshold else None
-    )
+    snapshot: _PortfolioHealthSnapshot | None = cache if cache and cache.threshold == threshold else None
 
     if cache and _cache_is_fresh(cache, threshold):
         snapshot = cache

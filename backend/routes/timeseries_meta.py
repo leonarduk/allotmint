@@ -91,18 +91,12 @@ async def get_meta_timeseries(
     days: int = Query(365, ge=0, le=36500),
     format: str = Query("html", pattern="^(html|json|csv)$"),
     scaling: float = Query(1.0, ge=0.00001, le=1_000_000),
-    start_date: date | None = Query(
-        None, description="Start date (YYYY-MM-DD). Overrides days when provided."
-    ),
-    end_date: date | None = Query(
-        None, description="End date (YYYY-MM-DD). Defaults to yesterday when omitted."
-    ),
+    start_date: date | None = Query(None, description="Start date (YYYY-MM-DD). Overrides days when provided."),
+    end_date: date | None = Query(None, description="End date (YYYY-MM-DD). Defaults to yesterday when omitted."),
 ):
     ticker, exchange = _resolve_ticker_exchange(ticker, exchange)
 
-    start_date, end_date = resolve_date_range(
-        days, start_date=start_date, end_date=end_date
-    )
+    start_date, end_date = resolve_date_range(days, start_date=start_date, end_date=end_date)
 
     # 422 matches FastAPI's convention for parameter validation errors (issue #2747 AC).
     if start_date > end_date:
@@ -112,17 +106,15 @@ async def get_meta_timeseries(
         )
 
     try:
-        df = load_meta_timeseries_range(
-            ticker, exchange, start_date=start_date, end_date=end_date
-        )
+        df = load_meta_timeseries_range(ticker, exchange, start_date=start_date, end_date=end_date)
     except Exception as exc:
         logger.debug(
             "Failed to load meta timeseries for %s.%s: %s",
-            sanitise_log_value(ticker), sanitise_log_value(exchange), sanitise_log_value(exc),
+            sanitise_log_value(ticker),
+            sanitise_log_value(exchange),
+            sanitise_log_value(exc),
         )
-        raise HTTPException(
-            status_code=404, detail="timeseries meta not found"
-        ) from exc
+        raise HTTPException(status_code=404, detail="timeseries meta not found") from exc
 
     if df is None or df.empty:
         raise HTTPException(status_code=404, detail="timeseries meta not found")
@@ -139,9 +131,7 @@ async def get_meta_timeseries(
 
     # ── JSON output ───────────────────────────────────────────
     if format == "json":
-        datetime_columns = [
-            col for col in df.columns if pd_types.is_datetime64_any_dtype(df[col])
-        ]
+        datetime_columns = [col for col in df.columns if pd_types.is_datetime64_any_dtype(df[col])]
         for col in datetime_columns:
             df[col] = df[col].map(lambda x: x.isoformat() if pd.notnull(x) else None)
         return JSONResponse(

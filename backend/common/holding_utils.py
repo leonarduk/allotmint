@@ -118,11 +118,7 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
 
             name_map = _lower_name_map(df)
             close_gbp_col = name_map.get("close_gbp")
-            close_native_col = (
-                name_map.get("close")
-                or name_map.get("adj close")
-                or name_map.get("adj_close")
-            )
+            close_native_col = name_map.get("close") or name_map.get("adj close") or name_map.get("adj_close")
 
             if not close_gbp_col and not close_native_col:
                 continue
@@ -139,10 +135,7 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
             if close_gbp_col is None:
                 full_ticker = f"{ticker}.{exchange}"
                 meta = (
-                    get_instrument_meta(full_ticker)
-                    or get_instrument_meta(full)
-                    or get_instrument_meta(ticker)
-                    or {}
+                    get_instrument_meta(full_ticker) or get_instrument_meta(full) or get_instrument_meta(ticker) or {}
                 )
 
                 raw_currency = str(meta.get("currency") or "").strip()
@@ -436,9 +429,7 @@ def enrich_holding(
         units = float(out.get(UNITS, 0) or 0.0)
         out["name"] = out.get("name") or _cash_name(full, account_ccy)
         out["currency"] = meta.get("currency") or account_ccy
-        out["instrument_type"] = (
-            meta.get("instrumentType") or meta.get("instrument_type") or "Cash"
-        )
+        out["instrument_type"] = meta.get("instrumentType") or meta.get("instrument_type") or "Cash"
         out["sector"] = out.get("sector") or meta.get("sector")
         out["region"] = out.get("region") or meta.get("region")
 
@@ -479,11 +470,7 @@ def enrich_holding(
     out["name"] = out.get("name") or meta.get("name") or full
     out["sector"] = out.get("sector") or meta.get("sector")
     out["region"] = out.get("region") or meta.get("region")
-    out["asset_class"] = (
-        out.get("asset_class")
-        or meta.get("assetClass")
-        or meta.get("asset_class")
-    )
+    out["asset_class"] = out.get("asset_class") or meta.get("assetClass") or meta.get("asset_class")
 
     units = float(out.get(UNITS, 0) or 0.0)
     if units <= 0:
@@ -540,11 +527,7 @@ def enrich_holding(
     exempt_type = instr_type in exempt_types
     if is_etf and is_commodity:
         exempt_type = False
-    needs_approval = not (
-        ticker.upper() in exempt_tickers
-        or full.upper() in exempt_tickers
-        or exempt_type
-    )
+    needs_approval = not (ticker.upper() in exempt_tickers or full.upper() in exempt_tickers or exempt_type)
 
     approved = False
     if approvals and needs_approval:
@@ -573,14 +556,10 @@ def enrich_holding(
             prev_date = calc.previous_pricing_date
         else:
             asof_date = calc.reporting_date
-            px, px_source = _get_price_for_date_scaled(
-                ticker, exchange, asof_date, field="Close_gbp"
-            )
+            px, px_source = _get_price_for_date_scaled(ticker, exchange, asof_date, field="Close_gbp")
             prev_date = calc.previous_pricing_date
 
-        prev_px, _ = _get_price_for_date_scaled(
-            ticker, exchange, prev_date, field="Close_gbp"
-        )
+        prev_px, _ = _get_price_for_date_scaled(ticker, exchange, prev_date, field="Close_gbp")
 
         if px is None and prev_px is not None:
             # Today's close is missing/unavailable (e.g. a gap in the price
@@ -596,9 +575,7 @@ def enrich_holding(
                 future_candidate = pricing_date + timedelta(days=7)
                 future_date = calc.resolve_weekday(future_candidate, forward=True)
                 if future_date > pricing_date:
-                    future_px, _ = _get_price_for_date_scaled(
-                        ticker, exchange, future_date, field="Close_gbp"
-                    )
+                    future_px, _ = _get_price_for_date_scaled(ticker, exchange, future_date, field="Close_gbp")
                     if future_px is not None:
                         change = (future_px / px) - 1
                         out["forward_7d_change_pct"] = round(change * 100, 4)
@@ -606,9 +583,7 @@ def enrich_holding(
                 future_candidate = pricing_date + timedelta(days=30)
                 future_date = calc.resolve_weekday(future_candidate, forward=True)
                 if future_date > pricing_date:
-                    future_px, _ = _get_price_for_date_scaled(
-                        ticker, exchange, future_date, field="Close_gbp"
-                    )
+                    future_px, _ = _get_price_for_date_scaled(ticker, exchange, future_date, field="Close_gbp")
                     if future_px is not None:
                         change = (future_px / px) - 1
                         out["forward_30d_change_pct"] = round(change * 100, 4)
@@ -631,9 +606,7 @@ def enrich_holding(
         if "price_hint" in params:
             pass_price_hint = True
         else:
-            pass_price_hint = any(
-                param.kind is inspect.Parameter.VAR_KEYWORD for param in params.values()
-            )
+            pass_price_hint = any(param.kind is inspect.Parameter.VAR_KEYWORD for param in params.values())
 
     if pass_price_hint:
         ecb = helper(out, price_cache, price_hint=px)

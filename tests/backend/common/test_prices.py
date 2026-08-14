@@ -80,9 +80,7 @@ def test_close_on_converts_native_currency_to_gbp(monkeypatch: pytest.MonkeyPatc
     from backend.common import portfolio_utils
 
     monkeypatch.setattr(portfolio_utils, "_fx_to_base", lambda *_: 0.8)
-    monkeypatch.setattr(
-        "backend.common.instruments.get_instrument_meta", lambda *_: {"currency": "USD"}
-    )
+    monkeypatch.setattr("backend.common.instruments.get_instrument_meta", lambda *_: {"currency": "USD"})
 
     assert prices._close_on("USDX", "US", sample_date) == pytest.approx(80.0)
 
@@ -95,9 +93,7 @@ def test_close_on_converts_gbx_pence_to_gbp(monkeypatch: pytest.MonkeyPatch) -> 
 
     monkeypatch.setattr(prices, "_nearest_weekday", lambda d, forward=False: sample_date)
     monkeypatch.setattr(prices, "load_meta_timeseries_range", lambda *args, **kwargs: frame)
-    monkeypatch.setattr(
-        "backend.common.instruments.get_instrument_meta", lambda *_: {"currency": "GBX"}
-    )
+    monkeypatch.setattr("backend.common.instruments.get_instrument_meta", lambda *_: {"currency": "GBX"})
 
     # GBX conversion is arithmetic (/100); FX resolver must not be called.
     monkeypatch.setattr(
@@ -128,9 +124,7 @@ def test_get_price_snapshot_handles_stale_and_missing_data(monkeypatch: pytest.M
     )
 
     mapping = {"ABC.L": ("ABC", "L"), "DEF.N": ("DEF", "N"), "GHI.L": ("GHI", "L")}
-    monkeypatch.setattr(
-        prices.instrument_api, "_resolve_full_ticker", lambda full, latest: mapping.get(full)
-    )
+    monkeypatch.setattr(prices.instrument_api, "_resolve_full_ticker", lambda full, latest: mapping.get(full))
 
     last_trading_day = prices._nearest_weekday(date.today() - timedelta(days=1), forward=False)
     seven_day = last_trading_day - timedelta(days=7)
@@ -228,9 +222,7 @@ def _stub_refresh_prices(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(prices, "check_price_alerts", lambda: None)
 
 
-def test_refresh_prices_uploads_to_s3_in_aws_env(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog
-):
+def test_refresh_prices_uploads_to_s3_in_aws_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog):
     """refresh_prices() must call s3.put_object with PRICES_S3_KEY when app_env==aws."""
     _stub_refresh_prices(tmp_path, monkeypatch)
     monkeypatch.setattr(prices.config, "app_env", "aws", raising=False)
@@ -278,15 +270,13 @@ def test_refresh_prices_s3_upload_failure_logs_warning_not_error(
 
     assert "Failed to upload price snapshot to S3" in caplog.text
     error_records = [r for r in caplog.records if r.levelno >= logging.ERROR]
-    assert error_records == [], (
-        f"S3 upload failure must log WARNING, not ERROR; got: {[r.message for r in error_records]}"
-    )
+    assert (
+        error_records == []
+    ), f"S3 upload failure must log WARNING, not ERROR; got: {[r.message for r in error_records]}"
     assert result is not None, "refresh_prices() must still return normally after S3 upload failure"
 
 
-def test_refresh_prices_skips_s3_when_data_bucket_not_set(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog
-):
+def test_refresh_prices_skips_s3_when_data_bucket_not_set(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog):
     """refresh_prices() must log a WARNING and skip S3 when DATA_BUCKET env var is absent."""
     _stub_refresh_prices(tmp_path, monkeypatch)
     monkeypatch.setattr(prices.config, "app_env", "aws", raising=False)
@@ -300,9 +290,7 @@ def test_refresh_prices_skips_s3_when_data_bucket_not_set(
     assert "DATA_BUCKET not set" in caplog.text
 
 
-def test_refresh_prices_does_not_upload_to_s3_in_local_env(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
+def test_refresh_prices_does_not_upload_to_s3_in_local_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """refresh_prices() must not call s3.put_object when app_env != 'aws'."""
     _stub_refresh_prices(tmp_path, monkeypatch)
     monkeypatch.setattr(prices.config, "app_env", "local", raising=False)
@@ -373,24 +361,16 @@ def test_last_close_fallback_snapshot_does_not_double_convert_fx(
     monkeypatch.setattr(prices, "_load_latest_prices", lambda _: {ticker: 80.0})
     monkeypatch.setattr(prices, "load_live_prices", lambda _: {})
     monkeypatch.setattr(prices, "_close_on", lambda *_: 80.0)
-    monkeypatch.setattr(
-        prices.instrument_api, "_resolve_full_ticker", lambda full, latest: ("USDX", "US")
-    )
+    monkeypatch.setattr(prices.instrument_api, "_resolve_full_ticker", lambda full, latest: ("USDX", "US"))
 
     snapshot = prices.get_price_snapshot([ticker])
     assert snapshot[ticker]["price_currency"] == "GBP"
     monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", snapshot, raising=False)
-    monkeypatch.setattr(
-        "backend.common.instrument_api._resolve_full_ticker", lambda t, _: ("USDX", "US")
-    )
-    monkeypatch.setattr(
-        portfolio_utils, "get_instrument_meta", lambda _: {"currency": "USD", "name": "USD X"}
-    )
+    monkeypatch.setattr("backend.common.instrument_api._resolve_full_ticker", lambda t, _: ("USDX", "US"))
+    monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda _: {"currency": "USD", "name": "USD X"})
     monkeypatch.setattr(portfolio_utils, "get_security_meta", lambda _: {})
     monkeypatch.setattr("backend.common.instrument_api.price_change_pct", lambda *_: None)
-    monkeypatch.setattr(
-        portfolio_utils, "_fx_to_base", lambda c, b, cache: 0.8 if c == "USD" else 1.0
-    )
+    monkeypatch.setattr(portfolio_utils, "_fx_to_base", lambda c, b, cache: 0.8 if c == "USD" else 1.0)
 
     portfolio = {
         "accounts": [
@@ -422,17 +402,13 @@ def test_last_close_fallback_snapshot_marks_gbx_prices_as_gbp(
     monkeypatch.setattr(prices, "_load_latest_prices", lambda _: {ticker: 1.103})
     monkeypatch.setattr(prices, "load_live_prices", lambda _: {})
     monkeypatch.setattr(prices, "_close_on", lambda *_: 1.103)
-    monkeypatch.setattr(
-        prices.instrument_api, "_resolve_full_ticker", lambda full, latest: ("VOD", "L")
-    )
+    monkeypatch.setattr(prices.instrument_api, "_resolve_full_ticker", lambda full, latest: ("VOD", "L"))
 
     snapshot = prices.get_price_snapshot([ticker])
     assert snapshot[ticker]["price_currency"] == "GBP"
 
     monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", snapshot, raising=False)
-    monkeypatch.setattr(
-        "backend.common.instrument_api._resolve_full_ticker", lambda t, _: ("VOD", "L")
-    )
+    monkeypatch.setattr("backend.common.instrument_api._resolve_full_ticker", lambda t, _: ("VOD", "L"))
     monkeypatch.setattr(
         portfolio_utils,
         "get_instrument_meta",
@@ -475,8 +451,6 @@ def test_close_on_returns_none_when_fx_lookup_is_invalid(monkeypatch: pytest.Mon
     from backend.common import portfolio_utils
 
     monkeypatch.setattr(portfolio_utils, "_fx_to_base", lambda *_: None)
-    monkeypatch.setattr(
-        "backend.common.instruments.get_instrument_meta", lambda *_: {"currency": "USD"}
-    )
+    monkeypatch.setattr("backend.common.instruments.get_instrument_meta", lambda *_: {"currency": "USD"})
 
     assert prices._close_on("USDX", "US", sample_date) is None

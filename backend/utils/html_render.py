@@ -17,8 +17,7 @@ def render_timeseries_html(df: DataFrame, title: str, subtitle: str = "") -> HTM
     escaped_title = html.escape(title)
     escaped_subtitle = html.escape(subtitle)
 
-    return HTMLResponse(
-        content=f"""
+    return HTMLResponse(content=f"""
     <html>
     <head>
         <title>{escaped_title}</title>
@@ -35,5 +34,4 @@ def render_timeseries_html(df: DataFrame, title: str, subtitle: str = "") -> HTM
         {html_table}
     </body>
     </html>
-    """
-    )
+    """)

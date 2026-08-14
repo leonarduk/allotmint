@@ -155,7 +155,7 @@ at the end. If the current checkout is dirty or already contains unrelated
 work, create a clean worktree from `main` and do the task there.
 
 Always:
-1. Create a branch (`fix/issue-NNNN-short-description`, `feat/issue-NNNN-short-description`, `docs/short-description`, or `chore/short-description`)
+1. Create a branch (`fix/issue-NNNN-short-description`, `feat/issue-NNNN-short-description`, or `docs/short-description`)
 2. Push changes to the branch
 3. Open a PR targeting `main`
 4. Wait for review/merge

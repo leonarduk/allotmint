@@ -1,4 +1,5 @@
 import pytest
+
 import backend.common.portfolio_utils as portfolio_utils
 from backend.common import instrument_api as ia
 
@@ -216,7 +217,4 @@ def test_normalize_currency_code_logs_when_missing(caplog):
         normalized = portfolio_utils._normalize_currency_code(None)
 
     assert normalized == "GBP"
-    assert (
-        "_normalize_currency_code received empty/missing currency; defaulting to GBP."
-        in caplog.text
-    )
+    assert "_normalize_currency_code received empty/missing currency; defaulting to GBP." in caplog.text

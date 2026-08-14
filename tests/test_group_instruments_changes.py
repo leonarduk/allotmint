@@ -19,15 +19,11 @@ def test_group_instruments_populates_change_fields(monkeypatch, client):
         "accounts": [
             {
                 "account_type": "TEST",
-                "holdings": [
-                    {"ticker": "AAA.L", "units": 1.0, "cost_gbp": 90.0}
-                ],
+                "holdings": [{"ticker": "AAA.L", "units": 1.0, "cost_gbp": 90.0}],
             }
         ]
     }
-    monkeypatch.setattr(
-        group_portfolio, "build_group_portfolio", lambda slug, **_: portfolio
-    )
+    monkeypatch.setattr(group_portfolio, "build_group_portfolio", lambda slug, **_: portfolio)
     monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {"AAA.L": {"last_price": 100.0}})
     monkeypatch.setattr(
         instrument_api,

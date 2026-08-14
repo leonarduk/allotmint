@@ -1,5 +1,3 @@
-import pytest
-
 from datetime import datetime
 
 import pytest
@@ -233,9 +231,7 @@ def test_audit_report_json_section_order_and_presence(monkeypatch):
     assert len(overview_section.rows) >= 1
 
     # Concentration rows are ordered by value descending (highest weight first)
-    concentration_section = next(
-        s for s in document.sections if s.schema.source == "portfolio.concentration"
-    )
+    concentration_section = next(s for s in document.sections if s.schema.source == "portfolio.concentration")
     assert len(concentration_section.rows) >= 1
 
     # VaR section present and non-empty when risk module available
@@ -283,7 +279,6 @@ def test_audit_report_var_section_omitted_when_risk_unavailable(monkeypatch, tmp
 
 def test_existing_templates_unaffected_by_audit_report_changes(monkeypatch):
     """performance-summary, transactions, allocation-breakdown must still build correctly."""
-    from types import SimpleNamespace
 
     summary = reports.ReportData(
         owner="alice",
@@ -295,9 +290,7 @@ def test_existing_templates_unaffected_by_audit_report_changes(monkeypatch):
         max_drawdown=-0.02,
         history=[],
     )
-    monkeypatch.setattr(
-        reports, "_compile_summary", lambda owner, start, end: (summary, {"history": []})
-    )
+    monkeypatch.setattr(reports, "_compile_summary", lambda owner, start, end: (summary, {"history": []}))
     monkeypatch.setattr(reports, "_load_transactions", lambda owner: [])
     monkeypatch.setattr(
         reports.portfolio_utils,

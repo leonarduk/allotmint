@@ -113,9 +113,7 @@ async def test_log_event_appends_expected_event(monkeypatch: pytest.MonkeyPatch)
         ({"source": "trail", "event": "does-not-exist"}, "Unsupported event for source"),
     ],
 )
-async def test_log_event_validation_errors(
-    payload_kwargs: dict[str, Any], expected_detail: str
-) -> None:
+async def test_log_event_validation_errors(payload_kwargs: dict[str, Any], expected_detail: str) -> None:
     """Validation failures raise ``HTTPException`` with a 400 status code."""
 
     payload = analytics.AnalyticsEventIn(**payload_kwargs)
@@ -195,4 +193,3 @@ async def test_get_funnel_with_events(monkeypatch: pytest.MonkeyPatch) -> None:
     assert [step.event for step in summary.steps] == ["view", "task_started", "task_completed"]
     assert [step.count for step in summary.steps] == [2, 2, 1]
     assert summary.other_events == {"unexpected": 1}
-

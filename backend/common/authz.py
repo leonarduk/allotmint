@@ -44,11 +44,7 @@ def _allowed_identities(owner: str, meta: Mapping[str, Any]) -> Set[str]:
 
     viewers = meta.get("viewers") if isinstance(meta, Mapping) else None
     if isinstance(viewers, list):
-        allowed.update(
-            viewer.strip().lower()
-            for viewer in viewers
-            if isinstance(viewer, str) and viewer.strip()
-        )
+        allowed.update(viewer.strip().lower() for viewer in viewers if isinstance(viewer, str) and viewer.strip())
     return allowed
 
 

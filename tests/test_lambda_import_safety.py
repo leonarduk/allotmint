@@ -6,6 +6,7 @@ This would have caught the cold-start 503 in #2975, where _load_snapshot() was
 called at module scope in portfolio_utils.py and made a blocking S3 GetObject
 during Lambda init, exceeding the 10 s init limit.
 """
+
 import ast
 from pathlib import Path
 
@@ -37,9 +38,12 @@ def _module_level_calls(rel_path: str) -> list[tuple[str, int]]:
 _AWS_FUNCTIONS = {"_load_snapshot"}
 
 
-@pytest.mark.parametrize("rel_path", [
-    "common/portfolio_utils.py",
-])
+@pytest.mark.parametrize(
+    "rel_path",
+    [
+        "common/portfolio_utils.py",
+    ],
+)
 def test_no_aws_call_at_module_scope(rel_path):
     """No AWS-touching function may be called at module scope."""
     hits = _module_level_calls(rel_path)

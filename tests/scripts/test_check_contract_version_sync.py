@@ -1,4 +1,5 @@
 """Unit tests for scripts/check_contract_version_sync.py."""
+
 from __future__ import annotations
 
 import importlib.util
@@ -22,6 +23,7 @@ main = _mod.main
 # ---------------------------------------------------------------------------
 # extract_contract_version
 # ---------------------------------------------------------------------------
+
 
 class TestExtractContractVersion:
     def test_python_style_single_quotes(self, tmp_path: Path) -> None:
@@ -50,10 +52,7 @@ class TestExtractContractVersion:
     def test_duplicate_definition_raises(self, tmp_path: Path) -> None:
         """Two real (non-comment) definitions on separate lines must raise."""
         f = tmp_path / "dup.py"
-        f.write_text(
-            "SPA_RESPONSE_CONTRACT_VERSION = '0.9'\n"
-            "SPA_RESPONSE_CONTRACT_VERSION = '1.0'\n"
-        )
+        f.write_text("SPA_RESPONSE_CONTRACT_VERSION = '0.9'\n" "SPA_RESPONSE_CONTRACT_VERSION = '1.0'\n")
         with pytest.raises(ValueError, match="2 occurrences"):
             extract_contract_version(f)
 
@@ -61,8 +60,7 @@ class TestExtractContractVersion:
         """A full-line Python comment referencing the old version is ignored."""
         f = tmp_path / "contracts.py"
         f.write_text(
-            "# SPA_RESPONSE_CONTRACT_VERSION = '0.9'  # previous version\n"
-            "SPA_RESPONSE_CONTRACT_VERSION = '1.0'\n"
+            "# SPA_RESPONSE_CONTRACT_VERSION = '0.9'  # previous version\n" "SPA_RESPONSE_CONTRACT_VERSION = '1.0'\n"
         )
         assert extract_contract_version(f) == "1.0"
 
@@ -80,18 +78,14 @@ class TestExtractContractVersion:
         trigger the duplicate guard.
         """
         f = tmp_path / "contracts.py"
-        f.write_text(
-            "SPA_RESPONSE_CONTRACT_VERSION = '1.0'  "
-            "# bumped from SPA_RESPONSE_CONTRACT_VERSION = '0.9'\n"
-        )
+        f.write_text("SPA_RESPONSE_CONTRACT_VERSION = '1.0'  " "# bumped from SPA_RESPONSE_CONTRACT_VERSION = '0.9'\n")
         assert extract_contract_version(f) == "1.0"
 
     def test_typescript_inline_comment_with_old_version_is_stripped(self, tmp_path: Path) -> None:
         """Same check for TypeScript inline // comment."""
         f = tmp_path / "spa.ts"
         f.write_text(
-            'export const SPA_RESPONSE_CONTRACT_VERSION = "1.0";  '
-            '// was SPA_RESPONSE_CONTRACT_VERSION = "0.9"\n'
+            'export const SPA_RESPONSE_CONTRACT_VERSION = "1.0";  ' '// was SPA_RESPONSE_CONTRACT_VERSION = "0.9"\n'
         )
         assert extract_contract_version(f) == "1.0"
 
@@ -104,12 +98,15 @@ class TestExtractContractVersion:
 # main() end-to-end
 # ---------------------------------------------------------------------------
 
+
 class TestMain:
     def _patch_paths(self, monkeypatch: pytest.MonkeyPatch, py_file: Path, ts_file: Path) -> None:
         monkeypatch.setattr(_mod, "PYTHON_CONTRACT", py_file)
         monkeypatch.setattr(_mod, "TYPESCRIPT_CONTRACT", ts_file)
 
-    def test_versions_match_returns_0(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_versions_match_returns_0(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         py = tmp_path / "contracts.py"
         ts = tmp_path / "spa.ts"
         py.write_text("SPA_RESPONSE_CONTRACT_VERSION = '1.0'\n")
@@ -118,7 +115,9 @@ class TestMain:
         assert main() == 0
         assert "in sync" in capsys.readouterr().out
 
-    def test_versions_mismatch_returns_1(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_versions_mismatch_returns_1(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         py = tmp_path / "contracts.py"
         ts = tmp_path / "spa.ts"
         py.write_text("SPA_RESPONSE_CONTRACT_VERSION = '1.0'\n")
@@ -127,14 +126,18 @@ class TestMain:
         assert main() == 1
         assert "mismatch" in capsys.readouterr().err
 
-    def test_missing_file_returns_1(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_missing_file_returns_1(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         py = tmp_path / "contracts.py"
         py.write_text("SPA_RESPONSE_CONTRACT_VERSION = '1.0'\n")
         self._patch_paths(monkeypatch, py, tmp_path / "nonexistent.ts")
         assert main() == 1
         assert "ERROR" in capsys.readouterr().err
 
-    def test_version_not_found_returns_1(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_version_not_found_returns_1(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         py = tmp_path / "contracts.py"
         ts = tmp_path / "spa.ts"
         py.write_text("SPA_RESPONSE_CONTRACT_VERSION = '1.0'\n")

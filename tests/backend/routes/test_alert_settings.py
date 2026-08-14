@@ -58,42 +58,32 @@ async def test_resolve_identity_defaults_to_demo(app: FastAPI) -> None:
 
 
 @pytest.mark.anyio("asyncio")
-async def test_get_threshold_uses_resolved_identity(
-    app: FastAPI, monkeypatch: pytest.MonkeyPatch
-) -> None:
+async def test_get_threshold_uses_resolved_identity(app: FastAPI, monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[str] = []
 
     def fake_get_user_threshold(user: str) -> float:
         calls.append(user)
         return 3.14
 
-    monkeypatch.setattr(
-        alert_settings.alert_utils, "get_user_threshold", fake_get_user_threshold
-    )
+    monkeypatch.setattr(alert_settings.alert_utils, "get_user_threshold", fake_get_user_threshold)
 
     app.dependency_overrides[get_current_user] = lambda: "resolved-user"
     request = _make_request(app)
 
-    response = await alert_settings.get_threshold(
-        user="resolved-user", request=request, current_user=None
-    )
+    response = await alert_settings.get_threshold(user="resolved-user", request=request, current_user=None)
 
     assert calls == ["resolved-user"]
     assert response == {"threshold": 3.14}
 
 
 @pytest.mark.anyio("asyncio")
-async def test_set_threshold_uses_resolved_identity(
-    app: FastAPI, monkeypatch: pytest.MonkeyPatch
-) -> None:
+async def test_set_threshold_uses_resolved_identity(app: FastAPI, monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[tuple[str, float]] = []
 
     def fake_set_user_threshold(user: str, threshold: float) -> None:
         calls.append((user, threshold))
 
-    monkeypatch.setattr(
-        alert_settings.alert_utils, "set_user_threshold", fake_set_user_threshold
-    )
+    monkeypatch.setattr(alert_settings.alert_utils, "set_user_threshold", fake_set_user_threshold)
 
     app.dependency_overrides[get_current_user] = lambda: "resolved-user"
     request = _make_request(app)
@@ -112,9 +102,7 @@ async def test_get_threshold_owner_mismatch(app: FastAPI) -> None:
     request = _make_request(app)
 
     with pytest.raises(alert_settings.HTTPException) as excinfo:
-        await alert_settings.get_threshold(
-            user="alice", request=request, current_user="bob"
-        )
+        await alert_settings.get_threshold(user="alice", request=request, current_user="bob")
 
     assert excinfo.value.status_code == alert_settings.status.HTTP_403_FORBIDDEN
 
@@ -125,8 +113,6 @@ async def test_set_threshold_owner_mismatch(app: FastAPI) -> None:
     payload = alert_settings.ThresholdPayload(threshold=5.0)
 
     with pytest.raises(alert_settings.HTTPException) as excinfo:
-        await alert_settings.set_threshold(
-            user="alice", payload=payload, request=request, current_user="bob"
-        )
+        await alert_settings.set_threshold(user="alice", payload=payload, request=request, current_user="bob")
 
     assert excinfo.value.status_code == alert_settings.status.HTTP_403_FORBIDDEN

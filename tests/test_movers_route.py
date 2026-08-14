@@ -1,6 +1,7 @@
-import backend.common.instrument_api as ia
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+
+import backend.common.instrument_api as ia
 
 
 def _client():
@@ -31,7 +32,7 @@ def test_movers_success(monkeypatch):
     assert resp.status_code == 200
     data = resp.json()
     assert [g["ticker"] for g in data["gainers"]] == ["AAA"]
-    assert [l["ticker"] for l in data["losers"]] == ["BBB"]
+    assert [loser["ticker"] for loser in data["losers"]] == ["BBB"]
 
 
 def test_movers_invalid_days():

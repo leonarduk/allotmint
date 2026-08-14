@@ -6,12 +6,12 @@ from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel
 
 from backend.auth import get_active_user
-from backend.common.tax import harvest_losses
+from backend.common import data_loader
 from backend.common.allowances import (
     current_tax_year,
     remaining_allowances,
 )
-from backend.common import data_loader
+from backend.common.tax import harvest_losses
 from backend.config import demo_identity
 
 router = APIRouter(prefix="/tax", tags=["tax"])

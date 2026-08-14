@@ -1,9 +1,9 @@
 import sys
 from types import SimpleNamespace
 
-import backend.common.data_loader as dl
 from fastapi.testclient import TestClient
 
+import backend.common.data_loader as dl
 from backend.app import create_app
 from backend.common.account_models import PersonMetadata
 from backend.common.pension import state_pension_age_uk
@@ -23,9 +23,7 @@ def test_pension_route_uses_owner_metadata(monkeypatch):
         called.update(kwargs)
         return {"forecast": [], "projected_pot_gbp": 0.0}
 
-    def fake_portfolio(
-        owner: str, *, pricing_date=None, root=None
-    ):  # pragma: no cover - signature match
+    def fake_portfolio(owner: str, *, pricing_date=None, root=None):  # pragma: no cover - signature match
         return {
             "accounts": [
                 {"account_type": "sipp", "value_estimate_gbp": 100},
@@ -36,14 +34,10 @@ def test_pension_route_uses_owner_metadata(monkeypatch):
 
     monkeypatch.setattr("backend.routes.pension.load_person_metadata", fake_meta)
     monkeypatch.setattr("backend.routes.pension.forecast_pension", fake_forecast)
-    monkeypatch.setattr(
-        "backend.routes.pension.build_owner_portfolio", fake_portfolio
-    )
+    monkeypatch.setattr("backend.routes.pension.build_owner_portfolio", fake_portfolio)
     app = create_app()
     with TestClient(app) as client:
-        resp = client.get(
-            "/pension/forecast", params={"owner": "alice", "death_age": 90}
-        )
+        resp = client.get("/pension/forecast", params={"owner": "alice", "death_age": 90})
     assert resp.status_code == 200
     assert captured_owner == ["alice"]
     expected_age = state_pension_age_uk("1980-01-01")
@@ -57,9 +51,7 @@ def test_pension_route_uses_owner_metadata(monkeypatch):
 
 
 def test_pension_route_missing_dob(monkeypatch):
-    monkeypatch.setattr(
-        "backend.routes.pension.load_person_metadata", lambda owner, root=None: PersonMetadata()
-    )
+    monkeypatch.setattr("backend.routes.pension.load_person_metadata", lambda owner, root=None: PersonMetadata())
     app = create_app()
     with TestClient(app) as client:
         resp = client.get("/pension/forecast", params={"owner": "bob", "death_age": 90})
@@ -110,44 +102,32 @@ def test_pension_route_prefers_monthly_over_annual(monkeypatch):
 
 
 def test_pension_route_rejects_death_age_not_exceeding_retirement(monkeypatch):
-    monkeypatch.setattr(
-        "backend.routes.pension.state_pension_age_uk", lambda dob: 67
-    )
+    monkeypatch.setattr("backend.routes.pension.state_pension_age_uk", lambda dob: 67)
     monkeypatch.setattr(
         "backend.routes.pension.load_person_metadata",
         lambda owner, root=None: PersonMetadata(dob="1980-01-01"),
     )
     app = create_app()
     with TestClient(app) as client:
-        resp = client.get(
-            "/pension/forecast", params={"owner": "carol", "death_age": 67}
-        )
+        resp = client.get("/pension/forecast", params={"owner": "carol", "death_age": 67})
     assert resp.status_code == 400
     assert resp.json() == {"detail": "death_age must exceed retirement_age"}
 
 
 def test_pension_route_propagates_missing_portfolio(monkeypatch):
-    monkeypatch.setattr(
-        "backend.routes.pension.state_pension_age_uk", lambda dob: 67
-    )
+    monkeypatch.setattr("backend.routes.pension.state_pension_age_uk", lambda dob: 67)
     monkeypatch.setattr(
         "backend.routes.pension.load_person_metadata",
         lambda owner, root=None: PersonMetadata(dob="1980-01-01"),
     )
 
-    def fake_portfolio(
-        owner: str, *, pricing_date=None, root=None
-    ):  # pragma: no cover - signature match
+    def fake_portfolio(owner: str, *, pricing_date=None, root=None):  # pragma: no cover - signature match
         raise FileNotFoundError("no portfolio for owner")
 
-    monkeypatch.setattr(
-        "backend.routes.pension.build_owner_portfolio", fake_portfolio
-    )
+    monkeypatch.setattr("backend.routes.pension.build_owner_portfolio", fake_portfolio)
     app = create_app()
     with TestClient(app) as client:
-        resp = client.get(
-            "/pension/forecast", params={"owner": "dave", "death_age": 90}
-        )
+        resp = client.get("/pension/forecast", params={"owner": "dave", "death_age": 90})
     assert resp.status_code == 404
     assert resp.json() == {"detail": "no portfolio for owner"}
 
@@ -170,9 +150,7 @@ def test_pension_route_falls_back_to_local_metadata(tmp_path, monkeypatch):
 
     monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=raising_client))
 
-    def fake_portfolio(
-        owner: str, *, pricing_date=None, root=None
-    ):  # pragma: no cover - signature match
+    def fake_portfolio(owner: str, *, pricing_date=None, root=None):  # pragma: no cover - signature match
         return {"accounts": [{"account_type": "sipp", "value_estimate_gbp": 100.0}]}
 
     captured: dict[str, object] = {}
@@ -188,9 +166,7 @@ def test_pension_route_falls_back_to_local_metadata(tmp_path, monkeypatch):
     app.state.accounts_root = tmp_path
 
     with TestClient(app) as client:
-        resp = client.get(
-            "/pension/forecast", params={"owner": owner, "death_age": 90}
-        )
+        resp = client.get("/pension/forecast", params={"owner": owner, "death_age": 90})
 
     assert resp.status_code == 200
     body = resp.json()
@@ -210,18 +186,14 @@ def test_pension_route_passes_accounts_root_keyword(monkeypatch):
         captured_meta.append((owner, root))
         return PersonMetadata(dob="1980-01-01")
 
-    def fake_portfolio(
-        owner: str, *, accounts_root=None
-    ):  # pragma: no cover - signature match
+    def fake_portfolio(owner: str, *, accounts_root=None):  # pragma: no cover - signature match
         captured_portfolio["owner"] = owner
         captured_portfolio["accounts_root"] = accounts_root
         return {"accounts": []}
 
     monkeypatch.setattr("backend.routes.pension.resolve_accounts_root", fake_resolve)
     monkeypatch.setattr("backend.routes.pension.load_person_metadata", fake_meta)
-    monkeypatch.setattr(
-        "backend.routes.pension.build_owner_portfolio", fake_portfolio
-    )
+    monkeypatch.setattr("backend.routes.pension.build_owner_portfolio", fake_portfolio)
     monkeypatch.setattr(
         "backend.routes.pension.forecast_pension",
         lambda **kwargs: {"forecast": [], "initial_pot": kwargs["initial_pot"]},
@@ -254,9 +226,7 @@ def test_pension_route_passes_accounts_root_positional(monkeypatch):
 
     monkeypatch.setattr("backend.routes.pension.resolve_accounts_root", fake_resolve)
     monkeypatch.setattr("backend.routes.pension.load_person_metadata", fake_meta)
-    monkeypatch.setattr(
-        "backend.routes.pension.build_owner_portfolio", fake_portfolio
-    )
+    monkeypatch.setattr("backend.routes.pension.build_owner_portfolio", fake_portfolio)
     monkeypatch.setattr(
         "backend.routes.pension.forecast_pension",
         lambda **kwargs: {"forecast": [], "initial_pot": kwargs["initial_pot"]},
@@ -337,9 +307,7 @@ def test_pension_route_includes_db_inputs(monkeypatch):
         )
 
     assert resp.status_code == 200
-    assert captured["db_pensions"] == [
-        {"annual_income_gbp": 1200.0, "normal_retirement_age": 60}
-    ]
+    assert captured["db_pensions"] == [{"annual_income_gbp": 1200.0, "normal_retirement_age": 60}]
     body = resp.json()
     assert body["pension_pot_gbp"] == 1000.0
     assert captured["initial_pot"] == 1000.0

@@ -59,9 +59,7 @@ def test_refresh_snapshot_in_memory_stores_exactly_what_it_is_given(monkeypatch)
     assert pu._PRICE_SNAPSHOT_TS == ts
 
 
-def test_refresh_prices_write_boundary_guard_prevents_nan_reaching_in_memory_snapshot(
-    tmp_path, monkeypatch
-) -> None:
+def test_refresh_prices_write_boundary_guard_prevents_nan_reaching_in_memory_snapshot(tmp_path, monkeypatch) -> None:
     """Defense-in-depth: ``refresh_prices`` must never hand a NaN/zero/negative
     price to ``refresh_snapshot_in_memory``. The ``to_persist`` filter at the
     write boundary (backend/common/prices.py) is what protects the in-memory
@@ -87,9 +85,7 @@ def test_refresh_prices_write_boundary_guard_prevents_nan_reaching_in_memory_sna
     monkeypatch.setattr(prices, "_price_cache", {})
 
     captured: list = []
-    monkeypatch.setattr(
-        prices, "refresh_snapshot_in_memory", lambda merged: captured.append(merged)
-    )
+    monkeypatch.setattr(prices, "refresh_snapshot_in_memory", lambda merged: captured.append(merged))
 
     prices.refresh_prices()
 
@@ -102,4 +98,3 @@ def test_refresh_prices_write_boundary_guard_prevents_nan_reaching_in_memory_sna
     assert "ZERO.L" not in merged
     assert "NEG.L" not in merged
     assert merged["OK.L"]["last_price"] == 12.0
-

@@ -1,13 +1,11 @@
 import asyncio
-import builtins
 import io
 import sys
 
 import pandas as pd
 
-from backend.routes import timeseries_admin
 from backend.config import config
-
+from backend.routes import timeseries_admin
 
 
 def test_summarize_fields(monkeypatch):
@@ -19,11 +17,13 @@ def test_summarize_fields(monkeypatch):
 
     df = pd.DataFrame(
         {
-            "Date": pd.to_datetime([
-                "2024-01-01",
-                "2024-01-02",
-                "2024-01-03",
-            ]),
+            "Date": pd.to_datetime(
+                [
+                    "2024-01-01",
+                    "2024-01-02",
+                    "2024-01-03",
+                ]
+            ),
             "Source": ["A", "B", "A"],
         }
     )
@@ -45,10 +45,12 @@ def test_summarize_missing_source(monkeypatch):
 
     no_source_df = pd.DataFrame(
         {
-            "Date": pd.to_datetime([
-                "2024-01-05",
-                "2024-01-08",
-            ]),
+            "Date": pd.to_datetime(
+                [
+                    "2024-01-05",
+                    "2024-01-08",
+                ]
+            ),
             "Price": [1.0, 2.0],
         }
     )
@@ -60,10 +62,12 @@ def test_summarize_missing_source(monkeypatch):
 
     nan_source_df = pd.DataFrame(
         {
-            "Date": pd.to_datetime([
-                "2024-02-01",
-                "2024-02-02",
-            ]),
+            "Date": pd.to_datetime(
+                [
+                    "2024-02-01",
+                    "2024-02-02",
+                ]
+            ),
             "Source": [None, None],
         }
     )
@@ -74,15 +78,16 @@ def test_summarize_missing_source(monkeypatch):
     assert summary_nan_source["main_source"] is None
 
 
-
 def test_timeseries_admin_local(monkeypatch, tmp_path):
     df = pd.DataFrame(
         {
-            "Date": pd.to_datetime([
-                "2024-01-01",
-                "2024-01-02",
-                "2024-01-03",
-            ]),
+            "Date": pd.to_datetime(
+                [
+                    "2024-01-01",
+                    "2024-01-02",
+                    "2024-01-03",
+                ]
+            ),
             "Source": ["A", "B", "A"],
         }
     )
@@ -93,9 +98,7 @@ def test_timeseries_admin_local(monkeypatch, tmp_path):
     # file without underscore should be skipped
     df.to_parquet(meta_dir / "INVALID.parquet")
     # empty dataframe should be skipped
-    pd.DataFrame({"Date": pd.Series([], dtype="datetime64[ns]")}).to_parquet(
-        meta_dir / "EMPTY_L.parquet"
-    )
+    pd.DataFrame({"Date": pd.Series([], dtype="datetime64[ns]")}).to_parquet(meta_dir / "EMPTY_L.parquet")
 
     monkeypatch.setattr(timeseries_admin, "get_instrument_meta", lambda *_: {"name": "Test"})
     monkeypatch.setattr(config, "app_env", "local")
@@ -117,7 +120,6 @@ def test_timeseries_admin_local(monkeypatch, tmp_path):
         ]
 
     asyncio.run(run())
-
 
 
 def test_timeseries_admin_no_meta(monkeypatch, tmp_path):

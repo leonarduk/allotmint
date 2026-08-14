@@ -241,6 +241,7 @@ def test_group_endpoints_accept_as_of(monkeypatch):
     assert len(captured) == 5
     assert all(date == dt.date(2024, 1, 15) for date in captured)
 
+
 def test_calculate_weights_and_market_values_dedupes_case_and_sums_duplicates():
     summaries = [
         {"ticker": "aaa", "market_value_gbp": 100.0},

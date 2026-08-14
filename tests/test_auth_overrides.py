@@ -80,7 +80,9 @@ def test_iter_override_mappings_accepts_gettable_objects():
             dependency_overrides=Gettable({}),
             dependency_overrides_provider=SimpleNamespace(
                 dependency_overrides=Gettable({}),
-                dependency_overrides_provider=(SimpleNamespace(dependency_overrides=Gettable({}), dependency_overrides_provider=None),),
+                dependency_overrides_provider=(
+                    SimpleNamespace(dependency_overrides=Gettable({}), dependency_overrides_provider=None),
+                ),
             ),
         )
     )
@@ -145,12 +147,14 @@ async def test_invoke_override_handles_request_annotations(monkeypatch):
     captured: dict[str, object] = {}
 
     def override(pos_only="default", /, request=None, *, token, annotated: AnnotatedRequest):
-        captured.update({
-            "pos_only": pos_only,
-            "request": request,
-            "token": token,
-            "annotated": annotated,
-        })
+        captured.update(
+            {
+                "pos_only": pos_only,
+                "request": request,
+                "token": token,
+                "annotated": annotated,
+            }
+        )
         return "done"
 
     request = AnnotatedRequest()
@@ -298,9 +302,7 @@ async def test_resolve_current_user_override_invokes_override(monkeypatch):
 
     monkeypatch.setattr(auth, "_find_override", lambda request, dependency: override)
 
-    has_override, result = await auth.resolve_current_user_override(
-        SimpleNamespace(), token="token"
-    )
+    has_override, result = await auth.resolve_current_user_override(SimpleNamespace(), token="token")
 
     assert has_override is True
     assert result == "override:token"

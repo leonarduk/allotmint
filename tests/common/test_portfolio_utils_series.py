@@ -113,9 +113,7 @@ def test_portfolio_value_series_uses_group_builder(monkeypatch):
     monkeypatch.setattr(
         pu,
         "load_meta_timeseries",
-        lambda ticker, exchange, days: _make_df(
-            [("2024-02-01", 50.0), ("2024-02-02", 55.0)]
-        ),
+        lambda ticker, exchange, days: _make_df([("2024-02-01", 50.0), ("2024-02-02", 55.0)]),
     )
 
     result = pu._portfolio_value_series("group-1", days=10, group=True)

@@ -1,9 +1,9 @@
-from datetime import UTC, datetime, timedelta, date
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
 import backend.screener as screener_module
-from backend.screener import fetch_fundamentals, screen, Fundamentals
+from backend.screener import Fundamentals, fetch_fundamentals, screen
 
 
 @pytest.fixture(autouse=True)

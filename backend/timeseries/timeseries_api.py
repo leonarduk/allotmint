@@ -35,7 +35,9 @@ def _fetch_yahoo(ticker: str, period: str, interval: str) -> pd.DataFrame:
     """Fetch OHLCV data from Yahoo Finance and return a DataFrame."""
     logging.info(
         "Yahoo download | ticker=%s period=%s interval=%s",
-        sanitise_log_value(ticker), sanitise_log_value(period), sanitise_log_value(interval),
+        sanitise_log_value(ticker),
+        sanitise_log_value(period),
+        sanitise_log_value(interval),
     )
     df = yf.Ticker(ticker).history(period=period, interval=interval)
     if df.empty:
@@ -69,9 +71,7 @@ def get_timeseries(
     ticker: str,
     period: str = Query("1y", description="1d, 5d, 1mo, 3mo, 1y, ytd, max ..."),
     interval: str = Query("1d", description="1m, 5m, 15m, 1h, 1d, 1wk, 1mo ..."),
-    fmt: str = Query(
-        "csv", pattern="^(csv|json|html)$", description="csv, json or html table"
-    ),
+    fmt: str = Query("csv", pattern="^(csv|json|html)$", description="csv, json or html table"),
 ):
     """
     Return a CSV (streamed), JSON, or HTML time-series for *ticker*.

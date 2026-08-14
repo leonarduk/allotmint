@@ -47,14 +47,10 @@ def _fetch_factory(
 ):
     """Build a `fetch` stub covering every endpoint the script calls."""
     live = _live_from_checked_in() if ruleset is None else ruleset
-    listing = (
-        [{"id": RULESET_ID, "name": live.get("name")}] if rulesets_list is None else rulesets_list
-    )
+    listing = [{"id": RULESET_ID, "name": live.get("name")}] if rulesets_list is None else rulesets_list
     default_names = sorted(_mod.DISABLED_WORKFLOW_FILES)
     names = default_names if disabled_workflows is None else disabled_workflows
-    workflows = [
-        {"path": f".github/workflows/{name}", "state": "disabled_manually"} for name in names
-    ]
+    workflows = [{"path": f".github/workflows/{name}", "state": "disabled_manually"} for name in names]
 
     def fetch(path: str) -> Any:
         if path == f"repos/{REPO}/rulesets":
@@ -239,9 +235,7 @@ def test_required_context_from_newly_disabled_workflow_is_drift() -> None:
     disabled = sorted(_mod.DISABLED_WORKFLOW_FILES | {"conflict-check.yml"})
     errors = _errors(disabled_workflows=disabled)
     assert any("not listed in DISABLED_WORKFLOW_FILES" in e for e in errors)
-    assert any(
-        "can never report" in e and "Check for merge conflicts with main" in e for e in errors
-    )
+    assert any("can never report" in e and "Check for merge conflicts with main" in e for e in errors)
 
 
 def test_context_matching_no_workflow_is_drift(monkeypatch: pytest.MonkeyPatch) -> None:

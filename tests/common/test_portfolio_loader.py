@@ -220,9 +220,7 @@ def test_load_accounts_for_owner_missing_file(
     assert "Account file missing: alex/isa.json" in caplog.text
 
 
-def test_load_accounts_for_owner_json_error(
-    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
-) -> None:
+def test_load_accounts_for_owner_json_error(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
     caplog.set_level(logging.WARNING, logger="portfolio_loader")
 
     def _raise_decode_error(owner: str, account: str) -> dict:
@@ -285,9 +283,7 @@ def test_list_portfolios_aggregates_owners(patched_portfolio_loader: list[OwnerS
     assert result == expected
 
 
-def test_load_portfolio_case_insensitive(
-    patched_portfolio_loader: list[OwnerSummaryRecord]
-) -> None:
+def test_load_portfolio_case_insensitive(patched_portfolio_loader: list[OwnerSummaryRecord]) -> None:
     all_portfolios = portfolio_loader.list_portfolios()
 
     beth_portfolio = portfolio_loader.load_portfolio("BeTh")

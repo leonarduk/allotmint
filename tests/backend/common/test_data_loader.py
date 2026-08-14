@@ -62,6 +62,7 @@ def _clear_owner_index_cache() -> None:
     yield
     clear_local_owner_index_cache()
 
+
 class TestExtractAccountNames:
     def test_dedupes_and_filters_metadata(self, tmp_path: Path) -> None:
         owner_dir = tmp_path / "alice"
@@ -215,9 +216,7 @@ class TestLoadPersonMeta:
     def test_load_person_metadata_rejects_malformed_viewers(self, tmp_path: Path) -> None:
         owner_dir = tmp_path / "alice"
         owner_dir.mkdir()
-        (owner_dir / "person.json").write_text(
-            json.dumps({"dob": "1980-01-01", "viewers": " bob@example.com "})
-        )
+        (owner_dir / "person.json").write_text(json.dumps({"dob": "1980-01-01", "viewers": " bob@example.com "}))
 
         with pytest.raises(Exception, match="viewers must be a list"):
             load_person_metadata("alice", data_root=tmp_path)
@@ -507,9 +506,7 @@ class TestListLocalPlots:
             {"owner": "carol", "full_name": "Carol Example", "accounts": ["gamma"]},
         ]
 
-    def test_skips_metadata_and_transaction_exports(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_skips_metadata_and_transaction_exports(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         data_root = tmp_path / "accounts"
         self._configure(monkeypatch, tmp_path, data_root, disable_auth=True)
 
@@ -569,11 +566,7 @@ class TestListLocalPlots:
 
         assert result == []
 
-
-
-    def test_falls_back_to_repository_when_primary_empty(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_falls_back_to_repository_when_primary_empty(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         repo_root = tmp_path / "repo"
         primary_accounts = repo_root / "accounts"
         fallback_accounts = tmp_path / "fallback" / "accounts"
@@ -599,9 +592,7 @@ class TestListLocalPlots:
             {"owner": "eve", "accounts": ["gia"]},
         ]
 
-    def test_explicit_root_does_not_merge_fallback(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_explicit_root_does_not_merge_fallback(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         repo_root = tmp_path / "repo"
         primary_accounts = repo_root / "accounts"
         fallback_accounts = tmp_path / "fallback" / "accounts"
@@ -648,9 +639,7 @@ class TestListLocalPlots:
         assert all(entry.full_name is None for entry in result)
         assert all(entry.owner not in {"demo", ".idea"} for entry in result)
 
-    def test_allows_access_when_user_matches_owner_email(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_allows_access_when_user_matches_owner_email(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         data_root = tmp_path / "accounts"
         self._configure(monkeypatch, tmp_path, data_root, disable_auth=False)
 
@@ -712,14 +701,16 @@ class TestLocalOwnerIndexCache:
         first = _list_local_plots(data_root=data_root, current_user=None)
         second = _list_local_plots(data_root=data_root, current_user=None)
 
-        assert first == second == [
-            {"owner": "alice", "accounts": ["isa"], "full_name": "Alice Example"},
-        ]
+        assert (
+            first
+            == second
+            == [
+                {"owner": "alice", "accounts": ["isa"], "full_name": "Alice Example"},
+            ]
+        )
         assert build_calls["count"] == 1
 
-    def test_invalidates_cached_owner_index_when_metadata_changes(
-        self, tmp_path: Path
-    ) -> None:
+    def test_invalidates_cached_owner_index_when_metadata_changes(self, tmp_path: Path) -> None:
         data_root = tmp_path / "accounts"
         data_root.mkdir()
         _write_owner(data_root, "alice", ["isa"], viewers=[], full_name="Alice One")
@@ -736,9 +727,7 @@ class TestLocalOwnerIndexCache:
         assert second[0]["full_name"] == "Alice Updated"
         assert meta["full_name"] == "Alice Updated"
 
-    def test_invalidates_cached_owner_index_when_accounts_change(
-        self, tmp_path: Path
-    ) -> None:
+    def test_invalidates_cached_owner_index_when_accounts_change(self, tmp_path: Path) -> None:
         data_root = tmp_path / "accounts"
         data_root.mkdir()
         _write_owner(data_root, "alice", ["isa"], viewers=[])
@@ -752,9 +741,7 @@ class TestLocalOwnerIndexCache:
 
         assert second == [{"owner": "alice", "accounts": ["gia", "isa"]}]
 
-    def test_invalidates_cached_owner_index_when_owner_added(
-        self, tmp_path: Path
-    ) -> None:
+    def test_invalidates_cached_owner_index_when_owner_added(self, tmp_path: Path) -> None:
         data_root = tmp_path / "accounts"
         data_root.mkdir()
         _write_owner(data_root, "alice", ["isa"], viewers=[])
@@ -774,9 +761,7 @@ class TestLocalOwnerIndexCache:
             "content-only changes cannot be detected without re-reading"
         ),
     )
-    def test_invalidates_cached_owner_index_when_content_changes_without_stat_change(
-        self, tmp_path: Path
-    ) -> None:
+    def test_invalidates_cached_owner_index_when_content_changes_without_stat_change(self, tmp_path: Path) -> None:
         data_root = tmp_path / "accounts"
         data_root.mkdir()
         _write_owner(data_root, "alice", ["isa"], viewers=[], full_name="Alice One")
@@ -812,9 +797,7 @@ class TestLocalOwnerIndexCache:
 
 
 class TestLoadDemoOwner:
-    def test_returns_demo_summary_when_available(
-        self, tmp_path: Path
-    ) -> None:
+    def test_returns_demo_summary_when_available(self, tmp_path: Path) -> None:
         demo_root = tmp_path / "data"
         demo_dir = demo_root / "demo"
         demo_dir.mkdir(parents=True)
@@ -836,9 +819,7 @@ class TestLoadDemoOwner:
         assert result is None
 
 
-def test_list_aws_plots_enforces_email_and_viewer_permissions(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_list_aws_plots_enforces_email_and_viewer_permissions(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     cfg = Config()
     cfg.app_env = "aws"
     cfg.disable_auth = False
@@ -959,9 +940,7 @@ def test_list_plots_skips_invalid_entries_without_failing_whole_batch(
 # ---------------------------------------------------------------------------
 
 
-def test_load_account_dotdot_owner_raises_missing_data(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_load_account_dotdot_owner_raises_missing_data(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """load_account must raise MissingData for traversal in owner.
 
     safe_join catches the traversal and re-raises as MissingData so callers
@@ -981,9 +960,7 @@ def test_load_account_dotdot_owner_raises_missing_data(
         load_account("../evil", "isa", data_root=tmp_path)
 
 
-def test_load_account_dotdot_account_raises_missing_data(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_load_account_dotdot_account_raises_missing_data(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """load_account must raise MissingData for traversal in account."""
     from backend.common.data_loader import load_account
     from backend.common.data_providers import MissingData

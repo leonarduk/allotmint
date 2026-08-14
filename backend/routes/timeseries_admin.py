@@ -17,9 +17,7 @@ from backend.timeseries.cache import (
     meta_timeseries_cache_path,
 )
 
-router = APIRouter(
-    prefix="/timeseries", tags=["timeseries"], dependencies=[Depends(get_current_user)]
-)
+router = APIRouter(prefix="/timeseries", tags=["timeseries"], dependencies=[Depends(get_current_user)])
 logger = logging.getLogger(__name__)
 
 
@@ -32,9 +30,7 @@ def _summarize(df: pd.DataFrame, ticker: str, exchange: str) -> dict[str, Any]:
     completeness = len(df) / bdays * 100
     latest_source = df.iloc[-1]["Source"] if "Source" in df.columns else None
     main_source = (
-        df["Source"].value_counts().idxmax()
-        if "Source" in df.columns and not df["Source"].dropna().empty
-        else None
+        df["Source"].value_counts().idxmax() if "Source" in df.columns and not df["Source"].dropna().empty else None
     )
     meta = get_instrument_meta(f"{ticker}.{exchange}")
     return {

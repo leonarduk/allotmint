@@ -1,8 +1,8 @@
 import json
 from datetime import datetime
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 import pytest
 
 from backend.common import portfolio_utils as pu
@@ -74,4 +74,3 @@ def test_load_snapshot_missing_file(tmp_path, monkeypatch, caplog):
     assert data == {}
     assert ts is None
     assert str(path) in caplog.text
-

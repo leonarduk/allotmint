@@ -2,14 +2,14 @@ from __future__ import annotations
 
 """API route for basic stock screening based on valuation metrics."""
 
+import hashlib
 from typing import List
 
-import hashlib
-
-from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 
 from backend.screener import Fundamentals, screen
 from backend.utils import page_cache
+
 
 class RankedFundamentals(Fundamentals):
     rank: int
@@ -121,10 +121,7 @@ def _hash_params(
 def _apply_rank(rows: List[dict]) -> None:
     rows.sort(
         key=lambda x: (
-            float("inf")
-            if x.get("peg_ratio") in (None,)
-            or x.get("roe") in (None, 0)
-            else x["peg_ratio"] / x["roe"]
+            float("inf") if x.get("peg_ratio") in (None,) or x.get("roe") in (None, 0) else x["peg_ratio"] / x["roe"]
         )
     )
     for i, row in enumerate(rows, 1):

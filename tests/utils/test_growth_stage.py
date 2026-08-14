@@ -17,4 +17,3 @@ def test_get_growth_stage(days_held, current_price, target_price, expected_stage
     assert info["stage"] == expected_stage
     if expected_message is not None:
         assert info["message"] == expected_message
-

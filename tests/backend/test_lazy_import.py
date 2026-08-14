@@ -25,6 +25,7 @@ def test_attribute_access_triggers_import(monkeypatch):
     # First access triggers the load
     result = proxy.ModuleType
     import types
+
     assert result is types.ModuleType
 
 
@@ -90,6 +91,7 @@ def test_string_path_monkeypatch(monkeypatch):
     sentinel = lazy_import_module.lazy_import("json")
     # Attach proxy as a module attribute for the dotted-path resolution test
     import backend.utils.lazy_import as lim
+
     lim._test_proxy = sentinel
 
     try:

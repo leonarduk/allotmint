@@ -13,9 +13,7 @@ from backend.agent.models import TradingSignal
 from backend.auth import decode_token
 from backend.common import instrument_api
 from backend.config import config
-from backend.routes.portfolio import (
-    _ALLOWED_DAYS as _PORTFOLIO_ALLOWED_DAYS,
-)
+from backend.routes.portfolio import _ALLOWED_DAYS as _PORTFOLIO_ALLOWED_DAYS
 from backend.routes.portfolio import (
     _calculate_weights_and_market_values,
     _enrich_movers_with_market_values,

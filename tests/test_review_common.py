@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-
 from cicaid_devtools.lib import review_common
 from cicaid_devtools.lib.verdict import is_soft_skip
 
@@ -12,9 +11,7 @@ def test_emit_empty_diff_notice_returns_success(provider) -> None:
 
 
 @pytest.mark.parametrize("provider", ["Claude", "GPT", "DeepSeek"])
-def test_emit_empty_diff_notice_parses_as_soft_skip(
-    capsys, provider
-) -> None:
+def test_emit_empty_diff_notice_parses_as_soft_skip(capsys, provider) -> None:
     """The empty-diff advisory notice must contain a soft-skip marker so
     extract_verdict.py treats it as "no review performed" rather than
     "no valid verdict found" (which the workflow's check_approval step
@@ -28,9 +25,7 @@ def test_emit_empty_diff_notice_parses_as_soft_skip(
 
 
 @pytest.mark.parametrize("provider", ["Claude", "GPT", "DeepSeek"])
-def test_genuine_request_changes_verdict_fails_workflow(
-    capsys, tmp_path, provider
-) -> None:
+def test_genuine_request_changes_verdict_fails_workflow(capsys, tmp_path, provider) -> None:
     """A real, non-empty REQUEST CHANGES review must still fail the workflow
     via the verdict module.
 
@@ -63,9 +58,7 @@ def test_genuine_request_changes_verdict_fails_workflow(
 
 
 @pytest.mark.parametrize("provider", ["Claude", "GPT", "DeepSeek"])
-def test_finalize_review_soft_skips_on_empty_review(
-    capsys, provider
-) -> None:
+def test_finalize_review_soft_skips_on_empty_review(capsys, provider) -> None:
     """Empty provider responses now soft-skip rather than hard-failing."""
     assert review_common.finalize_review("", provider) == 0
     output = capsys.readouterr().out

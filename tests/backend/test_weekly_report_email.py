@@ -86,11 +86,7 @@ def test_render_weekly_report_strips_nested_disallowed_tags():
     report = WeeklyReport(
         week_number=5,
         portfolio_stats={},
-        holdings_table=(
-            "<table><tr><td>"
-            "<div><span onclick=\"evil()\">inner text</span></div>"
-            "</td></tr></table>"
-        ),
+        holdings_table=("<table><tr><td>" '<div><span onclick="evil()">inner text</span></div>' "</td></tr></table>"),
         transactions_table="<table></table>",
     )
     html = render_weekly_report(report)
@@ -109,12 +105,7 @@ def test_render_weekly_report_strips_script_inside_allowed_tag():
     report = WeeklyReport(
         week_number=5,
         portfolio_stats={},
-        holdings_table=(
-            "<table><tr><td>"
-            "<script>evil()</script>"
-            "safe text"
-            "</td></tr></table>"
-        ),
+        holdings_table=("<table><tr><td>" "<script>evil()</script>" "safe text" "</td></tr></table>"),
         transactions_table="<table></table>",
     )
     html = render_weekly_report(report)

@@ -1,8 +1,9 @@
+from datetime import date
+from types import SimpleNamespace
+
 import pandas as pd
 import pytest
 import requests
-from datetime import date
-from types import SimpleNamespace
 
 from backend.timeseries import fetch_stooq_timeseries as fst
 from backend.utils.timeseries_helpers import STANDARD_COLUMNS

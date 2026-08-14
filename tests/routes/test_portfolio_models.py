@@ -57,9 +57,7 @@ def test_movers_response_lists_are_isolated() -> None:
     """MoversResponse gainers/losers lists should not share mutable defaults."""
 
     response = portfolio.MoversResponse()
-    response.gainers.append(
-        portfolio.Mover(ticker="AAPL.US", name="Apple", change_pct=2.0)
-    )
+    response.gainers.append(portfolio.Mover(ticker="AAPL.US", name="Apple", change_pct=2.0))
 
     another = portfolio.MoversResponse()
 

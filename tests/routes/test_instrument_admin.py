@@ -1,8 +1,7 @@
-import pytest
+from typing import Any
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-
-from typing import Any
 
 import backend.routes.instrument_admin as instrument_admin
 
@@ -67,6 +66,7 @@ def test_create_group_rejects_invalid(monkeypatch):
     resp = client.post("/instrument/admin/groups", json={"name": "   "})
     assert resp.status_code == 400
 
+
 def test_list_instrument_groupings(monkeypatch):
     monkeypatch.setattr(
         instrument_admin,
@@ -84,9 +84,7 @@ def test_get_instrument_ok(monkeypatch, tmp_path):
         return tmp_path / f"{e}" / f"{t}.json"
 
     monkeypatch.setattr(instrument_admin, "instrument_meta_path", fake_path)
-    monkeypatch.setattr(
-        instrument_admin, "get_instrument_meta", lambda t: {"ticker": t}
-    )
+    monkeypatch.setattr(instrument_admin, "get_instrument_meta", lambda t: {"ticker": t})
     client = make_client()
     resp = client.get("/instrument/admin/L/ABC")
     assert resp.status_code == 200
@@ -130,9 +128,7 @@ def test_post_instrument_create(monkeypatch, tmp_path):
     monkeypatch.setattr(instrument_admin, "instrument_meta_path", fake_path)
     monkeypatch.setattr(instrument_admin, "save_instrument_meta", fake_save)
     client = make_client()
-    resp = client.post(
-        "/instrument/admin/L/ABC", json={"ticker": "ABC.L", "grouping": "Income"}
-    )
+    resp = client.post("/instrument/admin/L/ABC", json={"ticker": "ABC.L", "grouping": "Income"})
     assert resp.status_code == 200
     assert resp.json() == {"status": "created"}
     assert saved["ticker"] == "ABC.L"
@@ -228,9 +224,7 @@ def test_put_instrument_update(monkeypatch, tmp_path):
     monkeypatch.setattr(instrument_admin, "instrument_meta_path", fake_path)
     monkeypatch.setattr(instrument_admin, "save_instrument_meta", fake_save)
     client = make_client()
-    resp = client.put(
-        "/instrument/admin/L/ABC", json={"ticker": "ABC.L", "grouping": "Income"}
-    )
+    resp = client.put("/instrument/admin/L/ABC", json={"ticker": "ABC.L", "grouping": "Income"})
     assert resp.status_code == 200
     assert resp.json() == {"status": "updated"}
     assert saved["ticker"] == "ABC.L"
@@ -297,9 +291,7 @@ def test_put_instrument_not_found(monkeypatch, tmp_path):
 
 
 def test_put_instrument_invalid(monkeypatch):
-    monkeypatch.setattr(
-        instrument_admin, "instrument_meta_path", lambda *a: (_ for _ in ()).throw(ValueError("bad"))
-    )
+    monkeypatch.setattr(instrument_admin, "instrument_meta_path", lambda *a: (_ for _ in ()).throw(ValueError("bad")))
     client = make_client()
     resp = client.put("/instrument/admin/L/ABC", json={"ticker": "ABC.L"})
     assert resp.status_code == 400
@@ -354,9 +346,7 @@ def test_delete_instrument_not_found(monkeypatch, tmp_path):
 
 
 def test_delete_instrument_invalid(monkeypatch):
-    monkeypatch.setattr(
-        instrument_admin, "instrument_meta_path", lambda *a: (_ for _ in ()).throw(ValueError("bad"))
-    )
+    monkeypatch.setattr(instrument_admin, "instrument_meta_path", lambda *a: (_ for _ in ()).throw(ValueError("bad")))
     client = make_client()
     resp = client.delete("/instrument/admin/L/ABC")
     assert resp.status_code == 400

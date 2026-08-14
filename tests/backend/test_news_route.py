@@ -1,7 +1,8 @@
+from typing import Dict, List, Tuple
+
 import requests
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from typing import Dict, List, Tuple
 
 from backend.routes import news
 from backend.utils import page_cache
@@ -98,10 +99,7 @@ def test_get_news_trims_payload_and_caches(monkeypatch):
 
 
 def test_parse_alpha_time_legacy_format():
-    assert (
-        news._parse_alpha_time("20230825T160000")
-        == "2023-08-25T16:00:00Z"
-    )
+    assert news._parse_alpha_time("20230825T160000") == "2023-08-25T16:00:00Z"
 
 
 def test_fallback_helpers_filter_finance_headlines(monkeypatch):
@@ -128,9 +126,7 @@ def test_fallback_helpers_filter_finance_headlines(monkeypatch):
 
     monkeypatch.setattr(news.requests, "get", fake_yahoo)
     yahoo_items = news.fetch_news_yahoo("PFE")
-    assert yahoo_items == [
-        {"headline": "PFE stock jumps on earnings", "url": "https://example.com/finance"}
-    ]
+    assert yahoo_items == [{"headline": "PFE stock jumps on earnings", "url": "https://example.com/finance"}]
 
     def fake_google(url, params=None, timeout=10, **kwargs):
         class Response:
@@ -156,6 +152,4 @@ def test_fallback_helpers_filter_finance_headlines(monkeypatch):
 
     monkeypatch.setattr(news.requests, "get", fake_google)
     google_items = news.fetch_news_google("MSFT")
-    assert google_items == [
-        {"headline": "MSFT shares slump after outlook", "url": "https://example.com/outlook"}
-    ]
+    assert google_items == [{"headline": "MSFT shares slump after outlook", "url": "https://example.com/outlook"}]

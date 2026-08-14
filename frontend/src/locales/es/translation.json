@@ -531,7 +531,8 @@
     "error": {
       "noData": "No hay datos para guardar",
       "unexpectedColumns": "Columna(s) inesperada(s): {{columns}}",
-      "invalidScale": "Introduce un factor de escala válido mayor que cero"
+      "invalidScale": "Introduce un factor de escala válido mayor que cero",
+      "moveNoData": "No hay datos en caché de {{ticker}}.{{source}} para mover. Corrige la posición a {{ticker}}.{{destination}} para que el cargador pueda completar la serie."
     },
     "exchange": "Bolsa",
     "load": "Cargar",

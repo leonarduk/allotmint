@@ -531,7 +531,8 @@
     "delete": "Supprimer",
     "error": {
       "noData": "Pas de données à enregistrer",
-      "unexpectedColumns": "Colonne(s) inattendue(s) : {{columns}}"
+      "unexpectedColumns": "Colonne(s) inattendue(s) : {{columns}}",
+      "moveNoData": "Aucune donnée en cache pour {{ticker}}.{{source}} à déplacer. Corrigez la position vers {{ticker}}.{{destination}} afin que le récupérateur puisse remplir la série."
     },
     "exchange": "Bourse",
     "load": "Charger",

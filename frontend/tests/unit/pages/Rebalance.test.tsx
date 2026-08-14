@@ -150,4 +150,45 @@ describe("Rebalance page", () => {
     const [, targetPayload] = mockGetRebalance.mock.calls[0];
     expect(targetPayload.AAA + targetPayload.BBB).toBeCloseTo(1, 12);
   });
+
+  it("does not emit duplicate-key warnings when the same ticker is held under multiple accounts (#6505)", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    // Same bare ticker appears in two accounts (e.g. different exchanges);
+    // rowsFromPortfolio aggregates by ticker so the input table key stays unique.
+    mockGetPortfolio.mockResolvedValue({
+      accounts: [
+        {
+          holdings: [
+            { ticker: "CASH", market_value_gbp: 2 },
+            { ticker: "CASH", market_value_gbp: 1 },
+          ],
+        },
+        {
+          holdings: [{ ticker: "PFE", market_value_gbp: 3 }],
+        },
+      ],
+    });
+    mockGetRebalance.mockResolvedValue([
+      { ticker: "CASH", action: "sell", amount: 10 },
+      { ticker: "PFE", action: "buy", amount: 10 },
+    ]);
+    const { default: Rebalance } = await import("@/pages/Rebalance");
+    render(<Rebalance />);
+
+    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("alex"));
+    // One aggregated CASH row, not two.
+    expect(await screen.findAllByLabelText(/Target weight \(%\) for CASH/)).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole("button", { name: /rebalance/i }));
+    await waitFor(() => expect(mockGetRebalance).toHaveBeenCalledTimes(1));
+    // Trade table renders one CASH row (aggregated) plus one PFE row.
+    expect(await screen.findAllByText("CASH")).toHaveLength(1);
+    expect(screen.getAllByText("PFE")).toHaveLength(1);
+
+    const keyWarnings = errorSpy.mock.calls.filter((args) =>
+      String(args[0]).includes("same key"),
+    );
+    expect(keyWarnings).toEqual([]);
+    errorSpy.mockRestore();
+  });
 });

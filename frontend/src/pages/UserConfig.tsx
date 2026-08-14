@@ -314,8 +314,8 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
                 </tr>
               </thead>
               <tbody>
-                {approvals.map((a) => (
-                  <tr key={`${a.ticker}-${a.approved_on}`}>
+                {approvals.map((a, index) => (
+                  <tr key={`${a.ticker}-${index}`}>
                     <td className="border px-2">{a.ticker}</td>
                     <td className="border px-2">{a.approved_on}</td>
                     <td className="border px-2 text-right">

@@ -355,7 +355,7 @@ describe("UserConfig page", () => {
     mockGetApprovals.mockResolvedValue({
       approvals: [
         { ticker: "PFE", approved_on: "2026-01-01" },
-        { ticker: "PFE", approved_on: "2026-02-01" },
+        { ticker: "PFE", approved_on: "2026-01-01" },
       ],
     });
 

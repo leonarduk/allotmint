@@ -138,4 +138,67 @@ describe("DataQuality page", () => {
     });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
+
+  it("does not emit duplicate-key warnings for same-ticker/different-exchange rows (#6505)", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    mockGetDataQualityTimeseries.mockResolvedValue({
+      count: 4,
+      positions: [
+        {
+          ticker: "CASH",
+          exchange: "GBP",
+          total_points: 100,
+          first_date: "2026-01-01",
+          last_date: "2026-06-01",
+          gap_count: 0,
+          gaps: [],
+          duplicate_dates: [],
+          outliers: [],
+        },
+        {
+          ticker: "CASH",
+          exchange: "L",
+          total_points: 90,
+          first_date: "2026-01-01",
+          last_date: "2026-06-01",
+          gap_count: 0,
+          gaps: [],
+          duplicate_dates: [],
+          outliers: [],
+        },
+        {
+          ticker: "PFE",
+          exchange: "N",
+          total_points: 80,
+          first_date: "2026-01-01",
+          last_date: "2026-06-01",
+          gap_count: 0,
+          gaps: [],
+          duplicate_dates: [],
+          outliers: [],
+        },
+        {
+          ticker: "PFE",
+          exchange: "L",
+          total_points: 70,
+          first_date: "2026-01-01",
+          last_date: "2026-06-01",
+          gap_count: 0,
+          gaps: [],
+          duplicate_dates: [],
+          outliers: [],
+        },
+      ],
+    });
+
+    render(<DataQuality />);
+
+    expect((await screen.findAllByText("CASH")).length).toBeGreaterThan(1);
+    expect((await screen.findAllByText("PFE")).length).toBeGreaterThan(1);
+    const keyWarnings = errorSpy.mock.calls.filter((args) =>
+      String(args[0]).includes("same key"),
+    );
+    expect(keyWarnings).toEqual([]);
+    errorSpy.mockRestore();
+  });
 });

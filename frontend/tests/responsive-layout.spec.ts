@@ -447,3 +447,95 @@ test('issue 6675: dashboard, instrument and trading wide tables stay inside thei
     }
   }
 });
+
+test('research tab bar and settings Add form fit on a 375px viewport', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await preparePage(page);
+
+  // Minimal instrument detail so the research page renders cleanly. The
+  // detail URL carries a query string (/instrument/?ticker=...), so match it
+  // with a regex to avoid shadowing the /instrument/admin mock registered in
+  // preparePage.
+  await page.route(/\/instrument\/\?ticker=/, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ticker: 'VWRL.L',
+        prices: [],
+        positions: [],
+        mini: {},
+        name: 'Vanguard FTSE All-World UCITS ETF',
+        currency: 'GBP',
+        instrument_type: 'ETF',
+        rows: 0,
+        from: null,
+        to: null,
+        base_currency: 'GBP',
+      }),
+    })
+  );
+  await page.route(/\/news\?ticker=/, (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
+  );
+
+  await page.goto(new URL('/research/VWRL.L', baseUrl).toString());
+  const tabRow = page
+    .getByRole('button', { name: 'Overview', exact: true })
+    .locator('..');
+  await expect(tabRow).toHaveClass(/(?:^|\s)flex-wrap(?:\s|$)/);
+  await expect(tabRow).toHaveCSS('flex-wrap', 'wrap');
+  for (const name of [
+    'Overview',
+    'Timeseries',
+    'Positions',
+    'Fundamentals',
+    'News',
+  ]) {
+    const tab = page.getByRole('button', { name, exact: true });
+    await expect(tab).toBeVisible();
+    const box = await tab.boundingBox();
+    expect(box).not.toBeNull();
+    if (box) {
+      expect(box.x + box.width).toBeLessThanOrEqual(375);
+    }
+  }
+  // News is the rightmost tab; clicking it proves it is tappable without
+  // horizontal page scroll.
+  await page.getByRole('button', { name: 'News', exact: true }).click();
+  await expect(page.getByText('No news available')).toBeVisible();
+  await assertNoPageOverflow(page);
+
+  // Desktop keeps the single-line nowrap row (constraint: only mobile
+  // behavior changes).
+  await page.setViewportSize({ width: 768, height: 1024 });
+  await expect(tabRow).toHaveCSS('flex-wrap', 'nowrap');
+  await assertNoPageOverflow(page);
+
+  // Settings: the Add form wraps so the Add button stays inside the viewport.
+  await page.route('**/user-config/demo-owner', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
+  );
+  await page.route('**/accounts/demo-owner/approvals', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ approvals: [] }),
+    })
+  );
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto(new URL('/settings', baseUrl).toString());
+  // The approvals section (with the Add form) only renders once an owner is
+  // selected.
+  await page.getByRole('combobox').selectOption('demo-owner');
+  const addButton = page.getByRole('button', { name: 'Add', exact: true });
+  await expect(addButton).toBeVisible();
+  const addBox = await addButton.boundingBox();
+  expect(addBox).not.toBeNull();
+  if (addBox) {
+    expect(addBox.x + addBox.width).toBeLessThanOrEqual(375);
+  }
+  await assertNoPageOverflow(page);
+});

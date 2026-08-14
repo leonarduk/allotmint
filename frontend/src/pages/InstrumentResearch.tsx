@@ -1126,6 +1126,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
         )}
       </form>
       <div
+        className="flex-wrap md:flex-nowrap"
         style={{
           display: "flex",
           gap: "0.5rem",

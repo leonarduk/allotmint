@@ -26,7 +26,11 @@ vi.mock("@/api", () => ({
 }));
 
 import InstrumentAdmin from "@/pages/InstrumentAdmin";
-import { createInstrumentMetadata, updateInstrumentMetadata } from "@/api";
+import {
+  createInstrumentMetadata,
+  listInstrumentMetadata,
+  updateInstrumentMetadata,
+} from "@/api";
 
 describe("InstrumentAdmin page", () => {
   afterEach(() => {
@@ -134,5 +138,41 @@ describe("InstrumentAdmin page", () => {
     );
 
     expect(updateInstrumentMetadata).not.toHaveBeenCalled();
+  });
+
+  it("renders duplicate symbols without duplicate-key errors and keeps rows independent", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(listInstrumentMetadata).mockResolvedValueOnce([
+      { ticker: "CASH.GBP", name: "Cash GBP", region: "UK", sector: "Cash", grouping: "ISA" },
+      { ticker: "CASH.EUR", name: "Cash EUR", region: "EU", sector: "Cash", grouping: "GIA" },
+      { ticker: "CASH.USD", name: "Cash USD", region: "US", sector: "Cash", grouping: "ISA" },
+      { ticker: "PFE.L", name: "Pfizer L", region: "UK", sector: "Pharma", grouping: "ISA" },
+      { ticker: "PFE.N", name: "Pfizer N", region: "US", sector: "Pharma", grouping: "GIA" },
+    ]);
+
+    render(
+      <MemoryRouter>
+        <InstrumentAdmin />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findAllByDisplayValue("CASH")).toHaveLength(3);
+    expect(screen.getAllByDisplayValue("PFE")).toHaveLength(2);
+
+    const duplicateKeyErrors = consoleError.mock.calls.filter((call) =>
+      String(call[0]).includes("Encountered two children with the same key"),
+    );
+    expect(duplicateKeyErrors).toHaveLength(0);
+
+    fireEvent.change(screen.getByDisplayValue("Cash GBP"), {
+      target: { value: "Cash GBP edited" },
+    });
+
+    expect(screen.getByDisplayValue("Cash GBP edited")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Cash EUR")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Cash USD")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Pfizer L")).toBeInTheDocument();
+
+    consoleError.mockRestore();
   });
 });

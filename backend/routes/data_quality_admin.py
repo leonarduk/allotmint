@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import os
 import re
-import shutil
 from pathlib import Path
 from typing import Any
 
@@ -125,12 +124,17 @@ def _backup_file_if_needed(path: Path) -> Path:
 
 
 def _resolve_writable_accounts_store(request: Request) -> LocalAccountsStore:
-    """Return the writable accounts store, refusing demo/global roots."""
+    """Return the writable local accounts store, refusing demo/global/S3 roots."""
     store, _kind = resolve_writable_store(request)
     if getattr(store, "is_global", False):
         raise HTTPException(
             status_code=400,
             detail="Accounts root is the read-only demo dataset; create a writable account first.",
+        )
+    if getattr(store, "local_root", None) is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Data-quality fixes require a local accounts root; S3-backed stores are not supported.",
         )
     return store
 
@@ -212,10 +216,14 @@ def _fix_wrong_exchange(request: Request, payload: dict[str, Any], actor: str | 
 
     store = _resolve_writable_accounts_store(request)
     file_path = Path(store.local_root) / owner / f"{account}.json" if store.local_root else None
+    # ``store.edit_document`` below creates the file when missing, so track
+    # whether it existed before the edit: if the audit write then fails we
+    # must not leave a newly created, unrecorded file behind.
+    file_existed = file_path is not None and file_path.exists()
 
     # Backup before any holding write; never overwrite an existing .bak
     # (convention from scripts/reconcile_holding_tickers.py).
-    if file_path is not None and file_path.exists():
+    if file_path is not None and file_existed:
         _backup_file_if_needed(file_path)
 
     before_holdings: list[dict[str, Any]] = []
@@ -242,7 +250,8 @@ def _fix_wrong_exchange(request: Request, payload: dict[str, Any], actor: str | 
     # Record the audit atomically with the change: if the audit write fails,
     # restore the pre-change file (the .bak taken above) so the mutation is
     # never left unrecorded.  The backup is restored byte-for-byte (the file
-    # may not round-trip through a text encode/decode).
+    # may not round-trip through a text encode/decode); a file created by the
+    # edit is removed again.
     try:
         entry = append_audit(
             action="wrong_exchange",
@@ -255,9 +264,12 @@ def _fix_wrong_exchange(request: Request, payload: dict[str, Any], actor: str | 
         )
     except Exception:
         if file_path is not None:
-            backup = _backup_path_for(file_path)
-            if backup.exists():
-                _atomic_write_bytes(file_path, backup.read_bytes())
+            if file_existed:
+                backup = _backup_path_for(file_path)
+                if backup.exists():
+                    _atomic_write_bytes(file_path, backup.read_bytes())
+            elif file_path.exists():
+                file_path.unlink(missing_ok=True)
         raise
     return {"status": "fixed", "ticker": resolved_ticker, "audit_id": entry["id"]}
 
@@ -272,19 +284,48 @@ def _atomic_write_bytes(path: Path, data: bytes) -> None:
     os.replace(tmp_path, path)
 
 
+def _restore_cache_or_remove(path: Path, existed: bool) -> None:
+    """Restore ``path`` from its .bak, or remove a freshly created file.
+
+    Cache-writing fixes mutate the cache first and record the audit second;
+    if the audit write fails the mutation must not survive unrecorded, so the
+    pre-fix file is restored byte-for-byte (atomically) or, when the fix
+    created the file, the new file is removed.
+    """
+    backup = _backup_path_for(path)
+    if existed and backup.exists():
+        _atomic_write_bytes(path, backup.read_bytes())
+    elif not existed and path.exists():
+        path.unlink(missing_ok=True)
+
+
 def _fix_refetch(payload: dict[str, Any], actor: str | None) -> dict[str, Any]:
     """Fetch/refetch a cached meta timeseries (missing/stale/gaps)."""
     ticker, exchange = _validate_cache_key(str(payload["ticker"]), str(payload["exchange"]))
+    cache = meta_timeseries_cache_path(ticker, exchange)
+    if cache.startswith("s3://"):
+        raise HTTPException(
+            status_code=400,
+            detail="Refetch currently supports the local cache only.",
+        )
+    path = Path(cache)
+    existed = path.exists()
+    if existed:
+        _backup_file_if_needed(path)
     df = load_meta_timeseries(ticker, exchange, days=_FETCH_DAYS)
-    entry = append_audit(
-        action="refetch",
-        issue_id=str(payload.get("issue_id") or ""),
-        entity={"ticker": ticker, "exchange": exchange},
-        before={"rows": None},
-        after={"rows": len(df) if df is not None else 0},
-        actor=actor,
-        extra={"kind": "refetch", "ticker": ticker, "exchange": exchange},
-    )
+    try:
+        entry = append_audit(
+            action="refetch",
+            issue_id=str(payload.get("issue_id") or ""),
+            entity={"ticker": ticker, "exchange": exchange},
+            before={"rows": None},
+            after={"rows": len(df) if df is not None else 0},
+            actor=actor,
+            extra={"kind": "refetch", "ticker": ticker, "exchange": exchange},
+        )
+    except Exception:
+        _restore_cache_or_remove(path, existed)
+        raise
     return {"status": "fixed", "rows": len(df) if df is not None else 0, "audit_id": entry["id"]}
 
 
@@ -300,16 +341,30 @@ def _fix_unresolved_ticker(payload: dict[str, Any], actor: str | None) -> dict[s
             detail=f"Unable to resolve metadata for {symbol} from any source.",
         )
     resolved_symbol, _, resolved_exchange = resolved.partition(".")
+    cache = meta_timeseries_cache_path(resolved_symbol, resolved_exchange or exchange)
+    if cache.startswith("s3://"):
+        raise HTTPException(
+            status_code=400,
+            detail="Unresolved-ticker fixes currently support the local cache only.",
+        )
+    path = Path(cache)
+    existed = path.exists()
+    if existed:
+        _backup_file_if_needed(path)
     df = load_meta_timeseries(resolved_symbol, resolved_exchange or exchange, days=_FETCH_DAYS)
-    entry = append_audit(
-        action="unresolved_ticker",
-        issue_id=str(payload.get("issue_id") or ""),
-        entity={"symbol": symbol, "exchange": exchange},
-        before={"metadata": "missing", "series": "missing"},
-        after={"metadata": resolved, "series_rows": len(df) if df is not None else 0},
-        actor=actor,
-        extra={"kind": "unresolved_ticker", "symbol": symbol, "exchange": exchange},
-    )
+    try:
+        entry = append_audit(
+            action="unresolved_ticker",
+            issue_id=str(payload.get("issue_id") or ""),
+            entity={"symbol": symbol, "exchange": exchange},
+            before={"metadata": "missing", "series": "missing"},
+            after={"metadata": resolved, "series_rows": len(df) if df is not None else 0},
+            actor=actor,
+            extra={"kind": "unresolved_ticker", "symbol": symbol, "exchange": exchange},
+        )
+    except Exception:
+        _restore_cache_or_remove(path, existed)
+        raise
     return {"status": "fixed", "ticker": resolved, "rows": len(df) if df is not None else 0, "audit_id": entry["id"]}
 
 
@@ -345,9 +400,9 @@ def _fix_dedupe(payload: dict[str, Any], actor: str | None) -> dict[str, Any]:
             extra={"kind": "dedupe", "ticker": ticker, "exchange": exchange},
         )
     except Exception:
-        backup = _backup_path_for(path)
-        if backup.exists():
-            shutil.copy2(backup, path)
+        # The cache file is known to exist (404-checked above), so restore
+        # it byte-for-byte from the .bak if the audit write failed.
+        _restore_cache_or_remove(path, existed=True)
         raise
     return {
         "status": "fixed",
@@ -408,9 +463,9 @@ def _fix_ticker_mismatch(payload: dict[str, Any], actor: str | None) -> dict[str
             extra={"kind": "ticker_mismatch", "ticker": ticker, "exchange": exchange},
         )
     except Exception:
-        backup = _backup_path_for(path)
-        if backup.exists():
-            shutil.copy2(backup, path)
+        # The cache file is known to exist (404-checked above), so restore
+        # it byte-for-byte from the .bak if the audit write failed.
+        _restore_cache_or_remove(path, existed=True)
         raise
     return {"status": "fixed", "tickers": [ticker], "audit_id": entry["id"]}
 
@@ -548,23 +603,29 @@ async def undo_audit(
         # even when multiple holdings share one ticker.  Restore by matching
         # the *after* ticker in the live document, so a list reorder or
         # unrelated holding added since the fix cannot misalign.
-        restore_map: dict[str, dict[str, Any]] = {}
+        restore_map: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {}
         for before_holding, after_holding in zip(before_holdings, after_holdings):
             if not isinstance(before_holding, dict) or not isinstance(after_holding, dict):
                 continue
             after_ticker = str(after_holding.get("ticker") or "").upper()
             if not after_ticker:
                 continue
-            restore_map[after_ticker] = dict(before_holding)
+            restore_map[after_ticker] = (dict(before_holding), dict(after_holding))
         with store.edit_document(owner, f"{account}.json", default={}, trailing_newline=True) as data:
             data.setdefault("holdings", [])
             for holding in data["holdings"]:
                 if not isinstance(holding, dict):
                     continue
                 current = str(holding.get("ticker") or "").upper()
-                if current in restore_map:
+                pair = restore_map.get(current)
+                if pair is None:
+                    continue
+                before_snapshot, after_snapshot = pair
+                # Only revert a holding that still matches the state the fix
+                # produced; a later manual edit must not be overwritten.
+                if holding == after_snapshot:
                     holding.clear()
-                    holding.update(restore_map[current])
+                    holding.update(before_snapshot)
         append_audit(
             action="undo",
             issue_id=str(entry.get("issue_id") or ""),
@@ -587,7 +648,7 @@ async def undo_audit(
         backup = _backup_path_for(path)
         if not backup.exists():
             raise HTTPException(status_code=409, detail="No backup available to restore from.")
-        shutil.copy2(backup, path)
+        _atomic_write_bytes(path, backup.read_bytes())
         append_audit(
             action="undo",
             issue_id=str(entry.get("issue_id") or ""),

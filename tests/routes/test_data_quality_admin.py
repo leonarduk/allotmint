@@ -294,3 +294,46 @@ def test_undo_rejects_traversal_owner(client):
     )
     resp = client.post(f"/data-quality/audit/{entry['id']}/undo")
     assert resp.status_code == 400
+
+
+def test_fix_wrong_exchange_rolls_back_when_audit_fails(monkeypatch, client, tmp_path):
+    """A failed audit write must restore the pre-fix holdings document."""
+    import backend.data_quality.audit as audit_module
+
+    issues = client.get("/data-quality/issues").json()["issues"]
+    wrong = next(i for i in issues if i["type"] == "WRONG_EXCHANGE")
+
+    def failing_append(path, line):
+        raise OSError("simulated audit disk failure")
+
+    monkeypatch.setattr(audit_module, "_atomic_append_text", failing_append)
+
+    with pytest.raises(OSError):
+        client.post(f"/data-quality/issues/{wrong['id']}/fix")
+
+    account_path = tmp_path / "accounts" / "demo" / "isa.json"
+    doc = json.loads(account_path.read_text(encoding="utf-8"))
+    assert doc["holdings"] == [{"ticker": "MICC.L"}]  # rolled back, not MICC.N
+
+
+def test_undo_skips_holding_edited_since_fix(client, tmp_path):
+    """Undo must not overwrite a holding that changed after the fix."""
+    issues = client.get("/data-quality/issues").json()["issues"]
+    wrong = next(i for i in issues if i["type"] == "WRONG_EXCHANGE")
+    client.post(f"/data-quality/issues/{wrong['id']}/fix")
+
+    audit = client.get("/data-quality/audit").json()["entries"]
+    entry_id = audit[0]["id"]
+
+    # Simulate a later manual edit: same ticker, different quantity.
+    account_path = tmp_path / "accounts" / "demo" / "isa.json"
+    doc = json.loads(account_path.read_text(encoding="utf-8"))
+    doc["holdings"] = [{"ticker": "MICC.N", "qty": 999}]
+    account_path.write_text(json.dumps(doc), encoding="utf-8")
+
+    resp = client.post(f"/data-quality/audit/{entry_id}/undo")
+    assert resp.status_code == 200
+
+    doc = json.loads(account_path.read_text(encoding="utf-8"))
+    # The manually edited holding is left untouched (no stale-snapshot clobber).
+    assert doc["holdings"] == [{"ticker": "MICC.N", "qty": 999}]

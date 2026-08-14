@@ -58,7 +58,11 @@ def _atomic_append_text(path: Path, line: str) -> None:
     with a spurious blank line.  The file is created if missing.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
+    # 0o600 (owner read/write only): the audit trail contains account and
+    # holding data, so the file must not be created world-readable (CodeQL
+    # py/insecure-mask).  The mode only applies at creation; appends to an
+    # existing file keep its original permissions.
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
     try:
         _acquire_append_lock(fd)
         separator = b""

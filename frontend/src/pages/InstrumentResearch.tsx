@@ -145,11 +145,15 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
   const initialExchange = tickerParts.length > 1 ? tickerParts[1] ?? "" : "";
   const { tabs, disabledTabs, baseCurrency } = useConfig();
   const [overviewHistoryDays, setOverviewHistoryDays] = useState<number>(0);
+  // Overview has no range selector of its own; default to 365d until the
+  // Timeseries tab reports a range (0 means "unset"/Max and must still fetch,
+  // so resolve it to a positive default here rather than in the hook).
+  const overviewFetchDays = overviewHistoryDays > 0 ? overviewHistoryDays : 365;
   const {
     data: detail,
     loading: detailLoading,
     error: detailError,
-  } = useInstrumentHistory(tkr, overviewHistoryDays);
+  } = useInstrumentHistory(tkr, overviewFetchDays);
   const [news, setNews] = useState<NewsItem[]>([]);
   const [newsLoading, setNewsLoading] = useState(false);
   const [newsError, setNewsError] = useState<string | null>(null);

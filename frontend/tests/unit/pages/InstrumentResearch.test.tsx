@@ -280,6 +280,30 @@ describe("InstrumentResearch page", () => {
     ).toBeInTheDocument();
   });
 
+  it("fetches a default 365d overview range on cold load", () => {
+    renderPage();
+
+    // Overview has no range selector; it must request a positive default so
+    // metrics are populated before the user ever visits the Timeseries tab.
+    expect(mockUseInstrumentHistory).toHaveBeenCalledWith("AAA", 365);
+  });
+
+  it("keeps the empty-ticker case on the default path (hook guard skips fetch)", () => {
+    render(
+      <configContext.Provider value={defaultConfig}>
+        <MemoryRouter initialEntries={["/research"]}>
+          <Routes>
+            <Route path="/research" element={<InstrumentResearch />} />
+          </Routes>
+        </MemoryRouter>
+      </configContext.Provider>,
+    );
+
+    // Still resolved to a positive default; the hook's own guard prevents the
+    // fetch for an empty ticker (covered in useInstrumentHistory.test.ts).
+    expect(mockUseInstrumentHistory).toHaveBeenCalledWith("", 365);
+  });
+
   it("shows a chooser message on /research without ticker", async () => {
     render(
       <configContext.Provider value={defaultConfig}>

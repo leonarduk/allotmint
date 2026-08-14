@@ -667,8 +667,16 @@ function MetadataTab() {
 
 export default function DataQuality() {
   const { t } = useTranslation();
-  const { dataQualityAdmin } = useConfig();
+  const { dataQualityAdmin, configLoaded } = useConfig();
   const [tab, setTab] = useState<TabId>(dataQualityAdmin === false ? "series" : "issues");
+
+  if (!configLoaded) {
+    // Wait for config before deciding admin vs. read-only: rendering the
+    // admin tabs against the default (pre-load) config value would fire a
+    // live issues fetch that gets torn down a moment later once the real
+    // (possibly admin-disabled) config arrives.
+    return null;
+  }
 
   if (dataQualityAdmin === false) {
     // Read-only fallback: keep the original series table available when the

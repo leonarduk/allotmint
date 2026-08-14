@@ -161,4 +161,31 @@ describe('useInstrumentHistory', () => {
     });
     expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(1);
   });
+
+  it('does not cache failed preloads so later callers retry', async () => {
+    mockGetInstrumentDetail
+      .mockRejectedValueOnce(new Error('HTTP 404'))
+      .mockResolvedValueOnce({
+        mini: { 7: [], 30: [], 180: [] },
+        positions: [],
+      });
+
+    await preloadInstrumentHistory(['ABC'], 30);
+    // The failed fetch was not cached, so a later preload retries it.
+    await preloadInstrumentHistory(['ABC'], 30);
+
+    expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(2);
+  });
+
+  it('shares a single failing fetch across concurrent callers', async () => {
+    mockGetInstrumentDetail.mockRejectedValueOnce(new Error('HTTP 404'));
+
+    await Promise.all([
+      preloadInstrumentHistory(['ABC'], 30),
+      preloadInstrumentHistory(['ABC'], 30),
+    ]);
+
+    // Both callers awaited the same rejected in-flight promise.
+    expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(1);
+  });
 });

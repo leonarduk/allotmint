@@ -38,6 +38,6 @@ jobs:
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "chore: update site snapshots"
+            git commit -m "docs: update site snapshots"
             git push origin main
           fi

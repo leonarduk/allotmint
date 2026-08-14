@@ -73,6 +73,9 @@ jenkins_home/
 .aider*
 !.aiderignore
 
+# Kun canvas/whiteboard tool artifacts (agent workspace state, not repo content)
+.kun-canvas/
+
 # Graphify's internal incremental-build cache (hundreds of small per-file
 # blobs, not meaningful output) — only graph.json/manifest.json etc. from
 # graphify-out/ should ever be committed, see #6119.

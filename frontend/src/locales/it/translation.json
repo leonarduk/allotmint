@@ -220,6 +220,7 @@
     "source": "Fonte:",
     "totalRowLabel": "Totale",
     "trendHeader": "Tendenza ({{range}}d)",
+    "sparklineAria": "Andamento a 30 giorni per {{ticker}}",
     "view": "Visualizzazione:",
     "viewPresets": {
       "all": "Tutto"
@@ -295,6 +296,7 @@
       "name": "Nome",
       "ticker": "Ticker",
       "trend": "Trend",
+      "sparklineAria": "Andamento del prezzo per {{ticker}}",
       "type": "Tipo",
       "units": "Unità"
     },

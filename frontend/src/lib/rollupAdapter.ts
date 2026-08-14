@@ -11,6 +11,7 @@ export type RollupRow = {
   name: string;
   units: number;
   cost_basis_gbp: number;
+  effective_cost_basis_gbp: number;
   market_value_gbp: number;
   gain_gbp: number;
   gain_pct: number;
@@ -64,10 +65,20 @@ function addHolding(
   grouped: Map<string, MutableRollup>,
   holding: ScopedHoldingRow,
 ): void {
+  // Mirror HoldingsTable's per-row cost fallback so a lot whose cost is
+  // derived (effective_cost_basis_gbp) rather than booked still contributes
+  // its cost to the rollup. Without this, positions without a booked cost
+  // basis roll up to £0.00 cost and a gain % of 0 (or an absurd total %).
+  const holdingCost =
+    (holding.cost_basis_gbp ?? 0) > 0
+      ? holding.cost_basis_gbp ?? 0
+      : holding.effective_cost_basis_gbp ?? 0;
+
   const existing = grouped.get(holding.ticker);
   if (existing) {
     existing.units += holding.units;
     existing.cost_basis_gbp += holding.cost_basis_gbp ?? 0;
+    existing.effective_cost_basis_gbp += holdingCost;
     existing.market_value_gbp += holding.market_value_gbp ?? 0;
     existing.gain_gbp += holding.gain_gbp ?? 0;
     existing.lot_count += 1;
@@ -81,6 +92,7 @@ function addHolding(
     name: holding.name,
     units: holding.units,
     cost_basis_gbp: holding.cost_basis_gbp ?? 0,
+    effective_cost_basis_gbp: holdingCost,
     market_value_gbp: holding.market_value_gbp ?? 0,
     gain_gbp: holding.gain_gbp ?? 0,
     gain_pct: 0,
@@ -121,8 +133,8 @@ export function toRollupRows(
 
     return {
       ...rollup,
-      gain_pct: row.cost_basis_gbp
-        ? (row.gain_gbp / row.cost_basis_gbp) * 100
+      gain_pct: row.effective_cost_basis_gbp
+        ? (row.gain_gbp / row.effective_cost_basis_gbp) * 100
         : 0,
       weight_pct: scopedTotal
         ? (row.market_value_gbp / scopedTotal) * 100

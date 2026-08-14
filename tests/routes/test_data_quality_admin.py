@@ -52,9 +52,7 @@ def _build_client(monkeypatch, tmp_path, *, series: list[tuple[str, str, pd.Data
         lambda symbol, create_missing=False: "MICC.N" if symbol == "MICC" else None,
     )
     monkeypatch.setattr(issues_module, "has_cached_meta_timeseries", lambda t, e: False)
-    monkeypatch.setattr(
-        issues_module, "list_cached_meta_tickers", lambda: [(t, e) for t, e, _ in series]
-    )
+    monkeypatch.setattr(issues_module, "list_cached_meta_tickers", lambda: [(t, e) for t, e, _ in series])
     monkeypatch.setattr(
         issues_module,
         "load_cached_meta_timeseries_full",
@@ -68,7 +66,6 @@ def _build_client(monkeypatch, tmp_path, *, series: list[tuple[str, str, pd.Data
     app.state.accounts_root = str(accounts)
     app.state.accounts_root_is_global = False
     return TestClient(app)
-
 
 
 def test_get_issues_lists_wrong_exchange(client):
@@ -154,9 +151,7 @@ def test_batch_fix_reports_failures(client):
 
 
 def test_dedupe_series_direct_endpoint(monkeypatch, client, tmp_path):
-    df = pd.DataFrame(
-        {"Date": ["2026-01-01", "2026-01-01", "2026-01-02"], "Close": [1.0, 2.0, 3.0]}
-    )
+    df = pd.DataFrame({"Date": ["2026-01-01", "2026-01-01", "2026-01-02"], "Close": [1.0, 2.0, 3.0]})
     cache_path = tmp_path / "ABC_L.parquet"
     df.to_parquet(cache_path, index=False)
 
@@ -249,4 +244,3 @@ def test_outliers_not_fixable(monkeypatch, tmp_path):
     assert outliers[0]["fixable"] is False
     resp = outlier_client.post(f"/data-quality/issues/{outliers[0]['id']}/fix")
     assert resp.status_code == 409
-

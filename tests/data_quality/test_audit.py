@@ -60,9 +60,7 @@ def test_append_preserves_earlier_entries(audit_dir):
 
 
 def test_find_audit_entry(audit_dir):
-    entry = append_audit(
-        action="dedupe", issue_id="DUPLICATES:ABC:L", entity={}, before={}, after={}
-    )
+    entry = append_audit(action="dedupe", issue_id="DUPLICATES:ABC:L", entity={}, before={}, after={})
     assert find_audit_entry(entry["id"]) is not None
     assert find_audit_entry("missing-id") is None
 

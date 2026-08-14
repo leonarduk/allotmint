@@ -72,9 +72,7 @@ def test_aggregate_holding_issues_wrong_exchange(monkeypatch, tmp_path, accounts
 def test_aggregate_holding_issues_unresolved(monkeypatch, tmp_path, accounts_root):
     """A holding with no metadata and no resolution is UNRESOLVED_TICKER."""
     monkeypatch.setattr(issues_module, "get_instrument_meta", lambda t: {})
-    monkeypatch.setattr(
-        issues_module, "resolve_instrument_ticker", lambda symbol, create_missing=False: None
-    )
+    monkeypatch.setattr(issues_module, "resolve_instrument_ticker", lambda symbol, create_missing=False: None)
 
     issues = aggregate_holding_issues(accounts_root)
     unresolved = [i for i in issues if i.type == IssueType.UNRESOLVED_TICKER]
@@ -99,9 +97,7 @@ def test_aggregate_holding_issues_missing_series(monkeypatch, tmp_path, accounts
 
 def test_cash_holdings_skipped(monkeypatch, tmp_path, accounts_root):
     monkeypatch.setattr(issues_module, "get_instrument_meta", lambda t: {})
-    monkeypatch.setattr(
-        issues_module, "resolve_instrument_ticker", lambda symbol, create_missing=False: None
-    )
+    monkeypatch.setattr(issues_module, "resolve_instrument_ticker", lambda symbol, create_missing=False: None)
 
     issues = aggregate_holding_issues(accounts_root)
     assert all("CASH" not in i.entity.get("holding", "") for i in issues)
@@ -191,9 +187,7 @@ def test_aggregate_series_issues_stale(monkeypatch):
 def test_aggregate_issues_dedupes_across_sources(monkeypatch, tmp_path, accounts_root):
     """aggregate_issues returns one issue per (type, entity) pair."""
     monkeypatch.setattr(issues_module, "get_instrument_meta", lambda t: {})
-    monkeypatch.setattr(
-        issues_module, "resolve_instrument_ticker", lambda symbol, create_missing=False: None
-    )
+    monkeypatch.setattr(issues_module, "resolve_instrument_ticker", lambda symbol, create_missing=False: None)
     monkeypatch.setattr(issues_module, "list_cached_meta_tickers", lambda: [])
     monkeypatch.setattr(issues_module, "load_cached_meta_timeseries_full", lambda t, e: None)
 

@@ -13,9 +13,9 @@ logger = logging.getLogger("ticker_validator")
 
 # File to record skipped tickers for auditing
 SKIPPED_TICKERS_FILE = (
-    (config.data_root / "skipped_tickers.log")
-    if config.data_root
-    else Path(__file__).resolve().parents[2] / "data" / "skipped_tickers.log"
+    (config.repo_root / "logs" / "skipped_tickers.log")
+    if config.repo_root
+    else Path(__file__).resolve().parents[2] / "logs" / "skipped_tickers.log"
 )
 
 
@@ -38,6 +38,7 @@ def record_skipped_ticker(ticker: str, exchange: str, *, reason: str = "") -> No
     """Append ticker to the skipped log for later auditing."""
     try:
         SKIPPED_TICKERS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Writing skipped ticker {sanitise_log_value(ticker)} to skipped log")
         ts = datetime.now(UTC).isoformat()
         line = f"{ts},{ticker},{exchange},{reason}\n"
         with SKIPPED_TICKERS_FILE.open("a", encoding="utf-8") as f:

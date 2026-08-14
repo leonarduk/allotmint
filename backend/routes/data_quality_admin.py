@@ -310,6 +310,20 @@ def _rollback_after_audit_failure(path: Path | None, *, existed: bool, expected_
         path.unlink(missing_ok=True)
 
 
+def _row_count_at(path: Path) -> int:
+    """Row count of the parquet file already at ``path``.
+
+    Reads directly from the resolved cache ``path`` rather than re-resolving
+    it via ``ticker``/``exchange`` (as ``load_cached_meta_timeseries_full``
+    does internally) so the "before" snapshot always reflects the exact file
+    this fix is about to overwrite.
+    """
+    try:
+        return len(pd.read_parquet(path))
+    except Exception:
+        return 0
+
+
 def _fix_refetch(payload: dict[str, Any], actor: str | None) -> dict[str, Any]:
     """Fetch/refetch a cached meta timeseries (missing/stale/gaps)."""
     ticker, exchange = _validate_cache_key(str(payload["ticker"]), str(payload["exchange"]))
@@ -324,8 +338,7 @@ def _fix_refetch(payload: dict[str, Any], actor: str | None) -> dict[str, Any]:
     before_rows = 0
     if existed:
         _backup_file_if_needed(path)
-        before_df = load_cached_meta_timeseries_full(ticker, exchange)
-        before_rows = len(before_df) if before_df is not None else 0
+        before_rows = _row_count_at(path)
     df = load_meta_timeseries(ticker, exchange, days=_FETCH_DAYS)
     # Never report a refetch as fixed (or audit it) when the upstream
     # returned nothing usable: ``load_meta_timeseries`` only persists a
@@ -376,8 +389,7 @@ def _fix_unresolved_ticker(payload: dict[str, Any], actor: str | None) -> dict[s
     before_rows = 0
     if existed:
         _backup_file_if_needed(path)
-        before_df = load_cached_meta_timeseries_full(resolved_symbol, resolved_exchange or exchange)
-        before_rows = len(before_df) if before_df is not None else 0
+        before_rows = _row_count_at(path)
     df = load_meta_timeseries(resolved_symbol, resolved_exchange or exchange, days=_FETCH_DAYS)
     # Same guard as ``_fix_refetch``: an empty/broken fetch must not be
     # recorded as a completed fix, and the cache is left untouched.
@@ -538,7 +550,7 @@ def _apply_fix(issue_id: str, request: Request, actor: str | None) -> dict[str, 
     kind = payload.get("kind")
     if kind == "wrong_exchange":
         return _fix_wrong_exchange(request, payload, actor)
-    if kind == "refetch":
+    if kind in ("refetch", "missing_series"):
         return _fix_refetch(payload, actor)
     if kind == "unresolved_ticker":
         return _fix_unresolved_ticker(payload, actor)

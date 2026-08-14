@@ -273,6 +273,7 @@ def aggregate_holding_issues(
             canonical_symbol, canonical_exchange = _parse_holding_ticker(canonical_ticker) or (symbol, exchange)
         else:
             canonical_symbol, canonical_exchange = symbol, exchange
+            canonical_ticker = f"{canonical_symbol}.{canonical_exchange}"
         if not has_cached_meta_timeseries(canonical_symbol, canonical_exchange):
             issues.append(
                 DataQualityIssue(

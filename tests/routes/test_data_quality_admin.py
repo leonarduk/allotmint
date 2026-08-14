@@ -124,6 +124,33 @@ def test_fix_wrong_exchange_writes_holding_and_audit(client, tmp_path):
     assert audit[0]["before"] == {"holdings": [{"ticker": "MICC.L"}]}
 
 
+def test_fix_missing_series_dispatches_to_refetch(monkeypatch, client, tmp_path):
+    """MISSING_SERIES issues carry kind='missing_series' and must dispatch to
+    the refetch fix rather than falling through to 409 (regression for #6727)."""
+    import backend.data_quality.issues as issues_module
+    import backend.routes.data_quality_admin as admin_module
+
+    monkeypatch.setattr(issues_module, "get_instrument_meta", lambda t: {"name": "MercadoLibre"})
+    monkeypatch.setattr(
+        issues_module,
+        "resolve_instrument_ticker",
+        lambda symbol, create_missing=False: f"{symbol}.L",
+    )
+    monkeypatch.setattr(issues_module, "has_cached_meta_timeseries", lambda t, e: False)
+
+    cache_path = tmp_path / "MICC_L.parquet"
+    monkeypatch.setattr(admin_module, "meta_timeseries_cache_path", lambda t, e: str(cache_path))
+    fresh = pd.DataFrame({"Date": ["2026-01-01"], "Close": [1.0]})
+    monkeypatch.setattr(admin_module, "load_meta_timeseries", lambda t, e, days: fresh.copy())
+
+    issues = client.get("/data-quality/issues").json()["issues"]
+    missing = next(i for i in issues if i["type"] == "MISSING_SERIES")
+
+    resp = client.post(f"/data-quality/issues/{missing['id']}/fix")
+    assert resp.status_code == 200
+    assert resp.json()["rows"] == 1
+
+
 def test_fix_unknown_issue_404(client):
     resp = client.post("/data-quality/issues/nope/fix")
     assert resp.status_code == 404

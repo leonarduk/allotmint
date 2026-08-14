@@ -95,6 +95,18 @@ def test_aggregate_holding_issues_missing_series(monkeypatch, tmp_path, accounts
     assert len(missing) == 3  # VWRL.L, MICC.L -> MICC.L, PFE.N -> PFE.L
 
 
+def test_aggregate_holding_issues_missing_series_unresolvable(monkeypatch, tmp_path, accounts_root):
+    """Metadata exists but the symbol can't be resolved: MISSING_SERIES uses the
+    holding's own ticker instead of raising (regression for #6727)."""
+    monkeypatch.setattr(issues_module, "get_instrument_meta", lambda t: {"name": "x"})
+    monkeypatch.setattr(issues_module, "resolve_instrument_ticker", lambda symbol, create_missing=False: None)
+    monkeypatch.setattr(issues_module, "has_cached_meta_timeseries", lambda t, e: False)
+
+    issues = aggregate_holding_issues(accounts_root)
+    missing = [i for i in issues if i.type == IssueType.MISSING_SERIES]
+    assert {i.fix_payload["ticker"] for i in missing} == {"VWRL", "MICC", "PFE"}
+
+
 def test_cash_holdings_skipped(monkeypatch, tmp_path, accounts_root):
     monkeypatch.setattr(issues_module, "get_instrument_meta", lambda t: {})
     monkeypatch.setattr(issues_module, "resolve_instrument_ticker", lambda symbol, create_missing=False: None)

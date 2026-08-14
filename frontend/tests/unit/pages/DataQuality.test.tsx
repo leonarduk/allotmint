@@ -206,7 +206,7 @@ describe("DataQuality page (read-only fallback)", () => {
       ],
     });
 
-    render(<DataQuality />);
+    renderWithConfig(false);
 
     expect((await screen.findAllByText("CASH")).length).toBeGreaterThan(1);
     expect((await screen.findAllByText("PFE")).length).toBeGreaterThan(1);

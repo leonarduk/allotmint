@@ -92,3 +92,4 @@ coverage.xml
 /frontend/test-results/
 /scripts/developer_tools/scripts/developer_tools/.coverage
 /scripts/developer_tools/test-results/junit.xml
+/.issue-worm/worktrees/

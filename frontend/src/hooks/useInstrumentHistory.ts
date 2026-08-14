@@ -1,9 +1,15 @@
 import { useEffect, useState } from "react";
+import { fetchInstrumentDetailWithRetry } from "../api";
 import type { InstrumentDetail } from "../types";
 
 // Cache full instrument detail (including metadata like name, sector and
 // currency) per ticker and history range to reuse for history and positions.
 const cache = new Map<string, Map<number, InstrumentDetail>>();
+
+// In-flight requests keyed by `${ticker}:${days}` so concurrent callers
+// (preloads, sparkline hooks, and StrictMode's double effect run) share a
+// single fetch instead of firing one request per consumer.
+const inFlight = new Map<string, Promise<InstrumentDetail>>();
 
 function getTickerCache(ticker: string) {
   let byTicker = cache.get(ticker);
@@ -12,6 +18,37 @@ function getTickerCache(ticker: string) {
     cache.set(ticker, byTicker);
   }
   return byTicker;
+}
+
+/**
+ * Fetch instrument detail for (ticker, days) exactly once while a request is
+ * in flight: completed results come from the cache, concurrent callers await
+ * the same in-flight promise, and only a genuinely new (ticker, days) starts a
+ * network request. Failures are not cached so a later effect run can retry.
+ */
+async function fetchInstrumentDetailShared(
+  ticker: string,
+  days: number,
+): Promise<InstrumentDetail> {
+  const cached = cache.get(ticker)?.get(days);
+  if (cached) return cached;
+
+  const key = `${ticker}:${days}`;
+  const pending = inFlight.get(key);
+  if (pending) return pending;
+
+  const promise = (async () => {
+    try {
+      const res = await fetchInstrumentDetailWithRetry(ticker, days);
+      getTickerCache(ticker).set(days, res);
+      return res;
+    } finally {
+      inFlight.delete(key);
+    }
+  })();
+
+  inFlight.set(key, promise);
+  return promise;
 }
 
 export function getCachedInstrumentHistory(ticker: string, days?: number) {
@@ -55,12 +92,10 @@ export async function preloadInstrumentHistory(
         while (queue.length) {
           const ticker = queue.shift();
           if (!ticker) break;
-          const byTicker = cache.get(ticker);
-          if (byTicker?.has(days)) continue;
           try {
-            const api = await import("../api");
-            const res = await api.fetchInstrumentDetailWithRetry(ticker, days);
-            getTickerCache(ticker).set(days, res);
+            // Shared dedup: reuses the completed cache and any in-flight
+            // request for (ticker, days), including from hook consumers.
+            await fetchInstrumentDetailShared(ticker, days);
           } catch {
             // ignore errors during preloading
           }
@@ -104,10 +139,8 @@ export function useInstrumentHistory(ticker: string, days: number) {
       const maxAttempts = 3;
       for (let attempt = 0; attempt < maxAttempts; attempt++) {
         try {
-          const api = await import("../api");
-          const res = await api.fetchInstrumentDetailWithRetry(ticker, days);
+          const res = await fetchInstrumentDetailShared(ticker, days);
           if (!active) return;
-          getTickerCache(ticker).set(days, res);
           setData(res);
           return;
         } catch (e) {
@@ -162,4 +195,5 @@ export function useInstrumentHistory(ticker: string, days: number) {
 // Test helper
 export function __clearInstrumentHistoryCache() {
   cache.clear();
+  inFlight.clear();
 }

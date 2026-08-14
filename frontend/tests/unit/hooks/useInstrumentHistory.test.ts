@@ -7,6 +7,7 @@ vi.mock('@/api', () => ({
 import * as api from '@/api';
 import {
   useInstrumentHistory,
+  preloadInstrumentHistory,
   __clearInstrumentHistoryCache,
 } from '@/hooks/useInstrumentHistory';
 
@@ -116,5 +117,48 @@ describe('useInstrumentHistory', () => {
     await waitFor(() => expect(result.current.data).not.toBeNull());
     expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(2);
     expect(mockGetInstrumentDetail).toHaveBeenLastCalledWith('ABC', 30);
+  });
+
+  it('shares one in-flight fetch across concurrent preload callers', async () => {
+    mockGetInstrumentDetail.mockResolvedValue({
+      mini: { 7: [], 30: [], 180: [] },
+      positions: [],
+    });
+
+    await Promise.all([
+      preloadInstrumentHistory(['ABC', 'DEF'], 30),
+      preloadInstrumentHistory(['ABC', 'DEF'], 30),
+    ]);
+
+    expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(2);
+  });
+
+  it('dedupes hook consumers mounted for the same ticker and days', async () => {
+    let release!: (value: unknown) => void;
+    const gate = new Promise((resolve) => {
+      release = resolve;
+    });
+    mockGetInstrumentDetail.mockReturnValueOnce(
+      gate.then(() => ({
+        mini: { 7: [], 30: [], 180: [] },
+        positions: [],
+      })),
+    );
+
+    const first = renderHook(() => useInstrumentHistory('ABC', 7));
+    const second = renderHook(() => useInstrumentHistory('ABC', 7));
+
+    await act(async () => {
+      release({
+        mini: { 7: [], 30: [], 180: [] },
+        positions: [],
+      });
+    });
+
+    await waitFor(() => {
+      expect(first.result.current.data).not.toBeNull();
+      expect(second.result.current.data).not.toBeNull();
+    });
+    expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(1);
   });
 });

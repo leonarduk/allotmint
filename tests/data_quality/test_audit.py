@@ -80,3 +80,43 @@ def test_corrupt_line_is_skipped(audit_dir):
     entries = read_audit()
     assert len(entries) == 1
     assert entries[0]["issue_id"] == "c"
+
+
+def test_append_separates_from_content_without_trailing_newline(audit_dir):
+    """A file missing its final newline must not merge the next entry."""
+    path = audit_dir / "data_quality_audit.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    # Simulate a partial write / external edit: no trailing newline.
+    path.write_text('{"id":"partial"}', encoding="utf-8")
+
+    append_audit(action="refetch", issue_id="after-partial", entity={}, before={}, after={})
+
+    entries = read_audit()
+    assert len(entries) == 2
+    ids = {e["issue_id"] for e in entries if "issue_id" in e}
+    assert "after-partial" in ids
+
+
+def test_concurrent_appends_lose_no_entries(audit_dir):
+    """O_APPEND single-write semantics must not drop entries under concurrency."""
+    import threading
+
+    def writer(index: int) -> None:
+        for _ in range(5):
+            append_audit(
+                action="refetch",
+                issue_id=f"w{index}",
+                entity={},
+                before={},
+                after={},
+            )
+
+    threads = [threading.Thread(target=writer, args=(i,)) for i in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    entries = read_audit()
+    # 8 writers x 5 appends each, no entry lost to a read-append race.
+    assert len(entries) == 40

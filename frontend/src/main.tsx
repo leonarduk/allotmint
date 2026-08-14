@@ -47,6 +47,7 @@ import {
   deriveModeFromPathname,
   isModeEnabled,
   standalonePageRoutes,
+  standaloneRouteNeedsChrome,
 } from './pageManifest';
 
 interface BootstrapConfig {
@@ -468,13 +469,9 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
             // Standalone pages mount outside App.tsx's mode dispatch, so they
             // render with zero nav chrome unless the wrapper is added here
             // (or the page self-renders AppHeader like AlertSettings does).
-            // Wrap every standalone route in AppHeader except: /alert-settings
-            // (already renders AppHeader itself with lastRefresh), and the two
-            // public pre-login routes that must stay chrome-free (#6725).
-            const needsChrome =
-              route.routePath !== '/alert-settings' &&
-              route.routePath !== '/support' &&
-              route.routePath !== '/create-account';
+            // /alert-settings, /support and /create-account are excluded by
+            // standaloneRouteNeedsChrome (#6725).
+            const needsChrome = standaloneRouteNeedsChrome(route.routePath);
             return [
               <Route
                 key={route.routePath}

@@ -192,6 +192,29 @@ def test_audit_undo_wrong_exchange(client, tmp_path):
     assert doc["holdings"] == [{"ticker": "MICC.L"}]
 
 
+def test_audit_undo_restores_correct_holding_after_list_change(client, tmp_path):
+    """Undo must not misalign when other holdings changed since the fix."""
+    issues = client.get("/data-quality/issues").json()["issues"]
+    wrong = next(i for i in issues if i["type"] == "WRONG_EXCHANGE")
+    client.post(f"/data-quality/issues/{wrong['id']}/fix")
+
+    audit = client.get("/data-quality/audit").json()["entries"]
+    entry_id = audit[0]["id"]
+
+    # Simulate a later unrelated change: reorder holdings and add a new one.
+    account_path = tmp_path / "accounts" / "demo" / "isa.json"
+    doc = json.loads(account_path.read_text(encoding="utf-8"))
+    doc["holdings"] = [{"ticker": "NEW.H"}, {"ticker": "MICC.N"}]
+    account_path.write_text(json.dumps(doc), encoding="utf-8")
+
+    resp = client.post(f"/data-quality/audit/{entry_id}/undo")
+    assert resp.status_code == 200
+
+    doc = json.loads(account_path.read_text(encoding="utf-8"))
+    # Only the fixed holding is reverted; the unrelated holding stays.
+    assert doc["holdings"] == [{"ticker": "NEW.H"}, {"ticker": "MICC.L"}]
+
+
 def test_audit_undo_non_reversible_409(client):
     # A refetch action is not reversible; manufacture one via the audit file.
     import backend.data_quality.audit as audit_module

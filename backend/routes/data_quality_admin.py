@@ -31,10 +31,7 @@ from backend.data_quality.issues import (
     find_issue,
 )
 from backend.routes import get_active_user
-from backend.routes.transactions import (
-    _normalise_account_file_name,
-    resolve_writable_store,
-)
+from backend.routes.transactions import resolve_writable_store
 from backend.timeseries.cache import (
     load_cached_meta_timeseries_full,
     load_meta_timeseries,
@@ -127,6 +124,29 @@ def _resolve_writable_accounts_store(request: Request) -> LocalAccountsStore:
     return store
 
 
+def _fsync_file(path: Path) -> None:
+    """Fsync an already-written file so its content survives a crash."""
+    # Windows requires a writable handle for fsync; open r+b rather than rb.
+    with path.open("r+b") as fh:
+        os.fsync(fh.fileno())
+
+
+def _atomic_write_parquet(df: Any, path: Path) -> None:
+    """Write ``df`` to ``path`` via a temp file + rename, then fsync.
+
+    Mirrors the audit trail's atomic-write pattern: a crash mid-write leaves
+    the original cache file untouched instead of a corrupt partial parquet.
+    """
+    tmp_path = path.with_suffix(path.suffix + ".tmp")
+    df.to_parquet(tmp_path, index=False)
+    _fsync_file(tmp_path)
+    os.replace(tmp_path, path)
+
+
+def _normalise_account_file_name(account: str) -> str:
+    return account.strip().lower()
+
+
 def _fix_wrong_exchange(request: Request, payload: dict[str, Any], actor: str | None) -> dict[str, Any]:
     """Correct a holding's ticker through the accounts-store write path."""
     owner = str(payload["owner"])
@@ -143,6 +163,7 @@ def _fix_wrong_exchange(request: Request, payload: dict[str, Any], actor: str | 
         _backup_file_if_needed(file_path)
 
     before_holdings: list[dict[str, Any]] = []
+    after_holdings: list[dict[str, Any]] = []
     with store.edit_document(owner, f"{account}.json", default={}, trailing_newline=True) as data:
         holdings = data.setdefault("holdings", [])
         if not isinstance(holdings, list):
@@ -154,6 +175,7 @@ def _fix_wrong_exchange(request: Request, payload: dict[str, Any], actor: str | 
             if str(holding.get("ticker") or "").upper() == holding_ticker:
                 before_holdings.append(dict(holding))
                 holding["ticker"] = resolved_ticker
+                after_holdings.append(dict(holding))
                 found = True
         if not found:
             raise HTTPException(
@@ -161,15 +183,24 @@ def _fix_wrong_exchange(request: Request, payload: dict[str, Any], actor: str | 
                 detail=f"Holding {holding_ticker} no longer exists in {owner}/{account}.",
             )
 
-    entry = append_audit(
-        action="wrong_exchange",
-        issue_id=str(payload.get("issue_id") or ""),
-        entity={"owner": owner, "account": account, "holding": holding_ticker},
-        before={"holdings": before_holdings},
-        after={"holdings": [{"ticker": resolved_ticker}]},
-        actor=actor,
-        extra={"kind": "wrong_exchange", "owner": owner, "account": account},
-    )
+    # Record the audit atomically with the change: if the audit write fails,
+    # restore the pre-change file (the .bak taken above) so the mutation is
+    # never left unrecorded.
+    try:
+        entry = append_audit(
+            action="wrong_exchange",
+            issue_id=str(payload.get("issue_id") or ""),
+            entity={"owner": owner, "account": account, "holding": holding_ticker},
+            before={"holdings": before_holdings},
+            after={"holdings": after_holdings},
+            actor=actor,
+            extra={"kind": "wrong_exchange", "owner": owner, "account": account},
+        )
+    except Exception:
+        backup = _backup_path_for(file_path) if file_path is not None else None
+        if backup is not None and backup.exists():
+            _atomic_write_text(file_path, backup.read_text(encoding="utf-8"))
+        raise
     return {"status": "fixed", "ticker": resolved_ticker, "audit_id": entry["id"]}
 
 
@@ -233,16 +264,24 @@ def _fix_dedupe(payload: dict[str, Any], actor: str | None) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="Cached series has no Date column.")
     deduped = df.drop_duplicates(subset=["Date"], keep="last").sort_values("Date").reset_index(drop=True)
     _backup_file_if_needed(path)
-    deduped.to_parquet(path, index=False)
-    entry = append_audit(
-        action="dedupe",
-        issue_id=str(payload.get("issue_id") or ""),
-        entity={"ticker": ticker, "exchange": exchange},
-        before={"rows": before_rows},
-        after={"rows": len(deduped)},
-        actor=actor,
-        extra={"kind": "dedupe", "ticker": ticker, "exchange": exchange},
-    )
+    _atomic_write_parquet(deduped, path)
+    # Audit must be atomic with the change: restore the .bak if the audit
+    # write fails so the cache is never left mutated without a record.
+    try:
+        entry = append_audit(
+            action="dedupe",
+            issue_id=str(payload.get("issue_id") or ""),
+            entity={"ticker": ticker, "exchange": exchange},
+            before={"rows": before_rows},
+            after={"rows": len(deduped)},
+            actor=actor,
+            extra={"kind": "dedupe", "ticker": ticker, "exchange": exchange},
+        )
+    except Exception:
+        backup = _backup_path_for(path)
+        if backup.exists():
+            shutil.copy2(backup, path)
+        raise
     return {
         "status": "fixed",
         "removed": before_rows - len(deduped),
@@ -292,16 +331,22 @@ def _fix_ticker_mismatch(payload: dict[str, Any], actor: str | None) -> dict[str
         before_tickers = sorted({str(v).strip().upper() for v in df["Ticker"].dropna().unique()})
         df["Ticker"] = ticker
     _backup_file_if_needed(path)
-    df.to_parquet(path, index=False)
-    entry = append_audit(
-        action="ticker_mismatch",
-        issue_id=str(payload.get("issue_id") or ""),
-        entity={"ticker": ticker, "exchange": exchange},
-        before={"tickers": before_tickers},
-        after={"tickers": [ticker]},
-        actor=actor,
-        extra={"kind": "ticker_mismatch", "ticker": ticker, "exchange": exchange},
-    )
+    _atomic_write_parquet(df, path)
+    try:
+        entry = append_audit(
+            action="ticker_mismatch",
+            issue_id=str(payload.get("issue_id") or ""),
+            entity={"ticker": ticker, "exchange": exchange},
+            before={"tickers": before_tickers},
+            after={"tickers": [ticker]},
+            actor=actor,
+            extra={"kind": "ticker_mismatch", "ticker": ticker, "exchange": exchange},
+        )
+    except Exception:
+        backup = _backup_path_for(path)
+        if backup.exists():
+            shutil.copy2(backup, path)
+        raise
     return {"status": "fixed", "tickers": [ticker], "audit_id": entry["id"]}
 
 
@@ -430,12 +475,21 @@ async def undo_audit(
         after = entry.get("after") or {}
         before_holdings = before.get("holdings") or []
         after_holdings = after.get("holdings") or []
-        # Map the post-fix ticker(s) back to their original pre-fix values.
-        restore_map = {
-            str(a.get("ticker") or "").upper(): str(b.get("ticker") or "")
-            for b, a in zip(before_holdings, after_holdings)
-            if b.get("ticker") and a.get("ticker")
-        }
+        # Pair the audit's own before/after snapshots (one holding per fix) and
+        # restore by matching the *after* ticker in the live document, so a
+        # list reorder or unrelated holding added since the fix cannot misalign.
+        restore_map: dict[str, dict[str, Any]] = {}
+        for after_holding in after_holdings:
+            if not isinstance(after_holding, dict):
+                continue
+            after_ticker = str(after_holding.get("ticker") or "").upper()
+            if not after_ticker:
+                continue
+            # The matching before snapshot carries the same entity fields but
+            # the original ticker; pair by index (audit records one pair per fix).
+            index = after_holdings.index(after_holding)
+            if index < len(before_holdings) and isinstance(before_holdings[index], dict):
+                restore_map[after_ticker] = dict(before_holdings[index])
         with store.edit_document(owner, f"{account}.json", default={}, trailing_newline=True) as data:
             data.setdefault("holdings", [])
             for holding in data["holdings"]:
@@ -443,7 +497,8 @@ async def undo_audit(
                     continue
                 current = str(holding.get("ticker") or "").upper()
                 if current in restore_map:
-                    holding["ticker"] = restore_map[current]
+                    holding.clear()
+                    holding.update(restore_map[current])
         append_audit(
             action="undo",
             issue_id=str(entry.get("issue_id") or ""),

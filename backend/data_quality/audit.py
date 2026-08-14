@@ -37,23 +37,34 @@ def audit_path() -> Path:
 
 
 def _atomic_append_text(path: Path, line: str) -> None:
-    """Append ``line`` to ``path`` via a temp file + rename.
+    """Append ``line`` to ``path`` using O_APPEND single-write semantics.
 
-    Reads the existing file (if any), writes the combined content to a
-    ``.tmp`` sibling, fsyncs it, then renames over the original — so a failed
-    write or crash cannot leave the trail partially written or corrupted.
+    The file is opened with ``O_APPEND`` so every ``write()`` lands at the
+    current end of file; POSIX guarantees a single ``write()`` to a regular
+    file with O_APPEND is atomic, so concurrent writers (e.g. parallel Lambda
+    invocations) cannot clobber each other's entries — unlike a
+    read-append-rename approach, which loses entries when two writers race.
+    The entry is fsync'd before returning so a crash cannot lose it.
+
+    If the existing file does not end with a newline (e.g. a partial write
+    from a crashed process or an external editor), a leading newline is
+    written first so the new entry is not merged into the last line.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
-    existing = path.read_text(encoding="utf-8") if path.exists() else ""
-    tmp_path = path.with_suffix(path.suffix + ".tmp")
-    with tmp_path.open("w", encoding="utf-8") as fh:
-        fh.write(existing)
-        fh.write(line)
-        if existing and not existing.endswith("\n"):
-            fh.write("\n")
-        fh.flush()
-        os.fsync(fh.fileno())
-    os.replace(tmp_path, path)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
+    try:
+        # Ensure the previous entry is separated from this one even when the
+        # file lacks a trailing newline (crash/partial write recovery).
+        if path.stat().st_size > 0:
+            with open(path, "rb") as existing:
+                existing.seek(-1, os.SEEK_END)
+                if existing.read(1) != b"\n":
+                    os.write(fd, b"\n")
+        payload = line if line.endswith("\n") else line + "\n"
+        os.write(fd, payload.encode("utf-8"))
+        os.fsync(fd)
+    finally:
+        os.close(fd)
 
 
 def append_audit(

@@ -158,6 +158,81 @@ the rows marked "requires Playwright MCP" are unavailable.
 | Claude tool (as written above) | Equivalent here | Notes |
 |---|---|---|
 | `mcp__Claude_Browser__preview_start` / Browser pane | `browser_use` `open` / `snapshot` / `screenshot` / `click` / `type` / `press` / `scroll` / `wait` / `tabs` | Same fallback rule: if screenshot fails with "pane not displayed", fall back to `snapshot` + page text for the rest of the session. |
+| `get_page_text` / `read_page` | `browser_use` `snapshot` (accessible-name tree), or `mcp_playwright_browser_snapshot` | Re-snapshot after every navigation; build locators only from the latest snapshot. |
+| `read_console_messages({onlyErrors})` | `mcp_playwright_browser_console_messages` (pass `level: "error"` for onlyErrors) | Requires Playwright MCP; otherwise **not available** — say so in the issue. |
+| `read_network_requests` | `mcp_playwright_browser_network_requests`, then `mcp_playwright_browser_network_request` for per-request details | Requires Playwright MCP; see #6573 for the duplicate-request pattern to look for. |
+| `javascript_tool` (click by text when refs are unreliable) | `browser_use` `click` on the role/name ref from the latest snapshot; `mcp_playwright_browser_run_code_unsafe` only as a last resort | `browser_run_code_unsafe` executes arbitrary JS in the MCP process (RCE-equivalent) — never use it without explicit user approval; prefer `browser_use` clicks. |
+| `resize_window({preset:"mobile"/"tablet"})` | `mcp_playwright_browser_resize` (mobile = 375×812, tablet = 768×1024) | Requires Playwright MCP. |
+| `resize_window({colorScheme:"light"})` | No exact equivalent in the connected MCP catalog — check available tools for theme emulation; otherwise note the gap in the issue. | |
+| `mcp__github__search_issues` | `gh issue list --search`, or `mcp_github_search_issues` (gh CLI is authed as leonarduk) | |
+| `mcp__github__create_issue` | `cicaid create-issue` (preferred when installed — see below), `mcp_github_create_issue`, or `gh issue create` | |
+| `mcp__github__add_issue_comment` | `gh issue comment`, or `mcp_github_add_issue_comment` | |
+| `mcp__github__update_issue` | `gh issue edit`, or `mcp_github_update_issue` | |
+
+### Capability gaps to state in issues, not hide
+
+- Console and network evidence comes from the Playwright MCP server
+  (`mcp_playwright_browser_*`). When it is connected, quote real console/network
+  findings (e.g. the #6573 redundant-request class). When it is **not**
+  connected, write `"no console/network evidence — verified visually/DOM only"`
+  in `## How` rather than implying it was checked.
+- Mobile/tablet passes are available via `mcp_playwright_browser_resize` when
+  the MCP is connected; light-theme emulation has no exact equivalent — if a
+  theme check can't be done, say so in the issue instead of pretending it was.
+
+### Filing issues via cicaid (preferred on leonarduk's machines)
+
+`cicaid` (github.com/leonarduk/cicaid, pip-installed CLI) is the repo owner's
+issue/PR automation tool and the preferred filing path when available.
+`cicaid create-issue` uses the repo's own template sections, auths via
+`GITHUB_TOKEN` or `gh auth token`, and creates via the GitHub API with a `gh`
+CLI fallback. Sibling commands (`sync-issues`, `triage-issues`,
+`clear-ai-slop-issues`) cover the other issue-management chores.
+
+It is interactive but fully pipeable — every prompt reads stdin. Drive it
+non-interactively with an answer stream:
+
+1. `b` (bug) or `f` (feature) — issue type
+2. For each template section in order (What, Why, How, Files Affected,
+   Constraints, LLM tier, Value, Success looks like, Failure looks like):
+   the section text, then a line containing just `.` to finish that input
+3. Title (single line), Labels (comma-separated), then `n` (skip the LLM
+   review — content should already be drafted/evidenced), `y` (create),
+   `n` (don't start work on it)
+
+Set `CICAID_SKIP_UPDATE_CHECK=1` for non-interactive runs.
+
+Repo-label reality check: the repo has no "Value" labels — use the real label
+set (`bug`, `enhancement`, `performance`, `frontend`, `backend`,
+`accessibility`, `codex`, `haiku`/`sonnet`/`opus`, ...). Confirm with
+`gh label list` before filing.
+
+Windows environment notes (observed 2026-08-13): the GitHub MCP server token
+was invalid ("Bad credentials") — use `gh` or cicaid instead; and `gh issue
+view --json body` output can be mojibake'd at the terminal on this machine —
+write bodies via `--body-file` and decode reads by piping JSON to a file and
+loading it with Python rather than trusting terminal output.
+
+### Trigger note
+
+Repo-local skills are not auto-activated by non-Claude agents (their skill
+catalogs are global). Read this file explicitly before any QA/issue work; an
+`AGENTS.md` pointer to this skill is the reliable way to trigger it.
+
+## Tool mapping for non-Claude agents (Kun / Codex)
+
+The procedure above is tool-agnostic; only the tool names are Claude-specific.
+Non-Claude agents should follow the same methodology with this mapping, and flag
+gaps honestly — never fabricate console/network evidence you could not collect.
+
+When the Playwright MCP server is connected (Kun: configured in `~/.kun/mcp.json`
+as server id `playwright`, `npx -y @playwright/mcp@latest`), prefer its
+`mcp_playwright_browser_*` tools for console/network/viewport evidence; otherwise
+the rows marked "requires Playwright MCP" are unavailable.
+
+| Claude tool (as written above) | Equivalent here | Notes |
+|---|---|---|
+| `mcp__Claude_Browser__preview_start` / Browser pane | `browser_use` `open` / `snapshot` / `screenshot` / `click` / `type` / `press` / `scroll` / `wait` / `tabs` | Same fallback rule: if screenshot fails with "pane not displayed", fall back to `snapshot` + page text for the rest of the session. |
 | `get_page_text` / `read_page` | `browser_use` `snapshot` (accessible-name tree) | Re-snapshot after every navigation; build locators only from the latest snapshot. |
 | `read_console_messages({onlyErrors})` | `mcp_playwright_browser_console_messages` (pass `level: "error"` for onlyErrors) | Requires Playwright MCP; otherwise **not available** — say so in the issue. |
 | `read_network_requests` | `mcp_playwright_browser_network_requests`, then `mcp_playwright_browser_network_request` for per-request details | Requires Playwright MCP; see #6573 for the duplicate-request pattern to look for. |

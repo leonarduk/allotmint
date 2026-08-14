@@ -1,4 +1,4 @@
-import { render, screen, act, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, act, waitFor, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
@@ -366,7 +366,10 @@ describe("UserConfig page", () => {
       await userEvent.selectOptions(select, "alex");
     });
 
-    expect(await screen.findAllByText("PFE")).toHaveLength(2);
+    // Scope to the approvals table so the assertion can't be satisfied by PFE
+    // appearing anywhere else on the page.
+    const approvalsTable = await screen.findByRole("table");
+    expect(within(approvalsTable).getAllByText("PFE")).toHaveLength(2);
     const keyWarnings = errorSpy.mock.calls.filter((args) =>
       String(args[0]).includes("same key"),
     );

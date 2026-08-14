@@ -172,4 +172,107 @@ test.describe('issue 6505: no duplicate-key warnings for same-ticker rows', () =
     await expect(page.getByText('PFE').first()).toBeVisible();
     expect(warnings).toEqual([]);
   });
+
+  test('screener page renders duplicate ticker rows without warnings', async ({ page }) => {
+    const warnings = collectDuplicateKeyWarnings(page);
+    await applyAuth(page);
+    await setupCoreMocks(page);
+    // /screener renders ScreenerQuery which embeds the Screener component;
+    // the embedded form calls getScreener -> /screener?<criteria>.
+    await page.route('**://localhost:8000/custom-query/saved**', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+    });
+    await page.route('**://localhost:8000/screener**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          { rank: 1, ticker: 'CASH', name: 'Cash GBP', peg_ratio: null, pe_ratio: null, de_ratio: null, lt_de_ratio: null, interest_coverage: null, current_ratio: null, quick_ratio: null, fcf: null, eps: null, gross_margin: null, operating_margin: null, net_margin: null, ebitda_margin: null, roa: null, roe: null, roi: null, dividend_yield: null, dividend_payout_ratio: null, beta: null, shares_outstanding: null, float_shares: null, market_cap: null, high_52w: null, low_52w: null, avg_volume: null },
+          { rank: 2, ticker: 'CASH', name: 'Cash L', peg_ratio: null, pe_ratio: null, de_ratio: null, lt_de_ratio: null, interest_coverage: null, current_ratio: null, quick_ratio: null, fcf: null, eps: null, gross_margin: null, operating_margin: null, net_margin: null, ebitda_margin: null, roa: null, roe: null, roi: null, dividend_yield: null, dividend_payout_ratio: null, beta: null, shares_outstanding: null, float_shares: null, market_cap: null, high_52w: null, low_52w: null, avg_volume: null },
+        ]),
+      });
+    });
+
+    await page.goto(`${baseUrl}/screener`);
+    // The embedded Screener form (first "Run" button, before the custom-query
+    // form's Run) renders duplicate rows via getScreener.
+    const tickersInput = page.getByLabel(/Tickers/i);
+    await tickersInput.fill('CASH');
+    await page.getByRole('button', { name: 'Run' }).nth(0).click();
+    await expect(page.getByText('CASH').first()).toBeVisible();
+    await expect(page.getByText('CASH').nth(1)).toBeVisible();
+    expect(warnings).toEqual([]);
+  });
+
+  test('settings page renders duplicate approvals without warnings', async ({ page }) => {
+    const warnings = collectDuplicateKeyWarnings(page);
+    await applyAuth(page);
+    await setupCoreMocks(page);
+    await page.route('**://localhost:8000/accounts/**/approvals**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          approvals: [
+            { ticker: 'PFE', approved_on: '2026-01-01' },
+            { ticker: 'PFE', approved_on: '2026-01-01' },
+          ],
+        }),
+      });
+    });
+
+    await page.goto(`${baseUrl}/settings`);
+    // The owner select is unlabeled (placeholder "Select owner"); choose the
+    // mocked owner so the approvals fetch fires.
+    const ownerSelect = page.locator('select').first();
+    await ownerSelect.selectOption({ label: 'Demo Owner' });
+    await expect(page.getByText('PFE').first()).toBeVisible();
+    await expect(page.getByText('PFE').nth(1)).toBeVisible();
+    expect(warnings).toEqual([]);
+  });
+
+  test('rebalance page renders aggregated duplicate holdings without warnings', async ({ page }) => {
+    const warnings = collectDuplicateKeyWarnings(page);
+    await applyAuth(page);
+    await setupCoreMocks(page);
+    await page.route('**://localhost:8000/portfolio/**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          owner: 'demo-owner',
+          as_of: '2026-01-01',
+          trades_this_month: 0,
+          trades_remaining: 10,
+          total_value_estimate_gbp: 3,
+          accounts: [
+            {
+              account_type: 'ISA',
+              currency: 'GBP',
+              value_estimate_gbp: 3,
+              holdings: [
+                { ticker: 'CASH', name: 'Cash GBP', units: 2, market_value_gbp: 2 },
+                { ticker: 'CASH', name: 'Cash L', units: 1, market_value_gbp: 1 },
+              ],
+            },
+          ],
+        }),
+      });
+    });
+    await page.route('**://localhost:8000/rebalance', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          { ticker: 'CASH', action: 'sell', amount: 10 },
+          { ticker: 'PFE', action: 'buy', amount: 10 },
+        ]),
+      });
+    });
+
+    await page.goto(`${baseUrl}/rebalance`);
+    // Input rows aggregate by ticker; expect exactly one CASH input row.
+    await expect(page.getByLabel(/Target weight \(%\) for CASH/)).toHaveCount(1);
+    expect(warnings).toEqual([]);
+  });
 });

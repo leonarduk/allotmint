@@ -1,0 +1,25 @@
+JOB: classify-change / Classify PR change (affected areas) | success | https://github.com/leonarduk/allotmint/actions/runs/31831391365/job/94867674052
+  STEP: Set up job | success
+  STEP: Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 | success
+  STEP: Run actions/setup-python@v7 | success
+  STEP: Classify affected areas | success
+  STEP: Post Run actions/setup-python@v7 | success
+  STEP: Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 | success
+  STEP: Complete job | success
+JOB: integration-tests | failure | https://github.com/leonarduk/allotmint/actions/runs/31831391365/job/94867704157
+  STEP: Set up job | success
+  STEP: Checkout repository | success
+  STEP: Set up Python | success
+  STEP: Check SPA contract version sync | success
+  STEP: Install dependencies | success
+  STEP: Configure AWS credentials (optional) | success
+  STEP: Sync data from S3 (optional) | success
+  STEP: Type-check backend | failure
+  STEP: Run provider parity tests | skipped
+  STEP: Run tests | skipped
+  STEP: Run script test suite | skipped
+  STEP: Upload backend coverage reports to Codecov | skipped
+  STEP: Post Configure AWS credentials (optional) | success
+  STEP: Post Set up Python | skipped
+  STEP: Post Checkout repository | success
+  STEP: Complete job | success

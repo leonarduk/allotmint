@@ -197,9 +197,10 @@ def _fix_wrong_exchange(request: Request, payload: dict[str, Any], actor: str | 
             extra={"kind": "wrong_exchange", "owner": owner, "account": account},
         )
     except Exception:
-        backup = _backup_path_for(file_path) if file_path is not None else None
-        if backup is not None and backup.exists():
-            _atomic_write_text(file_path, backup.read_text(encoding="utf-8"))
+        if file_path is not None:
+            backup = _backup_path_for(file_path)
+            if backup.exists():
+                _atomic_write_text(file_path, backup.read_text(encoding="utf-8"))
         raise
     return {"status": "fixed", "ticker": resolved_ticker, "audit_id": entry["id"]}
 

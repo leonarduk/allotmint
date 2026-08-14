@@ -1,0 +1,992 @@
+{
+  "total_count": 12,
+  "jobs": [
+    {
+      "id": 94867673907,
+      "run_id": 31831391397,
+      "workflow_name": "CI",
+      "head_branch": "fix/issue-6725-standalone-routed-pages-data-quality-data-explorer",
+      "run_url": "https://api.github.com/repos/leonarduk/allotmint/actions/runs/31831391397",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOPNw-Bs8AAAAWFo3TMw",
+      "head_sha": "888cc22003670f3e2293442e7782daa7dfee04fc",
+      "url": "https://api.github.com/repos/leonarduk/allotmint/actions/jobs/94867673907",
+      "html_url": "https://github.com/leonarduk/allotmint/actions/runs/31831391397/job/94867673907",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-08-14T19:01:35Z",
+      "started_at": "2026-08-14T19:01:37Z",
+      "completed_at": "2026-08-14T19:05:45Z",
+      "name": "test",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-08-14T19:01:38Z",
+          "completed_at": "2026-08-14T19:01:39Z"
+        },
+        {
+          "name": "Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-08-14T19:01:39Z",
+          "completed_at": "2026-08-14T19:01:41Z"
+        },
+        {
+          "name": "Run actions/setup-python@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-08-14T19:01:41Z",
+          "completed_at": "2026-08-14T19:01:41Z"
+        },
+        {
+          "name": "Run pip install --retries 10 -r requirements.txt -r requirements-dev.txt",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-08-14T19:01:41Z",
+          "completed_at": "2026-08-14T19:02:37Z"
+        },
+        {
+          "name": "Run python scripts/check_branch_protection_required_checks.py",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-08-14T19:02:37Z",
+          "completed_at": "2026-08-14T19:02:37Z"
+        },
+        {
+          "name": "Run review_common and review-script tests",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-08-14T19:02:37Z",
+          "completed_at": "2026-08-14T19:05:41Z"
+        },
+        {
+          "name": "Check package-lock.json cross-OS platform coverage",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-08-14T19:05:41Z",
+          "completed_at": "2026-08-14T19:05:41Z"
+        },
+        {
+          "name": "Audit architecture diagram reproducibility and references",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-08-14T19:05:41Z",
+          "completed_at": "2026-08-14T19:05:42Z"
+        },
+        {
+          "name": "Post Run actions/setup-python@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-08-14T19:05:42Z",
+          "completed_at": "2026-08-14T19:05:42Z"
+        },
+        {
+          "name": "Post Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 16,
+          "started_at": "2026-08-14T19:05:42Z",
+          "completed_at": "2026-08-14T19:05:42Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 17,
+          "started_at": "2026-08-14T19:05:42Z",
+          "completed_at": "2026-08-14T19:05:42Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/leonarduk/allotmint/check-runs/94867673907",
+      "labels": [
+        "ubuntu-latest"
+      ],
+      "runner_id": 1000097351,
+      "runner_name": "GitHub Actions 1000097351",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 94867673967,
+      "run_id": 31831391397,
+      "workflow_name": "CI",
+      "head_branch": "fix/issue-6725-standalone-routed-pages-data-quality-data-explorer",
+      "run_url": "https://api.github.com/repos/leonarduk/allotmint/actions/runs/31831391397",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOPNw-Bs8AAAAWFo3Tbw",
+      "head_sha": "888cc22003670f3e2293442e7782daa7dfee04fc",
+      "url": "https://api.github.com/repos/leonarduk/allotmint/actions/jobs/94867673967",
+      "html_url": "https://github.com/leonarduk/allotmint/actions/runs/31831391397/job/94867673967",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-08-14T19:01:35Z",
+      "started_at": "2026-08-14T19:01:36Z",
+      "completed_at": "2026-08-14T19:01:44Z",
+      "name": "classify-change / Classify PR change (affected areas)",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-08-14T19:01:37Z",
+          "completed_at": "2026-08-14T19:01:38Z"
+        },
+        {
+          "name": "Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-08-14T19:01:38Z",
+          "completed_at": "2026-08-14T19:01:40Z"
+        },
+        {
+          "name": "Run actions/setup-python@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-08-14T19:01:40Z",
+          "completed_at": "2026-08-14T19:01:41Z"
+        },
+        {
+          "name": "Classify affected areas",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-08-14T19:01:41Z",
+          "completed_at": "2026-08-14T19:01:42Z"
+        },
+        {
+          "name": "Post Run actions/setup-python@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-08-14T19:01:42Z",
+          "completed_at": "2026-08-14T19:01:42Z"
+        },
+        {
+          "name": "Post Run actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-08-14T19:01:42Z",
+          "completed_at": "2026-08-14T19:01:42Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-08-14T19:01:42Z",
+          "completed_at": "2026-08-14T19:01:42Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/leonarduk/allotmint/check-runs/94867673967",
+      "labels": [
+        "ubuntu-latest"
+      ],
+      "runner_id": 1000097350,
+      "runner_name": "GitHub Actions 1000097350",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 94867674005,
+      "run_id": 31831391397,
+      "workflow_name": "CI",
+      "head_branch": "fix/issue-6725-standalone-routed-pages-data-quality-data-explorer",
+      "run_url": "https://api.github.com/repos/leonarduk/allotmint/actions/runs/31831391397",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOPNw-Bs8AAAAWFo3TlQ",
+      "head_sha": "888cc22003670f3e2293442e7782daa7dfee04fc",
+      "url": "https://api.github.com/repos/leonarduk/allotmint/actions/jobs/94867674005",
+      "html_url": "https://github.com/leonarduk/allotmint/actions/runs/31831391397/job/94867674005",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-08-14T19:01:35Z",
+      "started_at": "2026-08-14T19:01:37Z",
+      "completed_at": "2026-08-14T19:01:43Z",
+      "name": "Lint GitHub Actions workflows",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-08-14T19:01:37Z",
+          "completed_at": "2026-08-14T19:01:38Z"
+        },
+        {
+          "name": "Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-08-14T19:01:38Z",
+          "completed_at": "2026-08-14T19:01:40Z"
+        },
+        {
+          "name": "Install actionlint",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-08-14T19:01:40Z",
+          "completed_at": "2026-08-14T19:01:40Z"
+        },
+        {
+          "name": "Run actionlint (includes shellcheck on inline scripts)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-08-14T19:01:40Z",
+          "completed_at": "2026-08-14T19:01:40Z"
+        },
+        {
+          "name": "Post Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-08-14T19:01:40Z",
+          "completed_at": "2026-08-14T19:01:41Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-08-14T19:01:41Z",
+          "completed_at": "2026-08-14T19:01:41Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/leonarduk/allotmint/check-runs/94867674005",
+      "labels": [
+        "ubuntu-latest"
+      ],
+      "runner_id": 1000097353,
+      "runner_name": "GitHub Actions 1000097353",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 94867712798,
+      "run_id": 31831391397,
+      "workflow_name": "CI",
+      "head_branch": "fix/issue-6725-standalone-routed-pages-data-quality-data-explorer",
+      "run_url": "https://api.github.com/repos/leonarduk/allotmint/actions/runs/31831391397",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOPNw-Bs8AAAAWFo5rHg",
+      "head_sha": "888cc22003670f3e2293442e7782daa7dfee04fc",
+      "url": "https://api.github.com/repos/leonarduk/allotmint/actions/jobs/94867712798",
+      "html_url": "https://github.com/leonarduk/allotmint/actions/runs/31831391397/job/94867712798",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-08-14T19:01:44Z",
+      "started_at": "2026-08-14T19:01:46Z",
+      "completed_at": "2026-08-14T19:03:28Z",
+      "name": "Frontend lint, type-check and unit tests",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-08-14T19:01:47Z",
+          "completed_at": "2026-08-14T19:01:47Z"
+        },
+        {
+          "name": "Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-08-14T19:01:47Z",
+          "completed_at": "2026-08-14T19:01:49Z"
+        },
+        {
+          "name": "Run actions/setup-node@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-08-14T19:01:49Z",
+          "completed_at": "2026-08-14T19:01:50Z"
+        },
+        {
+          "name": "Run npm ci",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-08-14T19:01:50Z",
+          "completed_at": "2026-08-14T19:02:00Z"
+        },
+        {
+          "name": "Run npm run lint",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-08-14T19:02:00Z",
+          "completed_at": "2026-08-14T19:02:06Z"
+        },
+        {
+          "name": "TypeScript type-check (tsc -b)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-08-14T19:02:06Z",
+          "completed_at": "2026-08-14T19:02:15Z"
+        },
+        {
+          "name": "Run npm test -- --run",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-08-14T19:02:15Z",
+          "completed_at": "2026-08-14T19:03:26Z"
+        },
+        {
+          "name": "Post Run actions/setup-node@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-08-14T19:03:26Z",
+          "completed_at": "2026-08-14T19:03:26Z"
+        },
+        {
+          "name": "Post Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 14,
+          "started_at": "2026-08-14T19:03:26Z",
+          "completed_at": "2026-08-14T19:03:27Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-08-14T19:03:27Z",
+          "completed_at": "2026-08-14T19:03:27Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/leonarduk/allotmint/check-runs/94867712798",
+      "labels": [
+        "ubuntu-latest"
+      ],
+      "runner_id": 1000097359,
+      "runner_name": "GitHub Actions 1000097359",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 94867712839,
+      "run_id": 31831391397,
+      "workflow_name": "CI",
+      "head_branch": "fix/issue-6725-standalone-routed-pages-data-quality-data-explorer",
+      "run_url": "https://api.github.com/repos/leonarduk/allotmint/actions/runs/31831391397",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOPNw-Bs8AAAAWFo5rRw",
+      "head_sha": "888cc22003670f3e2293442e7782daa7dfee04fc",
+      "url": "https://api.github.com/repos/leonarduk/allotmint/actions/jobs/94867712839",
+      "html_url": "https://github.com/leonarduk/allotmint/actions/runs/31831391397/job/94867712839",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-08-14T19:01:44Z",
+      "started_at": "2026-08-14T19:01:46Z",
+      "completed_at": "2026-08-14T19:03:01Z",
+      "name": "Python 3.11 compatibility smoke",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-08-14T19:01:47Z",
+          "completed_at": "2026-08-14T19:01:49Z"
+        },
+        {
+          "name": "Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-08-14T19:01:49Z",
+          "completed_at": "2026-08-14T19:01:52Z"
+        },
+        {
+          "name": "Run actions/setup-python@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-08-14T19:01:52Z",
+          "completed_at": "2026-08-14T19:01:52Z"
+        },
+        {
+          "name": "Run python -m pip install --upgrade pip",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-08-14T19:01:52Z",
+          "completed_at": "2026-08-14T19:01:56Z"
+        },
+        {
+          "name": "Run pip install --retries 10 -r requirements.txt -r requirements-dev.txt",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-08-14T19:01:56Z",
+          "completed_at": "2026-08-14T19:02:54Z"
+        },
+        {
+          "name": "Check SPA contract version sync",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-08-14T19:02:54Z",
+          "completed_at": "2026-08-14T19:02:54Z"
+        },
+        {
+          "name": "Run lightweight backend compatibility tests",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-08-14T19:02:54Z",
+          "completed_at": "2026-08-14T19:02:59Z"
+        },
+        {
+          "name": "Post Run actions/setup-python@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-08-14T19:02:59Z",
+          "completed_at": "2026-08-14T19:02:59Z"
+        },
+        {
+          "name": "Post Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 14,
+          "started_at": "2026-08-14T19:02:59Z",
+          "completed_at": "2026-08-14T19:02:59Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-08-14T19:02:59Z",
+          "completed_at": "2026-08-14T19:02:59Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/leonarduk/allotmint/check-runs/94867712839",
+      "labels": [
+        "ubuntu-latest"
+      ],
+      "runner_id": 1000097360,
+      "runner_name": "GitHub Actions 1000097360",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 94867712877,
+      "run_id": 31831391397,
+      "workflow_name": "CI",
+      "head_branch": "fix/issue-6725-standalone-routed-pages-data-quality-data-explorer",
+      "run_url": "https://api.github.com/repos/leonarduk/allotmint/actions/runs/31831391397",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOPNw-Bs8AAAAWFo5rbQ",
+      "head_sha": "888cc22003670f3e2293442e7782daa7dfee04fc",
+      "url": "https://api.github.com/repos/leonarduk/allotmint/actions/jobs/94867712877",
+      "html_url": "https://github.com/leonarduk/allotmint/actions/runs/31831391397/job/94867712877",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-08-14T19:01:44Z",
+      "started_at": "2026-08-14T19:01:47Z",
+      "completed_at": "2026-08-14T19:10:30Z",
+      "name": "Lambda-compat pytest (backend/requirements.txt)",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-08-14T19:01:47Z",
+          "completed_at": "2026-08-14T19:01:48Z"
+        },
+        {
+          "name": "Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-08-14T19:01:48Z",
+          "completed_at": "2026-08-14T19:01:50Z"
+        },
+        {
+          "name": "Run actions/setup-python@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-08-14T19:01:50Z",
+          "completed_at": "2026-08-14T19:01:50Z"
+        },
+        {
+          "name": "Create isolated venv for Lambda-compat test",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-08-14T19:01:50Z",
+          "completed_at": "2026-08-14T19:01:53Z"
+        },
+        {
+          "name": "Install Lambda-compatible deps + test tooling",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-08-14T19:01:53Z",
+          "completed_at": "2026-08-14T19:02:26Z"
+        },
+        {
+          "name": "Run backend pytest suite against Lambda deps",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-08-14T19:02:26Z",
+          "completed_at": "2026-08-14T19:10:27Z"
+        },
+        {
+          "name": "Post Run actions/setup-python@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-08-14T19:10:27Z",
+          "completed_at": "2026-08-14T19:10:27Z"
+        },
+        {
+          "name": "Post Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-08-14T19:10:27Z",
+          "completed_at": "2026-08-14T19:10:27Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-08-14T19:10:27Z",
+          "completed_at": "2026-08-14T19:10:27Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/leonarduk/allotmint/check-runs/94867712877",
+      "labels": [
+        "ubuntu-latest"
+      ],
+      "runner_id": 1000097363,
+      "runner_name": "GitHub Actions 1000097363",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 94867712904,
+      "run_id": 31831391397,
+      "workflow_name": "CI",
+      "head_branch": "fix/issue-6725-standalone-routed-pages-data-quality-data-explorer",
+      "run_url": "https://api.github.com/repos/leonarduk/allotmint/actions/runs/31831391397",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOPNw-Bs8AAAAWFo5riA",
+      "head_sha": "888cc22003670f3e2293442e7782daa7dfee04fc",
+      "url": "https://api.github.com/repos/leonarduk/allotmint/actions/jobs/94867712904",
+      "html_url": "https://github.com/leonarduk/allotmint/actions/runs/31831391397/job/94867712904",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-08-14T19:01:44Z",
+      "started_at": "2026-08-14T19:01:46Z",
+      "completed_at": "2026-08-14T19:02:31Z",
+      "name": "Validate backend/requirements.txt (dry-run)",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-08-14T19:01:47Z",
+          "completed_at": "2026-08-14T19:01:48Z"
+        },
+        {
+          "name": "Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-08-14T19:01:48Z",
+          "completed_at": "2026-08-14T19:01:49Z"
+        },
+        {
+          "name": "Run actions/setup-python@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-08-14T19:01:49Z",
+          "completed_at": "2026-08-14T19:01:49Z"
+        },
+        {
+          "name": "Assert no duplicate package names in backend/requirements.txt",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-08-14T19:01:49Z",
+          "completed_at": "2026-08-14T19:01:50Z"
+        },
+        {
+          "name": "Dry-run install to catch dependency conflicts before they reach Docker",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-08-14T19:01:50Z",
+          "completed_at": "2026-08-14T19:02:02Z"
+        },
+        {
+          "name": "Verify root requirements can start the backend in a fresh venv",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-08-14T19:02:02Z",
+          "completed_at": "2026-08-14T19:02:29Z"
+        },
+        {
+          "name": "Post Run actions/setup-python@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-08-14T19:02:29Z",
+          "completed_at": "2026-08-14T19:02:29Z"
+        },
+        {
+          "name": "Post Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-08-14T19:02:29Z",
+          "completed_at": "2026-08-14T19:02:30Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-08-14T19:02:30Z",
+          "completed_at": "2026-08-14T19:02:30Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/leonarduk/allotmint/check-runs/94867712904",
+      "labels": [
+        "ubuntu-latest"
+      ],
+      "runner_id": 1000097362,
+      "runner_name": "GitHub Actions 1000097362",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 94867712906,
+      "run_id": 31831391397,
+      "workflow_name": "CI",
+      "head_branch": "fix/issue-6725-standalone-routed-pages-data-quality-data-explorer",
+      "run_url": "https://api.github.com/repos/leonarduk/allotmint/actions/runs/31831391397",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOPNw-Bs8AAAAWFo5rig",
+      "head_sha": "888cc22003670f3e2293442e7782daa7dfee04fc",
+      "url": "https://api.github.com/repos/leonarduk/allotmint/actions/jobs/94867712906",
+      "html_url": "https://github.com/leonarduk/allotmint/actions/runs/31831391397/job/94867712906",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-08-14T19:01:44Z",
+      "started_at": "2026-08-14T19:01:46Z",
+      "completed_at": "2026-08-14T19:02:57Z",
+      "name": "Backend lint (ruff, black)",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-08-14T19:01:47Z",
+          "completed_at": "2026-08-14T19:01:48Z"
+        },
+        {
+          "name": "Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-08-14T19:01:48Z",
+          "completed_at": "2026-08-14T19:01:50Z"
+        },
+        {
+          "name": "Run actions/setup-python@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-08-14T19:01:50Z",
+          "completed_at": "2026-08-14T19:01:50Z"
+        },
+        {
+          "name": "Install backend and development dependencies",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-08-14T19:01:50Z",
+          "completed_at": "2026-08-14T19:02:54Z"
+        },
+        {
+          "name": "Lint backend/tests Python files touched by this change",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-08-14T19:02:54Z",
+          "completed_at": "2026-08-14T19:02:55Z"
+        },
+        {
+          "name": "Post Run actions/setup-python@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-08-14T19:02:55Z",
+          "completed_at": "2026-08-14T19:02:56Z"
+        },
+        {
+          "name": "Post Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-08-14T19:02:56Z",
+          "completed_at": "2026-08-14T19:02:56Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-08-14T19:02:56Z",
+          "completed_at": "2026-08-14T19:02:56Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/leonarduk/allotmint/check-runs/94867712906",
+      "labels": [
+        "ubuntu-latest"
+      ],
+      "runner_id": 1000097361,
+      "runner_name": "GitHub Actions 1000097361",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 94867713234,
+      "run_id": 31831391397,
+      "workflow_name": "CI",
+      "head_branch": "fix/issue-6725-standalone-routed-pages-data-quality-data-explorer",
+      "run_url": "https://api.github.com/repos/leonarduk/allotmint/actions/runs/31831391397",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOPNw-Bs8AAAAWFo5s0g",
+      "head_sha": "888cc22003670f3e2293442e7782daa7dfee04fc",
+      "url": "https://api.github.com/repos/leonarduk/allotmint/actions/jobs/94867713234",
+      "html_url": "https://github.com/leonarduk/allotmint/actions/runs/31831391397/job/94867713234",
+      "status": "completed",
+      "conclusion": "skipped",
+      "created_at": "2026-08-14T19:01:45Z",
+      "started_at": "2026-08-14T19:01:45Z",
+      "completed_at": "2026-08-14T19:01:44Z",
+      "name": "Bash script tests (bats)",
+      "steps": [
+
+      ],
+      "check_run_url": "https://api.github.com/repos/leonarduk/allotmint/check-runs/94867713234",
+      "labels": [
+        "ubuntu-latest"
+      ],
+      "runner_id": null,
+      "runner_name": null,
+      "runner_group_id": null,
+      "runner_group_name": null
+    },
+    {
+      "id": 94867713830,
+      "run_id": 31831391397,
+      "workflow_name": "CI",
+      "head_branch": "fix/issue-6725-standalone-routed-pages-data-quality-data-explorer",
+      "run_url": "https://api.github.com/repos/leonarduk/allotmint/actions/runs/31831391397",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOPNw-Bs8AAAAWFo5vJg",
+      "head_sha": "888cc22003670f3e2293442e7782daa7dfee04fc",
+      "url": "https://api.github.com/repos/leonarduk/allotmint/actions/jobs/94867713830",
+      "html_url": "https://github.com/leonarduk/allotmint/actions/runs/31831391397/job/94867713830",
+      "status": "completed",
+      "conclusion": "skipped",
+      "created_at": "2026-08-14T19:01:45Z",
+      "started_at": "2026-08-14T19:01:45Z",
+      "completed_at": "2026-08-14T19:01:44Z",
+      "name": "Lint .github/scripts shell scripts (shellcheck)",
+      "steps": [
+
+      ],
+      "check_run_url": "https://api.github.com/repos/leonarduk/allotmint/check-runs/94867713830",
+      "labels": [
+        "ubuntu-latest"
+      ],
+      "runner_id": null,
+      "runner_name": null,
+      "runner_group_id": null,
+      "runner_group_name": null
+    },
+    {
+      "id": 94867713924,
+      "run_id": 31831391397,
+      "workflow_name": "CI",
+      "head_branch": "fix/issue-6725-standalone-routed-pages-data-quality-data-explorer",
+      "run_url": "https://api.github.com/repos/leonarduk/allotmint/actions/runs/31831391397",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOPNw-Bs8AAAAWFo5vhA",
+      "head_sha": "888cc22003670f3e2293442e7782daa7dfee04fc",
+      "url": "https://api.github.com/repos/leonarduk/allotmint/actions/jobs/94867713924",
+      "html_url": "https://github.com/leonarduk/allotmint/actions/runs/31831391397/job/94867713924",
+      "status": "completed",
+      "conclusion": "skipped",
+      "created_at": "2026-08-14T19:01:45Z",
+      "started_at": "2026-08-14T19:01:45Z",
+      "completed_at": "2026-08-14T19:01:44Z",
+      "name": "CDK infrastructure tests",
+      "steps": [
+
+      ],
+      "check_run_url": "https://api.github.com/repos/leonarduk/allotmint/check-runs/94867713924",
+      "labels": [
+        "ubuntu-latest"
+      ],
+      "runner_id": null,
+      "runner_name": null,
+      "runner_group_id": null,
+      "runner_group_name": null
+    },
+    {
+      "id": 94868129919,
+      "run_id": 31831391397,
+      "workflow_name": "CI",
+      "head_branch": "fix/issue-6725-standalone-routed-pages-data-quality-data-explorer",
+      "run_url": "https://api.github.com/repos/leonarduk/allotmint/actions/runs/31831391397",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOPNw-Bs8AAAAWFpTIfw",
+      "head_sha": "888cc22003670f3e2293442e7782daa7dfee04fc",
+      "url": "https://api.github.com/repos/leonarduk/allotmint/actions/jobs/94868129919",
+      "html_url": "https://github.com/leonarduk/allotmint/actions/runs/31831391397/job/94868129919",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-08-14T19:03:28Z",
+      "started_at": "2026-08-14T19:03:31Z",
+      "completed_at": "2026-08-14T19:04:52Z",
+      "name": "Frontend smoke tests (preview build)",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-08-14T19:03:32Z",
+          "completed_at": "2026-08-14T19:03:32Z"
+        },
+        {
+          "name": "Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-08-14T19:03:32Z",
+          "completed_at": "2026-08-14T19:03:34Z"
+        },
+        {
+          "name": "Run ./.github/actions/setup-frontend-deps",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-08-14T19:03:34Z",
+          "completed_at": "2026-08-14T19:03:49Z"
+        },
+        {
+          "name": "Build preview",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-08-14T19:03:49Z",
+          "completed_at": "2026-08-14T19:03:51Z"
+        },
+        {
+          "name": "Verify base href is relative in built index.html",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-08-14T19:03:51Z",
+          "completed_at": "2026-08-14T19:03:51Z"
+        },
+        {
+          "name": "Install Playwright browsers",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-08-14T19:03:51Z",
+          "completed_at": "2026-08-14T19:04:15Z"
+        },
+        {
+          "name": "Run frontend smoke tests",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-08-14T19:04:15Z",
+          "completed_at": "2026-08-14T19:04:49Z"
+        },
+        {
+          "name": "Upload Playwright smoke-test artifacts",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 8,
+          "started_at": "2026-08-14T19:04:49Z",
+          "completed_at": "2026-08-14T19:04:49Z"
+        },
+        {
+          "name": "Post Run ./.github/actions/setup-frontend-deps",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-08-14T19:04:49Z",
+          "completed_at": "2026-08-14T19:04:49Z"
+        },
+        {
+          "name": "Post Run actions/checkout@v7",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 16,
+          "started_at": "2026-08-14T19:04:49Z",
+          "completed_at": "2026-08-14T19:04:49Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 17,
+          "started_at": "2026-08-14T19:04:50Z",
+          "completed_at": "2026-08-14T19:04:50Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/leonarduk/allotmint/check-runs/94868129919",
+      "labels": [
+        "ubuntu-latest"
+      ],
+      "runner_id": 1000097365,
+      "runner_name": "GitHub Actions 1000097365",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    }
+  ]
+}

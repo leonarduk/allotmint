@@ -404,8 +404,8 @@ export default function Rebalance() {
             </tr>
           </thead>
           <tbody>
-            {tradeRows.map((t) => (
-              <tr key={t.ticker}>
+            {tradeRows.map((t, index) => (
+              <tr key={`${t.ticker}-${index}`}>
                 <td>{t.ticker}</td>
                 <td>{percentFormatter.format(t.currentWeightPct)}%</td>
                 <td>{percentFormatter.format(t.targetWeightPct)}%</td>

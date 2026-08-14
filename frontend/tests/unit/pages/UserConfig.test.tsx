@@ -1,4 +1,4 @@
-import { render, screen, act, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, act, waitFor, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
@@ -346,6 +346,35 @@ describe("UserConfig page", () => {
     });
 
     expect(await screen.findByText(/^Failed to load approvals$/)).toBeInTheDocument();
+  });
+
+  it("does not emit duplicate-key warnings when the same ticker is approved twice (#6505)", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
+    mockGetUserConfig.mockResolvedValue({});
+    mockGetApprovals.mockResolvedValue({
+      approvals: [
+        { ticker: "PFE", approved_on: "2026-01-01" },
+        { ticker: "PFE", approved_on: "2026-01-01" },
+      ],
+    });
+
+    render(<UserConfig />);
+
+    const select = await screen.findByRole("combobox");
+    await act(async () => {
+      await userEvent.selectOptions(select, "alex");
+    });
+
+    // Scope to the approvals table so the assertion can't be satisfied by PFE
+    // appearing anywhere else on the page.
+    const approvalsTable = await screen.findByRole("table");
+    expect(within(approvalsTable).getAllByText("PFE")).toHaveLength(2);
+    const keyWarnings = errorSpy.mock.calls.filter((args) =>
+      String(args[0]).includes("same key"),
+    );
+    expect(keyWarnings).toEqual([]);
+    errorSpy.mockRestore();
   });
 });
 

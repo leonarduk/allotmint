@@ -101,6 +101,28 @@ describe("TimeseriesEdit page", () => {
     expect(input).toHaveValue("AAA");
   });
 
+  it("does not emit duplicate-key warnings for duplicate suggestion tickers (#6505)", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const getTimeseriesMock = getTimeseries as unknown as vi.Mock;
+    getTimeseriesMock.mockResolvedValue([]);
+    const searchMock = searchInstruments as unknown as vi.Mock;
+    searchMock.mockResolvedValue([
+      { ticker: "CASH", name: "Cash GBP" },
+      { ticker: "CASH", name: "Cash L" },
+    ]);
+    renderWithI18n(<TimeseriesEdit />);
+    const input = screen.getByLabelText(/Ticker/i);
+    fireEvent.change(input, { target: { value: "CA" } });
+    await new Promise((r) => setTimeout(r, 350));
+    expect(await screen.findByText("CASH — Cash GBP")).toBeInTheDocument();
+    expect(screen.getAllByText(/CASH —/)).toHaveLength(2);
+    const keyWarnings = errorSpy.mock.calls.filter((args) =>
+      String(args[0]).includes("same key"),
+    );
+    expect(keyWarnings).toEqual([]);
+    errorSpy.mockRestore();
+  });
+
   it("enables Move after an empty load and surfaces an actionable error", async () => {
     const getTimeseriesMock = getTimeseries as unknown as vi.Mock;
     getTimeseriesMock.mockResolvedValue([]);

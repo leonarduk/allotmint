@@ -150,4 +150,43 @@ describe("Rebalance page", () => {
     const [, targetPayload] = mockGetRebalance.mock.calls[0];
     expect(targetPayload.AAA + targetPayload.BBB).toBeCloseTo(1, 12);
   });
+
+  it("does not emit duplicate-key warnings when the rebalance API returns duplicate tickers (#6505)", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    // The rebalance API can return the same ticker under multiple exchanges
+    // (e.g. CASH/GBP and CASH/L); the trades table must not key by ticker alone.
+    mockGetPortfolio.mockResolvedValue({
+      accounts: [
+        {
+          holdings: [
+            { ticker: "CASH", market_value_gbp: 2 },
+            { ticker: "PFE", market_value_gbp: 1 },
+          ],
+        },
+      ],
+    });
+    mockGetRebalance.mockResolvedValue([
+      { ticker: "CASH", action: "sell", amount: 10 },
+      { ticker: "CASH", action: "buy", amount: 5 },
+      { ticker: "PFE", action: "buy", amount: 10 },
+      { ticker: "PFE", action: "sell", amount: 5 },
+    ]);
+    const { default: Rebalance } = await import("@/pages/Rebalance");
+    render(<Rebalance />);
+
+    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("alex"));
+    await screen.findByDisplayValue("66.67");
+
+    fireEvent.click(screen.getByRole("button", { name: /rebalance/i }));
+    await waitFor(() => expect(mockGetRebalance).toHaveBeenCalledTimes(1));
+    // All four trade rows render, including the duplicate-ticker pairs.
+    expect(await screen.findAllByText("CASH")).toHaveLength(2);
+    expect(screen.getAllByText("PFE")).toHaveLength(2);
+
+    const keyWarnings = errorSpy.mock.calls.filter((args) =>
+      String(args[0]).includes("same key"),
+    );
+    expect(keyWarnings).toEqual([]);
+    errorSpy.mockRestore();
+  });
 });

@@ -179,5 +179,7 @@ describe('page manifest', () => {
     expect(standaloneRouteNeedsChrome('/alert-settings')).toBe(false);
     expect(standaloneRouteNeedsChrome('/support')).toBe(false);
     expect(standaloneRouteNeedsChrome('/create-account')).toBe(false);
+    // A route with no path (never mounted standalone) is not chrome-bearing.
+    expect(standaloneRouteNeedsChrome(undefined)).toBe(false);
   });
 });

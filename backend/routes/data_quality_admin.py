@@ -19,6 +19,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
@@ -251,7 +252,10 @@ def _fix_wrong_exchange(request: Request, payload: dict[str, Any], actor: str | 
     # restore the pre-change file (the .bak taken above) so the mutation is
     # never left unrecorded.  The backup is restored byte-for-byte (the file
     # may not round-trip through a text encode/decode); a file created by the
-    # edit is removed again.
+    # edit is removed again.  The restore is conditional: it only rewrites the
+    # file when it still holds exactly the bytes this fix wrote, so a concurrent
+    # edit made between the fix and the audit failure is never clobbered.
+    after_bytes = file_path.read_bytes() if file_path is not None and file_path.exists() else None
     try:
         entry = append_audit(
             action="wrong_exchange",
@@ -263,13 +267,7 @@ def _fix_wrong_exchange(request: Request, payload: dict[str, Any], actor: str | 
             extra={"kind": "wrong_exchange", "owner": owner, "account": account},
         )
     except Exception:
-        if file_path is not None:
-            if file_existed:
-                backup = _backup_path_for(file_path)
-                if backup.exists():
-                    _atomic_write_bytes(file_path, backup.read_bytes())
-            elif file_path.exists():
-                file_path.unlink(missing_ok=True)
+        _rollback_after_audit_failure(file_path, existed=file_existed, expected_bytes=after_bytes)
         raise
     return {"status": "fixed", "ticker": resolved_ticker, "audit_id": entry["id"]}
 
@@ -284,14 +282,27 @@ def _atomic_write_bytes(path: Path, data: bytes) -> None:
     os.replace(tmp_path, path)
 
 
-def _restore_cache_or_remove(path: Path, existed: bool) -> None:
-    """Restore ``path`` from its .bak, or remove a freshly created file.
+def _rollback_after_audit_failure(path: Path | None, *, existed: bool, expected_bytes: bytes | None) -> None:
+    """Restore ``path`` to its pre-fix state after a failed audit write.
 
-    Cache-writing fixes mutate the cache first and record the audit second;
-    if the audit write fails the mutation must not survive unrecorded, so the
-    pre-fix file is restored byte-for-byte (atomically) or, when the fix
-    created the file, the new file is removed.
+    Cache/fix mutations are applied first and the audit second; if the audit
+    write fails the mutation must not survive unrecorded, so the pre-fix file
+    is restored byte-for-byte (atomically) or, when the fix created the file,
+    the new file is removed.  The restore is conditional: it only rewrites
+    ``path`` when the file still contains exactly the bytes this fix produced
+    (``expected_bytes``).  If another request has modified the file in the
+    meantime, the backup is deliberately left in place — restoring it would
+    clobber the concurrent edit — and the caller re-raises the audit error so
+    the unrecorded mutation is surfaced rather than silently reverted.
     """
+    if path is None:
+        return
+    if expected_bytes is not None:
+        try:
+            if path.read_bytes() != expected_bytes:
+                return
+        except OSError:
+            return
     backup = _backup_path_for(path)
     if existed and backup.exists():
         _atomic_write_bytes(path, backup.read_bytes())
@@ -310,23 +321,36 @@ def _fix_refetch(payload: dict[str, Any], actor: str | None) -> dict[str, Any]:
         )
     path = Path(cache)
     existed = path.exists()
+    before_rows = 0
     if existed:
         _backup_file_if_needed(path)
+        before_df = load_cached_meta_timeseries_full(ticker, exchange)
+        before_rows = len(before_df) if before_df is not None else 0
     df = load_meta_timeseries(ticker, exchange, days=_FETCH_DAYS)
+    # Never report a refetch as fixed (or audit it) when the upstream
+    # returned nothing usable: ``load_meta_timeseries`` only persists a
+    # non-empty, schema-valid frame, so an empty result leaves the cache
+    # untouched and there is no fetched data to record or restore.
+    if df is None or df.empty or "Date" not in df.columns:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Upstream returned no valid data for {ticker}.{exchange}; cache left unchanged.",
+        )
+    after_bytes = path.read_bytes() if path.exists() else None
     try:
         entry = append_audit(
             action="refetch",
             issue_id=str(payload.get("issue_id") or ""),
             entity={"ticker": ticker, "exchange": exchange},
-            before={"rows": None},
-            after={"rows": len(df) if df is not None else 0},
+            before={"rows": before_rows},
+            after={"rows": len(df)},
             actor=actor,
             extra={"kind": "refetch", "ticker": ticker, "exchange": exchange},
         )
     except Exception:
-        _restore_cache_or_remove(path, existed)
+        _rollback_after_audit_failure(path, existed=existed, expected_bytes=after_bytes)
         raise
-    return {"status": "fixed", "rows": len(df) if df is not None else 0, "audit_id": entry["id"]}
+    return {"status": "fixed", "rows": len(df), "audit_id": entry["id"]}
 
 
 def _fix_unresolved_ticker(payload: dict[str, Any], actor: str | None) -> dict[str, Any]:
@@ -349,23 +373,37 @@ def _fix_unresolved_ticker(payload: dict[str, Any], actor: str | None) -> dict[s
         )
     path = Path(cache)
     existed = path.exists()
+    before_rows = 0
     if existed:
         _backup_file_if_needed(path)
+        before_df = load_cached_meta_timeseries_full(resolved_symbol, resolved_exchange or exchange)
+        before_rows = len(before_df) if before_df is not None else 0
     df = load_meta_timeseries(resolved_symbol, resolved_exchange or exchange, days=_FETCH_DAYS)
+    # Same guard as ``_fix_refetch``: an empty/broken fetch must not be
+    # recorded as a completed fix, and the cache is left untouched.
+    if df is None or df.empty or "Date" not in df.columns:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                f"Upstream returned no valid data for "
+                f"{resolved_symbol}.{resolved_exchange or exchange}; cache left unchanged."
+            ),
+        )
+    after_bytes = path.read_bytes() if path.exists() else None
     try:
         entry = append_audit(
             action="unresolved_ticker",
             issue_id=str(payload.get("issue_id") or ""),
             entity={"symbol": symbol, "exchange": exchange},
-            before={"metadata": "missing", "series": "missing"},
-            after={"metadata": resolved, "series_rows": len(df) if df is not None else 0},
+            before={"metadata": "missing", "series_rows": before_rows},
+            after={"metadata": resolved, "series_rows": len(df)},
             actor=actor,
             extra={"kind": "unresolved_ticker", "symbol": symbol, "exchange": exchange},
         )
     except Exception:
-        _restore_cache_or_remove(path, existed)
+        _rollback_after_audit_failure(path, existed=existed, expected_bytes=after_bytes)
         raise
-    return {"status": "fixed", "ticker": resolved, "rows": len(df) if df is not None else 0, "audit_id": entry["id"]}
+    return {"status": "fixed", "ticker": resolved, "rows": len(df), "audit_id": entry["id"]}
 
 
 def _fix_dedupe(payload: dict[str, Any], actor: str | None) -> dict[str, Any]:
@@ -384,9 +422,25 @@ def _fix_dedupe(payload: dict[str, Any], actor: str | None) -> dict[str, Any]:
     before_rows = len(df)
     if "Date" not in df.columns:
         raise HTTPException(status_code=400, detail="Cached series has no Date column.")
-    deduped = df.drop_duplicates(subset=["Date"], keep="last").sort_values("Date").reset_index(drop=True)
+    # Normalise Date the way the cache loader does (``_ensure_schema``):
+    # mixed tz-aware/naive values are not comparable, so dedupe/sort would
+    # raise mid-request.  Coerce to UTC, strip the tz label, and drop rows
+    # with unparseable dates (the read path already drops them via
+    # ``_ensure_schema``).  An all-invalid series is rejected rather than
+    # written back as an empty cache.
+    work = df.copy()
+    dates = pd.to_datetime(work["Date"], errors="coerce", utc=True).dt.tz_convert(None)
+    work["Date"] = dates.astype("datetime64[ms]")
+    work = work.dropna(subset=["Date"])
+    if work.empty:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Series {ticker}.{exchange} has no valid dates; cache left unchanged.",
+        )
+    deduped = work.drop_duplicates(subset=["Date"], keep="last").sort_values("Date").reset_index(drop=True)
     _backup_file_if_needed(path)
     _atomic_write_parquet(deduped, path)
+    after_bytes = path.read_bytes()
     # Audit must be atomic with the change: restore the .bak if the audit
     # write fails so the cache is never left mutated without a record.
     try:
@@ -402,7 +456,7 @@ def _fix_dedupe(payload: dict[str, Any], actor: str | None) -> dict[str, Any]:
     except Exception:
         # The cache file is known to exist (404-checked above), so restore
         # it byte-for-byte from the .bak if the audit write failed.
-        _restore_cache_or_remove(path, existed=True)
+        _rollback_after_audit_failure(path, existed=True, expected_bytes=after_bytes)
         raise
     return {
         "status": "fixed",
@@ -452,6 +506,7 @@ def _fix_ticker_mismatch(payload: dict[str, Any], actor: str | None) -> dict[str
         df["Ticker"] = ticker
     _backup_file_if_needed(path)
     _atomic_write_parquet(df, path)
+    after_bytes = path.read_bytes()
     try:
         entry = append_audit(
             action="ticker_mismatch",
@@ -465,7 +520,7 @@ def _fix_ticker_mismatch(payload: dict[str, Any], actor: str | None) -> dict[str
     except Exception:
         # The cache file is known to exist (404-checked above), so restore
         # it byte-for-byte from the .bak if the audit write failed.
-        _restore_cache_or_remove(path, existed=True)
+        _rollback_after_audit_failure(path, existed=True, expected_bytes=after_bytes)
         raise
     return {"status": "fixed", "tickers": [ticker], "audit_id": entry["id"]}
 

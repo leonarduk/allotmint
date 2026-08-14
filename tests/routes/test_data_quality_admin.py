@@ -63,6 +63,10 @@ def _build_client(monkeypatch, tmp_path, *, series: list[tuple[str, str, pd.Data
     from backend.app import create_app
 
     app = create_app()
+    # ``create_app`` reloads the configuration (``reload_config``), which resets
+    # the audit_dir patch above; re-apply it so the audit trail stays inside
+    # this test's tmp dir instead of the real data root.
+    monkeypatch.setattr(config, "audit_dir", tmp_path / "audit")
     app.state.accounts_root = str(accounts)
     app.state.accounts_root_is_global = False
     return TestClient(app)
@@ -337,3 +341,123 @@ def test_undo_skips_holding_edited_since_fix(client, tmp_path):
     doc = json.loads(account_path.read_text(encoding="utf-8"))
     # The manually edited holding is left untouched (no stale-snapshot clobber).
     assert doc["holdings"] == [{"ticker": "MICC.N", "qty": 999}]
+
+
+def test_fix_wrong_exchange_rollback_preserves_concurrent_edit(monkeypatch, client, tmp_path):
+    """A failed audit write must not clobber a concurrent edit made after the fix."""
+    import backend.routes.data_quality_admin as admin_module
+
+    issues = client.get("/data-quality/issues").json()["issues"]
+    wrong = next(i for i in issues if i["type"] == "WRONG_EXCHANGE")
+    account_path = tmp_path / "accounts" / "demo" / "isa.json"
+
+    def failing_append_after_concurrent_edit(**kwargs):
+        # Simulate another request landing between the fix write and the
+        # audit write: it edits the same document on top of our change.
+        doc = json.loads(account_path.read_text(encoding="utf-8"))
+        doc["holdings"] = [{"ticker": "MICC.N", "qty": 999}]
+        account_path.write_text(json.dumps(doc), encoding="utf-8")
+        raise OSError("simulated audit disk failure")
+
+    monkeypatch.setattr(admin_module, "append_audit", failing_append_after_concurrent_edit)
+
+    with pytest.raises(OSError):
+        client.post(f"/data-quality/issues/{wrong['id']}/fix")
+
+    doc = json.loads(account_path.read_text(encoding="utf-8"))
+    # The concurrent edit survives: the rollback must not restore the .bak
+    # over a file that changed since this fix wrote it.
+    assert doc["holdings"] == [{"ticker": "MICC.N", "qty": 999}]
+
+
+def _gapped_series_client(monkeypatch, tmp_path):
+    """Client whose cached series ABC.L has a 4-business-day gap (GAPS issue)."""
+    df = pd.DataFrame({"Date": ["2026-01-05", "2026-01-12"], "Close": [1.0, 2.0]})
+    client = _build_client(monkeypatch, tmp_path, series=[("ABC", "L", df)])
+    import backend.routes.data_quality_admin as admin_module
+
+    cache_path = tmp_path / "ABC_L.parquet"
+    df.to_parquet(cache_path, index=False)
+    monkeypatch.setattr(admin_module, "meta_timeseries_cache_path", lambda t, e: str(cache_path))
+    return client, cache_path, admin_module
+
+
+def test_fix_refetch_rejects_empty_fetch(monkeypatch, tmp_path):
+    """An empty upstream fetch must fail without auditing or touching the cache."""
+    client, cache_path, admin_module = _gapped_series_client(monkeypatch, tmp_path)
+    before_bytes = cache_path.read_bytes()
+    monkeypatch.setattr(admin_module, "load_meta_timeseries", lambda t, e, days: pd.DataFrame(columns=["Date"]))
+
+    issues = client.get("/data-quality/issues").json()["issues"]
+    gaps = [i for i in issues if i["type"] == "GAPS"]
+    assert gaps
+
+    resp = client.post(f"/data-quality/issues/{gaps[0]['id']}/fix")
+    assert resp.status_code == 502
+    assert "no valid data" in resp.json()["detail"]
+
+    audit = client.get("/data-quality/audit").json()["entries"]
+    assert all(e["action"] != "refetch" for e in audit)
+    assert cache_path.read_bytes() == before_bytes
+
+
+def test_fix_refetch_records_before_rows(monkeypatch, tmp_path):
+    """A successful refetch audits the real pre-fix row count, not None."""
+    client, cache_path, admin_module = _gapped_series_client(monkeypatch, tmp_path)
+    fresh = pd.DataFrame({"Date": ["2026-01-05", "2026-01-06", "2026-01-12"], "Close": [1.0, 1.5, 2.0]})
+    monkeypatch.setattr(admin_module, "load_meta_timeseries", lambda t, e, days: fresh.copy())
+
+    issues = client.get("/data-quality/issues").json()["issues"]
+    gaps = [i for i in issues if i["type"] == "GAPS"]
+    resp = client.post(f"/data-quality/issues/{gaps[0]['id']}/fix")
+    assert resp.status_code == 200
+    assert resp.json()["rows"] == 3
+
+    audit = client.get("/data-quality/audit").json()["entries"]
+    assert audit[0]["action"] == "refetch"
+    assert audit[0]["before"] == {"rows": 2}
+    assert audit[0]["after"] == {"rows": 3}
+
+
+def test_dedupe_handles_timezone_aware_dates(monkeypatch, client, tmp_path):
+    """Dedupe normalises tz-aware Date values before comparing/sorting."""
+    import backend.routes.data_quality_admin as admin_module
+
+    df = pd.DataFrame(
+        {
+            "Date": pd.to_datetime(["2026-01-01", "2026-01-01", "2026-01-02"], utc=True),
+            "Close": [1.0, 2.0, 3.0],
+        }
+    )
+    cache_path = tmp_path / "ABC_L.parquet"
+    df.to_parquet(cache_path, index=False)
+    monkeypatch.setattr(admin_module, "meta_timeseries_cache_path", lambda t, e: str(cache_path))
+    monkeypatch.setattr(admin_module, "load_cached_meta_timeseries_full", lambda t, e: df.copy())
+
+    resp = client.post("/data-quality/series/ABC/L/dedupe")
+    assert resp.status_code == 200
+    assert resp.json()["removed"] == 1
+    assert resp.json()["rows"] == 2
+
+    written = pd.read_parquet(cache_path)
+    # The written cache follows the tz-naive datetime64[ms] convention.
+    assert written["Date"].dt.tz is None
+    assert len(written) == 2
+
+
+def test_dedupe_rejects_series_with_no_valid_dates(monkeypatch, client, tmp_path):
+    """A cache whose dates are all unparseable is rejected, not emptied."""
+    import backend.routes.data_quality_admin as admin_module
+
+    df = pd.DataFrame({"Date": ["not-a-date", "also-not-a-date"], "Close": [1.0, 2.0]})
+    cache_path = tmp_path / "ABC_L.parquet"
+    df.to_parquet(cache_path, index=False)
+    before_bytes = cache_path.read_bytes()
+    monkeypatch.setattr(admin_module, "meta_timeseries_cache_path", lambda t, e: str(cache_path))
+    monkeypatch.setattr(admin_module, "load_cached_meta_timeseries_full", lambda t, e: df.copy())
+
+    resp = client.post("/data-quality/series/ABC/L/dedupe")
+    assert resp.status_code == 502
+    assert cache_path.read_bytes() == before_bytes
+    audit = client.get("/data-quality/audit").json()["entries"]
+    assert all(e["action"] != "dedupe" for e in audit)

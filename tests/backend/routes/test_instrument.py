@@ -178,6 +178,28 @@ async def test_instrument_empty_unknown_ticker_still_404(monkeypatch):
 
 @pytest.mark.asyncio
 @pytest.mark.anyio("asyncio")
+async def test_instrument_empty_known_ticker_without_currency(monkeypatch):
+    """A known non-GBP ticker with no currency metadata still returns the empty
+    series (200) with a null currency instead of a 404 or a crash (issue #6639)."""
+    monkeypatch.setattr(
+        instrument,
+        "load_meta_timeseries_range",
+        lambda *_, **__: pd.DataFrame(columns=["Date", "Close"]),
+    )
+    monkeypatch.setattr(instrument, "get_security_meta", lambda _ticker: {"name": "North Co"})
+    monkeypatch.setattr(instrument, "list_portfolios", lambda: [])
+
+    response = await instrument.instrument(ticker="ABC.N", days=30, format="json", base_currency=None)
+
+    assert response.status_code == 200
+    data = json.loads(response.body.decode())
+    assert data["ticker"] == "ABC.N"
+    assert data["rows"] == 0
+    assert data["currency"] is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.anyio("asyncio")
 async def test_instrument_json_gbx_and_base_currency(monkeypatch):
     dates = pd.date_range(date(2024, 1, 1), periods=3, freq="D")
     df = pd.DataFrame({"Date": dates, "Close": [100.0, 110.0, 120.0]})

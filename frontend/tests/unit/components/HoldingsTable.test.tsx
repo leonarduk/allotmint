@@ -861,9 +861,10 @@ describe("HoldingsTable", () => {
               mini: { 7: [], 30: [], 180: [] },
               positions: [],
           });
-          // The hook preloads through a dynamic import that this file's module
-          // mock does not reliably intercept; stub fetch as well so both paths
-          // resolve to an empty-history payload.
+          // This file's async vi.mock factory does not intercept the hook's API
+          // import (Vitest module-graph quirk), so the preload runs through the
+          // real api layer; stub fetch so it resolves to an empty-history
+          // payload. Either path yields the same notice.
           vi.stubGlobal(
               "fetch",
               vi.fn(() =>
@@ -879,9 +880,12 @@ describe("HoldingsTable", () => {
           );
           renderWithConfig(<HoldingsTable holdings={holdings} />);
 
+          // Rendering the notice proves the full wiring: HoldingsTable preloads
+          // the held tickers, resolves empty history, and counts them once.
           expect(
               await screen.findByText("4 instruments have no price history"),
           ).toBeInTheDocument();
+          expect(screen.getAllByText(/no price history/i)).toHaveLength(1);
           vi.unstubAllGlobals();
       });
   });

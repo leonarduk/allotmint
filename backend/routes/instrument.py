@@ -263,8 +263,9 @@ async def instrument(
             # Known tickers (present in portfolio or instrument metadata) with no
             # price history return an empty series with 200 so dashboard preloads
             # stop logging console errors for expected missing history; genuinely
-            # unknown tickers keep the 404 contract.
-            if not meta:
+            # unknown tickers keep the 404 contract. "Known" means informative
+            # metadata: at least a name, sector or currency is present.
+            if not (name or sector or currency):
                 raise HTTPException(status_code=404, detail="No price history available")
             if currency == "GBX" or (currency is None and is_gbp_ticker):
                 currency = "GBP"

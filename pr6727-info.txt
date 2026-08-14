@@ -1,0 +1,39 @@
+TITLE: [Issue #6725] Standalone-routed pages (data-quality, data-explorer, etc.) render with no nav — dead end, no way back to app
+STATE: open MERGED: False
+HEAD: 888cc2200367 fix/issue-6725-standalone-routed-pages-data-quality-data-explorer
+BASE: 98fe18a5cfd5 main
+BODY:
+## What
+Added `AppHeader` to `DataQuality.tsx` and `DataExplorer.tsx` to provide navigation chrome for standalone pages.
+
+## Why
+These pages render without the full header, creating a usability issue. Adding `AppHeader` ensures these pages have proper navigation chrome.
+
+## Testing
+- Confirmed `/data-quality` and `/data-explorer` now show the "Operations ▾ / Settings ▾ / 🔔" header.
+- Verified no regression on public support routes (`/support`, `/create-account`) and existing standalone page with header (`/alert-settings`).
+
+## Checklist
+- [x] Tests added/updated
+- [ ] Docs updated if needed
+- [x] No breaking changes
+
+Closes #6725
+
+<!-- This is an auto-generated comment: release notes by coderabbit.ai -->
+
+## Summary by CodeRabbit
+
+- **New Features**
+  - Added a Data Quality Admin interface for identifying, filtering and previewing data issues.
+  - Added individual and batch fixes, series deduplication, metadata corrections and ticker normalisation.
+  - Added an audit trail with before-and-after details and undo support.
+  - Added issue severity indicators and configurable read-only or admin access.
+
+- **Documentation**
+  - Added guidance covering the Data Quality interface, workflows, audit history and data requirements.
+
+- **Tests**
+  - Added comprehensive coverage for issue detection, fixes, auditing and interface behaviour.
+
+<!-- end of auto-generated comment: release notes by coderabbit.ai -->

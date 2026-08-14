@@ -7,6 +7,7 @@ vi.mock('@/api', () => ({
 import * as api from '@/api';
 import {
   useInstrumentHistory,
+  preloadInstrumentHistory,
   __clearInstrumentHistoryCache,
 } from '@/hooks/useInstrumentHistory';
 
@@ -116,5 +117,75 @@ describe('useInstrumentHistory', () => {
     await waitFor(() => expect(result.current.data).not.toBeNull());
     expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(2);
     expect(mockGetInstrumentDetail).toHaveBeenLastCalledWith('ABC', 30);
+  });
+
+  it('shares one in-flight fetch across concurrent preload callers', async () => {
+    mockGetInstrumentDetail.mockResolvedValue({
+      mini: { 7: [], 30: [], 180: [] },
+      positions: [],
+    });
+
+    await Promise.all([
+      preloadInstrumentHistory(['ABC', 'DEF'], 30),
+      preloadInstrumentHistory(['ABC', 'DEF'], 30),
+    ]);
+
+    expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(2);
+  });
+
+  it('dedupes hook consumers mounted for the same ticker and days', async () => {
+    let release!: (value: unknown) => void;
+    const gate = new Promise((resolve) => {
+      release = resolve;
+    });
+    mockGetInstrumentDetail.mockReturnValueOnce(
+      gate.then(() => ({
+        mini: { 7: [], 30: [], 180: [] },
+        positions: [],
+      })),
+    );
+
+    const first = renderHook(() => useInstrumentHistory('ABC', 7));
+    const second = renderHook(() => useInstrumentHistory('ABC', 7));
+
+    await act(async () => {
+      release({
+        mini: { 7: [], 30: [], 180: [] },
+        positions: [],
+      });
+    });
+
+    await waitFor(() => {
+      expect(first.result.current.data).not.toBeNull();
+      expect(second.result.current.data).not.toBeNull();
+    });
+    expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not cache failed preloads so later callers retry', async () => {
+    mockGetInstrumentDetail
+      .mockRejectedValueOnce(new Error('HTTP 404'))
+      .mockResolvedValueOnce({
+        mini: { 7: [], 30: [], 180: [] },
+        positions: [],
+      });
+
+    await preloadInstrumentHistory(['ABC'], 30);
+    // The failed fetch was not cached, so a later preload retries it.
+    await preloadInstrumentHistory(['ABC'], 30);
+
+    expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(2);
+  });
+
+  it('shares a single failing fetch across concurrent callers', async () => {
+    mockGetInstrumentDetail.mockRejectedValueOnce(new Error('HTTP 404'));
+
+    await Promise.all([
+      preloadInstrumentHistory(['ABC'], 30),
+      preloadInstrumentHistory(['ABC'], 30),
+    ]);
+
+    // Both callers awaited the same rejected in-flight promise.
+    expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(1);
   });
 });

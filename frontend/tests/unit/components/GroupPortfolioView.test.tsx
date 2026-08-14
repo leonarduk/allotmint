@@ -1539,4 +1539,51 @@ describe("GroupPortfolioView", () => {
       expect(screen.getByTestId("scope-route")).toHaveTextContent("/?period=1y"),
     );
   });
+
+  it("shows the consolidated no-price-history notice once via the embedded holdings table", async () => {
+    const mockPortfolio = {
+      name: "At a glance",
+      accounts: [
+        {
+          owner: "alice",
+          account_type: "isa",
+          value_estimate_gbp: 100,
+          holdings: [
+            {
+              ticker: "NOHIST.L",
+              name: "No History Plc",
+              units: 1,
+              cost_basis_gbp: 80,
+              market_value_gbp: 100,
+            },
+          ],
+        },
+      ],
+    };
+    const fetchMock = mockAllFetches(mockPortfolio);
+    const originalFetch = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url = toUrlString(input);
+      if (url.includes("/instrument/?ticker=")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            prices: [],
+            mini: { 7: [], 30: [], 180: [] },
+            positions: [],
+          }),
+        } as Response);
+      }
+      return originalFetch(input);
+    });
+
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+
+    // The notice is rendered by HoldingsTable, which GroupPortfolioView embeds
+    // in every display mode; exactly one notice must appear (no duplication).
+    expect(
+      await screen.findByText("1 instrument has no price history"),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("1 instrument has no price history")).toHaveLength(1);
+  });
 });

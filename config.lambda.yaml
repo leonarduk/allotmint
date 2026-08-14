@@ -88,6 +88,7 @@ ui:
   enable_compliance_workflows: false
   enable_advanced_analytics: false
   enable_reporting_extended: false
+  enable_data_quality_admin: true
   relative_view_enabled: false
   theme: system
   tabs:

@@ -38,6 +38,7 @@ import LoginPage from './LoginPage';
 import { UserProvider, useUser } from './UserContext';
 import ErrorBoundary from './ErrorBoundary';
 import DisabledFeature from './components/DisabledFeature';
+import AppHeader from './components/AppHeader';
 import { loadStoredAuthUser, loadStoredUserProfile } from './authStorage';
 import { RouteProvider } from './RouteContext';
 import { clearCognitoSession, cognitoLogout, ensureAwsUiAuth, extractTokenExchangeErrorReason, getCognitoSessionExpiresAt, getStoredCognitoIdToken, refreshCognitoSession, UserCancelledError, type AwsUiAuthConfig } from './awsUiAuth';
@@ -464,11 +465,30 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
             }
 
             const Component = route.lazyComponent;
+            // Standalone pages mount outside App.tsx's mode dispatch, so they
+            // render with zero nav chrome unless the wrapper is added here
+            // (or the page self-renders AppHeader like AlertSettings does).
+            // Wrap every standalone route in AppHeader except: /alert-settings
+            // (already renders AppHeader itself with lastRefresh), and the two
+            // public pre-login routes that must stay chrome-free (#6725).
+            const needsChrome =
+              route.routePath !== '/alert-settings' &&
+              route.routePath !== '/support' &&
+              route.routePath !== '/create-account';
             return [
               <Route
                 key={route.routePath}
                 path={route.routePath}
-                element={<Component />}
+                element={
+                  needsChrome ? (
+                    <>
+                      <AppHeader />
+                      <Component />
+                    </>
+                  ) : (
+                    <Component />
+                  )
+                }
               />,
             ];
           })}

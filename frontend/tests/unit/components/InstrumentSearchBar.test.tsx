@@ -46,4 +46,32 @@ describe("InstrumentSearchBar", () => {
     await user.click(screen.getByText("AAA — AAA Corp"));
     expect(onNavigate).toHaveBeenCalled();
   });
+
+  it("does not emit duplicate-key warnings for duplicate result tickers (#6505)", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const searchMock = searchInstruments as unknown as vi.Mock;
+    searchMock.mockResolvedValue([
+      { ticker: "CASH", name: "Cash GBP" },
+      { ticker: "CASH", name: "Cash L" },
+    ]);
+    const onNavigate = vi.fn();
+
+    render(
+      <MemoryRouter>
+        <InstrumentSearchBar onNavigate={onNavigate} />
+      </MemoryRouter>
+    );
+
+    fireEvent.change(screen.getByLabelText(/Search instruments/i), {
+      target: { value: "CA" },
+    });
+    await new Promise((r) => setTimeout(r, 350));
+
+    expect(await screen.findAllByText(/CASH —/)).toHaveLength(2);
+    const keyWarnings = errorSpy.mock.calls.filter((args) =>
+      String(args[0]).includes("same key")
+    );
+    expect(keyWarnings).toEqual([]);
+    errorSpy.mockRestore();
+  });
 });

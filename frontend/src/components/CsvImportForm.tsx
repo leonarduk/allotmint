@@ -58,9 +58,9 @@ function DiffSection({ title, emptyMessage, rows }: DiffSectionProps) {
         <p className="mt-1 text-sm text-gray-500">{emptyMessage}</p>
       ) : (
         <ul className="mt-1 divide-y divide-gray-800 rounded border border-gray-800">
-          {rows.map(({ ticker, detail }) => (
+          {rows.map(({ ticker, detail }, index) => (
             <li
-              key={ticker}
+              key={`${ticker}-${index}`}
               className="flex justify-between gap-3 px-2 py-1 text-sm"
             >
               <span className="font-medium text-white">{ticker}</span>

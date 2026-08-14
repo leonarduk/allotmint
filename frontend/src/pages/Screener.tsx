@@ -41,7 +41,7 @@ export function Screener() {
   const [rows, setRows] = useState<ScreenerResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<ScreenerResult | null>(null);
   const { t } = useTranslation();
 
   const { sorted, handleSort } = useSortableTable(rows, "rank");
@@ -515,14 +515,14 @@ export function Screener() {
           <tbody>
             {sorted.map((r) => (
               <tr
-                key={r.ticker}
-                onClick={() => setSelected(r.ticker)}
+                key={`${r.ticker}-${r.rank}`}
+                onClick={() => setSelected(r)}
                 style={{ cursor: "pointer" }}
                 role="button"
                 tabIndex={0}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
-                    setSelected(r.ticker);
+                    setSelected(r);
                   }
                 }}
               >
@@ -585,8 +585,8 @@ export function Screener() {
 
       {selected && (
         <InstrumentDetail
-          ticker={selected}
-          name={rows.find((r) => r.ticker === selected)?.name ?? ""}
+          ticker={selected.ticker}
+          name={selected.name ?? selected.ticker}
           onClose={() => setSelected(null)}
         />
       )}

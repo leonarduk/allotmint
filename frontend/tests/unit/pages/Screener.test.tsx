@@ -73,5 +73,82 @@ describe("Screener", () => {
     expect(screen.getByText("2")).toBeInTheDocument();
     expect(screen.getByText("1.5")).toBeInTheDocument();
   });
+
+  it("does not emit duplicate-key warnings when the same ticker appears twice (#6505)", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    mockGetScreener.mockResolvedValueOnce([
+      {
+        rank: 1,
+        ticker: "CASH",
+        name: "Cash GBP",
+        peg_ratio: null,
+        pe_ratio: null,
+        de_ratio: null,
+        lt_de_ratio: null,
+        interest_coverage: null,
+        current_ratio: null,
+        quick_ratio: null,
+        fcf: null,
+        eps: null,
+        gross_margin: null,
+        operating_margin: null,
+        net_margin: null,
+        ebitda_margin: null,
+        roa: null,
+        roe: null,
+        roi: null,
+        dividend_yield: null,
+        dividend_payout_ratio: null,
+        beta: null,
+        shares_outstanding: null,
+        float_shares: null,
+        market_cap: null,
+        high_52w: null,
+        low_52w: null,
+        avg_volume: null,
+      },
+      {
+        rank: 2,
+        ticker: "CASH",
+        name: "Cash L",
+        peg_ratio: null,
+        pe_ratio: null,
+        de_ratio: null,
+        lt_de_ratio: null,
+        interest_coverage: null,
+        current_ratio: null,
+        quick_ratio: null,
+        fcf: null,
+        eps: null,
+        gross_margin: null,
+        operating_margin: null,
+        net_margin: null,
+        ebitda_margin: null,
+        roa: null,
+        roe: null,
+        roi: null,
+        dividend_yield: null,
+        dividend_payout_ratio: null,
+        beta: null,
+        shares_outstanding: null,
+        float_shares: null,
+        market_cap: null,
+        high_52w: null,
+        low_52w: null,
+        avg_volume: null,
+      },
+    ]);
+
+    render(<Screener />);
+    fireEvent.change(screen.getByLabelText(/Tickers/i), { target: { value: "CASH" } });
+    fireEvent.submit(screen.getByText(/Run/i).closest("form")!);
+
+    expect(await screen.findAllByText("CASH")).toHaveLength(2);
+    const keyWarnings = errorSpy.mock.calls.filter((args) =>
+      String(args[0]).includes("same key"),
+    );
+    expect(keyWarnings).toEqual([]);
+    errorSpy.mockRestore();
+  });
 });
 

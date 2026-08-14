@@ -160,4 +160,26 @@ describe('Trading page', () => {
       1
     );
   });
+
+  it('does not emit duplicate-key warnings when the same ticker appears twice (#6505)', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mockFetchState({
+      data: [
+        { ticker: 'CASH', name: 'Cash GBP', action: 'buy', reason: 'a' },
+        { ticker: 'CASH', name: 'Cash L', action: 'sell', reason: 'b' },
+        { ticker: 'PFE', name: 'Pfizer N', action: 'buy', reason: 'c' },
+        { ticker: 'PFE', name: 'Pfizer L', action: 'sell', reason: 'd' },
+      ] as TradingSignal[],
+    });
+
+    render(<Trading />);
+
+    expect(await screen.findAllByText('CASH')).toHaveLength(2);
+    expect(screen.getAllByText('PFE')).toHaveLength(2);
+    const keyWarnings = errorSpy.mock.calls.filter((args) =>
+      String(args[0]).includes('same key')
+    );
+    expect(keyWarnings).toEqual([]);
+    errorSpy.mockRestore();
+  });
 });

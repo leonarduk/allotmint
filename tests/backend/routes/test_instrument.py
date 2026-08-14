@@ -144,6 +144,33 @@ async def test_instrument_empty_template(monkeypatch):
     assert response.status_code == 200
     assert "No price data" in response.body.decode()
 
+    # A known ticker (metadata present) without history returns an empty JSON
+    # series with 200 instead of 404 so dashboard preloads stop logging console
+    # errors for expected missing history.
+    response = await instrument.instrument(ticker="NONE.L", days=30, format="json", base_currency=None)
+    assert response.status_code == 200
+    data = json.loads(response.body.decode())
+    assert data["ticker"] == "NONE.L"
+    assert data["rows"] == 0
+    assert data["prices"] == []
+    assert data["mini"] == {"7": [], "30": [], "180": []}
+    assert data["positions"] == []
+    assert data["name"] == "Empty"
+    assert data["base_currency"] == "GBP"
+
+
+@pytest.mark.asyncio
+@pytest.mark.anyio("asyncio")
+async def test_instrument_empty_unknown_ticker_still_404(monkeypatch):
+    monkeypatch.setattr(
+        instrument,
+        "load_meta_timeseries_range",
+        lambda *_, **__: pd.DataFrame(columns=["Date", "Close"]),
+    )
+    monkeypatch.setattr(instrument, "get_security_meta", lambda _ticker: None)
+    monkeypatch.setattr(instrument, "list_portfolios", lambda: [])
+
+    # Genuinely unknown tickers (no metadata) keep the 404 contract.
     with pytest.raises(HTTPException) as exc:
         await instrument.instrument(ticker="NONE.L", days=30, format="json", base_currency=None)
     assert exc.value.status_code == 404

@@ -312,6 +312,9 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   const [instrumentRows, setInstrumentRows] = useState<InstrumentSummary[] | null>(null);
   const [instrumentLoading, setInstrumentLoading] = useState(false);
   const [instrumentError, setInstrumentError] = useState<Error | null>(null);
+  const [missingHistoryTickers, setMissingHistoryTickers] = useState<string[]>(
+    [],
+  );
   const [requestedDisplayMode, setRequestedDisplayMode] = useState<
     "flat" | "rollup" | "category"
   >("rollup");
@@ -539,7 +542,11 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     );
     const unique = Array.from(new Set(tickers));
     if (unique.length) {
-      preloadInstrumentHistory(unique, 30).catch(() => {});
+      preloadInstrumentHistory(unique, 30)
+        .then(setMissingHistoryTickers)
+        .catch(() => {});
+    } else {
+      setMissingHistoryTickers([]);
     }
   }, [portfolio]);
 
@@ -820,6 +827,17 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
 
   return (
     <div style={{ marginTop: "1rem" }}>
+      {missingHistoryTickers.length > 0 && (
+        <p role="status" className="mb-2 text-sm text-warning">
+          {t("group.noPriceHistoryNotice", {
+            count: missingHistoryTickers.length,
+            defaultValueOne:
+              "{{count}} instrument has no price history",
+            defaultValueOther:
+              "{{count}} instruments have no price history",
+          })}
+        </p>
+      )}
       <div
         className="flex-wrap-row"
         style={{

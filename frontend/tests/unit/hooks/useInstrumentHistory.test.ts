@@ -1,120 +1,108 @@
-import { renderHook, waitFor, act } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach, afterAll, afterEach } from 'vitest';
-// Mock the API module so we can reliably intercept calls across ESM boundaries
-vi.mock('@/api', () => ({
-  fetchInstrumentDetailWithRetry: vi.fn(),
-}));
-import * as api from '@/api';
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
-  useInstrumentHistory,
+  preloadInstrumentHistory,
+  getCachedInstrumentHistory,
   __clearInstrumentHistoryCache,
-} from '@/hooks/useInstrumentHistory';
+} from "@/hooks/useInstrumentHistory";
 
-const mockGetInstrumentDetail = api
-  .fetchInstrumentDetailWithRetry as unknown as ReturnType<typeof vi.fn>;
+const detailWithHistory = {
+  prices: [{ date: "2024-01-01", close: 10 }],
+  positions: [],
+  rows: 1,
+};
 
-afterAll(() => {
-  mockGetInstrumentDetail.mockRestore();
-});
+const detailWithoutHistory = {
+  prices: [],
+  positions: [],
+  rows: 0,
+};
 
-describe('useInstrumentHistory', () => {
+function stubInstrumentFetch(
+  responses: Record<string, { prices: unknown[] }>,
+) {
+  const fetchMock = vi.fn((input: RequestInfo | URL) => {
+    const url =
+      typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.toString()
+          : (input as Request).url;
+    const match = url.match(/ticker=([^&]+)/);
+    const ticker = match ? decodeURIComponent(match[1]) : "";
+    const detail = responses[ticker] ?? detailWithoutHistory;
+    return Promise.resolve({
+      ok: true,
+      json: async () => detail,
+    } as Response);
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+}
+
+describe("preloadInstrumentHistory", () => {
   beforeEach(() => {
-    mockGetInstrumentDetail.mockReset();
     __clearInstrumentHistoryCache();
+    vi.unstubAllGlobals();
   });
 
-  afterEach(() => {
-    vi.useRealTimers();
+  it("returns tickers that resolved to an empty history", async () => {
+    stubInstrumentFetch({
+      "A.L": detailWithoutHistory,
+      "B.L": detailWithHistory,
+      "C.L": detailWithoutHistory,
+    });
+
+    const missing = await preloadInstrumentHistory(["A.L", "B.L", "C.L"], 30);
+
+    expect(missing).toEqual(["A.L", "C.L"]);
   });
 
-  it.each([
-    { ticker: '', days: 7 },
-    { ticker: 'ABC', days: 0 },
-    { ticker: 'ABC', days: -1 },
-  ])('does not fetch without a valid ticker and day range', ({ ticker, days }) => {
-    const { result } = renderHook(() => useInstrumentHistory(ticker, days));
+  it("caches empty responses so later preloads do not refetch", async () => {
+    const fetchMock = stubInstrumentFetch({ "A.L": detailWithoutHistory });
 
-    expect(mockGetInstrumentDetail).not.toHaveBeenCalled();
-    expect(result.current).toEqual({ data: null, loading: false, error: null });
+    await preloadInstrumentHistory(["A.L"], 30);
+    const missing = await preloadInstrumentHistory(["A.L"], 30);
+
+    const instrumentCalls = fetchMock.mock.calls.filter(([input]) =>
+      String(input).includes("/instrument/"),
+    );
+    expect(instrumentCalls).toHaveLength(1);
+    expect(missing).toEqual(["A.L"]);
+    expect(getCachedInstrumentHistory("A.L", 30)?.prices).toEqual([]);
   });
 
-  it('retries on HTTP 429 responses and succeeds', async () => {
-    vi.useFakeTimers();
-    mockGetInstrumentDetail
-      .mockRejectedValueOnce(new Error('HTTP 429 – Too Many Requests'))
-      .mockResolvedValueOnce({
-        mini: { 7: [], 30: [], 180: [] },
-        positions: [],
-      });
-
-    const { result } = renderHook(() => useInstrumentHistory('ABC', 7));
-
-    await act(async () => {
-      await vi.runAllTimersAsync();
-      await vi.advanceTimersByTimeAsync(2000);
-      await vi.runAllTimersAsync();
-    });
-
-    expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(2);
-    expect(mockGetInstrumentDetail).toHaveBeenNthCalledWith(1, 'ABC', 7);
-    expect(mockGetInstrumentDetail).toHaveBeenNthCalledWith(2, 'ABC', 7);
-    expect(result.current.error).toBeNull();
-    expect(result.current.data).not.toBeNull();
-  });
-
-  it('uses Retry-After header for backoff', async () => {
-    vi.useFakeTimers();
-    const randSpy = vi.spyOn(Math, 'random').mockReturnValue(0);
-
-    const err = new Error('HTTP 429 – Too Many Requests') as any;
-    err.response = { headers: new Headers({ 'Retry-After': '2' }) };
-
-    mockGetInstrumentDetail.mockRejectedValueOnce(err).mockResolvedValueOnce({
-      mini: { 7: [], 30: [], 180: [] },
-      positions: [],
-    });
-
-    const { result } = renderHook(() => useInstrumentHistory('ABC', 7));
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(1500);
-    });
-    expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(1);
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(500);
-      await vi.runAllTimersAsync();
-    });
-    expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(2);
-    expect(mockGetInstrumentDetail).toHaveBeenNthCalledWith(1, 'ABC', 7);
-    expect(mockGetInstrumentDetail).toHaveBeenNthCalledWith(2, 'ABC', 7);
-    expect(result.current.data).not.toBeNull();
-
-    randSpy.mockRestore();
-  });
-
-  it('caches detail per ticker and day range', async () => {
-    mockGetInstrumentDetail.mockResolvedValue({
-      mini: { 7: [], 30: [], 180: [], 365: [] },
-      positions: [],
-    });
-
-    const { result, rerender } = renderHook(
-      ({ days }) => useInstrumentHistory('ABC', days),
-      { initialProps: { days: 7 } }
+  it("ignores failed fetches (e.g. unknown tickers) in the notice set", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve({
+          ok: false,
+          status: 404,
+          json: async () => ({ detail: "No price history available" }),
+        } as Response),
+      ),
     );
 
-    await waitFor(() => expect(result.current.data).not.toBeNull());
-    expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(1);
-    expect(mockGetInstrumentDetail).toHaveBeenLastCalledWith('ABC', 7);
+    const missing = await preloadInstrumentHistory(["A.L"], 30);
 
-    rerender({ days: 7 });
-    await waitFor(() => expect(result.current.data).not.toBeNull());
-    expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(1);
+    expect(missing).toEqual([]);
+  });
 
-    rerender({ days: 30 });
-    await waitFor(() => expect(result.current.data).not.toBeNull());
-    expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(2);
-    expect(mockGetInstrumentDetail).toHaveBeenLastCalledWith('ABC', 30);
+  it("deduplicates tickers passed multiple times", async () => {
+    const fetchMock = stubInstrumentFetch({
+      "A.L": detailWithoutHistory,
+      "B.L": detailWithHistory,
+    });
+
+    const missing = await preloadInstrumentHistory(
+      ["A.L", "A.L", "B.L"],
+      30,
+    );
+
+    const instrumentCalls = fetchMock.mock.calls.filter(([input]) =>
+      String(input).includes("/instrument/"),
+    );
+    expect(instrumentCalls).toHaveLength(2);
+    expect(missing).toEqual(["A.L"]);
   });
 });

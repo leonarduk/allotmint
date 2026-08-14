@@ -41,13 +41,25 @@ export function updateCachedInstrumentHistory(
   }
 }
 
+function hasNoHistory(detail: InstrumentDetail): boolean {
+  return Array.isArray(detail.prices) && detail.prices.length === 0;
+}
+
+/**
+ * Preload instrument history for a batch of tickers and return the subset that
+ * resolved to a known ticker with an empty history. Consumers use this to
+ * surface one consolidated "no price history" notice instead of per-ticker
+ * errors. Successful responses (including empty ones) are cached, so later
+ * calls do not re-fetch.
+ */
 export async function preloadInstrumentHistory(
   tickers: string[],
   days: number,
   concurrency = 5,
-) {
+): Promise<string[]> {
   const unique = Array.from(new Set(tickers));
   const queue = unique.slice();
+  const missingHistory: string[] = [];
   const workers = Array.from(
     { length: Math.min(concurrency, queue.length) },
     () =>
@@ -56,11 +68,16 @@ export async function preloadInstrumentHistory(
           const ticker = queue.shift();
           if (!ticker) break;
           const byTicker = cache.get(ticker);
-          if (byTicker?.has(days)) continue;
+          if (byTicker?.has(days)) {
+            const cached = byTicker.get(days);
+            if (cached && hasNoHistory(cached)) missingHistory.push(ticker);
+            continue;
+          }
           try {
             const api = await import("../api");
             const res = await api.fetchInstrumentDetailWithRetry(ticker, days);
             getTickerCache(ticker).set(days, res);
+            if (hasNoHistory(res)) missingHistory.push(ticker);
           } catch {
             // ignore errors during preloading
           }
@@ -68,6 +85,7 @@ export async function preloadInstrumentHistory(
       })(),
   );
   await Promise.all(workers);
+  return missingHistory;
 }
 
 /**

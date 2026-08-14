@@ -32,6 +32,14 @@ logger = logging.getLogger(__name__)
 _TICKER_RE = re.compile(r"^[A-Z0-9][A-Z0-9_-]{0,49}$")
 _EXCHANGE_RE = re.compile(r"^[A-Z0-9][A-Z0-9._-]{0,49}$")
 
+# Actionable 404 detail for an empty/missing source: there is no cached
+# series to relocate, and the real fix is correcting the holding's exchange
+# so the fetcher can populate the destination (issue #6723).
+_MISSING_SOURCE_DETAIL = (
+    "No cached data for {ticker}.{source} - nothing to move. "
+    "Correct the holding to {ticker}.{destination} so the fetcher can populate the series."
+)
+
 
 def _validate_cache_identifier(value: str, *, kind: str) -> str:
     """Validate an identifier before incorporating it into a cache path."""
@@ -193,13 +201,23 @@ def _move_timeseries(ticker: str, source_exchange: str, destination_exchange: st
         raise HTTPException(status_code=400, detail="Source and destination must differ")
 
     if not source.startswith("s3://") and not has_cached_meta_timeseries(ticker, source_exchange):
-        raise HTTPException(status_code=404, detail="Source time series does not exist")
+        raise HTTPException(
+            status_code=404,
+            detail=_MISSING_SOURCE_DETAIL.format(
+                ticker=ticker, source=source_exchange, destination=destination_exchange
+            ),
+        )
     if not destination.startswith("s3://") and has_cached_meta_timeseries(ticker, destination_exchange):
         raise HTTPException(status_code=409, detail="Destination time series already exists")
 
     df = _load_timeseries(ticker, source_exchange)
     if df.empty:
-        raise HTTPException(status_code=404, detail="Source time series does not exist")
+        raise HTTPException(
+            status_code=404,
+            detail=_MISSING_SOURCE_DETAIL.format(
+                ticker=ticker, source=source_exchange, destination=destination_exchange
+            ),
+        )
 
     if destination.startswith("s3://"):
         _move_s3_timeseries(df, source, destination)

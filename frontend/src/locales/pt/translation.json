@@ -530,7 +530,8 @@
     "delete": "Excluir",
     "error": {
       "noData": "Sem dados para salvar",
-      "unexpectedColumns": "Coluna(s) inesperada(s): {{columns}}"
+      "unexpectedColumns": "Coluna(s) inesperada(s): {{columns}}",
+      "moveNoData": "Não há dados em cache para {{ticker}}.{{source}} para mover. Corrija a posição para {{ticker}}.{{destination}} para que o carregador possa preencher a série."
     },
     "exchange": "Bolsa",
     "load": "Carregar",

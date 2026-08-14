@@ -12,7 +12,7 @@ auth:
   disable_auth: true
   demo_identity: demo
   smoke_identity: demo
-  local_login_email: steveleonard11@gnail.com
+  local_login_email: ''
   allowed_emails: your-email@example.com
 server:
   app_env: local

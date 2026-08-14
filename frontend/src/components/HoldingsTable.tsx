@@ -476,10 +476,6 @@ export function HoldingsTable({
         <p role="status" className="mb-2 text-sm text-warning">
           {t("holdingsTable.noPriceHistoryNotice", {
             count: missingHistoryTickers.length,
-            defaultValueOne:
-              "{{count}} instrument has no price history",
-            defaultValueOther:
-              "{{count}} instruments have no price history",
           })}
         </p>
       )}

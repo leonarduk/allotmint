@@ -593,11 +593,8 @@ async def test_instrument_empty_html_escapes_xss_in_positions(monkeypatch):
         ],
     )
 
-    response = await instrument.instrument(
-        ticker="NONE.L", days=30, format="html", base_currency=None
-    )
+    response = await instrument.instrument(ticker="NONE.L", days=30, format="html", base_currency=None)
 
     html = response.body.decode()
     assert xss_owner not in html
     assert "&lt;script&gt;" in html
-

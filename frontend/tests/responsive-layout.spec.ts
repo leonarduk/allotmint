@@ -299,7 +299,12 @@ test('mobile holdings keep native table layout while virtual rows scroll', async
   );
 
   await page.goto(new URL('/', baseUrl).toString());
-  const table = page.getByRole('table');
+  // The dashboard now renders the owner summary table (wrapped in its own
+  // scroll container) before the holdings table; target the holdings table
+  // specifically via its virtualised rows.
+  const table = page
+    .getByRole('table')
+    .filter({ has: page.locator('tbody tr[data-index]') });
   await expect(table).toBeVisible();
   await expect(table).toHaveCSS('display', 'table');
 
@@ -322,6 +327,125 @@ test('mobile holdings keep native table layout while virtual rows scroll', async
       })
     )
     .toBe(true);
+});
+
+test('issue 6675: dashboard, instrument and trading wide tables stay inside their scroll wrappers', async ({
+  page,
+}) => {
+  // Deliberately unbreakable long strings force every table to exceed the
+  // container at mobile/tablet widths (see forceOverflow), reproducing the
+  // page-level horizontal scroll reported in #6675.
+  const longName = forceOverflow(
+    'Extremely-Long-Unbreakable-Instrument-Name-For-Overflow-Check'
+  );
+  const holdings = Array.from({ length: 20 }, (_, index) => ({
+    ticker: `WIDE${index.toString().padStart(3, '0')}`,
+    name: `${longName}${index}`,
+    units: index + 1,
+    market_value_gbp: 100 + index,
+    cost_basis_gbp: 80 + index,
+    current_price_gbp: 10,
+    currency: 'GBP',
+    instrument_type: 'Equity',
+    acquired_date: '2025-01-01',
+  }));
+  const instruments = holdings.map((h) => ({
+    ticker: h.ticker,
+    name: h.name,
+    exchange: 'LSE',
+    currency: 'GBP',
+    units: h.units,
+    market_value_gbp: h.market_value_gbp,
+    gain_gbp: 5,
+    instrument_type: 'Equity',
+    gain_pct: 2.5,
+  }));
+  const signals = Array.from({ length: 10 }, (_, index) => ({
+    ticker: `SIG${index}`,
+    action: 'buy' as const,
+    reason: `${longName}${index}`,
+    confidence: 80,
+    factors: [longName, forceOverflow('Secondary-Factor-Also-Very-Long')],
+  }));
+  const settings = {
+    rsi_buy: 30,
+    rsi_sell: 70,
+    rsi_window: 14,
+    ma_short_window: 20,
+    ma_long_window: 50,
+    pe_max: null,
+    de_max: null,
+    min_sharpe: null,
+    max_volatility: null,
+  };
+
+  await applyAuth(page, authToken);
+  await setupCoreMocks(page);
+  // Generic group-portfolio mock with holdings so both the owner summary
+  // table and the (wrapped) holdings table render on `/`.
+  await page.route('**/portfolio-group/all*', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ...groupPortfolio,
+        accounts: [{ ...groupPortfolio.accounts[0], holdings }],
+      }),
+    })
+  );
+  // More specific mock for the /instrument catalogue; registered after the
+  // generic pattern above so it takes precedence.
+  await page.route('**/portfolio-group/all/instruments', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(instruments),
+    })
+  );
+  await page.route('**/trading-agent/signals', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(signals),
+    })
+  );
+  await page.route('**/trading-agent/settings', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(settings),
+    })
+  );
+  await page.route('**/quotes*', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
+  );
+
+  const viewports = [
+    { name: 'mobile', width: 375, height: 812 },
+    { name: 'tablet', width: 768, height: 1024 },
+    { name: 'desktop', width: 1280, height: 800 },
+  ] as const;
+
+  for (const viewport of viewports) {
+    for (const path of ['/', '/instrument', '/trading']) {
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      await page.goto(new URL(path, baseUrl).toString());
+
+      // Wait until the route's real table(s) render (and the loading
+      // skeleton, whose parent is not a scroll wrapper, is gone).
+      const expectedTables = path === '/' ? 2 : 1;
+      await expect(page.getByRole('table')).toHaveCount(expectedTables);
+
+      await assertNoPageOverflow(page);
+
+      const tables = await page.getByRole('table').all();
+      expect(tables.length).toBeGreaterThan(0);
+      for (const table of tables) {
+        // Every wide table must live inside a clipping wrapper.
+        await expect(table.locator('..')).toHaveCSS('overflow-x', 'auto');
+      }
+    }
+  }
 });
 
 test('research tab bar and settings Add form fit on a 375px viewport', async ({

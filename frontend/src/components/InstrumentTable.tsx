@@ -231,6 +231,7 @@ export function InstrumentTable({ rows, showGroupTotals = true, showSparklines =
       {noFilteredRows ? (
         <p>{t('instrumentTable.noInstruments')}</p>
       ) : (
+        <div className={tableStyles.scrollContainer}>
         <table className={`${tableStyles.table} ${tableStyles.clickable}`} style={{ marginBottom: '0' }}>
         <thead>
           <tr>
@@ -694,6 +695,7 @@ export function InstrumentTable({ rows, showGroupTotals = true, showSparklines =
           </tr>
         </tfoot>
         </table>
+        </div>
       )}
 
     </>

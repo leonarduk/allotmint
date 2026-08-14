@@ -264,7 +264,9 @@
     "view": "View:",
     "viewPresets": {
       "all": "All"
-    }
+    },
+    "noPriceHistoryNotice_one": "{{count}} instrument has no price history",
+    "noPriceHistoryNotice_other": "{{count}} instruments have no price history"
   },
   "instrumentadmin": {
     "actions": "Actions",

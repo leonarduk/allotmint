@@ -144,9 +144,58 @@ async def test_instrument_empty_template(monkeypatch):
     assert response.status_code == 200
     assert "No price data" in response.body.decode()
 
+    # A known ticker (metadata present) without history returns an empty JSON
+    # series with 200 instead of 404 so dashboard preloads stop logging console
+    # errors for expected missing history.
+    response = await instrument.instrument(ticker="NONE.L", days=30, format="json", base_currency=None)
+    assert response.status_code == 200
+    data = json.loads(response.body.decode())
+    assert data["ticker"] == "NONE.L"
+    assert data["rows"] == 0
+    assert data["prices"] == []
+    assert data["mini"] == {"7": [], "30": [], "180": []}
+    assert data["positions"] == []
+    assert data["name"] == "Empty"
+    assert data["base_currency"] == "GBP"
+
+
+@pytest.mark.asyncio
+@pytest.mark.anyio("asyncio")
+async def test_instrument_empty_unknown_ticker_still_404(monkeypatch):
+    monkeypatch.setattr(
+        instrument,
+        "load_meta_timeseries_range",
+        lambda *_, **__: pd.DataFrame(columns=["Date", "Close"]),
+    )
+    monkeypatch.setattr(instrument, "get_security_meta", lambda _ticker: None)
+    monkeypatch.setattr(instrument, "list_portfolios", lambda: [])
+
+    # Genuinely unknown tickers (no metadata) keep the 404 contract.
     with pytest.raises(HTTPException) as exc:
         await instrument.instrument(ticker="NONE.L", days=30, format="json", base_currency=None)
     assert exc.value.status_code == 404
+
+
+@pytest.mark.asyncio
+@pytest.mark.anyio("asyncio")
+async def test_instrument_empty_known_ticker_without_currency(monkeypatch):
+    """A known non-GBP ticker with no currency metadata still returns the empty
+    series (200) with a null currency instead of a 404 or a crash (issue #6639)."""
+    monkeypatch.setattr(
+        instrument,
+        "load_meta_timeseries_range",
+        lambda *_, **__: pd.DataFrame(columns=["Date", "Close"]),
+    )
+    monkeypatch.setattr(instrument, "get_security_meta", lambda _ticker: {"name": "North Co"})
+    monkeypatch.setattr(instrument, "list_portfolios", lambda: [])
+
+    response = await instrument.instrument(ticker="ABC.N", days=30, format="json", base_currency=None)
+
+    assert response.status_code == 200
+    data = json.loads(response.body.decode())
+    assert data["ticker"] == "ABC.N"
+    assert data["rows"] == 0
+    assert data["currency"] is None
 
 
 @pytest.mark.asyncio
@@ -566,11 +615,8 @@ async def test_instrument_empty_html_escapes_xss_in_positions(monkeypatch):
         ],
     )
 
-    response = await instrument.instrument(
-        ticker="NONE.L", days=30, format="html", base_currency=None
-    )
+    response = await instrument.instrument(ticker="NONE.L", days=30, format="html", base_currency=None)
 
     html = response.body.decode()
     assert xss_owner not in html
     assert "&lt;script&gt;" in html
-

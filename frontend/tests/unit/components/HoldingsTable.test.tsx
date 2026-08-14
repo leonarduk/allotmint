@@ -23,10 +23,11 @@ vi.mock("@/components/TopMoversSummary", () => ({
     TopMoversSummary: () => <div data-testid="top-movers-summary" />,
 }));
 import { HoldingsTable } from "@/components/HoldingsTable";
+import { __clearInstrumentHistoryCache } from "@/hooks/useInstrumentHistory";
 import { InstrumentTable } from "@/components/InstrumentTable";
 import { GroupPortfolioView } from "@/components/GroupPortfolioView";
 import { configContext, type AppConfig } from "@/ConfigContext";
-import { getGroupPortfolio } from "@/api";
+import { getGroupPortfolio, getInstrumentDetail } from "@/api";
 import type { InstrumentSummary } from "@/types";
 import type { RollupRow } from "@/lib/rollupAdapter";
 
@@ -851,5 +852,40 @@ describe("HoldingsTable", () => {
 
           clientWidth.mockRestore();
           scrollWidth.mockRestore();
+      });
+
+      it("shows a consolidated notice when some holdings have no price history", async () => {
+          __clearInstrumentHistoryCache();
+          vi.mocked(getInstrumentDetail).mockResolvedValue({
+              prices: [],
+              mini: { 7: [], 30: [], 180: [] },
+              positions: [],
+          });
+          // This file's async vi.mock factory does not intercept the hook's API
+          // import (Vitest module-graph quirk), so the preload runs through the
+          // real api layer; stub fetch so it resolves to an empty-history
+          // payload. Either path yields the same notice.
+          vi.stubGlobal(
+              "fetch",
+              vi.fn(() =>
+                  Promise.resolve({
+                      ok: true,
+                      json: async () => ({
+                          prices: [],
+                          mini: { 7: [], 30: [], 180: [] },
+                          positions: [],
+                      }),
+                  } as Response),
+              ),
+          );
+          renderWithConfig(<HoldingsTable holdings={holdings} />);
+
+          // Rendering the notice proves the full wiring: HoldingsTable preloads
+          // the held tickers, resolves empty history, and counts them once.
+          expect(
+              await screen.findByText("4 instruments have no price history"),
+          ).toBeInTheDocument();
+          expect(screen.getAllByText(/no price history/i)).toHaveLength(1);
+          vi.unstubAllGlobals();
       });
   });

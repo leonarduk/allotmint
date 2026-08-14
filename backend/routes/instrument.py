@@ -260,7 +260,29 @@ async def instrument(
     if df.empty:
         positions = _positions_for_ticker(ticker.upper(), None)
         if format == "json":
-            raise HTTPException(status_code=404, detail="No price history available")
+            # Known tickers (present in portfolio or instrument metadata) with no
+            # price history return an empty series with 200 so dashboard preloads
+            # stop logging console errors for expected missing history; genuinely
+            # unknown tickers keep the 404 contract. "Known" means informative
+            # metadata: at least a name, sector or currency is present.
+            if not (name or sector or currency):
+                raise HTTPException(status_code=404, detail="No price history available")
+            if currency == "GBX" or (currency is None and is_gbp_ticker):
+                currency = "GBP"
+            payload = {
+                "ticker": ticker,
+                "from": start.isoformat(),
+                "to": resolved_end.isoformat(),
+                "rows": 0,
+                "positions": positions,
+                "prices": [],
+                "mini": {"7": [], "30": [], "180": []},
+                "currency": currency,
+                "name": name,
+                "sector": sector,
+                "base_currency": base_currency,
+            }
+            return JSONResponse(jsonable_encoder(payload))
 
         pos_tbl = (
             Markup(pd.DataFrame(positions).to_html(index=False, escape=True, classes="positions"))

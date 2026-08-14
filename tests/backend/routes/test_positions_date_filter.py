@@ -8,8 +8,10 @@ updated in issue #3111:
   3. ``end_date`` only         – filtered up to that date.
   4. Both ``start_date`` and ``end_date`` – exact explicit range.
   5. ``start_date`` > ``end_date`` – HTTP 422 rejected (meta) / HTTP 400 (instrument, portfolio).
-  6. No data in range           – HTTP 404 returned.
+  6. No data in range           – HTTP 404 returned (HTTP 200 with an empty
+     series for known tickers on the /instrument JSON route, issue #6639).
 """
+
 from __future__ import annotations
 
 import datetime as dt
@@ -36,9 +38,7 @@ _SAMPLE_DF = pd.DataFrame(
     }
 )
 
-_EMPTY_DF = pd.DataFrame(
-    columns=["Date", "Open", "High", "Low", "Close", "Volume", "Ticker", "Source"]
-)
+_EMPTY_DF = pd.DataFrame(columns=["Date", "Open", "High", "Low", "Close", "Volume", "Ticker", "Source"])
 
 
 # ── /timeseries/meta ───────────────────────────────────────────────────────
@@ -113,10 +113,7 @@ def test_meta_both_dates(monkeypatch):
     cap: dict = {}
     client = _meta_client(monkeypatch, _SAMPLE_DF, cap)
 
-    resp = client.get(
-        "/timeseries/meta?ticker=ABC.L&format=json"
-        "&start_date=2024-01-02&end_date=2024-01-04"
-    )
+    resp = client.get("/timeseries/meta?ticker=ABC.L&format=json" "&start_date=2024-01-02&end_date=2024-01-04")
 
     assert resp.status_code == 200
     assert cap["start"] == dt.date(2024, 1, 2)
@@ -131,10 +128,7 @@ def test_meta_start_after_end_is_422(monkeypatch):
     """
     client = _meta_client(monkeypatch, _SAMPLE_DF)
 
-    resp = client.get(
-        "/timeseries/meta?ticker=ABC.L"
-        "&start_date=2024-06-01&end_date=2024-01-01"
-    )
+    resp = client.get("/timeseries/meta?ticker=ABC.L" "&start_date=2024-06-01&end_date=2024-01-01")
 
     assert resp.status_code == 422
     assert "start_date" in resp.text.lower()
@@ -144,10 +138,7 @@ def test_meta_no_data_in_range_is_404(monkeypatch):
     """Category 6: valid range but no data → HTTP 404."""
     client = _meta_client(monkeypatch, _EMPTY_DF)
 
-    resp = client.get(
-        "/timeseries/meta?ticker=ABC.L"
-        "&start_date=2020-01-01&end_date=2020-12-31"
-    )
+    resp = client.get("/timeseries/meta?ticker=ABC.L" "&start_date=2020-01-01&end_date=2020-12-31")
 
     assert resp.status_code == 404
 
@@ -222,10 +213,7 @@ def test_instrument_both_dates(monkeypatch):
     cap: dict = {}
     client = _instrument_client(monkeypatch, _SAMPLE_DF, cap)
 
-    resp = client.get(
-        "/instrument?ticker=ABC.L&format=json"
-        "&start_date=2024-01-02&end_date=2024-01-04"
-    )
+    resp = client.get("/instrument?ticker=ABC.L&format=json" "&start_date=2024-01-02&end_date=2024-01-04")
 
     assert resp.status_code == 200
     assert cap["start_date"] == dt.date(2024, 1, 2)
@@ -236,25 +224,26 @@ def test_instrument_start_after_end_is_400(monkeypatch):
     """Category 5: start_date after end_date returns HTTP 400."""
     client = _instrument_client(monkeypatch, _SAMPLE_DF)
 
-    resp = client.get(
-        "/instrument?ticker=ABC.L"
-        "&start_date=2024-06-01&end_date=2024-01-01"
-    )
+    resp = client.get("/instrument?ticker=ABC.L" "&start_date=2024-06-01&end_date=2024-01-01")
 
     assert resp.status_code == 400
     assert "start_date" in resp.text.lower()
 
 
-def test_instrument_no_data_in_range_is_404(monkeypatch):
-    """Category 6: valid range but empty data → HTTP 404 (json format)."""
+def test_instrument_no_data_in_range_returns_empty_series(monkeypatch):
+    """Category 6: valid range but empty data → HTTP 200 with an empty series
+    (json format) for a known ticker; unknown tickers still return 404 (see
+    tests/backend/routes/test_instrument.py)."""
     client = _instrument_client(monkeypatch, _EMPTY_DF)
 
-    resp = client.get(
-        "/instrument?ticker=ABC.L&format=json"
-        "&start_date=2020-01-01&end_date=2020-12-31"
-    )
+    resp = client.get("/instrument?ticker=ABC.L&format=json" "&start_date=2020-01-01&end_date=2020-12-31")
 
-    assert resp.status_code == 404
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["ticker"] == "ABC.L"
+    assert data["rows"] == 0
+    assert data["prices"] == []
+    assert data["mini"] == {"7": [], "30": [], "180": []}
 
 
 # ── /portfolio-group/{slug}/instrument/{ticker} ────────────────────────────
@@ -315,9 +304,7 @@ def test_portfolio_instrument_start_date_only(monkeypatch):
     cap: dict = {}
     client = _portfolio_instrument_client(monkeypatch, _PRICES, cap)
 
-    resp = client.get(
-        "/portfolio-group/demo/instrument/VWRL.L?start_date=2024-01-03"
-    )
+    resp = client.get("/portfolio-group/demo/instrument/VWRL.L?start_date=2024-01-03")
 
     assert resp.status_code == 200
     assert cap["start_date"] == dt.date(2024, 1, 3)
@@ -338,9 +325,7 @@ def test_portfolio_instrument_end_date_only(monkeypatch):
     # Use a date well within the last 365 days so start (today-365) stays before end.
     end = dt.date.today() - dt.timedelta(days=30)
 
-    resp = client.get(
-        f"/portfolio-group/demo/instrument/VWRL.L?end_date={end}"
-    )
+    resp = client.get(f"/portfolio-group/demo/instrument/VWRL.L?end_date={end}")
 
     assert resp.status_code == 200
     assert cap["end_date"] == end
@@ -351,10 +336,7 @@ def test_portfolio_instrument_both_dates(monkeypatch):
     cap: dict = {}
     client = _portfolio_instrument_client(monkeypatch, _PRICES, cap)
 
-    resp = client.get(
-        "/portfolio-group/demo/instrument/VWRL.L"
-        "?start_date=2024-01-02&end_date=2024-01-04"
-    )
+    resp = client.get("/portfolio-group/demo/instrument/VWRL.L" "?start_date=2024-01-02&end_date=2024-01-04")
 
     assert resp.status_code == 200
     assert cap["start_date"] == dt.date(2024, 1, 2)
@@ -365,10 +347,7 @@ def test_portfolio_instrument_start_after_end_is_400(monkeypatch):
     """Category 5: start_date after end_date returns HTTP 400."""
     client = _portfolio_instrument_client(monkeypatch, _PRICES)
 
-    resp = client.get(
-        "/portfolio-group/demo/instrument/VWRL.L"
-        "?start_date=2024-06-01&end_date=2024-01-01"
-    )
+    resp = client.get("/portfolio-group/demo/instrument/VWRL.L" "?start_date=2024-06-01&end_date=2024-01-01")
 
     assert resp.status_code == 400
     assert "start_date" in resp.text.lower()
@@ -395,9 +374,6 @@ def test_portfolio_instrument_no_data_in_range_is_404(monkeypatch):
     from backend.app import create_app
 
     client = TestClient(create_app())
-    resp = client.get(
-        "/portfolio-group/demo/instrument/VWRL.L"
-        "?start_date=2020-01-01&end_date=2020-12-31"
-    )
+    resp = client.get("/portfolio-group/demo/instrument/VWRL.L" "?start_date=2020-01-01&end_date=2020-12-31")
 
     assert resp.status_code == 404

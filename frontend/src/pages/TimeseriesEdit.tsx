@@ -284,7 +284,10 @@ export function TimeseriesEdit() {
       const data = (await getTimeseries(ticker, exchange)) ?? [];
       const arr = Array.isArray(data) ? data : [];
       setRows(arr);
-      setLoadedSeries(arr.length ? { ticker, exchange } : null);
+      // Record the load attempt even when the series is empty so the Move
+      // action stays available: an empty source cannot be moved, but the
+      // user must be able to attempt it and see the actionable error (#6723).
+      setLoadedSeries({ ticker, exchange });
       setStatus(
         arr.length
           ? t("timeseriesEdit.status.loaded", { count: arr.length })
@@ -297,9 +300,9 @@ export function TimeseriesEdit() {
 
   async function handleMove() {
     if (!loadedSeries || loadedSeries.ticker !== ticker || loadedSeries.exchange === exchange) return;
+    const source = loadedSeries.exchange;
     setError(null);
     try {
-      const source = loadedSeries.exchange;
       await moveTimeseries(ticker, source, exchange);
       const data = (await getTimeseries(ticker, exchange)) ?? [];
       const arr = Array.isArray(data) ? data : [];
@@ -316,7 +319,17 @@ export function TimeseriesEdit() {
       setLoadedSeries(null);
       setRows([]);
       const status = (e as { status?: number })?.status;
-      if (status === 409) {
+      if (status === 404) {
+        // Empty/missing source: nothing to move; tell the user how to fix
+        // the holding so the fetcher can populate the destination (#6723).
+        setError(
+          t("timeseriesEdit.error.moveNoData", {
+            ticker,
+            source,
+            destination: exchange,
+          }),
+        );
+      } else if (status === 409) {
         setError(t("timeseriesEdit.status.moveConflict", { exchange }));
       } else {
         setError(e instanceof Error ? e.message : String(e));

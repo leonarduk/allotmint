@@ -166,12 +166,34 @@ def test_move_timeseries_refuses_to_overwrite_destination(tmp_path, monkeypatch)
     assert client.get("/timeseries/edit?ticker=IONQ&exchange=L").json()
 
 
-def test_move_timeseries_missing_source_returns_404(tmp_path, monkeypatch):
+def test_move_timeseries_missing_source_returns_404_with_actionable_detail(tmp_path, monkeypatch):
     client = _make_client(tmp_path, monkeypatch)
 
     resp = client.post("/timeseries/edit/move?ticker=IONQ&source_exchange=L&destination_exchange=N")
 
     assert resp.status_code == 404
+    detail = resp.json()["detail"]
+    assert "no cached data" in detail.lower()
+    assert "IONQ.L" in detail
+    assert "IONQ.N" in detail
+    assert "correct the holding" in detail.lower()
+
+
+def test_move_timeseries_empty_cached_source_returns_404(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+    # A zero-row parquet is still a non-empty file on disk, so the
+    # has_cached_meta_timeseries guard passes and the empty-DataFrame guard
+    # must reject the move (issue #6723).
+    resp = client.post("/timeseries/edit?ticker=IONQ&exchange=L", json=[])
+    assert resp.status_code == 200
+
+    resp = client.post("/timeseries/edit/move?ticker=IONQ&source_exchange=L&destination_exchange=N")
+
+    assert resp.status_code == 404
+    detail = resp.json()["detail"]
+    assert "no cached data" in detail.lower()
+    assert "IONQ.N" in detail
+    assert "correct the holding" in detail.lower()
 
 
 class _FakeS3Client:

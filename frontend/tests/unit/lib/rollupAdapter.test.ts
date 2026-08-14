@@ -85,6 +85,7 @@ describe("toRollupRows", () => {
       name: "Alpha",
       units: 3,
       cost_basis_gbp: 150,
+      effective_cost_basis_gbp: 150,
       market_value_gbp: 300,
       gain_gbp: 150,
       gain_pct: 100,
@@ -92,6 +93,80 @@ describe("toRollupRows", () => {
       lot_count: 2,
       owners: ["alice", "bob"],
       accounts: ["ISA", "SIPP"],
+    });
+  });
+
+  it("uses the effective cost basis when a position has no booked cost", () => {
+    const derivedCostAccounts: Account[] = [
+      {
+        owner: "alice",
+        account_type: "ISA",
+        currency: "GBP",
+        value_estimate_gbp: 100,
+        holdings: [
+          {
+            ticker: "CCC",
+            name: "Gamma",
+            units: 10,
+            cost_basis_gbp: 0,
+            effective_cost_basis_gbp: 80,
+            market_value_gbp: 100,
+            gain_gbp: 20,
+          },
+        ],
+      },
+    ];
+
+    const [row] = toRollupRows(toScopedHoldingRows(derivedCostAccounts));
+
+    // Regression: the rollup must not collapse to £0.00 cost / 0% gain when
+    // the position's cost is derived rather than booked.
+    expect(row).toMatchObject({
+      ticker: "CCC",
+      cost_basis_gbp: 0,
+      effective_cost_basis_gbp: 80,
+      gain_gbp: 20,
+      gain_pct: 25,
+    });
+  });
+
+  it("rolls up a mix of booked and derived lots to the full effective cost", () => {
+    const mixedAccounts: Account[] = [
+      {
+        owner: "alice",
+        account_type: "ISA",
+        currency: "GBP",
+        value_estimate_gbp: 100,
+        holdings: [
+          {
+            ticker: "DDD",
+            name: "Delta",
+            units: 1,
+            cost_basis_gbp: 30,
+            effective_cost_basis_gbp: 30,
+            market_value_gbp: 40,
+            gain_gbp: 10,
+          },
+          {
+            ticker: "DDD",
+            name: "Delta",
+            units: 1,
+            effective_cost_basis_gbp: 50,
+            market_value_gbp: 60,
+            gain_gbp: 10,
+          },
+        ],
+      },
+    ];
+
+    const [row] = toRollupRows(toScopedHoldingRows(mixedAccounts));
+
+    expect(row).toMatchObject({
+      ticker: "DDD",
+      cost_basis_gbp: 30,
+      effective_cost_basis_gbp: 80,
+      gain_gbp: 20,
+      gain_pct: 25,
     });
   });
 

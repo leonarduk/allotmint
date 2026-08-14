@@ -256,7 +256,7 @@ export default function MetricsExplanation() {
             {t("metricsExplanation.sections.trackingError.detail", {
               trackingError: formatPercent(trackingData?.tracking_error ?? null),
               dailyStd: formatPercent(
-                (trackingData?.daily_active_standard_deviation ?? null) ?? null,
+                trackingData?.daily_active_standard_deviation ?? null,
               ),
             })}
           </p>

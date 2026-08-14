@@ -6,10 +6,16 @@ import type { ReactElement } from "react";
 import en from "@/locales/en/translation.json";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { TimeseriesEdit } from "@/pages/TimeseriesEdit";
-import { getTimeseries, saveTimeseries, searchInstruments } from "@/api";
+import {
+  getTimeseries,
+  moveTimeseries,
+  saveTimeseries,
+  searchInstruments,
+} from "@/api";
 
 vi.mock("@/api", () => ({
   getTimeseries: vi.fn(),
+  moveTimeseries: vi.fn(),
   saveTimeseries: vi.fn().mockResolvedValue({ status: "ok", rows: 1 }),
   searchInstruments: vi.fn().mockResolvedValue([]),
   getInstrumentMetadata: vi.fn().mockResolvedValue(null),
@@ -93,5 +99,35 @@ describe("TimeseriesEdit page", () => {
     expect(await screen.findByText("AAA — AAA Corp")).toBeInTheDocument();
     fireEvent.change(input, { target: { value: "AAA" } });
     expect(input).toHaveValue("AAA");
+  });
+
+  it("enables Move after an empty load and surfaces an actionable error", async () => {
+    const getTimeseriesMock = getTimeseries as unknown as vi.Mock;
+    getTimeseriesMock.mockResolvedValue([]);
+    const moveTimeseriesMock = moveTimeseries as unknown as vi.Mock;
+    const err = new Error("backend detail") as Error & { status?: number };
+    err.status = 404;
+    moveTimeseriesMock.mockRejectedValue(err);
+
+    renderWithI18n(<TimeseriesEdit />);
+    fireEvent.change(screen.getByLabelText(/Ticker/i), {
+      target: { value: "ABC" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /load/i }));
+
+    expect(await screen.findByText(/no data exists/i)).toBeInTheDocument();
+
+    const moveButton = screen.getByRole("button", { name: /move to l/i });
+    expect(moveButton).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText(/Exchange/i), {
+      target: { value: "N" },
+    });
+    const moveToN = screen.getByRole("button", { name: /move to n/i });
+    expect(moveToN).toBeEnabled();
+    fireEvent.click(moveToN);
+
+    expect(await screen.findByText(/correct the holding/i)).toBeInTheDocument();
+    expect(moveTimeseries).toHaveBeenCalledWith("ABC", "L", "N");
   });
 });

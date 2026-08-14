@@ -1,0 +1,2294 @@
+{
+  "version": 2,
+  "rootId": "__root__",
+  "objects": {
+    "__root__": {
+      "id": "__root__",
+      "type": "frame",
+      "name": "Root",
+      "parentId": null,
+      "frameId": null,
+      "x": 0,
+      "y": 0,
+      "width": 0,
+      "height": 0,
+      "rotation": 0,
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "fills": [],
+      "strokes": [],
+      "cornerRadius": 0,
+      "children": [
+        "s_msswy1z7_1",
+        "s_msswy1z8_2",
+        "s_msswy1z8_3",
+        "s_msswy1z8_4",
+        "s_msswy1z8_5",
+        "s_msswy1z8_6",
+        "s_msswy1z8_7",
+        "s_msswy1z8_8",
+        "s_msswy1z8_9",
+        "s_msswyh0o_a",
+        "s_msswyh0p_b",
+        "s_msswyh0p_c",
+        "s_msswyh0p_d",
+        "s_msswyh0p_e",
+        "s_msswyh0p_f",
+        "s_msswyh0p_g",
+        "s_msswyh0p_h",
+        "s_msswyh0p_i",
+        "s_msswyh0p_j",
+        "s_msswyh0p_k",
+        "s_msswyh0p_l",
+        "s_msswyh0q_m",
+        "s_msswyh0q_n",
+        "s_msswyh0q_o",
+        "s_msswyh0q_p",
+        "s_msswyh0q_q",
+        "s_msswyh0q_r",
+        "s_msswyh0q_s",
+        "s_msswyh0q_t",
+        "s_msswyh0q_u",
+        "s_msswyh0r_v",
+        "s_msswyh0r_w",
+        "s_msswyh0r_x",
+        "s_msswyh0r_y",
+        "s_msswyh0r_z",
+        "s_msswyh0r_10",
+        "s_msswyh0r_11",
+        "s_msswyh0s_12"
+      ]
+    },
+    "s_msswy1z7_1": {
+      "id": "s_msswy1z7_1",
+      "type": "text",
+      "name": "Title",
+      "parentId": "__root__",
+      "frameId": null,
+      "x": 60,
+      "y": 40,
+      "width": 720,
+      "height": 34,
+      "rotation": 0,
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "fills": [],
+      "strokes": [],
+      "cornerRadius": 0,
+      "children": [],
+      "textContent": "DeepSeek AI Review — PR #6717",
+      "fontSize": 26,
+      "fontFamily": "system-ui",
+      "fontWeight": 700,
+      "textAlign": "left",
+      "lineHeight": 1.5,
+      "fontColor": "#0f172a"
+    },
+    "s_msswy1z8_2": {
+      "id": "s_msswy1z8_2",
+      "type": "text",
+      "name": "Subtitle",
+      "parentId": "__root__",
+      "frameId": null,
+      "x": 60,
+      "y": 80,
+      "width": 760,
+      "height": 22,
+      "rotation": 0,
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "fills": [],
+      "strokes": [],
+      "cornerRadius": 0,
+      "children": [],
+      "textContent": "Remove redundant Portfolio nav entry · keep owner routing · reviewed via .github/workflows/deepseek-pr-review.yml (advisory only)",
+      "fontSize": 14,
+      "fontFamily": "system-ui",
+      "fontWeight": 400,
+      "textAlign": "left",
+      "lineHeight": 1.5,
+      "fontColor": "#475569"
+    },
+    "s_msswy1z8_3": {
+      "id": "s_msswy1z8_3",
+      "type": "rect",
+      "name": "VerdictChip",
+      "parentId": "__root__",
+      "frameId": null,
+      "x": 1010,
+      "y": 40,
+      "width": 210,
+      "height": 46,
+      "rotation": 0,
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "fills": [
+        {
+          "type": "solid",
+          "color": "#dc2626",
+          "opacity": 1
+        }
+      ],
+      "strokes": [
+        {
+          "color": "currentColor",
+          "width": 2,
+          "opacity": 1,
+          "position": "center",
+          "dash": "solid"
+        }
+      ],
+      "cornerRadius": 8,
+      "children": []
+    },
+    "s_msswy1z8_4": {
+      "id": "s_msswy1z8_4",
+      "type": "text",
+      "name": "VerdictText",
+      "parentId": "__root__",
+      "frameId": null,
+      "x": 1010,
+      "y": 40,
+      "width": 210,
+      "height": 46,
+      "rotation": 0,
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "fills": [],
+      "strokes": [],
+      "cornerRadius": 0,
+      "children": [],
+      "textContent": "REQUEST CHANGES",
+      "fontSize": 14,
+      "fontFamily": "system-ui",
+      "fontWeight": 700,
+      "textAlign": "center",
+      "lineHeight": 46,
+      "fontColor": "#ffffff"
+    },
+    "s_msswy1z8_5": {
+      "id": "s_msswy1z8_5",
+      "type": "rect",
+      "name": "ColA",
+      "parentId": "__root__",
+      "frameId": null,
+      "x": 60,
+      "y": 150,
+      "width": 380,
+      "height": 470,
+      "rotation": 0,
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "fills": [
+        {
+          "type": "solid",
+          "color": "#ffffff",
+          "opacity": 1
+        }
+      ],
+      "strokes": [
+        {
+          "color": "#e2e8f0",
+          "width": 1,
+          "opacity": 1,
+          "position": "inside"
+        }
+      ],
+      "cornerRadius": 12,
+      "children": [],
+      "shadows": [
+        {
+          "x": 0,
+          "y": 4,
+          "blur": 14,
+          "color": "#0f172a",
+          "opacity": 0.08
+        }
+      ]
+    },
+    "s_msswy1z8_6": {
+      "id": "s_msswy1z8_6",
+      "type": "rect",
+      "name": "ColB",
+      "parentId": "__root__",
+      "frameId": null,
+      "x": 460,
+      "y": 150,
+      "width": 380,
+      "height": 470,
+      "rotation": 0,
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "fills": [
+        {
+          "type": "solid",
+          "color": "#ffffff",
+          "opacity": 1
+        }
+      ],
+      "strokes": [
+        {
+          "color": "#e2e8f0",
+          "width": 1,
+          "opacity": 1,
+          "position": "inside"
+        }
+      ],
+      "cornerRadius": 12,
+      "children": [],
+      "shadows": [
+        {
+          "x": 0,
+          "y": 4,
+          "blur": 14,
+          "color": "#0f172a",
+          "opacity": 0.08
+        }
+      ]
+    },
+    "s_msswy1z8_7": {
+      "id": "s_msswy1z8_7",
+      "type": "rect",
+      "name": "ColC",
+      "parentId": "__root__",
+      "frameId": null,
+      "x": 860,
+      "y": 150,
+      "width": 380,
+      "height": 470,
+      "rotation": 0,
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "fills": [
+        {
+          "type": "solid",
+          "color": "#ffffff",
+          "opacity": 1
+        }
+      ],
+      "strokes": [
+        {
+          "color": "#e2e8f0",
+          "width": 1,
+          "opacity": 1,
+          "position": "inside"
+        }
+      ],
+      "cornerRadius": 12,
+      "children": [],
+      "shadows": [
+        {
+          "x": 0,
+          "y": 4,
+          "blur": 14,
+          "color": "#0f172a",
+          "opacity": 0.08
+        }
+      ]
+    },
+    "s_msswy1z8_8": {
+      "id": "s_msswy1z8_8",
+      "type": "rect",
+      "name": "CoreGapCallout",
+      "parentId": "__root__",
+      "frameId": null,
+      "x": 60,
+      "y": 640,
+      "width": 1180,
+      "height": 62,
+      "rotation": 0,
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "fills": [
+        {
+          "type": "solid",
+          "color": "#eff6ff",
+          "opacity": 1
+        }
+      ],
+      "strokes": [
+        {
+          "color": "#bfdbfe",
+          "width": 1,
+          "opacity": 1,
+          "position": "inside"
+        }
+      ],
+      "cornerRadius": 10,
+      "children": []
+    },
+    "s_msswy1z8_9": {
+      "id": "s_msswy1z8_9",
+      "type": "text",
+      "name": "CoreGapText",
+      "parentId": "__root__",
+      "frameId": null,
+      "x": 84,
+      "y": 656,
+      "width": 1132,
+      "height": 32,
+      "rotation": 0,
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "fills": [],
+      "strokes": [],
+      "cornerRadius": 0,
+      "children": [],
+      "textContent": "Core gap: hiding the nav item reduces confusion but does not fix import/reconcile discoverability — the owner actions (Import CSV / reconcile preview / export) still require an ?owner= URL or an owner-tab click.",
+      "fontSize": 13,
+      "fontFamily": "system-ui",
+      "fontWeight": 400,
+      "textAlign": "left",
+      "lineHeight": 1.5,
+      "fontColor": "#1e3a8a"
+    },
+    "s_msswyh0o_a": {
+      "id": "s_msswyh0o_a",
+      "type": "text",
+      "name": "ColAHead",
+      "parentId": "__root__",
+      "frameId": null,
+      "x": 84,
+      "y": 170,
+      "width": 332,
+      "height": 24,
+      "rotation": 0,
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "fills": [],
+      "strokes": [],
+      "cornerRadius": 0,
+      "children": [],
+      "textContent": "1 · Blocking — config.yaml email",
+      "fontSize": 16,
+      "fontFamily": "system-ui",
+      "fontWeight": 700,
+      "textAlign": "left",
+      "lineHeight": 1.5,
+      "fontColor": "#dc2626"
+    },
+    "s_msswyh0p_b": {
+      "id": "s_msswyh0p_b",
+      "type": "rect",
+      "name": "MonoCard",
+      "parentId": "__root__",
+      "frameId": null,
+      "x": 80,
+      "y": 208,
+      "width": 340,
+      "height": 62,
+      "rotation": 0,
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "fills": [
+        {
+          "type": "solid",
+          "color": "#fef2f2",
+          "opacity": 1
+        }
+      ],
+      "strokes": [
+        {
+          "color": "#fecaca",
+          "width": 1,
+          "opacity": 1,
+          "position": "inside"
+        }
+      ],
+      "cornerRadius": 8,
+      "children": []
+    },
+    "s_msswyh0p_c": {
+      "id": "s_msswyh0p_c",
+      "type": "text",
+      "name": "MonoText",
+      "parentId": "__root__",
+      "frameId": null,
+      "x": 92,
+      "y": 220,
+      "width": 320,
+      "height": 40,
+      "rotation": 0,
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "fills": [],
+      "strokes": [],
+      "cornerRadius": 0,
+      "children": [],
+      "textContent": "local_login_email: steveleonard11@gnail.com",
+      "fontSize": 13,
+      "fontFamily": "ui-monospace, monospace",
+      "fontWeight": 600,
+      "textAlign": "left",
+      "lineHeight": 20,
+      "fontColor": "#b91c1c"
+    },
+    "s_msswyh0p_d": {
+      "id": "s_msswyh0p_d",
+      "type": "text",
+      "name": "ColANote1",
+      "parentId": "__root__",
+      "frameId": null,
+      "x": 84,
+      "y": 286,
+      "width": 340,
+      "height": 58,
+      "rotation": 0,
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "fills": [],
+      "strokes": [],
+      "cornerRadius": 0,
+      "children": [],
+      "textContent": "Real personal email in a tracked config file — identity-leak risk if committed. Revert to '' or a placeholder before any commit that includes it.",
+      "fontSize": 12.5,
+      "fontFamily": "system-ui",
+      "fontWeight": 400,
+      "textAlign": "left",
+      "lineHeight": 19,
+      "fontColor": "#334155"
+    },
+    "s_msswyh0p_e": {
+      "id": "s_msswyh0p_e",
+      "type": "text",
+      "name": "ColAItem2",
+      "parentId": "__root__",
+      "frameId": null,
+      "x": 84,
+      "y": 368,
+      "width": 340,
+      "height": 42,
+      "rotation": 0,
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "fills": [],
+      "strokes": [],
+      "cornerRadius": 0,
+      "children": [],
+      "textContent": "Also flagged: any local/CI auth flow asserting an empty value would break if this line ships.",
+      "fontSize": 12.5,
+      "fontFamily": "system-ui",
+      "fontWeight": 400,
+      "textAlign": "left",
+      "lineHeight": 19,
+      "fontColor": "#334155"
+    },
+    "s_msswyh0p_f": {
+      "id": "s_msswyh0p_f",
+      "type": "text",
+      "name": "ColAContext",
+      "parentId": "__root__",
+      "frameId": null,
+      "x": 84,
+      "y": 424,
+      "width": 340,
+      "height": 62,
+      "rotation": 0,
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "fills": [],
+      "strokes": [],
+      "cornerRadius": 0,
+      "children": [],
+      "textContent": "Context: this line is NOT part of the PR's 4-file diff — it is a pre-existing local edit, dirty in the workspace before the branch was made. Only matters if you commit it.",
+      "fontSize": 11.5,
+      "fontFamily": "system-ui",
+      "fontWeight": 400,
+      "textAlign": "left",
+      "lineHeight": 18,
+      "fontColor": "#64748b"
+    },
+    "s_msswyh0p_g": {
+      "id": "s_msswyh0p_g",
+      "type": "text",
+      "name": "ColBHead",
+      "parentId": "__root__",
+      "frameId": null,
+      "x": 484,
+      "y": 170,
+      "width": 332,
+      "height": 24,
+      "rotation": 0,
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "fills": [],
+      "strokes": [],
+      "cornerRadius": 0,
+      "children": [],
+      "textContent": "2 · Acceptance criteria",
+      "fontSize": 16,
+      "fontFamily": "system-ui",
+      "fontWeight": 700,
+      "textAlign": "left",
+      "lineHeight": 1.5,
+      "fontColor": "#2563eb"
+    },
+    "s_msswyh0p_h": {
+      "id": "s_msswyh0p_h",
+      "type": "rect",
+      "name": "AC1Card",
+      "parentId": "__root__",
+      "frameId": null,
+      "x": 480,
+      "y": 206,
+      "width": 340,
+      "height": 118,
+      "rotation": 0,
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "fills": [
+        {
+          "type": "solid",
+          "color": "#fffbeb",
+          "opacity": 1
+        }
+      ],
+      "strokes": [
+        {
+          "color": "#fde68a",
+          "width": 1,
+          "opacity": 1,
+          "position": "inside"
+        }
+      ],
+      "cornerRadius": 8,
+      "children": []
+    },
+    "s_msswyh0p_i": {
+      "id": "s_msswyh0p_i",
+      "type": "text",
+      "name": "AC1Label",
+      "parentId": "__root__",
+      "frameId": null,
+      "x": 492,
+      "y": 214,
+      "width": 240,
+      "height": 18,
+      "rotation": 0,
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "fills": [],
+      "strokes": [],
+      "cornerRadius": 0,
+      "children": [],
+      "textContent": "AC1 · Owner-scoped landing / label",
+      "fontSize": 12.5,
+      "fontFamily": "system-ui",
+      "fontWeight": 700,
+      "textAlign": "left",
+      "lineHeight": 1.5,
+      "fontColor": "#0f172a"
+    },
+    "s_msswyh0p_j": {
+      "id": "s_msswyh0p_j",
+      "type": "rect",
+      "name": "AC1Chip",
+      "parentId": "__root__",
+      "frameId": null,
+      "x": 742,
+      "y": 214,
+      "width": 66,
+      "height": 20,
+      "rotation": 0,
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "fills": [
+        {
+          "type": "solid",
+          "color": "#d97706",
+          "opacity": 1
+        }
+      ],
+      "strokes": [
+        {
+          "color": "currentColor",
+          "width": 2,
+          "opacity": 1,
+          "position": "center",
+          "dash": "solid"
+        }
+      ],
+      "cornerRadius": 10,
+      "children": []
+    },
+    "s_msswyh0p_k": {
+      "id": "s_msswyh0p_k",
+      "type": "text",
+      "name": "AC1ChipText",
+      "parentId": "__root__",
+      "frameId": null,
+      "x": 742,
+      "y": 214,
+      "width": 66,
+      "height": 20,
+      "rotation": 0,
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "fills": [],
+      "strokes": [],
+      "cornerRadius": 0,
+      "children": [],
+      "textContent": "PARTIAL",
+      "fontSize": 10.5,
+      "fontFamily": "system-ui",
+      "fontWeight": 700,
+      "textAlign": "center",
+      "lineHeight": 20,
+      "fontColor": "#ffffff"
+    },
+    "s_msswyh0p_l": {
+      "id": "s_msswyh0p_l",
+      "type": "text",
+      "name": "AC1Note",
+      "parentId": "__root__",
+      "frameId": null,
+      "x": 492,
+      "y": 240,
+      "width": 316,
+      "height": 74,
+      "rotation": 0,
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "fills": [],
+      "strokes": [],
+      "cornerRadius": 0,
+      "children": [],
+      "textContent": "Nav item hidden via hideFromMenu — misleading duplicate gone. But no owner-scoped landing page is provided; item is simply removed.",
+      "fontSize": 11.5,
+      "fontFamily": "system-ui",
+      "fontWeight": 400,
+      "textAlign": "left",
+      "lineHeight": 18,
+      "fontColor": "#475569"
+    },
+    "s_msswyh0q_m": {
+      "id": "s_msswyh0q_m",
+      "type": "rect",
+      "name": "AC2Card",
+      "parentId": "__root__",
+      "frameId": null,
+      "x": 480,
+      "y": 336,
+      "width": 340,
+      "height": 132,
+      "rotation": 0,
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "fills": [
+        {
+          "type": "solid",
+          "color": "#fef2f2",
+          "opacity": 1
+        }
+      ],
+      "strokes": [
+        {
+          "color": "#fecaca",
+          "width": 1,
+          "opacity": 1,
+          "position": "inside"
+        }
+      ],
+      "cornerRadius": 8,
+      "children": []
+    },
+    "s_msswyh0q_n": {
+      "id": "s_msswyh0q_n",
+      "type": "text",
+      "name": "AC2Label",
+      "parentId": "__root__",
+      "frameId": null,
+      "x": 492,
+      "y": 344,
+      "width": 250,
+      "height": 18,
+      "rotation": 0,
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "fills": [],
+      "strokes": [],
+      "cornerRadius": 0,
+      "children": [],
+      "textContent": "AC2 · Import CSV w/o manual URL",
+      "fontSize": 12.5,
+      "fontFamily": "system-ui",
+      "fontWeight": 700,
+      "textAlign": "left",
+      "lineHeight": 1.5,
+      "fontColor": "#0f172a"
+    },
+    "s_msswyh0q_o": {
+      "id": "s_msswyh0q_o",
+      "type": "rect",
+      "name": "AC2Chip",
+      "parentId": "__root__",
+      "frameId": null,
+      "x": 736,
+      "y": 344,
+      "width": 72,
+      "height": 20,
+      "rotation": 0,
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "fills": [
+        {
+          "type": "solid",
+          "color": "#dc2626",
+          "opacity": 1
+        }
+      ],
+      "strokes": [
+        {
+          "color": "currentColor",
+          "width": 2,
+          "opacity": 1,
+          "position": "center",
+          "dash": "solid"
+        }
+      ],
+      "cornerRadius": 10,
+      "children": []
+    },
+    "s_msswyh0q_p": {
+      "id": "s_msswyh0q_p",
+      "type": "text",
+      "name": "AC2ChipText",
+      "parentId": "__root__",
+      "frameId": null,
+      "x": 736,
+      "y": 344,
+      "width": 72,
+      "height": 20,
+      "rotation": 0,
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "fills": [],
+      "strokes": [],
+      "cornerRadius": 0,
+      "children": [],
+      "textContent": "NOT ADDRESSED",
+      "fontSize": 9.5,
+      "fontFamily": "system-ui",
+      "fontWeight": 700,
+      "textAlign": "center",
+      "lineHeight": 20,
+      "fontColor": "#ffffff"
+    },
+    "s_msswyh0q_q": {
+      "id": "s_msswyh0q_q",
+      "type": "text",
+      "name": "AC2Note",
+      "parentId": "__root__",
+      "frameId": null,
+      "x": 492,
+      "y": 370,
+      "width": 316,
+      "height": 88,
+      "rotation": 0,
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "fills": [],
+      "strokes": [],
+      "cornerRadius": 0,
+      "children": [],
+      "textContent": "No new entry point added. Still renders only when activeOwner && portfolio (GroupPortfolioView.tsx:1405-1417) — an owner tab click or ?owner= URL is still required.",
+      "fontSize": 11.5,
+      "fontFamily": "system-ui",
+      "fontWeight": 400,
+      "textAlign": "left",
+      "lineHeight": 18,
+      "fontColor": "#475569"
+    },
+    "s_msswyh0q_r": {
+      "id": "s_msswyh0q_r",
+      "type": "rect",
+      "name": "AC3Card",
+      "parentId": "__root__",
+      "frameId": null,
+      "x": 480,
+      "y": 480,
+      "width": 340,
+      "height": 108,
+      "rotation": 0,
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "fills": [
+        {
+          "type": "solid",
+          "color": "#fef2f2",
+          "opacity": 1
+        }
+      ],
+      "strokes": [
+        {
+          "color": "#fecaca",
+          "width": 1,
+          "opacity": 1,
+          "position": "inside"
+        }
+      ],
+      "cornerRadius": 8,
+      "children": []
+    },
+    "s_msswyh0q_s": {
+      "id": "s_msswyh0q_s",
+      "type": "text",
+      "name": "AC3Label",
+      "parentId": "__root__",
+      "frameId": null,
+      "x": 492,
+      "y": 488,
+      "width": 260,
+      "height": 18,
+      "rotation": 0,
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "fills": [],
+      "strokes": [],
+      "cornerRadius": 0,
+      "children": [],
+      "textContent": "AC3 · Export / Add position / Add account",
+      "fontSize": 12.5,
+      "fontFamily": "system-ui",
+      "fontWeight": 700,
+      "textAlign": "left",
+      "lineHeight": 1.5,
+      "fontColor": "#0f172a"
+    },
+    "s_msswyh0q_t": {
+      "id": "s_msswyh0q_t",
+      "type": "rect",
+      "name": "AC3Chip",
+      "parentId": "__root__",
+      "frameId": null,
+      "x": 736,
+      "y": 488,
+      "width": 72,
+      "height": 20,
+      "rotation": 0,
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "fills": [
+        {
+          "type": "solid",
+          "color": "#dc2626",
+          "opacity": 1
+        }
+      ],
+      "strokes": [
+        {
+          "color": "currentColor",
+          "width": 2,
+          "opacity": 1,
+          "position": "center",
+          "dash": "solid"
+        }
+      ],
+      "cornerRadius": 10,
+      "children": []
+    },
+    "s_msswyh0q_u": {
+      "id": "s_msswyh0q_u",
+      "type": "text",
+      "name": "AC3ChipText",
+      "parentId": "__root__",
+      "frameId": null,
+      "x": 736,
+      "y": 488,
+      "width": 72,
+      "height": 20,
+      "rotation": 0,
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "fills": [],
+      "strokes": [],
+      "cornerRadius": 0,
+      "children": [],
+      "textContent": "NOT ADDRESSED",
+      "fontSize": 9.5,
+      "fontFamily": "system-ui",
+      "fontWeight": 700,
+      "textAlign": "center",
+      "lineHeight": 20,
+      "fontColor": "#ffffff"
+    },
+    "s_msswyh0r_v": {
+      "id": "s_msswyh0r_v",
+      "type": "text",
+      "name": "AC3Note",
+      "parentId": "__root__",
+      "frameId": null,
+      "x": 492,
+      "y": 514,
+      "width": 316,
+      "height": 66,
+      "rotation": 0,
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "fills": [],
+      "strokes": [],
+      "cornerRadius": 0,
+      "children": [],
+      "textContent": "No change to OwnerPortfolioActions visibility; reachability from the group dashboard not verified by the PR.",
+      "fontSize": 11.5,
+      "fontFamily": "system-ui",
+      "fontWeight": 400,
+      "textAlign": "left",
+      "lineHeight": 18,
+      "fontColor": "#475569"
+    },
+    "s_msswyh0r_w": {
+      "id": "s_msswyh0r_w",
+      "type": "text",
+      "name": "ColCHead",
+      "parentId": "__root__",
+      "frameId": null,
+      "x": 884,
+      "y": 170,
+      "width": 332,
+      "height": 24,
+      "rotation": 0,
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "fills": [],
+      "strokes": [],
+      "cornerRadius": 0,
+      "children": [],
+      "textContent": "3 · Suggested follow-ups",
+      "fontSize": 16,
+      "fontFamily": "system-ui",
+      "fontWeight": 700,
+      "textAlign": "left",
+      "lineHeight": 1.5,
+      "fontColor": "#16a34a"
+    },
+    "s_msswyh0r_x": {
+      "id": "s_msswyh0r_x",
+      "type": "text",
+      "name": "FU1",
+      "parentId": "__root__",
+      "frameId": null,
+      "x": 884,
+      "y": 210,
+      "width": 336,
+      "height": 54,
+      "rotation": 0,
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "fills": [],
+      "strokes": [],
+      "cornerRadius": 0,
+      "children": [],
+      "textContent": "1.  Add a visible 'Import CSV' entry on the group dashboard when an owner is selected (or a global import button that prompts for owner selection).",
+      "fontSize": 12,
+      "fontFamily": "system-ui",
+      "fontWeight": 400,
+      "textAlign": "left",
+      "lineHeight": 18,
+      "fontColor": "#334155"
+    },
+    "s_msswyh0r_y": {
+      "id": "s_msswyh0r_y",
+      "type": "text",
+      "name": "FU2",
+      "parentId": "__root__",
+      "frameId": null,
+      "x": 884,
+      "y": 280,
+      "width": 336,
+      "height": 54,
+      "rotation": 0,
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "fills": [],
+      "strokes": [],
+      "cornerRadius": 0,
+      "children": [],
+      "textContent": "2.  Decide: rename the nav item ('Dashboard' / 'Group Dashboard') instead of hiding it entirely, so the entry point stays discoverable.",
+      "fontSize": 12,
+      "fontFamily": "system-ui",
+      "fontWeight": 400,
+      "textAlign": "left",
+      "lineHeight": 18,
+      "fontColor": "#334155"
+    },
+    "s_msswyh0r_z": {
+      "id": "s_msswyh0r_z",
+      "type": "text",
+      "name": "FU3",
+      "parentId": "__root__",
+      "frameId": null,
+      "x": 884,
+      "y": 350,
+      "width": 336,
+      "height": 54,
+      "rotation": 0,
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "fills": [],
+      "strokes": [],
+      "cornerRadius": 0,
+      "children": [],
+      "textContent": "3.  Add a test that import/reconcile is reachable from the group dashboard without manual URL editing.",
+      "fontSize": 12,
+      "fontFamily": "system-ui",
+      "fontWeight": 400,
+      "textAlign": "left",
+      "lineHeight": 18,
+      "fontColor": "#334155"
+    },
+    "s_msswyh0r_10": {
+      "id": "s_msswyh0r_10",
+      "type": "rect",
+      "name": "VerdictBox",
+      "parentId": "__root__",
+      "frameId": null,
+      "x": 880,
+      "y": 424,
+      "width": 340,
+      "height": 96,
+      "rotation": 0,
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "fills": [
+        {
+          "type": "solid",
+          "color": "#f0fdf4",
+          "opacity": 1
+        }
+      ],
+      "strokes": [
+        {
+          "color": "#bbf7d0",
+          "width": 1,
+          "opacity": 1,
+          "position": "inside"
+        }
+      ],
+      "cornerRadius": 8,
+      "children": []
+    },
+    "s_msswyh0r_11": {
+      "id": "s_msswyh0r_11",
+      "type": "text",
+      "name": "VerdictBoxTitle",
+      "parentId": "__root__",
+      "frameId": null,
+      "x": 892,
+      "y": 434,
+      "width": 316,
+      "height": 20,
+      "rotation": 0,
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "fills": [],
+      "strokes": [],
+      "cornerRadius": 0,
+      "children": [],
+      "textContent": "Verdict: REQUEST CHANGES (advisory)",
+      "fontSize": 13,
+      "fontFamily": "system-ui",
+      "fontWeight": 700,
+      "textAlign": "left",
+      "lineHeight": 1.5,
+      "fontColor": "#15803d"
+    },
+    "s_msswyh0s_12": {
+      "id": "s_msswyh0s_12",
+      "type": "text",
+      "name": "VerdictBoxBody",
+      "parentId": "__root__",
+      "frameId": null,
+      "x": 892,
+      "y": 458,
+      "width": 316,
+      "height": 54,
+      "rotation": 0,
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "fills": [],
+      "strokes": [],
+      "cornerRadius": 0,
+      "children": [],
+      "textContent": "Blocking flag: config.yaml email (pre-existing local edit, not in PR diff). Core gap: import/reconcile discoverability remains unfixed.",
+      "fontSize": 11.5,
+      "fontFamily": "system-ui",
+      "fontWeight": 400,
+      "textAlign": "left",
+      "lineHeight": 17,
+      "fontColor": "#475569"
+    }
+  },
+  "motion": {
+    "version": 1,
+    "timelines": {}
+  },
+  "graph": {
+    "version": 1,
+    "updatedAt": "2026-08-14T12:18:44.524Z",
+    "lastJournalEntryId": "journal_msswyh0s_14"
+  },
+  "operationJournal": [
+    {
+      "label": "tool:tool_call_00_MWbipDAddNhIMxhdiTeo5798:0",
+      "status": "applied",
+      "operations": [
+        {
+          "id": "dop_msswy1z8_1",
+          "type": "create_shape",
+          "label": "tool:tool_call_00_MWbipDAddNhIMxhdiTeo5798:0",
+          "source": "agent",
+          "createdAt": "2026-08-14T12:18:25.028Z",
+          "targetIds": [],
+          "payload": {
+            "op": "add",
+            "shape": {
+              "type": "text",
+              "name": "Title",
+              "x": 60,
+              "y": 40,
+              "width": 720,
+              "height": 34,
+              "textContent": "DeepSeek AI Review — PR #6717",
+              "fontSize": 26,
+              "fontFamily": "system-ui",
+              "fontWeight": 700,
+              "fontColor": "#0f172a"
+            }
+          }
+        },
+        {
+          "id": "dop_msswy1z8_2",
+          "type": "create_shape",
+          "label": "tool:tool_call_00_MWbipDAddNhIMxhdiTeo5798:0",
+          "source": "agent",
+          "createdAt": "2026-08-14T12:18:25.028Z",
+          "targetIds": [],
+          "payload": {
+            "op": "add",
+            "shape": {
+              "type": "text",
+              "name": "Subtitle",
+              "x": 60,
+              "y": 80,
+              "width": 760,
+              "height": 22,
+              "textContent": "Remove redundant Portfolio nav entry · keep owner routing · reviewed via .github/workflows/deepseek-pr-review.yml (advisory only)",
+              "fontSize": 14,
+              "fontFamily": "system-ui",
+              "fontColor": "#475569"
+            }
+          }
+        },
+        {
+          "id": "dop_msswy1z8_3",
+          "type": "create_shape",
+          "label": "tool:tool_call_00_MWbipDAddNhIMxhdiTeo5798:0",
+          "source": "agent",
+          "createdAt": "2026-08-14T12:18:25.028Z",
+          "targetIds": [],
+          "payload": {
+            "op": "add",
+            "shape": {
+              "type": "rect",
+              "name": "VerdictChip",
+              "x": 1010,
+              "y": 40,
+              "width": 210,
+              "height": 46,
+              "fills": [
+                {
+                  "type": "solid",
+                  "color": "#dc2626",
+                  "opacity": 1
+                }
+              ],
+              "cornerRadius": 8
+            }
+          }
+        },
+        {
+          "id": "dop_msswy1z8_4",
+          "type": "create_shape",
+          "label": "tool:tool_call_00_MWbipDAddNhIMxhdiTeo5798:0",
+          "source": "agent",
+          "createdAt": "2026-08-14T12:18:25.028Z",
+          "targetIds": [],
+          "payload": {
+            "op": "add",
+            "shape": {
+              "type": "text",
+              "name": "VerdictText",
+              "x": 1010,
+              "y": 40,
+              "width": 210,
+              "height": 46,
+              "textContent": "REQUEST CHANGES",
+              "fontSize": 14,
+              "fontFamily": "system-ui",
+              "fontWeight": 700,
+              "fontColor": "#ffffff",
+              "textAlign": "center",
+              "lineHeight": 46
+            }
+          }
+        },
+        {
+          "id": "dop_msswy1z8_5",
+          "type": "create_shape",
+          "label": "tool:tool_call_00_MWbipDAddNhIMxhdiTeo5798:0",
+          "source": "agent",
+          "createdAt": "2026-08-14T12:18:25.028Z",
+          "targetIds": [],
+          "payload": {
+            "op": "add",
+            "shape": {
+              "type": "rect",
+              "name": "ColA",
+              "x": 60,
+              "y": 150,
+              "width": 380,
+              "height": 470,
+              "fills": [
+                {
+                  "type": "solid",
+                  "color": "#ffffff",
+                  "opacity": 1
+                }
+              ],
+              "strokes": [
+                {
+                  "color": "#e2e8f0",
+                  "width": 1,
+                  "opacity": 1,
+                  "position": "inside"
+                }
+              ],
+              "cornerRadius": 12,
+              "shadows": [
+                {
+                  "x": 0,
+                  "y": 4,
+                  "blur": 14,
+                  "color": "#0f172a",
+                  "opacity": 0.08
+                }
+              ]
+            }
+          }
+        },
+        {
+          "id": "dop_msswy1z8_6",
+          "type": "create_shape",
+          "label": "tool:tool_call_00_MWbipDAddNhIMxhdiTeo5798:0",
+          "source": "agent",
+          "createdAt": "2026-08-14T12:18:25.028Z",
+          "targetIds": [],
+          "payload": {
+            "op": "add",
+            "shape": {
+              "type": "rect",
+              "name": "ColB",
+              "x": 460,
+              "y": 150,
+              "width": 380,
+              "height": 470,
+              "fills": [
+                {
+                  "type": "solid",
+                  "color": "#ffffff",
+                  "opacity": 1
+                }
+              ],
+              "strokes": [
+                {
+                  "color": "#e2e8f0",
+                  "width": 1,
+                  "opacity": 1,
+                  "position": "inside"
+                }
+              ],
+              "cornerRadius": 12,
+              "shadows": [
+                {
+                  "x": 0,
+                  "y": 4,
+                  "blur": 14,
+                  "color": "#0f172a",
+                  "opacity": 0.08
+                }
+              ]
+            }
+          }
+        },
+        {
+          "id": "dop_msswy1z8_7",
+          "type": "create_shape",
+          "label": "tool:tool_call_00_MWbipDAddNhIMxhdiTeo5798:0",
+          "source": "agent",
+          "createdAt": "2026-08-14T12:18:25.028Z",
+          "targetIds": [],
+          "payload": {
+            "op": "add",
+            "shape": {
+              "type": "rect",
+              "name": "ColC",
+              "x": 860,
+              "y": 150,
+              "width": 380,
+              "height": 470,
+              "fills": [
+                {
+                  "type": "solid",
+                  "color": "#ffffff",
+                  "opacity": 1
+                }
+              ],
+              "strokes": [
+                {
+                  "color": "#e2e8f0",
+                  "width": 1,
+                  "opacity": 1,
+                  "position": "inside"
+                }
+              ],
+              "cornerRadius": 12,
+              "shadows": [
+                {
+                  "x": 0,
+                  "y": 4,
+                  "blur": 14,
+                  "color": "#0f172a",
+                  "opacity": 0.08
+                }
+              ]
+            }
+          }
+        },
+        {
+          "id": "dop_msswy1z8_8",
+          "type": "create_shape",
+          "label": "tool:tool_call_00_MWbipDAddNhIMxhdiTeo5798:0",
+          "source": "agent",
+          "createdAt": "2026-08-14T12:18:25.028Z",
+          "targetIds": [],
+          "payload": {
+            "op": "add",
+            "shape": {
+              "type": "rect",
+              "name": "CoreGapCallout",
+              "x": 60,
+              "y": 640,
+              "width": 1180,
+              "height": 62,
+              "fills": [
+                {
+                  "type": "solid",
+                  "color": "#eff6ff",
+                  "opacity": 1
+                }
+              ],
+              "strokes": [
+                {
+                  "color": "#bfdbfe",
+                  "width": 1,
+                  "opacity": 1,
+                  "position": "inside"
+                }
+              ],
+              "cornerRadius": 10
+            }
+          }
+        },
+        {
+          "id": "dop_msswy1z8_9",
+          "type": "create_shape",
+          "label": "tool:tool_call_00_MWbipDAddNhIMxhdiTeo5798:0",
+          "source": "agent",
+          "createdAt": "2026-08-14T12:18:25.028Z",
+          "targetIds": [],
+          "payload": {
+            "op": "add",
+            "shape": {
+              "type": "text",
+              "name": "CoreGapText",
+              "x": 84,
+              "y": 656,
+              "width": 1132,
+              "height": 32,
+              "textContent": "Core gap: hiding the nav item reduces confusion but does not fix import/reconcile discoverability — the owner actions (Import CSV / reconcile preview / export) still require an ?owner= URL or an owner-tab click.",
+              "fontSize": 13,
+              "fontFamily": "system-ui",
+              "fontColor": "#1e3a8a"
+            }
+          }
+        }
+      ],
+      "affectedIds": [
+        "s_msswy1z7_1",
+        "s_msswy1z8_2",
+        "s_msswy1z8_3",
+        "s_msswy1z8_4",
+        "s_msswy1z8_5",
+        "s_msswy1z8_6",
+        "s_msswy1z8_7",
+        "s_msswy1z8_8",
+        "s_msswy1z8_9"
+      ],
+      "errors": [],
+      "id": "journal_msswy1z8_a",
+      "createdAt": "2026-08-14T12:18:25.028Z"
+    },
+    {
+      "label": "tool:tool_call_00_eCeJ6FKe0utILlv6mOZo6567:0",
+      "status": "partial",
+      "operations": [
+        {
+          "id": "dop_msswyh0s_b",
+          "type": "create_shape",
+          "label": "tool:tool_call_00_eCeJ6FKe0utILlv6mOZo6567:0",
+          "source": "agent",
+          "createdAt": "2026-08-14T12:18:44.524Z",
+          "targetIds": [],
+          "payload": {
+            "op": "add",
+            "shape": {
+              "type": "text",
+              "name": "ColAHead",
+              "x": 84,
+              "y": 170,
+              "width": 332,
+              "height": 24,
+              "textContent": "1 · Blocking — config.yaml email",
+              "fontSize": 16,
+              "fontFamily": "system-ui",
+              "fontWeight": 700,
+              "fontColor": "#dc2626"
+            }
+          }
+        },
+        {
+          "id": "dop_msswyh0s_c",
+          "type": "create_shape",
+          "label": "tool:tool_call_00_eCeJ6FKe0utILlv6mOZo6567:0",
+          "source": "agent",
+          "createdAt": "2026-08-14T12:18:44.524Z",
+          "targetIds": [],
+          "payload": {
+            "op": "add",
+            "shape": {
+              "type": "rect",
+              "name": "MonoCard",
+              "x": 80,
+              "y": 208,
+              "width": 340,
+              "height": 62,
+              "fills": [
+                {
+                  "type": "solid",
+                  "color": "#fef2f2",
+                  "opacity": 1
+                }
+              ],
+              "strokes": [
+                {
+                  "color": "#fecaca",
+                  "width": 1,
+                  "opacity": 1,
+                  "position": "inside"
+                }
+              ],
+              "cornerRadius": 8
+            }
+          }
+        },
+        {
+          "id": "dop_msswyh0s_d",
+          "type": "create_shape",
+          "label": "tool:tool_call_00_eCeJ6FKe0utILlv6mOZo6567:0",
+          "source": "agent",
+          "createdAt": "2026-08-14T12:18:44.524Z",
+          "targetIds": [],
+          "payload": {
+            "op": "add",
+            "shape": {
+              "type": "text",
+              "name": "MonoText",
+              "x": 92,
+              "y": 220,
+              "width": 320,
+              "height": 40,
+              "textContent": "local_login_email: steveleonard11@gnail.com",
+              "fontSize": 13,
+              "fontFamily": "ui-monospace, monospace",
+              "fontWeight": 600,
+              "fontColor": "#b91c1c",
+              "lineHeight": 20
+            }
+          }
+        },
+        {
+          "id": "dop_msswyh0s_e",
+          "type": "create_shape",
+          "label": "tool:tool_call_00_eCeJ6FKe0utILlv6mOZo6567:0",
+          "source": "agent",
+          "createdAt": "2026-08-14T12:18:44.524Z",
+          "targetIds": [],
+          "payload": {
+            "op": "add",
+            "shape": {
+              "type": "text",
+              "name": "ColANote1",
+              "x": 84,
+              "y": 286,
+              "width": 340,
+              "height": 58,
+              "textContent": "Real personal email in a tracked config file — identity-leak risk if committed. Revert to '' or a placeholder before any commit that includes it.",
+              "fontSize": 12.5,
+              "fontFamily": "system-ui",
+              "fontColor": "#334155",
+              "lineHeight": 19
+            }
+          }
+        },
+        {
+          "id": "dop_msswyh0s_f",
+          "type": "create_shape",
+          "label": "tool:tool_call_00_eCeJ6FKe0utILlv6mOZo6567:0",
+          "source": "agent",
+          "createdAt": "2026-08-14T12:18:44.524Z",
+          "targetIds": [],
+          "payload": {
+            "op": "add",
+            "shape": {
+              "type": "text",
+              "name": "ColAItem2",
+              "x": 84,
+              "y": 368,
+              "width": 340,
+              "height": 42,
+              "textContent": "Also flagged: any local/CI auth flow asserting an empty value would break if this line ships.",
+              "fontSize": 12.5,
+              "fontFamily": "system-ui",
+              "fontColor": "#334155",
+              "lineHeight": 19
+            }
+          }
+        },
+        {
+          "id": "dop_msswyh0s_g",
+          "type": "create_shape",
+          "label": "tool:tool_call_00_eCeJ6FKe0utILlv6mOZo6567:0",
+          "source": "agent",
+          "createdAt": "2026-08-14T12:18:44.524Z",
+          "targetIds": [],
+          "payload": {
+            "op": "add",
+            "shape": {
+              "type": "text",
+              "name": "ColAContext",
+              "x": 84,
+              "y": 424,
+              "width": 340,
+              "height": 62,
+              "textContent": "Context: this line is NOT part of the PR's 4-file diff — it is a pre-existing local edit, dirty in the workspace before the branch was made. Only matters if you commit it.",
+              "fontSize": 11.5,
+              "fontFamily": "system-ui",
+              "fontColor": "#64748b",
+              "lineHeight": 18
+            }
+          }
+        },
+        {
+          "id": "dop_msswyh0s_h",
+          "type": "create_shape",
+          "label": "tool:tool_call_00_eCeJ6FKe0utILlv6mOZo6567:0",
+          "source": "agent",
+          "createdAt": "2026-08-14T12:18:44.524Z",
+          "targetIds": [],
+          "payload": {
+            "op": "add",
+            "shape": {
+              "type": "text",
+              "name": "ColBHead",
+              "x": 484,
+              "y": 170,
+              "width": 332,
+              "height": 24,
+              "textContent": "2 · Acceptance criteria",
+              "fontSize": 16,
+              "fontFamily": "system-ui",
+              "fontWeight": 700,
+              "fontColor": "#2563eb"
+            }
+          }
+        },
+        {
+          "id": "dop_msswyh0s_i",
+          "type": "create_shape",
+          "label": "tool:tool_call_00_eCeJ6FKe0utILlv6mOZo6567:0",
+          "source": "agent",
+          "createdAt": "2026-08-14T12:18:44.524Z",
+          "targetIds": [],
+          "payload": {
+            "op": "add",
+            "shape": {
+              "type": "rect",
+              "name": "AC1Card",
+              "x": 480,
+              "y": 206,
+              "width": 340,
+              "height": 118,
+              "fills": [
+                {
+                  "type": "solid",
+                  "color": "#fffbeb",
+                  "opacity": 1
+                }
+              ],
+              "strokes": [
+                {
+                  "color": "#fde68a",
+                  "width": 1,
+                  "opacity": 1,
+                  "position": "inside"
+                }
+              ],
+              "cornerRadius": 8
+            }
+          }
+        },
+        {
+          "id": "dop_msswyh0s_j",
+          "type": "create_shape",
+          "label": "tool:tool_call_00_eCeJ6FKe0utILlv6mOZo6567:0",
+          "source": "agent",
+          "createdAt": "2026-08-14T12:18:44.524Z",
+          "targetIds": [],
+          "payload": {
+            "op": "add",
+            "shape": {
+              "type": "text",
+              "name": "AC1Label",
+              "x": 492,
+              "y": 214,
+              "width": 240,
+              "height": 18,
+              "textContent": "AC1 · Owner-scoped landing / label",
+              "fontSize": 12.5,
+              "fontFamily": "system-ui",
+              "fontWeight": 700,
+              "fontColor": "#0f172a"
+            }
+          }
+        },
+        {
+          "id": "dop_msswyh0s_k",
+          "type": "create_shape",
+          "label": "tool:tool_call_00_eCeJ6FKe0utILlv6mOZo6567:0",
+          "source": "agent",
+          "createdAt": "2026-08-14T12:18:44.524Z",
+          "targetIds": [],
+          "payload": {
+            "op": "add",
+            "shape": {
+              "type": "rect",
+              "name": "AC1Chip",
+              "x": 742,
+              "y": 214,
+              "width": 66,
+              "height": 20,
+              "fills": [
+                {
+                  "type": "solid",
+                  "color": "#d97706",
+                  "opacity": 1
+                }
+              ],
+              "cornerRadius": 10
+            }
+          }
+        },
+        {
+          "id": "dop_msswyh0s_l",
+          "type": "create_shape",
+          "label": "tool:tool_call_00_eCeJ6FKe0utILlv6mOZo6567:0",
+          "source": "agent",
+          "createdAt": "2026-08-14T12:18:44.524Z",
+          "targetIds": [],
+          "payload": {
+            "op": "add",
+            "shape": {
+              "type": "text",
+              "name": "AC1ChipText",
+              "x": 742,
+              "y": 214,
+              "width": 66,
+              "height": 20,
+              "textContent": "PARTIAL",
+              "fontSize": 10.5,
+              "fontFamily": "system-ui",
+              "fontWeight": 700,
+              "fontColor": "#ffffff",
+              "textAlign": "center",
+              "lineHeight": 20
+            }
+          }
+        },
+        {
+          "id": "dop_msswyh0s_m",
+          "type": "create_shape",
+          "label": "tool:tool_call_00_eCeJ6FKe0utILlv6mOZo6567:0",
+          "source": "agent",
+          "createdAt": "2026-08-14T12:18:44.524Z",
+          "targetIds": [],
+          "payload": {
+            "op": "add",
+            "shape": {
+              "type": "text",
+              "name": "AC1Note",
+              "x": 492,
+              "y": 240,
+              "width": 316,
+              "height": 74,
+              "textContent": "Nav item hidden via hideFromMenu — misleading duplicate gone. But no owner-scoped landing page is provided; item is simply removed.",
+              "fontSize": 11.5,
+              "fontFamily": "system-ui",
+              "fontColor": "#475569",
+              "lineHeight": 18
+            }
+          }
+        },
+        {
+          "id": "dop_msswyh0s_n",
+          "type": "create_shape",
+          "label": "tool:tool_call_00_eCeJ6FKe0utILlv6mOZo6567:0",
+          "source": "agent",
+          "createdAt": "2026-08-14T12:18:44.524Z",
+          "targetIds": [],
+          "payload": {
+            "op": "add",
+            "shape": {
+              "type": "rect",
+              "name": "AC2Card",
+              "x": 480,
+              "y": 336,
+              "width": 340,
+              "height": 132,
+              "fills": [
+                {
+                  "type": "solid",
+                  "color": "#fef2f2",
+                  "opacity": 1
+                }
+              ],
+              "strokes": [
+                {
+                  "color": "#fecaca",
+                  "width": 1,
+                  "opacity": 1,
+                  "position": "inside"
+                }
+              ],
+              "cornerRadius": 8
+            }
+          }
+        },
+        {
+          "id": "dop_msswyh0s_o",
+          "type": "create_shape",
+          "label": "tool:tool_call_00_eCeJ6FKe0utILlv6mOZo6567:0",
+          "source": "agent",
+          "createdAt": "2026-08-14T12:18:44.524Z",
+          "targetIds": [],
+          "payload": {
+            "op": "add",
+            "shape": {
+              "type": "text",
+              "name": "AC2Label",
+              "x": 492,
+              "y": 344,
+              "width": 250,
+              "height": 18,
+              "textContent": "AC2 · Import CSV w/o manual URL",
+              "fontSize": 12.5,
+              "fontFamily": "system-ui",
+              "fontWeight": 700,
+              "fontColor": "#0f172a"
+            }
+          }
+        },
+        {
+          "id": "dop_msswyh0s_p",
+          "type": "create_shape",
+          "label": "tool:tool_call_00_eCeJ6FKe0utILlv6mOZo6567:0",
+          "source": "agent",
+          "createdAt": "2026-08-14T12:18:44.524Z",
+          "targetIds": [],
+          "payload": {
+            "op": "add",
+            "shape": {
+              "type": "rect",
+              "name": "AC2Chip",
+              "x": 736,
+              "y": 344,
+              "width": 72,
+              "height": 20,
+              "fills": [
+                {
+                  "type": "solid",
+                  "color": "#dc2626",
+                  "opacity": 1
+                }
+              ],
+              "cornerRadius": 10
+            }
+          }
+        },
+        {
+          "id": "dop_msswyh0s_q",
+          "type": "create_shape",
+          "label": "tool:tool_call_00_eCeJ6FKe0utILlv6mOZo6567:0",
+          "source": "agent",
+          "createdAt": "2026-08-14T12:18:44.524Z",
+          "targetIds": [],
+          "payload": {
+            "op": "add",
+            "shape": {
+              "type": "text",
+              "name": "AC2ChipText",
+              "x": 736,
+              "y": 344,
+              "width": 72,
+              "height": 20,
+              "textContent": "NOT ADDRESSED",
+              "fontSize": 9.5,
+              "fontFamily": "system-ui",
+              "fontWeight": 700,
+              "fontColor": "#ffffff",
+              "textAlign": "center",
+              "lineHeight": 20
+            }
+          }
+        },
+        {
+          "id": "dop_msswyh0s_r",
+          "type": "create_shape",
+          "label": "tool:tool_call_00_eCeJ6FKe0utILlv6mOZo6567:0",
+          "source": "agent",
+          "createdAt": "2026-08-14T12:18:44.524Z",
+          "targetIds": [],
+          "payload": {
+            "op": "add",
+            "shape": {
+              "type": "text",
+              "name": "AC2Note",
+              "x": 492,
+              "y": 370,
+              "width": 316,
+              "height": 88,
+              "textContent": "No new entry point added. Still renders only when activeOwner && portfolio (GroupPortfolioView.tsx:1405-1417) — an owner tab click or ?owner= URL is still required.",
+              "fontSize": 11.5,
+              "fontFamily": "system-ui",
+              "fontColor": "#475569",
+              "lineHeight": 18
+            }
+          }
+        },
+        {
+          "id": "dop_msswyh0s_s",
+          "type": "create_shape",
+          "label": "tool:tool_call_00_eCeJ6FKe0utILlv6mOZo6567:0",
+          "source": "agent",
+          "createdAt": "2026-08-14T12:18:44.524Z",
+          "targetIds": [],
+          "payload": {
+            "op": "add",
+            "shape": {
+              "type": "rect",
+              "name": "AC3Card",
+              "x": 480,
+              "y": 480,
+              "width": 340,
+              "height": 108,
+              "fills": [
+                {
+                  "type": "solid",
+                  "color": "#fef2f2",
+                  "opacity": 1
+                }
+              ],
+              "strokes": [
+                {
+                  "color": "#fecaca",
+                  "width": 1,
+                  "opacity": 1,
+                  "position": "inside"
+                }
+              ],
+              "cornerRadius": 8
+            }
+          }
+        },
+        {
+          "id": "dop_msswyh0s_t",
+          "type": "create_shape",
+          "label": "tool:tool_call_00_eCeJ6FKe0utILlv6mOZo6567:0",
+          "source": "agent",
+          "createdAt": "2026-08-14T12:18:44.524Z",
+          "targetIds": [],
+          "payload": {
+            "op": "add",
+            "shape": {
+              "type": "text",
+              "name": "AC3Label",
+              "x": 492,
+              "y": 488,
+              "width": 260,
+              "height": 18,
+              "textContent": "AC3 · Export / Add position / Add account",
+              "fontSize": 12.5,
+              "fontFamily": "system-ui",
+              "fontWeight": 700,
+              "fontColor": "#0f172a"
+            }
+          }
+        },
+        {
+          "id": "dop_msswyh0s_u",
+          "type": "create_shape",
+          "label": "tool:tool_call_00_eCeJ6FKe0utILlv6mOZo6567:0",
+          "source": "agent",
+          "createdAt": "2026-08-14T12:18:44.524Z",
+          "targetIds": [],
+          "payload": {
+            "op": "add",
+            "shape": {
+              "type": "rect",
+              "name": "AC3Chip",
+              "x": 736,
+              "y": 488,
+              "width": 72,
+              "height": 20,
+              "fills": [
+                {
+                  "type": "solid",
+                  "color": "#dc2626",
+                  "opacity": 1
+                }
+              ],
+              "cornerRadius": 10
+            }
+          }
+        },
+        {
+          "id": "dop_msswyh0s_v",
+          "type": "create_shape",
+          "label": "tool:tool_call_00_eCeJ6FKe0utILlv6mOZo6567:0",
+          "source": "agent",
+          "createdAt": "2026-08-14T12:18:44.524Z",
+          "targetIds": [],
+          "payload": {
+            "op": "add",
+            "shape": {
+              "type": "text",
+              "name": "AC3ChipText",
+              "x": 736,
+              "y": 488,
+              "width": 72,
+              "height": 20,
+              "textContent": "NOT ADDRESSED",
+              "fontSize": 9.5,
+              "fontFamily": "system-ui",
+              "fontWeight": 700,
+              "fontColor": "#ffffff",
+              "textAlign": "center",
+              "lineHeight": 20
+            }
+          }
+        },
+        {
+          "id": "dop_msswyh0s_w",
+          "type": "create_shape",
+          "label": "tool:tool_call_00_eCeJ6FKe0utILlv6mOZo6567:0",
+          "source": "agent",
+          "createdAt": "2026-08-14T12:18:44.524Z",
+          "targetIds": [],
+          "payload": {
+            "op": "add",
+            "shape": {
+              "type": "text",
+              "name": "AC3Note",
+              "x": 492,
+              "y": 514,
+              "width": 316,
+              "height": 66,
+              "textContent": "No change to OwnerPortfolioActions visibility; reachability from the group dashboard not verified by the PR.",
+              "fontSize": 11.5,
+              "fontFamily": "system-ui",
+              "fontColor": "#475569",
+              "lineHeight": 18
+            }
+          }
+        },
+        {
+          "id": "dop_msswyh0s_x",
+          "type": "create_shape",
+          "label": "tool:tool_call_00_eCeJ6FKe0utILlv6mOZo6567:0",
+          "source": "agent",
+          "createdAt": "2026-08-14T12:18:44.524Z",
+          "targetIds": [],
+          "payload": {
+            "op": "add",
+            "shape": {
+              "type": "text",
+              "name": "ColCHead",
+              "x": 884,
+              "y": 170,
+              "width": 332,
+              "height": 24,
+              "textContent": "3 · Suggested follow-ups",
+              "fontSize": 16,
+              "fontFamily": "system-ui",
+              "fontWeight": 700,
+              "fontColor": "#16a34a"
+            }
+          }
+        },
+        {
+          "id": "dop_msswyh0s_y",
+          "type": "create_shape",
+          "label": "tool:tool_call_00_eCeJ6FKe0utILlv6mOZo6567:0",
+          "source": "agent",
+          "createdAt": "2026-08-14T12:18:44.524Z",
+          "targetIds": [],
+          "payload": {
+            "op": "add",
+            "shape": {
+              "type": "text",
+              "name": "FU1",
+              "x": 884,
+              "y": 210,
+              "width": 336,
+              "height": 54,
+              "textContent": "1.  Add a visible 'Import CSV' entry on the group dashboard when an owner is selected (or a global import button that prompts for owner selection).",
+              "fontSize": 12,
+              "fontFamily": "system-ui",
+              "fontColor": "#334155",
+              "lineHeight": 18
+            }
+          }
+        },
+        {
+          "id": "dop_msswyh0s_z",
+          "type": "create_shape",
+          "label": "tool:tool_call_00_eCeJ6FKe0utILlv6mOZo6567:0",
+          "source": "agent",
+          "createdAt": "2026-08-14T12:18:44.524Z",
+          "targetIds": [],
+          "payload": {
+            "op": "add",
+            "shape": {
+              "type": "text",
+              "name": "FU2",
+              "x": 884,
+              "y": 280,
+              "width": 336,
+              "height": 54,
+              "textContent": "2.  Decide: rename the nav item ('Dashboard' / 'Group Dashboard') instead of hiding it entirely, so the entry point stays discoverable.",
+              "fontSize": 12,
+              "fontFamily": "system-ui",
+              "fontColor": "#334155",
+              "lineHeight": 18
+            }
+          }
+        },
+        {
+          "id": "dop_msswyh0s_10",
+          "type": "create_shape",
+          "label": "tool:tool_call_00_eCeJ6FKe0utILlv6mOZo6567:0",
+          "source": "agent",
+          "createdAt": "2026-08-14T12:18:44.524Z",
+          "targetIds": [],
+          "payload": {
+            "op": "add",
+            "shape": {
+              "type": "text",
+              "name": "FU3",
+              "x": 884,
+              "y": 350,
+              "width": 336,
+              "height": 54,
+              "textContent": "3.  Add a test that import/reconcile is reachable from the group dashboard without manual URL editing.",
+              "fontSize": 12,
+              "fontFamily": "system-ui",
+              "fontColor": "#334155",
+              "lineHeight": 18
+            }
+          }
+        },
+        {
+          "id": "dop_msswyh0s_11",
+          "type": "create_shape",
+          "label": "tool:tool_call_00_eCeJ6FKe0utILlv6mOZo6567:0",
+          "source": "agent",
+          "createdAt": "2026-08-14T12:18:44.524Z",
+          "targetIds": [],
+          "payload": {
+            "op": "add",
+            "shape": {
+              "type": "rect",
+              "name": "VerdictBox",
+              "x": 880,
+              "y": 424,
+              "width": 340,
+              "height": 96,
+              "fills": [
+                {
+                  "type": "solid",
+                  "color": "#f0fdf4",
+                  "opacity": 1
+                }
+              ],
+              "strokes": [
+                {
+                  "color": "#bbf7d0",
+                  "width": 1,
+                  "opacity": 1,
+                  "position": "inside"
+                }
+              ],
+              "cornerRadius": 8
+            }
+          }
+        },
+        {
+          "id": "dop_msswyh0s_12",
+          "type": "create_shape",
+          "label": "tool:tool_call_00_eCeJ6FKe0utILlv6mOZo6567:0",
+          "source": "agent",
+          "createdAt": "2026-08-14T12:18:44.524Z",
+          "targetIds": [],
+          "payload": {
+            "op": "add",
+            "shape": {
+              "type": "text",
+              "name": "VerdictBoxTitle",
+              "x": 892,
+              "y": 434,
+              "width": 316,
+              "height": 20,
+              "textContent": "Verdict: REQUEST CHANGES (advisory)",
+              "fontSize": 13,
+              "fontFamily": "system-ui",
+              "fontWeight": 700,
+              "fontColor": "#15803d"
+            }
+          }
+        },
+        {
+          "id": "dop_msswyh0s_13",
+          "type": "create_shape",
+          "label": "tool:tool_call_00_eCeJ6FKe0utILlv6mOZo6567:0",
+          "source": "agent",
+          "createdAt": "2026-08-14T12:18:44.524Z",
+          "targetIds": [],
+          "payload": {
+            "op": "add",
+            "shape": {
+              "type": "text",
+              "name": "VerdictBoxBody",
+              "x": 892,
+              "y": 458,
+              "width": 316,
+              "height": 54,
+              "textContent": "Blocking flag: config.yaml email (pre-existing local edit, not in PR diff). Core gap: import/reconcile discoverability remains unfixed.",
+              "fontSize": 11.5,
+              "fontFamily": "system-ui",
+              "fontColor": "#475569",
+              "lineHeight": 17
+            }
+          }
+        }
+      ],
+      "affectedIds": [
+        "s_msswyh0o_a",
+        "s_msswyh0p_b",
+        "s_msswyh0p_c",
+        "s_msswyh0p_d",
+        "s_msswyh0p_e",
+        "s_msswyh0p_f",
+        "s_msswyh0p_g",
+        "s_msswyh0p_h",
+        "s_msswyh0p_i",
+        "s_msswyh0p_j",
+        "s_msswyh0p_k",
+        "s_msswyh0p_l",
+        "s_msswyh0q_m",
+        "s_msswyh0q_n",
+        "s_msswyh0q_o",
+        "s_msswyh0q_p",
+        "s_msswyh0q_q",
+        "s_msswyh0q_r",
+        "s_msswyh0q_s",
+        "s_msswyh0q_t",
+        "s_msswyh0q_u",
+        "s_msswyh0r_v",
+        "s_msswyh0r_w",
+        "s_msswyh0r_x",
+        "s_msswyh0r_y",
+        "s_msswyh0r_z",
+        "s_msswyh0r_10",
+        "s_msswyh0r_11",
+        "s_msswyh0s_12"
+      ],
+      "errors": [
+        {
+          "code": "INVALID_OP",
+          "message": "Op #4: shape.strokes.0.position: Invalid input"
+        }
+      ],
+      "id": "journal_msswyh0s_14",
+      "createdAt": "2026-08-14T12:18:44.524Z"
+    }
+  ]
+}

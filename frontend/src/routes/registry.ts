@@ -25,6 +25,9 @@ export interface RouteRegistryEntry {
   section: RouteSection;
   menuCategory?: MenuCategory;
   priority?: number;
+  /** Keep the mode routable (deep links, redirects, buildPathForMode) but
+   *  exclude it from the nav menu built by getMenuEntries. */
+  hideFromMenu?: boolean;
   defaultPath: (context: RoutePathContext) => string;
   routePath?: string;
   lazyComponent?: LazyExoticComponent<ComponentType>;
@@ -111,6 +114,10 @@ export const ROUTE_REGISTRY: RouteRegistryEntry[] = [
     routeSegment: 'portfolio',
     section: 'user',
     menuCategory: 'dashboard',
+    // The merged dashboard (mode 'group') already exposes the owner-scoped
+    // view with import/reconcile/export via its owner tabs (#6716); the
+    // duplicate 'Portfolio' entry stays routable but is hidden from the nav.
+    hideFromMenu: true,
     priority: 30,
     defaultPath: (context) => {
       const { owner } = routeContext(context);
@@ -449,7 +456,10 @@ export function getMenuEntries(
   section: MenuSection
 ): Array<RouteRegistryEntry & { menuCategory: MenuCategory }> {
   return ROUTE_REGISTRY.filter(
-    (entry) => entry.section === section && Boolean(entry.menuCategory)
+    (entry) =>
+      entry.section === section &&
+      Boolean(entry.menuCategory) &&
+      !entry.hideFromMenu
   ).sort(
     (left, right) => (left.priority ?? 0) - (right.priority ?? 0)
   ) as Array<RouteRegistryEntry & { menuCategory: MenuCategory }>;

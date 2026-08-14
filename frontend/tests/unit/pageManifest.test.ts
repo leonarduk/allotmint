@@ -6,6 +6,7 @@ import {
   deriveModeFromPathname,
   deriveModeFromLocation,
   deriveRouteFromPathname,
+  getMenuEntries,
   menuCategories,
   pageManifest,
   pageManifestByMode,
@@ -148,5 +149,20 @@ describe('page manifest', () => {
       owner: 'steve',
       account: 'isa',
     });
+  });
+
+  it('hides the owner mode from the nav menu while keeping it routable (#6716)', () => {
+    // The merged dashboard already exposes the owner-scoped view (with
+    // import/reconcile/export) via its owner tabs, so 'Portfolio' must not
+    // appear as a duplicate menu entry...
+    expect(getMenuEntries('user').some((entry) => entry.mode === 'owner')).toBe(
+      false
+    );
+    // ...but the registry entry stays so deep links and redirects keep
+    // working: /portfolio/:owner -> /?owner=X and buildPathForMode('owner').
+    expect(pageManifestByMode.owner.routeSegment).toBe('portfolio');
+    expect(buildPathForMode('owner', { owner: 'Steve Smith' })).toBe(
+      '/?owner=Steve%20Smith'
+    );
   });
 });

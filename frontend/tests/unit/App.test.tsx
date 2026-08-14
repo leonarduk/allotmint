@@ -1986,7 +1986,9 @@ describe("App", () => {
 
     const nav = screen.getByRole("navigation");
     expect(within(nav).getByText("Market Overview")).toBeInTheDocument();
-    expect(within(nav).getByText("Portfolio")).toBeInTheDocument();
+    // The owner-scoped portfolio is reachable via the dashboard's owner tabs
+    // (it renders the same merged view), so the duplicate nav entry is gone.
+    expect(within(nav).queryByText("Portfolio")).not.toBeInTheDocument();
     expect(within(nav).getByText("Support")).toBeInTheDocument();
   });
 

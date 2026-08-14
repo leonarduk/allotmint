@@ -239,7 +239,9 @@ describe('Menu', () => {
     fireEvent.click(dashboardToggle);
 
     const firstMenuItem = await screen.findByRole('menuitem', {
-      name: i18n.t('app.modes.owner'),
+      // The owner-scoped portfolio entry was removed from the nav (#6716);
+      // the dashboard category now leads with the group (Dashboard) item.
+      name: i18n.t('app.modes.group'),
     });
     const list = firstMenuItem.closest('ul');
 

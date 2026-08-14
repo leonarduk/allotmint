@@ -224,7 +224,9 @@
     "view": "Vista:",
     "viewPresets": {
       "all": "Todos"
-    }
+    },
+    "noPriceHistoryNotice_one": "{{count}} instrumento sin historial de precios",
+    "noPriceHistoryNotice_other": "{{count}} instrumentos sin historial de precios"
   },
   "instrumentadmin": {
     "actions": "Acciones",

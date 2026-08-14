@@ -8,6 +8,7 @@ import * as api from '@/api';
 import {
   useInstrumentHistory,
   preloadInstrumentHistory,
+  getCachedInstrumentHistory,
   __clearInstrumentHistoryCache,
 } from '@/hooks/useInstrumentHistory';
 
@@ -17,6 +18,18 @@ const mockGetInstrumentDetail = api
 afterAll(() => {
   mockGetInstrumentDetail.mockRestore();
 });
+
+const detailWithHistory = {
+  prices: [{ date: '2024-01-01', close: 10 }],
+  positions: [],
+  rows: 1,
+};
+
+const detailWithoutHistory = {
+  prices: [],
+  positions: [],
+  rows: 0,
+};
 
 describe('useInstrumentHistory', () => {
   beforeEach(() => {
@@ -187,5 +200,51 @@ describe('useInstrumentHistory', () => {
 
     // Both callers awaited the same rejected in-flight promise.
     expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('preloadInstrumentHistory missing-history notice set', () => {
+  beforeEach(() => {
+    mockGetInstrumentDetail.mockReset();
+    __clearInstrumentHistoryCache();
+  });
+
+  it('returns tickers that resolved to an empty history', async () => {
+    mockGetInstrumentDetail
+      .mockResolvedValueOnce(detailWithoutHistory)
+      .mockResolvedValueOnce(detailWithHistory)
+      .mockResolvedValueOnce(detailWithoutHistory);
+
+    const missing = await preloadInstrumentHistory(['A.L', 'B.L', 'C.L'], 30);
+
+    expect(missing).toEqual(['A.L', 'C.L']);
+  });
+
+  it('caches empty responses so later preloads do not refetch', async () => {
+    mockGetInstrumentDetail.mockResolvedValue(detailWithoutHistory);
+
+    await preloadInstrumentHistory(['A.L'], 30);
+    const missing = await preloadInstrumentHistory(['A.L'], 30);
+
+    expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(1);
+    expect(missing).toEqual(['A.L']);
+    expect(getCachedInstrumentHistory('A.L', 30)?.prices).toEqual([]);
+  });
+
+  it('ignores failed fetches (e.g. unknown tickers) in the notice set', async () => {
+    mockGetInstrumentDetail.mockRejectedValue(new Error('HTTP 404'));
+
+    const missing = await preloadInstrumentHistory(['A.L'], 30);
+
+    expect(missing).toEqual([]);
+  });
+
+  it('deduplicates tickers passed multiple times', async () => {
+    mockGetInstrumentDetail.mockResolvedValue(detailWithoutHistory);
+
+    const missing = await preloadInstrumentHistory(['A.L', 'A.L', 'B.L'], 30);
+
+    expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(2);
+    expect(missing).toEqual(['A.L', 'B.L']);
   });
 });

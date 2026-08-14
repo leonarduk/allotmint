@@ -130,6 +130,10 @@ export function HoldingsTable({
 
   const [sparkRange, setSparkRange] = useState<SparkRange>(30);
 
+  const [missingHistoryTickers, setMissingHistoryTickers] = useState<string[]>(
+    [],
+  );
+
   useEffect(() => {
     if (viewPreset && !viewPresets.some(({ value }) => value === viewPreset)) {
       setViewPreset("");
@@ -139,7 +143,11 @@ export function HoldingsTable({
   useEffect(() => {
     const tickers = Array.from(new Set(holdingRows.map((h) => h.ticker)));
     if (tickers.length) {
-      preloadInstrumentHistory(tickers, sparkRange).catch(() => {});
+      preloadInstrumentHistory(tickers, sparkRange)
+        .then(setMissingHistoryTickers)
+        .catch(() => {});
+    } else {
+      setMissingHistoryTickers([]);
     }
   }, [holdingRows, sparkRange]);
 
@@ -469,6 +477,13 @@ export function HoldingsTable({
 
   return (
     <>
+      {missingHistoryTickers.length > 0 && (
+        <p role="status" className="mb-2 text-sm text-warning">
+          {t("holdingsTable.noPriceHistoryNotice", {
+            count: missingHistoryTickers.length,
+          })}
+        </p>
+      )}
       {/* FilterBar and all advanced controls are hidden in Family MVP mode */}
       {!familyMvpEnabled && (
         <>

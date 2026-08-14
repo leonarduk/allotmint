@@ -38,11 +38,30 @@ function rowsFromPortfolio(portfolio: Portfolio): Row[] {
   if (!entries.length) return [BLANK_ROW];
 
   const totalValue = entries.reduce((sum, [, value]) => sum + value, 0);
-  return entries.map(([ticker, current]) => ({
+  const rows: Row[] = entries.map(([ticker, current]) => ({
     ticker,
     current: current.toFixed(2),
     target: totalValue > 0 ? ((current / totalValue) * 100).toFixed(2) : "0",
   }));
+
+  // Rounding each weight to 2dp independently drifts the sum off 100
+  // (100.02 for alex's portfolio), which fails the page's own validation.
+  // Absorb the residual in one prefilled row so targets always sum to exactly
+  // 100.00. Prefer the smallest holding (entries are sorted descending) to
+  // minimize relative distortion; skip it only if the adjustment would go
+  // negative (degenerate tiny holding).
+  if (totalValue > 0 && rows.length > 1) {
+    const residual = 100 - rows.reduce((sum, row) => sum + parseFloat(row.target), 0);
+    for (let i = rows.length - 1; i >= 0; i--) {
+      const adjusted = parseFloat(rows[i].target) + residual;
+      if (adjusted >= 0) {
+        rows[i] = { ...rows[i], target: adjusted.toFixed(2) };
+        break;
+      }
+    }
+  }
+
+  return rows;
 }
 
 export default function Rebalance() {

@@ -277,4 +277,36 @@ test.describe('issue 6505: no duplicate-key warnings for same-ticker rows', () =
     await expect(page.getByLabel(/Target weight \(%\) for CASH/)).toHaveCount(1);
     expect(warnings).toEqual([]);
   });
+
+  test('research page search renders duplicate suggestions without warnings', async ({
+    page,
+  }) => {
+    const warnings = collectDuplicateKeyWarnings(page);
+    await applyAuth(page);
+    await setupCoreMocks(page);
+    // The header search (InstrumentSearchBar) renders suggestions keyed by
+    // ticker+index; duplicate tickers must not produce duplicate-key warnings.
+    await page.route('**/instrument/search**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          { ticker: 'CASH', name: 'Cash GBP' },
+          { ticker: 'CASH', name: 'Cash L' },
+          { ticker: 'PFE', name: 'Pfizer N' },
+          { ticker: 'PFE', name: 'Pfizer L' },
+        ]),
+      });
+    });
+
+    await page.goto(`${baseUrl}/research`);
+    // /research starts in an empty state; open the header search bar and type
+    // a query so the duplicate-ticker suggestions render.
+    await page.getByRole('button', { name: 'Research' }).click();
+    await page.getByLabel('Search instruments').fill('CA');
+    // Both duplicate suggestions must render before we can trust the warning check.
+    await expect(page.getByText('CASH — Cash GBP', { exact: true })).toBeVisible();
+    await expect(page.getByText('CASH — Cash L', { exact: true })).toBeVisible();
+    expect(warnings).toEqual([]);
+  });
 });

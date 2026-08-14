@@ -199,7 +199,13 @@ export default function InstrumentAdmin() {
         </thead>
         <tbody>
           {filteredRows.map((r, idx) => (
-            <tr key={r._originalTicker ?? idx}>
+            <tr
+              key={
+                r._originalTicker && r._originalExchange
+                  ? `${r._originalTicker}.${r._originalExchange}`
+                  : idx
+              }
+            >
               <td>
                 <input
                   value={r.ticker}

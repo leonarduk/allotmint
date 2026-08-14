@@ -172,7 +172,8 @@ export default function Trading() {
             </p>
           </div>
         ) : (
-          <table className={tableStyles.table}>
+          <div className={tableStyles.scrollContainer}>
+            <table className={tableStyles.table}>
             <caption>
               {t('trading.signalsTableCaption', 'Trading signals')}
             </caption>
@@ -209,6 +210,7 @@ export default function Trading() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
         {signals.length > MAX_TRADING_SIGNAL_ROWS && (
           <p>

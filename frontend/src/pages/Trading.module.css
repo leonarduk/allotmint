@@ -1,6 +1,7 @@
 .page {
   display: grid;
   gap: 1.5rem;
+  grid-template-columns: minmax(0, 1fr);
   padding: 1rem;
 }
 .header {

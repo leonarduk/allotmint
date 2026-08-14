@@ -1110,7 +1110,8 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
       {isAllPositions && enableAdvancedAnalytics && <TopMoversSummary slug={slug} />}
 
       {ownerRows.length > 0 && (
-        <table className={tableStyles.table} style={{ marginBottom: "1rem" }}>
+        <div className={tableStyles.scrollContainer} style={{ marginBottom: "1rem" }}>
+          <table className={tableStyles.table}>
           <thead>
             <tr>
               <th className={tableStyles.cell}>Owner</th>
@@ -1271,7 +1272,8 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
               );
             })}
           </tbody>
-        </table>
+          </table>
+        </div>
       )}
 
       <div

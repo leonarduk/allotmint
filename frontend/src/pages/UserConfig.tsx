@@ -334,7 +334,10 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
             {approvalsError && (
               <div className="text-red-500">{approvalsError}</div>
             )}
-            <form onSubmit={add} className="flex space-x-2">
+            <form
+              onSubmit={add}
+              className="flex flex-wrap space-x-2 md:flex-nowrap"
+            >
               <input
                 type="text"
                 className="flex-1 border p-1"

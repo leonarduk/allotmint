@@ -15,6 +15,7 @@ never fetch live data and never mutate state.
 from __future__ import annotations
 
 import os
+import re
 import shutil
 from pathlib import Path
 from typing import Any
@@ -41,6 +42,16 @@ from backend.timeseries.cache import (
 router = APIRouter(prefix="/data-quality", tags=["data-quality-admin"])
 
 _FETCH_DAYS = 3650
+
+# Cache keys and account document components feed directly into filesystem
+# paths (``meta_timeseries_cache_path``, ``{accounts_root}/{owner}/{account}.json``)
+# and come from URL path params on the manual endpoints, so they are validated
+# here rather than being interpolated into a path unchecked (CodeQL
+# py/path-injection).
+_TICKER_RE = re.compile(r"^[A-Z0-9][A-Z0-9._-]{0,49}$")
+_EXCHANGE_RE = re.compile(r"^[A-Z0-9][A-Z0-9._-]{0,49}$")
+_OWNER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._ -]{0,63}$")
+_ACCOUNT_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
 
 
 class BatchFixRequest(BaseModel):
@@ -147,12 +158,57 @@ def _normalise_account_file_name(account: str) -> str:
     return account.strip().lower()
 
 
+def _validate_cache_key(ticker: str, exchange: str) -> tuple[str, str]:
+    """Upper-case and validate a ticker/exchange pair used in cache paths."""
+    return _validate_ticker(ticker), _validate_exchange(exchange)
+
+
+def _validate_ticker(ticker: str) -> str:
+    """Upper-case and validate a ticker/symbol used in cache paths."""
+    ticker = ticker.upper()
+    if not _TICKER_RE.match(ticker):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid ticker/symbol for a cache path: {ticker}",
+        )
+    return ticker
+
+
+def _validate_exchange(exchange: str) -> str:
+    """Upper-case and validate an exchange code used in cache paths."""
+    exchange = exchange.upper()
+    if not _EXCHANGE_RE.match(exchange):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid exchange code for a cache path: {exchange}",
+        )
+    return exchange
+
+
+def _validate_owner_account(owner: str, account: str) -> tuple[str, str]:
+    """Validate an owner/account pair used to locate an accounts document.
+
+    Both values become path components under the accounts root, so they must
+    be a single safe component (no separators, no ``..``) even though the
+    store's ``safe_join`` would also block escapes — the audit/backup path is
+    built here without that guard.
+    """
+    account = _normalise_account_file_name(account)
+    if not _OWNER_RE.match(owner) or not _ACCOUNT_RE.match(account):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid owner/account for an accounts path: {owner!r}/{account!r}",
+        )
+    return owner, account
+
+
 def _fix_wrong_exchange(request: Request, payload: dict[str, Any], actor: str | None) -> dict[str, Any]:
     """Correct a holding's ticker through the accounts-store write path."""
     owner = str(payload["owner"])
-    account = _normalise_account_file_name(str(payload["account"]))
-    holding_ticker = str(payload["holding_ticker"]).upper()
-    resolved_ticker = str(payload["resolved_ticker"]).upper()
+    account = str(payload["account"])
+    holding_ticker = _validate_ticker(str(payload["holding_ticker"]))
+    resolved_ticker = _validate_ticker(str(payload["resolved_ticker"]))
+    owner, account = _validate_owner_account(owner, account)
 
     store = _resolve_writable_accounts_store(request)
     file_path = Path(store.local_root) / owner / f"{account}.json" if store.local_root else None
@@ -185,7 +241,8 @@ def _fix_wrong_exchange(request: Request, payload: dict[str, Any], actor: str | 
 
     # Record the audit atomically with the change: if the audit write fails,
     # restore the pre-change file (the .bak taken above) so the mutation is
-    # never left unrecorded.
+    # never left unrecorded.  The backup is restored byte-for-byte (the file
+    # may not round-trip through a text encode/decode).
     try:
         entry = append_audit(
             action="wrong_exchange",
@@ -200,15 +257,24 @@ def _fix_wrong_exchange(request: Request, payload: dict[str, Any], actor: str | 
         if file_path is not None:
             backup = _backup_path_for(file_path)
             if backup.exists():
-                _atomic_write_text(file_path, backup.read_text(encoding="utf-8"))
+                _atomic_write_bytes(file_path, backup.read_bytes())
         raise
     return {"status": "fixed", "ticker": resolved_ticker, "audit_id": entry["id"]}
 
 
+def _atomic_write_bytes(path: Path, data: bytes) -> None:
+    """Write ``data`` to ``path`` via temp file + rename (fsync'd)."""
+    tmp_path = path.with_suffix(path.suffix + ".tmp")
+    with tmp_path.open("wb") as fh:
+        fh.write(data)
+        fh.flush()
+        os.fsync(fh.fileno())
+    os.replace(tmp_path, path)
+
+
 def _fix_refetch(payload: dict[str, Any], actor: str | None) -> dict[str, Any]:
     """Fetch/refetch a cached meta timeseries (missing/stale/gaps)."""
-    ticker = str(payload["ticker"]).upper()
-    exchange = str(payload["exchange"]).upper()
+    ticker, exchange = _validate_cache_key(str(payload["ticker"]), str(payload["exchange"]))
     df = load_meta_timeseries(ticker, exchange, days=_FETCH_DAYS)
     entry = append_audit(
         action="refetch",
@@ -226,6 +292,7 @@ def _fix_unresolved_ticker(payload: dict[str, Any], actor: str | None) -> dict[s
     """Create metadata for a bare symbol (live lookup) then fetch the series."""
     symbol = str(payload["symbol"]).upper()
     exchange = str(payload["exchange"]).upper()
+    symbol, exchange = _validate_cache_key(symbol, exchange)
     resolved = resolve_instrument_ticker(symbol, create_missing=True)
     if resolved is None:
         raise HTTPException(
@@ -248,8 +315,7 @@ def _fix_unresolved_ticker(payload: dict[str, Any], actor: str | None) -> dict[s
 
 def _fix_dedupe(payload: dict[str, Any], actor: str | None) -> dict[str, Any]:
     """Dedupe a cached series keeping the latest row per date."""
-    ticker = str(payload["ticker"]).upper()
-    exchange = str(payload["exchange"]).upper()
+    ticker, exchange = _validate_cache_key(str(payload["ticker"]), str(payload["exchange"]))
     cache = meta_timeseries_cache_path(ticker, exchange)
     if cache.startswith("s3://"):
         raise HTTPException(
@@ -293,8 +359,7 @@ def _fix_dedupe(payload: dict[str, Any], actor: str | None) -> dict[str, Any]:
 
 def _fix_missing_metadata(payload: dict[str, Any], actor: str | None) -> dict[str, Any]:
     """Auto-create instrument metadata for a cached pair (live refresh)."""
-    ticker = str(payload["ticker"]).upper()
-    exchange = str(payload["exchange"]).upper()
+    ticker, exchange = _validate_cache_key(str(payload["ticker"]), str(payload["exchange"]))
     resolved = resolve_instrument_ticker(ticker, exchanges=(exchange,), create_missing=True)
     if resolved is None:
         raise HTTPException(
@@ -315,8 +380,7 @@ def _fix_missing_metadata(payload: dict[str, Any], actor: str | None) -> dict[st
 
 def _fix_ticker_mismatch(payload: dict[str, Any], actor: str | None) -> dict[str, Any]:
     """Normalize the cache rows' Ticker column to the cache key."""
-    ticker = str(payload["ticker"]).upper()
-    exchange = str(payload["exchange"]).upper()
+    ticker, exchange = _validate_cache_key(str(payload["ticker"]), str(payload["exchange"]))
     cache = meta_timeseries_cache_path(ticker, exchange)
     if cache.startswith("s3://"):
         raise HTTPException(
@@ -441,11 +505,12 @@ async def dedupe_series(
     user: str | None = Depends(get_active_user),
 ) -> dict[str, Any]:
     """Dedupe a cached series directly (keeps the latest row per date)."""
+    ticker, exchange = _validate_cache_key(ticker, exchange)
     payload = {
         "kind": "dedupe",
-        "ticker": ticker.upper(),
-        "exchange": exchange.upper(),
-        "issue_id": f"manual:{ticker.upper()}.{exchange.upper()}",
+        "ticker": ticker,
+        "exchange": exchange,
+        "issue_id": f"manual:{ticker}.{exchange}",
     }
     return _fix_dedupe(payload, user)
 
@@ -471,26 +536,26 @@ async def undo_audit(
     if kind == "wrong_exchange":
         store = _resolve_writable_accounts_store(request)
         owner = str((entry.get("entity") or {}).get("owner") or "")
-        account = _normalise_account_file_name(str((entry.get("entity") or {}).get("account") or ""))
+        account = str((entry.get("entity") or {}).get("account") or "")
+        owner, account = _validate_owner_account(owner, account)
         before = entry.get("before") or {}
         after = entry.get("after") or {}
         before_holdings = before.get("holdings") or []
         after_holdings = after.get("holdings") or []
-        # Pair the audit's own before/after snapshots (one holding per fix) and
-        # restore by matching the *after* ticker in the live document, so a
-        # list reorder or unrelated holding added since the fix cannot misalign.
+        # Pair the audit's own before/after snapshots positionally: each
+        # after snapshot is the same dict as its before counterpart with the
+        # ticker rewritten, so the audit's own list preserves the pairing
+        # even when multiple holdings share one ticker.  Restore by matching
+        # the *after* ticker in the live document, so a list reorder or
+        # unrelated holding added since the fix cannot misalign.
         restore_map: dict[str, dict[str, Any]] = {}
-        for after_holding in after_holdings:
-            if not isinstance(after_holding, dict):
+        for before_holding, after_holding in zip(before_holdings, after_holdings):
+            if not isinstance(before_holding, dict) or not isinstance(after_holding, dict):
                 continue
             after_ticker = str(after_holding.get("ticker") or "").upper()
             if not after_ticker:
                 continue
-            # The matching before snapshot carries the same entity fields but
-            # the original ticker; pair by index (audit records one pair per fix).
-            index = after_holdings.index(after_holding)
-            if index < len(before_holdings) and isinstance(before_holdings[index], dict):
-                restore_map[after_ticker] = dict(before_holdings[index])
+            restore_map[after_ticker] = dict(before_holding)
         with store.edit_document(owner, f"{account}.json", default={}, trailing_newline=True) as data:
             data.setdefault("holdings", [])
             for holding in data["holdings"]:
@@ -514,6 +579,7 @@ async def undo_audit(
     if kind in {"dedupe", "ticker_mismatch"}:
         ticker = str((entry.get("extra") or {}).get("ticker") or "")
         exchange = str((entry.get("extra") or {}).get("exchange") or "")
+        ticker, exchange = _validate_cache_key(ticker, exchange)
         cache = meta_timeseries_cache_path(ticker, exchange)
         if cache.startswith("s3://"):
             raise HTTPException(status_code=400, detail="Undo supports the local cache only.")

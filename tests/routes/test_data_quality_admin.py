@@ -244,3 +244,53 @@ def test_outliers_not_fixable(monkeypatch, tmp_path):
     assert outliers[0]["fixable"] is False
     resp = outlier_client.post(f"/data-quality/issues/{outliers[0]['id']}/fix")
     assert resp.status_code == 409
+
+
+def test_dedupe_series_rejects_path_traversal(monkeypatch, client, tmp_path):
+    """Cache keys from the URL must never escape the cache base (CodeQL)."""
+    import backend.routes.data_quality_admin as admin_module
+
+    # Hermetic: point the cache at a temp dir so the valid-key case never
+    # touches real repo/demo cache data.
+    monkeypatch.setattr(admin_module, "meta_timeseries_cache_path", lambda t, e: str(tmp_path / f"{t}_{e}.parquet"))
+    # Encoded path separators are rejected by the router itself (404, never
+    # reaching the handler); other invalid characters are rejected by
+    # ``_validate_cache_key`` (400).  Either way the key is never used to
+    # build a filesystem path.
+    resp = client.post("/data-quality/series/..%2F..%2Fetc%2Fpasswd/L/dedupe")
+    assert resp.status_code in (400, 404)
+    resp = client.post("/data-quality/series/ABC/..%2F..%2Fetc/dedupe")
+    assert resp.status_code in (400, 404)
+    # Characters outside the ticker charset are rejected by validation.
+    resp = client.post("/data-quality/series/BAD%20TICKER/L/dedupe")
+    assert resp.status_code == 400
+    # A plain valid key passes validation and reports the missing file.
+    resp = client.post("/data-quality/series/ABC/L/dedupe")
+    assert resp.status_code == 404
+
+
+def test_undo_rejects_traversal_owner(client):
+    """Owner/account from the audit entry are path components; escapes are rejected."""
+    import backend.data_quality.audit as audit_module
+
+    entry = audit_module.append_audit(
+        action="wrong_exchange",
+        issue_id="WRONG_EXCHANGE:evil:isa:MICC.L",
+        entity={"owner": "../../evil", "account": "isa"},
+        before={"holdings": [{"ticker": "MICC.L"}]},
+        after={"holdings": [{"ticker": "MICC.N"}]},
+        extra={"kind": "wrong_exchange", "owner": "../../evil", "account": "isa"},
+    )
+    resp = client.post(f"/data-quality/audit/{entry['id']}/undo")
+    assert resp.status_code == 400
+
+    entry = audit_module.append_audit(
+        action="dedupe",
+        issue_id="DUPLICATES:ABC:L",
+        entity={"ticker": "ABC", "exchange": "L"},
+        before={"rows": 3},
+        after={"rows": 2},
+        extra={"kind": "dedupe", "ticker": "..", "exchange": "L"},
+    )
+    resp = client.post(f"/data-quality/audit/{entry['id']}/undo")
+    assert resp.status_code == 400

@@ -2,7 +2,8 @@
 
 Records every applied fix (before/after snapshots, actor, timestamp) as one
 JSON object per line in a JSONL file, so the history is durable and replayable.
-Writes are atomic (temp file + rename) and the file is created if missing.
+Each entry is written with a single ``O_APPEND`` ``write()`` (atomic on
+POSIX) and fsync'd before returning; the file is created if missing.
 
 The audit file lives under ``config.audit_dir`` when configured, otherwise
 ``{config.data_root}/audit`` — the same data root that holds accounts/cache.
@@ -22,6 +23,11 @@ from typing import Any, Optional
 
 from backend.config import config
 
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - non-POSIX (e.g. Windows) platform
+    fcntl = None  # type: ignore[assignment]
+
 _AUDIT_FILENAME = "data_quality_audit.jsonl"
 _lock = threading.Lock()
 
@@ -37,34 +43,55 @@ def audit_path() -> Path:
 
 
 def _atomic_append_text(path: Path, line: str) -> None:
-    """Append ``line`` to ``path`` using O_APPEND single-write semantics.
+    """Append ``line`` to ``path`` with a single atomic write.
 
-    The file is opened with ``O_APPEND`` so every ``write()`` lands at the
-    current end of file; POSIX guarantees a single ``write()`` to a regular
-    file with O_APPEND is atomic, so concurrent writers (e.g. parallel Lambda
-    invocations) cannot clobber each other's entries — unlike a
-    read-append-rename approach, which loses entries when two writers race.
-    The entry is fsync'd before returning so a crash cannot lose it.
+    The file is opened with ``O_APPEND`` and the entry (plus any separator
+    newline) is written in one ``write()`` call, so POSIX guarantees it lands
+    at the current end of file without interleaving — concurrent writers
+    (e.g. parallel Lambda invocations) cannot clobber each other's entries.
+    The write is fsync'd before returning so a crash cannot lose it.
 
-    If the existing file does not end with a newline (e.g. a partial write
-    from a crashed process or an external editor), a leading newline is
-    written first so the new entry is not merged into the last line.
+    The trailing-newline check and the write are serialised with an advisory
+    ``flock`` (and the module threading lock) so the separator decision
+    cannot go stale between the check and the write; without a lock two
+    writers could both decide a separator is needed and corrupt the JSONL
+    with a spurious blank line.  The file is created if missing.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
     try:
-        # Ensure the previous entry is separated from this one even when the
-        # file lacks a trailing newline (crash/partial write recovery).
-        if path.stat().st_size > 0:
-            with open(path, "rb") as existing:
-                existing.seek(-1, os.SEEK_END)
-                if existing.read(1) != b"\n":
-                    os.write(fd, b"\n")
+        _acquire_append_lock(fd)
+        separator = b""
+        try:
+            if os.fstat(fd).st_size > 0:
+                with open(path, "rb") as existing:
+                    existing.seek(-1, os.SEEK_END)
+                    if existing.read(1) != b"\n":
+                        # Ensure the previous entry is separated from this one
+                        # even when the file lacks a trailing newline
+                        # (crash/partial write recovery).
+                        separator = b"\n"
+        except OSError:
+            separator = b""
         payload = line if line.endswith("\n") else line + "\n"
-        os.write(fd, payload.encode("utf-8"))
+        # One write: separator + payload, so O_APPEND atomicity covers the
+        # whole entry rather than two separately-writable pieces.
+        os.write(fd, separator + payload.encode("utf-8"))
         os.fsync(fd)
     finally:
+        _release_append_lock(fd)
         os.close(fd)
+
+
+def _acquire_append_lock(fd: int) -> None:
+    """Serialise the separator-check + write across processes (POSIX)."""
+    if fcntl is not None:
+        fcntl.flock(fd, fcntl.LOCK_EX)  # type: ignore[attr-defined]
+
+
+def _release_append_lock(fd: int) -> None:
+    if fcntl is not None:
+        fcntl.flock(fd, fcntl.LOCK_UN)  # type: ignore[attr-defined]
 
 
 def append_audit(

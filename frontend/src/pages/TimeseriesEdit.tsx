@@ -439,8 +439,8 @@ export function TimeseriesEdit() {
             }}
           />
           <datalist id="ticker-suggestions">
-            {safeSuggestions.map((r) => (
-              <option key={r.ticker} value={r.ticker}>
+            {safeSuggestions.map((r, index) => (
+              <option key={`${r.ticker}-${index}`} value={r.ticker}>
                 {`${r.ticker} — ${r.name}`}
               </option>
             ))}

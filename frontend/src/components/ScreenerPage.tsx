@@ -22,7 +22,7 @@ export function ScreenerPage() {
     loading,
     error,
   } = useFetch<ScreenerResult[]>(fetchScreener, [watchlist]);
-  const [ticker, setTicker] = useState<string | null>(null);
+  const [selected, setSelected] = useState<ScreenerResult | null>(null);
 
   const { sorted, handleSort } = useSortableTable(rows ?? [], "peg_ratio");
 
@@ -84,14 +84,14 @@ export function ScreenerPage() {
         <tbody>
           {sorted.map((r) => (
             <tr
-              key={r.ticker}
-              onClick={() => setTicker(r.ticker)}
+              key={`${r.ticker}-${r.rank}`}
+              onClick={() => setSelected(r)}
               className={tableStyles.clickable}
               role="button"
               tabIndex={0}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
-                  setTicker(r.ticker);
+                  setSelected(r);
                 }
               }}
             >
@@ -115,11 +115,11 @@ export function ScreenerPage() {
         </tbody>
       </table>
 
-      {ticker && (
+      {selected && (
         <InstrumentDetail
-          ticker={ticker}
-          name={rows?.find((r) => r.ticker === ticker)?.name ?? ""}
-          onClose={() => setTicker(null)}
+          ticker={selected.ticker}
+          name={selected.name ?? selected.ticker}
+          onClose={() => setSelected(null)}
         />
       )}
     </>

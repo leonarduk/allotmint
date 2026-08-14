@@ -129,4 +129,37 @@ describe("ValueAtRisk component", () => {
     await pending;
     expect(api.getValueAtRisk).toHaveBeenCalled();
   });
+
+  it("does not emit duplicate-key warnings when the same ticker appears in the breakdown (#6505)", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(api.getValueAtRisk).mockResolvedValue({
+      owner: "alice",
+      as_of: "2024-01-01",
+      var: { "1d": 100, "10d": 200 },
+    } as any);
+    vi.mocked(api.getVarBreakdown).mockResolvedValue({
+      varDate: "2024-01-02",
+      varLossPercent: 5.0,
+      scenarios: [],
+      breakdown: [
+        { ticker: "CASH", name: "Cash GBP", relative_change_percent: -12.5, scenario_amount_gbp: -75, contribution: 60 },
+        { ticker: "CASH", name: "Cash L", relative_change_percent: 8.4, scenario_amount_gbp: 20, contribution: 40 },
+      ],
+    } as any);
+
+    render(<ValueAtRisk owner="alice" />);
+
+    await waitFor(() =>
+      expect(screen.getByText(/95%:/)).toHaveTextContent("£100.00")
+    );
+    fireEvent.click(screen.getAllByRole("button")[0]);
+    await waitFor(() => screen.getByRole("dialog"));
+
+    expect(screen.getAllByText("CASH")).toHaveLength(2);
+    const keyWarnings = errorSpy.mock.calls.filter((args) =>
+      String(args[0]).includes("same key"),
+    );
+    expect(keyWarnings).toEqual([]);
+    errorSpy.mockRestore();
+  });
 });

@@ -187,8 +187,8 @@ export default function Trading() {
               </tr>
             </thead>
             <tbody>
-              {visibleSignals.map((s) => (
-                <tr key={s.ticker}>
+              {visibleSignals.map((s, index) => (
+                <tr key={`${s.ticker}-${index}`}>
                   <td className={tableStyles.cell}>
                     <button
                       type="button"

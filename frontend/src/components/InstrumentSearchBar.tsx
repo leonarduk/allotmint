@@ -194,7 +194,7 @@ function InstrumentSearchBarComponent({
         >
           {results.map((r, i) => (
             <li
-              key={r.ticker}
+              key={`${r.ticker}-${i}`}
               style={{
                 padding: "0.25rem 0.5rem",
                 background: i === index ? "#eee" : undefined,

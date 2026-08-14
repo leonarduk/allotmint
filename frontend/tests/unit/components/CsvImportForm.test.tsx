@@ -223,4 +223,33 @@ describe('CsvImportForm', () => {
       'Unknown provider: bogus'
     );
   });
+
+  it('does not emit duplicate-key warnings when the same ticker appears in a diff section (#6505)', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.mocked(reconcileHoldingsCsv).mockResolvedValue({
+      added: [
+        { ticker: 'CASH', units: 5, value_gbp: 10 },
+        { ticker: 'CASH', units: 3, value_gbp: 6 },
+      ],
+      removed: [],
+      quantity_changed: [],
+      value_changed: [],
+      cash_balance: { stored_gbp: 100, imported_gbp: 110, delta_gbp: 10 },
+    });
+
+    render(<CsvImportForm owner="alice" accountTypes={['ISA']} />);
+    await userEvent.selectOptions(
+      screen.getByLabelText('Provider'),
+      'hargreaves'
+    );
+    await userEvent.upload(screen.getByLabelText('CSV file'), csvFile);
+    await userEvent.click(screen.getByRole('button', { name: /Reconcile/ }));
+
+    expect(await screen.findAllByText('CASH')).toHaveLength(2);
+    const keyWarnings = errorSpy.mock.calls.filter((args) =>
+      String(args[0]).includes('same key')
+    );
+    expect(keyWarnings).toEqual([]);
+    errorSpy.mockRestore();
+  });
 });

@@ -60,8 +60,8 @@ export function TopMoversSummary({ slug, days = 1, limit = 5 }: Props) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((r: OpportunityEntry) => (
-            <tr key={r.ticker}>
+          {rows.map((r: OpportunityEntry, index) => (
+            <tr key={`${r.ticker}-${index}`}>
               <td className={tableStyles.cell}>
                 <button
                   type="button"

@@ -45,14 +45,14 @@ describe("VarBreakdownModal (#6505)", () => {
     errorSpy.mockRestore();
   });
 
-  it("renders scenario list without duplicate-key warnings", () => {
+  it("renders the scenario list with stable date keys", () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     render(
       <VarBreakdownModal
         contributions={[]}
         scenarios={[
           { date: "2024-01-02", portfolio_return: -0.05, loss_percent: 5.0 },
-          { date: "2024-01-02", portfolio_return: -0.03, loss_percent: 3.0 },
+          { date: "2024-03-15", portfolio_return: -0.03, loss_percent: 3.0 },
         ]}
         varDate="2024-01-02"
         varLossPercent={5}
@@ -61,7 +61,9 @@ describe("VarBreakdownModal (#6505)", () => {
     );
 
     expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.getAllByText(/2024-01-02 \([0-9.]+% loss\)/)).toHaveLength(2);
+    // Scenario dates are a stable unique field, so each date renders once.
+    expect(screen.getAllByText(/2024-01-02 \(5.00% loss\)/)).toHaveLength(1);
+    expect(screen.getByText(/2024-03-15 \(3.00% loss\)/)).toBeInTheDocument();
 
     const keyWarnings = errorSpy.mock.calls.filter((args) =>
       String(args[0]).includes("same key"),

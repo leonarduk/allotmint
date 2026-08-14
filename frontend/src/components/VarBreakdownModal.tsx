@@ -93,8 +93,8 @@ export function VarBreakdownModal({
           <div style={{ marginBottom: "1rem" }}>
             <h4 style={{ margin: "0 0 0.5rem 0" }}>Historical dates driving this VaR</h4>
             <ul style={{ margin: 0, paddingLeft: "1rem" }}>
-              {scenarios.map((scenario, index) => (
-                <li key={`${scenario.date}-${index}`} style={{ marginBottom: "0.25rem" }}>
+              {scenarios.map((scenario) => (
+                <li key={scenario.date} style={{ marginBottom: "0.25rem" }}>
                   <span>
                     {scenario.date} ({scenario.loss_percent.toFixed(2)}% loss)
                   </span>{" "}

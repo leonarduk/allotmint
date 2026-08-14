@@ -94,9 +94,9 @@ test.describe('issue 6505: no duplicate-key warnings for same-ticker rows', () =
     });
 
     await page.goto(`${baseUrl}/data-quality`);
-    await expect(page.getByText('CASH').first()).toBeVisible();
-    await expect(page.getByText('CASH').nth(1)).toBeVisible();
-    await expect(page.getByText('PFE').first()).toBeVisible();
+    // Both CASH and PFE entries (one per exchange) must render.
+    await expect(page.getByText('CASH', { exact: true })).toHaveCount(2);
+    await expect(page.getByText('PFE', { exact: true })).toHaveCount(2);
     expect(warnings).toEqual([]);
   });
 
@@ -132,8 +132,9 @@ test.describe('issue 6505: no duplicate-key warnings for same-ticker rows', () =
     });
 
     await page.goto(`${baseUrl}/movers`);
-    await expect(page.getByText('CASH').first()).toBeVisible();
-    await expect(page.getByText('PFE').first()).toBeVisible();
+    // Both duplicate entries must render before we can trust the warning check.
+    await expect(page.getByText('CASH', { exact: true })).toHaveCount(2);
+    await expect(page.getByText('PFE', { exact: true })).toHaveCount(2);
     expect(warnings).toEqual([]);
   });
 
@@ -168,8 +169,9 @@ test.describe('issue 6505: no duplicate-key warnings for same-ticker rows', () =
     });
 
     await page.goto(`${baseUrl}/trading`);
-    await expect(page.getByText('CASH').first()).toBeVisible();
-    await expect(page.getByText('PFE').first()).toBeVisible();
+    // Both duplicate signal rows must render before we can trust the warning check.
+    await expect(page.getByText('CASH', { exact: true })).toHaveCount(2);
+    await expect(page.getByText('PFE', { exact: true })).toHaveCount(2);
     expect(warnings).toEqual([]);
   });
 
@@ -199,8 +201,8 @@ test.describe('issue 6505: no duplicate-key warnings for same-ticker rows', () =
     const tickersInput = page.getByLabel(/Tickers/i);
     await tickersInput.fill('CASH');
     await page.getByRole('button', { name: 'Run' }).nth(0).click();
-    await expect(page.getByText('CASH').first()).toBeVisible();
-    await expect(page.getByText('CASH').nth(1)).toBeVisible();
+    // Both duplicate rows must render before we can trust the warning check.
+    await expect(page.getByText('CASH', { exact: true })).toHaveCount(2);
     expect(warnings).toEqual([]);
   });
 
@@ -226,8 +228,8 @@ test.describe('issue 6505: no duplicate-key warnings for same-ticker rows', () =
     // mocked owner so the approvals fetch fires.
     const ownerSelect = page.locator('select').first();
     await ownerSelect.selectOption({ label: 'Demo Owner' });
-    await expect(page.getByText('PFE').first()).toBeVisible();
-    await expect(page.getByText('PFE').nth(1)).toBeVisible();
+    // Both duplicate approval rows must render before we can trust the warning check.
+    await expect(page.getByText('PFE', { exact: true })).toHaveCount(2);
     expect(warnings).toEqual([]);
   });
 

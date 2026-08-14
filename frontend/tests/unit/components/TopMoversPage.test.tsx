@@ -341,7 +341,10 @@ describe("TopMoversPage", () => {
       </MemoryRouter>,
     );
 
-    await waitFor(() => expect(mockGetGroupInstruments).toHaveBeenCalledWith("all"));
+    await waitFor(() => expect(mockGetOpportunities).toHaveBeenCalled());
+    // Both duplicate entries must render before we can trust the warning check.
+    expect(await screen.findAllByText("CASH")).toHaveLength(2);
+    expect(await screen.findAllByText("PFE")).toHaveLength(2);
     const keyWarnings = errorSpy.mock.calls.filter((args) =>
       String(args[0]).includes("same key"),
     );

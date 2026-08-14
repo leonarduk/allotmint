@@ -121,6 +121,8 @@ describe("TimeseriesEdit page", () => {
     );
     expect(keyWarnings).toEqual([]);
     errorSpy.mockRestore();
+  });
+
   it("enables Move after an empty load and surfaces an actionable error", async () => {
     const getTimeseriesMock = getTimeseries as unknown as vi.Mock;
     getTimeseriesMock.mockResolvedValue([]);

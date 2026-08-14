@@ -175,10 +175,15 @@ export function HoldingsTable({
 
   // derive cost/market/gain/gain_pct
   const computed = holdingRows.map((h) => {
+    // effective_cost_basis_gbp is the canonical cost used for gain: the
+    // backend sets it equal to cost_basis_gbp for booked lots and to the
+    // derived cost otherwise. Preferring it keeps flat rows unchanged and
+    // makes rollup rows correct even when a ticker mixes booked and derived
+    // lots (cost_basis_gbp alone would understate the total).
     const cost =
-      (h.cost_basis_gbp ?? 0) > 0
-        ? h.cost_basis_gbp ?? 0
-        : h.effective_cost_basis_gbp ?? 0;
+      (h.effective_cost_basis_gbp ?? 0) > 0
+        ? h.effective_cost_basis_gbp ?? 0
+        : h.cost_basis_gbp ?? 0;
 
     const market = h.market_value_gbp ?? 0;
     const gain =

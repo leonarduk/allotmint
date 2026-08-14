@@ -321,4 +321,31 @@ describe("TopMoversPage", () => {
       }),
     );
   });
+
+  it("does not emit duplicate-key warnings when the same ticker appears twice (#6505)", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    mockGetOpportunities.mockResolvedValue({
+      entries: [
+        { ticker: "CASH", name: "Cash GBP", change_pct: 5, side: "gainers" },
+        { ticker: "CASH", name: "Cash L", change_pct: 3, side: "gainers" },
+        { ticker: "PFE", name: "Pfizer N", change_pct: -2, side: "losers" },
+        { ticker: "PFE", name: "Pfizer L", change_pct: -4, side: "losers" },
+      ],
+      signals: [],
+      context: { source: "group", group: "all", days: 1, anomalies: [] },
+    });
+
+    render(
+      <MemoryRouter>
+        <TopMoversPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(mockGetGroupInstruments).toHaveBeenCalledWith("all"));
+    const keyWarnings = errorSpy.mock.calls.filter((args) =>
+      String(args[0]).includes("same key"),
+    );
+    expect(keyWarnings).toEqual([]);
+    errorSpy.mockRestore();
+  });
 });

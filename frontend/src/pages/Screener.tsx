@@ -513,9 +513,9 @@ export function Screener() {
             </tr>
           </thead>
           <tbody>
-            {sorted.map((r) => (
+            {sorted.map((r, index) => (
               <tr
-                key={r.ticker}
+                key={`${r.ticker}-${index}`}
                 onClick={() => setSelected(r.ticker)}
                 style={{ cursor: "pointer" }}
                 role="button"

@@ -92,4 +92,32 @@ describe("TopMoversSummary", () => {
     expect(await screen.findByRole("button", { name: "AAA" })).toBeInTheDocument();
     expect(screen.queryByRole("status", { name: /loading/i })).not.toBeInTheDocument();
   });
+
+  it("does not emit duplicate-key warnings when the same ticker appears twice (#6505)", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    mockGetOpportunities.mockResolvedValue({
+      entries: [
+        { ticker: "CASH", name: "Cash GBP", change_pct: 5, side: "gainers" },
+        { ticker: "CASH", name: "Cash L", change_pct: 3, side: "gainers" },
+        { ticker: "PFE", name: "Pfizer N", change_pct: -2, side: "losers" },
+        { ticker: "PFE", name: "Pfizer L", change_pct: -4, side: "losers" },
+      ],
+      signals: [],
+      context: { source: "group", group: "all", days: 1, anomalies: [] },
+    });
+
+    render(
+      <MemoryRouter>
+        <TopMoversSummary slug="all" />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findAllByRole("button", { name: "CASH" })).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: "PFE" })).toHaveLength(2);
+    const keyWarnings = errorSpy.mock.calls.filter((args) =>
+      String(args[0]).includes("same key"),
+    );
+    expect(keyWarnings).toEqual([]);
+    errorSpy.mockRestore();
+  });
 });

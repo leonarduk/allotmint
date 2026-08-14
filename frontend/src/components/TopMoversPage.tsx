@@ -289,7 +289,7 @@ export function TopMoversPage() {
           {items.map((virtualRow) => {
             const r = sorted[virtualRow.index];
             return (
-              <tr key={r.ticker}>
+              <tr key={`${r.ticker}-${virtualRow.index}`}>
                 <td className={tableStyles.cell}>
                   <button
                     type="button"
@@ -363,8 +363,8 @@ export function TopMoversPage() {
               </tr>
             </thead>
             <tbody>
-              {visibleSignals.map((s) => (
-                <tr key={s.ticker}>
+              {visibleSignals.map((s, index) => (
+                <tr key={`${s.ticker}-${index}`}>
                   <td style={{ padding: "4px" }}>
                     <a
                       href="#"

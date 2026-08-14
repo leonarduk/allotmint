@@ -82,9 +82,9 @@ export function ScreenerPage() {
           </tr>
         </thead>
         <tbody>
-          {sorted.map((r) => (
+          {sorted.map((r, index) => (
             <tr
-              key={r.ticker}
+              key={`${r.ticker}-${index}`}
               onClick={() => setTicker(r.ticker)}
               className={tableStyles.clickable}
               role="button"

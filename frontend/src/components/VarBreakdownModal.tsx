@@ -119,8 +119,8 @@ export function VarBreakdownModal({
               </tr>
             </thead>
             <tbody>
-              {contributions.map((c) => (
-                <tr key={c.ticker}>
+              {contributions.map((c, index) => (
+                <tr key={`${c.ticker}-${index}`}>
                   <td style={{ paddingRight: "1rem" }}>{c.ticker}</td>
                   <td style={{ paddingRight: "1rem" }}>{c.name ?? c.ticker}</td>
                   <td style={{ textAlign: "right", paddingRight: "1rem" }}>

@@ -79,4 +79,21 @@ describe("ScreenerPage", () => {
     );
     expect(await screen.findByText("AAA.L")).toBeInTheDocument();
   });
+
+  it("does not emit duplicate-key warnings when the same ticker appears twice (#6505)", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    mockGetScreener.mockResolvedValue([
+      { rank: 1, ticker: "CASH", name: "Cash GBP", peg_ratio: null, pe_ratio: null, de_ratio: null, fcf: null },
+      { rank: 2, ticker: "CASH", name: "Cash L", peg_ratio: null, pe_ratio: null, de_ratio: null, fcf: null },
+    ]);
+
+    render(<ScreenerPage />);
+
+    expect(await screen.findAllByText("CASH")).toHaveLength(2);
+    const keyWarnings = errorSpy.mock.calls.filter((args) =>
+      String(args[0]).includes("same key"),
+    );
+    expect(keyWarnings).toEqual([]);
+    errorSpy.mockRestore();
+  });
 });

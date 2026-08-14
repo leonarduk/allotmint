@@ -71,6 +71,46 @@ describe("Rebalance page", () => {
     expect(screen.getByText(/treated as no-change/i)).toBeInTheDocument();
   });
 
+  it("prefills targets that sum to exactly 100% so the untouched prefill can be submitted", async () => {
+    // Weights 16.666.../16.666.../16.666.../50 round independently to
+    // 16.67+16.67+16.67+50.00 = 100.01, the same drift-above-100 failure as
+    // the issue's alex repro. The residual must be absorbed by the smallest
+    // holding (CCC) instead of failing the page's own validation.
+    mockGetPortfolio.mockResolvedValue({
+      accounts: [
+        {
+          holdings: [
+            { ticker: "AAA", market_value_gbp: 1 },
+            { ticker: "BBB", market_value_gbp: 1 },
+            { ticker: "CCC", market_value_gbp: 1 },
+            { ticker: "DDD", market_value_gbp: 3 },
+          ],
+        },
+      ],
+    });
+    mockGetRebalance.mockResolvedValue([]);
+    const { default: Rebalance } = await import("@/pages/Rebalance");
+    render(<Rebalance />);
+
+    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("alex"));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Target weight (%) for DDD")).toHaveValue(50),
+    );
+    expect(screen.getByLabelText("Target weight (%) for AAA")).toHaveValue(16.67);
+    expect(screen.getByLabelText("Target weight (%) for BBB")).toHaveValue(16.67);
+    expect(screen.getByLabelText("Target weight (%) for CCC")).toHaveValue(16.66);
+    expect(
+      screen.getByText(/Total target weight: 100.00% \(ready to rebalance\)/i),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /rebalance/i }));
+
+    await waitFor(() => expect(mockGetRebalance).toHaveBeenCalledTimes(1));
+    expect(
+      screen.queryByText(/Target weights must total 100%/i),
+    ).not.toBeInTheDocument();
+  });
+
   it("explains when target weights do not add up to 100%", async () => {
     mockGetRebalance.mockResolvedValue([]);
     const { default: Rebalance } = await import("@/pages/Rebalance");

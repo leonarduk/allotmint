@@ -599,7 +599,8 @@
     "delete": "Löschen",
     "error": {
       "noData": "Keine Daten zum Speichern",
-      "unexpectedColumns": "Unerwartete Spalte(n): {{columns}}"
+      "unexpectedColumns": "Unerwartete Spalte(n): {{columns}}",
+      "moveNoData": "Keine zwischengespeicherten Daten für {{ticker}}.{{source}} zum Verschieben. Korrigiere die Position auf {{ticker}}.{{destination}}, damit der Abruf die Datenreihe füllen kann."
     },
     "exchange": "Börse",
     "load": "Laden",

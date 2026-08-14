@@ -532,7 +532,8 @@
     "error": {
       "noData": "Nessun dato da salvare",
       "unexpectedColumns": "Colonna (s) imprevisto: {{colonne}}",
-      "invalidScale": "Inserisci un fattore di scala valido maggiore di zero"
+      "invalidScale": "Inserisci un fattore di scala valido maggiore di zero",
+      "moveNoData": "Nessun dato in cache per {{ticker}}.{{source}} da spostare. Correggi la posizione su {{ticker}}.{{destination}} affinché il fetcher possa popolare la serie."
     },
     "exchange": "Scambio",
     "load": "Carico",

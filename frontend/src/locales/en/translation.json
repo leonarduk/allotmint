@@ -729,7 +729,8 @@
     "error": {
       "noData": "No data to save",
       "unexpectedColumns": "Unexpected column(s): {{columns}}",
-      "invalidScale": "Enter a valid scaling factor greater than zero"
+      "invalidScale": "Enter a valid scaling factor greater than zero",
+      "moveNoData": "No cached data for {{ticker}}.{{source}} to move. Correct the holding to {{ticker}}.{{destination}} so the fetcher can populate the series."
     },
     "exchange": "Exchange",
     "load": "Load",

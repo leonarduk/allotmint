@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import {
   dedupeDataQualitySeries,
@@ -17,6 +17,7 @@ import tableStyles from "../styles/table.module.css";
 import { QualityStatusBadge } from "../components/QualityStatusBadge";
 import { getQualityStatus, type QualityStatus } from "../lib/dataQualityStatus";
 import { DataQualityDrilldownModal } from "../components/DataQualityDrilldownModal";
+import { Modal } from "../components/Modal";
 import EmptyState from "../components/EmptyState";
 import { useConfig } from "../ConfigContext";
 
@@ -134,7 +135,9 @@ function IssueTable({
                 <button
                   type="button"
                   onClick={() => onPreview(issue)}
-                  aria-label={t("dataQuality.admin.issues.actions.preview")}
+                  aria-label={t("dataQuality.admin.issues.actions.previewFor", {
+                    entity: entityLabel(issue.entity),
+                  })}
                 >
                   {t("dataQuality.admin.issues.actions.preview")}
                 </button>{" "}
@@ -143,7 +146,9 @@ function IssueTable({
                     type="button"
                     onClick={() => onFix(issue)}
                     disabled={fixingId === issue.id}
-                    aria-label={t("dataQuality.admin.issues.actions.fix")}
+                    aria-label={t("dataQuality.admin.issues.actions.fixFor", {
+                      entity: entityLabel(issue.entity),
+                    })}
                   >
                     {fixingId === issue.id
                       ? t("dataQuality.admin.issues.actions.fixing")
@@ -323,68 +328,60 @@ function IssuesTab({ presetTypes }: { presetTypes?: readonly string[] }) {
       />
 
       {preview && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          onClick={() => setPreview(null)}
+        <Modal
+          onClose={() => setPreview(null)}
+          labelledBy="dq-preview-title"
+          className="max-h-[80vh] w-full max-w-2xl overflow-auto rounded-lg bg-white p-6 text-slate-900"
         >
-          <div className="max-h-[80vh] w-full max-w-2xl overflow-auto rounded-lg bg-white p-6 text-slate-900"
-            onClick={(e) => e.stopPropagation()}>
-            <h3 className="mb-2 text-lg font-semibold">
-              {t("dataQuality.admin.issues.previewTitle", { type: preview.type })}
-            </h3>
-            <p className="mb-4 text-sm">{preview.description}</p>
-            <div className="mb-4 grid grid-cols-2 gap-4">
-              <div>
-                <h4 className="mb-1 text-sm font-semibold">{t("dataQuality.admin.issues.before")}</h4>
-                <pre className="overflow-auto rounded bg-gray-100 p-2 text-xs">{JSON.stringify(preview.preview.before ?? {}, null, 2)}</pre>
-              </div>
-              <div>
-                <h4 className="mb-1 text-sm font-semibold">{t("dataQuality.admin.issues.after")}</h4>
-                <pre className="overflow-auto rounded bg-gray-100 p-2 text-xs">{JSON.stringify(preview.preview.after ?? {}, null, 2)}</pre>
-              </div>
+          <h3 id="dq-preview-title" className="mb-2 text-lg font-semibold">
+            {t("dataQuality.admin.issues.previewTitle", { type: preview.type })}
+          </h3>
+          <p className="mb-4 text-sm">{preview.description}</p>
+          <div className="mb-4 grid grid-cols-2 gap-4">
+            <div>
+              <h4 className="mb-1 text-sm font-semibold">{t("dataQuality.admin.issues.before")}</h4>
+              <pre className="overflow-auto rounded bg-gray-100 p-2 text-xs">{JSON.stringify(preview.preview.before ?? {}, null, 2)}</pre>
             </div>
-            <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setPreview(null)}>
-                {t("dataQuality.admin.issues.actions.close")}
-              </button>
-              {preview.fixable && (
-                <button type="button" onClick={() => { setConfirming(preview); setPreview(null); }}>
-                  {t("dataQuality.admin.issues.actions.apply")}
-                </button>
-              )}
+            <div>
+              <h4 className="mb-1 text-sm font-semibold">{t("dataQuality.admin.issues.after")}</h4>
+              <pre className="overflow-auto rounded bg-gray-100 p-2 text-xs">{JSON.stringify(preview.preview.after ?? {}, null, 2)}</pre>
             </div>
           </div>
-        </div>
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => setPreview(null)}>
+              {t("dataQuality.admin.issues.actions.close")}
+            </button>
+            {preview.fixable && (
+              <button type="button" onClick={() => { setConfirming(preview); setPreview(null); }}>
+                {t("dataQuality.admin.issues.actions.apply")}
+              </button>
+            )}
+          </div>
+        </Modal>
       )}
 
       {confirming && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          onClick={() => setConfirming(null)}
+        <Modal
+          onClose={() => setConfirming(null)}
+          labelledBy="dq-confirm-title"
+          className="w-full max-w-md rounded-lg bg-white p-6 text-slate-900"
         >
-          <div className="w-full max-w-md rounded-lg bg-white p-6 text-slate-900"
-            onClick={(e) => e.stopPropagation()}>
-            <h3 className="mb-2 text-lg font-semibold">
-              {t("dataQuality.admin.issues.actions.confirmTitle")}
-            </h3>
-            <p className="mb-2 text-sm">{confirming.suggested_fix}</p>
-            <p className="mb-4 text-xs opacity-70">{t("dataQuality.admin.issues.actions.confirmBody")}</p>
-            <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setConfirming(null)}>
-                {t("dataQuality.admin.issues.actions.cancel")}
-              </button>
-              <button type="button" onClick={() => applyFix(confirming)} disabled={fixingId === confirming.id}>
-                {fixingId === confirming.id
-                  ? t("dataQuality.admin.issues.actions.fixing")
-                  : t("dataQuality.admin.issues.actions.apply")}
-              </button>
-            </div>
+          <h3 id="dq-confirm-title" className="mb-2 text-lg font-semibold">
+            {t("dataQuality.admin.issues.actions.confirmTitle")}
+          </h3>
+          <p className="mb-2 text-sm">{confirming.suggested_fix}</p>
+          <p className="mb-4 text-xs opacity-70">{t("dataQuality.admin.issues.actions.confirmBody")}</p>
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => setConfirming(null)}>
+              {t("dataQuality.admin.issues.actions.cancel")}
+            </button>
+            <button type="button" onClick={() => applyFix(confirming)} disabled={fixingId === confirming.id}>
+              {fixingId === confirming.id
+                ? t("dataQuality.admin.issues.actions.fixing")
+                : t("dataQuality.admin.issues.actions.apply")}
+            </button>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );
@@ -521,7 +518,10 @@ function SeriesTab() {
                     type="button"
                     onClick={() => handleDedupe(row)}
                     disabled={busyKey === `dedupe:${row.ticker}.${row.exchange}`}
-                    aria-label={t("dataQuality.admin.series.dedupe")}
+                    aria-label={t("dataQuality.admin.series.dedupeFor", {
+                      ticker: row.ticker,
+                      exchange: row.exchange,
+                    })}
                   >
                     {busyKey === `dedupe:${row.ticker}.${row.exchange}`
                       ? "…"
@@ -639,7 +639,9 @@ function AuditTab() {
                   type="button"
                   onClick={() => handleUndo(entry.id)}
                   disabled={undoingId === entry.id}
-                  aria-label={t("dataQuality.admin.audit.actions.undo")}
+                  aria-label={t("dataQuality.admin.audit.actions.undoFor", {
+                    entity: entityLabel(entry.entity),
+                  })}
                 >
                   {undoingId === entry.id ? "…" : t("dataQuality.admin.audit.actions.undo")}
                 </button>
@@ -669,6 +671,7 @@ export default function DataQuality() {
   const { t } = useTranslation();
   const { dataQualityAdmin, configLoaded } = useConfig();
   const [tab, setTab] = useState<TabId>(dataQualityAdmin === false ? "series" : "issues");
+  const tabRefs = useRef<Partial<Record<TabId, HTMLButtonElement | null>>>({});
 
   if (!configLoaded) {
     // Wait for config before deciding admin vs. read-only: rendering the
@@ -697,28 +700,57 @@ export default function DataQuality() {
     { id: "audit", label: t("dataQuality.admin.tabs.audit") },
   ];
 
+  const handleTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    const delta = event.key === "ArrowRight" ? 1 : -1;
+    const next = tabs[(index + delta + tabs.length) % tabs.length];
+    setTab(next.id);
+    tabRefs.current[next.id]?.focus();
+  };
+
   return (
     <div style={{ maxWidth: 1000, margin: "0 auto", padding: "1rem" }}>
       <h1>{t("dataQuality.title")}</h1>
       <nav role="tablist" aria-label="Data quality admin" className="mb-4 flex flex-wrap gap-2">
-        {tabs.map((item) => (
+        {tabs.map((item, index) => (
           <button
             key={item.id}
+            ref={(el) => {
+              tabRefs.current[item.id] = el;
+            }}
+            id={`dq-tab-${item.id}`}
             type="button"
             role="tab"
             aria-selected={tab === item.id}
+            aria-controls={`dq-panel-${item.id}`}
+            tabIndex={tab === item.id ? 0 : -1}
             onClick={() => setTab(item.id)}
+            onKeyDown={(e) => handleTabKeyDown(e, index)}
             className={tab === item.id ? "rounded bg-blue-700 px-3 py-1 text-white" : "rounded bg-gray-200 px-3 py-1"}
           >
             {item.label}
           </button>
         ))}
       </nav>
-      {tab === "issues" && <IssuesTab />}
-      {tab === "series" && <SeriesTab />}
-      {tab === "holdings" && <IssuesTab presetTypes={HOLDING_ISSUE_TYPES} />}
-      {tab === "metadata" && <MetadataTab />}
-      {tab === "audit" && <AuditTab />}
+      {tabs.map(
+        (item) =>
+          tab === item.id && (
+            <div
+              key={item.id}
+              id={`dq-panel-${item.id}`}
+              role="tabpanel"
+              aria-labelledby={`dq-tab-${item.id}`}
+              tabIndex={0}
+            >
+              {item.id === "issues" && <IssuesTab />}
+              {item.id === "series" && <SeriesTab />}
+              {item.id === "holdings" && <IssuesTab presetTypes={HOLDING_ISSUE_TYPES} />}
+              {item.id === "metadata" && <MetadataTab />}
+              {item.id === "audit" && <AuditTab />}
+            </div>
+          ),
+      )}
     </div>
   );
 }

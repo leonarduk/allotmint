@@ -248,6 +248,46 @@ def test_batch_fix_reports_failures(client):
     assert failed["status"] == "error"
 
 
+def test_batch_fix_aggregates_issues_once_for_whole_batch(monkeypatch, client):
+    """Regression for #6741: batch fix must scan once, not once per issue id."""
+    import backend.routes.data_quality_admin as admin_module
+
+    issues = client.get("/data-quality/issues").json()["issues"]
+    wrong = [i for i in issues if i["type"] == "WRONG_EXCHANGE"]
+    ids = [i["id"] for i in wrong]
+    assert ids
+
+    calls = []
+    real_aggregate_issues = admin_module.aggregate_issues
+
+    def counting_aggregate_issues(*args, **kwargs):
+        calls.append(1)
+        return real_aggregate_issues(*args, **kwargs)
+
+    monkeypatch.setattr(admin_module, "aggregate_issues", counting_aggregate_issues)
+
+    resp = client.post("/data-quality/fixes", json={"issue_ids": ids})
+    assert resp.status_code == 200
+    assert len(calls) == 1
+
+
+def test_batch_fix_skips_issue_resolved_earlier_in_same_batch(client):
+    """An issue id repeated in the batch is only applied once; the second
+    occurrence is revalidated against the live holding and skipped rather
+    than reapplied, since the first fix already changed it (#6741)."""
+    issues = client.get("/data-quality/issues").json()["issues"]
+    wrong = next(i for i in issues if i["type"] == "WRONG_EXCHANGE")
+
+    resp = client.post("/data-quality/fixes", json={"issue_ids": [wrong["id"], wrong["id"]]})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["applied"] == 1
+    assert data["failed"] == 1
+    second = data["results"][1]
+    assert second["status"] == "error"
+    assert "no longer applies" in second["detail"]
+
+
 def test_dedupe_series_direct_endpoint(monkeypatch, client, tmp_path):
     df = pd.DataFrame({"Date": ["2026-01-01", "2026-01-01", "2026-01-02"], "Close": [1.0, 2.0, 3.0]})
     cache_path = tmp_path / "ABC_L.parquet"

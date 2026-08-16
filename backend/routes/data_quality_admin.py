@@ -75,6 +75,11 @@ _TICKER_RE = re.compile(r"^[A-Z0-9][A-Z0-9._-]{0,49}$")
 _EXCHANGE_RE = re.compile(r"^[A-Z0-9][A-Z0-9._-]{0,49}$")
 _OWNER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._ -]{0,63}$")
 _ACCOUNT_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
+# Audit entry ids are ``uuid.uuid4()`` strings (see ``append_audit``), but the
+# undo endpoint takes ``entry_id`` straight from the URL path and folds it
+# into a cache-snapshot filename (``_fix_snapshot_path``), so it needs the
+# same validate-before-path-use treatment as the cache keys above.
+_ENTRY_ID_RE = re.compile(r"^[A-Za-z0-9-]{1,64}$")
 
 
 class BatchFixRequest(BaseModel):
@@ -219,6 +224,13 @@ def _normalise_account_file_name(account: str) -> str:
 def _validate_cache_key(ticker: str, exchange: str) -> tuple[str, str]:
     """Upper-case and validate a ticker/exchange pair used in cache paths."""
     return _validate_ticker(ticker), _validate_exchange(exchange)
+
+
+def _validate_entry_id(entry_id: str) -> str:
+    """Validate an audit ``entry_id`` used to build a cache-snapshot path."""
+    if not _ENTRY_ID_RE.match(entry_id):
+        raise HTTPException(status_code=400, detail="Invalid audit entry id.")
+    return entry_id
 
 
 def _validate_ticker(ticker: str) -> str:
@@ -925,6 +937,7 @@ async def undo_audit(
     user: str | None = Depends(get_active_user),
 ) -> dict[str, Any]:
     """Undo a reversible action recorded in the audit trail."""
+    entry_id = _validate_entry_id(entry_id)
     entry = find_audit_entry(entry_id)
     if entry is None:
         raise HTTPException(status_code=404, detail=f"Unknown audit entry: {entry_id}")

@@ -368,6 +368,11 @@ def test_audit_undo_unknown_404(client):
     assert resp.status_code == 404
 
 
+def test_audit_undo_rejects_path_like_entry_id(client):
+    resp = client.post("/data-quality/audit/..%2e%2eevil/undo")
+    assert resp.status_code == 400
+
+
 def test_outliers_not_fixable(monkeypatch, tmp_path):
     """OUTLIERS issues report fixable=False and the fix endpoint rejects them."""
     dates = [f"2026-01-{d:02d}" for d in range(3, 25)]

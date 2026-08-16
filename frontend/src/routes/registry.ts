@@ -501,3 +501,19 @@ export const standalonePageRoutes = ROUTE_REGISTRY.filter((entry) =>
     lazyComponent: LazyExoticComponent<ComponentType>;
   }
 >;
+
+/**
+ * Routes mounted via standalonePageRoutes that must NOT get the shared
+ * AppHeader wrapper: /alert-settings already renders AppHeader itself (with
+ * the price-refresh timestamp), and /support + /create-account are public
+ * pre-login routes that stay chrome-free (#6725).
+ */
+export const STANDALONE_ROUTES_WITHOUT_APP_HEADER = new Set([
+  '/alert-settings',
+  '/support',
+  '/create-account',
+]);
+
+export function standaloneRouteNeedsChrome(routePath: string | undefined): boolean {
+  return Boolean(routePath && !STANDALONE_ROUTES_WITHOUT_APP_HEADER.has(routePath));
+}

@@ -13,6 +13,7 @@ import {
   pathForMode,
   readRouteScopeQuery,
   standalonePageRoutes,
+  standaloneRouteNeedsChrome,
   validatePageManifest,
 } from '@/pageManifest';
 
@@ -164,5 +165,21 @@ describe('page manifest', () => {
     expect(buildPathForMode('owner', { owner: 'Steve Smith' })).toBe(
       '/?owner=Steve%20Smith'
     );
+  });
+
+  it('wraps standalone routes in AppHeader except the excluded trio (#6725)', () => {
+    // Every standalone-routed page gets nav chrome when mounted directly...
+    expect(standaloneRouteNeedsChrome('/data-quality')).toBe(true);
+    expect(standaloneRouteNeedsChrome('/data-explorer')).toBe(true);
+    expect(standaloneRouteNeedsChrome('/trail')).toBe(true);
+    expect(standaloneRouteNeedsChrome('/trade-compliance')).toBe(true);
+    expect(standaloneRouteNeedsChrome('/virtual')).toBe(true);
+    // ...except /alert-settings (self-renders AppHeader with lastRefresh),
+    // and the public pre-login routes that must stay chrome-free.
+    expect(standaloneRouteNeedsChrome('/alert-settings')).toBe(false);
+    expect(standaloneRouteNeedsChrome('/support')).toBe(false);
+    expect(standaloneRouteNeedsChrome('/create-account')).toBe(false);
+    // A route with no path (never mounted standalone) is not chrome-bearing.
+    expect(standaloneRouteNeedsChrome(undefined)).toBe(false);
   });
 });

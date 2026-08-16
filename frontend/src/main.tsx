@@ -38,6 +38,7 @@ import LoginPage from './LoginPage';
 import { UserProvider, useUser } from './UserContext';
 import ErrorBoundary from './ErrorBoundary';
 import DisabledFeature from './components/DisabledFeature';
+import AppHeader from './components/AppHeader';
 import { loadStoredAuthUser, loadStoredUserProfile } from './authStorage';
 import { RouteProvider } from './RouteContext';
 import { clearCognitoSession, cognitoLogout, ensureAwsUiAuth, extractTokenExchangeErrorReason, getCognitoSessionExpiresAt, getStoredCognitoIdToken, refreshCognitoSession, UserCancelledError, type AwsUiAuthConfig } from './awsUiAuth';
@@ -46,6 +47,7 @@ import {
   deriveModeFromPathname,
   isModeEnabled,
   standalonePageRoutes,
+  standaloneRouteNeedsChrome,
 } from './pageManifest';
 
 interface BootstrapConfig {
@@ -464,11 +466,26 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
             }
 
             const Component = route.lazyComponent;
+            // Standalone pages mount outside App.tsx's mode dispatch, so they
+            // render with zero nav chrome unless the wrapper is added here
+            // (or the page self-renders AppHeader like AlertSettings does).
+            // /alert-settings, /support and /create-account are excluded by
+            // standaloneRouteNeedsChrome (#6725).
+            const needsChrome = standaloneRouteNeedsChrome(route.routePath);
             return [
               <Route
                 key={route.routePath}
                 path={route.routePath}
-                element={<Component />}
+                element={
+                  needsChrome ? (
+                    <>
+                      <AppHeader />
+                      <Component />
+                    </>
+                  ) : (
+                    <Component />
+                  )
+                }
               />,
             ];
           })}

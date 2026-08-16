@@ -184,7 +184,9 @@
         },
         "actions": {
           "preview": "Preview",
+          "previewFor": "Preview fix for {{entity}}",
           "fix": "Apply fix",
+          "fixFor": "Apply fix for {{entity}}",
           "fixing": "Applying...",
           "fixAll": "Apply fix to all shown",
           "fixAllShort": "Fix all",
@@ -208,6 +210,7 @@
         "title": "Series",
         "refetch": "Refetch",
         "dedupe": "Dedupe",
+        "dedupeFor": "Dedupe {{ticker}}.{{exchange}}",
         "edit": "Edit",
         "rebuild": "Rebuild",
         "deduped": "Deduped {{removed}} duplicate row(s).",
@@ -237,6 +240,7 @@
         },
         "actions": {
           "undo": "Undo",
+          "undoFor": "Undo {{entity}}",
           "undone": "Undone",
           "undoFailed": "Undo failed: {{detail}}",
           "notReversible": "Not reversible"

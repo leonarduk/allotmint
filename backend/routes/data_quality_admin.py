@@ -28,6 +28,8 @@ from pydantic import BaseModel, Field
 
 import backend.data_quality.issues as dq_issues
 from backend.common.accounts_store import LocalAccountsStore
+from backend.common.authz import ensure_owner_access
+from backend.common.errors import AppError
 from backend.common.instruments import resolve_instrument_ticker
 from backend.config import config
 from backend.data_quality.audit import append_audit, find_audit_entry, read_audit
@@ -38,7 +40,9 @@ from backend.data_quality.issues import (
     aggregate_issues,
     find_issue,
 )
+from backend.logging_setup import sanitise_log_value
 from backend.routes import get_active_user
+from backend.routes._accounts import resolve_accounts_root
 from backend.routes.transactions import resolve_writable_store
 from backend.timeseries.cache import (
     load_cached_meta_timeseries_full,
@@ -48,7 +52,17 @@ from backend.timeseries.cache import (
 
 logger = logging.getLogger(__name__)
 
+# Read-only endpoints (issue listing/preview, audit listing) stay reachable
+# regardless of ``enable_data_quality_admin`` — the flag only controls the
+# write surface. See ``write_router`` below and backend/bootstrap/routers.py.
 router = APIRouter(prefix="/data-quality", tags=["data-quality-admin"])
+
+# Mutating endpoints (fix/undo). Registered by backend/bootstrap/routers.py
+# only when ``config.enable_data_quality_admin`` is true, so disabling the
+# flag actually removes these routes rather than just hiding the SPA tabs
+# (#6739) — every route here also owner-scopes via ``ensure_owner_access``
+# where it touches a specific owner's holdings.
+write_router = APIRouter(prefix="/data-quality", tags=["data-quality-admin"])
 
 _FETCH_DAYS = 3650
 
@@ -129,7 +143,9 @@ def _write_fix_snapshot(path: Path, entry_id: str, before_bytes: bytes) -> None:
         _atomic_write_bytes(_fix_snapshot_path(path, entry_id), before_bytes)
     except OSError:
         logger.warning(
-            "Failed to write per-fix undo snapshot for %s (audit entry %s)", path, entry_id
+            "Failed to write per-fix undo snapshot for %s (audit entry %s)",
+            sanitise_log_value(path),
+            sanitise_log_value(entry_id),
         )
 
 
@@ -244,15 +260,14 @@ def _validate_owner_account(owner: str, account: str) -> tuple[str, str]:
     return owner, account
 
 
-def _fix_wrong_exchange(
-    request: Request, payload: dict[str, Any], actor: str | None
-) -> dict[str, Any]:
+def _fix_wrong_exchange(request: Request, payload: dict[str, Any], actor: str | None) -> dict[str, Any]:
     """Correct a holding's ticker through the accounts-store write path."""
     owner = str(payload["owner"])
     account = str(payload["account"])
     holding_ticker = _validate_ticker(str(payload["holding_ticker"]))
     resolved_ticker = _validate_ticker(str(payload["resolved_ticker"]))
     owner, account = _validate_owner_account(owner, account)
+    ensure_owner_access(actor, owner, resolve_accounts_root(request))
 
     store = _resolve_writable_accounts_store(request)
     file_path = Path(store.local_root) / owner / f"{account}.json" if store.local_root else None
@@ -321,9 +336,7 @@ def _atomic_write_bytes(path: Path, data: bytes) -> None:
     os.replace(tmp_path, path)
 
 
-def _rollback_after_audit_failure(
-    path: Path | None, *, existed: bool, expected_bytes: bytes | None
-) -> None:
+def _rollback_after_audit_failure(path: Path | None, *, existed: bool, expected_bytes: bytes | None) -> None:
     """Restore ``path`` to its pre-fix state after a failed audit write.
 
     Cache/fix mutations are applied first and the audit second; if the audit
@@ -569,11 +582,7 @@ def _fix_dedupe(payload: dict[str, Any], actor: str | None) -> dict[str, Any]:
             status_code=502,
             detail=f"Series {ticker}.{exchange} has no valid dates; cache left unchanged.",
         )
-    deduped = (
-        work.drop_duplicates(subset=["Date"], keep="last")
-        .sort_values("Date")
-        .reset_index(drop=True)
-    )
+    deduped = work.drop_duplicates(subset=["Date"], keep="last").sort_values("Date").reset_index(drop=True)
     _backup_file_if_needed(path)
     _atomic_write_parquet(deduped, path)
     after_bytes = path.read_bytes()
@@ -664,14 +673,10 @@ def _fix_ticker_mismatch(payload: dict[str, Any], actor: str | None) -> dict[str
     return {"status": "fixed", "tickers": [ticker], "audit_id": entry["id"]}
 
 
-def _apply_resolved_fix(
-    issue: DataQualityIssue, request: Request, actor: str | None
-) -> dict[str, Any]:
+def _apply_resolved_fix(issue: DataQualityIssue, request: Request, actor: str | None) -> dict[str, Any]:
     """Dispatch an already-looked-up issue to its fix implementation."""
     if not issue.fixable or issue.type not in FIXABLE_TYPES:
-        raise HTTPException(
-            status_code=409, detail=f"Issue type {issue.type} has no automated fix."
-        )
+        raise HTTPException(status_code=409, detail=f"Issue type {issue.type} has no automated fix.")
     payload = dict(issue.fix_payload)
     payload["issue_id"] = issue.id
 
@@ -720,10 +725,7 @@ def _holding_ticker_exists(owner: str, account: str, ticker: str) -> bool:
     holdings = document.get("holdings")
     if not isinstance(holdings, list):
         return False
-    return any(
-        isinstance(h, dict) and str(h.get("ticker") or "").upper() == ticker.upper()
-        for h in holdings
-    )
+    return any(isinstance(h, dict) and str(h.get("ticker") or "").upper() == ticker.upper() for h in holdings)
 
 
 def _series_issue_still_applies(issue: DataQualityIssue) -> bool:
@@ -752,9 +754,7 @@ def _series_issue_still_applies(issue: DataQualityIssue) -> bool:
     if issue.type == IssueType.TICKER_MISMATCH:
         if "Ticker" not in df.columns:
             return False
-        row_tickers = {
-            str(v).strip().upper() for v in df["Ticker"].dropna().unique() if str(v).strip()
-        }
+        row_tickers = {str(v).strip().upper() for v in df["Ticker"].dropna().unique() if str(v).strip()}
         return bool(row_tickers) and row_tickers != {ticker}
 
     quality = dq_issues.compute_quality(df, ticker, exchange)
@@ -794,12 +794,7 @@ def _issue_still_applies(issue: DataQualityIssue) -> bool:
         owner = str(issue.entity.get("owner") or "")
         account = str(issue.entity.get("account") or "")
         holding_ticker = str(issue.entity.get("holding") or "")
-        if (
-            owner
-            and account
-            and holding_ticker
-            and not _holding_ticker_exists(owner, account, holding_ticker)
-        ):
+        if owner and account and holding_ticker and not _holding_ticker_exists(owner, account, holding_ticker):
             return False
         ticker = str(payload.get("ticker") or "")
         exchange = str(payload.get("exchange") or "")
@@ -840,7 +835,7 @@ async def preview_issue(issue_id: str) -> dict[str, Any]:
     }
 
 
-@router.post("/issues/{issue_id}/fix")
+@write_router.post("/issues/{issue_id}/fix")
 async def fix_issue(
     issue_id: str,
     request: Request,
@@ -849,7 +844,7 @@ async def fix_issue(
     return _apply_fix(issue_id, request, user)
 
 
-@router.post("/fixes")
+@write_router.post("/fixes")
 async def batch_fix(
     body: BatchFixRequest,
     request: Request,
@@ -864,6 +859,13 @@ async def batch_fix(
     revalidated against its own entity (``_issue_still_applies``) before the
     fix runs, so an issue an earlier item in this same batch already
     resolved is reported as no-longer-applicable instead of being reapplied.
+
+    Catches both ``HTTPException`` (e.g. unknown/unfixable issue) and
+    ``AppError`` -- ``ensure_owner_access`` raises ``PermissionDeniedError``
+    (an ``AppError``, not an ``HTTPException``) when the caller isn't
+    authorized for one issue's owner, and that must be reported as a failed
+    item rather than aborting the whole batch and 403ing issues that *were*
+    authorized (#6739).
     """
     issues = aggregate_issues()
     by_id = {issue.id: issue for issue in issues}
@@ -871,9 +873,7 @@ async def batch_fix(
     for issue_id in body.issue_ids:
         issue = by_id.get(issue_id)
         if issue is None:
-            results.append(
-                {"issue_id": issue_id, "status": "error", "detail": f"Unknown issue id: {issue_id}"}
-            )
+            results.append({"issue_id": issue_id, "status": "error", "detail": f"Unknown issue id: {issue_id}"})
             continue
         if not _issue_still_applies(issue):
             results.append(
@@ -889,11 +889,13 @@ async def batch_fix(
             results.append({"issue_id": issue_id, **result, "status": "ok"})
         except HTTPException as exc:
             results.append({"issue_id": issue_id, "status": "error", "detail": exc.detail})
+        except AppError as exc:
+            results.append({"issue_id": issue_id, "status": "error", "detail": exc.safe_detail})
     ok = sum(1 for r in results if r["status"] == "ok")
     return {"applied": ok, "failed": len(results) - ok, "results": results}
 
 
-@router.post("/series/{ticker}/{exchange}/dedupe")
+@write_router.post("/series/{ticker}/{exchange}/dedupe")
 async def dedupe_series(
     ticker: str,
     exchange: str,
@@ -916,7 +918,7 @@ async def list_audit(limit: int | None = Query(None, ge=1, le=1000)) -> dict[str
     return {"count": len(entries), "entries": entries}
 
 
-@router.post("/audit/{entry_id}/undo")
+@write_router.post("/audit/{entry_id}/undo")
 async def undo_audit(
     entry_id: str,
     request: Request,
@@ -933,6 +935,7 @@ async def undo_audit(
         owner = str((entry.get("entity") or {}).get("owner") or "")
         account = str((entry.get("entity") or {}).get("account") or "")
         owner, account = _validate_owner_account(owner, account)
+        ensure_owner_access(user, owner, resolve_accounts_root(request))
         # ``store.edit_document`` below creates the file (via ``default={}``)
         # when it is missing, which would silently no-op the undo (nothing to
         # restore in a freshly-created empty document) instead of surfacing
@@ -961,9 +964,7 @@ async def undo_audit(
             if not after_ticker:
                 continue
             restore_map[after_ticker] = (dict(before_holding), dict(after_holding))
-        with store.edit_document(
-            owner, f"{account}.json", default={}, trailing_newline=True
-        ) as data:
+        with store.edit_document(owner, f"{account}.json", default={}, trailing_newline=True) as data:
             data.setdefault("holdings", [])
             for holding in data["holdings"]:
                 if not isinstance(holding, dict):

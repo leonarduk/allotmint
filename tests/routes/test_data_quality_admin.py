@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
+import sys
 
 import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
 from backend.config import config
+from backend.routes import config as routes_config
 
 
 @pytest.fixture
@@ -52,9 +54,7 @@ def _build_client(monkeypatch, tmp_path, *, series: list[tuple[str, str, pd.Data
         lambda symbol, create_missing=False: "MICC.N" if symbol == "MICC" else None,
     )
     monkeypatch.setattr(issues_module, "has_cached_meta_timeseries", lambda t, e: False)
-    monkeypatch.setattr(
-        issues_module, "list_cached_meta_tickers", lambda: [(t, e) for t, e, _ in series]
-    )
+    monkeypatch.setattr(issues_module, "list_cached_meta_tickers", lambda: [(t, e) for t, e, _ in series])
     monkeypatch.setattr(
         issues_module,
         "load_cached_meta_timeseries_full",
@@ -72,6 +72,71 @@ def _build_client(monkeypatch, tmp_path, *, series: list[tuple[str, str, pd.Data
     app.state.accounts_root = str(accounts)
     app.state.accounts_root_is_global = False
     return TestClient(app)
+
+
+def _build_auth_enabled_client(monkeypatch, tmp_path, *, authorized_owner="demo"):
+    """Like ``_build_client``, but with real auth and owner-scoping enforced.
+
+    Two accounts are seeded — ``demo`` (authorized for the "good" test
+    identity) and ``other`` (not) — each with a MICC.L holding, so both
+    produce a WRONG_EXCHANGE issue and cross-owner fix/undo attempts can be
+    exercised (#6739).
+    """
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    monkeypatch.setattr(config, "disable_auth", False)
+    monkeypatch.setattr(config, "audit_dir", tmp_path / "audit")
+
+    accounts = tmp_path / "accounts"
+    for owner in ("demo", "other"):
+        (accounts / owner).mkdir(parents=True)
+        (accounts / owner / "isa.json").write_text(
+            json.dumps(
+                {
+                    "owner": owner,
+                    "account_type": "isa",
+                    "currency": "GBP",
+                    "holdings": [{"ticker": "MICC.L"}],
+                }
+            ),
+            encoding="utf-8",
+        )
+    monkeypatch.setattr(config, "accounts_root", accounts)
+
+    import backend.data_quality.issues as issues_module
+
+    monkeypatch.setattr(
+        issues_module,
+        "get_instrument_meta",
+        lambda ticker: {"name": "MercadoLibre"} if ticker == "MICC.N" else {},
+    )
+    monkeypatch.setattr(
+        issues_module,
+        "resolve_instrument_ticker",
+        lambda symbol, create_missing=False: "MICC.N" if symbol == "MICC" else None,
+    )
+    monkeypatch.setattr(issues_module, "has_cached_meta_timeseries", lambda t, e: False)
+    monkeypatch.setattr(issues_module, "list_cached_meta_tickers", lambda: [])
+    monkeypatch.setattr(issues_module, "load_cached_meta_timeseries_full", lambda t, e: None)
+
+    def fake_meta(owner, root=None):
+        return {"email": "user@example.com"} if owner == authorized_owner else {}
+
+    monkeypatch.setattr("backend.common.authz.load_person_meta", fake_meta)
+
+    from backend.app import create_app
+
+    app = create_app()
+    # ``create_app`` reloads config, which resets the audit_dir/accounts_root
+    # patches above; re-apply so both stay inside this test's tmp dir.
+    monkeypatch.setattr(config, "audit_dir", tmp_path / "audit")
+    monkeypatch.setattr(config, "accounts_root", accounts)
+    app.state.accounts_root = str(accounts)
+    app.state.accounts_root_is_global = False
+
+    client = TestClient(app)
+    token = client.post("/token", json={"id_token": "good"}).json()["access_token"]
+    client.headers.update({"Authorization": f"Bearer {token}"})
+    return client
 
 
 def test_get_issues_lists_wrong_exchange(client):
@@ -224,9 +289,7 @@ def test_batch_fix_skips_issue_resolved_earlier_in_same_batch(client):
 
 
 def test_dedupe_series_direct_endpoint(monkeypatch, client, tmp_path):
-    df = pd.DataFrame(
-        {"Date": ["2026-01-01", "2026-01-01", "2026-01-02"], "Close": [1.0, 2.0, 3.0]}
-    )
+    df = pd.DataFrame({"Date": ["2026-01-01", "2026-01-01", "2026-01-02"], "Close": [1.0, 2.0, 3.0]})
     cache_path = tmp_path / "ABC_L.parquet"
     df.to_parquet(cache_path, index=False)
 
@@ -327,9 +390,7 @@ def test_dedupe_series_rejects_path_traversal(monkeypatch, client, tmp_path):
 
     # Hermetic: point the cache at a temp dir so the valid-key case never
     # touches real repo/demo cache data.
-    monkeypatch.setattr(
-        admin_module, "meta_timeseries_cache_path", lambda t, e: str(tmp_path / f"{t}_{e}.parquet")
-    )
+    monkeypatch.setattr(admin_module, "meta_timeseries_cache_path", lambda t, e: str(tmp_path / f"{t}_{e}.parquet"))
     # Encoded path separators are rejected by the router itself (404, never
     # reaching the handler); other invalid characters are rejected by
     # ``_validate_cache_key`` (400).  Either way the key is never used to
@@ -459,9 +520,7 @@ def test_fix_refetch_rejects_empty_fetch(monkeypatch, tmp_path):
     """An empty upstream fetch must fail without auditing or touching the cache."""
     client, cache_path, admin_module = _gapped_series_client(monkeypatch, tmp_path)
     before_bytes = cache_path.read_bytes()
-    monkeypatch.setattr(
-        admin_module, "load_meta_timeseries", lambda t, e, days: pd.DataFrame(columns=["Date"])
-    )
+    monkeypatch.setattr(admin_module, "load_meta_timeseries", lambda t, e, days: pd.DataFrame(columns=["Date"]))
 
     issues = client.get("/data-quality/issues").json()["issues"]
     gaps = [i for i in issues if i["type"] == "GAPS"]
@@ -479,9 +538,7 @@ def test_fix_refetch_rejects_empty_fetch(monkeypatch, tmp_path):
 def test_fix_refetch_records_before_rows(monkeypatch, tmp_path):
     """A successful refetch audits the real pre-fix row count, not None."""
     client, cache_path, admin_module = _gapped_series_client(monkeypatch, tmp_path)
-    fresh = pd.DataFrame(
-        {"Date": ["2026-01-05", "2026-01-06", "2026-01-12"], "Close": [1.0, 1.5, 2.0]}
-    )
+    fresh = pd.DataFrame({"Date": ["2026-01-05", "2026-01-06", "2026-01-12"], "Close": [1.0, 1.5, 2.0]})
     monkeypatch.setattr(admin_module, "load_meta_timeseries", lambda t, e, days: fresh.copy())
 
     issues = client.get("/data-quality/issues").json()["issues"]
@@ -561,6 +618,174 @@ def test_dedupe_handles_timezone_aware_dates(monkeypatch, client, tmp_path):
     assert len(written) == 2
 
 
+def test_write_endpoints_404_when_admin_disabled(monkeypatch, tmp_path):
+    """``enable_data_quality_admin=false`` must remove the write routes, not just
+    hide them in the SPA — the flag is a real authorization boundary (#6739).
+
+    ``enable_data_quality_admin`` isn't in ``load_runtime_config``'s
+    ``_OVERRIDE_ATTRS`` allowlist, so a plain ``monkeypatch.setattr(config, ...)``
+    before ``create_app()`` is wiped out by the ``reload_config()`` that
+    ``create_app()`` performs internally; it must come from config.yaml
+    instead, like the other ``enable_*`` flags (see test_config.py).
+    """
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("enable_data_quality_admin: false\n")
+    monkeypatch.setattr(sys.modules["backend.config"], "_project_config_path", lambda: config_path)
+    monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
+
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    monkeypatch.setattr(config, "disable_auth", True)
+    monkeypatch.setattr(config, "audit_dir", tmp_path / "audit")
+
+    accounts = tmp_path / "accounts"
+    (accounts / "demo").mkdir(parents=True)
+    (accounts / "demo" / "isa.json").write_text(
+        json.dumps({"owner": "demo", "account_type": "isa", "currency": "GBP", "holdings": []}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(config, "accounts_root", accounts)
+
+    from backend.app import create_app
+
+    app = create_app()
+    monkeypatch.setattr(config, "audit_dir", tmp_path / "audit")
+    app.state.accounts_root = str(accounts)
+    app.state.accounts_root_is_global = False
+    disabled_client = TestClient(app)
+
+    # Read-only endpoints stay reachable regardless of the flag.
+    assert disabled_client.get("/data-quality/issues").status_code == 200
+    assert disabled_client.get("/data-quality/audit").status_code == 200
+
+    # Write endpoints are not registered at all -- 404, not 403/200.
+    assert disabled_client.post("/data-quality/issues/nope/fix").status_code == 404
+    assert disabled_client.post("/data-quality/fixes", json={"issue_ids": ["nope"]}).status_code == 404
+    assert disabled_client.post("/data-quality/series/ABC/L/dedupe").status_code == 404
+    assert disabled_client.post("/data-quality/audit/nope/undo").status_code == 404
+
+
+def test_write_endpoints_reachable_when_admin_enabled(monkeypatch, tmp_path):
+    """The positive counterpart of ``..._404_when_admin_disabled``: an explicit
+    ``enable_data_quality_admin: true`` in config.yaml must register the write
+    routes, proving the flag is actually read (not just defaulted) (#6739)."""
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("enable_data_quality_admin: true\n")
+    monkeypatch.setattr(sys.modules["backend.config"], "_project_config_path", lambda: config_path)
+    monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
+
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    monkeypatch.setattr(config, "disable_auth", True)
+    monkeypatch.setattr(config, "audit_dir", tmp_path / "audit")
+
+    accounts = tmp_path / "accounts"
+    (accounts / "demo").mkdir(parents=True)
+    (accounts / "demo" / "isa.json").write_text(
+        json.dumps({"owner": "demo", "account_type": "isa", "currency": "GBP", "holdings": []}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(config, "accounts_root", accounts)
+
+    from backend.app import create_app
+
+    app = create_app()
+    monkeypatch.setattr(config, "audit_dir", tmp_path / "audit")
+    app.state.accounts_root = str(accounts)
+    app.state.accounts_root_is_global = False
+    enabled_client = TestClient(app)
+
+    import backend.routes.data_quality_admin as admin_module
+
+    # Hermetic: point the cache at a guaranteed-empty tmp dir rather than
+    # relying on ABC/L being uncached in whatever the real cache base
+    # happens to be for this environment.
+    monkeypatch.setattr(admin_module, "meta_timeseries_cache_path", lambda t, e: str(tmp_path / f"{t}_{e}.parquet"))
+
+    # Routes exist (reach the handler and 404 on the *issue*, not the route).
+    assert enabled_client.post("/data-quality/issues/nope/fix").status_code == 404
+    assert enabled_client.post("/data-quality/fixes", json={"issue_ids": ["nope"]}).status_code == 200
+    assert enabled_client.post("/data-quality/audit/nope/undo").status_code == 404
+    dedupe_resp = enabled_client.post("/data-quality/series/ABC/L/dedupe")
+    assert dedupe_resp.status_code == 404  # no cached series -- route was reached, not missing
+    assert dedupe_resp.json()["detail"] == "Cached series not found."
+
+
+def test_fix_wrong_exchange_rejects_cross_owner(monkeypatch, tmp_path):
+    """Fixing another owner's holding must 403, not silently mutate it (#6739)."""
+    client = _build_auth_enabled_client(monkeypatch, tmp_path, authorized_owner="demo")
+
+    issues = client.get("/data-quality/issues").json()["issues"]
+    other_issue = next(i for i in issues if i["type"] == "WRONG_EXCHANGE" and i["entity"]["owner"] == "other")
+    demo_issue = next(i for i in issues if i["type"] == "WRONG_EXCHANGE" and i["entity"]["owner"] == "demo")
+
+    resp = client.post(f"/data-quality/issues/{other_issue['id']}/fix")
+    assert resp.status_code == 403
+    other_doc = json.loads((tmp_path / "accounts" / "other" / "isa.json").read_text(encoding="utf-8"))
+    assert other_doc["holdings"] == [{"ticker": "MICC.L"}]  # untouched
+
+    resp = client.post(f"/data-quality/issues/{demo_issue['id']}/fix")
+    assert resp.status_code == 200
+
+
+def test_undo_rejects_cross_owner(monkeypatch, tmp_path):
+    """Undoing another owner's audit entry must 403 (#6739)."""
+    client = _build_auth_enabled_client(monkeypatch, tmp_path, authorized_owner="demo")
+
+    import backend.data_quality.audit as audit_module
+
+    entry = audit_module.append_audit(
+        action="wrong_exchange",
+        issue_id="WRONG_EXCHANGE:other:isa:MICC.L",
+        entity={"owner": "other", "account": "isa"},
+        before={"holdings": [{"ticker": "MICC.L"}]},
+        after={"holdings": [{"ticker": "MICC.N"}]},
+        extra={"kind": "wrong_exchange", "owner": "other", "account": "isa"},
+    )
+    resp = client.post(f"/data-quality/audit/{entry['id']}/undo")
+    assert resp.status_code == 403
+    other_doc = json.loads((tmp_path / "accounts" / "other" / "isa.json").read_text(encoding="utf-8"))
+    assert other_doc["holdings"] == [{"ticker": "MICC.L"}]  # untouched
+
+
+def test_batch_fix_rejects_cross_owner(monkeypatch, tmp_path):
+    """``/fixes`` must owner-scope each issue individually, not just the
+    single-issue ``/issues/{id}/fix`` endpoint (#6739)."""
+    client = _build_auth_enabled_client(monkeypatch, tmp_path, authorized_owner="demo")
+
+    issues = client.get("/data-quality/issues").json()["issues"]
+    other_issue = next(i for i in issues if i["type"] == "WRONG_EXCHANGE" and i["entity"]["owner"] == "other")
+    demo_issue = next(i for i in issues if i["type"] == "WRONG_EXCHANGE" and i["entity"]["owner"] == "demo")
+
+    resp = client.post("/data-quality/fixes", json={"issue_ids": [other_issue["id"], demo_issue["id"]]})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["applied"] == 1
+    assert data["failed"] == 1
+    other_result = next(r for r in data["results"] if r["issue_id"] == other_issue["id"])
+    assert other_result["status"] == "error"
+    other_doc = json.loads((tmp_path / "accounts" / "other" / "isa.json").read_text(encoding="utf-8"))
+    assert other_doc["holdings"] == [{"ticker": "MICC.L"}]  # untouched
+
+
+def test_dedupe_series_not_owner_scoped_by_design(monkeypatch, tmp_path):
+    """Unlike wrong_exchange fix/undo, dedupe acts on the shared timeseries
+    cache (not a specific owner's holding), so no owner check applies -- any
+    authenticated user may dedupe a cached series (#6739)."""
+    client = _build_auth_enabled_client(monkeypatch, tmp_path, authorized_owner="demo")
+
+    df = pd.DataFrame({"Date": ["2026-01-01", "2026-01-01", "2026-01-02"], "Close": [1.0, 2.0, 3.0]})
+    cache_path = tmp_path / "ABC_L.parquet"
+    df.to_parquet(cache_path, index=False)
+
+    import backend.routes.data_quality_admin as admin_module
+
+    monkeypatch.setattr(admin_module, "meta_timeseries_cache_path", lambda t, e: str(cache_path))
+    monkeypatch.setattr(admin_module, "load_cached_meta_timeseries_full", lambda t, e: df.copy())
+
+    resp = client.post("/data-quality/series/ABC/L/dedupe")
+    assert resp.status_code == 200
+    assert resp.json()["removed"] == 1
+
+
 def test_fix_unresolved_ticker_rejects_ticker_mismatch(monkeypatch, tmp_path):
     """A fetch tagged for a different ticker must not be recorded as a fix (#6740).
 
@@ -590,9 +815,7 @@ def test_fix_unresolved_ticker_rejects_ticker_mismatch(monkeypatch, tmp_path):
     import backend.data_quality.issues as issues_module
 
     monkeypatch.setattr(issues_module, "get_instrument_meta", lambda ticker: {})
-    monkeypatch.setattr(
-        issues_module, "resolve_instrument_ticker", lambda symbol, create_missing=False: None
-    )
+    monkeypatch.setattr(issues_module, "resolve_instrument_ticker", lambda symbol, create_missing=False: None)
     monkeypatch.setattr(issues_module, "has_cached_meta_timeseries", lambda t, e: False)
     monkeypatch.setattr(issues_module, "list_cached_meta_tickers", lambda: [])
     monkeypatch.setattr(issues_module, "load_cached_meta_timeseries_full", lambda t, e: None)
@@ -609,9 +832,7 @@ def test_fix_unresolved_ticker_rejects_ticker_mismatch(monkeypatch, tmp_path):
 
     cache_path = tmp_path / "XYZ_Q.parquet"
     monkeypatch.setattr(admin_module, "meta_timeseries_cache_path", lambda t, e: str(cache_path))
-    monkeypatch.setattr(
-        admin_module, "resolve_instrument_ticker", lambda symbol, create_missing=False: "XYZ.Q"
-    )
+    monkeypatch.setattr(admin_module, "resolve_instrument_ticker", lambda symbol, create_missing=False: "XYZ.Q")
     mismatched = pd.DataFrame({"Date": ["2026-01-01"], "Close": [1.0], "Ticker": ["WRONG"]})
 
     def _fetch_and_persist(t, e, days):
@@ -662,9 +883,7 @@ def test_dedupe_rejects_series_with_no_valid_dates(monkeypatch, client, tmp_path
     assert all(e["action"] != "dedupe" for e in audit)
 
 
-def test_undo_dedupe_restores_state_before_the_undone_fix_not_the_earliest_backup(
-    monkeypatch, client, tmp_path
-):
+def test_undo_dedupe_restores_state_before_the_undone_fix_not_the_earliest_backup(monkeypatch, client, tmp_path):
     """Undo must restore this fix's own pre-state, not the file's earliest .bak (#6740).
 
     With two dedupe fixes applied to the same cache file, undoing the second
@@ -676,13 +895,9 @@ def test_undo_dedupe_restores_state_before_the_undone_fix_not_the_earliest_backu
 
     cache_path = tmp_path / "ABC_L.parquet"
     monkeypatch.setattr(admin_module, "meta_timeseries_cache_path", lambda t, e: str(cache_path))
-    monkeypatch.setattr(
-        admin_module, "load_cached_meta_timeseries_full", lambda t, e: pd.read_parquet(cache_path)
-    )
+    monkeypatch.setattr(admin_module, "load_cached_meta_timeseries_full", lambda t, e: pd.read_parquet(cache_path))
 
-    original = pd.DataFrame(
-        {"Date": ["2026-01-01", "2026-01-01", "2026-01-02"], "Close": [1.0, 2.0, 3.0]}
-    )
+    original = pd.DataFrame({"Date": ["2026-01-01", "2026-01-01", "2026-01-02"], "Close": [1.0, 2.0, 3.0]})
     original.to_parquet(cache_path, index=False)
 
     resp = client.post("/data-quality/series/ABC/L/dedupe")

@@ -102,6 +102,48 @@ def test_family_mvp_flags_load_from_ui_section(monkeypatch, tmp_path):
         reload_config()
 
 
+def test_audit_dir_defaults_under_data_root(monkeypatch, tmp_path):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("data_root: data\n")
+    monkeypatch.setattr(sys.modules["backend.config"], "_project_config_path", lambda: config_path)
+    monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
+
+    cfg = reload_config()
+    try:
+        assert cfg.audit_dir == cfg.data_root / "audit"
+    finally:
+        monkeypatch.undo()
+        reload_config()
+
+
+def test_audit_dir_rejects_path_outside_data_root(monkeypatch, tmp_path):
+    """A ``../``-escaping or absolute ``audit_dir`` must be rejected at load,
+    not silently resolved outside data_root (#6739)."""
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("data_root: data\naudit_dir: ../../etc\n")
+    monkeypatch.setattr(sys.modules["backend.config"], "_project_config_path", lambda: config_path)
+    monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
+
+    with pytest.raises(ConfigValidationError):
+        reload_config()
+    monkeypatch.undo()
+    reload_config()
+
+
+def test_audit_dir_accepts_path_inside_data_root(monkeypatch, tmp_path):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("data_root: data\naudit_dir: custom-audit\n")
+    monkeypatch.setattr(sys.modules["backend.config"], "_project_config_path", lambda: config_path)
+    monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
+
+    cfg = reload_config()
+    try:
+        assert cfg.audit_dir == cfg.data_root / "custom-audit"
+    finally:
+        monkeypatch.undo()
+        reload_config()
+
+
 def test_stooq_timeout_loaded():
     cfg = reload_config()
     assert cfg.stooq_timeout == 10

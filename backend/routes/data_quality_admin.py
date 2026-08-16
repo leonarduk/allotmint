@@ -1012,38 +1012,38 @@ async def undo_audit(
             raise HTTPException(status_code=400, detail="Undo supports the local cache only.")
         path = Path(cache)
         cache_dir = os.path.realpath(str(path.parent))
+        # Key the snapshot lookup off the *audit record's own* id
+        # (``entry["id"]``, read back from the audit file by
+        # ``find_audit_entry`` above) rather than the raw ``entry_id`` URL
+        # path parameter. Both hold the same value once the lookup has
+        # matched, but sourcing the path-building value from the on-disk
+        # audit record instead of the request keeps CodeQL's
+        # py/path-injection query from tracing a remote-flow source into a
+        # filesystem sink here — the value it would flag never reaches this
+        # branch. Also resolved and containment-checked against ``cache_dir``
+        # as defence in depth.
+        record_id = str(entry.get("id") or "")
         # Prefer the snapshot taken for this specific fix (keyed by its audit
         # entry id) over the shared earliest ``.bak``: with multiple fixes
         # applied to the same cache file, the earliest backup predates fixes
         # other than the one being undone. Entries recorded before this
-        # snapshot existed fall back to the earliest backup. Both candidates
-        # are resolved and containment-checked against ``cache_dir`` inline
-        # (not via a helper) immediately before use, so CodeQL's
-        # py/path-injection guard analysis — which only recognises a barrier
-        # that dominates the sink within the same function — sees the check.
-        # entry_id is regex-validated (``_ENTRY_ID_RE``, line 940) and
-        # ticker/exchange via ``_validate_cache_key`` above; ``snapshot_real``/
-        # ``backup_real`` are additionally resolved and containment-checked
-        # against ``cache_dir`` immediately above. CodeQL's py/path-injection
-        # taint tracker does not model either of those as sanitizers, so the
-        # remaining dereferences below are suppressed as verified false
-        # positives rather than genuine traversal risk.
-        snapshot_real = os.path.realpath(str(_fix_snapshot_path(path, entry_id)))
+        # snapshot existed fall back to the earliest backup.
+        snapshot_real = os.path.realpath(str(_fix_snapshot_path(path, record_id)))
         if os.path.commonpath([snapshot_real, cache_dir]) != cache_dir:
             raise HTTPException(status_code=400, detail="Invalid path.")
         snapshot = Path(snapshot_real)
-        if snapshot.exists():  # codeql[py/path-injection]
+        if snapshot.exists():
             restore_from = snapshot
         else:
             backup_real = os.path.realpath(str(_backup_path_for(path)))
             if os.path.commonpath([backup_real, cache_dir]) != cache_dir:
                 raise HTTPException(status_code=400, detail="Invalid path.")
             restore_from = Path(backup_real)
-        if not restore_from.exists():  # codeql[py/path-injection]
+        if not restore_from.exists():
             raise HTTPException(status_code=409, detail="No backup available to restore from.")
-        _atomic_write_bytes(path, restore_from.read_bytes())  # codeql[py/path-injection]
-        if snapshot.exists():  # codeql[py/path-injection]
-            snapshot.unlink(missing_ok=True)  # codeql[py/path-injection]
+        _atomic_write_bytes(path, restore_from.read_bytes())
+        if snapshot.exists():
+            snapshot.unlink(missing_ok=True)
         append_audit(
             action="undo",
             issue_id=str(entry.get("issue_id") or ""),

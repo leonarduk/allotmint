@@ -10,9 +10,12 @@ import urllib.error
 from pathlib import Path
 from types import ModuleType
 
-import cicaid_devtools.lib.review_common as review_common
 import pytest
-from cicaid_devtools.lib.review_common import ProviderOutageError
+
+pytest.importorskip("cicaid_devtools", reason="private review tooling is not installed")
+
+import cicaid_devtools.lib.review_common as review_common  # noqa: E402
+from cicaid_devtools.lib.review_common import ProviderOutageError  # noqa: E402
 
 SCRIPTS_DIR = Path(__file__).resolve().parents[1] / ".github" / "scripts"
 if str(SCRIPTS_DIR) not in sys.path:

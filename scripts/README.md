@@ -164,14 +164,16 @@ which now lives in the private
 [`leonarduk/cicaid-core`](https://github.com/leonarduk/cicaid-core) repo (renamed
 from `leonarduk/cicaid`; the `leonarduk/cicaid` name was reused for a smaller,
 unrelated public repo containing only thin GitHub-plumbing commands — see #6754).
-It is installed by `requirements-dev.txt`.
+It is installed separately through `requirements-cicaid.txt`; keeping the
+private package out of `requirements-dev.txt` lets external contributors and
+Dependabot run the standard development checks without access to repository
+secrets.
 
 ### Local access to the private cicaid-core repo
 
-`requirements-dev.txt` pins `cicaid-devtools` via a `git+https://` URL against
+`requirements-cicaid.txt` pins `cicaid-devtools` via a `git+https://` URL against
 `leonarduk/cicaid-core`, which is private. Before `pip install -r
-requirements-dev.txt` (or `pip install -r requirements.txt -r
-requirements-dev.txt`) will succeed on your machine:
+requirements-cicaid.txt` will succeed on your machine:
 
 1. Ask a repo owner for read access to `leonarduk/cicaid-core` (or a
    fine-grained PAT scoped to it with **Contents: Read-only** — the same kind
@@ -190,13 +192,11 @@ requirements-dev.txt`) will succeed on your machine:
      config persists across shells, so consider unsetting it afterwards with
      `git config --global --unset "url.https://x-access-token:<your-PAT>@github.com/leonarduk/cicaid-core.insteadOf"`
      if you don't want it to stick around.)
-3. Re-run `pip install -r requirements-dev.txt`.
+3. Run `pip install -r requirements-cicaid.txt`.
 
-If you don't have (and can't get) access to `cicaid-core`, you can still work
-on everything except the `cicaid`-specific commands below: install
-`requirements-dev.txt` with the `cicaid-devtools` line commented out, or ask a
-maintainer to run `cicaid`-driven steps (PR review, issue automation) on your
-behalf.
+If you don't have access to `cicaid-core`, install `requirements-dev.txt`
+normally. The cicaid-specific tests skip automatically, and only the commands
+below remain unavailable; ask a maintainer to run those when needed.
 
 After installing the development dependencies, run:
 

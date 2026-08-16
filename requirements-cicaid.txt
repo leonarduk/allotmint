@@ -1,0 +1,4 @@
+# Shared private repository automation (issue, PR, review, and CI helpers).
+# Install separately from requirements-dev.txt so fork and Dependabot pull
+# requests, which cannot access Actions secrets, can still run required CI.
+cicaid-devtools[dotenv] @ git+https://github.com/leonarduk/cicaid-core.git@v0.9.1

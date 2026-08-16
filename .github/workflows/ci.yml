@@ -38,16 +38,18 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
-      # requirements-dev.txt pins cicaid-devtools from leonarduk/cicaid-core,
-      # which is private (leonarduk/cicaid was renamed and its old name reused
-      # by an unrelated public repo — see #6754), so pip needs a scoped token
-      # rewritten in as git credentials to clone it. pip_install_cicaid_core.sh
-      # validates the token up front and unsets the credential again once the
-      # install finishes, so it isn't left in ~/.gitconfig for the rest of the job.
       - name: Install root and dev dependencies
+        run: pip install --retries 10 -r requirements.txt -r requirements-dev.txt
+      - name: Install private review tooling when credentials are available
         env:
           CICAID_CORE_TOKEN: ${{ secrets.CICAID_CORE_TOKEN }}
-        run: bash .github/scripts/pip_install_cicaid_core.sh pip install --retries 10 -r requirements.txt -r requirements-dev.txt
+        run: |
+          if [ -n "$CICAID_CORE_TOKEN" ]; then
+            bash .github/scripts/pip_install_cicaid_core.sh \
+              pip install --retries 10 -r requirements-cicaid.txt
+          else
+            echo "::notice::Skipping private cicaid-devtools tests because CICAID_CORE_TOKEN is unavailable"
+          fi
       - run: python scripts/check_branch_protection_required_checks.py
       - name: Run review_common and review-script tests
         run: pytest tests/test_review_common.py tests/test_ai_review_scripts.py -v --no-cov
@@ -89,16 +91,8 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
-      # requirements-dev.txt pins cicaid-devtools from leonarduk/cicaid-core,
-      # which is private (leonarduk/cicaid was renamed and its old name reused
-      # by an unrelated public repo — see #6754), so pip needs a scoped token
-      # rewritten in as git credentials to clone it. pip_install_cicaid_core.sh
-      # validates the token up front and unsets the credential again once the
-      # install finishes, so it isn't left in ~/.gitconfig for the rest of the job.
       - name: Install root and dev dependencies
-        env:
-          CICAID_CORE_TOKEN: ${{ secrets.CICAID_CORE_TOKEN }}
-        run: bash .github/scripts/pip_install_cicaid_core.sh pip install --retries 10 -r requirements.txt -r requirements-dev.txt
+        run: pip install --retries 10 -r requirements.txt -r requirements-dev.txt
       - name: Check cdk/tests/ exists and has tests
         run: |
           if [ ! -d "cdk/tests" ] || [ -z "$(ls -A cdk/tests/)" ]; then
@@ -216,16 +210,8 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
-      # requirements-dev.txt pins cicaid-devtools from leonarduk/cicaid-core,
-      # which is private (leonarduk/cicaid was renamed and its old name reused
-      # by an unrelated public repo — see #6754), so pip needs a scoped token
-      # rewritten in as git credentials to clone it. pip_install_cicaid_core.sh
-      # validates the token up front and unsets the credential again once the
-      # install finishes, so it isn't left in ~/.gitconfig for the rest of the job.
       - name: Install backend and development dependencies
-        env:
-          CICAID_CORE_TOKEN: ${{ secrets.CICAID_CORE_TOKEN }}
-        run: bash .github/scripts/pip_install_cicaid_core.sh pip install --retries 10 -r requirements.txt -r requirements-dev.txt
+        run: pip install --retries 10 -r requirements.txt -r requirements-dev.txt
       - name: Lint backend/tests Python files touched by this change
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -261,19 +247,10 @@ jobs:
         # Use an explicit venv so that runner pre-installs cannot mask missing
         # pins, matching the isolation pattern used by validate-backend-deps.
         run: python -m venv .venv-lambda
-      # backend/requirements-test.txt pins cicaid-devtools from
-      # leonarduk/cicaid-core, which is private (leonarduk/cicaid was renamed
-      # and its old name reused by an unrelated public repo — see #6754), so
-      # pip needs a scoped token rewritten in as git credentials to clone it.
-      # pip_install_cicaid_core.sh validates the token up front and unsets the
-      # credential again once the install finishes, so it isn't left in
-      # ~/.gitconfig for the rest of the job.
       - name: Install Lambda-compatible deps + test tooling
-        env:
-          CICAID_CORE_TOKEN: ${{ secrets.CICAID_CORE_TOKEN }}
         run: |
           .venv-lambda/bin/pip install --upgrade pip
-          bash .github/scripts/pip_install_cicaid_core.sh .venv-lambda/bin/pip install --retries 10 -r backend/requirements.txt -r backend/requirements-test.txt
+          .venv-lambda/bin/pip install --retries 10 -r backend/requirements.txt -r backend/requirements-test.txt
       - name: Run backend pytest suite against Lambda deps
         env:
           ALLOTMINT_SKIP_SNAPSHOT_WARM: 'true'
@@ -335,16 +312,8 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install --upgrade pip
-      # requirements-dev.txt pins cicaid-devtools from leonarduk/cicaid-core,
-      # which is private (leonarduk/cicaid was renamed and its old name reused
-      # by an unrelated public repo — see #6754), so pip needs a scoped token
-      # rewritten in as git credentials to clone it. pip_install_cicaid_core.sh
-      # validates the token up front and unsets the credential again once the
-      # install finishes, so it isn't left in ~/.gitconfig for the rest of the job.
       - name: Install root and dev dependencies
-        env:
-          CICAID_CORE_TOKEN: ${{ secrets.CICAID_CORE_TOKEN }}
-        run: bash .github/scripts/pip_install_cicaid_core.sh pip install --retries 10 -r requirements.txt -r requirements-dev.txt
+        run: pip install --retries 10 -r requirements.txt -r requirements-dev.txt
       - name: Check SPA contract version sync
         run: python scripts/check_contract_version_sync.py
       - name: Run lightweight backend compatibility tests

@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import pytest
-from cicaid_devtools.lib import review_common
-from cicaid_devtools.lib.verdict import is_soft_skip
+
+pytest.importorskip("cicaid_devtools", reason="private review tooling is not installed")
+
+from cicaid_devtools.lib import review_common  # noqa: E402
+from cicaid_devtools.lib.verdict import is_soft_skip  # noqa: E402
 
 
 @pytest.mark.parametrize("provider", ["Claude", "GPT", "DeepSeek"])

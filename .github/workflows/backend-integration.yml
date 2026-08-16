@@ -51,20 +51,11 @@ jobs:
         working-directory: .
         run: python scripts/check_contract_version_sync.py
 
-      # requirements-dev.txt pins cicaid-devtools from leonarduk/cicaid-core,
-      # which is private (leonarduk/cicaid was renamed and its old name reused
-      # by an unrelated public repo — see #6754), so pip needs a scoped token
-      # rewritten in as git credentials to clone it. pip_install_cicaid_core.sh
-      # validates the token up front and unsets the credential again once the
-      # install finishes, so it isn't left in ~/.gitconfig for the rest of the
-      # job — only the requirements-dev.txt install needs it.
       - name: Install dependencies
-        env:
-          CICAID_CORE_TOKEN: ${{ secrets.CICAID_CORE_TOKEN }}
         run: |
           python -m pip install --upgrade pip
           pip install --retries 10 -r requirements.txt
-          bash .github/scripts/pip_install_cicaid_core.sh pip install --retries 10 -r requirements-dev.txt
+          pip install --retries 10 -r requirements-dev.txt
 
       # Optional: sync real S3 fixture data when credentials are available.
       # Skipped on forks and any env where the OIDC role / DATA_BUCKET secret

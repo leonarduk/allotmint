@@ -29,19 +29,11 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
-      # requirements-dev.txt pins cicaid-devtools from leonarduk/cicaid-core,
-      # which is private (leonarduk/cicaid was renamed and its old name reused
-      # by an unrelated public repo — see #6754), so pip needs a scoped token
-      # rewritten in as git credentials to clone it. pip_install_cicaid_core.sh
-      # validates the token up front and unsets the credential again once the
-      # install finishes, so it isn't left in ~/.gitconfig for the rest of the job.
       - name: Install backend and development dependencies
         # Same install as the CI lint job: runtime deps (requirements.txt) are
         # needed too, because pytest collection loads tests/conftest.py which
         # imports fastapi.
-        env:
-          CICAID_CORE_TOKEN: ${{ secrets.CICAID_CORE_TOKEN }}
-        run: bash .github/scripts/pip_install_cicaid_core.sh pip install --retries 10 -r requirements.txt -r requirements-dev.txt
+        run: pip install --retries 10 -r requirements.txt -r requirements-dev.txt
       - name: Apply black, isort, and safe ruff fixes
         # Same rules as `make format` plus ruff's safe autofixes. The CI lint
         # job installs the same requirements-dev.txt at the same commit, so the

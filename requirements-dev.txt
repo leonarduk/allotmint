@@ -16,14 +16,5 @@ jsonschema~=4.23.0
 mypy~=2.3.0
 pandas-stubs==3.0.5.260730
 
-# Shared repository automation (issue, PR, review, and CI helper commands).
-# leonarduk/cicaid was renamed to leonarduk/cicaid-core (private) and its name
-# reused for a new, unrelated, LLM-less public repo, so old
-# github.com/leonarduk/cicaid/releases/... wheel URLs now 404 (issue #6754).
-# Pin the tag on cicaid-core (which still has the full package + git history)
-# so developer and CI installs use the same tested CLI. CI installs need a
-# CICAID_CORE_TOKEN secret configured as git credentials to reach this
-# now-private repo (see .github/scripts/pip_install_cicaid_core.sh and the
-# workflows that call it). Local installs need equivalent git credentials —
-# see scripts/README.md#local-access-to-the-private-cicaid-core-repo.
-cicaid-devtools[dotenv] @ git+https://github.com/leonarduk/cicaid-core.git@v0.9.1
+# Private shared automation is kept in requirements-cicaid.txt so ordinary
+# development and pull-request CI remain installable without repository secrets.

@@ -11,13 +11,5 @@ pytest-asyncio~=1.4.0
 # and pinning a second, different range here made this file's combined
 # `pip install -r backend/requirements.txt -r backend/requirements-test.txt`
 # unresolvable (jsonschema~=4.23.0 vs ~=4.26.0).
-# cicaid-devtools is imported by tests/test_ai_review_scripts.py and
-# tests/test_review_common.py. Not a Lambda runtime dep — test-only.
-# leonarduk/cicaid was renamed to leonarduk/cicaid-core (private) and its name
-# reused for a new, unrelated, LLM-less public repo, so old
-# github.com/leonarduk/cicaid/releases/... wheel URLs now 404 (issue #6754).
-# Pin the tag on cicaid-core instead; CI needs a CICAID_CORE_TOKEN secret
-# configured as git credentials to reach this now-private repo (see
-# .github/scripts/pip_install_cicaid_core.sh). Local installs need equivalent
-# git credentials — see scripts/README.md#local-access-to-the-private-cicaid-core-repo.
-cicaid-devtools @ git+https://github.com/leonarduk/cicaid-core.git@v0.9.1
+# Private cicaid review tests skip when the separately installed package is
+# unavailable; see requirements-cicaid.txt.

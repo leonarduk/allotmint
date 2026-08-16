@@ -14,8 +14,8 @@ never fetch live data and never mutate state.
 
 from __future__ import annotations
 
-import logging
 import json
+import logging
 import os
 import re
 from datetime import date
@@ -664,7 +664,9 @@ def _fix_ticker_mismatch(payload: dict[str, Any], actor: str | None) -> dict[str
     return {"status": "fixed", "tickers": [ticker], "audit_id": entry["id"]}
 
 
-def _apply_resolved_fix(issue: DataQualityIssue, request: Request, actor: str | None) -> dict[str, Any]:
+def _apply_resolved_fix(
+    issue: DataQualityIssue, request: Request, actor: str | None
+) -> dict[str, Any]:
     """Dispatch an already-looked-up issue to its fix implementation."""
     if not issue.fixable or issue.type not in FIXABLE_TYPES:
         raise HTTPException(
@@ -718,7 +720,10 @@ def _holding_ticker_exists(owner: str, account: str, ticker: str) -> bool:
     holdings = document.get("holdings")
     if not isinstance(holdings, list):
         return False
-    return any(isinstance(h, dict) and str(h.get("ticker") or "").upper() == ticker.upper() for h in holdings)
+    return any(
+        isinstance(h, dict) and str(h.get("ticker") or "").upper() == ticker.upper()
+        for h in holdings
+    )
 
 
 def _series_issue_still_applies(issue: DataQualityIssue) -> bool:
@@ -747,7 +752,9 @@ def _series_issue_still_applies(issue: DataQualityIssue) -> bool:
     if issue.type == IssueType.TICKER_MISMATCH:
         if "Ticker" not in df.columns:
             return False
-        row_tickers = {str(v).strip().upper() for v in df["Ticker"].dropna().unique() if str(v).strip()}
+        row_tickers = {
+            str(v).strip().upper() for v in df["Ticker"].dropna().unique() if str(v).strip()
+        }
         return bool(row_tickers) and row_tickers != {ticker}
 
     quality = dq_issues.compute_quality(df, ticker, exchange)
@@ -787,7 +794,12 @@ def _issue_still_applies(issue: DataQualityIssue) -> bool:
         owner = str(issue.entity.get("owner") or "")
         account = str(issue.entity.get("account") or "")
         holding_ticker = str(issue.entity.get("holding") or "")
-        if owner and account and holding_ticker and not _holding_ticker_exists(owner, account, holding_ticker):
+        if (
+            owner
+            and account
+            and holding_ticker
+            and not _holding_ticker_exists(owner, account, holding_ticker)
+        ):
             return False
         ticker = str(payload.get("ticker") or "")
         exchange = str(payload.get("exchange") or "")
@@ -859,7 +871,9 @@ async def batch_fix(
     for issue_id in body.issue_ids:
         issue = by_id.get(issue_id)
         if issue is None:
-            results.append({"issue_id": issue_id, "status": "error", "detail": f"Unknown issue id: {issue_id}"})
+            results.append(
+                {"issue_id": issue_id, "status": "error", "detail": f"Unknown issue id: {issue_id}"}
+            )
             continue
         if not _issue_still_applies(issue):
             results.append(

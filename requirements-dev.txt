@@ -16,6 +16,7 @@ jsonschema~=4.23.0
 mypy~=2.3.0
 pandas-stubs==3.0.5.260730
 
-# Shared repository automation (issue, PR, review, and CI helper commands).
-# Pin the release asset so developer and CI installs use the same tested CLI.
-cicaid-devtools[dotenv] @ https://github.com/leonarduk/cicaid/releases/download/v0.8.3/cicaid_devtools-0.8.3-py3-none-any.whl
+# Private shared repository automation is deliberately kept in
+# requirements-automation.txt. Keeping it out of this file lets fork and
+# Dependabot pull requests install the development toolchain without access to
+# repository secrets.

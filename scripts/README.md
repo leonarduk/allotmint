@@ -164,8 +164,41 @@ which now lives in the private
 [`leonarduk/cicaid-core`](https://github.com/leonarduk/cicaid-core) repo (renamed
 from `leonarduk/cicaid`; the `leonarduk/cicaid` name was reused for a smaller,
 unrelated public repo containing only thin GitHub-plumbing commands — see #6754).
-It is installed by `requirements-dev.txt`. After installing the development
-dependencies, run:
+It is installed by `requirements-dev.txt`.
+
+### Local access to the private cicaid-core repo
+
+`requirements-dev.txt` pins `cicaid-devtools` via a `git+https://` URL against
+`leonarduk/cicaid-core`, which is private. Before `pip install -r
+requirements-dev.txt` (or `pip install -r requirements.txt -r
+requirements-dev.txt`) will succeed on your machine:
+
+1. Ask a repo owner for read access to `leonarduk/cicaid-core` (or a
+   fine-grained PAT scoped to it with **Contents: Read-only** — the same kind
+   of token CI uses as the `CICAID_CORE_TOKEN` secret).
+2. Make git use that access when it clones `cicaid-core`. Either:
+   - Have a GitHub account with direct read access and an existing git
+     credential helper (e.g. the GitHub CLI's `gh auth login`, or an SSH key
+     added to that account) — no extra config needed, or
+   - Use a PAT directly, scoped to just this repo so it can't leak into other
+     git operations:
+     ```bash
+     git config --global "url.https://x-access-token:<your-PAT>@github.com/leonarduk/cicaid-core.insteadOf" "https://github.com/leonarduk/cicaid-core"
+     ```
+     (This is the same `insteadOf` rewrite CI applies per-job via
+     `.github/scripts/pip_install_cicaid_core.sh`; unlike CI, a local `--global`
+     config persists across shells, so consider unsetting it afterwards with
+     `git config --global --unset "url.https://x-access-token:<your-PAT>@github.com/leonarduk/cicaid-core.insteadOf"`
+     if you don't want it to stick around.)
+3. Re-run `pip install -r requirements-dev.txt`.
+
+If you don't have (and can't get) access to `cicaid-core`, you can still work
+on everything except the `cicaid`-specific commands below: install
+`requirements-dev.txt` with the `cicaid-devtools` line commented out, or ask a
+maintainer to run `cicaid`-driven steps (PR review, issue automation) on your
+behalf.
+
+After installing the development dependencies, run:
 
 ```bash
 cicaid --help

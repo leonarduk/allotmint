@@ -41,13 +41,13 @@ jobs:
       # requirements-dev.txt pins cicaid-devtools from leonarduk/cicaid-core,
       # which is private (leonarduk/cicaid was renamed and its old name reused
       # by an unrelated public repo — see #6754), so pip needs a scoped token
-      # rewritten in as git credentials to clone it.
-      - name: Configure git credentials for cicaid-core
+      # rewritten in as git credentials to clone it. pip_install_cicaid_core.sh
+      # validates the token up front and unsets the credential again once the
+      # install finishes, so it isn't left in ~/.gitconfig for the rest of the job.
+      - name: Install root and dev dependencies
         env:
           CICAID_CORE_TOKEN: ${{ secrets.CICAID_CORE_TOKEN }}
-        run: |
-          git config --global "url.https://x-access-token:${CICAID_CORE_TOKEN}@github.com/leonarduk/cicaid-core.insteadOf" "https://github.com/leonarduk/cicaid-core"
-      - run: pip install --retries 10 -r requirements.txt -r requirements-dev.txt
+        run: bash .github/scripts/pip_install_cicaid_core.sh pip install --retries 10 -r requirements.txt -r requirements-dev.txt
       - run: python scripts/check_branch_protection_required_checks.py
       - name: Run review_common and review-script tests
         run: pytest tests/test_review_common.py tests/test_ai_review_scripts.py -v --no-cov
@@ -92,13 +92,13 @@ jobs:
       # requirements-dev.txt pins cicaid-devtools from leonarduk/cicaid-core,
       # which is private (leonarduk/cicaid was renamed and its old name reused
       # by an unrelated public repo — see #6754), so pip needs a scoped token
-      # rewritten in as git credentials to clone it.
-      - name: Configure git credentials for cicaid-core
+      # rewritten in as git credentials to clone it. pip_install_cicaid_core.sh
+      # validates the token up front and unsets the credential again once the
+      # install finishes, so it isn't left in ~/.gitconfig for the rest of the job.
+      - name: Install root and dev dependencies
         env:
           CICAID_CORE_TOKEN: ${{ secrets.CICAID_CORE_TOKEN }}
-        run: |
-          git config --global "url.https://x-access-token:${CICAID_CORE_TOKEN}@github.com/leonarduk/cicaid-core.insteadOf" "https://github.com/leonarduk/cicaid-core"
-      - run: pip install --retries 10 -r requirements.txt -r requirements-dev.txt
+        run: bash .github/scripts/pip_install_cicaid_core.sh pip install --retries 10 -r requirements.txt -r requirements-dev.txt
       - name: Check cdk/tests/ exists and has tests
         run: |
           if [ ! -d "cdk/tests" ] || [ -z "$(ls -A cdk/tests/)" ]; then
@@ -219,14 +219,13 @@ jobs:
       # requirements-dev.txt pins cicaid-devtools from leonarduk/cicaid-core,
       # which is private (leonarduk/cicaid was renamed and its old name reused
       # by an unrelated public repo — see #6754), so pip needs a scoped token
-      # rewritten in as git credentials to clone it.
-      - name: Configure git credentials for cicaid-core
+      # rewritten in as git credentials to clone it. pip_install_cicaid_core.sh
+      # validates the token up front and unsets the credential again once the
+      # install finishes, so it isn't left in ~/.gitconfig for the rest of the job.
+      - name: Install backend and development dependencies
         env:
           CICAID_CORE_TOKEN: ${{ secrets.CICAID_CORE_TOKEN }}
-        run: |
-          git config --global "url.https://x-access-token:${CICAID_CORE_TOKEN}@github.com/leonarduk/cicaid-core.insteadOf" "https://github.com/leonarduk/cicaid-core"
-      - name: Install backend and development dependencies
-        run: pip install --retries 10 -r requirements.txt -r requirements-dev.txt
+        run: bash .github/scripts/pip_install_cicaid_core.sh pip install --retries 10 -r requirements.txt -r requirements-dev.txt
       - name: Lint backend/tests Python files touched by this change
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -266,15 +265,15 @@ jobs:
       # leonarduk/cicaid-core, which is private (leonarduk/cicaid was renamed
       # and its old name reused by an unrelated public repo — see #6754), so
       # pip needs a scoped token rewritten in as git credentials to clone it.
-      - name: Configure git credentials for cicaid-core
+      # pip_install_cicaid_core.sh validates the token up front and unsets the
+      # credential again once the install finishes, so it isn't left in
+      # ~/.gitconfig for the rest of the job.
+      - name: Install Lambda-compatible deps + test tooling
         env:
           CICAID_CORE_TOKEN: ${{ secrets.CICAID_CORE_TOKEN }}
         run: |
-          git config --global "url.https://x-access-token:${CICAID_CORE_TOKEN}@github.com/leonarduk/cicaid-core.insteadOf" "https://github.com/leonarduk/cicaid-core"
-      - name: Install Lambda-compatible deps + test tooling
-        run: |
           .venv-lambda/bin/pip install --upgrade pip
-          .venv-lambda/bin/pip install --retries 10 -r backend/requirements.txt -r backend/requirements-test.txt
+          bash .github/scripts/pip_install_cicaid_core.sh .venv-lambda/bin/pip install --retries 10 -r backend/requirements.txt -r backend/requirements-test.txt
       - name: Run backend pytest suite against Lambda deps
         env:
           ALLOTMINT_SKIP_SNAPSHOT_WARM: 'true'
@@ -339,13 +338,13 @@ jobs:
       # requirements-dev.txt pins cicaid-devtools from leonarduk/cicaid-core,
       # which is private (leonarduk/cicaid was renamed and its old name reused
       # by an unrelated public repo — see #6754), so pip needs a scoped token
-      # rewritten in as git credentials to clone it.
-      - name: Configure git credentials for cicaid-core
+      # rewritten in as git credentials to clone it. pip_install_cicaid_core.sh
+      # validates the token up front and unsets the credential again once the
+      # install finishes, so it isn't left in ~/.gitconfig for the rest of the job.
+      - name: Install root and dev dependencies
         env:
           CICAID_CORE_TOKEN: ${{ secrets.CICAID_CORE_TOKEN }}
-        run: |
-          git config --global "url.https://x-access-token:${CICAID_CORE_TOKEN}@github.com/leonarduk/cicaid-core.insteadOf" "https://github.com/leonarduk/cicaid-core"
-      - run: pip install --retries 10 -r requirements.txt -r requirements-dev.txt
+        run: bash .github/scripts/pip_install_cicaid_core.sh pip install --retries 10 -r requirements.txt -r requirements-dev.txt
       - name: Check SPA contract version sync
         run: python scripts/check_contract_version_sync.py
       - name: Run lightweight backend compatibility tests

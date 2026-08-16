@@ -196,17 +196,16 @@ jobs:
       # requirements-dev.txt pins cicaid-devtools from leonarduk/cicaid-core,
       # which is private (leonarduk/cicaid was renamed and its old name reused
       # by an unrelated public repo — see #6754), so pip needs a scoped token
-      # rewritten in as git credentials to clone it.
-      - name: Configure git credentials for cicaid-core
+      # rewritten in as git credentials to clone it. pip_install_cicaid_core.sh
+      # validates the token up front and unsets the credential again once the
+      # install finishes, so it isn't left in ~/.gitconfig for the rest of the
+      # job — only the requirements-dev.txt install needs it.
+      - name: Install backend dependencies
         env:
           CICAID_CORE_TOKEN: ${{ secrets.CICAID_CORE_TOKEN }}
         run: |
-          git config --global "url.https://x-access-token:${CICAID_CORE_TOKEN}@github.com/leonarduk/cicaid-core.insteadOf" "https://github.com/leonarduk/cicaid-core"
-
-      - name: Install backend dependencies
-        run: |
           pip install --retries 10 -r requirements.txt
-          pip install --retries 10 -r requirements-dev.txt
+          bash .github/scripts/pip_install_cicaid_core.sh pip install --retries 10 -r requirements-dev.txt
 
       - name: Verify required AWS secrets
         run: |

@@ -17,5 +17,7 @@ pytest-asyncio~=1.4.0
 # reused for a new, unrelated, LLM-less public repo, so old
 # github.com/leonarduk/cicaid/releases/... wheel URLs now 404 (issue #6754).
 # Pin the tag on cicaid-core instead; CI needs a CICAID_CORE_TOKEN secret
-# configured as git credentials to reach this now-private repo.
+# configured as git credentials to reach this now-private repo (see
+# .github/scripts/pip_install_cicaid_core.sh). Local installs need equivalent
+# git credentials — see scripts/README.md#local-access-to-the-private-cicaid-core-repo.
 cicaid-devtools @ git+https://github.com/leonarduk/cicaid-core.git@v0.9.1

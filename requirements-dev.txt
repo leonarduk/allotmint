@@ -23,5 +23,7 @@ pandas-stubs==3.0.5.260730
 # Pin the tag on cicaid-core (which still has the full package + git history)
 # so developer and CI installs use the same tested CLI. CI installs need a
 # CICAID_CORE_TOKEN secret configured as git credentials to reach this
-# now-private repo (see .github/workflows/_ai-pr-review.yml and friends).
+# now-private repo (see .github/scripts/pip_install_cicaid_core.sh and the
+# workflows that call it). Local installs need equivalent git credentials —
+# see scripts/README.md#local-access-to-the-private-cicaid-core-repo.
 cicaid-devtools[dotenv] @ git+https://github.com/leonarduk/cicaid-core.git@v0.9.1

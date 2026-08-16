@@ -359,6 +359,30 @@ def _row_count_at(path: Path) -> int:
         return 0
 
 
+def _date_bounds(df: Any) -> tuple[Any, Any] | None:
+    """Return ``(min date, max date)`` of ``df``'s ``Date`` column, or None."""
+    if df is None or df.empty or "Date" not in df.columns:
+        return None
+    dates = pd.to_datetime(df["Date"], errors="coerce").dropna()
+    if dates.empty:
+        return None
+    return dates.min(), dates.max()
+
+
+def _series_snapshot_at(path: Path) -> tuple[int, tuple[Any, Any] | None]:
+    """Return ``(row count, date bounds)`` of the parquet already at ``path``.
+
+    Row count alone treats "same count, different dates" (e.g. the fetch
+    window shifted without covering the actual gap) as no real change;
+    comparing the date range too catches that case.
+    """
+    try:
+        df = pd.read_parquet(path)
+    except Exception:
+        return 0, None
+    return len(df), _date_bounds(df)
+
+
 def _fix_refetch(payload: dict[str, Any], actor: str | None) -> dict[str, Any]:
     """Fetch/refetch a cached meta timeseries (missing/stale/gaps)."""
     ticker, exchange = _validate_cache_key(str(payload["ticker"]), str(payload["exchange"]))
@@ -371,9 +395,10 @@ def _fix_refetch(payload: dict[str, Any], actor: str | None) -> dict[str, Any]:
     path = Path(cache)
     existed = path.exists()
     before_rows = 0
+    before_bounds: tuple[Any, Any] | None = None
     if existed:
         _backup_file_if_needed(path)
-        before_rows = _row_count_at(path)
+        before_rows, before_bounds = _series_snapshot_at(path)
     df = load_meta_timeseries(ticker, exchange, days=_FETCH_DAYS)
     # Never report a refetch as fixed (or audit it) when the upstream
     # returned nothing usable: ``load_meta_timeseries`` only persists a
@@ -386,11 +411,12 @@ def _fix_refetch(payload: dict[str, Any], actor: str | None) -> dict[str, Any]:
         )
     after_bytes = path.read_bytes() if path.exists() else None
     # A refetch that already existed and came back with the same row count
-    # covered the gap with nothing new (e.g. upstream had no additional data
-    # for the missing dates): record it distinctly rather than as a
-    # successful ``action="refetch"``, which would misleadingly read as "a
-    # change was made" in the audit trail.
-    no_change = existed and before_rows == len(df)
+    # *and* date range covered the gap with nothing new (e.g. upstream had
+    # no additional data for the missing dates): record it distinctly rather
+    # than as a successful ``action="refetch"``, which would misleadingly
+    # read as "a change was made" in the audit trail. Row count alone is not
+    # enough -- a same-sized fetch with a shifted date range is a real change.
+    no_change = existed and before_rows == len(df) and before_bounds == _date_bounds(df)
     try:
         entry = append_audit(
             action="refetch_no_change" if no_change else "refetch",
@@ -461,12 +487,31 @@ def _fix_unresolved_ticker(payload: dict[str, Any], actor: str | None) -> dict[s
         fetched_tickers = {str(v).strip().upper() for v in df["Ticker"].dropna().unique()}
         expected_ticker = resolved_symbol.upper()
         if fetched_tickers and fetched_tickers != {expected_ticker}:
+            # The mismatched frame is already sitting in the cache at this
+            # point (see the comment above), so silently raising here would
+            # leave it there with zero audit trail explaining why. Record a
+            # quarantine entry -- not marked as a successful fix -- so the
+            # contamination is at least traceable.
+            quarantine_entry = append_audit(
+                action="unresolved_ticker_rejected",
+                issue_id=str(payload.get("issue_id") or ""),
+                entity={"symbol": symbol, "exchange": exchange, "resolved_ticker": resolved},
+                before={"metadata": "missing", "series_rows": before_rows},
+                after={"tagged_tickers": sorted(fetched_tickers), "series_rows": len(df)},
+                actor=actor,
+                extra={
+                    "kind": "unresolved_ticker_rejected",
+                    "ticker": resolved_symbol,
+                    "exchange": resolved_exchange or exchange,
+                },
+            )
             raise HTTPException(
                 status_code=502,
                 detail=(
                     f"Upstream data for {resolved_symbol}.{resolved_exchange or exchange} is "
-                    f"tagged {sorted(fetched_tickers)}, not {expected_ticker!r}; refusing to "
-                    "record this as a fix."
+                    f"tagged {sorted(fetched_tickers)}, not {expected_ticker!r}; the cache slot "
+                    f"now holds this mismatched data (audit entry {quarantine_entry['id']}) and "
+                    "was not recorded as a fix."
                 ),
             )
     after_bytes = path.read_bytes() if path.exists() else None

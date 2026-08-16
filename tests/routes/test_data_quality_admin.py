@@ -476,6 +476,25 @@ def test_fix_refetch_records_no_change_when_row_count_unchanged(monkeypatch, tmp
     assert all(e["action"] != "refetch" for e in audit)
 
 
+def test_fix_refetch_with_same_row_count_but_shifted_dates_is_a_real_change(monkeypatch, tmp_path):
+    """Same row count with a different date range is a real change, not a
+    no-op -- row count alone would misclassify a shifted fetch window as
+    ``no_change`` (#6740)."""
+    client, cache_path, admin_module = _gapped_series_client(monkeypatch, tmp_path)
+    # Same row count as the cached series (2), but different dates.
+    shifted = pd.DataFrame({"Date": ["2026-01-06", "2026-01-13"], "Close": [1.5, 2.5]})
+    monkeypatch.setattr(admin_module, "load_meta_timeseries", lambda t, e, days: shifted.copy())
+
+    issues = client.get("/data-quality/issues").json()["issues"]
+    gaps = [i for i in issues if i["type"] == "GAPS"]
+    resp = client.post(f"/data-quality/issues/{gaps[0]['id']}/fix")
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "fixed"
+
+    audit = client.get("/data-quality/audit").json()["entries"]
+    assert audit[0]["action"] == "refetch"
+
+
 def test_dedupe_handles_timezone_aware_dates(monkeypatch, client, tmp_path):
     """Dedupe normalises tz-aware Date values before comparing/sorting."""
     import backend.routes.data_quality_admin as admin_module
@@ -554,7 +573,16 @@ def test_fix_unresolved_ticker_rejects_ticker_mismatch(monkeypatch, tmp_path):
         admin_module, "resolve_instrument_ticker", lambda symbol, create_missing=False: "XYZ.Q"
     )
     mismatched = pd.DataFrame({"Date": ["2026-01-01"], "Close": [1.0], "Ticker": ["WRONG"]})
-    monkeypatch.setattr(admin_module, "load_meta_timeseries", lambda t, e, days: mismatched.copy())
+
+    def _fetch_and_persist(t, e, days):
+        # Mirrors load_meta_timeseries's real behaviour: it persists the
+        # fetched frame to the cache path as a side effect before returning
+        # it, which is exactly what makes the mismatch check unable to
+        # prevent the write (it can only flag it after the fact).
+        mismatched.to_parquet(cache_path, index=False)
+        return mismatched.copy()
+
+    monkeypatch.setattr(admin_module, "load_meta_timeseries", _fetch_and_persist)
 
     issues = client.get("/data-quality/issues").json()["issues"]
     unresolved = next(i for i in issues if i["type"] == "UNRESOLVED_TICKER")
@@ -562,9 +590,18 @@ def test_fix_unresolved_ticker_rejects_ticker_mismatch(monkeypatch, tmp_path):
     resp = client.post(f"/data-quality/issues/{unresolved['id']}/fix")
     assert resp.status_code == 502
     assert "is tagged" in resp.json()["detail"]
+    # The mismatched data really was written to the cache slot.
+    assert cache_path.exists()
+    written = pd.read_parquet(cache_path)
+    assert written["Ticker"].tolist() == ["WRONG"]
 
     audit = client.get("/data-quality/audit").json()["entries"]
     assert all(e["action"] != "unresolved_ticker" for e in audit)
+    # ... but the write is not left untraceable: a quarantine entry records
+    # exactly what happened, even though it isn't a successful fix.
+    rejected = next(e for e in audit if e["action"] == "unresolved_ticker_rejected")
+    assert rejected["after"]["tagged_tickers"] == ["WRONG"]
+    assert str(rejected["id"]) in resp.json()["detail"]
 
 
 def test_dedupe_rejects_series_with_no_valid_dates(monkeypatch, client, tmp_path):

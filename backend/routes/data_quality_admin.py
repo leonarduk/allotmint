@@ -15,8 +15,10 @@ never fetch live data and never mutate state.
 from __future__ import annotations
 
 import logging
+import json
 import os
 import re
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -24,11 +26,15 @@ import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
+import backend.data_quality.issues as dq_issues
 from backend.common.accounts_store import LocalAccountsStore
 from backend.common.instruments import resolve_instrument_ticker
+from backend.config import config
 from backend.data_quality.audit import append_audit, find_audit_entry, read_audit
 from backend.data_quality.issues import (
     FIXABLE_TYPES,
+    DataQualityIssue,
+    IssueType,
     aggregate_issues,
     find_issue,
 )
@@ -613,17 +619,14 @@ def _fix_ticker_mismatch(payload: dict[str, Any], actor: str | None) -> dict[str
     return {"status": "fixed", "tickers": [ticker], "audit_id": entry["id"]}
 
 
-def _apply_fix(issue_id: str, request: Request, actor: str | None) -> dict[str, Any]:
-    issues = aggregate_issues()
-    issue = find_issue(issues, issue_id)
-    if issue is None:
-        raise HTTPException(status_code=404, detail=f"Unknown issue id: {issue_id}")
+def _apply_resolved_fix(issue: DataQualityIssue, request: Request, actor: str | None) -> dict[str, Any]:
+    """Dispatch an already-looked-up issue to its fix implementation."""
     if not issue.fixable or issue.type not in FIXABLE_TYPES:
         raise HTTPException(
             status_code=409, detail=f"Issue type {issue.type} has no automated fix."
         )
     payload = dict(issue.fix_payload)
-    payload["issue_id"] = issue_id
+    payload["issue_id"] = issue.id
 
     kind = payload.get("kind")
     if kind == "wrong_exchange":
@@ -639,6 +642,115 @@ def _apply_fix(issue_id: str, request: Request, actor: str | None) -> dict[str, 
     if kind == "ticker_mismatch":
         return _fix_ticker_mismatch(payload, actor)
     raise HTTPException(status_code=409, detail=f"Unsupported fix kind: {kind}")
+
+
+def _apply_fix(issue_id: str, request: Request, actor: str | None) -> dict[str, Any]:
+    issues = aggregate_issues()
+    issue = find_issue(issues, issue_id)
+    if issue is None:
+        raise HTTPException(status_code=404, detail=f"Unknown issue id: {issue_id}")
+    return _apply_resolved_fix(issue, request, actor)
+
+
+def _holding_ticker_exists(owner: str, account: str, ticker: str) -> bool:
+    """Check a single accounts document for one holding ticker.
+
+    Used to revalidate holdings-based issues per batch item without walking
+    the full holdings tree that ``aggregate_issues`` scans (#6741).
+    """
+    root = getattr(config, "accounts_root", None)
+    if root is None:
+        return True
+    path = Path(root) / owner / f"{_normalise_account_file_name(account)}.json"
+    if not path.exists():
+        return False
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    if not isinstance(document, dict):
+        return False
+    holdings = document.get("holdings")
+    if not isinstance(holdings, list):
+        return False
+    return any(isinstance(h, dict) and str(h.get("ticker") or "").upper() == ticker.upper() for h in holdings)
+
+
+def _series_issue_still_applies(issue: DataQualityIssue) -> bool:
+    """Re-check one ticker/exchange's current cached-series state.
+
+    Mirrors the single-series checks in ``aggregate_series_issues`` but scoped
+    to this issue's own ticker rather than every cached series.
+    """
+    payload = issue.fix_payload
+    ticker = str(payload.get("ticker") or "")
+    exchange = str(payload.get("exchange") or "")
+    if not ticker or not exchange:
+        return True
+
+    if issue.type == IssueType.MISSING_METADATA:
+        meta = dq_issues.get_instrument_meta(f"{ticker}.{exchange}")
+        return not bool(meta and meta.get("name"))
+
+    try:
+        df = dq_issues.load_cached_meta_timeseries_full(ticker, exchange)
+    except Exception:
+        return True
+    if df is None or df.empty:
+        return issue.type in (IssueType.STALE_SERIES, IssueType.GAPS)
+
+    if issue.type == IssueType.TICKER_MISMATCH:
+        if "Ticker" not in df.columns:
+            return False
+        row_tickers = {str(v).strip().upper() for v in df["Ticker"].dropna().unique() if str(v).strip()}
+        return bool(row_tickers) and row_tickers != {ticker}
+
+    quality = dq_issues.compute_quality(df, ticker, exchange)
+    if issue.type == IssueType.DUPLICATES:
+        return bool(quality.get("duplicate_dates"))
+    if issue.type == IssueType.GAPS:
+        return quality.get("gap_count", 0) > 0
+    if issue.type == IssueType.STALE_SERIES:
+        last_date = quality.get("last_date")
+        if last_date is None:
+            return True
+        last = last_date if isinstance(last_date, date) else date.fromisoformat(str(last_date))
+        return (date.today() - last).days > dq_issues.DEFAULT_STALE_SERIES_MAX_AGE_DAYS
+    return True
+
+
+def _issue_still_applies(issue: DataQualityIssue) -> bool:
+    """Targeted re-check of just this issue's own entity.
+
+    Batch fix (#6741) aggregates once for the whole request instead of once
+    per issue id; this recheck preserves the safety property that an earlier
+    fix in the same batch cannot cause a later, now-stale issue to be
+    (re)applied, without repeating the full holdings + cached-series scan.
+    """
+    payload = issue.fix_payload
+    kind = payload.get("kind")
+
+    if kind in ("wrong_exchange", "unresolved_ticker"):
+        owner = str(payload.get("owner") or issue.entity.get("owner") or "")
+        account = str(payload.get("account") or issue.entity.get("account") or "")
+        ticker = str(issue.entity.get("holding") or "")
+        if not owner or not account or not ticker:
+            return True
+        return _holding_ticker_exists(owner, account, ticker)
+
+    if kind == "missing_series":
+        owner = str(issue.entity.get("owner") or "")
+        account = str(issue.entity.get("account") or "")
+        holding_ticker = str(issue.entity.get("holding") or "")
+        if owner and account and holding_ticker and not _holding_ticker_exists(owner, account, holding_ticker):
+            return False
+        ticker = str(payload.get("ticker") or "")
+        exchange = str(payload.get("exchange") or "")
+        if not ticker or not exchange:
+            return True
+        return not dq_issues.has_cached_meta_timeseries(ticker, exchange)
+
+    return _series_issue_still_applies(issue)
 
 
 @router.get("/issues")
@@ -686,11 +798,35 @@ async def batch_fix(
     request: Request,
     user: str | None = Depends(get_active_user),
 ) -> dict[str, Any]:
-    """Apply the same-type fix for every listed issue, reporting per-issue results."""
+    """Apply the same-type fix for every listed issue, reporting per-issue results.
+
+    Aggregates issues once for the whole batch rather than once per issue id
+    (#6741): the previous version ran a full holdings + cached-series scan
+    (``aggregate_issues()``) inside ``_apply_fix`` for every item, so an
+    N-issue batch did ~N full scans.  Each item is still individually
+    revalidated against its own entity (``_issue_still_applies``) before the
+    fix runs, so an issue an earlier item in this same batch already
+    resolved is reported as no-longer-applicable instead of being reapplied.
+    """
+    issues = aggregate_issues()
+    by_id = {issue.id: issue for issue in issues}
     results: list[dict[str, Any]] = []
     for issue_id in body.issue_ids:
+        issue = by_id.get(issue_id)
+        if issue is None:
+            results.append({"issue_id": issue_id, "status": "error", "detail": f"Unknown issue id: {issue_id}"})
+            continue
+        if not _issue_still_applies(issue):
+            results.append(
+                {
+                    "issue_id": issue_id,
+                    "status": "error",
+                    "detail": "Issue no longer applies; likely resolved earlier in this batch.",
+                }
+            )
+            continue
         try:
-            result = _apply_fix(issue_id, request, user)
+            result = _apply_resolved_fix(issue, request, user)
             results.append({"issue_id": issue_id, **result, "status": "ok"})
         except HTTPException as exc:
             results.append({"issue_id": issue_id, "status": "error", "detail": exc.detail})

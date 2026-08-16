@@ -25,6 +25,7 @@ from pydantic import BaseModel, Field
 
 from backend.common.accounts_store import LocalAccountsStore
 from backend.common.authz import ensure_owner_access
+from backend.common.errors import AppError
 from backend.common.instruments import resolve_instrument_ticker
 from backend.data_quality.audit import append_audit, find_audit_entry, read_audit
 from backend.data_quality.issues import (
@@ -621,7 +622,15 @@ async def batch_fix(
     request: Request,
     user: str | None = Depends(get_active_user),
 ) -> dict[str, Any]:
-    """Apply the same-type fix for every listed issue, reporting per-issue results."""
+    """Apply the same-type fix for every listed issue, reporting per-issue results.
+
+    Catches both ``HTTPException`` (e.g. unknown/unfixable issue) and
+    ``AppError`` -- ``ensure_owner_access`` raises ``PermissionDeniedError``
+    (an ``AppError``, not an ``HTTPException``) when the caller isn't
+    authorized for one issue's owner, and that must be reported as a failed
+    item rather than aborting the whole batch and 403ing issues that *were*
+    authorized (#6739).
+    """
     results: list[dict[str, Any]] = []
     for issue_id in body.issue_ids:
         try:
@@ -629,6 +638,8 @@ async def batch_fix(
             results.append({"issue_id": issue_id, **result, "status": "ok"})
         except HTTPException as exc:
             results.append({"issue_id": issue_id, "status": "error", "detail": exc.detail})
+        except AppError as exc:
+            results.append({"issue_id": issue_id, "status": "error", "detail": exc.safe_detail})
     ok = sum(1 for r in results if r["status"] == "ok")
     return {"applied": ok, "failed": len(results) - ok, "results": results}
 

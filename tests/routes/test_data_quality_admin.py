@@ -585,6 +585,44 @@ def test_write_endpoints_404_when_admin_disabled(monkeypatch, tmp_path):
     assert disabled_client.post("/data-quality/audit/nope/undo").status_code == 404
 
 
+def test_write_endpoints_reachable_when_admin_enabled(monkeypatch, tmp_path):
+    """The positive counterpart of ``..._404_when_admin_disabled``: an explicit
+    ``enable_data_quality_admin: true`` in config.yaml must register the write
+    routes, proving the flag is actually read (not just defaulted) (#6739)."""
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("enable_data_quality_admin: true\n")
+    monkeypatch.setattr(sys.modules["backend.config"], "_project_config_path", lambda: config_path)
+    monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
+
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    monkeypatch.setattr(config, "disable_auth", True)
+    monkeypatch.setattr(config, "audit_dir", tmp_path / "audit")
+
+    accounts = tmp_path / "accounts"
+    (accounts / "demo").mkdir(parents=True)
+    (accounts / "demo" / "isa.json").write_text(
+        json.dumps({"owner": "demo", "account_type": "isa", "currency": "GBP", "holdings": []}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(config, "accounts_root", accounts)
+
+    from backend.app import create_app
+
+    app = create_app()
+    monkeypatch.setattr(config, "audit_dir", tmp_path / "audit")
+    app.state.accounts_root = str(accounts)
+    app.state.accounts_root_is_global = False
+    enabled_client = TestClient(app)
+
+    # Routes exist (reach the handler and 404 on the *issue*, not the route).
+    assert enabled_client.post("/data-quality/issues/nope/fix").status_code == 404
+    assert enabled_client.post("/data-quality/fixes", json={"issue_ids": ["nope"]}).status_code == 200
+    assert enabled_client.post("/data-quality/audit/nope/undo").status_code == 404
+    dedupe_resp = enabled_client.post("/data-quality/series/ABC/L/dedupe")
+    assert dedupe_resp.status_code == 404  # no cached series -- route was reached, not missing
+    assert dedupe_resp.json()["detail"] == "Cached series not found."
+
+
 def test_fix_wrong_exchange_rejects_cross_owner(monkeypatch, tmp_path):
     """Fixing another owner's holding must 403, not silently mutate it (#6739)."""
     client = _build_auth_enabled_client(monkeypatch, tmp_path, authorized_owner="demo")
@@ -620,6 +658,46 @@ def test_undo_rejects_cross_owner(monkeypatch, tmp_path):
     assert resp.status_code == 403
     other_doc = json.loads((tmp_path / "accounts" / "other" / "isa.json").read_text(encoding="utf-8"))
     assert other_doc["holdings"] == [{"ticker": "MICC.L"}]  # untouched
+
+
+def test_batch_fix_rejects_cross_owner(monkeypatch, tmp_path):
+    """``/fixes`` must owner-scope each issue individually, not just the
+    single-issue ``/issues/{id}/fix`` endpoint (#6739)."""
+    client = _build_auth_enabled_client(monkeypatch, tmp_path, authorized_owner="demo")
+
+    issues = client.get("/data-quality/issues").json()["issues"]
+    other_issue = next(i for i in issues if i["type"] == "WRONG_EXCHANGE" and i["entity"]["owner"] == "other")
+    demo_issue = next(i for i in issues if i["type"] == "WRONG_EXCHANGE" and i["entity"]["owner"] == "demo")
+
+    resp = client.post("/data-quality/fixes", json={"issue_ids": [other_issue["id"], demo_issue["id"]]})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["applied"] == 1
+    assert data["failed"] == 1
+    other_result = next(r for r in data["results"] if r["issue_id"] == other_issue["id"])
+    assert other_result["status"] == "error"
+    other_doc = json.loads((tmp_path / "accounts" / "other" / "isa.json").read_text(encoding="utf-8"))
+    assert other_doc["holdings"] == [{"ticker": "MICC.L"}]  # untouched
+
+
+def test_dedupe_series_not_owner_scoped_by_design(monkeypatch, tmp_path):
+    """Unlike wrong_exchange fix/undo, dedupe acts on the shared timeseries
+    cache (not a specific owner's holding), so no owner check applies -- any
+    authenticated user may dedupe a cached series (#6739)."""
+    client = _build_auth_enabled_client(monkeypatch, tmp_path, authorized_owner="demo")
+
+    df = pd.DataFrame({"Date": ["2026-01-01", "2026-01-01", "2026-01-02"], "Close": [1.0, 2.0, 3.0]})
+    cache_path = tmp_path / "ABC_L.parquet"
+    df.to_parquet(cache_path, index=False)
+
+    import backend.routes.data_quality_admin as admin_module
+
+    monkeypatch.setattr(admin_module, "meta_timeseries_cache_path", lambda t, e: str(cache_path))
+    monkeypatch.setattr(admin_module, "load_cached_meta_timeseries_full", lambda t, e: df.copy())
+
+    resp = client.post("/data-quality/series/ABC/L/dedupe")
+    assert resp.status_code == 200
+    assert resp.json()["removed"] == 1
 
 
 def test_dedupe_rejects_series_with_no_valid_dates(monkeypatch, client, tmp_path):

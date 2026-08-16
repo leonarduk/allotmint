@@ -85,9 +85,8 @@ jobs:
       # cicaid-core still has the full package (incl. the LLM review
       # integrations this workflow imports below) but is now private, so pip
       # needs a scoped token rewritten in as git credentials to clone it.
-      # pip_install_cicaid_core.sh validates the token up front and unsets the
-      # credential again once the install finishes, so it isn't left in
-      # ~/.gitconfig for the rest of the job.
+      # pip_install_cicaid_core.sh validates the token up front and exposes the
+      # credential only to the pip process through GIT_CONFIG_* variables.
       - name: Install cicaid-devtools (PR review helpers)
         env:
           CICAID_CORE_TOKEN: ${{ secrets.cicaid_core_token }}

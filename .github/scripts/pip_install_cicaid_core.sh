@@ -3,15 +3,14 @@
 # can clone the now-private leonarduk/cicaid-core repo. leonarduk/cicaid was
 # renamed to leonarduk/cicaid-core (private) and its old name reused by a new,
 # unrelated public repo, so old github.com/leonarduk/cicaid/releases/... wheel
-# URLs 404 (#6754); requirements-dev.txt and backend/requirements-test.txt now
-# pin cicaid-devtools to the private repo instead.
+# URLs 404 (#6754); requirements-automation.txt now pins cicaid-devtools to the
+# private repo instead.
 #
 # Fails fast with an actionable message if CICAID_CORE_TOKEN is unset or empty,
 # instead of letting the wrapped command fail later with a confusing git auth
-# error. The credential rewrite is scoped to exactly this invocation: it's
-# configured immediately before running the command and unset again straight
-# after (even on failure), so the token isn't left sitting in the runner's
-# ~/.gitconfig for the rest of the job.
+# error. The credential rewrite is scoped to exactly this invocation through
+# Git's GIT_CONFIG_* environment variables; the token is never written to a
+# config file.
 #
 # Uses `url.<base>.insteadOf` with the token embedded as URL userinfo, rather
 # than a `credential.<url>.helper` shell snippet that reads the token from the
@@ -37,13 +36,8 @@ if [ -z "${CICAID_CORE_TOKEN:-}" ]; then
   exit 1
 fi
 
-CONFIG_KEY="url.https://x-access-token:${CICAID_CORE_TOKEN}@github.com/leonarduk/cicaid-core.insteadOf"
+export GIT_CONFIG_COUNT=1
+export GIT_CONFIG_KEY_0="url.https://x-access-token:${CICAID_CORE_TOKEN}@github.com/leonarduk/cicaid-core.insteadOf"
+export GIT_CONFIG_VALUE_0="https://github.com/leonarduk/cicaid-core"
 
-cleanup() {
-  git config --global --unset "$CONFIG_KEY" >/dev/null 2>&1 || true
-}
-trap cleanup EXIT
-
-git config --global "$CONFIG_KEY" "https://github.com/leonarduk/cicaid-core"
-
-"$@"
+exec "$@"

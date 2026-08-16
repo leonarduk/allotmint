@@ -40,6 +40,7 @@ from backend.data_quality.issues import (
     aggregate_issues,
     find_issue,
 )
+from backend.logging_setup import sanitise_log_value
 from backend.routes import get_active_user
 from backend.routes._accounts import resolve_accounts_root
 from backend.routes.transactions import resolve_writable_store
@@ -141,7 +142,11 @@ def _write_fix_snapshot(path: Path, entry_id: str, before_bytes: bytes) -> None:
     try:
         _atomic_write_bytes(_fix_snapshot_path(path, entry_id), before_bytes)
     except OSError:
-        logger.warning("Failed to write per-fix undo snapshot for %s (audit entry %s)", path, entry_id)
+        logger.warning(
+            "Failed to write per-fix undo snapshot for %s (audit entry %s)",
+            sanitise_log_value(path),
+            sanitise_log_value(entry_id),
+        )
 
 
 def _atomic_write_text(path: Path, text: str) -> None:

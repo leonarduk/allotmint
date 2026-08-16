@@ -137,25 +137,6 @@ def _fix_snapshot_path(path: Path, entry_id: str) -> Path:
     return path.with_name(path.name + f".undo.{entry_id}")
 
 
-def _require_path_within(candidate: Path, directory: Path) -> Path:
-    """Resolve ``candidate`` and confirm it stays inside ``directory``.
-
-    ``candidate`` is built from filename components (ticker/exchange/entry id)
-    that are already regex-validated (``_TICKER_RE``/``_EXCHANGE_RE``/
-    ``_ENTRY_ID_RE``), but CodeQL's py/path-injection query does not model
-    those custom validators as sanitizers, so it still flags every later use
-    of the resulting path. This resolves the path and checks containment
-    against the expected directory using ``os.path.realpath``/``commonpath``
-    — the pattern CodeQL's own remediation advice recommends — so the query
-    can verify the path is safe at the point of use.
-    """
-    safe_dir = os.path.realpath(str(directory))
-    resolved = os.path.realpath(str(candidate))
-    if os.path.commonpath([resolved, safe_dir]) != safe_dir:
-        raise HTTPException(status_code=400, detail="Invalid path.")
-    return Path(resolved)
-
-
 def _write_fix_snapshot(path: Path, entry_id: str, before_bytes: bytes) -> None:
     """Persist ``before_bytes`` for undo, keyed by this fix's audit entry id.
 
@@ -1030,23 +1011,39 @@ async def undo_audit(
         if cache.startswith("s3://"):
             raise HTTPException(status_code=400, detail="Undo supports the local cache only.")
         path = Path(cache)
+        cache_dir = os.path.realpath(str(path.parent))
         # Prefer the snapshot taken for this specific fix (keyed by its audit
         # entry id) over the shared earliest ``.bak``: with multiple fixes
         # applied to the same cache file, the earliest backup predates fixes
         # other than the one being undone. Entries recorded before this
         # snapshot existed fall back to the earliest backup. Both candidates
-        # are re-resolved and containment-checked against the cache
-        # directory via ``_require_path_within`` before any filesystem use.
-        snapshot = _require_path_within(_fix_snapshot_path(path, entry_id), path.parent)
-        if snapshot.exists():
+        # are resolved and containment-checked against ``cache_dir`` inline
+        # (not via a helper) immediately before use, so CodeQL's
+        # py/path-injection guard analysis — which only recognises a barrier
+        # that dominates the sink within the same function — sees the check.
+        # entry_id is regex-validated (``_ENTRY_ID_RE``, line 940) and
+        # ticker/exchange via ``_validate_cache_key`` above; ``snapshot_real``/
+        # ``backup_real`` are additionally resolved and containment-checked
+        # against ``cache_dir`` immediately above. CodeQL's py/path-injection
+        # taint tracker does not model either of those as sanitizers, so the
+        # remaining dereferences below are suppressed as verified false
+        # positives rather than genuine traversal risk.
+        snapshot_real = os.path.realpath(str(_fix_snapshot_path(path, entry_id)))
+        if os.path.commonpath([snapshot_real, cache_dir]) != cache_dir:
+            raise HTTPException(status_code=400, detail="Invalid path.")
+        snapshot = Path(snapshot_real)
+        if snapshot.exists():  # codeql[py/path-injection]
             restore_from = snapshot
         else:
-            restore_from = _require_path_within(_backup_path_for(path), path.parent)
-        if not restore_from.exists():
+            backup_real = os.path.realpath(str(_backup_path_for(path)))
+            if os.path.commonpath([backup_real, cache_dir]) != cache_dir:
+                raise HTTPException(status_code=400, detail="Invalid path.")
+            restore_from = Path(backup_real)
+        if not restore_from.exists():  # codeql[py/path-injection]
             raise HTTPException(status_code=409, detail="No backup available to restore from.")
-        _atomic_write_bytes(path, restore_from.read_bytes())
-        if snapshot.exists():
-            snapshot.unlink(missing_ok=True)
+        _atomic_write_bytes(path, restore_from.read_bytes())  # codeql[py/path-injection]
+        if snapshot.exists():  # codeql[py/path-injection]
+            snapshot.unlink(missing_ok=True)  # codeql[py/path-injection]
         append_audit(
             action="undo",
             issue_id=str(entry.get("issue_id") or ""),

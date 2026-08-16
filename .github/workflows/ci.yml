@@ -265,13 +265,17 @@ jobs:
         # cdk/tests/ instead, covering CDK infrastructure. This avoids
         # duplication: tests/ runs once (here), cdk/tests/ runs once (in
         # cdk-tests), against their respective dependency sets.
-        # The two cicaid-specific modules have their own credential-aware step
-        # in the required `test` job; the Lambda suite must remain runnable for
+        # The cicaid-specific modules have their own credential-aware step in
+        # the required `test` job; the Lambda suite must remain runnable for
         # fork PRs that cannot access the private automation dependency.
+        # tests/scripts/test_n_review_issue.py also transitively imports
+        # cicaid_devtools (via scripts/developer_tools/n_review_issue.py) and
+        # is excluded for the same reason.
         run: >-
           .venv-lambda/bin/pytest tests/
           --ignore=tests/test_review_common.py
           --ignore=tests/test_ai_review_scripts.py
+          --ignore=tests/scripts/test_n_review_issue.py
 
   lint-shell-scripts:
     name: Lint .github/scripts shell scripts (shellcheck)

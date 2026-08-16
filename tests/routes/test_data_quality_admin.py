@@ -553,6 +553,45 @@ def test_fix_refetch_records_before_rows(monkeypatch, tmp_path):
     assert audit[0]["after"] == {"rows": 3}
 
 
+def test_fix_refetch_records_no_change_when_row_count_unchanged(monkeypatch, tmp_path):
+    """A no-op refetch (same row count) must not be recorded as a successful
+    ``action="refetch"`` audit entry -- that would misleadingly read as a
+    real change was made (#6740)."""
+    client, cache_path, admin_module = _gapped_series_client(monkeypatch, tmp_path)
+    same_count = pd.DataFrame({"Date": ["2026-01-05", "2026-01-12"], "Close": [1.5, 2.5]})
+    monkeypatch.setattr(admin_module, "load_meta_timeseries", lambda t, e, days: same_count.copy())
+
+    issues = client.get("/data-quality/issues").json()["issues"]
+    gaps = [i for i in issues if i["type"] == "GAPS"]
+    resp = client.post(f"/data-quality/issues/{gaps[0]['id']}/fix")
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "no_change"
+    assert resp.json()["rows"] == 2
+
+    audit = client.get("/data-quality/audit").json()["entries"]
+    assert audit[0]["action"] == "refetch_no_change"
+    assert all(e["action"] != "refetch" for e in audit)
+
+
+def test_fix_refetch_with_same_row_count_but_shifted_dates_is_a_real_change(monkeypatch, tmp_path):
+    """Same row count with a different date range is a real change, not a
+    no-op -- row count alone would misclassify a shifted fetch window as
+    ``no_change`` (#6740)."""
+    client, cache_path, admin_module = _gapped_series_client(monkeypatch, tmp_path)
+    # Same row count as the cached series (2), but different dates.
+    shifted = pd.DataFrame({"Date": ["2026-01-06", "2026-01-13"], "Close": [1.5, 2.5]})
+    monkeypatch.setattr(admin_module, "load_meta_timeseries", lambda t, e, days: shifted.copy())
+
+    issues = client.get("/data-quality/issues").json()["issues"]
+    gaps = [i for i in issues if i["type"] == "GAPS"]
+    resp = client.post(f"/data-quality/issues/{gaps[0]['id']}/fix")
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "fixed"
+
+    audit = client.get("/data-quality/audit").json()["entries"]
+    assert audit[0]["action"] == "refetch"
+
+
 def test_dedupe_handles_timezone_aware_dates(monkeypatch, client, tmp_path):
     """Dedupe normalises tz-aware Date values before comparing/sorting."""
     import backend.routes.data_quality_admin as admin_module
@@ -654,6 +693,13 @@ def test_write_endpoints_reachable_when_admin_enabled(monkeypatch, tmp_path):
     app.state.accounts_root_is_global = False
     enabled_client = TestClient(app)
 
+    import backend.routes.data_quality_admin as admin_module
+
+    # Hermetic: point the cache at a guaranteed-empty tmp dir rather than
+    # relying on ABC/L being uncached in whatever the real cache base
+    # happens to be for this environment.
+    monkeypatch.setattr(admin_module, "meta_timeseries_cache_path", lambda t, e: str(tmp_path / f"{t}_{e}.parquet"))
+
     # Routes exist (reach the handler and 404 on the *issue*, not the route).
     assert enabled_client.post("/data-quality/issues/nope/fix").status_code == 404
     assert enabled_client.post("/data-quality/fixes", json={"issue_ids": ["nope"]}).status_code == 200
@@ -740,6 +786,85 @@ def test_dedupe_series_not_owner_scoped_by_design(monkeypatch, tmp_path):
     assert resp.json()["removed"] == 1
 
 
+def test_fix_unresolved_ticker_rejects_ticker_mismatch(monkeypatch, tmp_path):
+    """A fetch tagged for a different ticker must not be recorded as a fix (#6740).
+
+    ``load_meta_timeseries`` already persists the fetched frame as a side
+    effect, so this cannot prevent the write, but it must stop the response
+    and audit trail from reporting it as a successful fix.
+    """
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    monkeypatch.setattr(config, "disable_auth", True)
+    monkeypatch.setattr(config, "audit_dir", tmp_path / "audit")
+
+    accounts = tmp_path / "accounts"
+    (accounts / "demo").mkdir(parents=True)
+    (accounts / "demo" / "isa.json").write_text(
+        json.dumps(
+            {
+                "owner": "demo",
+                "account_type": "isa",
+                "currency": "GBP",
+                "holdings": [{"ticker": "XYZ.Q"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(config, "accounts_root", accounts)
+
+    import backend.data_quality.issues as issues_module
+
+    monkeypatch.setattr(issues_module, "get_instrument_meta", lambda ticker: {})
+    monkeypatch.setattr(issues_module, "resolve_instrument_ticker", lambda symbol, create_missing=False: None)
+    monkeypatch.setattr(issues_module, "has_cached_meta_timeseries", lambda t, e: False)
+    monkeypatch.setattr(issues_module, "list_cached_meta_tickers", lambda: [])
+    monkeypatch.setattr(issues_module, "load_cached_meta_timeseries_full", lambda t, e: None)
+
+    from backend.app import create_app
+
+    app = create_app()
+    monkeypatch.setattr(config, "audit_dir", tmp_path / "audit")
+    app.state.accounts_root = str(accounts)
+    app.state.accounts_root_is_global = False
+    client = TestClient(app)
+
+    import backend.routes.data_quality_admin as admin_module
+
+    cache_path = tmp_path / "XYZ_Q.parquet"
+    monkeypatch.setattr(admin_module, "meta_timeseries_cache_path", lambda t, e: str(cache_path))
+    monkeypatch.setattr(admin_module, "resolve_instrument_ticker", lambda symbol, create_missing=False: "XYZ.Q")
+    mismatched = pd.DataFrame({"Date": ["2026-01-01"], "Close": [1.0], "Ticker": ["WRONG"]})
+
+    def _fetch_and_persist(t, e, days):
+        # Mirrors load_meta_timeseries's real behaviour: it persists the
+        # fetched frame to the cache path as a side effect before returning
+        # it, which is exactly what makes the mismatch check unable to
+        # prevent the write (it can only flag it after the fact).
+        mismatched.to_parquet(cache_path, index=False)
+        return mismatched.copy()
+
+    monkeypatch.setattr(admin_module, "load_meta_timeseries", _fetch_and_persist)
+
+    issues = client.get("/data-quality/issues").json()["issues"]
+    unresolved = next(i for i in issues if i["type"] == "UNRESOLVED_TICKER")
+
+    resp = client.post(f"/data-quality/issues/{unresolved['id']}/fix")
+    assert resp.status_code == 502
+    assert "is tagged" in resp.json()["detail"]
+    # The mismatched data really was written to the cache slot.
+    assert cache_path.exists()
+    written = pd.read_parquet(cache_path)
+    assert written["Ticker"].tolist() == ["WRONG"]
+
+    audit = client.get("/data-quality/audit").json()["entries"]
+    assert all(e["action"] != "unresolved_ticker" for e in audit)
+    # ... but the write is not left untraceable: a quarantine entry records
+    # exactly what happened, even though it isn't a successful fix.
+    rejected = next(e for e in audit if e["action"] == "unresolved_ticker_rejected")
+    assert rejected["after"]["tagged_tickers"] == ["WRONG"]
+    assert str(rejected["id"]) in resp.json()["detail"]
+
+
 def test_dedupe_rejects_series_with_no_valid_dates(monkeypatch, client, tmp_path):
     """A cache whose dates are all unparseable is rejected, not emptied."""
     import backend.routes.data_quality_admin as admin_module
@@ -756,3 +881,72 @@ def test_dedupe_rejects_series_with_no_valid_dates(monkeypatch, client, tmp_path
     assert cache_path.read_bytes() == before_bytes
     audit = client.get("/data-quality/audit").json()["entries"]
     assert all(e["action"] != "dedupe" for e in audit)
+
+
+def test_undo_dedupe_restores_state_before_the_undone_fix_not_the_earliest_backup(monkeypatch, client, tmp_path):
+    """Undo must restore this fix's own pre-state, not the file's earliest .bak (#6740).
+
+    With two dedupe fixes applied to the same cache file, undoing the second
+    one must restore what the file looked like right before the *second*
+    fix -- the earliest ``.bak`` instead reflects the state before the
+    *first* fix and would revert further back than the action being undone.
+    """
+    import backend.routes.data_quality_admin as admin_module
+
+    cache_path = tmp_path / "ABC_L.parquet"
+    monkeypatch.setattr(admin_module, "meta_timeseries_cache_path", lambda t, e: str(cache_path))
+    monkeypatch.setattr(admin_module, "load_cached_meta_timeseries_full", lambda t, e: pd.read_parquet(cache_path))
+
+    original = pd.DataFrame({"Date": ["2026-01-01", "2026-01-01", "2026-01-02"], "Close": [1.0, 2.0, 3.0]})
+    original.to_parquet(cache_path, index=False)
+
+    resp = client.post("/data-quality/series/ABC/L/dedupe")
+    assert resp.status_code == 200
+    assert resp.json()["rows"] == 2
+
+    # A later fetch reintroduces a duplicate that a second dedupe cleans up.
+    before_second_fix = pd.DataFrame(
+        {
+            "Date": ["2026-01-01", "2026-01-01", "2026-01-02", "2026-01-03"],
+            "Close": [2.0, 20.0, 3.0, 4.0],
+        }
+    )
+    before_second_fix.to_parquet(cache_path, index=False)
+
+    resp = client.post("/data-quality/series/ABC/L/dedupe")
+    assert resp.status_code == 200
+    assert resp.json()["rows"] == 3
+
+    audit = client.get("/data-quality/audit").json()["entries"]
+    second_entry = next(e for e in audit if e["action"] == "dedupe" and e["after"] == {"rows": 3})
+
+    resp = client.post(f"/data-quality/audit/{second_entry['id']}/undo")
+    assert resp.status_code == 200
+
+    restored = pd.read_parquet(cache_path)
+    # Restored to the 4-row state right before the second fix (still holding
+    # the 20.0 duplicate) -- not the file's earliest 3-row backup.
+    assert len(restored) == 4
+    assert 20.0 in restored["Close"].tolist()
+
+
+def test_undo_wrong_exchange_errors_when_account_file_deleted(client, tmp_path):
+    """Undo must surface an error, not silently no-op, when the account file is gone (#6740).
+
+    ``store.edit_document`` creates a fresh empty document when the target
+    file is missing, so without an explicit check the undo would iterate an
+    empty holdings list, do nothing, and still report success.
+    """
+    issues = client.get("/data-quality/issues").json()["issues"]
+    wrong = next(i for i in issues if i["type"] == "WRONG_EXCHANGE")
+    client.post(f"/data-quality/issues/{wrong['id']}/fix")
+
+    audit = client.get("/data-quality/audit").json()["entries"]
+    entry_id = audit[0]["id"]
+
+    account_path = tmp_path / "accounts" / "demo" / "isa.json"
+    account_path.unlink()
+
+    resp = client.post(f"/data-quality/audit/{entry_id}/undo")
+    assert resp.status_code == 409
+    assert "no longer exists" in resp.json()["detail"]

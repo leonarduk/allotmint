@@ -15,6 +15,7 @@ never fetch live data and never mutate state.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 from datetime import date
@@ -47,6 +48,8 @@ from backend.timeseries.cache import (
     load_meta_timeseries,
     meta_timeseries_cache_path,
 )
+
+logger = logging.getLogger(__name__)
 
 # Read-only endpoints (issue listing/preview, audit listing) stay reachable
 # regardless of ``enable_data_quality_admin`` — the flag only controls the
@@ -113,6 +116,32 @@ def _matches_filters(item: dict[str, Any], filters: dict[str, Any]) -> bool:
 
 def _backup_path_for(path: Path) -> Path:
     return path.with_suffix(path.suffix + ".bak")
+
+
+def _fix_snapshot_path(path: Path, entry_id: str) -> Path:
+    """Per-fix backup path keyed by the audit entry id.
+
+    ``{path}.bak`` only ever holds the *earliest* known-good state (it is
+    never overwritten), so with multiple fixes applied to the same cache
+    file it does not reflect what any one fix actually overwrote. Undo needs
+    to restore exactly the state the fix being undone changed, so cache
+    fixes additionally snapshot the pre-fix bytes here, keyed by the audit
+    entry's own id.
+    """
+    return path.with_name(path.name + f".undo.{entry_id}")
+
+
+def _write_fix_snapshot(path: Path, entry_id: str, before_bytes: bytes) -> None:
+    """Persist ``before_bytes`` for undo, keyed by this fix's audit entry id.
+
+    Best-effort: the fix itself and its audit record have already succeeded
+    by the time this runs, so a failure here only degrades undo (it falls
+    back to the earliest ``.bak``) rather than failing the whole request.
+    """
+    try:
+        _atomic_write_bytes(_fix_snapshot_path(path, entry_id), before_bytes)
+    except OSError:
+        logger.warning("Failed to write per-fix undo snapshot for %s (audit entry %s)", path, entry_id)
 
 
 def _atomic_write_text(path: Path, text: str) -> None:
@@ -344,6 +373,30 @@ def _row_count_at(path: Path) -> int:
         return 0
 
 
+def _date_bounds(df: Any) -> tuple[Any, Any] | None:
+    """Return ``(min date, max date)`` of ``df``'s ``Date`` column, or None."""
+    if df is None or df.empty or "Date" not in df.columns:
+        return None
+    dates = pd.to_datetime(df["Date"], errors="coerce").dropna()
+    if dates.empty:
+        return None
+    return dates.min(), dates.max()
+
+
+def _series_snapshot_at(path: Path) -> tuple[int, tuple[Any, Any] | None]:
+    """Return ``(row count, date bounds)`` of the parquet already at ``path``.
+
+    Row count alone treats "same count, different dates" (e.g. the fetch
+    window shifted without covering the actual gap) as no real change;
+    comparing the date range too catches that case.
+    """
+    try:
+        df = pd.read_parquet(path)
+    except Exception:
+        return 0, None
+    return len(df), _date_bounds(df)
+
+
 def _fix_refetch(payload: dict[str, Any], actor: str | None) -> dict[str, Any]:
     """Fetch/refetch a cached meta timeseries (missing/stale/gaps)."""
     ticker, exchange = _validate_cache_key(str(payload["ticker"]), str(payload["exchange"]))
@@ -356,9 +409,10 @@ def _fix_refetch(payload: dict[str, Any], actor: str | None) -> dict[str, Any]:
     path = Path(cache)
     existed = path.exists()
     before_rows = 0
+    before_bounds: tuple[Any, Any] | None = None
     if existed:
         _backup_file_if_needed(path)
-        before_rows = _row_count_at(path)
+        before_rows, before_bounds = _series_snapshot_at(path)
     df = load_meta_timeseries(ticker, exchange, days=_FETCH_DAYS)
     # Never report a refetch as fixed (or audit it) when the upstream
     # returned nothing usable: ``load_meta_timeseries`` only persists a
@@ -370,20 +424,36 @@ def _fix_refetch(payload: dict[str, Any], actor: str | None) -> dict[str, Any]:
             detail=f"Upstream returned no valid data for {ticker}.{exchange}; cache left unchanged.",
         )
     after_bytes = path.read_bytes() if path.exists() else None
+    # A refetch that already existed and came back with the same row count
+    # *and* date range covered the gap with nothing new (e.g. upstream had
+    # no additional data for the missing dates): record it distinctly rather
+    # than as a successful ``action="refetch"``, which would misleadingly
+    # read as "a change was made" in the audit trail. Row count alone is not
+    # enough -- a same-sized fetch with a shifted date range is a real change.
+    no_change = existed and before_rows == len(df) and before_bounds == _date_bounds(df)
     try:
         entry = append_audit(
-            action="refetch",
+            action="refetch_no_change" if no_change else "refetch",
             issue_id=str(payload.get("issue_id") or ""),
             entity={"ticker": ticker, "exchange": exchange},
             before={"rows": before_rows},
             after={"rows": len(df)},
             actor=actor,
-            extra={"kind": "refetch", "ticker": ticker, "exchange": exchange},
+            extra={
+                "kind": "refetch",
+                "ticker": ticker,
+                "exchange": exchange,
+                **({"no_change": True} if no_change else {}),
+            },
         )
     except Exception:
         _rollback_after_audit_failure(path, existed=existed, expected_bytes=after_bytes)
         raise
-    return {"status": "fixed", "rows": len(df), "audit_id": entry["id"]}
+    return {
+        "status": "no_change" if no_change else "fixed",
+        "rows": len(df),
+        "audit_id": entry["id"],
+    }
 
 
 def _fix_unresolved_ticker(payload: dict[str, Any], actor: str | None) -> dict[str, Any]:
@@ -421,6 +491,43 @@ def _fix_unresolved_ticker(payload: dict[str, Any], actor: str | None) -> dict[s
                 f"{resolved_symbol}.{resolved_exchange or exchange}; cache left unchanged."
             ),
         )
+    # ``load_meta_timeseries`` persists the fetched frame to ``path`` as a
+    # side effect before returning it, so this check cannot prevent a
+    # mis-tagged write; it can only surface one after the fact instead of
+    # silently reporting success. Preventing the write outright would need
+    # ``load_meta_timeseries`` to expose an unpersisted fetch, which it
+    # currently does not.
+    if "Ticker" in df.columns:
+        fetched_tickers = {str(v).strip().upper() for v in df["Ticker"].dropna().unique()}
+        expected_ticker = resolved_symbol.upper()
+        if fetched_tickers and fetched_tickers != {expected_ticker}:
+            # The mismatched frame is already sitting in the cache at this
+            # point (see the comment above), so silently raising here would
+            # leave it there with zero audit trail explaining why. Record a
+            # quarantine entry -- not marked as a successful fix -- so the
+            # contamination is at least traceable.
+            quarantine_entry = append_audit(
+                action="unresolved_ticker_rejected",
+                issue_id=str(payload.get("issue_id") or ""),
+                entity={"symbol": symbol, "exchange": exchange, "resolved_ticker": resolved},
+                before={"metadata": "missing", "series_rows": before_rows},
+                after={"tagged_tickers": sorted(fetched_tickers), "series_rows": len(df)},
+                actor=actor,
+                extra={
+                    "kind": "unresolved_ticker_rejected",
+                    "ticker": resolved_symbol,
+                    "exchange": resolved_exchange or exchange,
+                },
+            )
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    f"Upstream data for {resolved_symbol}.{resolved_exchange or exchange} is "
+                    f"tagged {sorted(fetched_tickers)}, not {expected_ticker!r}; the cache slot "
+                    f"now holds this mismatched data (audit entry {quarantine_entry['id']}) and "
+                    "was not recorded as a fix."
+                ),
+            )
     after_bytes = path.read_bytes() if path.exists() else None
     try:
         entry = append_audit(
@@ -450,6 +557,7 @@ def _fix_dedupe(payload: dict[str, Any], actor: str | None) -> dict[str, Any]:
     path = Path(cache)
     if not path.exists():
         raise HTTPException(status_code=404, detail="Cached series not found.")
+    before_bytes = path.read_bytes()
     df = load_cached_meta_timeseries_full(ticker, exchange)
     before_rows = len(df)
     if "Date" not in df.columns:
@@ -490,6 +598,7 @@ def _fix_dedupe(payload: dict[str, Any], actor: str | None) -> dict[str, Any]:
         # it byte-for-byte from the .bak if the audit write failed.
         _rollback_after_audit_failure(path, existed=True, expected_bytes=after_bytes)
         raise
+    _write_fix_snapshot(path, entry["id"], before_bytes)
     return {
         "status": "fixed",
         "removed": before_rows - len(deduped),
@@ -531,6 +640,7 @@ def _fix_ticker_mismatch(payload: dict[str, Any], actor: str | None) -> dict[str
     path = Path(cache)
     if not path.exists():
         raise HTTPException(status_code=404, detail="Cached series not found.")
+    before_bytes = path.read_bytes()
     df = load_cached_meta_timeseries_full(ticker, exchange)
     before_tickers: list[str] = []
     if "Ticker" in df.columns:
@@ -554,6 +664,7 @@ def _fix_ticker_mismatch(payload: dict[str, Any], actor: str | None) -> dict[str
         # it byte-for-byte from the .bak if the audit write failed.
         _rollback_after_audit_failure(path, existed=True, expected_bytes=after_bytes)
         raise
+    _write_fix_snapshot(path, entry["id"], before_bytes)
     return {"status": "fixed", "tickers": [ticker], "audit_id": entry["id"]}
 
 
@@ -820,6 +931,16 @@ async def undo_audit(
         account = str((entry.get("entity") or {}).get("account") or "")
         owner, account = _validate_owner_account(owner, account)
         ensure_owner_access(user, owner, resolve_accounts_root(request))
+        # ``store.edit_document`` below creates the file (via ``default={}``)
+        # when it is missing, which would silently no-op the undo (nothing to
+        # restore in a freshly-created empty document) instead of surfacing
+        # that the account file the fix touched no longer exists.
+        file_path = Path(store.local_root) / owner / f"{account}.json" if store.local_root else None
+        if file_path is None or not file_path.exists():
+            raise HTTPException(
+                status_code=409,
+                detail=f"Cannot undo: {owner}/{account}.json no longer exists.",
+            )
         before = entry.get("before") or {}
         after = entry.get("after") or {}
         before_holdings = before.get("holdings") or []
@@ -872,10 +993,21 @@ async def undo_audit(
         if cache.startswith("s3://"):
             raise HTTPException(status_code=400, detail="Undo supports the local cache only.")
         path = Path(cache)
-        backup = _backup_path_for(path)
-        if not backup.exists():
+        # Prefer the snapshot taken for this specific fix (keyed by its audit
+        # entry id) over the shared earliest ``.bak``: with multiple fixes
+        # applied to the same cache file, the earliest backup predates fixes
+        # other than the one being undone. Entries recorded before this
+        # snapshot existed fall back to the earliest backup.
+        snapshot = _fix_snapshot_path(path, entry_id)
+        if snapshot.exists():
+            restore_from = snapshot
+        else:
+            restore_from = _backup_path_for(path)
+        if not restore_from.exists():
             raise HTTPException(status_code=409, detail="No backup available to restore from.")
-        _atomic_write_bytes(path, backup.read_bytes())
+        _atomic_write_bytes(path, restore_from.read_bytes())
+        if snapshot.exists():
+            snapshot.unlink(missing_ok=True)
         append_audit(
             action="undo",
             issue_id=str(entry.get("issue_id") or ""),

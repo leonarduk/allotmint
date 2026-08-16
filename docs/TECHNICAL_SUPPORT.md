@@ -6,6 +6,23 @@
 - **Configuration**: Copy `config.example.yaml` to `config.yaml` and `.env.example`
   to `.env` for local or AWS environments. Provide secrets via environment variables.
 
+## Data Quality Admin
+- **Screen**: `/data-quality` shows a tabbed admin surface (Issues / Series /
+  Holdings / Metadata / Audit) when the `enable_data_quality_admin` config flag
+  is enabled (default: on). When disabled, the page falls back to the original
+  read-only series table.
+- **Issues tab**: lists unified issues across holdings (wrong exchange,
+  unresolved ticker, missing series), cached series (stale, gaps, duplicates,
+  outliers, ticker mismatch) and instrument metadata. Filter by type, severity
+  or ticker; every fix has a Preview (before → after) and, when applied,
+  creates a `.bak` backup and an append-only audit record.
+- **Audit tab**: shows the JSONL audit trail (`{data_root}/audit/`); reversible
+  actions (wrong-exchange corrections, dedupe, ticker normalization) can be
+  undone from there.
+- **Holding writes** go through the same accounts-store write path as manual
+  holdings; the shared demo dataset under `data/accounts/` is read-only and
+  must be copied to a writable root before fixes can be applied.
+
 ## Common Troubleshooting Steps
 - Verify that Python (3.11+) and Node.js versions meet project requirements
   (CI/CD uses Python 3.12).

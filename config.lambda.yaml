@@ -88,6 +88,11 @@ ui:
   enable_compliance_workflows: false
   enable_advanced_analytics: false
   enable_reporting_extended: false
+  # Read-write data-quality admin (fixes/audit/undo) stays off in production
+  # Lambda deployments by default: the audit trail is local-only and the fix
+  # endpoints write to the (ephemeral) /tmp data root.  Enable explicitly
+  # per-deployment when the Lambda is backed by writable local storage.
+  enable_data_quality_admin: false
   relative_view_enabled: false
   theme: system
   tabs:

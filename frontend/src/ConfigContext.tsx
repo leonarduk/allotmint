@@ -27,6 +27,7 @@ export interface TabsConfig {
   instrumentadmin: boolean;
   dataadmin: boolean;
   dataexplorer: boolean;
+  dataquality: boolean;
   virtual: boolean;
   research: boolean;
   support: boolean;
@@ -40,7 +41,6 @@ export interface TabsConfig {
   'trade-compliance': boolean;
   reports: boolean;
   scenario: boolean;
-  dataquality: boolean;
 }
 
 export interface AppConfig {
@@ -57,6 +57,12 @@ export interface AppConfig {
   theme: "dark" | "light" | "system";
   baseCurrency: string;
   enableAdvancedAnalytics?: boolean;
+  /**
+   * Read-write Data Quality Admin surface (issue list + preview/fix/audit).
+   * Fails open: the read-only series table stays available even when this is
+   * false, only the write tabs (Issues/Holdings/Audit) are hidden.
+   */
+  dataQualityAdmin?: boolean;
 }
 
 export interface RawConfig {
@@ -67,6 +73,7 @@ export interface RawConfig {
   enable_compliance_workflows?: boolean;
   enable_advanced_analytics?: boolean;
   enable_reporting_extended?: boolean;
+  enable_data_quality_admin?: boolean;
   theme?: string | null;
   allowed_emails?: string[] | null;
 }
@@ -123,6 +130,7 @@ export const configContext = createContext<ConfigContextValue>({
   theme: "system",
   baseCurrency: "GBP",
   enableAdvancedAnalytics: true,
+  dataQualityAdmin: true,
   refreshConfig: async () => {},
   setRelativeViewEnabled: () => {},
   setBaseCurrency: () => {},
@@ -149,6 +157,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
       theme: "system",
       baseCurrency: storedCurrency || "GBP",
       enableAdvancedAnalytics: true,
+      dataQualityAdmin: true,
     };
   });
   const setRelativeViewEnabled = useCallback((enabled: boolean) => {
@@ -214,6 +223,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         theme,
         baseCurrency: previousConfig.baseCurrency,
         enableAdvancedAnalytics: cfg.enable_advanced_analytics !== false,
+        dataQualityAdmin: cfg.enable_data_quality_admin !== false,
       }));
       applyTheme(theme);
     } catch {

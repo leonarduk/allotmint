@@ -30,16 +30,21 @@ from backend.common import (
     instrument_api,
     portfolio_utils,
     prices,
-    risk,
 )
 from backend.common import portfolio as portfolio_mod
 from backend.common.account_models import OwnerSummaryRecord, PersonMetadata
+from backend.common.core_optional import require_core
 from backend.common.errors import log_owner_not_found
 from backend.config import config, demo_identity
 from backend.logging_setup import sanitise_exception_traceback, sanitise_log_value
 from backend.routes._accounts import resolve_accounts_root, resolve_owner_directory
 from backend.utils.pricing_dates import PricingDateCalculator
 from backend.utils.timeseries_helpers import resolve_date_range
+
+try:
+    from backend.common import risk
+except ModuleNotFoundError:
+    risk = None
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["portfolio"])
@@ -551,6 +556,7 @@ async def portfolio_var(
     confidence: float = 0.95,
     exclude_cash: bool = False,
 ):
+    require_core(risk, "Portfolio VaR")
     accounts_root = resolve_accounts_root(request)
     owner_dir = resolve_owner_directory(accounts_root, owner)
     if owner_dir:
@@ -581,6 +587,7 @@ async def portfolio_var_breakdown(
     exclude_cash: bool = False,
     horizon_days: int = 1,
 ):
+    require_core(risk, "Portfolio VaR")
     accounts_root = resolve_accounts_root(request)
     owner_dir = resolve_owner_directory(accounts_root, owner)
     if owner_dir:
@@ -626,6 +633,7 @@ async def portfolio_var_recompute(
     days: int = 365,
     confidence: float = 0.95,
 ):
+    require_core(risk, "Portfolio VaR")
     accounts_root = resolve_accounts_root(request)
     owner_dir = resolve_owner_directory(accounts_root, owner)
     if owner_dir:

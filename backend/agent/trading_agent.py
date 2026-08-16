@@ -15,7 +15,7 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Set
 import pandas as pd
 
 from backend import alerts as alert_utils
-from backend.common import compliance, indicators, prices
+from backend.common import indicators, prices
 from backend.common.alerts import publish_alert
 from backend.common.portfolio_loader import list_portfolios
 from backend.common.portfolio_utils import (
@@ -28,8 +28,17 @@ from backend.common.trade_metrics import (
 )
 from backend.config import TradingAgentConfig, config
 from backend.logging_setup import sanitise_log_value
-from backend.screener import screen
 from backend.utils.telegram_utils import redact_token, send_message
+
+try:
+    from backend.common import compliance
+except ModuleNotFoundError:
+    compliance = None
+
+try:
+    from backend.screener import screen
+except ModuleNotFoundError:
+    screen = None
 
 logger = logging.getLogger(__name__)
 
@@ -473,8 +482,12 @@ def run(tickers: Optional[Iterable[str]] = None, *, notify: bool = True) -> List
         buy_tickers = [s["ticker"] for s in signals if s["action"] == "BUY"]
         allowed: Set[str] = set()
         if buy_tickers:
-            fundamentals = screen(buy_tickers, **fundamental_params)
-            allowed = {f.ticker for f in fundamentals}
+            if screen is not None:
+                fundamentals = screen(buy_tickers, **fundamental_params)
+                allowed = {f.ticker for f in fundamentals}
+            else:
+                logger.warning("Fundamental screening skipped: allotmint-core is not installed")
+                allowed = set(buy_tickers)
         signals = [s for s in signals if s["action"] != "BUY" or s["ticker"] in allowed]
     allowed_signals: List[Dict] = []
     for sig in signals:
@@ -486,6 +499,9 @@ def run(tickers: Optional[Iterable[str]] = None, *, notify: bool = True) -> List
                 "type": sig["action"].lower(),
                 "date": date.today().isoformat(),
             }
+            if compliance is None:
+                logger.warning("Compliance check skipped: allotmint-core is not installed")
+                continue
             result = compliance.check_trade(trade)
             if result.get("warnings"):
                 logger.warning("Compliance warnings for %s: %s", owner, result["warnings"])

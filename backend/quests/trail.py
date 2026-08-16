@@ -19,10 +19,20 @@ from pathlib import Path
 from typing import Dict, Iterable, List
 
 from backend import alerts
-from backend.common import allowances, compliance, data_loader
+from backend.common import data_loader
 from backend.common.goals import load_goals
 from backend.common.storage import get_storage
 from backend.config import config
+
+try:
+    from backend.common import allowances
+except ModuleNotFoundError:
+    allowances = None
+
+try:
+    from backend.common import compliance
+except ModuleNotFoundError:
+    compliance = None
 
 DAILY_XP_REWARD = 10
 ONCE_XP_REWARD = 25
@@ -132,6 +142,8 @@ def _format_currency(amount: float) -> str:
 
 
 def _build_allowance_tasks(owners: Iterable[str]) -> List[TaskDefinition]:
+    if allowances is None:
+        return []
     tasks: List[TaskDefinition] = []
     tax_year = allowances.current_tax_year()
     for owner in owners:
@@ -158,6 +170,8 @@ def _build_allowance_tasks(owners: Iterable[str]) -> List[TaskDefinition]:
 
 
 def _build_compliance_tasks(owners: Iterable[str]) -> List[TaskDefinition]:
+    if compliance is None:
+        return []
     tasks: List[TaskDefinition] = []
     for owner in owners:
         try:

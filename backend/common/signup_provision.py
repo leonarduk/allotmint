@@ -5,8 +5,8 @@ Keeps the "grant a login" logic out of the route handler (see
 user can actually authenticate:
 
 * scaffold the owner's data directory via
-  :func:`backend.common.compliance.ensure_owner_scaffold` (the same path used
-  everywhere else — never hand-write the JSON), and
+  :func:`backend.common.account_scaffold.ensure_owner_scaffold` (the same path
+  used everywhere else — never hand-write the JSON), and
 * record the user's email in their ``person.json`` so it becomes part of
   :func:`backend.auth._allowed_emails`, which reads each owner's
   ``person.json`` email from the accounts root.
@@ -32,7 +32,7 @@ import re
 import shutil
 from pathlib import Path
 
-from backend.common.compliance import ensure_owner_scaffold
+from backend.common.account_scaffold import ensure_owner_scaffold
 from backend.common.signup_requests import SignupRequest
 from backend.logging_setup import sanitise_log_value
 

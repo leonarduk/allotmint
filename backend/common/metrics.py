@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from backend.common import portfolio as portfolio_mod
-from backend.common.compliance import load_transactions
+from backend.common.account_scaffold import load_transactions
 from backend.config import config
 
 METRICS_DIR = (

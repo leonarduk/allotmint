@@ -3,11 +3,18 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
 
-from backend.common import compliance, data_loader
+from backend.common import data_loader
+from backend.common.account_scaffold import ensure_owner_scaffold
+from backend.common.core_optional import require_core
 from backend.common.errors import handle_owner_not_found, raise_owner_not_found
 from backend.config import demo_identity
 from backend.logging_setup import sanitise_log_value
 from backend.routes._accounts import resolve_accounts_root, resolve_owner_directory
+
+try:
+    from backend.common import compliance
+except ModuleNotFoundError:
+    compliance = None
 
 router = APIRouter(tags=["compliance"])
 logger = logging.getLogger(__name__)
@@ -126,6 +133,7 @@ def _known_owners(accounts_root) -> KnownOwnerSet:
 @handle_owner_not_found
 async def compliance_for_owner(owner: str, request: Request):
     """Return compliance warnings and status for an owner."""
+    require_core(compliance, "Compliance")
     accounts_root = resolve_accounts_root(request)
     owners = _known_owners(accounts_root)
     owner_dir = resolve_owner_directory(accounts_root, owner)
@@ -163,6 +171,7 @@ async def validate_trade(request: Request):
     includes warning messages along with hold-period countdowns and
     the remaining trade quota for the current month.
     """
+    require_core(compliance, "Compliance")
     trade = await request.json()
     if "owner" not in trade:
         raise HTTPException(status_code=422, detail="owner is required")
@@ -199,7 +208,7 @@ async def validate_trade(request: Request):
 
     if scaffold_missing:
         try:
-            compliance.ensure_owner_scaffold(trade["owner"], accounts_root)
+            ensure_owner_scaffold(trade["owner"], accounts_root)
         except Exception:
             logger.warning("failed to scaffold compliance data for %s", sanitise_log_value(trade.get("owner")))
 

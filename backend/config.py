@@ -329,9 +329,21 @@ def load_config() -> Config:
     prices_json = (data_root / prices_json_raw).resolve() if prices_json_raw else None
 
     # Where the data-quality admin audit trail is written (append-only JSONL).
-    # Defaults to ``{data_root}/audit`` when not set explicitly.
+    # Defaults to ``{data_root}/audit`` when not set explicitly. A custom
+    # ``audit_dir`` (relative or absolute) must resolve to a descendant of
+    # ``data_root`` — same defense-in-depth as the ``_OWNER_RE``/``_TICKER_RE``
+    # path validation in data_quality_admin.py — so config.yaml cannot point
+    # the audit trail outside the data root via ``..`` or an absolute path.
     audit_dir_raw = data.get("audit_dir")
-    audit_dir = (data_root / "audit").resolve() if audit_dir_raw is None else (data_root / audit_dir_raw).resolve()
+    if audit_dir_raw is None:
+        audit_dir = (data_root / "audit").resolve()
+    else:
+        audit_dir = (data_root / audit_dir_raw).resolve()
+        if audit_dir != data_root and data_root not in audit_dir.parents:
+            raise ConfigValidationError(
+                f"audit_dir {audit_dir_raw!r} resolves to {audit_dir}, which is not under "
+                f"data_root {data_root}; use a path inside data_root."
+            )
 
     ts_cache_raw = data.get("timeseries_cache_base")
     env_ts_cache = os.getenv("TIMESERIES_CACHE_BASE")

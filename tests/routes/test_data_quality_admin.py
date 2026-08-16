@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
+import sys
 
 import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
 from backend.config import config
+from backend.routes import config as routes_config
 
 
 @pytest.fixture
@@ -70,6 +72,71 @@ def _build_client(monkeypatch, tmp_path, *, series: list[tuple[str, str, pd.Data
     app.state.accounts_root = str(accounts)
     app.state.accounts_root_is_global = False
     return TestClient(app)
+
+
+def _build_auth_enabled_client(monkeypatch, tmp_path, *, authorized_owner="demo"):
+    """Like ``_build_client``, but with real auth and owner-scoping enforced.
+
+    Two accounts are seeded — ``demo`` (authorized for the "good" test
+    identity) and ``other`` (not) — each with a MICC.L holding, so both
+    produce a WRONG_EXCHANGE issue and cross-owner fix/undo attempts can be
+    exercised (#6739).
+    """
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    monkeypatch.setattr(config, "disable_auth", False)
+    monkeypatch.setattr(config, "audit_dir", tmp_path / "audit")
+
+    accounts = tmp_path / "accounts"
+    for owner in ("demo", "other"):
+        (accounts / owner).mkdir(parents=True)
+        (accounts / owner / "isa.json").write_text(
+            json.dumps(
+                {
+                    "owner": owner,
+                    "account_type": "isa",
+                    "currency": "GBP",
+                    "holdings": [{"ticker": "MICC.L"}],
+                }
+            ),
+            encoding="utf-8",
+        )
+    monkeypatch.setattr(config, "accounts_root", accounts)
+
+    import backend.data_quality.issues as issues_module
+
+    monkeypatch.setattr(
+        issues_module,
+        "get_instrument_meta",
+        lambda ticker: {"name": "MercadoLibre"} if ticker == "MICC.N" else {},
+    )
+    monkeypatch.setattr(
+        issues_module,
+        "resolve_instrument_ticker",
+        lambda symbol, create_missing=False: "MICC.N" if symbol == "MICC" else None,
+    )
+    monkeypatch.setattr(issues_module, "has_cached_meta_timeseries", lambda t, e: False)
+    monkeypatch.setattr(issues_module, "list_cached_meta_tickers", lambda: [])
+    monkeypatch.setattr(issues_module, "load_cached_meta_timeseries_full", lambda t, e: None)
+
+    def fake_meta(owner, root=None):
+        return {"email": "user@example.com"} if owner == authorized_owner else {}
+
+    monkeypatch.setattr("backend.common.authz.load_person_meta", fake_meta)
+
+    from backend.app import create_app
+
+    app = create_app()
+    # ``create_app`` reloads config, which resets the audit_dir/accounts_root
+    # patches above; re-apply so both stay inside this test's tmp dir.
+    monkeypatch.setattr(config, "audit_dir", tmp_path / "audit")
+    monkeypatch.setattr(config, "accounts_root", accounts)
+    app.state.accounts_root = str(accounts)
+    app.state.accounts_root_is_global = False
+
+    client = TestClient(app)
+    token = client.post("/token", json={"id_token": "good"}).json()["access_token"]
+    client.headers.update({"Authorization": f"Bearer {token}"})
+    return client
 
 
 def test_get_issues_lists_wrong_exchange(client):
@@ -470,6 +537,89 @@ def test_dedupe_handles_timezone_aware_dates(monkeypatch, client, tmp_path):
     # The written cache follows the tz-naive datetime64[ms] convention.
     assert written["Date"].dt.tz is None
     assert len(written) == 2
+
+
+def test_write_endpoints_404_when_admin_disabled(monkeypatch, tmp_path):
+    """``enable_data_quality_admin=false`` must remove the write routes, not just
+    hide them in the SPA — the flag is a real authorization boundary (#6739).
+
+    ``enable_data_quality_admin`` isn't in ``load_runtime_config``'s
+    ``_OVERRIDE_ATTRS`` allowlist, so a plain ``monkeypatch.setattr(config, ...)``
+    before ``create_app()`` is wiped out by the ``reload_config()`` that
+    ``create_app()`` performs internally; it must come from config.yaml
+    instead, like the other ``enable_*`` flags (see test_config.py).
+    """
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("enable_data_quality_admin: false\n")
+    monkeypatch.setattr(sys.modules["backend.config"], "_project_config_path", lambda: config_path)
+    monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
+
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    monkeypatch.setattr(config, "disable_auth", True)
+    monkeypatch.setattr(config, "audit_dir", tmp_path / "audit")
+
+    accounts = tmp_path / "accounts"
+    (accounts / "demo").mkdir(parents=True)
+    (accounts / "demo" / "isa.json").write_text(
+        json.dumps({"owner": "demo", "account_type": "isa", "currency": "GBP", "holdings": []}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(config, "accounts_root", accounts)
+
+    from backend.app import create_app
+
+    app = create_app()
+    monkeypatch.setattr(config, "audit_dir", tmp_path / "audit")
+    app.state.accounts_root = str(accounts)
+    app.state.accounts_root_is_global = False
+    disabled_client = TestClient(app)
+
+    # Read-only endpoints stay reachable regardless of the flag.
+    assert disabled_client.get("/data-quality/issues").status_code == 200
+    assert disabled_client.get("/data-quality/audit").status_code == 200
+
+    # Write endpoints are not registered at all -- 404, not 403/200.
+    assert disabled_client.post("/data-quality/issues/nope/fix").status_code == 404
+    assert disabled_client.post("/data-quality/fixes", json={"issue_ids": ["nope"]}).status_code == 404
+    assert disabled_client.post("/data-quality/series/ABC/L/dedupe").status_code == 404
+    assert disabled_client.post("/data-quality/audit/nope/undo").status_code == 404
+
+
+def test_fix_wrong_exchange_rejects_cross_owner(monkeypatch, tmp_path):
+    """Fixing another owner's holding must 403, not silently mutate it (#6739)."""
+    client = _build_auth_enabled_client(monkeypatch, tmp_path, authorized_owner="demo")
+
+    issues = client.get("/data-quality/issues").json()["issues"]
+    other_issue = next(i for i in issues if i["type"] == "WRONG_EXCHANGE" and i["entity"]["owner"] == "other")
+    demo_issue = next(i for i in issues if i["type"] == "WRONG_EXCHANGE" and i["entity"]["owner"] == "demo")
+
+    resp = client.post(f"/data-quality/issues/{other_issue['id']}/fix")
+    assert resp.status_code == 403
+    other_doc = json.loads((tmp_path / "accounts" / "other" / "isa.json").read_text(encoding="utf-8"))
+    assert other_doc["holdings"] == [{"ticker": "MICC.L"}]  # untouched
+
+    resp = client.post(f"/data-quality/issues/{demo_issue['id']}/fix")
+    assert resp.status_code == 200
+
+
+def test_undo_rejects_cross_owner(monkeypatch, tmp_path):
+    """Undoing another owner's audit entry must 403 (#6739)."""
+    client = _build_auth_enabled_client(monkeypatch, tmp_path, authorized_owner="demo")
+
+    import backend.data_quality.audit as audit_module
+
+    entry = audit_module.append_audit(
+        action="wrong_exchange",
+        issue_id="WRONG_EXCHANGE:other:isa:MICC.L",
+        entity={"owner": "other", "account": "isa"},
+        before={"holdings": [{"ticker": "MICC.L"}]},
+        after={"holdings": [{"ticker": "MICC.N"}]},
+        extra={"kind": "wrong_exchange", "owner": "other", "account": "isa"},
+    )
+    resp = client.post(f"/data-quality/audit/{entry['id']}/undo")
+    assert resp.status_code == 403
+    other_doc = json.loads((tmp_path / "accounts" / "other" / "isa.json").read_text(encoding="utf-8"))
+    assert other_doc["holdings"] == [{"ticker": "MICC.L"}]  # untouched
 
 
 def test_dedupe_rejects_series_with_no_valid_dates(monkeypatch, client, tmp_path):

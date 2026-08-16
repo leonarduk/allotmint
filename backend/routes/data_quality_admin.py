@@ -24,6 +24,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from backend.common.accounts_store import LocalAccountsStore
+from backend.common.authz import ensure_owner_access
 from backend.common.instruments import resolve_instrument_ticker
 from backend.data_quality.audit import append_audit, find_audit_entry, read_audit
 from backend.data_quality.issues import (
@@ -32,6 +33,7 @@ from backend.data_quality.issues import (
     find_issue,
 )
 from backend.routes import get_active_user
+from backend.routes._accounts import resolve_accounts_root
 from backend.routes.transactions import resolve_writable_store
 from backend.timeseries.cache import (
     load_cached_meta_timeseries_full,
@@ -39,7 +41,17 @@ from backend.timeseries.cache import (
     meta_timeseries_cache_path,
 )
 
+# Read-only endpoints (issue listing/preview, audit listing) stay reachable
+# regardless of ``enable_data_quality_admin`` — the flag only controls the
+# write surface. See ``write_router`` below and backend/bootstrap/routers.py.
 router = APIRouter(prefix="/data-quality", tags=["data-quality-admin"])
+
+# Mutating endpoints (fix/undo). Registered by backend/bootstrap/routers.py
+# only when ``config.enable_data_quality_admin`` is true, so disabling the
+# flag actually removes these routes rather than just hiding the SPA tabs
+# (#6739) — every route here also owner-scopes via ``ensure_owner_access``
+# where it touches a specific owner's holdings.
+write_router = APIRouter(prefix="/data-quality", tags=["data-quality-admin"])
 
 _FETCH_DAYS = 3650
 
@@ -214,6 +226,7 @@ def _fix_wrong_exchange(request: Request, payload: dict[str, Any], actor: str | 
     holding_ticker = _validate_ticker(str(payload["holding_ticker"]))
     resolved_ticker = _validate_ticker(str(payload["resolved_ticker"]))
     owner, account = _validate_owner_account(owner, account)
+    ensure_owner_access(actor, owner, resolve_accounts_root(request))
 
     store = _resolve_writable_accounts_store(request)
     file_path = Path(store.local_root) / owner / f"{account}.json" if store.local_root else None
@@ -593,7 +606,7 @@ async def preview_issue(issue_id: str) -> dict[str, Any]:
     }
 
 
-@router.post("/issues/{issue_id}/fix")
+@write_router.post("/issues/{issue_id}/fix")
 async def fix_issue(
     issue_id: str,
     request: Request,
@@ -602,7 +615,7 @@ async def fix_issue(
     return _apply_fix(issue_id, request, user)
 
 
-@router.post("/fixes")
+@write_router.post("/fixes")
 async def batch_fix(
     body: BatchFixRequest,
     request: Request,
@@ -620,7 +633,7 @@ async def batch_fix(
     return {"applied": ok, "failed": len(results) - ok, "results": results}
 
 
-@router.post("/series/{ticker}/{exchange}/dedupe")
+@write_router.post("/series/{ticker}/{exchange}/dedupe")
 async def dedupe_series(
     ticker: str,
     exchange: str,
@@ -643,7 +656,7 @@ async def list_audit(limit: int | None = Query(None, ge=1, le=1000)) -> dict[str
     return {"count": len(entries), "entries": entries}
 
 
-@router.post("/audit/{entry_id}/undo")
+@write_router.post("/audit/{entry_id}/undo")
 async def undo_audit(
     entry_id: str,
     request: Request,
@@ -660,6 +673,7 @@ async def undo_audit(
         owner = str((entry.get("entity") or {}).get("owner") or "")
         account = str((entry.get("entity") or {}).get("account") or "")
         owner, account = _validate_owner_account(owner, account)
+        ensure_owner_access(user, owner, resolve_accounts_root(request))
         before = entry.get("before") or {}
         after = entry.get("after") or {}
         before_holdings = before.get("holdings") or []

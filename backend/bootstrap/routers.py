@@ -16,6 +16,7 @@ from backend.routes.config import router as config_router
 from backend.routes.data_explorer import router as data_explorer_router
 from backend.routes.data_quality import router as data_quality_router
 from backend.routes.data_quality_admin import router as data_quality_admin_router
+from backend.routes.data_quality_admin import write_router as data_quality_admin_write_router
 from backend.routes.events import router as events_router
 from backend.routes.goals import router as goals_router
 from backend.routes.instrument import router as instrument_router
@@ -66,6 +67,11 @@ def register_routers(app: FastAPI, cfg: Config) -> None:
     app.include_router(timeseries_router)
     app.include_router(data_quality_router)
     app.include_router(data_quality_admin_router, dependencies=protected)
+    if cfg.enable_data_quality_admin:
+        # Mutating fix/undo routes only exist when the admin surface is
+        # enabled; with the flag off they 404 rather than merely being
+        # hidden from the SPA (#6739).
+        app.include_router(data_quality_admin_write_router, dependencies=protected)
     app.include_router(timeseries_edit_router)
     app.include_router(timeseries_admin_router, dependencies=protected)
     app.include_router(data_explorer_router, dependencies=protected)

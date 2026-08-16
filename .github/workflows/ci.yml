@@ -38,18 +38,27 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
-      # requirements-dev.txt pins cicaid-devtools from leonarduk/cicaid-core,
-      # which is private (leonarduk/cicaid was renamed and its old name reused
-      # by an unrelated public repo — see #6754), so pip needs a scoped token
-      # rewritten in as git credentials to clone it. pip_install_cicaid_core.sh
-      # validates the token up front and unsets the credential again once the
-      # install finishes, so it isn't left in ~/.gitconfig for the rest of the job.
-      - name: Install root and dev dependencies
+      - run: pip install --retries 10 -r requirements.txt -r requirements-dev.txt
+      - run: python scripts/check_branch_protection_required_checks.py
+      # Fork and Dependabot pull requests cannot read repository secrets. Keep
+      # this private automation dependency out of requirements-dev.txt so the
+      # required `test` check still exercises all public checks in those
+      # contexts instead of failing during dependency installation.
+      - name: Install private review automation when credentials are available
+        id: automation-deps
         env:
           CICAID_CORE_TOKEN: ${{ secrets.CICAID_CORE_TOKEN }}
-        run: bash .github/scripts/pip_install_cicaid_core.sh pip install --retries 10 -r requirements.txt -r requirements-dev.txt
-      - run: python scripts/check_branch_protection_required_checks.py
+        run: |
+          if [ -z "$CICAID_CORE_TOKEN" ]; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping private cicaid automation tests because CICAID_CORE_TOKEN is unavailable."
+            exit 0
+          fi
+          bash .github/scripts/pip_install_cicaid_core.sh \
+            pip install --retries 10 -r requirements-automation.txt
+          echo "available=true" >> "$GITHUB_OUTPUT"
       - name: Run review_common and review-script tests
+        if: steps.automation-deps.outputs.available == 'true'
         run: pytest tests/test_review_common.py tests/test_ai_review_scripts.py -v --no-cov
       - name: Check package-lock.json cross-OS platform coverage
         run: python scripts/check_lockfile_platform_coverage.py
@@ -89,16 +98,7 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
-      # requirements-dev.txt pins cicaid-devtools from leonarduk/cicaid-core,
-      # which is private (leonarduk/cicaid was renamed and its old name reused
-      # by an unrelated public repo — see #6754), so pip needs a scoped token
-      # rewritten in as git credentials to clone it. pip_install_cicaid_core.sh
-      # validates the token up front and unsets the credential again once the
-      # install finishes, so it isn't left in ~/.gitconfig for the rest of the job.
-      - name: Install root and dev dependencies
-        env:
-          CICAID_CORE_TOKEN: ${{ secrets.CICAID_CORE_TOKEN }}
-        run: bash .github/scripts/pip_install_cicaid_core.sh pip install --retries 10 -r requirements.txt -r requirements-dev.txt
+      - run: pip install --retries 10 -r requirements.txt -r requirements-dev.txt
       - name: Check cdk/tests/ exists and has tests
         run: |
           if [ ! -d "cdk/tests" ] || [ -z "$(ls -A cdk/tests/)" ]; then
@@ -216,16 +216,8 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
-      # requirements-dev.txt pins cicaid-devtools from leonarduk/cicaid-core,
-      # which is private (leonarduk/cicaid was renamed and its old name reused
-      # by an unrelated public repo — see #6754), so pip needs a scoped token
-      # rewritten in as git credentials to clone it. pip_install_cicaid_core.sh
-      # validates the token up front and unsets the credential again once the
-      # install finishes, so it isn't left in ~/.gitconfig for the rest of the job.
       - name: Install backend and development dependencies
-        env:
-          CICAID_CORE_TOKEN: ${{ secrets.CICAID_CORE_TOKEN }}
-        run: bash .github/scripts/pip_install_cicaid_core.sh pip install --retries 10 -r requirements.txt -r requirements-dev.txt
+        run: pip install --retries 10 -r requirements.txt -r requirements-dev.txt
       - name: Lint backend/tests Python files touched by this change
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -261,19 +253,10 @@ jobs:
         # Use an explicit venv so that runner pre-installs cannot mask missing
         # pins, matching the isolation pattern used by validate-backend-deps.
         run: python -m venv .venv-lambda
-      # backend/requirements-test.txt pins cicaid-devtools from
-      # leonarduk/cicaid-core, which is private (leonarduk/cicaid was renamed
-      # and its old name reused by an unrelated public repo — see #6754), so
-      # pip needs a scoped token rewritten in as git credentials to clone it.
-      # pip_install_cicaid_core.sh validates the token up front and unsets the
-      # credential again once the install finishes, so it isn't left in
-      # ~/.gitconfig for the rest of the job.
       - name: Install Lambda-compatible deps + test tooling
-        env:
-          CICAID_CORE_TOKEN: ${{ secrets.CICAID_CORE_TOKEN }}
         run: |
           .venv-lambda/bin/pip install --upgrade pip
-          bash .github/scripts/pip_install_cicaid_core.sh .venv-lambda/bin/pip install --retries 10 -r backend/requirements.txt -r backend/requirements-test.txt
+          .venv-lambda/bin/pip install --retries 10 -r backend/requirements.txt -r backend/requirements-test.txt
       - name: Run backend pytest suite against Lambda deps
         env:
           ALLOTMINT_SKIP_SNAPSHOT_WARM: 'true'
@@ -282,7 +265,13 @@ jobs:
         # cdk/tests/ instead, covering CDK infrastructure. This avoids
         # duplication: tests/ runs once (here), cdk/tests/ runs once (in
         # cdk-tests), against their respective dependency sets.
-        run: .venv-lambda/bin/pytest tests/
+        # The two cicaid-specific modules have their own credential-aware step
+        # in the required `test` job; the Lambda suite must remain runnable for
+        # fork PRs that cannot access the private automation dependency.
+        run: >-
+          .venv-lambda/bin/pytest tests/
+          --ignore=tests/test_review_common.py
+          --ignore=tests/test_ai_review_scripts.py
 
   lint-shell-scripts:
     name: Lint .github/scripts shell scripts (shellcheck)
@@ -335,16 +324,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install --upgrade pip
-      # requirements-dev.txt pins cicaid-devtools from leonarduk/cicaid-core,
-      # which is private (leonarduk/cicaid was renamed and its old name reused
-      # by an unrelated public repo — see #6754), so pip needs a scoped token
-      # rewritten in as git credentials to clone it. pip_install_cicaid_core.sh
-      # validates the token up front and unsets the credential again once the
-      # install finishes, so it isn't left in ~/.gitconfig for the rest of the job.
-      - name: Install root and dev dependencies
-        env:
-          CICAID_CORE_TOKEN: ${{ secrets.CICAID_CORE_TOKEN }}
-        run: bash .github/scripts/pip_install_cicaid_core.sh pip install --retries 10 -r requirements.txt -r requirements-dev.txt
+      - run: pip install --retries 10 -r requirements.txt -r requirements-dev.txt
       - name: Check SPA contract version sync
         run: python scripts/check_contract_version_sync.py
       - name: Run lightweight backend compatibility tests

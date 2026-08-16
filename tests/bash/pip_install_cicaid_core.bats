@@ -1,10 +1,9 @@
 #!/usr/bin/env bats
 # Unit tests for .github/scripts/pip_install_cicaid_core.sh, covering the
-# CICAID_CORE_TOKEN validation and the git-credential configure/cleanup wrapping
+# CICAID_CORE_TOKEN validation and process-scoped git credential configuration
 # introduced to fix the cicaid-devtools 404 (#6754). Raised by the DeepSeek
 # review on PR #6755: the original workflow steps had no pre-flight check for a
-# missing/empty token (confusing auth failure instead) and left the token
-# sitting in ~/.gitconfig for the rest of the job.
+# missing/empty token (confusing auth failure instead).
 
 SCRIPT="$BATS_TEST_DIRNAME/../../.github/scripts/pip_install_cicaid_core.sh"
 
@@ -18,10 +17,6 @@ setup() {
 
 teardown() {
   rm -rf "$FAKE_HOME"
-}
-
-config_key() {
-  echo "url.https://x-access-token:${1}@github.com/leonarduk/cicaid-core.insteadOf"
 }
 
 @test "fails with a clear error when CICAID_CORE_TOKEN is unset" {
@@ -43,10 +38,10 @@ config_key() {
   [[ "$output" == *"CICAID_CORE_TOKEN is empty or unset"* ]]
 }
 
-@test "configures the git credential rewrite before running the wrapped command" {
+@test "configures a process-scoped git credential rewrite" {
   export CICAID_CORE_TOKEN="fake-token-123"
 
-  run bash "$SCRIPT" bash -c 'git config --global --get "url.https://x-access-token:${CICAID_CORE_TOKEN}@github.com/leonarduk/cicaid-core.insteadOf"'
+  run bash "$SCRIPT" bash -c 'git config --get "url.https://x-access-token:${CICAID_CORE_TOKEN}@github.com/leonarduk/cicaid-core.insteadOf"'
 
   [ "$status" -eq 0 ]
   [ "$output" = "https://github.com/leonarduk/cicaid-core" ]
@@ -60,22 +55,12 @@ config_key() {
   [ "$status" -eq 7 ]
 }
 
-@test "unsets the git credential after the wrapped command succeeds" {
+@test "does not write the git credential to the global config" {
   export CICAID_CORE_TOKEN="fake-token-123"
 
   bash "$SCRIPT" true
 
-  run git config --global --get "$(config_key "fake-token-123")"
-  [ "$status" -ne 0 ]
-}
-
-@test "unsets the git credential even when the wrapped command fails" {
-  export CICAID_CORE_TOKEN="fake-token-123"
-
-  run bash "$SCRIPT" bash -c 'exit 1'
-  [ "$status" -eq 1 ]
-
-  run git config --global --get "$(config_key "fake-token-123")"
+  run grep -R "fake-token-123" "$FAKE_HOME"
   [ "$status" -ne 0 ]
 }
 

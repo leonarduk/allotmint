@@ -50,6 +50,16 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
+      # requirements-dev.txt pins cicaid-devtools from leonarduk/cicaid-core,
+      # which is private (leonarduk/cicaid was renamed and its old name reused
+      # by an unrelated public repo — see #6754), so pip needs a scoped token
+      # rewritten in as git credentials to clone it.
+      - name: Configure git credentials for cicaid-core
+        env:
+          CICAID_CORE_TOKEN: ${{ secrets.CICAID_CORE_TOKEN }}
+        run: |
+          git config --global "url.https://x-access-token:${CICAID_CORE_TOKEN}@github.com/leonarduk/cicaid-core.insteadOf" "https://github.com/leonarduk/cicaid-core"
+
       - name: Install Python dependencies
         # requirements.txt and requirements-dev.txt live at the repo root
         # (confirmed: no requirements files exist under cdk/ or backend/).

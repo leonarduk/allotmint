@@ -159,9 +159,13 @@ own) are reported as skipped rather than persisted or silently dropped.
 ## Shared developer automation (cicaid)
 
 The issue, pull-request, review, commit, and local CI automation that previously
-lived in this repository is maintained by the shared
-[`cicaid-devtools`](https://github.com/leonarduk/cicaid) package. It is installed
-by `requirements-dev.txt`. After installing the development dependencies, run:
+lived in this repository is maintained by the shared `cicaid-devtools` package,
+which now lives in the private
+[`leonarduk/cicaid-core`](https://github.com/leonarduk/cicaid-core) repo (renamed
+from `leonarduk/cicaid`; the `leonarduk/cicaid` name was reused for a smaller,
+unrelated public repo containing only thin GitHub-plumbing commands — see #6754).
+It is installed by `requirements-dev.txt`. After installing the development
+dependencies, run:
 
 ```bash
 cicaid --help

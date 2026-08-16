@@ -17,5 +17,11 @@ mypy~=2.3.0
 pandas-stubs==3.0.5.260730
 
 # Shared repository automation (issue, PR, review, and CI helper commands).
-# Pin the release asset so developer and CI installs use the same tested CLI.
-cicaid-devtools[dotenv] @ https://github.com/leonarduk/cicaid/releases/download/v0.8.3/cicaid_devtools-0.8.3-py3-none-any.whl
+# leonarduk/cicaid was renamed to leonarduk/cicaid-core (private) and its name
+# reused for a new, unrelated, LLM-less public repo, so old
+# github.com/leonarduk/cicaid/releases/... wheel URLs now 404 (issue #6754).
+# Pin the tag on cicaid-core (which still has the full package + git history)
+# so developer and CI installs use the same tested CLI. CI installs need a
+# CICAID_CORE_TOKEN secret configured as git credentials to reach this
+# now-private repo (see .github/workflows/_ai-pr-review.yml and friends).
+cicaid-devtools[dotenv] @ git+https://github.com/leonarduk/cicaid-core.git@v0.9.1

@@ -137,6 +137,25 @@ def _fix_snapshot_path(path: Path, entry_id: str) -> Path:
     return path.with_name(path.name + f".undo.{entry_id}")
 
 
+def _require_path_within(candidate: Path, directory: Path) -> Path:
+    """Resolve ``candidate`` and confirm it stays inside ``directory``.
+
+    ``candidate`` is built from filename components (ticker/exchange/entry id)
+    that are already regex-validated (``_TICKER_RE``/``_EXCHANGE_RE``/
+    ``_ENTRY_ID_RE``), but CodeQL's py/path-injection query does not model
+    those custom validators as sanitizers, so it still flags every later use
+    of the resulting path. This resolves the path and checks containment
+    against the expected directory using ``os.path.realpath``/``commonpath``
+    — the pattern CodeQL's own remediation advice recommends — so the query
+    can verify the path is safe at the point of use.
+    """
+    safe_dir = os.path.realpath(str(directory))
+    resolved = os.path.realpath(str(candidate))
+    if os.path.commonpath([resolved, safe_dir]) != safe_dir:
+        raise HTTPException(status_code=400, detail="Invalid path.")
+    return Path(resolved)
+
+
 def _write_fix_snapshot(path: Path, entry_id: str, before_bytes: bytes) -> None:
     """Persist ``before_bytes`` for undo, keyed by this fix's audit entry id.
 
@@ -1015,12 +1034,14 @@ async def undo_audit(
         # entry id) over the shared earliest ``.bak``: with multiple fixes
         # applied to the same cache file, the earliest backup predates fixes
         # other than the one being undone. Entries recorded before this
-        # snapshot existed fall back to the earliest backup.
-        snapshot = _fix_snapshot_path(path, entry_id)
+        # snapshot existed fall back to the earliest backup. Both candidates
+        # are re-resolved and containment-checked against the cache
+        # directory via ``_require_path_within`` before any filesystem use.
+        snapshot = _require_path_within(_fix_snapshot_path(path, entry_id), path.parent)
         if snapshot.exists():
             restore_from = snapshot
         else:
-            restore_from = _backup_path_for(path)
+            restore_from = _require_path_within(_backup_path_for(path), path.parent)
         if not restore_from.exists():
             raise HTTPException(status_code=409, detail="No backup available to restore from.")
         _atomic_write_bytes(path, restore_from.read_bytes())

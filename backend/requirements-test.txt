@@ -11,6 +11,5 @@ pytest-asyncio~=1.4.0
 # and pinning a second, different range here made this file's combined
 # `pip install -r backend/requirements.txt -r backend/requirements-test.txt`
 # unresolvable (jsonschema~=4.23.0 vs ~=4.26.0).
-# cicaid-devtools is imported by tests/test_ai_review_scripts.py and
-# tests/test_review_common.py. Not a Lambda runtime dep — test-only.
-cicaid-devtools @ https://github.com/leonarduk/cicaid/releases/download/v0.8.3/cicaid_devtools-0.8.3-py3-none-any.whl
+# Tests for the private cicaid automation package are run separately from the
+# Lambda compatibility suite; see requirements-automation.txt.

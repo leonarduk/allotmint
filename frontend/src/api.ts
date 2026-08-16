@@ -63,6 +63,8 @@ import {
   portfolioContractSchema,
   transactionsContractSchema,
   dataQualityTimeseriesContractSchema,
+  dataQualityIssuesContractSchema,
+  dataQualityAuditContractSchema,
 } from "./contracts/apiContracts";
 
 const cleanOptionalString = (value: unknown): string | null => {
@@ -1612,6 +1614,132 @@ export const getDataQualityTimeseries = async (
     await fetchJson<DataQualityTimeseriesResponse>(
       `${API_BASE}/data-quality/timeseries${qs ? `?${qs}` : ""}`,
     ),
+  );
+};
+
+// ───────────── Data Quality Admin API (read-write) ─────────────
+
+export interface DataQualityIssue {
+  id: string;
+  type: string;
+  severity: "high" | "medium" | "low";
+  entity: Record<string, unknown>;
+  description: string;
+  suggested_fix: string;
+  preview: Record<string, unknown>;
+  fixable: boolean;
+}
+
+export interface DataQualityIssuesResponse {
+  count: number;
+  issues: DataQualityIssue[];
+}
+
+export interface DataQualityAuditEntry {
+  id: string;
+  timestamp: string;
+  action: string;
+  issue_id: string;
+  entity: Record<string, unknown>;
+  before: Record<string, unknown>;
+  after: Record<string, unknown>;
+  actor: string | null;
+}
+
+export interface DataQualityAuditResponse {
+  count: number;
+  entries: DataQualityAuditEntry[];
+}
+
+export interface DataQualityFixResult {
+  status: string;
+  ticker?: string;
+  rows?: number;
+  removed?: number;
+  audit_id?: string;
+}
+
+export interface DataQualityBatchFixResponse {
+  applied: number;
+  failed: number;
+  results: Array<{ issue_id: string; status: string; detail?: string } & DataQualityFixResult>;
+}
+
+export const getDataQualityIssues = async (filters: {
+  type?: string;
+  severity?: string;
+  owner?: string;
+  account?: string;
+  ticker?: string;
+} = {}): Promise<DataQualityIssuesResponse> => {
+  const params = new URLSearchParams();
+  if (filters.type) params.set("type", filters.type);
+  if (filters.severity) params.set("severity", filters.severity);
+  if (filters.owner) params.set("owner", filters.owner);
+  if (filters.account) params.set("account", filters.account);
+  if (filters.ticker) params.set("ticker", filters.ticker);
+  const qs = params.toString();
+  return dataQualityIssuesContractSchema.parse(
+    await fetchJson<DataQualityIssuesResponse>(
+      `${API_BASE}/data-quality/issues${qs ? `?${qs}` : ""}`,
+    ),
+  );
+};
+
+export const getDataQualityIssuePreview = async (
+  issueId: string,
+): Promise<DataQualityIssue> => {
+  return fetchJson<DataQualityIssue>(
+    `${API_BASE}/data-quality/issues/${encodeURIComponent(issueId)}/preview`,
+  );
+};
+
+export const fixDataQualityIssue = async (
+  issueId: string,
+): Promise<DataQualityFixResult> => {
+  return fetchJson<DataQualityFixResult>(
+    `${API_BASE}/data-quality/issues/${encodeURIComponent(issueId)}/fix`,
+    { method: "POST" },
+  );
+};
+
+export const fixDataQualityBatch = async (
+  issueIds: string[],
+): Promise<DataQualityBatchFixResponse> => {
+  return fetchJson<DataQualityBatchFixResponse>(`${API_BASE}/data-quality/fixes`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ issue_ids: issueIds }),
+  });
+};
+
+export const dedupeDataQualitySeries = async (
+  ticker: string,
+  exchange: string,
+): Promise<DataQualityFixResult> => {
+  return fetchJson<DataQualityFixResult>(
+    `${API_BASE}/data-quality/series/${encodeURIComponent(ticker)}/${encodeURIComponent(exchange)}/dedupe`,
+    { method: "POST" },
+  );
+};
+
+export const getDataQualityAudit = async (
+  limit?: number,
+): Promise<DataQualityAuditResponse> => {
+  const qs = limit != null ? `?limit=${limit}` : "";
+  return dataQualityAuditContractSchema.parse(
+    await fetchJson<DataQualityAuditResponse>(
+      `${API_BASE}/data-quality/audit${qs}`,
+    ),
+  );
+};
+
+export const undoDataQualityAudit = async (
+  entryId: string,
+): Promise<{ status: string; entry_id: string }> => {
+  return fetchJson<{ status: string; entry_id: string }>(
+    `${API_BASE}/data-quality/audit/${encodeURIComponent(entryId)}/undo`,
+    { method: "POST" },
   );
 };
 

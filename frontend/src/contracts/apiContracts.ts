@@ -200,6 +200,40 @@ export const dataQualityTimeseriesContractSchema = z.object({
   positions: z.array(timeseriesQualityPositionSchema),
 });
 
+// ───────────── Data Quality Admin (read-write) ─────────────
+
+const dataQualityIssueSchema = z.object({
+  id: z.string(),
+  type: z.string(),
+  severity: z.enum(["high", "medium", "low"]),
+  entity: z.record(z.string(), z.unknown()),
+  description: z.string(),
+  suggested_fix: z.string(),
+  preview: z.record(z.string(), z.unknown()),
+  fixable: z.boolean(),
+});
+
+export const dataQualityIssuesContractSchema = z.object({
+  count: z.number(),
+  issues: z.array(dataQualityIssueSchema),
+});
+
+export const dataQualityAuditContractSchema = z.object({
+  count: z.number(),
+  entries: z.array(
+    z.object({
+      id: z.string(),
+      timestamp: z.string(),
+      action: z.string(),
+      issue_id: z.string(),
+      entity: z.record(z.string(), z.unknown()),
+      before: z.record(z.string(), z.unknown()),
+      after: z.record(z.string(), z.unknown()),
+      actor: nullableString,
+    }),
+  ),
+});
+
 export const apiContractSchemas = {
   config: configContractSchema,
   owners: ownersContractSchema,
@@ -208,6 +242,8 @@ export const apiContractSchemas = {
   portfolio: portfolioContractSchema,
   transactions: transactionsContractSchema,
   dataQualityTimeseries: dataQualityTimeseriesContractSchema,
+  dataQualityIssues: dataQualityIssuesContractSchema,
+  dataQualityAudit: dataQualityAuditContractSchema,
 } as const;
 
 // satisfies Record<keyof typeof apiContractSchemas, object> enforces that every
@@ -224,4 +260,6 @@ export const apiContractJsonSchemas = {
   portfolio: toJSONSchema(portfolioContractSchema),
   transactions: toJSONSchema(transactionsContractSchema),
   dataQualityTimeseries: toJSONSchema(dataQualityTimeseriesContractSchema),
+  dataQualityIssues: toJSONSchema(dataQualityIssuesContractSchema),
+  dataQualityAudit: toJSONSchema(dataQualityAuditContractSchema),
 } satisfies Record<keyof typeof apiContractSchemas, object>;

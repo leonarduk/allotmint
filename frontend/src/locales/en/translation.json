@@ -149,6 +149,103 @@
       "missingDays_other": "{{count}} missing business days",
       "noIssues": "No data quality issues found for this position.",
       "close": "Close"
+    },
+    "admin": {
+      "tabs": {
+        "issues": "Issues",
+        "series": "Series",
+        "holdings": "Holdings",
+        "metadata": "Metadata",
+        "audit": "Audit"
+      },
+      "issues": {
+        "title": "Data Quality Issues",
+        "subtitle": "Unified issues across holdings, cached series and instrument metadata.",
+        "noIssues": "No issues found for the current filters.",
+        "filters": {
+          "type": "Type",
+          "severity": "Severity",
+          "ticker": "Ticker",
+          "allTypes": "All types",
+          "allSeverities": "All severities"
+        },
+        "columns": {
+          "type": "Type",
+          "severity": "Severity",
+          "entity": "Entity",
+          "description": "Description",
+          "suggestedFix": "Suggested fix",
+          "actions": "Actions"
+        },
+        "severity": {
+          "high": "High",
+          "medium": "Medium",
+          "low": "Low"
+        },
+        "actions": {
+          "preview": "Preview",
+          "previewFor": "Preview fix for {{entity}}",
+          "fix": "Apply fix",
+          "fixFor": "Apply fix for {{entity}}",
+          "fixing": "Applying...",
+          "fixAll": "Apply fix to all shown",
+          "fixAllShort": "Fix all",
+          "backupNote": "Every fix creates a .bak backup and an audit record.",
+          "notFixable": "Manual review",
+          "applied": "Fix applied",
+          "failed": "Fix failed",
+          "batchApplied": "Applied {{applied}} of {{total}} issues.",
+          "batchFailed": "{{failed}} issue(s) could not be applied.",
+          "close": "Close",
+          "confirmTitle": "Apply this fix?",
+          "confirmBody": "The change is backed up and recorded in the audit trail.",
+          "cancel": "Cancel",
+          "apply": "Apply"
+        },
+        "previewTitle": "Fix preview: {{type}}",
+        "before": "Before",
+        "after": "After"
+      },
+      "series": {
+        "title": "Series",
+        "refetch": "Refetch",
+        "dedupe": "Dedupe",
+        "dedupeFor": "Dedupe {{ticker}}.{{exchange}}",
+        "edit": "Edit",
+        "rebuild": "Rebuild",
+        "deduped": "Deduped {{removed}} duplicate row(s).",
+        "refetched": "Refetched {{rows}} row(s)."
+      },
+      "holdings": {
+        "title": "Holdings",
+        "correctExchange": "Correct exchange",
+        "createMetadata": "Create metadata & fetch",
+        "corrected": "Corrected holding to {{ticker}}."
+      },
+      "metadata": {
+        "title": "Metadata",
+        "note": "Instrument metadata management lives in the Instrument Admin screen.",
+        "openInstrumentAdmin": "Open Instrument Admin"
+      },
+      "audit": {
+        "title": "Audit Trail",
+        "empty": "No audit records yet.",
+        "columns": {
+          "timestamp": "Timestamp",
+          "action": "Action",
+          "entity": "Entity",
+          "before": "Before",
+          "after": "After",
+          "actor": "Actor"
+        },
+        "actions": {
+          "undo": "Undo",
+          "undoFor": "Undo {{entity}}",
+          "undone": "Undone",
+          "undoFailed": "Undo failed: {{detail}}",
+          "notReversible": "Not reversible"
+        }
+      }
     }
   },
   "dashboard": {

@@ -141,6 +141,9 @@ class Config:
     enable_compliance_workflows: bool = False
     enable_advanced_analytics: bool = False
     enable_reporting_extended: bool = False
+    # Read-write Data Quality Admin surface (issue list + preview/fix/audit).
+    # Defaults to enabled; set False to keep the read-only series view only.
+    enable_data_quality_admin: bool = True
     theme: Optional[str] = None
     timeseries_cache_base: Optional[str] = None
     fx_proxy_url: Optional[str] = None
@@ -166,6 +169,7 @@ class Config:
     data_root: Optional[Path] = None
     accounts_root: Optional[Path] = None
     prices_json: Optional[Path] = None
+    audit_dir: Optional[Path] = None
     risk_free_rate: Optional[float] = None
     base_currency: Optional[str] = "GBP"
 
@@ -323,6 +327,23 @@ def load_config() -> Config:
 
     prices_json_raw = data.get("prices_json")
     prices_json = (data_root / prices_json_raw).resolve() if prices_json_raw else None
+
+    # Where the data-quality admin audit trail is written (append-only JSONL).
+    # Defaults to ``{data_root}/audit`` when not set explicitly. A custom
+    # ``audit_dir`` (relative or absolute) must resolve to a descendant of
+    # ``data_root`` — same defense-in-depth as the ``_OWNER_RE``/``_TICKER_RE``
+    # path validation in data_quality_admin.py — so config.yaml cannot point
+    # the audit trail outside the data root via ``..`` or an absolute path.
+    audit_dir_raw = data.get("audit_dir")
+    if audit_dir_raw is None:
+        audit_dir = (data_root / "audit").resolve()
+    else:
+        audit_dir = (data_root / audit_dir_raw).resolve()
+        if audit_dir != data_root and data_root not in audit_dir.parents:
+            raise ConfigValidationError(
+                f"audit_dir {audit_dir_raw!r} resolves to {audit_dir}, which is not under "
+                f"data_root {data_root}; use a path inside data_root."
+            )
 
     ts_cache_raw = data.get("timeseries_cache_base")
     env_ts_cache = os.getenv("TIMESERIES_CACHE_BASE")
@@ -483,6 +504,11 @@ def load_config() -> Config:
             key="enable_reporting_extended",
             default=False,
         ),
+        enable_data_quality_admin=_coerce_bool_with_default(
+            data.get("enable_data_quality_admin"),
+            key="enable_data_quality_admin",
+            default=True,
+        ),
         theme=data.get("theme"),
         timeseries_cache_base=timeseries_cache_base,
         fx_proxy_url=data.get("fx_proxy_url"),
@@ -498,6 +524,7 @@ def load_config() -> Config:
         data_root=data_root,
         accounts_root=accounts_root,
         prices_json=prices_json,
+        audit_dir=audit_dir,
         risk_free_rate=data.get("risk_free_rate"),
         approval_valid_days=data.get("approval_valid_days"),
         approval_exempt_types=approval_exempt_types,

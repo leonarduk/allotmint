@@ -283,7 +283,7 @@ describe("DataQuality admin UI", () => {
     renderWithConfig(true);
 
     const previewButton = await screen.findByRole("button", {
-      name: en.dataQuality.admin.issues.actions.preview,
+      name: en.dataQuality.admin.issues.actions.previewFor.replace("{{entity}}", "demo / isa / MICC.L"),
     });
     await act(async () => {
       await userEvent.click(previewButton);
@@ -375,7 +375,9 @@ describe("DataQuality admin UI", () => {
     });
 
     expect(await screen.findByText("wrong_exchange")).toBeInTheDocument();
-    const undoButton = screen.getByRole("button", { name: en.dataQuality.admin.audit.actions.undo });
+    const undoButton = screen.getByRole("button", {
+      name: en.dataQuality.admin.audit.actions.undoFor.replace("{{entity}}", "demo / isa / MICC.L"),
+    });
     await act(async () => {
       await userEvent.click(undoButton);
     });
@@ -398,10 +400,101 @@ describe("DataQuality admin UI", () => {
     });
 
     expect(await screen.findByText("DUPED")).toBeInTheDocument();
-    const dedupeButton = screen.getByRole("button", { name: en.dataQuality.admin.series.dedupe });
+    const dedupeButton = screen.getByRole("button", {
+      name: en.dataQuality.admin.series.dedupeFor.replace("{{ticker}}", "DUPED").replace("{{exchange}}", "N"),
+    });
     await act(async () => {
       await userEvent.click(dedupeButton);
     });
     expect(mockDedupeDataQualitySeries).toHaveBeenCalledWith("DUPED", "N");
+  });
+
+  it("closes the preview dialog on Escape and returns focus to the trigger", async () => {
+    mockGetDataQualityIssues.mockResolvedValue({
+      count: 1,
+      issues: [issue({})],
+    });
+
+    renderWithConfig(true);
+
+    const previewButton = await screen.findByRole("button", {
+      name: en.dataQuality.admin.issues.actions.previewFor.replace("{{entity}}", "demo / isa / MICC.L"),
+    });
+    await act(async () => {
+      await userEvent.click(previewButton);
+    });
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+
+    await act(async () => {
+      await userEvent.keyboard("{Escape}");
+    });
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(previewButton).toHaveFocus();
+  });
+
+  it("traps Tab focus within the confirm dialog", async () => {
+    mockGetDataQualityIssues.mockResolvedValue({
+      count: 1,
+      issues: [issue({})],
+    });
+
+    renderWithConfig(true);
+
+    const fixButton = await screen.findByRole("button", {
+      name: en.dataQuality.admin.issues.actions.fixFor.replace("{{entity}}", "demo / isa / MICC.L"),
+    });
+    await act(async () => {
+      await userEvent.click(fixButton);
+    });
+
+    const dialog = await screen.findByRole("dialog");
+    const cancelButton = screen.getByRole("button", { name: en.dataQuality.admin.issues.actions.cancel });
+    const applyButton = screen.getByRole("button", { name: en.dataQuality.admin.issues.actions.apply });
+
+    expect(cancelButton).toHaveFocus();
+
+    await act(async () => {
+      await userEvent.tab({ shift: true });
+    });
+    expect(applyButton).toHaveFocus();
+    expect(dialog).toContainElement(document.activeElement as HTMLElement);
+
+    await act(async () => {
+      await userEvent.tab();
+    });
+    expect(cancelButton).toHaveFocus();
+  });
+
+  it("moves between tabs with arrow keys and wires up ARIA tab/tabpanel relationships", async () => {
+    mockGetDataQualityIssues.mockResolvedValue({ count: 0, issues: [] });
+    mockGetDataQualityTimeseries.mockResolvedValue({ count: 0, positions: [] });
+
+    renderWithConfig(true);
+
+    const issuesTab = await screen.findByRole("tab", { name: en.dataQuality.admin.tabs.issues });
+    const seriesTab = screen.getByRole("tab", { name: en.dataQuality.admin.tabs.series });
+
+    expect(issuesTab).toHaveAttribute("aria-controls");
+    const panel = document.getElementById(issuesTab.getAttribute("aria-controls")!);
+    expect(panel).toHaveAttribute("role", "tabpanel");
+    expect(panel).toHaveAttribute("aria-labelledby", issuesTab.id);
+
+    issuesTab.focus();
+    expect(issuesTab).toHaveFocus();
+
+    await act(async () => {
+      await userEvent.keyboard("{ArrowRight}");
+    });
+    expect(seriesTab).toHaveFocus();
+    expect(seriesTab).toHaveAttribute("aria-selected", "true");
+    expect(issuesTab).toHaveAttribute("aria-selected", "false");
+
+    await act(async () => {
+      await userEvent.keyboard("{ArrowLeft}");
+    });
+    expect(issuesTab).toHaveFocus();
+    expect(issuesTab).toHaveAttribute("aria-selected", "true");
   });
 });

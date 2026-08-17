@@ -1,7 +1,10 @@
 import asyncio
 
+import pytest
 from fastapi import BackgroundTasks, FastAPI
 from fastapi.testclient import TestClient
+
+pytest.importorskip("allotmint_core")
 
 from backend.routes import screener
 from backend.screener import Fundamentals

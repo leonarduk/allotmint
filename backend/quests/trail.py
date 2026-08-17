@@ -27,12 +27,12 @@ from backend.config import config
 try:
     from backend.common import allowances
 except ModuleNotFoundError:
-    allowances = None
+    allowances = None  # type: ignore[assignment]
 
 try:
     from backend.common import compliance
 except ModuleNotFoundError:
-    compliance = None
+    compliance = None  # type: ignore[assignment]
 
 DAILY_XP_REWARD = 10
 ONCE_XP_REWARD = 25

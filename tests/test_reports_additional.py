@@ -873,6 +873,7 @@ def test_section_builders_include_portfolio_sources():
 
 
 def test_portfolio_section_builders_use_monkeypatched_dependencies(monkeypatch):
+    pytest.importorskip("allotmint_core")
     mock_portfolio = {
         "total_value_estimate_gbp": 1234.56,
         "accounts": [{"id": "acc-1", "holdings": [{"ticker": "AAA"}, {"ticker": "BBB"}]}],
@@ -920,6 +921,7 @@ def test_portfolio_section_builders_use_monkeypatched_dependencies(monkeypatch):
 
 
 def test_portfolio_section_builders_reuse_cached_snapshot(monkeypatch):
+    pytest.importorskip("allotmint_core")
     snapshot_calls = 0
     mock_portfolio = {
         "total_value_estimate_gbp": 1234.56,
@@ -1042,6 +1044,7 @@ def test_normalise_value_weight_rows_uses_weight_pct_and_unknown_label():
 
 
 def test_portfolio_var_builder_extracts_numeric_from_payload(monkeypatch):
+    pytest.importorskip("allotmint_core")
     include_cash_calls = []
 
     monkeypatch.setattr(
@@ -1076,6 +1079,7 @@ def test_portfolio_var_builder_extracts_numeric_from_payload(monkeypatch):
 
 
 def test_audit_portfolio_var_builder_returns_empty_when_risk_data_missing(monkeypatch):
+    pytest.importorskip("allotmint_core")
     monkeypatch.setattr(
         reports.portfolio_mod,
         "build_owner_portfolio",
@@ -1142,6 +1146,7 @@ def test_portfolio_builders_handle_missing_snapshot(monkeypatch, builder, sectio
 
 
 def test_build_report_document_audit_template_dispatches_real_builders(monkeypatch):
+    pytest.importorskip("allotmint_core")
     summary = reports.ReportData(
         owner="alice",
         start=None,

@@ -1,7 +1,10 @@
 import json
 from datetime import date
 
+import pytest
 from fastapi.testclient import TestClient
+
+pytest.importorskip("allotmint_core")
 
 from backend.app import create_app
 from backend.common.account_models import OwnerSummaryRecord

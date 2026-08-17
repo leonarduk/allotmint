@@ -18,7 +18,7 @@ except ModuleNotFoundError:
     screen = None
 
 
-class RankedFundamentals(Fundamentals if Fundamentals is not None else BaseModel):
+class RankedFundamentals(Fundamentals if Fundamentals is not None else BaseModel):  # type: ignore[misc]
     rank: int
 
 

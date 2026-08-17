@@ -1,5 +1,9 @@
 import json
 
+import pytest
+
+pytest.importorskip("allotmint_core")
+
 from backend.common import compliance
 from backend.common.account_scaffold import ensure_owner_scaffold
 

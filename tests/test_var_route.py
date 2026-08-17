@@ -2,6 +2,8 @@ import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
+pytest.importorskip("allotmint_core")
+
 from backend.app import create_app
 from backend.common import portfolio as portfolio_mod
 from backend.common import portfolio_utils

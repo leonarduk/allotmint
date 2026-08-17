@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-pytest.importorskip("allotmint_core")
+pytest.importorskip("allotmint_pro")
 
 from backend.common.allowances import (
     current_tax_year,

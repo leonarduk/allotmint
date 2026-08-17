@@ -4,7 +4,7 @@ from datetime import date, timedelta
 import pytest
 from fastapi.testclient import TestClient
 
-pytest.importorskip("allotmint_core")
+pytest.importorskip("allotmint_pro")
 
 from backend.app import create_app
 from backend.common.approvals import load_approvals, save_approvals

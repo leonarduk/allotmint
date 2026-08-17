@@ -289,7 +289,7 @@ def test_compute_owner_performance_respects_flagged_and_cash(monkeypatch):
 
 
 def test_compute_owner_performance_filters_single_day_zero(monkeypatch):
-    pytest.importorskip("allotmint_core")
+    pytest.importorskip("allotmint_pro")
     portfolio = {"accounts": [{"holdings": [{"ticker": "ERR.L", "units": 10}]}]}
 
     real_calc = pu.PricingDateCalculator
@@ -343,7 +343,7 @@ def test_compute_owner_performance_filters_single_day_zero(monkeypatch):
 
 
 def test_compute_owner_performance_drops_partial_close_nans(monkeypatch):
-    pytest.importorskip("allotmint_core")
+    pytest.importorskip("allotmint_pro")
     portfolio = {"accounts": [{"holdings": [{"ticker": "NAN.L", "units": 2}, {"ticker": "CASH.GBP", "units": 1}]}]}
     monkeypatch.setattr(
         pu.portfolio_mod,

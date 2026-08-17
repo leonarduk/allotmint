@@ -4,9 +4,9 @@ from datetime import date
 import pytest
 from fastapi.testclient import TestClient
 
-pytest.importorskip("allotmint_core")
+pytest.importorskip("allotmint_pro")
 
-import allotmint_core.compliance as compliance_impl
+import allotmint_pro.compliance as compliance_impl
 
 from backend.app import create_app
 from backend.common.account_models import OwnerSummaryRecord
@@ -53,7 +53,7 @@ def test_compliance_owner_route(tmp_path, monkeypatch):
 
 def test_validate_trade(tmp_path, monkeypatch):
     app = _setup_app(tmp_path)
-    monkeypatch.setattr("allotmint_core.compliance.get_instrument_meta", lambda t: {"instrumentType": "ETF"})
+    monkeypatch.setattr("allotmint_pro.compliance.get_instrument_meta", lambda t: {"instrumentType": "ETF"})
     monkeypatch.setattr(compliance_impl.config, "approval_exempt_types", ["ETF"])
     with TestClient(app) as client:
         resp = client.post(
@@ -88,7 +88,7 @@ def test_validate_trade(tmp_path, monkeypatch):
 def test_validate_trade_commodity_etf_requires_approval(tmp_path, monkeypatch):
     app = _setup_app(tmp_path)
     monkeypatch.setattr(
-        "allotmint_core.compliance.get_instrument_meta",
+        "allotmint_pro.compliance.get_instrument_meta",
         lambda t: {"instrumentType": "ETF", "asset_class": "Commodity"},
     )
     monkeypatch.setattr(compliance_impl.config, "approval_exempt_types", ["ETF"])
@@ -171,7 +171,7 @@ def test_validate_trade_accepts_owner_directories_even_when_filtered(tmp_path, m
         lambda accounts_root: [OwnerSummaryRecord(owner="alice")],
     )
     monkeypatch.setattr(
-        "allotmint_core.compliance.get_instrument_meta",
+        "allotmint_pro.compliance.get_instrument_meta",
         lambda t: {"instrumentType": "ETF"},
     )
     monkeypatch.setattr(compliance_impl.config, "approval_exempt_types", ["ETF"])

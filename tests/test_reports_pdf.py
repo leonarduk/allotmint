@@ -104,7 +104,7 @@ def test_report_to_pdf_succeeds_without_key_findings_section():
 
 def test_audit_report_pdf_contains_all_section_titles(monkeypatch):
     """PDF output for audit-report must include titles for all populated sections."""
-    pytest.importorskip("allotmint_core")
+    pytest.importorskip("allotmint_pro")
     if reports.canvas is None:
         pytest.skip("reportlab not installed")
 
@@ -170,7 +170,7 @@ def test_audit_report_pdf_contains_all_section_titles(monkeypatch):
 
 def test_audit_report_json_section_order_and_presence(monkeypatch):
     """build_report_document('audit-report') must return sections 1-4 in correct order."""
-    pytest.importorskip("allotmint_core")
+    pytest.importorskip("allotmint_pro")
     monkeypatch.setattr(
         reports.portfolio_mod,
         "build_owner_portfolio",

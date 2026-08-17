@@ -43,7 +43,7 @@ from backend.utils.timeseries_helpers import apply_scaling, get_scaling_override
 try:
     from backend.common.anomaly_repair import _detect_single_day_flash_crash
 except ModuleNotFoundError:
-    # Flash-crash auto-repair lives in the private allotmint-core package;
+    # Flash-crash auto-repair lives in the private allotmint-pro package;
     # aggregation still works without it, just without the repair step.
     _detect_single_day_flash_crash = None
 

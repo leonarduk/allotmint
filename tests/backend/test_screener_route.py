@@ -5,7 +5,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-pytest.importorskip("allotmint_core")
+pytest.importorskip("allotmint_pro")
 
 from backend import screener as screener_module
 from backend.routes import screener

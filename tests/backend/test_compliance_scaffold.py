@@ -2,9 +2,9 @@ import json
 
 import pytest
 
-pytest.importorskip("allotmint_core")
+pytest.importorskip("allotmint_pro")
 
-import allotmint_core.compliance as compliance_impl
+import allotmint_pro.compliance as compliance_impl
 
 from backend.common import compliance
 from backend.common.account_scaffold import ensure_owner_scaffold

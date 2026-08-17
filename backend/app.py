@@ -46,7 +46,7 @@ async def moneyhub_not_configured_handler(_request: Request, exc: MoneyhubNotCon
 
 
 async def core_feature_unavailable_handler(_request: Request, exc: CoreFeatureUnavailableError) -> JSONResponse:
-    """Return a consistent payment-required response for allotmint-core-only routes."""
+    """Return a consistent payment-required response for allotmint-pro-only routes."""
     return JSONResponse(status_code=402, content={"detail": str(exc)})
 
 

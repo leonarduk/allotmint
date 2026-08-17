@@ -14,8 +14,8 @@ test = [
 # anomaly repair. Requires SSH or token access to the private repo. Without
 # this extra installed, the corresponding routes return 402 (see
 # backend/common/core_optional.py).
-core = [
-    "allotmint-core @ git+https://github.com/leonarduk/allotmint-core.git",
+pro = [
+    "allotmint-pro @ git+https://github.com/leonarduk/allotmint-pro.git",
 ]
 
 [tool.black]

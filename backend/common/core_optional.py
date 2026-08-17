@@ -1,8 +1,8 @@
-"""Shared plumbing for features that live in the private ``allotmint-core``
+"""Shared plumbing for features that live in the private ``allotmint-pro``
 package (screener, risk/VaR, compliance rule engine, allowances,
 anomaly-repair).
 
-Modules that re-export symbols from ``allotmint_core`` (e.g.
+Modules that re-export symbols from ``allotmint_pro`` (e.g.
 :mod:`backend.common.risk`) should catch ``ModuleNotFoundError`` at import
 time and re-raise with :data:`UPGRADE_MESSAGE` so the failure is
 self-explanatory wherever it surfaces (logs, tracebacks, tests).
@@ -17,14 +17,14 @@ turns into a 402 response instead of a 500.
 from __future__ import annotations
 
 UPGRADE_MESSAGE = (
-    "This feature requires the allotmint-core package, which is not installed "
-    "in this deployment. See https://github.com/leonarduk/allotmint-core for "
+    "This feature requires the allotmint-pro package, which is not installed "
+    "in this deployment. See https://github.com/leonarduk/allotmint-pro for "
     "upgrade options."
 )
 
 
 class CoreFeatureUnavailableError(RuntimeError):
-    """Raised when a request needs an allotmint-core-only feature that isn't installed.
+    """Raised when a request needs an allotmint-pro-only feature that isn't installed.
 
     Mapped to a 402 response by the handler registered in :func:`backend.app.create_app`.
     """
@@ -39,7 +39,7 @@ def require_core(module: object | None, feature: str) -> object:
 
     ``module`` is the sentinel set by a caller's
     ``try/except ModuleNotFoundError`` import guard: the imported module on
-    success, ``None`` if allotmint-core isn't installed.
+    success, ``None`` if allotmint-pro isn't installed.
     """
 
     if module is None:

@@ -141,7 +141,7 @@ def test_send_trade_alert_no_publish_with_telegram(monkeypatch):
 
 
 def test_run_defaults_to_all_known_tickers(monkeypatch):
-    pytest.importorskip("allotmint_core")
+    pytest.importorskip("allotmint_pro")
     captured: dict = {}
 
     # ensure the agent discovers our tickers when none are supplied
@@ -177,7 +177,7 @@ def test_run_defaults_to_all_known_tickers(monkeypatch):
 
 
 def test_run_sends_telegram_when_not_aws(monkeypatch):
-    pytest.importorskip("allotmint_core")
+    pytest.importorskip("allotmint_pro")
     # Trigger a BUY signal for ticker AAA
     monkeypatch.setattr("backend.agent.trading_agent.list_all_unique_tickers", lambda: ["AAA"])
 
@@ -207,7 +207,7 @@ def test_run_sends_telegram_when_not_aws(monkeypatch):
 
 
 def test_run_compliance_gates_actions(monkeypatch):
-    pytest.importorskip("allotmint_core")
+    pytest.importorskip("allotmint_pro")
     monkeypatch.setattr("backend.agent.trading_agent.list_all_unique_tickers", lambda: ["AAA"])
 
     def fake_load_prices(tickers, days=60):
@@ -234,7 +234,7 @@ def test_run_compliance_gates_actions(monkeypatch):
 
 
 def test_run_skips_signal_when_compliance_blocks(monkeypatch):
-    pytest.importorskip("allotmint_core")
+    pytest.importorskip("allotmint_pro")
     monkeypatch.setattr("backend.agent.trading_agent.list_all_unique_tickers", lambda: ["AAA", "BBB"])
 
     def fake_load_prices(tickers, days=60):
@@ -289,7 +289,7 @@ def test_log_trade_recreates_directory(tmp_path, monkeypatch):
 
 
 def test_run_uses_rsi_and_fundamentals(monkeypatch):
-    pytest.importorskip("allotmint_core")
+    pytest.importorskip("allotmint_pro")
     monkeypatch.setattr(trading_agent, "list_all_unique_tickers", lambda: ["AAA", "BBB"])
 
     def fake_load_prices(tickers, days=60):
@@ -329,7 +329,7 @@ def test_run_uses_rsi_and_fundamentals(monkeypatch):
 
 
 def test_run_does_not_filter_sell_signal(monkeypatch):
-    pytest.importorskip("allotmint_core")
+    pytest.importorskip("allotmint_pro")
     monkeypatch.setattr(trading_agent, "list_all_unique_tickers", lambda: ["AAA"])
 
     def fake_load_prices(tickers, days=60):
@@ -358,7 +358,7 @@ def test_run_does_not_filter_sell_signal(monkeypatch):
 
 
 def test_run_generates_ma_signal(monkeypatch):
-    pytest.importorskip("allotmint_core")
+    pytest.importorskip("allotmint_pro")
     monkeypatch.setattr(trading_agent, "list_all_unique_tickers", lambda: ["BBB"])
 
     def fake_load_prices(tickers, days=60):
@@ -398,7 +398,7 @@ def test_run_generates_ma_signal(monkeypatch):
 
 
 def test_run_applies_risk_filters(monkeypatch):
-    pytest.importorskip("allotmint_core")
+    pytest.importorskip("allotmint_pro")
     monkeypatch.setattr(trading_agent, "list_all_unique_tickers", lambda: ["AAA"])
 
     def fake_load_prices(tickers, days=60):

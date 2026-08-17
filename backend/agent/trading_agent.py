@@ -486,7 +486,7 @@ def run(tickers: Optional[Iterable[str]] = None, *, notify: bool = True) -> List
                 fundamentals = screen(buy_tickers, **fundamental_params)
                 allowed = {f.ticker for f in fundamentals}
             else:
-                logger.warning("Fundamental screening skipped: allotmint-core is not installed")
+                logger.warning("Fundamental screening skipped: allotmint-pro is not installed")
                 allowed = set(buy_tickers)
         signals = [s for s in signals if s["action"] != "BUY" or s["ticker"] in allowed]
     allowed_signals: List[Dict] = []
@@ -500,7 +500,7 @@ def run(tickers: Optional[Iterable[str]] = None, *, notify: bool = True) -> List
                 "date": date.today().isoformat(),
             }
             if compliance is None:
-                logger.warning("Compliance check skipped: allotmint-core is not installed")
+                logger.warning("Compliance check skipped: allotmint-pro is not installed")
                 continue
             result = compliance.check_trade(trade)
             if result.get("warnings"):

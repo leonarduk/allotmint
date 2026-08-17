@@ -1,5 +1,5 @@
 """Stub for the tax-allowance engine, which lives in the private
-``allotmint-core`` package. See :mod:`backend.common.core_optional` for the
+``allotmint-pro`` package. See :mod:`backend.common.core_optional` for the
 degradation pattern routes should use around this import.
 """
 
@@ -8,10 +8,10 @@ from __future__ import annotations
 from backend.common.core_optional import UPGRADE_MESSAGE
 
 try:
-    from allotmint_core.allowances import (  # noqa: F401
+    from allotmint_pro.allowances import (  # noqa: F401
         current_tax_year,
         load_yearly_contributions,
         remaining_allowances,
     )
 except ModuleNotFoundError as exc:
-    raise ModuleNotFoundError(f"backend.common.allowances requires allotmint-core. {UPGRADE_MESSAGE}") from exc
+    raise ModuleNotFoundError(f"backend.common.allowances requires allotmint-pro. {UPGRADE_MESSAGE}") from exc

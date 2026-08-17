@@ -4,8 +4,9 @@ from datetime import date
 from fastapi.testclient import TestClient
 
 from backend.app import create_app
-from backend.common import compliance
 from backend.common.account_models import OwnerSummaryRecord
+
+import allotmint_core.compliance as compliance_impl
 
 
 def _setup_app(tmp_path):
@@ -35,7 +36,7 @@ def test_compliance_owner_route(tmp_path, monkeypatch):
             return date(2024, 1, 15)
 
     with monkeypatch.context() as m:
-        m.setattr(compliance, "date", FakeDate)
+        m.setattr(compliance_impl, "date", FakeDate)
         with TestClient(app) as client:
             resp = client.get("/compliance/alice")
             assert resp.status_code == 200
@@ -49,8 +50,8 @@ def test_compliance_owner_route(tmp_path, monkeypatch):
 
 def test_validate_trade(tmp_path, monkeypatch):
     app = _setup_app(tmp_path)
-    monkeypatch.setattr("backend.common.compliance.get_instrument_meta", lambda t: {"instrumentType": "ETF"})
-    monkeypatch.setattr(compliance.config, "approval_exempt_types", ["ETF"])
+    monkeypatch.setattr("allotmint_core.compliance.get_instrument_meta", lambda t: {"instrumentType": "ETF"})
+    monkeypatch.setattr(compliance_impl.config, "approval_exempt_types", ["ETF"])
     with TestClient(app) as client:
         resp = client.post(
             "/compliance/validate",
@@ -84,10 +85,10 @@ def test_validate_trade(tmp_path, monkeypatch):
 def test_validate_trade_commodity_etf_requires_approval(tmp_path, monkeypatch):
     app = _setup_app(tmp_path)
     monkeypatch.setattr(
-        "backend.common.compliance.get_instrument_meta",
+        "allotmint_core.compliance.get_instrument_meta",
         lambda t: {"instrumentType": "ETF", "asset_class": "Commodity"},
     )
-    monkeypatch.setattr(compliance.config, "approval_exempt_types", ["ETF"])
+    monkeypatch.setattr(compliance_impl.config, "approval_exempt_types", ["ETF"])
     with TestClient(app) as client:
         resp = client.post(
             "/compliance/validate",
@@ -167,10 +168,10 @@ def test_validate_trade_accepts_owner_directories_even_when_filtered(tmp_path, m
         lambda accounts_root: [OwnerSummaryRecord(owner="alice")],
     )
     monkeypatch.setattr(
-        "backend.common.compliance.get_instrument_meta",
+        "allotmint_core.compliance.get_instrument_meta",
         lambda t: {"instrumentType": "ETF"},
     )
-    monkeypatch.setattr(compliance.config, "approval_exempt_types", ["ETF"])
+    monkeypatch.setattr(compliance_impl.config, "approval_exempt_types", ["ETF"])
 
     with TestClient(app) as client:
         resp = client.post(

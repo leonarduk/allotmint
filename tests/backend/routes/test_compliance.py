@@ -502,7 +502,7 @@ async def test_validate_trade_scaffolds_missing_directory(tmp_path, monkeypatch,
         fake_check_trade,
     )
     monkeypatch.setattr(
-        compliance_module.compliance,
+        compliance_module,
         "ensure_owner_scaffold",
         failing_scaffold,
     )
@@ -563,7 +563,7 @@ async def test_validate_trade_scaffolds_when_owner_discovery_fails(tmp_path, mon
         fake_check_trade,
     )
     monkeypatch.setattr(
-        compliance_module.compliance,
+        compliance_module,
         "ensure_owner_scaffold",
         record_scaffold,
     )

@@ -528,7 +528,7 @@ def test_screener_endpoint(client, monkeypatch):
             return Fundamentals(ticker="AAA", peg_ratio=0.5, roe=0.2)
         return Fundamentals(ticker="BBB", peg_ratio=2.0, roe=0.1)
 
-    monkeypatch.setattr("backend.screener.fetch_fundamentals", mock_fetch)
+    monkeypatch.setattr("allotmint_core.screener.fetch_fundamentals", mock_fetch)
 
     resp = client.get("/screener?tickers=AAA,BBB&peg_max=1&roe_min=0.15")
     assert resp.status_code == 200
@@ -546,7 +546,7 @@ def test_hash_params_helper(monkeypatch):
             return Fundamentals(ticker="AAA", peg_ratio=0.5, roe=0.2)
         return Fundamentals(ticker="BBB", peg_ratio=2.0, roe=0.1)
 
-    monkeypatch.setattr("backend.screener.fetch_fundamentals", mock_fetch)
+    monkeypatch.setattr("allotmint_core.screener.fetch_fundamentals", mock_fetch)
 
     symbols = ["AAA", "BBB"]
     page1, call1 = _hash_params(

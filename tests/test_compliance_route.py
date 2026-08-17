@@ -6,10 +6,10 @@ from fastapi.testclient import TestClient
 
 pytest.importorskip("allotmint_core")
 
+import allotmint_core.compliance as compliance_impl
+
 from backend.app import create_app
 from backend.common.account_models import OwnerSummaryRecord
-
-import allotmint_core.compliance as compliance_impl
 
 
 def _setup_app(tmp_path):

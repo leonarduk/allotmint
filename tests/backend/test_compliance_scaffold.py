@@ -4,10 +4,10 @@ import pytest
 
 pytest.importorskip("allotmint_core")
 
+import allotmint_core.compliance as compliance_impl
+
 from backend.common import compliance
 from backend.common.account_scaffold import ensure_owner_scaffold
-
-import allotmint_core.compliance as compliance_impl
 
 
 def test_ensure_owner_scaffold_populates_person_metadata(tmp_path, monkeypatch):

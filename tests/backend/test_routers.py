@@ -2,6 +2,7 @@ import importlib
 import pkgutil
 from pathlib import Path
 
+import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
@@ -23,6 +24,7 @@ def test_all_routes_registered():
 
 
 def test_compliance_routes(monkeypatch):
+    pytest.importorskip("allotmint_pro")
     app = FastAPI()
     app.state.accounts_root = ""
     app.include_router(compliance.router)

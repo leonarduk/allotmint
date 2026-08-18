@@ -190,5 +190,6 @@ class TestReadEndpointsWithNonexistentRoot:
 
     @pytest.mark.asyncio
     async def test_transactions_with_compliance_returns_empty_list(self, tmp_path):
+        pytest.importorskip("allotmint_pro")
         result = await transactions_module.transactions_with_compliance("alice", self._nonexistent_request(tmp_path))
         assert result == {"transactions": []}

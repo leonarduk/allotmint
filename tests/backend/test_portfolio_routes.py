@@ -1,5 +1,6 @@
 import json
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -72,6 +73,7 @@ def test_portfolio_sectors(monkeypatch, tmp_path):
 
 
 def test_portfolio_var(monkeypatch, tmp_path):
+    pytest.importorskip("allotmint_pro")
     client = _client(monkeypatch, tmp_path)
     monkeypatch.setattr(
         "backend.routes.portfolio.risk.compute_portfolio_var",
@@ -89,6 +91,7 @@ def test_portfolio_var(monkeypatch, tmp_path):
 
 
 def test_portfolio_var_owner_missing(monkeypatch, tmp_path):
+    pytest.importorskip("allotmint_pro")
     client = _client(monkeypatch, tmp_path)
     monkeypatch.setattr(
         "backend.routes.portfolio.risk.compute_portfolio_var",
@@ -99,6 +102,7 @@ def test_portfolio_var_owner_missing(monkeypatch, tmp_path):
 
 
 def test_portfolio_var_bad_params(monkeypatch, tmp_path):
+    pytest.importorskip("allotmint_pro")
     client = _client(monkeypatch, tmp_path)
 
     def _raise(owner, days, confidence, include_cash):

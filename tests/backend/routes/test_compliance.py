@@ -176,6 +176,7 @@ def test_known_owners_skips_demo_when_metadata_lookup_fails(tmp_path, monkeypatc
 
 @pytest.mark.anyio
 async def test_compliance_for_owner_missing_directory(tmp_path, monkeypatch, fastapi_request):
+    pytest.importorskip("allotmint_pro")
     app, request = fastapi_request
     accounts_root = tmp_path / "accounts"
 
@@ -199,6 +200,7 @@ async def test_compliance_for_owner_missing_directory(tmp_path, monkeypatch, fas
 
 @pytest.mark.anyio
 async def test_compliance_for_remote_owner_without_local_directory(tmp_path, monkeypatch, fastapi_request):
+    pytest.importorskip("allotmint_pro")
     app, request = fastapi_request
     accounts_root = tmp_path / "accounts"
 
@@ -234,6 +236,7 @@ async def test_compliance_for_remote_owner_without_local_directory(tmp_path, mon
 
 @pytest.mark.anyio
 async def test_compliance_for_owner_rejects_unknown_owner(tmp_path, monkeypatch, fastapi_request):
+    pytest.importorskip("allotmint_pro")
     app, request = fastapi_request
     accounts_root = tmp_path / "accounts"
     owner_dir = tmp_path / "accounts" / "Alice"
@@ -262,6 +265,7 @@ async def test_compliance_for_owner_rejects_unknown_owner(tmp_path, monkeypatch,
 
 @pytest.mark.anyio
 async def test_compliance_for_owner_translates_missing_files(tmp_path, monkeypatch, fastapi_request):
+    pytest.importorskip("allotmint_pro")
     app, request = fastapi_request
     accounts_root = tmp_path / "accounts"
     owner_dir = accounts_root / "Alice"
@@ -299,6 +303,7 @@ async def test_compliance_for_owner_translates_missing_files(tmp_path, monkeypat
 
 @pytest.mark.anyio
 async def test_validate_trade_requires_owner(tmp_path, monkeypatch):
+    pytest.importorskip("allotmint_pro")
     request = PayloadRequest({})
 
     monkeypatch.setattr(
@@ -315,6 +320,7 @@ async def test_validate_trade_requires_owner(tmp_path, monkeypatch):
 
 @pytest.mark.anyio
 async def test_validate_trade_rejects_blank_owner(tmp_path, monkeypatch):
+    pytest.importorskip("allotmint_pro")
     request = PayloadRequest({"owner": "   "})
 
     monkeypatch.setattr(
@@ -331,6 +337,7 @@ async def test_validate_trade_rejects_blank_owner(tmp_path, monkeypatch):
 
 @pytest.mark.anyio
 async def test_validate_trade_rejects_disallowed_owner(tmp_path, monkeypatch):
+    pytest.importorskip("allotmint_pro")
     request = PayloadRequest({"owner": "alice"})
     accounts_root = tmp_path / "accounts"
 
@@ -360,6 +367,7 @@ async def test_validate_trade_rejects_disallowed_owner(tmp_path, monkeypatch):
 
 @pytest.mark.anyio
 async def test_validate_trade_requires_known_directory_when_present(tmp_path, monkeypatch):
+    pytest.importorskip("allotmint_pro")
     request = PayloadRequest({"owner": "alice"})
 
     monkeypatch.setattr(
@@ -386,6 +394,7 @@ async def test_validate_trade_requires_known_directory_when_present(tmp_path, mo
 
 @pytest.mark.anyio
 async def test_validate_trade_normalises_owner_name(tmp_path, monkeypatch):
+    pytest.importorskip("allotmint_pro")
     request = PayloadRequest({"owner": "  alice  "})
     accounts_root = tmp_path / "accounts"
     canonical_dir = accounts_root / "ALICE"
@@ -429,6 +438,7 @@ async def test_validate_trade_normalises_owner_name(tmp_path, monkeypatch):
 
 @pytest.mark.anyio
 async def test_validate_trade_translates_value_error(tmp_path, monkeypatch):
+    pytest.importorskip("allotmint_pro")
     request = PayloadRequest({"owner": "alice"})
     accounts_root = tmp_path / "accounts"
     canonical_dir = accounts_root / "ALICE"
@@ -467,6 +477,7 @@ async def test_validate_trade_translates_value_error(tmp_path, monkeypatch):
 
 @pytest.mark.anyio
 async def test_validate_trade_scaffolds_missing_directory(tmp_path, monkeypatch, caplog):
+    pytest.importorskip("allotmint_pro")
     request = PayloadRequest({"owner": "alice"})
     accounts_root = tmp_path / "accounts"
 
@@ -520,6 +531,7 @@ async def test_validate_trade_scaffolds_missing_directory(tmp_path, monkeypatch,
 
 @pytest.mark.anyio
 async def test_validate_trade_scaffolds_when_owner_discovery_fails(tmp_path, monkeypatch):
+    pytest.importorskip("allotmint_pro")
     request = PayloadRequest(
         {
             "owner": " demo ",

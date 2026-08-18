@@ -452,6 +452,7 @@ def test_post_transaction_missing_reason(client):
 
 
 def test_compliance_endpoint(client):
+    pytest.importorskip("allotmint_pro")
     owners = _get_owners(client)
     assert owners, "No owners returned"
     owner = owners[0]["owner"]
@@ -463,6 +464,7 @@ def test_compliance_endpoint(client):
 
 
 def test_compliance_invalid_owner(client):
+    pytest.importorskip("allotmint_pro")
     missing_owner = "noone"
     accounts_root = Path(client.app.state.accounts_root)
     missing_dir = accounts_root / missing_owner
@@ -521,6 +523,7 @@ def test_alerts_endpoint(client, monkeypatch, mock_refresh_prices):
 
 
 def test_screener_endpoint(client, monkeypatch):
+    pytest.importorskip("allotmint_pro")
     from backend.screener import Fundamentals
 
     def mock_fetch(ticker: str) -> Fundamentals:
@@ -538,6 +541,7 @@ def test_screener_endpoint(client, monkeypatch):
 
 
 def test_hash_params_helper(monkeypatch):
+    pytest.importorskip("allotmint_pro")
     from backend.routes.screener import _hash_params
     from backend.screener import Fundamentals
 

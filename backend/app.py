@@ -27,6 +27,7 @@ from backend.bootstrap import (
     register_middleware,
     register_routers,
 )
+from backend.common.core_optional import CoreFeatureUnavailableError
 from backend.config import reload_config
 from backend.integrations.moneyhub_api import MoneyhubNotConfiguredError
 from backend.logging_setup import sanitise_log_value, setup_logging
@@ -42,6 +43,11 @@ class CognitoTokenRequest(BaseModel):
 async def moneyhub_not_configured_handler(_request: Request, exc: MoneyhubNotConfiguredError) -> JSONResponse:
     """Return a consistent service-unavailable response for Moneyhub routes."""
     return JSONResponse(status_code=503, content={"detail": str(exc)})
+
+
+async def core_feature_unavailable_handler(_request: Request, exc: CoreFeatureUnavailableError) -> JSONResponse:
+    """Return a consistent payment-required response for allotmint-pro-only routes."""
+    return JSONResponse(status_code=402, content={"detail": str(exc)})
 
 
 def create_app() -> FastAPI:
@@ -66,6 +72,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
     app.add_exception_handler(MoneyhubNotConfiguredError, moneyhub_not_configured_handler)
+    app.add_exception_handler(CoreFeatureUnavailableError, core_feature_unavailable_handler)
 
     admin_emails_raw = os.getenv("ADMIN_EMAILS", "")
     admin_set: frozenset[str] = (

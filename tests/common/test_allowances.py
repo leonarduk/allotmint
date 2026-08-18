@@ -1,6 +1,10 @@
 import datetime as dt
 import json
 
+import pytest
+
+pytest.importorskip("allotmint_pro")
+
 from backend.common.allowances import (
     current_tax_year,
     load_yearly_contributions,

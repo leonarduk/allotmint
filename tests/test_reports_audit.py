@@ -3,6 +3,8 @@ from pathlib import Path
 
 import pytest
 
+pytest.importorskip("allotmint_pro")
+
 import backend.reports as reports
 
 

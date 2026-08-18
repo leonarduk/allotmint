@@ -7,12 +7,15 @@ from pydantic import BaseModel
 
 from backend.auth import get_active_user
 from backend.common import data_loader
-from backend.common.allowances import (
-    current_tax_year,
-    remaining_allowances,
-)
+from backend.common.core_optional import require_core
 from backend.common.tax import harvest_losses
 from backend.config import demo_identity
+
+try:
+    from backend.common.allowances import current_tax_year, remaining_allowances
+except ModuleNotFoundError:
+    current_tax_year = None
+    remaining_allowances = None
 
 router = APIRouter(prefix="/tax", tags=["tax"])
 
@@ -41,6 +44,8 @@ async def allowances(request: Request, owner: str | None = Query(None)) -> dict:
     When auth is enabled and ``owner`` is not provided, the authenticated user
     is used.  When auth is disabled, the configured demo account is used.
     """
+    require_core(current_tax_year, "Tax allowances")
+
     active_user = await get_active_user(request)
     if owner is None:
         if active_user is not None:

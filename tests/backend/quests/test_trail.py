@@ -58,6 +58,7 @@ def test_owners_for_user_slug_fallback(fake_paths, monkeypatch):
 
 
 def test_build_allowance_and_compliance_tasks(monkeypatch):
+    pytest.importorskip("allotmint_pro")
     monkeypatch.setattr(trail.allowances, "current_tax_year", lambda: 2024)
 
     def _fake_remaining(owner, year):

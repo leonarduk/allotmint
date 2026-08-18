@@ -24,8 +24,7 @@ import pandas as pd
 
 from backend.common import group_portfolio
 from backend.common import portfolio as portfolio_mod
-from backend.common.anomaly_repair import _detect_single_day_flash_crash
-from backend.common.compliance import load_transactions
+from backend.common.account_scaffold import load_transactions
 from backend.common.data_loader import DATA_BUCKET_ENV
 from backend.common.holding_utils import _get_price_for_date_scaled
 from backend.common.instruments import get_instrument_meta, instrument_meta_path
@@ -40,6 +39,13 @@ from backend.timeseries.cache import load_meta_timeseries, load_meta_timeseries_
 from backend.utils.fx_rates import fetch_fx_rate_range
 from backend.utils.pricing_dates import PricingDateCalculator
 from backend.utils.timeseries_helpers import apply_scaling, get_scaling_override
+
+try:
+    from backend.common.anomaly_repair import _detect_single_day_flash_crash
+except ModuleNotFoundError:
+    # Flash-crash auto-repair lives in the private allotmint-pro package;
+    # aggregation still works without it, just without the repair step.
+    _detect_single_day_flash_crash = None
 
 logger = logging.getLogger(__name__)
 
@@ -1077,7 +1083,10 @@ def compute_owner_performance(
     total = total[total.index <= calc.reporting_date]
     if days:
         total = total.tail(days)
-    total, data_quality_issues = _detect_single_day_flash_crash(total)
+    if _detect_single_day_flash_crash is not None:
+        total, data_quality_issues = _detect_single_day_flash_crash(total)
+    else:
+        data_quality_issues = []
     perf = total.sort_index().to_frame(name="value")
     perf = perf.loc[[idx.weekday() < 5 for idx in perf.index]]
 
@@ -1259,13 +1268,14 @@ def _portfolio_value_series(
     total = total[total.index <= calc.reporting_date]
     if days:
         total = total.tail(days)
-    total, _issues = _detect_single_day_flash_crash(
-        total,
-        rebound_drop_pct_threshold=1.0,
-        rebound_jump_pct_threshold=1.0,
-    )
-    if _issues:
-        logger.info("Repaired %d near-zero portfolio value anomalies in series path", len(_issues))
+    if _detect_single_day_flash_crash is not None:
+        total, _issues = _detect_single_day_flash_crash(
+            total,
+            rebound_drop_pct_threshold=1.0,
+            rebound_jump_pct_threshold=1.0,
+        )
+        if _issues:
+            logger.info("Repaired %d near-zero portfolio value anomalies in series path", len(_issues))
     return total
 
 

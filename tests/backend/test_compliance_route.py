@@ -1,5 +1,8 @@
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+
+pytest.importorskip("allotmint_pro")
 
 from backend.routes import compliance
 

@@ -452,6 +452,7 @@ def test_post_transaction_missing_reason(client):
 
 
 def test_compliance_endpoint(client):
+    pytest.importorskip("allotmint_pro")
     owners = _get_owners(client)
     assert owners, "No owners returned"
     owner = owners[0]["owner"]
@@ -463,6 +464,7 @@ def test_compliance_endpoint(client):
 
 
 def test_compliance_invalid_owner(client):
+    pytest.importorskip("allotmint_pro")
     missing_owner = "noone"
     accounts_root = Path(client.app.state.accounts_root)
     missing_dir = accounts_root / missing_owner
@@ -521,6 +523,7 @@ def test_alerts_endpoint(client, monkeypatch, mock_refresh_prices):
 
 
 def test_screener_endpoint(client, monkeypatch):
+    pytest.importorskip("allotmint_pro")
     from backend.screener import Fundamentals
 
     def mock_fetch(ticker: str) -> Fundamentals:
@@ -528,7 +531,7 @@ def test_screener_endpoint(client, monkeypatch):
             return Fundamentals(ticker="AAA", peg_ratio=0.5, roe=0.2)
         return Fundamentals(ticker="BBB", peg_ratio=2.0, roe=0.1)
 
-    monkeypatch.setattr("backend.screener.fetch_fundamentals", mock_fetch)
+    monkeypatch.setattr("allotmint_pro.screener.fetch_fundamentals", mock_fetch)
 
     resp = client.get("/screener?tickers=AAA,BBB&peg_max=1&roe_min=0.15")
     assert resp.status_code == 200
@@ -538,6 +541,7 @@ def test_screener_endpoint(client, monkeypatch):
 
 
 def test_hash_params_helper(monkeypatch):
+    pytest.importorskip("allotmint_pro")
     from backend.routes.screener import _hash_params
     from backend.screener import Fundamentals
 
@@ -546,7 +550,7 @@ def test_hash_params_helper(monkeypatch):
             return Fundamentals(ticker="AAA", peg_ratio=0.5, roe=0.2)
         return Fundamentals(ticker="BBB", peg_ratio=2.0, roe=0.1)
 
-    monkeypatch.setattr("backend.screener.fetch_fundamentals", mock_fetch)
+    monkeypatch.setattr("allotmint_pro.screener.fetch_fundamentals", mock_fetch)
 
     symbols = ["AAA", "BBB"]
     page1, call1 = _hash_params(

@@ -17,12 +17,13 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from backend import importers
 from backend.auth import get_active_user
-from backend.common import compliance, data_loader, moneyhub_tokens
+from backend.common import data_loader, moneyhub_tokens
 from backend.common.accounts_store import (
     LocalAccountsStore,
     S3AccountsStore,
 )
 from backend.common.authz import ensure_owner_access
+from backend.common.core_optional import require_core
 from backend.common.instruments import get_instrument_meta
 from backend.common.ticker_utils import normalise_filter_ticker
 from backend.config import config
@@ -30,6 +31,11 @@ from backend.integrations.moneyhub_api import MoneyhubClient, MoneyhubNotConfigu
 from backend.logging_setup import sanitise_log_value
 from backend.routes._accounts import resolve_accounts_root
 from backend.utils import update_holdings_from_csv
+
+try:
+    from backend.common import compliance
+except ModuleNotFoundError:
+    compliance = None
 
 router = APIRouter(tags=["transactions"])
 logger = logging.getLogger(__name__)
@@ -547,6 +553,7 @@ async def transactions_with_compliance(
 ):
     """Return transactions for ``owner`` annotated with compliance warnings."""
 
+    require_core(compliance, "Compliance")
     store, _ = resolve_writable_store(request)
     txs = [t.model_dump() for t in _load_all_transactions(store) if t.owner.lower() == owner.lower()]
     if account:

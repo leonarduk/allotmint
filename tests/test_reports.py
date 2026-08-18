@@ -211,6 +211,7 @@ def _preloaded_context(portfolio: dict) -> reports.ReportContext:
 
 
 def test_portfolio_section_builders(monkeypatch):
+    pytest.importorskip("allotmint_pro")
     portfolio_payload = {
         "total_value_estimate_gbp": 1000.0,
         "accounts": [
@@ -879,6 +880,7 @@ def test_report_context_allocation_rounds_and_sorts(monkeypatch):
 
 
 def test_audit_report_portfolio_sections_use_requested_end_snapshot(monkeypatch):
+    pytest.importorskip("allotmint_pro")
     requested_end = date(2024, 1, 1)
     observed_pricing_dates: list[date | None] = []
     dated_portfolio = {
@@ -1465,6 +1467,7 @@ def test_audit_template_sources_are_all_registered():
 
 
 def test_audit_template_builders_render_non_empty_rows(monkeypatch, caplog):
+    pytest.importorskip("allotmint_pro")
     monkeypatch.setattr(
         reports.portfolio_mod,
         "build_owner_portfolio",

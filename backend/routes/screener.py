@@ -6,12 +6,19 @@ import hashlib
 from typing import List
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
+from pydantic import BaseModel
 
-from backend.screener import Fundamentals, screen
+from backend.common.core_optional import require_core
 from backend.utils import page_cache
 
+try:
+    from backend.screener import Fundamentals, screen
+except ModuleNotFoundError:
+    Fundamentals = None
+    screen = None
 
-class RankedFundamentals(Fundamentals):
+
+class RankedFundamentals(Fundamentals if Fundamentals is not None else BaseModel):  # type: ignore[misc]
     rank: int
 
 
@@ -159,6 +166,8 @@ async def screener(
     avg_volume_min: int | None = Query(None),
 ):
     """Return tickers that meet the supplied screening criteria."""
+
+    require_core(screen, "Screener")
 
     symbols = [t.strip().upper() for t in tickers.split(",") if t.strip()]
     if not symbols:

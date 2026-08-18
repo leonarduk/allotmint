@@ -395,6 +395,7 @@ def test_create_transaction_requires_units(tmp_path, monkeypatch):
 
 
 def test_transactions_compliance_filters(tmp_path, monkeypatch):
+    pytest.importorskip("allotmint_pro")
     client = _make_client(tmp_path, monkeypatch)
     sample = [
         transactions.Transaction(owner="alice", account="isa", date="2024-01-03", ticker="PFE"),

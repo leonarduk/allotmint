@@ -2,6 +2,39 @@
 
 This file gives Claude-style coding agents a fast, practical overview for working effectively in AllotMint. For the full repo policy, read `AGENTS.md` first; this file is the concise companion.
 
+## Workspace layout note
+
+This repo (`allotmint`) lives inside `C:\Users\steph\workspace\GitHub\allotmint`, a plain
+folder (not itself a git repo) that groups several independent, separately-versioned GitHub
+repos as siblings: `allotmint/` (this repo), `allotmint-core/`, `allotmint-data/`, and
+`allotmint-mcp/`. Each sibling has its own `.git`, remote, and (where present) its own
+CLAUDE.md — see the parent folder's `CLAUDE.md` for the full list. Do not assume changes in
+a sibling folder belong to the same commit/PR as changes here; they are different repos.
+
+## `cicaid` CLI
+
+This repo uses the `cicaid` CLI (package `cicaid-devtools`) for GitHub issue/PR
+plumbing and CI checks — commands like `cicaid sync-issues`, `work-on-issue`,
+`run-ci-checks`, `local-review`, `pr-review`, etc.
+
+If you need to check how a `cicaid` command actually behaves, its source is
+checked out locally at:
+- `C:\Users\steph\workspace\GitHub\cicaid\cicaid` (free/public commands)
+- `C:\Users\steph\workspace\GitHub\cicaid\cicaid-core` (LLM-backed commands:
+  `triage-issues`, `review-issue`, `create-issue`, `local-review`, `pr-review`,
+  `commit-and-push`, `implement-issue-with-aider`, `clear-ai-slop-issues`)
+- `C:\Users\steph\workspace\GitHub\cicaid\cicaid.wiki` (wiki docs)
+
+Each of those has its own CLAUDE.md with an accurate command/module map — read
+the relevant one before guessing at flags or behavior instead of inferring
+from this repo's usage alone. Note: `cicaid` and `cicaid-core` install as the
+same package name/entry point, so only one is ever active in a given venv at
+a time — don't assume both are simultaneously importable.
+
+This repo's own `.cicaid-checks.toml` (if present) defines what
+`cicaid run-ci-checks` actually runs here — check that file before assuming
+the DEFAULT_CHECKS fallback (Python/npm/CDK, tuned for allotmint) applies.
+
 ## Quick start
 
 - Language: always respond in English only, never in Chinese or any other language.

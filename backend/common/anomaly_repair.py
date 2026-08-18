@@ -5,9 +5,11 @@ for the degradation pattern routes should use around this import.
 
 from __future__ import annotations
 
-from backend.common.core_optional import UPGRADE_MESSAGE
+from backend.common.core_optional import UPGRADE_MESSAGE, missing_package
 
 try:
     from allotmint_pro.anomaly_repair import _detect_single_day_flash_crash  # noqa: F401
 except ModuleNotFoundError as exc:
+    if not missing_package(exc):
+        raise
     raise ModuleNotFoundError(f"backend.common.anomaly_repair requires allotmint-pro. {UPGRADE_MESSAGE}") from exc

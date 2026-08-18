@@ -5,7 +5,7 @@ degradation pattern routes should use around this import.
 
 from __future__ import annotations
 
-from backend.common.core_optional import UPGRADE_MESSAGE
+from backend.common.core_optional import UPGRADE_MESSAGE, missing_package
 
 try:
     from allotmint_pro.risk import (  # noqa: F401
@@ -15,4 +15,6 @@ try:
         compute_sharpe_ratio,
     )
 except ModuleNotFoundError as exc:
+    if not missing_package(exc):
+        raise
     raise ModuleNotFoundError(f"backend.common.risk requires allotmint-pro. {UPGRADE_MESSAGE}") from exc

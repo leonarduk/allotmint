@@ -5,7 +5,11 @@ anomaly-repair).
 Modules that re-export symbols from ``allotmint_pro`` (e.g.
 :mod:`backend.common.risk`) should catch ``ModuleNotFoundError`` at import
 time and re-raise with :data:`UPGRADE_MESSAGE` so the failure is
-self-explanatory wherever it surfaces (logs, tracebacks, tests).
+self-explanatory wherever it surfaces (logs, tracebacks, tests). Use
+:func:`missing_package` to check ``exc.name`` first — ``allotmint_pro`` being
+installed but missing one of *its own* dependencies (e.g. numpy) also raises
+``ModuleNotFoundError``, and that should surface as the real broken-install
+error, not get mislabelled as "not installed".
 
 Routes that need one of those modules at request time should import it inside
 a ``try/except ModuleNotFoundError`` guard (setting a ``None`` sentinel on
@@ -21,6 +25,22 @@ UPGRADE_MESSAGE = (
     "in this deployment. See https://github.com/leonarduk/allotmint-pro for "
     "upgrade options."
 )
+
+
+def missing_package(exc: ModuleNotFoundError, package: str = "allotmint_pro") -> bool:
+    """Return whether ``exc`` was raised because ``package`` itself is absent.
+
+    ``exc.name`` is the dotted name of the module that Python actually
+    failed to find — for ``from allotmint_pro.risk import x`` that's
+    ``"allotmint_pro"`` (or ``"allotmint_pro.risk"``) when the package isn't
+    installed, but it's some third-party name like ``"numpy"`` when
+    ``allotmint_pro`` is installed and merely missing one of its own
+    dependencies. Callers should only rewrite the error message when this
+    returns ``True``; otherwise re-raise the original exception unchanged.
+    """
+
+    name = exc.name or ""
+    return name == package or name.startswith(f"{package}.")
 
 
 class CoreFeatureUnavailableError(RuntimeError):

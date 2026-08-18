@@ -5,7 +5,7 @@ routes should use around this import.
 
 from __future__ import annotations
 
-from backend.common.core_optional import UPGRADE_MESSAGE
+from backend.common.core_optional import UPGRADE_MESSAGE, missing_package
 
 try:
     from allotmint_pro.screener import (  # noqa: F401
@@ -14,4 +14,6 @@ try:
         screen,
     )
 except ModuleNotFoundError as exc:
+    if not missing_package(exc):
+        raise
     raise ModuleNotFoundError(f"backend.screener requires allotmint-pro. {UPGRADE_MESSAGE}") from exc

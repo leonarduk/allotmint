@@ -9,7 +9,7 @@ Account scaffolding (``ensure_owner_scaffold``, ``load_transactions``) is
 
 from __future__ import annotations
 
-from backend.common.core_optional import UPGRADE_MESSAGE
+from backend.common.core_optional import UPGRADE_MESSAGE, missing_package
 
 try:
     from allotmint_pro.compliance import (  # noqa: F401
@@ -18,4 +18,6 @@ try:
         evaluate_trades,
     )
 except ModuleNotFoundError as exc:
+    if not missing_package(exc):
+        raise
     raise ModuleNotFoundError(f"backend.common.compliance requires allotmint-pro. {UPGRADE_MESSAGE}") from exc

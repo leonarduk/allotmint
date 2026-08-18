@@ -1,11 +1,11 @@
 #!/usr/bin/env bats
-# Unit tests for .github/scripts/pip_install_cicaid_core.sh, covering the
+# Unit tests for .github/scripts/pip_install_cicaid_pro.sh, covering the
 # CICAID_CORE_TOKEN validation and process-scoped git credential configuration
 # introduced to fix the cicaid-devtools 404 (#6754). Raised by the DeepSeek
 # review on PR #6755: the original workflow steps had no pre-flight check for a
 # missing/empty token (confusing auth failure instead).
 
-SCRIPT="$BATS_TEST_DIRNAME/../../.github/scripts/pip_install_cicaid_core.sh"
+SCRIPT="$BATS_TEST_DIRNAME/../../.github/scripts/pip_install_cicaid_pro.sh"
 
 setup() {
   # Isolate git's global config to a scratch HOME so tests never touch the
@@ -41,10 +41,10 @@ teardown() {
 @test "configures a process-scoped git credential rewrite" {
   export CICAID_CORE_TOKEN="fake-token-123"
 
-  run bash "$SCRIPT" bash -c 'git config --get "url.https://x-access-token:${CICAID_CORE_TOKEN}@github.com/leonarduk/cicaid-core.insteadOf"'
+  run bash "$SCRIPT" bash -c 'git config --get "url.https://x-access-token:${CICAID_CORE_TOKEN}@github.com/leonarduk/cicaid-pro.insteadOf"'
 
   [ "$status" -eq 0 ]
-  [ "$output" = "https://github.com/leonarduk/cicaid-core" ]
+  [ "$output" = "https://github.com/leonarduk/cicaid-pro" ]
 }
 
 @test "propagates the wrapped command's exit code" {

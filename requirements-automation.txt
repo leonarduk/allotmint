@@ -3,4 +3,4 @@
 # This is separate from requirements-dev.txt so untrusted pull requests, whose
 # workflows cannot access repository secrets, can still install the complete
 # public development toolchain. See issue #6754 and scripts/README.md.
-cicaid-devtools[dotenv] @ git+https://github.com/leonarduk/cicaid-core.git@v0.9.1
+cicaid-devtools[dotenv] @ git+https://github.com/leonarduk/cicaid-pro.git@v0.9.1

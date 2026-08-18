@@ -54,7 +54,7 @@ jobs:
             echo "::notice::Skipping private cicaid automation tests because CICAID_CORE_TOKEN is unavailable."
             exit 0
           fi
-          bash .github/scripts/pip_install_cicaid_core.sh \
+          bash .github/scripts/pip_install_cicaid_pro.sh \
             pip install --retries 10 -r requirements-automation.txt
           echo "available=true" >> "$GITHUB_OUTPUT"
       - name: Run review_common and review-script tests

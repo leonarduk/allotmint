@@ -11,11 +11,12 @@ test = [
     "pytest-asyncio~=1.4.0",
 ]
 # Private paid engine: screener, VaR/risk, compliance rule engine, allowances,
-# anomaly repair. Requires SSH or token access to the private repo. Without
-# this extra installed, the corresponding routes return 402 (see
+# anomaly repair. The SSH URL intentionally requires a GitHub SSH key with
+# read access; see docs/CONTRIBUTOR_RUNBOOK.md#installing-the-private-pro-extra.
+# Without this extra installed, the corresponding routes return 402 (see
 # backend/common/core_optional.py).
 pro = [
-    "allotmint-pro @ git+https://github.com/leonarduk/allotmint-pro.git",
+    "allotmint-pro @ git+ssh://git@github.com/leonarduk/allotmint-pro.git",
 ]
 
 [tool.black]

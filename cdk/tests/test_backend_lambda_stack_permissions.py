@@ -14,11 +14,22 @@ from aws_cdk.assertions import Template
 # not the repo root) lives in cdk/tests/conftest.py (#4929).
 CDK_DIR = Path(__file__).resolve().parents[1]
 
+from stacks._paths import resolve_app_root
 from stacks.backend_lambda_stack import (
     METADATA_PREFIX,
     WRITABLE_ACCOUNTS_PREFIX,
     BackendLambdaStack,
 )
+
+
+def _backend_common_dir() -> Path:
+    backend_common = resolve_app_root() / "backend" / "common"
+    if not backend_common.is_dir():
+        pytest.skip(
+            "backend/common is unavailable; set ALLOTMINT_APP_ROOT to the application checkout"
+        )
+    return backend_common
+
 
 BACKEND_LIST_PREFIXES = (
     "accounts",
@@ -1030,7 +1041,7 @@ def test_writable_accounts_prefix_matches_backend_accounts_store() -> None:
     passes its value into the Lambda's WRITABLE_ACCOUNTS_PREFIX env var and
     accounts_store only falls back to its own literal when that env var is
     unset. See issue #4323."""
-    accounts_store_path = CDK_DIR.parent / "backend" / "common" / "accounts_store.py"
+    accounts_store_path = _backend_common_dir() / "accounts_store.py"
     backend_prefix = _fallback_string_literal(accounts_store_path, "WRITABLE_ACCOUNTS_PREFIX")
 
     assert WRITABLE_ACCOUNTS_PREFIX == backend_prefix, (
@@ -1048,7 +1059,7 @@ def test_metadata_prefix_matches_backend_instruments_s3_location() -> None:
     _s3_location() only falls back to its own literal when that env var is
     unset. See issue #4930 (the constants going out of sync would silently
     change where auto-created instrument metadata is written)."""
-    instruments_path = CDK_DIR.parent / "backend" / "common" / "instruments.py"
+    instruments_path = _backend_common_dir() / "instruments.py"
     backend_prefix = _fallback_string_literal(instruments_path, "prefix")
 
     assert METADATA_PREFIX == backend_prefix, (

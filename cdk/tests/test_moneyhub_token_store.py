@@ -3,9 +3,11 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+import pytest
 from aws_cdk import App, Stack
 from aws_cdk import aws_iam as iam
 from aws_cdk.assertions import Match, Template
+from stacks._paths import resolve_app_root
 from stacks.moneyhub_token_store import (
     MONEYHUB_TOKEN_PARAMETER_PREFIX,
     MoneyhubTokenStore,
@@ -86,7 +88,12 @@ def test_token_prefix_matches_backend_moneyhub_tokens_uri_template() -> None:
     CDK's parameter ARN scoping and the backend's default storage URI must
     agree on where per-owner token blobs live (see #5338, extending the
     _COVERED_STACK_PREFIX_CONSTANTS pattern from PR #5318 to this stack)."""
-    moneyhub_tokens_path = CDK_DIR.parent / "backend" / "common" / "moneyhub_tokens.py"
+    backend_common = resolve_app_root() / "backend" / "common"
+    if not backend_common.is_dir():
+        pytest.skip(
+            "backend/common is unavailable; set ALLOTMINT_APP_ROOT to the application checkout"
+        )
+    moneyhub_tokens_path = backend_common / "moneyhub_tokens.py"
     backend_uri_template = _fallback_string_literal(moneyhub_tokens_path, "_DEFAULT_URI_TEMPLATE")
 
     assert backend_uri_template == f"ssm://{MONEYHUB_TOKEN_PARAMETER_PREFIX}/{{owner}}", (

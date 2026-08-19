@@ -14,6 +14,7 @@ from aws_cdk import aws_s3 as s3
 from aws_cdk import aws_s3_deployment as s3_deployment
 from constructs import Construct
 
+from stacks._paths import resolve_app_root
 from stacks.prod_env import assert_prod_env_vars, is_truthy_context
 
 
@@ -368,7 +369,7 @@ class StaticSiteStack(Stack):
         frontend_dir = (
             Path(frontend_dist_path)
             if frontend_dist_path is not None
-            else Path(__file__).resolve().parents[2] / "frontend" / "dist"
+            else resolve_app_root(self.node) / "frontend" / "dist"
         )
 
         asset_deploy = s3_deployment.BucketDeployment(

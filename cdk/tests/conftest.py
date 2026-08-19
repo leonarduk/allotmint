@@ -7,13 +7,14 @@ test module in this directory is imported, so both styles work without each
 file repeating its own ``sys.path.insert`` boilerplate.
 """
 
+import os
 import sys
 from pathlib import Path
 
 _CDK_DIR = Path(__file__).resolve().parent.parent
-_REPO_ROOT = _CDK_DIR.parent
+_APP_ROOT = Path(os.environ.get("ALLOTMINT_APP_ROOT", _CDK_DIR.parent)).expanduser().resolve()
 
-for _path in (_REPO_ROOT, _CDK_DIR):
+for _path in (_APP_ROOT, _CDK_DIR):
     _path_str = str(_path)
     if _path_str not in sys.path:
         sys.path.insert(0, _path_str)

@@ -1,7 +1,6 @@
 import json
 import os
 from collections.abc import Sequence
-from pathlib import Path
 
 from aws_cdk import (
     CfnCondition,
@@ -30,6 +29,7 @@ from aws_cdk import aws_sns as sns
 from aws_cdk import aws_sns_subscriptions as sns_subscriptions
 from constructs import Construct
 
+from stacks._paths import resolve_app_root
 from stacks.exports import BACKEND_API_URL_EXPORT
 from stacks.moneyhub_token_store import MoneyhubTokenStore
 
@@ -259,7 +259,7 @@ class BackendLambdaStack(Stack):
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
-        project_root = Path(__file__).resolve().parents[2]
+        project_root = resolve_app_root(self.node)
 
         data_repo = os.getenv("DATA_REPO")
         data_branch = os.getenv("DATA_BRANCH", "main")

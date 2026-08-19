@@ -100,6 +100,40 @@ Notes:
 - Branch protection required-check policy lives in `docs/BRANCH_PROTECTION.md`. It is validated on every PR by `python scripts/check_branch_protection_required_checks.py` (repo files only) and daily against live GitHub settings by `python scripts/check_live_branch_protection.py`. Required contexts are check-run names (`test`), **not** the `Workflow / Job` labels the Actions UI shows.
 - The frontend already has its own `package.json`; use `npm --prefix frontend ...` from the repo root unless you intentionally `cd frontend`.
 
+### Installing the private pro extra
+
+The optional `pro` extra contains the paid screener, risk, compliance,
+allowance, and anomaly-repair engine. Its source is the private
+`leonarduk/allotmint-pro` repository, so it is deliberately installed over
+SSH rather than relying on an HTTPS credential that happens to be cached on a
+machine.
+
+1. Ask a repository owner for read access to `leonarduk/allotmint-pro`.
+2. [Add an SSH key to your GitHub account](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account).
+3. Verify the key and repository access before invoking pip:
+   ```bash
+   ssh -T git@github.com
+   git ls-remote git@github.com:leonarduk/allotmint-pro.git HEAD
+   ```
+   GitHub's successful `ssh -T` check exits with status 1 because it does not
+   provide shell access; the important output is the greeting containing your
+   GitHub username. The `git ls-remote` command must print the `HEAD` commit.
+4. Install the project and private dependency from the repository root:
+   ```bash
+   python -m pip install -e ".[pro]"
+   ```
+
+If `ssh -T` reports `Permission denied (publickey)`, add or load your GitHub
+SSH key before retrying. If the SSH greeting succeeds but `git ls-remote`
+reports that the repository was not found, the authenticated GitHub account
+does not have access; ask a repository owner to grant it. Do not put a personal
+access token in `pyproject.toml`, a shell command, or a committed pip config.
+
+The public application and its normal test suite do not require this extra.
+Private-repository CI and deployments run from `allotmint-pro` itself and
+check out this public repository, so this local SSH credential is not copied
+into public-repository CI.
+
 ## 3. Environment variables you are most likely to need
 
 Copy `.env.example` to `.env` if you want a local file-backed setup, or export the variables directly in your shell.

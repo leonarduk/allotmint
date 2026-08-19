@@ -2,12 +2,17 @@ import { useCallback } from "react";
 import { getCompliance } from "../api";
 import type { ComplianceResult } from "../types";
 import { useFetch } from "../hooks/useFetch";
+import { useConfig } from "../ConfigContext";
 
 interface Props {
   owners: string[];
 }
 
 export function ComplianceWarnings({ owners }: Props) {
+  const { tabs, disabledTabs } = useConfig();
+  const complianceEnabled =
+    tabs["trade-compliance"] && !(disabledTabs ?? []).includes("trade-compliance");
+
   const fetchCompliance = useCallback(async () => {
     const entries = new Map<string, ComplianceResult>();
     await Promise.all(
@@ -15,11 +20,9 @@ export function ComplianceWarnings({ owners }: Props) {
         try {
           entries.set(o, await getCompliance(o));
         } catch {
-          entries.set(o, {
-            owner: o,
-            warnings: ["Failed to load warnings"],
-            trade_counts: {},
-          });
+          // A fetch failure here almost always means the compliance route
+          // 402'd (allotmint-pro not installed) rather than a real warning,
+          // so drop the owner instead of manufacturing a fake warning entry.
         }
       })
     );
@@ -29,10 +32,10 @@ export function ComplianceWarnings({ owners }: Props) {
   const { data, loading, error } = useFetch<Record<string, ComplianceResult>>(
     fetchCompliance,
     [owners],
-    owners.length > 0
+    complianceEnabled && owners.length > 0
   );
 
-  if (!owners.length || loading || error) return null;
+  if (!complianceEnabled || !owners.length || loading || error) return null;
 
   const ownersWithWarnings = owners.filter(
     (o) => (data?.[o]?.warnings ?? []).length,

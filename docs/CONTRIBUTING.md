@@ -129,6 +129,13 @@ npm --prefix frontend run build
 
 ### Pre-deploy validation
 
+The root `package.json` pins the AWS CDK CLI exactly rather than using a
+version range. Until the infrastructure migration tracked by #6796 is
+complete, update this pin and the corresponding `allotmint-pro` root pin in
+lockstep, and commit both repositories' regenerated lockfiles. The Python
+`aws-cdk-lib` version remains independently managed by each repository's CDK
+requirements file.
+
 Before pushing a release tag or deploying:
 
 ```bash

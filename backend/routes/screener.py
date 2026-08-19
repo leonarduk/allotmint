@@ -22,6 +22,16 @@ class RankedFundamentals(BaseModel):
 
     Keep this API-facing model independent from the optional implementation
     package so free-tier deployments publish the same OpenAPI schema.
+
+    MAINTENANCE: the field list below is a manually-synced snapshot of
+    ``allotmint_pro.screener.Fundamentals`` (a private-repo model this
+    module cannot import from directly, see backend/screener/__init__.py).
+    FastAPI's response_model filtering silently drops any field a route
+    returns that isn't declared here -- so if the private model ever gains
+    a field, paid-tier ``/screener`` responses will silently lose it from
+    the API response until this list is updated to match. There is no
+    automated check for drift between the two repos; see allotmint#6833
+    which tracks adding one.
     """
 
     ticker: str

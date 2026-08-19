@@ -6,6 +6,23 @@
 
 AllotMint is a family investing platform with a FastAPI backend, React/TypeScript frontend, and AWS deployment support.
 
+## Open-core editions
+
+This repository is the public AllotMint application shell. It boots and serves
+the free portfolio-management routes without any private dependency. The paid
+engine is distributed separately as the private
+[`allotmint-pro`](https://github.com/leonarduk/allotmint-pro) package.
+
+| Public application | Optional `allotmint-pro` engine |
+| --- | --- |
+| FastAPI and React application, portfolio data and reports, authentication, and local/demo workflows | Fundamental screener, VaR and Sharpe calculations, compliance rules, tax allowances, and anomaly repair |
+
+Premium endpoints remain present in the public API contract. When
+`allotmint-pro` is not installed, they return HTTP `402 Payment Required` with
+an upgrade pointer instead of preventing the application from starting. Users
+with access to the private package can install the integration extra with
+`python -m pip install '.[pro]'`.
+
 ## Screenshots
 
 | Portfolio view | Screener |

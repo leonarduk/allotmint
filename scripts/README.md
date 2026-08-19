@@ -161,41 +161,42 @@ own) are reported as skipped rather than persisted or silently dropped.
 The issue, pull-request, review, commit, and local CI automation that previously
 lived in this repository is maintained by the shared `cicaid-devtools` package,
 which now lives in the private
-[`leonarduk/cicaid-core`](https://github.com/leonarduk/cicaid-core) repo (renamed
-from `leonarduk/cicaid`; the `leonarduk/cicaid` name was reused for a smaller,
-unrelated public repo containing only thin GitHub-plumbing commands — see #6754).
+[`leonarduk/cicaid-pro`](https://github.com/leonarduk/cicaid-pro) repo (renamed
+from `leonarduk/cicaid`, whose old name was then reused for a smaller,
+unrelated public repo containing only thin GitHub-plumbing commands — see
+#6754).
 It is installed separately from the public development toolchain by
 `requirements-automation.txt`. This separation keeps normal development and
 required pull-request CI usable when the private-repository credential is not
 available, including fork and Dependabot pull requests.
 
-### Local access to the private cicaid-core repo
+### Local access to the private cicaid-pro repo
 
 `requirements-automation.txt` pins `cicaid-devtools` via a `git+https://` URL
-against `leonarduk/cicaid-core`, which is private. Before `pip install -r
+against `leonarduk/cicaid-pro`, which is private. Before `pip install -r
 requirements-automation.txt` will succeed on your machine:
 
-1. Ask a repo owner for read access to `leonarduk/cicaid-core` (or a
+1. Ask a repo owner for read access to `leonarduk/cicaid-pro` (or a
    fine-grained PAT scoped to it with **Contents: Read-only** — the same kind
-   of token CI uses as the `CICAID_CORE_TOKEN` secret).
-2. Make git use that access when it clones `cicaid-core`. Either:
+   of token CI uses as the `CICAID_PRO_TOKEN` secret).
+2. Make git use that access when it clones `cicaid-pro`. Either:
    - Have a GitHub account with direct read access and an existing git
      credential helper (e.g. the GitHub CLI's `gh auth login`, or an SSH key
      added to that account) — no extra config needed, or
    - Use a PAT directly, scoped to just this repo so it can't leak into other
      git operations:
      ```bash
-     git config --global "url.https://x-access-token:<your-PAT>@github.com/leonarduk/cicaid-core.insteadOf" "https://github.com/leonarduk/cicaid-core"
+     git config --global "url.https://x-access-token:<your-PAT>@github.com/leonarduk/cicaid-pro.insteadOf" "https://github.com/leonarduk/cicaid-pro"
      ```
      (This is the same `insteadOf` rewrite CI applies per-job via
-     `.github/scripts/pip_install_cicaid_core.sh`; unlike CI, a local `--global`
+     `.github/scripts/pip_install_cicaid_pro.sh`; unlike CI, a local `--global`
      config persists across shells, so consider unsetting it afterwards with
-     `git config --global --unset "url.https://x-access-token:<your-PAT>@github.com/leonarduk/cicaid-core.insteadOf"`
+     `git config --global --unset "url.https://x-access-token:<your-PAT>@github.com/leonarduk/cicaid-pro.insteadOf"`
      if you don't want it to stick around.)
 3. Run `pip install -r requirements-automation.txt` after installing the normal
    development dependencies.
 
-If you don't have (and can't get) access to `cicaid-core`, `pip install -r
+If you don't have (and can't get) access to `cicaid-pro`, `pip install -r
 requirements-dev.txt` still installs the complete public development toolchain.
 Only the `cicaid`-specific commands and their two dedicated test modules are
 unavailable; ask a maintainer to run those on your behalf when needed.

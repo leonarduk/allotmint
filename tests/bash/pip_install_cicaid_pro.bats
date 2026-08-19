@@ -1,11 +1,11 @@
 #!/usr/bin/env bats
-# Unit tests for .github/scripts/pip_install_cicaid_core.sh, covering the
-# CICAID_CORE_TOKEN validation and process-scoped git credential configuration
+# Unit tests for .github/scripts/pip_install_cicaid_pro.sh, covering the
+# CICAID_PRO_TOKEN validation and process-scoped git credential configuration
 # introduced to fix the cicaid-devtools 404 (#6754). Raised by the DeepSeek
 # review on PR #6755: the original workflow steps had no pre-flight check for a
 # missing/empty token (confusing auth failure instead).
 
-SCRIPT="$BATS_TEST_DIRNAME/../../.github/scripts/pip_install_cicaid_core.sh"
+SCRIPT="$BATS_TEST_DIRNAME/../../.github/scripts/pip_install_cicaid_pro.sh"
 
 setup() {
   # Isolate git's global config to a scratch HOME so tests never touch the
@@ -19,36 +19,36 @@ teardown() {
   rm -rf "$FAKE_HOME"
 }
 
-@test "fails with a clear error when CICAID_CORE_TOKEN is unset" {
-  unset CICAID_CORE_TOKEN || true
+@test "fails with a clear error when CICAID_PRO_TOKEN is unset" {
+  unset CICAID_PRO_TOKEN || true
 
   run bash "$SCRIPT" echo "should not run"
 
   [ "$status" -eq 1 ]
-  [[ "$output" == *"CICAID_CORE_TOKEN is empty or unset"* ]]
+  [[ "$output" == *"CICAID_PRO_TOKEN is empty or unset"* ]]
   [[ "$output" == *"#6754"* ]]
 }
 
-@test "fails with a clear error when CICAID_CORE_TOKEN is empty" {
-  export CICAID_CORE_TOKEN=""
+@test "fails with a clear error when CICAID_PRO_TOKEN is empty" {
+  export CICAID_PRO_TOKEN=""
 
   run bash "$SCRIPT" echo "should not run"
 
   [ "$status" -eq 1 ]
-  [[ "$output" == *"CICAID_CORE_TOKEN is empty or unset"* ]]
+  [[ "$output" == *"CICAID_PRO_TOKEN is empty or unset"* ]]
 }
 
 @test "configures a process-scoped git credential rewrite" {
-  export CICAID_CORE_TOKEN="fake-token-123"
+  export CICAID_PRO_TOKEN="fake-token-123"
 
-  run bash "$SCRIPT" bash -c 'git config --get "url.https://x-access-token:${CICAID_CORE_TOKEN}@github.com/leonarduk/cicaid-core.insteadOf"'
+  run bash "$SCRIPT" bash -c 'git config --get "url.https://x-access-token:${CICAID_PRO_TOKEN}@github.com/leonarduk/cicaid-pro.insteadOf"'
 
   [ "$status" -eq 0 ]
-  [ "$output" = "https://github.com/leonarduk/cicaid-core" ]
+  [ "$output" = "https://github.com/leonarduk/cicaid-pro" ]
 }
 
 @test "propagates the wrapped command's exit code" {
-  export CICAID_CORE_TOKEN="fake-token-123"
+  export CICAID_PRO_TOKEN="fake-token-123"
 
   run bash "$SCRIPT" bash -c 'exit 7'
 
@@ -56,7 +56,7 @@ teardown() {
 }
 
 @test "does not write the git credential to the global config" {
-  export CICAID_CORE_TOKEN="fake-token-123"
+  export CICAID_PRO_TOKEN="fake-token-123"
 
   bash "$SCRIPT" true
 
@@ -65,7 +65,7 @@ teardown() {
 }
 
 @test "does not leak the token itself into stdout/stderr" {
-  export CICAID_CORE_TOKEN="super-secret-token-xyz"
+  export CICAID_PRO_TOKEN="super-secret-token-xyz"
 
   run bash "$SCRIPT" echo "install ran"
 

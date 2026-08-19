@@ -15,7 +15,8 @@ type Props = { owner: string; asOf: string; accounts: Account[]; activeAccountTy
 
 export function OwnerPortfolioActions({ owner, asOf, accounts, activeAccountType, onDateChange, onMutated }: Props) {
   const { t } = useTranslation();
-  const { familyMvpEnabled, enableAdvancedAnalytics = true } = useConfig();
+  const { familyMvpEnabled, enableAdvancedAnalytics = true, tabs, disabledTabs } = useConfig();
+  const complianceEnabled = tabs["trade-compliance"] && !(disabledTabs ?? []).includes("trade-compliance");
   const [hasWarnings, setHasWarnings] = useState(false);
   const [complianceError, setComplianceError] = useState(false);
   const [showAccount, setShowAccount] = useState(false);
@@ -33,8 +34,10 @@ export function OwnerPortfolioActions({ owner, asOf, accounts, activeAccountType
     return () => document.removeEventListener("keydown", listener);
   }, [showPosition, collapsePosition]);
   useEffect(() => {
-    let cancelled = false;
+    setHasWarnings(false);
     setComplianceError(false);
+    if (!complianceEnabled) return;
+    let cancelled = false;
     complianceForOwner(owner).then((result) => { if (!cancelled) setHasWarnings(result.warnings.length > 0); }).catch(() => {
       if (!cancelled) {
         setHasWarnings(false);
@@ -42,7 +45,7 @@ export function OwnerPortfolioActions({ owner, asOf, accounts, activeAccountType
       }
     });
     return () => { cancelled = true; };
-  }, [owner]);
+  }, [owner, complianceEnabled]);
 
   const finishMutation = () => { setShowAccount(false); setShowImport(false); collapsePosition(); onMutated(); };
   const openPosition = () => { setShowPosition(true); positionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); };

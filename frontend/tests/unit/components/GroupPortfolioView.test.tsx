@@ -87,6 +87,7 @@ const defaultConfig: AppConfig = {
     pension: true,
     reports: true,
     scenario: true,
+    "trade-compliance": true,
   },
 };
 
@@ -1180,6 +1181,23 @@ describe("GroupPortfolioView", () => {
     renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
     await user.click(await screen.findByRole("tab", { name: "Alice Example" }));
     expect(await screen.findByText("Unable to load compliance warnings.")).toHaveAttribute("role", "alert");
+  });
+
+  it("does not fetch compliance or show a lookup-failure message when the trade-compliance tab is disabled", async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockAllFetches(
+      { accounts: [{ owner: "alice", account_type: "isa", value_estimate_gbp: 0, holdings: [] }] },
+      { complianceFails: true },
+    );
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />, {
+      tabs: { ...defaultConfig.tabs, "trade-compliance": false },
+    });
+    await user.click(await screen.findByRole("tab", { name: "Alice Example" }));
+    await waitFor(() => {
+      expect(screen.getByLabelText("Export portfolio as CSV")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("Unable to load compliance warnings.")).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/compliance/"))).toBe(false);
   });
 
   it("refetches after position, import, and account mutations", async () => {

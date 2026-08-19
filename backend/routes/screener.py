@@ -12,13 +12,55 @@ from backend.common.core_optional import require_core
 from backend.utils import page_cache
 
 try:
-    from backend.screener import Fundamentals, screen
+    from backend.screener import screen
 except ModuleNotFoundError:
-    Fundamentals = None
     screen = None
 
 
-class RankedFundamentals(Fundamentals if Fundamentals is not None else BaseModel):  # type: ignore[misc]
+class RankedFundamentals(BaseModel):
+    """Stable public response contract for ranked screener results.
+
+    Keep this API-facing model independent from the optional implementation
+    package so free-tier deployments publish the same OpenAPI schema.
+
+    MAINTENANCE: the field list below is a manually-synced snapshot of
+    ``allotmint_pro.screener.Fundamentals`` (a private-repo model this
+    module cannot import from directly, see backend/screener/__init__.py).
+    FastAPI's response_model filtering silently drops any field a route
+    returns that isn't declared here -- so if the private model ever gains
+    a field, paid-tier ``/screener`` responses will silently lose it from
+    the API response until this list is updated to match. There is no
+    automated check for drift between the two repos; see allotmint#6833
+    which tracks adding one.
+    """
+
+    ticker: str
+    name: str | None = None
+    peg_ratio: float | None = None
+    pe_ratio: float | None = None
+    de_ratio: float | None = None
+    lt_de_ratio: float | None = None
+    interest_coverage: float | None = None
+    current_ratio: float | None = None
+    quick_ratio: float | None = None
+    fcf: float | None = None
+    eps: float | None = None
+    gross_margin: float | None = None
+    operating_margin: float | None = None
+    net_margin: float | None = None
+    ebitda_margin: float | None = None
+    roa: float | None = None
+    roe: float | None = None
+    roi: float | None = None
+    dividend_yield: float | None = None
+    dividend_payout_ratio: float | None = None
+    beta: float | None = None
+    shares_outstanding: int | None = None
+    float_shares: int | None = None
+    market_cap: int | None = None
+    high_52w: float | None = None
+    low_52w: float | None = None
+    avg_volume: int | None = None
     rank: int
 
 

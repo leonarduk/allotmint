@@ -20,16 +20,31 @@ const BACKEND = "http://localhost:8000";
 const FRONTEND = "http://localhost:5173";
 const OWNER = "demo-owner";
 
+// Text that indicates the page didn't actually render its real content --
+// an auth wall, a disabled-feature notice, or a config error -- so a capture
+// against one of these should be treated as a failure even though the page
+// loaded without throwing.
+const FAILURE_MARKERS = [
+  "No local login override is configured",
+  "This feature isn't enabled for this application",
+  "Sign in",
+];
+
 // routeSegment/mode names match frontend/src/routes/registry.ts. `reports`
-// and `transactions` are disabled by default in config.yaml -- reports is
-// toggled on for the duration of this script (see main()); transactions
-// stays skipped since it needs owner-scoped write context this script
-// doesn't set up.
+// is disabled by default in config.yaml -- toggled on for the duration of
+// this script (see main()) and restored to its original value afterward.
+// `transactions` stays skipped since it needs owner-scoped write context
+// this script doesn't set up.
 const PAGES = [
   { name: "portfolio-view.png", url: `/portfolio/${OWNER}`, waitFor: "VWRL.L" },
   { name: "mobile-portfolio-view.png", url: `/portfolio/${OWNER}`, waitFor: "VWRL.L", viewport: { width: 390, height: 844 } },
   { name: "dashboard.png", url: `/?group=all`, waitFor: "At a glance" },
   { name: "screener.png", url: "/screener", waitFor: "Run" },
+  // NOTE: nested under `ui.tabs`, not top-level `tabs` -- PUT /config has a
+  // bug (backend/routes/config.py _normalise_config_structure) where a
+  // top-level `tabs` payload gets clobbered back to its stored value by a
+  // reversed deep_merge call. Sending it pre-nested under `ui` skips that
+  // buggy code path. See issue filed for the backend fix.
   { name: "reports.png", url: "/reports", waitFor: "Report templates", requiresConfig: { ui: { tabs: { reports: true } } } },
   { name: "market.png", url: "/market", waitFor: null },
   { name: "movers.png", url: "/movers", waitFor: null },
@@ -52,6 +67,12 @@ const PAGES = [
   { name: "research.png", url: "/research", waitFor: null },
 ];
 
+async function getConfig() {
+  const res = await fetch(`${BACKEND}/config`);
+  if (!res.ok) throw new Error(`GET /config failed: ${res.status}`);
+  return res.json();
+}
+
 async function setConfig(payload) {
   const res = await fetch(`${BACKEND}/config`, {
     method: "PUT",
@@ -72,6 +93,14 @@ async function shot(browser, { name, url, waitFor, viewport = { width: 1440, hei
       await page.waitForTimeout(1500);
     }
     await page.waitForTimeout(300);
+
+    const bodyText = await page.locator("body").innerText();
+    const marker = FAILURE_MARKERS.find((m) => bodyText.includes(m));
+    if (marker) {
+      console.warn(`skipped ${name}: page shows "${marker}" instead of real content`);
+      return false;
+    }
+
     await page.screenshot({ path: path.join(outDir, name), fullPage: false });
     console.log(`saved ${name}`);
     return true;
@@ -84,24 +113,39 @@ async function shot(browser, { name, url, waitFor, viewport = { width: 1440, hei
 }
 
 async function main() {
+  // Read current settings so this run restores them exactly, rather than
+  // assuming a default -- a developer with reports already enabled, or a
+  // different local login override set, should see their config unchanged
+  // after this script runs.
+  const before = await getConfig();
+  const originalReportsTab = before.tabs?.reports ?? false;
+  const originalLocalLoginEmail = before.local_login_email ?? null;
+
+  // Several admin/settings pages 404 into an auth-wall unless a local login
+  // identity is configured (auth.disable_auth alone isn't enough for them).
+  await setConfig({ auth: { local_login_email: OWNER } });
+
   const browser = await chromium.launch();
   const results = [];
 
-  for (const pageSpec of PAGES) {
-    if (pageSpec.requiresConfig) {
-      await setConfig(pageSpec.requiresConfig);
+  try {
+    for (const pageSpec of PAGES) {
+      if (pageSpec.requiresConfig) {
+        await setConfig(pageSpec.requiresConfig);
+      }
+      const ok = await shot(browser, pageSpec);
+      if (pageSpec.requiresConfig) {
+        await setConfig({ ui: { tabs: { reports: originalReportsTab } } });
+      }
+      results.push({ name: pageSpec.name, ok });
     }
-    const ok = await shot(browser, pageSpec);
-    if (pageSpec.requiresConfig) {
-      // Revert immediately so a later failure can't leave the running app
-      // (and its committed config.yaml, which PUT /config persists to) in a
-      // non-default state.
-      await setConfig({ ui: { tabs: { reports: false } } });
-    }
-    results.push({ name: pageSpec.name, ok });
+  } finally {
+    await browser.close();
+    // GET /config normalizes an empty-string override to null, so restoring
+    // with that raw value would write a literal `null` into config.yaml
+    // instead of the repo's `''` convention for "no override" -- coerce back.
+    await setConfig({ auth: { local_login_email: originalLocalLoginEmail ?? "" } });
   }
-
-  await browser.close();
 
   const failed = results.filter((r) => !r.ok);
   console.log(`\n${results.length - failed.length}/${results.length} screenshots captured.`);

@@ -22,7 +22,7 @@ jobs:
       openai_api_key: ${{ secrets.OPENAI_API_KEY }}
       deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
       gh_token: ${{ secrets.GITHUB_TOKEN }}
-      cicaid_core_token: ${{ secrets.CICAID_CORE_TOKEN }}
+      cicaid_pro_token: ${{ secrets.CICAID_PRO_TOKEN }}
 
   # Dependabot PRs skip the review job above, which GitHub records as "skipped"
   # rather than "success". This job's name reproduces the composite check

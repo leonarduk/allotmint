@@ -47,11 +47,11 @@ jobs:
       - name: Install private review automation when credentials are available
         id: automation-deps
         env:
-          CICAID_CORE_TOKEN: ${{ secrets.CICAID_CORE_TOKEN }}
+          CICAID_PRO_TOKEN: ${{ secrets.CICAID_PRO_TOKEN }}
         run: |
-          if [ -z "$CICAID_CORE_TOKEN" ]; then
+          if [ -z "$CICAID_PRO_TOKEN" ]; then
             echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Skipping private cicaid automation tests because CICAID_CORE_TOKEN is unavailable."
+            echo "::notice::Skipping private cicaid automation tests because CICAID_PRO_TOKEN is unavailable."
             exit 0
           fi
           bash .github/scripts/pip_install_cicaid_pro.sh \

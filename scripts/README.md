@@ -162,9 +162,9 @@ The issue, pull-request, review, commit, and local CI automation that previously
 lived in this repository is maintained by the shared `cicaid-devtools` package,
 which now lives in the private
 [`leonarduk/cicaid-pro`](https://github.com/leonarduk/cicaid-pro) repo (renamed
-from `leonarduk/cicaid` to `cicaid-core` and then to `cicaid-pro`; the
-`leonarduk/cicaid` name was reused for a smaller, unrelated public repo
-containing only thin GitHub-plumbing commands — see #6754).
+from `leonarduk/cicaid`, whose old name was then reused for a smaller,
+unrelated public repo containing only thin GitHub-plumbing commands — see
+#6754).
 It is installed separately from the public development toolchain by
 `requirements-automation.txt`. This separation keeps normal development and
 required pull-request CI usable when the private-repository credential is not
@@ -178,7 +178,7 @@ requirements-automation.txt` will succeed on your machine:
 
 1. Ask a repo owner for read access to `leonarduk/cicaid-pro` (or a
    fine-grained PAT scoped to it with **Contents: Read-only** — the same kind
-   of token CI uses as the `CICAID_CORE_TOKEN` secret).
+   of token CI uses as the `CICAID_PRO_TOKEN` secret).
 2. Make git use that access when it clones `cicaid-pro`. Either:
    - Have a GitHub account with direct read access and an existing git
      credential helper (e.g. the GitHub CLI's `gh auth login`, or an SSH key

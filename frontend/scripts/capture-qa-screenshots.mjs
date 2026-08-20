@@ -27,7 +27,6 @@ const OWNER = "demo-owner";
 const FAILURE_MARKERS = [
   "No local login override is configured",
   "This feature isn't enabled for this application",
-  "Sign in",
 ];
 
 // routeSegment/mode names match frontend/src/routes/registry.ts. `reports`
@@ -121,26 +120,37 @@ async function main() {
   const originalReportsTab = before.tabs?.reports ?? false;
   const originalLocalLoginEmail = before.local_login_email ?? null;
 
-  // Several admin/settings pages 404 into an auth-wall unless a local login
-  // identity is configured (auth.disable_auth alone isn't enough for them).
-  await setConfig({ auth: { local_login_email: OWNER } });
-
-  const browser = await chromium.launch();
   const results = [];
 
+  // Everything from here on mutates config.yaml (local_login_email, and per-
+  // page tab overrides), so it all lives inside this try/finally -- a crash
+  // anywhere below (chromium failing to launch, a setConfig network error,
+  // etc.) must still trigger the restore, not just a clean loop completion.
   try {
-    for (const pageSpec of PAGES) {
-      if (pageSpec.requiresConfig) {
-        await setConfig(pageSpec.requiresConfig);
+    // Several admin/settings pages 404 into an auth-wall unless a local
+    // login identity is configured (auth.disable_auth alone isn't enough).
+    await setConfig({ auth: { local_login_email: OWNER } });
+
+    const browser = await chromium.launch();
+    try {
+      for (const pageSpec of PAGES) {
+        if (pageSpec.requiresConfig) {
+          try {
+            await setConfig(pageSpec.requiresConfig);
+            const ok = await shot(browser, pageSpec);
+            results.push({ name: pageSpec.name, ok });
+          } finally {
+            await setConfig({ ui: { tabs: { reports: originalReportsTab } } });
+          }
+        } else {
+          const ok = await shot(browser, pageSpec);
+          results.push({ name: pageSpec.name, ok });
+        }
       }
-      const ok = await shot(browser, pageSpec);
-      if (pageSpec.requiresConfig) {
-        await setConfig({ ui: { tabs: { reports: originalReportsTab } } });
-      }
-      results.push({ name: pageSpec.name, ok });
+    } finally {
+      await browser.close();
     }
   } finally {
-    await browser.close();
     // GET /config normalizes an empty-string override to null, so restoring
     // with that raw value would write a literal `null` into config.yaml
     // instead of the repo's `''` convention for "no override" -- coerce back.

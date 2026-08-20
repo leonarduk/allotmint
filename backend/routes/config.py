@@ -103,8 +103,14 @@ def _normalise_config_structure(raw: Dict[str, Any]) -> Dict[str, Any]:
     if "tabs" in data:
         tabs_value = data.pop("tabs")
         if isinstance(ui_section.get("tabs"), dict) and isinstance(tabs_value, dict):
-            deep_merge(tabs_value, ui_section["tabs"])
-        ui_section["tabs"] = tabs_value
+            # Stored tabs are the base; the incoming payload overrides -- not
+            # the other way around. (Previously `deep_merge(tabs_value,
+            # ui_section["tabs"])` let the already-stored value win over any
+            # key present in both, so a top-level `tabs` payload could never
+            # actually change an existing tab. See #6844.)
+            deep_merge(ui_section["tabs"], tabs_value)
+        else:
+            ui_section["tabs"] = tabs_value
     for key in ["theme", "relative_view_enabled"]:
         if key in data:
             ui_section[key] = data.pop(key)
@@ -150,11 +156,19 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     incoming_payload: Dict[str, Any] = payload or {}
 
-    merged_data = deepcopy(stored_data)
+    # Normalise each side (stored vs incoming) independently *before*
+    # merging, rather than merging the raw dicts and normalising the blend.
+    # A raw merge can't tell whether a top-level `tabs` key or a `ui.tabs`
+    # key represents the incoming value or the already-stored one -- e.g. a
+    # legacy on-disk `tabs` key merged against an incoming `ui.tabs` payload
+    # needs the incoming value to win, while an incoming top-level `tabs`
+    # payload merged against an already-migrated stored `ui.tabs` also needs
+    # the incoming value to win. Normalising first makes both sides use the
+    # same `ui.tabs` shape, so a single deep_merge with a clear
+    # existing-then-incoming precedence resolves both cases correctly (#6844).
+    data = deepcopy(existing_data)
     if incoming_payload:
-        deep_merge(merged_data, incoming_payload)
-
-    data = _normalise_config_structure(merged_data)
+        deep_merge(data, _normalise_config_structure(incoming_payload))
 
     auth_section = data.get("auth", {}) if isinstance(data, dict) else {}
     if not isinstance(auth_section, dict):

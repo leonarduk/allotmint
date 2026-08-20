@@ -2,24 +2,42 @@
   "owner": "demo-owner",
   "account_type": "SIPP",
   "currency": "GBP",
-  "last_updated": "2024-01-01",
+  "last_updated": "2026-08-20",
   "holdings": [
     {
       "ticker": "CASH.GBP",
-      "units": 500,
-      "cost_basis_gbp": 500
+      "units": 800,
+      "cost_basis_gbp": 800
     },
     {
       "ticker": "VWRL.L",
+      "units": 15,
+      "acquired_date": "2022-08-01",
+      "cost_basis_gbp": 1300.0
+    },
+    {
+      "ticker": "VWRL.L",
+      "units": 15,
+      "acquired_date": "2023-02-14",
+      "cost_basis_gbp": 1350.0
+    },
+    {
+      "ticker": "ERNS.L",
       "units": 5,
-      "acquired_date": null,
-      "cost_basis_gbp": 0.0
+      "acquired_date": "2022-11-08",
+      "cost_basis_gbp": 2350.0
+    },
+    {
+      "ticker": "ERNS.L",
+      "units": 5,
+      "acquired_date": "2023-06-20",
+      "cost_basis_gbp": 2400.0
     },
     {
       "ticker": "PFE.N",
-      "units": 3,
-      "acquired_date": null,
-      "cost_basis_gbp": 0.0
+      "units": 120,
+      "acquired_date": "2023-07-19",
+      "cost_basis_gbp": 2800.0
     }
   ]
 }

@@ -31,6 +31,15 @@ def test_get_scaling_override_from_json():
     assert th.get_scaling_override("ADM", "L", None) == 0.1
 
 
+def test_get_scaling_override_from_json_lse_pence_tickers():
+    # Regression test for #6845: GSK.L and HFEL.L both fetch as raw pence
+    # (e.g. GSK.L returning "1888.0" for a real price of ~GBP18.88) but their
+    # instrument metadata's `currency` is "GBP", not a pence code, so nothing
+    # else in the pipeline would catch this without an explicit override.
+    assert th.get_scaling_override("GSK", "L", None) == 0.01
+    assert th.get_scaling_override("HFEL", "L", None) == 0.01
+
+
 def test_get_scaling_override_missing_file(monkeypatch):
     monkeypatch.setattr(builtins, "open", lambda *args, **kwargs: (_ for _ in ()).throw(FileNotFoundError()))
     assert th.get_scaling_override("T", "X", None) == 1.0

@@ -40,7 +40,7 @@ backend/common/portfolio.py:117
 backend/common/portfolio_loader.py:240
 backend/common/portfolio_loader.py:253
 backend/common/portfolio_loader.py:260
-backend/common/portfolio_utils.py:1854
+backend/common/portfolio_utils.py:1878
 backend/common/portfolio_utils.py:295
 backend/common/portfolio_utils.py:301
 backend/common/prices.py:347
@@ -134,9 +134,9 @@ backend/agent/trading_agent.py:507
 backend/agent/trading_agent.py:522
 backend/agent/trading_agent.py:528
 backend/agent/trading_agent.py:65
-backend/common/portfolio_utils.py:1249
-backend/common/portfolio_utils.py:1278
-backend/common/portfolio_utils.py:1864
+backend/common/portfolio_utils.py:1273
+backend/common/portfolio_utils.py:1302
+backend/common/portfolio_utils.py:1888
 backend/common/portfolio_utils.py:223
 backend/common/portfolio_utils.py:240
 backend/common/portfolio_utils.py:251

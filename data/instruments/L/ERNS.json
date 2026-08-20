@@ -4,5 +4,6 @@
   "exchange": "L",
   "asset_class": "Bond",
   "sector": "Fixed Income",
+  "region": "United Kingdom",
   "currency": "GBP"
 }

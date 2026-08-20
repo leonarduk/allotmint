@@ -288,6 +288,182 @@ def test_compute_owner_performance_respects_flagged_and_cash(monkeypatch):
         date.fromisoformat(payload["previous_date"])
 
 
+def test_compute_owner_performance_forward_fills_exchange_holiday(monkeypatch):
+    """Regression test for #6857: a single-exchange holiday (e.g. a UK bank
+    holiday closing an LSE-listed holding while a NYSE-listed holding in the
+    same portfolio keeps trading) must not be treated as the closed holding
+    being worth £0 that day. Runs unconditionally in OSS CI -- no
+    ``allotmint_pro`` required.
+    """
+    portfolio = {
+        "accounts": [
+            {
+                "holdings": [
+                    {"ticker": "LSE.L", "units": 10},
+                    {"ticker": "NYSE.N", "units": 5},
+                ]
+            }
+        ]
+    }
+
+    monkeypatch.setattr(
+        pu.portfolio_mod,
+        "build_owner_portfolio",
+        lambda owner, *, pricing_date=None, **_: portfolio,
+    )
+    monkeypatch.setattr(pu, "_PRICE_SNAPSHOT", {}, raising=False)
+    monkeypatch.setattr(
+        instrument_api,
+        "_resolve_full_ticker",
+        lambda ticker, snapshot: tuple(ticker.split(".", 1)) if "." in ticker else (ticker, None),
+    )
+
+    all_dates = pd.date_range("2024-01-01", periods=3, freq="D")  # Mon, Tue, Wed
+    # LSE.L has no row for the middle date (bank holiday); NYSE.N trades every day.
+    lse_dates = pd.DatetimeIndex([all_dates[0], all_dates[2]])
+    frames = {
+        ("LSE", "L"): pd.DataFrame({"Date": lse_dates, "Close": [100.0, 102.0]}),
+        ("NYSE", "N"): pd.DataFrame({"Date": all_dates, "Close": [50.0, 51.0, 52.0]}),
+    }
+
+    monkeypatch.setattr(
+        pu,
+        "load_meta_timeseries",
+        lambda ticker, exchange, days: frames.get((ticker, exchange), pd.DataFrame()).copy(),
+    )
+
+    result = pu.compute_owner_performance("owner", days=10)
+
+    assert [row["date"] for row in result["history"]] == ["2024-01-01", "2024-01-02", "2024-01-03"]
+    values = [row["value"] for row in result["history"]]
+    assert values == pytest.approx(
+        [
+            10 * 100.0 + 5 * 50.0,  # 1250: both priced
+            10 * 100.0 + 5 * 51.0,  # 1255: LSE.L holiday -> carries forward 100.0, not 0
+            10 * 102.0 + 5 * 52.0,  # 1280: LSE.L reopens
+        ]
+    )
+    # No fake crash-and-recover: the middle value sits between its
+    # neighbours instead of collapsing toward zero.
+    assert values[0] < values[1] < values[2]
+
+
+def test_compute_owner_performance_forward_fills_multi_day_gap(monkeypatch):
+    """Regression test for #6857: multi-day gaps (e.g. a Christmas/New Year
+    week where one exchange is shut for several consecutive days) must also
+    forward-fill correctly, not just single-day gaps.
+    """
+    portfolio = {
+        "accounts": [
+            {
+                "holdings": [
+                    {"ticker": "LSE.L", "units": 10},
+                    {"ticker": "NYSE.N", "units": 5},
+                ]
+            }
+        ]
+    }
+
+    monkeypatch.setattr(
+        pu.portfolio_mod,
+        "build_owner_portfolio",
+        lambda owner, *, pricing_date=None, **_: portfolio,
+    )
+    monkeypatch.setattr(pu, "_PRICE_SNAPSHOT", {}, raising=False)
+    monkeypatch.setattr(
+        instrument_api,
+        "_resolve_full_ticker",
+        lambda ticker, snapshot: tuple(ticker.split(".", 1)) if "." in ticker else (ticker, None),
+    )
+
+    all_dates = pd.date_range("2024-01-01", periods=4, freq="D")  # Mon-Thu
+    # LSE.L is shut for the middle two days (e.g. a holiday week); NYSE.N trades every day.
+    lse_dates = pd.DatetimeIndex([all_dates[0], all_dates[3]])
+    frames = {
+        ("LSE", "L"): pd.DataFrame({"Date": lse_dates, "Close": [100.0, 104.0]}),
+        ("NYSE", "N"): pd.DataFrame({"Date": all_dates, "Close": [50.0, 51.0, 52.0, 53.0]}),
+    }
+
+    monkeypatch.setattr(
+        pu,
+        "load_meta_timeseries",
+        lambda ticker, exchange, days: frames.get((ticker, exchange), pd.DataFrame()).copy(),
+    )
+
+    result = pu.compute_owner_performance("owner", days=10)
+
+    assert [row["date"] for row in result["history"]] == [
+        "2024-01-01",
+        "2024-01-02",
+        "2024-01-03",
+        "2024-01-04",
+    ]
+    values = [row["value"] for row in result["history"]]
+    assert values == pytest.approx(
+        [
+            10 * 100.0 + 5 * 50.0,  # 1050
+            10 * 100.0 + 5 * 51.0,  # 1255: LSE.L still shut -> carries forward 100.0
+            10 * 100.0 + 5 * 52.0,  # 1260: LSE.L still shut -> carries forward 100.0
+            10 * 104.0 + 5 * 53.0,  # 1305: LSE.L reopens
+        ]
+    )
+
+
+def test_compute_owner_performance_leading_gap_contributes_zero(monkeypatch):
+    """Regression test for #6857: a ticker with no price history yet at the
+    start of the requested window should contribute 0 for those dates, not
+    NaN (and not be forward-filled from nothing).
+    """
+    portfolio = {
+        "accounts": [
+            {
+                "holdings": [
+                    {"ticker": "OLD.L", "units": 10},
+                    {"ticker": "NEW.L", "units": 5},
+                ]
+            }
+        ]
+    }
+
+    monkeypatch.setattr(
+        pu.portfolio_mod,
+        "build_owner_portfolio",
+        lambda owner, *, pricing_date=None, **_: portfolio,
+    )
+    monkeypatch.setattr(pu, "_PRICE_SNAPSHOT", {}, raising=False)
+    monkeypatch.setattr(
+        instrument_api,
+        "_resolve_full_ticker",
+        lambda ticker, snapshot: tuple(ticker.split(".", 1)) if "." in ticker else (ticker, None),
+    )
+
+    all_dates = pd.date_range("2024-01-01", periods=3, freq="D")  # Mon, Tue, Wed
+    new_dates = pd.DatetimeIndex([all_dates[2]])  # NEW.L only starts trading on day 3
+    frames = {
+        ("OLD", "L"): pd.DataFrame({"Date": all_dates, "Close": [10.0, 11.0, 12.0]}),
+        ("NEW", "L"): pd.DataFrame({"Date": new_dates, "Close": [20.0]}),
+    }
+
+    monkeypatch.setattr(
+        pu,
+        "load_meta_timeseries",
+        lambda ticker, exchange, days: frames.get((ticker, exchange), pd.DataFrame()).copy(),
+    )
+
+    result = pu.compute_owner_performance("owner", days=10)
+
+    assert [row["date"] for row in result["history"]] == ["2024-01-01", "2024-01-02", "2024-01-03"]
+    values = [row["value"] for row in result["history"]]
+    assert values == pytest.approx(
+        [
+            10 * 10.0,  # NEW.L not trading yet -> contributes 0, not NaN
+            10 * 11.0,
+            10 * 12.0 + 5 * 20.0,
+        ]
+    )
+    assert all(v == v for v in values)  # no NaNs leaked through
+
+
 def test_compute_owner_performance_filters_single_day_zero(monkeypatch):
     pytest.importorskip("allotmint_pro")
     portfolio = {"accounts": [{"holdings": [{"ticker": "ERR.L", "units": 10}]}]}

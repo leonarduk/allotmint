@@ -283,6 +283,7 @@ AllotMint depends heavily on realistic local/demo data.
 
 - If you already have the companion data repo or a synced local dataset, set `DATA_ROOT` to that location before starting the backend.
 - If you want repo-local demo data for quick experiments, ensure the needed files exist under `./data` and export `DATA_ROOT=./data`.
+- `./demo-data` is a separate, repo-local dataset meant for local demo walkthroughs and manual UI exploration (`DATA_ROOT=demo-data`). It's intentionally kept apart from `./data`, which several tests read directly (see `tests/conftest.py`'s default `DATA_ROOT` and `tests/test_main.py::test_get_account_demo_fallback`) — don't treat the two as interchangeable, and don't assume trimming one is safe for the other without running the full test suite against the result. `demo-data` currently has two owners (`demo-owner`, `sarah`) with realistic multi-lot holdings across a variety of instrument types; avoid naming a `demo-data` owner literally `demo` — that slug is reserved by `auth.demo_identity` (see below) and gets special-cased out of normal owner listings.
 - Do not casually rename or remove demo owners referenced by `auth.demo_identity`, `auth.smoke_identity`, tests, or smoke scripts.
 - When auth is disabled, `auth.demo_identity` and `LOCAL_LOGIN_EMAIL` determine what the app treats as the active user.
 

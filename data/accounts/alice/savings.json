@@ -32,6 +32,12 @@
       "units": 10,
       "acquired_date": "2024-07-01",
       "cost_basis_gbp": 210.0
+    },
+    {
+      "ticker": "HFEL.L",
+      "units": 40,
+      "acquired_date": "2024-03-10",
+      "cost_basis_gbp": 96.0
     }
   ]
 }

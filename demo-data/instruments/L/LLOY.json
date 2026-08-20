@@ -1,9 +1,9 @@
 {
-  "name": "GSK plc",
-  "ticker": "GSK.L",
+  "name": "Lloyds Banking Group plc",
+  "ticker": "LLOY.L",
   "exchange": "L",
   "asset_class": "Equity",
-  "sector": "Healthcare",
+  "sector": "Financials",
   "region": "United Kingdom",
   "currency": "GBP"
 }

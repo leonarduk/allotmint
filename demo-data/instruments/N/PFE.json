@@ -1,0 +1,10 @@
+{
+  "name": "Pfizer Inc.",
+  "ticker": "PFE.N",
+  "exchange": "N",
+  "asset_class": "Equity",
+  "sector": "Healthcare",
+  "industry": "Pharmaceuticals",
+  "region": "North America",
+  "currency": "USD"
+}

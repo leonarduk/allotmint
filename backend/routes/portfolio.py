@@ -486,7 +486,15 @@ def _list_owner_summaries(request: Request, current_user: Optional[str] = None) 
     demo_aliases = {alias.lower() for alias in data_loader.demo_identity_aliases()}
     known = {summary["owner"].lower() for summary in summaries}
     if not known.intersection(demo_aliases):
-        _append_demo_summary()
+        # Only add the synthetic demo fallback when real owners already exist
+        # and it actually resolves to a populated account (e.g. an on-disk
+        # demo owner directory whose slug doesn't match ``demo_identity()``).
+        # Otherwise this would surface a phantom owner with zero accounts
+        # whenever no on-disk owner happens to use the reserved "demo" alias
+        # (e.g. local data sets that intentionally avoid that reserved slug).
+        demo_summary = _build_demo_summary(accounts_root)
+        if demo_summary.get("accounts"):
+            summaries.append(demo_summary)
 
     return [OwnerSummary(**summary) for summary in summaries]
 

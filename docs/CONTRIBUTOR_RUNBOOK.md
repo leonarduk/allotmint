@@ -348,6 +348,24 @@ bash scripts/bash/run-local-api.sh
 npm --prefix frontend run dev
 ```
 
+### Regenerating the docs screenshots
+
+`docs/assets/qa-screenshots/*.png` are captured against this repo's own bundled
+demo dataset (`DATA_ROOT=data`), never against a contributor's personal data,
+so they're safe to commit to a public repo. To refresh them after a UI
+change:
+
+```bash
+DATA_ROOT=data bash scripts/bash/run-local-api.sh   # backend, :8000
+npm --prefix frontend run dev                        # frontend, :5173
+node frontend/scripts/capture-qa-screenshots.mjs
+```
+
+The script temporarily flips `config.yaml`'s `reports` tab and
+`local_login_email` on to reach pages that need them, then restores the
+values it found on disk before it ran. It's not wired into CI — run it
+manually and review the diff before committing.
+
 ## 6. Local auth-enabled mode
 
 Use this when you need to verify sign-in, protected routes, or production-like auth assumptions.

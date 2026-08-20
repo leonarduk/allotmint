@@ -1,0 +1,52 @@
+{
+  "VWRL.L": {
+    "last_price": 102.08615970253945,
+    "price_currency": "GBP",
+    "last_price_date": "2026-08-18"
+  },
+  "ERNS.L": {
+    "last_price": 101.27,
+    "price_currency": "GBP",
+    "last_price_date": "2026-08-18"
+  },
+  "PFE.N": {
+    "last_price": 20.86173557758331,
+    "price_currency": "GBP",
+    "last_price_date": "2026-08-19"
+  },
+  "CASH.GBP": {
+    "last_price": 1.0,
+    "price_currency": "GBP",
+    "last_price_date": "2026-08-19"
+  },
+  "GSK.L": {
+    "last_price": 19.16,
+    "price_currency": "GBP",
+    "last_price_date": "2026-08-19"
+  },
+  "HFEL.L": {
+    "last_price": 2.58,
+    "price_currency": "GBP",
+    "last_price_date": "2026-08-19"
+  },
+  "LLOY.L": {
+    "last_price": 1.1035,
+    "price_currency": "GBP",
+    "last_price_date": "2026-08-19"
+  },
+  "SGLN.L": {
+    "last_price": 62.440000000000005,
+    "price_currency": "GBP",
+    "last_price_date": "2026-08-18"
+  },
+  "SMT.L": {
+    "last_price": 14.605,
+    "price_currency": "GBP",
+    "last_price_date": "2026-08-19"
+  },
+  "VGOV.L": {
+    "last_price": 15.39,
+    "price_currency": "GBP",
+    "last_price_date": "2026-08-18"
+  }
+}

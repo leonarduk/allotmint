@@ -1,5 +1,5 @@
 {
-  "owner": "demo",
+  "owner": "sarah",
   "account_type": "ISA",
   "currency": "GBP",
   "last_updated": "2026-08-20",
@@ -38,6 +38,18 @@
       "units": 5,
       "acquired_date": "2024-06-01",
       "cost_basis_gbp": 82.5
+    },
+    {
+      "ticker": "SMT.L",
+      "units": 15,
+      "acquired_date": "2024-07-22",
+      "cost_basis_gbp": 195.0
+    },
+    {
+      "ticker": "LLOY.L",
+      "units": 300,
+      "acquired_date": "2024-09-01",
+      "cost_basis_gbp": 201.0
     }
   ]
 }

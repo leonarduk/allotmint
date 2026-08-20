@@ -1,0 +1,7 @@
+{
+  "name": "GBP Cash",
+  "ticker": "CASH.GBP",
+  "exchange": "GBP",
+  "asset_class": "cash",
+  "currency": "GBP"
+}

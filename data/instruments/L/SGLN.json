@@ -1,0 +1,9 @@
+{
+  "name": "iShares Physical Gold ETC",
+  "ticker": "SGLN.L",
+  "exchange": "L",
+  "asset_class": "Commodity",
+  "sector": "Commodity",
+  "region": "Global",
+  "currency": "GBP"
+}

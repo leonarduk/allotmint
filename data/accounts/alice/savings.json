@@ -1,7 +1,7 @@
 {
   "owner": "alice",
   "account_type": "savings",
-  "currency": "USD",
+  "currency": "GBP",
   "last_updated": "2026-08-20",
   "holdings": [
     {
@@ -14,6 +14,24 @@
       "units": 15,
       "acquired_date": "2024-03-09",
       "cost_basis_gbp": 1350.0
+    },
+    {
+      "ticker": "ERNS.L",
+      "units": 2,
+      "acquired_date": "2024-05-15",
+      "cost_basis_gbp": 950.0
+    },
+    {
+      "ticker": "ERNS.L",
+      "units": 3,
+      "acquired_date": "2024-09-20",
+      "cost_basis_gbp": 1420.0
+    },
+    {
+      "ticker": "PFE.N",
+      "units": 10,
+      "acquired_date": "2024-07-01",
+      "cost_basis_gbp": 210.0
     }
   ]
 }

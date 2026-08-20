@@ -11,9 +11,15 @@
     },
     {
       "ticker": "VWRL.L",
-      "units": 60,
-      "acquired_date": "2023-04-12",
-      "cost_basis_gbp": 5200.0
+      "units": 40,
+      "acquired_date": "2022-03-10",
+      "cost_basis_gbp": 3600.0
+    },
+    {
+      "ticker": "VWRL.L",
+      "units": 20,
+      "acquired_date": "2023-11-02",
+      "cost_basis_gbp": 1900.0
     },
     {
       "ticker": "ERNS.L",
@@ -23,9 +29,15 @@
     },
     {
       "ticker": "PFE.N",
-      "units": 40,
+      "units": 25,
+      "acquired_date": "2023-05-14",
+      "cost_basis_gbp": 550.0
+    },
+    {
+      "ticker": "PFE.N",
+      "units": 15,
       "acquired_date": "2024-06-15",
-      "cost_basis_gbp": 900.0
+      "cost_basis_gbp": 350.0
     }
   ]
 }

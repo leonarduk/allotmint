@@ -319,6 +319,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   const [selectedInstrument, setSelectedInstrument] = useState<{
     ticker: string;
     name: string;
+    instrumentType?: string | null;
   } | null>(null);
   const [groupDefinitions, setGroupDefinitions] = useState<
     InstrumentGroupDefinition[]
@@ -1296,7 +1297,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
             borderRadius: "4px",
             border: "1px solid #444",
             backgroundColor: activeOwner === null ? "#333" : "transparent",
-            color: "inherit",
+            color: activeOwner === null ? "#eee" : "inherit",
             cursor: "pointer",
           }}
         >
@@ -1315,7 +1316,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
               border: "1px solid #444",
               backgroundColor:
                 activeOwner === tab.value ? "#333" : "transparent",
-              color: "inherit",
+              color: activeOwner === tab.value ? "#eee" : "inherit",
               cursor: "pointer",
             }}
           >
@@ -1346,7 +1347,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
               border: "1px solid #444",
               backgroundColor:
                 activeAccountType === null ? "#333" : "transparent",
-              color: "inherit",
+              color: activeAccountType === null ? "#eee" : "inherit",
               cursor: "pointer",
             }}
           >
@@ -1367,7 +1368,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                   border: "1px solid #444",
                   backgroundColor:
                     activeAccountType === type ? "#333" : "transparent",
-                  color: "inherit",
+                  color: activeAccountType === type ? "#eee" : "inherit",
                   cursor: "pointer",
                 }}
               >
@@ -1453,8 +1454,8 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
             showAccount={showAccount}
             groupingMode={displayMode === "category" ? "category" : "flat"}
             categoryDefinitions={groupDefinitions}
-            onSelectInstrument={(ticker, name) =>
-              setSelectedInstrument({ ticker, name })
+            onSelectInstrument={(ticker, name, instrumentType) =>
+              setSelectedInstrument({ ticker, name, instrumentType })
             }
             selectedTicker={selectedInstrument?.ticker}
           />
@@ -1465,6 +1466,10 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
             <InstrumentDetail
               ticker={selectedInstrument.ticker}
               name={selectedInstrument.name}
+              instrument_type={selectedInstrument.instrumentType}
+              resolveOwnerName={(owner) =>
+                getOwnerDisplayName(ownerLookup, owner, owner)
+              }
               onClose={() => setSelectedInstrument(null)}
             />
           )}

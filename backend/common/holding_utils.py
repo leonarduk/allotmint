@@ -467,10 +467,7 @@ def enrich_holding(
 
     out["currency"] = meta.get("currency")
     out["instrument_type"] = (
-        meta.get("instrumentType")
-        or meta.get("instrument_type")
-        or meta.get("assetClass")
-        or meta.get("asset_class")
+        meta.get("instrumentType") or meta.get("instrument_type") or meta.get("assetClass") or meta.get("asset_class")
     )
     out["name"] = out.get("name") or meta.get("name") or full
     out["sector"] = out.get("sector") or meta.get("sector")

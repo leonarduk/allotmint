@@ -466,7 +466,9 @@ def enrich_holding(
         logger.debug("Could not resolve exchange for %s; defaulting to L", full)
 
     out["currency"] = meta.get("currency")
-    out["instrument_type"] = meta.get("instrumentType") or meta.get("instrument_type")
+    out["instrument_type"] = (
+        meta.get("instrumentType") or meta.get("instrument_type") or meta.get("assetClass") or meta.get("asset_class")
+    )
     out["name"] = out.get("name") or meta.get("name") or full
     out["sector"] = out.get("sector") or meta.get("sector")
     out["region"] = out.get("region") or meta.get("region")

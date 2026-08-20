@@ -4,5 +4,6 @@
   "exchange": "L",
   "asset_class": "Equity",
   "sector": "Global Equity",
+  "region": "Global",
   "currency": "USD"
 }

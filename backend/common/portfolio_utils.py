@@ -1043,7 +1043,19 @@ def compute_owner_performance(
         requested_pricing_date=pricing_date,
         reporting_date=calc.reporting_date,
     )
-    total = pd.Series(dtype=float)
+    # Collect each holding's per-ticker value series *before* summing them.
+    # Each ticker's series is only indexed by the dates that ticker actually
+    # has a close price for -- e.g. an LSE-listed holding has no row on a UK
+    # bank holiday, even though a NYSE-listed holding in the same portfolio
+    # keeps trading that day. Summing directly with ``fill_value=0`` (the
+    # old behaviour) would treat that missing date as the LSE holding being
+    # worth £0 that day, producing a fake single-day crash that fully
+    # reverses the next trading day. Instead, build the union of dates
+    # across all holdings and forward-fill each series onto it so a missing
+    # date carries forward that ticker's last known price. A ticker with no
+    # price history yet at the start of the window still contributes 0
+    # (via ``fillna(0)`` after the forward-fill) rather than NaN.
+    value_series: List[pd.Series] = []
     for ticker, exchange, units in holdings:
         df = load_meta_timeseries(ticker, exchange, effective_days)
         if df.empty or "Date" not in df.columns or "Close" not in df.columns:
@@ -1068,7 +1080,19 @@ def compute_owner_performance(
         if closes.empty:
             continue
         values = closes * units
-        total = total.add(values, fill_value=0)
+        # Guard against duplicate dates (shouldn't happen, but a duplicated
+        # index breaks ``reindex`` below).
+        values = values[~values.index.duplicated(keep="last")]
+        value_series.append(values)
+
+    if value_series:
+        all_dates = pd.Index(sorted(set().union(*(s.index for s in value_series))), name="Date")
+        total = pd.Series(0.0, index=all_dates)
+        for values in value_series:
+            aligned = values.sort_index().reindex(all_dates).ffill().fillna(0.0)
+            total = total.add(aligned, fill_value=0)
+    else:
+        total = pd.Series(dtype=float)
 
     if total.empty:
         return {

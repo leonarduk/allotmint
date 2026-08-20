@@ -209,28 +209,26 @@ for (const viewport of VIEWPORTS) {
       await preparePage(page);
     });
 
-    test('portfolio grid uses the responsive column count without page overflow', async ({
+    test('portfolio page renders without page overflow', async ({
       page,
     }) => {
       // Navigate to bare /portfolio (not /portfolio/demo-owner) so the
       // page.goto doesn't match the '**/portfolio/demo-owner*' route mock.
       // The app's renderMainContent will <Navigate> to /portfolio/demo-owner
-      // once owners are loaded, and then the grid becomes visible.
+      // once owners are loaded.
       await page.goto(new URL('/portfolio', baseUrl).toString());
       await page.waitForURL('**/portfolio/demo-owner');
 
-      const grid = page
-        .locator('div.grid.grid-cols-1')
-        .filter({ has: page.getByText('As of', { exact: true }) });
-      await expect(grid).toBeVisible();
-      await expect(grid).toHaveClass(
-        /xl:grid-cols-\[minmax\(0,3fr\)_minmax\(0,2fr\)\]/
-      );
-      const columns = await grid.evaluate(
-        (element) =>
-          getComputedStyle(element).gridTemplateColumns.split(' ').length
-      );
-      expect(columns).toBe(viewport.width < 1280 ? 1 : 2);
+      // GroupPortfolioView (which now renders both single-owner and group
+      // portfolios, since PortfolioView.tsx was deleted in #6490) always
+      // renders full-width at every breakpoint — #6355 intentionally
+      // dropped the old two-column xl:grid-cols-[...] split. So this test
+      // only asserts the page itself doesn't overflow horizontally, rather
+      // than asserting on a specific grid column count/class that no
+      // longer exists.
+      await expect(
+        page.getByText(/pricing as of/i)
+      ).toBeVisible();
       await assertNoPageOverflow(page);
     });
 

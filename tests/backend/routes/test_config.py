@@ -311,6 +311,39 @@ async def test_update_config_noop_payload_preserves_config(monkeypatch: pytest.M
     assert config_path.read_text() == original_contents
 
 
+async def test_update_config_top_level_tabs_overrides_existing_value(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Regression test for #6844: a top-level ``tabs`` payload must actually
+    change an existing tab's stored value. ``_normalise_config_structure``
+    used to merge the *stored* ``ui.tabs`` on top of the *incoming* payload
+    (backwards), so a key present in both silently kept its old value."""
+    config_path = tmp_path / "config.yaml"
+    base_config = {
+        "auth": {"google_auth_enabled": False, "disable_auth": True},
+        "ui": {
+            "theme": "system",
+            "tabs": {"instrument": True, "market": True, "reports": False},
+        },
+    }
+    _write_config(config_path, base_config)
+    monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
+    _patch_loader(monkeypatch, _DummyConfig(google_auth_enabled=False, google_client_id=None))
+    monkeypatch.setattr(
+        routes_config.config_module,
+        "config",
+        _DummyConfig(google_auth_enabled=False, google_client_id=None),
+    )
+
+    await routes_config.update_config({"tabs": {"reports": True}})
+
+    persisted = yaml.safe_load(config_path.read_text())
+    assert persisted["ui"]["tabs"]["reports"] is True
+    # Keys the payload didn't touch must be left exactly as they were.
+    assert persisted["ui"]["tabs"]["instrument"] is True
+    assert persisted["ui"]["tabs"]["market"] is True
+
+
 async def test_update_config_normalises_string_google_auth_flag(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

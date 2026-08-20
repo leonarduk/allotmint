@@ -3,20 +3,38 @@
 // real private data checkout, so these images are safe to commit to a public
 // repo and don't depend on any contributor's personal data.
 //
-// Requires the local dev servers already running on their default ports:
-//   DATA_ROOT=data bash scripts/bash/run-local-api.sh   (backend, :8000)
+// Requires the local dev servers already running:
+//   DATA_ROOT=data bash scripts/bash/run-local-api.sh   (backend)
 //   npm run dev                                         (frontend, :5173)
 //
 // Usage: node frontend/scripts/capture-qa-screenshots.mjs
 // Not wired into CI -- run manually before a release / whenever the UI
 // changes enough that the docs screenshots look stale.
 import { chromium } from "@playwright/test";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const outDir = path.resolve(__dirname, "../../docs/assets/qa-screenshots");
-const BACKEND = "http://localhost:8000";
+
+// Local dev instances (e.g. separate worktrees/clones) each run their own
+// backend on a port chosen by scripts/bash/run-local-api.sh or
+// scripts/run-backend.ps1, recorded in .local/ports/backend.port at the
+// repo root. Mirrors the same lookup in frontend/vite.config.ts (see #5760)
+// so this script talks to the right backend instead of assuming :8000 is
+// free.
+function readLocalBackendPort() {
+  const portFile = path.resolve(__dirname, "../..", ".local", "ports", "backend.port");
+  try {
+    const port = fs.readFileSync(portFile, "utf-8").trim();
+    return /^\d+$/.test(port) ? port : null;
+  } catch {
+    return null;
+  }
+}
+
+const BACKEND = `http://localhost:${readLocalBackendPort() ?? "8000"}`;
 const FRONTEND = "http://localhost:5173";
 const OWNER = "demo-owner";
 

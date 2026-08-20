@@ -35,6 +35,28 @@ def apply_scaling(df: pd.DataFrame, scale: float, scale_volume: bool = False) ->
 
 
 def get_scaling_override(ticker: str, exchange: str, requested_scaling: Optional[float]) -> float:
+    """Return the factor to multiply a fetched OHLC/quote value by to get GBP.
+
+    None of this app's free data sources (Stooq, FT, Yahoo's chart/quote
+    endpoints, Alpha Vantage) reliably report whether an LSE ("L" exchange)
+    price is quoted in pounds or pence -- Yahoo in particular returns raw
+    pence for many LSE equities/ETFs/trusts with no distinguishing signal in
+    the response. There is no generic way to auto-detect this from the fetch
+    response alone, so it falls back to two curated sources of truth, in
+    order:
+
+    1. ``data/scaling_overrides.json`` -- an explicit ``{"<exchange>": {"<ticker
+       base>": <factor>}}`` table (0.01 for pence). This is the primary,
+       always-correct source once populated.
+    2. The instrument's ``currency`` metadata via ``extract_currency`` --
+       treated as pence only for the "GBX"/"GBp"-style codes.
+
+    If a *new* LSE ticker's price renders ~100x too high (or too low), it
+    almost always means neither source has caught up with that ticker's real
+    quote convention yet -- add an entry to ``data/scaling_overrides.json``
+    rather than guessing at a codewide fix; see #6845 for the investigation
+    that established this is a per-ticker data gap, not a pipeline bug.
+    """
     if requested_scaling is not None:
         return requested_scaling
 

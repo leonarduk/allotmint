@@ -154,7 +154,7 @@ function SummaryCard({ label, icon, value, secondary, accentColor }: SummaryCard
         style={{
           fontSize: "2rem",
           fontWeight: "bold",
-          color: accentColor,
+          color: accentColor ?? "#eee",
           display: "flex",
           alignItems: "baseline",
           gap: "0.5rem",

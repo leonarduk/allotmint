@@ -32,6 +32,7 @@ export function AccountBlock({
   const [selectedInstrument, setSelectedInstrument] = useState<{
     ticker: string;
     name: string;
+    instrumentType?: string | null;
   } | null>(null);
   const { baseCurrency } = useConfig();
 
@@ -74,8 +75,8 @@ export function AccountBlock({
 
           <HoldingsTable
             holdings={account.holdings}
-            onSelectInstrument={(ticker, name) =>
-              setSelectedInstrument({ ticker, name })
+            onSelectInstrument={(ticker, name, instrumentType) =>
+              setSelectedInstrument({ ticker, name, instrumentType })
             }
             showForward7d={showForward7d}
             showForward30d={showForward30d}
@@ -86,6 +87,7 @@ export function AccountBlock({
             <InstrumentDetail
               ticker={selectedInstrument.ticker}
               name={selectedInstrument.name}
+              instrument_type={selectedInstrument.instrumentType}
               onClose={() => setSelectedInstrument(null)}
             />
           )}

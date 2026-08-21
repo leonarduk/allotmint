@@ -58,7 +58,11 @@ type Props = {
   // Rollup rows have no per-lot fields, so lot-only filters and sorts are suppressed (§3 rule 2).
   rollupMode?: boolean;
   showAccount?: boolean;
-  onSelectInstrument?: (ticker: string, name: string) => void;
+  onSelectInstrument?: (
+    ticker: string,
+    name: string,
+    instrumentType?: string | null,
+  ) => void;
   selectedTicker?: string;
   showForward7d?: boolean;
   showForward30d?: boolean;
@@ -726,7 +730,7 @@ export function HoldingsTable({
             if (group && !expanded && !isFirstGroupRow) return null;
             const isSelected = h.ticker === selectedTicker;
             const handleSelect = () => {
-              onSelectInstrument?.(h.ticker, h.name ?? h.ticker);
+              onSelectInstrument?.(h.ticker, h.name ?? h.ticker, h.instrument_type);
             };
             const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
               event.preventDefault();

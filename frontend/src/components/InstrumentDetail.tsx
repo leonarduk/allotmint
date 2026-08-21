@@ -42,6 +42,7 @@ type Props = {
   hidePositions?: boolean;
   initialHistoryDays?: number;
   onHistoryRangeChange?: (days: number) => void;
+  resolveOwnerName?: (owner: string) => string;
 };
 
 type Price = {
@@ -64,6 +65,7 @@ type PositionsTableProps = {
   negativeColor?: string;
   linkColor?: string;
   mutedColor?: string;
+  resolveOwnerName?: (owner: string) => string;
 };
 
 // ───────────────── helpers ─────────────────
@@ -94,6 +96,7 @@ export function InstrumentPositionsTable({
   negativeColor = "red",
   linkColor = "#00d8ff",
   mutedColor = "#888",
+  resolveOwnerName,
 }: PositionsTableProps) {
   const { t } = useTranslation();
   const { baseCurrency, relativeViewEnabled } = useConfig();
@@ -150,7 +153,7 @@ export function InstrumentPositionsTable({
                   to={`/portfolio/${encodeURIComponent(pos.owner ?? "")}`}
                   style={{ color: linkColor, textDecoration: "none" }}
                 >
-                  {pos.owner} – {pos.account}
+                  {resolveOwnerName ? resolveOwnerName(pos.owner) : pos.owner} – {pos.account}
                 </Link>
               </td>
               {!relativeViewEnabled && (
@@ -210,6 +213,7 @@ export function InstrumentDetail({
   hidePositions = false,
   initialHistoryDays,
   onHistoryRangeChange,
+  resolveOwnerName,
 }: Props) {
   const { t } = useTranslation();
   const { baseCurrency } = useConfig();
@@ -810,6 +814,7 @@ export function InstrumentDetail({
             negativeColor={palette.negative}
             linkColor={palette.link}
             mutedColor={palette.muted}
+            resolveOwnerName={resolveOwnerName}
           />
         </>
       )}

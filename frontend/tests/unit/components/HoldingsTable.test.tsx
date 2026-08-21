@@ -553,13 +553,15 @@ describe("HoldingsTable", () => {
         render(<HoldingsTable holdings={holdings} onSelectInstrument={onSelect}/>);
 
         await userEvent.click(await screen.findByText("Alpha"));
-        expect(onSelect).toHaveBeenCalledWith("AAA", "Alpha");
+        // Third arg is the instrument type wired through for the detail flyout (Refs #6874);
+        // holdings[0] ("AAA" / "Alpha") declares instrument_type: "Equity".
+        expect(onSelect).toHaveBeenCalledWith("AAA", "Alpha", "Equity");
 
         onSelect.mockClear();
         const row = (await screen.findByText("Alpha")).closest("tr");
         expect(row).not.toBeNull();
         await userEvent.click(row!);
-        expect(onSelect).toHaveBeenCalledWith("AAA", "Alpha");
+        expect(onSelect).toHaveBeenCalledWith("AAA", "Alpha", "Equity");
     });
 
     it("sorts by ticker when header clicked", async () => {

@@ -52,6 +52,21 @@ def test_hargreaves_parse_corrects_price_scale_using_market_value(heading, price
     assert holding.price == pytest.approx(4.5)
 
 
+@pytest.mark.parametrize("units", [0, -1, -0.5])
+def test_price_in_gbp_returns_labelled_price_for_non_positive_units(units):
+    """units <= 0 must short-circuit before the correction arithmetic (#6456)."""
+    row = {"Price (pence)": "450", "Value (£)": "45", "Cost (£)": "30"}
+
+    assert hargreaves._price_in_gbp(row, units) == pytest.approx(4.5)
+
+
+def test_price_in_gbp_still_corrects_scale_for_fractional_positive_units():
+    """Fractional units (e.g. 0.5) must still reach the correction logic (#6456)."""
+    row = {"Price (£)": "450", "Value (£)": "2.25", "Cost (£)": "1"}
+
+    assert hargreaves._price_in_gbp(row, 0.5) == pytest.approx(4.5)
+
+
 def test_hargreaves_to_float_variants():
     # None or blank strings should resolve to ``None`` without raising.
     assert hargreaves._to_float(None) is None

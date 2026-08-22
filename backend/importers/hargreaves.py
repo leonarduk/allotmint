@@ -63,7 +63,14 @@ def _price_in_gbp(row: dict[str, str | None], units: float | None) -> float | No
         labelled_price = raw_price / 100 if raw_pence is not None else raw_price
 
     value_gbp = _first_number(row, ("Value (£)", "Value (GBP)", "Value"))
-    if raw_price is None or labelled_price is None or not units or value_gbp is None or value_gbp <= 0:
+    if (
+        raw_price is None
+        or labelled_price is None
+        or units is None
+        or units <= 0
+        or value_gbp is None
+        or value_gbp <= 0
+    ):
         return labelled_price
 
     alternative_price = raw_price if labelled_price != raw_price else raw_price / 100

@@ -419,13 +419,36 @@ def run(tickers: Optional[Iterable[str]] = None, *, notify: bool = True) -> List
     Returns:
         A list of generated signals.
     """
+    cfg = load_strategy_config()
+
+    # Checked up front, before any price fetch or indicator work: whether
+    # `screen`/`compliance` are importable is known from the module-level
+    # import sentinels and does not depend on tickers, prices, or signals, so
+    # a strict-mode failure should fail fast rather than paying for a full
+    # price fetch + indicator/snapshot loop first.
+    screening_unavailable = screen is None
+    compliance_unavailable = compliance is None
+    if cfg.require_pro_checks and (screening_unavailable or compliance_unavailable):
+        unavailable_checks = (
+            ("fundamental_screen", screening_unavailable),
+            ("compliance", compliance_unavailable),
+        )
+        unavailable = _join_with_and([name for name, missing in unavailable_checks if missing])
+        # "trading_agent access to X[, Y]" keeps a singular subject ("access")
+        # regardless of how many checks are named, so the fixed "{feature} is
+        # not available" suffix on CoreFeatureUnavailableError stays
+        # grammatically correct for one item ("access to fundamental_screen
+        # is not available") and for two ("access to fundamental_screen and
+        # compliance is not available") without needing to special-case a
+        # plural verb.
+        raise CoreFeatureUnavailableError(f"trading_agent access to {unavailable}")
+
     tickers = list(tickers) if tickers else list_all_unique_tickers()
 
     owners = [pf.get("owner", "") for pf in list_portfolios()]
 
     df = prices.load_prices_for_tickers(tickers, days=60)
     snapshot: Dict[str, Dict] = {}
-    cfg = load_strategy_config()
     for tkr in tickers:
         tdf = df[df["Ticker"] == tkr]
         if tdf.empty:
@@ -490,30 +513,22 @@ def run(tickers: Optional[Iterable[str]] = None, *, notify: bool = True) -> List
 
     signals = generate_signals(snapshot)
 
-    # Determine, once per run, which allotmint-pro-only checks are
-    # unavailable. Checked (and logged) up front rather than inside the
-    # per-signal/per-owner loops below, so the warning fires at most once
-    # per `run()` call instead of once per (signal x owner) pair.
-    screening_unavailable = screen is None
-    compliance_unavailable = compliance is None
-
-    if cfg.require_pro_checks and (screening_unavailable or compliance_unavailable):
-        unavailable_checks = (
-            ("fundamental_screen", screening_unavailable),
-            ("compliance", compliance_unavailable),
-        )
-        unavailable = _join_with_and([name for name, missing in unavailable_checks if missing])
-        raise CoreFeatureUnavailableError(f"trading_agent {unavailable}")
-
+    # `screening_unavailable`/`compliance_unavailable` were already computed
+    # up front (before the strict-mode check above) so that check could fail
+    # fast; reused here for the warnings/tagging below rather than
+    # recomputed, since the module-level import sentinels don't change
+    # mid-run.
     fundamental_params: Dict[str, float] = {}
     if cfg.pe_max is not None:
         fundamental_params["pe_max"] = cfg.pe_max
     if cfg.de_max is not None:
         fundamental_params["de_max"] = cfg.de_max
     # Fundamental screening only ever applies when there's at least one
-    # non-None threshold configured AND at least one BUY signal to screen;
-    # this mirrors the branch below that tags "fundamental_screen" into
-    # checks_skipped, so the warning below fires under the same condition.
+    # non-None threshold configured AND at least one BUY signal to screen.
+    # This same condition gates both the warning below and the per-signal
+    # `checks_skipped` tagging further down, so a run with no threshold
+    # configured never claims a screen "was skipped" when none would have
+    # run even with allotmint-pro installed.
     fundamental_screen_applicable = bool(fundamental_params) and any(s["action"] == "BUY" for s in signals)
 
     if screening_unavailable and fundamental_screen_applicable:
@@ -555,7 +570,7 @@ def run(tickers: Optional[Iterable[str]] = None, *, notify: bool = True) -> List
         checks_skipped: List[str] = []
         if compliance_unavailable:
             checks_skipped.append("compliance")
-        if screening_unavailable and sig["action"] == "BUY":
+        if screening_unavailable and fundamental_screen_applicable and sig["action"] == "BUY":
             checks_skipped.append("fundamental_screen")
         sig["checks_skipped"] = checks_skipped
 

@@ -721,7 +721,7 @@ def _apply_fix(issue_id: str, request: Request, actor: str | None) -> dict[str, 
     return _apply_resolved_fix(issue, request, actor)
 
 
-def _holding_ticker_exists(owner: str, account: str, ticker: str, accounts_root: Path | None) -> bool:
+def _holding_ticker_exists(owner: str, account: str, ticker: str, accounts_root: Path) -> bool:
     """Check a single accounts document for one holding ticker.
 
     Used to revalidate holdings-based issues per batch item without walking
@@ -730,11 +730,10 @@ def _holding_ticker_exists(owner: str, account: str, ticker: str, accounts_root:
     ``accounts_root`` must be the request-resolved root (``resolve_accounts_root``)
     rather than ``config.accounts_root`` directly, so this stays consistent
     with the tree ``aggregate_issues`` was just scanned against (#6763).
+    ``resolve_accounts_root`` always returns a ``Path`` (never ``None``), so
+    there is no missing-root case to fall back on here.
     """
-    root = accounts_root
-    if root is None:
-        return True
-    path = Path(root) / owner / f"{_normalise_account_file_name(account)}.json"
+    path = Path(accounts_root) / owner / f"{_normalise_account_file_name(account)}.json"
     if not path.exists():
         return False
     try:
@@ -792,7 +791,7 @@ def _series_issue_still_applies(issue: DataQualityIssue) -> bool:
     return True
 
 
-def _issue_still_applies(issue: DataQualityIssue, accounts_root: Path | None) -> bool:
+def _issue_still_applies(issue: DataQualityIssue, accounts_root: Path) -> bool:
     """Targeted re-check of just this issue's own entity.
 
     Batch fix (#6741) aggregates once for the whole request instead of once

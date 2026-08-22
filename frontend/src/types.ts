@@ -425,7 +425,7 @@ export interface TimeseriesSummary {
 export interface DataExplorerEntry {
   name: string;
   path: string;
-  type: 'dir' | 'file';
+  type: "dir" | "file";
   size: number | null;
   modified: string;
 }
@@ -560,15 +560,15 @@ export interface VirtualPortfolio {
   holdings: SyntheticHolding[];
 }
 
-export type TrailAnalyticsEvent = 'view' | 'task_started' | 'task_completed';
+export type TrailAnalyticsEvent = "view" | "task_started" | "task_completed";
 export type VirtualPortfolioAnalyticsEvent =
-  | 'view'
-  | 'create'
-  | 'update'
-  | 'delete'
-  | 'select';
+  | "view"
+  | "create"
+  | "update"
+  | "delete"
+  | "select";
 
-export type AnalyticsSource = 'trail' | 'virtual_portfolio';
+export type AnalyticsSource = "trail" | "virtual_portfolio";
 export type AnalyticsEventName =
   | TrailAnalyticsEvent
   | VirtualPortfolioAnalyticsEvent;
@@ -672,7 +672,7 @@ export interface QuestResponse {
 export interface TrailTask {
   id: string;
   title: string;
-  type: 'daily' | 'once';
+  type: "daily" | "once";
   commentary: string;
   completed: boolean;
 }
@@ -691,11 +691,11 @@ export interface TrailResponse {
 }
 
 export type ReportTemplateFilterOperator =
-  | 'equals'
-  | 'not_equals'
-  | 'contains'
-  | 'gt'
-  | 'lt';
+  | "equals"
+  | "not_equals"
+  | "contains"
+  | "gt"
+  | "lt";
 
 export interface ReportTemplateFilter {
   field: string;

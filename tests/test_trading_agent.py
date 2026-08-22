@@ -636,10 +636,12 @@ def test_run_pro_absent_partial_degradation_only_screen(monkeypatch):
         assert sig["checks_skipped"] == ["fundamental_screen"]
 
 
-def test_run_pro_absent_tags_fundamental_screen_when_pe_max_none(monkeypatch):
-    """`fundamental_screen` must be tagged as skipped for a BUY signal even
-    when no `pe_max` is configured (fundamental_params is empty) -- the tag
-    reflects that screening was unavailable, not whether params were set."""
+def test_run_pro_absent_does_not_tag_fundamental_screen_when_pe_max_none(monkeypatch):
+    """`fundamental_screen` must NOT be tagged as skipped for a BUY signal
+    when no `pe_max`/`de_max` is configured (fundamental_params is empty) --
+    no screen would have run even with allotmint-pro installed, so tagging it
+    as "skipped" would be a false positive (misleading "checks skipped"
+    badge/notification suffix)."""
     monkeypatch.setattr(trading_agent, "list_all_unique_tickers", lambda: ["AAA"])
 
     def fake_load_prices(tickers, days=60):
@@ -675,7 +677,7 @@ def test_run_pro_absent_tags_fundamental_screen_when_pe_max_none(monkeypatch):
     assert signals
     for sig in signals:
         assert sig["action"] == "BUY"
-        assert "fundamental_screen" in sig["checks_skipped"]
+        assert "fundamental_screen" not in sig["checks_skipped"]
 
 
 def test_run_pro_absent_no_screening_warning_when_no_fundamental_params(monkeypatch, caplog):

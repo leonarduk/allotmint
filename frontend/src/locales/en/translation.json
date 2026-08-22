@@ -631,33 +631,33 @@
     "noOwners": "No owners available—check backend connection",
     "pdf": "Download PDF",
     "title": "Reports",
-    "templatesTitle": "Report templates",
-    "templatesDescription": "Choose a built-in or custom template before exporting.",
-    "templatesLoading": "Loading templates…",
-    "templatesError": "Unable to load templates.",
-    "templatesEmpty": "No templates available yet.",
-    "catalog": {
-      "groups": {
-        "builtin": "Built-in templates",
-        "custom": "Custom templates"
-      },
-      "noFields": "No fields defined for this template.",
-      "fieldsLabel_one": "{{count}} field: {{fields}}",
-      "fieldsLabel_other": "{{count}} fields: {{fields}}",
-      "moreFields_one": "+{{count}} more field",
-      "moreFields_other": "+{{count}} more fields",
-      "sectionsLabel": "Sections: {{sections}}",
-      "selectLabel": "Select {{name}} template",
-      "badge": {
-        "builtin": "Built-in",
-        "custom": "Custom"
-      },
-      "selected": "Selected",
-      "selectedTemplate": "Template: {{name}}"
+  "templatesTitle": "Report templates",
+  "templatesDescription": "Choose a built-in or custom template before exporting.",
+  "templatesLoading": "Loading templates…",
+  "templatesError": "Unable to load templates.",
+  "templatesEmpty": "No templates available yet.",
+  "catalog": {
+    "groups": {
+      "builtin": "Built-in templates",
+      "custom": "Custom templates"
     },
-    "downloadsTitle": "Download reports",
-    "downloadsDescription": "Generate CSV or PDF exports with the selected template and dates.",
-    "downloadsDisabled": "Select an owner and template to enable downloads.",
+    "noFields": "No fields defined for this template.",
+    "fieldsLabel_one": "{{count}} field: {{fields}}",
+    "fieldsLabel_other": "{{count}} fields: {{fields}}",
+    "moreFields_one": "+{{count}} more field",
+    "moreFields_other": "+{{count}} more fields",
+    "sectionsLabel": "Sections: {{sections}}",
+    "selectLabel": "Select {{name}} template",
+    "badge": {
+      "builtin": "Built-in",
+      "custom": "Custom"
+    },
+    "selected": "Selected",
+    "selectedTemplate": "Template: {{name}}"
+  },
+  "downloadsTitle": "Download reports",
+  "downloadsDescription": "Generate CSV or PDF exports with the selected template and dates.",
+  "downloadsDisabled": "Select an owner and template to enable downloads.",
     "builder": {
       "headingCreate": "Create report template",
       "headingEdit": "Edit report template",

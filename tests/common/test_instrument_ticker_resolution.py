@@ -29,6 +29,76 @@ def test_resolver_explicitly_creates_and_persists_first_valid_candidate(monkeypa
     assert attempted == ["ADBE.L", "ADBE.US"]
 
 
+def test_resolver_prefers_explicit_suffix_over_default_exchange_order(monkeypatch):
+    """An explicit ``.L`` suffix must be tried before the default-ordered
+    ``exchanges`` fallback, not stripped and ignored (#6329)."""
+    monkeypatch.setattr(instruments, "get_instrument_meta", lambda ticker: {})
+    attempted: list[str] = []
+
+    def create(ticker: str):
+        attempted.append(ticker)
+        if ticker == "MSFT.L":
+            return {"ticker": ticker, "exchange": "L", "currency": "GBP"}
+        return None
+
+    monkeypatch.setattr(instruments, "_auto_create_instrument_meta", create)
+
+    # "US" is first in the caller-supplied ordering, but the explicit ".L"
+    # suffix on the ticker itself must still be tried first.
+    assert instruments.resolve_instrument_ticker("MSFT.L", exchanges=("US", "L"), create_missing=True) == "MSFT.L"
+    assert attempted == ["MSFT.L"]
+
+
+def test_resolver_falls_back_to_default_order_when_suffix_candidate_fails(monkeypatch):
+    """If the explicit-suffix candidate doesn't resolve, resolution falls
+    back through the rest of ``exchanges`` rather than failing outright
+    (#6329)."""
+    monkeypatch.setattr(instruments, "get_instrument_meta", lambda ticker: {})
+    attempted: list[str] = []
+
+    def create(ticker: str):
+        attempted.append(ticker)
+        if ticker == "MSFT.US":
+            return {"ticker": ticker, "exchange": "US", "currency": "USD"}
+        return None
+
+    monkeypatch.setattr(instruments, "_auto_create_instrument_meta", create)
+
+    assert instruments.resolve_instrument_ticker("MSFT.L", exchanges=("US", "L"), create_missing=True) == "MSFT.US"
+    assert attempted == ["MSFT.L", "MSFT.US"]
+
+
+def test_resolver_bare_ticker_behaviour_is_unchanged(monkeypatch):
+    """A bare symbol (no suffix) must resolve exactly as before (#6329)."""
+    monkeypatch.setattr(
+        instruments,
+        "get_instrument_meta",
+        lambda ticker: ({"ticker": ticker, "exchange": "US", "currency": "USD"} if ticker == "MSFT.US" else {}),
+    )
+    create = monkeypatch.setattr(instruments, "_auto_create_instrument_meta", lambda ticker: None)
+
+    assert instruments.resolve_instrument_ticker("MSFT") == "MSFT.US"
+    assert create is None
+
+
+def test_resolver_unrecognised_suffix_is_tried_first_then_falls_through(monkeypatch):
+    """An unrecognised suffix (not in the canonical exchange list) should be
+    prepended as a candidate and then fall through, not error (#6329)."""
+    monkeypatch.setattr(instruments, "get_instrument_meta", lambda ticker: {})
+    attempted: list[str] = []
+
+    def create(ticker: str):
+        attempted.append(ticker)
+        if ticker == "MSFT.US":
+            return {"ticker": ticker, "exchange": "US", "currency": "USD"}
+        return None
+
+    monkeypatch.setattr(instruments, "_auto_create_instrument_meta", create)
+
+    assert instruments.resolve_instrument_ticker("MSFT.XYZ", exchanges=("US", "L"), create_missing=True) == "MSFT.US"
+    assert attempted == ["MSFT.XYZ", "MSFT.US"]
+
+
 def test_resolver_rejects_placeholder_metadata(monkeypatch):
     monkeypatch.setattr(
         instruments,

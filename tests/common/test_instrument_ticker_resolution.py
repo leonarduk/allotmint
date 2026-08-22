@@ -139,6 +139,31 @@ def test_resolver_finds_genuine_lse_ticker_from_real_persisted_metadata(monkeypa
     assert instruments.resolve_instrument_ticker("3IN") == "3IN.L"
 
 
+def test_resolver_prefers_explicit_suffix_when_both_persisted_metadata_paths_have_data(monkeypatch):
+    """When persisted metadata exists under *both* the explicit-suffix exchange
+    and another exchange earlier in the caller-supplied ordering, the explicit
+    suffix must still win on the persisted-metadata lookup path -- not just on
+    the live/auto-create path. Regression guard for the gap raised in the
+    DeepSeek AI review of PR #6894 (on top of #6329): the persisted-metadata
+    lookup is built from ``known_exchanges``, which must derive from the same
+    suffix-reordered ``exchanges`` tuple the live lookup uses, not a stale
+    unreordered copy."""
+    monkeypatch.setattr(instruments, "_persisted_metadata_exchanges", lambda symbol: ("L", "US"))
+    monkeypatch.setattr(
+        instruments,
+        "get_instrument_meta",
+        lambda ticker: (
+            {"ticker": "MSFT.L", "exchange": "L", "currency": "GBP"}
+            if ticker == "MSFT.L"
+            else {"ticker": "MSFT.US", "exchange": "US", "currency": "USD"} if ticker == "MSFT.US" else {}
+        ),
+    )
+
+    # "US" is first in the caller-supplied ordering, and persisted metadata
+    # exists for both exchanges, but the explicit ".L" suffix must still win.
+    assert instruments.resolve_instrument_ticker("MSFT.L", exchanges=("US", "L")) == "MSFT.L"
+
+
 def test_persisted_metadata_exchanges_degrades_gracefully_on_oserror(monkeypatch):
     """A filesystem error scanning the instruments directory (e.g. a transient
     permission or mount issue) must not raise out of the resolver — it should

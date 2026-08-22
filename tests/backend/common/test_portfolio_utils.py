@@ -956,3 +956,57 @@ def test_get_security_meta_thread_safe_first_call_builds_once(monkeypatch):
 
     assert len(calls) == 1
     assert portfolio_utils._SECURITIES == {}
+
+
+def test_build_securities_prefers_canonical_instrument_type_over_holding(monkeypatch):
+    """Canonical instrument metadata must win over a raw holding's instrument_type.
+
+    Regression test for allotmint#6902: ``top_movers()`` (feeding both the
+    movers endpoint and `/opportunities`) reads instrument_type via
+    ``get_security_meta()``, which previously only reflected raw holding
+    documents -- fields the supported CSV-import and transaction-rebuild
+    paths usually don't populate.
+    """
+    monkeypatch.setattr(portfolio_utils, "_SECURITIES", None)
+    monkeypatch.setattr(
+        portfolio_utils,
+        "list_portfolios",
+        lambda: [
+            {
+                "accounts": [
+                    {"holdings": [{"ticker": "ABC.L", "name": "Alpha", "instrument_type": "stale"}]},
+                ]
+            }
+        ],
+    )
+    monkeypatch.setattr(portfolio_utils, "list_virtual_portfolios", lambda: [])
+    monkeypatch.setattr(
+        portfolio_utils,
+        "get_instrument_meta",
+        lambda t: {"instrumentType": "ETF"} if t == "ABC.L" else {},
+    )
+
+    meta = portfolio_utils.get_security_meta("ABC.L")
+
+    assert meta is not None
+    assert meta["instrument_type"] == "ETF"
+
+
+def test_get_security_meta_resolves_watchlist_only_symbol_from_canonical_metadata(monkeypatch):
+    """A symbol held by nobody (e.g. a default Screener watchlist entry) must
+    still resolve ``instrument_type`` via canonical instrument metadata, so
+    the movers/opportunities path isn't left with ``None`` for it.
+    """
+    monkeypatch.setattr(portfolio_utils, "_SECURITIES", None)
+    monkeypatch.setattr(portfolio_utils, "list_portfolios", lambda: [])
+    monkeypatch.setattr(portfolio_utils, "list_virtual_portfolios", lambda: [])
+    monkeypatch.setattr(
+        portfolio_utils,
+        "get_instrument_meta",
+        lambda t: {"assetClass": "Commodity"} if t == "GOLD.L" else {},
+    )
+
+    meta = portfolio_utils.get_security_meta("GOLD.L")
+
+    assert meta is not None
+    assert meta["instrument_type"] == "Commodity"

@@ -194,6 +194,30 @@ def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
 # ──────────────────────────────────────────────────────────────
 # Securities universe : derived from portfolios
 # ──────────────────────────────────────────────────────────────
+def _resolve_instrument_type(ticker: str, holding: Optional[Dict] = None) -> Optional[str]:
+    """Resolve ``instrument_type`` for ``ticker`` from canonical metadata.
+
+    Raw holding documents -- including the ones produced by the supported
+    CSV-import and transaction-rebuild paths -- usually do not carry
+    ``instrument_type``, and default Screener watchlist symbols may have no
+    holding at all. Canonical instrument metadata (with its camelCase and
+    ``asset_class`` fallbacks) is therefore the primary source; the raw
+    holding value is only used when canonical metadata has nothing.
+    """
+
+    from backend.common.instruments import get_instrument_meta
+
+    meta = get_instrument_meta(ticker) or {}
+    resolved = (
+        meta.get("instrumentType") or meta.get("instrument_type") or meta.get("assetClass") or meta.get("asset_class")
+    )
+    if resolved:
+        return resolved
+    if holding is not None:
+        return holding.get("instrument_type")
+    return None
+
+
 def _build_securities_from_portfolios() -> Dict[str, Dict]:
     securities: Dict[str, Dict] = {}
     portfolios = list_portfolios()
@@ -207,14 +231,26 @@ def _build_securities_from_portfolios() -> Dict[str, Dict]:
                 securities[tkr] = {
                     "ticker": tkr,
                     "name": h.get("name", tkr),
-                    "instrument_type": h.get("instrument_type"),
+                    "instrument_type": _resolve_instrument_type(tkr, h),
                 }
     return securities
 
 
 def get_security_meta(ticker: str) -> Optional[Dict]:
-    """Always fetch fresh metadata derived from latest portfolios."""
-    return _build_securities_from_portfolios().get(ticker.upper())
+    """Always fetch fresh metadata derived from latest portfolios.
+
+    Falls back to canonical instrument metadata for tickers that are not
+    held in any portfolio at all (e.g. watchlist-only Screener symbols), so
+    callers still receive a resolvable ``instrument_type`` for them.
+    """
+    t = ticker.upper()
+    meta = _build_securities_from_portfolios().get(t)
+    if meta:
+        return meta
+    instrument_type = _resolve_instrument_type(t)
+    if instrument_type is None:
+        return None
+    return {"ticker": t, "name": t, "instrument_type": instrument_type}
 
 
 # ──────────────────────────────────────────────────────────────

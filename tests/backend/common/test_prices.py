@@ -352,6 +352,58 @@ def test_build_securities_and_get_security_meta(monkeypatch: pytest.MonkeyPatch)
     assert prices.get_security_meta("missing") is None
 
 
+def test_build_securities_prefers_canonical_instrument_type_over_holding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Canonical instrument metadata should win over a raw holding's field.
+
+    Regression test for allotmint#6902: raw holding documents (CSV-import /
+    transaction-rebuild paths) frequently carry a stale or absent
+    ``instrument_type`` while the canonical instrument metadata file has the
+    correct, current value.
+    """
+
+    portfolios = [
+        {
+            "accounts": [
+                {
+                    "holdings": [
+                        {"ticker": "ABC", "name": "Alpha", "instrument_type": "stale"},
+                    ]
+                }
+            ]
+        }
+    ]
+    monkeypatch.setattr(prices, "list_portfolios", lambda: portfolios)
+    monkeypatch.setattr(
+        "backend.common.instruments.get_instrument_meta",
+        lambda t: {"instrumentType": "ETF"} if t == "ABC" else {},
+    )
+
+    securities = prices._build_securities_from_portfolios()
+
+    assert securities["ABC"]["instrument_type"] == "ETF"
+
+
+def test_get_security_meta_resolves_watchlist_only_symbol_from_canonical_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A symbol with no holding at all (e.g. a Screener watchlist entry) must
+    still resolve ``instrument_type`` via canonical instrument metadata.
+    """
+
+    monkeypatch.setattr(prices, "list_portfolios", lambda: [])
+    monkeypatch.setattr(
+        "backend.common.instruments.get_instrument_meta",
+        lambda t: {"assetClass": "Commodity"} if t == "GOLD.L" else {},
+    )
+
+    meta = prices.get_security_meta("GOLD.L")
+
+    assert meta is not None
+    assert meta["instrument_type"] == "Commodity"
+
+
 def test_last_close_fallback_snapshot_does_not_double_convert_fx(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -935,6 +935,123 @@ def test_undo_dedupe_restores_state_before_the_undone_fix_not_the_earliest_backu
     assert 20.0 in restored["Close"].tolist()
 
 
+def test_issues_use_request_scoped_accounts_root_not_config_accounts_root(monkeypatch, tmp_path):
+    """Regression for #6763: the request-scoped accounts root
+    (``request.app.state.accounts_root``, resolved via ``resolve_accounts_root``)
+    must be what ``GET /issues``, ``GET /issues/{id}/preview``,
+    ``POST /issues/{id}/fix`` and ``POST /fixes`` see and act on -- not the
+    static, process-wide ``config.accounts_root`` -- so a multi-tenant/
+    per-request-root deployment doesn't scan/mutate the wrong holdings tree.
+    """
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    monkeypatch.setattr(config, "disable_auth", True)
+    monkeypatch.setattr(config, "audit_dir", tmp_path / "audit")
+
+    # ``config.accounts_root`` intentionally points at a *different* tree
+    # with no issues in it -- if any of the endpoints under test fell back to
+    # it, they would see nothing instead of the WRONG_EXCHANGE issue below.
+    stale_root = tmp_path / "stale_accounts"
+    (stale_root / "demo").mkdir(parents=True)
+    (stale_root / "demo" / "isa.json").write_text(
+        json.dumps({"owner": "demo", "account_type": "isa", "currency": "GBP", "holdings": []}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(config, "accounts_root", stale_root)
+
+    # The request-scoped root is the one that actually has a fixable issue.
+    request_root = tmp_path / "request_accounts"
+    (request_root / "demo").mkdir(parents=True)
+    (request_root / "demo" / "isa.json").write_text(
+        json.dumps(
+            {
+                "owner": "demo",
+                "account_type": "isa",
+                "currency": "GBP",
+                "holdings": [{"ticker": "MICC.L"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    import backend.data_quality.issues as issues_module
+
+    monkeypatch.setattr(
+        issues_module,
+        "get_instrument_meta",
+        lambda ticker: {"name": "MercadoLibre"} if ticker == "MICC.N" else {},
+    )
+    monkeypatch.setattr(
+        issues_module,
+        "resolve_instrument_ticker",
+        lambda symbol, create_missing=False: "MICC.N" if symbol == "MICC" else None,
+    )
+    monkeypatch.setattr(issues_module, "has_cached_meta_timeseries", lambda t, e: False)
+    monkeypatch.setattr(issues_module, "list_cached_meta_tickers", lambda: [])
+    monkeypatch.setattr(issues_module, "load_cached_meta_timeseries_full", lambda t, e: None)
+
+    from backend.app import create_app
+
+    app = create_app()
+    monkeypatch.setattr(config, "audit_dir", tmp_path / "audit")
+    app.state.accounts_root = str(request_root)
+    app.state.accounts_root_is_global = False
+    client = TestClient(app)
+
+    # GET /issues sees the request-scoped tree's issue, not the (empty) stale one.
+    resp = client.get("/data-quality/issues")
+    assert resp.status_code == 200
+    issues = resp.json()["issues"]
+    wrong = next(i for i in issues if i["type"] == "WRONG_EXCHANGE")
+    assert wrong["entity"]["owner"] == "demo"
+
+    # GET /issues/{id}/preview resolves against the same tree.
+    resp = client.get(f"/data-quality/issues/{wrong['id']}/preview")
+    assert resp.status_code == 200
+    assert resp.json()["id"] == wrong["id"]
+
+    # POST /issues/{id}/fix mutates the request-scoped account file, and
+    # never touches the stale root's account file.
+    resp = client.post(f"/data-quality/issues/{wrong['id']}/fix")
+    assert resp.status_code == 200
+    fixed_doc = json.loads((request_root / "demo" / "isa.json").read_text(encoding="utf-8"))
+    assert fixed_doc["holdings"] == [{"ticker": "MICC.N"}]
+    stale_doc = json.loads((stale_root / "demo" / "isa.json").read_text(encoding="utf-8"))
+    assert stale_doc["holdings"] == []
+
+    # POST /fixes (batch) also resolves the request-scoped root for its
+    # revalidation pass, not the stale one.
+    (request_root / "demo" / "isa.json").write_text(
+        json.dumps(
+            {
+                "owner": "demo",
+                "account_type": "isa",
+                "currency": "GBP",
+                "holdings": [{"ticker": "ABCD.L"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        issues_module,
+        "resolve_instrument_ticker",
+        lambda symbol, create_missing=False: "ABCD.N" if symbol == "ABCD" else None,
+    )
+    monkeypatch.setattr(
+        issues_module,
+        "get_instrument_meta",
+        lambda ticker: {"name": "Abcd Corp"} if ticker == "ABCD.N" else {},
+    )
+    issues = client.get("/data-quality/issues").json()["issues"]
+    second_wrong = next(i for i in issues if i["type"] == "WRONG_EXCHANGE")
+    resp = client.post("/data-quality/fixes", json={"issue_ids": [second_wrong["id"]]})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["applied"] == 1
+    assert data["failed"] == 0
+    batch_fixed_doc = json.loads((request_root / "demo" / "isa.json").read_text(encoding="utf-8"))
+    assert batch_fixed_doc["holdings"] == [{"ticker": "ABCD.N"}]
+
+
 def test_undo_wrong_exchange_errors_when_account_file_deleted(client, tmp_path):
     """Undo must surface an error, not silently no-op, when the account file is gone (#6740).
 

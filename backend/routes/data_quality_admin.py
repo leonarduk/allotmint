@@ -31,7 +31,6 @@ from backend.common.accounts_store import LocalAccountsStore
 from backend.common.authz import ensure_owner_access
 from backend.common.errors import AppError
 from backend.common.instruments import resolve_instrument_ticker
-from backend.config import config
 from backend.data_quality.audit import append_audit, find_audit_entry, read_audit
 from backend.data_quality.issues import (
     FIXABLE_TYPES,
@@ -86,9 +85,15 @@ class BatchFixRequest(BaseModel):
     issue_ids: list[str] = Field(min_length=1)
 
 
-def _issue_list(**filters: Any) -> list[dict[str, Any]]:
-    """Return the aggregated issue list as plain dicts."""
-    issues = aggregate_issues()
+def _issue_list(request: Request, **filters: Any) -> list[dict[str, Any]]:
+    """Return the aggregated issue list as plain dicts.
+
+    Scans the request-scoped accounts root (``resolve_accounts_root``) rather
+    than the process-wide ``config.accounts_root``, so a multi-tenant/
+    per-request root deployment sees the same holdings tree the write paths
+    in this file already use (#6763).
+    """
+    issues = aggregate_issues(resolve_accounts_root(request))
     result = []
     for issue in issues:
         item = issue.to_dict()
@@ -709,20 +714,24 @@ def _apply_resolved_fix(issue: DataQualityIssue, request: Request, actor: str | 
 
 
 def _apply_fix(issue_id: str, request: Request, actor: str | None) -> dict[str, Any]:
-    issues = aggregate_issues()
+    issues = aggregate_issues(resolve_accounts_root(request))
     issue = find_issue(issues, issue_id)
     if issue is None:
         raise HTTPException(status_code=404, detail=f"Unknown issue id: {issue_id}")
     return _apply_resolved_fix(issue, request, actor)
 
 
-def _holding_ticker_exists(owner: str, account: str, ticker: str) -> bool:
+def _holding_ticker_exists(owner: str, account: str, ticker: str, accounts_root: Path | None) -> bool:
     """Check a single accounts document for one holding ticker.
 
     Used to revalidate holdings-based issues per batch item without walking
     the full holdings tree that ``aggregate_issues`` scans (#6741).
+
+    ``accounts_root`` must be the request-resolved root (``resolve_accounts_root``)
+    rather than ``config.accounts_root`` directly, so this stays consistent
+    with the tree ``aggregate_issues`` was just scanned against (#6763).
     """
-    root = getattr(config, "accounts_root", None)
+    root = accounts_root
     if root is None:
         return True
     path = Path(root) / owner / f"{_normalise_account_file_name(account)}.json"
@@ -783,13 +792,17 @@ def _series_issue_still_applies(issue: DataQualityIssue) -> bool:
     return True
 
 
-def _issue_still_applies(issue: DataQualityIssue) -> bool:
+def _issue_still_applies(issue: DataQualityIssue, accounts_root: Path | None) -> bool:
     """Targeted re-check of just this issue's own entity.
 
     Batch fix (#6741) aggregates once for the whole request instead of once
     per issue id; this recheck preserves the safety property that an earlier
     fix in the same batch cannot cause a later, now-stale issue to be
     (re)applied, without repeating the full holdings + cached-series scan.
+
+    ``accounts_root`` is the request-resolved root (``resolve_accounts_root``),
+    threaded through to ``_holding_ticker_exists`` so the recheck scans the
+    same tree ``aggregate_issues`` was just called against (#6763).
     """
     payload = issue.fix_payload
     kind = payload.get("kind")
@@ -800,13 +813,18 @@ def _issue_still_applies(issue: DataQualityIssue) -> bool:
         ticker = str(issue.entity.get("holding") or "")
         if not owner or not account or not ticker:
             return True
-        return _holding_ticker_exists(owner, account, ticker)
+        return _holding_ticker_exists(owner, account, ticker, accounts_root)
 
     if kind == "missing_series":
         owner = str(issue.entity.get("owner") or "")
         account = str(issue.entity.get("account") or "")
         holding_ticker = str(issue.entity.get("holding") or "")
-        if owner and account and holding_ticker and not _holding_ticker_exists(owner, account, holding_ticker):
+        if (
+            owner
+            and account
+            and holding_ticker
+            and not _holding_ticker_exists(owner, account, holding_ticker, accounts_root)
+        ):
             return False
         ticker = str(payload.get("ticker") or "")
         exchange = str(payload.get("exchange") or "")
@@ -819,19 +837,20 @@ def _issue_still_applies(issue: DataQualityIssue) -> bool:
 
 @router.get("/issues")
 async def list_issues(
+    request: Request,
     type: str | None = Query(None, description="Filter by issue type (WRONG_EXCHANGE, GAPS, ...)"),
     severity: str | None = Query(None, description="Filter by severity: high | medium | low"),
     owner: str | None = Query(None, description="Filter by holding owner"),
     account: str | None = Query(None, description="Filter by holding account"),
     ticker: str | None = Query(None, description="Filter by ticker (series) or holding ticker"),
 ) -> dict[str, Any]:
-    issues = _issue_list(type=type, severity=severity, owner=owner, account=account, ticker=ticker)
+    issues = _issue_list(request, type=type, severity=severity, owner=owner, account=account, ticker=ticker)
     return {"count": len(issues), "issues": issues}
 
 
 @router.get("/issues/{issue_id}/preview")
-async def preview_issue(issue_id: str) -> dict[str, Any]:
-    issues = aggregate_issues()
+async def preview_issue(issue_id: str, request: Request) -> dict[str, Any]:
+    issues = aggregate_issues(resolve_accounts_root(request))
     issue = find_issue(issues, issue_id)
     if issue is None:
         raise HTTPException(status_code=404, detail=f"Unknown issue id: {issue_id}")
@@ -879,7 +898,8 @@ async def batch_fix(
     item rather than aborting the whole batch and 403ing issues that *were*
     authorized (#6739).
     """
-    issues = aggregate_issues()
+    accounts_root = resolve_accounts_root(request)
+    issues = aggregate_issues(accounts_root)
     by_id = {issue.id: issue for issue in issues}
     results: list[dict[str, Any]] = []
     for issue_id in body.issue_ids:
@@ -887,7 +907,7 @@ async def batch_fix(
         if issue is None:
             results.append({"issue_id": issue_id, "status": "error", "detail": f"Unknown issue id: {issue_id}"})
             continue
-        if not _issue_still_applies(issue):
+        if not _issue_still_applies(issue, accounts_root):
             results.append(
                 {
                     "issue_id": issue_id,

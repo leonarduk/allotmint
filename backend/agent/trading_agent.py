@@ -533,7 +533,7 @@ def run(tickers: Optional[Iterable[str]] = None, *, notify: bool = True) -> List
         checks_skipped: List[str] = []
         if compliance_unavailable:
             checks_skipped.append("compliance")
-        if screening_unavailable and sig["action"] == "BUY" and fundamental_params:
+        if screening_unavailable and sig["action"] == "BUY":
             checks_skipped.append("fundamental_screen")
         sig["checks_skipped"] = checks_skipped
 

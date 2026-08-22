@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class TradingSignal(BaseModel):
@@ -30,6 +30,6 @@ class TradingSignal(BaseModel):
     confidence: Optional[float] = None
     rationale: Optional[str] = None
     factors: Optional[List[str]] = None
-    checks_skipped: List[str] = []
+    checks_skipped: List[str] = Field(default_factory=list)
 
     model_config = ConfigDict(extra="ignore")

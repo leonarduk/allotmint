@@ -482,8 +482,45 @@ def test_run_require_pro_checks_raises_when_pro_absent(monkeypatch):
     cfg = trading_agent.config.trading_agent
     monkeypatch.setattr(cfg, "require_pro_checks", True)
 
-    with pytest.raises(CoreFeatureUnavailableError):
+    with pytest.raises(CoreFeatureUnavailableError) as exc_info:
         trading_agent.run()
+
+    message = str(exc_info.value)
+    assert "fundamental_screen" in message
+    assert "compliance" in message
+
+
+def test_run_require_pro_checks_raises_with_partial_degradation(monkeypatch):
+    """Only one pro check missing (screen) should still raise and name just
+    that check, not the one that is actually available."""
+    monkeypatch.setattr(trading_agent, "list_all_unique_tickers", lambda: ["AAA"])
+
+    def fake_load_prices(tickers, days=60):
+        import pandas as pd
+
+        data = {"Ticker": ["AAA"] * 7, "close": [1, 1, 1, 1, 1, 1, 2]}
+        return pd.DataFrame(data)
+
+    monkeypatch.setattr(trading_agent.prices, "load_prices_for_tickers", fake_load_prices)
+    monkeypatch.setattr(trading_agent, "list_portfolios", lambda: [{"owner": "alice"}])
+
+    class FakeCompliance:
+        @staticmethod
+        def check_trade(trade):
+            return {"owner": trade.get("owner"), "warnings": []}
+
+    monkeypatch.setattr(trading_agent, "compliance", FakeCompliance)
+    monkeypatch.setattr(trading_agent, "screen", None)
+
+    cfg = trading_agent.config.trading_agent
+    monkeypatch.setattr(cfg, "require_pro_checks", True)
+
+    with pytest.raises(CoreFeatureUnavailableError) as exc_info:
+        trading_agent.run()
+
+    message = str(exc_info.value)
+    assert "fundamental_screen" in message
+    assert "compliance" not in message
 
 
 def test_run_pro_present_checks_skipped_empty(monkeypatch):
@@ -525,6 +562,120 @@ def test_run_pro_present_checks_skipped_empty(monkeypatch):
     assert signals
     for sig in signals:
         assert sig["checks_skipped"] == []
+
+
+def test_run_pro_absent_partial_degradation_only_compliance(monkeypatch):
+    """Only compliance is missing (screen is available): signals should be
+    tagged with `compliance` only, and fundamental screening should still
+    run normally."""
+    monkeypatch.setattr(trading_agent, "list_all_unique_tickers", lambda: ["AAA"])
+
+    def fake_load_prices(tickers, days=60):
+        import pandas as pd
+
+        data = {"Ticker": ["AAA"] * 7, "close": [1, 1, 1, 1, 1, 1, 2]}
+        return pd.DataFrame(data)
+
+    monkeypatch.setattr(trading_agent.prices, "load_prices_for_tickers", fake_load_prices)
+    monkeypatch.setattr(trading_agent, "publish_alert", lambda alert: None)
+    monkeypatch.setattr(trading_agent, "send_message", lambda msg: None)
+    monkeypatch.setattr(trading_agent, "_log_trade", lambda *a, **k: None)
+    monkeypatch.setattr(trading_agent, "list_portfolios", lambda: [{"owner": "alice"}])
+    monkeypatch.setattr(trading_agent, "compliance", None)
+
+    class F:
+        def __init__(self, ticker: str):
+            self.ticker = ticker
+
+    monkeypatch.setattr(trading_agent, "screen", lambda tickers, **kw: [F("AAA")])
+
+    cfg = trading_agent.config.trading_agent
+    monkeypatch.setattr(cfg, "pe_max", 20.0)
+    monkeypatch.setattr(cfg, "require_pro_checks", False)
+
+    signals = trading_agent.run()
+
+    assert signals
+    for sig in signals:
+        assert sig["checks_skipped"] == ["compliance"]
+
+
+def test_run_pro_absent_partial_degradation_only_screen(monkeypatch):
+    """Only fundamental screening is missing (compliance is available):
+    signals should be tagged with `fundamental_screen` only."""
+    monkeypatch.setattr(trading_agent, "list_all_unique_tickers", lambda: ["AAA"])
+
+    def fake_load_prices(tickers, days=60):
+        import pandas as pd
+
+        data = {"Ticker": ["AAA"] * 7, "close": [1, 1, 1, 1, 1, 1, 2]}
+        return pd.DataFrame(data)
+
+    monkeypatch.setattr(trading_agent.prices, "load_prices_for_tickers", fake_load_prices)
+    monkeypatch.setattr(trading_agent, "publish_alert", lambda alert: None)
+    monkeypatch.setattr(trading_agent, "send_message", lambda msg: None)
+    monkeypatch.setattr(trading_agent, "_log_trade", lambda *a, **k: None)
+    monkeypatch.setattr(trading_agent, "list_portfolios", lambda: [{"owner": "alice"}])
+
+    class FakeCompliance:
+        @staticmethod
+        def check_trade(trade):
+            return {"owner": trade.get("owner"), "warnings": []}
+
+    monkeypatch.setattr(trading_agent, "compliance", FakeCompliance)
+    monkeypatch.setattr(trading_agent, "screen", None)
+
+    cfg = trading_agent.config.trading_agent
+    monkeypatch.setattr(cfg, "pe_max", 20.0)
+    monkeypatch.setattr(cfg, "require_pro_checks", False)
+
+    signals = trading_agent.run()
+
+    assert signals
+    for sig in signals:
+        assert sig["checks_skipped"] == ["fundamental_screen"]
+
+
+def test_run_pro_absent_tags_fundamental_screen_when_pe_max_none(monkeypatch):
+    """`fundamental_screen` must be tagged as skipped for a BUY signal even
+    when no `pe_max` is configured (fundamental_params is empty) -- the tag
+    reflects that screening was unavailable, not whether params were set."""
+    monkeypatch.setattr(trading_agent, "list_all_unique_tickers", lambda: ["AAA"])
+
+    def fake_load_prices(tickers, days=60):
+        import pandas as pd
+
+        data = {"Ticker": ["AAA"] * 7, "close": [1, 1, 1, 1, 1, 1, 2]}
+        return pd.DataFrame(data)
+
+    monkeypatch.setattr(trading_agent.prices, "load_prices_for_tickers", fake_load_prices)
+    monkeypatch.setattr(trading_agent, "publish_alert", lambda alert: None)
+    monkeypatch.setattr(trading_agent, "send_message", lambda msg: None)
+    monkeypatch.setattr(trading_agent, "_log_trade", lambda *a, **k: None)
+    monkeypatch.setattr(trading_agent, "list_portfolios", lambda: [{"owner": "alice"}])
+
+    class FakeCompliance:
+        @staticmethod
+        def check_trade(trade):
+            return {"owner": trade.get("owner"), "warnings": []}
+
+    monkeypatch.setattr(trading_agent, "compliance", FakeCompliance)
+    monkeypatch.setattr(trading_agent, "screen", None)
+
+    cfg = trading_agent.config.trading_agent
+    # No pe_max/de_max configured, so fundamental_params is empty and the
+    # `if fundamental_params and signals:` filtering block is skipped
+    # entirely -- but the BUY signal should still be tagged.
+    monkeypatch.setattr(cfg, "pe_max", None)
+    monkeypatch.setattr(cfg, "de_max", None)
+    monkeypatch.setattr(cfg, "require_pro_checks", False)
+
+    signals = trading_agent.run()
+
+    assert signals
+    for sig in signals:
+        assert sig["action"] == "BUY"
+        assert "fundamental_screen" in sig["checks_skipped"]
 
 
 def test_alert_on_drawdown_handles_value_error(monkeypatch):

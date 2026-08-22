@@ -60,7 +60,10 @@ async def signals(notify_email: bool = False, notify_telegram: bool = False) -> 
     raw_signals = trading_agent.run(notify=False)
 
     if raw_signals:
-        messages = [f"{s['action']} {s['ticker']}: {s['reason']}" for s in raw_signals]
+        messages = [
+            trading_agent.format_signal_message(s["action"], s["ticker"], s["reason"], s.get("checks_skipped"))
+            for s in raw_signals
+        ]
         text = "\n".join(messages)
         if notify_email:
             try:

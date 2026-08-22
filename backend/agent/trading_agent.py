@@ -351,6 +351,22 @@ def generate_signals(snapshot: Dict[str, Dict]) -> List[Dict]:
     return signals
 
 
+def format_signal_message(action: str, ticker: str, reason: str, checks_skipped: Optional[Sequence[str]] = None) -> str:
+    """Return the human-readable alert text for a single signal.
+
+    Appends a ``[checks skipped: ...]`` suffix when ``checks_skipped`` is
+    non-empty, so that every consumer of a signal's message (internal
+    alerts, and any route reconstructing notifications from raw signals)
+    surfaces the same skipped-check context rather than duplicating this
+    formatting logic.
+    """
+
+    message = f"{action} {ticker}: {reason}"
+    if checks_skipped:
+        message += f" [checks skipped: {', '.join(checks_skipped)}]"
+    return message
+
+
 def _log_trade(ticker: str, action: str, price: float, ts: Optional[datetime] = None) -> None:
     """Append a trade record to the trade log.
 
@@ -489,16 +505,22 @@ def run(tickers: Optional[Iterable[str]] = None, *, notify: bool = True) -> List
         unavailable = _join_with_and([name for name, missing in unavailable_checks if missing])
         raise CoreFeatureUnavailableError(f"trading_agent {unavailable}")
 
-    if screening_unavailable:
-        logger.warning("Fundamental screening skipped: allotmint-pro is not installed")
-    if compliance_unavailable:
-        logger.warning("Compliance check skipped: allotmint-pro is not installed")
-
     fundamental_params: Dict[str, float] = {}
     if cfg.pe_max is not None:
         fundamental_params["pe_max"] = cfg.pe_max
     if cfg.de_max is not None:
         fundamental_params["de_max"] = cfg.de_max
+    # Fundamental screening only ever applies when there's at least one
+    # non-None threshold configured AND at least one BUY signal to screen;
+    # this mirrors the branch below that tags "fundamental_screen" into
+    # checks_skipped, so the warning below fires under the same condition.
+    fundamental_screen_applicable = bool(fundamental_params) and any(s["action"] == "BUY" for s in signals)
+
+    if screening_unavailable and fundamental_screen_applicable:
+        logger.warning("Fundamental screening skipped: allotmint-pro is not installed")
+    if compliance_unavailable:
+        logger.warning("Compliance check skipped: allotmint-pro is not installed")
+
     if fundamental_params and signals:
         buy_tickers = [s["ticker"] for s in signals if s["action"] == "BUY"]
         allowed: Set[str] = set()
@@ -537,9 +559,7 @@ def run(tickers: Optional[Iterable[str]] = None, *, notify: bool = True) -> List
             checks_skipped.append("fundamental_screen")
         sig["checks_skipped"] = checks_skipped
 
-        message = f"{sig['action']} {ticker}: {sig['reason']}"
-        if checks_skipped:
-            message += f" [checks skipped: {', '.join(checks_skipped)}]"
+        message = format_signal_message(sig["action"], ticker, sig["reason"], checks_skipped)
         alert = {
             "ticker": ticker,
             "action": sig["action"],

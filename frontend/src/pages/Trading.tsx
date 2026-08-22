@@ -57,6 +57,23 @@ export default function Trading() {
     return `${label} (${percent}%)`;
   };
 
+  const renderChecksSkipped = (checksSkipped?: string[]) => {
+    if (!checksSkipped || !checksSkipped.length) {
+      return null;
+    }
+
+    return (
+      <span
+        className={styles.checksSkippedBadge}
+        title={t('trading.checksSkippedTitle', 'Skipped checks: {{checks}}', {
+          checks: checksSkipped.join(', '),
+        })}
+      >
+        {t('trading.checksSkippedBadge', 'Checks skipped')}
+      </span>
+    );
+  };
+
   const renderFactors = (factors?: string[], fallback?: string) => {
     if (factors && factors.length) {
       return (
@@ -174,42 +191,45 @@ export default function Trading() {
         ) : (
           <div className={tableStyles.scrollContainer}>
             <table className={tableStyles.table}>
-            <caption>
-              {t('trading.signalsTableCaption', 'Trading signals')}
-            </caption>
-            <thead>
-              <tr>
-                <th className={tableStyles.cell}>Ticker</th>
-                <th className={tableStyles.cell}>Action</th>
-                <th className={tableStyles.cell}>Strength</th>
-                <th className={tableStyles.cell}>Summary</th>
-                <th className={tableStyles.cell}>Why</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visibleSignals.map((s, index) => (
-                <tr key={`${s.ticker}-${index}`}>
-                  <td className={tableStyles.cell}>
-                    <button
-                      type="button"
-                      className={tableStyles.clickable}
-                      onClick={() => setSelected(s)}
-                    >
-                      {s.ticker}
-                    </button>
-                  </td>
-                  <td className={tableStyles.cell}>{formatAction(s.action)}</td>
-                  <td className={tableStyles.cell}>
-                    {renderStrength(s.confidence)}
-                  </td>
-                  <td className={tableStyles.cell}>{s.reason}</td>
-                  <td className={tableStyles.cell}>
-                    {renderFactors(s.factors, s.rationale)}
-                  </td>
+              <caption>
+                {t('trading.signalsTableCaption', 'Trading signals')}
+              </caption>
+              <thead>
+                <tr>
+                  <th className={tableStyles.cell}>Ticker</th>
+                  <th className={tableStyles.cell}>Action</th>
+                  <th className={tableStyles.cell}>Strength</th>
+                  <th className={tableStyles.cell}>Summary</th>
+                  <th className={tableStyles.cell}>Why</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {visibleSignals.map((s, index) => (
+                  <tr key={`${s.ticker}-${index}`}>
+                    <td className={tableStyles.cell}>
+                      <button
+                        type="button"
+                        className={tableStyles.clickable}
+                        onClick={() => setSelected(s)}
+                      >
+                        {s.ticker}
+                      </button>
+                    </td>
+                    <td className={tableStyles.cell}>
+                      {formatAction(s.action)}
+                      {renderChecksSkipped(s.checks_skipped)}
+                    </td>
+                    <td className={tableStyles.cell}>
+                      {renderStrength(s.confidence)}
+                    </td>
+                    <td className={tableStyles.cell}>{s.reason}</td>
+                    <td className={tableStyles.cell}>
+                      {renderFactors(s.factors, s.rationale)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
         {signals.length > MAX_TRADING_SIGNAL_ROWS && (

@@ -631,33 +631,33 @@
     "noOwners": "No owners available—check backend connection",
     "pdf": "Download PDF",
     "title": "Reports",
-  "templatesTitle": "Report templates",
-  "templatesDescription": "Choose a built-in or custom template before exporting.",
-  "templatesLoading": "Loading templates…",
-  "templatesError": "Unable to load templates.",
-  "templatesEmpty": "No templates available yet.",
-  "catalog": {
-    "groups": {
-      "builtin": "Built-in templates",
-      "custom": "Custom templates"
+    "templatesTitle": "Report templates",
+    "templatesDescription": "Choose a built-in or custom template before exporting.",
+    "templatesLoading": "Loading templates…",
+    "templatesError": "Unable to load templates.",
+    "templatesEmpty": "No templates available yet.",
+    "catalog": {
+      "groups": {
+        "builtin": "Built-in templates",
+        "custom": "Custom templates"
+      },
+      "noFields": "No fields defined for this template.",
+      "fieldsLabel_one": "{{count}} field: {{fields}}",
+      "fieldsLabel_other": "{{count}} fields: {{fields}}",
+      "moreFields_one": "+{{count}} more field",
+      "moreFields_other": "+{{count}} more fields",
+      "sectionsLabel": "Sections: {{sections}}",
+      "selectLabel": "Select {{name}} template",
+      "badge": {
+        "builtin": "Built-in",
+        "custom": "Custom"
+      },
+      "selected": "Selected",
+      "selectedTemplate": "Template: {{name}}"
     },
-    "noFields": "No fields defined for this template.",
-    "fieldsLabel_one": "{{count}} field: {{fields}}",
-    "fieldsLabel_other": "{{count}} fields: {{fields}}",
-    "moreFields_one": "+{{count}} more field",
-    "moreFields_other": "+{{count}} more fields",
-    "sectionsLabel": "Sections: {{sections}}",
-    "selectLabel": "Select {{name}} template",
-    "badge": {
-      "builtin": "Built-in",
-      "custom": "Custom"
-    },
-    "selected": "Selected",
-    "selectedTemplate": "Template: {{name}}"
-  },
-  "downloadsTitle": "Download reports",
-  "downloadsDescription": "Generate CSV or PDF exports with the selected template and dates.",
-  "downloadsDisabled": "Select an owner and template to enable downloads.",
+    "downloadsTitle": "Download reports",
+    "downloadsDescription": "Generate CSV or PDF exports with the selected template and dates.",
+    "downloadsDisabled": "Select an owner and template to enable downloads.",
     "builder": {
       "headingCreate": "Create report template",
       "headingEdit": "Edit report template",
@@ -863,7 +863,9 @@
     },
     "signalsTitle": "Current signals",
     "noSignalsTitle": "No signals right now",
-    "noSignalsDescription": "No tracked instrument currently crosses the active thresholds. Signals appear when RSI or moving-average conditions are met and any enabled valuation and risk filters also pass."
+    "noSignalsDescription": "No tracked instrument currently crosses the active thresholds. Signals appear when RSI or moving-average conditions are met and any enabled valuation and risk filters also pass.",
+    "checksSkippedBadge": "Checks skipped",
+    "checksSkippedTitle": "Skipped checks: {{checks}}"
   },
   "trail": {
     "allDone": "All Trail tasks are complete — fantastic work!",

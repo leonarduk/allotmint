@@ -678,6 +678,85 @@ def test_run_pro_absent_tags_fundamental_screen_when_pe_max_none(monkeypatch):
         assert "fundamental_screen" in sig["checks_skipped"]
 
 
+def test_run_pro_absent_no_screening_warning_when_no_fundamental_params(monkeypatch, caplog):
+    """The "screening unavailable" warning should not fire when no
+    fundamental threshold (`pe_max`/`de_max`) is configured -- fundamental
+    screening was never going to apply, so warning about it is misleading
+    noise (#6798 Codex follow-up)."""
+    monkeypatch.setattr(trading_agent, "list_all_unique_tickers", lambda: ["AAA"])
+
+    def fake_load_prices(tickers, days=60):
+        import pandas as pd
+
+        data = {"Ticker": ["AAA"] * 7, "close": [1, 1, 1, 1, 1, 1, 2]}
+        return pd.DataFrame(data)
+
+    monkeypatch.setattr(trading_agent.prices, "load_prices_for_tickers", fake_load_prices)
+    monkeypatch.setattr(trading_agent, "publish_alert", lambda alert: None)
+    monkeypatch.setattr(trading_agent, "send_message", lambda msg: None)
+    monkeypatch.setattr(trading_agent, "_log_trade", lambda *a, **k: None)
+    monkeypatch.setattr(trading_agent, "list_portfolios", lambda: [{"owner": "alice"}])
+
+    class FakeCompliance:
+        @staticmethod
+        def check_trade(trade):
+            return {"owner": trade.get("owner"), "warnings": []}
+
+    monkeypatch.setattr(trading_agent, "compliance", FakeCompliance)
+    monkeypatch.setattr(trading_agent, "screen", None)
+
+    cfg = trading_agent.config.trading_agent
+    monkeypatch.setattr(cfg, "pe_max", None)
+    monkeypatch.setattr(cfg, "de_max", None)
+    monkeypatch.setattr(cfg, "require_pro_checks", False)
+
+    with caplog.at_level("WARNING"):
+        signals = trading_agent.run()
+
+    assert signals and signals[0]["action"] == "BUY"
+    screening_warnings = [r for r in caplog.records if "Fundamental screening skipped" in r.message]
+    assert screening_warnings == []
+
+
+def test_run_pro_absent_no_screening_warning_when_only_sell_signals(monkeypatch, caplog):
+    """The "screening unavailable" warning should not fire when fundamental
+    thresholds are configured but the only generated signals are SELL --
+    fundamental screening only ever applies to BUY signals."""
+    monkeypatch.setattr(trading_agent, "list_all_unique_tickers", lambda: ["AAA"])
+
+    def fake_load_prices(tickers, days=60):
+        import pandas as pd
+
+        # Price falling from 2 to 1 over the last 7 days -> SELL momentum signal.
+        data = {"Ticker": ["AAA"] * 7, "close": [2, 2, 2, 2, 2, 2, 1]}
+        return pd.DataFrame(data)
+
+    monkeypatch.setattr(trading_agent.prices, "load_prices_for_tickers", fake_load_prices)
+    monkeypatch.setattr(trading_agent, "publish_alert", lambda alert: None)
+    monkeypatch.setattr(trading_agent, "send_message", lambda msg: None)
+    monkeypatch.setattr(trading_agent, "_log_trade", lambda *a, **k: None)
+    monkeypatch.setattr(trading_agent, "list_portfolios", lambda: [{"owner": "alice"}])
+
+    class FakeCompliance:
+        @staticmethod
+        def check_trade(trade):
+            return {"owner": trade.get("owner"), "warnings": []}
+
+    monkeypatch.setattr(trading_agent, "compliance", FakeCompliance)
+    monkeypatch.setattr(trading_agent, "screen", None)
+
+    cfg = trading_agent.config.trading_agent
+    monkeypatch.setattr(cfg, "pe_max", 20.0)
+    monkeypatch.setattr(cfg, "require_pro_checks", False)
+
+    with caplog.at_level("WARNING"):
+        signals = trading_agent.run()
+
+    assert signals and signals[0]["action"] == "SELL"
+    screening_warnings = [r for r in caplog.records if "Fundamental screening skipped" in r.message]
+    assert screening_warnings == []
+
+
 def test_alert_on_drawdown_handles_value_error(monkeypatch):
     """Ensure ValueError in performance computation doesn't leak."""
     monkeypatch.setattr(trading_agent, "list_portfolios", lambda: [{"owner": "alice"}])

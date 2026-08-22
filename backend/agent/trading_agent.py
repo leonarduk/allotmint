@@ -559,7 +559,11 @@ def run(tickers: Optional[Iterable[str]] = None, *, notify: bool = True) -> List
                 }
                 result = compliance.check_trade(trade)
                 if result.get("warnings"):
-                    logger.warning("Compliance warnings for %s: %s", owner, result["warnings"])
+                    logger.warning(
+                        "Compliance warnings for %s: %s",
+                        sanitise_log_value(owner),
+                        sanitise_log_value(result["warnings"]),
+                    )
                     blocked = True
                     break
         if blocked:
@@ -583,7 +587,7 @@ def run(tickers: Optional[Iterable[str]] = None, *, notify: bool = True) -> List
         }
         if notify:
             send_trade_alert(alert["message"])
-        logger.info("Published alert: %s", alert)
+        logger.info("Published alert: %s", sanitise_log_value(alert))
         _log_trade(ticker, sig["action"], price)
         allowed_signals.append(sig)
 

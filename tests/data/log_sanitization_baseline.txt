@@ -43,12 +43,12 @@ backend/common/portfolio_loader.py:260
 backend/common/portfolio_utils.py:1878
 backend/common/portfolio_utils.py:295
 backend/common/portfolio_utils.py:301
-backend/common/prices.py:347
+backend/common/prices.py:348
 backend/common/prices.py:200
-backend/common/prices.py:239
-backend/common/prices.py:293
+backend/common/prices.py:240
+backend/common/prices.py:294
 backend/common/prices.py:176
-backend/common/prices.py:375
+backend/common/prices.py:376
 backend/common/signup_provision.py:71
 backend/common/signup_provision.py:74
 backend/common/signup_provision.py:77
@@ -63,8 +63,8 @@ backend/config.py:285
 backend/config.py:288
 # len(lines)/len(data) are always ints (row counts produced by the CSV
 # parser in this function) and can't carry attacker-controlled string content.
-backend/importers/hargreaves.py:132
-backend/importers/hargreaves.py:155
+backend/importers/hargreaves.py:139
+backend/importers/hargreaves.py:162
 backend/reports.py:462
 backend/reports.py:468
 backend/reports.py:446

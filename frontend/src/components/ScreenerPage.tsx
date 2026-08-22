@@ -119,6 +119,7 @@ export function ScreenerPage() {
         <InstrumentDetail
           ticker={selected.ticker}
           name={selected.name ?? selected.ticker}
+          instrument_type={selected.instrument_type}
           onClose={() => setSelected(null)}
         />
       )}

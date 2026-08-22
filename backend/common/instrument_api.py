@@ -463,6 +463,7 @@ def top_movers(
                 "change_pct": change,
                 "last_price_gbp": last_px,
                 "last_price_date": last_price_date.isoformat(),
+                "instrument_type": meta.get("instrument_type"),
             }
         )
 

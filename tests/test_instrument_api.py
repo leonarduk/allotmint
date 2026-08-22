@@ -111,6 +111,24 @@ def test_top_movers_filter_and_anomalies(monkeypatch):
     assert all("AAA" not in v for v in (res["gainers"], res["losers"], res["anomalies"]))
 
 
+def test_top_movers_includes_instrument_type(monkeypatch):
+    """#6876: every gainer/loser row carries instrument_type from security meta."""
+    _fixed_today(monkeypatch)
+    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda t, latest: (t, "L"))
+    monkeypatch.setattr(ia, "_close_on", lambda sym, ex, d: 100.0)
+    monkeypatch.setattr(ia, "price_change_pct", lambda t, d: {"AAA": 5.0, "BBB": -2.0}.get(t))
+    monkeypatch.setattr(
+        ia,
+        "get_security_meta",
+        lambda t: {"name": f"{t} name", "instrument_type": "stock" if t.startswith("AAA") else "etf"},
+    )
+
+    res = ia.top_movers(["AAA", "BBB"], 7)
+
+    assert [r["instrument_type"] for r in res["gainers"]] == ["stock"]
+    assert [r["instrument_type"] for r in res["losers"]] == ["etf"]
+
+
 def test_intraday_timeseries_success(monkeypatch):
     fixed_now = dt.datetime(2024, 1, 2, 12, 0)
 

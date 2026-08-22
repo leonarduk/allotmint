@@ -147,6 +147,7 @@ class Mover(BaseModel):
     last_price_gbp: Optional[float] = None
     last_price_date: Optional[str] = None
     market_value_gbp: Optional[float] = None
+    instrument_type: Optional[str] = None
 
 
 class MoversResponse(BaseModel):

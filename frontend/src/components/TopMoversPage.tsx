@@ -395,6 +395,7 @@ export function TopMoversPage() {
         <InstrumentDetail
           ticker={selected.row.ticker}
           name={selected.row.name}
+          instrument_type={selected.row.instrument_type}
           signal={selected.row.signal ?? undefined}
           onClose={() => setSelected(null)}
         />

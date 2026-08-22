@@ -476,6 +476,7 @@ export interface MoverRow {
   last_price_gbp?: number | null;
   last_price_date?: string | null;
   market_value_gbp?: number | null;
+  instrument_type?: string | null;
 }
 
 export type Alert = {
@@ -544,6 +545,7 @@ export interface ScreenerResult {
   high_52w: number | null;
   low_52w: number | null;
   avg_volume: number | null;
+  instrument_type?: string | null;
 }
 
 export interface SyntheticHolding {

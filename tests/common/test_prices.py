@@ -324,8 +324,8 @@ def test_build_securities_from_portfolios(monkeypatch: pytest.MonkeyPatch) -> No
     result = prices._build_securities_from_portfolios()
 
     assert result == {
-        "ABC": {"ticker": "ABC", "name": "Alpha"},
-        "DEF": {"ticker": "DEF", "name": "DEF"},
+        "ABC": {"ticker": "ABC", "name": "Alpha", "instrument_type": None},
+        "DEF": {"ticker": "DEF", "name": "DEF", "instrument_type": None},
     }
 
 

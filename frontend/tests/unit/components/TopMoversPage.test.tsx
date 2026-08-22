@@ -21,6 +21,7 @@ const groupEntries: OpportunityEntry[] = [
     name: "AAA",
     change_pct: 5,
     market_value_gbp: 100,
+    instrument_type: "stock",
     side: "gainers",
     signal,
   },
@@ -121,14 +122,17 @@ vi.mock("@/components/InstrumentDetail", () => ({
   InstrumentDetail: ({
     ticker,
     signal,
+    instrument_type,
     onClose,
   }: {
     ticker: string;
     signal?: { action: string; reason: string } | null;
+    instrument_type?: string | null;
     onClose: () => void;
   }) => (
     <div data-testid="detail">
       Detail for {ticker}
+      {instrument_type && <div>Type: {instrument_type}</div>}
       {signal && (
         <div>
           {signal.action} - {signal.reason}
@@ -217,6 +221,19 @@ describe("TopMoversPage", () => {
     expect(detail).toHaveTextContent("AAA");
     expect(detail).toHaveTextContent(/BUY/i);
     expect(detail).toHaveTextContent("go long");
+  });
+
+  it("passes instrument_type through to InstrumentDetail instead of dropping it (#6876)", async () => {
+    render(
+      <MemoryRouter>
+        <TopMoversPage />
+      </MemoryRouter>,
+    );
+
+    const button = await screen.findByRole("button", { name: "AAA" });
+    fireEvent.click(button);
+    const detail = await screen.findByTestId("detail");
+    expect(detail).toHaveTextContent("Type: stock");
   });
 
   it("colors gainers green and losers red", async () => {

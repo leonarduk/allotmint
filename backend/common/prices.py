@@ -205,9 +205,10 @@ def _resolve_instrument_type(ticker: str, holding: Optional[Dict] = None) -> Opt
     holding value is only used when canonical metadata has nothing.
     """
 
-    from backend.common.instruments import get_instrument_meta
+    from backend.common.instruments import get_instrument_meta, resolve_instrument_ticker
 
-    meta = get_instrument_meta(ticker) or {}
+    resolved_ticker = resolve_instrument_ticker(ticker, create_missing=False) or ticker
+    meta = get_instrument_meta(resolved_ticker) or {}
     resolved = (
         meta.get("instrumentType") or meta.get("instrument_type") or meta.get("assetClass") or meta.get("asset_class")
     )

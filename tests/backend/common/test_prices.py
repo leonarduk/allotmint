@@ -14,6 +14,20 @@ from backend.common import portfolio_utils, prices
 from backend.common.portfolio_utils import DATA_BUCKET_ENV, PRICES_S3_KEY
 
 
+@pytest.fixture(autouse=True)
+def _reset_securities_cache():
+    """Ensure each test observes a fresh ``get_security_meta`` cache.
+
+    ``prices._SECURITIES`` is a module-level, process-lifetime cache (see
+    allotmint#6908); tests that call ``get_security_meta``/
+    ``_build_securities_from_portfolios`` with their own portfolio fixtures
+    must not see state left over from a previous test.
+    """
+    prices._SECURITIES = None
+    yield
+    prices._SECURITIES = None
+
+
 def test_close_on_falls_back_to_close_column(monkeypatch: pytest.MonkeyPatch) -> None:
     """``_close_on`` should use the first available close column."""
 
@@ -402,6 +416,37 @@ def test_get_security_meta_resolves_watchlist_only_symbol_from_canonical_metadat
 
     assert meta is not None
     assert meta["instrument_type"] == "Commodity"
+
+
+def test_resolve_instrument_type_resolves_bare_watchlist_symbol(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A bare watchlist symbol (e.g. "PFE") must resolve via the persisted
+    exchange-qualified instrument record (e.g. ``data/instruments/N/PFE.json``
+    -> ``PFE.N``) rather than falling into a nonexistent ``Unknown/`` folder.
+
+    Regression test for allotmint#6908 review comment: ``get_instrument_meta``
+    requires an exchange-qualified ticker, so passing a bare ticker straight
+    through always returned ``{}``/``None`` for exactly the watchlist-only
+    symbols this fallback was meant to cover.
+    """
+
+    assert prices._resolve_instrument_type("PFE") == "Equity"
+
+
+def test_get_security_meta_resolves_bare_watchlist_symbol(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``get_security_meta`` should resolve a bare, unheld watchlist symbol
+    to its canonical instrument type via the persisted exchange alias.
+    """
+
+    monkeypatch.setattr(prices, "list_portfolios", lambda: [])
+
+    meta = prices.get_security_meta("PFE")
+
+    assert meta is not None
+    assert meta["instrument_type"] == "Equity"
 
 
 def test_last_close_fallback_snapshot_does_not_double_convert_fx(

@@ -91,6 +91,7 @@ def test_trading_agent_route(monkeypatch):
             "reason": "x",
             "confidence": 0.8,
             "rationale": "details",
+            "checks_skipped": [],
         }
     ]
 

@@ -82,6 +82,18 @@
 .emptyState h3 {
   margin: 0;
 }
+.checksSkippedBadge {
+  background: #fff3cd;
+  border: 1px solid #f0d787;
+  border-radius: 999px;
+  color: #8a6100;
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.5rem;
+  white-space: nowrap;
+}
 @media (max-width: 640px) {
   .header,
   .sectionHeading {

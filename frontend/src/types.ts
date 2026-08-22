@@ -606,6 +606,12 @@ export interface TradingSignal {
   currency?: string | null;
   instrument_type?: string | null;
   factors?: string[];
+  /**
+   * Names of compliance/screening checks that were skipped because
+   * allotmint-pro is not installed, e.g. ["compliance", "fundamental_screen"].
+   * Empty (or absent) when every applicable check ran.
+   */
+  checks_skipped?: string[];
 }
 
 export interface TradingAgentSettings {

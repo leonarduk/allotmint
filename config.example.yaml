@@ -73,6 +73,10 @@ trading:
     ma_long_window: 50
     min_sharpe: null
     max_volatility: null
+    require_pro_checks: false         # When true, raise instead of silently
+                                       # degrading if allotmint-pro's
+                                       # compliance/fundamental-screen checks
+                                       # are not installed
 ui:
   relative_view_enabled: false        # Enable relative performance views
   theme: system                       # Default theme: light, dark, or system

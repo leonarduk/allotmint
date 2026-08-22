@@ -17,6 +17,7 @@ import pandas as pd
 from backend import alerts as alert_utils
 from backend.common import indicators, prices
 from backend.common.alerts import publish_alert
+from backend.common.core_optional import CoreFeatureUnavailableError
 from backend.common.portfolio_loader import list_portfolios
 from backend.common.portfolio_utils import (
     compute_owner_performance,
@@ -350,6 +351,22 @@ def generate_signals(snapshot: Dict[str, Dict]) -> List[Dict]:
     return signals
 
 
+def format_signal_message(action: str, ticker: str, reason: str, checks_skipped: Optional[Sequence[str]] = None) -> str:
+    """Return the human-readable alert text for a single signal.
+
+    Appends a ``[checks skipped: ...]`` suffix when ``checks_skipped`` is
+    non-empty, so that every consumer of a signal's message (internal
+    alerts, and any route reconstructing notifications from raw signals)
+    surfaces the same skipped-check context rather than duplicating this
+    formatting logic.
+    """
+
+    message = f"{action} {ticker}: {reason}"
+    if checks_skipped:
+        message += f" [checks skipped: {', '.join(checks_skipped)}]"
+    return message
+
+
 def _log_trade(ticker: str, action: str, price: float, ts: Optional[datetime] = None) -> None:
     """Append a trade record to the trade log.
 
@@ -402,13 +419,36 @@ def run(tickers: Optional[Iterable[str]] = None, *, notify: bool = True) -> List
     Returns:
         A list of generated signals.
     """
+    cfg = load_strategy_config()
+
+    # Checked up front, before any price fetch or indicator work: whether
+    # `screen`/`compliance` are importable is known from the module-level
+    # import sentinels and does not depend on tickers, prices, or signals, so
+    # a strict-mode failure should fail fast rather than paying for a full
+    # price fetch + indicator/snapshot loop first.
+    screening_unavailable = screen is None
+    compliance_unavailable = compliance is None
+    if cfg.require_pro_checks and (screening_unavailable or compliance_unavailable):
+        unavailable_checks = (
+            ("fundamental_screen", screening_unavailable),
+            ("compliance", compliance_unavailable),
+        )
+        unavailable = _join_with_and([name for name, missing in unavailable_checks if missing])
+        # "trading_agent access to X[, Y]" keeps a singular subject ("access")
+        # regardless of how many checks are named, so the fixed "{feature} is
+        # not available" suffix on CoreFeatureUnavailableError stays
+        # grammatically correct for one item ("access to fundamental_screen
+        # is not available") and for two ("access to fundamental_screen and
+        # compliance is not available") without needing to special-case a
+        # plural verb.
+        raise CoreFeatureUnavailableError(f"trading_agent access to {unavailable}")
+
     tickers = list(tickers) if tickers else list_all_unique_tickers()
 
     owners = [pf.get("owner", "") for pf in list_portfolios()]
 
     df = prices.load_prices_for_tickers(tickers, days=60)
     snapshot: Dict[str, Dict] = {}
-    cfg = load_strategy_config()
     for tkr in tickers:
         tdf = df[df["Ticker"] == tkr]
         if tdf.empty:
@@ -473,53 +513,81 @@ def run(tickers: Optional[Iterable[str]] = None, *, notify: bool = True) -> List
 
     signals = generate_signals(snapshot)
 
+    # `screening_unavailable`/`compliance_unavailable` were already computed
+    # up front (before the strict-mode check above) so that check could fail
+    # fast; reused here for the warnings/tagging below rather than
+    # recomputed, since the module-level import sentinels don't change
+    # mid-run.
     fundamental_params: Dict[str, float] = {}
     if cfg.pe_max is not None:
         fundamental_params["pe_max"] = cfg.pe_max
     if cfg.de_max is not None:
         fundamental_params["de_max"] = cfg.de_max
+    # Fundamental screening only ever applies when there's at least one
+    # non-None threshold configured AND at least one BUY signal to screen.
+    # This same condition gates both the warning below and the per-signal
+    # `checks_skipped` tagging further down, so a run with no threshold
+    # configured never claims a screen "was skipped" when none would have
+    # run even with allotmint-pro installed.
+    fundamental_screen_applicable = bool(fundamental_params) and any(s["action"] == "BUY" for s in signals)
+
+    if screening_unavailable and fundamental_screen_applicable:
+        logger.warning("Fundamental screening skipped: allotmint-pro is not installed")
+    if compliance_unavailable:
+        logger.warning("Compliance check skipped: allotmint-pro is not installed")
+
     if fundamental_params and signals:
         buy_tickers = [s["ticker"] for s in signals if s["action"] == "BUY"]
         allowed: Set[str] = set()
         if buy_tickers:
-            if screen is not None:
+            if not screening_unavailable:
                 fundamentals = screen(buy_tickers, **fundamental_params)
                 allowed = {f.ticker for f in fundamentals}
             else:
-                logger.warning("Fundamental screening skipped: allotmint-pro is not installed")
                 allowed = set(buy_tickers)
         signals = [s for s in signals if s["action"] != "BUY" or s["ticker"] in allowed]
     allowed_signals: List[Dict] = []
     for sig in signals:
         blocked = False
-        for owner in owners:
-            trade = {
-                "owner": owner,
-                "ticker": sig["ticker"],
-                "type": sig["action"].lower(),
-                "date": date.today().isoformat(),
-            }
-            if compliance is None:
-                logger.warning("Compliance check skipped: allotmint-pro is not installed")
-                continue
-            result = compliance.check_trade(trade)
-            if result.get("warnings"):
-                logger.warning("Compliance warnings for %s: %s", owner, result["warnings"])
-                blocked = True
-                break
+        if not compliance_unavailable:
+            for owner in owners:
+                trade = {
+                    "owner": owner,
+                    "ticker": sig["ticker"],
+                    "type": sig["action"].lower(),
+                    "date": date.today().isoformat(),
+                }
+                result = compliance.check_trade(trade)
+                if result.get("warnings"):
+                    logger.warning(
+                        "Compliance warnings for %s: %s",
+                        sanitise_log_value(owner),
+                        sanitise_log_value(result["warnings"]),
+                    )
+                    blocked = True
+                    break
         if blocked:
             continue
         ticker = sig["ticker"]
         price = snapshot[ticker]["last_price"]
+
+        checks_skipped: List[str] = []
+        if compliance_unavailable:
+            checks_skipped.append("compliance")
+        if screening_unavailable and fundamental_screen_applicable and sig["action"] == "BUY":
+            checks_skipped.append("fundamental_screen")
+        sig["checks_skipped"] = checks_skipped
+
+        message = format_signal_message(sig["action"], ticker, sig["reason"], checks_skipped)
         alert = {
             "ticker": ticker,
             "action": sig["action"],
             "reason": sig["reason"],
-            "message": f"{sig['action']} {ticker}: {sig['reason']}",
+            "message": message,
         }
         if notify:
             send_trade_alert(alert["message"])
-        logger.info("Published alert: %s", alert)
+        logger.info("Published alert: %s", sanitise_log_value(alert))
         _log_trade(ticker, sig["action"], price)
         allowed_signals.append(sig)
 

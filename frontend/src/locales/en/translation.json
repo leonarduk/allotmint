@@ -863,7 +863,9 @@
     },
     "signalsTitle": "Current signals",
     "noSignalsTitle": "No signals right now",
-    "noSignalsDescription": "No tracked instrument currently crosses the active thresholds. Signals appear when RSI or moving-average conditions are met and any enabled valuation and risk filters also pass."
+    "noSignalsDescription": "No tracked instrument currently crosses the active thresholds. Signals appear when RSI or moving-average conditions are met and any enabled valuation and risk filters also pass.",
+    "checksSkippedBadge": "Checks skipped",
+    "checksSkippedTitle": "Skipped checks: {{checks}}"
   },
   "trail": {
     "allDone": "All Trail tasks are complete — fantastic work!",

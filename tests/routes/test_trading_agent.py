@@ -36,6 +36,7 @@ def test_basic_response_model_validation(monkeypatch):
             "reason": "r",
             "confidence": 0.9,
             "rationale": "details",
+            "checks_skipped": [],
         }
     ]
 
@@ -67,6 +68,39 @@ def test_notify_email(monkeypatch):
     assert resp.status_code == 200
     assert published["message"] == "BUY AAA: r"
     assert pushed["message"] == "BUY AAA: r"
+
+
+def test_notify_email_includes_checks_skipped_suffix(monkeypatch):
+    """Route-reconstructed notification messages must include the same
+    skipped-checks suffix that trading_agent.run() itself appends, so
+    email/push consumers of this endpoint aren't left unaware that
+    compliance/screening were bypassed (Codex review on #6798)."""
+    fake_signals = [
+        {
+            "ticker": "AAA",
+            "action": "BUY",
+            "reason": "r",
+            "checks_skipped": ["compliance", "fundamental_screen"],
+        }
+    ]
+    monkeypatch.setattr("backend.agent.trading_agent.run", lambda **_: fake_signals)
+
+    published: dict[str, str] = {}
+    pushed: dict[str, str] = {}
+
+    monkeypatch.setattr(
+        "backend.routes.trading_agent.publish_alert", lambda alert: published.update(message=alert["message"])
+    )
+    monkeypatch.setattr(
+        "backend.routes.trading_agent.alert_utils.send_push_notification", lambda msg: pushed.update(message=msg)
+    )
+
+    client = make_client()
+    resp = client.get("/trading-agent/signals", params={"notify_email": "true"})
+    assert resp.status_code == 200
+    expected = "BUY AAA: r [checks skipped: compliance, fundamental_screen]"
+    assert published["message"] == expected
+    assert pushed["message"] == expected
 
 
 def test_notify_telegram_env_gating(monkeypatch):

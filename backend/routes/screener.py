@@ -29,9 +29,10 @@ class RankedFundamentals(BaseModel):
     FastAPI's response_model filtering silently drops any field a route
     returns that isn't declared here -- so if the private model ever gains
     a field, paid-tier ``/screener`` responses will silently lose it from
-    the API response until this list is updated to match. There is no
-    automated check for drift between the two repos; see allotmint#6833
-    which tracks adding one.
+    the API response until this list is updated to match.
+    ``tests/routes/test_screener_schema.py::test_ranked_fundamentals_matches_allotmint_pro_fundamentals``
+    guards against this drift by introspection whenever ``allotmint_pro`` is
+    installed (skips cleanly otherwise); see allotmint#6833.
     """
 
     ticker: str

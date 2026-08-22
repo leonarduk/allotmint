@@ -10,7 +10,7 @@ from backend.routes.screener import RankedFundamentals, router
 # an explicit allowlist, not a subset comparison, per allotmint#6833
 # acceptance criterion 4: a field missing from RankedFundamentals must fail,
 # but a RankedFundamentals-only field is tolerated only if named here.
-_ROUTE_ONLY_FIELDS = {"rank"}
+_ROUTE_ONLY_FIELDS = {"rank", "instrument_type"}
 
 
 def test_screener_openapi_schema_matches_model_fields():

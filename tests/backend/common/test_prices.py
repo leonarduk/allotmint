@@ -317,7 +317,7 @@ def test_build_securities_and_get_security_meta(monkeypatch: pytest.MonkeyPatch)
             "accounts": [
                 {
                     "holdings": [
-                        {"ticker": "abc", "name": "Alpha"},
+                        {"ticker": "abc", "name": "Alpha", "instrument_type": "stock"},
                         {"ticker": "def"},
                         {"ticker": ""},
                         {},
@@ -342,13 +342,13 @@ def test_build_securities_and_get_security_meta(monkeypatch: pytest.MonkeyPatch)
     securities = prices._build_securities_from_portfolios()
 
     assert securities == {
-        "ABC": {"ticker": "ABC", "name": "Alpha"},
-        "DEF": {"ticker": "DEF", "name": "DEF"},
-        "GHI": {"ticker": "GHI", "name": "Gamma"},
+        "ABC": {"ticker": "ABC", "name": "Alpha", "instrument_type": "stock"},
+        "DEF": {"ticker": "DEF", "name": "DEF", "instrument_type": None},
+        "GHI": {"ticker": "GHI", "name": "Gamma", "instrument_type": None},
     }
 
-    assert prices.get_security_meta("abc") == {"ticker": "ABC", "name": "Alpha"}
-    assert prices.get_security_meta("DEF") == {"ticker": "DEF", "name": "DEF"}
+    assert prices.get_security_meta("abc") == {"ticker": "ABC", "name": "Alpha", "instrument_type": "stock"}
+    assert prices.get_security_meta("DEF") == {"ticker": "DEF", "name": "DEF", "instrument_type": None}
     assert prices.get_security_meta("missing") is None
 
 

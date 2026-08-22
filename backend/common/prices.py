@@ -207,6 +207,7 @@ def _build_securities_from_portfolios() -> Dict[str, Dict]:
                 securities[tkr] = {
                     "ticker": tkr,
                     "name": h.get("name", tkr),
+                    "instrument_type": h.get("instrument_type"),
                 }
     return securities
 

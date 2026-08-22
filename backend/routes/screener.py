@@ -9,6 +9,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 from pydantic import BaseModel
 
 from backend.common.core_optional import require_core
+from backend.common.prices import get_security_meta
 from backend.utils import page_cache
 
 try:
@@ -63,6 +64,11 @@ class RankedFundamentals(BaseModel):
     low_52w: float | None = None
     avg_volume: int | None = None
     rank: int
+    # Route-only: not present on allotmint_pro.screener.Fundamentals.
+    # Populated here (not by the screener engine) from portfolio holdings
+    # metadata after screen() returns -- see allotmint#6876 and
+    # _ROUTE_ONLY_FIELDS in tests/routes/test_screener_schema.py.
+    instrument_type: str | None = None
 
 
 router = APIRouter(prefix="/screener", tags=["screener"])
@@ -133,7 +139,7 @@ def _hash_params(
     page = "screener_" + hashlib.sha1(params.encode()).hexdigest()
 
     def _call():
-        return [
+        rows = [
             r.model_dump()
             for r in screen(
                 symbols,
@@ -164,8 +170,23 @@ def _hash_params(
                 avg_volume_min=avg_volume_min,
             )
         ]
+        _apply_instrument_type(rows)
+        return rows
 
     return page, _call
+
+
+def _apply_instrument_type(rows: List[dict]) -> None:
+    """Populate ``instrument_type`` from portfolio holdings metadata.
+
+    The screener engine (``allotmint_pro.screener.Fundamentals``) has no
+    concept of instrument type, so this route-only field is filled in here
+    after ``screen()`` returns rather than by the engine -- see
+    allotmint#6876.
+    """
+    for row in rows:
+        meta = get_security_meta(row["ticker"]) or {}
+        row["instrument_type"] = meta.get("instrument_type")
 
 
 def _apply_rank(rows: List[dict]) -> None:

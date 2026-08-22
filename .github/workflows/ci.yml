@@ -224,13 +224,24 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
+          set -euo pipefail
           if [ "$EVENT_NAME" = "pull_request" ] && [ -n "$BASE_SHA" ] && [ -n "$HEAD_SHA" ]; then
-            FILES=$(git diff --name-only --diff-filter=ACMR "${BASE_SHA}...${HEAD_SHA}" -- backend tests | grep '\.py$' || true)
+            if ! CHANGED=$(git diff --name-only --diff-filter=ACMR "${BASE_SHA}...${HEAD_SHA}" -- backend tests); then
+              echo "::error::git diff failed for ${BASE_SHA}...${HEAD_SHA} -- cannot determine changed files; failing rather than silently skipping lint."
+              exit 1
+            fi
           else
             # Non-PR event (push to main): no base to diff against, so lint
             # the whole tree rather than silently skip.
-            FILES=$(git ls-files backend tests | grep '\.py$' || true)
+            if ! CHANGED=$(git ls-files backend tests); then
+              echo "::error::git ls-files failed -- cannot enumerate backend/tests files."
+              exit 1
+            fi
           fi
+          # grep exits 1 (no matches) when this change touches no .py files
+          # under backend/tests -- that is a legitimate no-op, so it is the
+          # only failure suppressed here; git's own failure above is not.
+          FILES=$(printf '%s\n' "$CHANGED" | grep '\.py$' || true)
           if [ -z "$FILES" ]; then
             echo "No backend/tests Python files to lint."
             exit 0

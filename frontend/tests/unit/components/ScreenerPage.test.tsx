@@ -96,4 +96,31 @@ describe("ScreenerPage", () => {
     expect(keyWarnings).toEqual([]);
     errorSpy.mockRestore();
   });
+
+  it("passes instrument_type through to InstrumentDetail instead of dropping it (#6876)", async () => {
+    const { InstrumentDetail } = await import("@/components/InstrumentDetail");
+    mockGetScreener.mockResolvedValue([
+      {
+        rank: 1,
+        ticker: "AAA.L",
+        peg_ratio: null,
+        pe_ratio: null,
+        de_ratio: null,
+        fcf: null,
+        instrument_type: "stock",
+      } as ScreenerResult,
+    ]);
+
+    render(<ScreenerPage />);
+
+    const row = await screen.findByText("AAA.L");
+    fireEvent.click(row);
+
+    await waitFor(() =>
+      expect(InstrumentDetail).toHaveBeenCalledWith(
+        expect.objectContaining({ instrument_type: "stock" }),
+        undefined,
+      ),
+    );
+  });
 });

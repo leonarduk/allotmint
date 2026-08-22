@@ -10,6 +10,7 @@ scalar values.
 
 from __future__ import annotations
 
+import decimal
 import math
 from typing import Any
 
@@ -23,15 +24,23 @@ def is_nan(value: Any) -> bool:
     or bare ``pd.isna`` (returns an array for array-likes rather than a bool
     for a single value). Not intended for array-likes -- use ``pd.isna``
     directly for those.
+
+    ``Decimal`` is short-circuited via ``Decimal.is_nan()`` before reaching
+    ``pd.isna``: that method returns True for both quiet and signaling NaN,
+    whereas ``pd.isna`` raises ``decimal.InvalidOperation`` on a signaling
+    NaN (comparing it against anything is an invalid operation per IEEE 754).
+    A signaling NaN is still a NaN, so this is the more correct answer.
     """
     if value is None:
         return True
     if isinstance(value, float):
         return math.isnan(value)
+    if isinstance(value, decimal.Decimal):
+        return value.is_nan()
     try:
         result = pd.isna(value)
         return bool(result)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, decimal.InvalidOperation):
         # pd.isna raises for some inputs (e.g. dict keys it can't hash) and
         # bool() raises on a multi-element array-like result (ambiguous
         # truth value) -- either way, not a scalar "is this NaN" question,

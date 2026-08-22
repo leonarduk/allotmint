@@ -17,6 +17,7 @@ import pandas as pd
 from backend import alerts as alert_utils
 from backend.common import indicators, prices
 from backend.common.alerts import publish_alert
+from backend.common.core_optional import CoreFeatureUnavailableError
 from backend.common.portfolio_loader import list_portfolios
 from backend.common.portfolio_utils import (
     compute_owner_performance,
@@ -473,6 +474,26 @@ def run(tickers: Optional[Iterable[str]] = None, *, notify: bool = True) -> List
 
     signals = generate_signals(snapshot)
 
+    # Determine, once per run, which allotmint-pro-only checks are
+    # unavailable. Checked (and logged) up front rather than inside the
+    # per-signal/per-owner loops below, so the warning fires at most once
+    # per `run()` call instead of once per (signal x owner) pair.
+    screening_unavailable = screen is None
+    compliance_unavailable = compliance is None
+
+    if cfg.require_pro_checks and (screening_unavailable or compliance_unavailable):
+        unavailable_checks = (
+            ("fundamental_screen", screening_unavailable),
+            ("compliance", compliance_unavailable),
+        )
+        unavailable = _join_with_and([name for name, missing in unavailable_checks if missing])
+        raise CoreFeatureUnavailableError(f"trading_agent {unavailable}")
+
+    if screening_unavailable:
+        logger.warning("Fundamental screening skipped: allotmint-pro is not installed")
+    if compliance_unavailable:
+        logger.warning("Compliance check skipped: allotmint-pro is not installed")
+
     fundamental_params: Dict[str, float] = {}
     if cfg.pe_max is not None:
         fundamental_params["pe_max"] = cfg.pe_max
@@ -482,40 +503,48 @@ def run(tickers: Optional[Iterable[str]] = None, *, notify: bool = True) -> List
         buy_tickers = [s["ticker"] for s in signals if s["action"] == "BUY"]
         allowed: Set[str] = set()
         if buy_tickers:
-            if screen is not None:
+            if not screening_unavailable:
                 fundamentals = screen(buy_tickers, **fundamental_params)
                 allowed = {f.ticker for f in fundamentals}
             else:
-                logger.warning("Fundamental screening skipped: allotmint-pro is not installed")
                 allowed = set(buy_tickers)
         signals = [s for s in signals if s["action"] != "BUY" or s["ticker"] in allowed]
     allowed_signals: List[Dict] = []
     for sig in signals:
         blocked = False
-        for owner in owners:
-            trade = {
-                "owner": owner,
-                "ticker": sig["ticker"],
-                "type": sig["action"].lower(),
-                "date": date.today().isoformat(),
-            }
-            if compliance is None:
-                logger.warning("Compliance check skipped: allotmint-pro is not installed")
-                continue
-            result = compliance.check_trade(trade)
-            if result.get("warnings"):
-                logger.warning("Compliance warnings for %s: %s", owner, result["warnings"])
-                blocked = True
-                break
+        if not compliance_unavailable:
+            for owner in owners:
+                trade = {
+                    "owner": owner,
+                    "ticker": sig["ticker"],
+                    "type": sig["action"].lower(),
+                    "date": date.today().isoformat(),
+                }
+                result = compliance.check_trade(trade)
+                if result.get("warnings"):
+                    logger.warning("Compliance warnings for %s: %s", owner, result["warnings"])
+                    blocked = True
+                    break
         if blocked:
             continue
         ticker = sig["ticker"]
         price = snapshot[ticker]["last_price"]
+
+        checks_skipped: List[str] = []
+        if compliance_unavailable:
+            checks_skipped.append("compliance")
+        if screening_unavailable and sig["action"] == "BUY" and fundamental_params:
+            checks_skipped.append("fundamental_screen")
+        sig["checks_skipped"] = checks_skipped
+
+        message = f"{sig['action']} {ticker}: {sig['reason']}"
+        if checks_skipped:
+            message += f" [checks skipped: {', '.join(checks_skipped)}]"
         alert = {
             "ticker": ticker,
             "action": sig["action"],
             "reason": sig["reason"],
-            "message": f"{sig['action']} {ticker}: {sig['reason']}",
+            "message": message,
         }
         if notify:
             send_trade_alert(alert["message"])

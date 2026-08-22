@@ -85,6 +85,11 @@ class TradingAgentConfig:
     de_max: Optional[float] = None
     min_sharpe: Optional[float] = None
     max_volatility: Optional[float] = None
+    # When True, `trading_agent.run()` raises `CoreFeatureUnavailableError`
+    # instead of silently degrading when `allotmint-pro` (compliance /
+    # fundamental screening) is not installed. Defaults to False so existing
+    # free-tier deployments keep returning signals by default.
+    require_pro_checks: bool = False
 
 
 @dataclass

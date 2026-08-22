@@ -7,6 +7,7 @@ from backend.agent import trading_agent
 from backend.agent.trading_agent import generate_signals as ta_generate_signals
 from backend.agent.trading_agent import run, send_trade_alert
 from backend.common import portfolio_utils
+from backend.common.core_optional import CoreFeatureUnavailableError
 
 # Alias to match the terminology of "generate_signals"
 generate_signals = portfolio_utils.check_price_alerts
@@ -420,6 +421,110 @@ def test_run_applies_risk_filters(monkeypatch):
 
     signals = trading_agent.run()
     assert signals == []
+
+
+def test_run_pro_absent_tags_checks_skipped_and_warns_once(monkeypatch, caplog):
+    """When allotmint-pro is absent, run() should still return signals but
+    tag them with `checks_skipped`, and the "unavailable" warnings should be
+    logged once per run, not once per signal/owner pair."""
+    monkeypatch.setattr(trading_agent, "list_all_unique_tickers", lambda: ["AAA", "BBB"])
+
+    def fake_load_prices(tickers, days=60):
+        import pandas as pd
+
+        data = {
+            "Ticker": ["AAA"] * 7 + ["BBB"] * 7,
+            "close": [1, 1, 1, 1, 1, 1, 2] + [1, 1, 1, 1, 1, 1, 2],
+        }
+        return pd.DataFrame(data)
+
+    monkeypatch.setattr(trading_agent.prices, "load_prices_for_tickers", fake_load_prices)
+    monkeypatch.setattr(trading_agent, "publish_alert", lambda alert: None)
+    monkeypatch.setattr(trading_agent, "send_message", lambda msg: None)
+    monkeypatch.setattr(trading_agent, "_log_trade", lambda *a, **k: None)
+    # Two owners so the old per-owner-loop warning placement would have
+    # logged the compliance warning twice for a single BUY signal.
+    monkeypatch.setattr(trading_agent, "list_portfolios", lambda: [{"owner": "alice"}, {"owner": "bob"}])
+    monkeypatch.setattr(trading_agent, "compliance", None)
+    monkeypatch.setattr(trading_agent, "screen", None)
+
+    cfg = trading_agent.config.trading_agent
+    monkeypatch.setattr(cfg, "pe_max", 20.0)
+    monkeypatch.setattr(cfg, "require_pro_checks", False)
+
+    with caplog.at_level("WARNING"):
+        signals = trading_agent.run()
+
+    assert signals, "expected at least one signal to be returned"
+    for sig in signals:
+        assert "compliance" in sig["checks_skipped"]
+
+    compliance_warnings = [r for r in caplog.records if "Compliance check skipped" in r.message]
+    screening_warnings = [r for r in caplog.records if "Fundamental screening skipped" in r.message]
+    assert len(compliance_warnings) == 1
+    assert len(screening_warnings) == 1
+
+
+def test_run_require_pro_checks_raises_when_pro_absent(monkeypatch):
+    monkeypatch.setattr(trading_agent, "list_all_unique_tickers", lambda: ["AAA"])
+
+    def fake_load_prices(tickers, days=60):
+        import pandas as pd
+
+        data = {"Ticker": ["AAA"] * 7, "close": [1, 1, 1, 1, 1, 1, 2]}
+        return pd.DataFrame(data)
+
+    monkeypatch.setattr(trading_agent.prices, "load_prices_for_tickers", fake_load_prices)
+    monkeypatch.setattr(trading_agent, "list_portfolios", lambda: [{"owner": "alice"}])
+    monkeypatch.setattr(trading_agent, "compliance", None)
+    monkeypatch.setattr(trading_agent, "screen", None)
+
+    cfg = trading_agent.config.trading_agent
+    monkeypatch.setattr(cfg, "require_pro_checks", True)
+
+    with pytest.raises(CoreFeatureUnavailableError):
+        trading_agent.run()
+
+
+def test_run_pro_present_checks_skipped_empty(monkeypatch):
+    """When allotmint-pro's compliance/screen modules are available, signals
+    should carry an empty `checks_skipped` list and existing blocking
+    behaviour must be unchanged."""
+    monkeypatch.setattr(trading_agent, "list_all_unique_tickers", lambda: ["AAA"])
+
+    def fake_load_prices(tickers, days=60):
+        import pandas as pd
+
+        data = {"Ticker": ["AAA"] * 7, "close": [1, 1, 1, 1, 1, 1, 2]}
+        return pd.DataFrame(data)
+
+    monkeypatch.setattr(trading_agent.prices, "load_prices_for_tickers", fake_load_prices)
+    monkeypatch.setattr(trading_agent, "publish_alert", lambda alert: None)
+    monkeypatch.setattr(trading_agent, "send_message", lambda msg: None)
+    monkeypatch.setattr(trading_agent, "_log_trade", lambda *a, **k: None)
+    monkeypatch.setattr(trading_agent, "list_portfolios", lambda: [{"owner": "alice"}])
+
+    class FakeCompliance:
+        @staticmethod
+        def check_trade(trade):
+            return {"owner": trade.get("owner"), "warnings": []}
+
+    class F:
+        def __init__(self, ticker: str):
+            self.ticker = ticker
+
+    monkeypatch.setattr(trading_agent, "compliance", FakeCompliance)
+    monkeypatch.setattr(trading_agent, "screen", lambda tickers, **kw: [F("AAA")])
+
+    cfg = trading_agent.config.trading_agent
+    monkeypatch.setattr(cfg, "pe_max", 20.0)
+    monkeypatch.setattr(cfg, "require_pro_checks", False)
+
+    signals = trading_agent.run()
+
+    assert signals
+    for sig in signals:
+        assert sig["checks_skipped"] == []
 
 
 def test_alert_on_drawdown_handles_value_error(monkeypatch):

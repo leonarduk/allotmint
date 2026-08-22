@@ -18,6 +18,10 @@ class TradingSignal(BaseModel):
         rationale: Optional detailed explanation of the signal.
         factors: Optional list of plain-English statements describing the
             indicators that support the recommendation.
+        checks_skipped: Names of compliance/screening checks that were
+            skipped because ``allotmint-pro`` is not installed, e.g.
+            ``["compliance", "fundamental_screen"]``. Empty when every
+            applicable check ran.
     """
 
     ticker: str
@@ -26,5 +30,6 @@ class TradingSignal(BaseModel):
     confidence: Optional[float] = None
     rationale: Optional[str] = None
     factors: Optional[List[str]] = None
+    checks_skipped: List[str] = []
 
     model_config = ConfigDict(extra="ignore")

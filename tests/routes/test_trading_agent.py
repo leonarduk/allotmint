@@ -36,6 +36,7 @@ def test_basic_response_model_validation(monkeypatch):
             "reason": "r",
             "confidence": 0.9,
             "rationale": "details",
+            "checks_skipped": [],
         }
     ]
 

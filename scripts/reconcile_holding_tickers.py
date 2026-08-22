@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Any
 
 from backend.common.instruments import resolve_instrument_ticker
 from backend.config import config
+
+logger = logging.getLogger(__name__)
 
 
 def reconcile_account_file(path: Path, *, write: bool = False) -> dict[str, list[str]]:
@@ -18,7 +21,17 @@ def reconcile_account_file(path: Path, *, write: bool = False) -> dict[str, list
     changed: list[str] = []
     unresolved: list[str] = []
 
-    for holding in document.get("holdings", []):
+    holdings = document.get("holdings", [])
+    if not isinstance(holdings, list):
+        # A malformed account file (e.g. ``holdings`` persisted as a dict)
+        # would otherwise silently iterate over dict keys as if they were
+        # holdings and risk writing corrupted data. This is a batch script —
+        # one bad file should be skipped with a warning, not abort the run
+        # or raise mid-write.
+        logger.warning("Skipping %s: 'holdings' is %s, expected a list", path, type(holdings).__name__)
+        return {"changed": changed, "unresolved": unresolved}
+
+    for holding in holdings:
         ticker = str(holding.get("ticker", "")).strip().upper()
         if not ticker.endswith(".L"):
             continue

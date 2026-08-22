@@ -150,6 +150,92 @@ describe("App", () => {
     15_000,
   );
 
+  it("fetches compliance once per owner despite multiple App re-renders during hydration (#6573)", async () => {
+    // Regression test for #6573: App.tsx used to rebuild
+    // `portfolioComplianceOwners` as a fresh array literal on every render.
+    // ComplianceWarnings keys its fetch effect on that array (via useFetch),
+    // so every App re-render during hydration (ownersReq/groupsReq
+    // resolving, route-sync effects) refired GET /compliance/{owner}. This
+    // uses the real ComplianceWarnings component (unmocked for this test
+    // only) so the fetch call count reflects the actual fetch-effect
+    // dependency behaviour, not just the mocked owners prop.
+    window.history.pushState({}, "", "/?owner=alice");
+    vi.doUnmock("@/components/ComplianceWarnings");
+
+    const mockGetCompliance = vi.fn().mockResolvedValue({
+      owner: "alice",
+      warnings: [],
+      trade_counts: {},
+    });
+
+    vi.doMock("@/components/GroupPortfolioView", () => ({
+      GroupPortfolioView: () => <div data-testid="group-portfolio-view" />,
+    }));
+
+    vi.doMock("@/api", async () => {
+      const actual = await vi.importActual<typeof import("@/api")>("@/api");
+      return {
+        ...actual,
+        getOwners: vi.fn().mockResolvedValue([
+          { owner: "alice", accounts: [] },
+          { owner: "bob", accounts: [] },
+        ]),
+        getGroups: vi.fn().mockResolvedValue([
+          { slug: "all", name: "All", members: ["alice", "bob"] },
+          { slug: "family", name: "Family", members: ["alice", "bob"] },
+        ]),
+        getPortfolio: vi.fn(),
+        getGroupInstruments: vi.fn().mockResolvedValue([]),
+        getCompliance: mockGetCompliance,
+        complianceForOwner: mockGetCompliance,
+      };
+    });
+
+    try {
+      const { default: App } = await import("@/App");
+      const { configContext } = await import("@/ConfigContext");
+
+      render(
+        <configContext.Provider
+          value={makeConfigValue({
+            tabs: { ...makeConfigValue().tabs, "trade-compliance": true },
+          })}
+        >
+          <MemoryRouter initialEntries={["/?owner=alice"]}>
+            <App />
+          </MemoryRouter>
+        </configContext.Provider>,
+      );
+
+      await screen.findByTestId("group-portfolio-view");
+      await waitFor(() => expect(mockGetCompliance).toHaveBeenCalled());
+
+      // Flush the remaining hydration cascade (further ownersReq/groupsReq
+      // state settling, route-sync effects) so any extra re-renders the old
+      // unmemoized code would have produced extra fetches for have a chance
+      // to fire before asserting the final call count.
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+
+      expect(mockGetCompliance).toHaveBeenCalledTimes(1);
+      expect(mockGetCompliance).toHaveBeenCalledWith("alice");
+    } finally {
+      // Restore the module-level mocks for subsequent tests, even if an
+      // assertion above threw.
+      vi.doMock("@/components/ComplianceWarnings", () => ({
+        ComplianceWarnings: ({ owners }: { owners: string[] }) => {
+          mockComplianceWarnings(owners);
+          return null;
+        },
+      }));
+      vi.doUnmock("@/components/GroupPortfolioView");
+    }
+  });
+
   it("loads the group slug from the URL", async () => {
     window.history.pushState({}, "", "/?group=kids");
 

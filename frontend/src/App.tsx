@@ -466,11 +466,33 @@ export default function App({ onLogout }: AppProps) {
 
   const portfolioGroupSlug =
     selectedOwnerGroup?.slug ?? (selectedGroup || '');
-  const portfolioComplianceOwners = selectedOwnerGroup
-    ? selectedOwnerGroup.members
-    : selectedOwner
-      ? [selectedOwner]
-      : (selectedGroupSummary?.members ?? []);
+  // Each candidate source is memoized independently, keyed only on the
+  // state that can actually change it. That keeps `portfolioComplianceOwners`
+  // referentially stable across renders that touch unrelated state — e.g.
+  // groupsReq resolving while an individual owner (not a group) is selected
+  // still changes `selectedGroupSummary`'s identity, but that branch isn't
+  // the one in use, so it must not force a new array here. ComplianceWarnings
+  // keys a fetch effect on this array (via useFetch), and a fresh array
+  // reference on every App re-render was firing /compliance/{owner} on every
+  // re-render during hydration instead of once per owner (#6573).
+  const ownerGroupComplianceMembers = useMemo(
+    () => selectedOwnerGroup?.members ?? null,
+    [selectedOwnerGroup]
+  );
+  const groupSummaryComplianceMembers = useMemo(
+    () => selectedGroupSummary?.members ?? null,
+    [selectedGroupSummary]
+  );
+  const singleSelectedOwnerCompliance = useMemo(
+    () => (selectedOwner ? [selectedOwner] : null),
+    [selectedOwner]
+  );
+  const emptyComplianceOwners = useMemo(() => [] as string[], []);
+  const portfolioComplianceOwners =
+    ownerGroupComplianceMembers ??
+    singleSelectedOwnerCompliance ??
+    groupSummaryComplianceMembers ??
+    emptyComplianceOwners;
 
   const handleInstrumentExportCsv = useCallback(() => {
     downloadInstrumentsCsv(instruments, exportGroupLabel);

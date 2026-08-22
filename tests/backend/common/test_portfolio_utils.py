@@ -1010,3 +1010,28 @@ def test_get_security_meta_resolves_watchlist_only_symbol_from_canonical_metadat
 
     assert meta is not None
     assert meta["instrument_type"] == "Commodity"
+
+
+def test_get_security_meta_resolves_bare_watchlist_symbol(monkeypatch):
+    """A bare watchlist symbol (e.g. "PFE") must resolve via the persisted
+    exchange-qualified instrument record (e.g. ``data/instruments/N/PFE.json``
+    -> ``PFE.N``) on the movers/opportunities path too, not just the
+    screener path.
+
+    Regression test for allotmint#6908 DeepSeek follow-up: the bare-symbol
+    resolution fix (commit a41ff94) was applied to
+    ``backend/common/prices.py``'s ``_resolve_instrument_type`` but not to
+    ``backend/common/portfolio_utils.py``'s ``_meta_from_file``, which feeds
+    ``instrument_api.top_movers`` (backing both ``/movers`` and
+    ``/opportunities``). Without the fix, ``get_instrument_meta("PFE")``
+    always misses (metadata is keyed by the exchange-qualified ticker
+    "PFE.N"), so this fell straight to the "not found" branch.
+    """
+    monkeypatch.setattr(portfolio_utils, "_SECURITIES", None)
+    monkeypatch.setattr(portfolio_utils, "list_portfolios", lambda: [])
+    monkeypatch.setattr(portfolio_utils, "list_virtual_portfolios", lambda: [])
+
+    meta = portfolio_utils.get_security_meta("PFE")
+
+    assert meta is not None
+    assert meta["instrument_type"] == "Equity"

@@ -27,7 +27,11 @@ from backend.common import portfolio as portfolio_mod
 from backend.common.account_scaffold import load_transactions
 from backend.common.data_loader import DATA_BUCKET_ENV
 from backend.common.holding_utils import _get_price_for_date_scaled
-from backend.common.instruments import get_instrument_meta, instrument_meta_path
+from backend.common.instruments import (
+    get_instrument_meta,
+    instrument_meta_path,
+    resolve_instrument_ticker,
+)
 from backend.common.portfolio_loader import list_portfolios  # existing helper
 from backend.common.virtual_portfolio import (
     VirtualPortfolio,
@@ -408,7 +412,14 @@ def _meta_from_file(ticker: str) -> Dict[str, str] | None:
     if t in _DEFAULT_META:
         return _DEFAULT_META[t]
 
-    data = get_instrument_meta(t)
+    # Resolve bare watchlist/movers symbols (e.g. "PFE") to their canonical
+    # exchange-qualified metadata record (e.g. "PFE.N") before lookup, same
+    # as backend/common/prices.py's _resolve_instrument_type. CASH tickers
+    # short-circuit inside resolve_instrument_ticker (returns None for a
+    # bare "CASH" symbol), so this is a no-op for the CASH special case
+    # handled above.
+    resolved_ticker = resolve_instrument_ticker(t, create_missing=False) or t
+    data = get_instrument_meta(resolved_ticker)
     if not data:
         sym, exch = (t.split(".", 1) + ["Unknown"])[:2]
         path = instrument_meta_path(sym, exch or "Unknown")

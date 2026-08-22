@@ -40,9 +40,9 @@ backend/common/portfolio.py:117
 backend/common/portfolio_loader.py:240
 backend/common/portfolio_loader.py:253
 backend/common/portfolio_loader.py:260
-backend/common/portfolio_utils.py:1893
-backend/common/portfolio_utils.py:295
-backend/common/portfolio_utils.py:301
+backend/common/portfolio_utils.py:1904
+backend/common/portfolio_utils.py:299
+backend/common/portfolio_utils.py:305
 backend/common/prices.py:405
 backend/common/prices.py:226
 backend/common/prices.py:297
@@ -135,17 +135,17 @@ backend/agent/trading_agent.py:66
 # load_and_compute_metrics() from the agent's own trade log -- not
 # attacker/user-controlled input.
 backend/agent/trading_agent.py:596
-backend/common/portfolio_utils.py:1288
-backend/common/portfolio_utils.py:1317
-backend/common/portfolio_utils.py:1903
-backend/common/portfolio_utils.py:223
-backend/common/portfolio_utils.py:240
-backend/common/portfolio_utils.py:251
-backend/common/portfolio_utils.py:259
-backend/common/portfolio_utils.py:267
-backend/common/portfolio_utils.py:307
-backend/common/portfolio_utils.py:314
-backend/common/portfolio_utils.py:336
-backend/common/portfolio_utils.py:526
-backend/common/portfolio_utils.py:542
-backend/common/portfolio_utils.py:549
+backend/common/portfolio_utils.py:1299
+backend/common/portfolio_utils.py:1328
+backend/common/portfolio_utils.py:1914
+backend/common/portfolio_utils.py:227
+backend/common/portfolio_utils.py:244
+backend/common/portfolio_utils.py:255
+backend/common/portfolio_utils.py:263
+backend/common/portfolio_utils.py:271
+backend/common/portfolio_utils.py:311
+backend/common/portfolio_utils.py:318
+backend/common/portfolio_utils.py:340
+backend/common/portfolio_utils.py:537
+backend/common/portfolio_utils.py:553
+backend/common/portfolio_utils.py:560

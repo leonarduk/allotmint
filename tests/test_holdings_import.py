@@ -64,6 +64,24 @@ def test_hargreaves_to_float_variants():
     assert hargreaves._to_float("not-a-number") is None
 
 
+def test_first_number_skips_blank_first_column_for_valid_later_column():
+    """A blank leading column must not shadow a valid later column (#6449)."""
+    row = {"Price (pence)": "", "Price (GBX)": "450"}
+
+    assert hargreaves._first_number(row, hargreaves._PENCE_PRICE_COLUMNS) == pytest.approx(450)
+
+
+def test_hargreaves_parse_uses_later_price_column_when_first_is_blank():
+    """An HL export with a blank ``Price (pence)`` but populated ``Price (GBX)``
+    must still resolve the price rather than silently dropping it (#6449).
+    """
+    csv_data = "Code,Units held,Price (pence),Price (GBX),Cost (£)\nBP.,10,,450,30\n"
+
+    [holding] = hargreaves.parse(csv_data.encode())
+
+    assert holding.price == pytest.approx(4.5)
+
+
 def test_update_holdings_from_csv(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(config, "accounts_root", tmp_path)
     result = update_holdings_from_csv.update_from_csv(

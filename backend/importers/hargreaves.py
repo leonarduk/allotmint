@@ -31,10 +31,17 @@ def _to_float(value: str | None) -> float | None:
 
 
 def _first_number(row: dict[str, str | None], columns: tuple[str, ...]) -> float | None:
-    """Return the first numeric value found under ``columns``."""
+    """Return the first numeric value found under ``columns``.
+
+    A column that exists but is blank/``None`` is skipped rather than
+    short-circuiting the scan, so a later column can still supply a valid
+    value.
+    """
     for column in columns:
         if column in row:
-            return _to_float(row[column])
+            value = _to_float(row[column])
+            if value is not None:
+                return value
     return None
 
 

@@ -30,8 +30,8 @@ backend/common/instruments.py:36
 backend/common/instruments.py:39
 backend/common/instruments.py:87
 backend/common/instruments.py:91
-backend/common/instruments.py:575
-backend/common/instruments.py:606
+backend/common/instruments.py:584
+backend/common/instruments.py:615
 backend/common/portfolio.py:117
 # raw/d_raw/amount_minor are logged with %r (repr), which already escapes
 # real newlines as the literal two-character sequence \n -- wrapping in
@@ -63,8 +63,8 @@ backend/config.py:285
 backend/config.py:288
 # len(lines)/len(data) are always ints (row counts produced by the CSV
 # parser in this function) and can't carry attacker-controlled string content.
-backend/importers/hargreaves.py:125
-backend/importers/hargreaves.py:148
+backend/importers/hargreaves.py:132
+backend/importers/hargreaves.py:155
 backend/reports.py:462
 backend/reports.py:468
 backend/reports.py:446

@@ -527,9 +527,14 @@ def resolve_instrument_ticker(
 ) -> Optional[str]:
     """Resolve a bare symbol to a persisted, informative instrument ticker.
 
-    ``ticker`` is expected to be a bare symbol without an exchange suffix
-    (e.g. ``"MSFT"``); any ``.SUFFIX`` present is stripped and ignored, it is
-    not treated as a preferred candidate.
+    ``ticker`` may be a bare symbol (e.g. ``"MSFT"``) or include an explicit
+    ``.SUFFIX`` exchange (e.g. ``"MSFT.L"``). An explicit suffix is treated
+    as a preferred candidate rather than being stripped and ignored: it is
+    tried first, ahead of ``exchanges``' own ordering, and resolution still
+    falls back through the rest of ``exchanges`` (and, with
+    ``create_missing``, live lookup) if the suffixed candidate does not
+    resolve. An unrecognised suffix is simply tried first and then falls
+    through the same way, rather than raising.
 
     Existing metadata is checked before any live lookup, making this safe for
     the CSV import path. Persisted exchange aliases not in ``exchanges`` are
@@ -538,9 +543,13 @@ def resolve_instrument_ticker(
     operation can set ``create_missing`` to try Yahoo in exchange-priority
     order; successful metadata is persisted by :func:`_auto_create_instrument_meta`.
     """
-    symbol = (ticker or "").strip().upper().split(".", 1)[0]
+    raw = (ticker or "").strip().upper()
+    symbol, _, suffix = raw.partition(".")
     if not symbol or symbol == "CASH":
         return None
+
+    if suffix:
+        exchanges = (suffix, *(exchange for exchange in exchanges if exchange != suffix))
 
     known_exchanges = list(dict.fromkeys(exchanges))
     for exchange in _persisted_metadata_exchanges(symbol):

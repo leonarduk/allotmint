@@ -29,6 +29,76 @@ def test_resolver_explicitly_creates_and_persists_first_valid_candidate(monkeypa
     assert attempted == ["ADBE.L", "ADBE.US"]
 
 
+def test_resolver_prefers_explicit_suffix_over_default_exchange_order(monkeypatch):
+    """An explicit ``.L`` suffix must be tried before the default-ordered
+    ``exchanges`` fallback, not stripped and ignored (#6329)."""
+    monkeypatch.setattr(instruments, "get_instrument_meta", lambda ticker: {})
+    attempted: list[str] = []
+
+    def create(ticker: str):
+        attempted.append(ticker)
+        if ticker == "MSFT.L":
+            return {"ticker": ticker, "exchange": "L", "currency": "GBP"}
+        return None
+
+    monkeypatch.setattr(instruments, "_auto_create_instrument_meta", create)
+
+    # "US" is first in the caller-supplied ordering, but the explicit ".L"
+    # suffix on the ticker itself must still be tried first.
+    assert instruments.resolve_instrument_ticker("MSFT.L", exchanges=("US", "L"), create_missing=True) == "MSFT.L"
+    assert attempted == ["MSFT.L"]
+
+
+def test_resolver_falls_back_to_default_order_when_suffix_candidate_fails(monkeypatch):
+    """If the explicit-suffix candidate doesn't resolve, resolution falls
+    back through the rest of ``exchanges`` rather than failing outright
+    (#6329)."""
+    monkeypatch.setattr(instruments, "get_instrument_meta", lambda ticker: {})
+    attempted: list[str] = []
+
+    def create(ticker: str):
+        attempted.append(ticker)
+        if ticker == "MSFT.US":
+            return {"ticker": ticker, "exchange": "US", "currency": "USD"}
+        return None
+
+    monkeypatch.setattr(instruments, "_auto_create_instrument_meta", create)
+
+    assert instruments.resolve_instrument_ticker("MSFT.L", exchanges=("US", "L"), create_missing=True) == "MSFT.US"
+    assert attempted == ["MSFT.L", "MSFT.US"]
+
+
+def test_resolver_bare_ticker_behaviour_is_unchanged(monkeypatch):
+    """A bare symbol (no suffix) must resolve exactly as before (#6329)."""
+    monkeypatch.setattr(
+        instruments,
+        "get_instrument_meta",
+        lambda ticker: ({"ticker": ticker, "exchange": "US", "currency": "USD"} if ticker == "MSFT.US" else {}),
+    )
+    create = monkeypatch.setattr(instruments, "_auto_create_instrument_meta", lambda ticker: None)
+
+    assert instruments.resolve_instrument_ticker("MSFT") == "MSFT.US"
+    assert create is None
+
+
+def test_resolver_unrecognised_suffix_is_tried_first_then_falls_through(monkeypatch):
+    """An unrecognised suffix (not in the canonical exchange list) should be
+    prepended as a candidate and then fall through, not error (#6329)."""
+    monkeypatch.setattr(instruments, "get_instrument_meta", lambda ticker: {})
+    attempted: list[str] = []
+
+    def create(ticker: str):
+        attempted.append(ticker)
+        if ticker == "MSFT.US":
+            return {"ticker": ticker, "exchange": "US", "currency": "USD"}
+        return None
+
+    monkeypatch.setattr(instruments, "_auto_create_instrument_meta", create)
+
+    assert instruments.resolve_instrument_ticker("MSFT.XYZ", exchanges=("US", "L"), create_missing=True) == "MSFT.US"
+    assert attempted == ["MSFT.XYZ", "MSFT.US"]
+
+
 def test_resolver_rejects_placeholder_metadata(monkeypatch):
     monkeypatch.setattr(
         instruments,
@@ -67,6 +137,31 @@ def test_resolver_finds_genuine_lse_ticker_from_real_persisted_metadata(monkeypa
     )
 
     assert instruments.resolve_instrument_ticker("3IN") == "3IN.L"
+
+
+def test_resolver_prefers_explicit_suffix_when_both_persisted_metadata_paths_have_data(monkeypatch):
+    """When persisted metadata exists under *both* the explicit-suffix exchange
+    and another exchange earlier in the caller-supplied ordering, the explicit
+    suffix must still win on the persisted-metadata lookup path -- not just on
+    the live/auto-create path. Regression guard for the gap raised in the
+    DeepSeek AI review of PR #6894 (on top of #6329): the persisted-metadata
+    lookup is built from ``known_exchanges``, which must derive from the same
+    suffix-reordered ``exchanges`` tuple the live lookup uses, not a stale
+    unreordered copy."""
+    monkeypatch.setattr(instruments, "_persisted_metadata_exchanges", lambda symbol: ("L", "US"))
+    monkeypatch.setattr(
+        instruments,
+        "get_instrument_meta",
+        lambda ticker: (
+            {"ticker": "MSFT.L", "exchange": "L", "currency": "GBP"}
+            if ticker == "MSFT.L"
+            else {"ticker": "MSFT.US", "exchange": "US", "currency": "USD"} if ticker == "MSFT.US" else {}
+        ),
+    )
+
+    # "US" is first in the caller-supplied ordering, and persisted metadata
+    # exists for both exchanges, but the explicit ".L" suffix must still win.
+    assert instruments.resolve_instrument_ticker("MSFT.L", exchanges=("US", "L")) == "MSFT.L"
 
 
 def test_persisted_metadata_exchanges_degrades_gracefully_on_oserror(monkeypatch):

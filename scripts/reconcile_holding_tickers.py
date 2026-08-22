@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Any
 
 from backend.common.instruments import resolve_instrument_ticker
 from backend.config import config
+from backend.logging_setup import sanitise_log_value
+
+logger = logging.getLogger(__name__)
 
 
 def reconcile_account_file(path: Path, *, write: bool = False) -> dict[str, list[str]]:
@@ -18,7 +22,21 @@ def reconcile_account_file(path: Path, *, write: bool = False) -> dict[str, list
     changed: list[str] = []
     unresolved: list[str] = []
 
-    for holding in document.get("holdings", []):
+    holdings = document.get("holdings", [])
+    if not isinstance(holdings, list):
+        # A malformed account file (e.g. ``holdings`` persisted as a dict)
+        # would otherwise silently iterate over dict keys as if they were
+        # holdings and risk writing corrupted data. This is a batch script —
+        # one bad file should be skipped with a warning, not abort the run
+        # or raise mid-write.
+        logger.warning(
+            "Skipping %s: 'holdings' is %s, expected a list",
+            sanitise_log_value(str(path)),
+            type(holdings).__name__,
+        )
+        return {"changed": changed, "unresolved": unresolved}
+
+    for holding in holdings:
         ticker = str(holding.get("ticker", "")).strip().upper()
         if not ticker.endswith(".L"):
             continue
@@ -59,12 +77,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Resolve account holdings against instrument metadata (dry-run by default)."
     )
-    parser.add_argument(
-        "paths", nargs="*", type=Path, help="Account JSON files (defaults to every account file)"
-    )
-    parser.add_argument(
-        "--write", action="store_true", help="Write resolved tickers back to account files"
-    )
+    parser.add_argument("paths", nargs="*", type=Path, help="Account JSON files (defaults to every account file)")
+    parser.add_argument("--write", action="store_true", help="Write resolved tickers back to account files")
     parser.add_argument(
         "--all",
         action="store_true",
@@ -75,9 +89,7 @@ def main() -> int:
     paths = args.paths or sorted(config.accounts_root.glob("*/*.json"))
 
     if args.write and not args.paths and not args.all:
-        parser.error(
-            "--write with no explicit paths also requires --all (writes every account file)"
-        )
+        parser.error("--write with no explicit paths also requires --all (writes every account file)")
 
     for path in paths:
         result = reconcile_account_file(path, write=args.write)

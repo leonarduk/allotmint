@@ -64,6 +64,41 @@ def test_reconcile_account_file_missing_holdings_key_is_a_noop(tmp_path, monkeyp
     assert not path.with_suffix(path.suffix + ".bak").exists()
 
 
+def test_reconcile_account_file_dict_holdings_is_skipped_with_warning(tmp_path, monkeypatch, caplog):
+    """A malformed account file where ``holdings`` is a dict must not be
+    silently iterated over (its keys treated as holdings) or written to; the
+    account should be skipped with a warning (#6330)."""
+    path = tmp_path / "sipp.json"
+    original_text = json.dumps({"holdings": {"MSFT.L": {"units": 2}}})
+    path.write_text(original_text)
+    monkeypatch.setattr(reconcile_holding_tickers, "resolve_instrument_ticker", lambda *args, **kwargs: None)
+
+    with caplog.at_level("WARNING"):
+        result = reconcile_holding_tickers.reconcile_account_file(path, write=True)
+
+    assert result == {"changed": [], "unresolved": []}
+    assert not path.with_suffix(path.suffix + ".bak").exists()
+    assert path.read_text() == original_text
+    assert "holdings" in caplog.text.lower()
+
+
+def test_reconcile_account_file_string_holdings_is_skipped_with_warning(tmp_path, monkeypatch, caplog):
+    """A ``holdings`` field of another non-list type (e.g. a string) must
+    also be skipped with a warning rather than raising (#6330)."""
+    path = tmp_path / "sipp.json"
+    original_text = json.dumps({"holdings": "not-a-list"})
+    path.write_text(original_text)
+    monkeypatch.setattr(reconcile_holding_tickers, "resolve_instrument_ticker", lambda *args, **kwargs: None)
+
+    with caplog.at_level("WARNING"):
+        result = reconcile_holding_tickers.reconcile_account_file(path, write=True)
+
+    assert result == {"changed": [], "unresolved": []}
+    assert not path.with_suffix(path.suffix + ".bak").exists()
+    assert path.read_text() == original_text
+    assert "holdings" in caplog.text.lower()
+
+
 def test_reconcile_account_file_already_correct_ticker_is_not_reported(tmp_path, monkeypatch):
     """A ticker that resolves back to itself is already correct and should be
     left untouched rather than reported as changed or unresolved."""

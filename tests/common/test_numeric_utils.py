@@ -45,3 +45,21 @@ def test_is_nan_handles_unhashable_or_uncomparable_gracefully() -> None:
     """pd.isna raises for some array-likes (e.g. multi-element ndarrays);
     is_nan is documented as scalar-only but must not blow up the caller."""
     assert is_nan([1, 2, 3]) is False
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        Decimal("sNaN"),
+        Decimal("-sNaN"),
+        Decimal("NaN"),
+    ],
+)
+def test_is_nan_true_for_signaling_decimal_nan(value) -> None:
+    """A signaling Decimal NaN must not raise decimal.InvalidOperation and
+    must be reported as missing, same as a quiet NaN (#6084)."""
+    assert is_nan(value) is True
+
+
+def test_is_nan_false_for_finite_decimal() -> None:
+    assert is_nan(Decimal("42.5")) is False

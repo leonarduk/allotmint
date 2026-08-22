@@ -178,6 +178,7 @@ async def get_opportunities(
                 last_price_gbp=row.get("last_price_gbp"),
                 last_price_date=row.get("last_price_date"),
                 market_value_gbp=row.get("market_value_gbp"),
+                instrument_type=row.get("instrument_type"),
                 side=side,  # type: ignore[arg-type]
                 signal=signal_map.get(ticker.upper()),
             )

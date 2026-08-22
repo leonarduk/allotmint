@@ -68,6 +68,49 @@ def test_watchlist_sorts_by_abs_change_and_preserves_anomalies(monkeypatch, clie
     assert "detail" not in body
 
 
+def test_watchlist_forwards_instrument_type(monkeypatch, client):
+    """`/opportunities` entries must carry the `instrument_type` returned by top_movers.
+
+    Regression test for the gap where `OpportunityEntry(...)` was constructed
+    from `row` without copying `row.get("instrument_type")`, so the field
+    always fell back to its `None` default even though `top_movers()`
+    returned a populated value. See allotmint#6902 review discussion.
+    """
+
+    monkeypatch.setattr(opportunities_mod, "_PORTFOLIO_ALLOWED_DAYS", {1})
+
+    monkeypatch.setattr(
+        opportunities_mod.instrument_api,
+        "top_movers",
+        lambda tickers, days, limit, min_weight=0.0, weights=None: {
+            "gainers": [
+                {"ticker": "ABC", "name": "Alpha", "change_pct": 1.0, "instrument_type": "ETF"},
+            ],
+            "losers": [
+                {"ticker": "DEF", "name": "Delta", "change_pct": -5.0, "instrument_type": None},
+            ],
+            "anomalies": [],
+        },
+    )
+
+    monkeypatch.setattr(
+        opportunities_mod.trading_agent,
+        "run",
+        lambda tickers, notify=False: [],
+    )
+
+    response = client.get(
+        "/opportunities",
+        params={"tickers": "ABC, DEF", "days": 1, "limit": 3},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    entries_by_ticker = {entry["ticker"]: entry for entry in body["entries"]}
+    assert entries_by_ticker["ABC"]["instrument_type"] == "ETF"
+    assert entries_by_ticker["DEF"]["instrument_type"] is None
+
+
 def test_group_requires_token_when_auth_enabled(monkeypatch, client):
     """Groups should enforce authentication when auth is not disabled."""
 

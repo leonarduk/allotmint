@@ -449,6 +449,51 @@ def test_get_security_meta_resolves_bare_watchlist_symbol(
     assert meta["instrument_type"] == "Equity"
 
 
+def test_get_security_meta_caches_securities_across_calls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``get_security_meta`` must not rebuild the securities map on every
+    call -- the full portfolios/accounts/holdings scan (with a potential S3
+    GetObject per distinct ticker) should run at most once per cache
+    lifetime, not once per screener result row.
+
+    Regression test for allotmint#6908 review comment: the screener's
+    ``_apply_instrument_type`` calls ``get_security_meta()`` once per result
+    row (~500 rows for the default S&P 500 screener), so an unmemoized
+    rebuild ran up to 500x per request.
+    """
+
+    portfolios = [
+        {
+            "accounts": [
+                {
+                    "holdings": [
+                        {"ticker": "ABC", "name": "Alpha", "instrument_type": "stock"},
+                    ]
+                }
+            ]
+        }
+    ]
+
+    call_count = 0
+    real_build = prices._build_securities_from_portfolios
+
+    def counting_build():
+        nonlocal call_count
+        call_count += 1
+        return real_build()
+
+    monkeypatch.setattr(prices, "list_portfolios", lambda: portfolios)
+    monkeypatch.setattr(prices, "_build_securities_from_portfolios", counting_build)
+
+    first = prices.get_security_meta("ABC")
+    second = prices.get_security_meta("DEF")
+
+    assert first == {"ticker": "ABC", "name": "Alpha", "instrument_type": "stock"}
+    assert second is None
+    assert call_count == 1, f"Expected the securities map to be built once; built {call_count} times"
+
+
 def test_last_close_fallback_snapshot_does_not_double_convert_fx(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -29,6 +29,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import threading
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
@@ -237,15 +238,34 @@ def _build_securities_from_portfolios() -> Dict[str, Dict]:
     return securities
 
 
+# Not built eagerly at import time / on every call: _build_securities_from_portfolios()
+# does a full portfolios/accounts/holdings scan plus a _resolve_instrument_type()
+# lookup (potential S3 GetObject) per distinct holding ticker. Without caching,
+# a screener request iterating ~500 result rows -- each calling get_security_meta()
+# once -- reran that full rebuild up to 500x per request. Cached lazily on first
+# use per process, mirroring the _SECURITIES precedent in portfolio_utils.py.
+_SECURITIES: Dict[str, Dict] | None = None
+# RLock (not Lock): _build_securities_from_portfolios() calls into
+# list_portfolios(), and a future change could end up calling get_security_meta()
+# again before _SECURITIES is set. A plain Lock would deadlock that case; RLock
+# lets the same thread re-enter.
+_SECURITIES_LOCK = threading.RLock()
+
+
 def get_security_meta(ticker: str) -> Optional[Dict]:
-    """Always fetch fresh metadata derived from latest portfolios.
+    """Return metadata derived from latest portfolios, cached per process.
 
     Falls back to canonical instrument metadata for tickers that are not
     held in any portfolio at all (e.g. watchlist-only Screener symbols), so
     callers still receive a resolvable ``instrument_type`` for them.
     """
+    global _SECURITIES
+    if _SECURITIES is None:
+        with _SECURITIES_LOCK:
+            if _SECURITIES is None:
+                _SECURITIES = _build_securities_from_portfolios()
     t = ticker.upper()
-    meta = _build_securities_from_portfolios().get(t)
+    meta = _SECURITIES.get(t)
     if meta:
         return meta
     instrument_type = _resolve_instrument_type(t)

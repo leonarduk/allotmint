@@ -956,3 +956,82 @@ def test_get_security_meta_thread_safe_first_call_builds_once(monkeypatch):
 
     assert len(calls) == 1
     assert portfolio_utils._SECURITIES == {}
+
+
+def test_build_securities_prefers_canonical_instrument_type_over_holding(monkeypatch):
+    """Canonical instrument metadata must win over a raw holding's instrument_type.
+
+    Regression test for allotmint#6902: ``top_movers()`` (feeding both the
+    movers endpoint and `/opportunities`) reads instrument_type via
+    ``get_security_meta()``, which previously only reflected raw holding
+    documents -- fields the supported CSV-import and transaction-rebuild
+    paths usually don't populate.
+    """
+    monkeypatch.setattr(portfolio_utils, "_SECURITIES", None)
+    monkeypatch.setattr(
+        portfolio_utils,
+        "list_portfolios",
+        lambda: [
+            {
+                "accounts": [
+                    {"holdings": [{"ticker": "ABC.L", "name": "Alpha", "instrument_type": "stale"}]},
+                ]
+            }
+        ],
+    )
+    monkeypatch.setattr(portfolio_utils, "list_virtual_portfolios", lambda: [])
+    monkeypatch.setattr(
+        portfolio_utils,
+        "get_instrument_meta",
+        lambda t: {"instrumentType": "ETF"} if t == "ABC.L" else {},
+    )
+
+    meta = portfolio_utils.get_security_meta("ABC.L")
+
+    assert meta is not None
+    assert meta["instrument_type"] == "ETF"
+
+
+def test_get_security_meta_resolves_watchlist_only_symbol_from_canonical_metadata(monkeypatch):
+    """A symbol held by nobody (e.g. a default Screener watchlist entry) must
+    still resolve ``instrument_type`` via canonical instrument metadata, so
+    the movers/opportunities path isn't left with ``None`` for it.
+    """
+    monkeypatch.setattr(portfolio_utils, "_SECURITIES", None)
+    monkeypatch.setattr(portfolio_utils, "list_portfolios", lambda: [])
+    monkeypatch.setattr(portfolio_utils, "list_virtual_portfolios", lambda: [])
+    monkeypatch.setattr(
+        portfolio_utils,
+        "get_instrument_meta",
+        lambda t: {"assetClass": "Commodity"} if t == "GOLD.L" else {},
+    )
+
+    meta = portfolio_utils.get_security_meta("GOLD.L")
+
+    assert meta is not None
+    assert meta["instrument_type"] == "Commodity"
+
+
+def test_get_security_meta_resolves_bare_watchlist_symbol(monkeypatch):
+    """A bare watchlist symbol (e.g. "PFE") must resolve via the persisted
+    exchange-qualified instrument record (e.g. ``data/instruments/N/PFE.json``
+    -> ``PFE.N``) on the movers/opportunities path too, not just the
+    screener path.
+
+    Regression test for allotmint#6908 DeepSeek follow-up: the bare-symbol
+    resolution fix (commit a41ff94) was applied to
+    ``backend/common/prices.py``'s ``_resolve_instrument_type`` but not to
+    ``backend/common/portfolio_utils.py``'s ``_meta_from_file``, which feeds
+    ``instrument_api.top_movers`` (backing both ``/movers`` and
+    ``/opportunities``). Without the fix, ``get_instrument_meta("PFE")``
+    always misses (metadata is keyed by the exchange-qualified ticker
+    "PFE.N"), so this fell straight to the "not found" branch.
+    """
+    monkeypatch.setattr(portfolio_utils, "_SECURITIES", None)
+    monkeypatch.setattr(portfolio_utils, "list_portfolios", lambda: [])
+    monkeypatch.setattr(portfolio_utils, "list_virtual_portfolios", lambda: [])
+
+    meta = portfolio_utils.get_security_meta("PFE")
+
+    assert meta is not None
+    assert meta["instrument_type"] == "Equity"

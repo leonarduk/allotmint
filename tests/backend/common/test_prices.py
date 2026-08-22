@@ -14,6 +14,20 @@ from backend.common import portfolio_utils, prices
 from backend.common.portfolio_utils import DATA_BUCKET_ENV, PRICES_S3_KEY
 
 
+@pytest.fixture(autouse=True)
+def _reset_securities_cache():
+    """Ensure each test observes a fresh ``get_security_meta`` cache.
+
+    ``prices._SECURITIES`` is a module-level, process-lifetime cache (see
+    allotmint#6908); tests that call ``get_security_meta``/
+    ``_build_securities_from_portfolios`` with their own portfolio fixtures
+    must not see state left over from a previous test.
+    """
+    prices._SECURITIES = None
+    yield
+    prices._SECURITIES = None
+
+
 def test_close_on_falls_back_to_close_column(monkeypatch: pytest.MonkeyPatch) -> None:
     """``_close_on`` should use the first available close column."""
 
@@ -350,6 +364,134 @@ def test_build_securities_and_get_security_meta(monkeypatch: pytest.MonkeyPatch)
     assert prices.get_security_meta("abc") == {"ticker": "ABC", "name": "Alpha", "instrument_type": "stock"}
     assert prices.get_security_meta("DEF") == {"ticker": "DEF", "name": "DEF", "instrument_type": None}
     assert prices.get_security_meta("missing") is None
+
+
+def test_build_securities_prefers_canonical_instrument_type_over_holding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Canonical instrument metadata should win over a raw holding's field.
+
+    Regression test for allotmint#6902: raw holding documents (CSV-import /
+    transaction-rebuild paths) frequently carry a stale or absent
+    ``instrument_type`` while the canonical instrument metadata file has the
+    correct, current value.
+    """
+
+    portfolios = [
+        {
+            "accounts": [
+                {
+                    "holdings": [
+                        {"ticker": "ABC", "name": "Alpha", "instrument_type": "stale"},
+                    ]
+                }
+            ]
+        }
+    ]
+    monkeypatch.setattr(prices, "list_portfolios", lambda: portfolios)
+    monkeypatch.setattr(
+        "backend.common.instruments.get_instrument_meta",
+        lambda t: {"instrumentType": "ETF"} if t == "ABC" else {},
+    )
+
+    securities = prices._build_securities_from_portfolios()
+
+    assert securities["ABC"]["instrument_type"] == "ETF"
+
+
+def test_get_security_meta_resolves_watchlist_only_symbol_from_canonical_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A symbol with no holding at all (e.g. a Screener watchlist entry) must
+    still resolve ``instrument_type`` via canonical instrument metadata.
+    """
+
+    monkeypatch.setattr(prices, "list_portfolios", lambda: [])
+    monkeypatch.setattr(
+        "backend.common.instruments.get_instrument_meta",
+        lambda t: {"assetClass": "Commodity"} if t == "GOLD.L" else {},
+    )
+
+    meta = prices.get_security_meta("GOLD.L")
+
+    assert meta is not None
+    assert meta["instrument_type"] == "Commodity"
+
+
+def test_resolve_instrument_type_resolves_bare_watchlist_symbol(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A bare watchlist symbol (e.g. "PFE") must resolve via the persisted
+    exchange-qualified instrument record (e.g. ``data/instruments/N/PFE.json``
+    -> ``PFE.N``) rather than falling into a nonexistent ``Unknown/`` folder.
+
+    Regression test for allotmint#6908 review comment: ``get_instrument_meta``
+    requires an exchange-qualified ticker, so passing a bare ticker straight
+    through always returned ``{}``/``None`` for exactly the watchlist-only
+    symbols this fallback was meant to cover.
+    """
+
+    assert prices._resolve_instrument_type("PFE") == "Equity"
+
+
+def test_get_security_meta_resolves_bare_watchlist_symbol(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``get_security_meta`` should resolve a bare, unheld watchlist symbol
+    to its canonical instrument type via the persisted exchange alias.
+    """
+
+    monkeypatch.setattr(prices, "list_portfolios", lambda: [])
+
+    meta = prices.get_security_meta("PFE")
+
+    assert meta is not None
+    assert meta["instrument_type"] == "Equity"
+
+
+def test_get_security_meta_caches_securities_across_calls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``get_security_meta`` must not rebuild the securities map on every
+    call -- the full portfolios/accounts/holdings scan (with a potential S3
+    GetObject per distinct ticker) should run at most once per cache
+    lifetime, not once per screener result row.
+
+    Regression test for allotmint#6908 review comment: the screener's
+    ``_apply_instrument_type`` calls ``get_security_meta()`` once per result
+    row (~500 rows for the default S&P 500 screener), so an unmemoized
+    rebuild ran up to 500x per request.
+    """
+
+    portfolios = [
+        {
+            "accounts": [
+                {
+                    "holdings": [
+                        {"ticker": "ABC", "name": "Alpha", "instrument_type": "stock"},
+                    ]
+                }
+            ]
+        }
+    ]
+
+    call_count = 0
+    real_build = prices._build_securities_from_portfolios
+
+    def counting_build():
+        nonlocal call_count
+        call_count += 1
+        return real_build()
+
+    monkeypatch.setattr(prices, "list_portfolios", lambda: portfolios)
+    monkeypatch.setattr(prices, "_build_securities_from_portfolios", counting_build)
+
+    first = prices.get_security_meta("ABC")
+    second = prices.get_security_meta("DEF")
+
+    assert first == {"ticker": "ABC", "name": "Alpha", "instrument_type": "stock"}
+    assert second is None
+    assert call_count == 1, f"Expected the securities map to be built once; built {call_count} times"
 
 
 def test_last_close_fallback_snapshot_does_not_double_convert_fx(

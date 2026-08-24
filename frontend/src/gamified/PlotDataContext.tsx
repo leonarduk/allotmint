@@ -18,7 +18,12 @@ import {
   getQuests,
   getTrailTasks,
 } from '../api';
-import type { OwnerSummary, Portfolio } from '../types';
+import type {
+  OwnerSummary,
+  Portfolio,
+  QuestResponse,
+  TrailResponse,
+} from '../types';
 import {
   buildPlotSnapshot,
   type AllowanceMap,
@@ -83,27 +88,7 @@ export function usePlotData(): PlotDataValue {
   return useContext(plotDataContext);
 }
 
-interface TrailPayload {
-  tasks: {
-    id: string;
-    title: string;
-    type: string;
-    commentary?: string;
-    completed: boolean;
-  }[];
-  xp: number;
-  streak: number;
-  daily_totals?: DailyTotals;
-  today?: string;
-}
-
-interface QuestPayload {
-  quests: { id: string; title: string; xp: number; completed: boolean }[];
-  xp: number;
-  streak: number;
-}
-
-function choresFromTrail(payload: TrailPayload): Chore[] {
+function choresFromTrail(payload: TrailResponse): Chore[] {
   return payload.tasks.map((task) => ({
     id: task.id,
     title: task.title,
@@ -115,7 +100,7 @@ function choresFromTrail(payload: TrailPayload): Chore[] {
   }));
 }
 
-function choresFromQuests(payload: QuestPayload): Chore[] {
+function choresFromQuests(payload: QuestResponse): Chore[] {
   return payload.quests.map((quest) => ({
     id: quest.id,
     title: quest.title,
@@ -150,7 +135,7 @@ function localToday(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function progressFromTrail(trail: TrailPayload): ProgressState {
+function progressFromTrail(trail: TrailResponse): ProgressState {
   return {
     chores: choresFromTrail(trail),
     xp: trail.xp ?? 0,
@@ -161,7 +146,7 @@ function progressFromTrail(trail: TrailPayload): ProgressState {
   };
 }
 
-function progressFromQuests(quests: QuestPayload): ProgressState {
+function progressFromQuests(quests: QuestResponse): ProgressState {
   // The Quests endpoint has no per-day history, so the streak path is simply
   // absent on that fallback rather than being reconstructed from a guess.
   return {
@@ -181,15 +166,13 @@ function progressFromQuests(quests: QuestPayload): ProgressState {
  */
 async function loadProgress(): Promise<ProgressState> {
   try {
-    return progressFromTrail(
-      (await getTrailTasks()) as unknown as TrailPayload
-    );
+    return progressFromTrail(await getTrailTasks());
   } catch {
     // Trail is optional (config tab defaults off); quests are the fallback.
   }
 
   try {
-    return progressFromQuests((await getQuests()) as unknown as QuestPayload);
+    return progressFromQuests(await getQuests());
   } catch {
     return EMPTY_PROGRESS;
   }
@@ -333,8 +316,8 @@ export function PlotDataProvider({
         .then((payload) => {
           setProgress(
             chore.source === 'trail'
-              ? progressFromTrail(payload as unknown as TrailPayload)
-              : progressFromQuests(payload as unknown as QuestPayload)
+              ? progressFromTrail(payload as TrailResponse)
+              : progressFromQuests(payload as QuestResponse)
           );
         })
         .catch(() => {

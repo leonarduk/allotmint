@@ -33,6 +33,15 @@ def test_validate_tabs_accepts_dataquality():
     assert tabs.dataquality is False
 
 
+def test_validate_tabs_accepts_plot():
+    # Plot mode (the gamified skin at /plot) is a normal config tab, so the
+    # Support page's tab toggles must be able to save it like any other.
+    assert TabsConfig().plot is True
+    tabs = validate_tabs({"plot": False})
+    assert isinstance(tabs, TabsConfig)
+    assert tabs.plot is False
+
+
 def test_validate_tabs_rejects_unknown_key():
     with pytest.raises(ConfigValidationError):
         validate_tabs({"unknown": True})

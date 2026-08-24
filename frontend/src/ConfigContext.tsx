@@ -41,6 +41,7 @@ export interface TabsConfig {
   'trade-compliance': boolean;
   reports: boolean;
   scenario: boolean;
+  plot: boolean;
 }
 
 export interface AppConfig {
@@ -111,6 +112,7 @@ const defaultTabs: TabsConfig = {
   reports: false,
   scenario: true,
   dataquality: true,
+  plot: true,
 };
 
 export interface ConfigContextValue extends AppConfig {

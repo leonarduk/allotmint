@@ -49,6 +49,7 @@ class ConfigTabsContract(SpaContractBase):
     scenario: bool
     logs: bool
     research: bool
+    plot: bool
 
 
 class ConfigContract(SpaContractBase):

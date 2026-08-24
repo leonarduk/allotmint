@@ -65,8 +65,8 @@ Two aggravating details:
   217 rows are already present in the 365 returned — roughly **37% of the body
   is duplicated**, on every request.
 - `rate_limit_per_minute` defaults to `6000` on the dataclass
-  (`backend/config.py:117`) but the loader falls back to **`60`** when the key is
-  absent from the config data (`backend/config.py:473`). A deployment whose YAML
+  (`backend/config.py:119`) but the loader falls back to **`60`** when the key is
+  absent from the config data (`backend/config.py:475`). A deployment whose YAML
   omits the key gets 60/min, which a 40-ticker fan-out can trip on its own.
   Out of scope here; filed as
   [#6918](https://github.com/leonarduk/allotmint/issues/6918).
@@ -386,7 +386,7 @@ MB.
 
 The repo already has a thin `utils/storage.ts` wrapper over `localStorage`; it
 is right for the small preference values it holds today
-(`ConfigContext.tsx:143`, `HoldingsTable.tsx:124`) and should not be extended to
+(`ConfigContext.tsx:143-145`, `HoldingsTable.tsx:124`) and should not be extended to
 carry price series.
 
 ### 4.2 Schema

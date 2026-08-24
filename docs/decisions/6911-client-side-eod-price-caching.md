@@ -66,8 +66,9 @@ Two aggravating details:
 - `rate_limit_per_minute` defaults to `6000` on the dataclass
   (`backend/config.py:117`) but the loader falls back to **`60`** when the key is
   absent from the config data (`backend/config.py:473`). A deployment whose YAML
-  omits the key gets 60/min, which a 40-ticker fan-out can trip on its own. This
-  inconsistency is out of scope here but should be filed separately.
+  omits the key gets 60/min, which a 40-ticker fan-out can trip on its own.
+  Out of scope here; filed as
+  [#6918](https://github.com/leonarduk/allotmint/issues/6918).
 
 ---
 
@@ -157,7 +158,7 @@ benefits every existing `fetch` call immediately.
 For price-derived GET routes:
 
 ```
-Cache-Control: private, max-age=<min(seconds_to_next_refresh, 3600)>, stale-while-revalidate=604800
+Cache-Control: private, max-age=<min(seconds_to_next_refresh, 3600)>, stale-while-revalidate=604800, no-transform
 ETag: W/"<epoch>:<route-key>"
 Vary: Authorization, Accept-Encoding
 ```
@@ -165,6 +166,15 @@ Vary: Authorization, Accept-Encoding
 `stale-while-revalidate` is what buys perceived speed: past `max-age` the
 browser paints from cache **instantly** and revalidates in the background, so
 the user never waits on the network for data that is almost certainly unchanged.
+
+**The ETag must stay weak (`W/`), and that is deliberate — do not "fix" it to a
+strong one.** A strong ETag asserts byte-for-byte identity, which stops holding
+the moment the same payload is served under a different content-coding (gzip vs
+identity vs br). A weak validator asserts only semantic equivalence, which is
+exactly the claim being made here: the epoch is unchanged, therefore the data is
+unchanged, whatever the transfer encoding. `no-transform` closes the same gap
+from the other side by telling intermediaries not to re-encode the body
+underneath the validator.
 
 ### 3.2 Why `max-age` is capped at an hour rather than "until midnight"
 
@@ -276,6 +286,24 @@ Step 2 before step 3 is the point. The user sees data on the first frame; the
 version check resolves in the background and, in the overwhelmingly common case
 (same day, unchanged epoch), confirms what is already on screen.
 
+**Bounding the staleness this introduces.** Rendering before the epoch check
+means a user whose cache is a day old sees yesterday's closes for the duration of
+one `/prices/version` round trip. That is a real, if brief, window and this being
+financial data it should be bounded explicitly rather than waved through:
+
+- The check is a single small uncached GET issued during app bootstrap, so the
+  window is one RTT — sub-second on any normal connection, and it is *not*
+  gated behind the page's other data fetches.
+- Cached values must render with the epoch's own date visible (the existing
+  "prices as of" affordance in `AppHeader.tsx:50-60` already has the slot for
+  this), so optimistic content is never presented as more current than it is.
+- If `/prices/version` fails outright, keep serving cache but surface the staleness
+  rather than silently pretending it is fresh — an unreachable backend is exactly
+  when a user most needs to know the age of what they are looking at.
+
+What this must never become is a *deliberate* staleness budget: the window is
+"however long one request takes", not a tunable TTL.
+
 ### 4.4 Where it hooks in
 
 Wrap `fetchJson` (`frontend/src/api.ts:364`) rather than editing ~60 call sites:
@@ -341,6 +369,11 @@ GET /instrument/batch?tickers=VWRL.L,ERNS.L,PFE.N&days=365
   would regress that message.
 - One request means one ETag and one cache entry — it composes with Layers 1–2
   rather than sitting beside them.
+- The three buckets are a **partition**: every requested ticker appears in exactly
+  one of `instruments`, `empty`, or `unknown`, and their union equals the request
+  (post-deduplication). Say so in the response contract and assert it in tests —
+  a ticker silently absent from all three, or double-counted across two, is the
+  failure mode that makes the caller's "no price history" count wrong.
 
 Once this lands, the duplicated 429-backoff machinery
 (`useInstrumentHistory.ts:162-186`, `api.ts:959-1010`) has no fan-out left to
@@ -465,7 +498,11 @@ Backend (`tests/backend/`):
   `Vary: Authorization` (guards §3.4);
 - `/instrument/intraday`, admin edit routes and `/prices/version` emit
   `no-store`;
-- batch endpoint splits `empty` vs `unknown` correctly and honours the ticker cap.
+- batch endpoint splits `empty` vs `unknown` correctly, partitions the request
+  with no ticker missing or double-counted (§5.1), and honours the ticker cap;
+- every cached route emits a **weak** `ETag` in the agreed
+  `W/"<epoch>:<route-key>"` shape — a strong ETag anywhere is a failure, since
+  it breaks revalidation across content-codings (§3.1).
 
 Frontend (`frontend/src/**/__tests__/`):
 - a cache hit on a matching epoch resolves without a network call;
@@ -473,7 +510,11 @@ Frontend (`frontend/src/**/__tests__/`):
 - IndexedDB unavailable or throwing falls back to network, and the component
   still renders (guards §4.6);
 - 365-day cached series slices correctly to 7/30/180 (guards §4.5);
-- `as_of` entries survive an epoch change (guards §6.2).
+- `as_of` entries survive an epoch change (guards §6.2);
+- two tabs observing an epoch change concurrently converge on one eviction pass
+  and do not thrash each other's cache via `BroadcastChannel` (guards §7);
+- on simulated `QuotaExceededError`, eviction proceeds oldest-first by
+  `fetchedAt` and the fetch still resolves (guards §4.6).
 
 Measurable acceptance, on a 40-holding portfolio:
 - cold load: 1 batch request, not 40;

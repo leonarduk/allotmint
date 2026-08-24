@@ -157,6 +157,13 @@ export function growerRank(level: number): string {
 }
 
 export interface Crop {
+  /**
+   * Unique per holding row, not per ticker: the same instrument legitimately
+   * appears in several beds AND several times within one bed (the repo's own
+   * demo accounts hold VWRL.L twice in a single ISA). Keying React lists or
+   * detail routes on `ticker` alone collides on that data.
+   */
+  id: string;
   ticker: string;
   name: string;
   bedId: string;
@@ -242,7 +249,13 @@ export function bedFromAccount(account: Account, index: number): Bed {
   };
 }
 
-function cropFromHolding(holding: Holding, bed: Bed, plotValue: number): Crop {
+function cropFromHolding(
+  holding: Holding,
+  bed: Bed,
+  plotValue: number,
+  bedIndex: number,
+  holdingIndex: number
+): Crop {
   const valueGbp = holding.market_value_gbp ?? 0;
   const costGbp =
     holding.effective_cost_basis_gbp ?? holding.cost_basis_gbp ?? 0;
@@ -252,6 +265,7 @@ function cropFromHolding(holding: Holding, bed: Bed, plotValue: number): Crop {
   const share = plotValue > 0 ? valueGbp / plotValue : 0;
   const dayChangeGbp = holding.day_change_gbp ?? 0;
   return {
+    id: `${bedIndex}-${holdingIndex}-${holding.ticker}`,
     ticker: holding.ticker,
     name: holding.name || holding.ticker,
     bedId: bed.id,
@@ -402,11 +416,13 @@ export function buildPlotSnapshot({
     beds.reduce((sum, bed) => sum + bed.valueGbp, 0);
 
   const crops: Crop[] = [];
-  accounts.forEach((account, index) => {
-    const bed = beds[index];
-    for (const holding of account.holdings ?? []) {
-      crops.push(cropFromHolding(holding, bed, plotValue));
-    }
+  accounts.forEach((account, bedIndex) => {
+    const bed = beds[bedIndex];
+    (account.holdings ?? []).forEach((holding, holdingIndex) => {
+      crops.push(
+        cropFromHolding(holding, bed, plotValue, bedIndex, holdingIndex)
+      );
+    });
   });
   crops.sort((left, right) => right.valueGbp - left.valueGbp);
 
@@ -470,6 +486,23 @@ export function germinatingCrops(crops: readonly Crop[]): GerminatingCrop[] {
       };
     })
     .sort((left, right) => left.daysRemaining - right.daysRemaining);
+}
+
+/**
+ * Resolve a `/plot/crops/:cropId` segment to a crop.
+ *
+ * Matches the unique id first, then falls back to the first crop with that
+ * ticker so links written before ids existed (and anything a user has
+ * bookmarked) still land somewhere sensible.
+ */
+export function findCropByRouteId(
+  crops: readonly Crop[],
+  routeId: string
+): Crop | undefined {
+  return (
+    crops.find((crop) => crop.id === routeId) ??
+    crops.find((crop) => crop.ticker === routeId)
+  );
 }
 
 /** Compact money for HUD chips: £1.2k, £864.1k, £5.3m. */

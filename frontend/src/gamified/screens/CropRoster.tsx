@@ -182,7 +182,7 @@ export default function CropRoster({ basePath }: { basePath: string }) {
           <div className={styles.cropGrid}>
             {visible.map((crop) => (
               <CropCard
-                key={crop.ticker}
+                key={crop.id}
                 crop={crop}
                 basePath={basePath}
                 favourite={favourites.has(crop.ticker)}

@@ -46,7 +46,7 @@ export default function CropCard({
         </button>
       )}
       <Link
-        to={`${basePath}/crops/${encodeURIComponent(crop.ticker)}`}
+        to={`${basePath}/crops/${encodeURIComponent(crop.id)}`}
         className={styles.cropCard}
       >
         <span className={styles.cropGlyph} aria-hidden="true">

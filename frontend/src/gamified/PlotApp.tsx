@@ -93,7 +93,7 @@ function PlotShell() {
                 element={<CropRoster basePath={PLOT_BASE_PATH} />}
               />
               <Route
-                path="crops/:ticker"
+                path="crops/:cropId"
                 element={<CropDetail basePath={PLOT_BASE_PATH} />}
               />
               <Route path="chores" element={<ChoresScreen />} />

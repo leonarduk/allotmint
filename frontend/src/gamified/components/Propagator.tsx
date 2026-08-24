@@ -30,8 +30,8 @@ export default function Propagator({ entries, basePath }: PropagatorProps) {
       <div className={styles.trayGrid}>
         {entries.map(({ crop, pct, daysHeld, daysRemaining, readyOn }) => (
           <Link
-            key={crop.ticker}
-            to={`${basePath}/crops/${encodeURIComponent(crop.ticker)}`}
+            key={crop.id}
+            to={`${basePath}/crops/${encodeURIComponent(crop.id)}`}
             className={styles.tray}
           >
             <span className={styles.trayGlyph} aria-hidden="true">

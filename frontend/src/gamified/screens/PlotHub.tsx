@@ -213,7 +213,7 @@ export default function PlotHub({ basePath }: { basePath: string }) {
           <>
             <div className={styles.cropGrid}>
               {featured.map((crop) => (
-                <CropCard key={crop.ticker} crop={crop} basePath={basePath} />
+                <CropCard key={crop.id} crop={crop} basePath={basePath} />
               ))}
             </div>
             <p className={styles.sectionNote}>

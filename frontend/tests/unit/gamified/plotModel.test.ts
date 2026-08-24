@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildPlotSnapshot,
+  findCropByRouteId,
   germinatingCrops,
   bedIconFor,
   bedNameFor,
@@ -349,5 +350,81 @@ describe('germinatingCrops', () => {
       'NEW.L',
     ]);
     expect(entries[2]).toMatchObject({ daysHeld: 0, pct: 0 });
+  });
+});
+
+describe('crop identity', () => {
+  // The repo's own demo accounts hold VWRL.L twice in one ISA and again in
+  // the SIPP, which is exactly what a ticker-keyed list collides on.
+  const repeated: Portfolio = {
+    owner: 'steve',
+    as_of: '2026-08-24',
+    trades_this_month: 0,
+    trades_remaining: 10,
+    total_value_estimate_gbp: 300,
+    accounts: [
+      {
+        account_type: 'stocks-isa',
+        currency: 'GBP',
+        owner: 'steve',
+        value_estimate_gbp: 200,
+        holdings: [
+          {
+            ticker: 'VWRL.L',
+            name: 'Vanguard All-World',
+            units: 1,
+            market_value_gbp: 100,
+          },
+          {
+            ticker: 'VWRL.L',
+            name: 'Vanguard All-World',
+            units: 2,
+            market_value_gbp: 100,
+          },
+        ],
+      },
+      {
+        account_type: 'sipp',
+        currency: 'GBP',
+        owner: 'steve',
+        value_estimate_gbp: 100,
+        holdings: [
+          {
+            ticker: 'VWRL.L',
+            name: 'Vanguard All-World',
+            units: 3,
+            market_value_gbp: 100,
+          },
+        ],
+      },
+    ],
+  };
+
+  it('gives every holding row its own id even when tickers repeat', () => {
+    const { crops } = buildPlotSnapshot({ portfolio: repeated });
+    expect(crops).toHaveLength(3);
+    expect(new Set(crops.map((crop) => crop.id)).size).toBe(3);
+    // All three share a ticker, which is why the id cannot be derived from it.
+    expect(new Set(crops.map((crop) => crop.ticker)).size).toBe(1);
+  });
+
+  it('keeps ids stable for the same payload', () => {
+    const first = buildPlotSnapshot({ portfolio: repeated }).crops.map(
+      (c) => c.id
+    );
+    const second = buildPlotSnapshot({ portfolio: repeated }).crops.map(
+      (c) => c.id
+    );
+    expect(first).toEqual(second);
+  });
+
+  it('resolves a route id, falling back to a bare ticker', () => {
+    const { crops } = buildPlotSnapshot({ portfolio: repeated });
+    const second = crops[1];
+
+    expect(findCropByRouteId(crops, second.id)).toBe(second);
+    // A bare ticker still lands somewhere sensible for older/bookmarked links.
+    expect(findCropByRouteId(crops, 'VWRL.L')?.ticker).toBe('VWRL.L');
+    expect(findCropByRouteId(crops, 'NOPE.L')).toBeUndefined();
   });
 });

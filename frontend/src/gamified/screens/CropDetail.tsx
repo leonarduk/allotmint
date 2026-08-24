@@ -3,7 +3,13 @@ import { Link, useParams } from 'react-router-dom';
 import styles from '../plot.module.css';
 import { cropGlyph } from '../cropGlyph';
 import { usePlotData } from '../PlotDataContext';
-import { formatGbp, formatPct, growthStageMeta, type Crop } from '../plotModel';
+import {
+  findCropByRouteId,
+  formatGbp,
+  formatPct,
+  growthStageMeta,
+  type Crop,
+} from '../plotModel';
 import Meter from '../components/Meter';
 import StarRating from '../components/StarRating';
 
@@ -67,12 +73,12 @@ function growthLevel(crop: Crop): number {
 
 /** The single-crop screen: portrait, traits, stats and neighbouring crops. */
 export default function CropDetail({ basePath }: { basePath: string }) {
-  const { ticker = '' } = useParams();
+  const { cropId = '' } = useParams();
   const { snapshot } = usePlotData();
 
-  const decoded = decodeURIComponent(ticker);
-  const index = snapshot.crops.findIndex((entry) => entry.ticker === decoded);
-  const crop = index >= 0 ? snapshot.crops[index] : undefined;
+  const decoded = decodeURIComponent(cropId);
+  const crop = findCropByRouteId(snapshot.crops, decoded);
+  const index = crop ? snapshot.crops.indexOf(crop) : -1;
 
   if (!crop) {
     return (
@@ -193,7 +199,7 @@ export default function CropDetail({ basePath }: { basePath: string }) {
         {previous ? (
           <Link
             className={styles.chipButton}
-            to={`${basePath}/crops/${encodeURIComponent(previous.ticker)}`}
+            to={`${basePath}/crops/${encodeURIComponent(previous.id)}`}
           >
             ← {previous.ticker}
           </Link>
@@ -206,7 +212,7 @@ export default function CropDetail({ basePath }: { basePath: string }) {
         {next && (
           <Link
             className={styles.chipButton}
-            to={`${basePath}/crops/${encodeURIComponent(next.ticker)}`}
+            to={`${basePath}/crops/${encodeURIComponent(next.id)}`}
           >
             {next.ticker} →
           </Link>

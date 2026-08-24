@@ -55,10 +55,16 @@ export default function SeedCatalogue({ basePath }: { basePath: string }) {
     };
   }, [symbols]);
 
-  const owned = useMemo(
-    () => new Set(snapshot.crops.map((crop) => crop.ticker.toUpperCase())),
-    [snapshot.crops]
-  );
+  // Maps a watchlist symbol to the first crop holding it, so "already
+  // growing" can link at a holding rather than a bare ticker.
+  const ownedByTicker = useMemo(() => {
+    const index = new Map<string, string>();
+    for (const crop of snapshot.crops) {
+      const key = crop.ticker.toUpperCase();
+      if (!index.has(key)) index.set(key, crop.id);
+    }
+    return index;
+  }, [snapshot.crops]);
 
   return (
     <div className={styles.stack}>
@@ -88,7 +94,8 @@ export default function SeedCatalogue({ basePath }: { basePath: string }) {
         ) : (
           <div className={styles.seedGrid}>
             {rows.map((row) => {
-              const isOwned = owned.has(row.symbol.toUpperCase());
+              const ownedCropId = ownedByTicker.get(row.symbol.toUpperCase());
+              const isOwned = ownedCropId !== undefined;
               const change = row.changePct;
               return (
                 <div key={row.symbol} className={styles.seedCard}>
@@ -116,7 +123,7 @@ export default function SeedCatalogue({ basePath }: { basePath: string }) {
                       className={styles.chipButton}
                       to={
                         isOwned
-                          ? `${basePath}/crops/${encodeURIComponent(row.symbol)}`
+                          ? `${basePath}/crops/${encodeURIComponent(ownedCropId)}`
                           : `/instrument?ticker=${encodeURIComponent(row.symbol)}`
                       }
                     >

@@ -430,3 +430,94 @@ describe('Plot mode roster search and favourites', () => {
     expect(screen.queryByText('WILT.L')).toBeNull();
   });
 });
+
+describe('Plot mode provider hardening', () => {
+  it("does not leave the previous grower's figures on screen when a switch fails", async () => {
+    mocks.getOwners.mockResolvedValue([
+      { owner: 'steve', accounts: ['stocks-isa'] },
+      { owner: 'alex', accounts: ['stocks-isa'] },
+    ]);
+    renderPlot();
+
+    const hud = screen.getByRole('banner');
+    await waitFor(() =>
+      expect(within(hud).getByText('£10.0k')).toBeInTheDocument()
+    );
+
+    mocks.getPortfolio.mockRejectedValue(new Error('alex is unavailable'));
+    fireEvent.change(screen.getByLabelText('Grower'), {
+      target: { value: 'alex' },
+    });
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'alex is unavailable'
+    );
+    // Steve's plot value must not still be sitting under Alex's name.
+    expect(within(hud).queryByText('£10.0k')).toBeNull();
+  });
+
+  it('stops loading with a distinct message when grower discovery fails', async () => {
+    mocks.getOwners.mockRejectedValue(new Error('offline'));
+    renderPlot();
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Could not load the list of growers.'
+    );
+    // The spinner must not be left running with no way out.
+    expect(screen.queryByText(/Walking down to the allotment/)).toBeNull();
+    expect(
+      screen.getByRole('button', { name: /try again/i })
+    ).toBeInTheDocument();
+  });
+
+  it('says so when the account genuinely has no growers', async () => {
+    mocks.getOwners.mockResolvedValue([]);
+    renderPlot();
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'No growers found for this account.'
+    );
+  });
+
+  it('keeps at most one chore completion in flight', async () => {
+    // Each reply is a whole server snapshot, so two in flight resolve
+    // last-write-wins and an out-of-order pair can un-tick a done chore.
+    // Serialising is the mechanism that prevents that, so it is what is tested.
+    const trailWith = (done: string[]) => ({
+      ...trailPayload,
+      tasks: trailPayload.tasks.map((task) => ({
+        ...task,
+        completed: done.includes(task.id),
+      })),
+    });
+
+    let resolveFirst: (value: unknown) => void = () => {};
+    mocks.completeTrailTask
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirst = resolve;
+          })
+      )
+      .mockImplementationOnce(async () =>
+        trailWith(['water-beds', 'set-alerts'])
+      );
+
+    renderPlot('/plot/chores');
+
+    const doIt = await screen.findByRole('button', { name: 'Do it' });
+    fireEvent.click(doIt);
+    fireEvent.click(doIt);
+
+    await waitFor(() =>
+      expect(mocks.completeTrailTask).toHaveBeenCalledTimes(1)
+    );
+    // The second click stays queued while the first is unresolved.
+    expect(mocks.completeTrailTask).toHaveBeenCalledTimes(1);
+
+    resolveFirst(trailWith(['water-beds']));
+    await waitFor(() =>
+      expect(mocks.completeTrailTask).toHaveBeenCalledTimes(2)
+    );
+  });
+});

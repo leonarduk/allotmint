@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -205,6 +206,12 @@ export function PlotDataProvider({
   children,
 }: PlotDataProviderProps) {
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
+  // Discovery status is tracked apart from the list: an empty list and a
+  // failed request both leave `owners` empty, and only one of them should
+  // stop the spinner with "no growers found".
+  const [ownersStatus, setOwnersStatus] = useState<
+    'pending' | 'ready' | 'error'
+  >('pending');
   const [owner, setOwner] = useState(requestedOwner ?? '');
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
   const [allowances, setAllowances] = useState<AllowanceMap | null>(null);
@@ -222,33 +229,63 @@ export function PlotDataProvider({
 
   useEffect(() => {
     let cancelled = false;
+    setOwnersStatus('pending');
     getOwners()
       .then((list) => {
         if (cancelled) return;
         setOwners(list);
+        setOwnersStatus('ready');
         setOwner((current) => current || list[0]?.owner || '');
       })
       .catch(() => {
         // Owner discovery failing is not fatal on its own: an explicit
         // `?owner=` deep link can still load a portfolio below.
-        if (!cancelled) setOwners([]);
+        if (cancelled) return;
+        setOwners([]);
+        setOwnersStatus('error');
       });
     return () => {
       cancelled = true;
     };
   }, [reloadToken]);
 
+  // Everything below is scoped to one grower. Dropping it whenever the
+  // grower changes (and whenever a load fails) stops the HUD from showing the
+  // previous grower's money under the new grower's name.
+  const clearOwnerScopedState = useCallback(() => {
+    setPortfolio(null);
+    setAllowances(null);
+    setSeason(null);
+    setProgress(EMPTY_PROGRESS);
+  }, []);
+
+  const loadedOwnerRef = useRef<string | null>(null);
+
+  // Only the no-owner branch below cares about discovery status. Collapsing it
+  // to a constant once an owner is known keeps a refresh (which cycles
+  // ownersStatus pending -> ready) from re-running the load twice.
+  const discoveryOutcome = owner ? 'has-owner' : ownersStatus;
+
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
 
+    if (loadedOwnerRef.current !== owner) {
+      clearOwnerScopedState();
+      loadedOwnerRef.current = owner;
+    }
+
     if (!owner) {
-      // Wait for owner discovery; only stop the spinner once /owners has
-      // resolved and genuinely returned nothing to show.
-      if (owners.length === 0) return () => {};
+      // Only stop the spinner once /owners has actually resolved; while it is
+      // still in flight there is nothing to report yet.
+      if (discoveryOutcome === 'pending') return () => {};
       setLoading(false);
-      setError('No growers found for this account.');
+      setError(
+        discoveryOutcome === 'error'
+          ? 'Could not load the list of growers.'
+          : 'No growers found for this account.'
+      );
       return () => {};
     }
 
@@ -269,6 +306,7 @@ export function PlotDataProvider({
       })
       .catch((cause: unknown) => {
         if (cancelled) return;
+        clearOwnerScopedState();
         setError(cause instanceof Error ? cause.message : String(cause));
         setLoading(false);
       });
@@ -276,15 +314,22 @@ export function PlotDataProvider({
     return () => {
       cancelled = true;
     };
-  }, [owner, owners.length, reloadToken]);
+  }, [owner, discoveryOutcome, reloadToken, clearOwnerScopedState]);
+
+  // Each response is a whole server-side snapshot, so two in flight at once
+  // resolve last-write-wins and an out-of-order pair can un-tick a chore that
+  // did complete. Chaining keeps at most one request in flight, which makes
+  // the last response we apply the freshest one.
+  const completionChain = useRef<Promise<unknown>>(Promise.resolve());
 
   const completeChore = useCallback(
     (id: string) => {
       const chore = progress.chores.find((item) => item.id === id);
       if (!chore || chore.completed) return;
-      const request =
-        chore.source === 'trail' ? completeTrailTask(id) : completeQuest(id);
-      request
+      completionChain.current = completionChain.current
+        .then((): Promise<unknown> =>
+          chore.source === 'trail' ? completeTrailTask(id) : completeQuest(id)
+        )
         .then((payload) => {
           setProgress(
             chore.source === 'trail'
@@ -294,7 +339,8 @@ export function PlotDataProvider({
         })
         .catch(() => {
           // Completion is best-effort; the row stays actionable so the user
-          // can retry rather than seeing a false "done" state.
+          // can retry rather than seeing a false "done" state. Swallowing here
+          // also keeps one failure from breaking the chain for later clicks.
         });
     },
     [progress.chores]

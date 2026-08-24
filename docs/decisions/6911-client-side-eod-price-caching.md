@@ -188,14 +188,24 @@ The editor would "fix" a price and keep being served the old one.
 The epoch must therefore also cover a **series manifest**: for every cached
 `(ticker, exchange)`, its mtime and size. The pieces already exist —
 `list_cached_meta_tickers()`, `meta_timeseries_cache_path()` and
-`_s3_object_mtime()` in `backend/timeseries/cache.py` — and the S3 mtime lookups
-are already negatively cached there, so building the manifest is cheap.
+`_s3_object_mtime()` in `backend/timeseries/cache.py`.
 
-Two constraints on the manifest:
+Be precise about why this is affordable, because the obvious justification is
+wrong. The existing S3 mtime cache is **not** a general-purpose one: it holds
+entries for 30 seconds (`_S3_MTIME_TTL_SECONDS = 30.0`,
+`backend/timeseries/cache.py:355`), so it absorbs a burst and nothing more. What
+makes the manifest cheap is the memoisation strategy below, not that cache.
+
+Three constraints on the manifest:
 
 - **Never rebuild it per request.** Compute it on refresh and on any admin
   mutation, and memoise; a per-request `HEAD` per ticker would make the version
-  endpoint more expensive than the data it guards.
+  endpoint more expensive than the data it guards — and the 30-second TTL would
+  not save it.
+- **Recompute on the existing invalidation hook.** `invalidate_s3_cache_metadata()`
+  (`backend/timeseries/cache.py:377`) is already called after a write or delete;
+  that is the natural place to mark the manifest dirty, rather than a parallel
+  path that a new write site can miss.
 - If enumerating every series proves too costly at scale, the fallback is an
   explicit durable counter bumped by every parquet write path. That is more
   code and easier to forget on a new write path, which is why the derived
@@ -609,6 +619,30 @@ is the wrong contract for something a backdated edit can invalidate.
 | **Sparkline window silently widens** | Slice cached series by date cutoff, never `slice(-N)` (§4.5) |
 | Cache masks a real backend fault | The version check is `no-store`, so a broken backend surfaces on the next check rather than being papered over indefinitely |
 
+### 7.1 Cross-tab contract
+
+`BroadcastChannel("allotmint-version")` carries one message shape:
+
+```ts
+{ type: "version", priceEpoch, accountsRev, identityHash, observedAt }
+```
+
+Rules, so concurrent tabs converge instead of fighting:
+
+- **Only the tab that observed the change posts.** A tab that acts on a received
+  message does not re-broadcast — that is what turns two tabs into a loop.
+- **Receivers apply, they do not re-fetch the version.** The message is the
+  authority for this round; hitting `/data/version` again on receipt just
+  multiplies requests by the tab count.
+- **Ignore a message whose `identityHash` is not the receiver's.** Tabs can be
+  signed in as different users; a version change for one is not a licence to
+  evict the other's store.
+- **Last-writer-wins on `observedAt`.** A message older than the state already
+  applied is dropped, so a slow tab cannot roll a fast one backwards.
+- The channel is an **optimisation, not a correctness requirement**: it is
+  unavailable in some contexts, and every tab still converges on its own next
+  version check. Nothing may depend on delivery.
+
 ---
 
 ## 8. Phasing
@@ -686,7 +720,11 @@ Backend (`tests/backend/`):
   `400` rather than truncating (guards §5.1);
 - every cached route emits a **weak** `ETag` in the agreed
   `W/"<version-vector>:<route-key>"` shape — a strong ETag anywhere is a failure,
-  since it breaks revalidation across content-codings (§3.1).
+  since it breaks revalidation across content-codings (§3.1);
+- `max-age` never exceeds 3600 even when the next refresh is much further away
+  (guards §3.2). Assert on the emitted header value rather than waiting out a
+  clock — the timing behaviour is the browser's, but the cap is ours, and a
+  regression here silently strands users on superseded prices.
 
 Frontend (`frontend/src/**/__tests__/`):
 - a cache hit on a matching vector resolves without a network call;
@@ -704,7 +742,7 @@ Frontend (`frontend/src/**/__tests__/`):
   implementation returns a visibly wider window and fails (guards §4.5);
 - `as_of` entries survive a `price_epoch` change (guards §6.2);
 - two tabs observing a version change concurrently converge on one eviction pass
-  and do not thrash each other's cache via `BroadcastChannel` (guards §7);
+  and do not thrash each other's cache via `BroadcastChannel` (guards §7.1);
 - on simulated `QuotaExceededError`, eviction proceeds oldest-first by
   `fetchedAt` and the fetch still resolves (guards §4.6).
 

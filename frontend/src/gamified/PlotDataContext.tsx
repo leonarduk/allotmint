@@ -1,0 +1,319 @@
+/* eslint-disable react-refresh/only-export-components */
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
+import {
+  completeQuest,
+  completeTrailTask,
+  getAllowances,
+  getOwners,
+  getPortfolio,
+  getQuests,
+  getTrailTasks,
+} from '../api';
+import type { OwnerSummary, Portfolio } from '../types';
+import {
+  buildPlotSnapshot,
+  type AllowanceMap,
+  type PlotSnapshot,
+} from './plotModel';
+
+/** A chore is either a Trail task or a daily Quest, normalised for the UI. */
+export interface Chore {
+  id: string;
+  title: string;
+  note: string | null;
+  kind: 'daily' | 'once';
+  completed: boolean;
+  /** Only quests expose a per-task XP value; Trail tasks leave this null. */
+  xp: number | null;
+  source: 'trail' | 'quest';
+}
+
+export interface PlotDataValue {
+  loading: boolean;
+  /** Fatal error — the portfolio itself could not be loaded. */
+  error: string | null;
+  owner: string;
+  owners: OwnerSummary[];
+  setOwner: (owner: string) => void;
+  snapshot: PlotSnapshot;
+  chores: Chore[];
+  choresAvailable: boolean;
+  completeChore: (id: string) => void;
+  refresh: () => void;
+}
+
+const EMPTY_SNAPSHOT = buildPlotSnapshot({ portfolio: null });
+
+const plotDataContext = createContext<PlotDataValue>({
+  loading: true,
+  error: null,
+  owner: '',
+  owners: [],
+  setOwner: () => {},
+  snapshot: EMPTY_SNAPSHOT,
+  chores: [],
+  choresAvailable: false,
+  completeChore: () => {},
+  refresh: () => {},
+});
+
+export function usePlotData(): PlotDataValue {
+  return useContext(plotDataContext);
+}
+
+interface TrailPayload {
+  tasks: {
+    id: string;
+    title: string;
+    type: string;
+    commentary?: string;
+    completed: boolean;
+  }[];
+  xp: number;
+  streak: number;
+}
+
+interface QuestPayload {
+  quests: { id: string; title: string; xp: number; completed: boolean }[];
+  xp: number;
+  streak: number;
+}
+
+function choresFromTrail(payload: TrailPayload): Chore[] {
+  return payload.tasks.map((task) => ({
+    id: task.id,
+    title: task.title,
+    note: task.commentary || null,
+    kind: task.type === 'once' ? 'once' : 'daily',
+    completed: task.completed,
+    xp: null,
+    source: 'trail' as const,
+  }));
+}
+
+function choresFromQuests(payload: QuestPayload): Chore[] {
+  return payload.quests.map((quest) => ({
+    id: quest.id,
+    title: quest.title,
+    note: null,
+    kind: 'daily' as const,
+    completed: quest.completed,
+    xp: quest.xp,
+    source: 'quest' as const,
+  }));
+}
+
+interface ProgressState {
+  chores: Chore[];
+  xp: number;
+  streak: number;
+  source: 'trail' | 'quest' | null;
+}
+
+const EMPTY_PROGRESS: ProgressState = {
+  chores: [],
+  xp: 0,
+  streak: 0,
+  source: null,
+};
+
+/**
+ * Load the Trail tasks, falling back to the simpler Quests endpoint when the
+ * Trail surface is not deployed. Both feed the same XP/streak HUD, so a
+ * deployment with either one still gets a working progression loop.
+ */
+async function loadProgress(): Promise<ProgressState> {
+  try {
+    const trail = (await getTrailTasks()) as unknown as TrailPayload;
+    return {
+      chores: choresFromTrail(trail),
+      xp: trail.xp ?? 0,
+      streak: trail.streak ?? 0,
+      source: 'trail',
+    };
+  } catch {
+    // Trail is optional (config tab defaults off); quests are the fallback.
+  }
+
+  try {
+    const quests = (await getQuests()) as unknown as QuestPayload;
+    return {
+      chores: choresFromQuests(quests),
+      xp: quests.xp ?? 0,
+      streak: quests.streak ?? 0,
+      source: 'quest',
+    };
+  } catch {
+    return EMPTY_PROGRESS;
+  }
+}
+
+interface PlotDataProviderProps {
+  /** Owner to show; when omitted the first owner from /owners is used. */
+  requestedOwner?: string | null;
+  children: ReactNode;
+}
+
+export function PlotDataProvider({
+  requestedOwner,
+  children,
+}: PlotDataProviderProps) {
+  const [owners, setOwners] = useState<OwnerSummary[]>([]);
+  const [owner, setOwner] = useState(requestedOwner ?? '');
+  const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
+  const [allowances, setAllowances] = useState<AllowanceMap | null>(null);
+  const [progress, setProgress] = useState<ProgressState>(EMPTY_PROGRESS);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
+
+  // A `?owner=` change (deep link, or the classic UI's owner selector) wins
+  // over whatever the provider previously settled on.
+  useEffect(() => {
+    if (requestedOwner) setOwner(requestedOwner);
+  }, [requestedOwner]);
+
+  useEffect(() => {
+    let cancelled = false;
+    getOwners()
+      .then((list) => {
+        if (cancelled) return;
+        setOwners(list);
+        setOwner((current) => current || list[0]?.owner || '');
+      })
+      .catch(() => {
+        // Owner discovery failing is not fatal on its own: an explicit
+        // `?owner=` deep link can still load a portfolio below.
+        if (!cancelled) setOwners([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadToken]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+
+    if (!owner) {
+      // Wait for owner discovery; only stop the spinner once /owners has
+      // resolved and genuinely returned nothing to show.
+      if (owners.length === 0) return () => {};
+      setLoading(false);
+      setError('No growers found for this account.');
+      return () => {};
+    }
+
+    Promise.all([
+      getPortfolio(owner),
+      getAllowances(owner).catch(() => null),
+      loadProgress(),
+    ])
+      .then(([portfolioResult, allowanceResult, progressResult]) => {
+        if (cancelled) return;
+        setPortfolio(portfolioResult as Portfolio);
+        setAllowances(
+          (allowanceResult?.allowances as AllowanceMap | undefined) ?? null
+        );
+        setProgress(progressResult);
+        setLoading(false);
+      })
+      .catch((cause: unknown) => {
+        if (cancelled) return;
+        setError(cause instanceof Error ? cause.message : String(cause));
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [owner, owners.length, reloadToken]);
+
+  const completeChore = useCallback(
+    (id: string) => {
+      const chore = progress.chores.find((item) => item.id === id);
+      if (!chore || chore.completed) return;
+      const request =
+        chore.source === 'trail' ? completeTrailTask(id) : completeQuest(id);
+      request
+        .then((payload) => {
+          const next =
+            chore.source === 'trail'
+              ? {
+                  chores: choresFromTrail(payload as unknown as TrailPayload),
+                  xp: (payload as unknown as TrailPayload).xp ?? 0,
+                  streak: (payload as unknown as TrailPayload).streak ?? 0,
+                  source: 'trail' as const,
+                }
+              : {
+                  chores: choresFromQuests(payload as unknown as QuestPayload),
+                  xp: (payload as unknown as QuestPayload).xp ?? 0,
+                  streak: (payload as unknown as QuestPayload).streak ?? 0,
+                  source: 'quest' as const,
+                };
+          setProgress(next);
+        })
+        .catch(() => {
+          // Completion is best-effort; the row stays actionable so the user
+          // can retry rather than seeing a false "done" state.
+        });
+    },
+    [progress.chores]
+  );
+
+  const refresh = useCallback(() => setReloadToken((token) => token + 1), []);
+
+  const snapshot = useMemo(
+    () =>
+      buildPlotSnapshot({
+        portfolio,
+        xp: progress.xp,
+        streak: progress.streak,
+        allowances,
+      }),
+    [portfolio, progress.xp, progress.streak, allowances]
+  );
+
+  const value = useMemo<PlotDataValue>(
+    () => ({
+      loading,
+      error,
+      owner,
+      owners,
+      setOwner,
+      snapshot,
+      chores: progress.chores,
+      choresAvailable: progress.source !== null,
+      completeChore,
+      refresh,
+    }),
+    [
+      loading,
+      error,
+      owner,
+      owners,
+      snapshot,
+      progress.chores,
+      progress.source,
+      completeChore,
+      refresh,
+    ]
+  );
+
+  return (
+    <plotDataContext.Provider value={value}>
+      {children}
+    </plotDataContext.Provider>
+  );
+}
+
+export { plotDataContext };

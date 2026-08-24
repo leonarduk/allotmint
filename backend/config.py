@@ -72,6 +72,8 @@ class TabsConfig:
     scenario: bool = True
     logs: bool = True
     research: bool = True
+    # Plot mode: the optional gamified skin served at /plot in the SPA.
+    plot: bool = True
 
 
 @dataclass

@@ -83,6 +83,21 @@ export const ROUTE_REGISTRY: RouteRegistryEntry[] = [
     },
   },
   {
+    // Plot mode: the optional gamified skin. Mounted with a wildcard
+    // routePath so its own nested screens (/plot/crops/:ticker, /plot/chores)
+    // resolve inside PlotApp, and listed in
+    // STANDALONE_ROUTES_WITHOUT_APP_HEADER because it renders full-bleed game
+    // chrome instead of the classic AppHeader.
+    mode: 'plot',
+    routeSegment: 'plot',
+    section: 'user',
+    menuCategory: 'dashboard',
+    priority: 3,
+    defaultPath: () => '/plot',
+    routePath: '/plot/*',
+    lazyComponent: lazyPage(() => import('../gamified/PlotApp')),
+  },
+  {
     mode: 'market',
     routeSegment: 'market',
     section: 'user',
@@ -505,13 +520,17 @@ export const standalonePageRoutes = ROUTE_REGISTRY.filter((entry) =>
 /**
  * Routes mounted via standalonePageRoutes that must NOT get the shared
  * AppHeader wrapper: /alert-settings already renders AppHeader itself (with
- * the price-refresh timestamp), and /support + /create-account are public
- * pre-login routes that stay chrome-free (#6725).
+ * the price-refresh timestamp), /support + /create-account are public
+ * pre-login routes that stay chrome-free (#6725), and /plot/* is the gamified
+ * skin, which supplies its own full-screen HUD.
  */
 export const STANDALONE_ROUTES_WITHOUT_APP_HEADER = new Set([
   '/alert-settings',
   '/support',
   '/create-account',
+  // Plot mode renders its own full-screen HUD (with a "Classic view" link
+  // back), so the shared nav chrome would sit awkwardly on top of it.
+  '/plot/*',
 ]);
 
 export function standaloneRouteNeedsChrome(routePath: string | undefined): boolean {

@@ -8,6 +8,10 @@ The backend API must be running and reachable from the browser (local, LAN IP, o
 - Portfolio viewer for individual owners and groups.
 - Watchlist, screener and other analysis pages.
 - A **Relative view** toggle in the portfolio table hides absolute columns and shows percentage-based metrics such as "Gain %" and "Weight %".
+- **Plot mode** (`/plot`) — an optional arcade-style skin over the same data,
+  themed as an allotment: holdings are crops, accounts are beds, Trail tasks
+  are chores. Reachable from the Dashboard menu; the classic UI is unchanged
+  and stays the default. See [docs/plot-mode.md](../docs/plot-mode.md).
 
 ## Development scripts
 
@@ -58,6 +62,8 @@ future navigation features ahead of the final release.
 - `/watchlist` – manage personal watchlists
 - `/transactions` – view transaction history
 - `/reports` – after selecting an owner, provides CSV/PDF exports
+- `/plot` – Plot mode hub (gamified skin); `/plot/crops`, `/plot/crops/:ticker`,
+  `/plot/chores` and `/plot/seeds` are its sub-screens
 
 ## Installation
 

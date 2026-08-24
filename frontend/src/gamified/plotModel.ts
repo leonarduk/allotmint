@@ -180,6 +180,9 @@ export interface Crop {
   /** Days held, when the API knows — drives the "ready to lift" hint. */
   daysHeld: number | null;
   sellEligible: boolean;
+  /** Days until the minimum holding period is served, when the API knows. */
+  daysUntilEligible: number | null;
+  nextEligibleSellDate: string | null;
 }
 
 /** Account types get a bed identity so the roster can be grouped visually. */
@@ -270,6 +273,8 @@ function cropFromHolding(holding: Holding, bed: Bed, plotValue: number): Crop {
     lastPriceDate: holding.last_price_date ?? null,
     daysHeld: holding.days_held ?? null,
     sellEligible: holding.sell_eligible !== false,
+    daysUntilEligible: holding.days_until_eligible ?? null,
+    nextEligibleSellDate: holding.next_eligible_sell_date ?? null,
   };
 }
 
@@ -425,6 +430,46 @@ export function buildPlotSnapshot({
     rank: growerRank(grower.level),
     streak: streak ?? 0,
   };
+}
+
+export interface GerminatingCrop {
+  crop: Crop;
+  /** 0–100 through the minimum holding period. */
+  pct: number;
+  daysHeld: number;
+  daysRemaining: number;
+  readyOn: string | null;
+}
+
+/**
+ * Crops still inside their minimum holding period, soonest-ready first.
+ *
+ * This is the honest analogue of an incubator: real progress toward a real
+ * unlock date the backend already computes (`days_until_eligible` /
+ * `next_eligible_sell_date` from the configured `hold_days_min`), not a
+ * timer invented for the skin.
+ */
+export function germinatingCrops(crops: readonly Crop[]): GerminatingCrop[] {
+  return crops
+    .filter(
+      (crop) =>
+        !crop.sellEligible &&
+        crop.daysUntilEligible !== null &&
+        crop.daysUntilEligible > 0
+    )
+    .map((crop) => {
+      const remaining = crop.daysUntilEligible ?? 0;
+      const held = Math.max(0, crop.daysHeld ?? 0);
+      const total = held + remaining;
+      return {
+        crop,
+        pct: total > 0 ? clamp((held / total) * 100, 0, 100) : 0,
+        daysHeld: held,
+        daysRemaining: remaining,
+        readyOn: crop.nextEligibleSellDate,
+      };
+    })
+    .sort((left, right) => left.daysRemaining - right.daysRemaining);
 }
 
 /** Compact money for HUD chips: £1.2k, £864.1k, £5.3m. */

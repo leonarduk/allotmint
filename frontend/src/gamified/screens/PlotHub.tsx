@@ -2,9 +2,22 @@ import { Link } from 'react-router-dom';
 import styles from '../plot.module.css';
 import { cropGlyph } from '../cropGlyph';
 import { usePlotData } from '../PlotDataContext';
-import { formatGbp, formatPct, growthStageMeta, type Crop } from '../plotModel';
+import {
+  formatGbp,
+  formatPct,
+  germinatingCrops,
+  growthStageMeta,
+  type Crop,
+} from '../plotModel';
+import {
+  buildSeasonGoals,
+  buildStreakPath,
+  seasonCountdown,
+} from '../seasonModel';
 import Meter, { type MeterTone } from '../components/Meter';
 import CropCard from '../components/CropCard';
+import StreakPath from '../components/StreakPath';
+import Propagator from '../components/Propagator';
 
 const RESOURCE_TONE: Record<string, MeterTone> = {
   water: 'water',
@@ -44,7 +57,15 @@ function Champion({
  * (accounts) that make up the plot.
  */
 export default function PlotHub({ basePath }: { basePath: string }) {
-  const { snapshot, chores, choresAvailable } = usePlotData();
+  const {
+    snapshot,
+    chores,
+    choresAvailable,
+    allowances,
+    season,
+    dailyTotals,
+    today,
+  } = usePlotData();
   const { crops, beds, resources } = snapshot;
 
   const byGain = [...crops].sort((left, right) => right.gainPct - left.gainPct);
@@ -52,6 +73,11 @@ export default function PlotHub({ basePath }: { basePath: string }) {
   const worst = byGain.length > 1 ? byGain[byGain.length - 1] : undefined;
   const openChores = chores.filter((chore) => !chore.completed).length;
   const featured = crops.slice(0, 6);
+  const germinating = germinatingCrops(crops);
+  const streakDays = today ? buildStreakPath(dailyTotals, today) : [];
+  const seasonGoals = buildSeasonGoals(snapshot, allowances);
+  const seasonDone = seasonGoals.filter((goal) => goal.complete).length;
+  const countdown = season ? seasonCountdown(season, new Date()) : null;
 
   return (
     <div className={styles.stack}>
@@ -120,6 +146,37 @@ export default function PlotHub({ basePath }: { basePath: string }) {
             Chore tracking is not enabled on this deployment.
           </p>
         )}
+        {streakDays.length > 0 && (
+          <StreakPath days={streakDays} streak={snapshot.streak} />
+        )}
+      </section>
+
+      <section className={`${styles.panel} ${styles.panelGlow}`}>
+        <h2 className={styles.panelTitle}>
+          {season ? `Growing season ${season.label}` : 'Growing season'} (
+          {seasonDone}/{seasonGoals.length})
+        </h2>
+        {countdown && (
+          <p className={styles.seasonCountdown}>{countdown.label}</p>
+        )}
+        <div className={styles.choreRow}>
+          <div className={styles.choreBody}>
+            <div className={styles.choreTitle}>
+              {seasonDone} of {seasonGoals.length} season milestones reached
+            </div>
+            <p className={styles.choreNote}>
+              Tiered goals across plot size, value, allowances, streak and rank.
+            </p>
+          </div>
+          <Link className={styles.goButton} to={`${basePath}/season`}>
+            View
+          </Link>
+        </div>
+      </section>
+
+      <section className={`${styles.panel} ${styles.panelGlow}`}>
+        <h2 className={styles.panelTitle}>Propagator ({germinating.length})</h2>
+        <Propagator entries={germinating} basePath={basePath} />
       </section>
 
       <section className={`${styles.panel} ${styles.panelGlow}`}>

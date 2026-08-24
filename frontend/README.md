@@ -63,7 +63,7 @@ future navigation features ahead of the final release.
 - `/transactions` – view transaction history
 - `/reports` – after selecting an owner, provides CSV/PDF exports
 - `/plot` – Plot mode hub (gamified skin); `/plot/crops`, `/plot/crops/:ticker`,
-  `/plot/chores` and `/plot/seeds` are its sub-screens
+  `/plot/chores`, `/plot/season` and `/plot/seeds` are its sub-screens
 
 ## Installation
 

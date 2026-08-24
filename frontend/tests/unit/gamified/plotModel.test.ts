@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildPlotSnapshot,
+  germinatingCrops,
   bedIconFor,
   bedNameFor,
   clamp,
@@ -300,5 +301,53 @@ describe('formatters', () => {
     expect(clamp(150, 0, 100)).toBe(100);
     expect(clamp(-5, 0, 100)).toBe(0);
     expect(clamp(Number.NaN, 3, 100)).toBe(3);
+  });
+});
+
+describe('germinatingCrops', () => {
+  const crop = (over: Partial<Crop>): Crop =>
+    ({
+      ticker: 'X.L',
+      sellEligible: false,
+      daysHeld: 10,
+      daysUntilEligible: 20,
+      nextEligibleSellDate: '2026-09-13',
+      ...over,
+    }) as Crop;
+
+  it('keeps only holdings still serving a minimum holding period', () => {
+    const entries = germinatingCrops([
+      crop({ ticker: 'READY.L', sellEligible: true, daysUntilEligible: 0 }),
+      crop({ ticker: 'UNKNOWN.L', daysUntilEligible: null }),
+      crop({ ticker: 'ZERO.L', daysUntilEligible: 0 }),
+      crop({ ticker: 'GROWING.L' }),
+    ]);
+    expect(entries.map((entry) => entry.crop.ticker)).toEqual(['GROWING.L']);
+  });
+
+  it('measures progress across the whole holding period', () => {
+    const [entry] = germinatingCrops([
+      crop({ daysHeld: 10, daysUntilEligible: 20 }),
+    ]);
+    expect(entry).toMatchObject({
+      daysHeld: 10,
+      daysRemaining: 20,
+      readyOn: '2026-09-13',
+    });
+    expect(entry.pct).toBeCloseTo(100 / 3);
+  });
+
+  it('sorts soonest-ready first and treats an unknown age as day zero', () => {
+    const entries = germinatingCrops([
+      crop({ ticker: 'LATE.L', daysUntilEligible: 25 }),
+      crop({ ticker: 'SOON.L', daysUntilEligible: 2 }),
+      crop({ ticker: 'NEW.L', daysHeld: null, daysUntilEligible: 30 }),
+    ]);
+    expect(entries.map((entry) => entry.crop.ticker)).toEqual([
+      'SOON.L',
+      'LATE.L',
+      'NEW.L',
+    ]);
+    expect(entries[2]).toMatchObject({ daysHeld: 0, pct: 0 });
   });
 });

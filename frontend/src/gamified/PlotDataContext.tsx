@@ -23,6 +23,7 @@ import {
   type AllowanceMap,
   type PlotSnapshot,
 } from './plotModel';
+import { parseTaxYear, type DailyTotals, type Season } from './seasonModel';
 
 /** A chore is either a Trail task or a daily Quest, normalised for the UI. */
 export interface Chore {
@@ -48,6 +49,14 @@ export interface PlotDataValue {
   choresAvailable: boolean;
   completeChore: (id: string) => void;
   refresh: () => void;
+  /** Raw allowance rows, for the season ladder's "feed the beds" goals. */
+  allowances: AllowanceMap | null;
+  /** The UK tax year this plot is in, when the backend reports one. */
+  season: Season | null;
+  /** Per-day chore totals from the Trail, for the streak path. */
+  dailyTotals: DailyTotals | null;
+  /** The Trail's idea of today, so the streak path anchors to server time. */
+  today: string;
 }
 
 const EMPTY_SNAPSHOT = buildPlotSnapshot({ portfolio: null });
@@ -63,6 +72,10 @@ const plotDataContext = createContext<PlotDataValue>({
   choresAvailable: false,
   completeChore: () => {},
   refresh: () => {},
+  allowances: null,
+  season: null,
+  dailyTotals: null,
+  today: '',
 });
 
 export function usePlotData(): PlotDataValue {
@@ -79,6 +92,8 @@ interface TrailPayload {
   }[];
   xp: number;
   streak: number;
+  daily_totals?: DailyTotals;
+  today?: string;
 }
 
 interface QuestPayload {
@@ -116,6 +131,8 @@ interface ProgressState {
   xp: number;
   streak: number;
   source: 'trail' | 'quest' | null;
+  dailyTotals: DailyTotals | null;
+  today: string;
 }
 
 const EMPTY_PROGRESS: ProgressState = {
@@ -123,7 +140,38 @@ const EMPTY_PROGRESS: ProgressState = {
   xp: 0,
   streak: 0,
   source: null,
+  dailyTotals: null,
+  today: '',
 };
+
+/** Local-clock fallback for the streak path when the Trail omits `today`. */
+function localToday(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function progressFromTrail(trail: TrailPayload): ProgressState {
+  return {
+    chores: choresFromTrail(trail),
+    xp: trail.xp ?? 0,
+    streak: trail.streak ?? 0,
+    source: 'trail',
+    dailyTotals: trail.daily_totals ?? null,
+    today: trail.today || localToday(),
+  };
+}
+
+function progressFromQuests(quests: QuestPayload): ProgressState {
+  // The Quests endpoint has no per-day history, so the streak path is simply
+  // absent on that fallback rather than being reconstructed from a guess.
+  return {
+    chores: choresFromQuests(quests),
+    xp: quests.xp ?? 0,
+    streak: quests.streak ?? 0,
+    source: 'quest',
+    dailyTotals: null,
+    today: localToday(),
+  };
+}
 
 /**
  * Load the Trail tasks, falling back to the simpler Quests endpoint when the
@@ -132,25 +180,15 @@ const EMPTY_PROGRESS: ProgressState = {
  */
 async function loadProgress(): Promise<ProgressState> {
   try {
-    const trail = (await getTrailTasks()) as unknown as TrailPayload;
-    return {
-      chores: choresFromTrail(trail),
-      xp: trail.xp ?? 0,
-      streak: trail.streak ?? 0,
-      source: 'trail',
-    };
+    return progressFromTrail(
+      (await getTrailTasks()) as unknown as TrailPayload
+    );
   } catch {
     // Trail is optional (config tab defaults off); quests are the fallback.
   }
 
   try {
-    const quests = (await getQuests()) as unknown as QuestPayload;
-    return {
-      chores: choresFromQuests(quests),
-      xp: quests.xp ?? 0,
-      streak: quests.streak ?? 0,
-      source: 'quest',
-    };
+    return progressFromQuests((await getQuests()) as unknown as QuestPayload);
   } catch {
     return EMPTY_PROGRESS;
   }
@@ -170,6 +208,7 @@ export function PlotDataProvider({
   const [owner, setOwner] = useState(requestedOwner ?? '');
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
   const [allowances, setAllowances] = useState<AllowanceMap | null>(null);
+  const [season, setSeason] = useState<Season | null>(null);
   const [progress, setProgress] = useState<ProgressState>(EMPTY_PROGRESS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -224,6 +263,7 @@ export function PlotDataProvider({
         setAllowances(
           (allowanceResult?.allowances as AllowanceMap | undefined) ?? null
         );
+        setSeason(parseTaxYear(allowanceResult?.tax_year));
         setProgress(progressResult);
         setLoading(false);
       })
@@ -246,21 +286,11 @@ export function PlotDataProvider({
         chore.source === 'trail' ? completeTrailTask(id) : completeQuest(id);
       request
         .then((payload) => {
-          const next =
+          setProgress(
             chore.source === 'trail'
-              ? {
-                  chores: choresFromTrail(payload as unknown as TrailPayload),
-                  xp: (payload as unknown as TrailPayload).xp ?? 0,
-                  streak: (payload as unknown as TrailPayload).streak ?? 0,
-                  source: 'trail' as const,
-                }
-              : {
-                  chores: choresFromQuests(payload as unknown as QuestPayload),
-                  xp: (payload as unknown as QuestPayload).xp ?? 0,
-                  streak: (payload as unknown as QuestPayload).streak ?? 0,
-                  source: 'quest' as const,
-                };
-          setProgress(next);
+              ? progressFromTrail(payload as unknown as TrailPayload)
+              : progressFromQuests(payload as unknown as QuestPayload)
+          );
         })
         .catch(() => {
           // Completion is best-effort; the row stays actionable so the user
@@ -295,6 +325,10 @@ export function PlotDataProvider({
       choresAvailable: progress.source !== null,
       completeChore,
       refresh,
+      allowances,
+      season,
+      dailyTotals: progress.dailyTotals,
+      today: progress.today,
     }),
     [
       loading,
@@ -304,6 +338,10 @@ export function PlotDataProvider({
       snapshot,
       progress.chores,
       progress.source,
+      progress.dailyTotals,
+      progress.today,
+      allowances,
+      season,
       completeChore,
       refresh,
     ]

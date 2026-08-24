@@ -43,7 +43,11 @@ function abilitiesFor(crop: Crop) {
         crop.daysHeld === null
           ? 'Holding age unknown'
           : `Held ${crop.daysHeld} day${crop.daysHeld === 1 ? '' : 's'}${
-              crop.sellEligible ? ' · ready to lift' : ' · not yet liftable'
+              crop.sellEligible
+                ? ' · ready to lift'
+                : crop.nextEligibleSellDate
+                  ? ` · in the propagator until ${crop.nextEligibleSellDate}`
+                  : ' · not yet liftable'
             }`,
       level: crop.sellEligible ? 5 : 2,
       max: 5,

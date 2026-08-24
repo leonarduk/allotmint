@@ -18,6 +18,8 @@ is a *crop*, an account is a *bed*, and the daily Trail tasks are *chores*.
   ledger, with a link out to the classic instrument view.
 - **`/plot/chores` — Chores.** Daily and one-off tasks, the completion ring,
   season XP and streak.
+- **`/plot/season` — Season track.** A tiered milestone ladder over the UK
+  tax year, with the countdown to 5 April.
 - **`/plot/seeds` — Seed shed.** The watchlist as seed packets, priced from
   live quotes.
 
@@ -49,6 +51,20 @@ unit tested in `frontend/tests/unit/gamified/plotModel.test.ts`.
   chore finished.
 - **Seed packets** — the `watchlistSymbols` localStorage key (the same list
   the classic Watchlist page reads) priced via `GET /api/quotes`.
+- **Propagator** — holdings still inside their minimum holding period, from
+  the backend's own `sell_eligible`, `days_until_eligible` and
+  `next_eligible_sell_date` (derived from the configured `hold_days_min`).
+  Progress runs `days_held` over `days_held + days_until_eligible`.
+- **Streak path** — the last seven days from the Trail's `daily_totals`,
+  anchored on its `today`. A day is stamped only when every daily chore was
+  finished; a day the backend has no record for stays blank rather than being
+  reconstructed.
+- **Season** — the UK tax year from the allowances API's `tax_year`
+  (`"YYYY-YYYY"`, ending 5 April of the second year). Milestone tiers are
+  driven by crop count, plot value, allowance usage, streak and grower level;
+  a cleared tier shows the real current figure, not the target it beat.
+- **Favourite stars** — this browser's own marks, kept in `localStorage`
+  under `allotmint:plot:favourites:<owner>`. They never reach the backend.
 
 Chores write back through the same `POST /trail/{id}/complete` (or
 `POST /quests/{id}/complete`) endpoints the classic Trail page uses, so XP and
@@ -82,7 +98,10 @@ route, exactly like any other page.
   `progressbar` elements with accessible names, decorative emoji are
   `aria-hidden`, and ambient animation is disabled under
   `prefers-reduced-motion`. `tests/unit/gamified/PlotAccessibility.test.tsx`
-  runs axe over the hub and chores screens.
+  runs axe over the hub, chores, season and roster screens.
+- Grid tracks use `minmax(0, 1fr)` and card grids `minmax(min(Npx, 100%),
+  1fr)`. A bare `1fr` carries `min-width: auto`, which let the widest card row
+  push the whole layout past a phone viewport.
 
 ## Validation
 

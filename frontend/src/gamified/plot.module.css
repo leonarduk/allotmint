@@ -6,6 +6,15 @@
  * light/dark theme tokens) are left completely alone.
  */
 
+/* Scoped border-box reset. Without it, any padded element given an explicit
+   100% width (the resource pills on mobile) overflows its own panel. */
+.plotRoot,
+.plotRoot *,
+.plotRoot *::before,
+.plotRoot *::after {
+  box-sizing: border-box;
+}
+
 .plotRoot {
   --plot-ink: #dff5e6;
   --plot-ink-dim: #8fae9c;
@@ -24,7 +33,6 @@
   position: relative;
   min-height: 100vh;
   padding: 0.75rem clamp(0.5rem, 2vw, 1.5rem) 2rem;
-  box-sizing: border-box;
   color: var(--plot-ink);
   background:
     radial-gradient(
@@ -260,7 +268,7 @@
 
 .layout {
   display: grid;
-  grid-template-columns: minmax(180px, 210px) 1fr;
+  grid-template-columns: minmax(180px, 210px) minmax(0, 1fr);
   gap: 0.9rem;
   align-items: start;
 }
@@ -364,7 +372,7 @@
 .stage {
   position: relative;
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: end;
   gap: 1rem;
   min-height: 230px;
@@ -639,7 +647,7 @@
 
 .cropGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(150px, 100%), 1fr));
   gap: 0.7rem;
 }
 
@@ -779,10 +787,10 @@
 
 .detail {
   display: grid;
-  grid-template-columns: minmax(200px, 1fr) minmax(220px, 1.2fr) minmax(
-      200px,
-      1fr
-    );
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(0, 1.2fr)
+    minmax(0, 1fr);
   gap: 0.9rem;
   align-items: start;
 }
@@ -893,7 +901,7 @@
 
 .seedGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr));
   gap: 0.7rem;
 }
 
@@ -923,6 +931,242 @@
 
 .seedAction {
   margin-top: auto;
+}
+
+/* ── Streak path (a week of chore stamps) ───────────────────────────── */
+
+.streakPath {
+  margin-top: 0.85rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--plot-edge-soft);
+  overflow-x: auto;
+}
+
+.stampRow {
+  display: flex;
+  gap: 0.55rem;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stampCell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 0 0 auto;
+}
+
+.stamp {
+  display: grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  font-size: 1.1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px dashed rgba(255, 255, 255, 0.18);
+  border-radius: 50%;
+}
+
+.stampDone {
+  background: radial-gradient(circle at 32% 28%, #9ff0bd, var(--plot-leaf));
+  border: 2px solid var(--plot-mint);
+  box-shadow: 0 0 12px rgba(87, 224, 138, 0.45);
+}
+
+.stampPartial {
+  background: rgba(87, 224, 138, 0.16);
+  border: 2px solid rgba(87, 224, 138, 0.5);
+}
+
+.stampDay {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--plot-ink-dim);
+}
+
+.stampDayToday {
+  color: var(--plot-mint);
+}
+
+.crate {
+  display: grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  font-size: 1.15rem;
+  background: rgba(242, 193, 78, 0.08);
+  border: 2px dashed rgba(242, 193, 78, 0.4);
+  border-radius: 6px;
+  filter: grayscale(0.6);
+}
+
+.crateOpen {
+  background: rgba(242, 193, 78, 0.22);
+  border: 2px solid var(--plot-gold);
+  box-shadow: 0 0 14px rgba(242, 193, 78, 0.45);
+  filter: none;
+}
+
+/* ── Propagator trays ───────────────────────────────────────────────── */
+
+.trayGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(150px, 100%), 1fr));
+  gap: 0.7rem;
+}
+
+.tray {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.75rem 0.6rem;
+  text-align: center;
+  text-decoration: none;
+  color: var(--plot-ink);
+  background: linear-gradient(
+    180deg,
+    rgba(12, 36, 52, 0.9),
+    rgba(7, 20, 14, 0.92)
+  );
+  border: 1px solid rgba(111, 199, 255, 0.25);
+  border-radius: 999px 999px 6px 6px;
+}
+
+.tray:hover,
+.tray:focus-visible {
+  border-color: rgba(111, 199, 255, 0.6);
+}
+
+.tray > .meter {
+  width: 100%;
+}
+
+.trayGlyph {
+  font-size: 1.9rem;
+  line-height: 1;
+  filter: drop-shadow(0 0 10px rgba(111, 199, 255, 0.4));
+}
+
+.trayTicker {
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.trayDays {
+  font-size: 0.72rem;
+  color: var(--plot-ink-dim);
+}
+
+.trayReady {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--plot-sky);
+}
+
+/* ── Season track ───────────────────────────────────────────────────── */
+
+.seasonCountdown {
+  margin: -0.35rem 0 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--plot-sky);
+}
+
+.goalMeter {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.4rem;
+}
+
+.goalMeter > .meter {
+  flex: 1 1 auto;
+}
+
+.goalValue {
+  flex: 0 0 auto;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--plot-gold);
+}
+
+.plainList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* ── Roster search and favourites ───────────────────────────────────── */
+
+.searchLabel {
+  display: block;
+  margin-bottom: 0.7rem;
+}
+
+.searchInput {
+  width: 100%;
+  padding: 0.55rem 0.85rem;
+  font: inherit;
+  font-size: 0.88rem;
+  color: var(--plot-ink);
+  background: rgba(6, 20, 14, 0.9);
+  border: 1px solid var(--plot-edge-soft);
+  border-radius: 999px;
+}
+
+.searchInput::placeholder {
+  color: var(--plot-ink-dim);
+}
+
+.searchInput:focus-visible {
+  outline: 2px solid var(--plot-mint);
+  outline-offset: 1px;
+}
+
+.cropCardWrap {
+  position: relative;
+  display: flex;
+}
+
+.cropCardWrap > .cropCard {
+  flex: 1 1 auto;
+}
+
+.favouriteToggle {
+  position: absolute;
+  top: 0.3rem;
+  right: 0.3rem;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  padding: 0;
+  font-size: 0.9rem;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.28);
+  background: rgba(6, 20, 14, 0.7);
+  border: 1px solid var(--plot-edge-soft);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.favouriteToggle:hover,
+.favouriteToggle:focus-visible {
+  color: var(--plot-gold);
+  border-color: rgba(242, 193, 78, 0.5);
+}
+
+.favouriteToggleOn {
+  color: var(--plot-gold);
+  border-color: var(--plot-gold);
+  text-shadow: 0 0 8px rgba(242, 193, 78, 0.7);
 }
 
 /* ── States ─────────────────────────────────────────────────────────── */
@@ -960,18 +1204,22 @@
 
 @media (max-width: 900px) {
   .layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
+  /* A grid rather than flex-wrap: `minmax(0, 1fr)` lets the slabs shrink
+     below their label width, which flex items refuse to do by default and
+     which pushed the last two off-screen at phone widths. */
   .rail {
-    flex-direction: row;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .railButton {
-    flex: 1 1 8rem;
     clip-path: none;
     text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .railSubtitle {
@@ -979,14 +1227,33 @@
   }
 
   .detail {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
 @media (max-width: 560px) {
   .stage {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     justify-items: center;
+  }
+
+  /* One meter per row: side-by-side pills clipped their own "8 / 8" values
+     once the label and figure had to share ~180px. */
+  .pill {
+    flex: 1 1 100%;
+  }
+
+  /* Shrink the stamps so a full week plus the crate fits a phone without
+     needing the horizontal scroll .streakPath falls back to. */
+  .stampRow {
+    gap: 0.35rem;
+  }
+
+  .stamp,
+  .crate {
+    width: 2rem;
+    height: 2rem;
+    font-size: 0.95rem;
   }
 
   .hudTitle {

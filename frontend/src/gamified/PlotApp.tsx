@@ -7,6 +7,7 @@ import PlotHub from './screens/PlotHub';
 import CropRoster from './screens/CropRoster';
 import CropDetail from './screens/CropDetail';
 import ChoresScreen from './screens/ChoresScreen';
+import SeasonTrack from './screens/SeasonTrack';
 import SeedCatalogue from './screens/SeedCatalogue';
 
 /** Mount point for the whole skin; kept in one place for links and tests. */
@@ -16,6 +17,11 @@ const RAIL_ITEMS: readonly RailItem[] = [
   { to: PLOT_BASE_PATH, label: 'The Plot', subtitle: 'Overview', end: true },
   { to: `${PLOT_BASE_PATH}/crops`, label: 'Crops', subtitle: 'Your holdings' },
   { to: `${PLOT_BASE_PATH}/chores`, label: 'Chores', subtitle: 'Daily tasks' },
+  {
+    to: `${PLOT_BASE_PATH}/season`,
+    label: 'Season',
+    subtitle: 'Tax-year goals',
+  },
   { to: `${PLOT_BASE_PATH}/seeds`, label: 'Seed shed', subtitle: 'Watchlist' },
 ];
 
@@ -91,6 +97,7 @@ function PlotShell() {
                 element={<CropDetail basePath={PLOT_BASE_PATH} />}
               />
               <Route path="chores" element={<ChoresScreen />} />
+              <Route path="season" element={<SeasonTrack />} />
               <Route
                 path="seeds"
                 element={<SeedCatalogue basePath={PLOT_BASE_PATH} />}

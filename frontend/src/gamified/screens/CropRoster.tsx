@@ -1,7 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import styles from '../plot.module.css';
 import { usePlotData } from '../PlotDataContext';
 import { GROWTH_STAGES, type Crop } from '../plotModel';
+import {
+  loadFavourites,
+  matchesSearch,
+  saveFavourites,
+  toggleFavourite,
+} from '../favourites';
 import CropCard from '../components/CropCard';
 
 type SortKey = 'value' | 'gain' | 'vigour' | 'name';
@@ -25,19 +31,46 @@ const SORTS: {
   },
 ];
 
-/** The collection screen: every holding as a crop tile, sortable and filterable. */
+/** The collection screen: every holding as a crop tile, searchable and sortable. */
 export default function CropRoster({ basePath }: { basePath: string }) {
-  const { snapshot } = usePlotData();
+  const { snapshot, owner } = usePlotData();
   const [sort, setSort] = useState<SortKey>('value');
   const [bedFilter, setBedFilter] = useState<string>('all');
+  const [search, setSearch] = useState('');
+  const [favouritesOnly, setFavouritesOnly] = useState(false);
+  const [favourites, setFavourites] = useState<Set<string>>(() => new Set());
+
+  // Favourites are namespaced per grower, so they reload when the owner
+  // selector changes rather than leaking across portfolios.
+  useEffect(() => {
+    setFavourites(loadFavourites(owner));
+  }, [owner]);
+
+  const handleToggleFavourite = useCallback(
+    (ticker: string) => {
+      setFavourites((current) => {
+        const next = toggleFavourite(current, ticker);
+        saveFavourites(owner, next);
+        return next;
+      });
+    },
+    [owner]
+  );
 
   const visible = useMemo(() => {
     const compare =
       SORTS.find((entry) => entry.id === sort)?.compare ?? SORTS[0].compare;
     return snapshot.crops
       .filter((crop) => bedFilter === 'all' || crop.bedId === bedFilter)
+      .filter((crop) => !favouritesOnly || favourites.has(crop.ticker))
+      .filter((crop) =>
+        matchesSearch(
+          [crop.ticker, crop.name, crop.bedName, crop.sector],
+          search
+        )
+      )
       .sort(compare);
-  }, [snapshot.crops, sort, bedFilter]);
+  }, [snapshot.crops, sort, bedFilter, favouritesOnly, favourites, search]);
 
   const stageCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -67,8 +100,21 @@ export default function CropRoster({ basePath }: { basePath: string }) {
 
       <section className={`${styles.panel} ${styles.panelGlow}`}>
         <h2 className={styles.panelTitle}>
-          Crop roster ({visible.length}/{snapshot.crops.length})
+          Crop roster ({visible.length}/{snapshot.crops.length}) ·{' '}
+          {snapshot.beds.length} bed{snapshot.beds.length === 1 ? '' : 's'}
         </h2>
+
+        <label className={styles.searchLabel} htmlFor="plot-crop-search">
+          <span className={styles.srOnly}>Search crops</span>
+          <input
+            id="plot-crop-search"
+            type="search"
+            className={styles.searchInput}
+            placeholder="Search ticker, name, bed or sector"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </label>
 
         <div className={styles.toolbar} role="group" aria-label="Sort crops">
           {SORTS.map((entry) => (
@@ -88,7 +134,7 @@ export default function CropRoster({ basePath }: { basePath: string }) {
           ))}
         </div>
 
-        <div className={styles.toolbar} role="group" aria-label="Filter by bed">
+        <div className={styles.toolbar} role="group" aria-label="Filter crops">
           <button
             type="button"
             aria-pressed={bedFilter === 'all'}
@@ -116,14 +162,32 @@ export default function CropRoster({ basePath }: { basePath: string }) {
               <span aria-hidden="true">{bed.icon}</span> {bed.name}
             </button>
           ))}
+          <button
+            type="button"
+            aria-pressed={favouritesOnly}
+            className={
+              favouritesOnly
+                ? `${styles.chipButton} ${styles.chipButtonActive}`
+                : styles.chipButton
+            }
+            onClick={() => setFavouritesOnly((current) => !current)}
+          >
+            <span aria-hidden="true">★</span> Favourites ({favourites.size})
+          </button>
         </div>
 
         {visible.length === 0 ? (
-          <p className={styles.emptyState}>No crops in this bed yet.</p>
+          <p className={styles.emptyState}>No crops match those filters.</p>
         ) : (
           <div className={styles.cropGrid}>
             {visible.map((crop) => (
-              <CropCard key={crop.ticker} crop={crop} basePath={basePath} />
+              <CropCard
+                key={crop.ticker}
+                crop={crop}
+                basePath={basePath}
+                favourite={favourites.has(crop.ticker)}
+                onToggleFavourite={handleToggleFavourite}
+              />
             ))}
           </div>
         )}

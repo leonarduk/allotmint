@@ -108,4 +108,30 @@ describe('Plot mode accessibility', () => {
     await screen.findByText('Check the movers');
     expect(await axe(container)).toHaveNoViolations();
   });
+
+  it('has no detectable violations on the season ladder', async () => {
+    const { container } = render(
+      <MemoryRouter initialEntries={['/plot/season']}>
+        <Routes>
+          <Route path="/plot/*" element={<PlotApp />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await screen.findByRole('heading', { name: /Growing season/ });
+    expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('has no detectable violations on the crop roster', async () => {
+    const { container } = render(
+      <MemoryRouter initialEntries={['/plot/crops']}>
+        <Routes>
+          <Route path="/plot/*" element={<PlotApp />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await screen.findByRole('searchbox', { name: 'Search crops' });
+    expect(await axe(container)).toHaveNoViolations();
+  });
 });

@@ -52,6 +52,8 @@ const portfolio: Portfolio = {
           instrument_type: 'Equity',
           days_held: 4,
           sell_eligible: false,
+          days_until_eligible: 26,
+          next_eligible_sell_date: '2026-09-19',
         },
       ],
     },
@@ -77,7 +79,11 @@ const trailPayload = {
   ],
   xp: 150,
   streak: 3,
-  daily_totals: {},
+  daily_totals: {
+    '2026-08-22': { completed: 2, total: 2 },
+    '2026-08-23': { completed: 2, total: 2 },
+    '2026-08-24': { completed: 1, total: 2 },
+  },
   today: '2026-08-24',
 };
 
@@ -111,13 +117,15 @@ function renderPlot(path = '/plot') {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  window.localStorage.clear();
   mocks.getOwners.mockResolvedValue([
     { owner: 'steve', accounts: ['stocks-isa'] },
   ]);
   mocks.getPortfolio.mockResolvedValue(portfolio);
   mocks.getAllowances.mockResolvedValue({
     owner: 'steve',
-    tax_year: '2026/27',
+    // The backend's own "YYYY-YYYY" form (see current_tax_year).
+    tax_year: '2026-2027',
     allowances: { isa: { used: 5_000, limit: 20_000, remaining: 15_000 } },
   });
   mocks.getTrailTasks.mockResolvedValue(trailPayload);
@@ -192,7 +200,9 @@ describe('Plot mode crop roster', () => {
   it('lists every crop and filters by bed', async () => {
     renderPlot('/plot/crops');
 
-    expect(await screen.findByText('Crop roster (2/2)')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: /Crop roster \(2\/2\)/ })
+    ).toBeInTheDocument();
     expect(screen.getByText('VUSA.L')).toBeInTheDocument();
     expect(screen.getByText('WILT.L')).toBeInTheDocument();
 
@@ -292,5 +302,131 @@ describe('Plot mode chores', () => {
     expect(
       await screen.findByText(/Neither the Trail nor the Quests endpoint/)
     ).toBeInTheDocument();
+  });
+});
+
+describe('Plot mode streak path', () => {
+  it("stamps the week from the Trail's real per-day totals", async () => {
+    renderPlot();
+
+    const history = await screen.findByRole('list', {
+      name: 'Chore history for the last week',
+    });
+    // Two full days and one partial, from the fixture's daily_totals.
+    expect(
+      within(history).getByText('2026-08-23: 2 of 2 chores done')
+    ).toBeInTheDocument();
+    expect(
+      within(history).getByText('2026-08-24: 1 of 2 chores done')
+    ).toBeInTheDocument();
+    // Days the backend has no record for stay blank rather than being guessed.
+    expect(
+      within(history).getByText('2026-08-18: no chores recorded')
+    ).toBeInTheDocument();
+  });
+});
+
+describe('Plot mode propagator', () => {
+  it('shows holdings still inside their minimum holding period', async () => {
+    renderPlot();
+
+    expect(await screen.findByText('Propagator (1)')).toBeInTheDocument();
+    expect(screen.getByText('4 / 30 days')).toBeInTheDocument();
+    expect(screen.getByText('Ready 2026-09-19')).toBeInTheDocument();
+  });
+
+  it('spells out the holding period on the crop detail screen', async () => {
+    renderPlot('/plot/crops/WILT.L');
+
+    expect(
+      await screen.findByText(/in the propagator until 2026-09-19/)
+    ).toBeInTheDocument();
+  });
+});
+
+describe('Plot mode season track', () => {
+  it('counts down the real UK tax year from the allowances endpoint', async () => {
+    renderPlot('/plot/season');
+
+    expect(
+      await screen.findByRole('heading', { name: /Growing season 2026\/27/ })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/^Ends in \d+ days? and \d+ hours?$/)
+    ).toBeInTheDocument();
+  });
+
+  it('lists tiered goals driven by real portfolio figures', async () => {
+    renderPlot('/plot/season');
+
+    // £10,000 plot value clears the £1k and £10k tiers but not £50k.
+    expect(
+      await screen.findByRole('heading', { name: /Grow the plot \(2\/4\)/ })
+    ).toBeInTheDocument();
+    expect(screen.getByText('Grow the plot to £50.0k')).toBeInTheDocument();
+    // £5,000 of allowance used clears the first tier only.
+    expect(
+      screen.getByRole('heading', { name: /Feed the beds \(2\/4\)/ })
+    ).toBeInTheDocument();
+  });
+
+  it('says so when the backend reports no tax year', async () => {
+    mocks.getAllowances.mockResolvedValue({
+      owner: 'steve',
+      tax_year: null,
+      allowances: {},
+    });
+    renderPlot('/plot/season');
+
+    expect(
+      await screen.findByText(/No tax year reported for this grower/)
+    ).toBeInTheDocument();
+  });
+});
+
+describe('Plot mode roster search and favourites', () => {
+  it('filters the roster by a free-text search', async () => {
+    renderPlot('/plot/crops');
+
+    const search = await screen.findByRole('searchbox', {
+      name: 'Search crops',
+    });
+    fireEvent.change(search, { target: { value: 'wilting' } });
+
+    expect(
+      screen.getByRole('heading', { name: /Crop roster \(1\/2\)/ })
+    ).toBeInTheDocument();
+    expect(screen.getByText('WILT.L')).toBeInTheDocument();
+    expect(screen.queryByText('VUSA.L')).toBeNull();
+
+    fireEvent.change(search, { target: { value: 'no such crop' } });
+    expect(
+      screen.getByText('No crops match those filters.')
+    ).toBeInTheDocument();
+  });
+
+  it('marks a favourite, persists it, and filters on it', async () => {
+    renderPlot('/plot/crops');
+
+    const star = await screen.findByRole('button', {
+      name: 'Add VUSA.L to favourites',
+    });
+    fireEvent.click(star);
+    expect(
+      screen.getByRole('button', { name: 'Remove VUSA.L from favourites' })
+    ).toHaveAttribute('aria-pressed', 'true');
+
+    // Marks are this browser's own, namespaced per grower.
+    expect(
+      JSON.parse(
+        window.localStorage.getItem('allotmint:plot:favourites:steve') ?? '[]'
+      )
+    ).toEqual(['VUSA.L']);
+
+    fireEvent.click(screen.getByRole('button', { name: /Favourites \(1\)/ }));
+    expect(
+      screen.getByRole('heading', { name: /Crop roster \(1\/2\)/ })
+    ).toBeInTheDocument();
+    expect(screen.queryByText('WILT.L')).toBeNull();
   });
 });

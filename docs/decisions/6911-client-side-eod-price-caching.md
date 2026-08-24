@@ -694,8 +694,9 @@ the benefit with none of the cliff.
 
 ## 10. Test plan
 
-The four starred tests below each guard a defect that was live in an earlier draft
-of this document. They are the ones not to drop for time.
+Every ★ test below guards a defect that was live in an earlier draft of this
+document — each one is there because the design got it wrong first. They are the
+ones not to drop for time.
 
 Backend (`tests/backend/`):
 - `price_epoch` is stable across repeated calls with unchanged inputs;
@@ -743,6 +744,12 @@ Frontend (`frontend/src/**/__tests__/`):
 - `as_of` entries survive a `price_epoch` change (guards §6.2);
 - two tabs observing a version change concurrently converge on one eviction pass
   and do not thrash each other's cache via `BroadcastChannel` (guards §7.1);
+- ★ a `BroadcastChannel` message carrying a **different** `identityHash` is
+  ignored, leaving the receiving tab's store intact (guards §7.1). Convergence
+  and identity filtering are separate properties and a convergence test passes
+  without exercising this one: two tabs signed in as different users must not be
+  able to evict each other, and the same path would otherwise let a crafted
+  message clear an unrelated identity's cache;
 - on simulated `QuotaExceededError`, eviction proceeds oldest-first by
   `fetchedAt` and the fetch still resolves (guards §4.6).
 

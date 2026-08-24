@@ -246,6 +246,17 @@ describe('Plot mode crop detail', () => {
     expect(screen.getByText('Lv 4/5')).toBeInTheDocument();
   });
 
+  it('shows the not-found panel for a malformed crop id rather than throwing', async () => {
+    // React Router passes a bad percent-sequence through undecoded, so an
+    // unguarded decodeURIComponent threw URIError mid-render and the screen
+    // fell into the error boundary instead of answering the question.
+    renderPlot('/plot/crops/%zz');
+
+    expect(
+      await screen.findByRole('heading', { name: 'Crop not found' })
+    ).toBeInTheDocument();
+  });
+
   it('explains itself when the ticker is not in the plot', async () => {
     renderPlot('/plot/crops/NOPE.L');
 

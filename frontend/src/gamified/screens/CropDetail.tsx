@@ -62,12 +62,27 @@ function abilitiesFor(crop: Crop) {
   ];
 }
 
+/**
+ * React Router hands path params through without decoding a malformed
+ * sequence, so `decodeURIComponent('%zz')` throws URIError mid-render and
+ * drops the screen into the error boundary. A crop id is user-controllable
+ * via the URL bar, so fall back to the raw segment: it simply will not match
+ * a crop, and the "not found" panel below is the right answer for it.
+ */
+function safeDecode(segment: string): string {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+}
+
 /** The single-crop screen: portrait, traits, stats and neighbouring crops. */
 export default function CropDetail({ basePath }: { basePath: string }) {
   const { cropId = '' } = useParams();
   const { snapshot } = usePlotData();
 
-  const decoded = decodeURIComponent(cropId);
+  const decoded = safeDecode(cropId);
   const crop = findCropByRouteId(snapshot.crops, decoded);
   const index = crop ? snapshot.crops.indexOf(crop) : -1;
 

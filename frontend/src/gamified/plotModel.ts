@@ -42,6 +42,30 @@ export const GROWTH_STAGES: readonly GrowthStageMeta[] = [
 
 const STAGE_BY_ID = new Map(GROWTH_STAGES.map((stage) => [stage.id, stage]));
 
+/**
+ * The crop detail screen's "Yield" trait level (0–5) for a growth stage.
+ *
+ * Derived from the stage rather than re-thresholded off `gain_pct`: the two
+ * ladders previously disagreed at every boundary (`growthStageFor` bands with
+ * `<=`, so a crop on exactly 120% is fruiting — a second ladder using `>=`
+ * called the same crop bumper), which showed as a chip and a trait level that
+ * contradicted each other.
+ */
+const STAGE_LEVELS: Record<GrowthStage, number> = {
+  wilting: 0,
+  seed: 0,
+  sprout: 1,
+  leafing: 1,
+  budding: 2,
+  flowering: 3,
+  fruiting: 4,
+  bumper: 5,
+};
+
+export function growthLevelFor(stage: GrowthStage): number {
+  return STAGE_LEVELS[stage] ?? 0;
+}
+
 export function growthStageMeta(stage: GrowthStage): GrowthStageMeta {
   // STAGE_BY_ID covers the whole union, but a defensive fallback keeps a
   // malformed persisted value from crashing a render.

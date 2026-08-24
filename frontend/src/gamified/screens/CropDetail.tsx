@@ -7,6 +7,7 @@ import {
   findCropByRouteId,
   formatGbp,
   formatPct,
+  growthLevelFor,
   growthStageMeta,
   type Crop,
 } from '../plotModel';
@@ -23,7 +24,7 @@ function abilitiesFor(crop: Crop) {
       icon: '🧺',
       name: 'Yield',
       detail: `${formatGbp(crop.gainGbp)} unrealised gain (${formatPct(crop.gainPct)})`,
-      level: crop.stage === 'wilting' ? 0 : growthLevel(crop),
+      level: growthLevelFor(crop.stage),
       max: 5,
     },
     {
@@ -59,16 +60,6 @@ function abilitiesFor(crop: Crop) {
       max: 5,
     },
   ];
-}
-
-function growthLevel(crop: Crop): number {
-  // 0–5, mapped off total gain so the ability level tracks the stage chip.
-  if (crop.gainPct >= 120) return 5;
-  if (crop.gainPct >= 60) return 4;
-  if (crop.gainPct >= 30) return 3;
-  if (crop.gainPct >= 15) return 2;
-  if (crop.gainPct > 0) return 1;
-  return 0;
 }
 
 /** The single-crop screen: portrait, traits, stats and neighbouring crops. */

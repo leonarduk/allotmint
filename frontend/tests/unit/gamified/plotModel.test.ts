@@ -3,6 +3,8 @@ import {
   buildPlotSnapshot,
   findCropByRouteId,
   germinatingCrops,
+  GROWTH_STAGES,
+  growthLevelFor,
   bedIconFor,
   bedNameFor,
   clamp,
@@ -426,5 +428,30 @@ describe('crop identity', () => {
     // A bare ticker still lands somewhere sensible for older/bookmarked links.
     expect(findCropByRouteId(crops, 'VWRL.L')?.ticker).toBe('VWRL.L');
     expect(findCropByRouteId(crops, 'NOPE.L')).toBeUndefined();
+  });
+});
+
+describe('growthLevelFor', () => {
+  it('gives every stage a level, worst to best', () => {
+    expect(GROWTH_STAGES.map((stage) => growthLevelFor(stage.id))).toEqual([
+      0, 0, 1, 1, 2, 3, 4, 5,
+    ]);
+  });
+
+  it('agrees with the stage chip on every band boundary', () => {
+    // The two ladders used to disagree here: growthStageFor bands with `<=`,
+    // so a crop on exactly 120% is fruiting, while a separate `>=` ladder
+    // called the same crop bumper — chip and trait level contradicted.
+    for (const boundary of [-20, 0, 5, 15, 30, 60, 120]) {
+      const stage = growthStageFor(boundary);
+      expect(growthLevelFor(stage)).toBe(
+        growthLevelFor(growthStageFor(boundary))
+      );
+    }
+    expect(growthLevelFor(growthStageFor(120))).toBe(4); // fruiting, not bumper
+    expect(growthLevelFor(growthStageFor(120.1))).toBe(5);
+    expect(growthLevelFor(growthStageFor(60))).toBe(3); // flowering
+    expect(growthLevelFor(growthStageFor(15))).toBe(1); // leafing
+    expect(growthLevelFor(growthStageFor(-40))).toBe(0); // wilting
   });
 });

@@ -149,6 +149,12 @@ Named `/data/version` rather than `/prices/version`: it now reports more than
 prices, and it must not sit under the `/prices/*` prefix whose neighbour
 `/prices/refresh` has side effects.
 
+**This supersedes the wording in #6911**, whose success criteria name
+`GET /prices/version` — written before §1 established that holdings need their
+own component. The rename is a consequence of that finding rather than a
+preference; flagged explicitly so the issue's checklist is read as superseded
+here rather than as unmet.
+
 ### 2.1 `price_epoch` must be content-derived
 
 ```python
@@ -212,10 +218,27 @@ Three constraints on the manifest:
   manifest is preferred — but a counter that is actually maintained beats a
   manifest that is skipped for cost.
 
-The digest is 14 hex chars (56 bits) rather than 12. At this dataset size
-collision probability is negligible either way, but the failure mode of a
-collision is silently serving stale prices, so the cheaper-than-free margin is
-worth taking.
+The digest is 14 hex chars (56 bits) rather than 12, and that is sufficient —
+but the reasoning matters, because the obvious analysis gives the wrong answer.
+
+The birthday bound is the wrong tool here. It answers "what is the chance *any
+two* of N values collide", which for 56 bits reaches 50% around 2²⁸ (~268M)
+distinct states and sounds alarming. But a cache epoch is not a set being
+searched for any duplicate pair: a collision only causes harm when **two
+consecutive** states collide — the client holds state X, the server moves to
+state Y, and `X == Y`, so the client keeps data it should have dropped. A
+collision between today's epoch and one from three years ago is harmless; the
+client is not holding that value.
+
+The relevant probability is therefore per-transition: 2⁻⁵⁶ ≈ 1.4 × 10⁻¹⁷. At one
+refresh a day plus generous headroom for admin edits, a millennium of operation
+accumulates well under 10⁻¹¹ total risk. That is far below the probability of
+the cache being wrong for mundane reasons — a failed purge, a clock skew, a
+partial write.
+
+Widening the digest further is free, so there is no argument against it if it
+buys comfort. It just should not be sold as fixing a real exposure, and 56 bits
+should not be treated as a number needing defence.
 
 ### 2.3 `accounts_rev` — the holdings component
 
@@ -309,6 +332,17 @@ Rules, non-negotiable:
 - **Never `public`** on any route carrying per-user data. `private` only.
 - Always emit `Vary: Authorization`. Belt-and-braces alongside `private`, and
   the thing that saves you if API traffic is ever put behind CloudFront.
+- **`Vary: Cookie` is deliberately *not* included, and here is the condition that
+  would change that.** Authentication is bearer-only: `OAuth2PasswordBearer`
+  (`backend/auth.py:59`) feeds `get_current_user` and `get_active_user`
+  (`backend/auth.py:368,562`), and nothing in `backend/auth.py` reads a cookie.
+  The `credentials: "include"` on the client (`frontend/src/api.ts:298`) is there
+  for the CSRF cookie, which no response varies on — so adding `Cookie` to `Vary`
+  today would fragment the cache per session while protecting nothing. **If any
+  cookie ever becomes an auth input** — a session cookie, a tenant selector, an
+  impersonation cookie — `Vary: Cookie` becomes mandatory in the same change,
+  because from that moment two users differ only by a header the cache is not
+  keyed on. Treat that as a tripwire on `backend/auth.py`, not a judgement call.
 - Split the policy by data class rather than applying one blanket rule:
 
 | Data class | Example routes | Policy |
@@ -396,6 +430,29 @@ Three defences, all required:
 An entry whose `identityHash` does not match the live identity is **discarded,
 never served** — no "probably fine" fallback.
 
+**Purging must be a sweep, not a targeted delete.** Per-identity databases create
+a disposal problem that the "discarded, never served" rule does not solve: the
+purge in (3) can simply not happen — a browser crash or a closed tab between
+logout and the delete, a quota error, an interrupted transaction — and the
+previous user's database then sits on disk indefinitely. Nothing will ever serve
+it, but "unreachable" is not "gone". A user who logs out on a shared machine is
+entitled to expect their holdings are no longer stored on it, and an
+unbounded pile of dead databases is also a real storage leak.
+
+So the purge enumerates rather than deleting a known name:
+
+- On every identity transition, call `indexedDB.databases()`, match the
+  `allotmint-cache-*` prefix, and delete **every** database that is not the
+  current identity's — not just the one this session happens to know about.
+- Run the same sweep at **boot**, before step 1 of §4.3, so a purge missed
+  during an unclean shutdown is cleaned up on the next start rather than
+  surviving indefinitely.
+- `indexedDB.databases()` is unavailable in some browsers (notably older
+  WebKit). Where it is missing, keep a plain-text list of known identity hashes
+  in `localStorage` as the enumeration source, written *before* the database is
+  created so a crash can never leave a database with no record pointing at it.
+  Write-ahead ordering is what makes this recoverable.
+
 ### 4.3 Boot sequence
 
 ```
@@ -482,6 +539,14 @@ long again: `slice(-30)` covers about six calendar weeks, not thirty days. Every
 sparkline would silently start showing a longer period than it does today, with
 no visible error — the chart still renders, it just quietly means something else.
 
+The cutoff anchors to **wall-clock today**, matching `resolve_date_range`, not to
+the series' own last row. That choice is what makes the degenerate case safe: if
+a cached series were ever far older than its window, a wall-clock cutoff yields
+an *empty* range — a visibly missing chart — whereas anchoring to the last row
+would render stale prices as though they were this month's. Empty is the correct
+failure here, and it is worth being deliberate about, because anchoring to the
+data is the more natural-looking choice.
+
 Worth knowing why this is easy to miss: the existing `mini` **is** row-based
 (`out[-7:]`, `out[-30:]`, `out[-180:]` at `backend/common/instrument_api.py:304-308`),
 so the row-count idiom is already in the codebase and looks like the precedent to
@@ -512,12 +577,18 @@ GET /instrument/batch?tickers=VWRL.L,ERNS.L,PFE.N&days=365
 ```
 ```json
 {
-  "epoch": "2026-05-16.9f2c1a4b7e03",
+  "price_epoch": "2026-05-16.9f2c1a4b7e03a1",
   "instruments": { "VWRL.L": { "prices": [...] }, "ERNS.L": { "prices": [...] } },
   "empty":   ["PFE.N"],
   "unknown": ["BOGUS.L"]
 }
 ```
+
+The field is `price_epoch` in the §2 format, byte-identical to what
+`/data/version` reports — same name, same digest length. A batch response
+carrying a differently-shaped epoch than the endpoint the client compares it
+against silently never matches, and the cache degrades to always-miss without
+anything visibly failing.
 
 - Cap `tickers` (100 suggested) to bound worst-case work; the client chunks past
   that. Overflow is a **`400`, never a silent truncation** — a response that
@@ -585,7 +656,10 @@ Three caveats, and the second is the one that bites:
 
 - **Only for `as_of` strictly before the current EOD date.** An `as_of` of
   yesterday can still be revised by a late data correction, so treat only dates
-  older than the epoch's own date as settled.
+  older than the epoch's own date as settled. Spelled out because the boundary
+  is an easy off-by-one: `as_of == ` the epoch's own date is **not** settled and
+  must take the live rule, not `max-age=604800`. Only `as_of < epoch_date`
+  qualifies.
 - **Exempt from `price_epoch`, *not* from `accounts_rev`.** "Historical" describes
   the price window, not the holdings: a backdated or corrected transaction changes
   what the portfolio *was* on a past date. `POST /transactions` with an old
@@ -719,6 +793,13 @@ Backend (`tests/backend/`):
 - batch endpoint splits `empty` vs `unknown` correctly, partitions the request
   with no ticker missing or double-counted, and rejects an over-cap request with
   `400` rather than truncating (guards §5.1);
+- the batch response's `price_epoch` is byte-identical to what `/data/version`
+  reports for the same state — same field name, same digest length. A mismatch
+  here never fails loudly; it just makes every comparison miss and silently
+  degrades the cache to always-fetch (guards §5.1);
+- an `as_of` equal to the epoch's own date takes the live rule, not
+  `max-age=604800`; only `as_of` strictly earlier gets the long-lived one
+  (guards §6.2);
 - every cached route emits a **weak** `ETag` in the agreed
   `W/"<version-vector>:<route-key>"` shape — a strong ETag anywhere is a failure,
   since it breaks revalidation across content-codings (§3.1);
@@ -736,6 +817,12 @@ Frontend (`frontend/src/**/__tests__/`):
   rendered (guards §4.2 — assert on `/instrument/`, which embeds `positions`);
 - ★ logout purges the store, so a subsequent login on the same profile starts
   cold (guards §4.2);
+- ★ a database left behind by an interrupted purge is swept at next boot:
+  seed an `allotmint-cache-<other>` database, start the app as a different
+  identity, and assert it is deleted rather than merely ignored (guards §4.2).
+  "Never served" is not the property under test here — "no longer on disk" is;
+- deriving a range from a series far older than that range yields an empty
+  result rather than stale rows presented as current (guards §4.5);
 - IndexedDB unavailable or throwing falls back to network, and the component
   still renders (guards §4.6);
 - ★ deriving a 30-day range from a cached 365-day series returns rows within

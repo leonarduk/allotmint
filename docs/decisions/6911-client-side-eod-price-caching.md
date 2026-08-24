@@ -3,7 +3,8 @@
 Status: **Proposed** — design for
 [#6911](https://github.com/leonarduk/allotmint/issues/6911).
 Scope: the client-side caching strategy for every price-derived read path
-(instrument history, sparklines, portfolio valuation, movers, screener).
+(instrument history, sparklines, portfolio valuation, movers, screener), and the
+version/identity contract that makes caching them safe.
 
 This document is the design of record for that work. Child tasks should cite it
 by section number rather than re-deciding any of it. If a child task believes a
@@ -25,8 +26,8 @@ Four facts, established by reading the current code, drive everything below.
 prices only" (`backend/timeseries/cache.py:205-206`), and the `DailyPriceRefresh`
 EventBridge rule fires once daily at 00:00 UTC
 (`cdk/stacks/backend_lambda_stack.py:970-974`). Every price-derived response is
-therefore a pure function of *(dataset version, query params)* and can change at
-most once per day.
+therefore stable between refreshes. That is the premise — §1 sets out where it
+holds and the two places it does not.
 
 **Finding B — there is no HTTP caching at all.**
 `grep -rn "Cache-Control\|ETag\|max-age\|If-None-Match\|304" backend/` returns
@@ -74,18 +75,46 @@ Two aggravating details:
 
 ## 1. The central invariant
 
-> A price-derived response is immutable for the lifetime of a **cache epoch**.
-> The epoch changes only when the underlying EOD dataset changes.
+> A cached response is immutable for the lifetime of the **version vector** it
+> was fetched under, scoped to the **identity** that fetched it.
 
-Every decision below follows from that single sentence. The design's job is to
-(a) give the epoch a cheap, trustworthy representation, and (b) let each caching
-layer key off it.
+The naive form of this — "prices are EOD, so everything price-derived is stable
+for a day" — is the premise that motivated this work, and taken literally it is
+**wrong**. Two things break it, and both are load-bearing:
+
+**A portfolio response is not price-derived alone.** It is a join of EOD prices
+with holdings, and holdings are user-mutable at any moment: `POST/PUT/DELETE
+/transactions`, `POST /transactions/import`, `POST /holdings/import`,
+`POST /holdings/reconcile`, `POST /holdings/manual` and `POST /accounts`
+(`backend/routes/transactions.py:656,683,760,816,960,986,1021,1073`) all rewrite
+account documents without touching `_PRICE_SNAPSHOT`. Keying `/portfolio/{owner}`
+on a price-only epoch would serve a stale valuation until the next 00:00 UTC
+refresh — a user could add a transaction and not see it for a day.
+
+**A cache entry is not identity-free.** The browser store is shared by every user
+of that profile, so an entry keyed only by route and params can be read back by a
+different logged-in user. `Cache-Control: private` does not help here; it governs
+the HTTP cache, not an application-managed IndexedDB.
+
+So the version is a **vector, not a scalar**:
+
+| Component | Changes when | Applies to |
+|---|---|---|
+| `price_epoch` | EOD price data changes (§2) | every price-derived route |
+| `accounts_rev` | any holdings/transactions/accounts write (§2.3) | portfolio routes only |
+| `identity` | the authenticated user changes (§4.2) | every cached entry |
+
+A route caches against exactly the components it actually depends on. Market data
+(`/instrument/`, `/movers`, `/screener`) depends on `price_epoch`; portfolio
+routes depend on `price_epoch` **and** `accounts_rev`; everything is namespaced by
+`identity`. Getting this mapping wrong is the difference between a fast app and
+one that shows people stale valuations or, worse, someone else's.
 
 Three layers, in increasing order of effort and payoff:
 
 ```
 Layer 1  HTTP validators        backend only, no FE change      ~free revalidation
-Layer 2  Persistent client cache IndexedDB, keyed on epoch      survives reload
+Layer 2  Persistent client cache IndexedDB, keyed on vector+id  survives reload
 Layer 3  Batch + payload diet   collapses N+1 fan-out           fixes first paint
 ```
 
@@ -94,7 +123,7 @@ Layers 1 and 2 make the *second* visit fast. Layer 3 is the one that makes the
 
 ---
 
-## 2. Layer 0 — the cache epoch (`GET /prices/version`)
+## 2. Layer 0 — the version vector (`GET /data/version`)
 
 Nothing today tells a client "the data changed". `_PRICE_SNAPSHOT_TS` exists in
 process memory (`backend/common/portfolio_utils.py:325`) but is only surfaced by
@@ -105,24 +134,31 @@ as a polling endpoint.
 Add a new, cheap, side-effect-free endpoint:
 
 ```http
-GET /prices/version
+GET /data/version
 ```
 ```json
 {
-  "epoch": "2026-05-16.9f2c1a4b7e03",
-  "snapshot_ts": "2026-05-17T00:04:11Z",
+  "price_epoch":  "2026-05-16.9f2c1a4b7e03a1",
+  "accounts_rev": "c40b1e77d9f2",
+  "snapshot_ts":  "2026-05-17T00:04:11Z",
   "next_refresh_utc": "2026-05-18T00:00:00Z"
 }
 ```
 
-### 2.1 The epoch must be content-derived
+Named `/data/version` rather than `/prices/version`: it now reports more than
+prices, and it must not sit under the `/prices/*` prefix whose neighbour
+`/prices/refresh` has side effects.
+
+### 2.1 `price_epoch` must be content-derived
 
 ```python
-def price_epoch(snapshot: dict) -> str:
+def price_epoch(snapshot: dict, series_manifest: list[tuple[str, int, int]]) -> str:
     payload = json.dumps(snapshot, sort_keys=True, separators=(",", ":"))
-    digest = hashlib.sha256(payload.encode()).hexdigest()[:12]
+    h = hashlib.sha256(payload.encode())
+    for name, mtime_ns, size in sorted(series_manifest):   # see 2.2
+        h.update(f"{name}:{mtime_ns}:{size}".encode())
     latest = max((v.get("last_price_date") or "" for v in snapshot.values()), default="")
-    return f"{latest}.{digest}"
+    return f"{latest}.{h.hexdigest()[:14]}"
 ```
 
 **This is the one decision most likely to be got wrong.** The obvious
@@ -133,18 +169,73 @@ a new epoch and invalidate every client cache in the fleet without a single
 price having changed. Under Lambda's concurrency model, two simultaneous
 requests could even report different epochs.
 
-Hashing the snapshot content makes the epoch stable across restarts, identical
-across concurrent workers, and different if and only if the data differs.
+Hashing content makes the epoch stable across restarts, identical across
+concurrent workers, and different if and only if the data differs. The `latest`
+date prefix is cosmetic but valuable: it makes the epoch human-readable in
+devtools and sorts naturally in logs.
 
-The `latest` date prefix is cosmetic but valuable: it makes the epoch
-human-readable in devtools and sorts naturally in logs.
+### 2.2 Hashing the snapshot alone is not enough — parquet must be covered
 
-### 2.2 Cost and caching of the endpoint itself
+`latest_prices.json` is not the only source of EOD data, and treating it as such
+leaves a hole. Instrument history is read from the **parquet series** via
+`load_meta_timeseries_range`, and `POST /timeseries/edit`
+(`backend/routes/timeseries_edit.py:239`) rewrites that parquet directly without
+touching `_PRICE_SNAPSHOT`. An admin correcting a bad close would therefore leave
+`price_epoch` unchanged — so the ETag would still match, conditional requests
+would return `304`, and other tabs and devices would never learn of the edit.
+The editor would "fix" a price and keep being served the old one.
 
-It reads already-in-memory state (`_PRICE_SNAPSHOT`) and hashes it. Memoise the
-digest against the snapshot's identity so repeated calls are a dict lookup. The
-endpoint itself must be served `Cache-Control: no-store` — it is the thing that
-invalidates everything else and must never be cached.
+The epoch must therefore also cover a **series manifest**: for every cached
+`(ticker, exchange)`, its mtime and size. The pieces already exist —
+`list_cached_meta_tickers()`, `meta_timeseries_cache_path()` and
+`_s3_object_mtime()` in `backend/timeseries/cache.py` — and the S3 mtime lookups
+are already negatively cached there, so building the manifest is cheap.
+
+Two constraints on the manifest:
+
+- **Never rebuild it per request.** Compute it on refresh and on any admin
+  mutation, and memoise; a per-request `HEAD` per ticker would make the version
+  endpoint more expensive than the data it guards.
+- If enumerating every series proves too costly at scale, the fallback is an
+  explicit durable counter bumped by every parquet write path. That is more
+  code and easier to forget on a new write path, which is why the derived
+  manifest is preferred — but a counter that is actually maintained beats a
+  manifest that is skipped for cost.
+
+The digest is 14 hex chars (56 bits) rather than 12. At this dataset size
+collision probability is negligible either way, but the failure mode of a
+collision is silently serving stale prices, so the cheaper-than-free margin is
+worth taking.
+
+### 2.3 `accounts_rev` — the holdings component
+
+`accounts_rev` must change on every write listed in §1. Do **not** derive it from
+a timestamp for the same reason as the epoch.
+
+The backend already computes exactly the right thing: `_safe_file_signature` and
+`_safe_dir_signature` (`backend/common/data_loader.py:64,103`) produce content
+digests over owner directories and account files, and the owner-index cache
+described in `docs/performance-caching.md` already invalidates on that signature.
+`accounts_rev` should be a digest over those same signatures rather than a
+parallel mechanism that can drift from it.
+
+Two properties this must have:
+
+- **Per-user scoping is a nice-to-have, not a requirement.** A global
+  `accounts_rev` means one user's write invalidates every user's portfolio cache.
+  That is wasteful but correct, and correct-and-wasteful is the right starting
+  point. Scope it per owner later if the churn proves noticeable.
+- **Client-side mutations invalidate synchronously too.** A successful holdings
+  write from this tab should evict the affected portfolio entries immediately
+  rather than waiting for the next version poll — the server revision is what
+  makes *other* tabs and devices converge, not what makes the acting tab feel
+  responsive.
+
+### 2.4 Cost and caching of the endpoint itself
+
+It reads already-in-memory state plus the memoised manifest digest. The endpoint
+must be served `Cache-Control: no-store` — it is the thing that invalidates
+everything else and must never be cached.
 
 ---
 
@@ -159,7 +250,7 @@ For price-derived GET routes:
 
 ```
 Cache-Control: private, max-age=<min(seconds_to_next_refresh, 3600)>, stale-while-revalidate=604800, no-transform
-ETag: W/"<epoch>:<route-key>"
+ETag: W/"<version-vector>:<route-key>"
 Vary: Authorization, Accept-Encoding
 ```
 
@@ -188,7 +279,7 @@ recovery path short of a hard reload.
 Capping `max-age` at an hour and leaning on a week of
 `stale-while-revalidate` gives instant paint *and* a revalidation opportunity at
 least hourly. Revalidation is nearly free because of §3.3. Correctness does not
-rest on the TTL — it rests on the epoch check in §4.3.
+rest on the TTL — it rests on the version check in §4.3.
 
 ### 3.3 Conditional requests
 
@@ -212,10 +303,10 @@ Rules, non-negotiable:
 
 | Data class | Example routes | Policy |
 |---|---|---|
-| Per-user portfolio | `/portfolio/{owner}`, `/portfolio-group/{slug}` | `private`, epoch ETag |
-| Market-wide, non-identifying | `/instrument/`, `/movers`, `/screener` | `private`, epoch ETag (see note) |
-| Historical `as_of=` | any route with `as_of` | `private, max-age=604800, immutable` (§6.2) |
-| Mutations, auth, `/prices/version` | `POST` routes, `/token` | `no-store` |
+| Per-user portfolio | `/portfolio/{owner}`, `/portfolio-group/{slug}` | `private`; ETag over `price_epoch` **+** `accounts_rev` (§2.3) |
+| Market-wide, non-identifying | `/instrument/`, `/movers`, `/screener` | `private`; ETag over `price_epoch` (see note) |
+| Historical `as_of=` | any route with `as_of` | `private, max-age=604800`; not `immutable` (§6.2) |
+| Mutations, auth, `/data/version` | `POST` routes, `/token` | `no-store` |
 
 Note: market data is not user-specific and *could* be `public`, but these routes
 are served by the same authenticated app and some (e.g. `/instrument/`) embed
@@ -257,38 +348,72 @@ carry price series.
 ### 4.2 Schema
 
 ```
-db "allotmint-cache", version 1
+db "allotmint-cache-<identityHash>", version 1     ← one database per identity
 ├── store "responses"   key: cacheKey
-│     { key, epoch, fetchedAt, url, payload }
-│     index "by_epoch" on epoch
+│     { key, identityHash, priceEpoch, accountsRev, fetchedAt, url, payload }
+│     index "by_version" on [priceEpoch, accountsRev]
 └── store "meta"        key: name
-      { name: "epoch", value: "2026-05-16.9f2c1a4b7e03", checkedAt }
+      { name: "version", priceEpoch, accountsRev, identityHash, checkedAt }
 ```
 
-`cacheKey` is `${routeKey}:${stableParamsHash}` — query params sorted before
-hashing so `?a=1&b=2` and `?b=2&a=1` share an entry.
+`cacheKey` is `${identityHash}:${routeKey}:${stableParamsHash}` — query params
+sorted before hashing so `?a=1&b=2` and `?b=2&a=1` share an entry.
+
+**Identity must be in the key, and this is a correctness requirement, not
+hygiene.** A browser profile is shared: log out as one user, log in as another,
+and a key built only from route and params resolves to the previous user's entry
+— which §4.3 then renders *before* any network validation. `/instrument/` makes
+this concrete, since its response embeds the caller's `positions`
+(`backend/routes/instrument.py:399,479`). The §3.4 `private`/`Vary` rules do not
+help: those govern the HTTP cache, whereas this is an application-managed store
+the browser applies no policy to at all.
+
+Three defences, all required:
+
+1. `identityHash` is a salted digest of the authenticated subject — never the raw
+   email. `StoredUserProfile` carries `email` (`frontend/src/authStorage.ts:1-5`);
+   the token's `sub` claim is the better source where reachable. Hash it so the
+   store never holds an identifier in the clear.
+2. It is in both the **database name** and the **key**. Per-identity databases
+   mean a wrong-identity read is not merely improbable but unaddressable, and
+   deleting one user's cache never touches another's.
+3. **Purge on every identity transition.** On login, logout, and on the
+   `UNAUTHORIZED_EVENT` already dispatched on 401 (`frontend/src/api.ts:185,305`),
+   drop the databases of any identity that is not the current one. Logout is the
+   important one: leaving a populated store behind for the next person to sign in
+   on that machine is the whole failure mode.
+
+An entry whose `identityHash` does not match the live identity is **discarded,
+never served** — no "probably fine" fallback.
 
 ### 4.3 Boot sequence
 
 ```
-1. read meta.epoch from IndexedDB              (fast, local)
-2. render immediately from cache               (optimistic, no network wait)
-3. GET /prices/version  { cache: "no-store" }  (one small request)
-4. if fetched epoch !== stored epoch:
-       delete all "responses" where epoch !== fetched   (via by_epoch index)
-       write meta.epoch = fetched
-       signal subscribers to refetch
-   else:
-       cache stands; no further price requests this session
+0. resolve identityHash; if it differs from meta.identityHash,
+   DROP the store and skip to 3 — never render another user's cache
+1. read meta.{priceEpoch, accountsRev} from IndexedDB   (fast, local)
+2. render immediately from cache                        (optimistic, no network)
+3. GET /data/version  { cache: "no-store" }             (one small request)
+4. if priceEpoch changed:
+       evict every entry (all cached routes depend on it)
+   else if accountsRev changed:
+       evict portfolio-route entries only; market data stands
+   write meta.{priceEpoch, accountsRev, identityHash}
+   signal subscribers to refetch what was evicted
 ```
 
-Step 2 before step 3 is the point. The user sees data on the first frame; the
-version check resolves in the background and, in the overwhelmingly common case
-(same day, unchanged epoch), confirms what is already on screen.
+Step 0 comes before everything and has no optimistic path: an identity mismatch
+means drop, never render. Step 2 before step 3 is the point of the rest — the
+user sees data on the first frame, and the version check resolves in the
+background confirming what is already on screen in the common case.
 
-**Bounding the staleness this introduces.** Rendering before the epoch check
+Splitting eviction at step 4 is what makes `accounts_rev` cheap: adding a
+transaction should invalidate the user's portfolio views, not their whole
+instrument-history cache.
+
+**Bounding the staleness this introduces.** Rendering before the version check
 means a user whose cache is a day old sees yesterday's closes for the duration of
-one `/prices/version` round trip. That is a real, if brief, window and this being
+one `/data/version` round trip. That is a real, if brief, window and this being
 financial data it should be bounded explicitly rather than waved through:
 
 - The check is a single small uncached GET issued during app bootstrap, so the
@@ -297,7 +422,7 @@ financial data it should be bounded explicitly rather than waved through:
 - Cached values must render with the epoch's own date visible (the existing
   "prices as of" affordance in `AppHeader.tsx:50-60` already has the slot for
   this), so optimistic content is never presented as more current than it is.
-- If `/prices/version` fails outright, keep serving cache but surface the staleness
+- If `/data/version` fails outright, keep serving cache but surface the staleness
   rather than silently pretending it is fresh — an unreachable backend is exactly
   when a user most needs to know the age of what they are looking at.
 
@@ -327,10 +452,33 @@ Today the cache key includes `days`, so the same series is fetched separately at
 30 (`HoldingsTable.tsx:135`, `GroupPortfolioView.tsx:543`) and 365
 (`InstrumentResearch.tsx:156`) — overlapping data stored twice.
 
-Instead, cache the **canonical 365-day series** per ticker and derive 7/30/180
-by slicing in the client. One fetch then serves every range, cache entries drop
-by the number of distinct ranges, and — usefully — `mini` becomes pure
-redundancy that can be dropped from the wire entirely (§5.2).
+Instead, cache the **canonical 365-day series** per ticker and derive the shorter
+ranges in the client. One fetch then serves every range, cache entries drop by the
+number of distinct ranges, and — usefully — `mini` becomes pure redundancy that
+can be dropped from the wire entirely (§5.2).
+
+**Derive by date cutoff, never by row count.** This is the trap:
+
+```ts
+rows.slice(-30)                                  // ✗ 30 trading sessions ≈ 6 weeks
+rows.filter(r => r.date >= isoDaysAgo(30))       // ✓ 30 calendar days
+```
+
+`days` is a **calendar** lookback throughout the backend — `resolve_date_range`
+computes `today - days` and documents "`days` means 'calendar days back'"
+(`backend/utils/timeseries_helpers.py:171-196`). Taking the last N rows of a
+365-day series instead selects N *trading sessions*, which spans roughly half as
+long again: `slice(-30)` covers about six calendar weeks, not thirty days. Every
+sparkline would silently start showing a longer period than it does today, with
+no visible error — the chart still renders, it just quietly means something else.
+
+Worth knowing why this is easy to miss: the existing `mini` **is** row-based
+(`out[-7:]`, `out[-30:]`, `out[-180:]` at `backend/common/instrument_api.py:304-308`),
+so the row-count idiom is already in the codebase and looks like the precedent to
+follow. It reads as correct today only because the caller requesting `days=30` gets
+a series that is already clipped to 30 calendar days, leaving `out[-30:]` a no-op.
+Widen the cached window to 365 and that coincidence disappears. Migrate to the date
+cutoff and the ambiguity goes with it.
 
 ### 4.6 Degradation
 
@@ -361,7 +509,10 @@ GET /instrument/batch?tickers=VWRL.L,ERNS.L,PFE.N&days=365
 }
 ```
 
-- Cap `tickers` (100 suggested) to bound worst-case work; the client chunks past that.
+- Cap `tickers` (100 suggested) to bound worst-case work; the client chunks past
+  that. Overflow is a **`400`, never a silent truncation** — a response that
+  quietly covers the first 100 of 140 tickers reads as complete and would leave
+  40 holdings mysteriously blank. Deduplicate before applying the cap.
 - `empty` vs `unknown` preserves the current contract: `preloadInstrumentHistory`
   returns tickers that *resolved* but had no history, which drives the single
   consolidated "no price history" notice
@@ -392,36 +543,54 @@ Roughly **37% off every instrument payload** for no behaviour change.
 
 ### 6.1 By route class
 
-| Route | Epoch-keyed | Notes |
+| Route | Keyed on | Notes |
 |---|---|---|
-| `/instrument/`, `/instrument/batch` | yes | canonical 365-day series |
-| `/portfolio/{owner}`, `/portfolio-group/{slug}` | yes | `private`; per-user |
-| `/movers`, `/screener`, `/opportunities` | yes | derived from EOD closes |
+| `/instrument/`, `/instrument/batch` | `price_epoch` | canonical 365-day series |
+| `/portfolio/{owner}`, `/portfolio-group/{slug}` | `price_epoch` + `accounts_rev` | `private`; price epoch alone is **not** sufficient (§1) |
+| `/movers`, `/screener`, `/opportunities` | `price_epoch` | derived from EOD closes |
 | `/timeseries/edit`, `/instrument/admin/*` | **no** | mutable; admin-edited |
 | `/instrument/intraday` | **no** | intraday by definition; not EOD |
-| `/prices/refresh`, `/prices/version` | **no** | `no-store` |
+| `/prices/refresh`, `/data/version` | **no** | `no-store` |
 
 `/instrument/intraday` (`frontend/src/api.ts:945`) is the explicit exception to
 the whole premise — it is the one price path that is *not* end-of-day and must
-never be epoch-cached.
+never be version-cached.
 
 Admin edit routes are equally important to exclude: `saveTimeseries`
 (`api.ts:1018`) and `rebuildTimeseriesCache` (`api.ts:1045`) mutate the series a
-user is looking at. After any admin mutation the client must force an epoch
-re-check and drop affected entries, or an editor will "fix" a price and keep
-seeing the old one.
+user is looking at. Two things are needed and neither is sufficient alone: the
+acting client force-rechecks the version and drops affected entries immediately,
+**and** `price_epoch` covers the parquet manifest (§2.2) so every *other* client
+converges too. With only the first, an editor fixes a price on one machine and
+keeps seeing the old value everywhere else.
 
 ### 6.2 Historical (`as_of`) queries
 
 `getPortfolio` and `getGroupPortfolio` accept `as_of` (`api.ts:376-418`). A
-completed historical date is immutable — it does not change at the next daily
-refresh. Give those entries their own long-lived rule
-(`max-age=604800, immutable`) and exempt them from epoch eviction, keyed by the
-`as_of` value.
+completed historical date does not change at the next daily refresh, so those
+entries get their own long-lived rule (`max-age=604800`) and are exempt from
+`price_epoch` eviction, keyed by the `as_of` value.
 
-One caveat: only for `as_of` strictly *before* the current EOD date. An `as_of`
-of yesterday can still be revised by a late data correction, so treat only dates
-older than the epoch's own date as immutable.
+Three caveats, and the second is the one that bites:
+
+- **Only for `as_of` strictly before the current EOD date.** An `as_of` of
+  yesterday can still be revised by a late data correction, so treat only dates
+  older than the epoch's own date as settled.
+- **Exempt from `price_epoch`, *not* from `accounts_rev`.** "Historical" describes
+  the price window, not the holdings: a backdated or corrected transaction changes
+  what the portfolio *was* on a past date. `POST /transactions` with an old
+  `date`, or a `PUT`/`DELETE` on an existing one, rewrites history — so a
+  historical valuation cached before that edit is simply wrong. These entries must
+  still be evicted on an `accounts_rev` change. This is the §1 finding applied to
+  the case where it is easiest to forget.
+- **A future-dated `as_of` is not cacheable at all.** It is not a settled
+  historical query; it resolves against whatever the latest data happens to be and
+  changes meaning as time passes. Reject it or treat it as live — never as
+  immutable.
+
+Note the deliberate omission of `immutable` from the `Cache-Control` above:
+`immutable` tells the browser not to revalidate even on an explicit reload, which
+is the wrong contract for something a backdated edit can invalidate.
 
 ---
 
@@ -430,12 +599,15 @@ older than the epoch's own date as immutable.
 | Risk | Mitigation |
 |---|---|
 | Shared cache leaks per-user data | `private` + `Vary: Authorization`; allowlist not denylist (§3.4/§3.5); test asserts no price route emits `public` |
-| Epoch changes on redeploy, nulling all caches | Content-derived hash, never `_PRICE_SNAPSHOT_TS` (§2.1) |
+| `price_epoch` changes on redeploy, nulling all caches | Content-derived hash, never `_PRICE_SNAPSHOT_TS` (§2.1) |
 | Stale prices after out-of-band `/prices/refresh` | `max-age` capped at 1h (§3.2); re-check epoch on `visibilitychange` and on window focus |
-| Admin edits invisible to the editor | Admin mutations force epoch re-check + targeted eviction (§6.1) |
 | IndexedDB quota exceeded | Evict oldest by `fetchedAt`; fall back to memory; never fail the load (§4.6) |
-| Two tabs disagreeing on epoch | `BroadcastChannel("allotmint-epoch")` on change; each tab drops stale entries |
-| Cache masks a real backend fault | Epoch check is `no-store`, so a broken backend surfaces on the next check rather than being papered over indefinitely |
+| Two tabs disagreeing on version | `BroadcastChannel("allotmint-version")` on change; each tab drops stale entries |
+| **Stale holdings after a transaction write** | `accounts_rev` in the vector, bumped by every account write path; portfolio routes key on it (§1, §2.3) |
+| **One user served another's cached data** | Identity in the DB name *and* key; purge on login/logout/401; mismatched entries discarded not served (§4.2) |
+| **Admin parquet edit invisible to editor or other clients** | `price_epoch` covers the series manifest, not just snapshot JSON (§2.2), plus forced re-check on the acting client (§6.1) |
+| **Sparkline window silently widens** | Slice cached series by date cutoff, never `slice(-N)` (§4.5) |
+| Cache masks a real backend fault | The version check is `no-store`, so a broken backend surfaces on the next check rather than being papered over indefinitely |
 
 ---
 
@@ -445,9 +617,9 @@ Each phase ships independently and is useful alone.
 
 | Phase | Work | Depends on | Payoff |
 |---|---|---|---|
-| 0 | `GET /prices/version` + content hash | — | enables everything |
+| 0 | `GET /data/version`: `price_epoch` (incl. series manifest) + `accounts_rev` | — | enables everything |
 | 1 | Cache headers, ETag, `304` | 0 | backend-only; instant win, no FE change |
-| 2 | IndexedDB cache keyed on epoch | 0 | survives reload |
+| 2 | IndexedDB cache keyed on version vector, namespaced by identity | 0 | survives reload |
 | 3 | Batch endpoint; `mini` opt-in | — | fixes cold-cache first paint |
 | 4 | Idle prefetch, `BroadcastChannel`, drop duplicate 429 backoff | 2, 3 | polish |
 
@@ -488,35 +660,57 @@ the benefit with none of the cliff.
 
 ## 10. Test plan
 
+The four starred tests below each guard a defect that was live in an earlier draft
+of this document. They are the ones not to drop for time.
+
 Backend (`tests/backend/`):
-- epoch is stable across repeated calls with unchanged snapshot content;
-- epoch changes when snapshot content changes, and **not** when only
+- `price_epoch` is stable across repeated calls with unchanged inputs;
+- `price_epoch` changes when snapshot content changes, and **not** when only
   `_PRICE_SNAPSHOT_TS` is reset (guards §2.1);
+- ★ `price_epoch` changes after `POST /timeseries/edit` rewrites a parquet
+  series, with `latest_prices.json` untouched (guards §2.2 — the manifest is the
+  only thing that makes this pass);
+- ★ `accounts_rev` changes after **each** write path in §1 — `POST/PUT/DELETE
+  /transactions`, `/transactions/import`, `/holdings/import`, `/holdings/reconcile`,
+  `/holdings/manual`, `/accounts` — parametrised so a newly added write path
+  without a bump fails here rather than in production (guards §2.3);
+- a portfolio ETag changes when `accounts_rev` changes even though `price_epoch`
+  has not, and `If-None-Match` then returns `200`, not `304`;
 - price-derived GET returns `ETag`; replaying it as `If-None-Match` yields `304`
   with an empty body;
 - **no price route ever emits `public`**, and every cached route emits
   `Vary: Authorization` (guards §3.4);
-- `/instrument/intraday`, admin edit routes and `/prices/version` emit
-  `no-store`;
+- `/instrument/intraday`, admin edit routes and `/data/version` emit `no-store`;
 - batch endpoint splits `empty` vs `unknown` correctly, partitions the request
-  with no ticker missing or double-counted (§5.1), and honours the ticker cap;
+  with no ticker missing or double-counted, and rejects an over-cap request with
+  `400` rather than truncating (guards §5.1);
 - every cached route emits a **weak** `ETag` in the agreed
-  `W/"<epoch>:<route-key>"` shape — a strong ETag anywhere is a failure, since
-  it breaks revalidation across content-codings (§3.1).
+  `W/"<version-vector>:<route-key>"` shape — a strong ETag anywhere is a failure,
+  since it breaks revalidation across content-codings (§3.1).
 
 Frontend (`frontend/src/**/__tests__/`):
-- a cache hit on a matching epoch resolves without a network call;
-- an epoch change evicts non-matching entries and refetches;
+- a cache hit on a matching vector resolves without a network call;
+- a `price_epoch` change evicts everything; an `accounts_rev` change evicts
+  portfolio entries **only**, leaving instrument history cached (guards §4.3);
+- ★ an entry written under identity A is never served to identity B: switching
+  identity drops the store, and a stale-identity entry is discarded rather than
+  rendered (guards §4.2 — assert on `/instrument/`, which embeds `positions`);
+- ★ logout purges the store, so a subsequent login on the same profile starts
+  cold (guards §4.2);
 - IndexedDB unavailable or throwing falls back to network, and the component
   still renders (guards §4.6);
-- 365-day cached series slices correctly to 7/30/180 (guards §4.5);
-- `as_of` entries survive an epoch change (guards §6.2);
-- two tabs observing an epoch change concurrently converge on one eviction pass
+- ★ deriving a 30-day range from a cached 365-day series returns rows within
+  30 **calendar** days — feed a series with a holiday gap so a row-count
+  implementation returns a visibly wider window and fails (guards §4.5);
+- `as_of` entries survive a `price_epoch` change (guards §6.2);
+- two tabs observing a version change concurrently converge on one eviction pass
   and do not thrash each other's cache via `BroadcastChannel` (guards §7);
 - on simulated `QuotaExceededError`, eviction proceeds oldest-first by
   `fetchedAt` and the fetch still resolves (guards §4.6).
 
 Measurable acceptance, on a 40-holding portfolio:
 - cold load: 1 batch request, not 40;
-- warm reload, same epoch: **zero** instrument-history requests;
-- instrument payload shrinks ~37% with `mini` off.
+- warm reload, unchanged vector: **zero** instrument-history requests;
+- instrument payload shrinks ~37% with `mini` off;
+- adding one transaction refreshes the valuation on the next poll without
+  invalidating the instrument-history cache.

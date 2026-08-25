@@ -411,6 +411,21 @@
   align-items: center;
   gap: 0.35rem;
   text-align: center;
+  text-decoration: none;
+  color: inherit;
+  border-radius: 4px;
+  padding: 0.35rem;
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.stageChampion:hover,
+.stageChampion:focus-visible {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.5);
+  outline: none;
 }
 
 .stageGlyph {

@@ -384,18 +384,21 @@ describe('Plot mode season track', () => {
     ).toBeInTheDocument();
   });
 
-  it('lists tiered goals driven by real portfolio figures', async () => {
+  it('shows one progress bar per category toward the next unearned tier', async () => {
     renderPlot('/plot/season');
 
-    // £10,000 plot value clears the £1k and £10k tiers but not £50k.
+    // £10,000 plot value clears the £1k and £10k tiers but not £50k — the
+    // group heading still counts every tier, but the row only calls out the
+    // next one instead of repeating the same current value four times.
     expect(
       await screen.findByRole('heading', { name: /Grow the plot \(2\/4\)/ })
     ).toBeInTheDocument();
-    expect(screen.getByText('Grow the plot to £50.0k')).toBeInTheDocument();
+    expect(screen.getByText('Next: £50.0k')).toBeInTheDocument();
     // £5,000 of allowance used clears the first tier only.
     expect(
       screen.getByRole('heading', { name: /Feed the beds \(2\/4\)/ })
     ).toBeInTheDocument();
+    expect(screen.getByText('Next: £10.0k')).toBeInTheDocument();
   });
 
   it('says so when the backend reports no tax year', async () => {

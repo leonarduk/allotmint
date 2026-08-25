@@ -242,6 +242,15 @@ describe('buildPlotSnapshot', () => {
     expect(snapshot.grower.level).toBe(1);
     expect(snapshot.resources).toHaveLength(3);
   });
+
+  it('threads an allowances fetch failure through to the FEED meter hint', () => {
+    const snapshot = buildPlotSnapshot({
+      portfolio: null,
+      allowancesUnavailable: true,
+    });
+    const feed = snapshot.resources.find((resource) => resource.id === 'feed');
+    expect(feed?.hint).toBe('Allowances unavailable right now');
+  });
 });
 
 describe('resourcesFromPlot', () => {
@@ -280,6 +289,12 @@ describe('resourcesFromPlot', () => {
     expect(water).toMatchObject({ pct: 0, display: '0 / 0' });
     expect(feed.hint).toContain('No allowance data');
     expect(sun.pct).toBe(0);
+  });
+
+  it('shows a distinct unavailable hint when the allowances fetch failed, not the empty-data copy', () => {
+    const [, feed] = resourcesFromPlot(null, [], null, true);
+    expect(feed.hint).toBe('Allowances unavailable right now');
+    expect(feed.hint).not.toContain('No allowance data');
   });
 });
 

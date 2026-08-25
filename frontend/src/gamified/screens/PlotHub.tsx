@@ -62,6 +62,7 @@ export default function PlotHub({ basePath }: { basePath: string }) {
     chores,
     choresAvailable,
     allowances,
+    allowancesUnavailable,
     season,
     dailyTotals,
     today,
@@ -75,7 +76,7 @@ export default function PlotHub({ basePath }: { basePath: string }) {
   const featured = crops.slice(0, 6);
   const germinating = germinatingCrops(crops);
   const streakDays = today ? buildStreakPath(dailyTotals, today) : [];
-  const seasonGoals = buildSeasonGoals(snapshot, allowances);
+  const seasonGoals = buildSeasonGoals(snapshot, allowances, allowancesUnavailable);
   const seasonDone = seasonGoals.filter((goal) => goal.complete).length;
   const countdown = season ? seasonCountdown(season, new Date()) : null;
 

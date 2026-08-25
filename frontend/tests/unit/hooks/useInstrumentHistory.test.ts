@@ -241,6 +241,27 @@ describe('useInstrumentHistory', () => {
         { owner: 'alice', account: 'isa', units: 1 },
       ]);
     });
+
+    it('resolves to null (not an error, not a crash) for an unknown ticker, and stays retryable', async () => {
+      mockGetInstrumentBatch
+        .mockResolvedValueOnce({ instruments: {}, empty: [], unknown: ['ABC'] })
+        .mockResolvedValueOnce({
+          instruments: { ABC: { prices: [{ date: '2024-01-01', close: 10 }] } },
+          empty: [],
+          unknown: [],
+        });
+
+      const first = renderHook(() => useInstrumentHistory('ABC', 30, { acceptMiniOnly: true }));
+      await waitFor(() => expect(first.result.current.loading).toBe(false));
+      expect(first.result.current.data).toBeNull();
+      expect(first.result.current.error).toBeNull();
+
+      // Nothing was cached for the unknown ticker, so a fresh mount retries
+      // rather than reusing a pinned miss.
+      const second = renderHook(() => useInstrumentHistory('ABC', 30, { acceptMiniOnly: true }));
+      await waitFor(() => expect(second.result.current.data).not.toBeNull());
+      expect(mockGetInstrumentBatch).toHaveBeenCalledTimes(2);
+    });
   });
 });
 
@@ -315,6 +336,39 @@ describe('preloadInstrumentHistory', () => {
     const missing = await preloadInstrumentHistory(['A.L', 'B.L', 'C.L', 'D.L'], 30);
 
     expect(missing).toEqual(['A.L', 'C.L']);
+  });
+
+  it('prefers the instruments bucket over empty for a malformed dual-bucket response', async () => {
+    // The backend's partition contract guarantees a ticker lands in exactly one
+    // bucket, but this shouldn't crash or misclassify if that's ever violated.
+    mockGetInstrumentBatch.mockResolvedValue({
+      instruments: { 'A.L': { prices: [{ date: '2024-01-01', close: 1 }] } },
+      empty: ['A.L'],
+      unknown: [],
+    });
+
+    const missing = await preloadInstrumentHistory(['A.L'], 30);
+
+    expect(missing).toEqual([]);
+    expect(getCachedInstrumentHistory('A.L', 30)?.prices).toEqual([
+      { date: '2024-01-01', close: 1 },
+    ]);
+  });
+
+  it('retries an unknown ticker on a later call instead of pinning the miss', async () => {
+    mockGetInstrumentBatch
+      .mockResolvedValueOnce({ instruments: {}, empty: [], unknown: ['A.L'] })
+      .mockResolvedValueOnce({
+        instruments: { 'A.L': { prices: [{ date: '2024-01-01', close: 1 }] } },
+        empty: [],
+        unknown: [],
+      });
+
+    await preloadInstrumentHistory(['A.L'], 30);
+    const missing = await preloadInstrumentHistory(['A.L'], 30);
+
+    expect(mockGetInstrumentBatch).toHaveBeenCalledTimes(2);
+    expect(missing).toEqual([]);
   });
 
   it('caches empty responses so later preloads do not refetch', async () => {

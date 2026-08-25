@@ -18,5 +18,13 @@
  * Actions and honored elsewhere in this repo, e.g. `playwright.config.ts`)
  * so local runs stay fast to fail while CI gets the extra headroom it
  * actually needs.
+ *
+ * INVARIANT: this must stay strictly below vitest's `testTimeout` in
+ * `vite.config.ts`. A `waitFor` budget larger than the per-test ceiling is
+ * unreachable — vitest aborts the whole test first, and the failure surfaces
+ * as a bare "Test timed out in <testTimeout>ms" instead of a Testing Library
+ * element-not-found error. That inversion silently defeated #6126 (this
+ * constant was raised to 8000ms while `testTimeout` stayed at the 5000ms
+ * default); see #6982. Raise `testTimeout` alongside any increase here.
  */
 export const MENU_INTERACTION_TIMEOUT_MS = process.env.CI ? 8000 : 3000;

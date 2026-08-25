@@ -837,6 +837,16 @@ Frontend (`frontend/src/**/__tests__/`):
   without exercising this one: two tabs signed in as different users must not be
   able to evict each other, and the same path would otherwise let a crafted
   message clear an unrelated identity's cache;
+- ★ with `indexedDB.databases()` unavailable, the purge sweep falls back to the
+  `localStorage` hash list and still deletes a prior identity's database
+  (guards §4.2) — this is the branch that actually runs on older WebKit, so it
+  must not be left to the happy path. Assert the write-ahead ordering with it:
+  interrupt between recording the hash and creating the database, and confirm
+  the orphaned *record* is tolerated (the sweep no-ops on a database that was
+  never created). That is the only ordering §4.2 permits, and the point of it is
+  that the opposite state — a database no enumeration source knows about, so
+  unreachable *and* undeletable — cannot arise. A test that interrupts the other
+  way round is asserting against a state the design forbids;
 - on simulated `QuotaExceededError`, eviction proceeds oldest-first by
   `fetchedAt` and the fetch still resolves (guards §4.6).
 

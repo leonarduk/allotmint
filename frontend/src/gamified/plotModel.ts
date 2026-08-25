@@ -43,7 +43,7 @@ export const GROWTH_STAGES: readonly GrowthStageMeta[] = [
 const STAGE_BY_ID = new Map(GROWTH_STAGES.map((stage) => [stage.id, stage]));
 
 /**
- * The crop detail screen's "Yield" trait level (0–5) for a growth stage.
+ * The crop detail screen's "Growth" trait level (0–5) for a growth stage.
  *
  * Derived from the stage rather than re-thresholded off `gain_pct`: the two
  * ladders previously disagreed at every boundary (`growthStageFor` bands with

@@ -262,6 +262,23 @@ describe('useInstrumentHistory', () => {
       await waitFor(() => expect(second.result.current.data).not.toBeNull());
       expect(mockGetInstrumentBatch).toHaveBeenCalledTimes(2);
     });
+
+    it('resolves to null, not a thrown error, when the batch request itself fails', async () => {
+      // acceptMiniOnly mode doesn't surface a distinct `error` for a failed
+      // batch request today -- Sparkline/InstrumentTile (the only current
+      // consumers) render the same empty state for data:null as they do for
+      // a truthy `error`, so this documents current behavior rather than
+      // asserting a stronger contract nothing yet relies on.
+      mockGetInstrumentBatch.mockRejectedValueOnce(new Error('HTTP 500'));
+
+      const { result } = renderHook(() =>
+        useInstrumentHistory('ABC', 30, { acceptMiniOnly: true }),
+      );
+
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      expect(result.current.data).toBeNull();
+      expect(result.current.error).toBeNull();
+    });
   });
 });
 

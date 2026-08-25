@@ -20,6 +20,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markupsafe import Markup
 
+from backend.common import instrument_api
 from backend.common.constants import COST_BASIS_GBP, EFFECTIVE_COST_BASIS_GBP, UNITS
 from backend.common.holding_utils import get_effective_cost_basis_gbp
 from backend.common.instruments import list_instruments
@@ -49,6 +50,57 @@ env = Environment(
 router = APIRouter(prefix="/instrument", tags=["instrument"])
 
 MAX_SEARCH_RESULTS = 20
+
+# Upper bound on tickers per /instrument/batch call. Bounds worst-case work for a
+# single request; clients chunk beyond it. Exceeding it is a 400 rather than a
+# truncation — see instrument_batch for why.
+MAX_BATCH_TICKERS = 100
+
+
+@router.get("/batch")
+async def instrument_batch(
+    tickers: Annotated[str, Query(description="Comma-separated tickers, e.g. VWRL.L,ERNS.L")],
+    days: Annotated[int, Query(ge=1, le=3650, description="Rolling window in calendar days")] = 365,
+    include_mini: Annotated[
+        bool,
+        Query(description="Also return the 7/30/180-day slices duplicated from `prices`"),
+    ] = False,
+):
+    """Return price history for many tickers in one request.
+
+    Exists to collapse the per-ticker fan-out: rendering a 40-holding table
+    previously issued 40 requests at concurrency 5, all for data that changes once
+    a day.
+
+    The response splits the request into three buckets that **partition** it —
+    ``instruments`` (resolved, has prices), ``empty`` (resolved, no rows in the
+    window) and ``unknown`` (does not resolve at all).  Every requested ticker
+    lands in exactly one; their union is the de-duplicated request.  Callers rely
+    on that to drive a consolidated "no price history" notice, which is about
+    ``empty`` alone.
+
+    Tickers are echoed back in the spelling the caller sent, de-duplicated
+    case-insensitively, so a caller can always match a response to its request.
+
+    ``mini`` is omitted by default: those rows duplicate the tail of ``prices``,
+    and this is precisely the endpoint where that waste is multiplied by the
+    number of holdings.
+    """
+    requested = [t for t in (tickers or "").split(",")]
+    unique = instrument_api.dedupe_tickers(requested)
+
+    if not unique:
+        raise HTTPException(400, "tickers is required and must contain at least one ticker")
+
+    # Truncating instead would return a response that looks complete while
+    # silently omitting holdings, leaving them blank with no error to trace.
+    if len(unique) > MAX_BATCH_TICKERS:
+        raise HTTPException(
+            400,
+            f"Too many tickers: {len(unique)} (max {MAX_BATCH_TICKERS}). Split into smaller batches.",
+        )
+
+    return instrument_api.batch_timeseries_for_tickers(unique, days=days, include_mini=include_mini)
 
 
 @router.get("/search")

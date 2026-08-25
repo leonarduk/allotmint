@@ -7,6 +7,8 @@ Public API
 ----------
 
 - timeseries_for_ticker(ticker, days=365, start_date=None, end_date=None)
+- batch_timeseries_for_tickers(tickers, days=365, include_mini=False)
+- dedupe_tickers(tickers)   - blank/case-insensitive-duplicate removal
 - positions_for_ticker(group_slug, ticker)
 - instrument_summaries_for_group(group_slug)   - used by InstrumentTable
 """
@@ -16,7 +18,7 @@ from __future__ import annotations
 import datetime as dt
 import logging
 from functools import lru_cache
-from typing import Any, Dict, List, Mapping, Optional, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 import pandas as pd
 
@@ -307,6 +309,81 @@ def timeseries_for_ticker(
         "180": out[-180:],
     }
     return {"prices": out, "mini": mini}
+
+
+def dedupe_tickers(tickers: Sequence[str]) -> List[str]:
+    """Drop blanks and case-insensitive duplicates, keeping the caller's spelling.
+
+    The first spelling of each ticker wins.  Callers key their own bookkeeping off
+    the strings they sent, so echoing a normalised (e.g. upper-cased) form back
+    would leave them unable to match a response to a request.
+    """
+    seen: set[str] = set()
+    unique: List[str] = []
+    for raw in tickers:
+        cleaned = (raw or "").strip()
+        if not cleaned:
+            continue
+        key = cleaned.upper()
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(cleaned)
+    return unique
+
+
+def batch_timeseries_for_tickers(
+    tickers: Sequence[str],
+    days: int = 365,
+    *,
+    include_mini: bool = False,
+) -> Dict[str, Any]:
+    """Resolve price history for many tickers in one pass.
+
+    Returns ``{"instruments": {...}, "empty": [...], "unknown": [...]}`` where the
+    three buckets **partition** the de-duplicated request: every ticker appears in
+    exactly one of them, and their union is the input.  A ticker missing from all
+    three, or counted in two, would corrupt the caller's "no price history" tally,
+    so the partition is part of the contract rather than an implementation detail.
+
+    The buckets distinguish two failures that look alike but are not:
+
+    ``unknown``
+        The ticker does not resolve to a ``(symbol, exchange)`` pair at all — a
+        typo, or an instrument absent from the price snapshot and metadata.
+    ``empty``
+        The ticker resolves, but no price rows exist in the requested window.
+
+    Collapsing them would regress the consolidated "no price history" notice,
+    which is about the second case only.
+
+    ``mini`` (the 7/30/180-day slices) is omitted unless *include_mini* is set:
+    those rows duplicate the tail of ``prices``, and a batch response is exactly
+    where that redundancy is multiplied by the number of holdings.
+    """
+    unique = dedupe_tickers(tickers)
+
+    instruments: Dict[str, Any] = {}
+    empty: List[str] = []
+    unknown: List[str] = []
+
+    for ticker in unique:
+        if not _resolve_full_ticker(ticker, _LATEST_PRICES):
+            unknown.append(ticker)
+            continue
+
+        series = timeseries_for_ticker(ticker, days=days)
+        prices = series.get("prices") or []
+        if not prices:
+            empty.append(ticker)
+            continue
+
+        payload: Dict[str, Any] = {"prices": prices}
+        if include_mini:
+            payload["mini"] = series.get("mini", {})
+        instruments[ticker] = payload
+
+    return {"instruments": instruments, "empty": empty, "unknown": unknown}
 
 
 def intraday_timeseries_for_ticker(ticker: str) -> Dict[str, Any]:

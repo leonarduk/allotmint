@@ -590,6 +590,13 @@ carrying a differently-shaped epoch than the endpoint the client compares it
 against silently never matches, and the cache degrades to always-miss without
 anything visibly failing.
 
+**Until Phase 0 ships, the field is omitted rather than invented.** The endpoint
+landed before `/data/version` existed, and emitting a placeholder epoch would be
+the exact failure the paragraph above warns about — a value that compares unequal
+to whatever `/data/version` later reports, degrading the cache silently. Absent is
+honest; wrong is not. Add it in the same change that adds `/data/version`, so the
+two formats are written together and cannot drift.
+
 - Cap `tickers` (100 suggested) to bound worst-case work; the client chunks past
   that. Overflow is a **`400`, never a silent truncation** — a response that
   quietly covers the first 100 of 140 tickers reads as complete and would leave
@@ -728,13 +735,26 @@ Each phase ships independently and is useful alone.
 | 0 | `GET /data/version`: `price_epoch` (incl. series manifest) + `accounts_rev` | — | enables everything |
 | 1 | Cache headers, ETag, `304` | 0 | backend-only; instant win, no FE change |
 | 2 | IndexedDB cache keyed on version vector, namespaced by identity | 0 | survives reload |
-| 3 | Batch endpoint; `mini` opt-in | — | fixes cold-cache first paint |
-| 4 | Idle prefetch, `BroadcastChannel`, drop duplicate 429 backoff | 2, 3 | polish |
+| 3a | Batch endpoint (`/instrument/batch`), `mini` off in *its* payload | — | fixes cold-cache first paint |
+| 3b | `mini` off by default on `/instrument/` | 2 (§4.5) | ~37% off the single-instrument payload |
+| 4 | Idle prefetch, `BroadcastChannel`, drop duplicate 429 backoff | 2, 3a | polish |
 
-Phases 1 and 3 are independent of each other and can run in parallel. **Phase 3
+Phases 1 and 3a are independent of each other and can run in parallel. **Phase 3a
 is the one to do first if only one phase is ever done** — it is the only one
 that helps a first-time visitor, and Finding D says that is where the current
 pain is.
+
+**Phase 3 was originally listed as one step depending on nothing. That was
+wrong**, and it is worth recording why rather than quietly renumbering. §5.2
+drops `mini` from the default payload on the assumption the client slices ranges
+itself — but that slicing is §4.5, which is Phase 2 work. `mini` is live-consumed
+today by `Sparkline.tsx:117` and `InstrumentTile.tsx:12`, both reading
+`data.mini[days]` directly, so flipping the default before §4.5 lands blanks every
+sparkline and tile. The split above separates what genuinely has no dependency
+(3a, a brand-new endpoint with no existing consumers, which is also where the
+per-holding duplication actually multiplies) from what does (3b). Sequencing a
+phase behind a dependency it does not have is cheap; shipping one whose
+dependency was missed is not.
 
 ---
 

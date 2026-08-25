@@ -420,16 +420,15 @@ describe('Plot mode season track', () => {
     );
     renderPlot('/plot/season');
 
-    // Countdown copy, and the "Feed the beds" milestone tiers, all use the
-    // same notice instead of "no tax year" / a £0.00 progress bar (goal
-    // titles stay visible; only the meter/value area swaps to error copy).
+    // Countdown copy, and the "Feed the beds" milestone group, both use the
+    // same notice instead of "no tax year" / a £0.00 progress bar.
     const notices = await screen.findAllByText('Allowances unavailable right now');
     expect(notices.length).toBeGreaterThan(1);
     expect(
       screen.queryByText(/No tax year reported for this grower/)
     ).toBeNull();
     expect(
-      screen.getByText("Use £1.0k of this season's allowances")
+      screen.getByRole('heading', { name: /Feed the beds/ })
     ).toBeInTheDocument();
   });
 });

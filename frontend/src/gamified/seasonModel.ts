@@ -199,9 +199,10 @@ function buildGoalGroups(
  */
 export function buildSeasonGoals(
   snapshot: PlotSnapshot,
-  allowances: AllowanceMap | null
+  allowances: AllowanceMap | null,
+  allowancesUnavailable = false
 ): SeasonGoal[] {
-  const groups = buildGoalGroups(snapshot, allowances);
+  const groups = buildGoalGroups(snapshot, allowances, allowancesUnavailable);
 
   return groups.flatMap((group) =>
     group.tiers.map((target) => ({

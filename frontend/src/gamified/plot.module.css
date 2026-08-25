@@ -944,6 +944,26 @@
   color: var(--plot-ink-dim);
 }
 
+.seedCardLink {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.seedCardLink:hover,
+.seedCardLink:focus-visible {
+  border-color: rgba(111, 199, 255, 0.55);
+  transform: translateY(-1px);
+}
+
+.seedCardLink:focus-visible {
+  outline: 2px solid rgba(111, 199, 255, 0.7);
+  outline-offset: 2px;
+}
+
 .seedAction {
   margin-top: auto;
 }

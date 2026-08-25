@@ -179,6 +179,23 @@ describe('Plot mode hub', () => {
     ).toBeInTheDocument();
   });
 
+  it('shows a distinct unavailable notice on the FEED meter when the allowances fetch fails, not the empty-data copy', async () => {
+    mocks.getAllowances.mockRejectedValue(
+      Object.assign(new Error('HTTP 402 - Payment Required'), { status: 402 })
+    );
+    renderPlot();
+
+    expect(
+      await screen.findByText('Allowances unavailable right now')
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('No allowance data for this grower yet')
+    ).toBeNull();
+    expect(
+      screen.queryByText(/of tax allowance headroom left/)
+    ).toBeNull();
+  });
+
   it('offers an escape hatch back to the classic UI for the same owner', async () => {
     renderPlot();
 
@@ -391,6 +408,25 @@ describe('Plot mode season track', () => {
 
     expect(
       await screen.findByText(/No tax year reported for this grower/)
+    ).toBeInTheDocument();
+  });
+
+  it('shows the same distinct unavailable notice, not "no tax year", when the allowances fetch fails', async () => {
+    mocks.getAllowances.mockRejectedValue(
+      Object.assign(new Error('HTTP 402 - Payment Required'), { status: 402 })
+    );
+    renderPlot('/plot/season');
+
+    // Countdown copy, and the "Feed the beds" milestone tiers, all use the
+    // same notice instead of "no tax year" / a £0.00 progress bar (goal
+    // titles stay visible; only the meter/value area swaps to error copy).
+    const notices = await screen.findAllByText('Allowances unavailable right now');
+    expect(notices.length).toBeGreaterThan(1);
+    expect(
+      screen.queryByText(/No tax year reported for this grower/)
+    ).toBeNull();
+    expect(
+      screen.getByText("Use £1.0k of this season's allowances")
     ).toBeInTheDocument();
   });
 });

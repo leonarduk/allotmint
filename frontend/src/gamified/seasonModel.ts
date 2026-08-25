@@ -8,6 +8,7 @@
  */
 
 import {
+  ALLOWANCES_UNAVAILABLE_MESSAGE,
   clamp,
   formatGbp,
   type AllowanceMap,
@@ -97,6 +98,12 @@ export interface SeasonGoal {
   display: string;
   rewardIcon: string;
   rewardLabel: string;
+  /**
+   * True when this goal's underlying data (currently only the allowances
+   * feed) failed to load, so the UI should show a distinct error notice
+   * instead of a "0 of target" progress bar (#7005).
+   */
+  unavailable?: boolean;
 }
 
 interface GoalGroup {
@@ -108,6 +115,7 @@ interface GoalGroup {
   current: number;
   title: (target: number) => string;
   format: (value: number) => string;
+  unavailable?: boolean;
 }
 
 const countFormat = (value: number) => String(Math.round(value));
@@ -119,7 +127,8 @@ const countFormat = (value: number) => String(Math.round(value));
  */
 export function buildSeasonGoals(
   snapshot: PlotSnapshot,
-  allowances: AllowanceMap | null
+  allowances: AllowanceMap | null,
+  allowancesUnavailable = false
 ): SeasonGoal[] {
   const allowanceRows = Object.values(allowances ?? {});
   const allowanceUsed = allowanceRows.reduce(
@@ -157,6 +166,7 @@ export function buildSeasonGoals(
       current: allowanceUsed,
       title: (target) => `Use ${formatGbp(target)} of this season's allowances`,
       format: formatGbp,
+      unavailable: allowancesUnavailable,
     },
     {
       id: 'streak',
@@ -188,10 +198,13 @@ export function buildSeasonGoals(
       current: group.current,
       target,
       pct: target > 0 ? clamp((group.current / target) * 100, 0, 100) : 0,
-      complete: group.current >= target,
-      display: group.format(group.current),
+      complete: !group.unavailable && group.current >= target,
+      display: group.unavailable
+        ? ALLOWANCES_UNAVAILABLE_MESSAGE
+        : group.format(group.current),
       rewardIcon: group.rewardIcon,
       rewardLabel: group.rewardLabel,
+      unavailable: group.unavailable,
     }))
   );
 }

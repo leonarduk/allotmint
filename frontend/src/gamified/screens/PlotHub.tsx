@@ -1,6 +1,6 @@
+import type { CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import styles from '../plot.module.css';
-import { cropGlyph } from '../cropGlyph';
 import { usePlotData } from '../PlotDataContext';
 import {
   formatGbp,
@@ -18,6 +18,7 @@ import Meter, { type MeterTone } from '../components/Meter';
 import CropCard from '../components/CropCard';
 import StreakPath from '../components/StreakPath';
 import Propagator from '../components/Propagator';
+import CropGlyph from '../components/CropGlyph';
 
 const RESOURCE_TONE: Record<string, MeterTone> = {
   water: 'water',
@@ -37,17 +38,23 @@ function Champion({
   basePath: string;
 }) {
   const stage = growthStageMeta(crop.stage);
+  const accentStyle = { '--plot-crop-accent': stage.accent } as CSSProperties;
   return (
     <Link
       to={`${basePath}/crops/${encodeURIComponent(crop.id)}`}
       className={styles.stageChampion}
+      style={accentStyle}
       aria-label={`${role}: ${crop.ticker}, ${stage.label}, ${formatPct(crop.gainPct)}`}
     >
       <span
         className={`${styles.stageGlyph} ${rival ? styles.stageGlyphRival : ''}`}
         aria-hidden="true"
       >
-        {cropGlyph(crop.ticker, crop.sector)}
+        <CropGlyph
+          ticker={crop.ticker}
+          sector={crop.sector}
+          stage={crop.stage}
+        />
       </span>
       <span className={styles.stageName}>{crop.ticker}</span>
       <span className={styles.stageMeta}>

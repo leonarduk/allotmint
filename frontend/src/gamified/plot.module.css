@@ -429,15 +429,18 @@
 }
 
 .stageGlyph {
+  display: block;
   font-size: clamp(2.75rem, 8vw, 4.5rem);
-  line-height: 1;
-  filter: drop-shadow(0 0 18px rgba(87, 224, 138, 0.45));
+  line-height: 0;
+  color: var(--plot-crop-accent, var(--plot-mint));
+  filter: drop-shadow(
+    0 0 18px var(--plot-crop-accent, rgba(87, 224, 138, 0.45))
+  );
   animation: sway 6s ease-in-out infinite;
 }
 
 .stageGlyphRival {
   animation-delay: -3s;
-  filter: drop-shadow(0 0 18px rgba(226, 100, 63, 0.4));
 }
 
 @keyframes sway {
@@ -704,8 +707,10 @@
 }
 
 .cropGlyph {
+  display: block;
   font-size: 2.4rem;
-  line-height: 1.1;
+  line-height: 0;
+  color: var(--plot-crop-accent, var(--plot-mint));
   filter: drop-shadow(0 0 10px var(--plot-crop-accent, var(--plot-mint)));
 }
 
@@ -828,8 +833,10 @@
 }
 
 .detailGlyph {
+  display: block;
   font-size: clamp(3.5rem, 12vw, 6rem);
-  line-height: 1;
+  line-height: 0;
+  color: var(--plot-crop-accent, var(--plot-mint));
   filter: drop-shadow(
     0 0 24px var(--plot-crop-accent, rgba(87, 224, 138, 0.5))
   );
@@ -867,6 +874,14 @@
   list-style: none;
 }
 
+.traitGlyph {
+  display: inline-flex;
+  font-size: 1.3rem;
+  line-height: 0;
+  vertical-align: -0.38em;
+  margin-right: 0.3rem;
+}
+
 .trait {
   padding: 0.2rem 0.55rem;
   font-size: 0.72rem;
@@ -876,6 +891,17 @@
   background: rgba(111, 199, 255, 0.1);
   border: 1px solid rgba(111, 199, 255, 0.3);
   border-radius: 999px;
+}
+
+/*
+ * The stage tally is the only place all eight stages appear together, so it
+ * doubles as the legend for what the cards are doing: each chip wears its own
+ * stage accent, and its glyph carries that stage's fill.
+ */
+.traitStage {
+  color: var(--plot-crop-accent, var(--plot-mint));
+  background: transparent;
+  border-color: currentColor;
 }
 
 .abilityRow {
@@ -1082,8 +1108,10 @@
 }
 
 .trayGlyph {
+  display: block;
   font-size: 1.9rem;
-  line-height: 1;
+  line-height: 0;
+  color: var(--plot-sky);
   filter: drop-shadow(0 0 10px rgba(111, 199, 255, 0.4));
 }
 

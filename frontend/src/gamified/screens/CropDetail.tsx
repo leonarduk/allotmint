@@ -9,6 +9,7 @@ import {
   formatPct,
   growthLevelFor,
   growthStageMeta,
+  isStillInPropagator,
   type Crop,
 } from '../plotModel';
 import Meter from '../components/Meter';
@@ -55,13 +56,15 @@ function abilitiesFor(crop: Crop) {
         crop.daysHeld === null
           ? 'Holding age unknown'
           : `Held ${crop.daysHeld} day${crop.daysHeld === 1 ? '' : 's'}${
-              crop.sellEligible
-                ? ' · ready to lift'
-                : crop.nextEligibleSellDate
+              isStillInPropagator(crop)
+                ? crop.nextEligibleSellDate
                   ? ` · in the propagator until ${crop.nextEligibleSellDate}`
                   : ' · not yet liftable'
+                : crop.nextEligibleSellDate
+                  ? ` · cleared the propagator on ${crop.nextEligibleSellDate}`
+                  : ' · ready to lift'
             }`,
-      level: crop.sellEligible ? 5 : 2,
+      level: isStillInPropagator(crop) ? 2 : 5,
       max: 5,
     },
   ];

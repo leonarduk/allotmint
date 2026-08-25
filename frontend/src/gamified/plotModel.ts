@@ -495,6 +495,22 @@ export interface GerminatingCrop {
 }
 
 /**
+ * True while a holding is still serving its minimum holding period.
+ *
+ * This is the single source of truth for "still in the propagator" — the
+ * hub's Propagator widget and the crop detail screen's Hardiness trait both
+ * read it, so they can't disagree about whether a holding has cleared its
+ * hold period (see #7010).
+ */
+export function isStillInPropagator(crop: Crop): boolean {
+  return (
+    !crop.sellEligible &&
+    crop.daysUntilEligible !== null &&
+    crop.daysUntilEligible > 0
+  );
+}
+
+/**
  * Crops still inside their minimum holding period, soonest-ready first.
  *
  * This is the honest analogue of an incubator: real progress toward a real
@@ -504,12 +520,7 @@ export interface GerminatingCrop {
  */
 export function germinatingCrops(crops: readonly Crop[]): GerminatingCrop[] {
   return crops
-    .filter(
-      (crop) =>
-        !crop.sellEligible &&
-        crop.daysUntilEligible !== null &&
-        crop.daysUntilEligible > 0
-    )
+    .filter(isStillInPropagator)
     .map((crop) => {
       const remaining = crop.daysUntilEligible ?? 0;
       const held = Math.max(0, crop.daysHeld ?? 0);

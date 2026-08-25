@@ -29,14 +29,20 @@ function Champion({
   crop,
   role,
   rival,
+  basePath,
 }: {
   crop: Crop;
   role: string;
   rival?: boolean;
+  basePath: string;
 }) {
   const stage = growthStageMeta(crop.stage);
   return (
-    <div className={styles.stageChampion}>
+    <Link
+      to={`${basePath}/crops/${encodeURIComponent(crop.id)}`}
+      className={styles.stageChampion}
+      aria-label={`${role}: ${crop.ticker}, ${stage.label}, ${formatPct(crop.gainPct)}`}
+    >
       <span
         className={`${styles.stageGlyph} ${rival ? styles.stageGlyphRival : ''}`}
         aria-hidden="true"
@@ -47,7 +53,7 @@ function Champion({
       <span className={styles.stageMeta}>
         {role} · {stage.label} · {formatPct(crop.gainPct)}
       </span>
-    </div>
+    </Link>
   );
 }
 
@@ -84,12 +90,17 @@ export default function PlotHub({ basePath }: { basePath: string }) {
       <section className={styles.stage} aria-label="Featured crops">
         {best ? (
           <>
-            <Champion crop={best} role="Star grower" />
+            <Champion crop={best} role="Star grower" basePath={basePath} />
             <span className={styles.stageVersus} aria-hidden="true">
               VS
             </span>
             {worst ? (
-              <Champion crop={worst} role="Needs attention" rival />
+              <Champion
+                crop={worst}
+                role="Needs attention"
+                rival
+                basePath={basePath}
+              />
             ) : (
               <div />
             )}

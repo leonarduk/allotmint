@@ -163,6 +163,51 @@ def test_intraday_timeseries_success(monkeypatch):
     assert res["prices"][0]["price"] == pytest.approx(10.0)
 
 
+def test_intraday_timeseries_applies_scaling_override(monkeypatch):
+    """The live Yahoo fetch (fetch_yahoo_timeseries_period) is never scaled by
+    its own data layer -- unlike the two fallback branches in this function,
+    which go through timeseries_for_ticker and inherited its scaling fix
+    (#6985 review). Without this, a ticker in data/scaling_overrides.json
+    would jump ~100x in price depending on whether Yahoo's intraday fetch
+    happened to succeed that call, since both branches feed the same
+    "prices" contract.
+    """
+    fixed_now = dt.datetime(2024, 1, 2, 12, 0)
+
+    class FixedDateTime(dt.datetime):
+        @classmethod
+        def utcnow(cls):
+            return fixed_now
+
+    monkeypatch.setattr(ia.dt, "datetime", FixedDateTime)
+    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda t, latest: ("GSK", "L"))
+    monkeypatch.setattr(ia, "get_security_meta", lambda t: {})
+    monkeypatch.setattr(ia, "get_scaling_override", lambda *args, **kwargs: 0.01)
+
+    df = pd.DataFrame(
+        {
+            "Date": pd.to_datetime(["2024-01-02 11:45:00"]),
+            "Close": [1000.0],
+        }
+    )
+    monkeypatch.setattr(
+        ia,
+        "fetch_yahoo_timeseries_period",
+        lambda sym, ex, period, interval, normalize=True: df,
+    )
+
+    def _scale_close_only(df_in, scale):
+        scaled = df_in.copy()
+        scaled["Close"] = scaled["Close"] * scale
+        return scaled
+
+    monkeypatch.setattr(ia, "apply_scaling", _scale_close_only)
+
+    res = ia.intraday_timeseries_for_ticker("GSK.L")
+
+    assert res["prices"][0]["price"] == pytest.approx(10.0)
+
+
 def test_intraday_timeseries_fallback(monkeypatch):
     monkeypatch.setattr(ia, "get_security_meta", lambda t: {"instrument_type": "pension"})
     monkeypatch.setattr(

@@ -451,6 +451,17 @@ def intraday_timeseries_for_ticker(ticker: str) -> Dict[str, Any]:
     df["Date"] = pd.to_datetime(df["Date"], utc=True).dt.tz_localize(None)
     cutoff = dt.datetime.utcnow() - dt.timedelta(hours=48)
     df = df[df["Date"] >= cutoff]
+
+    # This raw Yahoo fetch is never scaled, unlike the two fallback branches
+    # above (which now go through timeseries_for_ticker's scaling correction).
+    # Without this, a ticker in data/scaling_overrides.json would jump ~100x
+    # depending on whether Yahoo's intraday fetch happened to succeed.
+    scale = get_scaling_override(sym, ex, None)
+    if scale != 1.0:
+        df = apply_scaling(df, scale)
+        if "Close_gbp" in df.columns:
+            df["Close_gbp"] = pd.to_numeric(df["Close_gbp"], errors="coerce") * scale
+
     col = "Close_gbp" if "Close_gbp" in df.columns else "Close"
 
     prices = [{"timestamp": r["Date"].to_pydatetime().isoformat(), "price": float(r[col])} for _, r in df.iterrows()]

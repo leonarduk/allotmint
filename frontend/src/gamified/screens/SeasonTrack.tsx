@@ -3,43 +3,93 @@ import styles from '../plot.module.css';
 import { usePlotData } from '../PlotDataContext';
 import { ALLOWANCES_UNAVAILABLE_MESSAGE } from '../plotModel';
 import {
-  buildSeasonGoals,
+  buildSeasonGroups,
   seasonCountdown,
-  type SeasonGoal,
+  type SeasonGroupProgress,
 } from '../seasonModel';
 import Meter from '../components/Meter';
 
-function GoalRow({ goal }: { goal: SeasonGoal }) {
+/**
+ * One row per category, tracking progress toward the next tier that has not
+ * been earned yet. Earlier tiers already earned collapse into a compact
+ * badge instead of each repeating the same current value against a target
+ * that's already been cleared — see #7006.
+ */
+function GroupRow({ group }: { group: SeasonGroupProgress }) {
   return (
     <li
-      className={`${styles.choreRow} ${goal.complete ? styles.choreRowDone : ''}`}
+      className={`${styles.choreRow} ${
+        group.complete ? styles.choreRowDone : ''
+      }`}
     >
       <div className={styles.choreBody}>
         <div
           className={`${styles.choreTitle} ${
-            goal.complete ? styles.choreTitleDone : ''
+            group.complete ? styles.choreTitleDone : ''
           }`}
         >
-          {goal.title}
+          {group.unavailable
+            ? group.group
+            : group.complete
+              ? `Every ${group.group} tier earned`
+              : `Next: ${group.next?.displayTarget}`}
         </div>
-        {goal.unavailable ? (
+
+        {group.unavailable ? (
           <p className={styles.sectionNote}>{ALLOWANCES_UNAVAILABLE_MESSAGE}</p>
-        ) : (
-          <div className={styles.goalMeter}>
-            <Meter
-              pct={goal.pct}
-              label={`${goal.title}: ${goal.display} so far`}
-            />
-            <span className={styles.goalValue}>{goal.display}</span>
+        ) : group.next ? (
+          <div className={styles.groupProgress}>
+            <div className={styles.goalMeter}>
+              <Meter
+                pct={group.next.pct}
+                label={`${group.group}: ${group.currentDisplay} of ${group.next.displayTarget} toward the next tier`}
+              />
+              <span className={styles.goalValue}>
+                {group.currentDisplay} / {group.next.displayTarget}
+              </span>
+            </div>
+            <p className={styles.groupCurrent}>
+              Currently at <strong>{group.currentDisplay}</strong>.
+            </p>
           </div>
+        ) : (
+          <p className={styles.groupComplete}>
+            {group.currentDisplay} — every tier in this category is earned.
+          </p>
+        )}
+
+        {!group.unavailable && (
+          <ul className={styles.tierRow}>
+            {group.tiers.map((tier) => {
+              const isNext =
+                !tier.complete && group.next?.target === tier.target;
+              return (
+                <li
+                  key={tier.target}
+                  className={`${styles.tierBadge} ${
+                    tier.complete
+                      ? styles.tierBadgeEarned
+                      : isNext
+                        ? styles.tierBadgeNext
+                        : ''
+                  }`}
+                >
+                  {tier.complete ? '✓ ' : ''}
+                  {tier.displayTarget}
+                </li>
+              );
+            })}
+          </ul>
         )}
       </div>
       <span
         className={styles.choreReward}
-        title={goal.complete ? `${goal.rewardLabel} earned` : goal.rewardLabel}
+        title={
+          group.complete ? `${group.rewardLabel} earned` : group.rewardLabel
+        }
       >
-        <span aria-hidden="true">{goal.rewardIcon}</span>
-        {goal.complete ? 'Earned' : goal.rewardLabel}
+        <span aria-hidden="true">{group.rewardIcon}</span>
+        {group.complete ? 'Earned' : group.rewardLabel}
       </span>
     </li>
   );
@@ -57,8 +107,8 @@ export default function SeasonTrack() {
   const { snapshot, allowances, allowancesUnavailable, season } =
     usePlotData();
 
-  const goals = useMemo(
-    () => buildSeasonGoals(snapshot, allowances, allowancesUnavailable),
+  const groups = useMemo(
+    () => buildSeasonGroups(snapshot, allowances, allowancesUnavailable),
     [snapshot, allowances, allowancesUnavailable]
   );
 
@@ -67,23 +117,21 @@ export default function SeasonTrack() {
     [season]
   );
 
-  const done = goals.filter((goal) => goal.complete).length;
-  const groups = useMemo(() => {
-    const byGroup = new Map<string, SeasonGoal[]>();
-    for (const goal of goals) {
-      const bucket = byGroup.get(goal.group) ?? [];
-      bucket.push(goal);
-      byGroup.set(goal.group, bucket);
-    }
-    return [...byGroup.entries()];
-  }, [goals]);
+  const totalTiers = groups.reduce(
+    (sum, group) => sum + group.tiers.length,
+    0
+  );
+  const earnedTiers = groups.reduce(
+    (sum, group) => sum + group.tiers.filter((tier) => tier.complete).length,
+    0
+  );
 
   return (
     <div className={styles.stack}>
       <section className={`${styles.panel} ${styles.panelGlow}`}>
         <h2 className={styles.panelTitle}>
-          {season ? `Growing season ${season.label}` : 'Growing season'} ({done}
-          /{goals.length})
+          {season ? `Growing season ${season.label}` : 'Growing season'} (
+          {earnedTiers}/{totalTiers})
         </h2>
         {countdown ? (
           <p className={styles.seasonCountdown}>{countdown.label}</p>
@@ -101,16 +149,18 @@ export default function SeasonTrack() {
         </p>
       </section>
 
-      {groups.map(([group, groupGoals]) => (
-        <section key={group} className={`${styles.panel} ${styles.panelGlow}`}>
+      {groups.map((group) => (
+        <section
+          key={group.id}
+          className={`${styles.panel} ${styles.panelGlow}`}
+        >
           <h3 className={styles.panelTitle}>
-            {group} ({groupGoals.filter((goal) => goal.complete).length}/
-            {groupGoals.length})
+            {group.group} (
+            {group.tiers.filter((tier) => tier.complete).length}/
+            {group.tiers.length})
           </h3>
           <ul className={styles.plainList}>
-            {groupGoals.map((goal) => (
-              <GoalRow key={goal.id} goal={goal} />
-            ))}
+            <GroupRow group={group} />
           </ul>
         </section>
       ))}

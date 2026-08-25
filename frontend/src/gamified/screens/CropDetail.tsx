@@ -21,8 +21,13 @@ import StarRating from '../components/StarRating';
 function abilitiesFor(crop: Crop) {
   return [
     {
+      // Named "Growth", not "Yield": this is unrealised capital gain/loss,
+      // not income/dividend yield, and the two are not interchangeable.
+      // AllotMint doesn't yet surface a real dividend/income yield figure
+      // per holding (see #7009), so this trait sticks to the number it can
+      // honestly show rather than inventing a yield figure.
       icon: '🧺',
-      name: 'Yield',
+      name: 'Growth',
       detail: `${formatGbp(crop.gainGbp)} unrealised gain (${formatPct(crop.gainPct)})`,
       level: growthLevelFor(crop.stage),
       max: 5,

@@ -290,6 +290,81 @@ describe('Plot mode chores', () => {
     );
   });
 
+  it('completes only the clicked chore when several daily chores are mid-list (#7002)', async () => {
+    // Regression test for #7002: the "Do it" button must resolve the chore
+    // to complete by its stable id, not by array position, even when other
+    // chores in the list are already done either side of it.
+    const midListPayload = {
+      ...trailPayload,
+      tasks: [
+        {
+          id: 'log_in',
+          title: 'Log in',
+          type: 'daily',
+          commentary: '',
+          completed: true,
+        },
+        {
+          id: 'check_overview',
+          title: 'Check overview',
+          type: 'daily',
+          commentary: '',
+          completed: false,
+        },
+        {
+          id: 'research_new_stock',
+          title: 'Research a new stock',
+          type: 'daily',
+          commentary: '',
+          completed: false,
+        },
+        {
+          id: 'run_a_report',
+          title: 'Run a report',
+          type: 'daily',
+          commentary: '',
+          completed: true,
+        },
+      ],
+      xp: 20,
+    };
+    mocks.getTrailTasks.mockResolvedValue(midListPayload);
+    mocks.completeTrailTask.mockResolvedValue({
+      ...midListPayload,
+      tasks: midListPayload.tasks.map((task) =>
+        task.id === 'research_new_stock' ? { ...task, completed: true } : task
+      ),
+      xp: 30,
+    });
+
+    renderPlot('/plot/chores');
+
+    const researchRow = (
+      await screen.findByText('Research a new stock')
+    ).closest('li')!;
+    const checkOverviewRow = screen
+      .getByText('Check overview')
+      .closest('li')!;
+
+    fireEvent.click(within(researchRow).getByRole('button', { name: 'Do it' }));
+
+    // The clicked chore's own id is sent to the backend, not a neighbour's.
+    await waitFor(() =>
+      expect(mocks.completeTrailTask).toHaveBeenCalledWith('research_new_stock')
+    );
+    expect(mocks.completeTrailTask).not.toHaveBeenCalledWith('check_overview');
+
+    // Only the clicked row flips to done; its untouched neighbour stays actionable.
+    await waitFor(() =>
+      expect(
+        within(researchRow).getByRole('button', { name: 'Done' })
+      ).toBeInTheDocument()
+    );
+    expect(
+      within(checkOverviewRow).getByRole('button', { name: 'Do it' })
+    ).toBeInTheDocument();
+  });
+
   it('falls back to the Quests endpoint when Trail is unavailable', async () => {
     mocks.getTrailTasks.mockRejectedValue(new Error('404'));
     mocks.getQuests.mockResolvedValue({

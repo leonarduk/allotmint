@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import styles from '../plot.module.css';
 import { usePlotData } from '../PlotDataContext';
 import { GROWTH_STAGES, type Crop } from '../plotModel';
@@ -34,11 +35,43 @@ const SORTS: {
 /** The collection screen: every holding as a crop tile, searchable and sortable. */
 export default function CropRoster({ basePath }: { basePath: string }) {
   const { snapshot, owner } = usePlotData();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [sort, setSort] = useState<SortKey>('value');
-  const [bedFilter, setBedFilter] = useState<string>('all');
+  // The bed (account) filter is mirrored in the `bed` query param so other
+  // screens — e.g. the hub's BEDS cards — can link straight into a
+  // pre-filtered roster instead of re-implementing the filter logic.
+  const [bedFilter, setBedFilterState] = useState<string>(
+    () => searchParams.get('bed') ?? 'all'
+  );
   const [search, setSearch] = useState('');
   const [favouritesOnly, setFavouritesOnly] = useState(false);
   const [favourites, setFavourites] = useState<Set<string>>(() => new Set());
+
+  // Keep the filter in sync if the `bed` query param changes after mount
+  // (e.g. navigating here again from the hub with a different account).
+  useEffect(() => {
+    const fromUrl = searchParams.get('bed') ?? 'all';
+    setBedFilterState((current) => (current === fromUrl ? current : fromUrl));
+  }, [searchParams]);
+
+  const setBedFilter = useCallback(
+    (bedId: string) => {
+      setBedFilterState(bedId);
+      setSearchParams(
+        (previous) => {
+          const next = new URLSearchParams(previous);
+          if (bedId === 'all') {
+            next.delete('bed');
+          } else {
+            next.set('bed', bedId);
+          }
+          return next;
+        },
+        { replace: true }
+      );
+    },
+    [setSearchParams]
+  );
 
   // Favourites are namespaced per grower, so they reload when the owner
   // selector changes rather than leaking across portfolios.

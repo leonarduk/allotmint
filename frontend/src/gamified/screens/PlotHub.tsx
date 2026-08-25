@@ -188,7 +188,12 @@ export default function PlotHub({ basePath }: { basePath: string }) {
         ) : (
           <div className={styles.seedGrid}>
             {beds.map((bed) => (
-              <div key={bed.id} className={styles.seedCard}>
+              <Link
+                key={bed.id}
+                to={`${basePath}/crops?bed=${encodeURIComponent(bed.id)}`}
+                className={`${styles.seedCard} ${styles.seedCardLink}`}
+                aria-label={`Show ${bed.name} crops`}
+              >
                 <span className={styles.seedTitle}>
                   <span aria-hidden="true">{bed.icon}</span> {bed.name}
                 </span>
@@ -199,7 +204,7 @@ export default function PlotHub({ basePath }: { basePath: string }) {
                 <span className={styles.cropValue}>
                   {formatGbp(bed.valueGbp)}
                 </span>
-              </div>
+              </Link>
             ))}
           </div>
         )}

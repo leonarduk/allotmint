@@ -63,6 +63,7 @@ import {
   printInstrumentsPdf,
 } from './lib/instrumentExports';
 import { getFamilyMvpEntryPath } from './familyMvp';
+import { completeTrackedChore } from './choreCompletion';
 
 const PerformanceDashboard = lazyWithDelay(
   () => import('./components/PerformanceDashboard')
@@ -466,6 +467,16 @@ export default function App({ onLogout }: AppProps) {
 
   const portfolioGroupSlug =
     selectedOwnerGroup?.slug ?? (selectedGroup || '');
+
+  // Completes the Plot chores screen's "Check overview" chore (#7003) the
+  // first time the user actually lands on the classic overview after
+  // clicking "Go" there — a no-op unless that navigation set the pending
+  // marker, so visiting this page any other way does nothing.
+  useEffect(() => {
+    if ((mode === 'owner' || mode === 'group') && portfolioGroupSlug) {
+      completeTrackedChore('check_overview');
+    }
+  }, [mode, portfolioGroupSlug]);
   // Each candidate source is memoized independently, keyed only on the
   // state that can actually change it. That keeps `portfolioComplianceOwners`
   // referentially stable across renders that touch unrelated state — e.g.

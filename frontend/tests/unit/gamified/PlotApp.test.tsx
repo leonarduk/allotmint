@@ -118,6 +118,7 @@ function renderPlot(path = '/plot') {
 beforeEach(() => {
   vi.clearAllMocks();
   window.localStorage.clear();
+  window.sessionStorage.clear();
   mocks.getOwners.mockResolvedValue([
     { owner: 'steve', accounts: ['stocks-isa'] },
   ]);
@@ -380,6 +381,67 @@ describe('Plot mode chores', () => {
     expect(
       within(checkOverviewRow).getByRole('button', { name: 'Do it' })
     ).toBeInTheDocument();
+  });
+
+  it('links "Check overview" to the classic overview instead of self-completing (#7003)', async () => {
+    mocks.getTrailTasks.mockResolvedValue({
+      ...trailPayload,
+      tasks: [
+        {
+          id: 'check_overview',
+          title: 'Check overview',
+          type: 'daily',
+          commentary: 'Review your portfolio overview for any changes.',
+          completed: false,
+        },
+      ],
+    });
+
+    renderPlot('/plot/chores');
+
+    const goButton = await screen.findByRole('button', { name: 'Go' });
+    fireEvent.click(goButton);
+
+    // Navigating there is not itself completion — only the classic overview
+    // page marking the pending chore visited does that (App.tsx). Clicking
+    // "Go" sets the marker it reads, keyed to this chore id.
+    expect(sessionStorage.getItem('allotmint:pendingChore')).toBe(
+      'check_overview'
+    );
+    expect(mocks.completeTrailTask).not.toHaveBeenCalled();
+  });
+
+  it('links "Adjust your alert threshold" and "Create your first savings goal" to their real pages without a pending-visit marker', async () => {
+    mocks.getTrailTasks.mockResolvedValue({
+      ...trailPayload,
+      tasks: [
+        {
+          id: 'set_alert_threshold',
+          title: 'Adjust your alert threshold',
+          type: 'once',
+          commentary: '',
+          completed: false,
+        },
+        {
+          id: 'create_goal',
+          title: 'Create your first savings goal',
+          type: 'once',
+          commentary: '',
+          completed: false,
+        },
+      ],
+    });
+
+    renderPlot('/plot/chores');
+
+    const [thresholdGo] = await screen.findAllByRole('button', { name: 'Go' });
+    fireEvent.click(thresholdGo);
+
+    // These two are already completed server-side once real data exists (a
+    // custom threshold / a saved goal), so there is nothing for a visit
+    // marker to trigger and the click never self-completes.
+    expect(sessionStorage.getItem('allotmint:pendingChore')).toBeNull();
+    expect(mocks.completeTrailTask).not.toHaveBeenCalled();
   });
 
   it('falls back to the Quests endpoint when Trail is unavailable', async () => {

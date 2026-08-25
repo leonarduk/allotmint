@@ -86,6 +86,12 @@ async def instrument_batch(
     and this is precisely the endpoint where that waste is multiplied by the
     number of holdings.
     """
+    # De-duplicating here as well as inside batch_timeseries_for_tickers looks
+    # redundant, and is deliberate: the cap below must count *unique* tickers, so
+    # the route needs the deduped list before it can decide. The domain function
+    # repeats it because it is public API reachable with raw input. Removing
+    # either call breaks a contract — test_batch_cap_applies_after_dedupe guards
+    # this one.
     requested = [t for t in (tickers or "").split(",")]
     unique = instrument_api.dedupe_tickers(requested)
 

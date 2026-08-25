@@ -61,7 +61,7 @@ evidence that this hurts is that 429 `Retry-After` backoff has been written
 Two aggravating details:
 
 - `timeseries_for_ticker` returns `mini` (7/30/180-day slices) *in addition to*
-  the full `prices` array (`backend/common/instrument_api.py:304-308`). Those
+  the full `prices` array (`backend/common/instrument_api.py:306-310`). Those
   217 rows are already present in the 365 returned — roughly **37% of the body
   is duplicated**, on every request.
 - `rate_limit_per_minute` defaults to `6000` on the dataclass
@@ -548,7 +548,7 @@ failure here, and it is worth being deliberate about, because anchoring to the
 data is the more natural-looking choice.
 
 Worth knowing why this is easy to miss: the existing `mini` **is** row-based
-(`out[-7:]`, `out[-30:]`, `out[-180:]` at `backend/common/instrument_api.py:304-308`),
+(`out[-7:]`, `out[-30:]`, `out[-180:]` at `backend/common/instrument_api.py:306-310`),
 so the row-count idiom is already in the codebase and looks like the precedent to
 follow. It reads as correct today only because the caller requesting `days=30` gets
 a series that is already clipped to 30 calendar days, leaving `out[-30:]` a no-op.
@@ -621,7 +621,7 @@ defend against and one copy can go.
 ### 5.2 Drop `mini` from the default payload
 
 With §4.5 slicing client-side, `mini` is 217 duplicated rows of pure waste
-(`backend/common/instrument_api.py:304-308`). Make it opt-in
+(`backend/common/instrument_api.py:306-310`). Make it opt-in
 (`?include_mini=true`), default off, and delete the flag once no caller sets it.
 Roughly **37% off every instrument payload** for no behaviour change.
 

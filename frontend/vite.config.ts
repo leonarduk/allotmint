@@ -72,6 +72,13 @@ export default defineConfig(({ command }) => {
       environment: 'jsdom',
       setupFiles: './src/setupTests.ts',
       include: ['tests/unit/**/*.test.ts?(x)'],
+      // Per-test ceiling. MUST stay above MENU_INTERACTION_TIMEOUT_MS
+      // (tests/support/menuInteractionTimeout.ts — 8000ms under CI). If it
+      // drops below, vitest kills the test before an inner waitFor can spend
+      // its budget, so the CI headroom added in #6126 becomes unreachable and
+      // the flake resurfaces as a bare "Test timed out" (#6982). Retune the
+      // two values together, never one alone.
+      testTimeout: process.env.CI ? 20000 : 10000,
       coverage: {
         provider: 'v8' as const, // literal required by CoverageV8Options — widened to string without explicit annotation
         reporter: ['text', 'html'],

@@ -7,6 +7,8 @@ Public API
 ----------
 
 - timeseries_for_ticker(ticker, days=365, start_date=None, end_date=None)
+- batch_timeseries_for_tickers(tickers, days=365, include_mini=False)
+- dedupe_tickers(tickers)   - blank/case-insensitive-duplicate removal
 - positions_for_ticker(group_slug, ticker)
 - instrument_summaries_for_group(group_slug)   - used by InstrumentTable
 """
@@ -16,7 +18,7 @@ from __future__ import annotations
 import datetime as dt
 import logging
 from functools import lru_cache
-from typing import Any, Dict, List, Mapping, Optional, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 import pandas as pd
 
@@ -35,7 +37,12 @@ from backend.timeseries.cache import (
 from backend.timeseries.fetch_meta_timeseries import run_all_tickers
 from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_period
 from backend.utils.pricing_dates import PricingDateCalculator
-from backend.utils.timeseries_helpers import _nearest_weekday, resolve_date_range
+from backend.utils.timeseries_helpers import (
+    _nearest_weekday,
+    apply_scaling,
+    get_scaling_override,
+    resolve_date_range,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -286,6 +293,17 @@ def timeseries_for_ticker(
     if {"date", "close"} - set(df.columns):
         return empty_payload
 
+    # LSE data sources often report price in pence without saying so; apply the
+    # same curated per-ticker correction the single-instrument route applies
+    # (see get_scaling_override) so this shared helper -- used by the batch
+    # endpoint and by portfolio.py's instrument_detail -- doesn't silently
+    # diverge from it.
+    scale = get_scaling_override(sym, ex, None)
+    if scale != 1.0:
+        df = apply_scaling(df, scale)
+        if "close_gbp" in df.columns:
+            df["close_gbp"] = pd.to_numeric(df["close_gbp"], errors="coerce") * scale
+
     ts_start_iso = ts_start.isoformat()
     ts_end_iso = ts_end.isoformat()
     out: List[Dict[str, Any]] = []
@@ -307,6 +325,86 @@ def timeseries_for_ticker(
         "180": out[-180:],
     }
     return {"prices": out, "mini": mini}
+
+
+def dedupe_tickers(tickers: Sequence[str]) -> List[str]:
+    """Drop blanks and case-insensitive duplicates, keeping the caller's spelling.
+
+    The first spelling of each ticker wins.  Callers key their own bookkeeping off
+    the strings they sent, so echoing a normalised (e.g. upper-cased) form back
+    would leave them unable to match a response to a request.
+    """
+    seen: set[str] = set()
+    unique: List[str] = []
+    for raw in tickers:
+        cleaned = (raw or "").strip()
+        if not cleaned:
+            continue
+        key = cleaned.upper()
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(cleaned)
+    return unique
+
+
+def batch_timeseries_for_tickers(
+    tickers: Sequence[str],
+    days: int = 365,
+    *,
+    include_mini: bool = False,
+) -> Dict[str, Any]:
+    """Resolve price history for many tickers in one pass.
+
+    Returns ``{"instruments": {...}, "empty": [...], "unknown": [...]}`` where the
+    three buckets **partition** the de-duplicated request: every ticker appears in
+    exactly one of them, and their union is the input.  A ticker missing from all
+    three, or counted in two, would corrupt the caller's "no price history" tally,
+    so the partition is part of the contract rather than an implementation detail.
+
+    The buckets distinguish two failures that look alike but are not:
+
+    ``unknown``
+        The ticker does not resolve to a ``(symbol, exchange)`` pair at all —
+        a bare symbol with no exchange suffix that also isn't in the price
+        snapshot, portfolio metadata, or ``_TICKER_EXCHANGE_MAP``.
+    ``empty``
+        The ticker resolves, but no price rows exist in the requested window.
+        ``_resolve_full_ticker`` treats resolution as structural: any
+        ``SYMBOL.EX`` string splits into a ``(symbol, exchange)`` pair whether
+        or not that instrument actually exists, so a typo like ``BOGUS.L``
+        lands here, not in ``unknown``.
+
+    Collapsing them would regress the consolidated "no price history" notice,
+    which is about the second case only.
+
+    ``mini`` (the 7/30/180-day slices) is omitted unless *include_mini* is set:
+    those rows duplicate the tail of ``prices``, and a batch response is exactly
+    where that redundancy is multiplied by the number of holdings.
+    """
+    unique = dedupe_tickers(tickers)
+
+    instruments: Dict[str, Any] = {}
+    empty: List[str] = []
+    unknown: List[str] = []
+
+    for ticker in unique:
+        if not _resolve_full_ticker(ticker, _LATEST_PRICES):
+            unknown.append(ticker)
+            continue
+
+        series = timeseries_for_ticker(ticker, days=days)
+        prices = series.get("prices") or []
+        if not prices:
+            empty.append(ticker)
+            continue
+
+        payload: Dict[str, Any] = {"prices": prices}
+        if include_mini:
+            payload["mini"] = series.get("mini", {})
+        instruments[ticker] = payload
+
+    return {"instruments": instruments, "empty": empty, "unknown": unknown}
 
 
 def intraday_timeseries_for_ticker(ticker: str) -> Dict[str, Any]:
@@ -353,6 +451,17 @@ def intraday_timeseries_for_ticker(ticker: str) -> Dict[str, Any]:
     df["Date"] = pd.to_datetime(df["Date"], utc=True).dt.tz_localize(None)
     cutoff = dt.datetime.utcnow() - dt.timedelta(hours=48)
     df = df[df["Date"] >= cutoff]
+
+    # This raw Yahoo fetch is never scaled, unlike the two fallback branches
+    # above (which now go through timeseries_for_ticker's scaling correction).
+    # Without this, a ticker in data/scaling_overrides.json would jump ~100x
+    # depending on whether Yahoo's intraday fetch happened to succeed.
+    scale = get_scaling_override(sym, ex, None)
+    if scale != 1.0:
+        df = apply_scaling(df, scale)
+        if "Close_gbp" in df.columns:
+            df["Close_gbp"] = pd.to_numeric(df["Close_gbp"], errors="coerce") * scale
+
     col = "Close_gbp" if "Close_gbp" in df.columns else "Close"
 
     prices = [{"timestamp": r["Date"].to_pydatetime().isoformat(), "price": float(r[col])} for _, r in df.iterrows()]

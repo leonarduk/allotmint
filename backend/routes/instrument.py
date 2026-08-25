@@ -20,6 +20,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markupsafe import Markup
 
+from backend.common import instrument_api
 from backend.common.constants import COST_BASIS_GBP, EFFECTIVE_COST_BASIS_GBP, UNITS
 from backend.common.holding_utils import get_effective_cost_basis_gbp
 from backend.common.instruments import list_instruments
@@ -49,6 +50,77 @@ env = Environment(
 router = APIRouter(prefix="/instrument", tags=["instrument"])
 
 MAX_SEARCH_RESULTS = 20
+
+# Upper bound on tickers per /instrument/batch call. Bounds worst-case work for a
+# single request; clients chunk beyond it. Exceeding it is a 400 rather than a
+# truncation — see instrument_batch for why.
+MAX_BATCH_TICKERS = 100
+
+
+@router.get("/batch")
+def instrument_batch(
+    tickers: Annotated[str, Query(description="Comma-separated tickers, e.g. VWRL.L,ERNS.L")],
+    days: Annotated[int, Query(ge=1, le=3650, description="Rolling window in calendar days")] = 365,
+    include_mini: Annotated[
+        bool,
+        Query(description="Also return the 7/30/180-day slices duplicated from `prices`"),
+    ] = False,
+):
+    """Return price history for many tickers in one request.
+
+    Deliberately a sync ``def``, not ``async def``: ``batch_timeseries_for_tickers``
+    calls blocking I/O (parquet reads, and a network fetch on a cold cache) up to
+    ``MAX_BATCH_TICKERS`` times, sequentially. An ``async def`` route runs on the
+    single event-loop thread, so that loop would stall every other in-flight
+    request for the duration. FastAPI/Starlette runs a sync ``def`` route in a
+    worker thread instead, which costs nothing here since the function makes no
+    ``await`` calls of its own.
+
+    Exists to collapse the per-ticker fan-out: rendering a 40-holding table
+    previously issued 40 requests at concurrency 5, all for data that changes once
+    a day.
+
+    The response splits the request into three buckets that **partition** it —
+    ``instruments`` (resolved, has prices), ``empty`` (resolved, no rows in the
+    window) and ``unknown`` (does not resolve at all).  Every requested ticker
+    lands in exactly one; their union is the de-duplicated request.  Callers rely
+    on that to drive a consolidated "no price history" notice, which is about
+    ``empty`` alone.
+
+    Note that "resolve" here is structural, not existence: any ``SYMBOL.EX``
+    string parses into a ``(symbol, exchange)`` pair regardless of whether that
+    instrument is real, so a typo like ``BOGUS.L`` lands in ``empty`` (no rows),
+    not ``unknown``. ``unknown`` only catches a bare symbol with no exchange
+    suffix that also isn't in the price snapshot or portfolio metadata.
+
+    Tickers are echoed back in the spelling the caller sent, de-duplicated
+    case-insensitively, so a caller can always match a response to its request.
+
+    ``mini`` is omitted by default: those rows duplicate the tail of ``prices``,
+    and this is precisely the endpoint where that waste is multiplied by the
+    number of holdings.
+    """
+    # De-duplicating here as well as inside batch_timeseries_for_tickers looks
+    # redundant, and is deliberate: the cap below must count *unique* tickers, so
+    # the route needs the deduped list before it can decide. The domain function
+    # repeats it because it is public API reachable with raw input. Removing
+    # either call breaks a contract — test_batch_cap_applies_after_dedupe guards
+    # this one.
+    requested = [t for t in (tickers or "").split(",")]
+    unique = instrument_api.dedupe_tickers(requested)
+
+    if not unique:
+        raise HTTPException(400, "tickers is required and must contain at least one ticker")
+
+    # Truncating instead would return a response that looks complete while
+    # silently omitting holdings, leaving them blank with no error to trace.
+    if len(unique) > MAX_BATCH_TICKERS:
+        raise HTTPException(
+            400,
+            f"Too many tickers: {len(unique)} (max {MAX_BATCH_TICKERS}). Split into smaller batches.",
+        )
+
+    return instrument_api.batch_timeseries_for_tickers(unique, days=days, include_mini=include_mini)
 
 
 @router.get("/search")

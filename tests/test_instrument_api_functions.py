@@ -87,6 +87,66 @@ def test_timeseries_for_ticker_renames_columns(monkeypatch):
     assert res["mini"] == {"7": res["prices"], "30": res["prices"], "180": res["prices"]}
 
 
+def test_timeseries_for_ticker_applies_scaling_override(monkeypatch):
+    """LSE sources often report price in pence; get_scaling_override/apply_scaling
+    correct for this on the single-instrument /instrument route (routes/instrument.py's
+    own hand-rolled dataframe pipeline) but this shared helper had no equivalent, so a
+    ticker in data/scaling_overrides.json (e.g. GSK.L, LLOY.L) would read up to 100x too
+    high wherever this function is used instead -- /instrument/batch and portfolio.py's
+    instrument_detail (#6985 review)."""
+
+    class FixedDate(dt.date):
+        @classmethod
+        def today(cls):
+            return cls(2023, 1, 9)
+
+    df = pd.DataFrame({"date": ["2023-01-08"], "close": [100.0], "close_gbp": [100.0]})
+
+    monkeypatch.setattr(ia.dt, "date", FixedDate)
+    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda t, loc: ("XYZ", "L"))
+    monkeypatch.setattr(ia, "has_cached_meta_timeseries", lambda s, e: True)
+    monkeypatch.setattr(ia, "load_meta_timeseries_range", lambda s, e, start_date, end_date: df)
+    monkeypatch.setattr(ia, "get_scaling_override", lambda *args, **kwargs: 0.01)
+
+    def _scale_close(df_in, scale):
+        scaled = df_in.copy()
+        scaled["close"] = scaled["close"] * scale
+        return scaled
+
+    monkeypatch.setattr(ia, "apply_scaling", _scale_close)
+
+    res = ia.timeseries_for_ticker("XYZ", days=1)
+
+    assert res["prices"] == [{"date": "2023-01-08", "close": 1.0, "close_gbp": 1.0}]
+
+
+def test_timeseries_for_ticker_scaling_noop_skips_apply_scaling(monkeypatch):
+    """scale == 1.0 (no override configured -- the overwhelming common case) must
+    short-circuit rather than call apply_scaling, matching its own no-op contract."""
+
+    class FixedDate(dt.date):
+        @classmethod
+        def today(cls):
+            return cls(2023, 1, 9)
+
+    df = pd.DataFrame({"date": ["2023-01-08"], "close": [100.0], "close_gbp": [100.0]})
+
+    monkeypatch.setattr(ia.dt, "date", FixedDate)
+    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda t, loc: ("XYZ", "L"))
+    monkeypatch.setattr(ia, "has_cached_meta_timeseries", lambda s, e: True)
+    monkeypatch.setattr(ia, "load_meta_timeseries_range", lambda s, e, start_date, end_date: df)
+    monkeypatch.setattr(ia, "get_scaling_override", lambda *args, **kwargs: 1.0)
+
+    def _fail_if_called(df_in, scale):
+        raise AssertionError("apply_scaling must not be called when scale == 1.0")
+
+    monkeypatch.setattr(ia, "apply_scaling", _fail_if_called)
+
+    res = ia.timeseries_for_ticker("XYZ", days=1)
+
+    assert res["prices"] == [{"date": "2023-01-08", "close": 100.0, "close_gbp": 100.0}]
+
+
 def test_timeseries_for_ticker_mini_slices(monkeypatch):
     class FixedDate(dt.date):
         @classmethod

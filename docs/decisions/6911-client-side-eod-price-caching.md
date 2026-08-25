@@ -573,16 +573,22 @@ Finding D still costs 40 round trips.
 ### 5.1 Batch endpoint
 
 ```http
-GET /instrument/batch?tickers=VWRL.L,ERNS.L,PFE.N&days=365
+GET /instrument/batch?tickers=VWRL.L,ERNS.L,PFE.N,BOGUS.L,NOPE&days=365
 ```
 ```json
 {
   "price_epoch": "2026-05-16.9f2c1a4b7e03a1",
   "instruments": { "VWRL.L": { "prices": [...] }, "ERNS.L": { "prices": [...] } },
-  "empty":   ["PFE.N"],
-  "unknown": ["BOGUS.L"]
+  "empty":   ["PFE.N", "BOGUS.L"],
+  "unknown": ["NOPE"]
 }
 ```
+
+`_resolve_full_ticker` treats resolution as structural, not existence: any
+`SYMBOL.EX` string parses into a `(symbol, exchange)` pair whether or not that
+instrument is real, so a typo'd-but-dotted ticker like `BOGUS.L` still lands in
+`empty` — only a bare symbol with no exchange suffix and no metadata match
+(`NOPE`) reaches `unknown`.
 
 The field is `price_epoch` in the §2 format, byte-identical to what
 `/data/version` reports — same name, same digest length. A batch response

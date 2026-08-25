@@ -37,7 +37,12 @@ from backend.timeseries.cache import (
 from backend.timeseries.fetch_meta_timeseries import run_all_tickers
 from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_period
 from backend.utils.pricing_dates import PricingDateCalculator
-from backend.utils.timeseries_helpers import _nearest_weekday, resolve_date_range
+from backend.utils.timeseries_helpers import (
+    _nearest_weekday,
+    apply_scaling,
+    get_scaling_override,
+    resolve_date_range,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -288,6 +293,17 @@ def timeseries_for_ticker(
     if {"date", "close"} - set(df.columns):
         return empty_payload
 
+    # LSE data sources often report price in pence without saying so; apply the
+    # same curated per-ticker correction the single-instrument route applies
+    # (see get_scaling_override) so this shared helper -- used by the batch
+    # endpoint and by portfolio.py's instrument_detail -- doesn't silently
+    # diverge from it.
+    scale = get_scaling_override(sym, ex, None)
+    if scale != 1.0:
+        df = apply_scaling(df, scale)
+        if "close_gbp" in df.columns:
+            df["close_gbp"] = pd.to_numeric(df["close_gbp"], errors="coerce") * scale
+
     ts_start_iso = ts_start.isoformat()
     ts_end_iso = ts_end.isoformat()
     out: List[Dict[str, Any]] = []
@@ -349,10 +365,15 @@ def batch_timeseries_for_tickers(
     The buckets distinguish two failures that look alike but are not:
 
     ``unknown``
-        The ticker does not resolve to a ``(symbol, exchange)`` pair at all — a
-        typo, or an instrument absent from the price snapshot and metadata.
+        The ticker does not resolve to a ``(symbol, exchange)`` pair at all —
+        a bare symbol with no exchange suffix that also isn't in the price
+        snapshot, portfolio metadata, or ``_TICKER_EXCHANGE_MAP``.
     ``empty``
         The ticker resolves, but no price rows exist in the requested window.
+        ``_resolve_full_ticker`` treats resolution as structural: any
+        ``SYMBOL.EX`` string splits into a ``(symbol, exchange)`` pair whether
+        or not that instrument actually exists, so a typo like ``BOGUS.L``
+        lands here, not in ``unknown``.
 
     Collapsing them would regress the consolidated "no price history" notice,
     which is about the second case only.

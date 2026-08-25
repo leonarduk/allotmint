@@ -58,7 +58,7 @@ MAX_BATCH_TICKERS = 100
 
 
 @router.get("/batch")
-async def instrument_batch(
+def instrument_batch(
     tickers: Annotated[str, Query(description="Comma-separated tickers, e.g. VWRL.L,ERNS.L")],
     days: Annotated[int, Query(ge=1, le=3650, description="Rolling window in calendar days")] = 365,
     include_mini: Annotated[
@@ -67,6 +67,14 @@ async def instrument_batch(
     ] = False,
 ):
     """Return price history for many tickers in one request.
+
+    Deliberately a sync ``def``, not ``async def``: ``batch_timeseries_for_tickers``
+    calls blocking I/O (parquet reads, and a network fetch on a cold cache) up to
+    ``MAX_BATCH_TICKERS`` times, sequentially. An ``async def`` route runs on the
+    single event-loop thread, so that loop would stall every other in-flight
+    request for the duration. FastAPI/Starlette runs a sync ``def`` route in a
+    worker thread instead, which costs nothing here since the function makes no
+    ``await`` calls of its own.
 
     Exists to collapse the per-ticker fan-out: rendering a 40-holding table
     previously issued 40 requests at concurrency 5, all for data that changes once
@@ -78,6 +86,12 @@ async def instrument_batch(
     lands in exactly one; their union is the de-duplicated request.  Callers rely
     on that to drive a consolidated "no price history" notice, which is about
     ``empty`` alone.
+
+    Note that "resolve" here is structural, not existence: any ``SYMBOL.EX``
+    string parses into a ``(symbol, exchange)`` pair regardless of whether that
+    instrument is real, so a typo like ``BOGUS.L`` lands in ``empty`` (no rows),
+    not ``unknown``. ``unknown`` only catches a bare symbol with no exchange
+    suffix that also isn't in the price snapshot or portfolio metadata.
 
     Tickers are echoed back in the spelling the caller sent, de-duplicated
     case-insensitively, so a caller can always match a response to its request.

@@ -311,34 +311,38 @@ describe('Plot mode chores', () => {
   it('completes only the clicked chore when several daily chores are mid-list (#7002)', async () => {
     // Regression test for #7002: the "Do it" button must resolve the chore
     // to complete by its stable id, not by array position, even when other
-    // chores in the list are already done either side of it.
+    // chores in the list are already done either side of it. Uses chore ids
+    // outside CHORE_LINKS (unlike check_overview/research_new_stock/etc,
+    // which #7003 converted to a "Go"-and-navigate flow that no longer
+    // self-completes via a direct click) so this still exercises a plain
+    // click-to-complete chore.
     const midListPayload = {
       ...trailPayload,
       tasks: [
         {
-          id: 'log_in',
-          title: 'Log in',
+          id: 'first_task',
+          title: 'First task',
           type: 'daily',
           commentary: '',
           completed: true,
         },
         {
-          id: 'check_overview',
-          title: 'Check overview',
+          id: 'second_task',
+          title: 'Second task',
           type: 'daily',
           commentary: '',
           completed: false,
         },
         {
-          id: 'research_new_stock',
-          title: 'Research a new stock',
+          id: 'third_task',
+          title: 'Third task',
           type: 'daily',
           commentary: '',
           completed: false,
         },
         {
-          id: 'run_a_report',
-          title: 'Run a report',
+          id: 'fourth_task',
+          title: 'Fourth task',
           type: 'daily',
           commentary: '',
           completed: true,
@@ -350,36 +354,32 @@ describe('Plot mode chores', () => {
     mocks.completeTrailTask.mockResolvedValue({
       ...midListPayload,
       tasks: midListPayload.tasks.map((task) =>
-        task.id === 'research_new_stock' ? { ...task, completed: true } : task
+        task.id === 'third_task' ? { ...task, completed: true } : task
       ),
       xp: 30,
     });
 
     renderPlot('/plot/chores');
 
-    const researchRow = (
-      await screen.findByText('Research a new stock')
-    ).closest('li')!;
-    const checkOverviewRow = screen
-      .getByText('Check overview')
-      .closest('li')!;
+    const thirdRow = (await screen.findByText('Third task')).closest('li')!;
+    const secondRow = screen.getByText('Second task').closest('li')!;
 
-    fireEvent.click(within(researchRow).getByRole('button', { name: 'Do it' }));
+    fireEvent.click(within(thirdRow).getByRole('button', { name: 'Do it' }));
 
     // The clicked chore's own id is sent to the backend, not a neighbour's.
     await waitFor(() =>
-      expect(mocks.completeTrailTask).toHaveBeenCalledWith('research_new_stock')
+      expect(mocks.completeTrailTask).toHaveBeenCalledWith('third_task')
     );
-    expect(mocks.completeTrailTask).not.toHaveBeenCalledWith('check_overview');
+    expect(mocks.completeTrailTask).not.toHaveBeenCalledWith('second_task');
 
     // Only the clicked row flips to done; its untouched neighbour stays actionable.
     await waitFor(() =>
       expect(
-        within(researchRow).getByRole('button', { name: 'Done' })
+        within(thirdRow).getByRole('button', { name: 'Done' })
       ).toBeInTheDocument()
     );
     expect(
-      within(checkOverviewRow).getByRole('button', { name: 'Do it' })
+      within(secondRow).getByRole('button', { name: 'Do it' })
     ).toBeInTheDocument();
   });
 

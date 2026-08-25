@@ -4,6 +4,7 @@ import type {
   GroupPortfolio,
   GroupSummary,
   InstrumentDetail,
+  InstrumentDetailMini,
   InstrumentSummary,
   OwnerSummary,
   Portfolio,
@@ -952,26 +953,27 @@ export const getInstrumentIntraday = (
   );
 
 /**
- * Wrapper around {@link getInstrumentDetail} with basic retry logic for rate limits.
- * Retries up to `maxAttempts` times on HTTP 429 responses using exponential
- * backoff. If the server provides a `Retry-After` header it takes precedence.
+ * Retry `attempt` up to `maxAttempts` times on HTTP 429 responses using
+ * exponential backoff. If the server provides a `Retry-After` header it takes
+ * precedence. Shared by {@link fetchInstrumentDetailWithRetry} and
+ * {@link fetchInstrumentBatchWithRetry} so the two endpoints' 429 handling
+ * can't drift apart.
  */
-export async function fetchInstrumentDetailWithRetry(
-  ticker: string,
-  days = 365,
+async function retryOn429<T>(
+  attempt: () => Promise<T>,
   signal?: AbortSignal,
   maxAttempts = 3,
-): Promise<InstrumentDetail> {
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+): Promise<T> {
+  for (let i = 0; i < maxAttempts; i++) {
     try {
-      return await getInstrumentDetail(ticker, days, signal);
+      return await attempt();
     } catch (e) {
       const err = e instanceof Error ? e : new Error(String(e));
       const status = (err as any).status;
       if (status !== 429 && !err.message.includes("HTTP 429")) {
         throw err;
       }
-      if (attempt === maxAttempts - 1) {
+      if (i === maxAttempts - 1) {
         throw err;
       }
 
@@ -990,7 +992,7 @@ export async function fetchInstrumentDetailWithRetry(
         }
       }
       if (delay == null || delay <= 0) {
-        delay = 500 * 2 ** attempt;
+        delay = 500 * 2 ** i;
       }
       delay += Math.random() * 100;
 
@@ -1009,6 +1011,67 @@ export async function fetchInstrumentDetailWithRetry(
   }
   // If all retries exhausted without success
   throw new Error("HTTP 429 – Too Many Requests");
+}
+
+/**
+ * Wrapper around {@link getInstrumentDetail} with basic retry logic for rate limits.
+ * Retries up to `maxAttempts` times on HTTP 429 responses using exponential
+ * backoff. If the server provides a `Retry-After` header it takes precedence.
+ */
+export function fetchInstrumentDetailWithRetry(
+  ticker: string,
+  days = 365,
+  signal?: AbortSignal,
+  maxAttempts = 3,
+): Promise<InstrumentDetail> {
+  return retryOn429(() => getInstrumentDetail(ticker, days, signal), signal, maxAttempts);
+}
+
+export interface InstrumentBatchEntry {
+  prices: unknown;
+  mini?: InstrumentDetailMini;
+}
+
+export interface InstrumentBatchResponse {
+  instruments: Record<string, InstrumentBatchEntry>;
+  empty: string[];
+  unknown: string[];
+}
+
+/**
+ * Fetch price history for many tickers in one request (GET /instrument/batch).
+ *
+ * Response buckets `instruments` (resolved, has prices), `empty` (resolved,
+ * no rows) and `unknown` (does not resolve) partition the de-duplicated
+ * `tickers` list -- see the endpoint's docstring for the full contract.
+ * `mini` is omitted from every entry unless `includeMini` is set.
+ */
+export const getInstrumentBatch = (
+  tickers: string[],
+  days = 365,
+  includeMini = false,
+  signal?: AbortSignal,
+) =>
+  fetchJson<InstrumentBatchResponse>(
+    `${API_BASE}/instrument/batch?tickers=${encodeURIComponent(
+      tickers.join(","),
+    )}&days=${days}&include_mini=${includeMini}`,
+    { signal },
+  );
+
+/** {@link getInstrumentBatch} with the same 429 retry/backoff policy as {@link fetchInstrumentDetailWithRetry}. */
+export function fetchInstrumentBatchWithRetry(
+  tickers: string[],
+  days = 365,
+  includeMini = false,
+  signal?: AbortSignal,
+  maxAttempts = 3,
+): Promise<InstrumentBatchResponse> {
+  return retryOn429(
+    () => getInstrumentBatch(tickers, days, includeMini, signal),
+    signal,
+    maxAttempts,
+  );
 }
 
 

@@ -112,7 +112,7 @@ function SparklineFromFetch({
   ariaLabel,
   tabIndex,
 }: SparklineFetchProps) {
-  const { data, error } = useInstrumentHistory(ticker, days);
+  const { data, error } = useInstrumentHistory(ticker, days, { acceptMiniOnly: true });
   const cached = getCachedInstrumentHistory(ticker, days);
   const points = (cached ?? data)?.mini?.[String(days)] ?? [];
   const series =

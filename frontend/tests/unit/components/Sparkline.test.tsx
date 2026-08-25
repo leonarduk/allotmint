@@ -37,4 +37,13 @@ describe("Sparkline", () => {
     render(<Sparkline ticker="ABC" days={7} />);
     expect(screen.getByTestId("sparkline-empty")).toBeInTheDocument();
   });
+
+  it("accepts batch-derived (mini-only) cache data instead of forcing a full-detail fetch", () => {
+    render(<Sparkline ticker="ABC" days={7} />);
+    // Dropping this flag silently reintroduces one full-detail request per
+    // sparkline instead of sharing the table's single batch request.
+    expect(mockUseInstrumentHistory).toHaveBeenCalledWith("ABC", 7, {
+      acceptMiniOnly: true,
+    });
+  });
 });

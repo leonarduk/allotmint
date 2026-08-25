@@ -1582,6 +1582,16 @@ describe("GroupPortfolioView", () => {
     const originalFetch = fetchMock.getMockImplementation()!;
     fetchMock.mockImplementation((input: RequestInfo | URL) => {
       const url = toUrlString(input);
+      if (url.includes("/instrument/batch")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            instruments: {},
+            empty: ["NOHIST.L"],
+            unknown: [],
+          }),
+        } as Response);
+      }
       if (url.includes("/instrument/?ticker=")) {
         return Promise.resolve({
           ok: true,

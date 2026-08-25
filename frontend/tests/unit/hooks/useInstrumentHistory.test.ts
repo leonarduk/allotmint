@@ -452,6 +452,27 @@ describe('preloadInstrumentHistory', () => {
     expect(missing).toEqual(['A.L', 'B.L']);
   });
 
+  it('splits into multiple batch calls past the 100-ticker backend cap', async () => {
+    const tickers = Array.from({ length: 150 }, (_, i) => `T${i}.L`);
+    mockGetInstrumentBatch.mockImplementation(async (group: string[]) => ({
+      instruments: Object.fromEntries(
+        group.map((t) => [t, { prices: [{ date: '2024-01-01', close: 1 }] }]),
+      ),
+      empty: [],
+      unknown: [],
+    }));
+
+    const missing = await preloadInstrumentHistory(tickers, 30);
+
+    expect(mockGetInstrumentBatch).toHaveBeenCalledTimes(2);
+    const [firstGroup] = mockGetInstrumentBatch.mock.calls[0];
+    const [secondGroup] = mockGetInstrumentBatch.mock.calls[1];
+    expect(firstGroup).toHaveLength(100);
+    expect(secondGroup).toHaveLength(50);
+    expect(new Set([...firstGroup, ...secondGroup])).toEqual(new Set(tickers));
+    expect(missing).toEqual([]);
+  });
+
   it('reuses an existing full-detail cache entry instead of batching', async () => {
     mockGetInstrumentDetail.mockResolvedValue({
       prices: [],

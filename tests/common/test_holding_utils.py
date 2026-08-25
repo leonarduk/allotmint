@@ -409,6 +409,36 @@ def test_enrich_holding_cash_fields(monkeypatch):
     assert out["price"] == 1.0
     assert out["market_value_gbp"] == 100.0
     assert out["cost_basis_source"] == "cash"
+    assert out["cost_basis_gbp"] == out["market_value_gbp"]
+    assert out["effective_cost_basis_gbp"] == out["market_value_gbp"]
+
+
+def test_enrich_holding_cash_cost_basis_overrides_stale_stored_value(monkeypatch):
+    """Regression test for #7012.
+
+    A cash holding is priced 1:1, so its cost basis must always equal its
+    market value. Previously the enrichment used ``setdefault`` for
+    ``cost_basis_gbp``, so a stale/incorrect value already present on the raw
+    holding record (e.g. one mistakenly recorded in pence, producing a ~100x
+    discrepancy) would leak straight through to the API response instead of
+    being corrected.
+    """
+    today = dt.date(2024, 1, 1)
+    holding = {
+        "ticker": "CASH.GBP",
+        "units": 13669.25,
+        "currency": "GBP",
+        # Simulates the bad stored value from the issue: units/100.
+        "cost_basis_gbp": 136.69,
+    }
+    monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {})
+    monkeypatch.setattr(portfolio_utils, "get_security_meta", lambda *_: {})
+    out = holding_utils.enrich_holding(holding, today, {}, {})
+    assert out["cost_basis_source"] == "cash"
+    assert out["market_value_gbp"] == 13669.25
+    assert out["cost_basis_gbp"] == out["market_value_gbp"]
+    assert out["effective_cost_basis_gbp"] == out["market_value_gbp"]
+    assert out["gain_gbp"] == 0.0
 
 
 def test_enrich_holding_non_cash_standard_path(monkeypatch):

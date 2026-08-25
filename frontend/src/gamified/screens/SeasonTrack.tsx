@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import styles from '../plot.module.css';
 import { usePlotData } from '../PlotDataContext';
+import { ALLOWANCES_UNAVAILABLE_MESSAGE } from '../plotModel';
 import {
   buildSeasonGoals,
   seasonCountdown,
@@ -21,13 +22,17 @@ function GoalRow({ goal }: { goal: SeasonGoal }) {
         >
           {goal.title}
         </div>
-        <div className={styles.goalMeter}>
-          <Meter
-            pct={goal.pct}
-            label={`${goal.title}: ${goal.display} so far`}
-          />
-          <span className={styles.goalValue}>{goal.display}</span>
-        </div>
+        {goal.unavailable ? (
+          <p className={styles.sectionNote}>{ALLOWANCES_UNAVAILABLE_MESSAGE}</p>
+        ) : (
+          <div className={styles.goalMeter}>
+            <Meter
+              pct={goal.pct}
+              label={`${goal.title}: ${goal.display} so far`}
+            />
+            <span className={styles.goalValue}>{goal.display}</span>
+          </div>
+        )}
       </div>
       <span
         className={styles.choreReward}
@@ -49,11 +54,12 @@ function GoalRow({ goal }: { goal: SeasonGoal }) {
  * the clock as an argument so it stays testable.
  */
 export default function SeasonTrack() {
-  const { snapshot, allowances, season } = usePlotData();
+  const { snapshot, allowances, allowancesUnavailable, season } =
+    usePlotData();
 
   const goals = useMemo(
-    () => buildSeasonGoals(snapshot, allowances),
-    [snapshot, allowances]
+    () => buildSeasonGoals(snapshot, allowances, allowancesUnavailable),
+    [snapshot, allowances, allowancesUnavailable]
   );
 
   const countdown = useMemo(
@@ -81,6 +87,8 @@ export default function SeasonTrack() {
         </h2>
         {countdown ? (
           <p className={styles.seasonCountdown}>{countdown.label}</p>
+        ) : allowancesUnavailable ? (
+          <p className={styles.sectionNote}>{ALLOWANCES_UNAVAILABLE_MESSAGE}</p>
         ) : (
           <p className={styles.sectionNote}>
             No tax year reported for this grower, so the season has no end date

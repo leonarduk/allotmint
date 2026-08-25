@@ -29,14 +29,20 @@ function Champion({
   crop,
   role,
   rival,
+  basePath,
 }: {
   crop: Crop;
   role: string;
   rival?: boolean;
+  basePath: string;
 }) {
   const stage = growthStageMeta(crop.stage);
   return (
-    <div className={styles.stageChampion}>
+    <Link
+      to={`${basePath}/crops/${encodeURIComponent(crop.id)}`}
+      className={styles.stageChampion}
+      aria-label={`${role}: ${crop.ticker}, ${stage.label}, ${formatPct(crop.gainPct)}`}
+    >
       <span
         className={`${styles.stageGlyph} ${rival ? styles.stageGlyphRival : ''}`}
         aria-hidden="true"
@@ -47,7 +53,7 @@ function Champion({
       <span className={styles.stageMeta}>
         {role} · {stage.label} · {formatPct(crop.gainPct)}
       </span>
-    </div>
+    </Link>
   );
 }
 
@@ -62,6 +68,7 @@ export default function PlotHub({ basePath }: { basePath: string }) {
     chores,
     choresAvailable,
     allowances,
+    allowancesUnavailable,
     season,
     dailyTotals,
     today,
@@ -75,7 +82,7 @@ export default function PlotHub({ basePath }: { basePath: string }) {
   const featured = crops.slice(0, 6);
   const germinating = germinatingCrops(crops);
   const streakDays = today ? buildStreakPath(dailyTotals, today) : [];
-  const seasonGoals = buildSeasonGoals(snapshot, allowances);
+  const seasonGoals = buildSeasonGoals(snapshot, allowances, allowancesUnavailable);
   const seasonDone = seasonGoals.filter((goal) => goal.complete).length;
   const countdown = season ? seasonCountdown(season, new Date()) : null;
 
@@ -84,12 +91,17 @@ export default function PlotHub({ basePath }: { basePath: string }) {
       <section className={styles.stage} aria-label="Featured crops">
         {best ? (
           <>
-            <Champion crop={best} role="Star grower" />
+            <Champion crop={best} role="Star grower" basePath={basePath} />
             <span className={styles.stageVersus} aria-hidden="true">
               VS
             </span>
             {worst ? (
-              <Champion crop={worst} role="Needs attention" rival />
+              <Champion
+                crop={worst}
+                role="Needs attention"
+                rival
+                basePath={basePath}
+              />
             ) : (
               <div />
             )}
@@ -188,7 +200,12 @@ export default function PlotHub({ basePath }: { basePath: string }) {
         ) : (
           <div className={styles.seedGrid}>
             {beds.map((bed) => (
-              <div key={bed.id} className={styles.seedCard}>
+              <Link
+                key={bed.id}
+                to={`${basePath}/crops?bed=${encodeURIComponent(bed.id)}`}
+                className={`${styles.seedCard} ${styles.seedCardLink}`}
+                aria-label={`Show ${bed.name} crops`}
+              >
                 <span className={styles.seedTitle}>
                   <span aria-hidden="true">{bed.icon}</span> {bed.name}
                 </span>
@@ -199,7 +216,7 @@ export default function PlotHub({ basePath }: { basePath: string }) {
                 <span className={styles.cropValue}>
                   {formatGbp(bed.valueGbp)}
                 </span>
-              </div>
+              </Link>
             ))}
           </div>
         )}

@@ -150,6 +150,20 @@ describe('buildSeasonGoals', () => {
       withoutAllowances.find((goal) => goal.id === 'feed-1000')
     ).toMatchObject({ current: 0, complete: false, pct: 0 });
   });
+
+  it('marks only the "Feed the beds" tiers unavailable when the allowances fetch failed', () => {
+    const failed = buildSeasonGoals(snapshot, null, true);
+    const feedGoals = failed.filter((goal) => goal.id.startsWith('feed-'));
+    expect(feedGoals).toHaveLength(4);
+    for (const goal of feedGoals) {
+      expect(goal.unavailable).toBe(true);
+      expect(goal.complete).toBe(false);
+      expect(goal.display).toBe('Allowances unavailable right now');
+    }
+    // Other groups are unaffected by an allowances failure.
+    const nonFeedGoals = failed.filter((goal) => !goal.id.startsWith('feed-'));
+    expect(nonFeedGoals.every((goal) => !goal.unavailable)).toBe(true);
+  });
 });
 
 describe('buildStreakPath', () => {

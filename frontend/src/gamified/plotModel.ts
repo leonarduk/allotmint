@@ -43,7 +43,7 @@ export const GROWTH_STAGES: readonly GrowthStageMeta[] = [
 const STAGE_BY_ID = new Map(GROWTH_STAGES.map((stage) => [stage.id, stage]));
 
 /**
- * The crop detail screen's "Yield" trait level (0–5) for a growth stage.
+ * The crop detail screen's "Growth" trait level (0–5) for a growth stage.
  *
  * Derived from the stage rather than re-thresholded off `gain_pct`: the two
  * ladders previously disagreed at every boundary (`growthStageFor` bands with
@@ -340,6 +340,14 @@ export type AllowanceMap = Record<
 >;
 
 /**
+ * Shared copy for every place the allowances fetch failed (HTTP error, e.g.
+ * the 402 billing gate) rather than genuinely returning no data. Kept as one
+ * constant so the FEED meter, the Season page's countdown, and the "Feed the
+ * beds" milestone tier all read identically (#7005).
+ */
+export const ALLOWANCES_UNAVAILABLE_MESSAGE = 'Allowances unavailable right now';
+
+/**
  * The three HUD meters, each backed by a real figure:
  * water = trades left this month, feed = tax-allowance headroom,
  * sunlight = share of crops priced today (data freshness).
@@ -347,7 +355,8 @@ export type AllowanceMap = Record<
 export function resourcesFromPlot(
   portfolio: Pick<Portfolio, 'trades_this_month' | 'trades_remaining'> | null,
   crops: readonly Crop[],
-  allowances: AllowanceMap | null
+  allowances: AllowanceMap | null,
+  allowancesUnavailable = false
 ): PlotResource[] {
   const tradesUsed = portfolio?.trades_this_month ?? 0;
   const tradesLeft = portfolio?.trades_remaining ?? 0;
@@ -387,8 +396,9 @@ export function resourcesFromPlot(
         allowanceLimit > 0
           ? clamp((allowanceLeft / allowanceLimit) * 100, 0, 100)
           : 0,
-      hint:
-        allowanceLimit > 0
+      hint: allowancesUnavailable
+        ? ALLOWANCES_UNAVAILABLE_MESSAGE
+        : allowanceLimit > 0
           ? `${formatGbp(allowanceLeft)} of tax allowance headroom left`
           : 'No allowance data for this grower yet',
     },
@@ -424,6 +434,8 @@ export interface BuildSnapshotInput {
   xp?: number | null;
   streak?: number | null;
   allowances?: AllowanceMap | null;
+  /** True when the allowances fetch failed (HTTP error), not merely empty. */
+  allowancesUnavailable?: boolean;
 }
 
 /** Fold a real portfolio (plus XP/allowance context) into the game view. */
@@ -432,6 +444,7 @@ export function buildPlotSnapshot({
   xp = 0,
   streak = 0,
   allowances = null,
+  allowancesUnavailable = false,
 }: BuildSnapshotInput): PlotSnapshot {
   const accounts = portfolio?.accounts ?? [];
   const beds = accounts.map(bedFromAccount);
@@ -465,7 +478,7 @@ export function buildPlotSnapshot({
     dayChangeGbp,
     beds,
     crops,
-    resources: resourcesFromPlot(portfolio, crops, allowances),
+    resources: resourcesFromPlot(portfolio, crops, allowances, allowancesUnavailable),
     grower,
     rank: growerRank(grower.level),
     streak: streak ?? 0,

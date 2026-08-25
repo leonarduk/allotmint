@@ -13,6 +13,7 @@ import {
   growerRank,
   growthStageFor,
   growthStageMeta,
+  isStillInPropagator,
   levelFromXp,
   resourcesFromPlot,
   starsFor,
@@ -352,6 +353,36 @@ describe('germinatingCrops', () => {
       'NEW.L',
     ]);
     expect(entries[2]).toMatchObject({ daysHeld: 0, pct: 0 });
+  });
+});
+
+describe('isStillInPropagator', () => {
+  const crop = (over: Partial<Crop>): Crop =>
+    ({
+      ticker: 'X.L',
+      sellEligible: false,
+      daysHeld: 10,
+      daysUntilEligible: 20,
+      nextEligibleSellDate: '2026-09-13',
+      ...over,
+    }) as Crop;
+
+  it('is the single check both the hub widget and crop detail rely on (#7010)', () => {
+    // Already eligible (backend says so) — never "still in the propagator",
+    // even if a stale-looking date is still attached.
+    expect(
+      isStillInPropagator(crop({ sellEligible: true, daysUntilEligible: 0 }))
+    ).toBe(false);
+    // days_until_eligible has counted down to zero or past — cleared, no
+    // matter what sellEligible says.
+    expect(isStillInPropagator(crop({ daysUntilEligible: 0 }))).toBe(false);
+    expect(isStillInPropagator(crop({ daysUntilEligible: -3 }))).toBe(false);
+    // Backend doesn't know — treat as cleared rather than stuck forever.
+    expect(isStillInPropagator(crop({ daysUntilEligible: null }))).toBe(
+      false
+    );
+    // Still serving the minimum holding period.
+    expect(isStillInPropagator(crop({ daysUntilEligible: 5 }))).toBe(true);
   });
 });
 

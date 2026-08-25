@@ -338,6 +338,29 @@ describe('preloadInstrumentHistory', () => {
     expect(missing).toEqual(['A.L', 'C.L']);
   });
 
+  it('resolves every requested spelling of a ticker when the backend case-dedupes the response (#7008 review)', async () => {
+    // The same instrument can appear with different casing across accounts
+    // (e.g. "ABC.L" and "abc.l"); backend/common/instrument_api.py's
+    // dedupe_tickers collapses those case-insensitively in the *request* and
+    // echoes back only one spelling, so the response won't have a literal
+    // "abc.l" key even though it did resolve that ticker.
+    mockGetInstrumentBatch.mockResolvedValue({
+      instruments: { 'ABC.L': { prices: [{ date: '2024-01-01', close: 1 }] } },
+      empty: [],
+      unknown: [],
+    });
+
+    const missing = await preloadInstrumentHistory(['ABC.L', 'abc.l'], 30);
+
+    expect(missing).toEqual([]);
+    expect(getCachedInstrumentHistory('ABC.L', 30)?.prices).toEqual([
+      { date: '2024-01-01', close: 1 },
+    ]);
+    expect(getCachedInstrumentHistory('abc.l', 30)?.prices).toEqual([
+      { date: '2024-01-01', close: 1 },
+    ]);
+  });
+
   it('prefers the instruments bucket over empty for a malformed dual-bucket response', async () => {
     // The backend's partition contract guarantees a ticker lands in exactly one
     // bucket, but this shouldn't crash or misclassify if that's ever violated.

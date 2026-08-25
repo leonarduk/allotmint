@@ -101,16 +101,31 @@ async function flushMiniBatch(days: number) {
         response = null;
       }
 
+      // The backend's dedupe_tickers collapses case-insensitive duplicates in
+      // the *request* to a single spelling, so e.g. requesting both "ABC.L"
+      // and "abc.l" (two accounts holding the same instrument, spelled
+      // differently) gets back only one of those spellings as a response
+      // key. Match case-insensitively here so every requested spelling still
+      // resolves, instead of only whichever one the backend happened to keep.
+      let instrumentsByUpper: Map<string, InstrumentBatchEntry> | null = null;
+      let emptyUpper: Set<string> | null = null;
+      if (response) {
+        instrumentsByUpper = new Map(
+          Object.entries(response.instruments).map(([t, entry]) => [t.toUpperCase(), entry]),
+        );
+        emptyUpper = new Set(response.empty.map((t) => t.toUpperCase()));
+      }
+
       for (const ticker of group) {
         const key = `${ticker}:${days}`;
         let result: MiniDetail | null = null;
 
-        if (response) {
-          const entry = response.instruments[ticker];
+        if (instrumentsByUpper && emptyUpper) {
+          const entry = instrumentsByUpper.get(ticker.toUpperCase());
           if (entry) {
             result = { prices: entry.prices, mini: entry.mini };
             getMiniTickerCache(ticker).set(days, result);
-          } else if (response.empty.includes(ticker)) {
+          } else if (emptyUpper.has(ticker.toUpperCase())) {
             result = { prices: [] };
             getMiniTickerCache(ticker).set(days, result);
           }

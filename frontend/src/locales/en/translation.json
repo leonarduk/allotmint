@@ -116,7 +116,8 @@
     "reason": "Reason",
     "ticker": "Ticker",
     "cancel": "Cancel",
-    "close": "Close"
+    "close": "Close",
+    "retry": "Retry"
   },
   "dataQuality": {
     "title": "Data Quality",

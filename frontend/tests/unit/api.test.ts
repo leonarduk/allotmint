@@ -311,6 +311,89 @@ describe("transient backend failures (issue #6193)", () => {
   });
 });
 
+describe("stalled-request timeout (issue #7074)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("aborts a request that never settles and surfaces a friendly timeout error instead of hanging forever", async () => {
+    // Simulates the exact symptom from #7074: GET /portfolio-group/all/instruments
+    // and GET /instrument/admin/groupings were observed to hang with no status
+    // and no failure. Like the real fetch() implementation, this mock only
+    // settles once its AbortSignal fires — proving the fix is what unsticks it,
+    // not some incidental rejection from the mock itself.
+    const mockFetch = vi.fn((_url: string, init?: RequestInit) => {
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => {
+          reject(new DOMException("Aborted", "AbortError"));
+        });
+      });
+    });
+    const { fetchJson: testFetchJson } = createClient(
+      "http://localhost:8000",
+      null,
+      mockFetch as unknown as typeof fetch,
+      { fetchTimeoutMs: 5000 },
+    );
+
+    const pending = testFetchJson("/portfolio-group/all/instruments");
+    const assertion = expect(pending).rejects.toMatchObject({
+      message: expect.stringMatching(/timed out/i),
+    });
+
+    await vi.advanceTimersByTimeAsync(5000);
+    await assertion;
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const requestInit = mockFetch.mock.calls[0]?.[1] as RequestInit | undefined;
+    expect(requestInit?.signal?.aborted).toBe(true);
+  });
+
+  it("does not time out a request that resolves comfortably before the deadline", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ ok: true }),
+    });
+    const { fetchJson: testFetchJson } = createClient(
+      "http://localhost:8000",
+      null,
+      mockFetch as unknown as typeof fetch,
+      { fetchTimeoutMs: 5000 },
+    );
+
+    await expect(testFetchJson("/owners")).resolves.toEqual({ ok: true });
+  });
+
+  it("still propagates a caller-initiated abort (e.g. component unmount) without relabeling it as a timeout", async () => {
+    const controller = new AbortController();
+    const mockFetch = vi.fn((_url: string, init?: RequestInit) => {
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => {
+          const err = new DOMException("Aborted", "AbortError");
+          reject(err);
+        });
+      });
+    });
+    const { fetchJson: testFetchJson } = createClient(
+      "http://localhost:8000",
+      null,
+      mockFetch as unknown as typeof fetch,
+      { fetchTimeoutMs: 5000 },
+    );
+
+    const pending = testFetchJson("/owners", { signal: controller.signal });
+    const assertion = expect(pending).rejects.toMatchObject({ name: "AbortError" });
+
+    controller.abort();
+    await assertion;
+  });
+});
+
 describe("fetchText / getLogs (issue #6111)", () => {
   beforeEach(() => {
     localStorage.clear();

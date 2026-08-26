@@ -793,9 +793,14 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   if (!slug) return <p>{t("group.select")}</p>;
   if (portfolioError)
     return (
-      <p role="alert" style={{ color: "red" }}>
-        {t("group.loadError")}
-      </p>
+      <div>
+        <p role="alert" style={{ color: "red" }}>
+          {t("group.loadError")}
+        </p>
+        <button type="button" onClick={refetchPortfolio}>
+          {t("common.retry")}
+        </button>
+      </div>
     );
   if (loading || !portfolio) return <p>{t("common.loading")}</p>;
 

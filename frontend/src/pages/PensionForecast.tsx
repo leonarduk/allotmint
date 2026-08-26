@@ -130,7 +130,7 @@ export default function PensionForecast() {
 
   const humanizeForecastError = (
     rawMessage: string,
-    context: { deathAge: number; retirementAge: number | null },
+    context: { deathAge: number; retirementAge: number | null; status?: number },
   ): string => {
     const knownDetailMessages: Record<
       string,
@@ -147,7 +147,21 @@ export default function PensionForecast() {
     const handler = knownDetailMessages[rawMessage.trim()];
     if (handler) return handler(context);
 
-    return "We couldn't calculate this forecast. Please check your inputs and try again.";
+    // Only an unrecognised *client* error is safely described as an input
+    // problem. Everything else -- a 5xx, a timeout, a network failure -- is
+    // not the user's inputs, and api.ts has already turned those into
+    // readable copy ("The backend service is temporarily unavailable...",
+    // the timeout message). Telling the user to "check your inputs" when the
+    // backend is down sends them to fix something that isn't broken, so pass
+    // the message through instead.
+    const status = context.status;
+    if (status != null && status >= 400 && status < 500) {
+      return "We couldn't calculate this forecast. Please check your inputs and try again.";
+    }
+    return (
+      rawMessage.trim() ||
+      "We couldn't calculate this forecast. Please try again."
+    );
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -180,7 +194,11 @@ export default function PensionForecast() {
       setErr(null);
     } catch (ex: any) {
       const rawMessage = ex instanceof Error ? ex.message : String(ex);
-      setErr(humanizeForecastError(rawMessage, { deathAge, retirementAge }));
+      const status =
+        typeof ex?.status === "number" ? (ex.status as number) : undefined;
+      setErr(
+        humanizeForecastError(rawMessage, { deathAge, retirementAge, status }),
+      );
       setData([]);
       setEarliestRetirementAge(null);
       setRetirementIncomeBreakdown(null);

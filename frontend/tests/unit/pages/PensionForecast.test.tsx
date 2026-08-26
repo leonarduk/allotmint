@@ -445,6 +445,57 @@ describe("PensionForecast page", () => {
     );
   });
 
+  it("falls back to generic input guidance for an unrecognised 400", async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: "steve", full_name: "Steve Leonard", accounts: [] },
+    ]);
+    const err = Object.assign(new Error("some_unmapped_detail"), {
+      status: 400,
+    });
+    mockGetPensionForecast.mockRejectedValue(err);
+
+    const { default: PensionForecast } = await import("@/pages/PensionForecast");
+
+    renderWithI18n(<PensionForecast />);
+
+    const btn = screen.getByRole("button", { name: /forecast/i });
+    await userEvent.click(btn);
+
+    await screen.findByText(
+      "We couldn't calculate this forecast. Please check your inputs and try again.",
+    );
+    expect(screen.queryByText(/some_unmapped_detail/)).not.toBeInTheDocument();
+  });
+
+  it("passes a backend-outage message through instead of blaming the user's inputs", async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: "steve", full_name: "Steve Leonard", accounts: [] },
+    ]);
+    // api.ts already replaces transient-status bodies with this copy; the page
+    // must not overwrite it with "check your inputs" (#7131 review follow-up).
+    const err = Object.assign(
+      new Error(
+        "The backend service is temporarily unavailable. Please try again.",
+      ),
+      { status: 503 },
+    );
+    mockGetPensionForecast.mockRejectedValue(err);
+
+    const { default: PensionForecast } = await import("@/pages/PensionForecast");
+
+    renderWithI18n(<PensionForecast />);
+
+    const btn = screen.getByRole("button", { name: /forecast/i });
+    await userEvent.click(btn);
+
+    await screen.findByText(
+      "The backend service is temporarily unavailable. Please try again.",
+    );
+    expect(
+      screen.queryByText(/check your inputs/i),
+    ).not.toBeInTheDocument();
+  });
+
   it("surfaces employer contribution adjustments", async () => {
     mockGetOwners.mockResolvedValue([
       { owner: "alex", full_name: "Alex Example", accounts: [] },

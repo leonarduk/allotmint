@@ -1063,75 +1063,81 @@ export async function runSmoke(base: string) {
   }
   await ensureVirtualPortfolio(normalizedBase, fixtures.virtualPortfolioDeleteId);
 
-  for (const ep of smokeEndpoints) {
-    let url = normalizedBase + fillPath(ep.path, fixtures, ep.method);
-    const query = materializeQuery(ep.query, ep.path, fixtures);
-    if (query) url += '?' + new URLSearchParams(query).toString();
-    let body: any = undefined;
-    let headers: any = undefined;
-    const requestBody = materializeBody(ep.body, ep.path, fixtures);
-    if (requestBody !== undefined) {
-      if ((requestBody as any).__form__) {
-        const fd = new FormData();
-        for (const [k, v] of Object.entries((requestBody as any).__form__)) {
-          fd.set(k, v === '__file__' ? new Blob(['test']) : (v as any));
+  // Wrap the sweep so the approvals teardown below always runs, even when an
+  // endpoint check throws part-way through — otherwise a single unrelated smoke
+  // failure leaves the stray PFE approval persisted for the owner (#7111).
+  try {
+    for (const ep of smokeEndpoints) {
+      let url = normalizedBase + fillPath(ep.path, fixtures, ep.method);
+      const query = materializeQuery(ep.query, ep.path, fixtures);
+      if (query) url += '?' + new URLSearchParams(query).toString();
+      let body: any = undefined;
+      let headers: any = undefined;
+      const requestBody = materializeBody(ep.body, ep.path, fixtures);
+      if (requestBody !== undefined) {
+        if ((requestBody as any).__form__) {
+          const fd = new FormData();
+          for (const [k, v] of Object.entries((requestBody as any).__form__)) {
+            fd.set(k, v === '__file__' ? new Blob(['test']) : (v as any));
+          }
+          body = fd;
+        } else if (requestBody instanceof FormData) {
+          body = requestBody;
+        } else {
+          body = JSON.stringify(requestBody);
+          headers = { 'Content-Type': 'application/json' };
         }
-        body = fd;
-      } else if (requestBody instanceof FormData) {
-        body = requestBody;
-      } else {
-        body = JSON.stringify(requestBody);
-        headers = { 'Content-Type': 'application/json' };
       }
-    }
-    let res: Awaited<ReturnType<typeof fetch>>;
-    try {
-      res = await fetch(url, { method: ep.method, body, headers });
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      throw new Error(`Network error while calling ${ep.method} ${ep.path}: ${reason}`);
-    }
-    if (res.status >= 500) {
-      throw new Error(`${ep.method} ${ep.path} -> ${res.status}`);
-    }
-
-    // Allow 401/403 for endpoints that require roles; they still prove the route exists
-    // Allow 409 for endpoints where we try to create data that may already exist.
-    // Allow 400 for endpoints which intentionally enforce required params (e.g. /instrument/search)
-    if (
-      res.status >= 400 &&
-      res.status !== 400 &&
-      res.status !== 401 &&
-      res.status !== 403 &&
-      res.status !== 409
-    ) {
-      throw new Error(`${ep.method} ${ep.path} -> ${res.status}`);
-    }
-    const tag =
-      res.ok
-        ? "✓"
-        : res.status === 401 || res.status === 403
-? "○"
-          : res.status === 409
-            ? "△"
-            : "•";
-    console.log(`${tag} ${ep.method} ${ep.path} (${res.status})`);
-
-    if (ep.method === 'POST' && ep.path === '/virtual-portfolios' && res.ok) {
+      let res: Awaited<ReturnType<typeof fetch>>;
       try {
-        const created = await res.clone().json() as { id?: unknown };
-        const id = String(created.id ?? '').trim();
-        if (id) {
-          fixtures.virtualPortfolioId = id;
-        }
-      } catch {
-        // Ignore response parsing failures; the pre-resolved id remains available.
+        res = await fetch(url, { method: ep.method, body, headers });
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        throw new Error(`Network error while calling ${ep.method} ${ep.path}: ${reason}`);
       }
-    }
+      if (res.status >= 500) {
+        throw new Error(`${ep.method} ${ep.path} -> ${res.status}`);
+      }
 
+      // Allow 401/403 for endpoints that require roles; they still prove the route exists
+      // Allow 409 for endpoints where we try to create data that may already exist.
+      // Allow 400 for endpoints which intentionally enforce required params (e.g. /instrument/search)
+      if (
+        res.status >= 400 &&
+        res.status !== 400 &&
+        res.status !== 401 &&
+        res.status !== 403 &&
+        res.status !== 409
+      ) {
+        throw new Error(`${ep.method} ${ep.path} -> ${res.status}`);
+      }
+      const tag =
+        res.ok
+          ? "✓"
+          : res.status === 401 || res.status === 403
+  ? "○"
+            : res.status === 409
+              ? "△"
+              : "•";
+      console.log(`${tag} ${ep.method} ${ep.path} (${res.status})`);
+
+      if (ep.method === 'POST' && ep.path === '/virtual-portfolios' && res.ok) {
+        try {
+          const created = await res.clone().json() as { id?: unknown };
+          const id = String(created.id ?? '').trim();
+          if (id) {
+            fixtures.virtualPortfolioId = id;
+          }
+        } catch {
+          // Ignore response parsing failures; the pre-resolved id remains available.
+        }
+      }
+
+    }
+  } finally {
+    await cleanupSmokeApprovals(normalizedBase, fixtures.owner);
   }
 
-  await cleanupSmokeApprovals(normalizedBase, fixtures.owner);
   await runAuthenticatedCheck(normalizedBase, authToken);
 }
 
@@ -1144,14 +1150,25 @@ export async function runSmoke(base: string) {
 // explicit, best-effort teardown after the sweep so every run leaves the
 // account clean regardless of the generated endpoint ordering.
 async function cleanupSmokeApprovals(base: string, owner: string): Promise<void> {
+  const url = `${base}/accounts/${encodeURIComponent(owner)}/approvals`;
   try {
-    await fetch(`${base}/accounts/${encodeURIComponent(owner)}/approvals`, {
+    const res = await fetch(url, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ticker: 'PFE' }),
     });
-  } catch {
-    // Best-effort teardown only; a failure here should not fail the smoke run.
+    // Don't fail the run on a bad teardown, but never let it fail silently:
+    // a swallowed non-2xx here is exactly how the stray approval went unnoticed.
+    if (!res.ok) {
+      console.warn(
+        `! smoke approvals teardown: DELETE ${url} -> ${res.status}; the PFE fixture may still be persisted for '${owner}'`,
+      );
+    }
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    console.warn(
+      `! smoke approvals teardown: DELETE ${url} failed (${reason}); the PFE fixture may still be persisted for '${owner}'`,
+    );
   }
 }
 

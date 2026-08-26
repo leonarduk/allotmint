@@ -87,6 +87,39 @@ def test_aggregate_by_region_totals_and_percentages():
     assert regions["Unknown"]["contribution_pct"] == pytest.approx(5.7143, rel=1e-3)
 
 
+def test_aggregate_by_region_merges_uk_aliases():
+    portfolio = {
+        "accounts": [
+            {
+                "holdings": [
+                    {
+                        "ticker": "CASH.GBP",
+                        "region": "United Kingdom",
+                        "units": 425858.04,
+                        "market_value_gbp": 425858.04,
+                        "cost_gbp": 425858.04,
+                        "gain_gbp": 0,
+                    },
+                    {
+                        "ticker": "AAA.L",
+                        "region": "UK",
+                        "market_value_gbp": 259547.75,
+                        "cost_gbp": 200000,
+                        "gain_gbp": 59547.75,
+                    },
+                ]
+            }
+        ]
+    }
+
+    region_rows = portfolio_utils.aggregate_by_region(portfolio)
+    regions = {row["region"]: row for row in region_rows}
+
+    assert set(regions) == {"United Kingdom"}
+    assert regions["United Kingdom"]["market_value_gbp"] == pytest.approx(425858.04 + 259547.75)
+    assert regions["United Kingdom"]["cost_gbp"] == pytest.approx(425858.04 + 200000)
+
+
 def test_holding_metadata_overrides_instrument_defaults(monkeypatch):
     monkeypatch.setattr(
         portfolio_utils,

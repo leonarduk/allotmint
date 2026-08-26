@@ -927,6 +927,26 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
     return list(rows.values())
 
 
+# Known aliases for the same region under different provider/holding-source
+# labels, normalised to a single canonical name before grouping. Deliberately
+# narrow: only collapses labels that unambiguously refer to the same country
+# (e.g. "UK" and "United Kingdom"), never broader groupings like "England" ->
+# "Europe". See allotmint#7107.
+_REGION_ALIASES: Dict[str, str] = {
+    "UK": "United Kingdom",
+    "U.K.": "United Kingdom",
+    "GB": "United Kingdom",
+    "GBR": "United Kingdom",
+    "GREAT BRITAIN": "United Kingdom",
+}
+
+
+def _normalise_region_label(key: str) -> str:
+    """Map known region aliases (e.g. ``UK``) to their canonical label."""
+
+    return _REGION_ALIASES.get(key.upper(), key)
+
+
 def _aggregate_by_field(portfolio: dict | VirtualPortfolio, field: str, base_currency: str = "GBP") -> List[dict]:
     """Helper to aggregate ticker rows by ``field`` (e.g. sector/region)."""
     rows = aggregate_by_ticker(portfolio, base_currency)
@@ -941,6 +961,8 @@ def _aggregate_by_field(portfolio: dict | VirtualPortfolio, field: str, base_cur
             key = "Unknown"
         elif priority < 2:
             key = "Unknown"
+        elif field == "region":
+            key = _normalise_region_label(key)
         g = groups.setdefault(
             key,
             {

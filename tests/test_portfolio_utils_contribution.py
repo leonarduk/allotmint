@@ -40,9 +40,12 @@ def test_aggregate_by_sector_and_region():
     assert sectors["Tech"]["gain_gbp"] == 50
     assert sectors["Health"]["gain_gbp"] == -20
     assert regions["US"]["gain_gbp"] == 50
-    assert regions["UK"]["gain_gbp"] == -20
+    # "UK" is normalised to the canonical "United Kingdom" label during
+    # region aggregation so it merges with any "United Kingdom"-labelled
+    # holdings instead of appearing as a separate slice. See allotmint#7107.
+    assert regions["United Kingdom"]["gain_gbp"] == -20
 
     assert sectors["Tech"]["contribution_pct"] == pytest.approx(16.666, rel=1e-3)
     assert sectors["Health"]["contribution_pct"] == pytest.approx(-6.666, rel=1e-3)
     assert regions["US"]["contribution_pct"] == pytest.approx(16.666, rel=1e-3)
-    assert regions["UK"]["contribution_pct"] == pytest.approx(-6.666, rel=1e-3)
+    assert regions["United Kingdom"]["contribution_pct"] == pytest.approx(-6.666, rel=1e-3)

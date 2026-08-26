@@ -1,7 +1,6 @@
 import type { CSSProperties } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import styles from '../plot.module.css';
-import { cropGlyph } from '../cropGlyph';
 import { usePlotData } from '../PlotDataContext';
 import {
   findCropByRouteId,
@@ -14,6 +13,7 @@ import {
 } from '../plotModel';
 import Meter from '../components/Meter';
 import StarRating from '../components/StarRating';
+import CropGlyph from '../components/CropGlyph';
 
 /**
  * The four "abilities" are just the holding's real stats given garden names,
@@ -151,12 +151,14 @@ export default function CropDetail({ basePath }: { basePath: string }) {
         </section>
 
         <section className={styles.detailPortrait}>
-          <span className={styles.detailGlyph} aria-hidden="true">
-            {cropGlyph(crop.ticker, crop.sector)}
+          <span className={styles.detailGlyph}>
+            <CropGlyph
+              ticker={crop.ticker}
+              sector={crop.sector}
+              stage={crop.stage}
+            />
           </span>
-          <span className={styles.cropStageChip}>
-            <span aria-hidden="true">{stage.icon}</span> {stage.label}
-          </span>
+          <span className={styles.cropStageChip}>{stage.label}</span>
           <StarRating value={crop.stars} />
           <div className={styles.radialLabel}>Plot value</div>
           <div className={styles.radialValue}>{formatGbp(crop.valueGbp)}</div>

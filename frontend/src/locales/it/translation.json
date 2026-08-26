@@ -116,7 +116,8 @@
     "other": "Altro",
     "period": "Periodo:",
     "reason": "Motivo",
-    "ticker": "Ticker"
+    "ticker": "Ticker",
+    "retry": "Riprova"
   },
   "dashboard": {
     "alphaVsBenchmark": "Alpha vs benchmark",

@@ -29,6 +29,12 @@ def suggest_trades(actual: Dict[str, float], target: Dict[str, float]) -> List[d
         Each entry has ``ticker`` (str), ``action`` ("buy" or "sell") and
         ``amount`` (float, absolute currency amount to trade).
     """
+    for ticker, weight in target.items():
+        if weight < 0 or weight > 1:
+            raise ValueError(
+                f"Target weight for {ticker} must be between 0.0 and 1.0, got {weight:.6f}"
+            )
+
     total_weight = sum(target.values())
     if abs(total_weight - 1.0) > 1e-6:
         raise ValueError(f"Target weights must sum to 1.0, got {total_weight:.6f}")

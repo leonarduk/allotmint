@@ -237,6 +237,21 @@ describe('useInstrumentHistory', () => {
       expect(mini.result.current.data?.mini?.[30]).toEqual(prices.slice(-30));
     });
 
+    it('derives the whole prices array when days exceeds its length', async () => {
+      // e.g. a ticker with only 10 days of history queried at a 30-day range --
+      // prices.slice(-30) on a 10-element array returns all 10, matching what
+      // the backend's out[-30:] would have produced for the same short series.
+      const prices = Array.from({ length: 10 }, (_, i) => ({ date: `d${i}`, close: i }));
+      mockGetInstrumentDetail.mockResolvedValue({ prices, positions: [] });
+
+      const full = renderHook(() => useInstrumentHistory('ABC', 30));
+      await waitFor(() => expect(full.result.current.data).not.toBeNull());
+
+      const mini = renderHook(() => useInstrumentHistory('ABC', 30, { acceptMiniOnly: true }));
+
+      expect(mini.result.current.data?.mini?.[30]).toEqual(prices);
+    });
+
     it('a batch-derived cache entry does not satisfy a later full-detail request', async () => {
       mockGetInstrumentBatch.mockResolvedValue({
         instruments: { ABC: { prices: [{ date: '2024-01-01', close: 10 }] } },

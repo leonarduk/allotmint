@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   getEvents,
@@ -72,6 +72,7 @@ export default function ScenarioTester() {
     loadJSON<CustomHolding[]>("scenario.customHoldings", []),
   );
   const [removedKeys, setRemovedKeys] = useState<Set<string>>(() => new Set());
+  const inFlightPortfolioRequests = useRef<Set<string>>(new Set());
 
   const fmt = new Intl.NumberFormat("en-GB", {
     style: "currency",
@@ -115,6 +116,12 @@ export default function ScenarioTester() {
 
   const ensurePortfolioLoaded = useCallback(
     (owner: string) => {
+      const requestKey = `${owner}::${effectiveDate ?? ""}`;
+      if (inFlightPortfolioRequests.current.has(requestKey)) {
+        return;
+      }
+
+      let shouldFetch = true;
       setPortfolioStates((prev) => {
         const current = prev[owner];
         if (
@@ -122,6 +129,7 @@ export default function ScenarioTester() {
           (current.status === "loading" || current.status === "ready") &&
           current.asOf === effectiveDate
         ) {
+          shouldFetch = false;
           return prev;
         }
         return {
@@ -129,6 +137,11 @@ export default function ScenarioTester() {
           [owner]: { status: "loading", asOf: effectiveDate ?? null },
         };
       });
+      if (!shouldFetch) {
+        return;
+      }
+
+      inFlightPortfolioRequests.current.add(requestKey);
 
       getPortfolio(owner, { asOf: effectiveDate })
         .then((pf) => {
@@ -163,6 +176,9 @@ export default function ScenarioTester() {
               },
             };
           });
+        })
+        .finally(() => {
+          inFlightPortfolioRequests.current.delete(requestKey);
         });
     },
     [effectiveDate],

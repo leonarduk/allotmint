@@ -140,4 +140,24 @@ describe("ScenarioTester page", () => {
 
     expect(await screen.findByText("fail")).toBeInTheDocument();
   });
+
+  it("fires exactly one GET /portfolio/{owner} request when a single portfolio is selected (#7105)", async () => {
+    mockGetEvents.mockResolvedValueOnce([]);
+    mockGetOwners.mockResolvedValueOnce([
+      { owner: "alex", accounts: ["isa"], full_name: "Alex Leonard" },
+    ]);
+    mockGetPortfolio.mockResolvedValue({
+      accounts: [],
+    } as any);
+
+    render(<ScenarioTester />);
+
+    await screen.findByText("Alex Leonard");
+    const [ownerCheckbox] = screen.getAllByRole("checkbox");
+    fireEvent.click(ownerCheckbox);
+
+    await screen.findByText("Loaded");
+
+    expect(mockGetPortfolio).toHaveBeenCalledTimes(1);
+  });
 });

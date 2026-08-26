@@ -80,8 +80,11 @@ export default function MarketOverview() {
       <h1 className="mb-4 text-2xl">{pageHeading}</h1>
 
       <div className="mb-8">
+        {/* The bars plot % change, not raw level (#7106) -- heading must say
+            so, or this is #2541's mislabelled axis all over again. The raw
+            levels are still available in the table below. */}
         <h2 className="mb-2 text-xl">
-          {t('market.indexLevels', { defaultValue: 'Index Levels' })}
+          {t('market.indexChange', { defaultValue: 'Index % Change' })}
         </h2>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={indexData}>

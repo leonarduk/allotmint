@@ -332,6 +332,7 @@
   },
   "loadingPortfolio": "Carregando portfólio…",
   "market": {
+    "indexChange": "Variação % dos índices",
     "indexLevels": "Níveis dos índices",
     "latestHeadlines": "Últimas manchetes",
     "sectorPerformance": "Desempenho por setor"

@@ -490,6 +490,7 @@
   },
   "loadingPortfolio": "Loading portfolio…",
   "market": {
+    "indexChange": "Index % Change",
     "indexLevels": "Index Levels",
     "latestHeadlines": "Latest Headlines",
     "sectorPerformance": "Sector Performance"

@@ -1,8 +1,8 @@
 import type { CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import styles from '../plot.module.css';
-import { cropGlyph } from '../cropGlyph';
 import { formatGbp, formatPct, growthStageMeta, type Crop } from '../plotModel';
+import CropGlyph from './CropGlyph';
 import StarRating from './StarRating';
 
 interface CropCardProps {
@@ -49,15 +49,17 @@ export default function CropCard({
         to={`${basePath}/crops/${encodeURIComponent(crop.id)}`}
         className={styles.cropCard}
       >
-        <span className={styles.cropGlyph} aria-hidden="true">
-          {cropGlyph(crop.ticker, crop.sector)}
+        <span className={styles.cropGlyph}>
+          <CropGlyph
+            ticker={crop.ticker}
+            sector={crop.sector}
+            stage={crop.stage}
+          />
         </span>
         <StarRating value={crop.stars} />
         <span className={styles.cropTicker}>{crop.ticker}</span>
         <span className={styles.cropName}>{crop.name}</span>
-        <span className={styles.cropStageChip}>
-          <span aria-hidden="true">{stage.icon}</span> {stage.label}
-        </span>
+        <span className={styles.cropStageChip}>{stage.label}</span>
         <span className={styles.cropValue}>{formatGbp(crop.valueGbp)}</span>
         <span className={crop.gainPct >= 0 ? styles.gain : styles.loss}>
           {formatPct(crop.gainPct)}

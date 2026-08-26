@@ -183,4 +183,71 @@ describe("Watchlist page", () => {
     unmount();
     vi.useRealTimers();
   });
+
+  describe("symbol chip editor (#7110)", () => {
+    beforeEach(() => {
+      (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      localStorage.setItem("watchlistSymbols", "AAA,BBB");
+    });
+
+    it("gives the add field an accessible name and renders a chip per symbol", async () => {
+      render(<Watchlist />);
+
+      expect(
+        await screen.findByLabelText("Watched tickers"),
+      ).toBeInTheDocument();
+      expect(screen.getByLabelText("Remove AAA")).toBeInTheDocument();
+      expect(screen.getByLabelText("Remove BBB")).toBeInTheDocument();
+    });
+
+    it("adds a typed ticker on Enter, uppercased, and clears the field", async () => {
+      render(<Watchlist />);
+
+      const input = (await screen.findByLabelText(
+        "Watched tickers",
+      )) as HTMLInputElement;
+      fireEvent.change(input, { target: { value: " ccc " } });
+      fireEvent.keyDown(input, { key: "Enter" });
+
+      expect(input.value).toBe("");
+      expect(screen.getByLabelText("Remove CCC")).toBeInTheDocument();
+      expect(localStorage.getItem("watchlistSymbols")).toBe("AAA,BBB,CCC");
+    });
+
+    it("removes a symbol via its chip button", async () => {
+      render(<Watchlist />);
+
+      fireEvent.click(await screen.findByLabelText("Remove AAA"));
+
+      expect(screen.queryByLabelText("Remove AAA")).not.toBeInTheDocument();
+      expect(localStorage.getItem("watchlistSymbols")).toBe("BBB");
+    });
+
+    it("ignores a duplicate regardless of case", async () => {
+      render(<Watchlist />);
+
+      const input = (await screen.findByLabelText(
+        "Watched tickers",
+      )) as HTMLInputElement;
+      fireEvent.change(input, { target: { value: "aaa" } });
+      fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+      expect(input.value).toBe("");
+      expect(localStorage.getItem("watchlistSymbols")).toBe("AAA,BBB");
+    });
+
+    it("splits a pasted comma-separated list instead of storing it as one symbol", async () => {
+      render(<Watchlist />);
+
+      const input = (await screen.findByLabelText(
+        "Watched tickers",
+      )) as HTMLInputElement;
+      fireEvent.change(input, { target: { value: "CCC, DDD ,AAA" } });
+      fireEvent.keyDown(input, { key: "Enter" });
+
+      expect(localStorage.getItem("watchlistSymbols")).toBe("AAA,BBB,CCC,DDD");
+      expect(screen.getByLabelText("Remove CCC")).toBeInTheDocument();
+      expect(screen.getByLabelText("Remove DDD")).toBeInTheDocument();
+    });
+  });
 });

@@ -42,6 +42,7 @@ export function Watchlist() {
   const [symbols, setSymbols] = useState(() =>
     localStorage.getItem("watchlistSymbols") || DEFAULT_SYMBOLS,
   );
+  const [newSymbol, setNewSymbol] = useState("");
   const [intervalMs, setIntervalMs] = useState(60000);
   const [rows, setRows] = useState<QuoteRow[]>([]);
   const [auto, setAuto] = useState(true);
@@ -53,6 +54,34 @@ export function Watchlist() {
   const symbolList = useMemo(
     () => symbols.split(",").map((s) => s.trim()).filter(Boolean),
     [symbols],
+  );
+
+  const addSymbol = useCallback(() => {
+    // Accept a comma-separated paste as well as a single ticker: the field
+    // this replaced held the whole CSV list, so pasting one back in is the
+    // obvious move for anyone restoring a watchlist -- and splitting here
+    // stops "AAA,BBB" being stored as one unquotable symbol (#7110).
+    const candidates = newSymbol
+      .split(",")
+      .map((s) => s.trim().toUpperCase())
+      .filter(Boolean);
+    if (!candidates.length) {
+      setNewSymbol("");
+      return;
+    }
+    const seen = new Set(symbolList.map((s) => s.toUpperCase()));
+    const additions = candidates.filter((c) => !seen.has(c) && seen.add(c));
+    if (additions.length) {
+      setSymbols([...symbolList, ...additions].join(","));
+    }
+    setNewSymbol("");
+  }, [newSymbol, symbolList]);
+
+  const removeSymbol = useCallback(
+    (symbol: string) => {
+      setSymbols(symbolList.filter((s) => s !== symbol).join(","));
+    },
+    [symbolList],
   );
 
   const fetchData = useCallback(async () => {
@@ -140,11 +169,53 @@ export function Watchlist() {
         {t("watchlist.title", { defaultValue: "Watchlist" })}
       </h1>
       <div className="mb-2">
-        <input
-          className="w-full"
-          value={symbols}
-          onChange={(e) => setSymbols(e.target.value)}
-        />
+        <label htmlFor="watchlist-symbol-input" className="mb-1 block">
+          {t("watchlist.symbolsLabel", { defaultValue: "Watched tickers" })}
+        </label>
+        <div className="mb-1 flex flex-wrap gap-1">
+          {symbolList.map((s) => (
+            <span
+              key={s}
+              className="flex items-center gap-1 rounded border px-2 py-0.5"
+            >
+              {s}
+              <button
+                type="button"
+                aria-label={t("watchlist.removeSymbol", {
+                  defaultValue: "Remove {{symbol}}",
+                  symbol: s,
+                })}
+                onClick={() => removeSymbol(s)}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+        <div className="flex gap-1">
+          <input
+            id="watchlist-symbol-input"
+            className="w-full"
+            value={newSymbol}
+            placeholder={t("watchlist.symbolsPlaceholder", {
+              defaultValue:
+                "Add a ticker (e.g. ^FTSE, EURGBP=X, VUSA.L) and press Enter",
+            })}
+            aria-label={t("watchlist.symbolsLabel", {
+              defaultValue: "Watched tickers",
+            })}
+            onChange={(e) => setNewSymbol(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                addSymbol();
+              }
+            }}
+          />
+          <button type="button" onClick={addSymbol}>
+            {t("watchlist.addSymbol", { defaultValue: "Add" })}
+          </button>
+        </div>
       </div>
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <label className="flex items-center gap-1">

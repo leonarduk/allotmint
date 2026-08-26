@@ -131,6 +131,30 @@ describe("Rebalance page", () => {
     ).toBeInTheDocument();
   });
 
+  it("rejects a negative target weight even when the row totals still reach 100% (#7130)", async () => {
+    mockGetRebalance.mockResolvedValue([]);
+    const { default: Rebalance } = await import("@/pages/Rebalance");
+    render(<Rebalance />);
+
+    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("alex"));
+    await screen.findByDisplayValue("66.67");
+    // -10 / 110 still sums to 100, so the sum check alone lets this through --
+    // and the backend would then suggest selling more AAA than is held.
+    fireEvent.change(screen.getByLabelText("Target weight (%) for AAA"), {
+      target: { value: "-10" },
+    });
+    fireEvent.change(screen.getByLabelText("Target weight (%) for BBB"), {
+      target: { value: "110" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /rebalance/i }));
+
+    expect(mockGetRebalance).not.toHaveBeenCalled();
+    expect(
+      screen.getByText("Target weight for AAA must be between 0% and 100%."),
+    ).toBeInTheDocument();
+  });
+
   it("normalizes submitted targets to avoid backend precision 400s", async () => {
     mockGetRebalance.mockResolvedValue([]);
     const { default: Rebalance } = await import("@/pages/Rebalance");

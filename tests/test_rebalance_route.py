@@ -49,3 +49,31 @@ def test_rebalance_route_invalid_target_sum():
 
     resp = client.post("/rebalance", json={"actual": {"AAA": 100.0}, "target": {"AAA": 0.9}})
     assert resp.status_code == 400
+
+
+def test_suggest_trades_negative_target_weight():
+    actual = {"AAA": 100.0, "BBB": 50.0}
+    target = {"AAA": -0.1, "BBB": 1.1}
+    with pytest.raises(ValueError, match="AAA"):
+        suggest_trades(actual, target)
+
+
+def test_suggest_trades_target_weight_over_one():
+    actual = {"AAA": 100.0, "BBB": 50.0}
+    target = {"AAA": 1.5, "BBB": -0.5}
+    with pytest.raises(ValueError, match="AAA"):
+        suggest_trades(actual, target)
+
+
+def test_rebalance_route_negative_target_weight():
+    from backend.routes import rebalance as rebalance_route
+
+    app = FastAPI()
+    app.include_router(rebalance_route.router)
+    client = TestClient(app)
+
+    resp = client.post(
+        "/rebalance",
+        json={"actual": {"AAA": 100.0, "BBB": 50.0}, "target": {"AAA": -0.1, "BBB": 1.1}},
+    )
+    assert resp.status_code == 400

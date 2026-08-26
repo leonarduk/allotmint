@@ -219,6 +219,15 @@ export default function Rebalance() {
       validRows.push({ ticker: normalizedTicker, current, weightPct });
     }
 
+    const outOfRangeRow = validRows.find((row) => row.weightPct < 0 || row.weightPct > 100);
+    if (outOfRangeRow) {
+      setErr(
+        `Target weight for ${outOfRangeRow.ticker} must be between 0% and 100%.`,
+      );
+      setTrades(null);
+      return;
+    }
+
     const totalInputCurrent = validRows.reduce((sum, row) => sum + row.current, 0);
     const totalInputTargetPct = validRows.reduce((sum, row) => sum + row.weightPct, 0);
     if (Math.abs(totalInputTargetPct - 100) > 0.01) {

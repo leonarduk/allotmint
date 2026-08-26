@@ -32,6 +32,12 @@ vi.mock("@/api/reports", () => ({
   listReportTemplates: mockListTemplates,
 }));
 
+const mockCompleteTrackedChore = vi.hoisted(() => vi.fn());
+
+vi.mock("@/choreCompletion", () => ({
+  completeTrackedChore: mockCompleteTrackedChore,
+}));
+
 const allTabs = {
   group: true,
   owner: true,
@@ -185,5 +191,17 @@ describe("Reports page", () => {
       "href",
       "http://test/reports/alex/custom-holdings?format=pdf",
     );
+  });
+
+  it("completes the 'run a report' chore when a live download link is clicked", async () => {
+    await renderReports();
+
+    const ownerSelect = await screen.findByLabelText(/Owner/i);
+    fireEvent.change(ownerSelect, { target: { value: "alex" } });
+
+    const csvLink = await screen.findByRole("link", { name: /Download CSV/i });
+    fireEvent.click(csvLink);
+
+    expect(mockCompleteTrackedChore).toHaveBeenCalledWith("run_a_report");
   });
 });

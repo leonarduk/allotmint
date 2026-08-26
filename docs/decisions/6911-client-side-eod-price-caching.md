@@ -736,14 +736,14 @@ Rules, so concurrent tabs converge instead of fighting:
 
 Each phase ships independently and is useful alone.
 
-| Phase | Work | Depends on | Payoff |
-|---|---|---|---|
-| 0 | `GET /data/version`: `price_epoch` (incl. series manifest) + `accounts_rev` | — | enables everything |
-| 1 | Cache headers, ETag, `304` | 0 | backend-only; instant win, no FE change |
-| 2 | IndexedDB cache keyed on version vector, namespaced by identity | 0 | survives reload |
-| 3a | Batch endpoint (`/instrument/batch`), `mini` off in *its* payload | — | fixes cold-cache first paint |
-| 3b | `mini` off by default on `/instrument/` | 2 (§4.5) | ~37% off the single-instrument payload |
-| 4 | Idle prefetch, `BroadcastChannel`, drop duplicate 429 backoff | 2, 3a | polish |
+| Phase | Work | Depends on | Payoff | Status |
+|---|---|---|---|---|
+| 0 | `GET /data/version`: `price_epoch` (incl. series manifest) + `accounts_rev` | — | enables everything | Not started |
+| 1 | Cache headers, ETag, `304` | 0 | backend-only; instant win, no FE change | Not started |
+| 2 | IndexedDB cache keyed on version vector, namespaced by identity | 0 | survives reload | Not started |
+| 3a | Batch endpoint (`/instrument/batch`), `mini` off in *its* payload | — | fixes cold-cache first paint | **Done** (#6985, #7008) |
+| 3b | `mini` off by default on `/instrument/` | 2 (§4.5) | ~37% off the single-instrument payload | **Done** |
+| 4 | Idle prefetch, `BroadcastChannel`, drop duplicate 429 backoff | 2, 3a | polish | Not started |
 
 Phases 1 and 3a are independent of each other and can run in parallel. **Phase 3a
 is the one to do first if only one phase is ever done** — it is the only one
@@ -761,6 +761,23 @@ sparkline and tile. The split above separates what genuinely has no dependency
 per-holding duplication actually multiplies) from what does (3b). Sequencing a
 phase behind a dependency it does not have is cheap; shipping one whose
 dependency was missed is not.
+
+**3b's "depends on 2 (§4.5)" line is also imprecise, and shipping 3b exposed
+it.** §4.5's date-cutoff slicing derives an arbitrary range from one cached
+canonical (e.g. 365-day) series, which only matters once Phase 2's persistent
+cache holds that canonical series — a genuine Phase 2 dependency. But the actual
+regression 3b had to guard against is narrower: a full-detail cache entry
+already in `useInstrumentHistory`'s in-memory `cache` (populated by
+`InstrumentResearch.tsx`) can share a `(ticker, days)` key with a
+`acceptMiniOnly` read from `Sparkline.tsx`/`InstrumentTile.tsx`, and that
+entry's `.prices` already covers exactly the requested `days` window — so
+reproducing `mini[days]` from it is a same-window row slice
+(`out[-days:]`, matching `backend/common/instrument_api.py`'s existing
+contract), not a cross-window date-cutoff derivation. 3b therefore shipped
+with a small, self-contained slicing shim (`withDerivedMini` in
+`useInstrumentHistory.ts`) rather than waiting on Phase 2, which remains
+unstarted. §4.5's date-cutoff slicing is still the right design once Phase 2's
+canonical-series cache exists; nothing here supersedes it.
 
 ---
 

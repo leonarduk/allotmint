@@ -216,6 +216,27 @@ describe('useInstrumentHistory', () => {
       expect(mockGetInstrumentBatch).not.toHaveBeenCalled();
     });
 
+    it('derives mini from prices when a full-detail cache entry has none (Phase 3b, ADR #6911 §8)', async () => {
+      // /instrument/ now omits `mini` by default (include_mini opt-in), so a
+      // full-detail entry warmed by InstrumentResearch.tsx (no acceptMiniOnly)
+      // has no `.mini` for a later same-(ticker,days) sparkline read to find.
+      const prices = Array.from({ length: 40 }, (_, i) => ({ date: `d${i}`, close: i }));
+      mockGetInstrumentDetail.mockResolvedValue({ prices, positions: [] });
+
+      const full = renderHook(() => useInstrumentHistory('ABC', 30));
+      await waitFor(() => expect(full.result.current.data).not.toBeNull());
+      expect(full.result.current.data?.mini).toBeUndefined();
+
+      const mini = renderHook(() => useInstrumentHistory('ABC', 30, { acceptMiniOnly: true }));
+
+      expect(mini.result.current.loading).toBe(false);
+      expect(mockGetInstrumentBatch).not.toHaveBeenCalled();
+      // Row-count slice of the tail, matching backend/common/instrument_api.py's
+      // `out[-30:]` contract -- not a calendar-day cutoff (ADR §4.5 is a
+      // different, larger derivation for a different cache shape).
+      expect(mini.result.current.data?.mini?.[30]).toEqual(prices.slice(-30));
+    });
+
     it('a batch-derived cache entry does not satisfy a later full-detail request', async () => {
       mockGetInstrumentBatch.mockResolvedValue({
         instruments: { ABC: { prices: [{ date: '2024-01-01', close: 10 }] } },
@@ -279,6 +300,40 @@ describe('useInstrumentHistory', () => {
       expect(result.current.data).toBeNull();
       expect(result.current.error).toBeNull();
     });
+  });
+});
+
+describe('getCachedInstrumentHistory mini derivation (Phase 3b, ADR #6911 §8)', () => {
+  beforeEach(() => {
+    mockGetInstrumentDetail.mockReset();
+    mockGetInstrumentBatch.mockReset();
+    __clearInstrumentHistoryCache();
+  });
+
+  it('derives the requested days slice from prices when a cached full-detail entry has no mini', async () => {
+    const prices = Array.from({ length: 10 }, (_, i) => ({ date: `d${i}`, close: i }));
+    mockGetInstrumentDetail.mockResolvedValue({ prices, positions: [] });
+
+    const full = renderHook(() => useInstrumentHistory('ABC', 7));
+    await waitFor(() => expect(full.result.current.data).not.toBeNull());
+
+    // Sparkline.tsx reads this directly during render, not just via the hook.
+    const cached = getCachedInstrumentHistory('ABC', 7);
+    expect(cached?.mini?.[7]).toEqual(prices.slice(-7));
+  });
+
+  it('leaves a server-supplied mini for the requested days untouched', async () => {
+    const serverMini = [{ date: 'd9', close: 99 }];
+    mockGetInstrumentDetail.mockResolvedValue({
+      prices: [{ date: 'd9', close: 9 }],
+      mini: { 7: serverMini },
+      positions: [],
+    });
+
+    const full = renderHook(() => useInstrumentHistory('ABC', 7));
+    await waitFor(() => expect(full.result.current.data).not.toBeNull());
+
+    expect(getCachedInstrumentHistory('ABC', 7)?.mini?.[7]).toEqual(serverMini);
   });
 });
 

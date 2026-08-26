@@ -243,7 +243,8 @@ def test_instrument_no_data_in_range_returns_empty_series(monkeypatch):
     assert data["ticker"] == "ABC.L"
     assert data["rows"] == 0
     assert data["prices"] == []
-    assert data["mini"] == {"7": [], "30": [], "180": []}
+    # Phase 3b (ADR #6911 §5.2/§8): `mini` is opt-in, omitted by default.
+    assert "mini" not in data
 
 
 # ── /portfolio-group/{slug}/instrument/{ticker} ────────────────────────────

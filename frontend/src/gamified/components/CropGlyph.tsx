@@ -1,6 +1,11 @@
 import { useId } from 'react';
 import { cropSpecies } from '../cropGlyph';
-import { GLYPH_SHAPES, STAGE_FILL, type CropSpecies } from '../glyphShapes';
+import {
+  GLYPH_SHAPES,
+  STAGE_FILL,
+  glyphFillBounds,
+  type CropSpecies,
+} from '../glyphShapes';
 import type { GrowthStage } from '../plotModel';
 
 const VIEW_BOX = 48;
@@ -20,9 +25,12 @@ interface CropGlyphProps {
  *
  * Colour comes from `currentColor` and the box from `1em`, so a caller sets
  * the stage accent and the size once on a wrapper and the outline, the fill
- * and the glow all follow — including the responsive `clamp()` sizes. The fill is a rect
- * clipped to the silhouette and anchored to the base, so it reads as the crop
- * filling out rather than as a progress bar laid over a picture.
+ * and the glow all follow — including the responsive `clamp()` sizes. The fill
+ * is a rect clipped to the silhouette and anchored to that shape's own lowest
+ * point (not the viewBox floor — shapes don't share a baseline, so a pea pod
+ * sitting well above y=48 would otherwise clip to nothing at low stages), so
+ * it reads as the crop filling out rather than as a progress bar laid over a
+ * picture.
  *
  * Always `aria-hidden`: it decorates a card that already names the ticker and
  * the stage in text, so announcing the plant would add noise, not meaning.
@@ -38,8 +46,10 @@ export default function CropGlyph({
   const clipId = `crop-glyph-${useId()}`;
   const resolved = species ?? cropSpecies(ticker ?? '', sector);
   const shape = GLYPH_SHAPES[resolved];
+  const bounds = glyphFillBounds(resolved);
   const fill = STAGE_FILL[stage] ?? 0;
-  const fillHeight = VIEW_BOX * fill;
+  const fillHeight = (bounds.bottom - bounds.top) * fill;
+  const fillTop = bounds.bottom - fillHeight;
 
   return (
     <svg
@@ -57,7 +67,7 @@ export default function CropGlyph({
       {fill > 0 && (
         <rect
           x={0}
-          y={VIEW_BOX - fillHeight}
+          y={fillTop}
           width={VIEW_BOX}
           height={fillHeight}
           clipPath={`url(#${clipId})`}

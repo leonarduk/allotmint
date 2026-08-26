@@ -140,6 +140,40 @@ export const GLYPH_SHAPES: Record<CropSpecies, GlyphShape> = {
 };
 
 /**
+ * Each silhouette's own vertical extent within the 48-unit viewBox.
+ *
+ * Shapes don't share a common baseline — the pea pod's lowest point is
+ * y=38.5, the beanpod's is y=44.5 — so a fill anchored to the viewBox floor
+ * (y=48) misses shapes that stop well short of it: at low growth stages the
+ * fill rect can fall entirely below the silhouette and clip to nothing,
+ * silently breaking the "never fully empty" rule below. Deriving bounds from
+ * each body path (rather than hand-maintaining them) keeps them from drifting
+ * if a shape is redrawn.
+ *
+ * A cubic Bezier's extremum always lies within its control points' bounds,
+ * so taking min/max over every M/C/L coordinate — not just on-curve points —
+ * is a safe, if very slightly generous, bounding box.
+ */
+function verticalBounds(body: string): { top: number; bottom: number } {
+  const coords = Array.from(body.matchAll(/-?\d+(?:\.\d+)?/g), (m) => Number(m[0]));
+  const ys = coords.filter((_, index) => index % 2 === 1);
+  return { top: Math.min(...ys), bottom: Math.max(...ys) };
+}
+
+const GLYPH_BOUNDS: Record<CropSpecies, { readonly top: number; readonly bottom: number }> =
+  Object.fromEntries(
+    CROP_SPECIES.map((species) => [species, verticalBounds(GLYPH_SHAPES[species].body)]),
+  ) as Record<CropSpecies, { readonly top: number; readonly bottom: number }>;
+
+/** The vertical span a glyph's fill should rise through, in viewBox units. */
+export function glyphFillBounds(species: CropSpecies): {
+  readonly top: number;
+  readonly bottom: number;
+} {
+  return GLYPH_BOUNDS[species];
+}
+
+/**
  * How much of the silhouette is filled at each growth stage.
  *
  * Wilting is deliberately not zero: an empty outline reads as "no data",

@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { cropSpecies, hashString } from '@/gamified/cropGlyph';
-import { CROP_SPECIES, GLYPH_SHAPES, STAGE_FILL } from '@/gamified/glyphShapes';
+import {
+  CROP_SPECIES,
+  GLYPH_SHAPES,
+  STAGE_FILL,
+  glyphFillBounds,
+} from '@/gamified/glyphShapes';
 import { GROWTH_STAGES } from '@/gamified/plotModel';
 
 describe('cropSpecies', () => {
@@ -85,5 +90,24 @@ describe('glyph shapes', () => {
     // alarming claim than "down 20%".
     expect(STAGE_FILL.wilting).toBeGreaterThan(0);
     expect(STAGE_FILL.bumper).toBe(1);
+  });
+});
+
+describe('glyphFillBounds', () => {
+  it('gives every species a positive vertical extent', () => {
+    for (const species of CROP_SPECIES) {
+      const bounds = glyphFillBounds(species);
+      expect(bounds.bottom).toBeGreaterThan(bounds.top);
+    }
+  });
+
+  it('does not assume every silhouette reaches the 48-unit viewBox floor', () => {
+    // Several shapes stop well short of y=48 (the pea pod bottoms out around
+    // y=38.5). Bounds anchored to each shape's own extent, not the shared
+    // viewBox, are what CropGlyph needs to avoid clipping a low-stage fill to
+    // nothing on those species — see CropGlyph.test.tsx for the render-level
+    // regression test.
+    const bottoms = CROP_SPECIES.map((species) => glyphFillBounds(species).bottom);
+    expect(Math.min(...bottoms)).toBeLessThan(48);
   });
 });

@@ -1,7 +1,12 @@
 import { render } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import CropGlyph from '@/gamified/components/CropGlyph';
-import { GLYPH_SHAPES, STAGE_FILL } from '@/gamified/glyphShapes';
+import {
+  CROP_SPECIES,
+  GLYPH_SHAPES,
+  STAGE_FILL,
+  glyphFillBounds,
+} from '@/gamified/glyphShapes';
 import { cropSpecies } from '@/gamified/cropGlyph';
 
 function svgOf(container: HTMLElement): SVGSVGElement {
@@ -30,20 +35,44 @@ describe('CropGlyph', () => {
     );
   });
 
-  it('anchors the fill to the base and sizes it by growth stage', () => {
+  it('anchors the fill to the silhouette base and sizes it by growth stage', () => {
     const { container } = render(<CropGlyph species="pear" stage="sprout" />);
     const rect = container.querySelector('rect');
-    const height = 48 * STAGE_FILL.sprout;
+    const bounds = glyphFillBounds('pear');
+    const extent = bounds.bottom - bounds.top;
+    const height = extent * STAGE_FILL.sprout;
     expect(rect).toHaveAttribute('height', String(height));
-    // Anchored at the bottom of the 48-unit box, so the crop fills upward.
-    expect(rect).toHaveAttribute('y', String(48 - height));
+    // Anchored at the shape's own lowest point, not the viewBox floor — see
+    // the "never clips to nothing" test below for why that distinction matters.
+    expect(rect).toHaveAttribute('y', String(bounds.bottom - height));
   });
 
-  it('fills the whole silhouette for a bumper crop', () => {
+  it('fills the whole silhouette, and only the silhouette, for a bumper crop', () => {
     const { container } = render(<CropGlyph species="pear" stage="bumper" />);
     const rect = container.querySelector('rect');
-    expect(rect).toHaveAttribute('height', '48');
-    expect(rect).toHaveAttribute('y', '0');
+    const bounds = glyphFillBounds('pear');
+    expect(rect).toHaveAttribute('height', String(bounds.bottom - bounds.top));
+    expect(rect).toHaveAttribute('y', String(bounds.top));
+  });
+
+  it('never clips the fill to nothing, even for a shape that stops well short of the viewBox floor', () => {
+    // Regression test: the fill rect used to be anchored to the fixed 48-unit
+    // viewBox rather than each shape's own bounds. Species whose silhouette
+    // sits well above y=48 (tomato bottoms out at y=42, the pea pod at
+    // y=38.5) had their low-stage fill rect fall entirely outside the
+    // silhouette, so the clip intersection — and the visible fill — was
+    // empty despite STAGE_FILL.wilting being nonzero by design.
+    for (const species of CROP_SPECIES) {
+      const bounds = glyphFillBounds(species);
+      const extent = bounds.bottom - bounds.top;
+      const { container } = render(
+        <CropGlyph species={species} stage="wilting" />,
+      );
+      const rect = container.querySelector('rect');
+      const height = Number(rect?.getAttribute('height'));
+      expect(height).toBeCloseTo(extent * STAGE_FILL.wilting);
+      expect(height).toBeGreaterThan(0);
+    }
   });
 
   it('gives every instance its own clip path', () => {

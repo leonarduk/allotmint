@@ -596,8 +596,8 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     [filteredAccounts],
   );
   const rollupRows = useMemo(
-    () => toRollupRows(scopedRows, instrumentRows ?? []),
-    [scopedRows, instrumentRows],
+    () => toRollupRows(scopedRows, instrumentRows ?? [], portfolio?.as_of),
+    [scopedRows, instrumentRows, portfolio?.as_of],
   );
   const showAccount = useMemo(
     () => new Set(filteredAccounts.map((account) => account.account_type)).size > 1,

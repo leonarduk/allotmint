@@ -170,8 +170,47 @@ describe("toRollupRows", () => {
     });
   });
 
-  it("sets every per-lot eligibility field to null", () => {
-    const [row] = toRollupRows(toScopedHoldingRows(accounts));
+  it("derives acquisition/eligibility fields from the oldest dated lot", () => {
+    // AAA has two lots: alice's, acquired 2025-01-01, and bob's, with no
+    // acquired_date at all. The rollup must use alice's lot (the only one
+    // with a usable date) rather than blanking the columns out entirely.
+    const [row] = toRollupRows(
+      toScopedHoldingRows(accounts),
+      [],
+      "2025-04-11",
+    );
+
+    expect(row).toMatchObject({
+      ticker: "AAA",
+      acquired_date: "2025-01-01",
+      days_held: 100,
+      sell_eligible: true,
+      days_until_eligible: 0,
+      next_eligible_sell_date: "2025-01-01",
+    });
+  });
+
+  it("falls back to null when no lot in the group has a usable acquired_date", () => {
+    const undatedAccounts: Account[] = [
+      {
+        owner: "alice",
+        account_type: "ISA",
+        currency: "GBP",
+        value_estimate_gbp: 100,
+        holdings: [
+          {
+            ticker: "ZZZ",
+            name: "Zeta",
+            units: 1,
+            cost_basis_gbp: 10,
+            market_value_gbp: 12,
+            gain_gbp: 2,
+          },
+        ],
+      },
+    ];
+
+    const [row] = toRollupRows(toScopedHoldingRows(undatedAccounts));
 
     expect(row).toMatchObject({
       acquired_date: null,

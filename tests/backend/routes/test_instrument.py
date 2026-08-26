@@ -153,10 +153,18 @@ async def test_instrument_empty_template(monkeypatch):
     assert data["ticker"] == "NONE.L"
     assert data["rows"] == 0
     assert data["prices"] == []
-    assert data["mini"] == {"7": [], "30": [], "180": []}
+    # Phase 3b (ADR #6911 §5.2/§8): `mini` is opt-in, omitted by default.
+    assert "mini" not in data
     assert data["positions"] == []
     assert data["name"] == "Empty"
     assert data["base_currency"] == "GBP"
+
+    response = await instrument.instrument(
+        ticker="NONE.L", days=30, format="json", base_currency=None, include_mini=True
+    )
+    assert response.status_code == 200
+    data = json.loads(response.body.decode())
+    assert data["mini"] == {"7": [], "30": [], "180": []}
 
 
 @pytest.mark.asyncio
@@ -242,7 +250,21 @@ async def test_instrument_json_gbx_and_base_currency(monkeypatch):
     assert data["prices"][-1]["close_gbp"] == pytest.approx(2.4)
     assert data["prices"][-1]["close_usd"] == pytest.approx(1.2)
     assert data["fx"] == {"USDGBP": "/timeseries/meta?ticker=USDGBP"}
-    assert set(data["mini"]) == {"7", "30", "180"}
+    # Phase 3b (ADR #6911 §5.2/§8): `mini` is opt-in, omitted by default.
+    assert "mini" not in data
+
+    response_with_mini = await instrument.instrument(
+        ticker="GBX.L",
+        days=30,
+        format="json",
+        base_currency="USD",
+        include_mini=True,
+    )
+    data_with_mini = json.loads(response_with_mini.body.decode())
+    assert set(data_with_mini["mini"]) == {"7", "30", "180"}
+    assert data_with_mini["mini"]["7"] == data_with_mini["prices"][-7:]
+    assert data_with_mini["mini"]["30"] == data_with_mini["prices"][-30:]
+    assert data_with_mini["mini"]["180"] == data_with_mini["prices"][-180:]
 
 
 @pytest.mark.asyncio

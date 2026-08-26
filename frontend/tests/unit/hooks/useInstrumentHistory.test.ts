@@ -216,6 +216,51 @@ describe('useInstrumentHistory', () => {
       expect(mockGetInstrumentBatch).not.toHaveBeenCalled();
     });
 
+    it('derives mini from prices when a full-detail cache entry has none (Phase 3b, ADR #6911 §8)', async () => {
+      // /instrument/ now omits `mini` by default (include_mini opt-in), so a
+      // full-detail entry warmed by InstrumentResearch.tsx (no acceptMiniOnly)
+      // has no `.mini` for a later same-(ticker,days) sparkline read to find.
+      const prices = Array.from({ length: 40 }, (_, i) => ({ date: `d${i}`, close: i }));
+      mockGetInstrumentDetail.mockResolvedValue({ prices, positions: [] });
+
+      const full = renderHook(() => useInstrumentHistory('ABC', 30));
+      await waitFor(() => expect(full.result.current.data).not.toBeNull());
+      expect(full.result.current.data?.mini).toBeUndefined();
+
+      const mini = renderHook(() => useInstrumentHistory('ABC', 30, { acceptMiniOnly: true }));
+
+      expect(mini.result.current.loading).toBe(false);
+      expect(mockGetInstrumentBatch).not.toHaveBeenCalled();
+      // Row-count slice of the tail, matching backend/common/instrument_api.py's
+      // `out[-30:]` contract -- not a calendar-day cutoff (ADR §4.5 is a
+      // different, larger derivation for a different cache shape).
+      expect(mini.result.current.data?.mini?.[30]).toEqual(prices.slice(-30));
+      // All three windows are derived, not just the one this hook call
+      // requested -- matching the server's mini shape exactly so any other
+      // reader of this same cache entry (present or future) also gets a
+      // real value instead of `undefined` for the windows it didn't ask for.
+      expect(mini.result.current.data?.mini?.[7]).toEqual(prices.slice(-7));
+      expect(mini.result.current.data?.mini?.[180]).toEqual(prices.slice(-180));
+    });
+
+    it('derives the whole prices array when a window exceeds its length', async () => {
+      // e.g. a ticker with only 10 days of history -- prices.slice(-30) and
+      // slice(-180) on a 10-element array both return all 10, matching what
+      // the backend's out[-30:]/out[-180:] would have produced for the same
+      // short series.
+      const prices = Array.from({ length: 10 }, (_, i) => ({ date: `d${i}`, close: i }));
+      mockGetInstrumentDetail.mockResolvedValue({ prices, positions: [] });
+
+      const full = renderHook(() => useInstrumentHistory('ABC', 30));
+      await waitFor(() => expect(full.result.current.data).not.toBeNull());
+
+      const mini = renderHook(() => useInstrumentHistory('ABC', 30, { acceptMiniOnly: true }));
+
+      expect(mini.result.current.data?.mini?.[7]).toEqual(prices.slice(-7));
+      expect(mini.result.current.data?.mini?.[30]).toEqual(prices);
+      expect(mini.result.current.data?.mini?.[180]).toEqual(prices);
+    });
+
     it('a batch-derived cache entry does not satisfy a later full-detail request', async () => {
       mockGetInstrumentBatch.mockResolvedValue({
         instruments: { ABC: { prices: [{ date: '2024-01-01', close: 10 }] } },
@@ -279,6 +324,51 @@ describe('useInstrumentHistory', () => {
       expect(result.current.data).toBeNull();
       expect(result.current.error).toBeNull();
     });
+  });
+});
+
+describe('getCachedInstrumentHistory mini derivation (Phase 3b, ADR #6911 §8)', () => {
+  beforeEach(() => {
+    mockGetInstrumentDetail.mockReset();
+    mockGetInstrumentBatch.mockReset();
+    __clearInstrumentHistoryCache();
+  });
+
+  it('derives all three mini windows from prices when a cached full-detail entry has none', async () => {
+    const prices = Array.from({ length: 10 }, (_, i) => ({ date: `d${i}`, close: i }));
+    mockGetInstrumentDetail.mockResolvedValue({ prices, positions: [] });
+
+    const full = renderHook(() => useInstrumentHistory('ABC', 7));
+    await waitFor(() => expect(full.result.current.data).not.toBeNull());
+
+    // Sparkline.tsx reads this directly during render, not just via the hook.
+    const cached = getCachedInstrumentHistory('ABC', 7);
+    expect(cached?.mini?.[7]).toEqual(prices.slice(-7));
+    // Not just the (ticker, days) pair this entry was keyed/fetched by --
+    // the other two windows the server's mini would also have carried.
+    expect(cached?.mini?.[30]).toEqual(prices.slice(-30));
+    expect(cached?.mini?.[180]).toEqual(prices.slice(-180));
+  });
+
+  it('leaves a server-supplied window untouched and derives the rest', async () => {
+    const serverMini7 = [{ date: 'd9', close: 99 }];
+    const prices = [{ date: 'd9', close: 9 }];
+    mockGetInstrumentDetail.mockResolvedValue({
+      prices,
+      mini: { 7: serverMini7 },
+      positions: [],
+    });
+
+    const full = renderHook(() => useInstrumentHistory('ABC', 7));
+    await waitFor(() => expect(full.result.current.data).not.toBeNull());
+
+    const cached = getCachedInstrumentHistory('ABC', 7);
+    // The server's own value wins for the window it actually supplied...
+    expect(cached?.mini?.[7]).toEqual(serverMini7);
+    // ...but the windows it omitted are still filled in from `prices`,
+    // matching what a full `include_mini=true` response would have held.
+    expect(cached?.mini?.[30]).toEqual(prices);
+    expect(cached?.mini?.[180]).toEqual(prices);
   });
 });
 

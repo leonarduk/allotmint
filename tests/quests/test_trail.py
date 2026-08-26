@@ -63,7 +63,6 @@ def test_get_tasks_returns_defaults(memory_storage):
     once_ids = _once_ids(response)
     assert once_ids == [
         "create_goal",
-        "enable_push_notifications",
         "set_alert_threshold",
     ]
 
@@ -223,3 +222,21 @@ def test_threshold_once_task_handles_percent_strings(memory_storage, monkeypatch
     threshold_task = next(task for task in response["tasks"] if task["id"] == "set_alert_threshold")
 
     assert threshold_task["completed"] is False
+
+
+def test_create_goal_once_task_marks_complete_once_a_goal_exists(memory_storage, monkeypatch):
+    monkeypatch.setattr(trail, "load_goals", lambda user: [{"name": "House deposit"}])
+
+    response = trail.get_tasks("demo")
+    goal_task = next(task for task in response["tasks"] if task["id"] == "create_goal")
+
+    assert goal_task["completed"] is True
+
+
+def test_create_goal_once_task_incomplete_without_a_goal(memory_storage, monkeypatch):
+    monkeypatch.setattr(trail, "load_goals", lambda user: [])
+
+    response = trail.get_tasks("demo")
+    goal_task = next(task for task in response["tasks"] if task["id"] == "create_goal")
+
+    assert goal_task["completed"] is False

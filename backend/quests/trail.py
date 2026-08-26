@@ -67,12 +67,9 @@ class TaskDefinition:
 
 
 STATIC_DAILY_TASKS: List[TaskDefinition] = [
-    TaskDefinition(
-        id="log_in",
-        title="Log in",
-        type="daily",
-        commentary="Check in to keep your momentum going.",
-    ),
+    # "Log in" was removed (#7003): reaching this list at all requires an
+    # authenticated session, so that chore could never be observed in an
+    # incomplete state and was permanently dead weight in the UI.
     TaskDefinition(
         id="check_overview",
         title="Check overview",
@@ -274,7 +271,6 @@ _AUTO_ONCE_BLOCKLIST = {
     "demo_allowance_isa",
     "demo_allowance_pension",
     "create_goal",
-    "enable_push_notifications",
     "set_alert_threshold",
 }
 
@@ -326,40 +322,10 @@ def _build_once_tasks(user: str, user_data: Dict) -> List[TaskDefinition]:
         )
     )
 
-    # Push notifications require an explicit subscription – remind the user
-    # when none is configured.  When a subscription exists ensure the once
-    # state is marked as complete so the task renders as finished instead of
-    # disappearing entirely, keeping history consistent.
-    subscription = alerts.get_user_push_subscription(user)
-    if subscription:
-        try:
-            persisted = alerts._SUBSCRIPTIONS_STORAGE.load()  # type: ignore[attr-defined]
-        except Exception:
-            persisted = {}
-        if not isinstance(persisted, dict) or persisted.get(user) is None:
-            subscription = None
-
-    has_push_subscription = False
-    if isinstance(subscription, dict):
-        endpoint = subscription.get("endpoint")
-        keys = subscription.get("keys")
-        has_push_subscription = bool(
-            isinstance(endpoint, str)
-            and endpoint.strip()
-            and isinstance(keys, dict)
-            and keys.get("p256dh")
-            and keys.get("auth")
-        )
-
-    _sync_once_completion(user_data, "enable_push_notifications", has_push_subscription)
-    tasks.append(
-        TaskDefinition(
-            id="enable_push_notifications",
-            title="Enable push notifications",
-            type="once",
-            commentary="Stay informed about nudges and alerts without opening the app.",
-        )
-    )
+    # "Enable push notifications" was removed (#7003): no push-notification
+    # capability (permission prompt, service-worker subscription, etc.)
+    # exists anywhere in the frontend, so this chore promised something the
+    # app could never actually do.
 
     return tasks
 
@@ -491,6 +457,7 @@ def get_tasks(user: str) -> Dict:
     user_data = _ensure_user_data(user, persist=True)
     task_defs = _build_task_definitions(user, user_data)
     has_custom_threshold = _has_custom_threshold(user)
+    has_goal = bool(load_goals(user))
 
     daily_task_ids = [task.id for task in task_defs if task.type == "daily"]
     once_task_ids = [task.id for task in task_defs if task.type == "once"]
@@ -506,6 +473,8 @@ def get_tasks(user: str) -> Dict:
     for task in task_defs:
         completed = task.id in once_completed if task.type == "once" else task.id in daily_completed
         if task.id == "set_alert_threshold" and has_custom_threshold:
+            completed = True
+        if task.id == "create_goal" and has_goal:
             completed = True
         tasks.append(
             {

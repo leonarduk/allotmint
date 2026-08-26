@@ -94,38 +94,10 @@ def test_build_allowance_and_compliance_tasks(monkeypatch):
     assert compliance_tasks[1].commentary == "XYZ unlocks in 3 days"
 
 
-def test_once_tasks_custom_threshold_and_push_completion(monkeypatch):
+def test_once_tasks_custom_threshold(monkeypatch):
     user = "investor@example.com"
     monkeypatch.setattr(trail.alerts, "_USER_THRESHOLDS", {user: "7%", "other": "5%"})
     monkeypatch.setattr(trail.alerts, "DEFAULT_THRESHOLD_PCT", 5.0)
-
-    class _FakeStorage:
-        def __init__(self):
-            self.loaded = False
-
-        def load(self):
-            self.loaded = True
-            return {
-                user: {
-                    "endpoint": "https://push.example.com/sub",
-                    "keys": {"p256dh": "k", "auth": "a"},
-                }
-            }
-
-    storage = _FakeStorage()
-    monkeypatch.setattr(trail.alerts, "_SUBSCRIPTIONS_STORAGE", storage)
-
-    call_log = {"count": 0}
-
-    def _fake_subscription(requested_user):
-        call_log["count"] += 1
-        assert requested_user == user
-        return {
-            "endpoint": "https://push.example.com/sub",
-            "keys": {"p256dh": "k", "auth": "a"},
-        }
-
-    monkeypatch.setattr(trail.alerts, "get_user_push_subscription", _fake_subscription)
     monkeypatch.setattr(trail, "load_goals", lambda current_user: [])
 
     assert trail._has_custom_threshold(user) is True
@@ -143,13 +115,11 @@ def test_once_tasks_custom_threshold_and_push_completion(monkeypatch):
 
     once_tasks = trail._build_once_tasks(user, user_data)
 
-    assert call_log["count"] == 1
-    assert storage.loaded is True
-    assert user_data[trail._AUTO_ONCE_KEY] == []
-
+    # "Enable push notifications" was removed (#7003): no push-notification
+    # capability exists in the frontend, so the chore is gone rather than
+    # gated behind an unbuildable feature.
     titles = {task.id: task.title for task in once_tasks}
     assert titles == {
         "create_goal": "Create your first savings goal",
         "set_alert_threshold": "Adjust your alert threshold",
-        "enable_push_notifications": "Enable push notifications",
     }

@@ -1,15 +1,65 @@
+import { useNavigate } from 'react-router-dom';
 import styles from '../plot.module.css';
 import { usePlotData, type Chore } from '../PlotDataContext';
 import RadialProgress from '../components/RadialProgress';
 import Meter from '../components/Meter';
+import { markChorePending, type TrackedChoreId } from '../../choreCompletion';
+
+/**
+ * Chores that used to self-complete on click (#7003) now deep-link to the
+ * real classic-app flow instead. The ones marked `visitTracked` also set a
+ * pending marker (see ../../choreCompletion) so the destination page can
+ * mark the chore done once the user actually does the thing — the other two
+ * ("Adjust your alert threshold", "Create your first savings goal") already
+ * get marked done server-side once real data exists (a custom threshold / a
+ * saved goal), so they only need the real link.
+ */
+const CHORE_LINKS: Record<
+  string,
+  { path: (owner: string) => string; visitTracked?: TrackedChoreId }
+> = {
+  check_overview: {
+    path: (owner) => (owner ? `/?owner=${encodeURIComponent(owner)}` : '/'),
+    visitTracked: 'check_overview',
+  },
+  research_new_stock: {
+    path: () => '/research',
+    visitTracked: 'research_new_stock',
+  },
+  run_a_report: {
+    path: () => '/reports',
+    visitTracked: 'run_a_report',
+  },
+  set_alert_threshold: {
+    path: () => '/alert-settings',
+  },
+  create_goal: {
+    path: () => '/goals',
+  },
+};
 
 function ChoreRow({
   chore,
+  owner,
   onComplete,
+  onNavigate,
 }: {
   chore: Chore;
+  owner: string;
   onComplete: (id: string) => void;
+  onNavigate: (path: string) => void;
 }) {
+  const link = CHORE_LINKS[chore.id];
+
+  const handleClick = () => {
+    if (link) {
+      if (link.visitTracked) markChorePending(link.visitTracked);
+      onNavigate(link.path(owner));
+      return;
+    }
+    onComplete(chore.id);
+  };
+
   return (
     <li
       className={`${styles.choreRow} ${chore.completed ? styles.choreRowDone : ''}`}
@@ -33,9 +83,9 @@ function ChoreRow({
         type="button"
         className={styles.goButton}
         disabled={chore.completed}
-        onClick={() => onComplete(chore.id)}
+        onClick={handleClick}
       >
-        {chore.completed ? 'Done' : 'Do it'}
+        {chore.completed ? 'Done' : link ? 'Go' : 'Do it'}
       </button>
     </li>
   );
@@ -46,7 +96,9 @@ function ChoreRow({
  * endpoints the classic Trail page uses, so progress is shared between skins.
  */
 export default function ChoresScreen() {
-  const { chores, choresAvailable, completeChore, snapshot } = usePlotData();
+  const { chores, choresAvailable, completeChore, snapshot, owner } =
+    usePlotData();
+  const navigate = useNavigate();
 
   const daily = chores.filter((chore) => chore.kind === 'daily');
   const once = chores.filter((chore) => chore.kind === 'once');
@@ -120,7 +172,9 @@ export default function ChoresScreen() {
               <ChoreRow
                 key={chore.id}
                 chore={chore}
+                owner={owner}
                 onComplete={completeChore}
+                onNavigate={navigate}
               />
             ))}
           </ul>
@@ -135,7 +189,9 @@ export default function ChoresScreen() {
               <ChoreRow
                 key={chore.id}
                 chore={chore}
+                owner={owner}
                 onComplete={completeChore}
+                onNavigate={navigate}
               />
             ))}
           </ul>

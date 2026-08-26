@@ -20,6 +20,7 @@ import surfaceStyles from "../styles/surface.module.css";
 import { formatDateISO } from "../lib/date";
 import { money, percent, quotedPrice } from "../lib/money";
 import { translateInstrumentType } from "../lib/instrumentType";
+import { completeTrackedChore } from "../choreCompletion";
 
 function normaliseOptional(value: unknown) {
   if (typeof value !== "string") return undefined;
@@ -154,6 +155,16 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
     loading: detailLoading,
     error: detailError,
   } = useInstrumentHistory(tkr, overviewFetchDays);
+
+  // Completes the Plot chores screen's "Research a new stock" chore (#7003)
+  // once an actual instrument lookup succeeds here — a no-op unless that
+  // navigation set the pending marker.
+  useEffect(() => {
+    if (tkr && detail) {
+      completeTrackedChore("research_new_stock");
+    }
+  }, [tkr, detail]);
+
   const [news, setNews] = useState<NewsItem[]>([]);
   const [newsLoading, setNewsLoading] = useState(false);
   const [newsError, setNewsError] = useState<string | null>(null);

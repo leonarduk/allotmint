@@ -10,6 +10,7 @@ import type {
   ReportTemplateMetadata,
 } from "../types";
 import { sanitizeOwners } from "../utils/owners";
+import { completeTrackedChore } from "../choreCompletion";
 
 function buildFieldSummary(template: ReportTemplateMetadata, t: TFunction) {
   const columnMap = new Map<string, string>();
@@ -276,12 +277,14 @@ export default function Reports() {
           <div className="flex flex-wrap items-center gap-4">
             <a
               href={csvLink ?? undefined}
+              onClick={() => completeTrackedChore("run_a_report")}
               className="inline-flex items-center rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500"
             >
               {t("reports.csv")}
             </a>
             <a
               href={pdfLink ?? undefined}
+              onClick={() => completeTrackedChore("run_a_report")}
               className="inline-flex items-center rounded border border-indigo-600 px-4 py-2 text-sm font-semibold text-indigo-600 transition hover:bg-indigo-50"
             >
               {t("reports.pdf")}

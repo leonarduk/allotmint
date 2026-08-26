@@ -190,6 +190,23 @@ describe("toRollupRows", () => {
     });
   });
 
+  it("returns null days_held (not clamped to 0) when asOf predates the acquired_date", () => {
+    // Regression: a historical `asOf` snapshot requested before the lot was
+    // acquired must not be reported as "held for 0 days" — that reads as
+    // "acquired today", which is misleading. It should surface as unavailable.
+    const [row] = toRollupRows(
+      toScopedHoldingRows(accounts),
+      [],
+      "2024-06-01", // before AAA's alice lot's acquired_date of 2025-01-01
+    );
+
+    expect(row).toMatchObject({
+      ticker: "AAA",
+      acquired_date: "2025-01-01",
+      days_held: null,
+    });
+  });
+
   it("falls back to null when no lot in the group has a usable acquired_date", () => {
     const undatedAccounts: Account[] = [
       {

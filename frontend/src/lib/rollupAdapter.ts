@@ -171,10 +171,15 @@ export function toRollupRows(
       ? oldestLot.acquired_date!
       : null;
     const acquiredTime = acquiredDate ? Date.parse(acquiredDate) : Number.NaN;
-    const daysHeld =
+    const rawDaysHeld =
       Number.isNaN(snapshotTime) || Number.isNaN(acquiredTime)
         ? (oldestLot.days_held ?? null)
-        : Math.max(0, Math.floor((snapshotTime - acquiredTime) / 86_400_000));
+        : Math.floor((snapshotTime - acquiredTime) / 86_400_000);
+    // A negative value means `asOf` predates the acquisition date (e.g. a
+    // historical snapshot requested before the holding existed) — that's not
+    // a valid days-held count, so surface it as unavailable rather than
+    // silently clamping to 0, which would look like "acquired today".
+    const daysHeld = rawDaysHeld != null && rawDaysHeld < 0 ? null : rawDaysHeld;
 
     return {
       ...rollup,

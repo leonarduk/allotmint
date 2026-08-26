@@ -1131,7 +1131,28 @@ export async function runSmoke(base: string) {
 
   }
 
+  await cleanupSmokeApprovals(normalizedBase, fixtures.owner);
   await runAuthenticatedCheck(normalizedBase, authToken);
+}
+
+// smokeEndpoints is auto-generated (see scripts/update_smoke_endpoints.py) and
+// sorted alphabetically by (path, method) for readability. That sort places
+// DELETE /accounts/{owner}/approvals before POST /accounts/{owner}/approvals
+// for the same path, so the sweep above "cleans up" the PFE fixture before it
+// is even created, then creates it — leaving a stray "PFE" / "1970-01-01"
+// approval permanently persisted for the smoke-tested owner (#7111). Run an
+// explicit, best-effort teardown after the sweep so every run leaves the
+// account clean regardless of the generated endpoint ordering.
+async function cleanupSmokeApprovals(base: string, owner: string): Promise<void> {
+  try {
+    await fetch(`${base}/accounts/${encodeURIComponent(owner)}/approvals`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ticker: 'PFE' }),
+    });
+  } catch {
+    // Best-effort teardown only; a failure here should not fail the smoke run.
+  }
 }
 
 // The sweep above deliberately calls every route unauthenticated, so a 401 on a

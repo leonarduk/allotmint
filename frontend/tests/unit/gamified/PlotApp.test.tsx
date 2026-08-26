@@ -307,6 +307,81 @@ describe('Plot mode chores', () => {
     );
   });
 
+  it('completes only the clicked chore when several daily chores are mid-list (#7002)', async () => {
+    // Regression test for #7002: the "Do it" button must resolve the chore
+    // to complete by its stable id, not by array position, even when other
+    // chores in the list are already done either side of it.
+    const midListPayload = {
+      ...trailPayload,
+      tasks: [
+        {
+          id: 'log_in',
+          title: 'Log in',
+          type: 'daily',
+          commentary: '',
+          completed: true,
+        },
+        {
+          id: 'check_overview',
+          title: 'Check overview',
+          type: 'daily',
+          commentary: '',
+          completed: false,
+        },
+        {
+          id: 'research_new_stock',
+          title: 'Research a new stock',
+          type: 'daily',
+          commentary: '',
+          completed: false,
+        },
+        {
+          id: 'run_a_report',
+          title: 'Run a report',
+          type: 'daily',
+          commentary: '',
+          completed: true,
+        },
+      ],
+      xp: 20,
+    };
+    mocks.getTrailTasks.mockResolvedValue(midListPayload);
+    mocks.completeTrailTask.mockResolvedValue({
+      ...midListPayload,
+      tasks: midListPayload.tasks.map((task) =>
+        task.id === 'research_new_stock' ? { ...task, completed: true } : task
+      ),
+      xp: 30,
+    });
+
+    renderPlot('/plot/chores');
+
+    const researchRow = (
+      await screen.findByText('Research a new stock')
+    ).closest('li')!;
+    const checkOverviewRow = screen
+      .getByText('Check overview')
+      .closest('li')!;
+
+    fireEvent.click(within(researchRow).getByRole('button', { name: 'Do it' }));
+
+    // The clicked chore's own id is sent to the backend, not a neighbour's.
+    await waitFor(() =>
+      expect(mocks.completeTrailTask).toHaveBeenCalledWith('research_new_stock')
+    );
+    expect(mocks.completeTrailTask).not.toHaveBeenCalledWith('check_overview');
+
+    // Only the clicked row flips to done; its untouched neighbour stays actionable.
+    await waitFor(() =>
+      expect(
+        within(researchRow).getByRole('button', { name: 'Done' })
+      ).toBeInTheDocument()
+    );
+    expect(
+      within(checkOverviewRow).getByRole('button', { name: 'Do it' })
+    ).toBeInTheDocument();
+  });
+
   it('falls back to the Quests endpoint when Trail is unavailable', async () => {
     mocks.getTrailTasks.mockRejectedValue(new Error('404'));
     mocks.getQuests.mockResolvedValue({
@@ -384,18 +459,21 @@ describe('Plot mode season track', () => {
     ).toBeInTheDocument();
   });
 
-  it('lists tiered goals driven by real portfolio figures', async () => {
+  it('shows one progress bar per category toward the next unearned tier', async () => {
     renderPlot('/plot/season');
 
-    // £10,000 plot value clears the £1k and £10k tiers but not £50k.
+    // £10,000 plot value clears the £1k and £10k tiers but not £50k — the
+    // group heading still counts every tier, but the row only calls out the
+    // next one instead of repeating the same current value four times.
     expect(
       await screen.findByRole('heading', { name: /Grow the plot \(2\/4\)/ })
     ).toBeInTheDocument();
-    expect(screen.getByText('Grow the plot to £50.0k')).toBeInTheDocument();
+    expect(screen.getByText('Next: £50.0k')).toBeInTheDocument();
     // £5,000 of allowance used clears the first tier only.
     expect(
       screen.getByRole('heading', { name: /Feed the beds \(2\/4\)/ })
     ).toBeInTheDocument();
+    expect(screen.getByText('Next: £10.0k')).toBeInTheDocument();
   });
 
   it('says so when the backend reports no tax year', async () => {
@@ -417,16 +495,15 @@ describe('Plot mode season track', () => {
     );
     renderPlot('/plot/season');
 
-    // Countdown copy, and the "Feed the beds" milestone tiers, all use the
-    // same notice instead of "no tax year" / a £0.00 progress bar (goal
-    // titles stay visible; only the meter/value area swaps to error copy).
+    // Countdown copy, and the "Feed the beds" milestone group, both use the
+    // same notice instead of "no tax year" / a £0.00 progress bar.
     const notices = await screen.findAllByText('Allowances unavailable right now');
     expect(notices.length).toBeGreaterThan(1);
     expect(
       screen.queryByText(/No tax year reported for this grower/)
     ).toBeNull();
     expect(
-      screen.getByText("Use £1.0k of this season's allowances")
+      screen.getByRole('heading', { name: /Feed the beds/ })
     ).toBeInTheDocument();
   });
 });

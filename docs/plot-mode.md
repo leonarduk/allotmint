@@ -6,7 +6,7 @@ classic screen keeps working exactly as before, and nothing in Plot mode
 places a trade or writes portfolio data.
 
 The theme is horticultural — an allotment rather than a spaceport. A holding
-is a *crop*, an account is a *bed*, and the daily Trail tasks are *chores*.
+is a _crop_, an account is a _bed_, and the daily Trail tasks are _chores_.
 
 ## Screens
 
@@ -45,7 +45,7 @@ unit tested in `frontend/tests/unit/gamified/plotModel.test.ts`.
 - **Sunlight meter** — share of crops not flagged `is_stale`, i.e. priced
   from fresh data.
 - **Grower level and XP** — `GET /trail`, falling back to
-  `GET /quests/today`. Cumulative XP to reach level *L* is
+  `GET /quests/today`. Cumulative XP to reach level _L_ is
   `25 × L × (L − 1)`, so L2 is 50 XP, L3 is 150 and L4 is 300.
 - **Streak** — from the same endpoint: consecutive days with every daily
   chore finished.
@@ -94,13 +94,23 @@ route, exactly like any other page.
   Plot mode do not download it.
 - `PlotDataProvider` fetches the portfolio, allowances and progress once and
   shares them across all five screens.
+- Each crop is drawn, not emoji: `glyphShapes.ts` holds twelve species as
+  SVG paths, `cropGlyph.ts` picks one deterministically from ticker + sector
+  (same idea as the old emoji pools, same FNV-1a hash), and `<CropGlyph>`
+  renders it. Colour comes from `currentColor` and the fill from a rect
+  clipped to the silhouette, so a single component reports both the crop's
+  flavour and its growth stage — one path reused from an 18px legend chip up
+  to a 104px detail portrait. Twelve shapes are not enough to make the
+  species an identifier (a real portfolio collides most of the time past a
+  handful of holdings), so it is deliberately treated as flavour only; the
+  ticker printed on every card is what identifies the crop.
 - The skin is keyboard- and screen-reader navigable: meters are real
-  `progressbar` elements with accessible names, decorative emoji are
-  `aria-hidden`, and ambient animation is disabled under
+  `progressbar` elements with accessible names, crop glyphs and other
+  decorative marks are `aria-hidden`, and ambient animation is disabled under
   `prefers-reduced-motion`. `tests/unit/gamified/PlotAccessibility.test.tsx`
   runs axe over the hub, chores, season and roster screens.
 - Grid tracks use `minmax(0, 1fr)` and card grids `minmax(min(Npx, 100%),
-  1fr)`. A bare `1fr` carries `min-width: auto`, which let the widest card row
+1fr)`. A bare `1fr` carries `min-width: auto`, which let the widest card row
   push the whole layout past a phone viewport.
 
 ## Validation

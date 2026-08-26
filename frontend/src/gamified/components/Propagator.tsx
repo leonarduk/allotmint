@@ -1,8 +1,8 @@
 import { Link } from 'react-router-dom';
 import styles from '../plot.module.css';
-import { cropGlyph } from '../cropGlyph';
 import type { GerminatingCrop } from '../plotModel';
 import Meter from './Meter';
+import CropGlyph from './CropGlyph';
 
 interface PropagatorProps {
   entries: readonly GerminatingCrop[];
@@ -34,8 +34,12 @@ export default function Propagator({ entries, basePath }: PropagatorProps) {
             to={`${basePath}/crops/${encodeURIComponent(crop.id)}`}
             className={styles.tray}
           >
-            <span className={styles.trayGlyph} aria-hidden="true">
-              {cropGlyph(crop.ticker, crop.sector)}
+            <span className={styles.trayGlyph}>
+              <CropGlyph
+                ticker={crop.ticker}
+                sector={crop.sector}
+                stage={crop.stage}
+              />
             </span>
             <span className={styles.trayTicker}>{crop.ticker}</span>
             <Meter

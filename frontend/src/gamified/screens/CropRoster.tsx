@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+} from 'react';
 import { useSearchParams } from 'react-router-dom';
 import styles from '../plot.module.css';
 import { usePlotData } from '../PlotDataContext';
@@ -10,6 +16,7 @@ import {
   toggleFavourite,
 } from '../favourites';
 import CropCard from '../components/CropCard';
+import CropGlyph from '../components/CropGlyph';
 import InfoTip from '../components/InfoTip';
 
 type SortKey = 'value' | 'gain' | 'vigour' | 'name';
@@ -127,9 +134,15 @@ export default function CropRoster({ basePath }: { basePath: string }) {
         </h2>
         <ul className={styles.traitList}>
           {GROWTH_STAGES.map((stage) => (
-            <li key={stage.id} className={styles.trait}>
-              <span aria-hidden="true">{stage.icon}</span> {stage.label}:{' '}
-              {stageCounts.get(stage.id) ?? 0}
+            <li
+              key={stage.id}
+              className={`${styles.trait} ${styles.traitStage}`}
+              style={{ '--plot-crop-accent': stage.accent } as CSSProperties}
+            >
+              <span className={styles.traitGlyph}>
+                <CropGlyph species="pear" stage={stage.id} />
+              </span>
+              {stage.label}: {stageCounts.get(stage.id) ?? 0}
             </li>
           ))}
         </ul>

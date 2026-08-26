@@ -379,6 +379,72 @@ describe("PensionForecast page", () => {
     );
   });
 
+  it("shows a plain-language message when death age is not after retirement age", async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: "steve", full_name: "Steve Leonard", accounts: [] },
+    ]);
+    mockGetPensionForecast.mockRejectedValue(
+      new Error("death_age must exceed retirement_age"),
+    );
+
+    const { default: PensionForecast } = await import("@/pages/PensionForecast");
+
+    renderWithI18n(<PensionForecast />);
+
+    const form = document.querySelector("form")!;
+    const deathAge = within(form).getByLabelText(/death age/i);
+    fireEvent.change(deathAge, { target: { value: "50" } });
+
+    const btn = screen.getByRole("button", { name: /forecast/i });
+    await userEvent.click(btn);
+
+    await screen.findByText(
+      "Death age (50) must be after your retirement age.",
+    );
+    expect(
+      screen.queryByText(/death_age must exceed retirement_age/i),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Error:/)).not.toBeInTheDocument();
+  });
+
+  it("names the retirement age in the error once it is known from a prior forecast", async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: "steve", full_name: "Steve Leonard", accounts: [] },
+    ]);
+    mockGetPensionForecast.mockResolvedValueOnce({
+      forecast: [],
+      projected_pot_gbp: 0,
+      pension_pot_gbp: 0,
+      current_age: 55,
+      retirement_age: 67,
+      dob: "1970-01-01",
+      earliest_retirement_age: null,
+      retirement_income_breakdown: null,
+      retirement_income_total_annual: null,
+      desired_income_annual: null,
+    });
+
+    const { default: PensionForecast } = await import("@/pages/PensionForecast");
+
+    renderWithI18n(<PensionForecast />);
+
+    const form = document.querySelector("form")!;
+    const btn = screen.getByRole("button", { name: /forecast/i });
+    await userEvent.click(btn);
+    await screen.findByText(/birth date: 1970-01-01/i);
+
+    mockGetPensionForecast.mockRejectedValueOnce(
+      new Error("death_age must exceed retirement_age"),
+    );
+    const deathAge = within(form).getByLabelText(/death age/i);
+    fireEvent.change(deathAge, { target: { value: "50" } });
+    await userEvent.click(btn);
+
+    await screen.findByText(
+      "Death age (50) must be after your retirement age (67).",
+    );
+  });
+
   it("surfaces employer contribution adjustments", async () => {
     mockGetOwners.mockResolvedValue([
       { owner: "alex", full_name: "Alex Example", accounts: [] },

@@ -128,6 +128,28 @@ export default function PensionForecast() {
     return ownerSummary?.accounts ?? [];
   }, [owners, owner]);
 
+  const humanizeForecastError = (
+    rawMessage: string,
+    context: { deathAge: number; retirementAge: number | null },
+  ): string => {
+    const knownDetailMessages: Record<
+      string,
+      (ctx: typeof context) => string
+    > = {
+      "death_age must exceed retirement_age": (ctx) =>
+        ctx.retirementAge != null
+          ? `Death age (${ctx.deathAge}) must be after your retirement age (${ctx.retirementAge}).`
+          : `Death age (${ctx.deathAge}) must be after your retirement age.`,
+      "missing or invalid dob": () =>
+        "We couldn't determine this owner's date of birth. Please check their profile details and try again.",
+    };
+
+    const handler = knownDetailMessages[rawMessage.trim()];
+    if (handler) return handler(context);
+
+    return "We couldn't calculate this forecast. Please check your inputs and try again.";
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -157,7 +179,8 @@ export default function PensionForecast() {
       );
       setErr(null);
     } catch (ex: any) {
-      setErr(String(ex));
+      const rawMessage = ex instanceof Error ? ex.message : String(ex);
+      setErr(humanizeForecastError(rawMessage, { deathAge, retirementAge }));
       setData([]);
       setEarliestRetirementAge(null);
       setRetirementIncomeBreakdown(null);

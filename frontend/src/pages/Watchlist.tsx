@@ -57,13 +57,23 @@ export function Watchlist() {
   );
 
   const addSymbol = useCallback(() => {
-    const candidate = newSymbol.trim().toUpperCase();
-    if (!candidate) return;
-    if (symbolList.some((s) => s.toUpperCase() === candidate)) {
+    // Accept a comma-separated paste as well as a single ticker: the field
+    // this replaced held the whole CSV list, so pasting one back in is the
+    // obvious move for anyone restoring a watchlist -- and splitting here
+    // stops "AAA,BBB" being stored as one unquotable symbol (#7110).
+    const candidates = newSymbol
+      .split(",")
+      .map((s) => s.trim().toUpperCase())
+      .filter(Boolean);
+    if (!candidates.length) {
       setNewSymbol("");
       return;
     }
-    setSymbols([...symbolList, candidate].join(","));
+    const seen = new Set(symbolList.map((s) => s.toUpperCase()));
+    const additions = candidates.filter((c) => !seen.has(c) && seen.add(c));
+    if (additions.length) {
+      setSymbols([...symbolList, ...additions].join(","));
+    }
     setNewSymbol("");
   }, [newSymbol, symbolList]);
 

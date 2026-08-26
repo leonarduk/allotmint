@@ -223,7 +223,7 @@ describe("PensionForecast page", () => {
     await screen.findByText("Retirement income breakdown");
     expect(
       screen.getByText(
-        "You're on track: projected income of £15,000.00 meets your desired £14,000.00 from age 64.",
+        "You're on track: projected income of £15,000.00 meets your desired £14,000.00 — you could retire as early as age 64.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("State pension")).toBeInTheDocument();
@@ -335,6 +335,47 @@ describe("PensionForecast page", () => {
 
     await screen.findByText(
       "Projected income leaves a shortfall of £5,000.00 per year (£416.67 per month) against your desired £12,000.00.",
+    );
+  });
+
+  it("labels the earliest age without claiming the shortfall goes away (#7103)", async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: "alex", full_name: "Alex Example", accounts: [] },
+    ]);
+    mockGetPensionForecast.mockResolvedValue({
+      forecast: [],
+      projected_pot_gbp: 50,
+      pension_pot_gbp: 25,
+      current_age: 40,
+      retirement_age: 67,
+      dob: "1984-01-01",
+      earliest_retirement_age: 55,
+      retirement_income_breakdown: {
+        state_pension_annual: 6000,
+        defined_benefit_annual: 0,
+        defined_contribution_annual: 1000,
+      },
+      retirement_income_total_annual: 7000,
+      desired_income_annual: 12000,
+    });
+
+    const { default: PensionForecast } = await import("@/pages/PensionForecast");
+
+    renderWithI18n(<PensionForecast />);
+
+    const form = document.querySelector("form")!;
+    const monthlySpending = within(form).getByLabelText(
+      /monthly spending in retirement/i,
+    );
+    fireEvent.change(monthlySpending, { target: { value: "1000" } });
+
+    const btn = screen.getByRole("button", { name: /forecast/i });
+    await userEvent.click(btn);
+
+    // This branch fires *because* projected income misses the target, so the
+    // copy must not also promise the target is reached at that age.
+    await screen.findByText(
+      "You could retire as early as age 55, but your projected income leaves a shortfall of £5,000.00 per year (£416.67 per month) against your desired £12,000.00.",
     );
   });
 

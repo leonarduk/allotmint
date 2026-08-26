@@ -383,11 +383,11 @@
       "earliest": "Estimated earliest retirement age: {{age}}",
       "noBreakdown": "No income breakdown available.",
       "onTrack": "You're on track: projected annual income of {{total}} meets your desired {{desired}}.",
-      "onTrackWithAge": "You're on track: projected income of {{total}} meets your desired {{desired}} from age {{age}}.",
+      "onTrackWithAge": "You're on track: projected income of {{total}} meets your desired {{desired}} — you could retire as early as age {{age}}.",
       "shortfall": "Projected income leaves a shortfall of {{shortfallAnnual}} per year ({{shortfallMonthly}} per month) against your desired {{desired}}.",
-      "shortfallWithAge": "You'll reach your desired {{desired}} around age {{age}}, leaving a shortfall of {{shortfallAnnual}} per year until then."
+      "shortfallWithAge": "You could retire as early as age {{age}}, but your projected income leaves a shortfall of {{shortfallAnnual}} per year ({{shortfallMonthly}} per month) against your desired {{desired}}."
     },
-    "retirementAge": "Idade de aposentadoria: {{age}}",
+    "retirementAge": "Idade de aposentadoria planejada: {{age}}",
     "totalAnnualIncome": "Total annual income",
     "totalMonthlyIncome": "Total monthly income"
   },

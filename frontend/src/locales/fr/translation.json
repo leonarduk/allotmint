@@ -383,11 +383,11 @@
       "earliest": "Âge estimé de départ le plus tôt : {{age}}",
       "noBreakdown": "Aucune répartition de revenu disponible.",
       "onTrack": "Vous êtes sur la bonne voie : le revenu annuel projeté de {{total}} atteint votre objectif de {{desired}}.",
-      "onTrackWithAge": "Vous êtes sur la bonne voie : le revenu projeté de {{total}} atteint votre objectif de {{desired}} à partir de {{age}} ans.",
+      "onTrackWithAge": "Vous êtes sur la bonne voie : le revenu projeté de {{total}} atteint votre objectif de {{desired}} — vous pourriez partir à la retraite dès l’âge de {{age}} ans.",
       "shortfall": "Le revenu projeté laisse un déficit de {{shortfallAnnual}} par an ({{shortfallMonthly}} par mois) par rapport à votre objectif de {{desired}}.",
-      "shortfallWithAge": "Vous atteindrez votre objectif de {{desired}} vers {{age}} ans, laissant un déficit de {{shortfallAnnual}} par an d'ici là."
+      "shortfallWithAge": "Vous pourriez partir à la retraite dès l’âge de {{age}} ans, mais votre revenu projeté laisse un déficit de {{shortfallAnnual}} par an ({{shortfallMonthly}} par mois) par rapport à votre objectif de {{desired}}."
     },
-    "retirementAge": "Âge de retraite : {{age}}",
+    "retirementAge": "Âge de retraite prévu : {{age}}",
     "totalAnnualIncome": "Revenu annuel total",
     "totalMonthlyIncome": "Revenu mensuel total"
   },

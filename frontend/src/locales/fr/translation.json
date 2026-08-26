@@ -332,6 +332,7 @@
   },
   "loadingPortfolio": "Chargement du portefeuille…",
   "market": {
+    "indexChange": "Variation en % des indices",
     "indexLevels": "Niveaux des indices",
     "latestHeadlines": "Derniers titres",
     "sectorPerformance": "Performance des secteurs"

@@ -47,7 +47,13 @@ describe("MarketOverview", () => {
     expect(screen.getAllByText("FTSE 250")).toHaveLength(2);
     expect(screen.getByText("No headlines available")).toBeInTheDocument();
     expect(mockBar).toHaveBeenCalled();
-    expect(mockBar.mock.calls[0][0].dataKey).toBe("value");
+    expect(mockBar.mock.calls[0][0].dataKey).toBe("change");
+    // The bars plot % change, so the heading must not say "Index Levels"
+    // (that mislabel was #2541).
+    expect(
+      screen.getByRole("heading", { name: "Index % Change" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Index Levels")).not.toBeInTheDocument();
   });
 
   it("renders headlines when provided", async () => {

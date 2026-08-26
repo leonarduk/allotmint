@@ -12,12 +12,16 @@ const mockRunScenario = vi.fn();
 vi.mock("@/api", () => ({
   getEvents: () => mockGetEvents(),
   getOwners: () => mockGetOwners(),
-  getPortfolio: () => mockGetPortfolio(),
+  getPortfolio: (...args: unknown[]) => mockGetPortfolio(...args),
   runScenario: (params: any) => mockRunScenario(params),
 }));
 
 describe("ScenarioTester page", () => {
   beforeEach(() => {
+    // The page persists scenario.selectedOwners to localStorage, so without
+    // this a previous test's selection is restored on mount and fires extra
+    // getPortfolio calls in the next one.
+    localStorage.clear();
     mockGetEvents.mockReset();
     mockGetOwners.mockReset();
     mockGetPortfolio.mockReset();
@@ -159,5 +163,56 @@ describe("ScenarioTester page", () => {
     await screen.findByText("Loaded");
 
     expect(mockGetPortfolio).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not refetch a loaded portfolio when a second owner is selected (#7105)", async () => {
+    mockGetEvents.mockResolvedValueOnce([]);
+    mockGetOwners.mockResolvedValueOnce([
+      { owner: "alex", accounts: ["isa"], full_name: "Alex Leonard" },
+      { owner: "beth", accounts: ["isa"], full_name: "Beth Leonard" },
+    ]);
+    mockGetPortfolio.mockResolvedValue({ accounts: [] } as any);
+
+    render(<ScenarioTester />);
+
+    await screen.findByText("Alex Leonard");
+    const checkboxes = screen.getAllByRole("checkbox");
+    fireEvent.click(checkboxes[0]);
+    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledTimes(1));
+
+    // Selecting a second owner re-runs the load effect for BOTH owners. Alex
+    // is already loaded, so only Beth should hit the network.
+    fireEvent.click(checkboxes[1]);
+    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledTimes(2));
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(mockGetPortfolio).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not refetch a loaded portfolio behind a newly-queued one on Select all (#7105)", async () => {
+    mockGetEvents.mockResolvedValueOnce([]);
+    mockGetOwners.mockResolvedValueOnce([
+      { owner: "alex", accounts: ["isa"], full_name: "Alex Leonard" },
+      { owner: "beth", accounts: ["isa"], full_name: "Beth Leonard" },
+    ]);
+    mockGetPortfolio.mockResolvedValue({ accounts: [] } as any);
+
+    render(<ScenarioTester />);
+
+    await screen.findByText("Beth Leonard");
+    // Load the SECOND owner first, so "Select all" walks an unloaded owner
+    // (alex) before the loaded one (beth).
+    fireEvent.click(screen.getAllByRole("checkbox")[1]);
+    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /select all portfolios/i }),
+    );
+
+    // Only alex is missing, so exactly one further request may go out. Beth's
+    // guard must not be skipped just because alex queued an update first.
+    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledTimes(2));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(mockGetPortfolio).toHaveBeenCalledTimes(2);
   });
 });

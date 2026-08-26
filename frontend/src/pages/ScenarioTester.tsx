@@ -72,7 +72,14 @@ export default function ScenarioTester() {
     loadJSON<CustomHolding[]>("scenario.customHoldings", []),
   );
   const [removedKeys, setRemovedKeys] = useState<Set<string>>(() => new Set());
-  const inFlightPortfolioRequests = useRef<Set<string>>(new Set());
+  // Keys (`owner::asOf`) already requested for the current reporting date --
+  // in flight or resolved. This is a ref rather than derived from
+  // portfolioStates because the load effect calls ensurePortfolioLoaded once
+  // per selected owner in a single tick: once the first owner queues a
+  // setPortfolioStates update, React stops eagerly evaluating later updaters,
+  // so anything a later updater computes is not readable at its call site.
+  // Cleared with portfolioStates whenever the reporting date changes.
+  const requestedPortfolioKeys = useRef<Set<string>>(new Set());
 
   const fmt = new Intl.NumberFormat("en-GB", {
     style: "currency",
@@ -117,31 +124,15 @@ export default function ScenarioTester() {
   const ensurePortfolioLoaded = useCallback(
     (owner: string) => {
       const requestKey = `${owner}::${effectiveDate ?? ""}`;
-      if (inFlightPortfolioRequests.current.has(requestKey)) {
+      if (requestedPortfolioKeys.current.has(requestKey)) {
         return;
       }
+      requestedPortfolioKeys.current.add(requestKey);
 
-      let shouldFetch = true;
-      setPortfolioStates((prev) => {
-        const current = prev[owner];
-        if (
-          current &&
-          (current.status === "loading" || current.status === "ready") &&
-          current.asOf === effectiveDate
-        ) {
-          shouldFetch = false;
-          return prev;
-        }
-        return {
-          ...prev,
-          [owner]: { status: "loading", asOf: effectiveDate ?? null },
-        };
-      });
-      if (!shouldFetch) {
-        return;
-      }
-
-      inFlightPortfolioRequests.current.add(requestKey);
+      setPortfolioStates((prev) => ({
+        ...prev,
+        [owner]: { status: "loading", asOf: effectiveDate ?? null },
+      }));
 
       getPortfolio(owner, { asOf: effectiveDate })
         .then((pf) => {
@@ -161,6 +152,10 @@ export default function ScenarioTester() {
           });
         })
         .catch((e) => {
+          // Drop the key on failure so selecting the owner again retries; a
+          // successful load keeps it, and that is what suppresses the repeat
+          // requests this guard exists for (#7105).
+          requestedPortfolioKeys.current.delete(requestKey);
           const msg = e instanceof Error ? e.message : String(e);
           setPortfolioStates((prev) => {
             const state = prev[owner];
@@ -176,9 +171,6 @@ export default function ScenarioTester() {
               },
             };
           });
-        })
-        .finally(() => {
-          inFlightPortfolioRequests.current.delete(requestKey);
         });
     },
     [effectiveDate],
@@ -190,6 +182,7 @@ export default function ScenarioTester() {
   }, [selectedOwners, ensurePortfolioLoaded]);
 
   useEffect(() => {
+    requestedPortfolioKeys.current.clear();
     setPortfolioStates({});
   }, [effectiveDate]);
 

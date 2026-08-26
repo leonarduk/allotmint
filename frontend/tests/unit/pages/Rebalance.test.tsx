@@ -151,6 +151,55 @@ describe("Rebalance page", () => {
     expect(targetPayload.AAA + targetPayload.BBB).toBeCloseTo(1, 12);
   });
 
+  it("does not perturb untouched tickers' targets when other tickers are edited (#7102)", async () => {
+    // AAA/BBB/CCC/DDD prefill to 16.67/16.67/16.66/50.00 (residual-absorbed
+    // to sum to exactly 100.00, per the #6654 fix). Only AAA and DDD are
+    // edited here; BBB is left exactly as prefilled, so its target must stay
+    // the *exact* unrounded current-weight fraction and must not be nudged
+    // by renormalizing the edited rows' rounding drift against it.
+    mockGetPortfolio.mockResolvedValue({
+      accounts: [
+        {
+          holdings: [
+            { ticker: "AAA", market_value_gbp: 1 },
+            { ticker: "BBB", market_value_gbp: 1 },
+            { ticker: "CCC", market_value_gbp: 1 },
+            { ticker: "DDD", market_value_gbp: 3 },
+          ],
+        },
+      ],
+    });
+    mockGetRebalance.mockResolvedValue([]);
+    const { default: Rebalance } = await import("@/pages/Rebalance");
+    render(<Rebalance />);
+
+    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("alex"));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Target weight (%) for DDD")).toHaveValue(50),
+    );
+
+    fireEvent.change(screen.getByLabelText("Target weight (%) for AAA"), {
+      target: { value: "30" },
+    });
+    fireEvent.change(screen.getByLabelText("Target weight (%) for DDD"), {
+      target: { value: "36.67" },
+    });
+    // BBB (16.67) and CCC (16.66) are left exactly as prefilled.
+
+    fireEvent.click(screen.getByRole("button", { name: /rebalance/i }));
+
+    await waitFor(() => expect(mockGetRebalance).toHaveBeenCalledTimes(1));
+    const [actualPayload, targetPayload] = mockGetRebalance.mock.calls[0];
+    const exactBbbFraction = actualPayload.BBB / (actualPayload.AAA + actualPayload.BBB + actualPayload.CCC + actualPayload.DDD);
+
+    // BBB was untouched, so its target must match its exact current-value
+    // fraction to well within the backend's 1e-6 dust threshold (#7102) —
+    // previously renormalization perturbed it by ~1e-4, well past that
+    // threshold, producing a phantom trade.
+    expect(Math.abs(targetPayload.BBB - exactBbbFraction)).toBeLessThan(1e-9);
+    expect(targetPayload.AAA + targetPayload.BBB + targetPayload.CCC + targetPayload.DDD).toBeCloseTo(1, 10);
+  });
+
   it("does not emit duplicate-key warnings when the rebalance API returns duplicate tickers (#6505)", async () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     // The rebalance API can return the same ticker under multiple exchanges

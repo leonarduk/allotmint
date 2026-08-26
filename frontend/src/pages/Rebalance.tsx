@@ -229,22 +229,36 @@ export default function Rebalance() {
       return;
     }
 
+    // No-change rows (target left equal to the shown current weight) get the
+    // *exact* unrounded current weight so they match `actual` precisely.
+    // Changed rows keep the user's entered (rounded) weight. Only the changed
+    // rows are then renormalized to absorb rounding drift, against the
+    // residual budget left over after the no-change rows — that way an exact
+    // no-change target is never perturbed by a common scale factor, which
+    // previously reintroduced a mismatch large enough to clear the backend's
+    // dust threshold and generate phantom trades (#7102).
+    const changedTargets: Record<string, number> = {};
     for (const row of validRows) {
       const exactCurrentWeightPct = totalInputCurrent > 0 ? (row.current / totalInputCurrent) * 100 : 0;
       const roundedCurrentWeightPct = Number(exactCurrentWeightPct.toFixed(2));
-      const targetWeight =
-        Math.abs(row.weightPct - roundedCurrentWeightPct) < 1e-9
-          ? exactCurrentWeightPct / 100
-          : row.weightPct / 100;
+      const isNoChange = Math.abs(row.weightPct - roundedCurrentWeightPct) < 1e-9;
       actual[row.ticker] = row.current;
-      target[row.ticker] = targetWeight;
-    }
-    const normalizedTargetTotal = Object.values(target).reduce((sum, value) => sum + value, 0);
-    if (normalizedTargetTotal > 0) {
-      for (const ticker of Object.keys(target)) {
-        target[ticker] /= normalizedTargetTotal;
+      if (isNoChange) {
+        target[row.ticker] = exactCurrentWeightPct / 100;
+      } else {
+        changedTargets[row.ticker] = row.weightPct / 100;
       }
     }
+    const noChangeTotal = Object.values(target).reduce((sum, value) => sum + value, 0);
+    const changedTotal = Object.values(changedTargets).reduce((sum, value) => sum + value, 0);
+    const residualBudget = 1 - noChangeTotal;
+    if (changedTotal > 0 && residualBudget > 0) {
+      const scale = residualBudget / changedTotal;
+      for (const ticker of Object.keys(changedTargets)) {
+        changedTargets[ticker] *= scale;
+      }
+    }
+    Object.assign(target, changedTargets);
 
     try {
       const res = await getRebalance(actual, target);

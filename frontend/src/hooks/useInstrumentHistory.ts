@@ -52,7 +52,7 @@ const MAX_BATCH_TICKERS = 100;
 // endpoint's `include_mini` opt-in), so a full-detail cache entry populated by
 // a full-detail consumer (e.g. InstrumentResearch.tsx) may have no `.mini` for
 // a mini-only consumer (Sparkline/InstrumentTile) to read at the same
-// (ticker, days) key. Deriving the slice client-side from `.prices` avoids
+// (ticker, days) key. Deriving the slices client-side from `.prices` avoids
 // that entry silently rendering an empty sparkline.
 //
 // This intentionally replicates the backend's row-count slicing --
@@ -60,24 +60,36 @@ const MAX_BATCH_TICKERS = 100;
 // `timeseries_for_ticker` -- rather than the calendar-day cutoff described in
 // ADR §4.5. That date-cutoff derivation is for slicing arbitrary ranges out of
 // one canonical (e.g. 365-day) series; here `.prices` already covers exactly
-// the `days` window the entry was fetched with (resolve_date_range), so
-// row-slicing the tail reproduces the same values the server's `mini` field
-// held for that entry -- see the ADR's "why this is easy to miss" note in §4.5.
-function deriveMiniRows(prices: unknown, days: number): InstrumentDetailMini[string] {
-  if (!Array.isArray(prices) || days <= 0) return [];
-  return prices.slice(-days);
+// the window the entry was fetched with (resolve_date_range), so row-slicing
+// the tail reproduces the same values the server's `mini` field would have
+// held for that entry -- see the ADR's "why this is easy to miss" note in
+// §4.5.
+//
+// All three windows are derived, matching the server's `mini` shape exactly
+// (`{"7": ..., "30": ..., "180": ...}` regardless of the `days` the entry was
+// fetched with -- the backend computes all three from whatever `prices` it
+// has, not just the requested one). The current consumers (Sparkline,
+// InstrumentTile) only ever read the one window matching their own fetch
+// `days`, but deriving only that one would leave the other two silently
+// `undefined` on this entry for any future/other reader -- a real gap between
+// "derived mini" and "server mini" shape that's cheap to close outright.
+const MINI_WINDOWS = [7, 30, 180] as const;
+
+function deriveMiniRows(prices: unknown, window: number): InstrumentDetailMini[string] {
+  if (!Array.isArray(prices) || window <= 0) return [];
+  return prices.slice(-window);
 }
 
 function withDerivedMini<T extends { prices: unknown; mini?: InstrumentDetail["mini"] }>(
   entry: T,
-  days: number,
 ): T {
-  const key = String(days);
-  if (entry.mini?.[key]) return entry;
-  return {
-    ...entry,
-    mini: { ...(entry.mini ?? {}), [key]: deriveMiniRows(entry.prices, days) },
-  } as T;
+  if (MINI_WINDOWS.every((window) => entry.mini?.[String(window)])) return entry;
+  const mini: InstrumentDetailMini = { ...(entry.mini ?? {}) };
+  for (const window of MINI_WINDOWS) {
+    const key = String(window);
+    if (!mini[key]) mini[key] = deriveMiniRows(entry.prices, window);
+  }
+  return { ...entry, mini } as T;
 }
 
 function getTickerCache(ticker: string) {
@@ -205,7 +217,7 @@ export function getCachedInstrumentHistory(
   const byTicker = cache.get(ticker);
   if (typeof days === "number") {
     const full = byTicker?.get(days);
-    if (full) return withDerivedMini(full, days);
+    if (full) return withDerivedMini(full);
     return miniCache.get(ticker)?.get(days) ?? null;
   }
   const first = byTicker?.values().next();
@@ -325,7 +337,7 @@ export function useInstrumentHistory(
 
   const [data, setData] = useState<InstrumentDetail | MiniDetail | null>(() => {
     const cachedFull = cache.get(ticker)?.get(days);
-    if (cachedFull) return acceptMiniOnly ? withDerivedMini(cachedFull, days) : cachedFull;
+    if (cachedFull) return acceptMiniOnly ? withDerivedMini(cachedFull) : cachedFull;
     return acceptMiniOnly ? (miniCache.get(ticker)?.get(days) ?? null) : null;
   });
   const [loading, setLoading] = useState(() => {
@@ -347,7 +359,7 @@ export function useInstrumentHistory(
 
     const cachedFull = cache.get(ticker)?.get(days) ?? null;
     if (cachedFull) {
-      setData(acceptMiniOnly ? withDerivedMini(cachedFull, days) : cachedFull);
+      setData(acceptMiniOnly ? withDerivedMini(cachedFull) : cachedFull);
       setLoading(false);
       return;
     }

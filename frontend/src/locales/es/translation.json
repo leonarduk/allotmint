@@ -385,7 +385,7 @@
       "onTrack": "You're on track: projected annual income of {{total}} meets your desired {{desired}}.",
       "onTrackWithAge": "You're on track: projected income of {{total}} meets your desired {{desired}} — you could retire as early as age {{age}}.",
       "shortfall": "Projected income leaves a shortfall of {{shortfallAnnual}} per year ({{shortfallMonthly}} per month) against your desired {{desired}}.",
-      "shortfallWithAge": "You could retire as early as age {{age}}, when you'll reach your desired {{desired}}, leaving a shortfall of {{shortfallAnnual}} per year until then."
+      "shortfallWithAge": "You could retire as early as age {{age}}, but your projected income leaves a shortfall of {{shortfallAnnual}} per year ({{shortfallMonthly}} per month) against your desired {{desired}}."
     },
     "retirementAge": "Edad de jubilación prevista: {{age}}",
     "totalAnnualIncome": "Total annual income",

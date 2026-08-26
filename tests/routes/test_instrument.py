@@ -216,6 +216,33 @@ def test_instrument_route_json_html_and_base_currency(monkeypatch):
     assert "<table" in resp_html.text
 
 
+def test_instrument_route_include_mini_query_param_via_http(monkeypatch):
+    """``include_mini`` is a bare-signature Query param (no explicit param list
+    on the ``@router.get`` decorator), so it's exposed the same way as every
+    other query param on this route. Exercised through a real HTTP request via
+    TestClient -- not a direct function call -- to prove it actually reaches
+    the ASGI route, not just the Python function (#7081 review)."""
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    app = create_app()
+    df = _make_df()
+    with (
+        patch("backend.routes.instrument.load_meta_timeseries_range", return_value=df),
+        patch("backend.routes.instrument.list_portfolios", return_value=[]),
+        patch("backend.routes.instrument.get_security_meta", return_value={"currency": "GBP"}),
+    ):
+        client = _auth_client(app)
+        resp_default = client.get("/instrument?ticker=ABC.L&days=1&format=json")
+        resp_included = client.get("/instrument?ticker=ABC.L&days=1&format=json&include_mini=true")
+
+    assert resp_default.status_code == 200
+    assert "mini" not in resp_default.json()
+
+    assert resp_included.status_code == 200
+    data = resp_included.json()
+    assert set(data["mini"]) == {"7", "30", "180"}
+    assert data["mini"]["7"] == data["prices"][-7:]
+
+
 def test_instrument_route_close_only_prices_populates_positions(monkeypatch):
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
     app = create_app()

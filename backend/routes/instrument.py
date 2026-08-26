@@ -292,12 +292,24 @@ async def instrument(
     end_date: Annotated[Optional[date], Query(description="End date YYYY-MM-DD; overrides today")] = None,
     format: str = Query("html", pattern="^(html|json)$"),
     base_currency: str | None = Query(None, description="Reporting currency for prices"),
+    include_mini: Annotated[
+        bool,
+        Query(description="Also return the 7/30/180-day slices duplicated from `prices`"),
+    ] = False,
 ):
     """Return price history and portfolio positions for a ticker.
 
     Depending on ``format`` the response is either a small HTML page or a JSON
     payload that includes the price history plus all the holdings where the
     instrument appears.
+
+    ``mini`` (the 7/30/180-day slices duplicated from the tail of ``prices``)
+    is omitted by default -- pass ``include_mini=true`` to get it back. This
+    mirrors ``/instrument/batch``'s ``include_mini`` convention (ADR #6911
+    §5.2/§8, Phase 3b): the frontend derives the same slices client-side from
+    a cached ``prices`` array instead (see ``useInstrumentHistory.ts``'s
+    ``withDerivedMini``), so shipping it on every response was pure duplicated
+    payload -- roughly 37% of the body on a full-window request.
     """
 
     _validate_ticker(ticker)
@@ -348,12 +360,13 @@ async def instrument(
                 "rows": 0,
                 "positions": positions,
                 "prices": [],
-                "mini": {"7": [], "30": [], "180": []},
                 "currency": currency,
                 "name": name,
                 "sector": sector,
                 "base_currency": base_currency,
             }
+            if include_mini:
+                payload["mini"] = {"7": [], "30": [], "180": []}
             return JSONResponse(jsonable_encoder(payload))
 
         pos_tbl = (
@@ -542,7 +555,6 @@ async def instrument(
                 pass
 
         prices = df[cols].rename(columns=rename).assign(**assigns).to_dict(orient="records")
-        mini = {"7": prices[-7:], "30": prices[-30:], "180": prices[-180:]}
         payload = {
             "ticker": ticker,
             "from": start.isoformat(),
@@ -550,12 +562,13 @@ async def instrument(
             "rows": len(prices),
             "positions": positions,
             "prices": prices,
-            "mini": mini,
             "currency": currency,
             "name": name,
             "sector": sector,
             "base_currency": base_currency,
         }
+        if include_mini:
+            payload["mini"] = {"7": prices[-7:], "30": prices[-30:], "180": prices[-180:]}
         if fx_links:
             payload["fx"] = fx_links
         return JSONResponse(jsonable_encoder(payload))

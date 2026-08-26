@@ -223,7 +223,7 @@ describe("PensionForecast page", () => {
     await screen.findByText("Retirement income breakdown");
     expect(
       screen.getByText(
-        "You're on track: projected income of £15,000.00 meets your desired £14,000.00 from age 64.",
+        "You're on track: projected income of £15,000.00 meets your desired £14,000.00 — you could retire as early as age 64.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("State pension")).toBeInTheDocument();

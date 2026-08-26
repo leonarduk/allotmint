@@ -24,6 +24,10 @@ const accounts: Account[] = [
         sell_eligible: true,
         days_until_eligible: 0,
         next_eligible_sell_date: "2025-01-01",
+        current_price_gbp: 60,
+        current_price_currency: "GBP",
+        currency: "GBP",
+        instrument_type: "Equity",
       },
       {
         ticker: "BBB",
@@ -49,6 +53,10 @@ const accounts: Account[] = [
         market_value_gbp: 180,
         gain_gbp: 130,
         sell_eligible: false,
+        current_price_gbp: 60,
+        current_price_currency: "GBP",
+        currency: "GBP",
+        instrument_type: "Equity",
       },
     ],
   },
@@ -93,6 +101,58 @@ describe("toRollupRows", () => {
       lot_count: 2,
       owners: ["alice", "bob"],
       accounts: ["ISA", "SIPP"],
+      current_price_gbp: 60,
+      current_price_currency: "GBP",
+      currency: "GBP",
+      instrument_type: "Equity",
+    });
+  });
+
+  it("derives price/currency/instrument type from a representative lot when a ticker has multiple lots", () => {
+    // AAA rolls up alice's and bob's lots. Both carry identical per-unit
+    // price/currency/type, which is the expected shape (price is per-unit,
+    // currency and instrument type are properties of the instrument, not the
+    // position) -- the rollup should surface these rather than leaving them
+    // blank, which was the bug: Px £/CCY/Type showed as "-"/blank/"Other" in
+    // Rollup mode even though every lot carried real values.
+    const [row] = toRollupRows(toScopedHoldingRows(accounts));
+
+    expect(row).toMatchObject({
+      ticker: "AAA",
+      current_price_gbp: 60,
+      current_price_currency: "GBP",
+      currency: "GBP",
+      instrument_type: "Equity",
+    });
+  });
+
+  it("falls back to null when no lot in the group carries price/currency/type", () => {
+    const undatedAccounts: Account[] = [
+      {
+        owner: "alice",
+        account_type: "ISA",
+        currency: "GBP",
+        value_estimate_gbp: 100,
+        holdings: [
+          {
+            ticker: "ZZZ",
+            name: "Zeta",
+            units: 1,
+            cost_basis_gbp: 10,
+            market_value_gbp: 12,
+            gain_gbp: 2,
+          },
+        ],
+      },
+    ];
+
+    const [row] = toRollupRows(toScopedHoldingRows(undatedAccounts));
+
+    expect(row).toMatchObject({
+      current_price_gbp: null,
+      current_price_currency: null,
+      currency: null,
+      instrument_type: null,
     });
   });
 

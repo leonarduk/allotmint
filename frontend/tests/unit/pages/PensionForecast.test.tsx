@@ -379,6 +379,123 @@ describe("PensionForecast page", () => {
     );
   });
 
+  it("shows a plain-language message when death age is not after retirement age", async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: "steve", full_name: "Steve Leonard", accounts: [] },
+    ]);
+    mockGetPensionForecast.mockRejectedValue(
+      new Error("death_age must exceed retirement_age"),
+    );
+
+    const { default: PensionForecast } = await import("@/pages/PensionForecast");
+
+    renderWithI18n(<PensionForecast />);
+
+    const form = document.querySelector("form")!;
+    const deathAge = within(form).getByLabelText(/death age/i);
+    fireEvent.change(deathAge, { target: { value: "50" } });
+
+    const btn = screen.getByRole("button", { name: /forecast/i });
+    await userEvent.click(btn);
+
+    await screen.findByText(
+      "Death age (50) must be after your retirement age.",
+    );
+    expect(
+      screen.queryByText(/death_age must exceed retirement_age/i),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Error:/)).not.toBeInTheDocument();
+  });
+
+  it("names the retirement age in the error once it is known from a prior forecast", async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: "steve", full_name: "Steve Leonard", accounts: [] },
+    ]);
+    mockGetPensionForecast.mockResolvedValueOnce({
+      forecast: [],
+      projected_pot_gbp: 0,
+      pension_pot_gbp: 0,
+      current_age: 55,
+      retirement_age: 67,
+      dob: "1970-01-01",
+      earliest_retirement_age: null,
+      retirement_income_breakdown: null,
+      retirement_income_total_annual: null,
+      desired_income_annual: null,
+    });
+
+    const { default: PensionForecast } = await import("@/pages/PensionForecast");
+
+    renderWithI18n(<PensionForecast />);
+
+    const form = document.querySelector("form")!;
+    const btn = screen.getByRole("button", { name: /forecast/i });
+    await userEvent.click(btn);
+    await screen.findByText(/birth date: 1970-01-01/i);
+
+    mockGetPensionForecast.mockRejectedValueOnce(
+      new Error("death_age must exceed retirement_age"),
+    );
+    const deathAge = within(form).getByLabelText(/death age/i);
+    fireEvent.change(deathAge, { target: { value: "50" } });
+    await userEvent.click(btn);
+
+    await screen.findByText(
+      "Death age (50) must be after your retirement age (67).",
+    );
+  });
+
+  it("falls back to generic input guidance for an unrecognised 400", async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: "steve", full_name: "Steve Leonard", accounts: [] },
+    ]);
+    const err = Object.assign(new Error("some_unmapped_detail"), {
+      status: 400,
+    });
+    mockGetPensionForecast.mockRejectedValue(err);
+
+    const { default: PensionForecast } = await import("@/pages/PensionForecast");
+
+    renderWithI18n(<PensionForecast />);
+
+    const btn = screen.getByRole("button", { name: /forecast/i });
+    await userEvent.click(btn);
+
+    await screen.findByText(
+      "We couldn't calculate this forecast. Please check your inputs and try again.",
+    );
+    expect(screen.queryByText(/some_unmapped_detail/)).not.toBeInTheDocument();
+  });
+
+  it("passes a backend-outage message through instead of blaming the user's inputs", async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: "steve", full_name: "Steve Leonard", accounts: [] },
+    ]);
+    // api.ts already replaces transient-status bodies with this copy; the page
+    // must not overwrite it with "check your inputs" (#7131 review follow-up).
+    const err = Object.assign(
+      new Error(
+        "The backend service is temporarily unavailable. Please try again.",
+      ),
+      { status: 503 },
+    );
+    mockGetPensionForecast.mockRejectedValue(err);
+
+    const { default: PensionForecast } = await import("@/pages/PensionForecast");
+
+    renderWithI18n(<PensionForecast />);
+
+    const btn = screen.getByRole("button", { name: /forecast/i });
+    await userEvent.click(btn);
+
+    await screen.findByText(
+      "The backend service is temporarily unavailable. Please try again.",
+    );
+    expect(
+      screen.queryByText(/check your inputs/i),
+    ).not.toBeInTheDocument();
+  });
+
   it("surfaces employer contribution adjustments", async () => {
     mockGetOwners.mockResolvedValue([
       { owner: "alex", full_name: "Alex Example", accounts: [] },

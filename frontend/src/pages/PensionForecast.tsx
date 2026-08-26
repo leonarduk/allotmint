@@ -128,6 +128,42 @@ export default function PensionForecast() {
     return ownerSummary?.accounts ?? [];
   }, [owners, owner]);
 
+  const humanizeForecastError = (
+    rawMessage: string,
+    context: { deathAge: number; retirementAge: number | null; status?: number },
+  ): string => {
+    const knownDetailMessages: Record<
+      string,
+      (ctx: typeof context) => string
+    > = {
+      "death_age must exceed retirement_age": (ctx) =>
+        ctx.retirementAge != null
+          ? `Death age (${ctx.deathAge}) must be after your retirement age (${ctx.retirementAge}).`
+          : `Death age (${ctx.deathAge}) must be after your retirement age.`,
+      "missing or invalid dob": () =>
+        "We couldn't determine this owner's date of birth. Please check their profile details and try again.",
+    };
+
+    const handler = knownDetailMessages[rawMessage.trim()];
+    if (handler) return handler(context);
+
+    // Only an unrecognised *client* error is safely described as an input
+    // problem. Everything else -- a 5xx, a timeout, a network failure -- is
+    // not the user's inputs, and api.ts has already turned those into
+    // readable copy ("The backend service is temporarily unavailable...",
+    // the timeout message). Telling the user to "check your inputs" when the
+    // backend is down sends them to fix something that isn't broken, so pass
+    // the message through instead.
+    const status = context.status;
+    if (status != null && status >= 400 && status < 500) {
+      return "We couldn't calculate this forecast. Please check your inputs and try again.";
+    }
+    return (
+      rawMessage.trim() ||
+      "We couldn't calculate this forecast. Please try again."
+    );
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -157,7 +193,12 @@ export default function PensionForecast() {
       );
       setErr(null);
     } catch (ex: any) {
-      setErr(String(ex));
+      const rawMessage = ex instanceof Error ? ex.message : String(ex);
+      const status =
+        typeof ex?.status === "number" ? (ex.status as number) : undefined;
+      setErr(
+        humanizeForecastError(rawMessage, { deathAge, retirementAge, status }),
+      );
       setData([]);
       setEarliestRetirementAge(null);
       setRetirementIncomeBreakdown(null);

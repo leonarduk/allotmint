@@ -23,11 +23,17 @@ export type RollupRow = {
   exchange: string | null;
   change_7d_pct: number | null;
   change_30d_pct: number | null;
-  acquired_date: null;
-  days_held: null;
-  sell_eligible: null;
-  days_until_eligible: null;
-  next_eligible_sell_date: null;
+  // Describe the oldest lot in the group: its acquisition date is the
+  // earliest date among the lots, days held is recalculated against the
+  // portfolio snapshot passed to toRollupRows, and its eligibility metadata
+  // is retained as-is. A ticker with no lot carrying a valid acquired_date
+  // falls back to null (genuinely unknown), which the table renders as an
+  // explicit "N/A"/"—" rather than a silently wrong value.
+  acquired_date: string | null;
+  days_held: number | null;
+  sell_eligible: boolean | null;
+  days_until_eligible: number | null;
+  next_eligible_sell_date: string | null;
 };
 
 export function toScopedHoldingRows(accounts: Account[]): ScopedHoldingRow[] {
@@ -59,6 +65,21 @@ type MutableRollup = Omit<
 > & {
   ownerSet: Set<string>;
   accountSet: Set<string>;
+  oldestLot: ScopedHoldingRow;
+};
+
+const hasValidAcquiredDate = (lot: ScopedHoldingRow): boolean =>
+  !!lot.acquired_date && !Number.isNaN(Date.parse(lot.acquired_date));
+
+// True when `candidate` was acquired earlier than `current` (or is the only
+// one of the two with a usable acquired_date).
+const isEarlierAcquisition = (
+  candidate: ScopedHoldingRow,
+  current: ScopedHoldingRow,
+): boolean => {
+  if (!hasValidAcquiredDate(candidate)) return false;
+  if (!hasValidAcquiredDate(current)) return true;
+  return Date.parse(candidate.acquired_date!) < Date.parse(current.acquired_date!);
 };
 
 function addHolding(
@@ -84,6 +105,9 @@ function addHolding(
     existing.lot_count += 1;
     existing.ownerSet.add(holding.owner);
     existing.accountSet.add(holding.source_account);
+    if (isEarlierAcquisition(holding, existing.oldestLot)) {
+      existing.oldestLot = holding;
+    }
     return;
   }
 
@@ -106,18 +130,30 @@ function addHolding(
     next_eligible_sell_date: null,
     ownerSet: new Set([holding.owner]),
     accountSet: new Set([holding.source_account]),
+    oldestLot: holding,
   });
 }
 
+/**
+ * Combine account lots into one portfolio-level position per ticker.
+ *
+ * `asOf` is the portfolio snapshot date (e.g. `portfolio.as_of`) used to
+ * recompute days_held against the oldest lot's acquired_date, mirroring how
+ * a single-account holding's days_held is derived. When omitted, the current
+ * date is used.
+ */
 export function toRollupRows(
   holdings: ScopedHoldingRow[],
   instruments: InstrumentSummary[] = [],
+  asOf?: string,
 ): RollupRow[] {
   const grouped = new Map<string, MutableRollup>();
 
   for (const holding of holdings) {
     addHolding(grouped, holding);
   }
+
+  const snapshotTime = asOf ? Date.parse(asOf) : Date.now();
 
   const scopedTotal = Array.from(grouped.values()).reduce(
     (total, row) => total + row.market_value_gbp,
@@ -129,7 +165,21 @@ export function toRollupRows(
 
   return Array.from(grouped.values(), (row) => {
     const instrument = instrumentByTicker.get(row.ticker);
-    const { ownerSet, accountSet, ...rollup } = row;
+    const { ownerSet, accountSet, oldestLot, ...rollup } = row;
+
+    const acquiredDate = hasValidAcquiredDate(oldestLot)
+      ? oldestLot.acquired_date!
+      : null;
+    const acquiredTime = acquiredDate ? Date.parse(acquiredDate) : Number.NaN;
+    const rawDaysHeld =
+      Number.isNaN(snapshotTime) || Number.isNaN(acquiredTime)
+        ? (oldestLot.days_held ?? null)
+        : Math.floor((snapshotTime - acquiredTime) / 86_400_000);
+    // A negative value means `asOf` predates the acquisition date (e.g. a
+    // historical snapshot requested before the holding existed) — that's not
+    // a valid days-held count, so surface it as unavailable rather than
+    // silently clamping to 0, which would look like "acquired today".
+    const daysHeld = rawDaysHeld != null && rawDaysHeld < 0 ? null : rawDaysHeld;
 
     return {
       ...rollup,
@@ -139,6 +189,11 @@ export function toRollupRows(
       weight_pct: scopedTotal
         ? (row.market_value_gbp / scopedTotal) * 100
         : 0,
+      acquired_date: acquiredDate,
+      days_held: daysHeld,
+      sell_eligible: oldestLot.sell_eligible ?? null,
+      days_until_eligible: oldestLot.days_until_eligible ?? null,
+      next_eligible_sell_date: oldestLot.next_eligible_sell_date ?? null,
       owners: Array.from(ownerSet),
       accounts: Array.from(accountSet),
       grouping: instrument?.grouping ?? null,

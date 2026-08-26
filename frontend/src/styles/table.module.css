@@ -93,6 +93,14 @@
   font-size: 0.75rem;
 }
 
+/* Explicit "no data" state — distinguishable from a bare "—" placeholder,
+   which can otherwise look indistinguishable from a loading/bug state. */
+.notApplicable {
+  color: var(--surface-muted-color, #888);
+  font-style: italic;
+  cursor: help;
+}
+
 .groupSection {
   border-top: 1px solid rgba(0, 0, 0, 0.08);
 }

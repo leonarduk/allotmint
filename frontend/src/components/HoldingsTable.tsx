@@ -869,10 +869,24 @@ export function HoldingsTable({
                 <td className={tableStyles.cell}>
                   {h.acquired_date && !isNaN(Date.parse(h.acquired_date))
                     ? formatDateISO(new Date(h.acquired_date))
-                    : "—"}
+                    : (
+                        <span
+                          className={tableStyles.notApplicable}
+                          title={t("holdingsTable.acquiredNotAvailable")}
+                        >
+                          {t("holdingsTable.notApplicable")}
+                        </span>
+                      )}
                 </td>
                 <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                  {h.days_held ?? "—"}
+                  {h.days_held ?? (
+                    <span
+                      className={tableStyles.notApplicable}
+                      title={t("holdingsTable.daysHeldNotAvailable")}
+                    >
+                      {t("holdingsTable.notApplicable")}
+                    </span>
+                  )}
                 </td>
                 <td className={`${tableStyles.cell} ${tableStyles.center}`}>
                   {h.days_held != null
@@ -880,7 +894,14 @@ export function HoldingsTable({
                         const stage = getGrowthStage({ daysHeld: h.days_held });
                         return <span title={stage.message}>{stage.icon}</span>;
                       })()
-                    : "—"}
+                    : (
+                        <span
+                          className={tableStyles.notApplicable}
+                          title={t("holdingsTable.stageNotAvailable")}
+                        >
+                          {t("holdingsTable.notApplicable")}
+                        </span>
+                      )}
                 </td>
                 <td
                   className={`${tableStyles.cell} ${tableStyles.center} ${
@@ -893,14 +914,20 @@ export function HoldingsTable({
                   title={
                     h.next_eligible_sell_date
                       ? formatDateISO(new Date(h.next_eligible_sell_date))
-                      : undefined
+                      : h.sell_eligible == null
+                        ? t("holdingsTable.eligibleNotAvailable")
+                        : undefined
                   }
                 >
-                  {h.sell_eligible == null
-                    ? "—"
-                    : h.sell_eligible
-                      ? `✓ ${t("holdingsTable.eligible")}`
-                      : `✗ ${h.days_until_eligible ?? ""}`}
+                  {h.sell_eligible == null ? (
+                    <span className={tableStyles.notApplicable}>
+                      {t("holdingsTable.notApplicable")}
+                    </span>
+                  ) : h.sell_eligible ? (
+                    `✓ ${t("holdingsTable.eligible")}`
+                  ) : (
+                    `✗ ${h.days_until_eligible ?? ""}`
+                  )}
                 </td>
               </tr>
             );

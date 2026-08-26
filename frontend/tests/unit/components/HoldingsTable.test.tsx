@@ -409,7 +409,7 @@ describe("HoldingsTable", () => {
         expect(htBetaMarket).toBe(itBetaMarket);
     });
 
-    it("renders — for growth stage and eligibility when data is null (rollup rows)", async () => {
+    it("renders an explicit N/A state (not a bare —) for acquired/days-held/stage/eligibility when data is null (rollup rows)", async () => {
         const rollupRows: RollupRow[] = [
             {
                 ticker: "ROLL",
@@ -445,10 +445,38 @@ describe("HoldingsTable", () => {
         await userEvent.click(screen.getByRole("button", { name: "Toggle Growth" }));
 
         const row = screen.getByText("Rollup Co").closest("tr")!;
-        // Stage and eligibility cells should show "—" for null rollup fields
-        const cells = within(row).getAllByText("—");
-        // days_held cell, stage cell, eligibility cell, and acquired_date cell
-        expect(cells.length).toBeGreaterThanOrEqual(3);
+
+        // acquired_date, days_held, stage, and eligibility all render an explicit,
+        // distinctly-styled "N/A" instead.
+        const naCells = within(row).getAllByText("N/A");
+        expect(naCells.length).toBe(4);
+        naCells.forEach((cell) => {
+            expect(cell.className).toContain("notApplicable");
+        });
+
+        // Each N/A carries a tooltip explaining why the data is missing, so it
+        // reads as "genuinely no data" rather than a loading/bug state.
+        expect(
+            screen.getByTitle("No acquisition date recorded"),
+        ).toBeInTheDocument();
+        expect(screen.getByTitle("Days held not available")).toBeInTheDocument();
+        expect(screen.getByTitle("Growth stage unavailable")).toBeInTheDocument();
+        expect(
+            within(row).getByTitle("Sell eligibility not available"),
+        ).toBeInTheDocument();
+    });
+
+    it("still renders real acquired/days-held/stage/eligibility data normally (no N/A)", async () => {
+        renderWithConfig(<HoldingsTable holdings={holdings} />);
+
+        const row = (await screen.findByText("Alpha")).closest("tr")!;
+        expect(within(row).queryByText("N/A")).toBeNull();
+        const acquiredCell = within(row)
+            .getAllByText(formatDateISO(new Date("2024-01-01")))
+            .find((el) => el.tagName === "TD");
+        expect(acquiredCell).toBeInTheDocument();
+        expect(within(row).getByText("100")).toBeInTheDocument();
+        expect(within(row).getByText(/Eligible/)).toBeInTheDocument();
     });
 
     it("keeps footer columns aligned with the header in relative view", async () => {

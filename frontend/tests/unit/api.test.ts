@@ -19,6 +19,7 @@ import {
   UNAUTHORIZED_EVENT,
   reconcileHoldingsCsv,
   importHoldingsCsv,
+  runCustomQuery,
 } from "@/api";
 
 const csvFile = new File(["ticker,units"], "holdings.csv", {
@@ -610,6 +611,40 @@ describe("scenario APIs", () => {
       url,
       expect.objectContaining({ headers: expect.any(Headers) }),
     );
+  });
+});
+
+describe("custom query (issue #7104)", () => {
+  it("POSTs the query body -- the backend only exposes POST /custom-query/run", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ results: [{ ticker: "AAA.L" }] }),
+    });
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+
+    const rows = await runCustomQuery({
+      start: "2024-01-01",
+      end: "2024-02-01",
+      owners: ["alex"],
+      tickers: ["AAA.L"],
+      metrics: ["meta"],
+    });
+
+    // The GET form this replaced 404'd: no such route existed.
+    const [url, init] = mockFetch.mock.calls[0];
+    expect(url).toBe(`${API_BASE}/custom-query/run`);
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body as string)).toEqual({
+      start: "2024-01-01",
+      end: "2024-02-01",
+      owners: ["alex"],
+      tickers: ["AAA.L"],
+      metrics: ["meta"],
+      format: "json",
+    });
+    // The endpoint wraps rows in {results}; callers expect the bare array.
+    expect(rows).toEqual([{ ticker: "AAA.L" }]);
   });
 });
 

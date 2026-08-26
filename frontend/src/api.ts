@@ -1613,17 +1613,16 @@ export const requestApproval = async (owner: string, ticker: string) => {
 
 
 /** Execute a custom query against the backend. */
-export const runCustomQuery = (params: CustomQuery) => {
-  const query = new URLSearchParams();
-  if (params.start) query.set("start", params.start);
-  if (params.end) query.set("end", params.end);
-  if (params.owners?.length) query.set("owners", params.owners.join(","));
-  if (params.tickers?.length) query.set("tickers", params.tickers.join(","));
-  if (params.metrics?.length) query.set("metrics", params.metrics.join(","));
-  query.set("format", "json");
-  return fetchJson<Record<string, unknown>[]>(
-    `${API_BASE}/custom-query/run?${query.toString()}`,
+export const runCustomQuery = async (params: CustomQuery) => {
+  const { results } = await fetchJson<{ results: Record<string, unknown>[] }>(
+    `${API_BASE}/custom-query/run`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...params, format: "json" }),
+    },
   );
+  return results;
 };
 
 /** Persist a query definition on the backend. */

@@ -108,7 +108,7 @@ export function TopMoversPage() {
       limit: 10,
     });
   }, [watchlist, period, excludeSmall]);
-  const { data, loading, error } = useFetch(fetchMovers, [watchlist, period, excludeSmall]);
+  const { data, loading, error, refetch } = useFetch(fetchMovers, [watchlist, period, excludeSmall]);
   type ExtendedMoverRow = OpportunityEntry & {
     delta_gbp?: number | null;
     pct_portfolio?: number | null;
@@ -169,12 +169,17 @@ export function TopMoversPage() {
     const status = match?.[1];
     const msg = match?.[2] ?? error?.message;
     return (
-      <p style={{ color: "red" }}>
-        {t("movers.loadFailed", {
-          status: status ? ` (HTTP ${status})` : "",
-        })}
-        : {msg}
-      </p>
+      <div>
+        <p role="alert" style={{ color: "red" }}>
+          {t("movers.loadFailed", {
+            status: status ? ` (HTTP ${status})` : "",
+          })}
+          : {msg}
+        </p>
+        <button type="button" onClick={refetch}>
+          {t("common.retry")}
+        </button>
+      </div>
     );
   }
 

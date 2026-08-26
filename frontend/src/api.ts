@@ -139,11 +139,51 @@ export type StorageLike = {
 const TRANSIENT_HTTP_STATUSES = new Set([502, 503, 504]);
 const DEFAULT_TRANSIENT_RETRY_DELAYS_MS = [250, 750];
 
+// Bounds how long any authenticated request is allowed to hang with no
+// response before it is aborted and surfaced as an error. Without this, a
+// backend that accepts a connection but never replies (no status, no
+// failure) leaves callers awaiting a promise that never settles, so
+// page-level hooks like useFetch/useFetchWithRetry stay in `loading` forever
+// with no error/timeout ever shown to the user (issue #7074). This mirrors
+// the bounded-retry + explicit-error-state pattern already used for the
+// /config bootstrap fetch in main.tsx (see MAX_CONFIG_FETCH_ATTEMPTS, #5073).
+export const DEFAULT_FETCH_TIMEOUT_MS = 30000;
+
 const wait = (delayMs: number) =>
   new Promise<void>((resolve) => globalThis.setTimeout(resolve, delayMs));
 
 const isSafeRequest = (init: RequestInit) =>
   !init.method || ["GET", "HEAD", "OPTIONS"].includes(init.method.toUpperCase());
+
+// Combines an optional caller-supplied AbortSignal (e.g. "cancel on unmount")
+// with an internal timeout so a request is aborted if either fires. Returns
+// the merged signal plus a `cleanup` to call once the request settles (to
+// clear the timer and detach listeners) and a `timedOut` flag that is only
+// true when *our* timeout fired, so callers can tell a deliberate
+// caller-initiated cancellation apart from a stalled-request timeout.
+function withTimeoutSignal(externalSignal: AbortSignal | undefined, timeoutMs: number) {
+  const controller = new AbortController();
+  const timedOut = { current: false };
+
+  if (externalSignal?.aborted) {
+    controller.abort(externalSignal.reason);
+  }
+
+  const timeoutId = globalThis.setTimeout(() => {
+    timedOut.current = true;
+    controller.abort();
+  }, timeoutMs);
+
+  const onExternalAbort = () => controller.abort(externalSignal?.reason);
+  externalSignal?.addEventListener("abort", onExternalAbort);
+
+  const cleanup = () => {
+    globalThis.clearTimeout(timeoutId);
+    externalSignal?.removeEventListener("abort", onExternalAbort);
+  };
+
+  return { signal: controller.signal, cleanup, timedOut };
+}
 
 // Retries only on transient HTTP status codes (502/503/504), not on thrown/rejected
 // fetch calls — a network-level exception (offline, CORS, DNS) isn't fixed by
@@ -193,6 +233,7 @@ export function createClient(
     getCsrfToken?: () => string | null;
     storage?: StorageLike;
     transientRetryDelaysMs?: readonly number[];
+    fetchTimeoutMs?: number;
   } = {},
 ) {
   const resolveBase = () => (typeof base === "function" ? base() : base);
@@ -201,6 +242,7 @@ export function createClient(
   const storage = opts.storage;
   const transientRetryDelaysMs =
     opts.transientRetryDelaysMs ?? DEFAULT_TRANSIENT_RETRY_DELAYS_MS;
+  const fetchTimeoutMs = opts.fetchTimeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS;
   const TOKEN_STORAGE_KEY = "authToken";
 
   const setAuthToken = (t: string | null) => {
@@ -293,14 +335,37 @@ export function createClient(
     if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
     const csrf = getCsrfToken();
     if (csrf) headers.set("X-CSRFToken", csrf);
+    const { signal, cleanup, timedOut } = withTimeoutSignal(init.signal ?? undefined, fetchTimeoutMs);
     const requestInit = {
       ...init,
       headers,
       credentials: "include",
+      signal,
     } satisfies RequestInit;
-    const res = isSafeRequest(init)
-      ? await fetchWithTransientRetry(fetchImpl, safeUrl, requestInit, transientRetryDelaysMs)
-      : await fetchImpl(safeUrl, requestInit);
+    let res: Response;
+    try {
+      res = isSafeRequest(init)
+        ? await fetchWithTransientRetry(fetchImpl, safeUrl, requestInit, transientRetryDelaysMs)
+        : await fetchImpl(safeUrl, requestInit);
+    } catch (e) {
+      // A stalled request (no status, no failure — see #7074) never rejects
+      // fetch() on its own; our timeout is what aborts it. Surface that as a
+      // clear, user-facing message rather than a bare AbortError so callers
+      // (useFetch/useFetchWithRetry error states) show something actionable.
+      // A caller-initiated abort (e.g. an unmounted component's own signal)
+      // is left as-is — those are already swallowed by hooks' `cancelled`
+      // checks and aren't a "request stalled" condition.
+      if (timedOut.current) {
+        const timeoutErr = new Error(
+          `Request timed out after ${Math.round(fetchTimeoutMs / 1000)}s: ${safeUrl}`,
+        );
+        (timeoutErr as any).timeout = true;
+        throw timeoutErr;
+      }
+      throw e;
+    } finally {
+      cleanup();
+    }
     if (!res.ok) {
       if (res.status === 401 && typeof window !== "undefined") {
         window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));

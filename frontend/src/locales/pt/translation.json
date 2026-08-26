@@ -116,7 +116,8 @@
     "other": "Outro",
     "period": "Período:",
     "reason": "Motivo",
-    "ticker": "Ticker"
+    "ticker": "Ticker",
+    "retry": "Tentar novamente"
   },
   "dashboard": {
     "alphaVsBenchmark": "Alfa vs Referência",

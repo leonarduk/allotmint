@@ -29,11 +29,15 @@ export default function SeedCatalogue({ basePath }: { basePath: string }) {
   const [rows, setRows] = useState<QuoteRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [retryToken, setRetryToken] = useState(0);
   const symbols = useMemo(readWatchlist, []);
+  const retry = () => setRetryToken((token) => token + 1);
 
   useEffect(() => {
     const controller = new AbortController();
     let cancelled = false;
+    setLoading(true);
+    setError(null);
     if (symbols.length === 0) {
       setLoading(false);
       return () => controller.abort();
@@ -53,7 +57,7 @@ export default function SeedCatalogue({ basePath }: { basePath: string }) {
       cancelled = true;
       controller.abort();
     };
-  }, [symbols]);
+  }, [symbols, retryToken]);
 
   // Maps a watchlist symbol to the first crop holding it, so "already
   // growing" can link at a holding rather than a bare ticker.
@@ -76,20 +80,35 @@ export default function SeedCatalogue({ basePath }: { basePath: string }) {
         </p>
       </section>
 
-      {error && (
+      {error && !loading && (
         <div className={styles.errorBanner} role="alert">
-          Could not load quotes: {error}
+          <p style={{ margin: 0 }}>Could not load quotes: {error}</p>
+          <button
+            type="button"
+            className={styles.chipButton}
+            onClick={retry}
+            style={{ marginTop: '0.5rem' }}
+          >
+            Try again
+          </button>
         </div>
       )}
 
       <section className={`${styles.panel} ${styles.panelGlow}`}>
         <h2 className={styles.panelTitle}>Available seed ({rows.length})</h2>
         {loading ? (
-          <p className={styles.loading}>Checking the seed trays…</p>
+          <p className={styles.loading} role="status">
+            Checking the seed trays…
+          </p>
+        ) : error ? null : symbols.length === 0 ? (
+          <p className={styles.emptyState}>
+            Your watchlist is empty — add a stock to see it here. You can add
+            one in the <Link to="/watchlist">classic watchlist</Link>.
+          </p>
         ) : rows.length === 0 ? (
           <p className={styles.emptyState}>
-            No symbols on the watchlist yet. Add some in the{' '}
-            <Link to="/watchlist">classic watchlist</Link>.
+            No quotes came back for your watchlist symbols. Try the{' '}
+            <Link to="/watchlist">classic watchlist</Link> to check them.
           </p>
         ) : (
           <div className={styles.seedGrid}>

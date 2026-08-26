@@ -1159,6 +1159,64 @@
   color: var(--plot-gold);
 }
 
+/* ── Season group progress (one bar per category, #7006) ──────────────── */
+
+.groupProgress {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.groupCurrent {
+  font-size: 0.78rem;
+  color: var(--plot-ink-dim);
+}
+
+.groupCurrent strong {
+  color: var(--plot-ink);
+}
+
+.groupComplete {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--plot-gold);
+}
+
+.tierRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tierBadge {
+  padding: 0.2rem 0.5rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--plot-ink-dim);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--plot-edge-soft);
+  border-radius: 999px;
+  opacity: 0.6;
+}
+
+.tierBadgeEarned {
+  color: var(--plot-gold);
+  background: rgba(242, 193, 78, 0.12);
+  border-color: rgba(242, 193, 78, 0.35);
+  opacity: 1;
+}
+
+.tierBadgeNext {
+  color: var(--plot-mint);
+  background: rgba(87, 224, 138, 0.1);
+  border-color: var(--plot-edge);
+  opacity: 1;
+}
+
 .plainList {
   margin: 0;
   padding: 0;
@@ -1336,6 +1394,82 @@
   .meterFill,
   .cropCard,
   .railButton {
+    transition: none;
+  }
+}
+
+/* ── Info tip ("what does this mean?") ─────────────────────────────────
+   A lightweight, always-in-the-flow affordance for HUD/legend jargon —
+   see #7006. Deliberately not a tour: one icon, opened by hover (mouse) or
+   click/keyboard activation (touch, screen readers), closed by outside
+   click or Escape. */
+
+.infoTip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.35rem;
+  vertical-align: middle;
+}
+
+.infoTipButton {
+  display: grid;
+  place-items: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  padding: 0;
+  font-size: 0.65rem;
+  font-weight: 800;
+  font-style: italic;
+  line-height: 1;
+  color: var(--plot-panel-solid);
+  background: var(--plot-sky);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.infoTipButton:hover,
+.infoTipButton:focus-visible {
+  background: var(--plot-mint);
+  outline: 2px solid var(--plot-mint);
+  outline-offset: 2px;
+}
+
+.infoTipPopover {
+  position: absolute;
+  z-index: 20;
+  bottom: calc(100% + 0.45rem);
+  left: 0;
+  width: max-content;
+  max-width: min(16rem, 70vw);
+  padding: 0.55rem 0.7rem;
+  font-size: 0.74rem;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  line-height: 1.4;
+  color: var(--plot-ink);
+  background: var(--plot-panel-solid);
+  border: 1px solid var(--plot-edge);
+  border-radius: 4px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+
+.infoTip:hover .infoTipPopover,
+.infoTip:focus-within .infoTipPopover,
+.infoTipPopoverOpen {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .infoTipPopover {
     transition: none;
   }
 }

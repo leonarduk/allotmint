@@ -8,6 +8,7 @@
  */
 
 import {
+  ALLOWANCES_UNAVAILABLE_MESSAGE,
   clamp,
   formatGbp,
   type AllowanceMap,
@@ -97,6 +98,12 @@ export interface SeasonGoal {
   display: string;
   rewardIcon: string;
   rewardLabel: string;
+  /**
+   * True when this goal's underlying data (currently only the allowances
+   * feed) failed to load, so the UI should show a distinct error notice
+   * instead of a "0 of target" progress bar (#7005).
+   */
+  unavailable?: boolean;
 }
 
 interface GoalGroup {
@@ -108,26 +115,29 @@ interface GoalGroup {
   current: number;
   title: (target: number) => string;
   format: (value: number) => string;
+  unavailable?: boolean;
 }
 
 const countFormat = (value: number) => String(Math.round(value));
 
 /**
- * Build the ladder. Every `current` value comes from a figure the plot
- * snapshot already holds, so a goal can never show progress the portfolio
- * does not actually have.
+ * The shared per-category ladder both `buildSeasonGoals` (one row per tier,
+ * used by the flat milestone list) and `buildSeasonGroups` (one row per
+ * category, used by the Season page's collapsed view) are built from — kept
+ * in one place so the two never drift on tier thresholds or reward copy.
  */
-export function buildSeasonGoals(
+function buildGoalGroups(
   snapshot: PlotSnapshot,
-  allowances: AllowanceMap | null
-): SeasonGoal[] {
+  allowances: AllowanceMap | null,
+  allowancesUnavailable = false
+): GoalGroup[] {
   const allowanceRows = Object.values(allowances ?? {});
   const allowanceUsed = allowanceRows.reduce(
     (sum, row) => sum + (row.used ?? 0),
     0
   );
 
-  const groups: GoalGroup[] = [
+  return [
     {
       id: 'tend',
       group: 'Tend the plot',
@@ -157,6 +167,7 @@ export function buildSeasonGoals(
       current: allowanceUsed,
       title: (target) => `Use ${formatGbp(target)} of this season's allowances`,
       format: formatGbp,
+      unavailable: allowancesUnavailable,
     },
     {
       id: 'streak',
@@ -179,6 +190,19 @@ export function buildSeasonGoals(
       format: (value) => `Level ${Math.round(value)}`,
     },
   ];
+}
+
+/**
+ * Build the ladder. Every `current` value comes from a figure the plot
+ * snapshot already holds, so a goal can never show progress the portfolio
+ * does not actually have.
+ */
+export function buildSeasonGoals(
+  snapshot: PlotSnapshot,
+  allowances: AllowanceMap | null,
+  allowancesUnavailable = false
+): SeasonGoal[] {
+  const groups = buildGoalGroups(snapshot, allowances, allowancesUnavailable);
 
   return groups.flatMap((group) =>
     group.tiers.map((target) => ({
@@ -188,12 +212,89 @@ export function buildSeasonGoals(
       current: group.current,
       target,
       pct: target > 0 ? clamp((group.current / target) * 100, 0, 100) : 0,
-      complete: group.current >= target,
-      display: group.format(group.current),
+      complete: !group.unavailable && group.current >= target,
+      display: group.unavailable
+        ? ALLOWANCES_UNAVAILABLE_MESSAGE
+        : group.format(group.current),
       rewardIcon: group.rewardIcon,
       rewardLabel: group.rewardLabel,
+      unavailable: group.unavailable,
     }))
   );
+}
+
+export interface SeasonTierBadge {
+  target: number;
+  /** The tier's target formatted for its unit, e.g. "£10.0k" or "25 days". */
+  displayTarget: string;
+  complete: boolean;
+}
+
+export interface SeasonGroupProgress {
+  id: string;
+  group: string;
+  rewardIcon: string;
+  rewardLabel: string;
+  /** The real current figure, formatted for its unit. */
+  currentDisplay: string;
+  /** Every tier in the ladder, for the compact earned/unearned badge row. */
+  tiers: SeasonTierBadge[];
+  /**
+   * Progress toward the first tier not yet earned. `null` once every tier in
+   * the group is cleared — there is no "next" goal left to show a bar for.
+   */
+  next: { target: number; displayTarget: string; pct: number } | null;
+  /** True once every tier in the group has been earned. */
+  complete: boolean;
+  /**
+   * True when this group's underlying data (currently only the allowances
+   * feed, for "Feed the beds") failed to load, so the UI should show a
+   * distinct error notice instead of a progress bar (#7005).
+   */
+  unavailable?: boolean;
+}
+
+/**
+ * One row per category (not per tier), each tracking progress toward the
+ * next tier that has not been earned yet. Earned tiers collapse into a
+ * compact badge rather than repeating the same current value against a
+ * target the grower has already cleared — see #7006.
+ */
+export function buildSeasonGroups(
+  snapshot: PlotSnapshot,
+  allowances: AllowanceMap | null,
+  allowancesUnavailable = false
+): SeasonGroupProgress[] {
+  const groups = buildGoalGroups(snapshot, allowances, allowancesUnavailable);
+
+  return groups.map((group) => {
+    const tiers = group.tiers.map((target) => ({
+      target,
+      displayTarget: group.format(target),
+      complete: group.current >= target,
+    }));
+    const nextTarget = group.tiers.find((target) => group.current < target);
+    const next =
+      nextTarget === undefined
+        ? null
+        : {
+            target: nextTarget,
+            displayTarget: group.format(nextTarget),
+            pct: clamp((group.current / nextTarget) * 100, 0, 100),
+          };
+
+    return {
+      id: group.id,
+      group: group.group,
+      rewardIcon: group.rewardIcon,
+      rewardLabel: group.rewardLabel,
+      currentDisplay: group.format(group.current),
+      tiers,
+      next,
+      complete: next === null,
+      unavailable: group.unavailable,
+    };
+  });
 }
 
 export interface DayStamp {

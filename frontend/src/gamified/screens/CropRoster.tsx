@@ -17,6 +17,7 @@ import {
 } from '../favourites';
 import CropCard from '../components/CropCard';
 import CropGlyph from '../components/CropGlyph';
+import InfoTip from '../components/InfoTip';
 
 type SortKey = 'value' | 'gain' | 'vigour' | 'name';
 
@@ -123,7 +124,14 @@ export default function CropRoster({ basePath }: { basePath: string }) {
   return (
     <div className={styles.stack}>
       <section className={`${styles.panel} ${styles.panelGlow}`}>
-        <h2 className={styles.panelTitle}>Growth stages</h2>
+        <h2 className={styles.panelTitle}>
+          Growth stages
+          <InfoTip label="What do growth stages mean?">
+            A crop&apos;s stage is its total gain since purchase, not its day
+            change — Sown/Sprouting means little or no profit yet, Fruiting
+            and Bumper crop mean it has gained a lot.
+          </InfoTip>
+        </h2>
         <ul className={styles.traitList}>
           {GROWTH_STAGES.map((stage) => (
             <li

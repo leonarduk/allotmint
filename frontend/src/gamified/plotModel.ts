@@ -340,6 +340,14 @@ export type AllowanceMap = Record<
 >;
 
 /**
+ * Shared copy for every place the allowances fetch failed (HTTP error, e.g.
+ * the 402 billing gate) rather than genuinely returning no data. Kept as one
+ * constant so the FEED meter, the Season page's countdown, and the "Feed the
+ * beds" milestone tier all read identically (#7005).
+ */
+export const ALLOWANCES_UNAVAILABLE_MESSAGE = 'Allowances unavailable right now';
+
+/**
  * The three HUD meters, each backed by a real figure:
  * water = trades left this month, feed = tax-allowance headroom,
  * sunlight = share of crops priced today (data freshness).
@@ -347,7 +355,8 @@ export type AllowanceMap = Record<
 export function resourcesFromPlot(
   portfolio: Pick<Portfolio, 'trades_this_month' | 'trades_remaining'> | null,
   crops: readonly Crop[],
-  allowances: AllowanceMap | null
+  allowances: AllowanceMap | null,
+  allowancesUnavailable = false
 ): PlotResource[] {
   const tradesUsed = portfolio?.trades_this_month ?? 0;
   const tradesLeft = portfolio?.trades_remaining ?? 0;
@@ -387,8 +396,9 @@ export function resourcesFromPlot(
         allowanceLimit > 0
           ? clamp((allowanceLeft / allowanceLimit) * 100, 0, 100)
           : 0,
-      hint:
-        allowanceLimit > 0
+      hint: allowancesUnavailable
+        ? ALLOWANCES_UNAVAILABLE_MESSAGE
+        : allowanceLimit > 0
           ? `${formatGbp(allowanceLeft)} of tax allowance headroom left`
           : 'No allowance data for this grower yet',
     },
@@ -424,6 +434,8 @@ export interface BuildSnapshotInput {
   xp?: number | null;
   streak?: number | null;
   allowances?: AllowanceMap | null;
+  /** True when the allowances fetch failed (HTTP error), not merely empty. */
+  allowancesUnavailable?: boolean;
 }
 
 /** Fold a real portfolio (plus XP/allowance context) into the game view. */
@@ -432,6 +444,7 @@ export function buildPlotSnapshot({
   xp = 0,
   streak = 0,
   allowances = null,
+  allowancesUnavailable = false,
 }: BuildSnapshotInput): PlotSnapshot {
   const accounts = portfolio?.accounts ?? [];
   const beds = accounts.map(bedFromAccount);
@@ -465,7 +478,7 @@ export function buildPlotSnapshot({
     dayChangeGbp,
     beds,
     crops,
-    resources: resourcesFromPlot(portfolio, crops, allowances),
+    resources: resourcesFromPlot(portfolio, crops, allowances, allowancesUnavailable),
     grower,
     rank: growerRank(grower.level),
     streak: streak ?? 0,
@@ -482,6 +495,22 @@ export interface GerminatingCrop {
 }
 
 /**
+ * True while a holding is still serving its minimum holding period.
+ *
+ * This is the single source of truth for "still in the propagator" — the
+ * hub's Propagator widget and the crop detail screen's Hardiness trait both
+ * read it, so they can't disagree about whether a holding has cleared its
+ * hold period (see #7010).
+ */
+export function isStillInPropagator(crop: Crop): boolean {
+  return (
+    !crop.sellEligible &&
+    crop.daysUntilEligible !== null &&
+    crop.daysUntilEligible > 0
+  );
+}
+
+/**
  * Crops still inside their minimum holding period, soonest-ready first.
  *
  * This is the honest analogue of an incubator: real progress toward a real
@@ -491,12 +520,7 @@ export interface GerminatingCrop {
  */
 export function germinatingCrops(crops: readonly Crop[]): GerminatingCrop[] {
   return crops
-    .filter(
-      (crop) =>
-        !crop.sellEligible &&
-        crop.daysUntilEligible !== null &&
-        crop.daysUntilEligible > 0
-    )
+    .filter(isStillInPropagator)
     .map((crop) => {
       const remaining = crop.daysUntilEligible ?? 0;
       const held = Math.max(0, crop.daysHeld ?? 0);

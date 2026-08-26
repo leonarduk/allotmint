@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterAll, afterEach } from 'vites
 // Mock the API module so we can reliably intercept calls across ESM boundaries
 vi.mock('@/api', () => ({
   fetchInstrumentDetailWithRetry: vi.fn(),
+  fetchInstrumentBatchWithRetry: vi.fn(),
 }));
 import * as api from '@/api';
 import {
@@ -14,26 +15,18 @@ import {
 
 const mockGetInstrumentDetail = api
   .fetchInstrumentDetailWithRetry as unknown as ReturnType<typeof vi.fn>;
+const mockGetInstrumentBatch = api
+  .fetchInstrumentBatchWithRetry as unknown as ReturnType<typeof vi.fn>;
 
 afterAll(() => {
   mockGetInstrumentDetail.mockRestore();
+  mockGetInstrumentBatch.mockRestore();
 });
-
-const detailWithHistory = {
-  prices: [{ date: '2024-01-01', close: 10 }],
-  positions: [],
-  rows: 1,
-};
-
-const detailWithoutHistory = {
-  prices: [],
-  positions: [],
-  rows: 0,
-};
 
 describe('useInstrumentHistory', () => {
   beforeEach(() => {
     mockGetInstrumentDetail.mockReset();
+    mockGetInstrumentBatch.mockReset();
     __clearInstrumentHistoryCache();
   });
 
@@ -132,20 +125,6 @@ describe('useInstrumentHistory', () => {
     expect(mockGetInstrumentDetail).toHaveBeenLastCalledWith('ABC', 30);
   });
 
-  it('shares one in-flight fetch across concurrent preload callers', async () => {
-    mockGetInstrumentDetail.mockResolvedValue({
-      mini: { 7: [], 30: [], 180: [] },
-      positions: [],
-    });
-
-    await Promise.all([
-      preloadInstrumentHistory(['ABC', 'DEF'], 30),
-      preloadInstrumentHistory(['ABC', 'DEF'], 30),
-    ]);
-
-    expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(2);
-  });
-
   it('dedupes hook consumers mounted for the same ticker and days', async () => {
     let release!: (value: unknown) => void;
     const gate = new Promise((resolve) => {
@@ -175,76 +154,336 @@ describe('useInstrumentHistory', () => {
     expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(1);
   });
 
-  it('does not cache failed preloads so later callers retry', async () => {
-    mockGetInstrumentDetail
-      .mockRejectedValueOnce(new Error('HTTP 404'))
-      .mockResolvedValueOnce({
-        mini: { 7: [], 30: [], 180: [] },
-        positions: [],
+  describe('acceptMiniOnly mode', () => {
+    it('fetches via the batch endpoint instead of the single-ticket endpoint', async () => {
+      mockGetInstrumentBatch.mockResolvedValue({
+        instruments: { ABC: { prices: [{ date: '2024-01-01', close: 10 }] } },
+        empty: [],
+        unknown: [],
       });
 
-    await preloadInstrumentHistory(['ABC'], 30);
-    // The failed fetch was not cached, so a later preload retries it.
-    await preloadInstrumentHistory(['ABC'], 30);
+      const { result } = renderHook(() =>
+        useInstrumentHistory('ABC', 7, { acceptMiniOnly: true }),
+      );
 
-    expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(2);
-  });
+      await waitFor(() => expect(result.current.data).not.toBeNull());
+      expect(mockGetInstrumentDetail).not.toHaveBeenCalled();
+      expect(mockGetInstrumentBatch).toHaveBeenCalledTimes(1);
+      expect(mockGetInstrumentBatch).toHaveBeenCalledWith(['ABC'], 7, true);
+      expect(result.current.data?.prices).toEqual([{ date: '2024-01-01', close: 10 }]);
+    });
 
-  it('shares a single failing fetch across concurrent callers', async () => {
-    mockGetInstrumentDetail.mockRejectedValueOnce(new Error('HTTP 404'));
+    it('coalesces concurrent mini-only requests for the same days into one batch call', async () => {
+      mockGetInstrumentBatch.mockResolvedValue({
+        instruments: {
+          ABC: { prices: [{ date: '2024-01-01', close: 10 }] },
+          DEF: { prices: [{ date: '2024-01-01', close: 20 }] },
+        },
+        empty: [],
+        unknown: [],
+      });
 
-    await Promise.all([
-      preloadInstrumentHistory(['ABC'], 30),
-      preloadInstrumentHistory(['ABC'], 30),
-    ]);
+      const first = renderHook(() => useInstrumentHistory('ABC', 30, { acceptMiniOnly: true }));
+      const second = renderHook(() => useInstrumentHistory('DEF', 30, { acceptMiniOnly: true }));
 
-    // Both callers awaited the same rejected in-flight promise.
-    expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(1);
+      await waitFor(() => {
+        expect(first.result.current.data).not.toBeNull();
+        expect(second.result.current.data).not.toBeNull();
+      });
+
+      expect(mockGetInstrumentBatch).toHaveBeenCalledTimes(1);
+      expect(mockGetInstrumentBatch).toHaveBeenCalledWith(
+        expect.arrayContaining(['ABC', 'DEF']),
+        30,
+        true,
+      );
+    });
+
+    it('does not fetch when a full-detail cache entry already covers the ticker', async () => {
+      mockGetInstrumentDetail.mockResolvedValue({
+        prices: [{ date: '2024-01-01', close: 10 }],
+        mini: { 30: [{ date: '2024-01-01', close: 10 }] },
+        positions: [],
+      });
+      // Warm the full-detail cache first, as InstrumentResearch would.
+      const full = renderHook(() => useInstrumentHistory('ABC', 30));
+      await waitFor(() => expect(full.result.current.data).not.toBeNull());
+
+      const mini = renderHook(() => useInstrumentHistory('ABC', 30, { acceptMiniOnly: true }));
+
+      expect(mini.result.current.loading).toBe(false);
+      expect(mini.result.current.data?.mini?.[30]).toEqual([{ date: '2024-01-01', close: 10 }]);
+      expect(mockGetInstrumentBatch).not.toHaveBeenCalled();
+    });
+
+    it('a batch-derived cache entry does not satisfy a later full-detail request', async () => {
+      mockGetInstrumentBatch.mockResolvedValue({
+        instruments: { ABC: { prices: [{ date: '2024-01-01', close: 10 }] } },
+        empty: [],
+        unknown: [],
+      });
+      mockGetInstrumentDetail.mockResolvedValue({
+        prices: [{ date: '2024-01-01', close: 10 }],
+        positions: [{ owner: 'alice', account: 'isa', units: 1 }],
+      });
+
+      // A sparkline preloads/reads mini-only data first...
+      const mini = renderHook(() => useInstrumentHistory('ABC', 30, { acceptMiniOnly: true }));
+      await waitFor(() => expect(mini.result.current.data).not.toBeNull());
+      expect(mockGetInstrumentDetail).not.toHaveBeenCalled();
+
+      // ...but a page needing full detail (positions) at the same (ticker, days)
+      // must still fetch it, not silently reuse the partial batch entry.
+      const full = renderHook(() => useInstrumentHistory('ABC', 30));
+      await waitFor(() => expect(full.result.current.data).not.toBeNull());
+      expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(1);
+      expect(full.result.current.data?.positions).toEqual([
+        { owner: 'alice', account: 'isa', units: 1 },
+      ]);
+    });
+
+    it('resolves to null (not an error, not a crash) for an unknown ticker, and stays retryable', async () => {
+      mockGetInstrumentBatch
+        .mockResolvedValueOnce({ instruments: {}, empty: [], unknown: ['ABC'] })
+        .mockResolvedValueOnce({
+          instruments: { ABC: { prices: [{ date: '2024-01-01', close: 10 }] } },
+          empty: [],
+          unknown: [],
+        });
+
+      const first = renderHook(() => useInstrumentHistory('ABC', 30, { acceptMiniOnly: true }));
+      await waitFor(() => expect(first.result.current.loading).toBe(false));
+      expect(first.result.current.data).toBeNull();
+      expect(first.result.current.error).toBeNull();
+
+      // Nothing was cached for the unknown ticker, so a fresh mount retries
+      // rather than reusing a pinned miss.
+      const second = renderHook(() => useInstrumentHistory('ABC', 30, { acceptMiniOnly: true }));
+      await waitFor(() => expect(second.result.current.data).not.toBeNull());
+      expect(mockGetInstrumentBatch).toHaveBeenCalledTimes(2);
+    });
+
+    it('resolves to null, not a thrown error, when the batch request itself fails', async () => {
+      // acceptMiniOnly mode doesn't surface a distinct `error` for a failed
+      // batch request today -- Sparkline/InstrumentTile (the only current
+      // consumers) render the same empty state for data:null as they do for
+      // a truthy `error`, so this documents current behavior rather than
+      // asserting a stronger contract nothing yet relies on.
+      mockGetInstrumentBatch.mockRejectedValueOnce(new Error('HTTP 500'));
+
+      const { result } = renderHook(() =>
+        useInstrumentHistory('ABC', 30, { acceptMiniOnly: true }),
+      );
+
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      expect(result.current.data).toBeNull();
+      expect(result.current.error).toBeNull();
+    });
   });
 });
 
-describe('preloadInstrumentHistory missing-history notice set', () => {
+describe('preloadInstrumentHistory', () => {
   beforeEach(() => {
     mockGetInstrumentDetail.mockReset();
+    mockGetInstrumentBatch.mockReset();
     __clearInstrumentHistoryCache();
   });
 
-  it('returns tickers that resolved to an empty history', async () => {
-    mockGetInstrumentDetail
-      .mockResolvedValueOnce(detailWithoutHistory)
-      .mockResolvedValueOnce(detailWithHistory)
-      .mockResolvedValueOnce(detailWithoutHistory);
+  it('fetches via one batch call for all requested tickers', async () => {
+    mockGetInstrumentBatch.mockResolvedValue({
+      instruments: {
+        ABC: { prices: [{ date: '2024-01-01', close: 1 }] },
+        DEF: { prices: [{ date: '2024-01-01', close: 2 }] },
+      },
+      empty: [],
+      unknown: [],
+    });
 
-    const missing = await preloadInstrumentHistory(['A.L', 'B.L', 'C.L'], 30);
+    await preloadInstrumentHistory(['ABC', 'DEF'], 30);
+
+    expect(mockGetInstrumentDetail).not.toHaveBeenCalled();
+    expect(mockGetInstrumentBatch).toHaveBeenCalledTimes(1);
+    expect(mockGetInstrumentBatch).toHaveBeenCalledWith(
+      expect.arrayContaining(['ABC', 'DEF']),
+      30,
+      true,
+    );
+  });
+
+  it('shares one in-flight batch call across concurrent preload callers', async () => {
+    mockGetInstrumentBatch.mockResolvedValue({
+      instruments: {
+        ABC: { prices: [{ date: '2024-01-01', close: 1 }] },
+        DEF: { prices: [{ date: '2024-01-01', close: 2 }] },
+      },
+      empty: [],
+      unknown: [],
+    });
+
+    await Promise.all([
+      preloadInstrumentHistory(['ABC', 'DEF'], 30),
+      preloadInstrumentHistory(['ABC', 'DEF'], 30),
+    ]);
+
+    expect(mockGetInstrumentBatch).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not cache a batch failure so a later preload retries', async () => {
+    mockGetInstrumentBatch
+      .mockRejectedValueOnce(new Error('HTTP 500'))
+      .mockResolvedValueOnce({
+        instruments: { ABC: { prices: [{ date: '2024-01-01', close: 1 }] } },
+        empty: [],
+        unknown: [],
+      });
+
+    await preloadInstrumentHistory(['ABC'], 30);
+    await preloadInstrumentHistory(['ABC'], 30);
+
+    expect(mockGetInstrumentBatch).toHaveBeenCalledTimes(2);
+  });
+
+  it('returns tickers that resolved to an empty history, ignoring unknown ones', async () => {
+    mockGetInstrumentBatch.mockResolvedValue({
+      instruments: { 'B.L': { prices: [{ date: '2024-01-01', close: 1 }] } },
+      empty: ['A.L', 'C.L'],
+      unknown: ['D.L'],
+    });
+
+    const missing = await preloadInstrumentHistory(['A.L', 'B.L', 'C.L', 'D.L'], 30);
 
     expect(missing).toEqual(['A.L', 'C.L']);
   });
 
-  it('caches empty responses so later preloads do not refetch', async () => {
-    mockGetInstrumentDetail.mockResolvedValue(detailWithoutHistory);
+  it('resolves every requested spelling of a ticker when the backend case-dedupes the response (#7008 review)', async () => {
+    // The same instrument can appear with different casing across accounts
+    // (e.g. "ABC.L" and "abc.l"); backend/common/instrument_api.py's
+    // dedupe_tickers collapses those case-insensitively in the *request* and
+    // echoes back only one spelling, so the response won't have a literal
+    // "abc.l" key even though it did resolve that ticker.
+    mockGetInstrumentBatch.mockResolvedValue({
+      instruments: { 'ABC.L': { prices: [{ date: '2024-01-01', close: 1 }] } },
+      empty: [],
+      unknown: [],
+    });
+
+    const missing = await preloadInstrumentHistory(['ABC.L', 'abc.l'], 30);
+
+    expect(missing).toEqual([]);
+    expect(getCachedInstrumentHistory('ABC.L', 30)?.prices).toEqual([
+      { date: '2024-01-01', close: 1 },
+    ]);
+    expect(getCachedInstrumentHistory('abc.l', 30)?.prices).toEqual([
+      { date: '2024-01-01', close: 1 },
+    ]);
+  });
+
+  it('prefers the instruments bucket over empty for a malformed dual-bucket response', async () => {
+    // The backend's partition contract guarantees a ticker lands in exactly one
+    // bucket, but this shouldn't crash or misclassify if that's ever violated.
+    mockGetInstrumentBatch.mockResolvedValue({
+      instruments: { 'A.L': { prices: [{ date: '2024-01-01', close: 1 }] } },
+      empty: ['A.L'],
+      unknown: [],
+    });
+
+    const missing = await preloadInstrumentHistory(['A.L'], 30);
+
+    expect(missing).toEqual([]);
+    expect(getCachedInstrumentHistory('A.L', 30)?.prices).toEqual([
+      { date: '2024-01-01', close: 1 },
+    ]);
+  });
+
+  it('retries an unknown ticker on a later call instead of pinning the miss', async () => {
+    mockGetInstrumentBatch
+      .mockResolvedValueOnce({ instruments: {}, empty: [], unknown: ['A.L'] })
+      .mockResolvedValueOnce({
+        instruments: { 'A.L': { prices: [{ date: '2024-01-01', close: 1 }] } },
+        empty: [],
+        unknown: [],
+      });
 
     await preloadInstrumentHistory(['A.L'], 30);
     const missing = await preloadInstrumentHistory(['A.L'], 30);
 
-    expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(1);
+    expect(mockGetInstrumentBatch).toHaveBeenCalledTimes(2);
+    expect(missing).toEqual([]);
+  });
+
+  it('caches empty responses so later preloads do not refetch', async () => {
+    mockGetInstrumentBatch.mockResolvedValue({
+      instruments: {},
+      empty: ['A.L'],
+      unknown: [],
+    });
+
+    await preloadInstrumentHistory(['A.L'], 30);
+    const missing = await preloadInstrumentHistory(['A.L'], 30);
+
+    expect(mockGetInstrumentBatch).toHaveBeenCalledTimes(1);
     expect(missing).toEqual(['A.L']);
     expect(getCachedInstrumentHistory('A.L', 30)?.prices).toEqual([]);
   });
 
-  it('ignores failed fetches (e.g. unknown tickers) in the notice set', async () => {
-    mockGetInstrumentDetail.mockRejectedValue(new Error('HTTP 404'));
+  it('ignores unknown tickers in the notice set', async () => {
+    mockGetInstrumentBatch.mockResolvedValue({
+      instruments: {},
+      empty: [],
+      unknown: ['A.L'],
+    });
 
     const missing = await preloadInstrumentHistory(['A.L'], 30);
 
     expect(missing).toEqual([]);
   });
 
-  it('deduplicates tickers passed multiple times', async () => {
-    mockGetInstrumentDetail.mockResolvedValue(detailWithoutHistory);
+  it('deduplicates tickers passed multiple times before batching', async () => {
+    mockGetInstrumentBatch.mockResolvedValue({
+      instruments: {},
+      empty: ['A.L', 'B.L'],
+      unknown: [],
+    });
 
     const missing = await preloadInstrumentHistory(['A.L', 'A.L', 'B.L'], 30);
 
-    expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(2);
+    expect(mockGetInstrumentBatch).toHaveBeenCalledTimes(1);
+    expect(mockGetInstrumentBatch).toHaveBeenCalledWith(['A.L', 'B.L'], 30, true);
     expect(missing).toEqual(['A.L', 'B.L']);
+  });
+
+  it('splits into multiple batch calls past the 100-ticker backend cap', async () => {
+    const tickers = Array.from({ length: 150 }, (_, i) => `T${i}.L`);
+    mockGetInstrumentBatch.mockImplementation(async (group: string[]) => ({
+      instruments: Object.fromEntries(
+        group.map((t) => [t, { prices: [{ date: '2024-01-01', close: 1 }] }]),
+      ),
+      empty: [],
+      unknown: [],
+    }));
+
+    const missing = await preloadInstrumentHistory(tickers, 30);
+
+    expect(mockGetInstrumentBatch).toHaveBeenCalledTimes(2);
+    const [firstGroup] = mockGetInstrumentBatch.mock.calls[0];
+    const [secondGroup] = mockGetInstrumentBatch.mock.calls[1];
+    expect(firstGroup).toHaveLength(100);
+    expect(secondGroup).toHaveLength(50);
+    expect(new Set([...firstGroup, ...secondGroup])).toEqual(new Set(tickers));
+    expect(missing).toEqual([]);
+  });
+
+  it('reuses an existing full-detail cache entry instead of batching', async () => {
+    mockGetInstrumentDetail.mockResolvedValue({
+      prices: [],
+      positions: [],
+    });
+    const full = renderHook(() => useInstrumentHistory('A.L', 30));
+    await waitFor(() => expect(full.result.current.data).not.toBeNull());
+
+    const missing = await preloadInstrumentHistory(['A.L'], 30);
+
+    expect(mockGetInstrumentBatch).not.toHaveBeenCalled();
+    expect(missing).toEqual(['A.L']);
   });
 });

@@ -443,7 +443,14 @@ def enrich_holding(
         out["gain_pct"] = 0.0
         out["day_change_gbp"] = 0.0
 
-        out.setdefault(COST_BASIS_GBP, units if account_ccy == "GBP" else None)
+        # Cash is priced 1:1 (see out["price"]/out["current_price_gbp"] above), so
+        # cost basis must always equal market value regardless of any stored
+        # cost_basis_gbp on the raw holding record. Previously this used
+        # setdefault(), which let a stale/incorrect stored value (e.g. one
+        # accidentally recorded in pence rather than pounds, see #7012) leak
+        # straight through to the API response, producing a ~100x-too-low
+        # cost basis and a phantom unrealised gain for cash positions.
+        out[COST_BASIS_GBP] = out["market_value_gbp"]
         out[EFFECTIVE_COST_BASIS_GBP] = out[COST_BASIS_GBP]
 
         out["days_held"] = None

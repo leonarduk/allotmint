@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildSeasonGoals,
+  buildSeasonGroups,
   buildStreakPath,
   parseTaxYear,
   seasonCountdown,
@@ -149,6 +150,79 @@ describe('buildSeasonGoals', () => {
     expect(
       withoutAllowances.find((goal) => goal.id === 'feed-1000')
     ).toMatchObject({ current: 0, complete: false, pct: 0 });
+  });
+
+  it('marks only the "Feed the beds" tiers unavailable when the allowances fetch failed', () => {
+    const failed = buildSeasonGoals(snapshot, null, true);
+    const feedGoals = failed.filter((goal) => goal.id.startsWith('feed-'));
+    expect(feedGoals).toHaveLength(4);
+    for (const goal of feedGoals) {
+      expect(goal.unavailable).toBe(true);
+      expect(goal.complete).toBe(false);
+      expect(goal.display).toBe('Allowances unavailable right now');
+    }
+    // Other groups are unaffected by an allowances failure.
+    const nonFeedGoals = failed.filter((goal) => !goal.id.startsWith('feed-'));
+    expect(nonFeedGoals.every((goal) => !goal.unavailable)).toBe(true);
+  });
+});
+
+describe('buildSeasonGroups', () => {
+  const snapshot = buildPlotSnapshot({ portfolio, xp: 300, streak: 6 });
+  const groups = buildSeasonGroups(snapshot, {
+    isa: { used: 4_200, limit: 20_000, remaining: 15_800 },
+    pension: { used: 9_000, limit: 60_000, remaining: 51_000 },
+  });
+
+  it('emits one row per category, not per tier', () => {
+    expect(groups).toHaveLength(5);
+    expect(groups.map((group) => group.group)).toEqual([
+      'Tend the plot',
+      'Grow the plot',
+      'Feed the beds',
+      'Keep the streak',
+      'Earn your rank',
+    ]);
+  });
+
+  it('tracks progress toward the first tier not yet earned, not the last', () => {
+    // Plot value is £60k: the £1k/£10k/£50k tiers are cleared, £250k is next.
+    const grow = groups.find((group) => group.id === 'grow');
+    expect(grow?.currentDisplay).toBe('£60.0k');
+    expect(grow?.next).toMatchObject({
+      target: 250_000,
+      displayTarget: '£250.0k',
+    });
+    expect(grow?.next?.pct).toBeCloseTo(24, 0);
+    expect(grow?.complete).toBe(false);
+  });
+
+  it('marks a category complete only once every tier is cleared', () => {
+    // Allowance usage is £13.2k: clears 1k/5k/10k but not the 20k tier.
+    const feed = groups.find((group) => group.id === 'feed');
+    expect(feed?.next).toMatchObject({ target: 20_000 });
+    expect(feed?.complete).toBe(false);
+    expect(
+      feed?.tiers.filter((tier) => tier.complete).map((tier) => tier.target)
+    ).toEqual([1_000, 5_000, 10_000]);
+
+    // Two holdings never reach the 5-crop tier.
+    const tend = groups.find((group) => group.id === 'tend');
+    expect(tend?.next).toMatchObject({ target: 5 });
+  });
+
+  it('reports no next tier once a category is fully earned', () => {
+    // A grower with a very large plot clears every "grow" tier.
+    const richSnapshot = buildPlotSnapshot({
+      portfolio: { ...portfolio, total_value_estimate_gbp: 999_999 },
+      xp: 300,
+      streak: 6,
+    });
+    const richGroups = buildSeasonGroups(richSnapshot, null);
+    const grow = richGroups.find((group) => group.id === 'grow');
+    expect(grow?.next).toBeNull();
+    expect(grow?.complete).toBe(true);
+    expect(grow?.tiers.every((tier) => tier.complete)).toBe(true);
   });
 });
 

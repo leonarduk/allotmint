@@ -8,7 +8,7 @@ interface Props {
 }
 
 export function InstrumentTile({ instrument, days = 30 }: Props) {
-  const { data } = useInstrumentHistory(instrument.ticker, days);
+  const { data } = useInstrumentHistory(instrument.ticker, days, { acceptMiniOnly: true });
   const points = (data?.mini?.[String(days)] ?? []).map((p: any) => ({
     price: p.close_gbp ?? p.close ?? p.price,
   }));

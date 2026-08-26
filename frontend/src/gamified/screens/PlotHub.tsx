@@ -19,11 +19,26 @@ import CropCard from '../components/CropCard';
 import StreakPath from '../components/StreakPath';
 import Propagator from '../components/Propagator';
 import CropGlyph from '../components/CropGlyph';
+import InfoTip from '../components/InfoTip';
 
 const RESOURCE_TONE: Record<string, MeterTone> = {
   water: 'water',
   feed: 'feed',
   sun: 'sun',
+};
+
+/**
+ * One plain-English sentence per HUD meter, tying the garden metaphor back
+ * to the real financial concept it stands for — see #7006. Kept separate
+ * from `resource.hint` (the dynamic "3 of 7 trades left" caption that is
+ * always visible) so the info tip explains the *concept* rather than
+ * repeating the number already on screen.
+ */
+const RESOURCE_EXPLANATION: Record<string, string> = {
+  water:
+    'Water is how many trades you have left to make this month before the cap resets.',
+  feed: "Feed is how much of this year's ISA/pension allowance headroom you still have to use.",
+  sun: 'Sunlight is how much of your portfolio has a fresh price today — a stale price makes it droop.',
 };
 
 function Champion({
@@ -75,6 +90,7 @@ export default function PlotHub({ basePath }: { basePath: string }) {
     chores,
     choresAvailable,
     allowances,
+    allowancesUnavailable,
     season,
     dailyTotals,
     today,
@@ -88,7 +104,7 @@ export default function PlotHub({ basePath }: { basePath: string }) {
   const featured = crops.slice(0, 6);
   const germinating = germinatingCrops(crops);
   const streakDays = today ? buildStreakPath(dailyTotals, today) : [];
-  const seasonGoals = buildSeasonGoals(snapshot, allowances);
+  const seasonGoals = buildSeasonGoals(snapshot, allowances, allowancesUnavailable);
   const seasonDone = seasonGoals.filter((goal) => goal.complete).length;
   const countdown = season ? seasonCountdown(season, new Date()) : null;
 
@@ -126,6 +142,11 @@ export default function PlotHub({ basePath }: { basePath: string }) {
             <div className={styles.pillHead}>
               <span>
                 <span aria-hidden="true">{resource.icon}</span> {resource.label}
+                {RESOURCE_EXPLANATION[resource.id] && (
+                  <InfoTip label={`What does ${resource.label} mean?`}>
+                    {RESOURCE_EXPLANATION[resource.id]}
+                  </InfoTip>
+                )}
               </span>
               <span className={styles.pillValue}>{resource.display}</span>
             </div>

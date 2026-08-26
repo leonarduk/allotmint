@@ -865,20 +865,31 @@ describe("HoldingsTable", () => {
           });
           // This file's async vi.mock factory does not intercept the hook's API
           // import (Vitest module-graph quirk), so the preload runs through the
-          // real api layer; stub fetch so it resolves to an empty-history
-          // payload. Either path yields the same notice.
+          // real api layer; stub fetch so /instrument/batch resolves to every
+          // held ticker landing in the "empty" (no rows) bucket.
           vi.stubGlobal(
               "fetch",
-              vi.fn(() =>
-                  Promise.resolve({
+              vi.fn((input: RequestInfo | URL) => {
+                  const url = typeof input === "string" ? input : input.toString();
+                  if (url.includes("/instrument/batch")) {
+                      return Promise.resolve({
+                          ok: true,
+                          json: async () => ({
+                              instruments: {},
+                              empty: holdings.map((h) => h.ticker),
+                              unknown: [],
+                          }),
+                      } as Response);
+                  }
+                  return Promise.resolve({
                       ok: true,
                       json: async () => ({
                           prices: [],
                           mini: { 7: [], 30: [], 180: [] },
                           positions: [],
                       }),
-                  } as Response),
-              ),
+                  } as Response);
+              }),
           );
           renderWithConfig(<HoldingsTable holdings={holdings} />);
 

@@ -57,6 +57,14 @@ export interface PlotDataValue {
   refresh: () => void;
   /** Raw allowance rows, for the season ladder's "feed the beds" goals. */
   allowances: AllowanceMap | null;
+  /**
+   * True when the last `/tax/allowances` fetch failed (HTTP error, e.g. the
+   * upstream 402 billing gate) rather than genuinely returning no data. The
+   * FEED meter, the Season page's countdown, and the "Feed the beds"
+   * milestone tier all key off this to show one consistent error notice
+   * instead of reusing the "no allowances set up" empty-state copy (#7005).
+   */
+  allowancesUnavailable: boolean;
   /** The UK tax year this plot is in, when the backend reports one. */
   season: Season | null;
   /** Per-day chore totals from the Trail, for the streak path. */
@@ -79,6 +87,7 @@ const plotDataContext = createContext<PlotDataValue>({
   completeChore: () => {},
   refresh: () => {},
   allowances: null,
+  allowancesUnavailable: false,
   season: null,
   dailyTotals: null,
   today: '',
@@ -198,6 +207,7 @@ export function PlotDataProvider({
   const [owner, setOwner] = useState(requestedOwner ?? '');
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
   const [allowances, setAllowances] = useState<AllowanceMap | null>(null);
+  const [allowancesUnavailable, setAllowancesUnavailable] = useState(false);
   const [season, setSeason] = useState<Season | null>(null);
   const [progress, setProgress] = useState<ProgressState>(EMPTY_PROGRESS);
   const [loading, setLoading] = useState(true);
@@ -238,6 +248,7 @@ export function PlotDataProvider({
   const clearOwnerScopedState = useCallback(() => {
     setPortfolio(null);
     setAllowances(null);
+    setAllowancesUnavailable(false);
     setSeason(null);
     setProgress(EMPTY_PROGRESS);
   }, []);
@@ -274,16 +285,32 @@ export function PlotDataProvider({
 
     Promise.all([
       getPortfolio(owner),
-      getAllowances(owner).catch(() => null),
+      // A rejected allowances fetch (e.g. the backend's 402 billing gate) is
+      // distinct from a genuine 200-with-empty-payload response: the former
+      // must surface a "temporarily unavailable" notice, the latter keeps
+      // today's "no allowances set up" copy. Tagging the outcome here — rather
+      // than collapsing both to `null` via `.catch(() => null)` — is what lets
+      // the rest of the HUD tell the two apart (#7005).
+      getAllowances(owner).then(
+        (value) => ({ ok: true as const, value }),
+        () => ({ ok: false as const })
+      ),
       loadProgress(),
     ])
-      .then(([portfolioResult, allowanceResult, progressResult]) => {
+      .then(([portfolioResult, allowanceOutcome, progressResult]) => {
         if (cancelled) return;
         setPortfolio(portfolioResult as Portfolio);
         setAllowances(
-          (allowanceResult?.allowances as AllowanceMap | undefined) ?? null
+          allowanceOutcome.ok
+            ? ((allowanceOutcome.value.allowances as
+                | AllowanceMap
+                | undefined) ?? null)
+            : null
         );
-        setSeason(parseTaxYear(allowanceResult?.tax_year));
+        setSeason(
+          allowanceOutcome.ok ? parseTaxYear(allowanceOutcome.value.tax_year) : null
+        );
+        setAllowancesUnavailable(!allowanceOutcome.ok);
         setProgress(progressResult);
         setLoading(false);
       })
@@ -338,8 +365,9 @@ export function PlotDataProvider({
         xp: progress.xp,
         streak: progress.streak,
         allowances,
+        allowancesUnavailable,
       }),
-    [portfolio, progress.xp, progress.streak, allowances]
+    [portfolio, progress.xp, progress.streak, allowances, allowancesUnavailable]
   );
 
   const value = useMemo<PlotDataValue>(
@@ -355,6 +383,7 @@ export function PlotDataProvider({
       completeChore,
       refresh,
       allowances,
+      allowancesUnavailable,
       season,
       dailyTotals: progress.dailyTotals,
       today: progress.today,
@@ -370,6 +399,7 @@ export function PlotDataProvider({
       progress.dailyTotals,
       progress.today,
       allowances,
+      allowancesUnavailable,
       season,
       completeChore,
       refresh,

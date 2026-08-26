@@ -47,7 +47,7 @@ describe("MarketOverview", () => {
     expect(screen.getAllByText("FTSE 250")).toHaveLength(2);
     expect(screen.getByText("No headlines available")).toBeInTheDocument();
     expect(mockBar).toHaveBeenCalled();
-    expect(mockBar.mock.calls[0][0].dataKey).toBe("value");
+    expect(mockBar.mock.calls[0][0].dataKey).toBe("change");
   });
 
   it("renders headlines when provided", async () => {

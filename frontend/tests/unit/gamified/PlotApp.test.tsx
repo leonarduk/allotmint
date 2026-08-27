@@ -37,6 +37,10 @@ const portfolio: Portfolio = {
           days_held: 500,
           sell_eligible: true,
           last_price_date: '2026-08-24',
+          // Explicit `is_stale: false` (#7186): a holding with no freshness
+          // flag at all is "unknown", not "fresh" — this fixture is about a
+          // portfolio the backend has actually vouched for as fresh.
+          is_stale: false,
         },
         {
           ticker: 'WILT.L',
@@ -54,6 +58,7 @@ const portfolio: Portfolio = {
           sell_eligible: false,
           days_until_eligible: 26,
           next_eligible_sell_date: '2026-09-19',
+          is_stale: false,
         },
       ],
     },

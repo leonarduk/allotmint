@@ -28,33 +28,47 @@ export default function Propagator({ entries, basePath }: PropagatorProps) {
   return (
     <>
       <div className={styles.trayGrid}>
-        {entries.map(({ crop, pct, daysHeld, daysRemaining, readyOn }) => (
-          <Link
-            key={crop.id}
-            to={`${basePath}/crops/${encodeURIComponent(crop.id)}`}
-            className={styles.tray}
-          >
-            <span className={styles.trayGlyph}>
-              <CropGlyph
-                ticker={crop.ticker}
-                sector={crop.sector}
-                stage={crop.stage}
+        {entries.map(
+          ({ crop, pct, daysHeld, daysRemaining, readyOn, indeterminate }) => (
+            <Link
+              key={crop.id}
+              to={`${basePath}/crops/${encodeURIComponent(crop.id)}`}
+              className={styles.tray}
+            >
+              <span className={styles.trayGlyph}>
+                <CropGlyph
+                  ticker={crop.ticker}
+                  sector={crop.sector}
+                  stage={crop.stage}
+                />
+              </span>
+              <span className={styles.trayTicker}>{crop.ticker}</span>
+              <Meter
+                pct={pct}
+                tone="water"
+                label={
+                  indeterminate
+                    ? `${crop.ticker}: not yet liftable, ${daysHeld} days held`
+                    : `${crop.ticker}: ${daysHeld} days held, ${daysRemaining} to go`
+                }
               />
-            </span>
-            <span className={styles.trayTicker}>{crop.ticker}</span>
-            <Meter
-              pct={pct}
-              tone="water"
-              label={`${crop.ticker}: ${daysHeld} days held, ${daysRemaining} to go`}
-            />
-            <span className={styles.trayDays}>
-              {daysHeld} / {daysHeld + daysRemaining} days
-            </span>
-            <span className={styles.trayReady}>
-              {readyOn ? `Ready ${readyOn}` : `${daysRemaining} days to go`}
-            </span>
-          </Link>
-        ))}
+              <span className={styles.trayDays}>
+                {/* No known countdown (#7184): held days on their own, not a
+                    "X / X" ratio that would read as a completed bar. */}
+                {indeterminate
+                  ? `${daysHeld} days held`
+                  : `${daysHeld} / ${daysHeld + daysRemaining} days`}
+              </span>
+              <span className={styles.trayReady}>
+                {indeterminate
+                  ? 'Not yet liftable'
+                  : readyOn
+                    ? `Ready ${readyOn}`
+                    : `${daysRemaining} days to go`}
+              </span>
+            </Link>
+          )
+        )}
       </div>
       <p className={styles.sectionNote}>
         Progress toward each holding&apos;s minimum holding period, from the

@@ -136,6 +136,14 @@ export default function PlotHub({ basePath }: { basePath: string }) {
         )}
       </section>
 
+      {/* "How old is all this?" (#7186) — the SUNLIGHT meter can now say
+          "unknown" instead of a false 100%, but that only tells the reader
+          about individual holdings; the portfolio's own `as_of` date answers
+          it for the whole plot without opening a crop. */}
+      {snapshot.asOf && (
+        <p className={styles.sectionNote}>Plot priced as of {snapshot.asOf}.</p>
+      )}
+
       <section className={styles.pills} aria-label="Plot resources">
         {resources.map((resource) => (
           <div key={resource.id} className={styles.pill}>

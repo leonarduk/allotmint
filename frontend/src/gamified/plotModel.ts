@@ -180,6 +180,14 @@ export function growerRank(level: number): string {
   return 'Seedling Sower';
 }
 
+/**
+ * How confident we are in a crop's price freshness.
+ *
+ * `is_stale` is only sometimes sent by the backend; when it's absent, the
+ * honest answer is "we don't know" rather than defaulting to "fresh" (#7186).
+ */
+export type PriceFreshness = 'fresh' | 'stale' | 'unknown';
+
 export interface Crop {
   /**
    * Unique per holding row, not per ticker: the same instrument legitimately
@@ -206,7 +214,10 @@ export interface Crop {
   sector: string;
   region: string;
   instrumentType: string;
+  /** True only for a *confirmed* stale price (`freshness === 'stale'`). */
   stale: boolean;
+  /** Fresh / stale / unknown — see `PriceFreshness`. Feeds the SUNLIGHT meter. */
+  freshness: PriceFreshness;
   lastPriceDate: string | null;
   /** Days held, when the API knows — drives the "ready to lift" hint. */
   daysHeld: number | null;
@@ -273,6 +284,25 @@ export function bedFromAccount(account: Account, index: number): Bed {
   };
 }
 
+/**
+ * Fresh / stale / unknown for one holding's price.
+ *
+ * `is_stale` is the backend's own verdict and wins whenever it's present
+ * (`true` or `false`). When it's absent altogether, we deliberately do NOT
+ * fall back to comparing `last_price_date` against today: legitimate
+ * end-of-day pricing is routinely a day "behind" without being stale, and
+ * guessing wrong in that direction reproduces the exact failure #7186 warns
+ * against — a deployment with perfectly good data permanently drooping the
+ * SUNLIGHT meter. With no flag to go on, "unknown" is the only honest
+ * answer, whether or not a `last_price_date` happens to be present.
+ */
+function freshnessFor(holding: Pick<Holding, 'is_stale'>): PriceFreshness {
+  if (typeof holding.is_stale === 'boolean') {
+    return holding.is_stale ? 'stale' : 'fresh';
+  }
+  return 'unknown';
+}
+
 function cropFromHolding(
   holding: Holding,
   bed: Bed,
@@ -288,6 +318,7 @@ function cropFromHolding(
     holding.gain_pct ?? (costGbp > 0 ? (gainGbp / costGbp) * 100 : 0);
   const share = plotValue > 0 ? valueGbp / plotValue : 0;
   const dayChangeGbp = holding.day_change_gbp ?? 0;
+  const freshness = freshnessFor(holding);
   return {
     id: `${bedIndex}-${holdingIndex}-${holding.ticker}`,
     ticker: holding.ticker,
@@ -307,7 +338,8 @@ function cropFromHolding(
     sector: holding.sector || 'Unclassified',
     region: holding.region || 'Unknown',
     instrumentType: holding.instrument_type || 'Unknown',
-    stale: Boolean(holding.is_stale),
+    stale: freshness === 'stale',
+    freshness,
     lastPriceDate: holding.last_price_date ?? null,
     daysHeld: holding.days_held ?? null,
     sellEligible: holding.sell_eligible !== false,
@@ -372,7 +404,9 @@ export function resourcesFromPlot(
     0
   );
 
-  const fresh = crops.filter((crop) => !crop.stale).length;
+  const fresh = crops.filter((crop) => crop.freshness === 'fresh').length;
+  const stale = crops.filter((crop) => crop.freshness === 'stale').length;
+  const unknown = crops.filter((crop) => crop.freshness === 'unknown').length;
 
   return [
     {
@@ -409,10 +443,35 @@ export function resourcesFromPlot(
       current: fresh,
       max: crops.length,
       display: `${fresh} / ${crops.length}`,
+      // Only a *confirmed* fresh price fills the meter — unknown freshness
+      // is not fresh, so it does not inflate the bar (#7186). A deployment
+      // that never sends `is_stale` now shows an honest 0%, not 100%.
       pct: crops.length > 0 ? clamp((fresh / crops.length) * 100, 0, 100) : 0,
-      hint: `${fresh} of ${crops.length} crops priced from fresh data`,
+      hint: sunlightHint(fresh, stale, unknown, crops.length),
     },
   ];
+}
+
+/**
+ * SUNLIGHT's caption. When every crop's freshness is confirmed one way or
+ * the other, this reads the way it always has ("N of M crops priced from
+ * fresh data"). As soon as any crop's freshness is unverifiable, the
+ * caption switches to a three-way breakdown so "unknown" can't hide inside
+ * a number that reads like "stale" or "fresh" (#7186).
+ */
+function sunlightHint(
+  fresh: number,
+  stale: number,
+  unknown: number,
+  total: number
+): string {
+  if (unknown === 0) {
+    return `${fresh} of ${total} crops priced from fresh data`;
+  }
+  const parts = [`${fresh} fresh`];
+  if (stale > 0) parts.push(`${stale} stale`);
+  parts.push(`${unknown} unknown`);
+  return `${parts.join(', ')} of ${total} crops`;
 }
 
 export interface PlotSnapshot {
@@ -487,11 +546,36 @@ export function buildPlotSnapshot({
 
 export interface GerminatingCrop {
   crop: Crop;
-  /** 0–100 through the minimum holding period. */
+  /** 0–100 through the minimum holding period, or 0 when `indeterminate`. */
   pct: number;
   daysHeld: number;
   daysRemaining: number;
   readyOn: string | null;
+  /**
+   * True when the crop is in the propagator on `sell_eligible: false` alone,
+   * with no positive `days_until_eligible` to measure progress against
+   * (#7184). `pct`/`daysRemaining`/`readyOn` are all zeroed/nulled rather
+   * than fabricated — a 100%-full bar here would read as "about to clear",
+   * which is the opposite of what "not sellable" means.
+   */
+  indeterminate: boolean;
+}
+
+/**
+ * True when the backend's countdown (`days_until_eligible`) is a real,
+ * positive number of days rather than absent or already at/past zero.
+ *
+ * The backend doesn't always populate this field for every reason a holding
+ * can be blocked from selling — `sell_eligible: false` with
+ * `days_until_eligible: 0` shows up in production data (#7184). This is
+ * what lets `isStillInPropagator` and `germinatingCrops` tell "we know
+ * exactly how many days are left" apart from "compliance says no, but we
+ * don't know the countdown".
+ */
+export function hasKnownHoldPeriodCountdown(
+  crop: Pick<Crop, 'daysUntilEligible'>
+): boolean {
+  return crop.daysUntilEligible !== null && crop.daysUntilEligible > 0;
 }
 
 /**
@@ -501,13 +585,16 @@ export interface GerminatingCrop {
  * hub's Propagator widget and the crop detail screen's Hardiness trait both
  * read it, so they can't disagree about whether a holding has cleared its
  * hold period (see #7010).
+ *
+ * `sell_eligible: false` is authoritative on its own (#7184): compliance
+ * saying a holding cannot be sold must never be overridden by a countdown
+ * field the backend happens to report as `0` or omit. A known, positive
+ * `days_until_eligible` is an *additional* reason to be in the propagator,
+ * not a precondition — it catches a holding whose `sell_eligible` flag
+ * hasn't caught up with a hold period that plainly hasn't elapsed yet.
  */
 export function isStillInPropagator(crop: Crop): boolean {
-  return (
-    !crop.sellEligible &&
-    crop.daysUntilEligible !== null &&
-    crop.daysUntilEligible > 0
-  );
+  return !crop.sellEligible || hasKnownHoldPeriodCountdown(crop);
 }
 
 /**
@@ -522,18 +609,29 @@ export function germinatingCrops(crops: readonly Crop[]): GerminatingCrop[] {
   return crops
     .filter(isStillInPropagator)
     .map((crop) => {
-      const remaining = crop.daysUntilEligible ?? 0;
+      const known = hasKnownHoldPeriodCountdown(crop);
+      const remaining = known ? (crop.daysUntilEligible as number) : 0;
       const held = Math.max(0, crop.daysHeld ?? 0);
       const total = held + remaining;
       return {
         crop,
-        pct: total > 0 ? clamp((held / total) * 100, 0, 100) : 0,
+        // Without a known countdown there's nothing real to measure
+        // progress against — an empty bar, not a fabricated 100%.
+        pct: known && total > 0 ? clamp((held / total) * 100, 0, 100) : 0,
         daysHeld: held,
         daysRemaining: remaining,
-        readyOn: crop.nextEligibleSellDate,
+        readyOn: known ? crop.nextEligibleSellDate : null,
+        indeterminate: !known,
       };
     })
-    .sort((left, right) => left.daysRemaining - right.daysRemaining);
+    .sort((left, right) => {
+      // Entries with a real countdown lead, soonest-ready first; the
+      // indeterminate ones (no known wait) trail behind them.
+      if (left.indeterminate !== right.indeterminate) {
+        return left.indeterminate ? 1 : -1;
+      }
+      return left.daysRemaining - right.daysRemaining;
+    });
 }
 
 /**

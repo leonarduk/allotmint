@@ -1473,3 +1473,16 @@
     transition: none;
   }
 }
+
+/* ── Crop card bed label (#7212) ───────────────────────────────────────
+   The same instrument can sit in more than one bed (ISA and SIPP both
+   holding the same ticker), and until this the roster/hub rendered two
+   otherwise-identical cards with no way to tell which bed either was in. */
+
+.cropBed {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--plot-sky);
+}

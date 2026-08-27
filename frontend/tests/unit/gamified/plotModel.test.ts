@@ -231,8 +231,51 @@ describe('buildPlotSnapshot', () => {
 
     expect(worst.stage).toBe('wilting');
     expect(worst.stale).toBe(true);
+    expect(worst.freshness).toBe('stale');
     expect(worst.sellEligible).toBe(false);
     expect(worst.sector).toBe('Unclassified');
+  });
+
+  it('treats a holding with no is_stale flag as unknown freshness, not fresh (#7186)', () => {
+    // VUSA.L in the shared fixture has a last_price_date but no is_stale
+    // flag at all — the backend simply never sent one. That must not be
+    // read as a confirmed-fresh price.
+    const snapshot = buildPlotSnapshot({ portfolio });
+    const vusa = snapshot.crops.find((crop) => crop.ticker === 'VUSA.L');
+    expect(vusa?.freshness).toBe('unknown');
+    expect(vusa?.stale).toBe(false);
+  });
+
+  it('is unknown, not fresh, when is_stale is undefined and last_price_date is null (#7186)', () => {
+    const noFreshnessSignal: Portfolio = {
+      owner: 'alex',
+      as_of: '2026-08-25',
+      trades_this_month: 0,
+      trades_remaining: 5,
+      total_value_estimate_gbp: 500,
+      accounts: [
+        {
+          account_type: 'gia',
+          currency: 'GBP',
+          owner: 'alex',
+          value_estimate_gbp: 500,
+          holdings: [
+            {
+              ticker: 'HFEL.L',
+              name: 'HFEL',
+              units: 10,
+              market_value_gbp: 500,
+              is_stale: undefined,
+              last_price_date: null,
+            },
+          ],
+        },
+      ],
+    };
+    const { crops } = buildPlotSnapshot({ portfolio: noFreshnessSignal });
+    expect(crops[0].freshness).toBe('unknown');
+    expect(crops[0].stale).toBe(false);
+    expect(crops[0].lastPriceDate).toBeNull();
   });
 
   it('returns an empty but usable snapshot with no portfolio', () => {
@@ -255,7 +298,10 @@ describe('buildPlotSnapshot', () => {
 });
 
 describe('resourcesFromPlot', () => {
-  const crops = [{ stale: false } as Crop, { stale: true } as Crop];
+  const crops = [
+    { freshness: 'fresh' } as Crop,
+    { freshness: 'stale' } as Crop,
+  ];
 
   it('reads water from trade headroom and sunlight from price freshness', () => {
     const [water, feed, sun] = resourcesFromPlot(
@@ -282,6 +328,7 @@ describe('resourcesFromPlot', () => {
       max: 2,
       pct: 50,
       display: '1 / 2',
+      hint: '1 of 2 crops priced from fresh data',
     });
   });
 
@@ -296,6 +343,29 @@ describe('resourcesFromPlot', () => {
     const [, feed] = resourcesFromPlot(null, [], null, true);
     expect(feed.hint).toBe('Allowances unavailable right now');
     expect(feed.hint).not.toContain('No allowance data');
+  });
+
+  it('treats missing is_stale as a third "unknown" state, not fresh (#7186)', () => {
+    // Every holding omits `is_stale` and has no `last_price_date` — the
+    // exact shape that made SUNLIGHT read 100% before this fix.
+    const unknownCrops = [
+      { freshness: 'unknown' } as Crop,
+      { freshness: 'unknown' } as Crop,
+    ];
+    const [, , sun] = resourcesFromPlot(null, unknownCrops, null);
+    expect(sun.pct).toBe(0);
+    expect(sun.current).toBe(0);
+    expect(sun.hint).toBe('0 fresh, 2 unknown of 2 crops');
+  });
+
+  it('distinguishes fresh, stale and unknown in the caption when all three are present', () => {
+    const mixed = [
+      { freshness: 'fresh' } as Crop,
+      { freshness: 'stale' } as Crop,
+      { freshness: 'unknown' } as Crop,
+    ];
+    const [, , sun] = resourcesFromPlot(null, mixed, null);
+    expect(sun.hint).toBe('1 fresh, 1 stale, 1 unknown of 3 crops');
   });
 });
 
@@ -334,17 +404,24 @@ describe('germinatingCrops', () => {
       ...over,
     }) as Crop;
 
-  it('keeps only holdings still serving a minimum holding period', () => {
+  it('keeps holdings still serving a minimum holding period, including sell_eligible: false alone (#7184)', () => {
     const entries = germinatingCrops([
       crop({ ticker: 'READY.L', sellEligible: true, daysUntilEligible: 0 }),
+      // sell_eligible: false with days_until_eligible: null or 0 must still
+      // land in the propagator — compliance saying "no" is authoritative,
+      // even with no known countdown.
       crop({ ticker: 'UNKNOWN.L', daysUntilEligible: null }),
       crop({ ticker: 'ZERO.L', daysUntilEligible: 0 }),
       crop({ ticker: 'GROWING.L' }),
     ]);
-    expect(entries.map((entry) => entry.crop.ticker)).toEqual(['GROWING.L']);
+    expect(entries.map((entry) => entry.crop.ticker)).toEqual([
+      'GROWING.L',
+      'UNKNOWN.L',
+      'ZERO.L',
+    ]);
   });
 
-  it('measures progress across the whole holding period', () => {
+  it('measures progress across the whole holding period when the countdown is known', () => {
     const [entry] = germinatingCrops([
       crop({ daysHeld: 10, daysUntilEligible: 20 }),
     ]);
@@ -352,20 +429,42 @@ describe('germinatingCrops', () => {
       daysHeld: 10,
       daysRemaining: 20,
       readyOn: '2026-09-13',
+      indeterminate: false,
     });
     expect(entry.pct).toBeCloseTo(100 / 3);
   });
 
-  it('sorts soonest-ready first and treats an unknown age as day zero', () => {
+  it('reports an indeterminate, empty-bar entry when there is no known countdown (#7184)', () => {
+    const [entry] = germinatingCrops([
+      crop({
+        ticker: 'ZERO.L',
+        daysHeld: 364,
+        daysUntilEligible: 0,
+        nextEligibleSellDate: '2025-09-25',
+      }),
+    ]);
+    // A 100%-full bar here would read as "about to clear" — the opposite of
+    // what sell_eligible: false means, however many days have been held.
+    expect(entry).toMatchObject({
+      pct: 0,
+      daysRemaining: 0,
+      readyOn: null,
+      indeterminate: true,
+    });
+  });
+
+  it('sorts soonest-ready first, treats an unknown age as day zero, and trails indeterminate entries', () => {
     const entries = germinatingCrops([
       crop({ ticker: 'LATE.L', daysUntilEligible: 25 }),
       crop({ ticker: 'SOON.L', daysUntilEligible: 2 }),
       crop({ ticker: 'NEW.L', daysHeld: null, daysUntilEligible: 30 }),
+      crop({ ticker: 'STUCK.L', daysUntilEligible: null }),
     ]);
     expect(entries.map((entry) => entry.crop.ticker)).toEqual([
       'SOON.L',
       'LATE.L',
       'NEW.L',
+      'STUCK.L',
     ]);
     expect(entries[2]).toMatchObject({ daysHeld: 0, pct: 0 });
   });
@@ -382,22 +481,26 @@ describe('isStillInPropagator', () => {
       ...over,
     }) as Crop;
 
-  it('is the single check both the hub widget and crop detail rely on (#7010)', () => {
-    // Already eligible (backend says so) — never "still in the propagator",
-    // even if a stale-looking date is still attached.
+  it('is the single check both the hub widget and crop detail rely on (#7010, #7184)', () => {
+    // Already eligible and no positive countdown — nothing left to hold it
+    // back, so it has cleared the propagator.
     expect(
       isStillInPropagator(crop({ sellEligible: true, daysUntilEligible: 0 }))
     ).toBe(false);
-    // days_until_eligible has counted down to zero or past — cleared, no
-    // matter what sellEligible says.
-    expect(isStillInPropagator(crop({ daysUntilEligible: 0 }))).toBe(false);
-    expect(isStillInPropagator(crop({ daysUntilEligible: -3 }))).toBe(false);
-    // Backend doesn't know — treat as cleared rather than stuck forever.
-    expect(isStillInPropagator(crop({ daysUntilEligible: null }))).toBe(
-      false
-    );
+    // sell_eligible: false is authoritative on its own — it must never be
+    // overridden by days_until_eligible reporting 0 or being absent, which
+    // is exactly the HFEL.L / JEGI.L / SERE.L shape from the alex fixture.
+    expect(isStillInPropagator(crop({ daysUntilEligible: 0 }))).toBe(true);
+    expect(isStillInPropagator(crop({ daysUntilEligible: -3 }))).toBe(true);
+    expect(isStillInPropagator(crop({ daysUntilEligible: null }))).toBe(true);
     // Still serving the minimum holding period.
     expect(isStillInPropagator(crop({ daysUntilEligible: 5 }))).toBe(true);
+    // A known, positive countdown is an *additional* reason to be in the
+    // propagator, not gated on sell_eligible: false — it catches a holding
+    // whose sell_eligible flag hasn't caught up with the hold period yet.
+    expect(
+      isStillInPropagator(crop({ sellEligible: true, daysUntilEligible: 5 }))
+    ).toBe(true);
   });
 });
 

@@ -158,13 +158,48 @@ describe("UserConfig page", () => {
     render(<UserConfig />);
 
     await screen.findByRole("combobox");
-    expect(
-      await screen.findByText(/select an account holder to view their settings/i),
-    ).toBeInTheDocument();
+    const prompt = await screen.findByRole("status");
+    expect(prompt).toHaveTextContent(
+      /select an account holder to view their settings/i,
+    );
     // The trading-rule fields and Approvals table must stay hidden until an
     // owner is chosen -- the prompt replaces empty space, not the fields.
     expect(screen.queryByText(/min hold days/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  });
+
+  it("does not show the owner prompt while owners are still loading (#7224)", async () => {
+    let resolveOwners: (value: unknown) => void = () => {};
+    mockGetOwners.mockReturnValue(
+      new Promise((resolve) => {
+        resolveOwners = resolve;
+      }),
+    );
+    mockGetApprovals.mockResolvedValue({ approvals: [] });
+
+    render(<UserConfig />);
+
+    // While owners are still in flight there is no owner list to prompt
+    // against yet -- the loading message owns this state, not the prompt.
+    expect(screen.getByText(/loading owners/i)).toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+
+    await act(async () => {
+      resolveOwners([{ owner: "alex", accounts: [] }]);
+    });
+
+    expect(await screen.findByRole("status")).toBeInTheDocument();
+  });
+
+  it("renders the Trading Rules title instead of the stale User Settings name (#7224)", async () => {
+    mockGetOwners.mockResolvedValue([]);
+    mockGetApprovals.mockResolvedValue({ approvals: [] });
+
+    render(<UserConfig />);
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: /trading rules/i }),
+    ).toBeInTheDocument();
   });
 
   it("hides the owner prompt once an owner is selected and labels fields with units (#7224)", async () => {
@@ -179,15 +214,40 @@ describe("UserConfig page", () => {
       await userEvent.selectOptions(select, "alex");
     });
 
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    // getByLabelText (not getByText) proves the <label> is actually
+    // associated with its <input> via htmlFor/id, not just visually adjacent.
     expect(
-      screen.queryByText(/select an account holder to view their settings/i),
-    ).not.toBeInTheDocument();
-    expect(screen.getByText(/min hold days \(days\)/i)).toBeInTheDocument();
+      screen.getByLabelText(/min hold days \(days\)/i),
+    ).toBeInTheDocument();
     expect(
-      screen.getByText(/max trades \/ month \(trades\)/i),
+      screen.getByLabelText(/max trades \/ month \(trades\)/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(/approval exempt tickers \(comma-separated\)/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(/approval exempt types \(comma-separated\)/i),
     ).toBeInTheDocument();
     expect(
       screen.getByText(/newly bought position must be held before it can be sold/i),
+    ).toBeInTheDocument();
+    // Max Trades / Month must describe the calendar-month reset the backend
+    // actually implements (backend/common/portfolio.py: d.month == today.month),
+    // not a rolling window.
+    expect(
+      screen.getByText(/current calendar month; resets on the 1st/i),
+    ).toBeInTheDocument();
+    // Exempt types must carry the commodity-ETF carve-out from
+    // backend/common/holding_utils.py (is_etf and is_commodity forces
+    // exempt_type back to False).
+    expect(
+      screen.getByText(/except commodity etfs, which always require approval/i),
+    ).toBeInTheDocument();
+    // Approvals must explain expiry (backend/common/approvals.py:
+    // is_approval_valid), not just "the date they were approved".
+    expect(
+      screen.getByText(/expires the same day it's granted/i),
     ).toBeInTheDocument();
   });
 

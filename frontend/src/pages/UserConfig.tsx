@@ -157,6 +157,9 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
       </p>
       {user && (
         <section className="flex flex-col items-center space-y-4 rounded-lg border p-4">
+          <h2 className="text-lg font-semibold">
+            {t('userConfig.accountHeading', 'Signed in as')}
+          </h2>
           {user.picture ? (
             <img
               src={user.picture}
@@ -209,7 +212,7 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
         </select>
       )}
       {!owner && !ownersLoading && owners.length > 0 && (
-        <p className="text-gray-800 dark:text-gray-200">
+        <p role="status" className="text-gray-800 dark:text-gray-200">
           {t(
             'userConfig.selectOwnerPrompt',
             'Select an account holder to view their settings.'
@@ -220,18 +223,23 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
         <>
           <form onSubmit={save} className="space-y-2">
             <div>
-              <label className="block text-sm">
+              <label htmlFor="userConfig-holdDays" className="block text-sm">
                 {t('userConfig.holdDays', 'Min Hold Days (days)')}
               </label>
-              <p className="text-xs text-gray-600 dark:text-gray-400">
+              <p
+                id="userConfig-holdDays-help"
+                className="text-xs text-gray-600 dark:text-gray-400"
+              >
                 {t(
                   'userConfig.holdDaysHelp',
                   'The number of days a newly bought position must be held before it can be sold.'
                 )}
               </p>
               <input
+                id="userConfig-holdDays"
                 type="number"
                 className="w-full border p-1"
+                aria-describedby="userConfig-holdDays-help"
                 value={cfg.hold_days_min ?? ''}
                 onChange={(e) =>
                   setCfg({
@@ -244,18 +252,23 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
               />
             </div>
             <div>
-              <label className="block text-sm">
+              <label htmlFor="userConfig-maxTrades" className="block text-sm">
                 {t('userConfig.maxTrades', 'Max Trades / Month (trades)')}
               </label>
-              <p className="text-xs text-gray-600 dark:text-gray-400">
+              <p
+                id="userConfig-maxTrades-help"
+                className="text-xs text-gray-600 dark:text-gray-400"
+              >
                 {t(
                   'userConfig.maxTradesHelp',
-                  'The maximum number of trades allowed for this account in a rolling calendar month.'
+                  'The number of trades made in the current calendar month; resets on the 1st, not a rolling 30-day window. Once reached, no further trades are permitted until next month.'
                 )}
               </p>
               <input
+                id="userConfig-maxTrades"
                 type="number"
                 className="w-full border p-1"
+                aria-describedby="userConfig-maxTrades-help"
                 value={cfg.max_trades_per_month ?? ''}
                 onChange={(e) =>
                   setCfg({
@@ -268,21 +281,26 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
               />
             </div>
             <div>
-              <label className="block text-sm">
+              <label htmlFor="userConfig-exemptTickers" className="block text-sm">
                 {t(
                   'userConfig.exemptTickers',
                   'Approval Exempt Tickers (comma-separated)'
                 )}
               </label>
-              <p className="text-xs text-gray-600 dark:text-gray-400">
+              <p
+                id="userConfig-exemptTickers-help"
+                className="text-xs text-gray-600 dark:text-gray-400"
+              >
                 {t(
                   'userConfig.exemptTickersHelp',
                   'Tickers listed here can be traded without going through the approvals process below.'
                 )}
               </p>
               <input
+                id="userConfig-exemptTickers"
                 type="text"
                 className="w-full border p-1"
+                aria-describedby="userConfig-exemptTickers-help"
                 value={(Array.isArray(cfg.approval_exempt_tickers)
                   ? cfg.approval_exempt_tickers
                   : []
@@ -298,21 +316,26 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
               />
             </div>
             <div>
-              <label className="block text-sm">
+              <label htmlFor="userConfig-exemptTypes" className="block text-sm">
                 {t(
                   'userConfig.exemptTypes',
                   'Approval Exempt Types (comma-separated)'
                 )}
               </label>
-              <p className="text-xs text-gray-600 dark:text-gray-400">
+              <p
+                id="userConfig-exemptTypes-help"
+                className="text-xs text-gray-600 dark:text-gray-400"
+              >
                 {t(
                   'userConfig.exemptTypesHelp',
-                  'Instrument types listed here (e.g. ETF, Fund) never require approval before trading, regardless of ticker.'
+                  'Instrument types listed here (e.g. ETF, Fund) skip the approval requirement -- except commodity ETFs, which always require approval regardless of type.'
                 )}
               </p>
               <input
+                id="userConfig-exemptTypes"
                 type="text"
                 className="w-full border p-1"
+                aria-describedby="userConfig-exemptTypes-help"
                 value={(Array.isArray(cfg.approval_exempt_types)
                   ? cfg.approval_exempt_types
                   : []
@@ -352,7 +375,7 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
             <p className="text-xs text-gray-600 dark:text-gray-400">
               {t(
                 'userConfig.approvalsHelp',
-                'Tickers explicitly cleared to trade outside the exemptions above, each with the date they were approved.'
+                "Tickers explicitly cleared to trade outside the exemptions above. Each approval is only valid for the deployment's configured approval window in trading days, starting from the date shown -- if no window is configured, it expires the same day it's granted."
               )}
             </p>
             <table className="w-full border">
@@ -392,12 +415,14 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
                 type="text"
                 className="flex-1 border p-1"
                 placeholder="Ticker"
+                aria-label={t('userConfig.newTickerLabel', 'Ticker')}
                 value={newTicker}
                 onChange={(e) => setNewTicker(e.target.value)}
               />
               <input
                 type="date"
                 className="border p-1"
+                aria-label={t('userConfig.newDateLabel', 'Approval date')}
                 value={newDate}
                 onChange={(e) => setNewDate(e.target.value)}
               />

@@ -76,15 +76,17 @@ describe("InstrumentSearchBar", () => {
     errorSpy.mockRestore();
   });
 
-  it("labels the header search toggle as 'Search instruments' rather than a bare icon (#7223)", () => {
+  it("labels the header search toggle instead of leaving it a bare icon, distinct from the input it reveals (#7223)", () => {
     render(
       <MemoryRouter>
         <InstrumentSearchBarToggle />
       </MemoryRouter>,
     );
 
+    // Distinct name from the "Search instruments" input label below it, so
+    // opening the panel doesn't leave a button and an input sharing one name.
     expect(
-      screen.getByRole("button", { name: "Search instruments" }),
+      screen.getByRole("button", { name: "Show instrument search" }),
     ).toBeInTheDocument();
   });
 });

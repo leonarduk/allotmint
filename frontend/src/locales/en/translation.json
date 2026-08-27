@@ -447,7 +447,9 @@
     "refreshSuccess": "Instrument details refreshed from Yahoo Finance.",
     "rsi": "RSI",
     "save": "Save",
-    "sectorLabel": "Sector"
+    "searchInstruments": "Search instruments",
+    "sectorLabel": "Sector",
+    "showInstrumentSearch": "Show instrument search"
   },
   "instrumentTable": {
     "columns": {

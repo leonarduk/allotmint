@@ -334,8 +334,12 @@ describe("InstrumentResearch page", () => {
     const user = userEvent.setup();
     // react-router-dom's useNavigate is globally mocked to a stable vi.fn()
     // (see src/setupTests.ts, #4810), so assert on the navigate call rather
-    // than an actual route transition.
+    // than an actual route transition. That mock is never reset between
+    // tests (no clearMocks/restoreMocks in vite.config.ts), so calls from
+    // earlier tests in this file would otherwise accumulate here — clear it
+    // explicitly before rendering.
     const navigateSpy = vi.mocked(useNavigate)();
+    navigateSpy.mockClear();
 
     render(
       <configContext.Provider value={defaultConfig}>

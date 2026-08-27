@@ -222,3 +222,33 @@ def test_enrich_holding_monday_fallback_reaches_previous_friday(monkeypatch):
     assert result["current_price_gbp"] == pytest.approx(42.0)
     assert result["market_value_gbp"] == pytest.approx(420.0)
     assert result["is_stale"] is True
+
+
+def test_enrich_holding_no_acquired_date_stays_null(monkeypatch):
+    """Regression for #7220: a holding with no real transaction/lot date must
+    not have its acquired_date fabricated from the price-history start date
+    (today - 365 days). The field, days_held, eligible_on, and
+    next_eligible_sell_date must stay genuinely null, and sell_eligible must
+    be null (unknown) rather than a confident False, so the frontend can
+    render an explicit "unknown" state instead of a fake verdict.
+    """
+    import backend.common.instrument_api as instrument_api
+    import backend.common.portfolio_utils as pu
+
+    monkeypatch.setattr(instrument_api, "_resolve_full_ticker", lambda *_: ("FOO", "L"))
+    monkeypatch.setattr(pu, "get_security_meta", lambda *_: {})
+    monkeypatch.setattr(hu, "get_instrument_meta", lambda *_: {})
+    monkeypatch.setattr(hu, "_get_price_for_date_scaled", lambda *a, **k: (1.0, "mock"))
+    monkeypatch.setattr(hu, "get_effective_cost_basis_gbp", lambda h, cache, price_hint=None: 0.0)
+
+    holding = {TICKER: "FOO.L", UNITS: 1, COST_BASIS_GBP: 0.0}
+    today = dt.date(2026, 8, 27)
+
+    out = hu.enrich_holding(holding, today, price_cache={}, approvals={})
+
+    assert out[ACQUIRED_DATE] is None
+    assert out["days_held"] is None
+    assert out["eligible_on"] is None
+    assert out["next_eligible_sell_date"] is None
+    assert out["days_until_eligible"] is None
+    assert out["sell_eligible"] is None

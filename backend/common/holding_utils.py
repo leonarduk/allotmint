@@ -338,7 +338,7 @@ def get_effective_cost_basis_gbp(
 ) -> float:
     """
     If booked cost exists, use it. Otherwise derive:
-      units * (close near acquisition OR latest cache price).
+      units * (close near acquisition OR latest cache price OR current price).
     """
     units = float(h.get(UNITS) or 0.0)
     if units <= 0:
@@ -387,6 +387,14 @@ def get_effective_cost_basis_gbp(
         close_px = _derived_cost_basis_close_px(ticker, exchange, acq, price_cache)
     if close_px is None:
         close_px = price_cache.get(full)
+    if close_px is None:
+        # No acquisition date on record (#7220) and no cached historical
+        # price: fall back to the current price rather than a fabricated
+        # date. This intentionally reports cost == market value (no
+        # gain/loss) instead of leaving cost at 0, which would otherwise
+        # invent a large, misleading "unrealised gain" equal to the entire
+        # market value.
+        close_px = price_hint
 
     if close_px is None:
         return 0.0
@@ -501,8 +509,11 @@ def enrich_holding(
         out["cost_basis_source"] = "none"
         return out
 
-    if out.get(ACQUIRED_DATE) is None:
-        out[ACQUIRED_DATE] = (today - dt.timedelta(days=365)).isoformat()
+    # No transaction/lot date on record: leave it genuinely null instead of
+    # substituting the price-history start date as a fabricated acquisition
+    # date (#7220) -- every holding sharing that same synthetic date made
+    # Acquired/Days Held/Stage/Eligible meaningless.
+    out.setdefault(ACQUIRED_DATE, None)
 
     calc = calc or PricingDateCalculator(today=today)
     acq = _parse_date(out.get(ACQUIRED_DATE))
@@ -520,8 +531,11 @@ def enrich_holding(
         out["next_eligible_sell_date"] = next_date.isoformat()
         out["days_until_eligible"] = max(0, (next_date - anchor).days)
     else:
+        # Unknown acquisition date => eligibility is unknown too. Keep this
+        # None rather than False so callers don't render a confident "not
+        # eligible" verdict from a missing date (#7220).
         out["days_held"] = None
-        eligible = False
+        eligible = None
         out["eligible_on"] = None
         out["days_until_eligible"] = None
         out["next_eligible_sell_date"] = None
@@ -544,7 +558,9 @@ def enrich_holding(
         if approved_on:
             approved = is_approval_valid(approved_on, today)
 
-    out["sell_eligible"] = bool(eligible and (approved or not needs_approval))
+    out["sell_eligible"] = (
+        None if eligible is None else bool(eligible and (approved or not needs_approval))
+    )
 
     px = px_source = prev_px = None
     last_price_time = None

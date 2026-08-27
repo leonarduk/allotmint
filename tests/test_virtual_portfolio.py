@@ -50,7 +50,10 @@ def test_aggregate_with_mixed_holdings(monkeypatch):
     assert rows["BBB.L"]["market_value_gbp"] == 0.0
 
     assert rows["CCC.L"]["units"] == 5
-    assert rows["CCC.L"]["cost_gbp"] == 35.0  # 5 * derived 7.0
+    # CCC has no acquired_date on record, so #7220 forbids deriving cost from
+    # a fabricated historical date; cost basis falls back to the current
+    # price (5 * 8.0) instead, rather than inventing a fake unrealised gain.
+    assert rows["CCC.L"]["cost_gbp"] == 40.0
     assert rows["CCC.L"]["market_value_gbp"] == 40.0
 
 

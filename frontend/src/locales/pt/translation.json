@@ -338,13 +338,17 @@
     "sectorPerformance": "Desempenho por setor"
   },
   "movers": {
+    "deltaGbpHeader": "Variação de valor (£, {{period}})",
     "excludeSmall": "Excluir posições <{{min}}%",
     "loadFailed": "Falha ao carregar os movers{{status}}",
     "loginPrompt": "Faça login para ver os movers baseados no portfólio.",
+    "pctChangeHeader": "Variação de preço (%, {{period}})",
     "pctPortfolio": "% do portfólio",
     "period": "Período:",
     "signal": "Sinal",
-    "watchlist": "Lista de observação:"
+    "signalWindowNote": "Cada sinal é gerado com sua própria janela de referência (veja o motivo ao passar o mouse), que pode diferir do período de variação de % e valor mostrado nesta linha.",
+    "watchlist": "Lista de observação:",
+    "windowNote": "As colunas % e valor mostram o movimento no período selecionado; cada sinal usa sua própria janela de referência, indicada no motivo."
   },
   "owner": {
     "label": "Proprietário",

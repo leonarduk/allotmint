@@ -341,10 +341,14 @@
     "excludeSmall": "Exclure les positions <{{min}} %",
     "loadFailed": "Échec du chargement des mouvements{{status}}",
     "loginPrompt": "Veuillez vous connecter pour afficher les mouvements basés sur le portefeuille.",
+    "deltaGbpHeader": "Variation de valeur (£, {{period}})",
+    "pctChangeHeader": "Variation de prix (%, {{period}})",
     "pctPortfolio": "% du portefeuille",
     "period": "Période :",
     "signal": "Signal",
-    "watchlist": "Liste de suivi :"
+    "signalWindowNote": "Chaque signal est généré sur sa propre fenêtre de référence (voir le motif au survol), qui peut différer de la période de variation en % et en valeur affichée sur cette ligne.",
+    "watchlist": "Liste de suivi :",
+    "windowNote": "Les colonnes % et valeur indiquent le mouvement sur la période sélectionnée ; chaque signal utilise sa propre fenêtre de référence, indiquée dans son motif."
   },
   "owner": {
     "label": "Propriétaire",

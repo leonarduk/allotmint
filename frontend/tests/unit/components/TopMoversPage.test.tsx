@@ -339,6 +339,48 @@ describe("TopMoversPage", () => {
     );
   });
 
+  it("shows the same informational disclaimer as the Trading page and labels the time windows (#7231)", async () => {
+    render(
+      <MemoryRouter>
+        <TopMoversPage />
+      </MemoryRouter>,
+    );
+
+    expect(
+      await screen.findByText(
+        /Signals are informational and are not trade instructions/i,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/each signal uses its own lookback window/i),
+    ).toBeInTheDocument();
+  });
+
+  it("labels the % and Δ column headers with the selected period instead of bare symbols (#7231)", async () => {
+    render(
+      <MemoryRouter>
+        <TopMoversPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findAllByText("AAA");
+    expect(
+      screen.getByRole("columnheader", { name: /Price change \(%, 1d\)/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("columnheader", { name: /Value change \(£, 1d\)/i }),
+    ).toBeInTheDocument();
+
+    const selects = screen.getAllByRole("combobox");
+    const periodSelect = selects[1];
+    await userEvent.selectOptions(periodSelect, "1w");
+    await waitFor(() => expect(periodSelect).toHaveValue("1w"));
+
+    expect(
+      screen.getByRole("columnheader", { name: /Price change \(%, 1w\)/i }),
+    ).toBeInTheDocument();
+  });
+
   it("does not emit duplicate-key warnings when the same ticker appears twice (#6505)", async () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     mockGetOpportunities.mockResolvedValue({

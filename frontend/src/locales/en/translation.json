@@ -565,13 +565,17 @@
     "title": "Performance Metrics Explained"
   },
   "movers": {
+    "deltaGbpHeader": "Value change (£, {{period}})",
     "excludeSmall": "Exclude positions <{{min}}%",
     "loadFailed": "Failed to load movers{{status}}",
     "loginPrompt": "Please log in to view portfolio-based movers.",
+    "pctChangeHeader": "Price change (%, {{period}})",
     "pctPortfolio": "% of portfolio",
     "period": "Period:",
     "signal": "Signal",
-    "watchlist": "Watchlist:"
+    "signalWindowNote": "Each signal is generated over its own lookback window (see the reason on hover), which may differ from the % and value change period shown in this row.",
+    "watchlist": "Watchlist:",
+    "windowNote": "The % and value columns show the move for the selected period; each signal uses its own lookback window, noted in its reason."
   },
   "owner": {
     "label": "Owner",

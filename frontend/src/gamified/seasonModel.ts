@@ -117,10 +117,13 @@ interface GoalGroup {
   format: (value: number) => string;
   /**
    * Bare, unit-less variant of `format` for the compact tier-chip row
-   * (`✓ 5  ✓ 10  25  50`). Defaults to `format` — money and level labels are
-   * already compact there. Groups whose `format` spells out a unit word
-   * ("crop(s)", "day(s)") override this so the unit shows once, on the goal
-   * line, rather than once per chip (#7194).
+   * (`✓ 5  ✓ 10  25  50`). Defaults to `format`. Chips carry the unit unless
+   * repeating it four times in one row is the actual problem: money
+   * ("£1.0k") and level ("Level 4") labels are already compact there, and
+   * the streak group's "3 days / 7 days / 14 days / 30 days" was never
+   * complained about. Only "tend" overrides this — its bare-number chips
+   * (`5  10  25  50`) were the one row that visibly wrapped once its goal
+   * line picked up a unit (#7194).
    */
   chipFormat?: (value: number) => string;
   unavailable?: boolean;
@@ -195,7 +198,6 @@ function buildGoalGroups(
       current: snapshot.streak,
       title: (target) => `Hold a ${target}-day chore streak`,
       format: (value) => pluralize(value, 'day'),
-      chipFormat: (value) => String(Math.round(value)),
     },
     {
       id: 'rank',

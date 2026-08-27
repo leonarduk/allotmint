@@ -280,6 +280,29 @@ describe('buildSeasonGroups', () => {
     expect(grow?.complete).toBe(true);
     expect(grow?.tiers.every((tier) => tier.complete)).toBe(true);
   });
+
+  it('keeps the tier-chip row bare only where repeating the unit was the actual complaint (#7194)', () => {
+    // "Tend the plot" is the one row whose chips used to wrap once its goal
+    // line picked up a unit ("crops" x4) — its chips stay bare numbers.
+    // "Keep the streak" was never complained about; its chips keep the
+    // "days" unit it always had, same as money ("£1.0k") and level
+    // ("Level 4") chips elsewhere.
+    const tend = groups.find((group) => group.id === 'tend');
+    expect(tend?.tiers.map((tier) => tier.displayTarget)).toEqual([
+      '5',
+      '10',
+      '25',
+      '50',
+    ]);
+
+    const streak = groups.find((group) => group.id === 'streak');
+    expect(streak?.tiers.map((tier) => tier.displayTarget)).toEqual([
+      '3 days',
+      '7 days',
+      '14 days',
+      '30 days',
+    ]);
+  });
 });
 
 describe('buildStreakPath', () => {

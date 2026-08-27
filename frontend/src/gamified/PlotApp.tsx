@@ -27,7 +27,7 @@ const RAIL_ITEMS: readonly RailItem[] = [
 ];
 
 function OwnerPicker() {
-  const { pickerOwners, owner } = usePlotData();
+  const { owners, pickerOwners, owner } = usePlotData();
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Writing `?owner=` here (rather than calling the context's `setOwner`
@@ -44,7 +44,29 @@ function OwnerPicker() {
     setSearchParams(next, { replace: true });
   };
 
-  if (pickerOwners.length < 2) return null;
+  // `<select value={owner}>` must always have a matching `<option>`, or the
+  // browser silently falls back to selecting whichever option happens to be
+  // first — e.g. `?owner=demo` would render demo's HUD and crops while the
+  // dropdown reads the first grouped owner's name, and re-selecting that
+  // same (already-selected-per-the-DOM) name fires no change event, so the
+  // mismatch never recovers on its own. An owner reached via an explicit
+  // deep link but excluded from `pickerOwners` (demo, currently) is
+  // therefore added back as its own option — sourced from the full `owners`
+  // list so it still gets a real display name — for as long as it stays
+  // selected. Switching to any grouped grower drops it again (#7192).
+  const activeOwnerOutsidePicker =
+    owner && !pickerOwners.some((entry) => entry.owner === owner)
+      ? (owners.find((entry) => entry.owner === owner) ?? {
+          owner,
+          full_name: owner,
+          accounts: [],
+        })
+      : null;
+  const optionEntries = activeOwnerOutsidePicker
+    ? [activeOwnerOutsidePicker, ...pickerOwners]
+    : pickerOwners;
+
+  if (optionEntries.length < 2) return null;
   return (
     <div className={styles.railFooter}>
       <label className={styles.railSubtitle} htmlFor="plot-owner">
@@ -56,7 +78,7 @@ function OwnerPicker() {
         value={owner}
         onChange={handleChange}
       >
-        {pickerOwners.map((entry) => (
+        {optionEntries.map((entry) => (
           <option key={entry.owner} value={entry.owner}>
             {entry.full_name || entry.owner}
           </option>

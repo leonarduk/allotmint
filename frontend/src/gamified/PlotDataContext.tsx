@@ -50,14 +50,30 @@ export interface PlotDataValue {
   /** Fatal error — the portfolio itself could not be loaded. */
   error: string | null;
   owner: string;
+  /**
+   * The full, unfiltered `/owners` response. Default-owner selection and
+   * portfolio loading key off this. It is also what lets the picker look up
+   * a display name for a deep-linked owner who isn't in `pickerOwners`
+   * (e.g. `?owner=demo`) instead of silently mismatching `<select>`'s value
+   * against its options — see the note on `pickerOwners` (#7189, #7192).
+   */
   owners: OwnerSummary[];
   /**
    * `owners` filtered to whoever actually belongs to a configured group
-   * (the real household), for the grower *picker* to render. `owners`
-   * itself stays the full, unfiltered `/owners` response so default-owner
-   * selection and portfolio loading are unaffected — only the picker's
-   * option list should hide accounts (e.g. the demo seed) that sit outside
-   * every group (#7189).
+   * (the real household), for the grower *picker* to render. Empty while
+   * `/groups` is still in flight, so the picker can wait for it rather than
+   * flashing the unfiltered list (including the demo seed) and then
+   * narrowing a moment later. `owners` itself stays untouched — only the
+   * picker's option list should hide accounts that sit outside every group
+   * (#7189).
+   *
+   * A caller must still fall back to `owners` for whichever owner is
+   * *currently active*, even if that owner has since dropped out of this
+   * list (e.g. an explicit `?owner=demo` deep link): filtering the picker
+   * must never leave `<select value={owner}>` pointing at an owner that
+   * isn't one of its own `<option>`s, or the browser silently reselects
+   * whatever option happens to be first — showing one grower's name while
+   * another grower's data is on screen (#7192).
    */
   pickerOwners: OwnerSummary[];
   setOwner: (owner: string) => void;
@@ -261,19 +277,36 @@ export function PlotDataProvider({
   // failed or empty `/groups` response must not touch `ownersStatus` or the
   // "no growers found" error path, it should just leave `groups` empty and
   // let `pickerOwners` fall back to showing every owner (#7189).
+  //
+  // `groupsStatus` mirrors `ownersStatus` above for the same reason: an
+  // empty `groups` array is ambiguous between "not loaded yet" and "loaded,
+  // no groups configured" and only one of those should make `pickerOwners`
+  // fall back to the unfiltered list. Without this, `pickerOwners` briefly
+  // equals the full `owners` list (demo account included) the instant
+  // `/owners` resolves, then narrows a moment later once `/groups` catches
+  // up — the exact "wrong grower's data flashes on screen" class of bug
+  // `clearOwnerScopedState` exists to prevent elsewhere in this file.
   const [groups, setGroups] = useState<GroupSummary[]>([]);
+  const [groupsStatus, setGroupsStatus] = useState<
+    'pending' | 'ready' | 'error'
+  >('pending');
 
   useEffect(() => {
     let cancelled = false;
+    setGroupsStatus('pending');
     getGroups()
       .then((list) => {
-        if (!cancelled) setGroups(list);
+        if (cancelled) return;
+        setGroups(list);
+        setGroupsStatus('ready');
       })
       .catch(() => {
-        // Swallowed deliberately: `groups` just stays empty, which the
-        // `pickerOwners` fallback below treats the same as "no grouping
-        // configured" and shows every owner instead of an empty picker.
-        if (!cancelled) setGroups([]);
+        // Swallowed deliberately: `groups` just stays empty and `ready`'s
+        // "no grouping configured" fallback below applies equally to a
+        // genuinely-empty response and a failed one.
+        if (cancelled) return;
+        setGroups([]);
+        setGroupsStatus('error');
       });
     return () => {
       cancelled = true;
@@ -293,16 +326,21 @@ export function PlotDataProvider({
   }, [groups]);
 
   // The picker's option list: real owners only, with a fall back to the full
-  // `owners` list whenever grouping data can't narrow it down (no groups
-  // loaded yet, `/groups` failed, or none of the current owners matched any
-  // group). `owners` itself is left untouched for the data layer — deep
+  // `owners` list whenever grouping data can't narrow it down (`/groups`
+  // failed, or none of the current owners matched any group). While
+  // `/groups` is still in flight this deliberately returns an empty list
+  // rather than the unfiltered `owners` — see the comment above `groups` —
+  // so the picker (which also hides itself below two options) simply stays
+  // hidden for that brief window instead of showing every account and then
+  // narrowing. `owners` itself is left untouched for the data layer — deep
   // links like `?owner=demo` bypass this list entirely and keep working via
   // the `requestedOwner` effect above (#7189).
   const pickerOwners = useMemo(() => {
+    if (groupsStatus === 'pending') return [];
     if (groupedOwnerSlugs.size === 0) return owners;
     const filtered = owners.filter((entry) => groupedOwnerSlugs.has(entry.owner));
     return filtered.length > 0 ? filtered : owners;
-  }, [owners, groupedOwnerSlugs]);
+  }, [owners, groupedOwnerSlugs, groupsStatus]);
 
   // Everything below is scoped to one grower. Dropping it whenever the
   // grower changes (and whenever a load fails) stops the HUD from showing the

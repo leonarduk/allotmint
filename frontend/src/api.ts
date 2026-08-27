@@ -434,9 +434,28 @@ export const fetchText = defaultClient.fetchText;
 /* API wrappers                                                        */
 /* ------------------------------------------------------------------ */
 
+// In-flight-only cache, same pattern as `getConfig`'s below (see that
+// comment for the full rationale) — shares one request across concurrent
+// callers, cleared as soon as it settles so a later call (e.g. after
+// PlotDataContext's `refresh()` bumps `reloadToken`) still gets a fresh
+// fetch rather than a stale result. Added alongside the new `/groups` fetch
+// in #7189 so introducing that extra per-load request didn't raise the
+// total `/owners`+`/groups`+`/config` request count for a `/plot` load
+// (#7213).
+type OwnersParseResult = ReturnType<typeof ownersContractSchema.parse>;
+let inFlightOwnersFetch: Promise<OwnersParseResult> | null = null;
+
 /** List all owners and their available accounts. */
-export const getOwners = async () =>
-  ownersContractSchema.parse(await fetchJson<OwnerSummary[]>(`${API_BASE}/owners`));
+export const getOwners = async () => {
+  if (!inFlightOwnersFetch) {
+    inFlightOwnersFetch = fetchJson<OwnerSummary[]>(`${API_BASE}/owners`)
+      .then((raw) => ownersContractSchema.parse(raw))
+      .finally(() => {
+        inFlightOwnersFetch = null;
+      });
+  }
+  return inFlightOwnersFetch;
+};
 
 /** Fetch the portfolio tree for a single owner. */
 export const getPortfolio = async (
@@ -465,9 +484,21 @@ export const getOwnerSectorContributions = (
   return fetchJson<SectorContribution[]>(url);
 };
 
+// Same in-flight-only sharing as `getOwners` above and `getConfig` below.
+type GroupsParseResult = ReturnType<typeof groupsContractSchema.parse>;
+let inFlightGroupsFetch: Promise<GroupsParseResult> | null = null;
+
 /** List the configured groups (e.g. "adults", "children"). */
-export const getGroups = async () =>
-  groupsContractSchema.parse(await fetchJson<GroupSummary[]>(`${API_BASE}/groups`));
+export const getGroups = async () => {
+  if (!inFlightGroupsFetch) {
+    inFlightGroupsFetch = fetchJson<GroupSummary[]>(`${API_BASE}/groups`)
+      .then((raw) => groupsContractSchema.parse(raw))
+      .finally(() => {
+        inFlightGroupsFetch = null;
+      });
+  }
+  return inFlightGroupsFetch;
+};
 
 /** Get the aggregated portfolio for a group of owners. */
 export const getGroupPortfolio = async (
@@ -1523,30 +1554,40 @@ export const deleteVirtualPortfolio = (id: number | string) =>
     method: "DELETE",
   });
 
-// Shared in-flight `/config` fetch, the same "cache the promise" pattern
-// `getCachedGroupInstruments` uses above (see groupInstrumentCache). Every
-// plain `getConfig()` call — ConfigContext's bootstrap effect, Support.tsx's
-// re-reads — collapses onto whichever fetch is already in flight instead of
-// starting its own. This is what most of the "/config fetched 4x per load"
-// in #7213 turned out to be: React StrictMode double-invokes each mounting
-// component's effects in dev, so ConfigContext's own single effect alone
-// produced two of those four requests before this cache existed.
+// Shared in-flight-only `/config` fetch (cleared as soon as it settles, on
+// either success or failure — see the `.finally` below). This is narrower
+// than `getCachedGroupInstruments`'s cache above (`groupInstrumentCache`),
+// which persists the *resolved value* indefinitely; that persistence is
+// exactly what #7213 needs to avoid here, since a persistent cache would
+// "cache a stale config across an intentional refresh" (one of #7213's own
+// stated failure modes) whenever Support.tsx re-reads `/config` right after
+// `updateConfig`. Every plain `getConfig()` call — ConfigContext's bootstrap
+// effect, Support.tsx's re-reads — collapses onto whichever fetch is
+// already in flight instead of starting its own. This is what most of the
+// "/config fetched 4x per load" in #7213 turned out to be: React StrictMode
+// double-invokes each mounting component's effects in dev, so
+// ConfigContext's own single effect alone produced two of those four
+// requests before this cache existed.
 //
 // A caller that passes its own `init` (main.tsx's Root, which needs to
 // abort and retry the fetch on its own timeout — see MAX_CONFIG_FETCH_ATTEMPTS,
 // #5073) is deliberately routed around the cache: folding a caller-owned
 // AbortSignal into a fetch other callers are also awaiting would let one
 // caller's abort/timeout reject everyone else's request too.
-let inFlightConfigFetch: Promise<unknown> | null = null;
+//
+// Concurrent no-signal callers all resolve to the *same* parsed object by
+// reference (not a fresh clone per caller). No current caller mutates it —
+// callers only read config fields — but that is an invariant a future
+// caller needs to keep, not something enforced here.
+type ConfigParseResult = ReturnType<typeof configContractSchema.parse>;
+let inFlightConfigFetch: Promise<ConfigParseResult> | null = null;
 
 /** Retrieve backend configuration. */
 export const getConfig = async <T = Record<string, unknown>>(
   init?: RequestInit,
-): Promise<T> => {
+) => {
   if (init) {
-    return configContractSchema.parse(
-      await fetchJson<T>(`${API_BASE}/config`, init),
-    ) as T;
+    return configContractSchema.parse(await fetchJson<T>(`${API_BASE}/config`, init));
   }
   if (!inFlightConfigFetch) {
     inFlightConfigFetch = fetchJson<T>(`${API_BASE}/config`)
@@ -1555,10 +1596,18 @@ export const getConfig = async <T = Record<string, unknown>>(
         inFlightConfigFetch = null;
       });
   }
-  return inFlightConfigFetch as Promise<T>;
+  return inFlightConfigFetch;
 };
 
-/** Persist configuration changes. */
+/**
+ * Persist configuration changes. Does not invalidate `inFlightConfigFetch`:
+ * if a plain `getConfig()` call is already in flight the instant an update
+ * lands, that caller joins the pre-update response rather than seeing the
+ * new value. Narrow in practice — `Support.tsx` only re-reads `/config`
+ * *after* `updateConfig` resolves, by which time nothing is left in flight —
+ * but a future caller racing an update against a fresh page load should be
+ * aware a stale value can still be joined here.
+ */
 export const updateConfig = (cfg: Record<string, unknown>) =>
   fetchJson<Record<string, unknown>>(`${API_BASE}/config`, {
     method: "PUT",

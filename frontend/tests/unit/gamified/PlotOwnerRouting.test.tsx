@@ -1,14 +1,21 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import {
+  MemoryRouter,
+  Route,
+  Routes,
+  useLocation,
+  useNavigationType,
+} from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Portfolio } from '@/types';
 
 /**
  * Covers the grower-picker/group-membership fix (#7189) and the routing
  * fixes (#7192): the picker filtering to grouped owners, the /groups
- * failure/empty fallback, the ?owner=demo deep link bypassing the picker
- * filter, the not-found panel on an unknown /plot/* path, and the URL
- * round-trip when a different grower is chosen.
+ * failure/empty/no-intersection fallbacks, the ?owner=demo deep link both
+ * loading its data *and* being correctly represented in the picker itself,
+ * the not-found panel on an unknown /plot/* path, and the URL round-trip
+ * (via a real history.replace, not push) when a different grower is chosen.
  */
 
 const portfolio: Portfolio = {
@@ -48,14 +55,38 @@ vi.mock('@/api', () => mocks);
 
 const { default: PlotApp } = await import('@/gamified/PlotApp');
 
+/**
+ * Surfaces the router's own idea of the current URL and how it got there
+ * (`useNavigationType`: 'POP' | 'PUSH' | 'REPLACE'), so tests can assert on
+ * what actually reached the URL/history stack instead of re-reading the
+ * `<select>` they just changed — which would pass identically against the
+ * pre-#7192 local-state-only implementation and prove nothing.
+ */
+function LocationProbe() {
+  const location = useLocation();
+  const navType = useNavigationType();
+  return (
+    <div
+      data-testid="location-probe"
+      data-search={location.search}
+      data-nav-type={navType}
+    />
+  );
+}
+
 function renderPlot(path = '/plot') {
   return render(
     <MemoryRouter initialEntries={[path]}>
+      <LocationProbe />
       <Routes>
         <Route path="/plot/*" element={<PlotApp />} />
       </Routes>
     </MemoryRouter>
   );
+}
+
+function probe() {
+  return screen.getByTestId('location-probe');
 }
 
 const OWNERS = [
@@ -131,16 +162,67 @@ describe('Plot grower picker group filtering (#7189)', () => {
     expect(optionLabels).toHaveLength(4);
   });
 
-  it('still loads an explicit ?owner=demo deep link even though demo is excluded from the picker', async () => {
-    renderPlot('/plot?owner=demo');
+  it('falls back to every owner when configured group members match none of the current owners', async () => {
+    mocks.getGroups.mockResolvedValue([
+      { slug: 'other-house', name: 'Someone else', members: ['nobody', 'ghost'] },
+    ]);
+    renderPlot();
 
-    await waitFor(() => expect(mocks.getPortfolio).toHaveBeenCalledWith('demo'));
-    // The picker itself still hides demo — the data layer is unaffected.
     const picker = await screen.findByLabelText('Grower');
     const optionLabels = Array.from(picker.querySelectorAll('option')).map(
       (opt) => opt.textContent
     );
-    expect(optionLabels).not.toContain('Demo Account');
+    expect(optionLabels).toContain('Demo Account');
+    expect(optionLabels).toHaveLength(4);
+  });
+
+  it('does not show the picker until /groups settles, so the unfiltered list (demo included) never flashes on screen', async () => {
+    let resolveGroups: (value: typeof GROUPS) => void = () => {};
+    mocks.getGroups.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveGroups = resolve;
+        })
+    );
+    renderPlot();
+
+    // The default owner's portfolio has already loaded (so the picker would
+    // render now if it were going to), but /groups is still pending.
+    await waitFor(() => expect(mocks.getPortfolio).toHaveBeenCalled());
+    expect(screen.queryByLabelText('Grower')).toBeNull();
+    expect(screen.queryByText('Demo Account')).toBeNull();
+
+    resolveGroups(GROUPS);
+    await waitFor(() =>
+      expect(screen.getByLabelText('Grower')).toBeInTheDocument()
+    );
+    expect(screen.queryByText('Demo Account')).toBeNull();
+  });
+
+  it('shows the demo account as the selected, addressable picker option when deep-linked, without adding it back permanently', async () => {
+    renderPlot('/plot?owner=demo');
+
+    await waitFor(() => expect(mocks.getPortfolio).toHaveBeenCalledWith('demo'));
+
+    const picker = (await screen.findByLabelText('Grower')) as HTMLSelectElement;
+    // The regression this guards: with a filtered option list and no
+    // matching <option>, the browser silently reselects whichever option is
+    // first (e.g. Alex) while demo's data stays on screen underneath.
+    // Asserting the select's own resolved value/selected option is what
+    // catches that — asserting only that "Demo Account" text is absent
+    // elsewhere on the page would not.
+    expect(picker.value).toBe('demo');
+    const selected = picker.options[picker.selectedIndex];
+    expect(selected.value).toBe('demo');
+    expect(selected.textContent).toBe('Demo Account');
+
+    // Switching to a grouped grower drops demo back out of the option list.
+    fireEvent.change(picker, { target: { value: 'alex' } });
+    await waitFor(() => expect(mocks.getPortfolio).toHaveBeenCalledWith('alex'));
+    const labelsAfter = Array.from(picker.querySelectorAll('option')).map(
+      (opt) => opt.textContent
+    );
+    expect(labelsAfter).not.toContain('Demo Account');
   });
 });
 
@@ -157,7 +239,7 @@ describe('Plot routing (#7192)', () => {
     ).toBeNull();
   });
 
-  it('writes the chosen grower to the URL (replace) and it survives past the initial mount', async () => {
+  it('writes the chosen grower to the URL via history.replace, not push', async () => {
     renderPlot();
 
     await screen.findByLabelText('Grower');
@@ -166,11 +248,34 @@ describe('Plot routing (#7192)', () => {
     });
 
     await waitFor(() => expect(mocks.getPortfolio).toHaveBeenCalledWith('alex'));
+    await waitFor(() => expect(probe().dataset.search).toBe('?owner=alex'));
+    // The explicit #7192 constraint: a grower change must not push a new
+    // history entry.
+    expect(probe().dataset.navType).toBe('REPLACE');
+  });
 
-    // Re-rendering the same URL search state (simulating "survives a
-    // refresh") still selects alex, proving the choice now lives in the URL
-    // rather than only in local component state.
-    const select = screen.getByLabelText('Grower') as HTMLSelectElement;
+  it('a grower change written to the URL is what a fresh mount at that URL reads back (survives a refresh)', async () => {
+    const { unmount } = renderPlot();
+
+    await screen.findByLabelText('Grower');
+    fireEvent.change(screen.getByLabelText('Grower'), {
+      target: { value: 'alex' },
+    });
+    await waitFor(() => expect(mocks.getPortfolio).toHaveBeenCalledWith('alex'));
+    const searchAfterChange = probe().dataset.search;
+    expect(searchAfterChange).toBe('?owner=alex');
+
+    // A hard refresh discards all in-memory React/router state and re-reads
+    // only the URL. Unmounting and mounting a fresh instance at that same
+    // URL emulates that; re-reading the already-changed <select> in place
+    // (the old, weaker version of this test) would pass even if the value
+    // never left local component state.
+    unmount();
+    mocks.getPortfolio.mockClear();
+    renderPlot(`/plot${searchAfterChange}`);
+
+    await waitFor(() => expect(mocks.getPortfolio).toHaveBeenCalledWith('alex'));
+    const select = (await screen.findByLabelText('Grower')) as HTMLSelectElement;
     expect(select.value).toBe('alex');
   });
 

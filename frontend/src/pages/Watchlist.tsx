@@ -127,7 +127,16 @@ function symbolUnitFallback(symbol: string): string {
 
 // Prefer the currency the quote payload actually reports; only fall back to
 // guessing from the symbol shape when the feed didn't send one (#7218).
-function symbolUnit(symbol: string, currency: string | null | undefined): string {
+// `quoteType` (from the provider, see backend/routes/quotes.py) takes
+// priority over a reported currency for indices: an index level is a points
+// figure, not a currency amount, even when the feed also sends a currency
+// code alongside it (#7232).
+function symbolUnit(
+  symbol: string,
+  currency: string | null | undefined,
+  quoteType?: string | null,
+): string {
+  if (quoteType === "INDEX") return "pts";
   if (currency) return currency;
   return symbolUnitFallback(symbol);
 }
@@ -460,7 +469,7 @@ export function Watchlist() {
                     )}
                   </td>
                   <td style={{ textAlign: "right", padding: "4px 6px" }}>
-                    {symbolUnit(r.symbol, r.currency)}
+                    {symbolUnit(r.symbol, r.currency, r.quoteType)}
                   </td>
                   <td style={{ textAlign: "right", padding: "4px 6px" }}>
                     {formatValue(r.symbol, r.last)}

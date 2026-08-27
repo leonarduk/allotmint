@@ -72,7 +72,12 @@ async def get_quotes(symbols: str = Query("")) -> List[Dict[str, Any]]:
                 # "iShares Core MSCI World UCITS E") and was being sent to
                 # the frontend as if it were the full name -- #7218.
                 "name": info.get("longName") or info.get("shortName"),
+                # Currency/unit the price is quoted in, straight from the
+                # provider -- never inferred from the symbol. "quote_type"
+                # lets the frontend mark index levels as points rather than
+                # a currency (see #7232).
                 "currency": info.get("currency"),
+                "quote_type": info.get("quoteType"),
             }
         )
 

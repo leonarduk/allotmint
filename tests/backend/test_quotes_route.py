@@ -44,6 +44,7 @@ def test_get_quotes_includes_name(monkeypatch):
             # longName is preferred when both are present (#7218).
             "name": "Acme",
             "currency": "USD",
+            "quote_type": None,
         }
     ]
 
@@ -72,3 +73,33 @@ def test_get_quotes_prefers_long_name_over_short_name(monkeypatch):
         resp = client.get("/api/quotes?symbols=IWDA.AS")
     assert resp.status_code == 200
     assert resp.json()[0]["name"] == "iShares Core MSCI World UCITS ETF USD Acc"
+
+
+def test_get_quotes_includes_currency_and_quote_type(monkeypatch):
+    app = FastAPI()
+    app.include_router(quotes.router)
+
+    def fake_Tickers(symbols):
+        assert symbols == "^FTSE"
+        ticker = type(
+            "T",
+            (),
+            {
+                "info": {
+                    "regularMarketPrice": 10878.0,
+                    "shortName": "FTSE 100",
+                    "currency": "GBP",
+                    "quoteType": "INDEX",
+                }
+            },
+        )()
+        return type("TT", (), {"tickers": {"^FTSE": ticker}})()
+
+    monkeypatch.setattr(quotes.yf, "Tickers", fake_Tickers)
+
+    with TestClient(app) as client:
+        resp = client.get("/api/quotes?symbols=%5EFTSE")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data[0]["currency"] == "GBP"
+    assert data[0]["quote_type"] == "INDEX"

@@ -566,4 +566,66 @@ describe("Watchlist page", () => {
       expect(await unitCell("USDGBP=X")).toHaveTextContent("USD/GBP");
     });
   });
+
+  describe("currency/unit labelling and full names (#7232)", () => {
+    it("marks an index level as points rather than a currency, even when the feed also sends one", async () => {
+      // quoteType "INDEX" takes priority over a reported currency: an index
+      // level is a points figure, not a currency amount, even when the feed
+      // sends a currency code (e.g. "GBP") alongside it.
+      const rows: QuoteRow[] = [
+        {
+          name: "FTSE 100",
+          symbol: "^FTSE",
+          last: 10878,
+          open: null,
+          high: null,
+          low: null,
+          change: -8.04,
+          changePct: -0.07,
+          volume: null,
+          marketTime: null,
+          marketState: "REGULAR",
+          currency: "GBP",
+          quoteType: "INDEX",
+        },
+      ];
+      (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue(rows);
+      localStorage.setItem("watchlistSymbols", "^FTSE");
+
+      renderWatchlist();
+
+      const row = await findRow("^FTSE");
+      expect(row).toHaveTextContent("pts");
+      expect(row).not.toHaveTextContent("GBP");
+    });
+
+    it("keeps the full instrument name in the DOM and as a hover title", async () => {
+      const longName = "VANGUARD FUNDS PLC VANGUARD S&P 500 UCITS ETF";
+      const rows: QuoteRow[] = [
+        {
+          name: longName,
+          symbol: "VUSA.L",
+          last: 107.02,
+          open: null,
+          high: null,
+          low: null,
+          change: 0.36,
+          changePct: 0.34,
+          volume: null,
+          marketTime: null,
+          marketState: "REGULAR",
+          currency: "GBP",
+          quoteType: "ETF",
+        },
+      ];
+      (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue(rows);
+      localStorage.setItem("watchlistSymbols", "VUSA.L");
+
+      renderWatchlist();
+
+      const nameCell = await screen.findByText(longName);
+      expect(nameCell).toBeInTheDocument();
+      expect(nameCell).toHaveAttribute("title", longName);
+    });
+  });
 });

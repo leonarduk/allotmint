@@ -32,7 +32,7 @@ function GroupRow({ group }: { group: SeasonGroupProgress }) {
             ? group.group
             : group.complete
               ? `Every ${group.group} tier earned`
-              : `Next: ${group.next?.displayTarget}`}
+              : group.next?.title}
         </div>
 
         {group.unavailable ? (

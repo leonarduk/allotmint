@@ -135,6 +135,42 @@ describe('buildSeasonGoals', () => {
     expect(streak3).toMatchObject({ complete: true, display: '6 days' });
   });
 
+  it('gives count-based goals a unit rather than a bare number (#7194)', () => {
+    // Two holdings on the fixture portfolio.
+    const tend5 = goals.find((goal) => goal.id === 'tend-5');
+    expect(tend5?.display).toBe('2 crops');
+  });
+
+  it('singularises "1 day"/"1 crop" instead of always pluralising (#7194)', () => {
+    const oneCropSnapshot = buildPlotSnapshot({
+      portfolio: {
+        ...portfolio,
+        accounts: [
+          { ...portfolio.accounts[0], holdings: [portfolio.accounts[0].holdings[0]] },
+        ],
+      },
+      xp: 300,
+      streak: 1,
+    });
+    const oneCropGoals = buildSeasonGoals(oneCropSnapshot, null);
+    expect(
+      oneCropGoals.find((goal) => goal.id === 'tend-5')?.display
+    ).toBe('1 crop');
+    expect(
+      oneCropGoals.find((goal) => goal.id === 'streak-3')?.display
+    ).toBe('1 day');
+
+    const twoDaySnapshot = buildPlotSnapshot({
+      portfolio,
+      xp: 300,
+      streak: 2,
+    });
+    const twoDayGoals = buildSeasonGoals(twoDaySnapshot, null);
+    expect(
+      twoDayGoals.find((goal) => goal.id === 'streak-3')?.display
+    ).toBe('2 days');
+  });
+
   it('reads level from the grower curve', () => {
     // 300 XP is exactly level 4 on the 25 * L * (L - 1) curve.
     const rank4 = goals.find((goal) => goal.id === 'rank-4');
@@ -195,6 +231,23 @@ describe('buildSeasonGroups', () => {
     });
     expect(grow?.next?.pct).toBeCloseTo(24, 0);
     expect(grow?.complete).toBe(false);
+  });
+
+  it('carries the goal description for the next tier, not just its target (#7194)', () => {
+    // Regression test: `GroupRow` used to show only "Next: 25" with no noun
+    // for what "25" meant — the description existed in `buildGoalGroups`
+    // but never made it onto `SeasonGroupProgress`.
+    const tend = groups.find((group) => group.id === 'tend');
+    expect(tend?.next).toMatchObject({
+      target: 5,
+      title: 'Tend 5 crops at once',
+    });
+
+    const streak = groups.find((group) => group.id === 'streak');
+    expect(streak?.next).toMatchObject({
+      target: 7,
+      title: 'Hold a 7-day chore streak',
+    });
   });
 
   it('marks a category complete only once every tier is cleared', () => {
@@ -270,6 +323,36 @@ describe('buildStreakPath', () => {
     const days = buildStreakPath(null, '2026-08-24');
     expect(days.every((day) => !day.stamped && !day.partial)).toBe(true);
     expect(days.every((day) => day.total === 0)).toBe(true);
+  });
+
+  it('distinguishes a tracked-but-failed day from one with no record at all (#7204)', () => {
+    // `total` is the signal the UI now leans on to tell "missed" from
+    // "untracked" apart: a real 0-of-4 record has total > 0, a day the
+    // backend never reported has total === 0.
+    const days = buildStreakPath(
+      { '2026-08-23': { completed: 0, total: 4 } },
+      '2026-08-24'
+    );
+    const trackedFail = days.find((day) => day.date === '2026-08-23');
+    const untracked = days.find((day) => day.date === '2026-08-22');
+
+    expect(trackedFail).toMatchObject({
+      completed: 0,
+      total: 4,
+      stamped: false,
+      partial: false,
+    });
+    expect(untracked).toMatchObject({
+      completed: 0,
+      total: 0,
+      stamped: false,
+      partial: false,
+    });
+    // Both look identical on `stamped`/`partial` alone — the two states are
+    // only distinguishable via `total`, which is exactly what the
+    // component now keys its visual and tooltip off of.
+    expect(trackedFail?.total).toBeGreaterThan(0);
+    expect(untracked?.total).toBe(0);
   });
 
   it('honours a custom length and returns nothing for an unparseable date', () => {

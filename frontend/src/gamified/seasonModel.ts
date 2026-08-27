@@ -118,7 +118,15 @@ interface GoalGroup {
   unavailable?: boolean;
 }
 
-const countFormat = (value: number) => String(Math.round(value));
+/**
+ * Round `value` and pluralise `unit` against it, e.g. `1 day` / `3 days`.
+ * Shared by every group whose figure is a plain count rather than money or a
+ * level, so a goal never renders as a bare, unit-less number (#7194).
+ */
+const pluralize = (value: number, unit: string): string => {
+  const rounded = Math.round(value);
+  return `${rounded} ${unit}${rounded === 1 ? '' : 's'}`;
+};
 
 /**
  * The shared per-category ladder both `buildSeasonGoals` (one row per tier,
@@ -146,7 +154,7 @@ function buildGoalGroups(
       tiers: [5, 10, 25, 50],
       current: snapshot.crops.length,
       title: (target) => `Tend ${target} crops at once`,
-      format: countFormat,
+      format: (value) => pluralize(value, 'crop'),
     },
     {
       id: 'grow',
@@ -177,7 +185,7 @@ function buildGoalGroups(
       tiers: [3, 7, 14, 30],
       current: snapshot.streak,
       title: (target) => `Hold a ${target}-day chore streak`,
-      format: (value) => `${Math.round(value)} days`,
+      format: (value) => pluralize(value, 'day'),
     },
     {
       id: 'rank',
@@ -242,8 +250,10 @@ export interface SeasonGroupProgress {
   /**
    * Progress toward the first tier not yet earned. `null` once every tier in
    * the group is cleared — there is no "next" goal left to show a bar for.
+   * `title` is the human description of that tier, e.g. "Tend 25 crops at
+   * once" — the thing the screen should actually say the goal is (#7194).
    */
-  next: { target: number; displayTarget: string; pct: number } | null;
+  next: { target: number; displayTarget: string; pct: number; title: string } | null;
   /** True once every tier in the group has been earned. */
   complete: boolean;
   /**
@@ -281,6 +291,7 @@ export function buildSeasonGroups(
             target: nextTarget,
             displayTarget: group.format(nextTarget),
             pct: clamp((group.current / nextTarget) * 100, 0, 100),
+            title: group.title(nextTarget),
           };
 
     return {

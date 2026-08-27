@@ -148,6 +148,49 @@ describe("UserConfig page", () => {
     expect((select as HTMLSelectElement).value).toBe("");
   });
 
+  it("prompts the user to pick an owner instead of showing empty space when none resolves (#7224)", async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: "alex", accounts: [], email: "alex@example.com" },
+      { owner: "jamie", accounts: [], email: "jamie@example.com" },
+    ]);
+    mockGetApprovals.mockResolvedValue({ approvals: [] });
+
+    render(<UserConfig />);
+
+    await screen.findByRole("combobox");
+    expect(
+      await screen.findByText(/select an account holder to view their settings/i),
+    ).toBeInTheDocument();
+    // The trading-rule fields and Approvals table must stay hidden until an
+    // owner is chosen -- the prompt replaces empty space, not the fields.
+    expect(screen.queryByText(/min hold days/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  });
+
+  it("hides the owner prompt once an owner is selected and labels fields with units (#7224)", async () => {
+    mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
+    mockGetUserConfig.mockResolvedValue({});
+    mockGetApprovals.mockResolvedValue({ approvals: [] });
+
+    render(<UserConfig />);
+
+    const select = await screen.findByRole("combobox");
+    await act(async () => {
+      await userEvent.selectOptions(select, "alex");
+    });
+
+    expect(
+      screen.queryByText(/select an account holder to view their settings/i),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText(/min hold days \(days\)/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/max trades \/ month \(trades\)/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/newly bought position must be held before it can be sold/i),
+    ).toBeInTheDocument();
+  });
+
   it("shows a loading indicator while the authorized owners are being fetched", async () => {
     let resolveOwners: (value: unknown) => void = () => {};
     mockGetOwners.mockReturnValue(

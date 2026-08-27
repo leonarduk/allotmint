@@ -147,8 +147,14 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
   return (
     <div className="container mx-auto max-w-xl space-y-4 p-4">
       <h1 className="text-2xl md:text-4xl">
-        {t('userConfig.title', 'User Settings')}
+        {t('userConfig.title', 'Trading Rules')}
       </h1>
+      <p className="text-gray-800 dark:text-gray-200">
+        {t(
+          'userConfig.subtitle',
+          'The compliance rules that govern how this account can trade, and the tickers pre-approved to bypass them.'
+        )}
+      </p>
       {user && (
         <section className="flex flex-col items-center space-y-4 rounded-lg border p-4">
           {user.picture ? (
@@ -202,13 +208,27 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
           ))}
         </select>
       )}
+      {!owner && !ownersLoading && owners.length > 0 && (
+        <p className="text-gray-800 dark:text-gray-200">
+          {t(
+            'userConfig.selectOwnerPrompt',
+            'Select an account holder to view their settings.'
+          )}
+        </p>
+      )}
       {owner && (
         <>
           <form onSubmit={save} className="space-y-2">
             <div>
               <label className="block text-sm">
-                {t('userConfig.holdDays', 'Min Hold Days')}
+                {t('userConfig.holdDays', 'Min Hold Days (days)')}
               </label>
+              <p className="text-xs text-gray-600 dark:text-gray-400">
+                {t(
+                  'userConfig.holdDaysHelp',
+                  'The number of days a newly bought position must be held before it can be sold.'
+                )}
+              </p>
               <input
                 type="number"
                 className="w-full border p-1"
@@ -225,8 +245,14 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
             </div>
             <div>
               <label className="block text-sm">
-                {t('userConfig.maxTrades', 'Max Trades / Month')}
+                {t('userConfig.maxTrades', 'Max Trades / Month (trades)')}
               </label>
+              <p className="text-xs text-gray-600 dark:text-gray-400">
+                {t(
+                  'userConfig.maxTradesHelp',
+                  'The maximum number of trades allowed for this account in a rolling calendar month.'
+                )}
+              </p>
               <input
                 type="number"
                 className="w-full border p-1"
@@ -243,8 +269,17 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
             </div>
             <div>
               <label className="block text-sm">
-                {t('userConfig.exemptTickers', 'Approval Exempt Tickers')}
+                {t(
+                  'userConfig.exemptTickers',
+                  'Approval Exempt Tickers (comma-separated)'
+                )}
               </label>
+              <p className="text-xs text-gray-600 dark:text-gray-400">
+                {t(
+                  'userConfig.exemptTickersHelp',
+                  'Tickers listed here can be traded without going through the approvals process below.'
+                )}
+              </p>
               <input
                 type="text"
                 className="w-full border p-1"
@@ -264,8 +299,17 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
             </div>
             <div>
               <label className="block text-sm">
-                {t('userConfig.exemptTypes', 'Approval Exempt Types')}
+                {t(
+                  'userConfig.exemptTypes',
+                  'Approval Exempt Types (comma-separated)'
+                )}
               </label>
+              <p className="text-xs text-gray-600 dark:text-gray-400">
+                {t(
+                  'userConfig.exemptTypesHelp',
+                  'Instrument types listed here (e.g. ETF, Fund) never require approval before trading, regardless of ticker.'
+                )}
+              </p>
               <input
                 type="text"
                 className="w-full border p-1"
@@ -305,6 +349,12 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
             <h2 className="text-xl">
               {t('userConfig.approvals', 'Approvals')}
             </h2>
+            <p className="text-xs text-gray-600 dark:text-gray-400">
+              {t(
+                'userConfig.approvalsHelp',
+                'Tickers explicitly cleared to trade outside the exemptions above, each with the date they were approved.'
+              )}
+            </p>
             <table className="w-full border">
               <thead>
                 <tr>

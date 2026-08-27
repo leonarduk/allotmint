@@ -96,6 +96,7 @@ const trailPayload = {
 const { mocks } = vi.hoisted(() => ({
   mocks: {
     getOwners: vi.fn(),
+    getGroups: vi.fn(),
     getPortfolio: vi.fn(),
     getAllowances: vi.fn(),
     getTrailTasks: vi.fn(),
@@ -128,6 +129,9 @@ beforeEach(() => {
   mocks.getOwners.mockResolvedValue([
     { owner: 'steve', accounts: ['stocks-isa'] },
   ]);
+  // Empty by default so pickerOwners falls back to the full owners list,
+  // matching pre-#7189 test expectations unless a test overrides it.
+  mocks.getGroups.mockResolvedValue([]);
   mocks.getPortfolio.mockResolvedValue(portfolio);
   mocks.getAllowances.mockResolvedValue({
     owner: 'steve',

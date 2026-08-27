@@ -21,6 +21,33 @@
 // shellcheck (continue-on-error in ci.yml anyway), Codecov uploads, and the
 // optional AWS/S3 data sync (already optional in the workflows).
 
+// Posts a comment to the pull request this build belongs to. Only active for
+// Multibranch Pipeline PR builds (env.CHANGE_ID is set). Best-effort: never
+// fails the build. Requires a 'GITHUB_TOKEN' credential with repo scope; the
+// GitHub Branch Source plugin additionally publishes the commit status (the
+// green/red check on the PR) automatically.
+def notifyPullRequest(String state, String message) {
+    if (!env.CHANGE_ID) {
+        return
+    }
+    try {
+        withCredentials([string(credentialsId: 'GITHUB_TOKEN', variable: 'GITHUB_TOKEN')]) {
+            sh """
+                set +e
+                curl -sS -X POST \
+                    -H "Authorization: token \${GITHUB_TOKEN}" \
+                    -H "Accept: application/vnd.github.v3+json" \
+                    "https://api.github.com/repos/leonarduk/allotmint/issues/\${CHANGE_ID}/comments" \
+                    -d '{"body": "${message} — ${env.BUILD_URL}"}' \
+                    && echo "PR comment posted to #\${CHANGE_ID}" \
+                    || echo "WARNING: failed to post PR comment"
+            """
+        }
+    } catch (Exception e) {
+        echo "WARNING: could not post PR comment: ${e.message}"
+    }
+}
+
 pipeline {
     agent any
 
@@ -38,14 +65,23 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                checkout([
-                    $class: 'GitSCM',
-                    branches: [[name: params.BRANCH]],
-                    userRemoteConfigs: [[
-                        url: 'https://github.com/leonarduk/allotmint.git',
-                        credentialsId: 'GITHUB_TOKEN'
-                    ]]
-                ])
+                script {
+                    if (env.CHANGE_ID) {
+                        // Multibranch Pipeline PR build: the GitHub branch source
+                        // has already checked out the PR revision. Skip the explicit
+                        // checkout so we build the PR's code, not the default branch.
+                        echo "Building PR #${env.CHANGE_ID} from branch-source checkout (${env.BRANCH_NAME})"
+                    } else {
+                        checkout([
+                            $class: 'GitSCM',
+                            branches: [[name: params.BRANCH]],
+                            userRemoteConfigs: [[
+                                url: 'https://github.com/leonarduk/allotmint.git',
+                                credentialsId: 'GITHUB_TOKEN'
+                            ]]
+                        ])
+                    }
+                }
                 stash includes: '**', excludes: '.git/**,.pytest_cache/**,**/__pycache__/**,**/node_modules/**,**/.venv*/**,**/htmlcov/**,**/coverage/**,**/test-results/**,**/dist/**,**/playwright-report/**', name: 'source', useDefaultExcludes: false
             }
         }
@@ -428,9 +464,11 @@ PY
     post {
         success {
             echo '✅ Pipeline completed successfully'
+            notifyPullRequest('success', '✅ Build succeeded')
         }
         failure {
             echo '❌ Pipeline failed. Check logs for details.'
+            notifyPullRequest('failure', '❌ Build failed')
         }
     }
 }

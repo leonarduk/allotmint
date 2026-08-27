@@ -710,3 +710,36 @@ stubs all AWS interactions).
 Expected run time is long (full backend pytest suite runs in both
 `Backend Integration Tests` and `Lambda Compat`, mirroring CI), so set an
 adequate job timeout; the pipeline itself allows 180 minutes.
+
+### Pull-request builds (Multibranch Pipeline)
+
+To build pull requests and post results back on the PR, create a **Multibranch
+Pipeline** job (New Item → Multibranch Pipeline) instead of a plain pipeline
+job. The same `Jenkinsfile` handles both modes:
+
+- In a multibranch job, the GitHub branch source checks out the PR revision
+  before the pipeline runs. The `Checkout` stage detects this via
+  `env.CHANGE_ID` and skips its own checkout (so it builds the PR's code, not
+  `*/main`).
+- The job discovers new PRs and re-runs on updates automatically (see scan
+  triggers below).
+- The GitHub Branch Source plugin publishes the build result as a commit
+  status (the green/red check on the PR).
+- On success/failure the pipeline also posts a comment to the PR via
+  `notifyPullRequest()`, using the `GITHUB_TOKEN` credential. The comment is
+  best-effort: a missing credential logs a warning and never fails the build.
+
+Multibranch job configuration:
+
+1. **Branch Sources → GitHub** — API endpoint `https://api.github.com`,
+   credentials: a GitHub token with `repo` scope (reuse the `GITHUB_TOKEN`
+   credential), owner `leonarduk`, repository `allotmint`.
+2. **Discover pull requests from origin** — recommended strategy: "Merging the
+   pull request with the current target branch revision" (builds the merge
+   result, closest to GitHub Actions) or "The current pull request revision"
+   (builds the head).
+3. **Build Configuration** — Script Path: `Jenkinsfile`.
+4. **Scan Repository Triggers** — "Periodically if not otherwise run" (e.g.
+   every 5 minutes) and/or a GitHub webhook to your Jenkins URL. The periodic
+   scan is what re-runs builds when a PR is updated if no webhook is
+   configured.

@@ -684,8 +684,10 @@ These GitHub-only jobs are not mirrored: AI PR-review bots
 `pr-lint.yml`, `issue-lint.yml`, `conflict-check.yml`, `project-status-in-review.yml`),
 `lint-workflows` (actionlint — GitHub workflow YAML linter),
 `lint-shell-scripts` (shellcheck — already `continue-on-error` in ci.yml),
-Codecov uploads, and the optional AWS/S3 data sync (already optional in the
-workflows; the pytest suite stubs all AWS interactions).
+Codecov uploads, the private `cicaid` automation tests (token-gated in ci.yml's
+`test` job via `CICAID_PRO_TOKEN`; skipped when the secret is absent), and the
+optional AWS/S3 data sync (already optional in the workflows; the pytest suite
+stubs all AWS interactions).
 
 ### Running the pipeline
 

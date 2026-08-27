@@ -116,11 +116,13 @@ pipeline {
                                         pip install --upgrade pip
                                         pip install --no-cache-dir --retries 10 -r requirements.txt -r requirements-dev.txt
                                         python scripts/check_contract_version_sync.py
+                                        test -f mypy.ini
                                         python -m mypy backend --config-file mypy.ini --show-error-codes --pretty --explicit-package-bases
                                         ALLOTMINT_SKIP_SNAPSHOT_WARM=true pytest --no-cov tests/backend/common/test_data_provider_parity.py -q
                                         export ALLOTMINT_SKIP_SNAPSHOT_WARM=true
                                         export OLLAMA_ENDPOINT=http://127.0.0.1:1
                                         python -m coverage erase
+                                        mkdir -p test-results
                                         pytest tests --ignore=tests/live --ignore=tests/test_review_common.py --ignore=tests/test_ai_review_scripts.py --ignore=tests/scripts/test_n_review_issue.py --cov=backend --cov-report=xml --cov-report=html --cov-report=term --cov-fail-under=80 -q --junit-xml=test-results/junit.xml
                                         pytest tests/test_backend_api.py::test_health tests/test_accounts_api.py --cov=backend --cov-append --cov-report=xml --cov-report=term --cov-fail-under=80 -q
                                     '''
@@ -165,6 +167,7 @@ pipeline {
                                         python -m venv .venv-lambda
                                         .venv-lambda/bin/pip install --upgrade pip
                                         .venv-lambda/bin/pip install --no-cache-dir --retries 10 -r backend/requirements.txt -r backend/requirements-test.txt
+                                        mkdir -p test-results
                                         ALLOTMINT_SKIP_SNAPSHOT_WARM=true .venv-lambda/bin/pytest tests/ --ignore=tests/test_review_common.py --ignore=tests/test_ai_review_scripts.py --ignore=tests/scripts/test_n_review_issue.py --junit-xml=test-results/junit.xml
                                     '''
                                 }

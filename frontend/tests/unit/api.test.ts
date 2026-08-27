@@ -22,6 +22,7 @@ import {
   runCustomQuery,
   getCachedGroupInstruments,
   clearGroupInstrumentCache,
+  checkScreenerAvailable,
 } from "@/api";
 
 const csvFile = new File(["ticker,units"], "holdings.csv", {
@@ -1022,5 +1023,54 @@ describe("trading page data", () => {
     global.fetch = mockFetch;
 
     await expect(getTradingPageData()).rejects.toThrow();
+  });
+});
+
+describe("checkScreenerAvailable", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    setAuthToken(null);
+    setApiBase(DEFAULT_API_BASE);
+  });
+
+  it("returns false when the backend gates the screener behind a 402", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 402,
+      statusText: "Payment Required",
+      json: () =>
+        Promise.resolve({
+          detail:
+            "Screener is not available: This feature requires the allotmint-pro package, which is not installed in this deployment. See https://github.com/leonarduk/allotmint-pro for upgrade options.",
+        }),
+    });
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+
+    await expect(checkScreenerAvailable()).resolves.toBe(false);
+  });
+
+  it("returns true when the probe reaches ticker validation (400 = feature present)", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      statusText: "Bad Request",
+      json: () => Promise.resolve({ detail: "No tickers supplied" }),
+    });
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+
+    await expect(checkScreenerAvailable()).resolves.toBe(true);
+  });
+
+  it("returns true on a successful probe response", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve([]),
+    });
+    // @ts-expect-error: replacing global fetch with mock
+    global.fetch = mockFetch;
+
+    await expect(checkScreenerAvailable()).resolves.toBe(true);
   });
 });

@@ -1096,6 +1096,26 @@ export const getScreener = (
   return fetchJson<ScreenerResult[]>(`${API_BASE}/screener?${params.toString()}`, { signal });
 };
 
+/**
+ * Cheap up-front probe for whether the screener is available in this
+ * deployment (i.e. the paid screener package is installed), without running
+ * a real screen. The backend rejects an unavailable screener with HTTP 402
+ * before it even validates the ticker list (see require_core() in
+ * backend/routes/screener.py), so probing with an empty ticker list is
+ * enough to tell the two cases apart: a 402 means the feature is gated,
+ * anything else -- including the 400 "no tickers supplied" the backend
+ * returns when the feature *is* available -- means it can be used. Used to
+ * gate the screener UI before the user fills in any filters (#7221).
+ */
+export const checkScreenerAvailable = async (): Promise<boolean> => {
+  try {
+    await getScreener([]);
+    return true;
+  } catch (e) {
+    return (e as { status?: number } | undefined)?.status !== 402;
+  }
+};
+
 export const searchInstruments = (
   query: string,
   sector?: string,

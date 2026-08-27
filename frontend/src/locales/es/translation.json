@@ -464,6 +464,7 @@
     "downloadsDisabled": "Selecciona un propietario y una plantilla para habilitar las descargas."
   },
   "screener": {
+    "description": "Filtra una lista de seguimiento o una lista personalizada de tickers por ratios de valoración, rentabilidad y riesgo (P/E, niveles de deuda, márgenes, rentabilidades y más) para preseleccionar empresas que merezcan un vistazo más de cerca.",
     "loading": "Cargando…",
     "max52WeekHigh": "Max 52W High",
     "max52WeekLow": "Max 52W Low",
@@ -493,6 +494,8 @@
     "minSharesOutstanding": "Min Shares Outstanding",
     "run": "Ejecutar",
     "tickers": "Tickers",
+    "title": "Screener",
+    "unavailableBody": "Este despliegue no incluye el screener de fundamentales, por lo que aquí no es posible filtrar por ratios financieros.",
     "watchlist": "Lista de seguimiento:"
   },
   "support": {

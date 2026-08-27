@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { getScreener } from "../api";
+import { checkScreenerAvailable, getScreener } from "../api";
 import type { ScreenerResult } from "../types";
 import { useSortableTable } from "../hooks/useSortableTable";
 import { InstrumentDetail } from "../components/InstrumentDetail";
@@ -88,7 +88,21 @@ export function Screener() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<ScreenerResult | null>(null);
+  // Optimistic default: assume the screener is available until the cheap
+  // probe below says otherwise, so the form still renders synchronously
+  // (no flash of a loading state) when the feature is actually enabled.
+  const [screenerAvailable, setScreenerAvailable] = useState(true);
   const { t } = useTranslation();
+
+  useEffect(() => {
+    let cancelled = false;
+    checkScreenerAvailable().then((available) => {
+      if (!cancelled && available === false) setScreenerAvailable(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const { sorted, handleSort } = useSortableTable(rows, "rank");
 
@@ -161,7 +175,17 @@ export function Screener() {
       setRows(data);
     } catch (e) {
       setRows([]);
-      setError(e instanceof Error ? e.message : String(e));
+      const status = (e as { status?: number } | undefined)?.status;
+      if (status === 402) {
+        // Genuinely unavailable in this deployment -- never surface the raw
+        // backend detail (it names an internal package and a repo URL).
+        // Keep the technical detail in the console only (#7221).
+        console.error("Screener request rejected (feature unavailable):", e);
+        setScreenerAvailable(false);
+        setError(t("screener.unavailableBody"));
+      } else {
+        setError(e instanceof Error ? e.message : String(e));
+      }
     } finally {
       setLoading(false);
     }
@@ -169,322 +193,342 @@ export function Screener() {
 
   return (
     <div className="container mx-auto p-4">
-      <form
-        onSubmit={handleSubmit}
-        className="mb-4 flex flex-wrap items-center gap-2"
-      >
-        <label className="mr-2">
-          Watchlist
-          <select
-            value={watchlist}
-            onChange={(e) =>
-              setWatchlist(e.target.value as WatchlistName | "Custom")
-            }
-            className="ml-1 border px-2 py-1"
-            aria-label="Watchlist"
-          >
-            <option value="Custom">Custom</option>
-            {(Object.keys(WATCHLISTS) as WatchlistName[]).map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
-          </select>
-        </label>
-        {watchlist === "Custom" && (
+      <h1 className="mb-1 text-2xl">{t("screener.title")}</h1>
+      <p className="mb-4">{t("screener.description")}</p>
+
+      {!screenerAvailable && (
+        <p
+          role="status"
+          style={{
+            background: "#fff4e5",
+            border: "1px solid #f0ad4e",
+            color: "#333",
+            padding: "0.5rem 1rem",
+            marginBottom: "1rem",
+          }}
+        >
+          {t("screener.unavailableBody")}
+        </p>
+      )}
+
+      {screenerAvailable && (
+        <form
+          onSubmit={handleSubmit}
+          className="mb-4 flex flex-wrap items-center gap-2"
+        >
           <label className="mr-2">
-            {t("screener.tickers")}
+            Watchlist
+            <select
+              value={watchlist}
+              onChange={(e) =>
+                setWatchlist(e.target.value as WatchlistName | "Custom")
+              }
+              className="ml-1 border px-2 py-1"
+              aria-label="Watchlist"
+            >
+              <option value="Custom">Custom</option>
+              {(Object.keys(WATCHLISTS) as WatchlistName[]).map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </label>
+          {watchlist === "Custom" && (
+            <label className="mr-2">
+              {t("screener.tickers")}
+              <input
+                aria-label={t("screener.tickers")}
+                type="text"
+                value={tickers}
+                onChange={(e) => setTickers(e.target.value)}
+                placeholder="PFE,MSFT,…"
+                style={{ marginLeft: "0.25rem" }}
+              />
+            </label>
+          )}
+          <label style={{ marginRight: "0.5rem" }}>
+            {t("screener.maxPeg")}
             <input
-              aria-label={t("screener.tickers")}
-              type="text"
-              value={tickers}
-              onChange={(e) => setTickers(e.target.value)}
-              placeholder="PFE,MSFT,…"
+              aria-label={t("screener.maxPeg")}
+              type="number"
+              value={pegMax}
+              onChange={(e) => setPegMax(e.target.value)}
+              step="any"
               style={{ marginLeft: "0.25rem" }}
             />
           </label>
-        )}
-        <label style={{ marginRight: "0.5rem" }}>
-          {t("screener.maxPeg")}
-          <input
-            aria-label={t("screener.maxPeg")}
-            type="number"
-            value={pegMax}
-            onChange={(e) => setPegMax(e.target.value)}
-            step="any"
-            style={{ marginLeft: "0.25rem" }}
-          />
-        </label>
-        <label style={{ marginRight: "0.5rem" }}>
-          {t("screener.maxPe")}
-          <input
-            aria-label={t("screener.maxPe")}
-            type="number"
-            value={peMax}
-            onChange={(e) => setPeMax(e.target.value)}
-            step="any"
-            style={{ marginLeft: "0.25rem" }}
-          />
-        </label>
-        <label style={{ marginRight: "0.5rem" }}>
-          {t("screener.maxDe")}
-          <input
-            aria-label={t("screener.maxDe")}
-            type="number"
-            value={deMax}
-            onChange={(e) => setDeMax(e.target.value)}
-            step="any"
-            style={{ marginLeft: "0.25rem" }}
-          />
-        </label>
-        <label style={{ marginRight: "0.5rem" }}>
-          {t("screener.maxLtDe")}
-          <input
-            aria-label={t("screener.maxLtDe")}
-            type="number"
-            value={ltDeMax}
-            onChange={(e) => setLtDeMax(e.target.value)}
-            step="any"
-            style={{ marginLeft: "0.25rem" }}
-          />
-        </label>
-        <label style={{ marginRight: "0.5rem" }}>
-          {t("screener.minInterestCoverage")}
-          <input
-            aria-label={t("screener.minInterestCoverage")}
-            type="number"
-            value={interestCoverageMin}
-            onChange={(e) => setInterestCoverageMin(e.target.value)}
-            step="any"
-            style={{ marginLeft: "0.25rem" }}
-          />
-        </label>
-        <label style={{ marginRight: "0.5rem" }}>
-          {t("screener.minCurrentRatio")}
-          <input
-            aria-label={t("screener.minCurrentRatio")}
-            type="number"
-            value={currentRatioMin}
-            onChange={(e) => setCurrentRatioMin(e.target.value)}
-            step="any"
-            style={{ marginLeft: "0.25rem" }}
-          />
-        </label>
-        <label style={{ marginRight: "0.5rem" }}>
-          {t("screener.minQuickRatio")}
-          <input
-            aria-label={t("screener.minQuickRatio")}
-            type="number"
-            value={quickRatioMin}
-            onChange={(e) => setQuickRatioMin(e.target.value)}
-            step="any"
-            style={{ marginLeft: "0.25rem" }}
-          />
-        </label>
-        <label style={{ marginRight: "0.5rem" }}>
-          {t("screener.minFcf")}
-          <input
-            aria-label={t("screener.minFcf")}
-            type="number"
-            value={fcfMin}
-            onChange={(e) => setFcfMin(e.target.value)}
-            step="any"
-            style={{ marginLeft: "0.25rem" }}
-          />
-        </label>
-        <label style={{ marginRight: "0.5rem" }}>
-          {t("screener.minEps")}
-          <input
-            aria-label={t("screener.minEps")}
-            type="number"
-            value={epsMin}
-            onChange={(e) => setEpsMin(e.target.value)}
-            step="any"
-            style={{ marginLeft: "0.25rem" }}
-          />
-        </label>
-        <label style={{ marginRight: "0.5rem" }}>
-          {t("screener.minGrossMargin")}
-          <input
-            aria-label={t("screener.minGrossMargin")}
-            type="number"
-            value={grossMarginMin}
-            onChange={(e) => setGrossMarginMin(e.target.value)}
-            step="any"
-            style={{ marginLeft: "0.25rem" }}
-          />
-        </label>
-        <label style={{ marginRight: "0.5rem" }}>
-          {t("screener.minOperatingMargin")}
-          <input
-            aria-label={t("screener.minOperatingMargin")}
-            type="number"
-            value={operatingMarginMin}
-            onChange={(e) => setOperatingMarginMin(e.target.value)}
-            step="any"
-            style={{ marginLeft: "0.25rem" }}
-          />
-        </label>
-        <label style={{ marginRight: "0.5rem" }}>
-          {t("screener.minNetMargin")}
-          <input
-            aria-label={t("screener.minNetMargin")}
-            type="number"
-            value={netMarginMin}
-            onChange={(e) => setNetMarginMin(e.target.value)}
-            step="any"
-            style={{ marginLeft: "0.25rem" }}
-          />
-        </label>
-        <label style={{ marginRight: "0.5rem" }}>
-          {t("screener.minEbitdaMargin")}
-          <input
-            aria-label={t("screener.minEbitdaMargin")}
-            type="number"
-            value={ebitdaMarginMin}
-            onChange={(e) => setEbitdaMarginMin(e.target.value)}
-            step="any"
-            style={{ marginLeft: "0.25rem" }}
-          />
-        </label>
-        <label style={{ marginRight: "0.5rem" }}>
-          {t("screener.minRoa")}
-          <input
-            aria-label={t("screener.minRoa")}
-            type="number"
-            value={roaMin}
-            onChange={(e) => setRoaMin(e.target.value)}
-            step="any"
-            style={{ marginLeft: "0.25rem" }}
-          />
-        </label>
-        <label style={{ marginRight: "0.5rem" }}>
-          {t("screener.minRoe")}
-          <input
-            aria-label={t("screener.minRoe")}
-            type="number"
-            value={roeMin}
-            onChange={(e) => setRoeMin(e.target.value)}
-            step="any"
-            style={{ marginLeft: "0.25rem" }}
-          />
-        </label>
-        <label style={{ marginRight: "0.5rem" }}>
-          {t("screener.minRoi")}
-          <input
-            aria-label={t("screener.minRoi")}
-            type="number"
-            value={roiMin}
-            onChange={(e) => setRoiMin(e.target.value)}
-            step="any"
-            style={{ marginLeft: "0.25rem" }}
-          />
-        </label>
-        <label style={{ marginRight: "0.5rem" }}>
-          {t("screener.minDividendYield")}
-          <input
-            aria-label={t("screener.minDividendYield")}
-            type="number"
-            value={dividendYieldMin}
-            onChange={(e) => setDividendYieldMin(e.target.value)}
-            step="any"
-            style={{ marginLeft: "0.25rem" }}
-          />
-        </label>
-        <label style={{ marginRight: "0.5rem" }}>
-          {t("screener.maxDividendPayoutRatio")}
-          <input
-            aria-label={t("screener.maxDividendPayoutRatio")}
-            type="number"
-            value={dividendPayoutRatioMax}
-            onChange={(e) => setDividendPayoutRatioMax(e.target.value)}
-            step="any"
-            style={{ marginLeft: "0.25rem" }}
-          />
-        </label>
-        <label style={{ marginRight: "0.5rem" }}>
-          {t("screener.maxBeta")}
-          <input
-            aria-label={t("screener.maxBeta")}
-            type="number"
-            value={betaMax}
-            onChange={(e) => setBetaMax(e.target.value)}
-            step="any"
-            style={{ marginLeft: "0.25rem" }}
-          />
-        </label>
-        <label style={{ marginRight: "0.5rem" }}>
-          {t("screener.minSharesOutstanding")}
-          <input
-            aria-label={t("screener.minSharesOutstanding")}
-            type="number"
-            value={sharesOutstandingMin}
-            onChange={(e) => setSharesOutstandingMin(e.target.value)}
-            step="any"
-            style={{ marginLeft: "0.25rem" }}
-          />
-        </label>
-        <label style={{ marginRight: "0.5rem" }}>
-          {t("screener.minFloatShares")}
-          <input
-            aria-label={t("screener.minFloatShares")}
-            type="number"
-            value={floatSharesMin}
-            onChange={(e) => setFloatSharesMin(e.target.value)}
-            step="any"
-            style={{ marginLeft: "0.25rem" }}
-          />
-        </label>
-        <label style={{ marginRight: "0.5rem" }}>
-          {t("screener.minMarketCap")}
-          <input
-            aria-label={t("screener.minMarketCap")}
-            type="number"
-            value={marketCapMin}
-            onChange={(e) => setMarketCapMin(e.target.value)}
-            step="any"
-            style={{ marginLeft: "0.25rem" }}
-          />
-        </label>
-        <label style={{ marginRight: "0.5rem" }}>
-          {t("screener.max52WeekLow")}
-          <input
-            aria-label={t("screener.max52WeekLow")}
-            type="number"
-            value={high52wMax}
-            onChange={(e) => setHigh52wMax(e.target.value)}
-            step="any"
-            style={{ marginLeft: "0.25rem" }}
-          />
-        </label>
-        <label style={{ marginRight: "0.5rem" }}>
-          {t("screener.min52WeekLow")}
-          <input
-            aria-label={t("screener.min52WeekLow")}
-            type="number"
-            value={low52wMin}
-            onChange={(e) => setLow52wMin(e.target.value)}
-            step="any"
-            style={{ marginLeft: "0.25rem" }}
-          />
-        </label>
-        <label style={{ marginRight: "0.5rem" }}>
-          {t("screener.minAvgVolume")}
-          <input
-            aria-label={t("screener.minAvgVolume")}
-            type="number"
-            value={avgVolumeMin}
-            onChange={(e) => setAvgVolumeMin(e.target.value)}
-            step="any"
-            style={{ marginLeft: "0.25rem" }}
-          />
-        </label>
-        <button type="submit" disabled={loading} style={{ marginLeft: "0.5rem" }}>
-          {loading ? t("screener.loading") : t("screener.run")}
-        </button>
-      </form>
+          <label style={{ marginRight: "0.5rem" }}>
+            {t("screener.maxPe")}
+            <input
+              aria-label={t("screener.maxPe")}
+              type="number"
+              value={peMax}
+              onChange={(e) => setPeMax(e.target.value)}
+              step="any"
+              style={{ marginLeft: "0.25rem" }}
+            />
+          </label>
+          <label style={{ marginRight: "0.5rem" }}>
+            {t("screener.maxDe")}
+            <input
+              aria-label={t("screener.maxDe")}
+              type="number"
+              value={deMax}
+              onChange={(e) => setDeMax(e.target.value)}
+              step="any"
+              style={{ marginLeft: "0.25rem" }}
+            />
+          </label>
+          <label style={{ marginRight: "0.5rem" }}>
+            {t("screener.maxLtDe")}
+            <input
+              aria-label={t("screener.maxLtDe")}
+              type="number"
+              value={ltDeMax}
+              onChange={(e) => setLtDeMax(e.target.value)}
+              step="any"
+              style={{ marginLeft: "0.25rem" }}
+            />
+          </label>
+          <label style={{ marginRight: "0.5rem" }}>
+            {t("screener.minInterestCoverage")}
+            <input
+              aria-label={t("screener.minInterestCoverage")}
+              type="number"
+              value={interestCoverageMin}
+              onChange={(e) => setInterestCoverageMin(e.target.value)}
+              step="any"
+              style={{ marginLeft: "0.25rem" }}
+            />
+          </label>
+          <label style={{ marginRight: "0.5rem" }}>
+            {t("screener.minCurrentRatio")}
+            <input
+              aria-label={t("screener.minCurrentRatio")}
+              type="number"
+              value={currentRatioMin}
+              onChange={(e) => setCurrentRatioMin(e.target.value)}
+              step="any"
+              style={{ marginLeft: "0.25rem" }}
+            />
+          </label>
+          <label style={{ marginRight: "0.5rem" }}>
+            {t("screener.minQuickRatio")}
+            <input
+              aria-label={t("screener.minQuickRatio")}
+              type="number"
+              value={quickRatioMin}
+              onChange={(e) => setQuickRatioMin(e.target.value)}
+              step="any"
+              style={{ marginLeft: "0.25rem" }}
+            />
+          </label>
+          <label style={{ marginRight: "0.5rem" }}>
+            {t("screener.minFcf")}
+            <input
+              aria-label={t("screener.minFcf")}
+              type="number"
+              value={fcfMin}
+              onChange={(e) => setFcfMin(e.target.value)}
+              step="any"
+              style={{ marginLeft: "0.25rem" }}
+            />
+          </label>
+          <label style={{ marginRight: "0.5rem" }}>
+            {t("screener.minEps")}
+            <input
+              aria-label={t("screener.minEps")}
+              type="number"
+              value={epsMin}
+              onChange={(e) => setEpsMin(e.target.value)}
+              step="any"
+              style={{ marginLeft: "0.25rem" }}
+            />
+          </label>
+          <label style={{ marginRight: "0.5rem" }}>
+            {t("screener.minGrossMargin")}
+            <input
+              aria-label={t("screener.minGrossMargin")}
+              type="number"
+              value={grossMarginMin}
+              onChange={(e) => setGrossMarginMin(e.target.value)}
+              step="any"
+              style={{ marginLeft: "0.25rem" }}
+            />
+          </label>
+          <label style={{ marginRight: "0.5rem" }}>
+            {t("screener.minOperatingMargin")}
+            <input
+              aria-label={t("screener.minOperatingMargin")}
+              type="number"
+              value={operatingMarginMin}
+              onChange={(e) => setOperatingMarginMin(e.target.value)}
+              step="any"
+              style={{ marginLeft: "0.25rem" }}
+            />
+          </label>
+          <label style={{ marginRight: "0.5rem" }}>
+            {t("screener.minNetMargin")}
+            <input
+              aria-label={t("screener.minNetMargin")}
+              type="number"
+              value={netMarginMin}
+              onChange={(e) => setNetMarginMin(e.target.value)}
+              step="any"
+              style={{ marginLeft: "0.25rem" }}
+            />
+          </label>
+          <label style={{ marginRight: "0.5rem" }}>
+            {t("screener.minEbitdaMargin")}
+            <input
+              aria-label={t("screener.minEbitdaMargin")}
+              type="number"
+              value={ebitdaMarginMin}
+              onChange={(e) => setEbitdaMarginMin(e.target.value)}
+              step="any"
+              style={{ marginLeft: "0.25rem" }}
+            />
+          </label>
+          <label style={{ marginRight: "0.5rem" }}>
+            {t("screener.minRoa")}
+            <input
+              aria-label={t("screener.minRoa")}
+              type="number"
+              value={roaMin}
+              onChange={(e) => setRoaMin(e.target.value)}
+              step="any"
+              style={{ marginLeft: "0.25rem" }}
+            />
+          </label>
+          <label style={{ marginRight: "0.5rem" }}>
+            {t("screener.minRoe")}
+            <input
+              aria-label={t("screener.minRoe")}
+              type="number"
+              value={roeMin}
+              onChange={(e) => setRoeMin(e.target.value)}
+              step="any"
+              style={{ marginLeft: "0.25rem" }}
+            />
+          </label>
+          <label style={{ marginRight: "0.5rem" }}>
+            {t("screener.minRoi")}
+            <input
+              aria-label={t("screener.minRoi")}
+              type="number"
+              value={roiMin}
+              onChange={(e) => setRoiMin(e.target.value)}
+              step="any"
+              style={{ marginLeft: "0.25rem" }}
+            />
+          </label>
+          <label style={{ marginRight: "0.5rem" }}>
+            {t("screener.minDividendYield")}
+            <input
+              aria-label={t("screener.minDividendYield")}
+              type="number"
+              value={dividendYieldMin}
+              onChange={(e) => setDividendYieldMin(e.target.value)}
+              step="any"
+              style={{ marginLeft: "0.25rem" }}
+            />
+          </label>
+          <label style={{ marginRight: "0.5rem" }}>
+            {t("screener.maxDividendPayoutRatio")}
+            <input
+              aria-label={t("screener.maxDividendPayoutRatio")}
+              type="number"
+              value={dividendPayoutRatioMax}
+              onChange={(e) => setDividendPayoutRatioMax(e.target.value)}
+              step="any"
+              style={{ marginLeft: "0.25rem" }}
+            />
+          </label>
+          <label style={{ marginRight: "0.5rem" }}>
+            {t("screener.maxBeta")}
+            <input
+              aria-label={t("screener.maxBeta")}
+              type="number"
+              value={betaMax}
+              onChange={(e) => setBetaMax(e.target.value)}
+              step="any"
+              style={{ marginLeft: "0.25rem" }}
+            />
+          </label>
+          <label style={{ marginRight: "0.5rem" }}>
+            {t("screener.minSharesOutstanding")}
+            <input
+              aria-label={t("screener.minSharesOutstanding")}
+              type="number"
+              value={sharesOutstandingMin}
+              onChange={(e) => setSharesOutstandingMin(e.target.value)}
+              step="any"
+              style={{ marginLeft: "0.25rem" }}
+            />
+          </label>
+          <label style={{ marginRight: "0.5rem" }}>
+            {t("screener.minFloatShares")}
+            <input
+              aria-label={t("screener.minFloatShares")}
+              type="number"
+              value={floatSharesMin}
+              onChange={(e) => setFloatSharesMin(e.target.value)}
+              step="any"
+              style={{ marginLeft: "0.25rem" }}
+            />
+          </label>
+          <label style={{ marginRight: "0.5rem" }}>
+            {t("screener.minMarketCap")}
+            <input
+              aria-label={t("screener.minMarketCap")}
+              type="number"
+              value={marketCapMin}
+              onChange={(e) => setMarketCapMin(e.target.value)}
+              step="any"
+              style={{ marginLeft: "0.25rem" }}
+            />
+          </label>
+          <label style={{ marginRight: "0.5rem" }}>
+            {t("screener.max52WeekLow")}
+            <input
+              aria-label={t("screener.max52WeekLow")}
+              type="number"
+              value={high52wMax}
+              onChange={(e) => setHigh52wMax(e.target.value)}
+              step="any"
+              style={{ marginLeft: "0.25rem" }}
+            />
+          </label>
+          <label style={{ marginRight: "0.5rem" }}>
+            {t("screener.min52WeekLow")}
+            <input
+              aria-label={t("screener.min52WeekLow")}
+              type="number"
+              value={low52wMin}
+              onChange={(e) => setLow52wMin(e.target.value)}
+              step="any"
+              style={{ marginLeft: "0.25rem" }}
+            />
+          </label>
+          <label style={{ marginRight: "0.5rem" }}>
+            {t("screener.minAvgVolume")}
+            <input
+              aria-label={t("screener.minAvgVolume")}
+              type="number"
+              value={avgVolumeMin}
+              onChange={(e) => setAvgVolumeMin(e.target.value)}
+              step="any"
+              style={{ marginLeft: "0.25rem" }}
+            />
+          </label>
+          <button type="submit" disabled={loading} style={{ marginLeft: "0.5rem" }}>
+            {loading ? t("screener.loading") : t("screener.run")}
+          </button>
+        </form>
+      )}
 
-      {error && <p style={{ color: "red" }}>{error}</p>}
+      {screenerAvailable && error && <p style={{ color: "red" }}>{error}</p>}
       {loading && <p>{t("screener.loading")}</p>}
 
       {rows.length > 0 && !loading && (

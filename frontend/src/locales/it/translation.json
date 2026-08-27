@@ -465,6 +465,7 @@
     "downloadsDisabled": "Seleziona un proprietario e un modello per abilitare i download."
   },
   "screener": {
+    "description": "Filtra una watchlist o un elenco personalizzato di ticker in base a rapporti di valutazione, redditività e rischio (P/E, livelli di debito, margini, rendimenti e altro) per selezionare le società da approfondire.",
     "loading": "Caricamento…",
     "max52WeekHigh": "Massimo 52W di altezza",
     "max52WeekLow": "MAX 52W BASSO",
@@ -494,6 +495,8 @@
     "minSharesOutstanding": "Min condivide in circolazione",
     "run": "Correre",
     "tickers": "Ticker",
+    "title": "Screener",
+    "unavailableBody": "Questa distribuzione non include lo screener sui fondamentali, quindi qui non è possibile filtrare in base ai rapporti finanziari.",
     "watchlist": "Watchlist:"
   },
   "support": {

@@ -92,9 +92,17 @@ vi.mock("@/api", () => ({
     },
   ]),
   getScreener: vi.fn(),
+  checkScreenerAvailable: vi.fn().mockResolvedValue(true),
 }));
 
-import { getOwners, getPortfolio, getScreener, listSavedQueries, runCustomQuery } from "@/api";
+import {
+  getOwners,
+  getPortfolio,
+  getScreener,
+  listSavedQueries,
+  runCustomQuery,
+  checkScreenerAvailable,
+} from "@/api";
 import { ScreenerQuery } from "@/pages/ScreenerQuery";
 
 function renderWithI18n(ui: ReactElement) {
@@ -114,6 +122,7 @@ describe("Screener & Query page", () => {
     // default API mocks to resolve to empty arrays
     runCustomQuery.mockResolvedValue([]);
     getScreener.mockResolvedValue([]);
+    checkScreenerAvailable.mockResolvedValue(true);
     getOwners.mockResolvedValue([
       { owner: "alice", full_name: "Alice Example", accounts: [] },
       { owner: "bob", full_name: "Bob Example", accounts: [] },

@@ -423,6 +423,7 @@
     "currencyPlaceholder": "Select a currency",
     "declaredCurrencyLabel": "Declared currency (metadata)",
     "edit": "Edit",
+    "fundamentalsUnavailable": "Fundamentals aren't available in this deployment.",
     "infoHeading": "Instrument info",
     "intraday": "Intraday",
     "intradayUnavailable": "Intraday data unavailable",
@@ -765,6 +766,7 @@
     }
   },
   "screener": {
+    "description": "Filter a watchlist or a custom list of tickers by valuation, profitability, and risk ratios (P/E, debt levels, margins, returns, and more) to shortlist companies worth a closer look.",
     "loading": "Loading…",
     "max52WeekHigh": "Max 52W High",
     "max52WeekLow": "Max 52W Low",
@@ -794,6 +796,8 @@
     "minSharesOutstanding": "Min Shares Outstanding",
     "run": "Run",
     "tickers": "Tickers",
+    "title": "Screener",
+    "unavailableBody": "This deployment doesn't include the fundamentals screener, so filtering by financial ratios isn't possible here.",
     "watchlist": "Watchlist:"
   },
   "dataadmin": {

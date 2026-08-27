@@ -379,6 +379,62 @@ describe("InstrumentResearch page", () => {
     expect(lastCloseRow.closest("div")).not.toHaveTextContent("£2.50");
   });
 
+  it("prefers the price-series currency over stale GBX metadata (#7219)", async () => {
+    // Regression for #7219: the instrument metadata catalogue can say a
+    // ticker is GBX (pence) while the /instrument/ price series it is
+    // actually quoted from is GBP-magnitude (close === close_gbp, not
+    // scaled by 100). The header, Key Facts currency and Last Close must
+    // all agree with the price series (GBP), not silently adopt the stale
+    // catalogue currency and mislabel a GBP number as GBX.
+    mockListInstrumentMetadata.mockResolvedValueOnce([
+      {
+        ticker: "AAA.L",
+        exchange: "L",
+        name: "Acme Corp",
+        sector: "Health Care",
+        currency: "GBX",
+      } as InstrumentMetadata,
+    ]);
+    mockUseInstrumentHistory.mockReturnValue({
+      data: {
+        mini: { "30": [] },
+        positions: [],
+        ticker: "AAA.L",
+        name: "Acme Corp",
+        sector: "Health Care",
+        currency: "GBP",
+        base_currency: "GBP",
+        prices: [
+          { date: "2024-01-01", close: 120.5, close_gbp: 120.5 },
+          { date: "2024-01-02", close: 121.1, close_gbp: 121.1 },
+        ],
+        rows: 2,
+        from: "2024-01-01",
+        to: "2024-01-02",
+      },
+      loading: false,
+      error: null,
+    } as any);
+
+    renderPage();
+
+    const heading = await screen.findByRole("heading", {
+      level: 1,
+      name: /AAA - Acme Corp/,
+    });
+    expect(heading).toHaveTextContent("GBP");
+    expect(heading).not.toHaveTextContent("GBX");
+
+    const currencyRow = screen.getByText("Currency").closest("div");
+    expect(currencyRow).not.toBeNull();
+    expect(within(currencyRow as HTMLElement).getByText("GBP")).toBeInTheDocument();
+
+    const lastCloseRow = screen.getByText("Last Close").closest("div");
+    expect(lastCloseRow).not.toBeNull();
+    expect(within(lastCloseRow as HTMLElement).getByText(/£121\.10/)).toBeInTheDocument();
+    expect(lastCloseRow).not.toHaveTextContent("GBX");
+  });
+
   it("shows fundamentals error messages", async () => {
     mockGetScreener.mockRejectedValueOnce(new Error("fundamentals fail"));
 

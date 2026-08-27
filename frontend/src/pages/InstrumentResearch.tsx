@@ -781,9 +781,18 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
   const displayName = metadata.name || detail?.name || null;
   const displaySector = metadata.sector || fallbackSector || "";
   const displayCurrency = metadata.currency || fallbackCurrency || "";
+  // The instrument metadata catalogue (listInstrumentMetadata) can disagree
+  // with the currency actually carried by the price series returned from
+  // /instrument/ (see #7219 -- AZN.L metadata says GBX while the price feed
+  // is GBP-magnitude). Anything rendered next to a price from that series
+  // must use the series' own currency, not the catalogue's, so a stale
+  // metadata value never gets mixed into a price label. `fallbackCurrency`
+  // is exactly that series-derived currency (detail.currency / base_currency);
+  // metadata.currency is only a last-resort fallback before `detail` loads.
+  const priceSeriesCurrency = fallbackCurrency || metadata.currency || "";
   const fundamentalsCurrency =
     (typeof detail?.base_currency === "string" && detail.base_currency) ||
-    displayCurrency ||
+    priceSeriesCurrency ||
     baseCurrency ||
     "USD";
   const detailRecordForDisplay =
@@ -846,7 +855,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
         return (
           <h1 style={{ marginBottom: "1rem" }}>
             {`${tkr} - ${headingName}`}
-            {displaySector || displayCurrency ? (
+            {displaySector || priceSeriesCurrency ? (
               <span
                 style={{
                   display: "block",
@@ -855,8 +864,8 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
                 }}
               >
                 {displaySector}
-                {displaySector && displayCurrency ? " · " : ""}
-                {displayCurrency}
+                {displaySector && priceSeriesCurrency ? " · " : ""}
+                {priceSeriesCurrency}
               </span>
             ) : null}
           </h1>
@@ -1183,7 +1192,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
             const value = entry as Record<string, unknown>;
             const resolvedPrice = resolveDisplayPrice(
               value,
-              displayCurrency,
+              priceSeriesCurrency,
               detail?.base_currency ?? undefined,
             );
             if (!resolvedPrice) return null;
@@ -1261,7 +1270,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
         const latestPriceEntry =
           parsedPrices.length > 0 ? parsedPrices[parsedPrices.length - 1] : null;
         const latestPrice = latestPriceEntry?.close ?? null;
-        const latestPriceCurrency = latestPriceEntry?.currency ?? displayCurrency;
+        const latestPriceCurrency = latestPriceEntry?.currency ?? priceSeriesCurrency;
         const normalizedReportingCurrency = normaliseUppercase(detail?.base_currency);
         const formatDisplayPrice = (value: number | null, currency: string) => {
           const normalizedCurrency = normaliseUppercase(currency);
@@ -1312,7 +1321,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
               { label: "Ticker", value: tkr },
               { label: "Exchange", value: instrumentExchange || "—" },
               { label: "Sector", value: displaySector || "—" },
-              { label: "Currency", value: displayCurrency || "—" },
+              { label: "Currency", value: priceSeriesCurrency || "—" },
               {
                 label: "Last Close",
                 value: latestPrice != null
@@ -1411,7 +1420,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
           <InstrumentDetail
             ticker={tkr}
             name={displayName ?? tkr}
-            currency={displayCurrency || undefined}
+            currency={priceSeriesCurrency || undefined}
             instrument_type={instrumentType}
             variant="standalone"
             hidePositions

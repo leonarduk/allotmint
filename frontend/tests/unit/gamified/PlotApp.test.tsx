@@ -727,4 +727,67 @@ describe('Plot mode provider hardening', () => {
       expect(mocks.completeTrailTask).toHaveBeenCalledTimes(2)
     );
   });
+
+  it('still fires a queued completion after the one ahead of it in the chain fails', async () => {
+    // completionChain.current is reassigned via `.catch(() => {})` so it
+    // always resolves regardless of an individual attempt's outcome
+    // (PlotDataContext.tsx) — this is what stops one row's failed POST from
+    // wedging every completion queued behind it. The earlier "keeps at most
+    // one completion in flight" test only covers the chain surviving an
+    // attempt that already settled *successfully*; this covers the failure
+    // case explicitly.
+    const twoOutstanding = {
+      ...trailPayload,
+      tasks: [
+        { ...trailPayload.tasks[0], id: 'water-beds', completed: false },
+        {
+          ...trailPayload.tasks[1],
+          id: 'weed-the-path',
+          title: 'Weed the path',
+          type: 'daily' as const,
+          completed: false,
+        },
+      ],
+    };
+    mocks.getTrailTasks.mockResolvedValue(twoOutstanding);
+
+    let rejectFirst: (reason?: unknown) => void = () => {};
+    mocks.completeTrailTask
+      .mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectFirst = reject;
+          })
+      )
+      .mockImplementationOnce(async () => ({
+        ...twoOutstanding,
+        tasks: twoOutstanding.tasks.map((task) => ({
+          ...task,
+          completed: task.id === 'weed-the-path',
+        })),
+      }));
+
+    renderPlot('/plot/chores');
+
+    const [firstDoIt, secondDoIt] = await screen.findAllByRole('button', {
+      name: 'Do it',
+    });
+    fireEvent.click(firstDoIt);
+    fireEvent.click(secondDoIt);
+
+    await waitFor(() =>
+      expect(mocks.completeTrailTask).toHaveBeenCalledTimes(1)
+    );
+
+    rejectFirst(new Error('water-beds completion failed'));
+
+    // The second row's queued completion still reaches the network despite
+    // the first one ahead of it in the chain rejecting.
+    await waitFor(() =>
+      expect(mocks.completeTrailTask).toHaveBeenCalledTimes(2)
+    );
+    expect(
+      await screen.findByRole('button', { name: 'Done' })
+    ).toBeInTheDocument();
+  });
 });

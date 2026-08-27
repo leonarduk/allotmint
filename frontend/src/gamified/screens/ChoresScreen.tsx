@@ -76,6 +76,8 @@ function ChoreRow({
         : error
           ? 'Try again'
           : 'Do it';
+  const errorId = `chore-error-${chore.id}`;
+  const showError = Boolean(error) && !chore.completed;
 
   return (
     <li
@@ -101,18 +103,36 @@ function ChoreRow({
         className={
           pending ? `${styles.goButton} ${styles.goButtonPending}` : styles.goButton
         }
-        disabled={chore.completed || pending}
+        // #7188 finding 1: only `chore.completed` disables the button.
+        // Disabling on `pending` too used to blur focus the instant the
+        // user activated it (browsers blur an element that becomes
+        // disabled), dumping keyboard/screen-reader focus on <body> right
+        // as a failure needed to be seen. Re-entry while pending is guarded
+        // in `handleComplete` instead, so the click is a no-op rather than
+        // a second request, without moving focus anywhere.
+        disabled={chore.completed}
         aria-busy={pending}
+        aria-describedby={showError ? errorId : undefined}
         onClick={handleClick}
       >
         {buttonLabel}
       </button>
-      {/* #7188: a failed completion used to be silently swallowed, so a
-          failed click and a slow click both read as a dead button. Surface
-          it inline (same colour language as .errorBanner) with the row
-          still actionable — the button above doubles as the retry. */}
-      {error && !chore.completed && (
-        <p className={styles.choreError} role="alert">
+      {/* #7188 finding 2: `aria-busy` is an element state, not an
+          announcement, and it would only be spoken if focus were still on
+          the button — which the fix above preserves, but relying on that
+          alone is fragile (e.g. focus already moved for another reason).
+          An always-mounted sr-only status region makes the pending/settled
+          transition audible regardless, matching the .srOnly + role="status"
+          pattern already used elsewhere (see PlotApp.tsx, SeedCatalogue.tsx). */}
+      <span className={styles.srOnly} role="status">
+        {pending ? `${chore.title}: completing…` : ''}
+      </span>
+      {/* #7188 finding 4: the error used to be an unassociated sibling —
+          announced once via role="alert" but with nothing tying it to the
+          "Try again" button for a user who tabs back to it later.
+          aria-describedby above links the two. */}
+      {showError && (
+        <p id={errorId} className={styles.choreError} role="alert">
           {error}
         </p>
       )}
@@ -138,6 +158,11 @@ export default function ChoresScreen() {
 
   const handleComplete = useCallback(
     (id: string) => {
+      // #7188 finding 1: the button is no longer natively `disabled` while
+      // pending (that used to blur focus on click), so a second Enter/click
+      // on the same row while its request is still in flight has to be
+      // guarded here instead — a no-op, not a second POST.
+      if (pendingIds.has(id)) return;
       setErrors((prev) => {
         if (!(id in prev)) return prev;
         const next = { ...prev };
@@ -146,11 +171,21 @@ export default function ChoresScreen() {
       });
       setPendingIds((prev) => new Set(prev).add(id));
       completeChore(id)
-        .catch(() => {
-          setErrors((prev) => ({
-            ...prev,
-            [id]: 'Could not complete this chore. Try again.',
-          }));
+        .catch((cause: unknown) => {
+          // #7188 finding 5: log the actual cause instead of discarding it —
+          // otherwise an expired session (401), a stale chore id (404) and a
+          // dropped connection are all indistinguishable, and the row's
+          // generic copy is all anyone has to go on when reporting a bug.
+          console.error(`Failed to complete chore "${id}"`, cause);
+          const status = (cause as { status?: number } | null | undefined)
+            ?.status;
+          const message =
+            status === 401
+              ? 'Your session has expired. Sign in again to complete this chore.'
+              : cause instanceof Error && cause.message
+                ? cause.message
+                : 'Could not complete this chore. Try again.';
+          setErrors((prev) => ({ ...prev, [id]: message }));
         })
         .finally(() => {
           setPendingIds((prev) => {
@@ -161,7 +196,7 @@ export default function ChoresScreen() {
           });
         });
     },
-    [completeChore]
+    [completeChore, pendingIds]
   );
 
   const daily = chores.filter((chore) => chore.kind === 'daily');

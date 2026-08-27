@@ -662,11 +662,18 @@
 }
 
 /*
- * #7188: while a completion POST is in flight the button stays disabled
- * (inherits .goButton:disabled) but pulses so a slow request reads as
- * "working" rather than "dead". Turned off under reduced-motion below.
+ * #7188: while a completion POST is in flight the button is deliberately
+ * *not* natively disabled (see ChoresScreen.tsx — disabling on click blurs
+ * focus, which is exactly wrong for the failure path this state exists to
+ * surface), so it pulses instead so a slow request still reads as "working"
+ * rather than "dead". Turned off under reduced-motion below.
+ *
+ * Compounded with `.goButton` this is (0,2,0), matching `.goButton:disabled`
+ * — written this way rather than relying on source order to win a
+ * same-specificity tie, since the button is no longer disabled while
+ * pending anyway and the two states should never both apply.
  */
-.goButtonPending {
+.goButton.goButtonPending {
   cursor: progress;
   animation: pendingPulse 1.1s ease-in-out infinite;
 }
@@ -1117,9 +1124,11 @@
 }
 
 /* #7187: `.tray` is itself the `.trayGrid` item (no wrapper element the way
-   `.cropCardWrap` wraps `.cropCard`), so it needs the same `min-width: 0`
-   directly to let it shrink to the grid track instead of its content's
-   min-content width. */
+   `.cropCardWrap` wraps `.cropCard`). Its current children (`.trayTicker`,
+   `.trayDays`, `.trayReady`) all wrap rather than forcing width the way
+   `.cropName`'s `white-space: nowrap` did, so this hasn't been observed to
+   overflow — this is precautionary, so the same default `min-width: auto`
+   grid-item trap can't quietly reappear here later. */
 .tray {
   display: flex;
   flex-direction: column;

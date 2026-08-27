@@ -37,7 +37,13 @@ function abilitiesFor(crop: Crop) {
     {
       icon: '💚',
       name: 'Vigour',
-      detail: `${formatPct(crop.dayChangePct)} today${crop.stale ? ' · price data is stale' : ''}`,
+      detail: `${formatPct(crop.dayChangePct)} today${
+        crop.stale
+          ? ' · price data is stale'
+          : crop.freshness === 'unknown'
+            ? ' · price freshness unverified'
+            : ''
+      }`,
       level: Math.round(crop.vigour / 20),
       max: 5,
     },
@@ -132,6 +138,9 @@ export default function CropDetail({ basePath }: { basePath: string }) {
           <li className={styles.trait}>{crop.region}</li>
           <li className={styles.trait}>{crop.instrumentType}</li>
           {crop.stale && <li className={styles.trait}>Stale price</li>}
+          {crop.freshness === 'unknown' && (
+            <li className={styles.trait}>Unverified price</li>
+          )}
         </ul>
       </section>
 

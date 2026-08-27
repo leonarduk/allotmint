@@ -37,10 +37,9 @@ const portfolio: Portfolio = {
           days_held: 500,
           sell_eligible: true,
           last_price_date: '2026-08-24',
-          // Explicit `is_stale: false` (#7186): a holding with no freshness
-          // flag at all is "unknown", not "fresh" — this fixture is about a
-          // portfolio the backend has actually vouched for as fresh.
-          is_stale: false,
+          // `is_stale` deliberately omitted (#7186): the backend doesn't
+          // always send it, and that must read as "unknown" freshness, not
+          // silently "fresh" — see the SUNLIGHT assertion below.
         },
         {
           ticker: 'WILT.L',
@@ -58,6 +57,8 @@ const portfolio: Portfolio = {
           sell_eligible: false,
           days_until_eligible: 26,
           next_eligible_sell_date: '2026-09-19',
+          // Explicit `is_stale: false`: this one *is* backend-confirmed
+          // fresh, so the fixture has one of each freshness state.
           is_stale: false,
         },
       ],
@@ -180,8 +181,11 @@ describe('Plot mode hub', () => {
     expect(
       screen.getByText('£15.0k of tax allowance headroom left')
     ).toBeInTheDocument();
+    // VUSA.L sends no is_stale flag at all (unknown) and WILT.L is
+    // backend-confirmed fresh — the caption must count them separately
+    // rather than defaulting the unflagged one to "fresh" (#7186).
     expect(
-      screen.getByText('2 of 2 crops priced from fresh data')
+      screen.getByText('1 fresh, 1 unknown of 2 crops')
     ).toBeInTheDocument();
   });
 
@@ -511,6 +515,46 @@ describe('Plot mode propagator', () => {
     expect(
       await screen.findByText(/in the propagator until 2026-09-19/)
     ).toBeInTheDocument();
+  });
+
+  it('keeps a sell_eligible: false holding in the propagator with no known countdown, as indeterminate not fabricated-ready (#7184)', async () => {
+    // The exact alex-fixture shape from #7184: sell_eligible: false with
+    // days_until_eligible: 0 and no is_stale flag at all.
+    const notYetLiftable: Portfolio = {
+      owner: 'alex',
+      as_of: '2026-08-25',
+      trades_this_month: 0,
+      trades_remaining: 5,
+      total_value_estimate_gbp: 300,
+      accounts: [
+        {
+          account_type: 'gia',
+          currency: 'GBP',
+          owner: 'alex',
+          value_estimate_gbp: 300,
+          holdings: [
+            {
+              ticker: 'HFEL.L',
+              name: 'HFEL',
+              units: 10,
+              market_value_gbp: 300,
+              days_held: 364,
+              sell_eligible: false,
+              days_until_eligible: 0,
+            },
+          ],
+        },
+      ],
+    };
+    mocks.getPortfolio.mockResolvedValue(notYetLiftable);
+
+    renderPlot();
+
+    expect(await screen.findByText('Propagator (1)')).toBeInTheDocument();
+    expect(screen.getByText('Not yet liftable')).toBeInTheDocument();
+    // Never a fabricated ready date, and never "cleared"/"can be lifted".
+    expect(screen.queryByText(/^Ready /)).toBeNull();
+    expect(screen.queryByText(/cleared the propagator/)).toBeNull();
   });
 });
 

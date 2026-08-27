@@ -11,9 +11,11 @@ interface PropagatorProps {
 
 /**
  * Crops still serving their minimum holding period, shown as trays in a
- * propagator. The progress and the ready date are the backend's own
- * `days_until_eligible` / `next_eligible_sell_date`, so this doubles as a
- * plain-English read of when each holding becomes sellable.
+ * propagator. Membership is `sell_eligible: false`, full stop (#7184).
+ * Where the backend also gives a known, positive `days_until_eligible` /
+ * `next_eligible_sell_date`, the tray shows real progress and a real ready
+ * date; where it doesn't, `indeterminate` is true and the tray reads "not
+ * yet liftable" with an empty bar rather than fabricating either.
  */
 export default function Propagator({ entries, basePath }: PropagatorProps) {
   if (entries.length === 0) {
@@ -24,6 +26,8 @@ export default function Propagator({ entries, basePath }: PropagatorProps) {
       </p>
     );
   }
+
+  const anyIndeterminate = entries.some((entry) => entry.indeterminate);
 
   return (
     <>
@@ -71,8 +75,9 @@ export default function Propagator({ entries, basePath }: PropagatorProps) {
         )}
       </div>
       <p className={styles.sectionNote}>
-        Progress toward each holding&apos;s minimum holding period, from the
-        same rule the classic compliance screens use.
+        {anyIndeterminate
+          ? "Progress toward each holding's minimum holding period, where the backend knows it — some trays here are marked not sellable with no countdown to show."
+          : "Progress toward each holding's minimum holding period, from the same rule the classic compliance screens use."}
       </p>
     </>
   );

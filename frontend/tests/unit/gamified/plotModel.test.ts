@@ -278,6 +278,42 @@ describe('buildPlotSnapshot', () => {
     expect(crops[0].lastPriceDate).toBeNull();
   });
 
+  it('is unknown, not stale, when is_stale is explicitly null (the live CASH.GBP shape) (#7186)', () => {
+    // The real backend sends `is_stale: null` for cash rows, not just
+    // `undefined` — `typeof null === 'object'`, so a naive simplification
+    // to `holding.is_stale !== undefined` would silently treat this as a
+    // *confirmed* stale price. It must land on 'unknown' like the
+    // undefined case above.
+    const cashRow: Portfolio = {
+      owner: 'alex',
+      as_of: '2026-08-25',
+      trades_this_month: 0,
+      trades_remaining: 5,
+      total_value_estimate_gbp: 100,
+      accounts: [
+        {
+          account_type: 'gia',
+          currency: 'GBP',
+          owner: 'alex',
+          value_estimate_gbp: 100,
+          holdings: [
+            {
+              ticker: 'CASH.GBP',
+              name: 'Cash (GBP)',
+              units: 100,
+              market_value_gbp: 100,
+              is_stale: null,
+              last_price_date: null,
+            },
+          ],
+        },
+      ],
+    };
+    const { crops } = buildPlotSnapshot({ portfolio: cashRow });
+    expect(crops[0].freshness).toBe('unknown');
+    expect(crops[0].stale).toBe(false);
+  });
+
   it('returns an empty but usable snapshot with no portfolio', () => {
     const snapshot = buildPlotSnapshot({ portfolio: null });
     expect(snapshot.crops).toEqual([]);
@@ -453,6 +489,16 @@ describe('germinatingCrops', () => {
     });
   });
 
+  it('excludes a sell_eligible: true holding even with a stale positive countdown attached (#7184)', () => {
+    // sell_eligible is authoritative in both directions — a holding
+    // compliance says is freely sellable must never show up here, no
+    // matter what days_until_eligible still says.
+    const entries = germinatingCrops([
+      crop({ ticker: 'FREE.L', sellEligible: true, daysUntilEligible: 5 }),
+    ]);
+    expect(entries).toEqual([]);
+  });
+
   it('sorts soonest-ready first, treats an unknown age as day zero, and trails indeterminate entries', () => {
     const entries = germinatingCrops([
       crop({ ticker: 'LATE.L', daysUntilEligible: 25 }),
@@ -495,12 +541,17 @@ describe('isStillInPropagator', () => {
     expect(isStillInPropagator(crop({ daysUntilEligible: null }))).toBe(true);
     // Still serving the minimum holding period.
     expect(isStillInPropagator(crop({ daysUntilEligible: 5 }))).toBe(true);
-    // A known, positive countdown is an *additional* reason to be in the
-    // propagator, not gated on sell_eligible: false — it catches a holding
-    // whose sell_eligible flag hasn't caught up with the hold period yet.
+    // sell_eligible: true is *also* authoritative on its own, even with a
+    // stale, not-yet-cleared days_until_eligible still attached (e.g. the
+    // backend recalculated eligibility before refreshing the countdown).
+    // #7184's own "Failure looks like" section names the alternative —
+    // "the fix inverts the bug and puts freely sellable crops in the
+    // propagator" — as a failure, so an OR-style "either signal puts it in
+    // the propagator" reading is rejected here even though the issue's
+    // prose elsewhere describes the countdown as "an additional reason".
     expect(
       isStillInPropagator(crop({ sellEligible: true, daysUntilEligible: 5 }))
-    ).toBe(true);
+    ).toBe(false);
   });
 });
 

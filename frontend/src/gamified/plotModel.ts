@@ -110,6 +110,16 @@ export function starsFor(shareOfPlot: number): number {
  * Vigour (0–100) is a *freshness and momentum* read, not a performance one:
  * today's move mapped from ±5% onto the full bar, with a penalty when the
  * price feed is stale so neglected crops visibly droop.
+ *
+ * This intentionally reads `is_stale` directly rather than going through
+ * `freshnessFor`'s fresh/stale/unknown split (#7186): SUNLIGHT's job is to
+ * report data *confidence* to the user, so it must not count an unflagged
+ * holding as fresh. Vigour is a per-crop momentum flourish, not a
+ * confidence signal, and most deployments simply never send `is_stale` for
+ * every holding — penalising "no flag sent" the same as "confirmed stale"
+ * would droop every crop's Vigour on exactly the data shape #7186 says
+ * must not be treated as bad news. So: a *confirmed* stale price still
+ * penalises Vigour; an absent flag does not.
  */
 export function vigourFor(
   holding: Pick<Holding, 'day_change_gbp' | 'market_value_gbp' | 'is_stale'>
@@ -568,9 +578,9 @@ export interface GerminatingCrop {
  * The backend doesn't always populate this field for every reason a holding
  * can be blocked from selling — `sell_eligible: false` with
  * `days_until_eligible: 0` shows up in production data (#7184). This is
- * what lets `isStillInPropagator` and `germinatingCrops` tell "we know
- * exactly how many days are left" apart from "compliance says no, but we
- * don't know the countdown".
+ * NOT used to decide propagator *membership* (see `isStillInPropagator`) —
+ * only to decide whether `germinatingCrops` has real progress/a real ready
+ * date to show, versus an indeterminate "not yet liftable" tray.
  */
 export function hasKnownHoldPeriodCountdown(
   crop: Pick<Crop, 'daysUntilEligible'>
@@ -586,15 +596,26 @@ export function hasKnownHoldPeriodCountdown(
  * read it, so they can't disagree about whether a holding has cleared its
  * hold period (see #7010).
  *
- * `sell_eligible: false` is authoritative on its own (#7184): compliance
- * saying a holding cannot be sold must never be overridden by a countdown
- * field the backend happens to report as `0` or omit. A known, positive
- * `days_until_eligible` is an *additional* reason to be in the propagator,
- * not a precondition — it catches a holding whose `sell_eligible` flag
- * hasn't caught up with a hold period that plainly hasn't elapsed yet.
+ * `sell_eligible` is authoritative in **both** directions (#7184): `false`
+ * always means "still in the propagator", `true` always means "not in the
+ * propagator", full stop. `days_until_eligible` is never a *reason* to be
+ * (or not be) in the propagator — it only feeds `germinatingCrops`' bar and
+ * ready date once membership is already decided.
+ *
+ * The issue that motivated this is internally inconsistent about that: its
+ * "How" section describes a known, positive countdown as "an additional
+ * reason to be in the propagator, not a precondition" (which reads as an
+ * OR), but its own "Failure looks like" section calls exactly that
+ * outcome — "the fix inverts the bug and puts freely sellable crops in the
+ * propagator" — a failure. A `sell_eligible: true` holding with a stale,
+ * not-yet-cleared `days_until_eligible` (e.g. the backend recalculated
+ * eligibility but hasn't refreshed the countdown) is precisely a freely
+ * sellable crop under an OR reading. Making `sell_eligible` authoritative
+ * both ways is the only reading that satisfies the issue's own failure
+ * criterion, so that's what this implements.
  */
 export function isStillInPropagator(crop: Crop): boolean {
-  return !crop.sellEligible || hasKnownHoldPeriodCountdown(crop);
+  return !crop.sellEligible;
 }
 
 /**
@@ -609,8 +630,11 @@ export function germinatingCrops(crops: readonly Crop[]): GerminatingCrop[] {
   return crops
     .filter(isStillInPropagator)
     .map((crop) => {
-      const known = hasKnownHoldPeriodCountdown(crop);
-      const remaining = known ? (crop.daysUntilEligible as number) : 0;
+      // Narrowed locally (rather than cast) so `remaining` is a plain
+      // number without asserting past the null check.
+      const countdown = crop.daysUntilEligible;
+      const known = countdown !== null && countdown > 0;
+      const remaining = known ? countdown : 0;
       const held = Math.max(0, crop.daysHeld ?? 0);
       const total = held + remaining;
       return {

@@ -41,6 +41,15 @@ const RESOURCE_EXPLANATION: Record<string, string> = {
   sun: 'Sunlight is how much of your portfolio has a fresh price today — a stale price makes it droop.',
 };
 
+/**
+ * Sunlight's copy above assumes every crop is confirmed either fresh or
+ * stale. When some crops have no freshness signal at all (#7186), that
+ * copy reads as "the empty part is stale", which is a claim we can't back
+ * up — so it switches to language that names "unknown" as its own state.
+ */
+const SUNLIGHT_EXPLANATION_WITH_UNKNOWN =
+  'Sunlight is how much of your portfolio has a *confirmed* fresh price today. A price with no freshness signal at all counts as unknown, not stale — it just has not been vouched for yet.';
+
 function Champion({
   crop,
   role,
@@ -96,6 +105,9 @@ export default function PlotHub({ basePath }: { basePath: string }) {
     today,
   } = usePlotData();
   const { crops, beds, resources } = snapshot;
+  const sunUnknownCount = crops.filter(
+    (crop) => crop.freshness === 'unknown'
+  ).length;
 
   const byGain = [...crops].sort((left, right) => right.gainPct - left.gainPct);
   const best = byGain[0];
@@ -136,28 +148,53 @@ export default function PlotHub({ basePath }: { basePath: string }) {
         )}
       </section>
 
+      {/* "How old is all this?" (#7186) — the SUNLIGHT meter can now say
+          "unknown" instead of a false 100%, but that only tells the reader
+          about individual holdings; the portfolio's own `as_of` date answers
+          it for the whole plot without opening a crop. */}
+      {snapshot.asOf && (
+        <p className={styles.sectionNote}>Plot priced as of {snapshot.asOf}.</p>
+      )}
+
       <section className={styles.pills} aria-label="Plot resources">
-        {resources.map((resource) => (
-          <div key={resource.id} className={styles.pill}>
-            <div className={styles.pillHead}>
-              <span>
-                <span aria-hidden="true">{resource.icon}</span> {resource.label}
-                {RESOURCE_EXPLANATION[resource.id] && (
-                  <InfoTip label={`What does ${resource.label} mean?`}>
-                    {RESOURCE_EXPLANATION[resource.id]}
-                  </InfoTip>
-                )}
-              </span>
-              <span className={styles.pillValue}>{resource.display}</span>
+        {resources.map((resource) => {
+          // SUNLIGHT with any unverified crops gets its own tip copy and a
+          // visibly different bar treatment (#7186) — an empty/low bar must
+          // not read as "confirmed stale", it reads as "unconfirmed".
+          const sunIndeterminate = resource.id === 'sun' && sunUnknownCount > 0;
+          const explanation = sunIndeterminate
+            ? SUNLIGHT_EXPLANATION_WITH_UNKNOWN
+            : RESOURCE_EXPLANATION[resource.id];
+          return (
+            <div
+              key={resource.id}
+              className={
+                sunIndeterminate
+                  ? `${styles.pill} ${styles.pillIndeterminate}`
+                  : styles.pill
+              }
+            >
+              <div className={styles.pillHead}>
+                <span>
+                  <span aria-hidden="true">{resource.icon}</span>{' '}
+                  {resource.label}
+                  {explanation && (
+                    <InfoTip label={`What does ${resource.label} mean?`}>
+                      {explanation}
+                    </InfoTip>
+                  )}
+                </span>
+                <span className={styles.pillValue}>{resource.display}</span>
+              </div>
+              <Meter
+                pct={resource.pct}
+                tone={RESOURCE_TONE[resource.id] ?? 'growth'}
+                label={`${resource.label}: ${resource.hint}`}
+              />
+              <p className={styles.pillHint}>{resource.hint}</p>
             </div>
-            <Meter
-              pct={resource.pct}
-              tone={RESOURCE_TONE[resource.id] ?? 'growth'}
-              label={`${resource.label}: ${resource.hint}`}
-            />
-            <p className={styles.pillHint}>{resource.hint}</p>
-          </div>
-        ))}
+          );
+        })}
       </section>
 
       <section className={`${styles.panel} ${styles.panelGlow}`}>
@@ -239,6 +276,11 @@ export default function PlotHub({ basePath }: { basePath: string }) {
                 <span className={styles.seedOwn}>
                   {bed.cropCount} crop{bed.cropCount === 1 ? '' : 's'}
                   {bed.owner ? ` · ${bed.owner}` : ''}
+                  {/* #7186 — the bed's own last_updated can lag well behind
+                      the portfolio as_of shown above; surfacing it here
+                      means a stale bed doesn't hide behind a fresher
+                      portfolio-wide date. */}
+                  {bed.lastUpdated ? ` · priced ${bed.lastUpdated}` : ''}
                 </span>
                 <span className={styles.cropValue}>
                   {formatGbp(bed.valueGbp)}

@@ -1541,3 +1541,40 @@
     transition: none;
   }
 }
+
+/* ── Crop card bed label (#7212) ───────────────────────────────────────
+   The same instrument can sit in more than one bed (ISA and SIPP both
+   holding the same ticker), and until this the roster/hub rendered two
+   otherwise-identical cards with no way to tell which bed either was in. */
+
+.cropBed {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--plot-sky);
+  /* Same overflow guard as .cropName: the card sits in a
+     minmax(150px, 1fr) grid cell, and a long bed name (e.g. "Stocks Isa")
+     next to a wide ticker can overflow the card without this. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Indeterminate resource meter (#7186) ────────────────────────────────
+   When SUNLIGHT can't confirm every crop's freshness, an empty/low bar
+   must not read as a flat verdict ("empty" = "everything's stale") — a
+   hatched fill makes "we don't know" visually distinct from "we know and
+   it's bad". Scoped to the pill wrapper (set conditionally in PlotHub) so
+   this doesn't touch the shared Meter component or its other tones. */
+
+.pillIndeterminate .meterFill {
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.22) 0px,
+    rgba(255, 255, 255, 0.22) 4px,
+    transparent 4px,
+    transparent 8px
+  );
+  background-color: rgba(255, 255, 255, 0.09);
+}

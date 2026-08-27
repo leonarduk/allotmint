@@ -647,3 +647,58 @@ powershell -ExecutionPolicy Bypass -File scripts/deploy-to-AWS.ps1
 npm --prefix frontend run deploy:aws
 npm --prefix frontend run deploy:aws:linux
 ```
+
+## 13. Jenkins mirror of GitHub Actions
+
+The root [`Jenkinsfile`](../Jenkinsfile) mirrors the core GitHub Actions
+workflows so the same checks can run on a Jenkins server when GitHub Actions
+is unavailable (e.g. quota exhaustion, disabled Actions, or a local CI
+requirement). The GitHub workflows remain the source of truth and are not
+modified.
+
+### Workflow → Jenkins stage mapping
+
+| GitHub Actions workflow / job | Jenkins stage | Notes |
+| --- | --- | --- |
+| `ci.yml` `test` | `Repo Hygiene` | Branch-protection, lockfile platform coverage, architecture-diagram checks |
+| `ci.yml` `backend-lint` | `Backend Lint` | ruff + black over `backend/` and `tests/`; Jenkins lints the whole tree (non-PR path) |
+| `backend-integration.yml` `integration-tests` | `Backend Integration Tests` | Contract sync, mypy, provider parity, full pytest suite with coverage |
+| `ci.yml` `lambda-compat` | `Lambda Compat` | Full pytest suite against Lambda-pinned `backend/requirements.txt` in an isolated venv |
+| `ci.yml` `validate-backend-deps` | `Validate Backend Deps` | Duplicate-name check, dry-run resolution, root-venv startup import |
+| `ci.yml` `python-compatibility` | `Python 3.11 Compat` | Lightweight 3.11 health + parity smoke |
+| `ci.yml` `frontend-checks` | `Frontend Checks` | npm lint, `tsc -b` type-check, Vitest run + coverage, npm audit |
+| `frontend-tests.yml` `frontend-tests` | `Frontend Checks` | Also runs SPA contract sync and sitemap health check (Python steps) |
+| `ci.yml` `frontend-smoke` | `Frontend Smoke` | Optional; enable with `RUN_FRONTEND_SMOKE=true` (downloads Playwright browsers) |
+| `ci.yml` `cdk-tests` | `CDK Tests` | `pytest cdk/tests/` against root requirements |
+| `iac-validation.yml` `cdk-validation` | `CDK Validation & Dry-Run` | cdk/tests against `cdk/requirements.txt` venv, then `cdk synth` |
+| `cdk-dry-run.yml` `cdk-synth` | `CDK Validation & Dry-Run` | prod dry-run synth + `--method=template` guard grep |
+| `ci.yml` `shell-tests` | `Shell Tests` | bats tests for deploy shell scripts (AWS CLI calls are mocked) |
+
+### Intentionally not mirrored
+
+These GitHub-only jobs are not mirrored: AI PR-review bots
+(`claude-pr-review.yml`, `gpt-pr-review.yml`, `deepseek-pr-review.yml`,
+`_ai-pr-review.yml`), `deploy-lambda.yml`, GitHub housekeeping
+(`stale.yml`, `label-ai-issues.yml`, `sync-changes-requested-label.yml`,
+`dependabot-auto-merge.yml`, `branch-protection-drift.yml`, `empty-pr-check.yml`,
+`pr-lint.yml`, `issue-lint.yml`, `conflict-check.yml`, `project-status-in-review.yml`),
+`lint-workflows` (actionlint — GitHub workflow YAML linter),
+`lint-shell-scripts` (shellcheck — already `continue-on-error` in ci.yml),
+Codecov uploads, the private `cicaid` automation tests (token-gated in ci.yml's
+`test` job via `CICAID_PRO_TOKEN`; skipped when the secret is absent), and the
+optional AWS/S3 data sync (already optional in the workflows; the pytest suite
+stubs all AWS interactions).
+
+### Running the pipeline
+
+1. Create a Jenkins pipeline job pointing at this repository with the script
+   path `Jenkinsfile`.
+2. Set the `GITHUB_TOKEN` credential (GitHub credentials for checkout) and
+   ensure the Jenkins server has Docker (pipeline uses `docker.image(...).inside`)
+   and network access to npm/pip registries.
+3. Set the `BRANCH` parameter (default `*/main`) to the ref you want to build.
+4. Optionally enable `RUN_FRONTEND_SMOKE` for the Playwright smoke stage.
+
+Expected run time is long (full backend pytest suite runs in both
+`Backend Integration Tests` and `Lambda Compat`, mirroring CI), so set an
+adequate job timeout; the pipeline itself allows 180 minutes.

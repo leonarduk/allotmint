@@ -668,14 +668,32 @@ describe('Plot mode provider hardening', () => {
   it('keeps at most one chore completion in flight', async () => {
     // Each reply is a whole server snapshot, so two in flight resolve
     // last-write-wins and an out-of-order pair can un-tick a done chore.
-    // Serialising is the mechanism that prevents that, so it is what is tested.
-    const trailWith = (done: string[]) => ({
+    // Serialising is the mechanism that prevents that, so it is what is
+    // tested here — across two different rows, since #7188 gave each row
+    // its own pending/disabled state, so a second click on the *same*
+    // still-in-flight button is now a UI no-op rather than something that
+    // reaches PlotDataContext at all.
+    const twoOutstanding = {
       ...trailPayload,
-      tasks: trailPayload.tasks.map((task) => ({
+      tasks: [
+        { ...trailPayload.tasks[0], id: 'water-beds', completed: false },
+        {
+          ...trailPayload.tasks[1],
+          id: 'weed-the-path',
+          title: 'Weed the path',
+          type: 'daily' as const,
+          completed: false,
+        },
+      ],
+    };
+    const trailWith = (done: string[]) => ({
+      ...twoOutstanding,
+      tasks: twoOutstanding.tasks.map((task) => ({
         ...task,
         completed: done.includes(task.id),
       })),
     });
+    mocks.getTrailTasks.mockResolvedValue(twoOutstanding);
 
     let resolveFirst: (value: unknown) => void = () => {};
     mocks.completeTrailTask
@@ -686,24 +704,90 @@ describe('Plot mode provider hardening', () => {
           })
       )
       .mockImplementationOnce(async () =>
-        trailWith(['water-beds', 'set-alerts'])
+        trailWith(['water-beds', 'weed-the-path'])
       );
 
     renderPlot('/plot/chores');
 
-    const doIt = await screen.findByRole('button', { name: 'Do it' });
-    fireEvent.click(doIt);
-    fireEvent.click(doIt);
+    const [firstDoIt, secondDoIt] = await screen.findAllByRole('button', {
+      name: 'Do it',
+    });
+    fireEvent.click(firstDoIt);
+    fireEvent.click(secondDoIt);
 
     await waitFor(() =>
       expect(mocks.completeTrailTask).toHaveBeenCalledTimes(1)
     );
-    // The second click stays queued while the first is unresolved.
+    // The second row's completion stays queued in the chain while the
+    // first request is unresolved.
     expect(mocks.completeTrailTask).toHaveBeenCalledTimes(1);
 
     resolveFirst(trailWith(['water-beds']));
     await waitFor(() =>
       expect(mocks.completeTrailTask).toHaveBeenCalledTimes(2)
     );
+  });
+
+  it('still fires a queued completion after the one ahead of it in the chain fails', async () => {
+    // completionChain.current is reassigned via `.catch(() => {})` so it
+    // always resolves regardless of an individual attempt's outcome
+    // (PlotDataContext.tsx) — this is what stops one row's failed POST from
+    // wedging every completion queued behind it. The earlier "keeps at most
+    // one completion in flight" test only covers the chain surviving an
+    // attempt that already settled *successfully*; this covers the failure
+    // case explicitly.
+    const twoOutstanding = {
+      ...trailPayload,
+      tasks: [
+        { ...trailPayload.tasks[0], id: 'water-beds', completed: false },
+        {
+          ...trailPayload.tasks[1],
+          id: 'weed-the-path',
+          title: 'Weed the path',
+          type: 'daily' as const,
+          completed: false,
+        },
+      ],
+    };
+    mocks.getTrailTasks.mockResolvedValue(twoOutstanding);
+
+    let rejectFirst: (reason?: unknown) => void = () => {};
+    mocks.completeTrailTask
+      .mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectFirst = reject;
+          })
+      )
+      .mockImplementationOnce(async () => ({
+        ...twoOutstanding,
+        tasks: twoOutstanding.tasks.map((task) => ({
+          ...task,
+          completed: task.id === 'weed-the-path',
+        })),
+      }));
+
+    renderPlot('/plot/chores');
+
+    const [firstDoIt, secondDoIt] = await screen.findAllByRole('button', {
+      name: 'Do it',
+    });
+    fireEvent.click(firstDoIt);
+    fireEvent.click(secondDoIt);
+
+    await waitFor(() =>
+      expect(mocks.completeTrailTask).toHaveBeenCalledTimes(1)
+    );
+
+    rejectFirst(new Error('water-beds completion failed'));
+
+    // The second row's queued completion still reaches the network despite
+    // the first one ahead of it in the chain rejecting.
+    await waitFor(() =>
+      expect(mocks.completeTrailTask).toHaveBeenCalledTimes(2)
+    );
+    expect(
+      await screen.findByRole('button', { name: 'Done' })
+    ).toBeInTheDocument();
   });
 });

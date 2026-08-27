@@ -599,11 +599,52 @@ describe("Watchlist page", () => {
       expect(row).not.toHaveTextContent("GBP");
     });
 
-    it("keeps the full instrument name in the DOM and as a hover title", async () => {
-      const longName = "VANGUARD FUNDS PLC VANGUARD S&P 500 UCITS ETF";
+    it("keeps a pence-quoted row's GBX label and its unscaled magnitude (#7219)", async () => {
+      // The backend canonicalises yfinance's exact-case "GBp" pence token
+      // to the visually distinct "GBX" before this ever reaches the
+      // frontend (backend/routes/quotes.py), so QuoteRow.currency here is
+      // already "GBX" -- but nothing in the frontend must scale the price
+      // by 100 to "convert" it. BP.L trades around 517p, not GBP 5.17.
       const rows: QuoteRow[] = [
         {
-          name: longName,
+          name: "BP p.l.c.",
+          symbol: "BP.L",
+          last: 517.05,
+          open: null,
+          high: null,
+          low: null,
+          change: 2.5,
+          changePct: 0.49,
+          volume: null,
+          marketTime: null,
+          marketState: "REGULAR",
+          currency: "GBX",
+          quoteType: "EQUITY",
+        },
+      ];
+      (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue(rows);
+      localStorage.setItem("watchlistSymbols", "BP.L");
+
+      renderWatchlist();
+
+      const row = await findRow("BP.L");
+      expect(row).toHaveTextContent("517.05");
+      expect(row).toHaveTextContent("GBX");
+      expect(row).not.toHaveTextContent("5.17");
+      expect(row).not.toHaveTextContent("GBP");
+    });
+
+    it("renders the untruncated name the API now sends and doesn't clip it with CSS", async () => {
+      // Yahoo hard-truncates yfinance's `shortName` at 31 characters --
+      // the un-truncated `longName` for this instrument is "Vanguard S&P
+      // 500 UCITS ETF" and, per #7232 MUST FIX 1, the backend now prefers
+      // longName. This fixture is that real API value, not a hand-written
+      // stand-in, so this test only proves the frontend correctly renders
+      // and doesn't re-truncate whatever full name it is given.
+      const fullName = "Vanguard S&P 500 UCITS ETF";
+      const rows: QuoteRow[] = [
+        {
+          name: fullName,
           symbol: "VUSA.L",
           last: 107.02,
           open: null,
@@ -614,7 +655,7 @@ describe("Watchlist page", () => {
           volume: null,
           marketTime: null,
           marketState: "REGULAR",
-          currency: "GBP",
+          currency: "GBX",
           quoteType: "ETF",
         },
       ];
@@ -623,9 +664,16 @@ describe("Watchlist page", () => {
 
       renderWatchlist();
 
-      const nameCell = await screen.findByText(longName);
+      const nameCell = await screen.findByText(fullName);
       expect(nameCell).toBeInTheDocument();
-      expect(nameCell).toHaveAttribute("title", longName);
+      expect(nameCell).toHaveAttribute("title", fullName);
+      // Regression guard for the CSS fix itself: reverting to
+      // `white-space: nowrap; text-overflow: ellipsis` would leave the
+      // full name in the DOM (jsdom doesn't lay out text, so a plain
+      // text-content assertion can't catch that revert) but would flip
+      // these inline style properties back.
+      expect(nameCell.style.whiteSpace).not.toBe("nowrap");
+      expect(nameCell.style.textOverflow).not.toBe("ellipsis");
     });
   });
 });

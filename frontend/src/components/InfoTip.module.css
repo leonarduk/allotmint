@@ -1,0 +1,75 @@
+.infoTip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.35rem;
+  vertical-align: middle;
+}
+
+.infoTipButton {
+  display: grid;
+  place-items: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  padding: 0;
+  font-size: 0.65rem;
+  font-weight: 800;
+  font-style: italic;
+  line-height: 1;
+  color: var(--surface-card-bg);
+  background: #60a5fa;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.infoTipButton:hover,
+.infoTipButton:focus-visible {
+  background: #93c5fd;
+  outline: 2px solid #93c5fd;
+  outline-offset: 2px;
+}
+
+.infoTipPopover {
+  position: absolute;
+  z-index: 20;
+  bottom: calc(100% + 0.45rem);
+  left: 0;
+  width: max-content;
+  max-width: min(18rem, 70vw);
+  padding: 0.55rem 0.7rem;
+  font-size: 0.74rem;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  line-height: 1.4;
+  color: var(--surface-card-color);
+  background: var(--surface-card-bg);
+  border: 1px solid var(--surface-card-border);
+  border-radius: 4px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+
+.infoTip:hover .infoTipPopover,
+.infoTip:focus-within .infoTipPopover,
+.infoTipPopoverOpen {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.infoTipLink {
+  display: block;
+  margin-top: 0.35rem;
+  color: #60a5fa;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .infoTipPopover {
+    transition: none;
+  }
+}

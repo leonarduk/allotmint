@@ -200,6 +200,22 @@ describe('Trading page', () => {
     expect(screen.queryByText('No signals right now')).not.toBeInTheDocument();
   });
 
+  it('attaches an InfoTip to jargon thresholds and the checks-skipped badge (#7230)', async () => {
+    mockFetchState({
+      data: [{ ...sampleSignal, checks_skipped: ['pe_max'] }],
+    });
+
+    render(<Trading />);
+    await screen.findByText('AAA');
+
+    expect(
+      screen.getAllByRole('button', { name: 'What does RSI mean?' }).length
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getByRole('button', { name: "What does 'Checks skipped' mean?" })
+    ).toBeInTheDocument();
+  });
+
   it('does not emit duplicate-key warnings when the same ticker appears twice (#6505)', async () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     mockFetchState({

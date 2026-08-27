@@ -1466,82 +1466,6 @@
   }
 }
 
-/* ── Info tip ("what does this mean?") ─────────────────────────────────
-   A lightweight, always-in-the-flow affordance for HUD/legend jargon —
-   see #7006. Deliberately not a tour: one icon, opened by hover (mouse) or
-   click/keyboard activation (touch, screen readers), closed by outside
-   click or Escape. */
-
-.infoTip {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  margin-left: 0.35rem;
-  vertical-align: middle;
-}
-
-.infoTipButton {
-  display: grid;
-  place-items: center;
-  width: 1.1rem;
-  height: 1.1rem;
-  padding: 0;
-  font-size: 0.65rem;
-  font-weight: 800;
-  font-style: italic;
-  line-height: 1;
-  color: var(--plot-panel-solid);
-  background: var(--plot-sky);
-  border: none;
-  border-radius: 50%;
-  cursor: pointer;
-}
-
-.infoTipButton:hover,
-.infoTipButton:focus-visible {
-  background: var(--plot-mint);
-  outline: 2px solid var(--plot-mint);
-  outline-offset: 2px;
-}
-
-.infoTipPopover {
-  position: absolute;
-  z-index: 20;
-  bottom: calc(100% + 0.45rem);
-  left: 0;
-  width: max-content;
-  max-width: min(16rem, 70vw);
-  padding: 0.55rem 0.7rem;
-  font-size: 0.74rem;
-  font-weight: 400;
-  text-transform: none;
-  letter-spacing: normal;
-  line-height: 1.4;
-  color: var(--plot-ink);
-  background: var(--plot-panel-solid);
-  border: 1px solid var(--plot-edge);
-  border-radius: 4px;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transition: opacity 0.12s ease;
-}
-
-.infoTip:hover .infoTipPopover,
-.infoTip:focus-within .infoTipPopover,
-.infoTipPopoverOpen {
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .infoTipPopover {
-    transition: none;
-  }
-}
-
 /* ── Crop card bed label (#7212) ───────────────────────────────────────
    The same instrument can sit in more than one bed (ISA and SIPP both
    holding the same ticker), and until this the roster/hub rendered two
@@ -1590,3 +1514,7 @@
   background: rgba(226, 100, 63, 0.08);
   border: 2px solid rgba(226, 100, 63, 0.45);
 }
+
+/* InfoTip ("what does this mean?") now lives at ../components/InfoTip.tsx
+   with its own CSS module — it moved out of the Plot skin in #7230 so
+   Performance/Trading/Screener can reuse the same tooltip pattern. */

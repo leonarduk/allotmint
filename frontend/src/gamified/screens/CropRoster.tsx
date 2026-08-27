@@ -17,7 +17,7 @@ import {
 } from '../favourites';
 import CropCard from '../components/CropCard';
 import CropGlyph from '../components/CropGlyph';
-import InfoTip from '../components/InfoTip';
+import InfoTip from '../../components/InfoTip';
 
 type SortKey = 'value' | 'gain' | 'vigour' | 'name';
 

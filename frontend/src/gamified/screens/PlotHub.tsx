@@ -19,7 +19,7 @@ import CropCard from '../components/CropCard';
 import StreakPath from '../components/StreakPath';
 import Propagator from '../components/Propagator';
 import CropGlyph from '../components/CropGlyph';
-import InfoTip from '../components/InfoTip';
+import InfoTip from '../../components/InfoTip';
 
 const RESOURCE_TONE: Record<string, MeterTone> = {
   water: 'water',

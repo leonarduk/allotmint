@@ -97,12 +97,13 @@ export default function Menu({
         }))
         .filter((category) => {
           if (category.tabs.length > 0) return true;
-          return (
-            category.id === 'preferences' &&
-            (supportEnabled || Boolean(effectiveLogout))
-          );
+          // The Glossary link (below) always renders in 'preferences', so
+          // that category is never actually empty — but keep the explicit
+          // check so this stays readable if the Glossary link ever becomes
+          // conditional again.
+          return category.id === 'preferences';
         }),
-    [availableTabs, categoryDefinitions, effectiveLogout, supportEnabled]
+    [availableTabs, categoryDefinitions]
   );
 
   const [openCategory, setOpenCategory] = useState<string | null>(null);
@@ -261,6 +262,22 @@ export default function Menu({
                       </Link>
                     </li>
                   ))}
+                  {category.id === 'preferences' && (
+                    <li key="glossary">
+                      <Link
+                        ref={assignFirstFocusable}
+                        role="menuitem"
+                        to="/metrics-explained"
+                        className={`block min-h-11 w-full rounded px-3 py-2 text-sm transition-colors duration-150 focus:outline-none focus-visible:ring ${
+                          location.pathname === '/metrics-explained'
+                            ? 'font-semibold text-gray-900'
+                            : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                        }`}
+                      >
+                        {t('app.glossaryLink', 'Glossary')}
+                      </Link>
+                    </li>
+                  )}
                   {category.id === 'preferences' && supportEnabled && (
                     <li key="support">
                       <Link

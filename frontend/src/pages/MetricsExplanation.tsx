@@ -164,7 +164,7 @@ export default function MetricsExplanation() {
         <p className="text-sm text-gray-400">{t("metricsExplanation.loading")}</p>
       )}
 
-        <section className="space-y-4">
+        <section className="space-y-4" id="alpha-vs-benchmark">
         <h2 className="text-2xl font-semibold">
           {t("metricsExplanation.sections.alpha.title")}
         </h2>
@@ -242,7 +242,7 @@ export default function MetricsExplanation() {
         )}
       </section>
 
-        <section className="space-y-4">
+        <section className="space-y-4" id="tracking-error">
         <h2 className="text-2xl font-semibold">
           {t("metricsExplanation.sections.trackingError.title")}
         </h2>
@@ -384,6 +384,332 @@ export default function MetricsExplanation() {
             </div>
           </div>
         )}
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-2xl font-semibold">
+          {t("metricsExplanation.sections.otherPerformance.title", "More performance measures")}
+        </h2>
+        <p>
+          {t(
+            "metricsExplanation.sections.otherPerformance.intro",
+            "These also appear on the Performance page but don't need live data to explain."
+          )}
+        </p>
+        <div className="space-y-4">
+          <div id="time-weighted-return">
+            <h3 className="text-lg font-semibold">
+              {t("metricsExplanation.sections.otherPerformance.twr.title", "Time-Weighted Return")}
+            </h3>
+            <p className="text-sm text-gray-300">
+              {t(
+                "metricsExplanation.sections.otherPerformance.twr.detail",
+                "Time-weighted return measures the portfolio's compounded growth rate over the selected period by linking together each sub-period's return. It removes the effect of the timing and size of deposits and withdrawals, so it reflects how the underlying investments performed rather than when money moved in or out."
+              )}
+            </p>
+          </div>
+          <div id="xirr">
+            <h3 className="text-lg font-semibold">
+              {t("metricsExplanation.sections.otherPerformance.xirr.title", "XIRR")}
+            </h3>
+            <p className="text-sm text-gray-300">
+              {t(
+                "metricsExplanation.sections.otherPerformance.xirr.detail",
+                "XIRR is the annualised internal rate of return calculated from the portfolio's actual dated cash flows (deposits, withdrawals, and current value). Unlike time-weighted return, it is affected by the timing and size of those cash flows."
+              )}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-2xl font-semibold">
+          {t("metricsExplanation.sections.trading.title", "Trading signal terms")}
+        </h2>
+        <p>
+          {t(
+            "metricsExplanation.sections.trading.intro",
+            "Terms used on the Trading page's strategy thresholds and signal table."
+          )}
+        </p>
+        <div className="space-y-4">
+          <div id="rsi">
+            <h3 className="text-lg font-semibold">
+              {t("metricsExplanation.sections.trading.rsi.title", "RSI (Relative Strength Index)")}
+            </h3>
+            <p className="text-sm text-gray-300">
+              {t(
+                "metricsExplanation.sections.trading.rsi.detail",
+                "RSI is a momentum indicator, scored 0-100, derived from recent price changes. “RSI buy below” and “RSI sell above” are the thresholds a signal's RSI value must cross to be considered a buy or sell candidate. “RSI lookback” is the number of days of price history used to calculate it."
+              )}
+            </p>
+          </div>
+          <div id="moving-average">
+            <h3 className="text-lg font-semibold">
+              {t("metricsExplanation.sections.trading.movingAverage.title", "Moving average (short / long)")}
+            </h3>
+            <p className="text-sm text-gray-300">
+              {t(
+                "metricsExplanation.sections.trading.movingAverage.detail",
+                "A moving average is the average closing price over a fixed number of days. Signals compare a shorter-window average against a longer-window one; the two windows are configured separately as “Short moving average” and “Long moving average”."
+              )}
+            </p>
+          </div>
+          <div id="sharpe-ratio">
+            <h3 className="text-lg font-semibold">
+              {t("metricsExplanation.sections.trading.sharpe.title", "Sharpe ratio")}
+            </h3>
+            <p className="text-sm text-gray-300">
+              {t(
+                "metricsExplanation.sections.trading.sharpe.detail",
+                "The Sharpe ratio is a risk-adjusted return measure: return earned per unit of volatility (standard deviation of returns). “Minimum Sharpe ratio” is an optional filter threshold a signal's Sharpe ratio must meet, when that filter is enabled."
+              )}
+            </p>
+          </div>
+          <div id="debt-equity">
+            <h3 className="text-lg font-semibold">
+              {t("metricsExplanation.sections.trading.debtEquity.title", "Debt/equity (D/E)")}
+            </h3>
+            <p className="text-sm text-gray-300">
+              {t(
+                "metricsExplanation.sections.trading.debtEquity.detail",
+                "Debt/equity divides a company's total debt by its shareholders' equity — a measure of financial leverage. “Maximum debt/equity” is an optional filter threshold, when enabled."
+              )}
+            </p>
+          </div>
+          <div id="volatility">
+            <h3 className="text-lg font-semibold">
+              {t("metricsExplanation.sections.trading.volatility.title", "Volatility")}
+            </h3>
+            <p className="text-sm text-gray-300">
+              {t(
+                "metricsExplanation.sections.trading.volatility.detail",
+                "Volatility is the standard deviation of returns over a period — how much a price fluctuates. “Maximum volatility” is an optional filter threshold, when enabled."
+              )}
+            </p>
+          </div>
+          <div id="checks-skipped">
+            <h3 className="text-lg font-semibold">
+              {t("metricsExplanation.sections.trading.checksSkipped.title", "“Checks skipped”")}
+            </h3>
+            <p className="text-sm text-gray-300">
+              {t(
+                "metricsExplanation.sections.trading.checksSkipped.detail",
+                "This badge appears when one or more of the optional valuation or risk filters above (P/E, debt/equity, Sharpe ratio, volatility) could not be evaluated for a signal — usually because the underlying data wasn't available — so that filter was not applied when the signal was generated."
+              )}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-2xl font-semibold">
+          {t("metricsExplanation.sections.screener.title", "Screener ratios")}
+        </h2>
+        <p>
+          {t(
+            "metricsExplanation.sections.screener.intro",
+            "The Screener page filters instruments by these financial ratios."
+          )}
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div id="peg-ratio">
+            <h3 className="font-semibold">{t("metricsExplanation.sections.screener.peg.title", "PEG ratio")}</h3>
+            <p className="text-sm text-gray-300">{t("metricsExplanation.sections.screener.peg.detail", "P/E ratio divided by the expected earnings growth rate.")}</p>
+          </div>
+          <div id="pe-ratio">
+            <h3 className="font-semibold">{t("metricsExplanation.sections.screener.pe.title", "P/E ratio")}</h3>
+            <p className="text-sm text-gray-300">{t("metricsExplanation.sections.screener.pe.detail", "Share price divided by earnings per share.")}</p>
+          </div>
+          <div id="lt-debt-equity">
+            <h3 className="font-semibold">{t("metricsExplanation.sections.screener.ltDe.title", "LT D/E ratio")}</h3>
+            <p className="text-sm text-gray-300">{t("metricsExplanation.sections.screener.ltDe.detail", "Long-term debt divided by shareholders' equity.")}</p>
+          </div>
+          <div id="interest-coverage">
+            <h3 className="font-semibold">{t("metricsExplanation.sections.screener.interestCoverage.title", "Interest coverage")}</h3>
+            <p className="text-sm text-gray-300">{t("metricsExplanation.sections.screener.interestCoverage.detail", "Operating earnings (EBIT) divided by interest expense — how many times over a company could pay its interest from its earnings.")}</p>
+          </div>
+          <div id="current-ratio">
+            <h3 className="font-semibold">{t("metricsExplanation.sections.screener.currentRatio.title", "Current ratio")}</h3>
+            <p className="text-sm text-gray-300">{t("metricsExplanation.sections.screener.currentRatio.detail", "Current assets divided by current liabilities.")}</p>
+          </div>
+          <div id="quick-ratio">
+            <h3 className="font-semibold">{t("metricsExplanation.sections.screener.quickRatio.title", "Quick ratio")}</h3>
+            <p className="text-sm text-gray-300">{t("metricsExplanation.sections.screener.quickRatio.detail", "Liquid assets, excluding inventory, divided by current liabilities.")}</p>
+          </div>
+          <div id="free-cash-flow">
+            <h3 className="font-semibold">{t("metricsExplanation.sections.screener.fcf.title", "FCF (Free cash flow)")}</h3>
+            <p className="text-sm text-gray-300">{t("metricsExplanation.sections.screener.fcf.detail", "Cash generated from operations minus capital expenditure.")}</p>
+          </div>
+          <div id="eps">
+            <h3 className="font-semibold">{t("metricsExplanation.sections.screener.eps.title", "EPS (Earnings per share)")}</h3>
+            <p className="text-sm text-gray-300">{t("metricsExplanation.sections.screener.eps.detail", "Net income divided by the number of shares outstanding.")}</p>
+          </div>
+          <div id="gross-margin">
+            <h3 className="font-semibold">{t("metricsExplanation.sections.screener.grossMargin.title", "Gross margin")}</h3>
+            <p className="text-sm text-gray-300">{t("metricsExplanation.sections.screener.grossMargin.detail", "Gross profit divided by revenue.")}</p>
+          </div>
+          <div id="operating-margin">
+            <h3 className="font-semibold">{t("metricsExplanation.sections.screener.operatingMargin.title", "Operating margin")}</h3>
+            <p className="text-sm text-gray-300">{t("metricsExplanation.sections.screener.operatingMargin.detail", "Operating income divided by revenue.")}</p>
+          </div>
+          <div id="net-margin">
+            <h3 className="font-semibold">{t("metricsExplanation.sections.screener.netMargin.title", "Net margin")}</h3>
+            <p className="text-sm text-gray-300">{t("metricsExplanation.sections.screener.netMargin.detail", "Net income divided by revenue.")}</p>
+          </div>
+          <div id="ebitda-margin">
+            <h3 className="font-semibold">{t("metricsExplanation.sections.screener.ebitdaMargin.title", "EBITDA margin")}</h3>
+            <p className="text-sm text-gray-300">{t("metricsExplanation.sections.screener.ebitdaMargin.detail", "EBITDA (earnings before interest, tax, depreciation and amortisation) divided by revenue.")}</p>
+          </div>
+          <div id="roa">
+            <h3 className="font-semibold">{t("metricsExplanation.sections.screener.roa.title", "ROA (Return on assets)")}</h3>
+            <p className="text-sm text-gray-300">{t("metricsExplanation.sections.screener.roa.detail", "Net income divided by total assets.")}</p>
+          </div>
+          <div id="roe">
+            <h3 className="font-semibold">{t("metricsExplanation.sections.screener.roe.title", "ROE (Return on equity)")}</h3>
+            <p className="text-sm text-gray-300">{t("metricsExplanation.sections.screener.roe.detail", "Net income divided by shareholders' equity.")}</p>
+          </div>
+          <div id="roi">
+            <h3 className="font-semibold">{t("metricsExplanation.sections.screener.roi.title", "ROI (Return on investment)")}</h3>
+            <p className="text-sm text-gray-300">{t("metricsExplanation.sections.screener.roi.detail", "The gain from an investment divided by its cost.")}</p>
+          </div>
+          <div id="dividend-yield">
+            <h3 className="font-semibold">{t("metricsExplanation.sections.screener.dividendYield.title", "Dividend yield")}</h3>
+            <p className="text-sm text-gray-300">{t("metricsExplanation.sections.screener.dividendYield.detail", "Annual dividend per share divided by share price.")}</p>
+          </div>
+          <div id="dividend-payout-ratio">
+            <h3 className="font-semibold">{t("metricsExplanation.sections.screener.dividendPayoutRatio.title", "Dividend payout ratio")}</h3>
+            <p className="text-sm text-gray-300">{t("metricsExplanation.sections.screener.dividendPayoutRatio.detail", "Dividends paid divided by net income.")}</p>
+          </div>
+          <div id="beta">
+            <h3 className="font-semibold">{t("metricsExplanation.sections.screener.beta.title", "Beta")}</h3>
+            <p className="text-sm text-gray-300">{t("metricsExplanation.sections.screener.beta.detail", "A measure of how sensitive a stock's price is to overall market movements.")}</p>
+          </div>
+          <div id="shares-outstanding">
+            <h3 className="font-semibold">{t("metricsExplanation.sections.screener.sharesOutstanding.title", "Shares outstanding")}</h3>
+            <p className="text-sm text-gray-300">{t("metricsExplanation.sections.screener.sharesOutstanding.detail", "The total number of a company's shares currently held by all shareholders.")}</p>
+          </div>
+          <div id="float-shares">
+            <h3 className="font-semibold">{t("metricsExplanation.sections.screener.floatShares.title", "Float shares")}</h3>
+            <p className="text-sm text-gray-300">{t("metricsExplanation.sections.screener.floatShares.detail", "Shares outstanding that are freely tradable, excluding closely held or restricted shares.")}</p>
+          </div>
+          <div id="market-cap">
+            <h3 className="font-semibold">{t("metricsExplanation.sections.screener.marketCap.title", "Market cap")}</h3>
+            <p className="text-sm text-gray-300">{t("metricsExplanation.sections.screener.marketCap.detail", "Share price multiplied by shares outstanding.")}</p>
+          </div>
+          <div id="week-52-high">
+            <h3 className="font-semibold">{t("metricsExplanation.sections.screener.high52w.title", "52-week high")}</h3>
+            <p className="text-sm text-gray-300">{t("metricsExplanation.sections.screener.high52w.detail", "The highest trading price over the past 52 weeks.")}</p>
+          </div>
+          <div id="week-52-low">
+            <h3 className="font-semibold">{t("metricsExplanation.sections.screener.low52w.title", "52-week low")}</h3>
+            <p className="text-sm text-gray-300">{t("metricsExplanation.sections.screener.low52w.detail", "The lowest trading price over the past 52 weeks.")}</p>
+          </div>
+          <div id="avg-volume">
+            <h3 className="font-semibold">{t("metricsExplanation.sections.screener.avgVolume.title", "Average volume")}</h3>
+            <p className="text-sm text-gray-300">{t("metricsExplanation.sections.screener.avgVolume.detail", "The average number of shares traded per day over a recent period.")}</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-2xl font-semibold">
+          {t("metricsExplanation.sections.movers.title", "Movers signal")}
+        </h2>
+        <div id="buy-sell-signal">
+          <div>
+            <h3 className="text-lg font-semibold">
+              {t("metricsExplanation.sections.movers.signal.title", "Buy / Sell signal")}
+            </h3>
+            <p className="text-sm text-gray-300">
+              {t(
+                "metricsExplanation.sections.movers.signal.detail",
+                "Shows whether the latest signal generated for that instrument, using the same strategy thresholds as the Trading page, was a buy or sell candidate."
+              )}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-2xl font-semibold">
+          {t("metricsExplanation.sections.plot.title", "Plot garden terms")}
+        </h2>
+        <p>
+          {t(
+            "metricsExplanation.sections.plot.intro",
+            "Plot is a garden-themed view of the same real portfolio data. Every term below maps back to a real figure."
+          )}
+        </p>
+        <div className="space-y-4">
+          <div id="beds">
+            <h3 className="text-lg font-semibold">
+              {t("metricsExplanation.sections.plot.beds.title", "Beds")}
+            </h3>
+            <p className="text-sm text-gray-300">
+              {t(
+                "metricsExplanation.sections.plot.beds.detail",
+                "Each investment account is shown as a bed. Every holding within that account is a crop planted in it."
+              )}
+            </p>
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold">
+              {t("metricsExplanation.sections.plot.growthStages.title", "Growth stages (Wilting → Sown → Sprouting → Leafing → Budding → Flowering → Fruiting → Bumper crop)")}
+            </h3>
+            <p className="text-sm text-gray-300">
+              {t(
+                "metricsExplanation.sections.plot.growthStages.detail",
+                "A crop's growth stage is set by that holding's total gain, as a percentage of what was paid for it — it does not depend on how long it has been held."
+              )}
+            </p>
+            <ul className="mt-2 grid list-none gap-x-6 gap-y-1 text-sm text-gray-300 sm:grid-cols-2">
+              <li id="wilting">{t("metricsExplanation.sections.plot.growthStages.wilting", "Wilting: total gain of -20% or below")}</li>
+              <li id="sown">{t("metricsExplanation.sections.plot.growthStages.sown", "Sown: total gain between -20% (exclusive) and 0%")}</li>
+              <li id="sprouting">{t("metricsExplanation.sections.plot.growthStages.sprouting", "Sprouting: total gain between 0% (exclusive) and 5%")}</li>
+              <li id="leafing">{t("metricsExplanation.sections.plot.growthStages.leafing", "Leafing: total gain between 5% (exclusive) and 15%")}</li>
+              <li id="budding">{t("metricsExplanation.sections.plot.growthStages.budding", "Budding: total gain between 15% (exclusive) and 30%")}</li>
+              <li id="flowering">{t("metricsExplanation.sections.plot.growthStages.flowering", "Flowering: total gain between 30% (exclusive) and 60%")}</li>
+              <li id="fruiting">{t("metricsExplanation.sections.plot.growthStages.fruiting", "Fruiting: total gain between 60% (exclusive) and 120%")}</li>
+              <li id="bumper-crop">{t("metricsExplanation.sections.plot.growthStages.bumper", "Bumper crop: total gain above 120%")}</li>
+            </ul>
+          </div>
+          <div id="propagator">
+            <h3 className="text-lg font-semibold">
+              {t("metricsExplanation.sections.plot.propagator.title", "Propagator")}
+            </h3>
+            <p className="text-sm text-gray-300">
+              {t(
+                "metricsExplanation.sections.plot.propagator.detail",
+                "Lists crops still inside their minimum holding period — the configured number of days a holding must be held before it becomes eligible to sell — counting down to the date each one clears it. This is a holding-period measure, separate from the gain-based growth stage above."
+              )}
+            </p>
+          </div>
+          <div id="water">
+            <h3 className="text-lg font-semibold">
+              {t("metricsExplanation.sections.plot.water.title", "Water")}
+            </h3>
+            <p className="text-sm text-gray-300">
+              {t("metricsExplanation.sections.plot.water.detail", "The number of trades left this month against the account's configured monthly trade limit.")}
+            </p>
+          </div>
+          <div id="feed">
+            <h3 className="text-lg font-semibold">
+              {t("metricsExplanation.sections.plot.feed.title", "Feed")}
+            </h3>
+            <p className="text-sm text-gray-300">
+              {t("metricsExplanation.sections.plot.feed.detail", "The remaining tax-allowance headroom for the current period.")}
+            </p>
+          </div>
+          <div id="sunlight">
+            <h3 className="text-lg font-semibold">
+              {t("metricsExplanation.sections.plot.sunlight.title", "Sunlight")}
+            </h3>
+            <p className="text-sm text-gray-300">
+              {t("metricsExplanation.sections.plot.sunlight.detail", "The share of crops priced from fresh (not stale) market data today.")}
+            </p>
+          </div>
+        </div>
       </section>
 
       <section className="space-y-2">

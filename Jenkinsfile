@@ -85,12 +85,12 @@ pipeline {
                             set -euo pipefail
                             apt-get update && apt-get install -y git
                             pip install --no-cache-dir --retries 10 -r requirements.txt -r requirements-dev.txt
-                            FILES=$(git ls-files backend tests | grep '\.py$' || true)
+                            FILES=$(git ls-files backend tests | grep '\\.py$' || true)
                             if [ -z "$FILES" ]; then
                                 echo "No backend/tests Python files to lint."
                             else
-                                echo "$FILES" | xargs -d '\n' ruff check --config backend/pyproject.toml
-                                echo "$FILES" | xargs -d '\n' black --check --config backend/pyproject.toml
+                                echo "$FILES" | xargs -d '\\n' ruff check --config backend/pyproject.toml
+                                echo "$FILES" | xargs -d '\\n' black --check --config backend/pyproject.toml
                             fi
                         '''
                     }
@@ -204,8 +204,8 @@ from pathlib import Path
 lines = Path("backend/requirements.txt").read_text(encoding="utf-8").splitlines()
 pkgs = [
     re.sub(r"[-_.]+", "-",
-           re.sub(r"\[.*?\]", "",
-                  re.split(r"[~>=<!;\s#]", line)[0].strip())).lower()
+           re.sub(r"\\[.*?\\]", "",
+                  re.split(r"[~>=<!;\\s#]", line)[0].strip())).lower()
     for line in lines
     if line.strip() and not line.strip().startswith(("#", "-"))
 ]
@@ -359,8 +359,7 @@ PY
                                         JWT_SECRET=ci-cdk-validation-secret GOOGLE_CLIENT_ID=ci-cdk-validation-client-id.apps.googleusercontent.com ../node_modules/.bin/cdk synth
                                         JWT_SECRET=dry-run-placeholder GOOGLE_CLIENT_ID=dry-run-placeholder.apps.googleusercontent.com GITHUB_DEPLOY_ROLE_ARN=arn:aws:iam::123456789012:role/dry-run-placeholder npx cdk synth BackendLambdaStack StaticSiteStack -c prod=true --output /tmp/cdk.out
                                         cd ..
-                                        grep -v '^\s*#' .github/workflows/deploy-lambda.yml \
-                                          | grep -E 'cdk diff.*--method=template([[:space:]]|$)' || {
+                                        grep -v '^[[:space:]]*#' .github/workflows/deploy-lambda.yml | grep -E 'cdk diff.*--method=template([[:space:]]|$)' >/dev/null || {
                                             echo "deploy-lambda.yml does not contain an active 'cdk diff --method=template' invocation." >&2
                                             exit 1
                                         }

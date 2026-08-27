@@ -693,11 +693,19 @@ stubs all AWS interactions).
 
 1. Create a Jenkins pipeline job pointing at this repository with the script
    path `Jenkinsfile`.
-2. Set the `GITHUB_TOKEN` credential (GitHub credentials for checkout) and
-   ensure the Jenkins server has Docker (pipeline uses `docker.image(...).inside`)
-   and network access to npm/pip registries.
-3. Set the `BRANCH` parameter (default `*/main`) to the ref you want to build.
-4. Optionally enable `RUN_FRONTEND_SMOKE` for the Playwright smoke stage.
+2. Install the required Jenkins plugins (Manage Jenkins → Plugins):
+   - **Docker Pipeline** (provides `docker.image(...).inside`; the pipeline
+     fails at the first stage with `No such property: docker` without it)
+   - **HTML Publisher** (publishes the backend coverage report)
+   - **JUnit** (publishes pytest results)
+3. Add a **`GITHUB_TOKEN` credential** (GitHub credentials for checkout; the
+   repo is public so checkout works without it, but the pipeline references
+   it via `credentialsId` and logs a warning when missing).
+4. Ensure the Jenkins agent has **Docker** available (the pipeline runs every
+   stage inside containers via `docker.image(...).inside`) and network access
+   to npm/pip registries.
+5. Set the `BRANCH` parameter (default `*/main`) to the ref you want to build.
+6. Optionally enable `RUN_FRONTEND_SMOKE` for the Playwright smoke stage.
 
 Expected run time is long (full backend pytest suite runs in both
 `Backend Integration Tests` and `Lambda Compat`, mirroring CI), so set an

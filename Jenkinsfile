@@ -487,14 +487,25 @@ PY
         }
     }
 
-    post {
-        success {
-            echo '✅ Pipeline completed successfully'
-            notifyPullRequest('success', '✅ Build succeeded')
-        }
-        failure {
-            echo '❌ Pipeline failed. Check logs for details.'
-            notifyPullRequest('failure', '❌ Build failed')
-        }
+post {
+    success {
+        echo '✅ Pipeline completed successfully'
+        notifyPullRequest('success', '✅ Build succeeded')
+        emailext(
+            to: 'steveleonard11@gmail.com',
+            subject: "PASS: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+            body: "Batch job ${env.JOB_NAME} #${env.BUILD_NUMBER} PASSED.\n\nBuild: ${env.BUILD_URL}"
+        )
     }
+    failure {
+        echo '❌ Pipeline failed. Check logs for details.'
+        notifyPullRequest('failure', '❌ Build failed')
+        emailext(
+            to: 'steveleonard11@gmail.com',
+            subject: "FAIL: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+            body: "Batch job ${env.JOB_NAME} #${env.BUILD_NUMBER} FAILED.\n\nBuild: ${env.BUILD_URL}",
+            attachLog: true
+        )
+    }
+}
 }

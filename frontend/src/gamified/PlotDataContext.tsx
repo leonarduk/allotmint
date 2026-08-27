@@ -53,7 +53,14 @@ export interface PlotDataValue {
   snapshot: PlotSnapshot;
   chores: Chore[];
   choresAvailable: boolean;
-  completeChore: (id: string) => void;
+  /**
+   * Returns the promise for this specific completion attempt (#7188), so a
+   * caller (ChoresScreen) can track a per-chore pending state and surface a
+   * rejection as an inline error, while the chain internally always
+   * continues to the next queued completion regardless of this one's
+   * outcome.
+   */
+  completeChore: (id: string) => Promise<void>;
   refresh: () => void;
   /** Raw allowance rows, for the season ladder's "feed the beds" goals. */
   allowances: AllowanceMap | null;
@@ -84,7 +91,7 @@ const plotDataContext = createContext<PlotDataValue>({
   snapshot: EMPTY_SNAPSHOT,
   chores: [],
   choresAvailable: false,
-  completeChore: () => {},
+  completeChore: () => Promise.resolve(),
   refresh: () => {},
   allowances: null,
   allowancesUnavailable: false,
@@ -333,25 +340,30 @@ export function PlotDataProvider({
   const completionChain = useRef<Promise<unknown>>(Promise.resolve());
 
   const completeChore = useCallback(
-    (id: string) => {
+    (id: string): Promise<void> => {
       const chore = progress.chores.find((item) => item.id === id);
-      if (!chore || chore.completed) return;
-      completionChain.current = completionChain.current
-        .then((): Promise<unknown> =>
-          chore.source === 'trail' ? completeTrailTask(id) : completeQuest(id)
-        )
-        .then((payload) => {
-          setProgress(
-            chore.source === 'trail'
-              ? progressFromTrail(payload as TrailResponse)
-              : progressFromQuests(payload as QuestResponse)
-          );
-        })
-        .catch(() => {
-          // Completion is best-effort; the row stays actionable so the user
-          // can retry rather than seeing a false "done" state. Swallowing here
-          // also keeps one failure from breaking the chain for later clicks.
-        });
+      if (!chore || chore.completed) return Promise.resolve();
+      // This attempt's promise is handed back to the caller (below) so it can
+      // reject and drive a per-row pending/error state (#7188). The chain
+      // itself must never reject, though — it always resolves via the
+      // trailing `.catch(() => {})` so a failure here doesn't wedge whatever
+      // completion is clicked next; not optimistically updating `progress`
+      // on failure is what keeps the row from showing a false "done" state.
+      const attempt = completionChain.current.then(
+        (): Promise<void> =>
+          (chore.source === 'trail'
+            ? completeTrailTask(id)
+            : completeQuest(id)
+          ).then((payload) => {
+            setProgress(
+              chore.source === 'trail'
+                ? progressFromTrail(payload as TrailResponse)
+                : progressFromQuests(payload as QuestResponse)
+            );
+          })
+      );
+      completionChain.current = attempt.catch(() => {});
+      return attempt;
     },
     [progress.chores]
   );

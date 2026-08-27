@@ -1,3 +1,4 @@
+import { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styles from '../plot.module.css';
 import { usePlotData, type Chore } from '../PlotDataContext';
@@ -41,11 +42,17 @@ const CHORE_LINKS: Record<
 function ChoreRow({
   chore,
   owner,
+  pending,
+  error,
   onComplete,
   onNavigate,
 }: {
   chore: Chore;
   owner: string;
+  /** True while this chore's completion POST is in flight (#7188). */
+  pending: boolean;
+  /** Message from the most recent failed completion attempt, if any (#7188). */
+  error: string | null;
   onComplete: (id: string) => void;
   onNavigate: (path: string) => void;
 }) {
@@ -59,6 +66,16 @@ function ChoreRow({
     }
     onComplete(chore.id);
   };
+
+  const buttonLabel = chore.completed
+    ? 'Done'
+    : pending
+      ? 'Completing…'
+      : link
+        ? 'Go'
+        : error
+          ? 'Try again'
+          : 'Do it';
 
   return (
     <li
@@ -81,12 +98,24 @@ function ChoreRow({
       )}
       <button
         type="button"
-        className={styles.goButton}
-        disabled={chore.completed}
+        className={
+          pending ? `${styles.goButton} ${styles.goButtonPending}` : styles.goButton
+        }
+        disabled={chore.completed || pending}
+        aria-busy={pending}
         onClick={handleClick}
       >
-        {chore.completed ? 'Done' : link ? 'Go' : 'Do it'}
+        {buttonLabel}
       </button>
+      {/* #7188: a failed completion used to be silently swallowed, so a
+          failed click and a slow click both read as a dead button. Surface
+          it inline (same colour language as .errorBanner) with the row
+          still actionable — the button above doubles as the retry. */}
+      {error && !chore.completed && (
+        <p className={styles.choreError} role="alert">
+          {error}
+        </p>
+      )}
     </li>
   );
 }
@@ -99,6 +128,41 @@ export default function ChoresScreen() {
   const { chores, choresAvailable, completeChore, snapshot, owner } =
     usePlotData();
   const navigate = useNavigate();
+
+  // Per-chore pending/error UI state for #7188. Keyed by chore id rather
+  // than living in PlotDataContext because this is purely presentational —
+  // PlotDataContext's `completeChore` already tracks the single in-flight
+  // completion chain for correctness; this just reflects that back per row.
+  const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const handleComplete = useCallback(
+    (id: string) => {
+      setErrors((prev) => {
+        if (!(id in prev)) return prev;
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      setPendingIds((prev) => new Set(prev).add(id));
+      completeChore(id)
+        .catch(() => {
+          setErrors((prev) => ({
+            ...prev,
+            [id]: 'Could not complete this chore. Try again.',
+          }));
+        })
+        .finally(() => {
+          setPendingIds((prev) => {
+            if (!prev.has(id)) return prev;
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+          });
+        });
+    },
+    [completeChore]
+  );
 
   const daily = chores.filter((chore) => chore.kind === 'daily');
   const once = chores.filter((chore) => chore.kind === 'once');
@@ -173,7 +237,9 @@ export default function ChoresScreen() {
                 key={chore.id}
                 chore={chore}
                 owner={owner}
-                onComplete={completeChore}
+                pending={pendingIds.has(chore.id)}
+                error={errors[chore.id] ?? null}
+                onComplete={handleComplete}
                 onNavigate={navigate}
               />
             ))}
@@ -190,7 +256,9 @@ export default function ChoresScreen() {
                 key={chore.id}
                 chore={chore}
                 owner={owner}
-                onComplete={completeChore}
+                pending={pendingIds.has(chore.id)}
+                error={errors[chore.id] ?? null}
+                onComplete={handleComplete}
                 onNavigate={navigate}
               />
             ))}

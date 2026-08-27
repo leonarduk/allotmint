@@ -13,12 +13,14 @@ import {
   completeQuest,
   completeTrailTask,
   getAllowances,
+  getGroups,
   getOwners,
   getPortfolio,
   getQuests,
   getTrailTasks,
 } from '../api';
 import type {
+  GroupSummary,
   OwnerSummary,
   Portfolio,
   QuestResponse,
@@ -49,6 +51,15 @@ export interface PlotDataValue {
   error: string | null;
   owner: string;
   owners: OwnerSummary[];
+  /**
+   * `owners` filtered to whoever actually belongs to a configured group
+   * (the real household), for the grower *picker* to render. `owners`
+   * itself stays the full, unfiltered `/owners` response so default-owner
+   * selection and portfolio loading are unaffected — only the picker's
+   * option list should hide accounts (e.g. the demo seed) that sit outside
+   * every group (#7189).
+   */
+  pickerOwners: OwnerSummary[];
   setOwner: (owner: string) => void;
   snapshot: PlotSnapshot;
   chores: Chore[];
@@ -80,6 +91,7 @@ const plotDataContext = createContext<PlotDataValue>({
   error: null,
   owner: '',
   owners: [],
+  pickerOwners: [],
   setOwner: () => {},
   snapshot: EMPTY_SNAPSHOT,
   chores: [],
@@ -242,6 +254,56 @@ export function PlotDataProvider({
     };
   }, [reloadToken]);
 
+  // `/groups` defines the real household membership (e.g. "adults",
+  // "children"); it is what keeps accounts with no household membership —
+  // notably the demo/seed account — out of the grower picker below. This is
+  // deliberately a separate, non-fatal effect from owner discovery above: a
+  // failed or empty `/groups` response must not touch `ownersStatus` or the
+  // "no growers found" error path, it should just leave `groups` empty and
+  // let `pickerOwners` fall back to showing every owner (#7189).
+  const [groups, setGroups] = useState<GroupSummary[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    getGroups()
+      .then((list) => {
+        if (!cancelled) setGroups(list);
+      })
+      .catch(() => {
+        // Swallowed deliberately: `groups` just stays empty, which the
+        // `pickerOwners` fallback below treats the same as "no grouping
+        // configured" and shows every owner instead of an empty picker.
+        if (!cancelled) setGroups([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadToken]);
+
+  // The set of owner slugs that belong to at least one group. Membership,
+  // not an exclusion list, is the rule — this is why the demo account (which
+  // simply isn't in any group) drops out without `"demo"` ever being named
+  // in this file (#7189).
+  const groupedOwnerSlugs = useMemo(() => {
+    const slugs = new Set<string>();
+    for (const group of groups) {
+      for (const member of group.members) slugs.add(member);
+    }
+    return slugs;
+  }, [groups]);
+
+  // The picker's option list: real owners only, with a fall back to the full
+  // `owners` list whenever grouping data can't narrow it down (no groups
+  // loaded yet, `/groups` failed, or none of the current owners matched any
+  // group). `owners` itself is left untouched for the data layer — deep
+  // links like `?owner=demo` bypass this list entirely and keep working via
+  // the `requestedOwner` effect above (#7189).
+  const pickerOwners = useMemo(() => {
+    if (groupedOwnerSlugs.size === 0) return owners;
+    const filtered = owners.filter((entry) => groupedOwnerSlugs.has(entry.owner));
+    return filtered.length > 0 ? filtered : owners;
+  }, [owners, groupedOwnerSlugs]);
+
   // Everything below is scoped to one grower. Dropping it whenever the
   // grower changes (and whenever a load fails) stops the HUD from showing the
   // previous grower's money under the new grower's name.
@@ -376,6 +438,7 @@ export function PlotDataProvider({
       error,
       owner,
       owners,
+      pickerOwners,
       setOwner,
       snapshot,
       chores: progress.chores,
@@ -393,6 +456,7 @@ export function PlotDataProvider({
       error,
       owner,
       owners,
+      pickerOwners,
       snapshot,
       progress.chores,
       progress.source,

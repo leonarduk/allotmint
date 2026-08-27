@@ -1,4 +1,5 @@
-import { Route, Routes, useLocation } from 'react-router-dom';
+import type { ChangeEvent } from 'react';
+import { Link, Route, Routes, useLocation, useSearchParams } from 'react-router-dom';
 import styles from './plot.module.css';
 import HudBar from './components/HudBar';
 import PlotRail, { type RailItem } from './components/PlotRail';
@@ -26,8 +27,24 @@ const RAIL_ITEMS: readonly RailItem[] = [
 ];
 
 function OwnerPicker() {
-  const { owners, owner, setOwner } = usePlotData();
-  if (owners.length < 2) return null;
+  const { pickerOwners, owner } = usePlotData();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Writing `?owner=` here (rather than calling the context's `setOwner`
+  // directly) makes the URL the single source of truth: PlotApp already
+  // derives `requestedOwner` from `location.search` and feeds it into
+  // PlotDataProvider, whose `requestedOwner` effect applies it to state. That
+  // existing round trip is what makes a grower change survive a refresh or a
+  // bookmark instead of only living in local component state (#7192).
+  // `replace` (not the default push) so cycling through growers doesn't spam
+  // the back button with one history entry per selection.
+  const handleChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('owner', event.target.value);
+    setSearchParams(next, { replace: true });
+  };
+
+  if (pickerOwners.length < 2) return null;
   return (
     <div className={styles.railFooter}>
       <label className={styles.railSubtitle} htmlFor="plot-owner">
@@ -37,15 +54,35 @@ function OwnerPicker() {
         id="plot-owner"
         className={styles.chipButton}
         value={owner}
-        onChange={(event) => setOwner(event.target.value)}
+        onChange={handleChange}
       >
-        {owners.map((entry) => (
+        {pickerOwners.map((entry) => (
           <option key={entry.owner} value={entry.owner}>
             {entry.full_name || entry.owner}
           </option>
         ))}
       </select>
     </div>
+  );
+}
+
+/**
+ * Shown for any `/plot/*` path that doesn't match a real screen. Previously
+ * the catch-all route rendered the hub instead, so a mistyped or stale
+ * bookmark silently "worked" with no indication the URL was wrong (#7192).
+ * Mirrors CropDetail's "Crop not found" panel so both not-found states in
+ * this skin look and behave the same way.
+ */
+function PlotNotFound({ basePath }: { basePath: string }) {
+  return (
+    <section className={`${styles.panel} ${styles.panelGlow}`}>
+      <h2 className={styles.panelTitle}>Nothing growing here</h2>
+      <p className={styles.sectionNote}>
+        There's no plot screen at this path.{' '}
+        <Link to={basePath}>Back to the plot</Link> or{' '}
+        <Link to={`${basePath}/crops`}>the roster</Link>.
+      </p>
+    </section>
   );
 }
 
@@ -82,9 +119,17 @@ function PlotShell() {
 
         <main>
           {loading ? (
-            <p className={styles.loading} role="status">
+            // A plot-branded skeleton (same panel chrome every other screen
+            // uses), not bare text — the HUD and rail above already render
+            // with real data as soon as it's available, so only this panel
+            // needs a placeholder while the grower's data is still in
+            // flight (#7213).
+            <section
+              className={`${styles.panel} ${styles.panelGlow} ${styles.loading}`}
+              role="status"
+            >
               Walking down to the allotment…
-            </p>
+            </section>
           ) : (
             <Routes>
               <Route index element={<PlotHub basePath={PLOT_BASE_PATH} />} />
@@ -102,7 +147,10 @@ function PlotShell() {
                 path="seeds"
                 element={<SeedCatalogue basePath={PLOT_BASE_PATH} />}
               />
-              <Route path="*" element={<PlotHub basePath={PLOT_BASE_PATH} />} />
+              <Route
+                path="*"
+                element={<PlotNotFound basePath={PLOT_BASE_PATH} />}
+              />
             </Routes>
           )}
         </main>

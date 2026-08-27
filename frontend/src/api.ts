@@ -1523,9 +1523,40 @@ export const deleteVirtualPortfolio = (id: number | string) =>
     method: "DELETE",
   });
 
+// Shared in-flight `/config` fetch, the same "cache the promise" pattern
+// `getCachedGroupInstruments` uses above (see groupInstrumentCache). Every
+// plain `getConfig()` call — ConfigContext's bootstrap effect, Support.tsx's
+// re-reads — collapses onto whichever fetch is already in flight instead of
+// starting its own. This is what most of the "/config fetched 4x per load"
+// in #7213 turned out to be: React StrictMode double-invokes each mounting
+// component's effects in dev, so ConfigContext's own single effect alone
+// produced two of those four requests before this cache existed.
+//
+// A caller that passes its own `init` (main.tsx's Root, which needs to
+// abort and retry the fetch on its own timeout — see MAX_CONFIG_FETCH_ATTEMPTS,
+// #5073) is deliberately routed around the cache: folding a caller-owned
+// AbortSignal into a fetch other callers are also awaiting would let one
+// caller's abort/timeout reject everyone else's request too.
+let inFlightConfigFetch: Promise<unknown> | null = null;
+
 /** Retrieve backend configuration. */
-export const getConfig = async <T = Record<string, unknown>>(init?: RequestInit) =>
-  configContractSchema.parse(await fetchJson<T>(`${API_BASE}/config`, init));
+export const getConfig = async <T = Record<string, unknown>>(
+  init?: RequestInit,
+): Promise<T> => {
+  if (init) {
+    return configContractSchema.parse(
+      await fetchJson<T>(`${API_BASE}/config`, init),
+    ) as T;
+  }
+  if (!inFlightConfigFetch) {
+    inFlightConfigFetch = fetchJson<T>(`${API_BASE}/config`)
+      .then((raw) => configContractSchema.parse(raw))
+      .finally(() => {
+        inFlightConfigFetch = null;
+      });
+  }
+  return inFlightConfigFetch as Promise<T>;
+};
 
 /** Persist configuration changes. */
 export const updateConfig = (cfg: Record<string, unknown>) =>

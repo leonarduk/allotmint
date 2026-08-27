@@ -711,6 +711,30 @@ Expected run time is long (full backend pytest suite runs in both
 `Backend Integration Tests` and `Lambda Compat`, mirroring CI), so set an
 adequate job timeout; the pipeline itself allows 180 minutes.
 
+### One job per check (STAGE parameter)
+
+The Jenkinsfile has a `STAGE` parameter so you can either run the full
+pipeline (`STAGE=all`, the default) or create **separate jobs, one per check**
+(like GitHub Actions' separate jobs — each with its own build history and
+dashboard entry). Valid values: `repo-hygiene`, `backend-lint`,
+`backend-integration`, `lambda-compat`, `validate-deps`, `py311-compat`,
+`frontend-checks`, `cdk-tests`, `cdk-validation`, `shell-tests`,
+`frontend-smoke`.
+
+To create a per-check job:
+
+1. New Item → **Pipeline**, e.g. `allotmint-backend-lint`.
+2. **Pipeline → Definition: Pipeline script from SCM** → Git →
+   `https://github.com/leonarduk/allotmint.git`, credentials `GITHUB_TOKEN`,
+   branch `*/main` (or the branch you want), Script Path `Jenkinsfile`.
+3. Tick **This project is parameterized** and add a **Choice Parameter**
+   `STAGE` with the single value for that job (e.g. `backend-lint`). Only the
+   matching stage runs; all other stages are skipped.
+4. Save and build. Repeat for each check you want as its own job.
+
+The full-pipeline job (`STAGE=all` or the default) still works unchanged;
+PR builds in a Multibranch Pipeline use whatever `STAGE` you set there.
+
 ### Pull-request builds (Multibranch Pipeline)
 
 To build pull requests and post results back on the PR, create a **Multibranch

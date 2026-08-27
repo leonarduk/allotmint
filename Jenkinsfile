@@ -21,6 +21,13 @@
 // shellcheck (continue-on-error in ci.yml anyway), Codecov uploads, and the
 // optional AWS/S3 data sync (already optional in the workflows).
 
+// True when the requested STAGE matches this stage (or 'all' is requested).
+// Lets one Jenkinsfile drive both the full pipeline (STAGE=all, the default)
+// and single-check jobs (STAGE=backend-lint, STAGE=frontend-checks, ...).
+def runStage(String name) {
+    return params.STAGE == 'all' || params.STAGE == name
+}
+
 // Posts a comment to the pull request this build belongs to. Only active for
 // Multibranch Pipeline PR builds (env.CHANGE_ID is set). Best-effort: never
 // fails the build. Requires a 'GITHUB_TOKEN' credential with repo scope; the
@@ -54,6 +61,12 @@ pipeline {
     parameters {
         string(name: 'BRANCH', defaultValue: '*/main',
                description: 'Branch/ref to build, e.g. */main or */feature/foo')
+        choice(name: 'STAGE',
+               choices: ['all', 'repo-hygiene', 'backend-lint', 'backend-integration',
+                         'lambda-compat', 'validate-deps', 'py311-compat',
+                         'frontend-checks', 'cdk-tests', 'cdk-validation',
+                         'shell-tests', 'frontend-smoke'],
+               description: "Which check to run. 'all' runs the full pipeline (GitHub Actions mirror). Single-check jobs pin one value, e.g. STAGE=backend-integration.")
         booleanParam(name: 'RUN_FRONTEND_SMOKE', defaultValue: false,
                      description: 'Run Playwright frontend smoke tests (mirrors ci.yml frontend-smoke). Requires network to download browsers.')
     }
@@ -91,6 +104,7 @@ pipeline {
         // check_architecture_diagrams.py shells out to `git ls-files`, which
         // needs the .git directory that the stash excludes.
         stage('Repo Hygiene') {
+            when { expression { runStage('repo-hygiene') } }
             steps {
                 script {
                     docker.image('python:3.12').inside('-u root -v /var/jenkins_home/.cache/pip:/root/.cache/pip') {
@@ -114,6 +128,7 @@ pipeline {
         // the whole tree via git ls-files. Runs at the workspace root for the
         // same .git reason as Repo Hygiene.
         stage('Backend Lint') {
+            when { expression { runStage('backend-lint') } }
             steps {
                 script {
                     docker.image('python:3.12').inside('-u root -v /var/jenkins_home/.cache/pip:/root/.cache/pip') {
@@ -139,6 +154,7 @@ pipeline {
                 // backend-integration.yml integration-tests job. AWS/S3 sync and
                 // Codecov upload are optional in CI and skipped here.
                 stage('Backend Integration Tests') {
+                    when { expression { runStage('backend-integration') } }
                     steps {
                         dir('workspace-integration') {
                             unstash 'source'
@@ -190,6 +206,7 @@ pipeline {
                 // ci.yml `lambda-compat` job: full pytest suite against the
                 // Lambda-pinned backend/requirements.txt in an isolated venv.
                 stage('Lambda Compat') {
+                    when { expression { runStage('lambda-compat') } }
                     steps {
                         dir('workspace-lambda') {
                             unstash 'source'
@@ -224,6 +241,7 @@ pipeline {
                 // ci.yml `validate-backend-deps` job: clean-venv resolution and
                 // startup import so runner pre-installs cannot mask problems.
                 stage('Validate Backend Deps') {
+                    when { expression { runStage('validate-deps') } }
                     steps {
                         dir('workspace-deps') {
                             unstash 'source'
@@ -272,6 +290,7 @@ PY
 
                 // ci.yml `python-compatibility` job: lightweight 3.11 smoke.
                 stage('Python 3.11 Compat') {
+                    when { expression { runStage('py311-compat') } }
                     steps {
                         dir('workspace-py311') {
                             unstash 'source'
@@ -301,6 +320,7 @@ PY
         // The production build itself runs inside the CDK Validation & Dry-Run
         // stage (needed for synth), matching iac-validation.yml / cdk-dry-run.yml.
         stage('Frontend Checks') {
+            when { expression { runStage('frontend-checks') } }
             steps {
                 dir('workspace-frontend') {
                     unstash 'source'
@@ -344,6 +364,7 @@ PY
             parallel {
                 // ci.yml `cdk-tests` job: cdk/tests against the root requirements set.
                 stage('CDK Tests') {
+                    when { expression { runStage('cdk-tests') } }
                     steps {
                         dir('workspace-cdk-tests') {
                             unstash 'source'
@@ -373,6 +394,7 @@ PY
                 // the cdk CLI spawns python. node:24 (bookworm) ships Python
                 // 3.11, matching the repo's .python-version.
                 stage('CDK Validation & Dry-Run') {
+                    when { expression { runStage('cdk-validation') } }
                     steps {
                         dir('workspace-cdk') {
                             unstash 'source'
@@ -411,6 +433,7 @@ PY
         // ci.yml `shell-tests` job: bats tests for deploy shell scripts.
         // All AWS CLI calls in these tests are mocked, so no network needed.
         stage('Shell Tests') {
+            when { expression { runStage('shell-tests') } }
             steps {
                 dir('workspace-shell') {
                     unstash 'source'
@@ -432,7 +455,10 @@ PY
         // ci.yml `frontend-smoke` job (optional; needs network for browser download).
         stage('Frontend Smoke') {
             when {
-                expression { params.RUN_FRONTEND_SMOKE }
+                allOf {
+                    expression { runStage('frontend-smoke') }
+                    expression { params.RUN_FRONTEND_SMOKE }
+                }
             }
             steps {
                 dir('workspace-smoke') {

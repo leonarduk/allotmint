@@ -27,16 +27,16 @@ function stampLabel(day: DayStamp): string {
 /**
  * The crate goal caption and open/closed state. Untracked days (no Trail
  * record) must never count against the grower — a user on their first
- * tracked day should read "1 day down", not "6 to go and you've already
- * lost" (#7204). Only once the whole window has real records does a miss
- * mean anything.
+ * tracked day should read "1 of 7 days down", not "6 to go and you've
+ * already lost" (#7204). Only once the whole window has real records does a
+ * miss mean anything.
  */
 function crateState(days: readonly DayStamp[]): {
   open: boolean;
   label: string;
 } {
   const tracked = days.filter((day) => day.total > 0);
-  const doneCount = tracked.filter((day) => day.stamped).length;
+  const fullyDone = tracked.filter((day) => day.stamped).length;
 
   if (tracked.length === 0) {
     return { open: false, label: 'No chores tracked yet this week' };
@@ -44,14 +44,18 @@ function crateState(days: readonly DayStamp[]): {
 
   if (tracked.length < days.length) {
     // Still early in the tracked history: the untracked days before it
-    // started are not misses, so don't frame this as "N to go".
+    // started are not misses. Count a day mid-progress (some chores done,
+    // not all) toward "down" too — a user two chores into today has not
+    // failed today, so it must not silently collapse into the same "0" a
+    // day with zero activity would show.
+    const engaged = tracked.filter((day) => day.stamped || day.partial).length;
     return {
       open: false,
-      label: `${doneCount} day${doneCount === 1 ? '' : 's'} down — keep going to fill the crate`,
+      label: `${engaged} of ${days.length} day${days.length === 1 ? '' : 's'} down — keep going to fill the crate`,
     };
   }
 
-  return doneCount === tracked.length
+  return fullyDone === tracked.length
     ? { open: true, label: 'Full week of chores done' }
     : { open: false, label: 'Finish every day this week to fill the crate' };
 }

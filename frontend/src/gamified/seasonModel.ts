@@ -115,6 +115,14 @@ interface GoalGroup {
   current: number;
   title: (target: number) => string;
   format: (value: number) => string;
+  /**
+   * Bare, unit-less variant of `format` for the compact tier-chip row
+   * (`✓ 5  ✓ 10  25  50`). Defaults to `format` — money and level labels are
+   * already compact there. Groups whose `format` spells out a unit word
+   * ("crop(s)", "day(s)") override this so the unit shows once, on the goal
+   * line, rather than once per chip (#7194).
+   */
+  chipFormat?: (value: number) => string;
   unavailable?: boolean;
 }
 
@@ -155,6 +163,7 @@ function buildGoalGroups(
       current: snapshot.crops.length,
       title: (target) => `Tend ${target} crops at once`,
       format: (value) => pluralize(value, 'crop'),
+      chipFormat: (value) => String(Math.round(value)),
     },
     {
       id: 'grow',
@@ -186,6 +195,7 @@ function buildGoalGroups(
       current: snapshot.streak,
       title: (target) => `Hold a ${target}-day chore streak`,
       format: (value) => pluralize(value, 'day'),
+      chipFormat: (value) => String(Math.round(value)),
     },
     {
       id: 'rank',
@@ -233,7 +243,11 @@ export function buildSeasonGoals(
 
 export interface SeasonTierBadge {
   target: number;
-  /** The tier's target formatted for its unit, e.g. "£10.0k" or "25 days". */
+  /**
+   * The tier's target formatted for the compact chip row, e.g. "£10.0k" or
+   * "25" — bare for groups whose full format spells out a unit word, so six
+   * repeats of "crops"/"days" don't wrap the row (#7194).
+   */
   displayTarget: string;
   complete: boolean;
 }
@@ -253,7 +267,12 @@ export interface SeasonGroupProgress {
    * `title` is the human description of that tier, e.g. "Tend 25 crops at
    * once" — the thing the screen should actually say the goal is (#7194).
    */
-  next: { target: number; displayTarget: string; pct: number; title: string } | null;
+  next: {
+    target: number;
+    displayTarget: string;
+    pct: number;
+    title: string;
+  } | null;
   /** True once every tier in the group has been earned. */
   complete: boolean;
   /**
@@ -278,9 +297,10 @@ export function buildSeasonGroups(
   const groups = buildGoalGroups(snapshot, allowances, allowancesUnavailable);
 
   return groups.map((group) => {
+    const chipFormat = group.chipFormat ?? group.format;
     const tiers = group.tiers.map((target) => ({
       target,
-      displayTarget: group.format(target),
+      displayTarget: chipFormat(target),
       complete: group.current >= target,
     }));
     const nextTarget = group.tiers.find((target) => group.current < target);

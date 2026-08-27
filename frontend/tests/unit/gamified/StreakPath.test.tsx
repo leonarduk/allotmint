@@ -25,8 +25,11 @@ describe('StreakPath', () => {
 
     expect(untrackedStamp).toBeTruthy();
     expect(zeroOfFourStamp).toBeTruthy();
-    // A tracked-but-failed day gets a different class than an untracked one.
-    expect(zeroOfFourStamp?.className).not.toBe(untrackedStamp?.className);
+    // Assert the actual classes, not just "different from each other" —
+    // swapping which branch gets `.stampMissed` would still pass a bare
+    // inequality check.
+    expect(zeroOfFourStamp?.className).toContain('stampMissed');
+    expect(untrackedStamp?.className).not.toContain('stampMissed');
   });
 
   it('renders every day disc as a single labelled stamp, oldest first', () => {
@@ -48,7 +51,7 @@ describe('StreakPath', () => {
     ).toBe(true);
   });
 
-  it('frames a first tracked day as progress, not a failed week', () => {
+  it('frames a first tracked day as progress, not a failed week, and states the 7-day goal', () => {
     const days = buildStreakPath(
       { '2026-08-26': { completed: 4, total: 4 } },
       '2026-08-26'
@@ -58,8 +61,39 @@ describe('StreakPath', () => {
       .querySelector('li:last-child span[title]')
       ?.getAttribute('title');
 
-    expect(crateTitle).toBe('1 day down — keep going to fill the crate');
+    expect(crateTitle).toBe('1 of 7 days down — keep going to fill the crate');
     expect(crateTitle).not.toMatch(/finish every day/i);
+  });
+
+  it('counts a day still in progress toward "down", not as a miss (#7204)', () => {
+    // A user two of four chores into today has not failed today — the old
+    // caption logic only counted fully-`stamped` days, so this read as
+    // "0 of 7 days down" even though real progress had been made.
+    const days = buildStreakPath(
+      { '2026-08-26': { completed: 2, total: 4 } },
+      '2026-08-26'
+    );
+    const { container } = render(<StreakPath days={days} streak={0} />);
+    const crateTitle = container
+      .querySelector('li:last-child span[title]')
+      ?.getAttribute('title');
+
+    expect(crateTitle).toBe('1 of 7 days down — keep going to fill the crate');
+  });
+
+  it('does not count a genuinely untouched tracked day as "down"', () => {
+    // The flip side of the previous test: a tracked day with zero chores
+    // done (no partial credit) must not inflate the "down" count either.
+    const days = buildStreakPath(
+      { '2026-08-26': { completed: 0, total: 4 } },
+      '2026-08-26'
+    );
+    const { container } = render(<StreakPath days={days} streak={0} />);
+    const crateTitle = container
+      .querySelector('li:last-child span[title]')
+      ?.getAttribute('title');
+
+    expect(crateTitle).toBe('0 of 7 days down — keep going to fill the crate');
   });
 
   it('still calls out a genuinely failed full week', () => {

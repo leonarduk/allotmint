@@ -146,19 +146,22 @@ describe('buildSeasonGoals', () => {
       portfolio: {
         ...portfolio,
         accounts: [
-          { ...portfolio.accounts[0], holdings: [portfolio.accounts[0].holdings[0]] },
+          {
+            ...portfolio.accounts[0],
+            holdings: [portfolio.accounts[0].holdings[0]],
+          },
         ],
       },
       xp: 300,
       streak: 1,
     });
     const oneCropGoals = buildSeasonGoals(oneCropSnapshot, null);
-    expect(
-      oneCropGoals.find((goal) => goal.id === 'tend-5')?.display
-    ).toBe('1 crop');
-    expect(
-      oneCropGoals.find((goal) => goal.id === 'streak-3')?.display
-    ).toBe('1 day');
+    expect(oneCropGoals.find((goal) => goal.id === 'tend-5')?.display).toBe(
+      '1 crop'
+    );
+    expect(oneCropGoals.find((goal) => goal.id === 'streak-3')?.display).toBe(
+      '1 day'
+    );
 
     const twoDaySnapshot = buildPlotSnapshot({
       portfolio,
@@ -166,9 +169,9 @@ describe('buildSeasonGoals', () => {
       streak: 2,
     });
     const twoDayGoals = buildSeasonGoals(twoDaySnapshot, null);
-    expect(
-      twoDayGoals.find((goal) => goal.id === 'streak-3')?.display
-    ).toBe('2 days');
+    expect(twoDayGoals.find((goal) => goal.id === 'streak-3')?.display).toBe(
+      '2 days'
+    );
   });
 
   it('reads level from the grower curve', () => {

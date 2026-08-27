@@ -1,5 +1,6 @@
 import userEvent from "@testing-library/user-event";
 import { InstrumentSearchBar } from "@/components/InstrumentSearchBar";
+import InstrumentSearchBarToggle from "@/components/InstrumentSearchBar";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi } from "vitest";
@@ -73,5 +74,17 @@ describe("InstrumentSearchBar", () => {
     );
     expect(keyWarnings).toEqual([]);
     errorSpy.mockRestore();
+  });
+
+  it("labels the header search toggle as 'Search instruments' rather than a bare icon (#7223)", () => {
+    render(
+      <MemoryRouter>
+        <InstrumentSearchBarToggle />
+      </MemoryRouter>,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Search instruments" }),
+    ).toBeInTheDocument();
   });
 });

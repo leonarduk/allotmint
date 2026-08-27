@@ -1,4 +1,4 @@
-import type { HTMLAttributes } from "react";
+import type { HTMLAttributes, ReactNode } from "react";
 
 interface Action {
   label: string;
@@ -8,9 +8,11 @@ interface Action {
 interface EmptyStateProps extends HTMLAttributes<HTMLDivElement> {
   message: string;
   actions?: Action[];
+  /** Optional extra content (e.g. a search control) rendered below the message/actions. */
+  children?: ReactNode;
 }
 
-export function EmptyState({ message, actions = [], ...divProps }: EmptyStateProps) {
+export function EmptyState({ message, actions = [], children, ...divProps }: EmptyStateProps) {
   return (
     <div className="p-4 text-center text-gray-500" {...divProps}>
       <p>{message}</p>
@@ -28,6 +30,7 @@ export function EmptyState({ message, actions = [], ...divProps }: EmptyStatePro
           ))}
         </div>
       )}
+      {children}
     </div>
   );
 }

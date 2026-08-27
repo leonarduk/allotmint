@@ -14,10 +14,11 @@ vi.mock("@/api", () => ({
   getScreener: vi.fn(),
   getInstrumentDetail: vi.fn(),
   getInstrumentIntraday: vi.fn(),
+  searchInstruments: vi.fn(),
 }));
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Routes, Route } from "react-router-dom";
+import { MemoryRouter, Routes, Route, useNavigate } from "react-router-dom";
 import InstrumentResearch from "@/pages/InstrumentResearch";
 import type { NewsItem, InstrumentMetadata } from "@/types";
 import { useInstrumentHistory } from "@/hooks/useInstrumentHistory";
@@ -32,6 +33,7 @@ const mockConfirmInstrumentMetadata = vi.mocked(api.confirmInstrumentMetadata);
 const mockGetScreener = vi.mocked(api.getScreener);
 const mockGetInstrumentDetail = vi.mocked(api.getInstrumentDetail);
 const mockGetInstrumentIntraday = vi.mocked(api.getInstrumentIntraday);
+const mockSearchInstruments = vi.mocked(api.searchInstruments);
 const mockUseInstrumentHistory = vi.mocked(useInstrumentHistory);
 
 const defaultConfig: ConfigContextValue = {
@@ -133,6 +135,7 @@ describe("InstrumentResearch page", () => {
     mockGetScreener.mockReset();
     mockGetInstrumentDetail.mockReset();
     mockGetInstrumentIntraday.mockReset();
+    mockSearchInstruments.mockReset();
     mockGetNews.mockReset();
     mockGetNews.mockResolvedValue([]);
     mockGetInstrumentDetail.mockResolvedValue({
@@ -304,7 +307,7 @@ describe("InstrumentResearch page", () => {
     expect(mockUseInstrumentHistory).toHaveBeenCalledWith("", 365);
   });
 
-  it("shows a chooser message on /research without ticker", async () => {
+  it("shows a chooser message and an embedded, usable search on /research without ticker (#7223)", async () => {
     render(
       <configContext.Provider value={defaultConfig}>
         <MemoryRouter initialEntries={["/research"]}>
@@ -318,6 +321,39 @@ describe("InstrumentResearch page", () => {
     expect(
       await screen.findByText("Choose a ticker from search to open research."),
     ).toBeInTheDocument();
+
+    // The empty state must offer an actual way to pick a ticker, not just
+    // describe one (#7223) — the search input is embedded directly on the page.
+    expect(
+      await screen.findByLabelText(/Search instruments/i),
+    ).toBeInTheDocument();
+  });
+
+  it("navigates to the selected ticker from the embedded empty-state search (#7223)", async () => {
+    mockSearchInstruments.mockResolvedValue([{ ticker: "BBB", name: "Beta Corp" }]);
+    const user = userEvent.setup();
+    // react-router-dom's useNavigate is globally mocked to a stable vi.fn()
+    // (see src/setupTests.ts, #4810), so assert on the navigate call rather
+    // than an actual route transition.
+    const navigateSpy = vi.mocked(useNavigate)();
+
+    render(
+      <configContext.Provider value={defaultConfig}>
+        <MemoryRouter initialEntries={["/research"]}>
+          <Routes>
+            <Route path="/research" element={<InstrumentResearch />} />
+          </Routes>
+        </MemoryRouter>
+      </configContext.Provider>,
+    );
+
+    const searchInput = await screen.findByLabelText(/Search instruments/i);
+    await user.type(searchInput, "BB");
+
+    expect(await screen.findByText("BBB — Beta Corp")).toBeInTheDocument();
+    await user.click(screen.getByText("BBB — Beta Corp"));
+
+    expect(navigateSpy).toHaveBeenCalledWith("/research/BBB");
   });
 
   it("loads fundamentals when tab is selected", async () => {

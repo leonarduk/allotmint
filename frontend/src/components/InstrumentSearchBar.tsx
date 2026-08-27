@@ -217,7 +217,9 @@ export function InstrumentSearchBarToggle() {
   const [open, setOpen] = useState(false);
   const contentId = useId();
   const { t } = useTranslation();
-  const researchLabel = t("app.research");
+  const searchInstrumentsLabel = t("instrumentDetail.searchInstruments", {
+    defaultValue: "Search instruments",
+  });
 
   return (
     <Collapsible open={open} onOpenChange={setOpen} style={{ marginLeft: "1rem" }}>
@@ -225,7 +227,7 @@ export function InstrumentSearchBarToggle() {
         type="button"
         aria-controls={contentId}
         aria-expanded={open}
-        aria-label={researchLabel}
+        aria-label={searchInstrumentsLabel}
         style={{
           padding: "0.25rem",
           borderRadius: "0.25rem",

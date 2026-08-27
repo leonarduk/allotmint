@@ -15,6 +15,7 @@ import {
 } from "../api";
 import type { NewsItem, InstrumentMetadata, ScreenerResult } from "../types";
 import EmptyState from "../components/EmptyState";
+import { InstrumentSearchBar } from "../components/InstrumentSearchBar";
 import { useConfig, SUPPORTED_CURRENCIES } from "../ConfigContext";
 import surfaceStyles from "../styles/surface.module.css";
 import { formatDateISO } from "../lib/date";
@@ -831,7 +832,11 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
         message={t("instrumentDetail.chooseTicker", {
           defaultValue: "Choose a ticker from search to open research.",
         })}
-      />
+      >
+        <div style={{ maxWidth: "28rem", margin: "1rem auto 0" }}>
+          <InstrumentSearchBar />
+        </div>
+      </EmptyState>
     );
   }
   if (!tkr) return <div>Invalid ticker</div>;

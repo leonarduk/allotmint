@@ -108,7 +108,7 @@ pipeline {
             steps {
                 script {
                     docker.image('python:3.12').inside('-u root -v /var/jenkins_home/.cache/pip:/root/.cache/pip') {
-                        sh '''
+                        sh '''#!/bin/bash
                             set -euo pipefail
                             apt-get update && apt-get install -y git
                             python --version
@@ -132,7 +132,7 @@ pipeline {
             steps {
                 script {
                     docker.image('python:3.12').inside('-u root -v /var/jenkins_home/.cache/pip:/root/.cache/pip') {
-                        sh '''
+                        sh '''#!/bin/bash
                             set -euo pipefail
                             apt-get update && apt-get install -y git
                             pip install --no-cache-dir --retries 10 -r requirements.txt -r requirements-dev.txt
@@ -162,7 +162,7 @@ pipeline {
                         script {
                             docker.image('python:3.12').inside('-u root -v /var/jenkins_home/.cache/pip:/root/.cache/pip') {
                                 dir('workspace-integration') {
-                                    sh '''
+                                    sh '''#!/bin/bash
                                         set -euo pipefail
                                         apt-get update && apt-get install -y git
                                         pip install --upgrade pip
@@ -214,7 +214,7 @@ pipeline {
                         script {
                             docker.image('python:3.12').inside('-u root -v /var/jenkins_home/.cache/pip:/root/.cache/pip') {
                                 dir('workspace-lambda') {
-                                    sh '''
+                                    sh '''#!/bin/bash
                                         set -euo pipefail
                                         apt-get update && apt-get install -y git
                                         python -m venv .venv-lambda
@@ -249,7 +249,7 @@ pipeline {
                         script {
                             docker.image('python:3.12').inside('-u root -v /var/jenkins_home/.cache/pip:/root/.cache/pip') {
                                 dir('workspace-deps') {
-                                    sh '''
+                                    sh '''#!/bin/bash
                                         set -euo pipefail
                                         apt-get update && apt-get install -y git
                                         python - << 'PY'
@@ -298,7 +298,7 @@ PY
                         script {
                             docker.image('python:3.11').inside('-u root -v /var/jenkins_home/.cache/pip:/root/.cache/pip') {
                                 dir('workspace-py311') {
-                                    sh '''
+                                    sh '''#!/bin/bash
                                         set -euo pipefail
                                         apt-get update && apt-get install -y git
                                         pip install --upgrade pip
@@ -328,7 +328,7 @@ PY
                 script {
                     docker.image('node:24').inside('-u root -v /var/jenkins_home/.cache/npm:/root/.npm') {
                         dir('workspace-frontend') {
-                            sh '''
+                            sh '''#!/bin/bash
                                 set -euo pipefail
                                 apt-get update && apt-get install -y git
                                 node --version
@@ -348,7 +348,7 @@ PY
                     // sitemap health check; both need Python.
                     docker.image('python:3.12').inside('-u root -v /var/jenkins_home/.cache/pip:/root/.cache/pip') {
                         dir('workspace-frontend') {
-                            sh '''
+                            sh '''#!/bin/bash
                                 set -euo pipefail
                                 pip install --no-cache-dir requests
                                 python scripts/check_contract_version_sync.py
@@ -372,7 +372,7 @@ PY
                         script {
                             docker.image('python:3.12').inside('-u root -v /var/jenkins_home/.cache/pip:/root/.cache/pip') {
                                 dir('workspace-cdk-tests') {
-                                    sh '''
+                                    sh '''#!/bin/bash
                                         set -euo pipefail
                                         apt-get update && apt-get install -y git
                                         pip install --no-cache-dir --retries 10 -r requirements.txt -r requirements-dev.txt
@@ -402,7 +402,7 @@ PY
                         script {
                             docker.image('node:24').inside('-u root -v /var/jenkins_home/.cache/npm:/root/.npm') {
                                 dir('workspace-cdk') {
-                                    sh '''
+                                    sh '''#!/bin/bash
                                         set -euo pipefail
                                         apt-get update && apt-get install -y git python3 python3-venv
                                         npm ci
@@ -441,7 +441,7 @@ PY
                 script {
                     docker.image('node:24').inside('-u root -v /var/jenkins_home/.cache/npm:/root/.npm') {
                         dir('workspace-shell') {
-                            sh '''
+                            sh '''#!/bin/bash
                                 set -euo pipefail
                                 apt-get update && apt-get install -y git
                                 npx --yes bats@1.13.0 tests/bash/*.bats
@@ -467,7 +467,7 @@ PY
                 script {
                     docker.image('node:24').inside('-u root -v /var/jenkins_home/.cache/npm:/root/.npm') {
                         dir('workspace-smoke') {
-                            sh '''
+                            sh '''#!/bin/bash
                                 set -euo pipefail
                                 apt-get update && apt-get install -y git
                                 cd frontend

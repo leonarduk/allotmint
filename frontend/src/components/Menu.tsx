@@ -43,7 +43,7 @@ export default function Menu({
 }: MenuProps) {
   const location = useLocation();
   const { t } = useTranslation();
-  const { tabs, disabledTabs, familyMvpEnabled } = useConfig();
+  const { tabs, disabledTabs } = useConfig();
   const { logout: contextLogout } = useAuth();
   // Fall back to the app-wide logout registered in AuthContext when the
   // caller doesn't thread one through explicitly, so the control stays
@@ -52,14 +52,6 @@ export default function Menu({
   const mode = deriveModeFromLocation(location.pathname, location.search) as TabPluginId;
   const isSupportMode = (SUPPORT_TABS as readonly string[]).includes(mode);
   const inSupport = mode === 'support';
-  // Support link is shown whenever the support tab is enabled. It stays gated on
-  // !familyMvpEnabled because the support section is a distinct operations surface
-  // (not a normal config tab); Family MVP keeps that surface out of the simplified
-  // experience. Tab navigability itself is governed purely by config (#4641).
-  const supportEnabled =
-    !familyMvpEnabled &&
-    tabs.support !== false &&
-    !disabledTabs?.includes('support');
 
   const categoryDefinitions = useMemo<MenuCategoryDefinition[]>(() => {
     const section = isSupportMode ? 'support' : 'user';
@@ -72,7 +64,6 @@ export default function Menu({
   const availableTabs = useMemo(
     () =>
       getMenuEntries(isSupportMode ? 'support' : 'user').filter((entry) => {
-        if (entry.mode === 'support') return false;
         if (
           !inSupport &&
           SUPPORT_ONLY_TABS.includes(entry.mode as TabPluginId)
@@ -275,28 +266,6 @@ export default function Menu({
                         }`}
                       >
                         {t('app.glossaryLink', 'Glossary')}
-                      </Link>
-                    </li>
-                  )}
-                  {category.id === 'preferences' && supportEnabled && (
-                    <li key="support">
-                      <Link
-                        ref={assignFirstFocusable}
-                        role="menuitem"
-                        to={
-                          inSupport
-                            ? buildPathForMode('group', {
-                                group: selectedGroup,
-                              })
-                            : buildPathForMode('support')
-                        }
-                        className={`block min-h-11 w-full rounded px-3 py-2 text-sm transition-colors duration-150 focus:outline-none focus-visible:ring ${
-                          inSupport
-                            ? 'font-semibold text-gray-900'
-                            : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                        }`}
-                      >
-                        {t('app.supportLink')}
                       </Link>
                     </li>
                   )}

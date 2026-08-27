@@ -41,6 +41,10 @@ describe("Header", () => {
       name: i18n.t("app.menuCategories.preferences"),
     });
     fireEvent.click(settingsToggle);
-    expect(await screen.findByRole("menuitem", { name: "Support" })).toBeInTheDocument();
+    // The end-user Settings menu offers Help, not the operations console
+    // (which moved to the operations menu — see Menu.test.tsx) (#7226).
+    expect(
+      await screen.findByRole("menuitem", { name: i18n.t("app.modes.help") }),
+    ).toBeInTheDocument();
   });
 });

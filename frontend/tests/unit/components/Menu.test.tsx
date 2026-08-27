@@ -111,45 +111,13 @@ describe('Menu', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('hides the support link when the support tab is disabled', () => {
-    // The preferences category still renders (settings, logout) — but the
-    // Support link inside it must be absent when the support tab is disabled.
+  it('never surfaces the operations console link in the end-user preferences menu (#7226)', () => {
+    // The Support/operations-console entry must never appear in the
+    // end-user Settings menu, even when its tab is enabled — it now lives
+    // in the operations category instead (see the tests below).
     const onLogout = vi.fn();
-    const config: ConfigContextValue = {
-      relativeViewEnabled: false,
-      disabledTabs: ['support'],
-      tabs: {
-        group: true,
-        market: true,
-        owner: true,
-        instrument: true,
-        performance: true,
-        transactions: true,
-        screener: true,
-        trading: true,
-        timeseries: true,
-        watchlist: true,
-        allocation: true,
-        rebalance: true,
-        movers: true,
-        instrumentadmin: true,
-        dataadmin: true,
-        virtual: true,
-        support: false,
-        settings: true,
-        pension: true,
-        reports: true,
-        scenario: true,
-      },
-      familyMvpEnabled: true,
-      theme: 'system',
-      baseCurrency: 'GBP',
-      refreshConfig: async () => {},
-      setRelativeViewEnabled: () => {},
-      setBaseCurrency: () => {},
-    };
     render(
-      <configContext.Provider value={config}>
+      <configContext.Provider value={configWithTransactions}>
         <MemoryRouter>
           <Menu onLogout={onLogout} />
         </MemoryRouter>
@@ -160,9 +128,12 @@ describe('Menu', () => {
     });
     fireEvent.click(preferencesToggle);
     expect(
-      screen.queryByRole('menuitem', { name: i18n.t('app.supportLink') })
+      screen.queryByRole('menuitem', { name: i18n.t('app.modes.support') })
     ).not.toBeInTheDocument();
-    // Logout remains available in the same category.
+    // Settings and Logout remain available in the same category.
+    expect(
+      screen.getByRole('menuitem', { name: i18n.t('app.modes.settings') })
+    ).toBeInTheDocument();
     expect(
       screen.getByRole('menuitem', { name: i18n.t('app.logout') })
     ).toBeInTheDocument();
@@ -183,6 +154,61 @@ describe('Menu', () => {
 
     const glossaryLink = await screen.findByRole('menuitem', { name: 'Glossary' });
     expect(glossaryLink).toHaveAttribute('href', '/metrics-explained');
+  });
+
+  it('shows the operations console alongside Data Admin/Timeseries once already in the operations menu (#7226)', () => {
+    // Once the user is already on a support-section page, the operations
+    // category lists Support next to the other operations routes — it
+    // just never acts as the *entry point* into that area any more.
+    render(
+      <configContext.Provider value={configWithTransactions}>
+        <MemoryRouter initialEntries={['/support']}>
+          <Menu />
+        </MemoryRouter>
+      </configContext.Provider>
+    );
+    const operationsToggle = screen.getByRole('button', {
+      name: i18n.t('app.menuCategories.operations'),
+    });
+    fireEvent.click(operationsToggle);
+    expect(
+      screen.getByRole('menuitem', { name: i18n.t('app.modes.support') })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('menuitem', { name: i18n.t('app.modes.dataadmin') })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('menuitem', { name: i18n.t('app.modes.timeseries') })
+    ).toBeInTheDocument();
+  });
+
+  it('hides the operations console link from the operations menu when its tab is disabled (#7226)', () => {
+    // Same config-driven gate the other operations routes already use
+    // (tabs[mode] === true && !disabledTabs.includes(mode)) — no bespoke
+    // gate reintroduced for Support.
+    const config: ConfigContextValue = {
+      ...configWithTransactions,
+      disabledTabs: ['support'],
+      tabs: { ...configWithTransactions.tabs, support: false },
+    };
+    render(
+      <configContext.Provider value={config}>
+        <MemoryRouter initialEntries={['/support']}>
+          <Menu />
+        </MemoryRouter>
+      </configContext.Provider>
+    );
+    const operationsToggle = screen.getByRole('button', {
+      name: i18n.t('app.menuCategories.operations'),
+    });
+    fireEvent.click(operationsToggle);
+    expect(
+      screen.queryByRole('menuitem', { name: i18n.t('app.modes.support') })
+    ).not.toBeInTheDocument();
+    // Peer operations routes stay unaffected.
+    expect(
+      screen.getByRole('menuitem', { name: i18n.t('app.modes.dataadmin') })
+    ).toBeInTheDocument();
   });
 
   it('renders logout button when callback provided', async () => {

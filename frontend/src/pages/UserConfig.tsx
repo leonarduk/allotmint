@@ -10,7 +10,6 @@ import {
 } from '../api';
 import type { Approval, OwnerSummary, UserConfig } from '../types';
 import { useAuth } from '../AuthContext';
-import { useConfig } from '../ConfigContext';
 import { findOwnerForUser, sanitizeOwners } from '../utils/owners';
 
 /**
@@ -37,7 +36,6 @@ type UserConfigPageProps = {
 export default function UserConfigPage({ selectedOwner = '' }: UserConfigPageProps) {
   const { t } = useTranslation();
   const { user } = useAuth();
-  const { theme } = useConfig();
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
   const [ownersLoading, setOwnersLoading] = useState(true);
   const [owner, setOwner] = useState('');
@@ -181,9 +179,6 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
           {user.email && (
             <div className="text-gray-800 dark:text-gray-200">{user.email}</div>
           )}
-          <p className="text-gray-800 dark:text-gray-200">
-            Preferred theme: {theme}
-          </p>
         </section>
       )}
       {ownersLoading ? (
@@ -261,7 +256,7 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
               >
                 {t(
                   'userConfig.maxTradesHelp',
-                  'The number of trades made in the current calendar month; resets on the 1st, not a rolling 30-day window. Once reached, no further trades are permitted until next month.'
+                  'The number of trades made in the current calendar month; resets on the 1st, not a rolling 30-day window. Exceeding it raises a compliance warning; it does not block trading.'
                 )}
               </p>
               <input
@@ -328,7 +323,7 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
               >
                 {t(
                   'userConfig.exemptTypesHelp',
-                  'Instrument types listed here (e.g. ETF, Fund) skip the approval requirement -- except commodity ETFs, which always require approval regardless of type.'
+                  "Instrument types listed here (e.g. ETF, Fund) skip the approval requirement -- except commodity ETFs, which don't get the type exemption. List them individually in Approval Exempt Tickers above if you want them exempt."
                 )}
               </p>
               <input
@@ -375,7 +370,7 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
             <p className="text-xs text-gray-600 dark:text-gray-400">
               {t(
                 'userConfig.approvalsHelp',
-                "Tickers explicitly cleared to trade outside the exemptions above. Each approval is only valid for the deployment's configured approval window in trading days, starting from the date shown -- if no window is configured, it expires the same day it's granted."
+                "Tickers explicitly cleared to trade outside the exemptions above. Each approval is only valid for the deployment's configured approval window in trading days, starting from the date shown -- if no window is configured, it is valid only on the day it's granted."
               )}
             </p>
             <table className="w-full border">

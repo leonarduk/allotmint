@@ -234,21 +234,54 @@ describe("UserConfig page", () => {
     ).toBeInTheDocument();
     // Max Trades / Month must describe the calendar-month reset the backend
     // actually implements (backend/common/portfolio.py: d.month == today.month),
-    // not a rolling window.
+    // not a rolling window -- and must not claim the limit blocks trading:
+    // trades_remaining is purely informational (rendered in
+    // ComplianceWarnings.tsx / gamified/plotModel.ts); the only enforcement
+    // is a non-blocking warning in the private allotmint-pro compliance
+    // engine (compliance.py: `if cnt > max: warnings.append(...)`).
     expect(
       screen.getByText(/current calendar month; resets on the 1st/i),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText(/does not block trading/i),
+    ).toBeInTheDocument();
     // Exempt types must carry the commodity-ETF carve-out from
     // backend/common/holding_utils.py (is_etf and is_commodity forces
-    // exempt_type back to False).
+    // exempt_type back to False) without overstating it: the ticker-based
+    // exemptions (approval_exempt_tickers) are OR'd in independently, so a
+    // commodity ETF listed there is still exempt.
     expect(
-      screen.getByText(/except commodity etfs, which always require approval/i),
+      screen.getByText(/don't get the type exemption/i),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/always require approval/i),
+    ).not.toBeInTheDocument();
     // Approvals must explain expiry (backend/common/approvals.py:
-    // is_approval_valid), not just "the date they were approved".
+    // is_approval_valid) unambiguously -- "valid only on" the grant date,
+    // not phrasing ("expires the same day") that reads as already expired.
     expect(
-      screen.getByText(/expires the same day it's granted/i),
+      screen.getByText(/valid only on the day it's granted/i),
     ).toBeInTheDocument();
+  });
+
+  it("does not show a stale theme preference readout under the Trading Rules heading (#7224)", async () => {
+    mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
+    mockGetApprovals.mockResolvedValue({ approvals: [] });
+
+    render(
+      <AuthContext.Provider
+        value={{ user: { email: "alex@example.com" }, setUser: vi.fn() }}
+      >
+        <UserConfig />
+      </AuthContext.Provider>,
+    );
+
+    // The identity strip gets its own heading now, and no longer carries a
+    // preference readout that belongs to a different page.
+    expect(
+      await screen.findByRole("heading", { level: 2, name: /signed in as/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/preferred theme/i)).not.toBeInTheDocument();
   });
 
   it("shows a loading indicator while the authorized owners are being fetched", async () => {

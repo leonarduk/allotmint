@@ -78,6 +78,17 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
+                // Remove leftovers from previous runs (the parallel stages stash
+                // into workspace-* dirs that persist on the built-in node).
+                // stash includes '**' below archives the whole workspace, so any
+                // leftover node_modules/venvs/coverage get re-archived every build
+                // and the archive grows without bound — on a small controller that
+                // turns a seconds-long stash into a multi-hour hang.
+                sh '''#!/bin/bash
+                    set -e
+                    rm -rf workspace-* .mypy_cache .ruff_cache .pytest_cache \
+                           htmlcov coverage test-results .coverage coverage.xml
+                '''
                 script {
                     if (env.CHANGE_ID) {
                         // Multibranch Pipeline PR build: the GitHub branch source
@@ -95,62 +106,70 @@ pipeline {
                         ])
                     }
                 }
-                stash includes: '**', excludes: '.git/**,.pytest_cache/**,**/__pycache__/**,**/node_modules/**,**/.venv*/**,**/htmlcov/**,**/coverage/**,**/test-results/**,**/dist/**,**/playwright-report/**', name: 'source', useDefaultExcludes: false
-            }
-        }
-
-        // ci.yml `test` job (repo-hygiene checks; ungated in CI).
-        // Runs at the workspace root (not an unstashed copy) because
-        // check_architecture_diagrams.py shells out to `git ls-files`, which
-        // needs the .git directory that the stash excludes.
-        stage('Repo Hygiene') {
-            when { expression { runStage('repo-hygiene') } }
-            steps {
-                script {
-                    docker.image('python:3.12').inside('-u root -v /var/jenkins_home/.cache/pip:/root/.cache/pip') {
-                        sh '''#!/bin/bash
-                            set -euo pipefail
-                            apt-get update && apt-get install -y git
-                            python --version
-                            pip install --upgrade pip setuptools wheel
-                            pip install --no-cache-dir --retries 10 -r requirements.txt -r requirements-dev.txt
-                            python scripts/check_branch_protection_required_checks.py
-                            python scripts/check_lockfile_platform_coverage.py
-                            python scripts/check_architecture_diagrams.py
-                        '''
-                    }
+                // Bound the stash so a hang fails this stage quickly instead of
+                // burning the whole 180-minute global timeout (see #7258).
+                timeout(time: 15, unit: 'MINUTES') {
+                    stash includes: '**', excludes: '.git/**,.pytest_cache/**,**/__pycache__/**,**/node_modules/**,**/.venv*/**,**/htmlcov/**,**/coverage/**,**/test-results/**,**/dist/**,**/playwright-report/**,.mypy_cache/**,.ruff_cache/**,.idea/**,.local/**,.coverage*,coverage.xml,graphify-out/cache/**,graphify-out/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/**,workspace-*/**', name: 'source', useDefaultExcludes: false
                 }
             }
         }
 
-        // ci.yml `backend-lint` job: ruff + black over backend/tests.
-        // Jenkins runs a branch (not a PR), so mirror the non-PR path and lint
-        // the whole tree via git ls-files. Runs at the workspace root for the
-        // same .git reason as Repo Hygiene.
-        stage('Backend Lint') {
-            when { expression { runStage('backend-lint') } }
-            steps {
-                script {
-                    docker.image('python:3.12').inside('-u root -v /var/jenkins_home/.cache/pip:/root/.cache/pip') {
-                        sh '''#!/bin/bash
-                            set -euo pipefail
-                            apt-get update && apt-get install -y git
-                            pip install --no-cache-dir --retries 10 -r requirements.txt -r requirements-dev.txt
-                            FILES=$(git ls-files backend tests | grep '\\.py$' || true)
-                            if [ -z "$FILES" ]; then
-                                echo "No backend/tests Python files to lint."
-                            else
-                                echo "$FILES" | xargs -d '\\n' ruff check --config backend/pyproject.toml
-                                echo "$FILES" | xargs -d '\\n' black --check --config backend/pyproject.toml
-                            fi
-                        '''
-                    }
-                }
-            }
-        }
-
-        stage('Backend Tests') {
+        // The four main checks are independent: each runs in its own
+        // workspace directory + container and only needs the source stash,
+        // mirroring the parallel jobs in GitHub Actions ci.yml. Run them
+        // concurrently instead of one after another.
+        stage('Checks') {
             parallel {
+                // ci.yml `test` job (repo-hygiene checks; ungated in CI).
+                // Runs at the workspace root (not an unstashed copy) because
+                // check_architecture_diagrams.py shells out to `git ls-files`, which
+                // needs the .git directory that the stash excludes.
+                stage('Repo Hygiene') {
+                    when { expression { runStage('repo-hygiene') } }
+                    steps {
+                        script {
+                            docker.image('python:3.12').inside('-u root -v /var/jenkins_home/.cache/pip:/root/.cache/pip') {
+                                sh '''#!/bin/bash
+                                    set -euo pipefail
+                                    apt-get update && apt-get install -y git
+                                    python --version
+                                    pip install --upgrade pip setuptools wheel
+                                    pip install --no-cache-dir --retries 10 -r requirements.txt -r requirements-dev.txt
+                                    python scripts/check_branch_protection_required_checks.py
+                                    python scripts/check_lockfile_platform_coverage.py
+                                    python scripts/check_architecture_diagrams.py
+                                '''
+                            }
+                        }
+                    }
+                }
+
+                // ci.yml `backend-lint` job: ruff + black over backend/tests.
+                // Jenkins runs a branch (not a PR), so mirror the non-PR path and lint
+                // the whole tree via git ls-files. Runs at the workspace root for the
+                // same .git reason as Repo Hygiene.
+                stage('Backend Lint') {
+                    when { expression { runStage('backend-lint') } }
+                    steps {
+                        script {
+                            docker.image('python:3.12').inside('-u root -v /var/jenkins_home/.cache/pip:/root/.cache/pip') {
+                                sh '''#!/bin/bash
+                                    set -euo pipefail
+                                    apt-get update && apt-get install -y git
+                                    pip install --no-cache-dir --retries 10 -r requirements.txt -r requirements-dev.txt
+                                    FILES=$(git ls-files backend tests | grep '\\.py$' || true)
+                                    if [ -z "$FILES" ]; then
+                                        echo "No backend/tests Python files to lint."
+                                    else
+                                        echo "$FILES" | xargs -d '\\n' ruff check --config backend/pyproject.toml
+                                        echo "$FILES" | xargs -d '\\n' black --check --config backend/pyproject.toml
+                                    fi
+                                '''
+                            }
+                        }
+                    }
+                }
+
                 // backend-integration.yml integration-tests job. AWS/S3 sync and
                 // Codecov upload are optional in CI and skipped here.
                 stage('Backend Integration Tests') {
@@ -253,27 +272,27 @@ pipeline {
                                         set -euo pipefail
                                         apt-get update && apt-get install -y git
                                         python - << 'PY'
-import re, sys
-from pathlib import Path
-lines = Path("backend/requirements.txt").read_text(encoding="utf-8").splitlines()
-pkgs = [
-    re.sub(r"[-_.]+", "-",
-           re.sub(r"\\[.*?\\]", "",
-                  re.split(r"[~>=<!;\\s#]", line)[0].strip())).lower()
-    for line in lines
-    if line.strip() and not line.strip().startswith(("#", "-"))
-]
-seen, dups = set(), []
-for pkg in pkgs:
-    if pkg in seen:
-        dups.append(pkg)
-    else:
-        seen.add(pkg)
-if dups:
-    print(f"Duplicate package names in backend/requirements.txt: {dups}", file=sys.stderr)
-    sys.exit(1)
-print(f"No duplicate package names ({len(pkgs)} packages checked).")
-PY
+e, sys
+hlib import Path
+Path("backend/requirements.txt").read_text(encoding="utf-8").splitlines()
+
+ub(r"[-_.]+", "-",
+   re.sub(r"\\[.*?\\]", "",
+          re.split(r"[~>=<!;\\s#]", line)[0].strip())).lower()
+line in lines
+ine.strip() and not line.strip().startswith(("#", "-"))
+
+ps = set(), []
+in pkgs:
+kg in seen:
+dups.append(pkg)
+:
+seen.add(pkg)
+
+t(f"Duplicate package names in backend/requirements.txt: {dups}", file=sys.stderr)
+exit(1)
+No duplicate package names ({len(pkgs)} packages checked).")
+
                                         python -m venv .venv-lambda-check
                                         .venv-lambda-check/bin/pip install --upgrade pip
                                         .venv-lambda-check/bin/pip install --dry-run -r backend/requirements.txt
@@ -311,49 +330,49 @@ PY
                         }
                     }
                 }
-            }
-        }
 
-        // ci.yml `frontend-checks` + frontend-tests.yml frontend-tests jobs.
-        // Repo canonical install is npm (frontend/package-lock.json);
-        // frontend-tests.yml uses pnpm, so Jenkins uses npm instead.
-        // The production build itself runs inside the CDK Validation & Dry-Run
-        // stage (needed for synth), matching iac-validation.yml / cdk-dry-run.yml.
-        stage('Frontend Checks') {
-            when { expression { runStage('frontend-checks') } }
-            steps {
-                dir('workspace-frontend') {
-                    unstash 'source'
-                }
-                script {
-                    docker.image('node:24').inside('-u root -v /var/jenkins_home/.cache/npm:/root/.npm') {
+                // ci.yml `frontend-checks` + frontend-tests.yml frontend-tests jobs.
+                // Repo canonical install is npm (frontend/package-lock.json);
+                // frontend-tests.yml uses pnpm, so Jenkins uses npm instead.
+                // The production build itself runs inside the CDK Validation & Dry-Run
+                // stage (needed for synth), matching iac-validation.yml / cdk-dry-run.yml.
+                stage('Frontend Checks') {
+                    when { expression { runStage('frontend-checks') } }
+                    steps {
                         dir('workspace-frontend') {
-                            sh '''#!/bin/bash
-                                set -euo pipefail
-                                apt-get update && apt-get install -y git
-                                node --version
-                                cd frontend
-                                npm ci
-                                npm run lint
-                                npm run type-check
-                                # Single run with coverage: superset of ci.yml's
-                                # `npm test -- --run` and frontend-tests.yml's
-                                # `--run --coverage`, so tests execute once.
-                                npm run coverage
-                                npm audit --audit-level=high
-                            '''
+                            unstash 'source'
                         }
-                    }
-                    // frontend-tests.yml also runs SPA contract sync and a
-                    // sitemap health check; both need Python.
-                    docker.image('python:3.12').inside('-u root -v /var/jenkins_home/.cache/pip:/root/.cache/pip') {
-                        dir('workspace-frontend') {
-                            sh '''#!/bin/bash
-                                set -euo pipefail
-                                pip install --no-cache-dir requests
-                                python scripts/check_contract_version_sync.py
-                                python scripts/site_healthcheck.py
-                            '''
+                        script {
+                            docker.image('node:24').inside('-u root -v /var/jenkins_home/.cache/npm:/root/.npm') {
+                                dir('workspace-frontend') {
+                                    sh '''#!/bin/bash
+                                        set -euo pipefail
+                                        apt-get update && apt-get install -y git
+                                        node --version
+                                        cd frontend
+                                        npm ci
+                                        npm run lint
+                                        npm run type-check
+                                        # Single run with coverage: superset of ci.yml's
+                                        # `npm test -- --run` and frontend-tests.yml's
+                                        # `--run --coverage`, so tests execute once.
+                                        npm run coverage
+                                        npm audit --audit-level=high
+                                    '''
+                                }
+                            }
+                            // frontend-tests.yml also runs SPA contract sync and a
+                            // sitemap health check; both need Python.
+                            docker.image('python:3.12').inside('-u root -v /var/jenkins_home/.cache/pip:/root/.cache/pip') {
+                                dir('workspace-frontend') {
+                                    sh '''#!/bin/bash
+                                        set -euo pipefail
+                                        pip install --no-cache-dir requests
+                                        python scripts/check_contract_version_sync.py
+                                        python scripts/site_healthcheck.py
+                                    '''
+                                }
+                            }
                         }
                     }
                 }

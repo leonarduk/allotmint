@@ -11,19 +11,26 @@ import {
 import {
   getOwners,
   getPensionForecast,
+  getPortfolio,
   type PensionIncomeBreakdown,
 } from "../api";
 import type { OwnerSummary } from "../types";
 import { useTranslation } from "react-i18next";
 import { useRoute } from "../RouteContext";
 import { sanitizeOwners } from "../utils/owners";
+import { accountTypeLabel, isPensionAccountType } from "../utils/accountTypes";
 
 export default function PensionForecast() {
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
   const { selectedOwner, setSelectedOwner } = useRoute();
   const [owner, setOwner] = useState("");
   const [deathAge, setDeathAge] = useState(90);
-  const [statePension, setStatePension] = useState<string>("");
+  // Defaults to "0" (not blank) so the field always shows a concrete starting
+  // value per #7211. This intentionally reproduces the *existing* behaviour:
+  // an empty field was already sent as `undefined`, which the backend treats
+  // as 0 income from state pension (see backend/routes/pension.py). Making
+  // that explicit doesn't change what a first-time user's forecast computes.
+  const [statePension, setStatePension] = useState<string>("0");
   const [monthlySavings, setMonthlySavings] = useState(250);
   const [monthlySpending, setMonthlySpending] = useState(2000);
   const [employerContributionMonthly, setEmployerContributionMonthly] =
@@ -32,6 +39,13 @@ export default function PensionForecast() {
   const [data, setData] = useState<{ age: number; income: number }[]>([]);
   const [projectedPot, setProjectedPot] = useState<number | null>(null);
   const [pensionPot, setPensionPot] = useState<number | null>(null);
+  // Seeded from the owner's portfolio on mount/owner change so the snapshot
+  // card shows a real figure before the user runs a forecast (#7211) --
+  // separate from `pensionPot`, which is only ever set from a forecast
+  // response and takes priority once populated.
+  const [portfolioPensionPot, setPortfolioPensionPot] = useState<
+    number | null
+  >(null);
   const [currentAge, setCurrentAge] = useState<number | null>(null);
   const [retirementAge, setRetirementAge] = useState<number | null>(null);
   const [dob, setDob] = useState<string | null>(null);
@@ -94,6 +108,44 @@ export default function PensionForecast() {
     setSelectedOwner(fallbackOwner.owner);
   }, [owners, selectedOwner, setSelectedOwner]);
 
+  // Seed the "Current pension pot" snapshot from the owner's portfolio (the
+  // same data the Dashboard already shows) so it reads a real figure on load
+  // instead of "Not available" -- see #7211. This never overwrites
+  // `pensionPot`, which only comes from an actual forecast response, so it
+  // cannot change what a forecast calculates -- it only fills the gap before
+  // the first Forecast run.
+  useEffect(() => {
+    if (!owner) {
+      setPortfolioPensionPot(null);
+      return;
+    }
+    let cancelled = false;
+    getPortfolio(owner)
+      .then((portfolio) => {
+        if (cancelled) return;
+        const pensionAccounts = portfolio.accounts.filter((account) =>
+          isPensionAccountType(account.account_type),
+        );
+        if (pensionAccounts.length === 0) {
+          setPortfolioPensionPot(null);
+          return;
+        }
+        const total = pensionAccounts.reduce(
+          (sum, account) => sum + (account.value_estimate_gbp ?? 0),
+          0,
+        );
+        setPortfolioPensionPot(total);
+      })
+      .catch(() => {
+        // Portfolio fetch failing shouldn't break the page -- the snapshot
+        // card just falls back to its "run a forecast" copy.
+        if (!cancelled) setPortfolioPensionPot(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [owner]);
+
   const careerPathOptions = [
     {
       id: "steady",
@@ -127,6 +179,26 @@ export default function PensionForecast() {
     const ownerSummary = owners.find((o) => o.owner === owner);
     return ownerSummary?.accounts ?? [];
   }, [owners, owner]);
+
+  // Every account type on the owner is still listed here (we deliberately do
+  // NOT filter ISAs out, per the issue's own guidance -- filtering would
+  // change which accounts are presented as part of the forecast, which is a
+  // modelling decision, not a display one, #7211). Each entry carries its
+  // display label and whether it's a pension wrapper so the list can be
+  // relabelled and visually distinguished instead.
+  const ownerAccountDetails = useMemo(
+    () =>
+      ownerAccounts.map((accountType) => ({
+        accountType,
+        label: accountTypeLabel(accountType),
+        isPension: isPensionAccountType(accountType),
+      })),
+    [ownerAccounts],
+  );
+
+  // The forecast's own response (`pensionPot`) always wins once it exists;
+  // until then, fall back to the portfolio-derived figure (#7211).
+  const displayedPensionPot = pensionPot ?? portfolioPensionPot;
 
   const humanizeForecastError = (
     rawMessage: string,
@@ -346,14 +418,33 @@ export default function PensionForecast() {
           <p className="text-xs font-semibold uppercase tracking-wide text-blue-200">
             {t("pensionForecast.header.linkedPotsHeading")}
           </p>
-          {ownerAccounts.length > 0 ? (
+          {/* Renamed from "Linked pension pots" and every account type is
+              still shown (see ownerAccountDetails above) -- ISAs are not
+              pensions, so each chip is labelled with its real account type
+              and tagged to show whether it's a pension, rather than being
+              filtered out or implied to be one (#7211). */}
+          <p className="mt-1 text-xs text-blue-100">
+            {t("pensionForecast.header.accountsHelper")}
+          </p>
+          {ownerAccountDetails.length > 0 ? (
             <ul className="mt-3 flex flex-wrap gap-2">
-              {ownerAccounts.map((account) => (
+              {ownerAccountDetails.map(({ accountType, label, isPension }) => (
                 <li
-                  key={account}
-                  className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white"
+                  key={accountType}
+                  className="flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white"
                 >
-                  {account}
+                  <span>{label}</span>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                      isPension
+                        ? "bg-emerald-400/20 text-emerald-200"
+                        : "bg-white/10 text-blue-200"
+                    }`}
+                  >
+                    {isPension
+                      ? t("pensionForecast.header.pensionBadge")
+                      : t("pensionForecast.header.notPensionBadge")}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -367,9 +458,14 @@ export default function PensionForecast() {
           <SnapshotStat
             label={t("pensionForecast.header.pensionPot")}
             value={
-              pensionPot != null
-                ? currencyFormatter.format(pensionPot)
+              displayedPensionPot != null
+                ? currencyFormatter.format(displayedPensionPot)
                 : t("pensionForecast.header.notAvailable")
+            }
+            helper={
+              displayedPensionPot != null && pensionPot == null
+                ? t("pensionForecast.header.pensionPotFromPortfolio")
+                : undefined
             }
           />
           <SnapshotStat
@@ -433,6 +529,11 @@ export default function PensionForecast() {
               onChange={(value) => setMonthlySavings(value)}
               formatValue={(value) => currencyFormatter.format(value)}
               getValueText={(value) => currencyFormatter.format(value)}
+              // £250/£150 starting values below aren't derived from this
+              // owner's actual contributions (not currently available to this
+              // page) -- say so explicitly rather than implying they're the
+              // owner's real numbers (#7211).
+              helper={t("pensionForecast.header.contributionDefaultHelper")}
             />
             <SliderControl
               id="employer-contribution"
@@ -444,6 +545,7 @@ export default function PensionForecast() {
               onChange={(value) => setEmployerContributionMonthly(value)}
               formatValue={(value) => currencyFormatter.format(value)}
               getValueText={(value) => currencyFormatter.format(value)}
+              helper={t("pensionForecast.header.contributionDefaultHelper")}
             />
             <SliderControl
               id="monthly-spending"
@@ -458,8 +560,12 @@ export default function PensionForecast() {
             />
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
+                {/* Relabelled from "Death age" -- blunt phrasing for this
+                    audience -- to "Plan until age" (#7211). The underlying
+                    field/param name (`deathAge`) is unchanged, so error
+                    messages that already reference it (#7134) still work. */}
                 <label className="block text-sm font-medium text-slate-700" htmlFor="death-age">
-                  Death age
+                  {t("pensionForecast.header.deathAgeLabel")}
                 </label>
                 <input
                   id="death-age"
@@ -470,7 +576,11 @@ export default function PensionForecast() {
                   required
                   min={50}
                   max={120}
+                  aria-describedby="death-age-description"
                 />
+                <p id="death-age-description" className="text-xs text-slate-500">
+                  {t("pensionForecast.header.deathAgeHelper")}
+                </p>
               </div>
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-slate-700" htmlFor="state-pension">
@@ -483,7 +593,11 @@ export default function PensionForecast() {
                   value={statePension}
                   onChange={(e) => setStatePension(e.target.value)}
                   min={0}
+                  aria-describedby="state-pension-description"
                 />
+                <p id="state-pension-description" className="text-xs text-slate-500">
+                  {t("pensionForecast.header.statePensionHelper")}
+                </p>
               </div>
             </div>
           </div>

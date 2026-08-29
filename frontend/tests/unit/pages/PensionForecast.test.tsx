@@ -23,6 +23,7 @@ const mockUseRoute = vi.hoisted(() => vi.fn(() => routeState));
 
 const mockGetOwners = vi.hoisted(() => vi.fn());
 const mockGetPensionForecast = vi.hoisted(() => vi.fn());
+const mockGetPortfolio = vi.hoisted(() => vi.fn());
 
 vi.mock("@/api", async () => {
   const actual = await vi.importActual<typeof import("@/api")>("@/api");
@@ -30,6 +31,7 @@ vi.mock("@/api", async () => {
     ...actual,
     getOwners: mockGetOwners,
     getPensionForecast: mockGetPensionForecast,
+    getPortfolio: mockGetPortfolio,
   };
 });
 
@@ -57,6 +59,16 @@ describe("PensionForecast page", () => {
       setSelectedGroup: vi.fn(),
     };
     mockUseRoute.mockImplementation(() => routeState);
+    // Default: no portfolio accounts, so the pension-pot seeding effect
+    // (#7211) resolves harmlessly for tests that don't care about it.
+    mockGetPortfolio.mockResolvedValue({
+      owner: "",
+      as_of: "",
+      trades_this_month: 0,
+      trades_remaining: 0,
+      total_value_estimate_gbp: 0,
+      accounts: [],
+    });
   });
 
   afterEach(() => {
@@ -392,7 +404,7 @@ describe("PensionForecast page", () => {
     renderWithI18n(<PensionForecast />);
 
     const form = document.querySelector("form")!;
-    const deathAge = within(form).getByLabelText(/death age/i);
+    const deathAge = within(form).getByLabelText(/plan until age/i);
     fireEvent.change(deathAge, { target: { value: "50" } });
 
     const btn = screen.getByRole("button", { name: /forecast/i });
@@ -436,7 +448,7 @@ describe("PensionForecast page", () => {
     mockGetPensionForecast.mockRejectedValueOnce(
       new Error("death_age must exceed retirement_age"),
     );
-    const deathAge = within(form).getByLabelText(/death age/i);
+    const deathAge = within(form).getByLabelText(/plan until age/i);
     fireEvent.change(deathAge, { target: { value: "50" } });
     await userEvent.click(btn);
 
@@ -536,6 +548,187 @@ describe("PensionForecast page", () => {
         ),
       ),
     ).toBeInTheDocument();
+  });
+
+  // #7211: an ISA is not a pension. The fix relabels/distinguishes rather
+  // than filtering (the issue's own guidance -- filtering would change what
+  // the forecast models, which is out of scope for an automated fix).
+  it("renders account types as ISA/SIPP (not raw slugs) and keeps every account visible, tagged by whether it's a pension", async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: "alex", full_name: "Alex Example", accounts: ["isa", "sipp", "gia"] },
+    ]);
+    mockGetPensionForecast.mockResolvedValue({
+      forecast: [],
+      projected_pot_gbp: 0,
+      pension_pot_gbp: 0,
+      current_age: 30,
+      retirement_age: 65,
+      dob: "1990-01-01",
+      earliest_retirement_age: null,
+      retirement_income_breakdown: null,
+      retirement_income_total_annual: null,
+      desired_income_annual: null,
+    });
+
+    const { default: PensionForecast } = await import("@/pages/PensionForecast");
+
+    renderWithI18n(<PensionForecast />);
+
+    const snapshot = await screen.findByRole("region", {
+      name: en.pensionForecast.header.heading,
+    });
+    const snapshotWithin = within(snapshot);
+
+    // Section is renamed away from implying every account is a pension.
+    expect(
+      snapshotWithin.getByText("Accounts included in this forecast"),
+    ).toBeInTheDocument();
+
+    // Every account type is still present -- none filtered out. The
+    // heading text above is static and renders before the owner ->
+    // accounts effect chain settles, so wait for the account chips
+    // themselves rather than asserting synchronously.
+    await snapshotWithin.findByText("ISA");
+    expect(snapshotWithin.getByText("SIPP")).toBeInTheDocument();
+    expect(snapshotWithin.getByText("GIA")).toBeInTheDocument();
+    expect(snapshotWithin.queryByText("isa")).not.toBeInTheDocument();
+    expect(snapshotWithin.queryByText("sipp")).not.toBeInTheDocument();
+    expect(snapshotWithin.queryByText("gia")).not.toBeInTheDocument();
+
+    // Pension vs non-pension is distinguished.
+    expect(snapshotWithin.getAllByText("Pension")).toHaveLength(1);
+    expect(snapshotWithin.getAllByText("Not a pension")).toHaveLength(2);
+  });
+
+  it("seeds the current pension pot from portfolio data before a forecast is run (#7211)", async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: "alex", full_name: "Alex Example", accounts: ["isa", "sipp"] },
+    ]);
+    mockGetPortfolio.mockResolvedValue({
+      owner: "alex",
+      as_of: "2026-01-01",
+      trades_this_month: 0,
+      trades_remaining: 0,
+      total_value_estimate_gbp: 5200,
+      accounts: [
+        { account_type: "sipp", currency: "GBP", value_estimate_gbp: 4200, holdings: [] },
+        { account_type: "isa", currency: "GBP", value_estimate_gbp: 1000, holdings: [] },
+      ],
+    });
+
+    const { default: PensionForecast } = await import("@/pages/PensionForecast");
+
+    renderWithI18n(<PensionForecast />);
+
+    const snapshot = await screen.findByRole("region", {
+      name: en.pensionForecast.header.heading,
+    });
+    // Only the SIPP value counts toward the pension pot -- the ISA is not a
+    // pension and must not be folded into the figure.
+    await within(snapshot).findByText("£4,200.00");
+    expect(
+      within(snapshot).getByText("From your latest portfolio data"),
+    ).toBeInTheDocument();
+    expect(within(snapshot).queryByText(/not available/i)).not.toBeInTheDocument();
+  });
+
+  it("labels the pension pot as pending rather than 'Not available' when there's no portfolio pension data", async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: "alex", full_name: "Alex Example", accounts: ["isa"] },
+    ]);
+    mockGetPortfolio.mockResolvedValue({
+      owner: "alex",
+      as_of: "2026-01-01",
+      trades_this_month: 0,
+      trades_remaining: 0,
+      total_value_estimate_gbp: 1000,
+      accounts: [
+        { account_type: "isa", currency: "GBP", value_estimate_gbp: 1000, holdings: [] },
+      ],
+    });
+
+    const { default: PensionForecast } = await import("@/pages/PensionForecast");
+
+    renderWithI18n(<PensionForecast />);
+
+    const snapshot = await screen.findByRole("region", {
+      name: en.pensionForecast.header.heading,
+    });
+    await within(snapshot).findByText("Shown after you run a forecast");
+    expect(within(snapshot).queryByText(/^Not available$/)).not.toBeInTheDocument();
+  });
+
+  it("relabels 'Death age' to 'Plan until age' with a sensible default and guidance", async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: "alex", full_name: "Alex Example", accounts: [] },
+    ]);
+
+    const { default: PensionForecast } = await import("@/pages/PensionForecast");
+
+    renderWithI18n(<PensionForecast />);
+
+    const form = document.querySelector("form")!;
+    expect(within(form).queryByText(/^Death age$/)).not.toBeInTheDocument();
+    const planUntilAge = within(form).getByLabelText(/plan until age/i) as HTMLInputElement;
+    expect(planUntilAge.value).toBe("90");
+    expect(
+      within(form).getByText(/how far into retirement to plan for/i),
+    ).toBeInTheDocument();
+  });
+
+  it("gives the state pension input a default value and guidance, and gives the contribution sliders an explicit defaults note", async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: "alex", full_name: "Alex Example", accounts: [] },
+    ]);
+
+    const { default: PensionForecast } = await import("@/pages/PensionForecast");
+
+    renderWithI18n(<PensionForecast />);
+
+    const form = document.querySelector("form")!;
+    const statePension = within(form).getByLabelText(/state pension/i) as HTMLInputElement;
+    expect(statePension.value).toBe("0");
+    expect(
+      within(form).getByText(/your expected annual state pension/i),
+    ).toBeInTheDocument();
+    expect(
+      within(form).getAllByText(/starting example value/i).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("sends the same forecast request whether state pension is left at its default or the field is left blank (calculation unchanged, #7211)", async () => {
+    mockGetOwners.mockResolvedValue([
+      { owner: "alex", full_name: "Alex Example", accounts: [] },
+    ]);
+    mockGetPensionForecast.mockResolvedValue({
+      forecast: [],
+      projected_pot_gbp: 0,
+      pension_pot_gbp: 0,
+      current_age: 30,
+      retirement_age: 65,
+      dob: "1990-01-01",
+      earliest_retirement_age: null,
+      retirement_income_breakdown: null,
+      retirement_income_total_annual: null,
+      desired_income_annual: null,
+    });
+
+    const { default: PensionForecast } = await import("@/pages/PensionForecast");
+
+    renderWithI18n(<PensionForecast />);
+
+    const btn = screen.getByRole("button", { name: /forecast/i });
+    await userEvent.click(btn);
+
+    // The backend treats an omitted state_pension_annual the same as 0 (see
+    // backend/routes/pension.py: `state_income = float(state_pension_annual
+    // or 0.0)`), so defaulting the field to "0" instead of blank sends an
+    // explicit 0 -- not a new/different value -- for a first-time user.
+    await vi.waitFor(() =>
+      expect(mockGetPensionForecast).toHaveBeenCalledWith(
+        expect.objectContaining({ statePensionAnnual: 0 }),
+      ),
+    );
   });
 });
 

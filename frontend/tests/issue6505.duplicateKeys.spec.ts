@@ -284,8 +284,10 @@ test.describe('issue 6505: no duplicate-key warnings for same-ticker rows', () =
     const warnings = collectDuplicateKeyWarnings(page);
     await applyAuth(page);
     await setupCoreMocks(page);
-    // The header search (InstrumentSearchBar) renders suggestions keyed by
-    // ticker+index; duplicate tickers must not produce duplicate-key warnings.
+    // The instrument search bar (InstrumentSearchBar) renders suggestions keyed
+    // by ticker+index; duplicate tickers must not produce duplicate-key
+    // warnings. The header and embedded instances are the same component, so
+    // driving either exercises the same keyed render path.
     await page.route('**/instrument/search**', async (route) => {
       await route.fulfill({
         status: 200,

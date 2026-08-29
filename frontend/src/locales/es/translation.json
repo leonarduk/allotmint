@@ -291,7 +291,9 @@
       "max": "MÁX"
     },
     "recentPrices": "Precios recientes",
-    "rsi": "RSI"
+    "rsi": "RSI",
+    "searchInstruments": "Buscar instrumentos",
+    "showInstrumentSearch": "Mostrar búsqueda de instrumentos"
   },
   "instrumentTable": {
     "columns": {

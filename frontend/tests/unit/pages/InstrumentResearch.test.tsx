@@ -443,6 +443,61 @@ describe("InstrumentResearch page", () => {
     expect(lastCloseRow).not.toHaveTextContent("£197.00");
   });
 
+  it("keeps a sub-unit EUR close native instead of misreading it as already-GBP (#7219)", async () => {
+    // Regression for a false-positive band in an earlier fix-up: a fixed
+    // absolute tolerance (e.g. 0.005) for "close already equals close_gbp"
+    // misfires whenever |close| * |1 - rate| falls under it. At an ordinary
+    // EUR/GBP rate of ~0.92, that band covers any EUR instrument priced
+    // under ~6 cents -- close 0.06 (EUR) vs close_gbp 0.0552 (GBP, a
+    // genuine ~8% FX conversion) differ by only 0.0048, which a 0.005
+    // absolute epsilon would wrongly call "the same value" and render as
+    // "£0.06". The comparison must be relative, not absolute, so a small
+    // but real conversion is never mistaken for an unconverted value.
+    mockListInstrumentMetadata.mockResolvedValueOnce([
+      {
+        ticker: "AAA.L",
+        exchange: "L",
+        name: "Acme Corp",
+        sector: "Tech",
+        currency: "EUR",
+      } as InstrumentMetadata,
+    ]);
+    mockUseInstrumentHistory.mockReturnValue({
+      data: {
+        mini: { "30": [] },
+        positions: [],
+        ticker: "AAA.L",
+        name: "Acme Corp",
+        sector: "Tech",
+        currency: "GBP",
+        base_currency: "GBP",
+        prices: [
+          { date: "2024-01-01", close: 0.06, close_gbp: 0.0552 },
+          { date: "2024-01-02", close: 0.06, close_gbp: 0.0552 },
+        ],
+        rows: 2,
+        from: "2024-01-01",
+        to: "2024-01-02",
+      },
+      loading: false,
+      error: null,
+    } as any);
+
+    renderPage();
+
+    const heading = await screen.findByRole("heading", {
+      level: 1,
+      name: /AAA - Acme Corp/,
+    });
+    expect(heading).toHaveTextContent("EUR");
+    expect(heading).not.toHaveTextContent("Tech · GBP");
+
+    const lastCloseRow = screen.getByText("Last Close").closest("div");
+    expect(lastCloseRow).not.toBeNull();
+    expect(lastCloseRow).toHaveTextContent("0.06 EUR");
+    expect(lastCloseRow).not.toHaveTextContent("£0.06");
+  });
+
   it("prefers the price-series currency over stale GBX metadata (#7219)", async () => {
     // Regression for #7219: the instrument metadata catalogue can say a
     // ticker is GBX (pence) while the /instrument/ price series it is

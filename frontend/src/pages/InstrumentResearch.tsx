@@ -94,14 +94,6 @@ type DisplayPrice = {
   date: string | null;
 };
 
-// A price entry's `close` value is native (whatever currency the instrument
-// is actually quoted in) and its `close_gbp`/`close_usd` value is that same
-// price converted to the reporting currency. Two values within 0.5 pence/
-// cent of each other are treated as "the same number" (float/rounding
-// noise), meaning `close` was never converted at all -- it IS already the
-// reporting currency's value.
-const NATIVE_VS_REPORTING_EPSILON = 0.005;
-
 function resolveDisplayPrice(
   price: Record<string, unknown>,
   nativeCurrency: string | undefined,
@@ -127,10 +119,21 @@ function resolveDisplayPrice(
   // same value, `close` IS already the reporting currency; if they differ,
   // `close` is still native and must be labelled with the instrument's own
   // declared/quote currency (from metadata) instead of the reporting one.
+  //
+  // The "same value" check uses a RELATIVE tolerance, not an absolute one.
+  // When close IS already the reporting currency, the backend assigns it
+  // verbatim (df["Close_gbp"] = df["Close"], routes/instrument.py ~425/441)
+  // -- the two floats are bit-identical, so this only needs to absorb
+  // genuine float noise. A fixed absolute epsilon (e.g. 0.005) instead
+  // opens a false-positive band that misfires whenever
+  // |close| * |1 - rate| falls under it -- at a perfectly ordinary
+  // EUR/GBP rate of ~0.92, any EUR instrument priced under ~6 cents would
+  // be wrongly treated as "already GBP" and mislabelled.
   const closeMatchesReporting =
     nativeClose != null &&
     reportingClose != null &&
-    Math.abs(nativeClose - reportingClose) < NATIVE_VS_REPORTING_EPSILON;
+    Math.abs(nativeClose - reportingClose) <=
+      1e-9 * Math.max(1, Math.abs(nativeClose), Math.abs(reportingClose));
   const useNativeClose =
     nativeClose != null && (reportingClose == null || !closeMatchesReporting);
   const close =

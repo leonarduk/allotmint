@@ -14,6 +14,13 @@ export interface AuthContextValue {
   // through (see #4751 — the button was disappearing on standalone routes).
   logout: (() => void) | null;
   setLogout: (fn: (() => void) | null) => void;
+  // True for the lifetime of a demo-token session (issue #7410) — a visitor
+  // who landed via /demo?token=<...> rather than a real sign-in. This is a
+  // UI courtesy flag only (drives the read-only banner and, in #7411,
+  // hiding mutating controls); it is not itself an authorization boundary —
+  // the server-side gates (#7407, #7408) enforce read-only access.
+  demoReadOnly: boolean;
+  setDemoReadOnly: (value: boolean) => void;
 }
 
 // Default context used when no provider is present. The setters are no-ops so
@@ -23,4 +30,6 @@ export const AuthContext = createContext<AuthContextValue>({
   setUser: () => {},
   logout: null,
   setLogout: () => {},
+  demoReadOnly: false,
+  setDemoReadOnly: () => {},
 });

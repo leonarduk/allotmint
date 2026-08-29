@@ -39,9 +39,25 @@ import { UserProvider, useUser } from './UserContext';
 import ErrorBoundary from './ErrorBoundary';
 import DisabledFeature from './components/DisabledFeature';
 import AppHeader from './components/AppHeader';
+import DemoReadOnlyBanner from './components/DemoReadOnlyBanner';
+import {
+  applyDemoTokenFromUrl,
+  clearDemoSession,
+  isDemoSession,
+} from './demoAuth';
 import { loadStoredAuthUser, loadStoredUserProfile } from './authStorage';
 import { RouteProvider } from './RouteContext';
-import { clearCognitoSession, cognitoLogout, ensureAwsUiAuth, extractTokenExchangeErrorReason, getCognitoSessionExpiresAt, getStoredCognitoIdToken, refreshCognitoSession, UserCancelledError, type AwsUiAuthConfig } from './awsUiAuth';
+import {
+  clearCognitoSession,
+  cognitoLogout,
+  ensureAwsUiAuth,
+  extractTokenExchangeErrorReason,
+  getCognitoSessionExpiresAt,
+  getStoredCognitoIdToken,
+  refreshCognitoSession,
+  UserCancelledError,
+  type AwsUiAuthConfig,
+} from './awsUiAuth';
 import {
   deriveBootstrapMode,
   deriveModeFromPathname,
@@ -136,7 +152,9 @@ const renderRouteMarker = (
   );
 };
 
-export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthConfig } = {}) {
+export function Root({
+  awsUiAuth = runtimeAwsUiAuth,
+}: { awsUiAuth?: AwsUiAuthConfig } = {}) {
   const [configLoading, setConfigLoading] = useState(true);
   const [configError, setConfigError] = useState<Error | null>(null);
   const [retryScheduled, setRetryScheduled] = useState(false);
@@ -144,7 +162,9 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
   const [googleLoginEnabled, setGoogleLoginEnabled] = useState(false);
   const [clientId, setClientId] = useState('');
   const [authed, setAuthed] = useState(
-    Boolean(storedToken) || Boolean(getStoredCognitoIdToken()),
+    Boolean(storedToken) ||
+      Boolean(getStoredCognitoIdToken()) ||
+      isDemoSession()
   );
   // Distinguishes "session expired mid-use" from "never signed in yet" so the
   // sign-in wall can explain *why* it appeared instead of silently discarding
@@ -157,8 +177,10 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
   // Resolved awsUiAuth: starts from the /config.json-derived prop; may be
   // overridden by cfg.awsUiAuth from the backend GET /config response (which
   // is authoritative and the source that #4610 was designed to enable).
-  const [resolvedAwsUiAuth, setResolvedAwsUiAuth] = useState<AwsUiAuthConfig | undefined>(awsUiAuth);
-  const { setUser, setLogout } = useAuth();
+  const [resolvedAwsUiAuth, setResolvedAwsUiAuth] = useState<
+    AwsUiAuthConfig | undefined
+  >(awsUiAuth);
+  const { setUser, setLogout, demoReadOnly, setDemoReadOnly } = useAuth();
   const { setProfile } = useUser();
   const navigate = useNavigate();
   const location = useLocation();
@@ -192,6 +214,16 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
     setAuthed(false);
     // A deliberate, user-initiated logout is not a session expiry.
     setSessionExpired(false);
+    if (isDemoSession()) {
+      // A demo session has no Cognito session of its own — sending it
+      // through cognitoLogout would redirect to the hosted UI, which is
+      // wrong for a visitor who never signed in. Just drop the demo marker
+      // and land back on the plain root.
+      clearDemoSession();
+      setDemoReadOnly(false);
+      navigate('/');
+      return;
+    }
     if (resolvedAwsUiAuth?.enabled) {
       // Local session state is already cleared above; a failed hosted-UI
       // redirect (e.g. a malformed domain) must not crash the app mid-logout.
@@ -203,7 +235,7 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
     } else {
       navigate('/');
     }
-  }, [navigate, resolvedAwsUiAuth, setProfile, setUser]);
+  }, [navigate, resolvedAwsUiAuth, setDemoReadOnly, setProfile, setUser]);
 
   // Registered in AuthContext so any Menu instance can log out reliably even
   // if the page that mounts it forgets to thread an onLogout prop through
@@ -239,11 +271,18 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
       // no prior session should still see the plain sign-in wall.
       if (authedRef.current) setSessionExpired(true);
       setAuthed(false);
+      // A demo token is short-lived by design and is never refreshed, so its
+      // expiry (a 401) must land on the sign-in wall rather than looping —
+      // dropping the marker here is what makes that happen.
+      if (isDemoSession()) {
+        clearDemoSession();
+        setDemoReadOnly(false);
+      }
     };
     window.addEventListener(UNAUTHORIZED_EVENT, handleUnauthorized);
     return () =>
       window.removeEventListener(UNAUTHORIZED_EVENT, handleUnauthorized);
-  }, [setProfile, setUser]);
+  }, [setDemoReadOnly, setProfile, setUser]);
 
   // Derive a stable boolean from the /config.json-sourced prop so the
   // useCallback dep array holds a primitive, not an object reference.
@@ -389,7 +428,9 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
       <>
         {renderRouteMarker(location.pathname, 'loading')}
         <div role="status" className="app-loading">
-          {retryScheduled ? 'Loading... retrying configuration.' : 'Loading configuration...'}
+          {retryScheduled
+            ? 'Loading... retrying configuration.'
+            : 'Loading configuration...'}
         </div>
       </>
     );
@@ -410,9 +451,15 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
     );
   }
 
-  if (needsAuth && !authed && !isPublicSupportRoute && !isPublicCreateAccountRoute) {
+  if (
+    needsAuth &&
+    !authed &&
+    !isPublicSupportRoute &&
+    !isPublicCreateAccountRoute
+  ) {
     const awsUiAuthEnabled =
-      resolvedAwsUiAuth?.enabled === true || resolvedAwsUiAuth?.enabled === 'true';
+      resolvedAwsUiAuth?.enabled === true ||
+      resolvedAwsUiAuth?.enabled === 'true';
     const hasAnyLoginMethod =
       (googleLoginEnabled && Boolean(clientId)) || awsUiAuthEnabled;
 
@@ -445,87 +492,90 @@ export function Root({ awsUiAuth = runtimeAwsUiAuth }: { awsUiAuth?: AwsUiAuthCo
   }
 
   return (
-    <ErrorBoundary key={location.pathname}>
-      <Suspense fallback={<div>Loading...</div>}>
-        <Routes>
-          {complianceRoutesEnabled ? (
-            <>
-              <Route path="/compliance" element={<ComplianceWarnings />} />
-              <Route
-                path="/compliance/:owner"
-                element={<ComplianceWarnings />}
-              />
-            </>
-          ) : null}
-          {standalonePageRoutes.flatMap((route) => {
-            if (route.routePath === '/virtual' || !route.lazyComponent) {
-              return [];
-            }
-            if (!isModeEnabled(route.mode, tabs, disabledTabs)) {
-              return [];
-            }
+    <>
+      {demoReadOnly && <DemoReadOnlyBanner />}
+      <ErrorBoundary key={location.pathname}>
+        <Suspense fallback={<div>Loading...</div>}>
+          <Routes>
+            {complianceRoutesEnabled ? (
+              <>
+                <Route path="/compliance" element={<ComplianceWarnings />} />
+                <Route
+                  path="/compliance/:owner"
+                  element={<ComplianceWarnings />}
+                />
+              </>
+            ) : null}
+            {standalonePageRoutes.flatMap((route) => {
+              if (route.routePath === '/virtual' || !route.lazyComponent) {
+                return [];
+              }
+              if (!isModeEnabled(route.mode, tabs, disabledTabs)) {
+                return [];
+              }
 
-            const Component = route.lazyComponent;
-            // Standalone pages mount outside App.tsx's mode dispatch, so they
-            // render with zero nav chrome unless the wrapper is added here
-            // (or the page self-renders AppHeader like AlertSettings does).
-            // /alert-settings, /support and /create-account are excluded by
-            // standaloneRouteNeedsChrome (#6725).
-            const needsChrome = standaloneRouteNeedsChrome(route.routePath);
-            return [
-              <Route
-                key={route.routePath}
-                path={route.routePath}
-                element={
-                  needsChrome ? (
-                    <>
-                      <AppHeader />
+              const Component = route.lazyComponent;
+              // Standalone pages mount outside App.tsx's mode dispatch, so they
+              // render with zero nav chrome unless the wrapper is added here
+              // (or the page self-renders AppHeader like AlertSettings does).
+              // /alert-settings, /support and /create-account are excluded by
+              // standaloneRouteNeedsChrome (#6725).
+              const needsChrome = standaloneRouteNeedsChrome(route.routePath);
+              return [
+                <Route
+                  key={route.routePath}
+                  path={route.routePath}
+                  element={
+                    needsChrome ? (
+                      <>
+                        <AppHeader />
+                        <Component />
+                      </>
+                    ) : (
                       <Component />
-                    </>
-                  ) : (
-                    <Component />
-                  )
-                }
-              />,
-            ];
-          })}
-          {FAMILY_MVP_ROUTE_GATES.flatMap(({ mode, path }) =>
-            isModeEnabled(mode, tabs, disabledTabs)
-              ? []
-              : [
-                  <Route
-                    key={`disabled-${path}`}
-                    path={path}
-                    element={<DisabledFeature />}
-                  />,
-                ]
-          )}
-          <Route path="/goals" element={<Goals />} />
-          <Route path="/smoke-test" element={<SmokeTest />} />
-          {advancedAnalyticsEnabled ? (
-            <>
-              <Route
-                path="/performance/:owner/diagnostics"
-                element={<PerformanceDiagnostics />}
-              />
-              <Route path="/returns/compare" element={<ReturnComparison />} />
-              <Route
-                path="/metrics-explained"
-                element={<MetricsExplanation />}
-              />
-            </>
-          ) : null}
-          <Route
-            path="/*"
-            element={
-              <RouteProvider>
-                <App onLogout={logout} />
-              </RouteProvider>
-            }
-          />
-        </Routes>
-      </Suspense>
-    </ErrorBoundary>
+                    )
+                  }
+                />,
+              ];
+            })}
+            {FAMILY_MVP_ROUTE_GATES.flatMap(({ mode, path }) =>
+              isModeEnabled(mode, tabs, disabledTabs)
+                ? []
+                : [
+                    <Route
+                      key={`disabled-${path}`}
+                      path={path}
+                      element={<DisabledFeature />}
+                    />,
+                  ]
+            )}
+            <Route path="/goals" element={<Goals />} />
+            <Route path="/smoke-test" element={<SmokeTest />} />
+            {advancedAnalyticsEnabled ? (
+              <>
+                <Route
+                  path="/performance/:owner/diagnostics"
+                  element={<PerformanceDiagnostics />}
+                />
+                <Route path="/returns/compare" element={<ReturnComparison />} />
+                <Route
+                  path="/metrics-explained"
+                  element={<MetricsExplanation />}
+                />
+              </>
+            ) : null}
+            <Route
+              path="/*"
+              element={
+                <RouteProvider>
+                  <App onLogout={logout} />
+                </RouteProvider>
+              }
+            />
+          </Routes>
+        </Suspense>
+      </ErrorBoundary>
+    </>
   );
 }
 
@@ -592,7 +642,10 @@ const scheduleCognitoRefresh = (awsUiAuth?: AwsUiAuthConfig | null) => {
         apiLogout();
       })
       .catch((error) => {
-        console.error('Cognito token refresh failed — clearing session:', error);
+        console.error(
+          'Cognito token refresh failed — clearing session:',
+          error
+        );
         clearCognitoSession();
         apiLogout();
       });
@@ -602,7 +655,9 @@ const scheduleCognitoRefresh = (awsUiAuth?: AwsUiAuthConfig | null) => {
 window.addEventListener('beforeunload', clearCognitoRefreshTimer);
 
 const bootstrapRuntimeConfig = async () => {
-  let payload: { apiBaseUrl?: unknown; awsUiAuth?: AwsUiAuthConfig } | undefined;
+  let payload:
+    | { apiBaseUrl?: unknown; awsUiAuth?: AwsUiAuthConfig }
+    | undefined;
   try {
     const response = await fetch('/config.json', { cache: 'no-store' });
     if (!response.ok) return true;
@@ -624,6 +679,15 @@ const bootstrapRuntimeConfig = async () => {
     setApiBase(payload.apiBaseUrl);
   }
   runtimeAwsUiAuth = payload.awsUiAuth;
+
+  // A demo-token visit (/demo?token=<...>) fully replaces the Cognito/Google
+  // bootstrap for this tab: it must never be sent through ensureAwsUiAuth,
+  // which would redirect an unauthenticated visitor to the hosted UI —
+  // exactly what a demo link is meant to skip. See issue #7410.
+  if (applyDemoTokenFromUrl()) {
+    return true;
+  }
+
   const shouldRender = await ensureAwsUiAuth(payload.awsUiAuth);
   if (shouldRender) {
     try {
@@ -679,7 +743,9 @@ void bootstrapRuntimeConfig()
       const reason = extractTokenExchangeErrorReason(error);
       createRoot(rootEl).render(
         <div role="alert" className="app-offline">
-          <p>Authentication is unavailable. Please contact your administrator.</p>
+          <p>
+            Authentication is unavailable. Please contact your administrator.
+          </p>
           {reason && <p>Sign-in failed. Reason: {reason}</p>}
           <button type="button" onClick={() => window.location.reload()}>
             Sign in

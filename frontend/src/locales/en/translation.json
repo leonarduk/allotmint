@@ -936,6 +936,7 @@
     "error": "Error",
     "approvals": "Approvals",
     "approvalsHelp": "Tickers explicitly cleared to trade outside the exemptions above. Each approval is only valid for the deployment's configured approval window in trading days, starting from the date shown -- if no window is configured, it is valid only on the day it's granted.",
+    "approvalsEmpty": "No approvals yet. Add one below if a trade needs to go ahead outside the rules above.",
     "remove": "Remove",
     "add": "Add",
     "subtitle": "The compliance rules that govern how this account can trade, and the tickers pre-approved to bypass them.",

@@ -322,6 +322,70 @@ describe("UserConfig page", () => {
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   });
 
+  it("shows an empty state for the Approvals table instead of a bare header (#7206)", async () => {
+    mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
+    mockGetUserConfig.mockResolvedValue({});
+    mockGetApprovals.mockResolvedValue({ approvals: [] });
+
+    render(<UserConfig />);
+
+    const select = await screen.findByRole("combobox");
+    await act(async () => {
+      await userEvent.selectOptions(select, "alex");
+    });
+
+    expect(
+      await screen.findByText(
+        /no approvals yet\. add one below if a trade needs to go ahead/i,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  });
+
+  it("renders the Approvals table once an approval exists, and drops the empty state (#7206)", async () => {
+    mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
+    mockGetUserConfig.mockResolvedValue({});
+    mockGetApprovals.mockResolvedValue({
+      approvals: [{ ticker: "VUSA.L", approved_on: "2024-01-01" }],
+    });
+
+    render(<UserConfig />);
+
+    const select = await screen.findByRole("combobox");
+    await act(async () => {
+      await userEvent.selectOptions(select, "alex");
+    });
+
+    expect(await screen.findByRole("table")).toBeInTheDocument();
+    expect(screen.getByText("VUSA.L")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/no approvals yet\. add one below/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not render a bare Approvals table or the empty-state text on a load error (#7206)", async () => {
+    mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
+    mockGetUserConfig.mockResolvedValue({});
+    const forbidden = new Error("HTTP 403 - Forbidden (/accounts/alex/approvals)");
+    (forbidden as any).status = 403;
+    mockGetApprovals.mockRejectedValue(forbidden);
+
+    render(<UserConfig />);
+
+    const select = await screen.findByRole("combobox");
+    await act(async () => {
+      await userEvent.selectOptions(select, "alex");
+    });
+
+    await screen.findByText(
+      /don't have permission to view or manage approvals/i,
+    );
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/no approvals yet\. add one below/i),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows a permission-specific message when loading approvals 403s (#5215)", async () => {
     mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
     mockGetUserConfig.mockResolvedValue({});

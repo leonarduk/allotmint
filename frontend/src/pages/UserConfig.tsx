@@ -400,32 +400,55 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
                 "Tickers explicitly cleared to trade outside the exemptions above. Each approval is only valid for the deployment's configured approval window in trading days, starting from the date shown -- if no window is configured, it is valid only on the day it's granted."
               )}
             </p>
-            <table className="w-full border">
-              <thead>
-                <tr>
-                  <th className="border px-2 text-left">Ticker</th>
-                  <th className="border px-2 text-left">Date</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {approvals.map((a, index) => (
-                  <tr key={`${a.ticker}-${index}`}>
-                    <td className="border px-2">{a.ticker}</td>
-                    <td className="border px-2">{a.approved_on}</td>
-                    <td className="border px-2 text-right">
-                      <button
-                        type="button"
-                        className="text-red-500"
-                        onClick={() => remove(a.ticker)}
-                      >
-                        {t('userConfig.remove', 'Remove')}
-                      </button>
-                    </td>
+            {/* #7206: the table previously had no empty-state row, so a
+             * fresh account (the common case -- most accounts never need
+             * an approval) showed a header with nothing under it and no
+             * explanation of what an approval even is.
+             *
+             * This must key off approvals.length alone, not
+             * `approvals.length === 0 && !approvalsError` -- a load failure
+             * (401/403/etc.) also leaves approvals at [], and gating the
+             * empty state behind "no error" reintroduced the exact bare
+             * header row the issue complained about, just on the error path
+             * instead of the no-owner path. The error message below always
+             * renders on its own, regardless of which branch this picks. */}
+            {approvals.length === 0 ? (
+              !approvalsError && (
+                <p className="text-gray-800 dark:text-gray-200">
+                  {t(
+                    'userConfig.approvalsEmpty',
+                    'No approvals yet. Add one below if a trade needs to go ahead outside the rules above.'
+                  )}
+                </p>
+              )
+            ) : (
+              <table className="w-full border">
+                <thead>
+                  <tr>
+                    <th className="border px-2 text-left">Ticker</th>
+                    <th className="border px-2 text-left">Date</th>
+                    <th></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {approvals.map((a, index) => (
+                    <tr key={`${a.ticker}-${index}`}>
+                      <td className="border px-2">{a.ticker}</td>
+                      <td className="border px-2">{a.approved_on}</td>
+                      <td className="border px-2 text-right">
+                        <button
+                          type="button"
+                          className="text-red-500"
+                          onClick={() => remove(a.ticker)}
+                        >
+                          {t('userConfig.remove', 'Remove')}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
             {approvalsError && (
               <div className="text-red-500">{approvalsError}</div>
             )}

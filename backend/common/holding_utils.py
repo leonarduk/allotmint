@@ -394,7 +394,15 @@ def get_effective_cost_basis_gbp(
         # gain/loss) instead of leaving cost at 0, which would otherwise
         # invent a large, misleading "unrealised gain" equal to the entire
         # market value.
+        #
+        # This value is still a guess, not a fact, so it must not be
+        # reported as "derived" (a real historical-price derivation) --
+        # tag it distinctly so callers/UI can tell the two apart and avoid
+        # presenting the resulting break-even gain as a confident £0.00
+        # (review follow-up on #7220).
         close_px = price_hint
+        if close_px is not None:
+            h["cost_basis_source"] = "unknown"
 
     if close_px is None:
         return 0.0
@@ -558,9 +566,7 @@ def enrich_holding(
         if approved_on:
             approved = is_approval_valid(approved_on, today)
 
-    out["sell_eligible"] = (
-        None if eligible is None else bool(eligible and (approved or not needs_approval))
-    )
+    out["sell_eligible"] = None if eligible is None else bool(eligible and (approved or not needs_approval))
 
     px = px_source = prev_px = None
     last_price_time = None
@@ -670,7 +676,16 @@ def enrich_holding(
     else:
         out["day_change_gbp"] = None
 
-    out["cost_basis_source"] = "book" if float(out.get(COST_BASIS_GBP) or 0.0) > 0 else "derived"
+    # get_effective_cost_basis_gbp() may already have tagged out["cost_basis_source"]
+    # as "unknown" (no booked cost, no acquisition date, no cached historical
+    # price -- cost was set equal to the current price as a last resort, see
+    # #7220). That is a materially different claim from a real historical
+    # derivation, so it must not be overwritten with the generic "derived"
+    # here once a booked cost is ruled out.
+    if float(out.get(COST_BASIS_GBP) or 0.0) > 0:
+        out["cost_basis_source"] = "book"
+    elif out.get("cost_basis_source") != "unknown":
+        out["cost_basis_source"] = "derived"
 
     return out
 

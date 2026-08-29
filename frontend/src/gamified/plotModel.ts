@@ -231,7 +231,9 @@ export interface Crop {
   lastPriceDate: string | null;
   /** Days held, when the API knows — drives the "ready to lift" hint. */
   daysHeld: number | null;
-  sellEligible: boolean;
+  /** Null when the acquisition date is unknown (#7220) -- eligibility
+   * genuinely can't be determined, distinct from a confirmed "not eligible". */
+  sellEligible: boolean | null;
   /** Days until the minimum holding period is served, when the API knows. */
   daysUntilEligible: number | null;
   nextEligibleSellDate: string | null;
@@ -352,7 +354,10 @@ function cropFromHolding(
     freshness,
     lastPriceDate: holding.last_price_date ?? null,
     daysHeld: holding.days_held ?? null,
-    sellEligible: holding.sell_eligible !== false,
+    // #7220 review follow-up: previously `!== false`, which coerced
+    // sell_eligible: null (unknown) into `true`. Passing the tri-state
+    // through as-is keeps "unknown" distinct from a confirmed "eligible".
+    sellEligible: holding.sell_eligible ?? null,
     daysUntilEligible: holding.days_until_eligible ?? null,
     nextEligibleSellDate: holding.next_eligible_sell_date ?? null,
   };
@@ -613,9 +618,19 @@ export function hasKnownHoldPeriodCountdown(
  * sellable crop under an OR reading. Making `sell_eligible` authoritative
  * both ways is the only reading that satisfies the issue's own failure
  * criterion, so that's what this implements.
+ *
+ * `sellEligible: null` (#7220 -- an unknown acquisition date, so eligibility
+ * genuinely can't be determined) is deliberately its own case, not folded
+ * into either direction: only a *confirmed* `false` puts a crop in the
+ * propagator. `!crop.sellEligible` would have coerced `null` to `true` and
+ * flooded the propagator with every unknown-date holding -- on real data
+ * that's the majority of a portfolio (#7220), not the rare confirmed-false
+ * case #7184 was written for. `true` and `null` are therefore both "not
+ * confirmed still growing"; the crop simply doesn't render in this tray
+ * rather than making a confident claim either way.
  */
 export function isStillInPropagator(crop: Crop): boolean {
-  return !crop.sellEligible;
+  return crop.sellEligible === false;
 }
 
 /**

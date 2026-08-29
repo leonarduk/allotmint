@@ -20,7 +20,7 @@ backend/common/dividends.py:74
 backend/common/errors.py:102
 backend/common/holding_utils.py:356
 backend/common/holding_utils.py:169
-backend/common/holding_utils.py:481
+backend/common/holding_utils.py:489
 backend/common/holding_utils.py:104
 backend/common/instrument_api.py:507
 backend/common/instrument_api.py:511

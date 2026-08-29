@@ -247,6 +247,9 @@ describe('buildPlotSnapshot', () => {
   });
 
   it('is unknown, not fresh, when is_stale is undefined and last_price_date is null (#7186)', () => {
+    // VUSA.L in the shared fixture has a last_price_date but no is_stale
+    // flag at all — the backend simply never sent one. That must not be
+    // read as a confirmed-fresh price.
     const noFreshnessSignal: Portfolio = {
       owner: 'alex',
       as_of: '2026-08-25',
@@ -312,6 +315,85 @@ describe('buildPlotSnapshot', () => {
     const { crops } = buildPlotSnapshot({ portfolio: cashRow });
     expect(crops[0].freshness).toBe('unknown');
     expect(crops[0].stale).toBe(false);
+  });
+
+  it('keeps sell_eligible: null as null instead of coercing it to eligible (#7220 review follow-up)', () => {
+    // Regression guard: `holding.sell_eligible !== false` mapped
+    // sell_eligible: null (unknown acquisition date) to `true`, silently
+    // claiming a holding was eligible when eligibility genuinely could not
+    // be determined. Null must stay null.
+    const unknownEligibility: Portfolio = {
+      owner: 'steve',
+      as_of: '2026-08-24',
+      trades_this_month: 0,
+      trades_remaining: 10,
+      total_value_estimate_gbp: 1_000,
+      accounts: [
+        {
+          account_type: 'isa',
+          currency: 'GBP',
+          owner: 'steve',
+          value_estimate_gbp: 1_000,
+          last_updated: '2026-08-20',
+          holdings: [
+            {
+              ticker: 'UNKN.L',
+              name: 'Unknown Eligibility Plc',
+              units: 10,
+              market_value_gbp: 1_000,
+              acquired_date: null,
+              days_held: null,
+              sell_eligible: null,
+              days_until_eligible: null,
+            },
+          ],
+        },
+      ],
+    };
+
+    const { crops } = buildPlotSnapshot({ portfolio: unknownEligibility });
+
+    expect(crops[0].sellEligible).toBeNull();
+  });
+
+  it('excludes a crop with unknown sell_eligible from the propagator rather than assuming it is still growing (#7220 review follow-up)', () => {
+    // isStillInPropagator's authority logic (#7184) is `sellEligible ===
+    // false`, not `!sellEligible` -- the latter would coerce
+    // sellEligible: null to `true` and put every unknown-eligibility
+    // holding in the propagator tray, which on real data (#7220) is most
+    // of a portfolio, not the rare confirmed-false case #7184 covers.
+    const unknownEligibility: Portfolio = {
+      owner: 'steve',
+      as_of: '2026-08-24',
+      trades_this_month: 0,
+      trades_remaining: 10,
+      total_value_estimate_gbp: 1_000,
+      accounts: [
+        {
+          account_type: 'isa',
+          currency: 'GBP',
+          owner: 'steve',
+          value_estimate_gbp: 1_000,
+          last_updated: '2026-08-20',
+          holdings: [
+            {
+              ticker: 'UNKN.L',
+              name: 'Unknown Eligibility Plc',
+              units: 10,
+              market_value_gbp: 1_000,
+              acquired_date: null,
+              days_held: null,
+              sell_eligible: null,
+              days_until_eligible: null,
+            },
+          ],
+        },
+      ],
+    };
+
+    const { crops } = buildPlotSnapshot({ portfolio: unknownEligibility });
+
+    expect(isStillInPropagator(crops[0])).toBe(false);
   });
 
   it('returns an empty but usable snapshot with no portfolio', () => {

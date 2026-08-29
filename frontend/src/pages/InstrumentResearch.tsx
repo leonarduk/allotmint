@@ -94,9 +94,17 @@ type DisplayPrice = {
   date: string | null;
 };
 
+// A price entry's `close` value is native (whatever currency the instrument
+// is actually quoted in) and its `close_gbp`/`close_usd` value is that same
+// price converted to the reporting currency. Two values within 0.5 pence/
+// cent of each other are treated as "the same number" (float/rounding
+// noise), meaning `close` was never converted at all -- it IS already the
+// reporting currency's value.
+const NATIVE_VS_REPORTING_EPSILON = 0.005;
+
 function resolveDisplayPrice(
   price: Record<string, unknown>,
-  instrumentCurrency: string | undefined,
+  nativeCurrency: string | undefined,
   reportingCurrency: string | undefined,
 ): DisplayPrice | null {
   const nativeClose = typeof price.close === "number" && Number.isFinite(price.close)
@@ -108,21 +116,31 @@ function resolveDisplayPrice(
       : typeof price.close_usd === "number" && Number.isFinite(price.close_usd)
         ? price.close_usd
         : null;
-  const normalizedInstrumentCurrency = normaliseUppercase(instrumentCurrency);
+  const normalizedNativeCurrency = normaliseUppercase(nativeCurrency);
   const normalizedReportingCurrency = normaliseUppercase(reportingCurrency);
-  const shouldUseNativeClose =
-    normalizedInstrumentCurrency != null &&
-    normalizedReportingCurrency != null &&
-    normalizedInstrumentCurrency !== normalizedReportingCurrency;
+  // Discriminate on the DATA, not on a currency-code string: the backend's
+  // top-level `currency` field on /instrument/ is hardcoded to the
+  // reporting currency whenever a close_gbp column exists (routes/
+  // instrument.py ~502-515), which is nearly always, so it cannot say what
+  // `close` is actually quoted in (#7219). What the numbers themselves
+  // reveal can be trusted: if `close` and the reporting close carry the
+  // same value, `close` IS already the reporting currency; if they differ,
+  // `close` is still native and must be labelled with the instrument's own
+  // declared/quote currency (from metadata) instead of the reporting one.
+  const closeMatchesReporting =
+    nativeClose != null &&
+    reportingClose != null &&
+    Math.abs(nativeClose - reportingClose) < NATIVE_VS_REPORTING_EPSILON;
+  const useNativeClose =
+    nativeClose != null && (reportingClose == null || !closeMatchesReporting);
   const close =
-    shouldUseNativeClose && nativeClose != null
+    useNativeClose && nativeClose != null
       ? nativeClose
       : reportingClose ?? nativeClose;
   if (close == null) return null;
-  const currency =
-    shouldUseNativeClose && nativeClose != null
-      ? normalizedInstrumentCurrency ?? ""
-      : normalizedReportingCurrency ?? normalizedInstrumentCurrency ?? "";
+  const currency = useNativeClose
+    ? normalizedNativeCurrency ?? normalizedReportingCurrency ?? ""
+    : normalizedReportingCurrency ?? normalizedNativeCurrency ?? "";
   const date = typeof price.date === "string" ? price.date : null;
   return { close, currency, date };
 }
@@ -780,19 +798,45 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
     : undefined;
   const displayName = metadata.name || detail?.name || null;
   const displaySector = metadata.sector || fallbackSector || "";
+  // The instrument's declared/native quote currency -- sourced from the
+  // editable metadata catalogue (falling back to the price series only as a
+  // best-effort guess before that catalogue has loaded). This is what the
+  // "Instrument info" row edits/saves, and it can legitimately disagree
+  // with the currency the price is actually being displayed in below (see
+  // resolvedCurrentCurrency) -- e.g. a stale catalogue entry (#7219).
   const displayCurrency = metadata.currency || fallbackCurrency || "";
-  // The instrument metadata catalogue (listInstrumentMetadata) can disagree
-  // with the currency actually carried by the price series returned from
-  // /instrument/ (see #7219 -- AZN.L metadata says GBX while the price feed
-  // is GBP-magnitude). Anything rendered next to a price from that series
-  // must use the series' own currency, not the catalogue's, so a stale
-  // metadata value never gets mixed into a price label. `fallbackCurrency`
-  // is exactly that series-derived currency (detail.currency / base_currency);
-  // metadata.currency is only a last-resort fallback before `detail` loads.
-  const priceSeriesCurrency = fallbackCurrency || metadata.currency || "";
+  // The currency the *displayed price* actually agrees with, resolved from
+  // the data itself rather than trusted currency-code fields (see
+  // resolveDisplayPrice for why detail.currency can't be trusted: routes/
+  // instrument.py forces it to the reporting currency whenever a close_gbp
+  // column exists, which is nearly always, regardless of what `close` is
+  // really quoted in). Everything rendered next to a price -- the header
+  // badge, Key Facts, Last Close, the Timeseries tab -- must use this, not
+  // displayCurrency, so a GBP-magnitude close never gets mislabelled with a
+  // stale metadata currency (#7219).
+  const latestRawPriceEntry = (() => {
+    const rawPrices = Array.isArray(detail?.prices)
+      ? (detail?.prices as unknown[])
+      : [];
+    const last = rawPrices.length > 0 ? rawPrices[rawPrices.length - 1] : null;
+    return last && typeof last === "object" ? (last as Record<string, unknown>) : null;
+  })();
+  const resolvedLatestPrice = latestRawPriceEntry
+    ? resolveDisplayPrice(latestRawPriceEntry, displayCurrency, detail?.base_currency ?? undefined)
+    : null;
+  const resolvedCurrentCurrency = resolvedLatestPrice?.currency || displayCurrency || "";
+  const metadataCurrencyMismatch = (() => {
+    const normalizedMetadata = normaliseUppercase(metadata.currency);
+    const normalizedResolved = normaliseUppercase(resolvedCurrentCurrency);
+    return (
+      normalizedMetadata != null &&
+      normalizedResolved != null &&
+      normalizedMetadata !== normalizedResolved
+    );
+  })();
   const fundamentalsCurrency =
     (typeof detail?.base_currency === "string" && detail.base_currency) ||
-    priceSeriesCurrency ||
+    resolvedCurrentCurrency ||
     baseCurrency ||
     "USD";
   const detailRecordForDisplay =
@@ -855,7 +899,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
         return (
           <h1 style={{ marginBottom: "1rem" }}>
             {`${tkr} - ${headingName}`}
-            {displaySector || priceSeriesCurrency ? (
+            {displaySector || resolvedCurrentCurrency ? (
               <span
                 style={{
                   display: "block",
@@ -864,8 +908,8 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
                 }}
               >
                 {displaySector}
-                {displaySector && priceSeriesCurrency ? " · " : ""}
-                {priceSeriesCurrency}
+                {displaySector && resolvedCurrentCurrency ? " · " : ""}
+                {resolvedCurrentCurrency}
               </span>
             ) : null}
           </h1>
@@ -1114,7 +1158,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
           <li>
             {isEditingMetadata ? (
               <label htmlFor="instrument-currency" style={{ display: "block" }}>
-                {t("instrumentDetail.currencyLabel")}
+                {t("instrumentDetail.declaredCurrencyLabel")}
                 <select
                   id="instrument-currency"
                   value={formValues.currency}
@@ -1132,8 +1176,22 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
               </label>
             ) : (
               <span>
-                {t("instrumentDetail.currencyLabel")}: {displayCurrency || "—"}
+                {t("instrumentDetail.declaredCurrencyLabel")}: {displayCurrency || "—"}
               </span>
+            )}
+            {metadataCurrencyMismatch && (
+              <div
+                style={{
+                  marginTop: "0.25rem",
+                  fontSize: "0.8rem",
+                  color: "#b3261e",
+                }}
+              >
+                {t("instrumentDetail.currencyMismatchNote", {
+                  metadataCurrency: displayCurrency,
+                  priceCurrency: resolvedCurrentCurrency,
+                })}
+              </div>
             )}
           </li>
         </ul>
@@ -1192,7 +1250,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
             const value = entry as Record<string, unknown>;
             const resolvedPrice = resolveDisplayPrice(
               value,
-              priceSeriesCurrency,
+              displayCurrency,
               detail?.base_currency ?? undefined,
             );
             if (!resolvedPrice) return null;
@@ -1270,7 +1328,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
         const latestPriceEntry =
           parsedPrices.length > 0 ? parsedPrices[parsedPrices.length - 1] : null;
         const latestPrice = latestPriceEntry?.close ?? null;
-        const latestPriceCurrency = latestPriceEntry?.currency ?? priceSeriesCurrency;
+        const latestPriceCurrency = latestPriceEntry?.currency ?? resolvedCurrentCurrency;
         const normalizedReportingCurrency = normaliseUppercase(detail?.base_currency);
         const formatDisplayPrice = (value: number | null, currency: string) => {
           const normalizedCurrency = normaliseUppercase(currency);
@@ -1321,7 +1379,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
               { label: "Ticker", value: tkr },
               { label: "Exchange", value: instrumentExchange || "—" },
               { label: "Sector", value: displaySector || "—" },
-              { label: "Currency", value: priceSeriesCurrency || "—" },
+              { label: "Currency", value: resolvedCurrentCurrency || "—" },
               {
                 label: "Last Close",
                 value: latestPrice != null
@@ -1420,7 +1478,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
           <InstrumentDetail
             ticker={tkr}
             name={displayName ?? tkr}
-            currency={priceSeriesCurrency || undefined}
+            currency={resolvedCurrentCurrency || undefined}
             instrument_type={instrumentType}
             variant="standalone"
             hidePositions

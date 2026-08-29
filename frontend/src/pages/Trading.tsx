@@ -127,19 +127,26 @@ export default function Trading() {
             )}
           </p>
         </div>
-        <span className={styles.signalCount}>
-          {loading ? (
-            <LoadingStatus label={loadingLabel}>
-              <span aria-hidden="true">
-                <TextSkeleton width="6rem" label="" />
-              </span>
-            </LoadingStatus>
-          ) : error ? null : (
-            t('trading.signalCount', '{{count}} active signals', {
+        {loading ? (
+          // `LoadingStatus` renders a <div>, which is invalid inside this
+          // <span> pill badge (and would change how it sizes), so the
+          // status role/live-region attributes go directly on the span
+          // itself instead of nesting a LoadingStatus wrapper here.
+          <span
+            className={styles.signalCount}
+            role="status"
+            aria-live="polite"
+            aria-label={loadingLabel}
+          >
+            <TextSkeleton width="6rem" label="" />
+          </span>
+        ) : error ? null : (
+          <span className={styles.signalCount}>
+            {t('trading.signalCount', '{{count}} active signals', {
               count: signals.length,
-            })
-          )}
-        </span>
+            })}
+          </span>
+        )}
       </header>
 
       {error ? (

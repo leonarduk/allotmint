@@ -26,6 +26,27 @@ const WATCHLIST_OPTIONS: WatchlistOption[] = [
   "Portfolio",
 ];
 
+/**
+ * `useFetch` initialises `loading` to `false` and only flips it to `true`
+ * inside a `useEffect`, so the very first render (before that effect
+ * flushes) has `loading === false` and `data === null`. A bare `loading`
+ * check would fall through to the "no signals" empty state for that frame
+ * (#7229). Extracted as a pure, exported function and unit tested directly
+ * (see TopMoversPage.test.tsx) because that pre-effect frame is not
+ * independently observable through RTL's act()-wrapped `render`: by the
+ * time any assertion runs against the rendered component, React has already
+ * flushed the effect and `loading` is true on its own, so a JSX-level test
+ * cannot tell this derivation apart from a bare `loading` check.
+ */
+// eslint-disable-next-line react-refresh/only-export-components
+export function computeMoversLoading(
+  loading: boolean,
+  data: unknown,
+  error: unknown,
+): boolean {
+  return loading || (data == null && error == null);
+}
+
 export function TopMoversPage() {
   const [watchlist, setWatchlist] = useState<WatchlistOption>(() =>
     loadJSON<WatchlistOption>("topMovers.watchlist", "Portfolio"),
@@ -166,12 +187,9 @@ export function TopMoversPage() {
   const colSpan = watchlist === "Portfolio" ? 6 : 4;
   const visibleSignals = data?.signals.slice(0, MAX_TRADING_SIGNAL_ROWS) ?? [];
   const loadingLabel = t("movers.loading");
-  // `useFetch` initialises `loading` to `false` and only flips it to `true`
-  // inside a `useEffect`, so the very first render (before that effect
-  // flushes) has `loading === false` and `data === null`. Without the
-  // `!data && !error` fallback that first frame would fall through to the
-  // "no signals" empty state instead of the loading skeleton.
-  const isLoading = loading || (!data && error == null);
+  // See `computeMoversLoading` above for why this can't be a bare `loading`
+  // check.
+  const isLoading = computeMoversLoading(loading, data, error);
 
   const disclaimer = (
     <p style={{ color: "#64748b", fontSize: "0.875rem", marginBottom: "0.25rem" }}>

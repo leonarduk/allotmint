@@ -346,9 +346,9 @@
     "pctPortfolio": "% del portafoglio",
     "period": "Periodo:",
     "signal": "Segnale",
-    "signalWindowNote": "Ogni segnale viene generato sulla propria finestra temporale (vedi il motivo al passaggio del mouse), che può differire dal periodo di variazione % e valore mostrato in questa riga.",
+    "signalWindowNote": "Ogni segnale usa la propria finestra temporale, che può differire dal periodo di variazione % e valore mostrato in questa riga. Seleziona il segnale per vedere il motivo.",
     "watchlist": "Watchlist:",
-    "windowNote": "Le colonne % e valore mostrano il movimento nel periodo selezionato; ogni segnale usa la propria finestra temporale, indicata nel motivo."
+    "windowNote": "Le colonne % e valore mostrano il movimento nel periodo selezionato. Ogni segnale usa la propria finestra temporale — seleziona un segnale di acquisto o vendita per vedere il motivo e la confidenza."
   },
   "owner": {
     "label": "Proprietario",

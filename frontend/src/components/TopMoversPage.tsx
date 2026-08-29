@@ -163,13 +163,26 @@ export function TopMoversPage() {
   const colSpan = watchlist === "Portfolio" ? 6 : 4;
   const visibleSignals = data?.signals.slice(0, MAX_TRADING_SIGNAL_ROWS) ?? [];
 
-  if (loading) return <p>{t("common.loading")}</p>;
+  const disclaimer = (
+    <p style={{ color: "#64748b", fontSize: "0.875rem", marginBottom: "0.25rem" }}>
+      {t("trading.description")}
+    </p>
+  );
+
+  if (loading)
+    return (
+      <>
+        {disclaimer}
+        <p>{t("common.loading")}</p>
+      </>
+    );
   if (error != null) {
     const match = error?.message.match(/^HTTP (\d+)\s+[–-]\s+(.*)$/);
     const status = match?.[1];
     const msg = match?.[2] ?? error?.message;
     return (
       <div>
+        {disclaimer}
         <p role="alert" style={{ color: "red" }}>
           {t("movers.loadFailed", {
             status: status ? ` (HTTP ${status})` : "",
@@ -203,10 +216,11 @@ export function TopMoversPage() {
   return (
     <>
       {errorBanner}
-      <p style={{ color: "#64748b", fontSize: "0.875rem", marginBottom: "0.25rem" }}>
-        {t("trading.description")}
-      </p>
-      <p style={{ color: "#64748b", fontSize: "0.875rem", marginBottom: "0.5rem" }}>
+      {disclaimer}
+      <p
+        id="movers-window-note"
+        style={{ color: "#64748b", fontSize: "0.875rem", marginBottom: "0.5rem" }}
+      >
         {t("movers.windowNote")}
       </p>
       <div style={{ marginBottom: "0.5rem" }}>
@@ -274,11 +288,11 @@ export function TopMoversPage() {
             >
               {t("common.name")}
             </th>
-            <th className={tableStyles.cell}>
+            <th className={tableStyles.cell} aria-describedby="movers-window-note">
               {t("movers.signal")}{" "}
               <span
+                aria-hidden="true"
                 title={t("movers.signalWindowNote")}
-                aria-label={t("movers.signalWindowNote")}
                 style={{ cursor: "help", fontWeight: "normal" }}
               >
                 ⓘ

@@ -573,9 +573,9 @@
     "pctPortfolio": "% of portfolio",
     "period": "Period:",
     "signal": "Signal",
-    "signalWindowNote": "Each signal is generated over its own lookback window (see the reason on hover), which may differ from the % and value change period shown in this row.",
+    "signalWindowNote": "Each signal uses its own lookback window, which may differ from the % and value change period shown in this row. Select the signal to see why it fired.",
     "watchlist": "Watchlist:",
-    "windowNote": "The % and value columns show the move for the selected period; each signal uses its own lookback window, noted in its reason."
+    "windowNote": "The % and value columns show the move for the selected period. Each signal uses its own lookback window — select a Buy or Sell signal to see its reason and confidence."
   },
   "owner": {
     "label": "Owner",

@@ -415,9 +415,9 @@
     "pctPortfolio": "% des Portfolios",
     "period": "Zeitraum:",
     "signal": "Signal",
-    "signalWindowNote": "Jedes Signal wird über sein eigenes Zeitfenster erzeugt (Grund beim Hovern), das vom hier angezeigten Zeitraum für % und Wertänderung abweichen kann.",
+    "signalWindowNote": "Jedes Signal verwendet sein eigenes Zeitfenster, das vom hier angezeigten Zeitraum für % und Wertänderung abweichen kann. Signal auswählen, um den Grund zu sehen.",
     "watchlist": "Beobachtungsliste:",
-    "windowNote": "Die Spalten % und Wertänderung zeigen die Bewegung im gewählten Zeitraum; jedes Signal verwendet sein eigenes Zeitfenster, das im Grund angegeben ist."
+    "windowNote": "Die Spalten % und Wertänderung zeigen die Bewegung im gewählten Zeitraum. Jedes Signal verwendet sein eigenes Zeitfenster — wählen Sie ein Kauf- oder Verkaufssignal aus, um Grund und Konfidenz zu sehen."
   },
   "owner": {
     "label": "Besitzer",

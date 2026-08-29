@@ -10,10 +10,28 @@ import i18n from "../i18n";
 // #7199: the backend returns 402 for the whole /screener/ endpoint when the
 // pro package that powers screening isn't installed in this deployment.
 // Rather than let a user fill in the (large) filter form and only discover
-// that on submit, we probe capability once on mount with a cheap, criteria-
-// free request and gate the form up front on the result. "unknown" is the
-// brief in-between state while that probe is in flight.
+// that on submit, we probe capability once on mount and gate the form up
+// front on the result. "unknown" is the brief in-between state while that
+// probe is in flight.
+//
+// Honesty note on what this actually detects: the backend's capability
+// check (`require_core`) runs before it validates the ticker list, so a 402
+// on the probe is a real "not installed" signal either way. But an empty
+// ticker list can't ever prove the *positive* case — a deployment that DOES
+// have the pro package still 400s on `tickers=` ("No tickers supplied"),
+// never 200s. A real sentinel ticker is used instead so a pro deployment
+// gets a genuine 200 and "available" reflects an actual successful call,
+// not just "wasn't a 402". Anything else (timeout, 5xx, a malformed
+// response) still fails open to "available" rather than blocking the page
+// on an unrelated outage — Run's own error handling (below) is the
+// backstop if that guess turns out wrong.
 type ScreenerCapability = "unknown" | "available" | "unavailable";
+
+// Used only to probe capability on mount; a well-known, almost-certainly-
+// resolvable ticker so a pro deployment's probe call gets real data back
+// (and a cache hit) rather than a data-not-found error unrelated to
+// capability.
+const CAPABILITY_PROBE_TICKER = "AAPL";
 
 export function Screener() {
   const [capability, setCapability] = useState<ScreenerCapability>("unknown");
@@ -60,12 +78,11 @@ export function Screener() {
 
   // #7199: probe once on mount, before the user has touched anything, so an
   // unavailable deployment shows the gate immediately instead of after a
-  // wasted Run. An empty ticker list keeps the probe cheap; the backend
-  // checks capability before it looks at ticker-specific data, so a 402
-  // here means Run would 402 too.
+  // wasted Run. See the module-level comment above for why this sends a
+  // real ticker rather than an empty list.
   useEffect(() => {
     let cancelled = false;
-    getScreener([], {})
+    getScreener([CAPABILITY_PROBE_TICKER], {})
       .then(() => {
         if (!cancelled) setCapability("available");
       })
@@ -145,7 +162,20 @@ export function Screener() {
       setRows(data);
     } catch (e) {
       setRows([]);
-      setError(e instanceof Error ? e.message : String(e));
+      // #7199: Run can still hit the same 402 the mount probe checks for —
+      // most obviously when the probe itself fails open on a transient
+      // error (see the module-level comment) and Run is the real request
+      // that then hits a genuine "not installed" 402. Map that the same way
+      // the probe does: plain-language copy, no raw backend `detail` (which
+      // otherwise reaches this exact branch verbatim, package name and
+      // GitHub URL included).
+      const status = (e as { status?: number } | null | undefined)?.status;
+      if (status === 402) {
+        setCapability("unavailable");
+        setError(null);
+      } else {
+        setError(e instanceof Error ? e.message : String(e));
+      }
     } finally {
       setLoading(false);
     }
@@ -162,12 +192,17 @@ export function Screener() {
           role="status"
           className="mb-4 rounded border border-gray-300 bg-gray-50 p-4"
         >
-          <p className="font-semibold">{t("screener.unavailableTitle")}</p>
+          <h2 className="m-0 font-semibold">{t("screener.unavailableTitle")}</h2>
           <p className="m-0">{t("screener.unavailableMessage")}</p>
         </div>
       ) : null}
       {capability === "unknown" && (
-        <p className="mb-4">{t("screener.checkingAvailability")}</p>
+        // aria-live so screen reader users hear the outcome once the probe
+        // settles, since nothing else on the page changes to draw attention
+        // to it.
+        <p className="mb-4" aria-live="polite">
+          {t("screener.checkingAvailability")}
+        </p>
       )}
       {capability === "available" && (
       <form

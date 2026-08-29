@@ -458,7 +458,10 @@
     "refreshSuccess": "Instrument details refreshed from Yahoo Finance.",
     "rsi": "RSI",
     "save": "Save",
+    "searchFailed": "Search failed",
+    "searchInputLabel": "Search instruments",
     "searchInstruments": "Search instruments",
+    "searchPlaceholder": "Search…",
     "searchToggleLabel": "Open instrument search",
     "sectorLabel": "Sector",
     "showInstrumentSearch": "Show instrument search"
@@ -760,7 +763,7 @@
   },
   "screener": {
     "checkingAvailability": "Checking availability…",
-    "heading": "Screener",
+    "heading": "Screener & Query",
     "loading": "Loading…",
     "max52WeekHigh": "Max 52W High",
     "max52WeekLow": "Max 52W Low",

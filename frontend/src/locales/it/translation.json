@@ -295,7 +295,10 @@
     },
     "recentPrices": "Prezzi recenti",
     "rsi": "RSI",
+    "searchFailed": "Ricerca non riuscita",
+    "searchInputLabel": "Cerca strumenti",
     "searchInstruments": "Cerca strumenti",
+    "searchPlaceholder": "Cerca…",
     "searchToggleLabel": "Apri ricerca strumenti",
     "showInstrumentSearch": "Mostra ricerca strumenti"
   },
@@ -469,7 +472,7 @@
   },
   "screener": {
     "checkingAvailability": "Verifica disponibilità…",
-    "heading": "Screener",
+    "heading": "Filtro e interrogazione",
     "loading": "Caricamento…",
     "max52WeekHigh": "Massimo 52W di altezza",
     "max52WeekLow": "MAX 52W BASSO",

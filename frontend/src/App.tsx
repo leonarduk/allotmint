@@ -572,6 +572,10 @@ export default function App({ onLogout }: AppProps) {
           selectedGroup={selectedGroup}
           onLogout={handleLogout}
           lastRefresh={lastRefresh}
+          // #7205: the /research empty state renders its own inline search
+          // bar, so suppress the header's toggle there to avoid two search
+          // boxes being open on screen at once.
+          hideSearchToggle={mode === 'research' && !researchTicker}
         >
           {mode === 'owner' && (
             <div data-testid="portfolio-owner-selector">

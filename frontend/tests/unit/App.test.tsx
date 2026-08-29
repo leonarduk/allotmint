@@ -2159,6 +2159,64 @@ describe("App", () => {
     });
   });
 
+  it("hides the header search toggle on the bare /research empty state, since it renders its own inline search (#7205)", async () => {
+    window.history.pushState({}, "", "/research");
+
+    // An earlier test in this file (`vi.doMock("@/pages/InstrumentResearch",
+    // ...)`) stubs out the real component with a bare link. `vi.doMock`
+    // factories aren't cleared by the `vi.resetModules()` in beforeEach —
+    // only an explicit unmock removes them — so without this, this test
+    // would get that stub instead of the real empty state.
+    vi.doUnmock("@/pages/InstrumentResearch");
+
+    vi.doMock("@/api", async () => {
+      const actual = await vi.importActual<typeof import("@/api")>("@/api");
+      return {
+        ...actual,
+        getOwners: vi.fn().mockResolvedValue([]),
+        getGroups: vi.fn().mockResolvedValue([]),
+        getGroupInstruments: vi.fn().mockResolvedValue([]),
+        getPortfolio: vi.fn(),
+        refreshPrices: vi.fn(),
+        getAlerts: vi.fn().mockResolvedValue([]),
+        getNudges: vi.fn().mockResolvedValue([]),
+        getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+        getCompliance: vi
+          .fn()
+          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+        searchInstruments: vi.fn().mockResolvedValue([]),
+      };
+    });
+
+    const { default: App } = await import("@/App");
+
+    render(
+      <MemoryRouter initialEntries={["/research"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    // The empty state's own inline search box (from InstrumentResearch) is
+    // on screen... InstrumentResearch is lazy-loaded (React.lazy + Suspense)
+    // here, unlike other tests in this file that render already-mocked
+    // pages, so give it more room than the default 1s findBy timeout under
+    // full-suite load.
+    expect(
+      await screen.findByText(
+        "Choose a ticker from search to open research.",
+        {},
+        { timeout: 5000 },
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Search instruments")).toBeInTheDocument();
+
+    // ...so the header's separate search toggle must not also be reachable,
+    // or two "Search instruments" inputs could be open on screen at once.
+    expect(
+      screen.queryByRole("button", { name: /open instrument search/i }),
+    ).not.toBeInTheDocument();
+  });
+
   it("renders the user avatar when logged in", async () => {
     window.history.pushState({}, "", "/");
 

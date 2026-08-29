@@ -387,7 +387,8 @@ describe("InstrumentResearch page", () => {
       { ticker: "AAA", name: "Acme Corp" },
     ]);
     fireEvent.change(searchInput, { target: { value: "AA" } });
-    await new Promise((r) => setTimeout(r, 350));
+    // The component debounces via a real setTimeout; poll for the result
+    // rather than sleeping a fixed duration longer than the debounce.
     expect(await screen.findByText("AAA — Acme Corp")).toBeInTheDocument();
   });
 
@@ -637,6 +638,106 @@ describe("InstrumentResearch page", () => {
     ).toHaveTextContent("Declared currency (metadata): GBX");
     expect(
       screen.getByText(/Catalogue says GBX; price feed is GBP/),
+    ).toBeInTheDocument();
+  });
+
+  it("does not silently rewrite the catalogue's currency when only an unrelated field is edited (#7193)", async () => {
+    // Same AZN.L-style mismatch as above (catalogue: GBX, price series:
+    // GBP), but this time the user opens Edit only to fix the Sector and
+    // saves without touching Currency. The catalogue's GBX currency must be
+    // resubmitted unchanged — not silently overwritten with the display-only
+    // GBP fix as a side effect of an unrelated edit.
+    mockListInstrumentMetadata.mockResolvedValueOnce([
+      {
+        ticker: "AAA.L",
+        exchange: "L",
+        name: "Acme Corp",
+        sector: "Health Care",
+        currency: "GBX",
+      } as InstrumentMetadata,
+    ]);
+    mockUseInstrumentHistory.mockReturnValue({
+      data: {
+        mini: { "30": [] },
+        positions: [],
+        ticker: "AAA.L",
+        name: "Acme Corp",
+        sector: "Health Care",
+        currency: "GBP",
+        base_currency: "GBP",
+        prices: [{ date: "2024-01-01", close: 121.1, close_gbp: 121.1 }],
+        rows: 1,
+        from: "2024-01-01",
+        to: "2024-01-01",
+      },
+      loading: false,
+      error: null,
+    } as any);
+
+    renderPage();
+
+    // Confirm the display fix is in effect (GBP), same as the test above.
+    const currencyRow = await screen.findByText("Currency");
+    expect(
+      within(currencyRow.closest("div") as HTMLElement).getByText("GBP"),
+    ).toBeInTheDocument();
+
+    const editButton = await screen.findByRole("button", { name: /Edit/i });
+    await userEvent.click(editButton);
+
+    const sectorInput = screen.getByLabelText(/Sector/i);
+    await userEvent.clear(sectorInput);
+    await userEvent.type(sectorInput, "Pharmaceuticals");
+
+    // The Currency select itself must still show the catalogue's original
+    // value while editing — that's what a Save with no further changes
+    // resubmits.
+    expect(screen.getByLabelText(/Currency/i)).toHaveValue("GBX");
+
+    await userEvent.click(screen.getByRole("button", { name: /Save/i }));
+
+    await screen.findByText("Instrument details updated.");
+    expect(mockUpdateInstrumentMetadata).toHaveBeenCalledWith(
+      "AAA",
+      "L",
+      expect.objectContaining({ sector: "Pharmaceuticals", currency: "GBX" }),
+    );
+  });
+
+  it("falls back to the catalogue currency when the price series has none (e.g. zero price rows) (#7193)", async () => {
+    // Defensive fallback: an instrument with no price data at all shouldn't
+    // regress from showing a currency (even if it's only the catalogue's)
+    // to showing nothing.
+    mockListInstrumentMetadata.mockResolvedValueOnce([
+      {
+        ticker: "AAA.L",
+        exchange: "L",
+        name: "Acme Corp",
+        sector: "Health Care",
+        currency: "GBX",
+      } as InstrumentMetadata,
+    ]);
+    mockUseInstrumentHistory.mockReturnValue({
+      data: {
+        mini: { "30": [] },
+        positions: [],
+        ticker: "AAA.L",
+        name: "Acme Corp",
+        sector: "Health Care",
+        prices: [],
+        rows: 0,
+        from: null,
+        to: null,
+      },
+      loading: false,
+      error: null,
+    } as any);
+
+    renderPage();
+
+    const currencyRow = await screen.findByText("Currency");
+    expect(
+      within(currencyRow.closest("div") as HTMLElement).getByText("GBX"),
     ).toBeInTheDocument();
   });
 
@@ -895,9 +996,20 @@ describe("InstrumentResearch page", () => {
     );
     expect(screen.getByText(/Name:/)).toHaveTextContent("Name: Acme Updated");
     expect(screen.getByText(/Sector:/)).toHaveTextContent("Sector: Healthcare");
+    // The catalogue's declared currency reflects the just-saved value (EUR).
     expect(
       screen.getByText(/Declared currency \(metadata\):/),
     ).toHaveTextContent("Declared currency (metadata): EUR");
+    // #7193: but the *price-paired* Currency shown in Key Facts, here and
+    // everywhere it's paired with a price, intentionally still tracks the
+    // price series (GBP, from this test's default useInstrumentHistory
+    // mock's base_currency) rather than the just-saved metadata value —
+    // that's the fix for #7193's GBX/GBP mislabel: the currency shown next
+    // to a price always matches the price, regardless of what the
+    // catalogue/metadata record says.
+    const currencyRow = screen.getByText("Currency").closest("div");
+    expect(currencyRow).not.toBeNull();
+    expect(within(currencyRow as HTMLElement).getByText("GBP")).toBeInTheDocument();
   });
 
   it("validates currency before saving metadata", async () => {

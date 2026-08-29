@@ -228,6 +228,13 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
   const [isEditingMetadata, setIsEditingMetadata] = useState(false);
   const isEditingMetadataRef = useRef(isEditingMetadata);
   const metadataOverridesRef = useRef(metadataOverrides);
+  // `t`'s identity changes on language switch (that's how components re-render
+  // with new strings). The fundamentals-fetch effect below only needs `t` to
+  // format an error message *if* the fetch fails — it shouldn't re-fetch
+  // fundamentals just because the user changed language. Read it via a ref
+  // there instead of depending on it directly.
+  const tRef = useRef(t);
+  tRef.current = t;
   const [metadataSaving, setMetadataSaving] = useState(false);
   const [metadataStatus, setMetadataStatus] = useState<
     { kind: "success" | "error"; text: string } | null
@@ -421,6 +428,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
         if (matched) {
           const name = normaliseOptional(matched.name) ?? matched.name;
           const sector = normaliseOptional(matched.sector);
+          const currency = normaliseUppercase(matched.currency);
           const metaInstrumentType = normaliseInstrumentType(
             (matched as { instrumentType?: unknown }).instrumentType ??
               (matched as { instrument_type?: unknown }).instrument_type,
@@ -430,18 +438,21 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
           const hasSector = typeof sector === "string" && sector.length > 0;
           const hasInstrumentType =
             typeof metaInstrumentType === "string" && metaInstrumentType.length > 0;
-          // #7193: deliberately NOT populating `currency` from the instrument
-          // catalogue here. The catalogue's currency is metadata that can go
-          // stale or disagree with the price series (e.g. AZN.L recorded as
-          // GBX in the catalogue while its stored prices are GBP), and this
-          // effect used to let that value silently overwrite (and lock, via
-          // metadataOverrides) whatever currency the price series itself
-          // reported. The `detail` effect above already derives `currency`
-          // from the price series (`detail.currency`/`detail.base_currency`),
-          // which is the value actually paired with the rendered price, so
-          // it stays authoritative here. Explicit user actions (Save, and
-          // the Refresh/Confirm flow) still set `metadata.currency` and lock
-          // it via metadataOverrides, so manual corrections keep working.
+          const hasCurrency = typeof currency === "string" && currency.length > 0;
+          // #7193: `metadata.currency` (populated here from the catalogue)
+          // deliberately feeds ONLY the editable metadata form — it is what
+          // a Save without touching Currency resubmits unchanged, and what
+          // the field is prefilled with when a user opens Edit. It is NOT
+          // used to label a price on screen any more: the catalogue's
+          // currency can go stale or disagree with the price series (e.g.
+          // AZN.L recorded as GBX in the catalogue while its stored prices
+          // are GBP), which previously mislabelled a correct price. The
+          // header/Key Facts/read-only "Instrument info" line all use
+          // `resolvedCurrentCurrency` (derived below from the price series
+          // itself) instead. Keeping this catalogue population is what stops
+          // editing something else (e.g. Sector) and saving from silently
+          // rewriting a correct-but-differently-sourced currency out from
+          // under the catalogue record.
           let nextMetadata: MetadataState | null = null;
           setMetadata((prev) => {
             const next: MetadataState = {
@@ -456,7 +467,11 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
                 : hasInstrumentType
                   ? metaInstrumentType
                   : prev.instrumentType || "",
-              currency: prev.currency,
+              currency: overrides.currency
+                ? prev.currency
+                : hasCurrency
+                  ? currency
+                  : prev.currency || "",
             };
             nextMetadata = next;
             return next;
@@ -465,7 +480,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
             name: prev.name || hasName,
             sector: prev.sector || hasSector,
             instrumentType: prev.instrumentType || hasInstrumentType,
-            currency: prev.currency,
+            currency: prev.currency || hasCurrency,
           }));
           if (!isEditingMetadataRef.current && nextMetadata) {
             setFormValues(nextMetadata);
@@ -772,11 +787,11 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
           // existing generic message (with the real error text) for anything
           // else that goes wrong.
           if (error?.status === 402) {
-            setFundamentalsError(t("instrumentDetail.fundamentalsUnavailable"));
+            setFundamentalsError(tRef.current("instrumentDetail.fundamentalsUnavailable"));
           } else {
             const message = err instanceof Error ? err.message : String(err);
             setFundamentalsError(
-              t("instrumentDetail.fundamentalsLoadError", { message }),
+              tRef.current("instrumentDetail.fundamentalsLoadError", { message }),
             );
           }
         }
@@ -793,7 +808,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
       cancelled = true;
       controller.abort();
     };
-  }, [tkr, activeTab, t]);
+  }, [tkr, activeTab]);
 
   function toggleWatchlist() {
     const list = (localStorage.getItem("watchlistSymbols") || "")
@@ -836,7 +851,9 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
   // really quoted in). Everything rendered next to a price -- the header
   // badge, Key Facts, Last Close, the Timeseries tab -- must use this, not
   // displayCurrency, so a GBP-magnitude close never gets mislabelled with a
-  // stale metadata currency (#7219).
+  // stale metadata currency (#7219). If the price series has no currency at
+  // all (e.g. zero price rows), fall back to the catalogue value so the
+  // panel shows something rather than "—".
   const latestRawPriceEntry = (() => {
     const rawPrices = Array.isArray(detail?.prices)
       ? (detail?.prices as unknown[])
@@ -847,7 +864,8 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
   const resolvedLatestPrice = latestRawPriceEntry
     ? resolveDisplayPrice(latestRawPriceEntry, displayCurrency, detail?.base_currency ?? undefined)
     : null;
-  const resolvedCurrentCurrency = resolvedLatestPrice?.currency || displayCurrency || "";
+  const resolvedCurrentCurrency =
+    resolvedLatestPrice?.currency || fallbackCurrency || displayCurrency || "";
   const metadataCurrencyMismatch = (() => {
     const normalizedMetadata = normaliseUppercase(metadata.currency);
     const normalizedResolved = normaliseUppercase(resolvedCurrentCurrency);
@@ -906,10 +924,12 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
     // search" with no search control anywhere on the page — the only search
     // was an unlabelled icon button buried in the header. Render the same
     // search bar inline here so the instruction is immediately actionable.
-    // It's a separate instance from the header's (InstrumentSearchBarToggle
-    // renders its own), so there's no double-up: this one is only mounted
-    // while /research has no ticker, and picking a result navigates away
-    // from this branch entirely.
+    // This is a second InstrumentSearchBar instance alongside the header's,
+    // which would double up two "Search instruments" inputs on screen if
+    // both were open — the issue explicitly forbids that. App.tsx suppresses
+    // the header's toggle (AppHeader's `hideSearchToggle`) while mode is
+    // 'research' with no ticker, so only this inline one is ever reachable
+    // here.
     return (
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
         <EmptyState

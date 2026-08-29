@@ -44,6 +44,7 @@ function InstrumentSearchBarComponent({
   onNavigate,
 }: InstrumentSearchBarProps) {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [sector, setSector] = useState("");
   const [region, setRegion] = useState("");
@@ -75,7 +76,7 @@ function InstrumentSearchBarComponent({
           if (err.name !== "AbortError") {
             console.error(err);
             setResults([]);
-            setError("Search failed");
+            setError(t("instrumentDetail.searchFailed"));
           }
         });
     }, 300);
@@ -83,7 +84,7 @@ function InstrumentSearchBarComponent({
       controller.abort();
       clearTimeout(timeout);
     };
-  }, [query, sector, region]);
+  }, [query, sector, region, t]);
 
   const navigateTo = (tkr: string) => {
     setQuery("");
@@ -118,7 +119,7 @@ function InstrumentSearchBarComponent({
 
         <input
           type="text"
-          placeholder="Search…"
+          placeholder={t("instrumentDetail.searchPlaceholder")}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
@@ -127,7 +128,7 @@ function InstrumentSearchBarComponent({
           }}
           onKeyDown={handleKeyDown}
           style={{ padding: "0.25rem" }}
-          aria-label="Search instruments"
+          aria-label={t("instrumentDetail.searchInputLabel")}
         />
         <select
           value={sector}

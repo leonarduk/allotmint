@@ -11,9 +11,26 @@ describe("Screener", () => {
   it("has a heading matching its menu label (#7199)", async () => {
     mockGetScreener.mockResolvedValue([]);
     render(<Screener />);
+    // Matches app.modes.screener ("Screener & Query") exactly, per #7199's
+    // success criterion.
     expect(
-      await screen.findByRole("heading", { name: "Screener" }),
+      await screen.findByRole("heading", { name: "Screener & Query" }),
     ).toBeInTheDocument();
+  });
+
+  it("probes capability with a real sentinel ticker, not an empty list (#7199)", async () => {
+    // A pro-enabled backend 400s on an empty ticker list ("No tickers
+    // supplied") before it ever gets a chance to 200 — require_core runs
+    // first, but so does the ticker-emptiness check once that passes. An
+    // empty-list probe can therefore never positively confirm availability;
+    // it can only ever prove the negative (402) case. A real ticker is
+    // required so a pro deployment's probe gets a genuine success response.
+    mockGetScreener.mockResolvedValue([]);
+    render(<Screener />);
+    await screen.findByLabelText("Watchlist");
+    const [tickers] = mockGetScreener.mock.calls[0] ?? [];
+    expect(tickers).toEqual(expect.arrayContaining([expect.any(String)]));
+    expect(tickers.length).toBeGreaterThan(0);
   });
 
   it("gates the form up front, in plain language, when screening isn't available (#7199)", async () => {
@@ -37,6 +54,31 @@ describe("Screener", () => {
     // will always 402.
     expect(screen.queryByLabelText("Watchlist")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Run" })).not.toBeInTheDocument();
+  });
+
+  it("shows the plain-language gate, not the raw backend string, when Run itself hits a 402 (#7199)", async () => {
+    // The mount probe can fail open to "available" on a non-402 error (a
+    // timeout, a 5xx) — Run is then the request that actually discovers the
+    // real 402. This must not surface the raw backend `detail` (package
+    // name, GitHub URL) the way the untouched code used to.
+    const gatedError = Object.assign(
+      new Error(
+        "Screener is not available: This feature requires the allotmint-pro package, which is not installed in this deployment. See https://github.com/leonarduk/allotmint-pro for upgrade options.",
+      ),
+      { status: 402 },
+    );
+    mockGetScreener.mockResolvedValueOnce([]); // mount probe: succeeds
+    mockGetScreener.mockRejectedValueOnce(gatedError); // Run: 402
+
+    render(<Screener />);
+    fireEvent.change(await screen.findByLabelText(/Tickers/i), {
+      target: { value: "AAA" },
+    });
+    fireEvent.submit(screen.getByText(/Run/i).closest("form")!);
+
+    const gate = await screen.findByText("Screening unavailable");
+    expect(gate).toBeInTheDocument();
+    expect(screen.queryByText(/allotmint-pro|github\.com/i)).not.toBeInTheDocument();
   });
 
   it("renders the form as normal when screening is available", async () => {

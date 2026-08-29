@@ -260,7 +260,7 @@
     "bollingerBands": "Bandes de Bollinger",
     "change30d": "30j",
     "change7d": "7j",
-    "chooseTicker": "Choisissez un titre depuis la recherche pour ouvrir la recherche.",
+    "chooseTicker": "Choisissez un titre dans la recherche pour ouvrir sa fiche.",
     "columns": {
       "account": "Compte",
       "gain": "Gain £",
@@ -295,7 +295,10 @@
     },
     "recentPrices": "Prix récents",
     "rsi": "RSI",
+    "searchFailed": "Échec de la recherche",
+    "searchInputLabel": "Rechercher des instruments",
     "searchInstruments": "Rechercher des instruments",
+    "searchPlaceholder": "Rechercher…",
     "searchToggleLabel": "Ouvrir la recherche d'instruments",
     "showInstrumentSearch": "Afficher la recherche d'instruments"
   },
@@ -469,7 +472,7 @@
   },
   "screener": {
     "checkingAvailability": "Vérification de la disponibilité…",
-    "heading": "Screener",
+    "heading": "Filtre & Requête",
     "loading": "Chargement…",
     "max52WeekHigh": "Plus haut 52 sem. max",
     "max52WeekLow": "Plus bas 52 sem. max",

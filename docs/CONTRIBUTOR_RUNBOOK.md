@@ -647,3 +647,123 @@ powershell -ExecutionPolicy Bypass -File scripts/deploy-to-AWS.ps1
 npm --prefix frontend run deploy:aws
 npm --prefix frontend run deploy:aws:linux
 ```
+
+## 13. Jenkins mirror of GitHub Actions
+
+The root [`Jenkinsfile`](../Jenkinsfile) mirrors the core GitHub Actions
+workflows so the same checks can run on a Jenkins server when GitHub Actions
+is unavailable (e.g. quota exhaustion, disabled Actions, or a local CI
+requirement). The GitHub workflows remain the source of truth and are not
+modified.
+
+### Workflow → Jenkins stage mapping
+
+| GitHub Actions workflow / job | Jenkins stage | Notes |
+| --- | --- | --- |
+| `ci.yml` `test` | `Repo Hygiene` | Branch-protection, lockfile platform coverage, architecture-diagram checks |
+| `ci.yml` `backend-lint` | `Backend Lint` | ruff + black over `backend/` and `tests/`; Jenkins lints the whole tree (non-PR path) |
+| `backend-integration.yml` `integration-tests` | `Backend Integration Tests` | Contract sync, mypy, provider parity, full pytest suite with coverage |
+| `ci.yml` `lambda-compat` | `Lambda Compat` | Full pytest suite against Lambda-pinned `backend/requirements.txt` in an isolated venv |
+| `ci.yml` `validate-backend-deps` | `Validate Backend Deps` | Duplicate-name check, dry-run resolution, root-venv startup import |
+| `ci.yml` `python-compatibility` | `Python 3.11 Compat` | Lightweight 3.11 health + parity smoke |
+| `ci.yml` `frontend-checks` | `Frontend Checks` | npm lint, `tsc -b` type-check, Vitest run + coverage, npm audit |
+| `frontend-tests.yml` `frontend-tests` | `Frontend Checks` | Also runs SPA contract sync and sitemap health check (Python steps) |
+| `ci.yml` `frontend-smoke` | `Frontend Smoke` | Optional; enable with `RUN_FRONTEND_SMOKE=true` (downloads Playwright browsers) |
+| `ci.yml` `cdk-tests` | `CDK Tests` | `pytest cdk/tests/` against root requirements |
+| `iac-validation.yml` `cdk-validation` | `CDK Validation & Dry-Run` | cdk/tests against `cdk/requirements.txt` venv, then `cdk synth` |
+| `cdk-dry-run.yml` `cdk-synth` | `CDK Validation & Dry-Run` | prod dry-run synth + `--method=template` guard grep |
+| `ci.yml` `shell-tests` | `Shell Tests` | bats tests for deploy shell scripts (AWS CLI calls are mocked) |
+
+### Intentionally not mirrored
+
+These GitHub-only jobs are not mirrored: AI PR-review bots
+(`claude-pr-review.yml`, `gpt-pr-review.yml`, `deepseek-pr-review.yml`,
+`_ai-pr-review.yml`), `deploy-lambda.yml`, GitHub housekeeping
+(`stale.yml`, `label-ai-issues.yml`, `sync-changes-requested-label.yml`,
+`dependabot-auto-merge.yml`, `branch-protection-drift.yml`, `empty-pr-check.yml`,
+`pr-lint.yml`, `issue-lint.yml`, `conflict-check.yml`, `project-status-in-review.yml`),
+`lint-workflows` (actionlint — GitHub workflow YAML linter),
+`lint-shell-scripts` (shellcheck — already `continue-on-error` in ci.yml),
+Codecov uploads, the private `cicaid` automation tests (token-gated in ci.yml's
+`test` job via `CICAID_PRO_TOKEN`; skipped when the secret is absent), and the
+optional AWS/S3 data sync (already optional in the workflows; the pytest suite
+stubs all AWS interactions).
+
+### Running the pipeline
+
+1. Create a Jenkins pipeline job pointing at this repository with the script
+   path `Jenkinsfile`.
+2. Install the required Jenkins plugins (Manage Jenkins → Plugins):
+   - **Docker Pipeline** (provides `docker.image(...).inside`; the pipeline
+     fails at the first stage with `No such property: docker` without it)
+   - **HTML Publisher** (publishes the backend coverage report)
+   - **JUnit** (publishes pytest results)
+3. Add a **`GITHUB_TOKEN` credential** (GitHub credentials for checkout; the
+   repo is public so checkout works without it, but the pipeline references
+   it via `credentialsId` and logs a warning when missing).
+4. Ensure the Jenkins agent has **Docker** available (the pipeline runs every
+   stage inside containers via `docker.image(...).inside`) and network access
+   to npm/pip registries.
+5. Set the `BRANCH` parameter (default `*/main`) to the ref you want to build.
+6. Optionally enable `RUN_FRONTEND_SMOKE` for the Playwright smoke stage.
+
+Expected run time is long (full backend pytest suite runs in both
+`Backend Integration Tests` and `Lambda Compat`, mirroring CI), so set an
+adequate job timeout; the pipeline itself allows 180 minutes.
+
+### One job per check (STAGE parameter)
+
+The Jenkinsfile has a `STAGE` parameter so you can either run the full
+pipeline (`STAGE=all`, the default) or create **separate jobs, one per check**
+(like GitHub Actions' separate jobs — each with its own build history and
+dashboard entry). Valid values: `repo-hygiene`, `backend-lint`,
+`backend-integration`, `lambda-compat`, `validate-deps`, `py311-compat`,
+`frontend-checks`, `cdk-tests`, `cdk-validation`, `shell-tests`,
+`frontend-smoke`.
+
+To create a per-check job:
+
+1. New Item → **Pipeline**, e.g. `allotmint-backend-lint`.
+2. **Pipeline → Definition: Pipeline script from SCM** → Git →
+   `https://github.com/leonarduk/allotmint.git`, credentials `GITHUB_TOKEN`,
+   branch `*/main` (or the branch you want), Script Path `Jenkinsfile`.
+3. Tick **This project is parameterized** and add a **Choice Parameter**
+   `STAGE` with the single value for that job (e.g. `backend-lint`). Only the
+   matching stage runs; all other stages are skipped.
+4. Save and build. Repeat for each check you want as its own job.
+
+The full-pipeline job (`STAGE=all` or the default) still works unchanged;
+PR builds in a Multibranch Pipeline use whatever `STAGE` you set there.
+
+### Pull-request builds (Multibranch Pipeline)
+
+To build pull requests and post results back on the PR, create a **Multibranch
+Pipeline** job (New Item → Multibranch Pipeline) instead of a plain pipeline
+job. The same `Jenkinsfile` handles both modes:
+
+- In a multibranch job, the GitHub branch source checks out the PR revision
+  before the pipeline runs. The `Checkout` stage detects this via
+  `env.CHANGE_ID` and skips its own checkout (so it builds the PR's code, not
+  `*/main`).
+- The job discovers new PRs and re-runs on updates automatically (see scan
+  triggers below).
+- The GitHub Branch Source plugin publishes the build result as a commit
+  status (the green/red check on the PR).
+- On success/failure the pipeline also posts a comment to the PR via
+  `notifyPullRequest()`, using the `GITHUB_TOKEN` credential. The comment is
+  best-effort: a missing credential logs a warning and never fails the build.
+
+Multibranch job configuration:
+
+1. **Branch Sources → GitHub** — API endpoint `https://api.github.com`,
+   credentials: a GitHub token with `repo` scope (reuse the `GITHUB_TOKEN`
+   credential), owner `leonarduk`, repository `allotmint`.
+2. **Discover pull requests from origin** — recommended strategy: "Merging the
+   pull request with the current target branch revision" (builds the merge
+   result, closest to GitHub Actions) or "The current pull request revision"
+   (builds the head).
+3. **Build Configuration** — Script Path: `Jenkinsfile`.
+4. **Scan Repository Triggers** — "Periodically if not otherwise run" (e.g.
+   every 5 minutes) and/or a GitHub webhook to your Jenkins URL. The periodic
+   scan is what re-runs builds when a PR is updated if no webhook is
+   configured.

@@ -84,7 +84,12 @@ export const holdingContractSchema = z.object({
   forward_7d_change_pct: nullableNumber.optional(),
   forward_30d_change_pct: nullableNumber.optional(),
   days_held: nullableNumber.optional(),
-  sell_eligible: z.boolean().optional(),
+  // sell_eligible is nullable: backend/common/holding_utils.py returns null
+  // when the acquisition date is unknown (#7220) -- eligibility genuinely
+  // cannot be determined, and null must stay distinct from a confident
+  // False. z.boolean().optional() alone rejects null and throws at parse
+  // time for exactly the holdings this fix produces.
+  sell_eligible: z.boolean().nullable().optional(),
   days_until_eligible: nullableNumber.optional(),
   next_eligible_sell_date: nullableString.optional(),
   eligible_on: nullableString.optional(),

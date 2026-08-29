@@ -532,7 +532,14 @@
                         ]
                       },
                       "sell_eligible": {
-                        "type": "boolean"
+                        "anyOf": [
+                          {
+                            "type": "boolean"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
                       },
                       "days_until_eligible": {
                         "anyOf": [
@@ -1017,7 +1024,14 @@
                         ]
                       },
                       "sell_eligible": {
-                        "type": "boolean"
+                        "anyOf": [
+                          {
+                            "type": "boolean"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
                       },
                       "days_until_eligible": {
                         "anyOf": [

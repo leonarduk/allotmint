@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { axe } from 'jest-axe';
@@ -36,6 +36,7 @@ const portfolio: Portfolio = {
 const { mocks } = vi.hoisted(() => ({
   mocks: {
     getOwners: vi.fn(),
+    getGroups: vi.fn(),
     getPortfolio: vi.fn(),
     getAllowances: vi.fn(),
     getTrailTasks: vi.fn(),
@@ -55,6 +56,7 @@ beforeEach(() => {
   mocks.getOwners.mockResolvedValue([
     { owner: 'steve', accounts: ['stocks-isa'] },
   ]);
+  mocks.getGroups.mockResolvedValue([]);
   mocks.getPortfolio.mockResolvedValue(portfolio);
   mocks.getAllowances.mockResolvedValue({
     owner: 'steve',
@@ -106,6 +108,37 @@ describe('Plot mode accessibility', () => {
     );
 
     await screen.findByText('Check the movers');
+    expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('has no detectable violations on the chores screen mid-completion or after a failure (#7188)', async () => {
+    let rejectCompletion: (reason?: unknown) => void = () => {};
+    mocks.completeTrailTask.mockReturnValueOnce(
+      new Promise((_resolve, reject) => {
+        rejectCompletion = reject;
+      })
+    );
+
+    const { container } = render(
+      <MemoryRouter initialEntries={['/plot/chores']}>
+        <Routes>
+          <Route path="/plot/*" element={<PlotApp />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    const button = await screen.findByRole('button', { name: 'Do it' });
+    fireEvent.click(button);
+
+    // The pending markup (aria-busy button, sr-only status region) gets its
+    // own pass, not just the idle chores screen.
+    await screen.findByRole('button', { name: 'Completing…' });
+    expect(await axe(container)).toHaveNoViolations();
+
+    rejectCompletion(new Error('network down'));
+
+    // ...and so does the inline-error/retry markup that replaces it.
+    await screen.findByRole('alert');
     expect(await axe(container)).toHaveNoViolations();
   });
 

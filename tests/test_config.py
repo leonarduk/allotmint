@@ -230,6 +230,109 @@ def test_smoke_identity_override(monkeypatch, tmp_path):
         reload_config()
 
 
+def test_demo_link_defaults_when_keys_absent(monkeypatch, tmp_path):
+    """A missing `demo_link_*` block must never mean the demo link is on."""
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("auth:\n  demo_identity: steve\n")
+    monkeypatch.setattr(sys.modules["backend.config"], "_project_config_path", lambda: config_path)
+    monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
+
+    cfg = reload_config()
+    try:
+        assert cfg.demo_link_enabled is False
+        assert cfg.demo_link_owner is None
+        assert cfg.demo_link_ttl_hours == 72
+    finally:
+        monkeypatch.undo()
+        reload_config()
+
+
+def test_demo_link_loads_from_auth_section(monkeypatch, tmp_path):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        "auth:\n"
+        "  demo_link_enabled: true\n"
+        "  demo_link_owner: demo\n"
+        "  demo_link_ttl_hours: 24\n",
+    )
+    monkeypatch.setattr(sys.modules["backend.config"], "_project_config_path", lambda: config_path)
+    monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
+
+    cfg = reload_config()
+    try:
+        assert cfg.demo_link_enabled is True
+        assert cfg.demo_link_owner == "demo"
+        assert cfg.demo_link_ttl_hours == 24
+    finally:
+        monkeypatch.undo()
+        reload_config()
+
+
+def test_demo_link_owner_blank_string_falls_back_to_none(monkeypatch, tmp_path):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("auth:\n  demo_link_owner: '   '\n")
+    monkeypatch.setattr(sys.modules["backend.config"], "_project_config_path", lambda: config_path)
+    monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
+
+    cfg = reload_config()
+    try:
+        assert cfg.demo_link_owner is None
+    finally:
+        monkeypatch.undo()
+        reload_config()
+
+
+def test_demo_link_enabled_null_falls_back_to_false(monkeypatch, tmp_path):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("auth:\n  demo_link_enabled: null\n")
+    monkeypatch.setattr(sys.modules["backend.config"], "_project_config_path", lambda: config_path)
+    monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
+
+    cfg = reload_config()
+    try:
+        assert cfg.demo_link_enabled is False
+    finally:
+        monkeypatch.undo()
+        reload_config()
+
+
+def test_demo_link_enabled_rejects_non_boolean(monkeypatch, tmp_path):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("auth:\n  demo_link_enabled: 'yes'\n")
+    monkeypatch.setattr(sys.modules["backend.config"], "_project_config_path", lambda: config_path)
+    monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
+
+    try:
+        with pytest.raises(ConfigValidationError):
+            reload_config()
+    finally:
+        monkeypatch.undo()
+        reload_config()
+
+
+def test_demo_link_does_not_affect_demo_identity(monkeypatch, tmp_path):
+    """`demo_link_owner` must stay distinct from `demo_identity` -- the
+    latter keeps its display/local-mode meaning (#7404)."""
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        "auth:\n"
+        "  demo_identity: steve\n"
+        "  demo_link_enabled: true\n"
+        "  demo_link_owner: demo\n",
+    )
+    monkeypatch.setattr(sys.modules["backend.config"], "_project_config_path", lambda: config_path)
+    monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
+
+    cfg = reload_config()
+    try:
+        assert cfg.demo_identity == "steve"
+        assert demo_identity() == "steve"
+        assert cfg.demo_link_owner == "demo"
+    finally:
+        monkeypatch.undo()
+        reload_config()
+
+
 def test_local_login_email_override(monkeypatch, tmp_path):
     config_path = tmp_path / "config.yaml"
     config_path.write_text("auth:\n  local_login_email: user@example.com\n")
@@ -322,7 +425,9 @@ def test_reload_preserves_monkeypatched_allowed_emails(monkeypatch):
         ),
     ],
 )
-def test_reload_prefers_canonical_auth_section_over_legacy_top_level(monkeypatch, tmp_path, config_text):
+def test_reload_prefers_canonical_auth_section_over_legacy_top_level(
+    monkeypatch, tmp_path, config_text
+):
     config_path = tmp_path / "config.yaml"
     config_path.write_text(config_text)
 

@@ -24,7 +24,7 @@
     "collapseShort": "Comprimi"
   },
   "alertSettings": {
-    "description": "Configura quando riceverai avvisi. Gli avvisi compaiono nella pagina degli avvisi e nelle notifiche push.",
+    "description": "Questa soglia non è ancora collegata alla generazione degli avvisi in questo ambiente. Gli avvisi attuali derivano da un controllo fisso, valido per l'intero account, eseguito durante l'aggiornamento giornaliero dei prezzi: qualsiasi posizione che si discosti di oltre il 10% dal proprio prezzo di carico viene segnalata, in tutti i portafogli.",
     "push": {
       "denied": "Autorizzazione push negata.",
       "disable": "Disattiva avvisi push",
@@ -291,7 +291,9 @@
       "max": "Max"
     },
     "recentPrices": "Prezzi recenti",
-    "rsi": "RSI"
+    "rsi": "RSI",
+    "searchInstruments": "Cerca strumenti",
+    "showInstrumentSearch": "Mostra ricerca strumenti"
   },
   "instrumentTable": {
     "columns": {
@@ -340,13 +342,17 @@
     "sectorPerformance": "Rendimento dei settori"
   },
   "movers": {
+    "deltaGbpHeader": "Variazione di valore (£, {{period}})",
     "excludeSmall": "Escludere le posizioni <{{min}}%",
     "loadFailed": "Impossibile caricare i motori {{status}}",
     "loginPrompt": "Accedi per visualizzare i traslochi basati sul portafoglio.",
+    "pctChangeHeader": "Variazione di prezzo (%, {{period}})",
     "pctPortfolio": "% del portafoglio",
     "period": "Periodo:",
     "signal": "Segnale",
-    "watchlist": "Watchlist:"
+    "signalWindowNote": "Ogni segnale usa la propria finestra temporale, che può differire dal periodo di variazione % e valore mostrato in questa riga. Seleziona il segnale per vedere il motivo.",
+    "watchlist": "Watchlist:",
+    "windowNote": "Le colonne % e valore mostrano il movimento nel periodo selezionato. Ogni segnale usa la propria finestra temporale — seleziona un segnale di acquisto o vendita per vedere il motivo e la confidenza."
   },
   "owner": {
     "label": "Proprietario",
@@ -358,14 +364,22 @@
     "employerContributionLabel": "Contributo del datore di lavoro",
     "growthAssumption": "Ipotesi di crescita (%):",
     "header": {
+      "contributionDefaultHelper": "Valore iniziale di esempio -- regola il cursore in base al tuo contributo effettivo.",
+      "deathAgeHelper": "Fino a che età pianificare la pensione. Predefinito: 90.",
+      "deathAgeLabel": "Pianifica fino all'età di",
       "employeeContribution": "Il tuo contributo mensile",
       "employerContribution": "Contributo del datore di lavoro",
       "heading": "Tieni traccia dei contributi a colpo d’occhio",
+      "includedAccountsHeading": "Utilizzati in questa previsione",
+      "includedAccountsHelper": "Solo i conti pensionistici (SIPP e simili) contribuiscono alle cifre di questa pagina. Gli altri conti sono mostrati sotto come riferimento e non le influenzano.",
       "kicker": "Panoramica della tua pensione",
-      "linkedPotsHeading": "Fondi pensione collegati",
-      "noLinkedPots": "Nessun fondo pensione collegato per questo titolare.",
-      "notAvailable": "Non disponibile",
+      "noLinkedPots": "Nessun conto trovato per questo titolare.",
+      "noPensionAccounts": "Nessun conto pensionistico collegato per questo titolare.",
+      "notAvailable": "Mostrato dopo aver eseguito una previsione",
+      "otherAccountsHeading": "Altri conti (come riferimento -- non inclusi in questa previsione)",
       "pensionPot": "Montante pensionistico attuale",
+      "pensionPotFromPortfolio": "Dai dati attuali del tuo portafoglio",
+      "statePensionHelper": "La tua pensione statale annua prevista. Predefinito: 0 £ (esclusa); inserisci una tua stima per includerla.",
       "totalContribution": "Contributi mensili totali: {{total}}"
     },
     "incomeBreakdownHeading": "Retirement income breakdown",
@@ -399,14 +413,22 @@
     "end": "FINE",
     "exportCsv": "Esportazione CSV",
     "exportXlsx": "Esporta XLSX",
+    "metricGainGbp": "Guadagno (£)",
+    "metricMarketValueGbp": "Valore di mercato (£)",
     "metrics": "Metrica",
     "noResults": "Nessun risultato.",
     "owners": "Proprietari",
     "run": "Correre",
     "running": "Corsa…",
     "save": "Salva",
+    "savedQueriesLoading": "Caricamento query salvate…",
+    "savedQueriesTitle": "Query salvate",
     "start": "Inizio",
-    "tickers": "Ticker"
+    "tickerNotHeld": "non attualmente detenuto",
+    "tickers": "Ticker",
+    "tickersEmpty": "Nessuna posizione trovata per i proprietari selezionati.",
+    "tickersLoading": "Caricamento ticker…",
+    "tickersPartialError": "Impossibile caricare le posizioni per: {{owners}}"
   },
   "reports": {
     "csv": "Scarica CSV",
@@ -587,12 +609,48 @@
     "title": "Progressi Trail",
     "xpLabel": "XP: {{xp}}"
   },
+  "userConfig": {
+    "title": "Regole di negoziazione",
+    "pageDescription": "Regole che stabiliscono quali operazioni questo conto può effettuare senza ulteriore approvazione.",
+    "loadingOwners": "Caricamento dei titolari...",
+    "noOwners": "Nessun account disponibile per il tuo utente. Contatta un amministratore se ritieni che si tratti di un errore.",
+    "chooseOwnerPrompt": "Scegli di chi modificare le impostazioni.",
+    "selectOwner": "Seleziona titolare",
+    "holdDays": "Giorni minimi di detenzione",
+    "holdDaysHelp": "Il numero di giorni per cui una posizione deve essere mantenuta prima di poter essere venduta. Espresso in giorni di calendario.",
+    "maxTrades": "Operazioni max. / mese",
+    "maxTradesHelp": "Il numero massimo di operazioni che questo conto può effettuare in un mese di calendario. Una volta raggiunto, le ulteriori operazioni richiedono approvazione.",
+    "exemptTickers": "Ticker esenti da approvazione",
+    "exemptTickersHelp": "Ticker separati da virgola che possono sempre essere negoziati senza bisogno di approvazione.",
+    "exemptTypes": "Tipi esenti da approvazione",
+    "exemptTypesHelp": "Tipi di strumento separati da virgola (ad es. ETF, Fondo) che possono sempre essere negoziati senza bisogno di approvazione.",
+    "saving": "Salvataggio...",
+    "save": "Salva",
+    "saved": "Salvato",
+    "error": "Errore",
+    "approvals": "Approvazioni",
+    "approvalsHelp": "Un'approvazione consente di negoziare un ticker specifico in una data specifica anche se le regole sopra lo impedirebbero altrimenti (ad esempio perché i giorni minimi di detenzione non sono trascorsi o il limite mensile di operazioni è stato raggiunto).",
+    "approvalsEmpty": "Nessuna approvazione finora. Aggiungine una qui sotto se un'operazione deve avvenire al di fuori delle regole sopra indicate.",
+    "remove": "Rimuovi",
+    "add": "Aggiungi"
+  },
   "var": {
     "details": "Dettagli di simulazione storica",
     "noData": "Nessun dati VAR disponibile.",
     "title": "Valore a rischio"
   },
   "watchlist": {
-    "refresh": "Rinfrescare"
+    "refresh": "Rinfrescare",
+    "columnName": "Nome",
+    "columnSymbol": "Simbolo",
+    "columnUnit": "Unità",
+    "columnLast": "Ultimo",
+    "columnOpen": "Apertura",
+    "columnHigh": "Massimo",
+    "columnLow": "Minimo",
+    "columnChange": "Var.",
+    "columnChangePct": "Var. %",
+    "columnVolume": "Vol.",
+    "columnTime": "Ora (Europe/London)"
   }
 }

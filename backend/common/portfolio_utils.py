@@ -28,6 +28,7 @@ from backend.common.account_scaffold import load_transactions
 from backend.common.data_loader import DATA_BUCKET_ENV
 from backend.common.holding_utils import _get_price_for_date_scaled
 from backend.common.instruments import (
+    decode_html_entities,
     get_instrument_meta,
     instrument_meta_path,
     resolve_instrument_ticker,
@@ -464,9 +465,16 @@ def _build_securities_from_portfolios() -> Dict[str, Dict]:
                 if not tkr:
                     continue
                 file_meta = _meta_from_file(tkr) or {}
+                # The raw holding's own "name" (from account-holdings JSON) wins
+                # over the instrument-file name below, and can itself be sourced
+                # from an HTML export/scrape -- exactly the #7216 scenario. Decode
+                # it here too so a bad holding name doesn't reach top_movers/
+                # /opportunities untouched just because it has no instrument-file
+                # override.
+                holding_name = decode_html_entities(h.get("name"))
                 securities[tkr] = {
                     "ticker": tkr,
-                    "name": h.get("name") or file_meta.get("name", tkr),
+                    "name": holding_name or file_meta.get("name", tkr),
                     "exchange": h.get("exchange"),
                     "isin": h.get("isin"),
                     "sector": h.get("sector") or file_meta.get("sector"),

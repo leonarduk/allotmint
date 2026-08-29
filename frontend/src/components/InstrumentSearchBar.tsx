@@ -106,8 +106,15 @@ function InstrumentSearchBarComponent({
   };
 
   return (
-    <div id={id} style={{ position: "relative", marginLeft: "1rem" }}>
-      <div style={{ display: "flex", gap: "0.25rem", alignItems: "center" }}>
+    <div id={id} style={{ position: "relative" }}>
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "0.25rem",
+          alignItems: "center",
+        }}
+      >
 
         <input
           type="text"
@@ -217,7 +224,12 @@ export function InstrumentSearchBarToggle() {
   const [open, setOpen] = useState(false);
   const contentId = useId();
   const { t } = useTranslation();
-  const researchLabel = t("app.research");
+  // Distinct from the "Search instruments" label on the input this toggle
+  // reveals — with the panel open, a screen reader would otherwise meet a
+  // button and two inputs all sharing one accessible name (#7223).
+  const showSearchLabel = t("instrumentDetail.showInstrumentSearch", {
+    defaultValue: "Show instrument search",
+  });
 
   return (
     <Collapsible open={open} onOpenChange={setOpen} style={{ marginLeft: "1rem" }}>
@@ -225,7 +237,7 @@ export function InstrumentSearchBarToggle() {
         type="button"
         aria-controls={contentId}
         aria-expanded={open}
-        aria-label={researchLabel}
+        aria-label={showSearchLabel}
         style={{
           padding: "0.25rem",
           borderRadius: "0.25rem",

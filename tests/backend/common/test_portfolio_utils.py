@@ -992,6 +992,65 @@ def test_build_securities_prefers_canonical_instrument_type_over_holding(monkeyp
     assert meta["instrument_type"] == "ETF"
 
 
+def test_build_securities_decodes_html_entities_in_holding_name(monkeypatch):
+    """#7216 review: the raw holding's own "name" (from account-holdings
+    JSON) wins over the instrument-file name in ``_build_securities_from_
+    portfolios``, and top_movers/`/opportunities` read through this path.
+    A holding name sourced from an HTML export/scrape can carry the same
+    raw entities as an instrument file, so it must be decoded here too --
+    not just when there's no holding-level name and the instrument-file
+    fallback is used.
+    """
+    monkeypatch.setattr(portfolio_utils, "_SECURITIES", None)
+    monkeypatch.setattr(
+        portfolio_utils,
+        "list_portfolios",
+        lambda: [
+            {
+                "accounts": [
+                    {
+                        "holdings": [
+                            {
+                                "ticker": "UPS.N",
+                                "name": ("United Parcel Service Class &#39;B&#39; Com Stock " "US$0.01 (CDI) *R"),
+                            }
+                        ]
+                    },
+                ]
+            }
+        ],
+    )
+    monkeypatch.setattr(portfolio_utils, "list_virtual_portfolios", lambda: [])
+    monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda t: {})
+
+    meta = portfolio_utils.get_security_meta("UPS.N")
+
+    assert meta is not None
+    assert meta["name"] == "United Parcel Service Class 'B' Com Stock US$0.01 (CDI) *R"
+
+
+def test_build_securities_preserves_legitimate_ampersand_in_holding_name(monkeypatch):
+    monkeypatch.setattr(portfolio_utils, "_SECURITIES", None)
+    monkeypatch.setattr(
+        portfolio_utils,
+        "list_portfolios",
+        lambda: [
+            {
+                "accounts": [
+                    {"holdings": [{"ticker": "MRO.L", "name": "B&M European Value Retail SA"}]},
+                ]
+            }
+        ],
+    )
+    monkeypatch.setattr(portfolio_utils, "list_virtual_portfolios", lambda: [])
+    monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda t: {})
+
+    meta = portfolio_utils.get_security_meta("MRO.L")
+
+    assert meta is not None
+    assert meta["name"] == "B&M European Value Retail SA"
+
+
 def test_get_security_meta_resolves_watchlist_only_symbol_from_canonical_metadata(monkeypatch):
     """A symbol held by nobody (e.g. a default Screener watchlist entry) must
     still resolve ``instrument_type`` via canonical instrument metadata, so

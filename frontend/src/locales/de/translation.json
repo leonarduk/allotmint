@@ -24,7 +24,7 @@
     "collapseShort": "Einklappen"
   },
   "alertSettings": {
-    "description": "Konfigurieren Sie, wann Sie Benachrichtigungen erhalten. Die Alarme erscheinen auf der Alerts-Seite und als Push-Benachrichtigungen.",
+    "description": "Dieser Schwellenwert ist in dieser Umgebung noch nicht mit der Alarmerzeugung verbunden. Die heutigen Alarme stammen aus einer festen, kontoübergreifenden Prüfung, die während der täglichen Kursaktualisierung läuft: Jede Position, die mehr als 10 % von ihrem Einstandspreis abweicht, wird über alle Portfolios hinweg markiert.",
     "push": {
       "denied": "Push-Berechtigung verweigert.",
       "disable": "Push-Alerts deaktivieren",
@@ -291,7 +291,9 @@
       "max": "MAX"
     },
     "recentPrices": "Aktuelle Preise",
-    "rsi": "RSI"
+    "rsi": "RSI",
+    "searchInstruments": "Instrumente suchen",
+    "showInstrumentSearch": "Instrumentensuche anzeigen"
   },
   "instrumentTable": {
     "columns": {
@@ -409,13 +411,17 @@
     "title": "Performancekennzahlen erklärt"
   },
   "movers": {
+    "deltaGbpHeader": "Wertänderung (£, {{period}})",
     "excludeSmall": "Positionen <{{min}}% ausschließen",
     "loadFailed": "Laden der Movers fehlgeschlagen{{status}}",
     "loginPrompt": "Bitte melden Sie sich an, um portfolio-basierte Movers zu sehen.",
+    "pctChangeHeader": "Kursänderung (%, {{period}})",
     "pctPortfolio": "% des Portfolios",
     "period": "Zeitraum:",
     "signal": "Signal",
-    "watchlist": "Beobachtungsliste:"
+    "signalWindowNote": "Jedes Signal verwendet sein eigenes Zeitfenster, das vom hier angezeigten Zeitraum für % und Wertänderung abweichen kann. Signal auswählen, um den Grund zu sehen.",
+    "watchlist": "Beobachtungsliste:",
+    "windowNote": "Die Spalten % und Wertänderung zeigen die Bewegung im gewählten Zeitraum. Jedes Signal verwendet sein eigenes Zeitfenster — wählen Sie ein Kauf- oder Verkaufssignal aus, um Grund und Konfidenz zu sehen."
   },
   "owner": {
     "label": "Besitzer",
@@ -427,14 +433,22 @@
     "employerContributionLabel": "Arbeitgeberbeitrag",
     "growthAssumption": "Wachstumsannahme (%):",
     "header": {
+      "contributionDefaultHelper": "Beispielhafter Startwert -- passen Sie den Regler an Ihren eigenen Beitrag an.",
+      "deathAgeHelper": "Wie weit in den Ruhestand geplant werden soll. Standard: 90.",
+      "deathAgeLabel": "Planen bis Alter",
       "employeeContribution": "Ihr monatlicher Beitrag",
       "employerContribution": "Arbeitgeberbeitrag",
       "heading": "Behalten Sie Ihre Beiträge im Blick",
+      "includedAccountsHeading": "In dieser Prognose verwendet",
+      "includedAccountsHelper": "Nur Rentenkonten (SIPP und Ähnliches) zählen zu den Zahlen auf dieser Seite. Andere Konten werden unten zur Information angezeigt und wirken sich nicht darauf aus.",
       "kicker": "Ihr Rentenüberblick",
-      "linkedPotsHeading": "Verknüpfte Rententöpfe",
-      "noLinkedPots": "Für diese Person sind noch keine Rententöpfe verknüpft.",
-      "notAvailable": "Nicht verfügbar",
+      "noLinkedPots": "Für diese Person wurden keine Konten gefunden.",
+      "noPensionAccounts": "Für diese Person sind noch keine Rentenkonten verknüpft.",
+      "notAvailable": "Wird nach der Prognose angezeigt",
+      "otherAccountsHeading": "Andere Konten (zur Information -- nicht in dieser Prognose enthalten)",
       "pensionPot": "Aktueller Rententopf",
+      "pensionPotFromPortfolio": "Aus Ihren aktuellen Portfoliodaten",
+      "statePensionHelper": "Ihre erwartete jährliche gesetzliche Rente. Standard: 0 £ (ausgeschlossen); geben Sie einen eigenen Schätzwert ein, um sie einzubeziehen.",
       "totalContribution": "Gesamte monatliche Beiträge: {{total}}"
     },
     "incomeBreakdownHeading": "Retirement income breakdown",
@@ -468,13 +482,21 @@
     "end": "Ende",
     "exportCsv": "CSV exportieren",
     "exportXlsx": "XLSX exportieren",
+    "metricGainGbp": "Gewinn (£)",
+    "metricMarketValueGbp": "Marktwert (£)",
     "metrics": "Metriken",
     "owners": "Eigentümer",
     "run": "Ausführen",
     "running": "Wird ausgeführt…",
     "save": "Speichern",
+    "savedQueriesLoading": "Gespeicherte Abfragen werden geladen…",
+    "savedQueriesTitle": "Gespeicherte Abfragen",
     "start": "Start",
-    "tickers": "Ticker"
+    "tickerNotHeld": "derzeit nicht gehalten",
+    "tickers": "Ticker",
+    "tickersEmpty": "Keine Bestände für die ausgewählten Eigentümer gefunden.",
+    "tickersLoading": "Ticker werden geladen…",
+    "tickersPartialError": "Bestände konnten nicht geladen werden für: {{owners}}"
   },
   "reports": {
     "csv": "CSV herunterladen",
@@ -649,12 +671,48 @@
     "title": "Trail-Fortschritt",
     "xpLabel": "XP: {{xp}}"
   },
+  "userConfig": {
+    "title": "Handelsregeln",
+    "pageDescription": "Regeln, die festlegen, welche Trades dieses Konto ohne zusätzliche Genehmigung tätigen kann.",
+    "loadingOwners": "Konten werden geladen...",
+    "noOwners": "Für Ihr Konto sind keine Konten verfügbar. Wenden Sie sich an einen Administrator, wenn Sie glauben, dass dies ein Fehler ist.",
+    "chooseOwnerPrompt": "Wählen Sie aus, für wen die Einstellungen bearbeitet werden sollen.",
+    "selectOwner": "Konto auswählen",
+    "holdDays": "Mindesthaltedauer (Tage)",
+    "holdDaysHelp": "Die Anzahl der Tage, die eine Position gehalten werden muss, bevor sie verkauft werden kann. Angegeben in Kalendertagen.",
+    "maxTrades": "Max. Trades / Monat",
+    "maxTradesHelp": "Die maximale Anzahl an Trades, die dieses Konto in einem Kalendermonat tätigen kann. Ist das Limit erreicht, sind weitere Trades genehmigungspflichtig.",
+    "exemptTickers": "Von Genehmigung ausgenommene Ticker",
+    "exemptTickersHelp": "Durch Kommas getrennte Ticker, die immer ohne Genehmigung gehandelt werden können.",
+    "exemptTypes": "Von Genehmigung ausgenommene Typen",
+    "exemptTypesHelp": "Durch Kommas getrennte Instrumententypen (z. B. ETF, Fonds), die immer ohne Genehmigung gehandelt werden können.",
+    "saving": "Wird gespeichert...",
+    "save": "Speichern",
+    "saved": "Gespeichert",
+    "error": "Fehler",
+    "approvals": "Genehmigungen",
+    "approvalsHelp": "Eine Genehmigung erlaubt es, einen bestimmten Ticker an einem bestimmten Datum zu handeln, auch wenn dies durch die obigen Regeln sonst blockiert wäre (zum Beispiel, weil die Mindesthaltedauer noch nicht abgelaufen ist oder das monatliche Trade-Limit erreicht wurde).",
+    "approvalsEmpty": "Noch keine Genehmigungen. Fügen Sie unten eine hinzu, wenn ein Trade außerhalb der obigen Regeln stattfinden muss.",
+    "remove": "Entfernen",
+    "add": "Hinzufügen"
+  },
   "var": {
     "details": "Details zur historischen Simulation",
     "noData": "Keine VaR-Daten verfügbar.",
     "title": "Value at Risk"
   },
   "watchlist": {
-    "refresh": "Aktualisieren"
+    "refresh": "Aktualisieren",
+    "columnName": "Name",
+    "columnSymbol": "Symbol",
+    "columnUnit": "Einheit",
+    "columnLast": "Letzter",
+    "columnOpen": "Eröffnung",
+    "columnHigh": "Hoch",
+    "columnLow": "Tief",
+    "columnChange": "Änd.",
+    "columnChangePct": "Änd. %",
+    "columnVolume": "Vol.",
+    "columnTime": "Zeit (Europe/London)"
   }
 }

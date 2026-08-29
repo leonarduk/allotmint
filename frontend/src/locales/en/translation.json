@@ -24,7 +24,9 @@
     "collapseShort": "Collapse"
   },
   "alertSettings": {
-    "description": "Configure when you'll receive alerts. Alerts appear on the Alerts page and in push notifications.",
+    "description": "This threshold isn't wired into alert generation yet in this deployment. Today's alerts come from a fixed, account-wide check that runs during the daily price refresh: any holding more than 10% away from its cost basis is flagged, across every portfolio.",
+    "forbiddenNotice": "Alerts are scoped to a single signed-in identity and can't be changed for {{owner}} from here.",
+    "managingFor": "Managing this setting for {{owner}}.",
     "push": {
       "denied": "Push permission denied.",
       "disable": "Disable Push Alerts",
@@ -33,6 +35,7 @@
       "notSupported": "Push not supported",
       "title": "Push Notifications"
     },
+    "resolving": "Checking who you're signed in as…",
     "save": "Save",
     "signInNotice": "Sign in to configure alerts",
     "status": {
@@ -40,7 +43,8 @@
       "saved": "Saved"
     },
     "threshold": "Threshold %:",
-    "title": "Alert Settings"
+    "title": "Alert Settings",
+    "viewAlertsLink": "View recent alerts"
   },
   "allocation": {
     "allocationDescription": "Allocation shows how current portfolio value is distributed.",
@@ -407,7 +411,9 @@
     },
     "confirm": "Confirm",
     "currencyLabel": "Currency",
+    "currencyMismatchNote": "Catalogue says {{metadataCurrency}}; price feed is {{priceCurrency}}. Metadata may be stale.",
     "currencyPlaceholder": "Select a currency",
+    "declaredCurrencyLabel": "Declared currency (metadata)",
     "edit": "Edit",
     "infoHeading": "Instrument info",
     "intraday": "Intraday",
@@ -449,7 +455,9 @@
     "refreshSuccess": "Instrument details refreshed from Yahoo Finance.",
     "rsi": "RSI",
     "save": "Save",
-    "sectorLabel": "Sector"
+    "searchInstruments": "Search instruments",
+    "sectorLabel": "Sector",
+    "showInstrumentSearch": "Show instrument search"
   },
   "instrumentTable": {
     "columns": {
@@ -567,13 +575,17 @@
     "title": "Performance Metrics Explained"
   },
   "movers": {
+    "deltaGbpHeader": "Value change (£, {{period}})",
     "excludeSmall": "Exclude positions <{{min}}%",
     "loadFailed": "Failed to load movers{{status}}",
     "loginPrompt": "Please log in to view portfolio-based movers.",
+    "pctChangeHeader": "Price change (%, {{period}})",
     "pctPortfolio": "% of portfolio",
     "period": "Period:",
     "signal": "Signal",
-    "watchlist": "Watchlist:"
+    "signalWindowNote": "Each signal uses its own lookback window, which may differ from the % and value change period shown in this row. Select the signal to see why it fired.",
+    "watchlist": "Watchlist:",
+    "windowNote": "The % and value columns show the move for the selected period. Each signal uses its own lookback window — select a Buy or Sell signal to see its reason and confidence."
   },
   "owner": {
     "label": "Owner",
@@ -585,14 +597,22 @@
     "employerContributionLabel": "Employer contribution",
     "growthAssumption": "Growth assumption (%):",
     "header": {
+      "contributionDefaultHelper": "Starting example value -- adjust the slider to match your own contribution.",
+      "deathAgeHelper": "How far into retirement to plan for. Defaults to 90.",
+      "deathAgeLabel": "Plan until age",
       "employeeContribution": "Your monthly contribution",
       "employerContribution": "Employer contribution",
       "heading": "Track your contributions at a glance",
+      "includedAccountsHeading": "Used in this forecast",
+      "includedAccountsHelper": "Only pension accounts (SIPP and similar) count toward the figures on this page. Other accounts are shown below for context and don't affect them.",
       "kicker": "Your pension snapshot",
-      "linkedPotsHeading": "Linked pension pots",
-      "noLinkedPots": "No pension pots linked for this owner yet.",
-      "notAvailable": "Not available",
+      "noLinkedPots": "No accounts found for this owner yet.",
+      "noPensionAccounts": "No pension accounts linked for this owner yet.",
+      "notAvailable": "Shown after you run a forecast",
+      "otherAccountsHeading": "Other accounts (for reference -- not included in this forecast)",
       "pensionPot": "Current pension pot",
+      "pensionPotFromPortfolio": "From your latest portfolio data",
+      "statePensionHelper": "Your expected annual State Pension. Defaults to £0 (excluded); enter your own estimate to include it.",
       "totalContribution": "Total monthly contributions: {{total}}"
     },
     "incomeBreakdownHeading": "Retirement income breakdown",
@@ -627,14 +647,22 @@
     "end": "End",
     "exportCsv": "Export CSV",
     "exportXlsx": "Export XLSX",
+    "metricGainGbp": "Gain (£)",
+    "metricMarketValueGbp": "Market value (£)",
     "metrics": "Metrics",
     "noResults": "No results.",
     "owners": "Owners",
     "run": "Run",
     "running": "Running…",
     "save": "Save",
+    "savedQueriesLoading": "Loading saved queries…",
+    "savedQueriesTitle": "Saved Queries",
     "start": "Start",
-    "tickers": "Tickers"
+    "tickerNotHeld": "not currently held",
+    "tickers": "Tickers",
+    "tickersEmpty": "No holdings found for the selected owner(s).",
+    "tickersLoading": "Loading tickers…",
+    "tickersPartialError": "Could not load holdings for: {{owners}}"
   },
   "reports": {
     "csv": "Download CSV",
@@ -888,12 +916,48 @@
     "title": "Trail progress",
     "xpLabel": "XP: {{xp}}"
   },
+  "userConfig": {
+    "title": "Trading Rules",
+    "pageDescription": "Rules that control which trades this account can make without extra approval.",
+    "loadingOwners": "Loading owners...",
+    "noOwners": "No accounts are available for your account. Contact an administrator if you believe this is an error.",
+    "chooseOwnerPrompt": "Choose whose settings to edit.",
+    "selectOwner": "Select owner",
+    "holdDays": "Min Hold Days",
+    "holdDaysHelp": "The number of days a holding must be kept before it can be sold. Measured in calendar days.",
+    "maxTrades": "Max Trades / Month",
+    "maxTradesHelp": "The most trades this account can make in a calendar month. Once reached, further trades need approval.",
+    "exemptTickers": "Approval Exempt Tickers",
+    "exemptTickersHelp": "Comma-separated tickers that can always be traded without needing an approval.",
+    "exemptTypes": "Approval Exempt Types",
+    "exemptTypesHelp": "Comma-separated instrument types (e.g. ETF, Fund) that can always be traded without needing an approval.",
+    "saving": "Saving...",
+    "save": "Save",
+    "saved": "Saved",
+    "error": "Error",
+    "approvals": "Approvals",
+    "approvalsHelp": "An approval lets a specific ticker be traded on a specific date even though it would otherwise be blocked by the rules above (for example, because Min Hold Days has not elapsed or the Max Trades / Month cap has been reached).",
+    "approvalsEmpty": "No approvals yet. Add one below if a trade needs to go ahead outside the rules above.",
+    "remove": "Remove",
+    "add": "Add"
+  },
   "var": {
     "details": "Historical simulation details",
     "noData": "No VaR data available.",
     "title": "Value at Risk"
   },
   "watchlist": {
-    "refresh": "Refresh"
+    "refresh": "Refresh",
+    "columnName": "Name",
+    "columnSymbol": "Symbol",
+    "columnUnit": "Unit",
+    "columnLast": "Last",
+    "columnOpen": "Open",
+    "columnHigh": "High",
+    "columnLow": "Low",
+    "columnChange": "Chg",
+    "columnChangePct": "Chg %",
+    "columnVolume": "Vol",
+    "columnTime": "Time (Europe/London)"
   }
 }

@@ -287,8 +287,10 @@ test.describe('issue 6505: no duplicate-key warnings for same-ticker rows', () =
     const warnings = collectDuplicateKeyWarnings(page);
     await applyAuth(page);
     await setupCoreMocks(page);
-    // The header search (InstrumentSearchBar) renders suggestions keyed by
-    // ticker+index; duplicate tickers must not produce duplicate-key warnings.
+    // The instrument search bar (InstrumentSearchBar) renders suggestions keyed
+    // by ticker+index; duplicate tickers must not produce duplicate-key
+    // warnings. The header and embedded instances are the same component, so
+    // driving either exercises the same keyed render path.
     await page.route('**/instrument/search**', async (route) => {
       await route.fulfill({
         status: 200,
@@ -303,9 +305,9 @@ test.describe('issue 6505: no duplicate-key warnings for same-ticker rows', () =
     });
 
     await page.goto(`${baseUrl}/research`);
-    // /research starts in an empty state; open the header search bar and type
-    // a query so the duplicate-ticker suggestions render.
-    await page.getByRole('button', { name: 'Research' }).click();
+    // /research with no ticker now embeds its own search bar (#7223), so type
+    // straight into it. Do not open the header toggle as well — that mounts a
+    // second input with the same label and trips Playwright strict mode.
     await page.getByLabel('Search instruments').fill('CA');
     // Both duplicate suggestions must render before we can trust the warning check.
     await expect(page.getByText('CASH — Cash GBP', { exact: true })).toBeVisible();

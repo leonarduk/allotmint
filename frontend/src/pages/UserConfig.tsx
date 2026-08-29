@@ -39,6 +39,13 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
   const [ownersLoading, setOwnersLoading] = useState(true);
   const [owner, setOwner] = useState('');
+  // #7206 follow-up: owner resolution runs in an effect, one commit after the
+  // render that first shows a populated owner list. Gating the "choose an
+  // owner" prompt on `!owner` alone let it flash for a frame whenever the
+  // owner was about to auto-resolve (selectedOwner match or
+  // findOwnerForUser match). Only show the prompt once resolution has
+  // actually been attempted and still came up empty.
+  const [ownerResolutionAttempted, setOwnerResolutionAttempted] = useState(false);
   const [cfg, setCfg] = useState<UserConfig>({});
   const [status, setStatus] = useState<string | null>(null);
   const [approvals, setApprovals] = useState<Approval[]>([]);
@@ -65,8 +72,15 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
       if (selectedOwner && owners.some((o) => o.owner === selectedOwner)) {
         return selectedOwner;
       }
-      return findOwnerForUser(owners, user)?.owner || '';
+      const matched = findOwnerForUser(owners, user)?.owner;
+      if (matched) return matched;
+      // #7206: "Consider defaulting to the first owner when there is
+      // exactly one plausible match" -- a single-owner deployment
+      // shouldn't force an explicit pick from a one-item dropdown.
+      if (owners.length === 1) return owners[0].owner;
+      return '';
     });
+    setOwnerResolutionAttempted(true);
   }, [owners, user, selectedOwner]);
 
   useEffect(() => {
@@ -193,18 +207,31 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
           )}
         </p>
       ) : (
-        <select
-          className="w-full border p-2"
-          value={owner}
-          onChange={(e) => setOwner(e.target.value)}
-        >
-          <option value="">{t('userConfig.selectOwner', 'Select owner')}</option>
-          {owners.map((o) => (
-            <option key={o.owner} value={o.owner}>
-              {o.full_name?.trim() ? o.full_name : o.owner}
-            </option>
-          ))}
-        </select>
+        <>
+          {/* #7206: previously the page rendered nothing at all until an
+           * owner was resolved (either passed in via selectedOwner or
+           * matched from the logged-in user), leaving a blank page with no
+           * hint that the dropdown below was the way forward. Show an
+           * explicit prompt whenever no owner is selected yet, without
+           * changing how owner resolution itself works. */}
+          {ownerResolutionAttempted && !owner && (
+            <p className="text-gray-800 dark:text-gray-200">
+              {t('userConfig.chooseOwnerPrompt', 'Choose whose settings to edit.')}
+            </p>
+          )}
+          <select
+            className="w-full border p-2"
+            value={owner}
+            onChange={(e) => setOwner(e.target.value)}
+          >
+            <option value="">{t('userConfig.selectOwner', 'Select owner')}</option>
+            {owners.map((o) => (
+              <option key={o.owner} value={o.owner}>
+                {o.full_name?.trim() ? o.full_name : o.owner}
+              </option>
+            ))}
+          </select>
+        </>
       )}
       {!owner && !ownersLoading && owners.length > 0 && (
         <p role="status" className="text-gray-800 dark:text-gray-200">
@@ -396,9 +423,26 @@ export default function UserConfigPage({ selectedOwner = '' }: UserConfigPagePro
                       </button>
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {approvals.map((a, index) => (
+                    <tr key={`${a.ticker}-${index}`}>
+                      <td className="border px-2">{a.ticker}</td>
+                      <td className="border px-2">{a.approved_on}</td>
+                      <td className="border px-2 text-right">
+                        <button
+                          type="button"
+                          className="text-red-500"
+                          onClick={() => remove(a.ticker)}
+                        >
+                          {t('userConfig.remove', 'Remove')}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
             {approvalsError && (
               <div className="text-red-500">{approvalsError}</div>
             )}

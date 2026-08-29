@@ -1,5 +1,6 @@
 import userEvent from "@testing-library/user-event";
 import { InstrumentSearchBar } from "@/components/InstrumentSearchBar";
+import InstrumentSearchBarToggle from "@/components/InstrumentSearchBar";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi } from "vitest";
@@ -73,5 +74,19 @@ describe("InstrumentSearchBar", () => {
     );
     expect(keyWarnings).toEqual([]);
     errorSpy.mockRestore();
+  });
+
+  it("labels the header search toggle instead of leaving it a bare icon, distinct from the input it reveals (#7223)", () => {
+    render(
+      <MemoryRouter>
+        <InstrumentSearchBarToggle />
+      </MemoryRouter>,
+    );
+
+    // Distinct name from the "Search instruments" input label below it, so
+    // opening the panel doesn't leave a button and an input sharing one name.
+    expect(
+      screen.getByRole("button", { name: "Show instrument search" }),
+    ).toBeInTheDocument();
   });
 });

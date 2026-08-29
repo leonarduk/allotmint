@@ -595,7 +595,13 @@ def test_group_transactions_missing_member_logs_warning(monkeypatch, caplog):
     """
 
     monkeypatch.setattr(pu.group_portfolio, "group_members", lambda slug: ["steve", "ghost"])
-    monkeypatch.setattr(pu, "load_transactions", lambda owner, *, scaffold_missing=False: [] if owner == "steve" else (_ for _ in ()).throw(FileNotFoundError(owner)))
+    monkeypatch.setattr(
+        pu,
+        "load_transactions",
+        lambda owner, *, scaffold_missing=False: (
+            [] if owner == "steve" else (_ for _ in ()).throw(FileNotFoundError(owner))
+        ),
+    )
 
     with caplog.at_level("WARNING", logger=pu.logger.name):
         merged, missing = pu._group_transactions("all")
@@ -711,11 +717,11 @@ def test_compute_time_weighted_return_group_reports_missing_members(monkeypatch,
     monkeypatch.setattr(
         pu,
         "load_transactions",
-        lambda owner, *, scaffold_missing=False: [
-            {"date": "2024-01-02", "type": "deposit", "amount_minor": 1000}
-        ]
-        if owner == "steve"
-        else (_ for _ in ()).throw(FileNotFoundError(owner)),
+        lambda owner, *, scaffold_missing=False: (
+            [{"date": "2024-01-02", "type": "deposit", "amount_minor": 1000}]
+            if owner == "steve"
+            else (_ for _ in ()).throw(FileNotFoundError(owner))
+        ),
     )
 
     value, missing = pu.compute_time_weighted_return("all", group=True, include_missing_members=True)
@@ -756,11 +762,11 @@ def test_compute_xirr_group_reports_missing_members(monkeypatch, one_year_series
     monkeypatch.setattr(
         pu,
         "load_transactions",
-        lambda owner, *, scaffold_missing=False: [
-            {"date": "2024-01-01", "type": "DEPOSIT", "amount_minor": 100000}
-        ]
-        if owner == "steve"
-        else (_ for _ in ()).throw(FileNotFoundError(owner)),
+        lambda owner, *, scaffold_missing=False: (
+            [{"date": "2024-01-01", "type": "DEPOSIT", "amount_minor": 100000}]
+            if owner == "steve"
+            else (_ for _ in ()).throw(FileNotFoundError(owner))
+        ),
     )
 
     value, missing = pu.compute_xirr("all", group=True, include_missing_members=True)

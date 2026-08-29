@@ -904,6 +904,17 @@
     "title": "Value at Risk"
   },
   "watchlist": {
-    "refresh": "Refresh"
+    "refresh": "Refresh",
+    "columnName": "Name",
+    "columnSymbol": "Symbol",
+    "columnUnit": "Unit",
+    "columnLast": "Last",
+    "columnOpen": "Open",
+    "columnHigh": "High",
+    "columnLow": "Low",
+    "columnChange": "Chg",
+    "columnChangePct": "Chg %",
+    "columnVolume": "Vol",
+    "columnTime": "Time (Europe/London)"
   }
 }

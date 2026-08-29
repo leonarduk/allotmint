@@ -603,6 +603,17 @@
     "title": "Valore a rischio"
   },
   "watchlist": {
-    "refresh": "Rinfrescare"
+    "refresh": "Rinfrescare",
+    "columnName": "Nome",
+    "columnSymbol": "Simbolo",
+    "columnUnit": "Unità",
+    "columnLast": "Ultimo",
+    "columnOpen": "Apertura",
+    "columnHigh": "Massimo",
+    "columnLow": "Minimo",
+    "columnChange": "Var.",
+    "columnChangePct": "Var. %",
+    "columnVolume": "Vol.",
+    "columnTime": "Ora (Europe/London)"
   }
 }

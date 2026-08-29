@@ -537,6 +537,7 @@ export const getQuotes = (symbols: string[], signal?: AbortSignal) => {
     timestamp?: number | null;
     timezone?: string | null;
     market_state?: string | null;
+    currency?: string | null;
   }[]>(`${API_BASE}/api/quotes?${params.toString()}`, { signal })
     .then((rows) =>
       rows.map((r) => {
@@ -562,6 +563,7 @@ export const getQuotes = (symbols: string[], signal?: AbortSignal) => {
             ? new Date(r.timestamp * 1000).toISOString()
             : null,
           marketState: r.market_state ?? "UNKNOWN",
+          currency: r.currency ?? null,
         } as QuoteRow;
       }),
     );

@@ -597,6 +597,17 @@
     "title": "Valeur à risque"
   },
   "watchlist": {
-    "refresh": "Actualiser"
+    "refresh": "Actualiser",
+    "columnName": "Nom",
+    "columnSymbol": "Symbole",
+    "columnUnit": "Unité",
+    "columnLast": "Dernier",
+    "columnOpen": "Ouverture",
+    "columnHigh": "Haut",
+    "columnLow": "Bas",
+    "columnChange": "Var.",
+    "columnChangePct": "Var. %",
+    "columnVolume": "Vol.",
+    "columnTime": "Heure (Europe/London)"
   }
 }

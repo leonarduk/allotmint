@@ -120,7 +120,7 @@ export default function Trading() {
           label: t('trading.tips.sharpeInfoLabel', 'What does Sharpe ratio mean?'),
           text: t(
             'trading.tips.sharpeInfo',
-            "The Sharpe ratio here is the portfolio's annualised excess return over the configured risk-free rate, divided by its daily volatility."
+            "The Sharpe ratio here is the portfolio's excess return over the configured risk-free rate per unit of daily volatility, annualised (× √252)."
           ),
           to: '/metrics-explained#sharpe-ratio',
         };
@@ -188,7 +188,7 @@ export default function Trading() {
         >
           {t(
             'trading.checksSkippedInfo',
-            "An optional check that needs the allotmint-pro add-on could not run. “compliance” means the trade was not checked against your compliance rules; “fundamental_screen” means the P/E and debt/equity filters were not applied to this buy candidate."
+            "An optional check that needs the allotmint-pro add-on could not run. “compliance” means the trade was not checked against your compliance rules; “fundamental_screen” means the P/E and debt/equity filters above (whichever are configured) were not applied to this buy candidate."
           )}
         </InfoTip>
       </span>

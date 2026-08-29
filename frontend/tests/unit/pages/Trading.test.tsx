@@ -226,7 +226,9 @@ describe('Trading page', () => {
     // emit — this is exactly how a previous review round caught the
     // explanation describing checks (P/E, Sharpe ratio, volatility) the
     // backend never tags as skipped, and omitting 'compliance' (the
-    // consequential one) entirely.
+    // consequential one) entirely. Checks both places that carry the same
+    // claim (Trading.tsx's inline tooltip and MetricsExplanation.tsx's
+    // glossary entry) since either can drift independently.
     const backendSource = readFileSync(
       resolve(__dirname, '../../../../backend/agent/trading_agent.py'),
       'utf-8'
@@ -238,12 +240,15 @@ describe('Trading page', () => {
     );
     expect(emitted).toEqual(new Set(['compliance', 'fundamental_screen']));
 
-    const tradingSource = readFileSync(
+    const copySources = [
       resolve(__dirname, '../../../src/pages/Trading.tsx'),
-      'utf-8'
-    );
-    for (const value of emitted) {
-      expect(tradingSource).toContain(value);
+      resolve(__dirname, '../../../src/pages/MetricsExplanation.tsx'),
+    ].map((path) => readFileSync(path, 'utf-8'));
+
+    for (const source of copySources) {
+      for (const value of emitted) {
+        expect(source).toContain(value);
+      }
     }
   });
 

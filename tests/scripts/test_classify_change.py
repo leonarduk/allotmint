@@ -393,6 +393,12 @@ class TestAreasForPath:
         """check_contract_version_sync.py asserts this module against the SPA."""
         assert set(areas_for_path("backend/contracts_spa.py")) == {"backend", "frontend"}
 
+    def test_trading_agent_is_backend_and_frontend(self) -> None:
+        """frontend/tests/unit/pages/Trading.test.tsx (#7230) pins the
+        checks_skipped vocabulary this module emits against frontend copy --
+        a backend-only PR that changes it must still run the frontend suite."""
+        assert set(areas_for_path("backend/agent/trading_agent.py")) == {"backend", "frontend"}
+
     def test_narrow_rules_win_over_the_broader_rules_they_sit_inside(self) -> None:
         # tests/bash/** must not be swallowed by tests/** -> backend.
         assert set(areas_for_path("tests/bash/deploy.bats")) == {"shell"}

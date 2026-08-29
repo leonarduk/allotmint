@@ -462,7 +462,7 @@ export default function MetricsExplanation() {
             <p className="text-sm text-gray-300">
               {t(
                 "metricsExplanation.sections.trading.sharpe.detail",
-                "Here, the Sharpe ratio is the annualised excess return over the configured risk-free rate, divided by the daily volatility of returns. “Minimum Sharpe ratio” is an optional filter threshold a signal's Sharpe ratio must meet, when that filter is enabled."
+                "Here, the Sharpe ratio is the excess return over the configured risk-free rate per unit of daily volatility, annualised (× √252). “Minimum Sharpe ratio” is an optional filter threshold a signal's Sharpe ratio must meet, when that filter is enabled."
               )}
             </p>
           </div>

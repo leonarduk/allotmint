@@ -295,11 +295,7 @@ async def list_saved_queries(detailed: bool | None = Query(None)):
     if not QUERIES_DIR.exists():
         return []
 
-    slugs = [
-        path.stem
-        for path in sorted(QUERIES_DIR.glob("*.json"))
-        if path.stem not in hidden_slugs
-    ]
+    slugs = [path.stem for path in sorted(QUERIES_DIR.glob("*.json")) if path.stem not in hidden_slugs]
     if not wants_detailed:
         return slugs
 

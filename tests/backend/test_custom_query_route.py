@@ -87,9 +87,7 @@ def test_list_saved_queries_returns_slugs_by_default(monkeypatch, temp_queries_d
         ]
 
 
-def test_list_saved_queries_excludes_seeded_demo_fixture(
-    monkeypatch, temp_queries_dir
-):
+def test_list_saved_queries_excludes_seeded_demo_fixture(monkeypatch, temp_queries_dir):
     """Regression test for #7222: the repo's seeded ``<demo>-slug.json``
     fixture (checked in at data/queries/demo-slug.json, and reachable here
     because QUERIES_DIR and REPO_QUERIES_DIR can be the same directory when
@@ -101,9 +99,7 @@ def test_list_saved_queries_excludes_seeded_demo_fixture(
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
 
     demo_slug = f"{demo_identity().lower()}-slug"
-    (temp_queries_dir / f"{demo_slug}.json").write_text(
-        json.dumps({"tickers": ["PFE"], "name": None})
-    )
+    (temp_queries_dir / f"{demo_slug}.json").write_text(json.dumps({"tickers": ["PFE"], "name": None}))
     (temp_queries_dir / "alpha.json").write_text(json.dumps({"name": "Alpha"}))
 
     app = create_app()
@@ -126,9 +122,7 @@ def test_list_saved_queries_excludes_seeded_demo_fixture(
         assert direct_resp.json()["tickers"] == ["PFE"]
 
 
-def test_list_saved_queries_excludes_demo_slug_under_documented_default_identity(
-    monkeypatch, temp_queries_dir
-):
+def test_list_saved_queries_excludes_demo_slug_under_documented_default_identity(monkeypatch, temp_queries_dir):
     """Regression test for #7222 review feedback: config.example.yaml
     documents ``demo_identity: steve`` alongside ``data_root: data``, so
     anyone following the documented setup has demo_identity() == "steve",
@@ -144,9 +138,7 @@ def test_list_saved_queries_excludes_demo_slug_under_documented_default_identity
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
     monkeypatch.setattr(config, "demo_identity", "steve")
 
-    (temp_queries_dir / "demo-slug.json").write_text(
-        json.dumps({"tickers": ["PFE"], "name": None})
-    )
+    (temp_queries_dir / "demo-slug.json").write_text(json.dumps({"tickers": ["PFE"], "name": None}))
     (temp_queries_dir / "alpha.json").write_text(json.dumps({"name": "Alpha"}))
 
     app = create_app()
